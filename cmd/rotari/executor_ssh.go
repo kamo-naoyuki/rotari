@@ -23,6 +23,8 @@ type sshJobMetadata struct {
 
 type sshExecutor struct{}
 
+var sshCommandPath = "/usr/bin/ssh"
+
 type sshProcess struct {
 	command *exec.Cmd
 	output  *os.File
@@ -54,7 +56,7 @@ func (sshExecutor) Submit(runDir string, job JobSpec, options []string) (JobHand
 	if err != nil {
 		return JobHandle{}, err
 	}
-	cmd := exec.Command("/usr/bin/ssh", append(sshOptions, "--", host, "sh", "-s")...)
+	cmd := exec.Command(sshCommandPath, append(sshOptions, "--", host, "sh", "-s")...)
 	cmd.Stdin = strings.NewReader(sshWrapperScript(job.Command, job.Environment, job.WorkingDirectory))
 	cmd.Stdout = output
 	cmd.Stderr = output

@@ -10,6 +10,9 @@ import (
 
 func TestSSHExecutorRunsRemoteCommandAndRecordsResult(t *testing.T) {
 	binDir := t.TempDir()
+	oldSSHCommandPath := sshCommandPath
+	sshCommandPath = filepath.Join(binDir, "ssh")
+	t.Cleanup(func() { sshCommandPath = oldSSHCommandPath })
 	argumentsPath := filepath.Join(t.TempDir(), "ssh-args")
 	writeExecutable(t, binDir, "ssh", fmt.Sprintf(`#!/bin/sh
 printf '%%s\n' "$@" > %q
