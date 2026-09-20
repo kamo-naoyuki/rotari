@@ -20,6 +20,11 @@ will silently show less than the other.
 
 Common mistakes to avoid when editing this project:
 
+- Tests that create Unix domain sockets cannot run in the terminal sandbox here;
+  do not retry the full Go test suite in the sandbox after seeing `operation not
+  permitted`. Run socket-dependent tests unsandboxed when validation is needed,
+  and report the environment limitation if unsandboxed execution is unavailable.
+
 - Treat project names, run IDs, and job IDs as path elements, not as arbitrary
   strings. Validate them before any `filepath.Join`, `os.ReadFile`, or
   `os.Stat` call. A value that is empty, `.`/`..`, absolute, or contains `/`
