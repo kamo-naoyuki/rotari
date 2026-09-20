@@ -34,7 +34,6 @@ If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https:/
 * **[Shell scripts](https://www.gnu.org/software/bash/)** are flexible and easy to start with, but repeated executions and their history are usually managed manually. Rotari makes that iteration history explicit.
 * **[GNU Parallel](https://www.gnu.org/software/parallel/)** makes it easy to run many shell commands in parallel. Rotari goes further by giving those executions persistent identities, logs, status, and an iteration history.
 * GNU Parallel makes it easy to run many shell commands in parallel. Rotari goes further by giving those executions persistent identities, logs, status, and an iteration history.
-* **[Snakemake](https://github.com/snakemake/snakemake) and [Nextflow](https://github.com/nextflow-io/nextflow)** focus on defining dependencies between tasks and data to build reproducible workflows. Rotari focuses on successive runs of an experiment without requiring the workflow to be defined up front.
 * **[Slurm](https://github.com/SchedMD/slurm), [PBS](https://github.com/openpbs/openpbs), and LSF** focus on scheduling and executing jobs on a cluster. Rotari adds an experiment-oriented layer for tracking, inspecting, retrying, and modifying runs.
 * **[MLflow](https://github.com/mlflow/mlflow) and [Weights & Biases](https://github.com/wandb/wandb)** focus on tracking experiments, metrics, parameters, and artifacts. Rotari focuses on running experiments, managing their execution, and keeping track of the history of successive runs. They can be used together: a Rotari run can launch a training job that logs its results to MLflow or Weights & Biases.
 * **[Snakemake](https://github.com/snakemake/snakemake)**, **[Nextflow](https://github.com/nextflow-io/nextflow)**, **[Airflow](https://github.com/apache/airflow)**, **[Prefect](https://github.com/PrefectHQ/prefect)**, and **[Dagster](https://github.com/dagster-io/dagster)** focus on defining and orchestrating workflows by explicitly modeling tasks and their relationships. Rotari focuses on successive runs of an experiment without requiring the workflow to be defined up front.
@@ -726,6 +725,9 @@ currently running job. Variables with a matching CLI option are read as that
 option's default; an explicit command-line option always takes precedence. Job
 variables are injected into command processes and can also be passed
 explicitly to another rotari command.
+
+Each command's `--help` output identifies an option's matching environment
+variable, when one is available.
 
 Use `rotari env` to print the same list with values from the current process.
 

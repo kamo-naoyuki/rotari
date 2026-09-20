@@ -145,6 +145,8 @@ Without a run-location lookup, base directories resolve in this order:
 ### Shell completion
 
 - Completion is generated from the same CLI metadata as command help.
+- CLI environment defaults are declared in one flag-to-variable mapping, used
+    for both default values and command-help descriptions.
 - It covers subcommands, options, executor values, run-selection values, and
     `server` subcommands.
 - Installation appends a marked rotari block only when it is absent, making

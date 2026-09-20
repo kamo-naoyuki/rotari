@@ -278,6 +278,8 @@ func TestCLIHelpShowsEnvironmentDefaults(t *testing.T) {
 	cliString(fs, "basedir", "")
 	cliBool(fs, "overwrite", false)
 	cliInt(fs, "local-concurrency", 8)
+	var executorOptions stringSliceFlag
+	cliValue(fs, &executorOptions, "executor-option")
 
 	fs.PrintDefaults()
 	help := output.String()
@@ -289,6 +291,9 @@ func TestCLIHelpShowsEnvironmentDefaults(t *testing.T) {
 	}
 	if !strings.Contains(help, "env: ROTARI_RUN_LOCAL_CONCURRENCY") {
 		t.Fatalf("help does not show local concurrency environment variable: %q", help)
+	}
+	if !strings.Contains(help, "env: ROTARI_EXECUTOR_OPTIONS") {
+		t.Fatalf("help does not show executor option environment variable: %q", help)
 	}
 }
 
@@ -316,6 +321,26 @@ func TestEnvironmentDefinitionsAreUniqueAndIncludeCoreVariables(t *testing.T) {
 	for _, name := range []string{envBaseDir, envRunID, envJobID, envExecutor, envRunRetry, envRunAsync, envArrayTaskID, envWebPort} {
 		if !seen[name] {
 			t.Errorf("missing environment definition %q", name)
+		}
+	}
+	for flagName, envName := range cliEnvironmentVariables {
+		if !seen[envName] {
+			t.Errorf("CLI environment variable %q for --%s is undocumented", envName, flagName)
+		}
+	}
+	for _, definition := range definitions {
+		if !definition.CLIDefault {
+			continue
+		}
+		mapped := false
+		for _, envName := range cliEnvironmentVariables {
+			if envName == definition.Name {
+				mapped = true
+				break
+			}
+		}
+		if !mapped {
+			t.Errorf("CLI default environment variable %q has no flag mapping", definition.Name)
 		}
 	}
 }

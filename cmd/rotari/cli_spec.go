@@ -36,6 +36,29 @@ var cliShortFlagNames = map[string]string{
 	"executor":     "e",
 }
 
+var cliEnvironmentVariables = map[string]string{
+	"basedir":           envBaseDir,
+	"project-name":      envProjectName,
+	"masterdir":         envMasterDir,
+	"run-id":            envRunID,
+	"job-id":            envJobID,
+	"job-name":          envJobName,
+	"executor":          envExecutor,
+	"executor-option":   envExecutorOpts,
+	"run-name":          envRunName,
+	"local-concurrency": envRunLocalConc,
+	"batch-concurrency": envRunBatchConc,
+	"retry":             envRunRetry,
+	"async":             envRunAsync,
+	"array":             envArrayRange,
+	"recover":           envResetRecover,
+	"timeout":           envWaitTimeout,
+	"host":              envWebHost,
+	"port":              envWebPort,
+	"static-dir":        envWebStaticDir,
+	"allow-control":     envWebAllowControl,
+}
+
 func commonCLIFlags() []cliFlagSpec {
 	return []cliFlagSpec{
 		{Name: "basedir", Description: "state directory", ValueName: "DIR"},
@@ -343,48 +366,7 @@ func cliFlagDescription(spec cliFlagSpec) string {
 }
 
 func cliEnvironmentVariable(name string) string {
-	switch name {
-	case "basedir":
-		return envBaseDir
-	case "project-name":
-		return envProjectName
-	case "masterdir":
-		return envMasterDir
-	case "run-id":
-		return envRunID
-	case "job-id":
-		return envJobID
-	case "job-name":
-		return envJobName
-	case "executor":
-		return envExecutor
-	case "run-name":
-		return envRunName
-	case "local-concurrency":
-		return envRunLocalConc
-	case "batch-concurrency":
-		return envRunBatchConc
-	case "retry":
-		return envRunRetry
-	case "async":
-		return envRunAsync
-	case "array":
-		return envArrayRange
-	case "recover":
-		return envResetRecover
-	case "timeout":
-		return envWaitTimeout
-	case "host":
-		return envWebHost
-	case "port":
-		return envWebPort
-	case "static-dir":
-		return envWebStaticDir
-	case "allow-control":
-		return envWebAllowControl
-	default:
-		return ""
-	}
+	return cliEnvironmentVariables[name]
 }
 
 func cliStringVar(fs *flag.FlagSet, target *string, name, defaultValue string) {
@@ -448,8 +430,8 @@ func cliDuration(fs *flag.FlagSet, name string, defaultValue time.Duration) *tim
 
 func cliValue(fs *flag.FlagSet, target flag.Value, name string) {
 	spec := cliFlag(name)
-	if name == "executor-option" {
-		value, exists := os.LookupEnv(envExecutorOpts)
+	if envName := cliEnvironmentVariable(name); envName != "" {
+		value, exists := os.LookupEnv(envName)
 		if exists && value != "" {
 			_ = target.Set(value)
 		}

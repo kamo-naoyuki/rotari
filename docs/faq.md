@@ -303,4 +303,5 @@ from `TZ` if set, otherwise Go's local location (the system timezone via
 
 **A CLI option and its matching `ROTARI_*` environment variable are both set — which wins?**
 The explicit command-line option always takes precedence over the
-environment variable.
+environment variable. When an option has an environment-variable default, its
+name appears in that command's `--help` output.
