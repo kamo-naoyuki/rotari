@@ -59,6 +59,7 @@ type webTimelinePoint struct {
 
 type webQueueState struct {
 	QueueName       string   `json:"project_name"`
+	ConfigPath      string   `json:"config_path,omitempty"`
 	Queue           Queue    `json:"queue"`
 	Runs            []webRun `json:"runs"`
 	RunnerPID       int      `json:"runner_pid,omitempty"`
@@ -73,8 +74,14 @@ type webServerState struct {
 	SocketExists  bool `json:"socket_exists"`
 }
 
+type webConfigFile struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
 type webState struct {
 	BaseDir      string                  `json:"base_dir"`
+	ConfigPath   string                  `json:"config_path,omitempty"`
 	Queues       []webQueueState         `json:"projects"`
 	Server       webServerState          `json:"server"`
 	Environments []environmentDefinition `json:"environments"`
@@ -255,6 +262,18 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			return
 		}
 		writeWebJSON(writer, state)
+	})
+	mux.HandleFunc("/api/config", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			methodNotAllowed(writer)
+			return
+		}
+		files, err := loadWebConfigFiles(baseDir, request.URL.Query().Get("project_name"), request.URL.Query().Get("run_id"))
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writeWebJSON(writer, map[string]any{"configs": files})
 	})
 	mux.HandleFunc("/api/log", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
@@ -545,8 +564,78 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 	return mux
 }
 
+func loadWebConfigFiles(baseDir, projectName, runID string) ([]webConfigFile, error) {
+	var paths []string
+	if projectName == "" {
+		if runID != "" {
+			return nil, fmt.Errorf("project_name is required with run_id")
+		}
+		if path := globalConfigPath(); path != "" {
+			paths = []string{path}
+		}
+	} else {
+		if !validWebID(projectName) {
+			return nil, fmt.Errorf("invalid project_name %q", projectName)
+		}
+		if runID == "" {
+			if path := effectiveConfigPath(baseDir, projectName); path != "" {
+				paths = []string{path}
+			}
+		} else {
+			if !validWebID(runID) {
+				return nil, fmt.Errorf("invalid run_id %q", runID)
+			}
+			var err error
+			paths, err = loadRunConfigPaths(baseDir, projectName, runID)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	files := make([]webConfigFile, 0, len(paths))
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, webConfigFile{Path: path, Content: string(data)})
+	}
+	return files, nil
+}
+
+func loadRunConfigPaths(baseDir, projectName, runID string) ([]string, error) {
+	paths, err := resolvePaths(baseDir, projectName)
+	if err != nil {
+		return nil, err
+	}
+	runDir, err := validatedRunDir(paths, runID)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(filepath.Join(runDir, "context.json"))
+	if err != nil {
+		return nil, err
+	}
+	var context RunContext
+	if err := json.Unmarshal(data, &context); err != nil {
+		return nil, err
+	}
+	allowed := make(map[string]bool)
+	for _, path := range configPathsForRun(baseDir, projectName) {
+		allowed[filepath.Clean(path)] = true
+	}
+	result := make([]string, 0, len(context.ConfigPaths))
+	for _, path := range context.ConfigPaths {
+		cleanPath := filepath.Clean(path)
+		if allowed[cleanPath] {
+			result = append(result, cleanPath)
+		}
+	}
+	return result, nil
+}
+
 func loadWebState(baseDir, queueFilter string) (webState, error) {
-	state := webState{BaseDir: baseDir, Server: loadWebServerState(baseDir), Environments: environmentDefinitions(), UpdatedAt: nowRFC3339()}
+	state := webState{BaseDir: baseDir, ConfigPath: globalConfigPath(), Server: loadWebServerState(baseDir), Environments: environmentDefinitions(), UpdatedAt: nowRFC3339()}
 	for index := range state.Environments {
 		// Only expose whether the variable is set, never its value: it may hold secrets (API keys, tokens).
 		_, state.Environments[index].Set = os.LookupEnv(state.Environments[index].Name)
@@ -575,6 +664,7 @@ func loadWebState(baseDir, queueFilter string) (webState, error) {
 		if err != nil {
 			return webState{}, err
 		}
+		queueState.ConfigPath = effectiveConfigPath(baseDir, queueName)
 		state.Queues = append(state.Queues, queueState)
 	}
 	state.UpdatedAt = formatDisplayTimestamp(state.UpdatedAt)
@@ -1030,6 +1120,16 @@ function addQueueEditors(queue,commands){`, 1)
 	template = strings.Replace(template, `<details><summary>Internal state</summary>`, `<details'+(projectRuntimeDetailsOpen?' open':'')+'><summary>Internal state</summary>`, 1)
 	template = strings.Replace(template, `const originalRender=render;render=function(){originalRender();`, `const originalRender=render;render=function(){const runtimeDetails=document.querySelector('.project-runtime details');if(runtimeDetails)projectRuntimeDetailsOpen=runtimeDetails.open;originalRender();`, 1)
 	template = strings.Replace(template, "--queue-name", "--project-name", -1)
+	template = strings.Replace(template, "function renderOverview(queues){", "function configText(paths){return paths&&paths.length?'\\nConfig: '+esc(paths.join(', ')):''}function renderOverview(queues){", 1)
+	template = strings.Replace(template, "function configText(paths){return paths&&paths.length?'\\nConfig: '+esc(paths.join(', ')):''}function renderOverview(queues){", "function configText(paths){return paths&&paths.length?'\\nConfig: '+esc(paths.join(', ')):''}function pageConfigPaths(){const parts=location.pathname.split('/').filter(Boolean);if(parts[0]!=='project')return state.config_path?[state.config_path]:[];const project=state.projects.find(item=>item.project_name===decodeURIComponent(parts[1]));if(!project)return [];if(parts[2]==='run'){const run=project.runs.find(item=>item.run_id===decodeURIComponent(parts[3]));return run&&run.context&&run.context.config_paths||[]}return project.config_path?[project.config_path]:[]}async function showConfig(){const parts=location.pathname.split('/').filter(Boolean);const params=new URLSearchParams();if(parts[0]==='project')params.set('project_name',decodeURIComponent(parts[1]));if(parts[2]==='run')params.set('run_id',decodeURIComponent(parts[3]));const response=await fetch('/api/config?'+params);const text=await response.text();if(!response.ok){alert(text);return}const payload=JSON.parse(text);const output=ensureModalOutput();output.textContent=(payload.configs||[]).map(item=>'# '+item.path+'\\n'+item.content).join('\\n\\n');document.querySelector('#output-modal strong').textContent='Config';openOutputModal(false)}function addConfigButton(){document.querySelectorAll('.config-button').forEach(button=>button.remove());const paths=pageConfigPaths();const button=document.createElement('button');button.className='config-button';button.textContent='Config';button.disabled=!paths.length;button.title=paths.length?'View config':'No config file';if(paths.length)button.onclick=showConfig;document.querySelector('.toolbar').append(button)}function renderOverview(queues){", 1)
+	template = strings.Replace(template, "state.base_dir+' / all projects'", "state.base_dir+' / all projects'+configText(state.config_path?[state.config_path]:[])", 1)
+	template = strings.Replace(template, "state.base_dir+' / '+q.project_name", "state.base_dir+' / '+q.project_name+configText(q.config_path?[q.config_path]:[])", 1)
+	template = strings.Replace(template, "state.base_dir+' / '+q.project_name+' / '+runID", "state.base_dir+' / '+q.project_name+' / '+runID+configText(run.context&&run.context.config_paths)", 1)
+	template = strings.Replace(template, "document.querySelector('#output-modal strong').textContent='Config';openOutputModal(false)", "document.querySelector('#output-modal strong').textContent='Config';document.getElementById('output-modal').dataset.view='config';openOutputModal(false)", 1)
+	template = strings.Replace(template, "async function showLog(queue,run,job){if(followTimer", "async function showLog(queue,run,job){document.getElementById('output-modal').dataset.view='log';if(followTimer", 1)
+	template = strings.Replace(template, "function closeOutputModal(){document.getElementById('output-modal').style.display='none';", "function closeOutputModal(){document.getElementById('output-modal').style.display='none';delete document.getElementById('output-modal').dataset.view;", 1)
+	template = strings.Replace(template, "function clarifyLogControls(){document.querySelector('#output-modal strong').textContent='Job log';", "function clarifyLogControls(){if(document.getElementById('output-modal').dataset.view!=='config')document.querySelector('#output-modal strong').textContent='Job log';", 1)
+	template = strings.Replace(template, "fixTimelineLegendColors()};window.addEventListener", "fixTimelineLegendColors();addConfigButton()};window.addEventListener", 1)
 	return template
 }
 
@@ -1126,7 +1226,7 @@ const webIndexHTML = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>rotari</title><style>.runs tr.latest-run td{font-weight:600;background:rgba(184,217,242,.06)}.runs th:last-child,.runs td:last-child{width:1%;min-width:0;white-space:nowrap;text-align:left;padding-left:8px;padding-right:8px}
 :root{color-scheme:dark;--bg:#10151b;--panel:#18212b;--line:#2d3a47;--text:#e8eef4;--muted:#94a3b3;--good:#63d297;--bad:#ff7c7c;--warn:#f3c969}.command-guide{white-space:pre-wrap;background:#0b1015;border:1px solid var(--line);padding:14px;color:#d7e2ea;margin:12px 0 18px;overflow:auto}
-#disconnect-banner{display:none;background:#3b1d1d;border:1px solid var(--bad);color:#ffd6d6;padding:10px 14px;margin-bottom:16px;border-radius:4px;font-size:14px}#disconnect-banner.show{display:block}
+#disconnect-banner{display:none;background:#3b1d1d;border:1px solid var(--bad);color:#ffd6d6;padding:10px 14px;margin-bottom:16px;border-radius:4px;font-size:14px}#disconnect-banner.show{display:block}#location{white-space:pre-line}#location code{font:inherit}
 *{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#10151b,#182733);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,sans-serif}main{max-width:1100px;margin:0 auto;padding:36px 22px}header{display:flex;justify-content:space-between;align-items:end;border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}h1{margin:0;font-size:32px;letter-spacing:.04em;display:flex;align-items:center;gap:10px}.brand-icon{width:.85em;height:.85em}h2{font-size:18px;margin:0 0 12px}.meta{color:var(--muted);font-size:13px}.toolbar{display:flex;gap:8px}button{border:1px solid var(--line);background:#202d39;color:var(--text);padding:8px 12px;border-radius:5px;cursor:pointer}button:hover{border-color:#7190a8}button:disabled{opacity:.45;cursor:not-allowed}input,select{border:1px solid var(--line);background:#101820;color:var(--text);padding:7px 8px;min-width:100px}.dirty{border-color:var(--warn);background:#3b331d;box-shadow:0 0 0 1px rgba(243,201,105,.25)}section{background:rgba(24,33,43,.9);border:1px solid var(--line);padding:18px;margin-bottom:20px}.summary{display:flex;gap:28px;color:var(--muted);font-size:14px}.runs{width:100%;border-collapse:collapse}.runs th,.runs td{text-align:left;border-bottom:1px solid var(--line);padding:10px 8px}.runs th{color:var(--muted);font-size:12px;text-transform:uppercase}.runs th:last-child,.runs td:last-child{white-space:nowrap;width:1%;vertical-align:top}.runs td.latest-run{font-weight:600;background:rgba(184,217,242,.06)}.latest-badge{color:#b8d9f2;font-size:11px;font-weight:400;letter-spacing:.04em;margin-left:6px}.status-finished{color:var(--good)}.status-failed{color:var(--bad)}.status-running{color:var(--warn)}.run-id{font-family:ui-monospace,monospace;color:#b8d9f2;cursor:pointer}.log{white-space:pre-wrap;background:#0b1015;border:1px solid var(--line);padding:14px;min-height:100px;max-height:360px;overflow:auto;color:#d7e2ea}.empty{color:var(--muted);padding:20px 0}.output-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:24px;z-index:10}.output-panel{width:min(1100px,96vw);height:min(760px,90vh);background:var(--panel);border:1px solid var(--line);padding:18px;box-shadow:0 12px 50px #000}.output-panel.compact{width:min(900px,92vw);height:auto}.output-panel header{margin:0 0 12px;padding:0 0 10px}.output-panel .log{height:calc(100% - 48px);max-height:none;margin:0}.output-panel.compact .log{height:auto;max-height:240px;min-height:0}@media(max-width:650px){header{display:block}.toolbar{margin-top:14px}.summary{flex-wrap:wrap;gap:10px}.runs th:nth-child(3),.runs td:nth-child(3){display:none}}
 </style></head><body><main><header><div><h1><!--brand-icon-->rotari Web</h1><div class="meta" id="location">loading...</div></div><div class="toolbar"><a class="link" href="/environment/">Environment variables</a><a class="link" href="/docs/">CLI docs</a><button onclick="refresh()">Refresh</button></div></header>
 <div id="disconnect-banner">Lost connection to the rotari server. The page below may be stale &mdash; retrying...</div>

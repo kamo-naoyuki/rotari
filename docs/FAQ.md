@@ -39,11 +39,13 @@ create one. YAML and JSON use `null` for unset options; those entries are
 ignored when loaded. TOML represents unset options as comments because TOML
 does not define a null value.
 
-When `--output` is omitted, rotari interactively offers the home, basedir, and
-existing project config paths, plus stdout and an `other path` choice.
-Selecting stdout prints the template without creating a file; `other path`
-prompts for an arbitrary file path. Add `--project-name NAME` to limit the
-project candidate. Supplying `--output FILE` skips the prompt.
+`rotari show` also prints the resolved config path list in its header so you
+can confirm which home, basedir, and project config files were active for the
+current target. When `--output` is omitted, rotari interactively offers the
+home, basedir, and existing project config paths, plus stdout and an `other
+path` choice. Selecting stdout prints the template without creating a file;
+`other path` prompts for an arbitrary file path. Add `--project-name NAME` to
+limit the project candidate. Supplying `--output FILE` skips the prompt.
 
 **How are concurrency and executor options selected?**
 `--local-concurrency` applies to local jobs. `--batch-concurrency` is the

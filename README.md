@@ -297,7 +297,9 @@ Pass `--allow-control=false` for a read-only UI that only serves state, logs,
 and the CLI/env docs and rejects the control APIs with `403 Forbidden`.
 The `/api/state` and `/environment/` pages report which environment
 variables are *set*, never their values, so secrets such as API tokens are
-not exposed over HTTP.
+not exposed over HTTP. When a config file is active, the project and run pages
+also let you view its raw contents; keep the Web UI bound to a trusted host
+because config files may contain secrets.
 
 ## Projects, queues, runs, and state
 
@@ -769,6 +771,10 @@ basedir config path (e.g., <basedir>/config.yaml)
 global config path (e.g., ~/.config/rotari/config.yaml)
 built-in default
 ```
+
+`rotari show` includes the resolved config path list in its header when config
+files are present, so the effective config chain is visible in the CLI as well
+as in the web UI.
 
 ## Environment variables
 

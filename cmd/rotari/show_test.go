@@ -199,6 +199,62 @@ func TestCmdShowDisplaysCurrentQueue(t *testing.T) {
 	}
 }
 
+func TestCmdShowDisplaysResolvedConfigPaths(t *testing.T) {
+	baseDir := t.TempDir()
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	projectDir := filepath.Join(baseDir, "projects", "demo")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	globalConfig := filepath.Join(configHome, "rotari", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(globalConfig), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(globalConfig, []byte("executor: slurm\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	baseConfig := filepath.Join(baseDir, "config.yaml")
+	if err := os.WriteFile(baseConfig, []byte("retry: 2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	projectConfig := filepath.Join(projectDir, "config.yaml")
+	if err := os.WriteFile(projectConfig, []byte("local-concurrency: 4\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "greeting", Command: []string{"printf", "hello"}}}}
+	if err := writeJSON(paths.queueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code := cmdShow([]string{"--basedir", baseDir, "--project-name", "demo", "--no-pager"})
+	os.Stdout = oldStdout
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 {
+		t.Fatalf("cmdShow exit code = %d, want 0", code)
+	}
+	want := "Config: " + strings.Join([]string{globalConfig, baseConfig, projectConfig}, ", ")
+	if !strings.Contains(string(output), want) {
+		t.Fatalf("cmdShow output does not contain config path summary %q:\n%s", want, output)
+	}
+}
+
 func TestCmdShowDisplaysActiveRunBeforeQueue(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "demo")

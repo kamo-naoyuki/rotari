@@ -164,15 +164,7 @@ func configHomeDir() (string, error) {
 }
 
 func loadConfigFile(directory string) (map[string]any, error) {
-	paths := make([]string, 0, len(configExtensions))
-	for _, extension := range configExtensions {
-		path := filepath.Join(directory, "config"+extension)
-		if _, err := os.Stat(path); err == nil {
-			paths = append(paths, path)
-		} else if !errors.Is(err, os.ErrNotExist) {
-			printErrorf("WARNING: cannot inspect config %s: %v", path, err)
-		}
-	}
+	paths := configFilePaths(directory)
 	if len(paths) > 1 {
 		return nil, fmt.Errorf("multiple config files found in %s: %s", directory, strings.Join(paths, ", "))
 	}
@@ -198,6 +190,51 @@ func loadConfigFile(directory string) (map[string]any, error) {
 		return map[string]any{}, nil
 	}
 	return config, nil
+}
+
+func configFilePaths(directory string) []string {
+	paths := make([]string, 0, len(configExtensions))
+	for _, extension := range configExtensions {
+		path := filepath.Join(directory, "config"+extension)
+		if _, err := os.Stat(path); err == nil {
+			paths = append(paths, path)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			printErrorf("WARNING: cannot inspect config %s: %v", path, err)
+		}
+	}
+	return paths
+}
+
+func effectiveConfigPath(baseDir, projectName string) string {
+	paths := configPathsForRun(baseDir, projectName)
+	if len(paths) == 0 {
+		return ""
+	}
+	return paths[len(paths)-1]
+}
+
+func globalConfigPath() string {
+	configHome, err := configHomeDir()
+	if err != nil {
+		return ""
+	}
+	paths := configFilePaths(configHome)
+	if len(paths) == 0 {
+		return ""
+	}
+	return paths[len(paths)-1]
+}
+
+func configPathsForRun(baseDir, projectName string) []string {
+	paths := make([]string, 0, len(configExtensions)+2)
+	if configHome, err := configHomeDir(); err == nil {
+		paths = append(paths, configFilePaths(configHome)...)
+	}
+	paths = append(paths, configFilePaths(baseDir)...)
+	if projectName != "" {
+		paths = append(paths, configFilePaths(filepath.Join(baseDir, "projects", projectName))...)
+	}
+	return paths
 }
 
 func configValue(name string) (any, bool) {

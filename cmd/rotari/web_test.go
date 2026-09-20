@@ -61,6 +61,8 @@ setTimeout(() => {
     process.exit(1);
   }
   if (!app || app.textContent.includes('loading...')) process.exit(2);
+	const configButton = dom.window.document.querySelector('.config-button');
+	if (!configButton || !configButton.disabled) process.exit(3);
 }, 50);
 `
 	htmlPath := filepath.Join(t.TempDir(), "index.html")
@@ -80,6 +82,7 @@ setTimeout(() => {
 	if err != nil {
 		t.Fatal(err)
 	}
+	state.ConfigPath = ""
 	data, err := json.Marshal(state)
 	if err != nil {
 		t.Fatal(err)
@@ -123,6 +126,15 @@ func TestWebHTMLIncludesEmbeddedThemeFavicons(t *testing.T) {
 func TestWebHTMLIncludesProjectRuntime(t *testing.T) {
 	html := webHTML()
 	for _, want := range []string{"let projectRuntimeDetailsOpen=false", "runtimeDetails.open", "projectRuntimeDetailsOpen?' open'", "function addProjectRuntime()", "addProjectRuntime();addRunHostLine()", "Project runtime", "Internal state", "State lock: advisory and intentionally not probed"} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("web HTML does not contain %q", want)
+		}
+	}
+}
+
+func TestWebHTMLIncludesConfigPaths(t *testing.T) {
+	html := webHTML()
+	for _, want := range []string{"configText(paths)", "function addConfigButton()", "state.config_path", "q.config_path", "run.context.config_paths"} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
 		}
@@ -194,6 +206,105 @@ func TestLoadWebStateIncludesAllQueues(t *testing.T) {
 	}
 	if len(filtered.Queues) != 1 || filtered.Queues[0].QueueName != "test" {
 		t.Fatalf("filtered queues = %#v, want test", filtered.Queues)
+	}
+}
+
+func TestLoadWebStateIncludesConfigPaths(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	if err := os.MkdirAll(filepath.Join(configHome, "rotari"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	globalPath := filepath.Join(configHome, "rotari", "config.yaml")
+	if err := os.WriteFile(globalPath, []byte("run:\n  retry: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	baseDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(baseDir, "config.yaml"), []byte("run:\n  retry: 2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(paths.projectDir, "config.yaml")
+	if err := os.MkdirAll(paths.projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(projectPath, []byte("run:\n  retry: 3\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+		t.Fatal(err)
+	}
+
+	state, err := loadWebState(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.ConfigPath != globalPath || state.Queues[0].ConfigPath != projectPath {
+		t.Fatalf("config paths = global %q, project %q; want %q, %q", state.ConfigPath, state.Queues[0].ConfigPath, globalPath, projectPath)
+	}
+}
+
+func TestWebConfigAPIReadsResolvedFiles(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	globalDir := filepath.Join(configHome, "rotari")
+	if err := os.MkdirAll(globalDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	globalPath := filepath.Join(globalDir, "config.yaml")
+	if err := os.WriteFile(globalPath, []byte("global: true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(paths.projectDir, "config.yaml"), []byte("project: true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(paths.runsDir, "run-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{ConfigPaths: configPathsForRun(baseDir, "demo")}); err != nil {
+		t.Fatal(err)
+	}
+	handler := newWebHandler(baseDir, "", false)
+	for _, test := range []struct {
+		query string
+		want  []string
+	}{
+		{query: "", want: []string{globalPath, "global: true"}},
+		{query: "?project_name=demo", want: []string{"config.yaml", "project: true"}},
+		{query: "?project_name=demo&run_id=run-1", want: []string{globalPath, "global: true", "project: true"}},
+	} {
+		request := httptest.NewRequest(http.MethodGet, "/api/config"+test.query, nil)
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("config request %s status = %d, body = %q", test.query, recorder.Code, recorder.Body.String())
+		}
+		for _, want := range test.want {
+			if !strings.Contains(recorder.Body.String(), want) {
+				t.Fatalf("config request %s body does not contain %q: %s", test.query, want, recorder.Body.String())
+			}
+		}
+	}
+	request := httptest.NewRequest(http.MethodGet, "/api/config?project_name=../outside", nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code == http.StatusOK {
+		t.Fatal("config API accepted a traversal project name")
 	}
 }
 
@@ -536,6 +647,9 @@ func TestBuildWebTimelineCountsCarriedResultsAtStart(t *testing.T) {
 
 func TestWriteRunContext(t *testing.T) {
 	baseDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(baseDir, "config.yaml"), []byte("run:\n  retry: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	paths, err := resolvePaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
@@ -553,6 +667,9 @@ func TestWriteRunContext(t *testing.T) {
 	}
 	if context.CWD != "/work/project" {
 		t.Fatalf("cwd = %q, want /work/project", context.CWD)
+	}
+	if len(context.ConfigPaths) == 0 || context.ConfigPaths[len(context.ConfigPaths)-1] != filepath.Join(baseDir, "config.yaml") {
+		t.Fatalf("config paths = %#v, want basedir config", context.ConfigPaths)
 	}
 	samples := readLoadSamples(loadSamplesPath(paths, "run-1"))
 	if context.StartedLoad != nil && len(samples) != 1 {

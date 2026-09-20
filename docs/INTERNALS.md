@@ -181,6 +181,12 @@ Without a run-location lookup, base directories resolve in this order:
 - Without `--output`, `rotari config` offers home, basedir, existing project
     config paths, stdout, and an arbitrary path interactively; an explicit
     `--output` is non-interactive.
+- `rotari show` prints the resolved config path chain in its header so the
+    active home, basedir, and project config files are visible in CLI output as
+    well as in the web UI.
+- The Web UI exposes config paths in its state and serves raw contents only for
+    the resolved global/project files or config paths recorded in a run's
+    `context.json`; it does not accept arbitrary filesystem paths.
 
 ### Shell completion
 

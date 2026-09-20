@@ -112,6 +112,7 @@ type RunSummary struct {
 
 type RunContext struct {
 	CWD          string       `json:"cwd"`
+	ConfigPaths  []string     `json:"config_paths,omitempty"`
 	Hostname     string       `json:"hostname,omitempty"`
 	StartedLoad  *LoadAverage `json:"started_load,omitempty"`
 	FinishedLoad *LoadAverage `json:"finished_load,omitempty"`
@@ -610,6 +611,7 @@ func writeRunContext(paths pathSet, runID, cwd string) error {
 		return err
 	}
 	context := captureRunContext(cwd)
+	context.ConfigPaths = configPathsForRun(paths.baseDir, paths.queueName)
 	if context.StartedLoad != nil {
 		if err := appendLoadSample(loadSamplesPath(paths, runID), LoadSample{At: nowRFC3339Nano(), LoadAverage: *context.StartedLoad}); err != nil {
 			return err

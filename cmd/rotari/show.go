@@ -335,6 +335,10 @@ func selectRunID(paths pathSet, requested string) (string, error) {
 
 func writeShowTargetHeader(writer io.Writer, paths pathSet) {
 	fmt.Fprintf(writer, "%s %s\n%s %s\n", cyan("Base directory:"), paths.baseDir, cyan("Project:"), paths.queueName)
+	configPaths := configPathsForRun(paths.baseDir, paths.queueName)
+	if len(configPaths) > 0 {
+		fmt.Fprintf(writer, "%s %s\n", cyan("Config:"), strings.Join(configPaths, ", "))
+	}
 }
 
 func printInterruptedRunNotice(paths pathSet, runID string) {
