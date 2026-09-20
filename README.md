@@ -40,6 +40,74 @@ If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https:/
 * **[Snakemake](https://github.com/snakemake/snakemake)**, **[Nextflow](https://github.com/nextflow-io/nextflow)**, **[Airflow](https://github.com/apache/airflow)**, **[Prefect](https://github.com/PrefectHQ/prefect)**, and **[Dagster](https://github.com/dagster-io/dagster)** focus on defining and orchestrating workflows by explicitly modeling tasks and their relationships. Rotari focuses on successive runs of an experiment without requiring the workflow to be defined up front.
 * **[Dask](https://github.com/dask/dask)** focuses on distributing Python computations across workers. Rotari focuses on running experiments as command-line jobs and keeping track of their execution history.
 
+```mermaid
+flowchart TB
+    subgraph ITER["Experiment iteration"]
+        R["Rotari<br/>Run / Retry / Change / Copy<br/>Persistent history"]
+    end
+
+    subgraph WORK["What to run"]
+        W["Workflow<br/>Snakemake · Nextflow · Airflow · Prefect · Dagster"]
+        C["Commands<br/>Shell · Python · GNU Parallel"]
+        D["Distributed computation<br/>Dask"]
+    end
+
+    subgraph EXEC["Where to run"]
+        L["Local"]
+        SSH["SSH"]
+        S["Slurm"]
+        P["PBS"]
+        X["LSF"]
+    end
+
+    subgraph TRACK["What happened"]
+        M["MLflow · Weights & Biases<br/>Metrics / Artifacts / Results"]
+    end
+
+    R --> W
+    R --> C
+    R --> D
+
+    W --> L
+    W --> SSH
+    W --> S
+    W --> P
+    W --> X
+
+    C --> L
+    C --> SSH
+    C --> S
+    C --> P
+    C --> X
+
+    D --> L
+    D --> SSH
+    D --> S
+    D --> P
+    D --> X
+
+    W -. results .-> M
+    C -. results .-> M
+    D -. results .-> M
+
+    classDef rotari fill:#e8d5ff,stroke:#7c3aed,stroke-width:3px,color:#111;
+    classDef workflow fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111;
+    classDef command fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#111;
+    classDef distributed fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#111;
+    classDef execution fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111;
+    classDef tracking fill:#fce7f3,stroke:#db2777,stroke-width:2px,color:#111;
+
+    class R rotari;
+    class W workflow;
+    class C command;
+    class D distributed;
+    class L,SSH,S,P,X execution;
+    class M tracking;
+```
+
+
+
+
 ## Installation
 
 ### Prebuilt binary
