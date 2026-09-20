@@ -100,6 +100,12 @@ whenever any one task matches, matching pre-partial-array behavior.
 job already in the destination queue. Otherwise the original ID — and any
 dependency relationships between copied jobs — is preserved.
 
+**If a prerequisite job (`--depends-on`) fails, what happens to the jobs that depend on it?**
+They are recorded as `blocked` and are never executed for that run. A retry
+reruns only the failed prerequisite (and any other failed/unfinished jobs);
+once it succeeds, the previously blocked dependents run on the next
+`rotari run`/`retry` that includes them.
+
 ## LLM diagnosis
 
 **What does `rotari diagnose` send to an LLM?**
@@ -113,12 +119,6 @@ to job processes. Inspect the log first if it may contain sensitive data.
 Pass `--language` with a BCP 47 tag, for example `--language ja` or
 `--language en-US`. Set `ROTARI_LLM_LANGUAGE` to make that tag the default.
 Without either, Rotari does not choose a language and the model decides.
-
-**If a prerequisite job (`--depends-on`) fails, what happens to the jobs that depend on it?**
-They are recorded as `blocked` and are never executed for that run. A retry
-reruns only the failed prerequisite (and any other failed/unfinished jobs);
-once it succeeds, the previously blocked dependents run on the next
-`rotari run`/`retry` that includes them.
 
 ## Interrupted runs and locking
 
