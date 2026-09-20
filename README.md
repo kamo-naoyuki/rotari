@@ -18,9 +18,7 @@ in the same queue**, even when they depend on each other. **Every run keeps its
 own snapshot** of commands, status, and logs, so nothing gets lost between
 "one more try" and the next.
 
-**No DAGs to design. No pipeline to describe up front.**
-
-Just queue what you want to run. **State lives in plain JSON files on disk**,
+**No DAGs to design. No pipeline to describe up front.**: Just queue what you want to run. **State lives in plain JSON files on disk**,
 with no server or database to set up — it works the same whether you're on your
 laptop or logged into a remote compute node.
 
@@ -31,13 +29,16 @@ laptop or logged into a remote compute node.
 ## How is rotari different?
 
 Rotari focuses on **managing the iteration of experiments**, rather than executing or distributing individual tasks.
+If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the model should feel familiar: commands are dispatched locally or to a cluster, with logs and success/failure tracked consistently across backends. Rotari extends this idea with persistent run history and experiment-oriented iteration.
 
-* **[Dask](https://github.com/dask/dask)** focuses on distributing Python computations across workers. Rotari focuses on running experiments as command-line jobs and keeping track of their execution history.
+* **[Shell scripts](https://www.gnu.org/software/bash/)** are flexible and easy to start with, but repeated executions and their history are usually managed manually. Rotari makes that iteration history explicit.
+* **[GNU Parallel](https://www.gnu.org/software/parallel/)** makes it easy to run many shell commands in parallel. Rotari goes further by giving those executions persistent identities, logs, status, and an iteration history.
+* GNU Parallel makes it easy to run many shell commands in parallel. Rotari goes further by giving those executions persistent identities, logs, status, and an iteration history.
 * **[Snakemake](https://github.com/snakemake/snakemake) and [Nextflow](https://github.com/nextflow-io/nextflow)** focus on defining dependencies between tasks and data to build reproducible workflows. Rotari focuses on successive runs of an experiment without requiring the workflow to be defined up front.
 * **[Slurm](https://github.com/SchedMD/slurm), [PBS](https://github.com/openpbs/openpbs), and LSF** focus on scheduling and executing jobs on a cluster. Rotari adds an experiment-oriented layer for tracking, inspecting, retrying, and modifying runs.
-* **Shell scripts** are flexible and easy to start with, but repeated executions and their history are usually managed manually. Rotari makes that iteration history explicit.
-
-If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the model should feel familiar: commands are dispatched locally or to a cluster, with logs and success/failure tracked consistently across backends. Rotari extends this idea with persistent run history and experiment-oriented iteration.
+* **[MLflow](https://github.com/mlflow/mlflow) and [Weights & Biases](https://github.com/wandb/wandb)** focus on tracking experiments, metrics, parameters, and artifacts. Rotari focuses on running experiments, managing their execution, and keeping track of the history of successive runs. They can be used together: a Rotari run can launch a training job that logs its results to MLflow or Weights & Biases.
+* **[Snakemake](https://github.com/snakemake/snakemake)**, **[Nextflow](https://github.com/nextflow-io/nextflow)**, **[Airflow](https://github.com/apache/airflow)**, **[Prefect](https://github.com/PrefectHQ/prefect)**, and **[Dagster](https://github.com/dagster-io/dagster)** focus on defining and orchestrating workflows by explicitly modeling tasks and their relationships. Rotari focuses on successive runs of an experiment without requiring the workflow to be defined up front.
+* **[Dask](https://github.com/dask/dask)** focuses on distributing Python computations across workers. Rotari focuses on running experiments as command-line jobs and keeping track of their execution history.
 
 ## Installation
 
@@ -173,8 +174,6 @@ command edited before retrying, use `rotari change`; see the inspection and
 recovery commands below.
 
 ### Example
-
-Build and run the included example:
 
 ```sh
 ./scripts/example.sh
