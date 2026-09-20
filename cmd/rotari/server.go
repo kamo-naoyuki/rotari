@@ -1120,7 +1120,7 @@ func cancelJobs(runDir, queueName, runID string, jobIDs []string) (string, error
 		requested[jobID] = true
 	}
 	var commandSnapshot Queue
-	if data, err := os.ReadFile(filepath.Join(runDir, "commands.json")); err == nil {
+	if data, err := os.ReadFile(filepath.Join(runDir, "commands.json")); err == nil { // NOSONAR: runDir is produced by validatedRunDir.
 		if err := json.Unmarshal(data, &commandSnapshot); err != nil {
 			return "", fmt.Errorf("invalid command snapshot: %w", err)
 		}

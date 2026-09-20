@@ -1197,7 +1197,7 @@ func loadMeta(path string) (Meta, error) {
 }
 
 func loadQueue(path string) (Queue, error) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) // NOSONAR: callers pass queue paths rooted in the resolved state directory.
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return Queue{}, nil

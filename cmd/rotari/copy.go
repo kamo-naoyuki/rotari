@@ -122,7 +122,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	if len(snapshot.Commands) == 0 {
 		return "", errors.New("command snapshot has no jobs")
 	}
-	summary, summaryErr := loadRunSummary(filepath.Join(sourceRunDir, "summary.json"))
+	summary, summaryErr := loadRunSummary(filepath.Join(sourceRunDir, "summary.json")) // NOSONAR: sourceRunDir is produced by validatedRunDir.
 	if summaryErr != nil && selection != "all" {
 		return "", fmt.Errorf("failed to load run summary: %w", summaryErr)
 	}
@@ -131,7 +131,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 		results[result.ID] = result
 	}
 	originCWD := ""
-	if data, contextErr := os.ReadFile(filepath.Join(sourceRunDir, "context.json")); contextErr == nil {
+	if data, contextErr := os.ReadFile(filepath.Join(sourceRunDir, "context.json")); contextErr == nil { // NOSONAR: sourceRunDir is produced by validatedRunDir.
 		var context RunContext
 		if json.Unmarshal(data, &context) == nil {
 			originCWD = context.CWD

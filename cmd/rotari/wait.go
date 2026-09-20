@@ -96,7 +96,7 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 		return waitResult{exitCode: 1}
 	}
 	for {
-		summary, err := loadRunSummary(filepath.Join(runDir, "summary.json"))
+		summary, err := loadRunSummary(filepath.Join(runDir, "summary.json")) // NOSONAR: runDir is produced by validatedRunDir.
 		if err == nil {
 			if jsonOutput {
 				_ = json.NewEncoder(os.Stdout).Encode(summary)

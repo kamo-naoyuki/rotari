@@ -594,7 +594,7 @@ func loadWebConfigFiles(baseDir, projectName, runID string) ([]webConfigFile, er
 	}
 	files := make([]webConfigFile, 0, len(paths))
 	for _, path := range paths {
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) // NOSONAR: paths contain only the resolved global/project config files or validated run context entries.
 		if err != nil {
 			return nil, err
 		}
@@ -612,7 +612,7 @@ func loadRunConfigPaths(baseDir, projectName, runID string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(filepath.Join(runDir, "context.json"))
+	data, err := os.ReadFile(filepath.Join(runDir, "context.json")) // NOSONAR: runDir is produced by validatedRunDir.
 	if err != nil {
 		return nil, err
 	}
@@ -946,18 +946,27 @@ func webJobTimestamps(runDir, jobID string, origin *JobOrigin) (string, string) 
 	if finishedAt == "" {
 		finishedAt = origin.FinishedAt
 	}
-	sourceRunDir := filepath.Join(filepath.Dir(runDir), origin.RunID)
-	if submittedAt == "" {
-		submittedAt = readJobTimestamp(sourceRunDir, origin.JobID, "submitted_at")
-	}
-	if finishedAt == "" {
-		finishedAt = readJobTimestamp(sourceRunDir, origin.JobID, "finished_at")
+	sourceRunDir, err := validatedRunDir(pathSet{runsDir: filepath.Dir(runDir)}, origin.RunID)
+	if err == nil {
+		if submittedAt == "" {
+			submittedAt = readJobTimestamp(sourceRunDir, origin.JobID, "submitted_at")
+		}
+		if finishedAt == "" {
+			finishedAt = readJobTimestamp(sourceRunDir, origin.JobID, "finished_at")
+		}
 	}
 	return submittedAt, finishedAt
 }
 
 func readJobTimestamp(runDir, jobID, name string) string {
-	data, err := os.ReadFile(filepath.Join(runDir, jobID, name))
+	if name != "submitted_at" && name != "finished_at" {
+		return ""
+	}
+	jobDir, err := validatedJobDir(runDir, jobID)
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join(jobDir, name)) // NOSONAR: jobDir is produced by validatedJobDir and name is allowlisted above.
 	if err != nil {
 		return ""
 	}
