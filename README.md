@@ -479,11 +479,20 @@ it keeps running even if the terminal that launched it is closed. Use
 `rotari wait --run-id RUN_ID` from any terminal (or later) to block on the run, and
 `rotari cancel` to stop it.
 
+The detached supervisor is not auto-restarted by rotari if the process itself
+crashes or is killed. The run lock records its PID and host, and local jobs use
+self-reporting wrappers so `rotari show --run-id RUN_ID` can still see job
+status written after the supervisor disappeared. If the run remains
+interrupted, confirm the jobs have stopped, then use the recovery command shown
+by `show` (`unlock` to keep the queue, or `reset --recover` to discard it).
+
 ## Inspect
 
 To inspect the latest run or list all runs:
 
 ```sh
+rotari show --basedirs
+rotari show --projects
 rotari show --project-name build
 rotari show --project-name build --runs
 rotari show --project-name build --failed
@@ -491,6 +500,15 @@ rotari show --project-name build --job-id JOB_ID
 rotari show --project-name build --logs
 rotari show --project-name build --failed-logs
 ```
+
+`show --projects` lists every project in the resolved basedir with its queued
+job count, run state, and latest run ID. It does not select a project, so it
+also works when the basedir contains multiple projects.
+
+`show --basedirs` prints the resolved master directory and state directories
+known through its run and live-server registries. This is not exhaustive: a
+basedir with no registered run and no running server cannot be discovered this
+way. Use `--masterdir DIR` to inspect a non-default master registry.
 
 `--logs` prints the output log for every job in the selected run.
 `--failed-logs` prints logs only for jobs that failed. Both options accept

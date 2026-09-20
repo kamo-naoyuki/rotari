@@ -19,6 +19,12 @@ type serverRecord struct {
 	LastSeen  string `json:"last_seen"`
 }
 
+type knownBaseDir struct {
+	BaseDir string
+	Sources []string
+	PID     int
+}
+
 func resolveMasterDir(cliMasterDir string) (string, error) {
 	if cliMasterDir != "" {
 		return cliMasterDir, nil
@@ -116,4 +122,60 @@ func formatServerList(servers []serverRecord) string {
 		lines = append(lines, fmt.Sprintf("%-8d %-24s %s", server.PID, server.LastSeen, server.BaseDir))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func listKnownBaseDirs(masterDir string, servers []serverRecord) ([]knownBaseDir, error) {
+	type knownBaseDirState struct {
+		sources map[string]bool
+		pid     int
+	}
+	known := make(map[string]knownBaseDirState)
+	entries, err := os.ReadDir(filepath.Join(masterDir, "runs"))
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(masterDir, "runs", entry.Name()))
+		if err != nil {
+			continue
+		}
+		var location runLocation
+		if json.Unmarshal(data, &location) != nil || location.BaseDir == "" {
+			continue
+		}
+		value := known[location.BaseDir]
+		if value.sources == nil {
+			value.sources = make(map[string]bool)
+		}
+		value.sources["run registry"] = true
+		known[location.BaseDir] = value
+	}
+	for _, server := range servers {
+		value := known[server.BaseDir]
+		if value.sources == nil {
+			value.sources = make(map[string]bool)
+		}
+		value.sources["server registry"] = true
+		value.pid = server.PID
+		known[server.BaseDir] = value
+	}
+	baseDirs := make([]string, 0, len(known))
+	for baseDir := range known {
+		baseDirs = append(baseDirs, baseDir)
+	}
+	sort.Strings(baseDirs)
+	result := make([]knownBaseDir, 0, len(baseDirs))
+	for _, baseDir := range baseDirs {
+		value := known[baseDir]
+		sources := make([]string, 0, len(value.sources))
+		for source := range value.sources {
+			sources = append(sources, source)
+		}
+		sort.Strings(sources)
+		result = append(result, knownBaseDir{BaseDir: baseDir, Sources: sources, PID: value.pid})
+	}
+	return result, nil
 }

@@ -334,7 +334,7 @@ func generateZshCompletion() string {
 	var builder strings.Builder
 	builder.WriteString("#compdef rotari\n\n_rotari_run_ids() {\n    local -a args\n    args=(\"${words[@]:3}\")\n    reply=(\"${(@f)$(rotari __complete run-id \"${args[@]}\" 2>/dev/null)}\")\n}\n_rotari_job_ids() {\n    local -a args\n    args=(\"${words[@]:3}\")\n    reply=(\"${(@f)$(rotari __complete job-id \"${args[@]}\" 2>/dev/null)}\")\n}\n\n_rotari() {\n    local -a commands\n    commands=(\n")
 	for _, command := range cliCommandSpecs {
-		fmt.Fprintf(&builder, "        '%s:%s'\n", command.Name, command.Description)
+		fmt.Fprintf(&builder, "        '%s:%s'\n", zshQuote(command.Name), zshQuote(command.Description))
 	}
 	builder.WriteString("    )\n\n    if (( CURRENT == 2 )); then\n        _describe 'command' commands\n        return\n    fi\n\n    case $words[2] in\n")
 	subcommandIndex := 0
@@ -348,7 +348,7 @@ func generateZshCompletion() string {
 			subcommandIndex++
 			fmt.Fprintf(&builder, "            local -a %s\n            %s=(\n", arrayName, arrayName)
 			for _, subcommand := range command.Subcommands {
-				fmt.Fprintf(&builder, "                '%s:%s'\n", subcommand.Name, subcommand.Description)
+				fmt.Fprintf(&builder, "                '%s:%s'\n", zshQuote(subcommand.Name), zshQuote(subcommand.Description))
 			}
 			fmt.Fprintf(&builder, "            )\n            if (( CURRENT == 3 )); then\n                _describe 'subcommand' %s\n            else\n", arrayName)
 			if len(command.Flags) > 0 {
@@ -380,18 +380,39 @@ func zshArguments(flags []cliFlagSpec) string {
 		if short := cliShortFlagNames[flag.Name]; short != "" {
 			option = "{-" + short + ",--" + flag.Name + "}'"
 		}
-		argument := fmt.Sprintf("%s[%s]", option, flag.Description)
+		valueName := zshEscapeSpec(flag.ValueName)
+		argument := fmt.Sprintf("%s[%s]", option, zshEscapeSpec(flag.Description))
 		if len(flag.Values) > 0 {
-			argument += ":" + flag.ValueName + ":(" + strings.Join(flag.Values, " ") + ")"
+			argument += ":" + valueName + ":(" + strings.Join(flag.Values, " ") + ")"
 		} else if flag.Name == "project-name" || flag.Name == "run-id" || flag.Name == "job-id" {
 			action := "_rotari_" + strings.ReplaceAll(flag.Name, "-", "_") + "s"
-			argument += ":" + flag.ValueName + ":" + action
+			argument += ":" + valueName + ":" + action
 		} else if flag.ValueName != "" {
-			argument += ":" + flag.ValueName + ":"
+			argument += ":" + valueName + ":"
 		}
 		arguments = append(arguments, argument+"'")
 	}
 	return strings.Join(arguments, " ")
+}
+
+// zshEscapeSpec escapes characters that are structurally significant either
+// to zsh's _arguments option-spec parser ("[", "]", ":") or to the enclosing
+// single-quoted shell string ("'") so arbitrary flag descriptions and value
+// names cannot break completion script generation.
+func zshEscapeSpec(s string) string {
+	replacer := strings.NewReplacer(
+		"\\", "\\\\",
+		"[", "\\[",
+		"]", "\\]",
+		":", "\\:",
+	)
+	return zshQuote(replacer.Replace(s))
+}
+
+// zshQuote escapes a single quote for safe embedding inside a zsh
+// single-quoted string, using the standard close-escape-reopen technique.
+func zshQuote(s string) string {
+	return strings.ReplaceAll(s, "'", `'\''`)
 }
 
 func zshOptionNames(flags []cliFlagSpec) string {

@@ -28,9 +28,13 @@ func cmdShow(args []string) int {
 	basedir := cliString(fs, "basedir", "")
 	queueNameOption := cliString(fs, "project-name", "")
 	runIDOption := cliString(fs, "run-id", "")
+	showQueueOption := cliBool(fs, "queue", false)
 	jobIDOption := cliString(fs, "job-id", "")
 	failedOnly := cliBool(fs, "failed", false)
 	showRunsList := cliBool(fs, "runs", false)
+	showProjectsList := cliBool(fs, "projects", false)
+	showBaseDirsList := cliBool(fs, "basedirs", false)
+	masterdir := cliString(fs, "masterdir", "")
 	showLogs := cliBool(fs, "logs", false)
 	showFailedLogs := cliBool(fs, "failed-logs", false)
 	followLogs := cliBool(fs, "follow", false)
@@ -42,6 +46,34 @@ func cmdShow(args []string) int {
 	if len(fs.Args()) != 0 {
 		printError("usage: " + cliUsage("show"))
 		return 1
+	}
+	if *showQueueOption && (*showRunsList || *runIDOption != "" || *failedOnly || *showLogs || *showFailedLogs || *followLogs) {
+		printError("--queue cannot be combined with run, log, or filter options")
+		return 1
+	}
+	if *showProjectsList {
+		if *showRunsList || *runIDOption != "" || *jobIDOption != "" || *failedOnly || *showLogs || *showFailedLogs || *followLogs || *jsonOutput {
+			printError("--projects cannot be combined with run, job, log, filter, or JSON options")
+			return 1
+		}
+		baseDir, _, err := resolveBaseDir(*basedir)
+		if err != nil {
+			printErrorf("failed to resolve state directory: %v", err)
+			return 1
+		}
+		return showProjects(baseDir)
+	}
+	if *showBaseDirsList {
+		if *showProjectsList || *showRunsList || *runIDOption != "" || *jobIDOption != "" || *failedOnly || *showLogs || *showFailedLogs || *followLogs || *jsonOutput {
+			printError("--basedirs cannot be combined with project, run, job, log, filter, or JSON options")
+			return 1
+		}
+		masterDir, err := resolveMasterDir(*masterdir)
+		if err != nil {
+			printErrorf("failed to resolve master directory: %v", err)
+			return 1
+		}
+		return showBaseDirs(masterDir)
 	}
 	baseDir, queueName, err := resolveExistingRunTarget(*basedir, *queueNameOption, *runIDOption)
 	if err != nil {
@@ -59,6 +91,24 @@ func cmdShow(args []string) int {
 			return 1
 		}
 		return showRuns(paths)
+	}
+	if *showQueueOption {
+		queue, err := loadQueue(paths.queueFile)
+		if err != nil {
+			printErrorf("failed to load queue: %v", err)
+			return 1
+		}
+		if *jobIDOption != "" {
+			if *jsonOutput {
+				printError("--json cannot be combined with --job-id")
+				return 1
+			}
+			return showQueueJob(paths, queue, *jobIDOption)
+		}
+		if *jsonOutput {
+			return showQueueJSON(paths, queue)
+		}
+		return showQueue(paths, queue)
 	}
 	selectedRunID := *runIDOption
 	if selectedRunID == "" {
@@ -141,6 +191,14 @@ type showJSON struct {
 	RunDir   string      `json:"run_dir"`
 	Summary  *RunSummary `json:"summary,omitempty"`
 	Commands Queue       `json:"commands"`
+}
+
+type showJobCounts struct {
+	success int
+	failed  int
+	blocked int
+	running int
+	pending int
 }
 
 func showRunJSON(paths pathSet, runID string) int {
@@ -335,10 +393,38 @@ func selectRunID(paths pathSet, requested string) (string, error) {
 
 func writeShowTargetHeader(writer io.Writer, paths pathSet) {
 	fmt.Fprintf(writer, "%s %s\n%s %s\n", cyan("Base directory:"), paths.baseDir, cyan("Project:"), paths.queueName)
+	if queue, err := loadQueue(paths.queueFile); err == nil {
+		fmt.Fprintf(writer, "%s %s (%d jobs)\n", cyan("Queue:"), paths.queueFile, len(queue.Commands))
+	} else {
+		fmt.Fprintf(writer, "%s %s\n", cyan("Queue:"), paths.queueFile)
+	}
+	if state, _, err := inspectProjectRunState(paths); err == nil {
+		fmt.Fprintf(writer, "%s %s\n", cyan("Project state:"), projectStateName(state))
+	}
+	if response, err := sendServerRequest(paths.baseDir, serverRequest{Op: "ping"}); err == nil && response.OK {
+		fmt.Fprintf(writer, "%s running (pid=%d)\n", cyan("Runner server:"), response.PID)
+	} else {
+		fmt.Fprintf(writer, "%s stopped\n", cyan("Runner server:"))
+	}
+	fmt.Fprintf(writer, "%s %d\n", cyan("Runs:"), countProjectRuns(paths.runsDir))
 	configPaths := configPathsForRun(paths.baseDir, paths.queueName)
 	if len(configPaths) > 0 {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Config:"), strings.Join(configPaths, ", "))
 	}
+}
+
+func countProjectRuns(runsDir string) int {
+	entries, err := os.ReadDir(runsDir)
+	if err != nil {
+		return 0
+	}
+	count := 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			count++
+		}
+	}
+	return count
 }
 
 func printInterruptedRunNotice(paths pathSet, runID string) {
@@ -382,6 +468,8 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 	}
 	jobSpecs := loadRunJobSpecs(runDir)
 	runQueue, runQueueErr := loadQueue(filepath.Join(runDir, "commands.json"))
+	runActive := runIsActive(paths, runID)
+	jobCounts := showJobCounts{}
 	resultByID := make(map[string]JobResult, len(summary.Results))
 	for _, result := range summary.Results {
 		resultByID[result.ID] = result
@@ -455,6 +543,20 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 				blocked = strings.HasPrefix(result.Error, "blocked")
 			}
 		}
+		if statusOK {
+			switch {
+			case blocked:
+				jobCounts.blocked++
+			case status == 0:
+				jobCounts.success++
+			default:
+				jobCounts.failed++
+			}
+		} else if runActive {
+			jobCounts.running++
+		} else {
+			jobCounts.pending++
+		}
 		executorText := queueExecutorText(runQueue, jobSpec)
 		if failedOnly && (!statusOK || status == 0) {
 			continue
@@ -487,10 +589,20 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 			fmt.Printf("%-12s %-6s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s\n", jobID, taskText, name, dependsOn, yellow("running"), executorText, submittedAt, finishedAt, hosts, command)
 		}
 	}
+	fmt.Printf("\n%s success: %d, failed: %d, blocked: %d, running: %d, pending: %d\n", cyan("Job status:"), jobCounts.success, jobCounts.failed, jobCounts.blocked, jobCounts.running, jobCounts.pending)
 	printChangeHints(paths, runID, runQueue, changeHints)
 	printFailedLogHints(runID, changeHints)
 	fmt.Printf("\n%s\n  rotari delete --run-id %s\n", cyan("To delete this run's saved logs:"), runID)
 	return 0
+}
+
+func runIsActive(paths pathSet, runID string) bool {
+	running, err := isRunning(paths.lockFile)
+	if err != nil || !running {
+		return false
+	}
+	lock, err := loadLockInfo(paths.lockFile)
+	return err == nil && lock.RunID == runID
 }
 
 func printFailedLogHints(runID string, failedJobs []JobSpec) {
@@ -547,9 +659,10 @@ func printChangeHints(paths pathSet, runID string, queue Queue, jobs []JobSpec) 
 
 func showQueue(paths pathSet, queue Queue) int {
 	jobs := queueToJobs(queue.Commands)
+	originByID := queueOriginsByJobID(queue)
 	writeShowTargetHeader(os.Stdout, paths)
 	fmt.Printf("%s\n\n", cyan("Showing jobs queued for the next run"))
-	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-6s %-15s %-20s %-30s %s", "JOB ID", "TASK", "NAME", "DEPENDS ON", "EXECUTOR", "COMMAND")))
+	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-6s %-15s %-20s %-30s %-24s %-12s %s", "JOB ID", "TASK", "NAME", "DEPENDS ON", "EXECUTOR", "SOURCE RUN", "SOURCE STATUS", "COMMAND")))
 	for _, job := range jobs {
 		name := job.Name
 		if name == "" {
@@ -564,10 +677,30 @@ func showQueue(paths pathSet, queue Queue) int {
 			taskText = strconv.Itoa(*job.ArrayTaskID)
 		}
 		executorText := queueExecutorText(queue, job)
-		fmt.Printf("%-12s %-6s %-15s %-20s %-30s %s\n", job.ID, taskText, name, dependsOn, executorText, strings.Join(job.Command, " "))
+		sourceRun, sourceStatus := "-", "-"
+		if origin := originByID[job.ID]; origin != nil {
+			sourceRun = origin.RunID + "/" + origin.JobID
+			if origin.Status != "" {
+				sourceStatus = origin.Status
+			}
+		}
+		fmt.Printf("%-12s %-6s %-15s %-20s %-30s %-24s %-12s %s\n", job.ID, taskText, name, dependsOn, executorText, sourceRun, sourceStatus, strings.Join(job.Command, " "))
 	}
 	fmt.Printf("\n%s\n  rotari run --basedir %s --project-name %s\n", cyan("To execute these jobs:"), shellQuote(paths.baseDir), shellQuote(paths.queueName))
 	return 0
+}
+
+func queueOriginsByJobID(queue Queue) map[string]*JobOrigin {
+	origins := make(map[string]*JobOrigin)
+	for _, command := range queue.Commands {
+		if command.Origin != nil {
+			origins[command.ID] = command.Origin
+		}
+		for taskID, origin := range command.TaskOrigins {
+			origins[taskID] = origin
+		}
+	}
+	return origins
 }
 
 func showQueueJob(paths pathSet, queue Queue, jobID string) int {
@@ -792,6 +925,107 @@ func showRuns(paths pathSet) int {
 		fmt.Printf("%-36s %-24s %-12s %-12s %-24s %-24s\n", r.id, name, statusText, exitCode, started, finished)
 	}
 	return 0
+}
+
+func showProjects(baseDir string) int {
+	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			fmt.Printf("%s %s\nNo projects found.\n", cyan("Base directory:"), baseDir)
+			return 0
+		}
+		printErrorf("failed to read projects directory: %v", err)
+		return 1
+	}
+
+	type projectInfo struct {
+		name    string
+		queued  int
+		state   string
+		lastRun string
+	}
+	projects := make([]projectInfo, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() || !isValidProjectName(entry.Name()) {
+			continue
+		}
+		paths, err := resolvePaths(baseDir, entry.Name())
+		if err != nil {
+			printErrorf("failed to resolve project %q: %v", entry.Name(), err)
+			return 1
+		}
+		queue, err := loadQueue(paths.queueFile)
+		if err != nil {
+			printErrorf("failed to load queue for project %q: %v", entry.Name(), err)
+			return 1
+		}
+		state, _, err := inspectProjectRunState(paths)
+		if err != nil {
+			printErrorf("failed to check project %q state: %v", entry.Name(), err)
+			return 1
+		}
+		meta, err := loadMeta(paths.metaFile)
+		if err != nil {
+			printErrorf("failed to load project %q metadata: %v", entry.Name(), err)
+			return 1
+		}
+		lastRun := meta.LastRunID
+		if lastRun == "" {
+			lastRun = "-"
+		}
+		projects = append(projects, projectInfo{name: entry.Name(), queued: len(queue.Commands), state: projectStateName(state), lastRun: lastRun})
+	}
+
+	fmt.Printf("%s %s\n", cyan("Base directory:"), baseDir)
+	if len(projects) == 0 {
+		fmt.Println("No projects found.")
+		return 0
+	}
+	fmt.Printf("\n%s\n", cyan(fmt.Sprintf("Projects: %d", len(projects))))
+	fmt.Println(cyan(fmt.Sprintf("%-24s %-8s %-14s %s", "PROJECT", "QUEUED", "STATE", "LAST RUN")))
+	for _, project := range projects {
+		fmt.Printf("%-24s %-8d %-14s %s\n", project.name, project.queued, project.state, project.lastRun)
+	}
+	return 0
+}
+
+func showBaseDirs(masterDir string) int {
+	servers, err := listServers(masterDir)
+	if err != nil {
+		printErrorf("failed to list servers: %v", err)
+		return 1
+	}
+	baseDirs, err := listKnownBaseDirs(masterDir, servers)
+	if err != nil {
+		printErrorf("failed to list known state directories: %v", err)
+		return 1
+	}
+	fmt.Printf("%s %s\n", cyan("Master directory:"), masterDir)
+	if len(baseDirs) == 0 {
+		fmt.Println("No known state directories.")
+		return 0
+	}
+	fmt.Printf("\n%s\n", cyan(fmt.Sprintf("Known state directories: %d", len(baseDirs))))
+	fmt.Println(cyan(fmt.Sprintf("%-8s %-24s %s", "PID", "SOURCE", "BASE DIRECTORY")))
+	for _, baseDir := range baseDirs {
+		pid := "-"
+		if baseDir.PID != 0 {
+			pid = strconv.Itoa(baseDir.PID)
+		}
+		fmt.Printf("%-8s %-24s %s\n", pid, strings.Join(baseDir.Sources, ", "), baseDir.BaseDir)
+	}
+	return 0
+}
+
+func projectStateName(state projectRunState) string {
+	switch state {
+	case projectRunning:
+		return "running"
+	case projectInterrupted:
+		return "interrupted"
+	default:
+		return "idle"
+	}
 }
 
 func colorExecutor(executor string) string {

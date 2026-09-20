@@ -1169,7 +1169,7 @@ func resolveProjectName(baseDir string, cliProjectName string) (string, error) {
 			for _, q := range available {
 				list = append(list, "  - "+q)
 			}
-			return "", fmt.Errorf("multiple projects exist, please specify one with --project-name or ROTARI_PROJECT_NAME:\n%s", strings.Join(list, "\n"))
+			return "", fmt.Errorf("multiple projects exist in state directory %q; please specify one with --project-name or ROTARI_PROJECT_NAME:\n%s", baseDir, strings.Join(list, "\n"))
 		}
 	}
 	return defaultProjectName, nil

@@ -71,6 +71,9 @@ func TestResolveProjectNamePriority(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for multiple projects when project-name is empty, got nil")
 	}
+	if !strings.Contains(err.Error(), `state directory "`+baseDir+`"`) {
+		t.Fatalf("ambiguous project error = %q, want state directory", err)
+	}
 }
 
 func TestResolvePathsRejectsProjectTraversal(t *testing.T) {
@@ -992,6 +995,38 @@ func TestCompletionScriptsContainCommandOptions(t *testing.T) {
 	}
 	if !strings.Contains(generateZshCompletion(), "_rotari_project_names") {
 		t.Error("Zsh completion does not dynamically complete project names")
+	}
+}
+
+func TestGenerateZshCompletionIsValidSyntax(t *testing.T) {
+	zshPath, err := exec.LookPath("zsh")
+	if err != nil {
+		t.Skip("zsh not installed")
+	}
+	script := generateZshCompletion()
+	scriptPath := filepath.Join(t.TempDir(), "_rotari")
+	if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(zshPath, "-n", scriptPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated zsh completion has a syntax error: %v\n%s", err, out)
+	}
+}
+
+func TestGenerateBashCompletionIsValidSyntax(t *testing.T) {
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not installed")
+	}
+	script := generateBashCompletion()
+	scriptPath := filepath.Join(t.TempDir(), "rotari-completion.bash")
+	if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(bashPath, "-n", scriptPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated bash completion has a syntax error: %v\n%s", err, out)
 	}
 }
 

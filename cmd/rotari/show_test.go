@@ -81,7 +81,7 @@ func TestCmdShowDisplaysFinishedArrayTaskFromStatusJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 0 || !strings.Contains(string(output), "array-1") || !strings.Contains(string(output), " 0 ") {
+	if code != 0 || !strings.Contains(string(output), "array-1") || !strings.Contains(string(output), " 0 ") || !strings.Contains(string(output), "Job status: success: 1, failed: 0, blocked: 0, running: 0, pending: 0") {
 		t.Fatalf("code=%d output=%q", code, output)
 	}
 }
@@ -169,7 +169,7 @@ func TestCmdShowDisplaysCurrentQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "greeting", Command: []string{"printf", "hello"}}}}
+	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "greeting", Command: []string{"printf", "hello"}, Origin: &JobOrigin{RunID: "run-1", JobID: "job-old", Status: "success"}}}}
 	if err := writeJSON(paths.queueFile, queue); err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestCmdShowDisplaysCurrentQueue(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cmdShow exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"Base directory: " + baseDir, "Project: demo", "Showing jobs queued for the next run", "job-1", "greeting", "printf hello", "To execute these jobs:", "rotari run --basedir '" + baseDir + "' --project-name 'demo'"} {
+	for _, want := range []string{"Base directory: " + baseDir, "Project: demo", "Queue: " + paths.queueFile + " (1 jobs)", "Project state: idle", "Runner server: stopped", "Runs: 0", "Showing jobs queued for the next run", "job-1", "greeting", "run-1/job-old", "success", "printf hello", "To execute these jobs:", "rotari run --basedir '" + baseDir + "' --project-name 'demo'"} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("cmdShow output does not contain %q:\n%s", want, output)
 		}
@@ -294,7 +294,7 @@ func TestCmdShowDisplaysActiveRunBeforeQueue(t *testing.T) {
 		t.Fatalf("cmdShow exit code = %d, want 0", code)
 	}
 	text := string(output)
-	for _, want := range []string{"Run: " + runID, "active-job", "echo active"} {
+	for _, want := range []string{"Runs: 1", "Run: " + runID, "Job status: success: 0, failed: 0, blocked: 0, running: 1, pending: 0", "active-job", "echo active"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("cmdShow output does not contain %q:\n%s", want, text)
 		}
@@ -303,6 +303,24 @@ func TestCmdShowDisplaysActiveRunBeforeQueue(t *testing.T) {
 		if strings.Contains(text, unwanted) {
 			t.Fatalf("cmdShow output unexpectedly contains %q:\n%s", unwanted, text)
 		}
+	}
+
+	reader, writer, err = os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code = cmdShow([]string{"--basedir", baseDir, "--project-name", "demo", "--queue", "--no-pager"})
+	os.Stdout = oldStdout
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err = io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 || !strings.Contains(string(output), "Showing jobs queued for the next run") || !strings.Contains(string(output), "queued-job") || strings.Contains(string(output), "active-job") {
+		t.Fatalf("--queue did not force current queue display, code=%d output=%q", code, output)
 	}
 }
 
@@ -790,6 +808,9 @@ func TestShowRunsListsRunsSortedByRecency(t *testing.T) {
 		t.Fatalf("showRuns exit code = %d, want 0", code)
 	}
 	text := string(output)
+	if !strings.Contains(text, "Runs: 2") {
+		t.Fatalf("showRuns did not display the run count:\n%s", text)
+	}
 	newIndex := strings.Index(text, "run-new")
 	oldIndex := strings.Index(text, "run-old")
 	if newIndex == -1 || oldIndex == -1 || newIndex > oldIndex {
@@ -821,5 +842,84 @@ func TestShowRunsReportsNoRunsWhenDirectoryMissing(t *testing.T) {
 	}
 	if code != 0 || !strings.Contains(string(output), "No runs found.") {
 		t.Fatalf("showRuns exit code = %d, stdout = %q", code, output)
+	}
+}
+
+func TestCmdShowProjectsListsProjectSummaries(t *testing.T) {
+	baseDir := t.TempDir()
+	demo, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	example, err := resolvePaths(baseDir, "example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(demo.queueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(demo.metaFile, Meta{Phase: "finished", LastRunID: "demo-run"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(example.lockFile, LockInfo{PID: os.Getpid(), RunID: "example-run"}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Remove(example.lockFile) })
+
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code := cmdShow([]string{"--basedir", baseDir, "--projects"})
+	os.Stdout = oldStdout
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 {
+		t.Fatalf("cmdShow exit code = %d, want 0", code)
+	}
+	for _, want := range []string{"Base directory: " + baseDir, "Projects: 2", "demo", "demo-run", "example", "running"} {
+		if !strings.Contains(string(output), want) {
+			t.Fatalf("cmdShow --projects output does not contain %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestCmdShowBaseDirsListsMasterRegistryEntries(t *testing.T) {
+	masterDir := t.TempDir()
+	knownBaseDir := t.TempDir()
+	t.Setenv(envMasterDir, masterDir)
+	if err := registerRunLocation(runLocation{BaseDir: knownBaseDir, ProjectName: "demo", RunID: "saved-run"}); err != nil {
+		t.Fatal(err)
+	}
+
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code := cmdShow([]string{"--basedirs"})
+	os.Stdout = oldStdout
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 {
+		t.Fatalf("cmdShow exit code = %d, want 0", code)
+	}
+	for _, want := range []string{"Master directory: " + masterDir, "Known state directories: 1", "run registry", knownBaseDir} {
+		if !strings.Contains(string(output), want) {
+			t.Fatalf("cmdShow --basedirs output does not contain %q:\n%s", want, output)
+		}
 	}
 }

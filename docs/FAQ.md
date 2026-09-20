@@ -22,6 +22,17 @@ resolved state directory. If no project exists yet, it defaults to `default`.
 If multiple projects exist and none of the above narrows it down, rotari
 errors and asks you to pick one explicitly.
 
+**How do I list projects in a state directory?**
+Run `rotari show --projects`. It lists each project's queued-job count, run
+state, and latest run ID without requiring `--project-name`. Add `--basedir`
+to list projects in a specific state directory.
+
+**How do I find state directories I used before?**
+Run `rotari show --basedirs`. It prints the master directory and basedirs
+known from saved-run and live-server registry records. A basedir with neither
+a registered run nor a running server cannot be discovered this way. Add
+`--masterdir DIR` to choose a registry explicitly.
+
 **Where can I put option defaults?**
 Put `config.yaml`, `config.toml`, or `config.json` in
 `$XDG_CONFIG_HOME/rotari` (or `~/.config/rotari`) for home-wide defaults, in
@@ -154,12 +165,16 @@ run the same project through mounts that do not share a consistent view of the
 state files.
 
 **A runner process died mid-run — what do I do?**
-Run `rotari unlock --run-id RUN_ID` (the exact command is shown by `show`) to
-acknowledge the stopped run and keep its retained queue, once you've
-confirmed the jobs really stopped. To discard the retained queue instead, run
-`rotari reset` — interactively it asks for the same confirmation, or supply
-it up front with `rotari reset --recover`. `add`, `copy`, and `run` stay
-blocked until one of these is run.
+Rotari does not run a watchdog that automatically restarts a crashed detached
+supervisor. The run lock records the supervisor PID and host, and local jobs
+write their own `status.json` through a wrapper, so `rotari show --run-id
+RUN_ID` is the first place to inspect whether jobs kept running or reported
+completion after the supervisor disappeared. Run `rotari unlock --run-id
+RUN_ID` (the exact command is shown by `show`) to acknowledge the stopped run
+and keep its retained queue, once you've confirmed the jobs really stopped. To
+discard the retained queue instead, run `rotari reset` — interactively it asks
+for the same confirmation, or supply it up front with `rotari reset --recover`.
+`add`, `copy`, and `run` stay blocked until one of these is run.
 
 **A remote host's lock looks stuck even though the job actually stopped — why won't `unlock` go away automatically?**
 Rotari only auto-clears a run lock by checking whether the PID that created

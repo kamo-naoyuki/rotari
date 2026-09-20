@@ -130,6 +130,11 @@ Without a run-location lookup, base directories resolve in this order:
     `ROTARI_PROJECT_NAME`, then the only project in the resolved base directory.
     With no projects the name is `default`; multiple projects require an
     explicit choice.
+- `show --projects` lists all projects in the resolved base directory and does
+    not resolve one project name.
+- `show --basedirs` lists state directories known to the run and live-server
+    registries under the resolved master directory; this discovery is not
+    exhaustive.
 - Project names and job IDs are single path elements, never
     relative or absolute paths.
 - Empty values, `.`, `..`, absolute paths, and values containing
@@ -362,6 +367,10 @@ order:
 - The local executor uses the same wrapper. If the coordinating server or
     async worker is killed, the orphaned local job can finish and record its
     own status instead of leaving no result.
+- Detached supervisors are not automatically restarted. Crash detection is
+    file-backed: the run lock records the supervisor PID and host, and readers
+    inspect per-job status files and missing summaries to report an active or
+    interrupted run. Recovery remains an explicit operator action.
 - The existing `show`/`web.go` fallback chain (`status` -> `status.json` ->
     `summary.json`) consumes this state without reader changes.
 - This does not kill or reconcile leftover jobs during recovery;
