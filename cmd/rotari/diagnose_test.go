@@ -34,6 +34,119 @@ func TestRequestDiagnosisSendsOpenAIResponsesRequest(t *testing.T) {
 	}
 }
 
+func TestRequestProviderDiagnosisSendsChatCompletionsRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.Header.Get("Authorization") != "Bearer secret" {
+			t.Fatalf("request = %s authorization=%q", request.Method, request.Header.Get("Authorization"))
+		}
+		var body struct {
+			Model    string `json:"model"`
+			Messages []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body.Model != "deepseek-chat" || len(body.Messages) != 1 || body.Messages[0].Role != "user" || body.Messages[0].Content != "prompt" {
+			t.Fatalf("body = %#v", body)
+		}
+		_, _ = writer.Write([]byte(`{"choices":[{"message":{"content":"diagnosis"}}]}`))
+	}))
+	defer server.Close()
+
+	answer, err := requestProviderDiagnosis(context.Background(), "openai-chat", server.URL, "secret", "deepseek-chat", "prompt")
+	if err != nil || answer != "diagnosis" {
+		t.Fatalf("requestProviderDiagnosis() = %q, %v", answer, err)
+	}
+}
+
+func TestRequestProviderDiagnosisSendsAnthropicMessagesRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.Header.Get("x-api-key") != "secret" || request.Header.Get("anthropic-version") != "2023-06-01" {
+			t.Fatalf("request = %s x-api-key=%q anthropic-version=%q", request.Method, request.Header.Get("x-api-key"), request.Header.Get("anthropic-version"))
+		}
+		var body struct {
+			Model     string `json:"model"`
+			MaxTokens int    `json:"max_tokens"`
+			Messages  []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body.Model != "claude-sonnet-5" || body.MaxTokens != 4096 || len(body.Messages) != 1 || body.Messages[0].Role != "user" || body.Messages[0].Content != "prompt" {
+			t.Fatalf("body = %#v", body)
+		}
+		_, _ = writer.Write([]byte(`{"content":[{"type":"text","text":"diagnosis"}]}`))
+	}))
+	defer server.Close()
+
+	answer, err := requestProviderDiagnosis(context.Background(), "anthropic", server.URL, "secret", "claude-sonnet-5", "prompt")
+	if err != nil || answer != "diagnosis" {
+		t.Fatalf("requestProviderDiagnosis() = %q, %v", answer, err)
+	}
+}
+
+func TestRequestProviderDiagnosisSendsGeminiGenerateContentRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.Header.Get("x-goog-api-key") != "secret" {
+			t.Fatalf("request = %s x-goog-api-key=%q", request.Method, request.Header.Get("x-goog-api-key"))
+		}
+		var body struct {
+			Contents []struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"contents"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if len(body.Contents) != 1 || len(body.Contents[0].Parts) != 1 || body.Contents[0].Parts[0].Text != "prompt" {
+			t.Fatalf("body = %#v", body)
+		}
+		_, _ = writer.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"diagnosis"}]}}]}`))
+	}))
+	defer server.Close()
+
+	answer, err := requestProviderDiagnosis(context.Background(), "gemini", server.URL, "secret", "gemini-3.6-flash", "prompt")
+	if err != nil || answer != "diagnosis" {
+		t.Fatalf("requestProviderDiagnosis() = %q, %v", answer, err)
+	}
+}
+
+func TestRequestProviderDiagnosisSendsCohereChatRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.Header.Get("Authorization") != "Bearer secret" {
+			t.Fatalf("request = %s authorization=%q", request.Method, request.Header.Get("Authorization"))
+		}
+		var body struct {
+			Model    string `json:"model"`
+			Messages []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body.Model != "command-a-reasoning-08-2025" || len(body.Messages) != 1 || body.Messages[0].Role != "user" || body.Messages[0].Content != "prompt" {
+			t.Fatalf("body = %#v", body)
+		}
+		_, _ = writer.Write([]byte(`{"message":{"content":[{"type":"text","text":"diagnosis"}]}}`))
+	}))
+	defer server.Close()
+
+	answer, err := requestProviderDiagnosis(context.Background(), "cohere", server.URL, "secret", "command-a-reasoning-08-2025", "prompt")
+	if err != nil || answer != "diagnosis" {
+		t.Fatalf("requestProviderDiagnosis() = %q, %v", answer, err)
+	}
+}
+
 func TestTailStringKeepsLogEnd(t *testing.T) {
 	got := tailString("0123456789", 4)
 	if !strings.HasPrefix(got, "[earlier log output omitted]") || !strings.HasSuffix(got, "6789") {

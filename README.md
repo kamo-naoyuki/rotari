@@ -8,7 +8,7 @@
 
 [![Go CI](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml/badge.svg)](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml) [![Slurm + PBS CI](https://img.shields.io/github/actions/workflow/status/kamo-naoyuki/rotari/scheduler-integration.yml?branch=main&label=Slurm%20%2B%20PBS%20CI)](https://github.com/kamo-naoyuki/rotari/actions/workflows/scheduler-integration.yml) [![codecov](https://codecov.io/gh/kamo-naoyuki/rotari/graph/badge.svg)](https://codecov.io/gh/kamo-naoyuki/rotari) [![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=kamo-naoyuki_rotari&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kamo-naoyuki_rotari) [![web demo](https://img.shields.io/website?url=https%3A%2F%2Fkamo-naoyuki.github.io%2Frotari%2F&label=web%20demo&style=flat)](https://kamo-naoyuki.github.io/rotari/)
 
-**Rotari turns trial-and-error into a repeatable loop**: run a batch of jobs, see which failed, fix only their commands, and run it again — without losing the history of what already worked.
+**rotari turns trial-and-error into a repeatable loop**: run a batch of jobs, see which failed, fix only their commands, and run it again — without losing the history of what already worked.
 
 It is for experiments and builds that you run repeatedly, but where defining a
 full workflow up front would be more work than the iteration itself.
@@ -28,20 +28,20 @@ laptop or logged into a remote compute node.
 
 ## How is rotari different?
 
-Rotari focuses on **managing the iteration of experiments**, rather than executing or distributing individual tasks.
-If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the model should feel familiar: commands are dispatched locally or to a cluster, with logs and success/failure tracked consistently across backends. Rotari extends this idea with persistent run history and experiment-oriented iteration.
+rotari focuses on **managing the iteration of experiments**, rather than executing or distributing individual tasks.
+If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the model should feel familiar: commands are dispatched locally or to a cluster, with logs and success/failure tracked consistently across backends. rotari extends this idea with persistent run history and experiment-oriented iteration.
 
-* **[Shell scripts](https://www.gnu.org/software/bash/)** are flexible and easy to start with, but repeated executions and their history are usually managed manually. Rotari makes that iteration history explicit.
-* **[GNU Parallel](https://www.gnu.org/software/parallel/)** makes it easy to run many shell commands in parallel. Rotari goes further by giving those executions persistent identities, logs, status, and an iteration history.
-* **[Slurm](https://github.com/SchedMD/slurm), [PBS](https://github.com/openpbs/openpbs), and LSF** focus on scheduling and executing jobs on a cluster. Rotari adds an experiment-oriented layer for tracking, inspecting, retrying, and modifying runs.
-* **[MLflow](https://github.com/mlflow/mlflow) and [Weights & Biases](https://github.com/wandb/wandb)** focus on tracking experiments, metrics, parameters, and artifacts. Rotari focuses on running experiments, managing their execution, and keeping track of the history of successive runs. They can be used together: a Rotari run can launch a training job that logs its results to MLflow or Weights & Biases.
-* **[Snakemake](https://github.com/snakemake/snakemake)**, **[Nextflow](https://github.com/nextflow-io/nextflow)**, **[Airflow](https://github.com/apache/airflow)**, **[Prefect](https://github.com/PrefectHQ/prefect)**, and **[Dagster](https://github.com/dagster-io/dagster)** focus on defining and orchestrating workflows by explicitly modeling tasks and their relationships. Rotari focuses on successive runs of an experiment without requiring the workflow to be defined up front.
-* **[Dask](https://github.com/dask/dask)** focuses on distributing Python computations across workers. Rotari focuses on running experiments as command-line jobs and keeping track of their execution history.
+* **[Shell scripts](https://www.gnu.org/software/bash/)** are flexible and easy to start with, but repeated executions and their history are usually managed manually. rotari makes that iteration history explicit.
+* **[GNU Parallel](https://www.gnu.org/software/parallel/)** makes it easy to run many shell commands in parallel. rotari goes further by giving those executions persistent identities, logs, status, and an iteration history.
+* **[Slurm](https://github.com/SchedMD/slurm), [PBS](https://github.com/openpbs/openpbs), and LSF** focus on scheduling and executing jobs on a cluster. rotari adds an experiment-oriented layer for tracking, inspecting, retrying, and modifying runs.
+* **[MLflow](https://github.com/mlflow/mlflow) and [Weights & Biases](https://github.com/wandb/wandb)** focus on tracking experiments, metrics, parameters, and artifacts. rotari focuses on running experiments, managing their execution, and keeping track of the history of successive runs. They can be used together: a rotari run can launch a training job that logs its results to MLflow or Weights & Biases.
+* **[Snakemake](https://github.com/snakemake/snakemake)**, **[Nextflow](https://github.com/nextflow-io/nextflow)**, **[Airflow](https://github.com/apache/airflow)**, **[Prefect](https://github.com/PrefectHQ/prefect)**, and **[Dagster](https://github.com/dagster-io/dagster)** focus on defining and orchestrating workflows by explicitly modeling tasks and their relationships. rotari focuses on successive runs of an experiment without requiring the workflow to be defined up front.
+* **[Dask](https://github.com/dask/dask)** focuses on distributing Python computations across workers. rotari focuses on running experiments as command-line jobs and keeping track of their execution history.
 
 ```mermaid
 flowchart TB
     subgraph ITER["Experiment iteration"]
-        R["Rotari<br/>Run / Retry / Change / Copy<br/>Persistent history"]
+        R["rotari<br/>Run / Retry / Change / Copy<br/>Persistent history"]
     end
 
     subgraph WORK["What to run"]
@@ -255,7 +255,7 @@ python3 -m pip install --no-deps ./python
 ```
 
 It provides convenient queue, run, wait, and status calls without duplicating
-Rotari's execution logic:
+rotari's execution logic:
 
 ```python
 from rotari import Rotari
@@ -273,7 +273,7 @@ owned by the CLI. This is intentionally a thin wrapper, not a Python-native
 job executor: it accepts command argument lists such as `['./train.sh']`, not
 Python functions to serialize and submit. For a function-oriented Python job
 submission framework, see [Submitit](https://github.com/facebookincubator/submitit);
-Rotari instead exposes the existing CLI and its local, SSH, and scheduler
+rotari instead exposes the existing CLI and its local, SSH, and scheduler
 backends to Python.
 
 
@@ -370,13 +370,13 @@ Use `--env KEY=VALUE` with `add` to save environment variables on a job. They
 are exported for every executor, including local, SSH, Slurm, PBS, and LSF, and
 are preserved when the job is copied or retried. `rotari change --env KEY=VALUE`
 replaces the job's saved environment; repeat it for multiple variables, or use
-`--clear-env` to remove them. Rotari's own `ROTARI_*` context variables take
+`--clear-env` to remove them. rotari's own `ROTARI_*` context variables take
 precedence over a same-named user value.
 
 ### SSH executor
 
 For the `ssh` executor, the first `--executor-option` is the SSH destination;
-remaining options are passed to `ssh`. Rotari runs the command over that SSH
+remaining options are passed to `ssh`. rotari runs the command over that SSH
 session, then stores its output, exit status, and destination host in the
 local run directory. Use `--working-directory DIR` to set the execution
 directory; for SSH this is a directory on the remote host. It can be changed
@@ -525,41 +525,8 @@ directly; piped and redirected output is always printed directly.
 **Experimental:** The LLM diagnosis command is an opt-in early feature. Its
 prompt, supported providers, and response format may change in future releases.
 
-New to LLM APIs? Follow the
-[LLM diagnosis setup guide](docs/LLM_API_INSTRUCTION.md) before running the
-examples below.
-
-`diagnose` sends the selected job's command, recorded exit/error information,
-and at most the last 12,000 characters of its output log to an OpenAI Responses
-API-compatible endpoint. It does not run the command again, change Rotari
-state, or store the API key or diagnosis. Review the log before sending it:
-job output can contain experiment data, file paths, or other sensitive values.
-
-```sh
-export ROTARI_LLM_API_KEY='...'
-rotari diagnose --run-id RUN_ID --job-id JOB_ID --model gpt-5-mini --language ja
-```
-
-The default endpoint is `https://api.openai.com/v1/responses`. Set
-`ROTARI_LLM_ENDPOINT` (or `--endpoint`) for a compatible gateway, and
-`ROTARI_LLM_MODEL` (or `--model`) to choose a model. `ROTARI_LLM_API_KEY` is
-read only for this request and is never written to Rotari state or propagated
-to jobs. Set `--language TAG` or `ROTARI_LLM_LANGUAGE` to request a response
-in a BCP 47 language tag such as `ja` or `en-US`; without it, the model chooses
-the response language.
-
-To try it with a predictable Python import failure in an isolated temporary
-state directory:
-
-```sh
-go build -o rotari ./cmd/rotari
-export ROTARI_LLM_API_KEY='...'
-export ROTARI_LLM_MODEL='gpt-5-mini'
-./scripts/example-diagnose.sh
-```
-
-The example leaves its state directory in place and prints its location, so
-you can inspect the stored command and output after the diagnosis.
+See the [LLM diagnosis guide](docs/LLM_DIAGNOSIS.md) for setup,
+provider details, configuration, and execution examples.
 
 
 ## Recover and rerun
@@ -744,7 +711,7 @@ flowchart LR
 
 ## State and project resolution
 
-Rotari resolves the state directory before it resolves the project name. The
+rotari resolves the state directory before it resolves the project name. The
 first matching state-directory entry wins:
 
 The resolution order for the state directory is:
@@ -814,7 +781,7 @@ new event would exceed that limit.
 
 ## Run registry maintenance
 
-Run IDs do not contain the base directory or project name. Rotari therefore
+Run IDs do not contain the base directory or project name. rotari therefore
 keeps a master **run registry**, a lookup table that maps each run ID back to
 the base directory and project that own it. This lets commands such as
 `show --run-id`, `wait --run-id`, and `copy --run-id` work without repeating
@@ -933,5 +900,5 @@ unprivileged users on a shared machine.
 
 ## Development
 
-See [Rotari internals](docs/INTERNALS.md) for the architecture, persistent-state
+See [rotari internals](docs/INTERNALS.md) for the architecture, persistent-state
 contracts, resolution rules, and code ownership used by maintainers and coding agents.

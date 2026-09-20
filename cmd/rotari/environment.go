@@ -37,6 +37,7 @@ const (
 	envWebStaticDir    = "ROTARI_WEB_STATIC_DIR"
 	envWebAllowControl = "ROTARI_WEB_ALLOW_CONTROL"
 	envLLMAPIKey       = "ROTARI_LLM_API_KEY"
+	envLLMProvider     = "ROTARI_LLM_PROVIDER"
 	envLLMEndpoint     = "ROTARI_LLM_ENDPOINT"
 	envLLMModel        = "ROTARI_LLM_MODEL"
 	envLLMLanguage     = "ROTARI_LLM_LANGUAGE"
@@ -118,7 +119,8 @@ func environmentDefinitions() []environmentDefinition {
 		{Name: envWebStaticDir, CLIDefault: true, Description: "--static-dir default for web."},
 		{Name: envWebAllowControl, CLIDefault: true, Description: "--allow-control default for web."},
 		{Name: envLLMAPIKey, Description: "API key for the diagnose command; never persisted or passed to jobs."},
-		{Name: envLLMEndpoint, CLIDefault: true, Description: "OpenAI Responses API endpoint; --endpoint default for diagnose."},
+		{Name: envLLMProvider, CLIDefault: true, Description: "LLM provider (openai, openai-chat, anthropic, gemini, or cohere); --provider default for diagnose."},
+		{Name: envLLMEndpoint, CLIDefault: true, Description: "LLM API endpoint; --endpoint default for diagnose."},
 		{Name: envLLMModel, CLIDefault: true, Description: "Model name; --model default for diagnose."},
 		{Name: envLLMLanguage, CLIDefault: true, Description: "BCP 47 response language tag; --language default for diagnose."},
 		{Name: envPrivateState, Description: "set to true for 0700/0600 state directory permissions instead of the default 0755/0644 (shared state)."},
