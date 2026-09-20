@@ -65,6 +65,15 @@ The normal state layout is:
 - The server log is bounded: before an event would make it exceed 1 MiB, the
     regular file is truncated and the new event is written.
 - Run output remains the durable execution record.
+- When `webhook.url` is configured, or `ROTARI_WEBHOOK_URL` is set, finalized
+    runs send one `POST` summary to that endpoint. The default format is the
+    generic rotari JSON payload; `webhook.format: slack` or
+    `ROTARI_WEBHOOK_FORMAT=slack` selects a Slack Incoming Webhook payload.
+    `webhook.on` and `ROTARI_WEBHOOK_ON` filter success/failure events;
+    environment variables override config files. Delivery errors are warnings
+    and do not change run status. A successful delivery is marked by
+    `webhook.sent` inside the run directory. New formats must be implemented as
+    webhook encoders without changing the generic payload contract.
 - `diagnose` is an explicitly invoked, stateless external integration. It sends
     one job's command, recorded result, and at most the last 12,000 characters
     of output to the configured OpenAI Responses API-compatible endpoint. API

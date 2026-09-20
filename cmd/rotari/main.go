@@ -496,6 +496,7 @@ func finishRun(paths pathSet, runID string, exitCode int) error {
 	if err := writeJSON(paths.metaFile, meta); err != nil {
 		return fmt.Errorf("failed to finalize metadata: %w", err)
 	}
+	notifyRunWebhook(paths, runID, exitCode)
 	return nil
 }
 

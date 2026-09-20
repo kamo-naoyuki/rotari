@@ -47,6 +47,18 @@ path` choice. Selecting stdout prints the template without creating a file;
 `other path` prompts for an arbitrary file path. Add `--project-name NAME` to
 limit the project candidate. Supplying `--output FILE` skips the prompt.
 
+**How can I notify another service when a run finishes?**
+
+Set `webhook.url` in a config file or `ROTARI_WEBHOOK_URL` to a service endpoint
+that accepts JSON `POST` requests. Use `webhook.on` or `ROTARI_WEBHOOK_ON` with
+`success` or `failure` to filter events; the default is `always`. The payload
+includes run status, failed job IDs, and, for failed runs, a copy-pasteable
+command to display their logs. A webhook error is only a warning and does not
+alter the run result. Set `webhook.format: slack` or
+`ROTARI_WEBHOOK_FORMAT=slack` to send a Slack Incoming Webhook payload directly;
+the default format is the generic rotari JSON payload. See
+[Webhook integrations](WEBHOOK_INTEGRATIONS.md) for examples.
+
 **How are concurrency and executor options selected?**
 `--local-concurrency` applies to local jobs. `--batch-concurrency` is the
 common dispatch default for non-local executors, while `--ssh-concurrency`,

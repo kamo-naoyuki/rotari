@@ -776,6 +776,35 @@ built-in default
 files are present, so the effective config chain is visible in the CLI as well
 as in the web UI.
 
+## Run completion webhook
+
+Set `webhook.url` in a config file, or use `ROTARI_WEBHOOK_URL`, to send a JSON
+`POST` notification after a run is finalized. The optional `webhook.on` or
+`ROTARI_WEBHOOK_ON` value can be `always` (the default), `success`, or
+`failure`. Multiple values may be comma-separated. Webhook delivery failures
+are reported as warnings and do not change the run result.
+
+```toml
+[webhook]
+url = "https://example.example/rotari-hook"
+on = "failure"
+# format = "slack"  # use Slack Incoming Webhooks directly
+```
+
+```sh
+export ROTARI_WEBHOOK_URL=https://example.example/rotari-hook
+export ROTARI_WEBHOOK_ON=failure
+# export ROTARI_WEBHOOK_FORMAT=slack
+```
+
+The payload contains the event, project, run, status, exit code, successful and
+failed job counts, and failed job IDs. For failed runs, `show_command` contains
+a copy-pasteable command that displays the failed job logs. A successful delivery creates
+`webhook.sent` in the run directory so the same run is not notified twice.
+
+For direct Slack setup and notes about other notification services, see
+[Webhook integrations](docs/WEBHOOK_INTEGRATIONS.md).
+
 ## Environment variables
 
 The same environment can be used to configure the CLI and to inspect the
