@@ -27,11 +27,12 @@ Run `rotari show --projects`. It lists each project's queued-job count, run
 state, and latest run ID without requiring `--project-name`. Add `--basedir`
 to list projects in a specific state directory.
 
-**How do I find state directories I used before?**
+**I don't know which basedir contains my jobs. How do I find it?**
 Run `rotari show --basedirs`. It prints the master directory and basedirs
-known from saved-run and live-server registry records. A basedir with neither
-a registered run nor a running server cannot be discovered this way. Add
-`--masterdir DIR` to choose a registry explicitly.
+known from saved-run and live-server registry records. Then inspect one with
+`rotari show --basedir DIR --projects`. A basedir with neither a registered
+run nor a running server cannot be discovered this way. Add `--masterdir DIR`
+to choose a registry explicitly.
 
 **Where can I put option defaults?**
 Put `config.yaml`, `config.toml`, or `config.json` in
