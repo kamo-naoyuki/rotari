@@ -292,6 +292,15 @@ func TestCLIHelpShowsEnvironmentDefaults(t *testing.T) {
 	}
 }
 
+func TestCLIUsageIncludesShortOptions(t *testing.T) {
+	usage := cliUsage("add")
+	for _, option := range []string{"[-b DIR|--basedir DIR]", "[-p NAME|--project-name NAME]", "[-e EXECUTOR|--executor EXECUTOR]"} {
+		if !strings.Contains(usage, option) {
+			t.Fatalf("usage %q does not contain %q", usage, option)
+		}
+	}
+}
+
 func TestEnvironmentDefinitionsAreUniqueAndIncludeCoreVariables(t *testing.T) {
 	definitions := environmentDefinitions()
 	seen := make(map[string]bool, len(definitions))

@@ -6,6 +6,9 @@ contracts, see [internals.md](internals.md).
 
 ## Projects, queues, runs, and registry
 
+For the complete base-directory and project-name precedence rules, see
+[State and project resolution](../README.md#state-and-project-resolution).
+
 **What's the difference between a project, a queue, and a run?**
 A project is a named container (`--project-name`) that holds one current
 queue and its saved run history. The queue (`queue.json`) is the batch of
@@ -34,6 +37,12 @@ the result, then run `rotari gc --apply`; it removes only unchanged candidates
 and skips any run directory that has reappeared.
 
 ## Retries, copying, arrays, and dependencies
+
+**What is the difference between `add --run` and `add --run-async`?**
+Both commands add the command and start the current queue. `add --run` waits
+for the run through the normal synchronous client, while `add --run-async`
+returns after the background run has started. The options are mutually
+exclusive.
 
 **Can an array run only selected task IDs?**
 Yes. Use `--array 1,3,4` for a sparse task list (ranges such as `1-10` are

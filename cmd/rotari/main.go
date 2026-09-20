@@ -275,7 +275,7 @@ func printUsage() {
 	fmt.Println("")
 	fmt.Println("Usage:")
 	for _, command := range cliCommandSpecs {
-		fmt.Printf("  %s\n", command.Usage)
+		fmt.Printf("  %s\n", cliUsage(command.Name))
 	}
 }
 

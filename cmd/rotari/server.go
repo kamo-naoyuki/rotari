@@ -259,11 +259,12 @@ func cmdAdd(args []string) int {
 	cliValue(fs, &dependsOn, "depends-on")
 	arrayRange := cliString(fs, "array", "")
 	runAfterAdd := cliBool(fs, "run", false)
+	runAsyncAfterAdd := cliBool(fs, "run-async", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 	left := fs.Args()
-	if len(left) < 1 {
+	if len(left) < 1 || (*runAfterAdd && *runAsyncAfterAdd) {
 		printError("usage: " + cliUsage("add"))
 		return 1
 	}
@@ -296,8 +297,12 @@ func cmdAdd(args []string) int {
 		return 1
 	}
 	fmt.Println(colorKeyValueMessage(message, green))
-	if *runAfterAdd {
-		return cmdRun(addRunArgs(baseDir, queueName))
+	if *runAfterAdd || *runAsyncAfterAdd {
+		runArgs := addRunArgs(baseDir, queueName)
+		if *runAsyncAfterAdd {
+			runArgs = append(runArgs, "--async")
+		}
+		return cmdRun(runArgs)
 	}
 	return 0
 }

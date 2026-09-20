@@ -360,7 +360,7 @@ func generateZshCompletion() string {
 				fmt.Fprintf(&builder, "            case $words[CURRENT-1] in\n                --run-id|-r)\n                    _rotari_run_ids\n                    compadd -- $reply\n                    return\n                    ;;\n                --job-id|-j)\n                    _rotari_job_ids\n                    compadd -- $reply\n                    return\n                    ;;\n            esac\n            if [[ $words[CURRENT] == -* ]]; then\n                compadd -- %s\n                return\n            fi\n", zshOptionNames(command.Flags))
 			}
 			arguments := zshArguments(command.Flags)
-			if command.HasPositional {
+			if command.Positional != "" {
 				arguments += " '*:command:_command_names'"
 			}
 			fmt.Fprintf(&builder, "            _arguments %s\n", arguments)
