@@ -203,9 +203,13 @@ rotari add --run go test ./...
 ```
 
 `add` adds a command. `run` executes the queued commands and waits for
-completion. A project contains its current queue and saved runs. For regular
-use, set `ROTARI_PROJECT_NAME` once in the shell; the project name can also be
-supplied with `--project-name` or omitted.
+completion. Use `--retry N` to retry failed jobs up to N additional times, or
+`--retry -1` to retry failed jobs indefinitely. Jobs explicitly cancelled by
+the user are terminal for that run and are not automatically retried; a later
+`rotari retry` can select them explicitly as failed/unfinished. A project
+contains its current queue and saved runs. For regular use, set
+`ROTARI_PROJECT_NAME` once in the shell; the project name can also be supplied
+with `--project-name` or omitted.
 When omitted, if only one project exists in the state directory, it is selected
 automatically; if multiple projects exist, you will be prompted to specify one.
 Use `--job-name NAME` to label a submitted job.
@@ -348,7 +352,7 @@ rotari add --project-name build \
   --executor slurm \
   --executor-option="-p short --cpus-per-task=2" \
   ./heavy-test.sh
-rotari run --project-name build --local-concurrency 4 --batch-concurrency 8 --retry 2
+rotari run --project-name build --local-concurrency 4 --batch-concurrency 8
 ```
 
 Local and scheduler-backed commands may be mixed in the same queue. Use
@@ -361,10 +365,6 @@ whether each job is `pending`, `running`, or in another state.
 `--slurm-options`, `--pbs-options`, or `--lsf-options` for executor-specific
 options. Executor-specific settings take precedence over common dispatch
 settings, while job-specific executor options take precedence over both.
-Use `--retry N` to retry failed jobs up to N additional times. Jobs explicitly
-cancelled by the user are terminal for that run and are not automatically
-retried; a later `rotari retry` can select them explicitly as failed/unfinished.
-Use `--retry -1` to retry failed jobs indefinitely.
 
 Use `--env KEY=VALUE` with `add` to save environment variables on a job. They
 are exported for every executor, including local, SSH, Slurm, PBS, and LSF, and
@@ -530,8 +530,14 @@ provider details, configuration, and execution examples.
 
 
 ## Recover and rerun
+### run and retry
 
-Run selected jobs from the latest run, carrying forward everything else:
+`run` can select jobs from the latest run, or from a saved run given by
+`--run-id`, and execute them as a new run while carrying forward everything
+else. Result filters select which jobs are copied into the new queue for
+execution; jobs with completed results that do not match are copied as
+carry-forward results. In other words, `run --failed`, `run --unfinished`, and
+similar commands copy the selected jobs and then run the resulting queue.
 
 ```sh
 rotari run --project-name build --failed
@@ -539,7 +545,6 @@ rotari run --project-name build --unfinished
 rotari run --project-name build --success
 rotari run --project-name build --failed --unfinished
 rotari run --project-name build --job-id JOB_ID
-rotari retry --project-name build
 ```
 
 The result filters select which jobs are actually re-executed:
@@ -552,44 +557,26 @@ The result filters select which jobs are actually re-executed:
 | `--failed --unfinished` | Failed or unfinished jobs. |
 
 Result filters and job IDs may be combined; jobs matching any selected filter
-or ID are executed. Jobs that do not match but already have a finished result
-in the reference run (the latest run, or the run given by `--run-id`) are
-carried forward: they are not re-executed, and their previous result and
-output remain visible on the new run's page. Jobs that neither match nor have
-a previous result are simply left unfinished.
+or ID are copied for execution. Jobs that do not match but already have a
+finished result in the reference run are copied as carry-forward results: they
+are not re-executed, and their previous result and output remain visible on the
+new run's page. Jobs that neither match nor have a previous result are simply
+left unfinished.
 For example, `--failed --unfinished` re-executes failed or unfinished jobs
-while carrying forward everything that already succeeded; `rotari retry` is
-shorthand for `rotari run --failed --unfinished`.
+while carrying forward everything that already succeeded.
 
 Use `--failed --unfinished` when a run may have been interrupted and you want to
-recover everything that did not complete successfully. `--job-id` selects
-specific jobs by ID instead of filtering by result.
-
-`--job-id` may be repeated to select jobs to execute. It is mutually exclusive
-with the result filters above. `--run-id ID` changes the reference run used
-for both the queue snapshot and the result filters.
-
-Copy jobs from a previous run into the current queue without executing them:
-
-```sh
-rotari copy --project-name build --run-id RUN_ID --failed --unfinished
-rotari run --project-name build --retry 2
-```
-
-`copy` keeps the source job ID unless it would collide with the destination
-queue, and preserves dependencies between copied jobs. A non-empty queue
-requires confirmation before replacement; use `--append` to add jobs or
-`--overwrite` to replace it without asking. Selection options include
-`--failed`, `--unfinished`, `--success`, and repeated `--job-id`. Copied jobs
-remain pending, with source run, status, and working-directory metadata kept
-for later inspection.
+recover everything that did not complete successfully. Use `--job-id` to select
+specific jobs by ID instead of filtering by result; it may be repeated and is
+mutually exclusive with the result filters above. `--run-id ID` changes the
+reference run used for both the queue snapshot and the result filters.
 
 `run --run-id ID` can select jobs directly from a saved run instead of the live
 queue. It restores that run's jobs first, then applies result filters
 (`--failed`, `--unfinished`, `--success`, or `--job-id`). A non-empty queue
 requires confirmation before replacement; add `--overwrite` to `run --run-id`
-or `retry --run-id` to replace it without asking. Finished jobs that do not
-match the filter are carried forward instead of re-executed. For example:
+to replace it without asking. Finished jobs that do not match the filter are
+carried forward instead of re-executed. For example:
 
 ```sh
 rotari run --project-name build --run-id RUN_ID --failed
@@ -602,13 +589,45 @@ instead of the whole array running again. Pass `--partial-array=false` to
 re-execute every task whenever any one of them matches, as in earlier
 versions.
 
-Prepare a modified batch from the latest run without changing its history:
+`retry` is shorthand for `run --failed --unfinished`. It selects failed and
+unfinished jobs from the reference run, copies them into the next run with
+successful results carried forward, and executes that run:
 
 ```sh
+rotari retry --project-name build
+```
+
+### copy and change
+
+Copy jobs from a previous run into the current queue without executing them:
+
+```sh
+rotari copy --project-name build --run-id RUN_ID --failed --unfinished
+```
+
+This is the explicit form of what `run --failed --unfinished` does: copy the
+selected jobs into the current queue, then run that queue. The same applies to
+`run --failed`, `run --unfinished`, `run --success`, and other filter
+combinations.
+
+`copy` keeps the source job ID unless it would collide with the destination
+queue, and preserves dependencies between copied jobs. A non-empty queue
+requires confirmation before replacement; use `--append` to add jobs or
+`--overwrite` to replace it without asking. Selection options include
+`--failed`, `--unfinished`, `--success`, and repeated `--job-id`. Copied jobs
+remain pending, with source run, status, and working-directory metadata kept
+for later inspection.
+
+Use `copy` when a selected job needs to be edited before it is run again. It
+restores jobs into the current queue without executing them; then `change` can
+modify their commands or options while preserving the saved run history:
+
+```sh
+rotari copy --project-name build --run-id RUN_ID --failed --unfinished
 rotari change --job-name train --executor local
 rotari change --job-name train --executor-option="-p gpu"
 rotari change --job-name train --depends-on prepare -- ./train-v2.sh
-rotari retry
+rotari run
 ```
 
 `change` requires exactly one target selector: `--job-id ID` or
