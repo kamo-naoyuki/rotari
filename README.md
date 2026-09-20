@@ -764,7 +764,8 @@ The resolution order is:
 ```text
 CLI option (e.g., --retry)
 environment variable (e.g., ROTARI_RUN_RETRY)
-project config path (e.g., projects/demo/config.yaml)
+project config path (e.g., <basedir>/projects/demo/config.yaml)
+basedir config path (e.g., <basedir>/config.yaml)
 global config path (e.g., ~/.config/rotari/config.yaml)
 built-in default
 ```
