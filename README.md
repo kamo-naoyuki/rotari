@@ -33,7 +33,6 @@ If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https:/
 
 * **[Shell scripts](https://www.gnu.org/software/bash/)** are flexible and easy to start with, but repeated executions and their history are usually managed manually. Rotari makes that iteration history explicit.
 * **[GNU Parallel](https://www.gnu.org/software/parallel/)** makes it easy to run many shell commands in parallel. Rotari goes further by giving those executions persistent identities, logs, status, and an iteration history.
-* GNU Parallel makes it easy to run many shell commands in parallel. Rotari goes further by giving those executions persistent identities, logs, status, and an iteration history.
 * **[Slurm](https://github.com/SchedMD/slurm), [PBS](https://github.com/openpbs/openpbs), and LSF** focus on scheduling and executing jobs on a cluster. Rotari adds an experiment-oriented layer for tracking, inspecting, retrying, and modifying runs.
 * **[MLflow](https://github.com/mlflow/mlflow) and [Weights & Biases](https://github.com/wandb/wandb)** focus on tracking experiments, metrics, parameters, and artifacts. Rotari focuses on running experiments, managing their execution, and keeping track of the history of successive runs. They can be used together: a Rotari run can launch a training job that logs its results to MLflow or Weights & Biases.
 * **[Snakemake](https://github.com/snakemake/snakemake)**, **[Nextflow](https://github.com/nextflow-io/nextflow)**, **[Airflow](https://github.com/apache/airflow)**, **[Prefect](https://github.com/PrefectHQ/prefect)**, and **[Dagster](https://github.com/dagster-io/dagster)** focus on defining and orchestrating workflows by explicitly modeling tasks and their relationships. Rotari focuses on successive runs of an experiment without requiring the workflow to be defined up front.
@@ -179,7 +178,7 @@ raw completion scripts.
 
 ## FAQ
 
-See [FAQ](docs/faq.md) for answers to specific "what happens if...?" questions
+See [FAQ](docs/FAQ.md) for answers to specific "what happens if...?" questions
 about project/run resolution, retries, array jobs, interrupted runs, and locking.
 
 ## Quick start
@@ -353,11 +352,15 @@ rotari run --project-name build --local-concurrency 4 --batch-concurrency 8 --re
 ```
 
 Local and scheduler-backed commands may be mixed in the same queue. Use
-`--local-concurrency` for local jobs and `--batch-concurrency` for scheduler jobs.
+`--local-concurrency` for local jobs and `--batch-concurrency` as the dispatch default for non-local executors. Use `--ssh-concurrency`, `--slurm-concurrency`, `--pbs-concurrency`, or `--lsf-concurrency` for executor-specific limits.
 `--batch-concurrency` only limits how many scheduler jobs rotari submits and
 tracks concurrently. It does not change scheduler state, queue priority, or
 the scheduler's own execution limits; after submission, the scheduler decides
 whether each job is `pending`, `running`, or in another state.
+`--executor-option` is the common dispatch option list. Use `--ssh-options`,
+`--slurm-options`, `--pbs-options`, or `--lsf-options` for executor-specific
+options. Executor-specific settings take precedence over common dispatch
+settings, while job-specific executor options take precedence over both.
 Use `--retry N` to retry failed jobs up to N additional times. Jobs explicitly
 cancelled by the user are terminal for that run and are not automatically
 retried; a later `rotari retry` can select them explicitly as failed/unfinished.
@@ -517,6 +520,48 @@ When output is a terminal, log views (including `--job-id`) longer than 24
 lines open in `$PAGER` (or `less -R` by default). Use `--no-pager` to print
 directly; piped and redirected output is always printed directly.
 
+### LLM error diagnosis
+
+**Experimental:** The LLM diagnosis command is an opt-in early feature. Its
+prompt, supported providers, and response format may change in future releases.
+
+New to LLM APIs? Follow the
+[LLM diagnosis setup guide](docs/LLM_API_INSTRUCTION.md) before running the
+examples below.
+
+`diagnose` sends the selected job's command, recorded exit/error information,
+and at most the last 12,000 characters of its output log to an OpenAI Responses
+API-compatible endpoint. It does not run the command again, change Rotari
+state, or store the API key or diagnosis. Review the log before sending it:
+job output can contain experiment data, file paths, or other sensitive values.
+
+```sh
+export ROTARI_LLM_API_KEY='...'
+rotari diagnose --run-id RUN_ID --job-id JOB_ID --model gpt-5-mini --language ja
+```
+
+The default endpoint is `https://api.openai.com/v1/responses`. Set
+`ROTARI_LLM_ENDPOINT` (or `--endpoint`) for a compatible gateway, and
+`ROTARI_LLM_MODEL` (or `--model`) to choose a model. `ROTARI_LLM_API_KEY` is
+read only for this request and is never written to Rotari state or propagated
+to jobs. Set `--language TAG` or `ROTARI_LLM_LANGUAGE` to request a response
+in a BCP 47 language tag such as `ja` or `en-US`; without it, the model chooses
+the response language.
+
+To try it with a predictable Python import failure in an isolated temporary
+state directory:
+
+```sh
+go build -o rotari ./cmd/rotari
+export ROTARI_LLM_API_KEY='...'
+export ROTARI_LLM_MODEL='gpt-5-mini'
+./scripts/example-diagnose.sh
+```
+
+The example leaves its state directory in place and prints its location, so
+you can inspect the stored command and output after the diagnosis.
+
+
 ## Recover and rerun
 
 Run selected jobs from the latest run, carrying forward everything else:
@@ -635,7 +680,7 @@ Whole-run cancel (no `--job-id`) and, for `local`-executor jobs, `--job-id`
 cancel/suspend/resume all signal the runner or job by PID, which only means
 something on the host that actually runs it; run these commands from that
 host if it differs from wherever `cancel`/`suspend`/`resume` is invoked. See
-the [FAQ](docs/faq.md#client-control-and-job-cancellation) for what happens
+the [FAQ](docs/FAQ.md#client-control-and-job-cancellation) for what happens
 when you can't.
 
 Temporarily suspend and resume running jobs:
@@ -718,6 +763,26 @@ These rules apply consistently to commands that do not identify an existing
 run through its run registry. Use `--basedir` and `--project-name` when a
 command must target a specific location explicitly.
 
+## Configuration files
+
+Run the following command to choose a config file location interactively and
+generate a template. The available options and their descriptions are shown
+there.
+
+```sh
+rotari config
+```
+
+The resolution order is:
+
+```text
+CLI option (e.g., --retry)
+environment variable (e.g., ROTARI_RUN_RETRY)
+project config path (e.g., projects/demo/config.yaml)
+global config path (e.g., ~/.config/rotari/config.yaml)
+built-in default
+```
+
 ## Environment variables
 
 The same environment can be used to configure the CLI and to inspect the
@@ -730,6 +795,7 @@ Each command's `--help` output identifies an option's matching environment
 variable, when one is available.
 
 Use `rotari env` to print the same list with values from the current process.
+
 
 ## Server management
 
@@ -867,5 +933,5 @@ unprivileged users on a shared machine.
 
 ## Development
 
-See [Rotari internals](docs/internals.md) for the architecture, persistent-state
+See [Rotari internals](docs/INTERNALS.md) for the architecture, persistent-state
 contracts, resolution rules, and code ownership used by maintainers and coding agents.

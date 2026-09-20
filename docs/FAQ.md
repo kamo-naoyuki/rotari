@@ -2,7 +2,7 @@
 
 Answers to specific "what happens if...?" questions about rotari's behavior.
 For feature walkthroughs, see [README.md](../README.md); for the underlying
-contracts, see [internals.md](internals.md).
+contracts, see [INTERNALS.md](INTERNALS.md).
 
 ## Projects, queues, runs, and registry
 
@@ -21,6 +21,38 @@ results. See [Projects, queues, runs, and state](../README.md#projects-queues-ru
 resolved state directory. If no project exists yet, it defaults to `default`.
 If multiple projects exist and none of the above narrows it down, rotari
 errors and asks you to pick one explicitly.
+
+**Where can I put option defaults?**
+Put `config.yaml`, `config.toml`, or `config.json` in
+`$XDG_CONFIG_HOME/rotari` (or `~/.config/rotari`) for home-wide defaults, in
+the resolved basedir for experiment-wide defaults, or under
+`projects/<project>/` for project defaults. Later locations override earlier
+ones. Common options such as `project-name` are root keys; command-specific
+options are nested under the command name, such as `run.batch-concurrency`.
+CLI options and environment variables override config values. If multiple
+config formats exist in one directory, rotari errors rather than selecting a
+format implicitly.
+
+**How do I see every configurable option?**
+Run `rotari config` to print a complete template, or pass `--output FILE` to
+create one. YAML and JSON use `null` for unset options; those entries are
+ignored when loaded. TOML represents unset options as comments because TOML
+does not define a null value.
+
+When `--output` is omitted, rotari interactively offers the home, basedir, and
+existing project config paths, plus stdout and an `other path` choice.
+Selecting stdout prints the template without creating a file; `other path`
+prompts for an arbitrary file path. Add `--project-name NAME` to limit the
+project candidate. Supplying `--output FILE` skips the prompt.
+
+**How are concurrency and executor options selected?**
+`--local-concurrency` applies to local jobs. `--batch-concurrency` is the
+common dispatch default for non-local executors, while `--ssh-concurrency`,
+`--slurm-concurrency`, `--pbs-concurrency`, and `--lsf-concurrency` provide
+independent limits. Similarly, `--executor-option` is the common option list,
+and the executor-specific `--ssh-options`, `--slurm-options`, `--pbs-options`,
+and `--lsf-options` override it. Job-specific options have the highest
+priority.
 
 **`rotari show` displayed my queue, not the run I expected — why?**
 Without `--run-id`, `show` prioritizes current state: an active run first, an
@@ -67,6 +99,20 @@ whenever any one task matches, matching pre-partial-array behavior.
 `copy` only assigns a new job ID when the original one would collide with a
 job already in the destination queue. Otherwise the original ID — and any
 dependency relationships between copied jobs — is preserved.
+
+## LLM diagnosis
+
+**What does `rotari diagnose` send to an LLM?**
+It sends one selected job's command, recorded exit code/error, and no more
+than the final 12,000 characters of that job's output log. It sends nothing
+until `ROTARI_LLM_API_KEY` and `--model` (or `ROTARI_LLM_MODEL`) are supplied.
+The key and returned diagnosis are not saved in Rotari state or made available
+to job processes. Inspect the log first if it may contain sensitive data.
+
+**How do I choose the diagnosis response language?**
+Pass `--language` with a BCP 47 tag, for example `--language ja` or
+`--language en-US`. Set `ROTARI_LLM_LANGUAGE` to make that tag the default.
+Without either, Rotari does not choose a language and the model decides.
 
 **If a prerequisite job (`--depends-on`) fails, what happens to the jobs that depend on it?**
 They are recorded as `blocked` and are never executed for that run. A retry

@@ -113,6 +113,10 @@ func (flag *stringSliceFlag) Set(value string) error {
 	return nil
 }
 
+func (flag *stringSliceFlag) Reset() {
+	*flag = nil
+}
+
 func submitSlurmJob(runDir string, job JobSpec, executorOptions []string) (slurmJobMetadata, error) {
 	jobDir, err := validatedJobDir(runDir, job.ID)
 	if err != nil {

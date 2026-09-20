@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -46,8 +47,19 @@ var cliEnvironmentVariables = map[string]string{
 	"executor":          envExecutor,
 	"executor-option":   envExecutorOpts,
 	"run-name":          envRunName,
+	"endpoint":          envLLMEndpoint,
+	"model":             envLLMModel,
+	"language":          envLLMLanguage,
 	"local-concurrency": envRunLocalConc,
 	"batch-concurrency": envRunBatchConc,
+	"ssh-concurrency":   envRunSSHConc,
+	"ssh-options":       envRunSSHOptions,
+	"slurm-concurrency": envRunSlurmConc,
+	"slurm-options":     envRunSlurmOptions,
+	"pbs-concurrency":   envRunPBSConc,
+	"pbs-options":       envRunPBSOptions,
+	"lsf-concurrency":   envRunLSFConc,
+	"lsf-options":       envRunLSFOptions,
 	"retry":             envRunRetry,
 	"async":             envRunAsync,
 	"array":             envArrayRange,
@@ -67,6 +79,14 @@ func commonCLIFlags() []cliFlagSpec {
 }
 
 var cliCommandSpecs = []cliCommandSpec{
+	{
+		Name:        "config",
+		Description: "generate a config file template",
+		Flags: append(commonCLIFlags(),
+			cliFlagSpec{Name: "format", Description: "config format: yaml, toml, or json", ValueName: "FORMAT", Values: []string{"yaml", "toml", "json"}},
+			cliFlagSpec{Name: "output", Description: "output config file path", ValueName: "FILE"},
+		),
+	},
 	{
 		Name:        "reset",
 		Description: "discard the current, not-yet-run queue",
@@ -158,6 +178,17 @@ var cliCommandSpecs = []cliCommandSpec{
 		),
 	},
 	{
+		Name:        "diagnose",
+		Description: "send one job's command and log tail to an LLM for diagnosis",
+		Flags: append(commonCLIFlags(),
+			cliFlagSpec{Name: "run-id", Description: "run ID", ValueName: "ID"},
+			cliFlagSpec{Name: "job-id", Description: "failed job ID", ValueName: "ID"},
+			cliFlagSpec{Name: "endpoint", Description: "OpenAI Responses API endpoint", ValueName: "URL"},
+			cliFlagSpec{Name: "model", Description: "LLM model name", ValueName: "MODEL"},
+			cliFlagSpec{Name: "language", Description: "response language BCP 47 tag", ValueName: "TAG"},
+		),
+	},
+	{
 		Name:        "wait",
 		Description: "wait for asynchronous runs",
 		Flags: append(commonCLIFlags(),
@@ -214,6 +245,14 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "async", Description: "return after starting the run"},
 			cliFlagSpec{Name: "executor", Description: "execution executor override", ValueName: "EXECUTOR", Values: executorNames()},
 			cliFlagSpec{Name: "executor-option", Description: "option passed to the selected scheduler (sbatch/qsub/...)", ValueName: "OPTION"},
+			cliFlagSpec{Name: "ssh-concurrency", Description: "SSH executor concurrency", ValueName: "N"},
+			cliFlagSpec{Name: "ssh-options", Description: "SSH executor dispatch options; may be repeated", ValueName: "OPTION"},
+			cliFlagSpec{Name: "slurm-concurrency", Description: "Slurm executor concurrency", ValueName: "N"},
+			cliFlagSpec{Name: "slurm-options", Description: "Slurm executor dispatch options; may be repeated", ValueName: "OPTION"},
+			cliFlagSpec{Name: "pbs-concurrency", Description: "PBS executor concurrency", ValueName: "N"},
+			cliFlagSpec{Name: "pbs-options", Description: "PBS executor dispatch options; may be repeated", ValueName: "OPTION"},
+			cliFlagSpec{Name: "lsf-concurrency", Description: "LSF executor concurrency", ValueName: "N"},
+			cliFlagSpec{Name: "lsf-options", Description: "LSF executor dispatch options; may be repeated", ValueName: "OPTION"},
 		),
 	},
 	{
@@ -230,6 +269,14 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "async", Description: "return after starting the run"},
 			cliFlagSpec{Name: "executor", Description: "execution executor override", ValueName: "EXECUTOR", Values: executorNames()},
 			cliFlagSpec{Name: "executor-option", Description: "option passed to the selected scheduler (sbatch/qsub/...)", ValueName: "OPTION"},
+			cliFlagSpec{Name: "ssh-concurrency", Description: "SSH executor concurrency", ValueName: "N"},
+			cliFlagSpec{Name: "ssh-options", Description: "SSH executor dispatch options; may be repeated", ValueName: "OPTION"},
+			cliFlagSpec{Name: "slurm-concurrency", Description: "Slurm executor concurrency", ValueName: "N"},
+			cliFlagSpec{Name: "slurm-options", Description: "Slurm executor dispatch options; may be repeated", ValueName: "OPTION"},
+			cliFlagSpec{Name: "pbs-concurrency", Description: "PBS executor concurrency", ValueName: "N"},
+			cliFlagSpec{Name: "pbs-options", Description: "PBS executor dispatch options; may be repeated", ValueName: "OPTION"},
+			cliFlagSpec{Name: "lsf-concurrency", Description: "LSF executor concurrency", ValueName: "N"},
+			cliFlagSpec{Name: "lsf-options", Description: "LSF executor dispatch options; may be repeated", ValueName: "OPTION"},
 		),
 	},
 	{
@@ -344,6 +391,7 @@ func cliFlag(name string) cliFlagSpec {
 
 func cliString(fs *flag.FlagSet, name, defaultValue string) *string {
 	spec := cliFlag(name)
+	defaultValue = configString(name, defaultValue)
 	if envName := cliEnvironmentVariable(name); envName != "" {
 		if value, ok := os.LookupEnv(envName); ok {
 			defaultValue = value
@@ -380,6 +428,7 @@ func cliStringVar(fs *flag.FlagSet, target *string, name, defaultValue string) {
 
 func cliBool(fs *flag.FlagSet, name string, defaultValue bool) *bool {
 	spec := cliFlag(name)
+	defaultValue = configBool(name, defaultValue)
 	if value, ok := os.LookupEnv(cliEnvironmentVariable(name)); ok {
 		if parsed, err := strconv.ParseBool(value); err == nil {
 			defaultValue = parsed
@@ -396,6 +445,7 @@ func cliBool(fs *flag.FlagSet, name string, defaultValue bool) *bool {
 
 func cliInt(fs *flag.FlagSet, name string, defaultValue int) *int {
 	spec := cliFlag(name)
+	defaultValue = configInt(name, defaultValue)
 	if value, ok := os.LookupEnv(cliEnvironmentVariable(name)); ok {
 		if parsed, err := strconv.Atoi(value); err == nil {
 			defaultValue = parsed
@@ -412,6 +462,11 @@ func cliInt(fs *flag.FlagSet, name string, defaultValue int) *int {
 
 func cliDuration(fs *flag.FlagSet, name string, defaultValue time.Duration) *time.Duration {
 	spec := cliFlag(name)
+	if value, ok := configValue(name); ok {
+		if parsed, err := time.ParseDuration(fmt.Sprint(value)); err == nil {
+			defaultValue = parsed
+		}
+	}
 	if envName := cliEnvironmentVariable(name); envName != "" {
 		if value, ok := os.LookupEnv(envName); ok {
 			if parsed, err := time.ParseDuration(value); err == nil {
@@ -430,9 +485,15 @@ func cliDuration(fs *flag.FlagSet, name string, defaultValue time.Duration) *tim
 
 func cliValue(fs *flag.FlagSet, target flag.Value, name string) {
 	spec := cliFlag(name)
+	for _, value := range configStrings(name) {
+		_ = target.Set(value)
+	}
 	if envName := cliEnvironmentVariable(name); envName != "" {
 		value, exists := os.LookupEnv(envName)
 		if exists && value != "" {
+			if resettable, ok := target.(interface{ Reset() }); ok {
+				resettable.Reset()
+			}
 			_ = target.Set(value)
 		}
 	}

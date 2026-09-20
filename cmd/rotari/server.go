@@ -19,27 +19,28 @@ import (
 )
 
 type serverRequest struct {
-	Op               string     `json:"op"`
-	QueueName        string     `json:"project_name,omitempty"`
-	Command          []string   `json:"command,omitempty"`
-	LocalConcurrency int        `json:"local_concurrency,omitempty"`
-	BatchMaxActive   int        `json:"batch_max_active,omitempty"`
-	Retry            int        `json:"retry,omitempty"`
-	RunName          string     `json:"run_name,omitempty"`
-	CWD              string     `json:"cwd,omitempty"`
-	Wait             bool       `json:"wait,omitempty"`
-	Async            bool       `json:"async,omitempty"`
-	Executor         string     `json:"executor,omitempty"`
-	ExecutorOptions  []string   `json:"executor_options,omitempty"`
-	WorkingDirectory string     `json:"working_directory,omitempty"`
-	Environment      []string   `json:"environment,omitempty"`
-	JobIDs           []string   `json:"job_ids,omitempty"`
-	Selection        string     `json:"selection,omitempty"`
-	SourceRunID      string     `json:"source_run_id,omitempty"`
-	PartialArray     bool       `json:"partial_array,omitempty"`
-	JobName          string     `json:"job_name,omitempty"`
-	DependsOn        []string   `json:"depends_on,omitempty"`
-	Array            *ArraySpec `json:"array,omitempty"`
+	Op               string                 `json:"op"`
+	QueueName        string                 `json:"project_name,omitempty"`
+	Command          []string               `json:"command,omitempty"`
+	LocalConcurrency int                    `json:"local_concurrency,omitempty"`
+	BatchMaxActive   int                    `json:"batch_max_active,omitempty"`
+	ExecutorSettings executorRunSettingsMap `json:"executor_settings,omitempty"`
+	Retry            int                    `json:"retry,omitempty"`
+	RunName          string                 `json:"run_name,omitempty"`
+	CWD              string                 `json:"cwd,omitempty"`
+	Wait             bool                   `json:"wait,omitempty"`
+	Async            bool                   `json:"async,omitempty"`
+	Executor         string                 `json:"executor,omitempty"`
+	ExecutorOptions  []string               `json:"executor_options,omitempty"`
+	WorkingDirectory string                 `json:"working_directory,omitempty"`
+	Environment      []string               `json:"environment,omitempty"`
+	JobIDs           []string               `json:"job_ids,omitempty"`
+	Selection        string                 `json:"selection,omitempty"`
+	SourceRunID      string                 `json:"source_run_id,omitempty"`
+	PartialArray     bool                   `json:"partial_array,omitempty"`
+	JobName          string                 `json:"job_name,omitempty"`
+	DependsOn        []string               `json:"depends_on,omitempty"`
+	Array            *ArraySpec             `json:"array,omitempty"`
 }
 
 type serverResponse struct {
@@ -321,6 +322,7 @@ func cmdRun(args []string) int {
 	runName := cliString(fs, "run-name", "")
 	localConcurrency := cliInt(fs, "local-concurrency", 8)
 	batchConcurrency := cliInt(fs, "batch-concurrency", 8)
+	executorSettings := cliExecutorRunSettings(fs)
 	retry := cliInt(fs, "retry", 0)
 	failed := cliBool(fs, "failed", false)
 	unfinished := cliBool(fs, "unfinished", false)
@@ -412,7 +414,7 @@ func cmdRun(args []string) int {
 		return 1
 	}
 	request := serverRequest{
-		Op: "run", QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, Retry: *retry, Async: *async,
+		Op: "run", QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings, Retry: *retry, Async: *async,
 		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, CWD: cwd,
 		Selection: selection, JobIDs: jobIDs, SourceRunID: sourceRunID, PartialArray: *partialArray,
 	}
@@ -615,7 +617,7 @@ func (server *rotariServer) handle(baseDir string, conn net.Conn) {
 		if request.Async {
 			server.beginRun()
 			onDone = server.endRun
-			message, err = startServerRun(baseDir, request.QueueName, request.RunName, request.LocalConcurrency, request.BatchMaxActive, request.Retry, request.Executor, request.ExecutorOptions, request.Selection, request.JobIDs, request.SourceRunID, request.PartialArray, onDone, request.CWD)
+			message, err = startServerRun(baseDir, request.QueueName, request.RunName, request.LocalConcurrency, request.BatchMaxActive, request.Retry, request.Executor, request.ExecutorOptions, request.Selection, request.JobIDs, request.SourceRunID, request.PartialArray, onDone, request.CWD, request.ExecutorSettings)
 			if err != nil {
 				onDone()
 			}
@@ -627,9 +629,9 @@ func (server *rotariServer) handle(baseDir string, conn net.Conn) {
 					server.endRun()
 				}
 			}()
-			message, exitCode, err, runDetached = runServerSyncWithDisconnectAndDone(conn, baseDir, request.QueueName, request.RunName, request.LocalConcurrency, request.BatchMaxActive, request.Retry, request.Executor, request.ExecutorOptions, request.Selection, request.JobIDs, request.SourceRunID, request.PartialArray, func(progress serverResponse) {
+			message, exitCode, err, runDetached = runServerSyncWithDisconnectAndDoneWithSettings(conn, baseDir, request.QueueName, request.RunName, request.LocalConcurrency, request.BatchMaxActive, request.Retry, request.Executor, request.ExecutorOptions, request.Selection, request.JobIDs, request.SourceRunID, request.PartialArray, func(progress serverResponse) {
 				_ = encoder.Encode(progress)
-			}, server.endRun, request.CWD)
+			}, server.endRun, request.ExecutorSettings, request.CWD)
 		}
 		response = serverResponse{OK: err == nil, Message: message, ExitCode: exitCode}
 		if err != nil {
@@ -645,11 +647,15 @@ func (server *rotariServer) handle(baseDir string, conn net.Conn) {
 }
 
 func runServerSyncWithDisconnect(conn net.Conn, baseDir, queueName, runName string, localConcurrency, batchMaxActive, retry int, executor string, executorOptions []string, selection string, jobIDs []string, sourceRunID string, partialArray bool, progress func(serverResponse), cwdOverride ...string) (string, int, error) {
-	message, exitCode, err, _ := runServerSyncWithDisconnectAndDone(conn, baseDir, queueName, runName, localConcurrency, batchMaxActive, retry, executor, executorOptions, selection, jobIDs, sourceRunID, partialArray, progress, nil, cwdOverride...)
+	message, exitCode, err, _ := runServerSyncWithDisconnectAndDoneWithSettings(conn, baseDir, queueName, runName, localConcurrency, batchMaxActive, retry, executor, executorOptions, selection, jobIDs, sourceRunID, partialArray, progress, nil, nil, cwdOverride...)
 	return message, exitCode, err
 }
 
 func runServerSyncWithDisconnectAndDone(conn net.Conn, baseDir, queueName, runName string, localConcurrency, batchMaxActive, retry int, executor string, executorOptions []string, selection string, jobIDs []string, sourceRunID string, partialArray bool, progress func(serverResponse), onDone func(), cwdOverride ...string) (string, int, error, bool) {
+	return runServerSyncWithDisconnectAndDoneWithSettings(conn, baseDir, queueName, runName, localConcurrency, batchMaxActive, retry, executor, executorOptions, selection, jobIDs, sourceRunID, partialArray, progress, onDone, nil, cwdOverride...)
+}
+
+func runServerSyncWithDisconnectAndDoneWithSettings(conn net.Conn, baseDir, queueName, runName string, localConcurrency, batchMaxActive, retry int, executor string, executorOptions []string, selection string, jobIDs []string, sourceRunID string, partialArray bool, progress func(serverResponse), onDone func(), executorSettings executorRunSettingsMap, cwdOverride ...string) (string, int, error, bool) {
 	cwd := ""
 	if len(cwdOverride) > 0 {
 		cwd = cwdOverride[0]
@@ -661,7 +667,7 @@ func runServerSyncWithDisconnectAndDone(conn net.Conn, baseDir, queueName, runNa
 	}
 	done := make(chan result, 1)
 	go func() {
-		message, exitCode, err := runServerSync(baseDir, queueName, runName, localConcurrency, batchMaxActive, retry, executor, executorOptions, selection, jobIDs, sourceRunID, partialArray, progress, cwd)
+		message, exitCode, err := runServerSync(baseDir, queueName, runName, localConcurrency, batchMaxActive, retry, executor, executorOptions, selection, jobIDs, sourceRunID, partialArray, progress, cwd, executorSettings)
 		done <- result{message: message, exitCode: exitCode, err: err}
 	}()
 	disconnected := make(chan bool, 1)
@@ -1267,7 +1273,7 @@ func enqueueCommandWithWorkingDirectory(baseDir, queueName string, command []str
 	return fmt.Sprintf("%s command=%s", message, joinCommand(command)), nil
 }
 
-func startServerRun(baseDir, queueName, runName string, localConcurrency, batchMaxActive, retry int, executor string, executorOptions []string, selection string, jobIDs []string, sourceRunID string, partialArray bool, onDone func(), cwd string) (string, error) {
+func startServerRun(baseDir, queueName, runName string, localConcurrency, batchMaxActive, retry int, executor string, executorOptions []string, selection string, jobIDs []string, sourceRunID string, partialArray bool, onDone func(), cwd string, executorSettings executorRunSettingsMap) (string, error) {
 	_, err := resolveQueueExecutor(baseDir, queueName, executor)
 	if err != nil {
 		return "", err
@@ -1301,7 +1307,7 @@ func startServerRun(baseDir, queueName, runName string, localConcurrency, batchM
 		return "", fmt.Errorf("queue %q has no queued commands", queueName)
 	}
 	runID := makeRunID()
-	if err := launchAsyncRun(paths, queueName, runID, runName, localConcurrency, batchMaxActive, retry, executor, executorOptions, selection, jobIDs, sourceRunID, partialArray, cwd, onDone); err != 0 {
+	if err := launchAsyncRun(paths, queueName, runID, runName, localConcurrency, batchMaxActive, retry, executor, executorOptions, selection, jobIDs, sourceRunID, partialArray, cwd, onDone, executorSettings); err != 0 {
 		return "", errors.New("queue is already running")
 	}
 	runDir, err := validatedRunDir(paths, runID)
@@ -1312,7 +1318,7 @@ func startServerRun(baseDir, queueName, runName string, localConcurrency, batchM
 		queueName, formatRunLabel(runID, runName), runDir, runID, paths.baseDir, queueName), nil
 }
 
-func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMaxActive, retry int, executor string, executorOptions []string, selection string, jobIDs []string, sourceRunID string, partialArray bool, progress func(serverResponse), cwd string) (string, int, error) {
+func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMaxActive, retry int, executor string, executorOptions []string, selection string, jobIDs []string, sourceRunID string, partialArray bool, progress func(serverResponse), cwd string, executorSettings executorRunSettingsMap) (string, int, error) {
 	resolvedExecutor, err := resolveQueueExecutor(baseDir, queueName, executor)
 	if err != nil {
 		return "", 1, err
@@ -1420,7 +1426,7 @@ func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMa
 		message := fmt.Sprintf("Job running:\n  ID: %s\n  Name: %s\n  Show:\n    rotari show --run-id %s --job-id %s",
 			job.ID, name, runID, job.ID)
 		progress(serverResponse{OK: true, Progress: true, Message: message, JobID: job.ID})
-	})
+	}, executorSettings)
 	stopLoadSampling()
 	if err := finishRunContext(paths, runID); err != nil {
 		_ = os.Remove(paths.lockFile)

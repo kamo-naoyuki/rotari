@@ -9,7 +9,11 @@ import (
 	"sync"
 )
 
-func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, batchMaxActive, retry int, requestedExecutor string, executorOptions []string, selection string, jobIDs []string, referenceRunID string, partialArray bool, progress func(JobResult, int, int, int, int), onStart func(JobSpec)) int {
+func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, batchMaxActive, retry int, requestedExecutor string, executorOptions []string, selection string, jobIDs []string, referenceRunID string, partialArray bool, progress func(JobResult, int, int, int, int), onStart func(JobSpec), settings ...executorRunSettingsMap) int {
+	var executorSettings executorRunSettingsMap
+	if len(settings) > 0 {
+		executorSettings = settings[0]
+	}
 	if !isValidPathElement(runID) {
 		printErrorf("invalid run ID %q", runID)
 		return 1
@@ -141,7 +145,7 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 			if len(ready) == 0 {
 				break
 			}
-			waveResults := executeMixedAttempt(runDir, queue, ready, localConcurrency, batchMaxActive, requestedExecutor, executorOptions, onStart)
+			waveResults := executeMixedAttempt(runDir, queue, ready, localConcurrency, batchMaxActive, requestedExecutor, executorOptions, executorSettings, onStart)
 			for _, result := range waveResults {
 				finalResults[result.ID] = result
 			}
@@ -316,7 +320,7 @@ func removeFinishedJobs(jobs []JobSpec, results map[string]JobResult) []JobSpec 
 	return remaining
 }
 
-func executeMixedAttempt(runDir string, queue Queue, jobs []JobSpec, localConcurrency, batchMaxActive int, requestedExecutor string, executorOptions []string, onStart func(JobSpec)) []JobResult {
+func executeMixedAttempt(runDir string, queue Queue, jobs []JobSpec, localConcurrency, batchMaxActive int, requestedExecutor string, executorOptions []string, executorSettings executorRunSettingsMap, onStart func(JobSpec)) []JobResult {
 	defaultExecutor := requestedExecutor
 	if defaultExecutor == "" {
 		defaultExecutor = queue.DefaultExecutor
@@ -345,9 +349,9 @@ func executeMixedAttempt(runDir string, queue Queue, jobs []JobSpec, localConcur
 		}
 		workers.Add(1)
 		if executorName == "local" {
-			go runLocalLane(&workers, runDir, executor, executorJobs, localConcurrency, results, onStart)
+			go runLocalLane(&workers, runDir, executor, executorJobs, effectiveExecutorConcurrency(executorSettings, executorName, localConcurrency), results, onStart)
 		} else {
-			go runBatchLane(&workers, runDir, queue, executor, executorJobs, batchMaxActive, executorOptions, results, onStart)
+			go runBatchLane(&workers, runDir, queue, executor, executorJobs, effectiveExecutorConcurrency(executorSettings, executorName, batchMaxActive), effectiveExecutorOptions(executorSettings, executorName, executorOptions), results, onStart)
 		}
 	}
 	workers.Wait()

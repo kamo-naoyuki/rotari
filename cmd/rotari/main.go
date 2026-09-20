@@ -213,12 +213,22 @@ func run(args []string) int {
 		printUsage()
 		return 1
 	}
+	cliConfigCommand = args[0]
+	isConfigCommand := args[0] == "config" || (args[0] == "run" && len(args) > 1 && args[1] == "config")
+	if !isConfigCommand && args[0] != "--version" && args[0] != "version" {
+		if err := loadCLIConfig(args[1:]); err != nil {
+			printErrorf("failed to load config: %v", err)
+			return 1
+		}
+	}
 	if args[0] == "--version" || args[0] == "version" {
 		printVersion()
 		return 0
 	}
 
 	switch args[0] {
+	case "config":
+		return cmdConfig(args[1:])
 	case "reset":
 		return cmdReset(args[1:])
 	case "cancel":
@@ -239,9 +249,14 @@ func run(args []string) int {
 		return cmdRemove(args[1:])
 	case "show":
 		return cmdShow(args[1:])
+	case "diagnose":
+		return cmdDiagnose(args[1:])
 	case "wait":
 		return cmdWait(args[1:])
 	case "run":
+		if len(args) > 1 && args[1] == "config" {
+			return cmdConfig(args[2:])
+		}
 		return cmdRun(args[1:])
 	case "retry":
 		return cmdRetry(args[1:])
@@ -380,6 +395,7 @@ func cmdWorkerRun(args []string) int {
 	executor := cliString(fs, "executor", "")
 	var executorOptions stringSliceFlag
 	cliValue(fs, &executorOptions, "executor-option")
+	executorSettings := cliExecutorRunSettings(fs)
 	selection := cliString(fs, "selection", "")
 	var jobIDs stringSliceFlag
 	cliValue(fs, &jobIDs, "job-id")
@@ -426,7 +442,7 @@ func cmdWorkerRun(args []string) int {
 	}
 
 	stopLoadSampling := startRunLoadSampling(paths, runID)
-	exitCode := executeMixedRun(paths, runID, runName, localConcurrency, batchMaxActive, retry, *executor, executorOptions, *selection, jobIDs, *sourceRunID, *partialArray, nil, nil)
+	exitCode := executeMixedRun(paths, runID, runName, localConcurrency, batchMaxActive, retry, *executor, executorOptions, *selection, jobIDs, *sourceRunID, *partialArray, nil, nil, executorSettings)
 	stopLoadSampling()
 	if err := finishRunContext(paths, runID); err != nil {
 		printErrorf("failed to save run context: %v", err)
@@ -482,7 +498,7 @@ func finishRun(paths pathSet, runID string, exitCode int) error {
 	return nil
 }
 
-func launchAsyncRun(paths pathSet, queueName, runID, runName string, localConcurrency, batchMaxActive, retry int, executor string, executorOptions []string, selection string, jobIDs []string, sourceRunID string, partialArray bool, cwd string, onDone func()) int {
+func launchAsyncRun(paths pathSet, queueName, runID, runName string, localConcurrency, batchMaxActive, retry int, executor string, executorOptions []string, selection string, jobIDs []string, sourceRunID string, partialArray bool, cwd string, onDone func(), executorSettings executorRunSettingsMap) int {
 	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: runID, StartedAt: nowRFC3339()}); err != nil {
 		printErrorf("project '%s' is running; run is not allowed: %v", queueName, err)
 		return 1
@@ -527,6 +543,15 @@ func launchAsyncRun(paths pathSet, queueName, runID, runName string, localConcur
 	}
 	for _, option := range executorOptions {
 		childArgs = append(childArgs, "--executor-option", option)
+	}
+	for _, name := range executorRunSettingNames {
+		setting := executorSettings[name]
+		if setting.Concurrency > 0 {
+			childArgs = append(childArgs, "--"+name+"-concurrency", strconv.Itoa(setting.Concurrency))
+		}
+		for _, option := range setting.Options {
+			childArgs = append(childArgs, "--"+name+"-options", option)
+		}
 	}
 	if selection != "" {
 		childArgs = append(childArgs, "--selection", selection)
@@ -879,7 +904,7 @@ func runOneJob(runDir string, job JobSpec) JobResult {
 	// Run through the same self-reporting wrapper as scheduler executors
 	// (statusWrapperScript, executor_slurm.go) so the job process itself
 	// records its own status.json even if this coordinator process dies
-	// before cmd.Wait() returns; see docs/internals.md.
+	// before cmd.Wait() returns; see docs/INTERNALS.md.
 	wrapperPath := filepath.Join(jobDir, "local-wrapper.sh")
 	wrapper := statusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory)
 	if err := os.WriteFile(wrapperPath, []byte(wrapper), stateScriptMode()); err != nil {

@@ -330,6 +330,59 @@ func TestCmdUnlockRecoversInterruptedRunWithoutLock(t *testing.T) {
 	}
 }
 
+func TestCmdUnlockRemovesMatchingRunLock(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.lockFile, LockInfo{RunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", "run-1"}); code != 0 {
+		t.Fatalf("cmdUnlock exit code = %d, want 0", code)
+	}
+	if _, err := os.Stat(paths.lockFile); !os.IsNotExist(err) {
+		t.Fatalf("run lock still exists: %v", err)
+	}
+	meta, err := loadMeta(paths.metaFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.Phase != "collecting" {
+		t.Fatalf("metadata phase = %q, want collecting", meta.Phase)
+	}
+}
+
+func TestCmdUnlockRejectsDifferentRunLock(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.lockFile, LockInfo{RunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", "run-2"}); code == 0 {
+		t.Fatal("cmdUnlock accepted a different run ID")
+	}
+	lock, err := loadLockInfo(paths.lockFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lock.RunID != "run-1" {
+		t.Fatalf("lock run ID = %q, want run-1", lock.RunID)
+	}
+}
+
 func TestIsRunningRetainsRemoteHostLock(t *testing.T) {
 	lockPath := t.TempDir() + "/running.lock"
 	if err := writeJSON(lockPath, LockInfo{PID: -1, RunID: "run-1", Host: "other-host"}); err != nil {

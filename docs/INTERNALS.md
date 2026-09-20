@@ -65,6 +65,12 @@ The normal state layout is:
 - The server log is bounded: before an event would make it exceed 1 MiB, the
     regular file is truncated and the new event is written.
 - Run output remains the durable execution record.
+- `diagnose` is an explicitly invoked, stateless external integration. It sends
+    one job's command, recorded result, and at most the last 12,000 characters
+    of output to the configured OpenAI Responses API-compatible endpoint. API
+    keys and diagnoses are never persisted or injected into job environments.
+    A valid explicit BCP 47 response-language tag is added to the prompt; when
+    absent, Rotari makes no language selection.
 
 ## Core design contracts
 
@@ -95,6 +101,11 @@ the user-facing documentation, and the affected tests together.
 - Executors implement job execution and scheduler integration, not run
     semantics. Run planning, dependency handling, carry-forward, and summary
     finalization belong to rotari's shared execution path.
+- Run dispatch has a local concurrency lane and one independent lane per
+    non-local executor. `local-concurrency` and `batch-concurrency` are common
+    defaults used when no executor-specific setting is supplied; executor
+    settings override those defaults, and job-specific executor options remain
+    highest priority.
 
 ## Resolution rules
 
@@ -141,6 +152,35 @@ Without a run-location lookup, base directories resolve in this order:
     selected run.
 - Missing state directories produce no completion candidates
     instead of a shell error.
+
+### Configuration files
+
+- Configuration loading does not independently resolve a project or replace
+    command resolution. The command owns normal `basedir` and project
+    resolution; configuration only consumes the locations that are already
+    explicit or known.
+- When `--run-id` identifies a registered run, its registry entry supplies
+    `base_dir` and `project_name` for configuration loading as well as for the
+    command. When the project is still ambiguous, only global and basedir
+    config are loaded; project selection remains the command's responsibility.
+- CLI option defaults are loaded from one of `config.yaml`, `config.toml`, or
+    `config.json` in `$XDG_CONFIG_HOME/rotari` (or `~/.config/rotari`), then
+    the resolved base directory.
+- After resolving the project name, the same lookup is performed in
+    `projects/<project>/`. Project values override base-directory values.
+- Later scopes override earlier scopes: home, basedir, then project.
+- Multiple supported config files in the same directory are an error; file
+    formats have no implicit priority.
+- Common configuration keys (`basedir` and `project-name`) are at the root;
+    command-specific keys are nested under their command name. Explicit CLI
+    values take priority over environment defaults, which take priority over
+    command sections and root config values.
+- `rotari config` generates a template from the union of all CLI metadata
+    options. YAML and JSON use `null` for unset values; TOML uses comments
+    because it has no null value. Null values are ignored during resolution.
+- Without `--output`, `rotari config` offers home, basedir, existing project
+    config paths, stdout, and an arbitrary path interactively; an explicit
+    `--output` is non-interactive.
 
 ### Shell completion
 

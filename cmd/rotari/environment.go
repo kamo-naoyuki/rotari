@@ -19,6 +19,14 @@ const (
 	envRunName         = "ROTARI_RUN_NAME"
 	envRunLocalConc    = "ROTARI_RUN_LOCAL_CONCURRENCY"
 	envRunBatchConc    = "ROTARI_RUN_BATCH_CONCURRENCY"
+	envRunSSHConc      = "ROTARI_RUN_SSH_CONCURRENCY"
+	envRunSSHOptions   = "ROTARI_RUN_SSH_OPTIONS"
+	envRunSlurmConc    = "ROTARI_RUN_SLURM_CONCURRENCY"
+	envRunSlurmOptions = "ROTARI_RUN_SLURM_OPTIONS"
+	envRunPBSConc      = "ROTARI_RUN_PBS_CONCURRENCY"
+	envRunPBSOptions   = "ROTARI_RUN_PBS_OPTIONS"
+	envRunLSFConc      = "ROTARI_RUN_LSF_CONCURRENCY"
+	envRunLSFOptions   = "ROTARI_RUN_LSF_OPTIONS"
 	envRunRetry        = "ROTARI_RUN_RETRY"
 	envRunAsync        = "ROTARI_RUN_ASYNC"
 	envArrayRange      = "ROTARI_ARRAY_RANGE"
@@ -28,6 +36,10 @@ const (
 	envWebPort         = "ROTARI_WEB_PORT"
 	envWebStaticDir    = "ROTARI_WEB_STATIC_DIR"
 	envWebAllowControl = "ROTARI_WEB_ALLOW_CONTROL"
+	envLLMAPIKey       = "ROTARI_LLM_API_KEY"
+	envLLMEndpoint     = "ROTARI_LLM_ENDPOINT"
+	envLLMModel        = "ROTARI_LLM_MODEL"
+	envLLMLanguage     = "ROTARI_LLM_LANGUAGE"
 	envPrivateState    = "ROTARI_PRIVATE_STATE"
 	envBin             = "ROTARI_BIN"
 	envRunDir          = "ROTARI_RUN_DIR"
@@ -42,6 +54,8 @@ const (
 var propagatedEnvironmentVariables = []string{
 	envBaseDir, envProjectName, envMasterDir, envRunID, envJobID, envJobName,
 	envExecutor, envExecutorOpts, envRunName, envRunLocalConc, envRunBatchConc,
+	envRunSSHConc, envRunSSHOptions, envRunSlurmConc, envRunSlurmOptions,
+	envRunPBSConc, envRunPBSOptions, envRunLSFConc, envRunLSFOptions,
 	envRunRetry, envRunAsync, envArrayRange,
 }
 
@@ -78,6 +92,14 @@ func environmentDefinitions() []environmentDefinition {
 		{Name: envRunName, CLIDefault: true, Job: true, Array: true, Description: "Run name; --run-name default."},
 		{Name: envRunLocalConc, CLIDefault: true, Job: true, Array: true, Description: "Local worker limit; --local-concurrency default."},
 		{Name: envRunBatchConc, CLIDefault: true, Job: true, Array: true, Description: "Scheduler submission limit; --batch-concurrency default."},
+		{Name: envRunSSHConc, CLIDefault: true, Description: "SSH worker limit; --ssh-concurrency default."},
+		{Name: envRunSSHOptions, CLIDefault: true, Description: "SSH dispatch options; --ssh-options default."},
+		{Name: envRunSlurmConc, CLIDefault: true, Description: "Slurm worker limit; --slurm-concurrency default."},
+		{Name: envRunSlurmOptions, CLIDefault: true, Description: "Slurm dispatch options; --slurm-options default."},
+		{Name: envRunPBSConc, CLIDefault: true, Description: "PBS worker limit; --pbs-concurrency default."},
+		{Name: envRunPBSOptions, CLIDefault: true, Description: "PBS dispatch options; --pbs-options default."},
+		{Name: envRunLSFConc, CLIDefault: true, Description: "LSF worker limit; --lsf-concurrency default."},
+		{Name: envRunLSFOptions, CLIDefault: true, Description: "LSF dispatch options; --lsf-options default."},
 		{Name: envRunRetry, CLIDefault: true, Job: true, Array: true, Description: "Retry count; --retry default."},
 		{Name: envRunAsync, CLIDefault: true, Job: true, Array: true, Description: "Async run mode; --async default."},
 		{Name: envArrayRange, CLIDefault: true, Job: true, Array: true, Description: "Array range; --array default."},
@@ -95,6 +117,10 @@ func environmentDefinitions() []environmentDefinition {
 		{Name: envWebPort, CLIDefault: true, Description: "--port default for web."},
 		{Name: envWebStaticDir, CLIDefault: true, Description: "--static-dir default for web."},
 		{Name: envWebAllowControl, CLIDefault: true, Description: "--allow-control default for web."},
+		{Name: envLLMAPIKey, Description: "API key for the diagnose command; never persisted or passed to jobs."},
+		{Name: envLLMEndpoint, CLIDefault: true, Description: "OpenAI Responses API endpoint; --endpoint default for diagnose."},
+		{Name: envLLMModel, CLIDefault: true, Description: "Model name; --model default for diagnose."},
+		{Name: envLLMLanguage, CLIDefault: true, Description: "BCP 47 response language tag; --language default for diagnose."},
 		{Name: envPrivateState, Description: "set to true for 0700/0600 state directory permissions instead of the default 0755/0644 (shared state)."},
 	}
 }
