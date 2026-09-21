@@ -7,7 +7,7 @@ replace obsolete rules rather than accumulating history.
 
 ## Technology rationale
 
-- The core implementation uses Go because Rotari is primarily a command-line
+- The core implementation uses Go because rotari is primarily a command-line
     and background-server tool that coordinates OS processes, files, locks,
     signals, Unix sockets, and external schedulers.
 - A statically linked Go binary keeps installation and deployment simple on
