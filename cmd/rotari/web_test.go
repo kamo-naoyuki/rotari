@@ -130,8 +130,8 @@ func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {
 	}
 }
 
-func TestProjectWebTemplateUsesProjectVocabulary(t *testing.T) {
-	template := projectWebTemplate()
+func TestWebIndexTemplateUsesProjectVocabulary(t *testing.T) {
+	template := webIndexHTML
 	for _, obsolete := range []string{"queue_name", "/queue/", "state.queues"} {
 		if strings.Contains(template, obsolete) {
 			t.Fatalf("project web template contains obsolete identifier %q", obsolete)
