@@ -47,7 +47,7 @@ func buildAIReport(paths pathSet, runID, jobID string, failedOnly bool) (string,
 	}
 	context := RunContext{}
 	if path, err := validatedStateFile(runDir, "context.json"); err == nil {
-		if data, readErr := os.ReadFile(path); readErr == nil {
+		if data, readErr := os.ReadFile(path); readErr == nil { // NOSONAR: path is restricted by validatedStateFile to context.json.
 			_ = json.Unmarshal(data, &context)
 		}
 	}
@@ -111,7 +111,7 @@ func redactAIReport(report string, paths pathSet, run webRun) string {
 	sort.Slice(values, func(i, j int) bool { return len(values[i]) > len(values[j]) })
 	replacements := make([]string, 0, len(values)*2)
 	for _, value := range values {
-		replacement := "[REDACTED_PATH]"
+		replacement := redactedPathPlaceholder
 		if value == run.Context.Hostname {
 			replacement = "[REDACTED_HOST]"
 		}
@@ -120,8 +120,8 @@ func redactAIReport(report string, paths pathSet, run webRun) string {
 	if len(replacements) > 0 {
 		report = strings.NewReplacer(replacements...).Replace(report)
 	}
-	report = reportUnixPathPattern.ReplaceAllString(report, "[REDACTED_PATH]")
-	report = reportWindowsPathPattern.ReplaceAllString(report, "[REDACTED_PATH]")
+	report = reportUnixPathPattern.ReplaceAllString(report, redactedPathPlaceholder)
+	report = reportWindowsPathPattern.ReplaceAllString(report, redactedPathPlaceholder)
 	report = reportFQDNPattern.ReplaceAllString(report, "[REDACTED_HOST]")
 	return report + "\n> Paths and hostnames are redacted where detected. Review logs before sharing; complete redaction is not guaranteed.\n"
 }
@@ -198,7 +198,7 @@ func readReportLog(paths pathSet, runID string, job webJob) string {
 	if err != nil {
 		return ""
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to output.
 	if err != nil {
 		return ""
 	}

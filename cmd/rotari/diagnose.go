@@ -420,8 +420,8 @@ func requestOpenAIDiagnosis(ctx context.Context, endpoint, apiKey, model, prompt
 	if err != nil {
 		return "", err
 	}
-	request.Header.Set("Authorization", "Bearer "+apiKey)
-	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", authBearerPrefix+apiKey)
+	request.Header.Set(headerContentType, mimeApplicationJSON)
 	client := &http.Client{Timeout: 60 * time.Second}
 	response, err := client.Do(request)
 	if err != nil {
@@ -481,8 +481,8 @@ func requestChatCompletionsDiagnosis(ctx context.Context, endpoint, apiKey, mode
 	if err != nil {
 		return "", err
 	}
-	request.Header.Set("Authorization", "Bearer "+apiKey)
-	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", authBearerPrefix+apiKey)
+	request.Header.Set(headerContentType, mimeApplicationJSON)
 	client := &http.Client{Timeout: 60 * time.Second}
 	response, err := client.Do(request)
 	if err != nil {

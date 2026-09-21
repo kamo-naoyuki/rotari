@@ -203,7 +203,7 @@ func withWebAuthToken(next http.Handler, token string) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		provided := request.Header.Get("X-Rotari-Token")
 		if provided == "" {
-			const prefix = "Bearer "
+			const prefix = authBearerPrefix
 			authorization := request.Header.Get("Authorization")
 			if strings.HasPrefix(authorization, prefix) {
 				provided = strings.TrimPrefix(authorization, prefix)
@@ -259,11 +259,11 @@ func interruptSignal() <-chan os.Signal {
 func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
 		_, _ = writer.Write([]byte(webHTML()))
 	})
 	mux.HandleFunc("/docs/", func(writer http.ResponseWriter, request *http.Request) {
-		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
 		_, _ = writer.Write([]byte(cliDocsHTML("/")))
 	})
 	mux.HandleFunc("/docs", func(writer http.ResponseWriter, request *http.Request) {
@@ -275,7 +275,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
 		_, _ = writer.Write([]byte(environmentHTML("/", state.Environments)))
 	})
 	mux.HandleFunc("/environment", func(writer http.ResponseWriter, request *http.Request) {
@@ -327,7 +327,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		writer.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		writer.Header().Set(headerContentType, "text/markdown; charset=utf-8")
 		_, _ = writer.Write([]byte(report))
 	})
 	mux.HandleFunc("/api/log", func(writer http.ResponseWriter, request *http.Request) {
@@ -396,7 +396,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			}
 			data = []byte(strings.Join(lines, "\n"))
 		}
-		writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		writer.Header().Set(headerContentType, "text/plain; charset=utf-8")
 		_, _ = writer.Write(data)
 	})
 	mux.HandleFunc("/api/copy", func(writer http.ResponseWriter, request *http.Request) {
@@ -980,19 +980,23 @@ func loadWebJobs(runDir string, summary RunSummary) ([]webJob, error) {
 	taskJobs := queueToJobs(commands.Commands)
 	webJobs := make([]webJob, 0, len(taskJobs))
 	for _, jobSpec := range taskJobs {
+		jobDir, pathErr := validatedJobDir(runDir, jobSpec.ID)
+		if pathErr != nil {
+			return nil, fmt.Errorf("invalid job ID %q: %w", jobSpec.ID, pathErr)
+		}
 		origin := origins[jobSpec.ID]
 		submittedAt, finishedAt := webJobTimestamps(runDir, jobSpec.ID, origin)
-		job := webJob{ID: jobSpec.ID, Name: jobSpec.Name, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, DependsOn: jobSpec.DependsOn, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SubmittedAt: submittedAt, FinishedAt: finishedAt, SchedulerState: loadSchedulerStatus(filepath.Join(runDir, jobSpec.ID))}
+		job := webJob{ID: jobSpec.ID, Name: jobSpec.Name, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, DependsOn: jobSpec.DependsOn, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SubmittedAt: submittedAt, FinishedAt: finishedAt, SchedulerState: loadSchedulerStatus(jobDir)}
 		if result, ok := results[jobSpec.ID]; ok {
 			job.Result = &result
-		} else if status, ok := loadSlurmStatus(filepath.Join(runDir, jobSpec.ID, "status.json")); ok && jobStatusTerminal(status) {
+		} else if status, ok := loadSlurmStatus(filepath.Join(jobDir, stateFileStatusJSON)); ok && jobStatusTerminal(status) {
 			job.Result = &JobResult{ID: jobSpec.ID, Command: jobSpec.Command, ExitCode: status.ExitCode, Error: status.Error, Hosts: status.Hosts}
 			if job.FinishedAt == "" {
 				job.FinishedAt = status.FinishedAt
 			}
-		} else if result, ok := loadLocalJobResult(filepath.Join(runDir, jobSpec.ID), jobSpec); ok {
+		} else if result, ok := loadLocalJobResult(jobDir, jobSpec); ok {
 			job.Result = &result
-		} else if exitCode, ok := loadTerminalSchedulerState(filepath.Join(runDir, jobSpec.ID)); ok {
+		} else if exitCode, ok := loadTerminalSchedulerState(jobDir); ok {
 			job.Result = &JobResult{ID: jobSpec.ID, Command: jobSpec.Command, ExitCode: exitCode}
 		}
 		webJobs = append(webJobs, job)

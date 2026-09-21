@@ -591,6 +591,18 @@ func TestLoadWebJobsIncludesCommandMetadata(t *testing.T) {
 	}
 }
 
+func TestLoadWebJobsRejectsUnsafeJobID(t *testing.T) {
+	runDir := t.TempDir()
+	queue := Queue{Commands: []QueuedCommand{{ID: "../outside", Command: []string{"true"}}}}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := loadWebJobs(runDir, RunSummary{}); err == nil {
+		t.Fatal("loadWebJobs accepted an unsafe job ID")
+	}
+}
+
 func TestLoadWebJobsIncludesSchedulerState(t *testing.T) {
 	runDir := t.TempDir()
 	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"sleep", "10"}, Executor: "slurm"}}}

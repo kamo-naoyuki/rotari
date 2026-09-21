@@ -257,7 +257,7 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 }
 
 func loadRunSummary(path string) (RunSummary, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to summary.json.
 	if err != nil {
 		return RunSummary{}, err
 	}
