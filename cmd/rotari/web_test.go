@@ -14,6 +14,20 @@ import (
 	"time"
 )
 
+func compactWebHTML(value string) string {
+	value = strings.Map(func(r rune) rune {
+		if r == ' ' || r == '\n' || r == '\r' || r == '\t' {
+			return -1
+		}
+		return r
+	}, value)
+	return strings.ReplaceAll(value, `"`, `'`)
+}
+
+func webContains(html, marker string) bool {
+	return strings.Contains(compactWebHTML(html), compactWebHTML(marker))
+}
+
 func TestWebHTMLJavaScriptSyntax(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -97,20 +111,20 @@ setTimeout(() => {
 
 func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 	html := webHTML()
-	if !strings.Contains(html, "rotari run'+basedir+' --project-name '+shellQuote(queueName)") {
+	if !webContains(html, "rotari run'+basedir+' --project-name '+shellQuote(queueName)") {
 		t.Fatal("web queue guidance does not use the project-name option")
 	}
-	if !strings.Contains(html, "rotari retry -r '+shellQuote(runID)") {
+	if !webContains(html, "rotari retry -r '+shellQuote(runID)") {
 		t.Fatal("web run guidance does not contain a run-id-only retry command")
 	}
-	if strings.Contains(html, "rotari retry'+basedir+' --queue-name '+shellQuote(queueName)") {
+	if webContains(html, "rotari retry'+basedir+' --queue-name '+shellQuote(queueName)") {
 		t.Fatal("web run guidance still contains basedir and project name")
 	}
-	if !strings.Contains(html, "Cancel run") || !strings.Contains(html, "/api/cancel-run") {
+	if !webContains(html, "Cancel run") || !webContains(html, "/api/cancel-run") {
 		t.Fatal("web run page does not contain run cancellation controls")
 	}
 	for _, marker := range []string{"select-all-jobs", "job-selection", "copySelectedJobs", "Select failed + unfinished", "Clear selection", ">Create</button>", ">Append</button>"} {
-		if !strings.Contains(html, marker) {
+		if !webContains(html, marker) {
 			t.Fatalf("web run page is missing job queue selection control %q", marker)
 		}
 	}
@@ -119,12 +133,12 @@ func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {
 	html := webHTML()
 	for _, marker := range []string{"function rowCell(row,key)", "function copySelectedJobs(queue,run,append)", "function arrangeRunControls()", "function orderJobActions()"} {
-		if !strings.Contains(html, marker) {
+		if !webContains(html, marker) {
 			t.Fatalf("web HTML is missing required generated hook %q", marker)
 		}
 	}
 	for _, obsolete := range []string{"queue_name", "/queue/", "state.queues"} {
-		if strings.Contains(html, obsolete) {
+		if webContains(html, obsolete) {
 			t.Fatalf("web HTML contains obsolete project identifier %q", obsolete)
 		}
 	}
@@ -190,7 +204,7 @@ func TestWebHTMLIncludesEmbeddedThemeFavicons(t *testing.T) {
 		`<h1><img class="brand-icon"`,
 		`rotari Web</h1>`,
 	} {
-		if !strings.Contains(html, want) {
+		if !webContains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
 		}
 	}
@@ -237,7 +251,7 @@ func TestLoadWebConfigFilesRejectsUnsafeInputs(t *testing.T) {
 func TestWebHTMLIncludesProjectRuntime(t *testing.T) {
 	html := webHTML()
 	for _, want := range []string{"let projectRuntimeDetailsOpen=false", "runtimeDetails.open", "projectRuntimeDetailsOpen?' open'", "function addProjectRuntime()", "addProjectRuntime();addRunHostLine()", "Project runtime", "Internal state", "State lock: advisory and intentionally not probed"} {
-		if !strings.Contains(html, want) {
+		if !webContains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
 		}
 	}
@@ -246,7 +260,7 @@ func TestWebHTMLIncludesProjectRuntime(t *testing.T) {
 func TestWebHTMLIncludesConfigPaths(t *testing.T) {
 	html := webHTML()
 	for _, want := range []string{"configText(paths)", "function addConfigButton()", "state.config_path", "q.config_path", "run.context.config_paths"} {
-		if !strings.Contains(html, want) {
+		if !webContains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
 		}
 	}
@@ -540,7 +554,7 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 func TestWebSeparatesLogsFromActions(t *testing.T) {
 	html := webHTML()
 	for _, want := range []string{"function mergeActionColumns(){}", "function orderJobActions()", "view-log", "show-path", "delete-run", "Job log", "View log", "Source log", "Logs", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const buttons=[...logCell.querySelectorAll('button')]", "const diagnosisControl=canDiagnose", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", "dataset.view!=='path'", "modal.dataset.view='log';modal.querySelector('strong').textContent='Job log';", "cell.style.display='table-cell'", "button.style.margin='0 6px 6px 0'", "cell.style.width='170px'"} {
-		if !strings.Contains(html, want) {
+		if !webContains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
 		}
 	}
@@ -568,7 +582,7 @@ func TestWebProvidesCopyAndAIReports(t *testing.T) {
 		`https://chatgpt.com/`,
 		`https://claude.ai/new`,
 	} {
-		if !strings.Contains(html, want) {
+		if !webContains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
 		}
 	}
@@ -578,7 +592,7 @@ func TestWebProvidesCopyAndAIReports(t *testing.T) {
 }
 
 func TestWebHostsColumnIsSortable(t *testing.T) {
-	if !strings.Contains(webHTML(), "header.dataset.sort='hosts'") {
+	if !webContains(webHTML(), "header.dataset.sort='hosts'") {
 		t.Fatal("web page Hosts column is not sortable")
 	}
 }
@@ -596,7 +610,7 @@ func TestWebQueueWorkingDirectoryUsesSeparateEditableColumn(t *testing.T) {
 		"data-sort=\"command\">Command",
 		"function markJobHeaders(){}",
 	} {
-		if !strings.Contains(html, want) {
+		if !webContains(html, want) {
 			t.Fatalf("web queue table does not contain %q", want)
 		}
 	}
