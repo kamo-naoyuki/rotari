@@ -2,8 +2,8 @@
   "name": "rotari",
   "private": true,
   "scripts": {
-    "format": "prettier --write cmd/rotari/web_template.html cmd/rotari/web_app_*.js cmd/rotari/web_styles.css",
-    "format:check": "prettier --check cmd/rotari/web_template.html cmd/rotari/web_app_*.js cmd/rotari/web_styles.css"
+    "format": "prettier --write cmd/rotari/assets/web_template.html cmd/rotari/assets/web_app_*.js cmd/rotari/assets/web_styles.css",
+    "format:check": "prettier --check cmd/rotari/assets/web_template.html cmd/rotari/assets/web_app_*.js cmd/rotari/assets/web_styles.css"
   },
   "devDependencies": {
     "jsdom": "^30.1.0",

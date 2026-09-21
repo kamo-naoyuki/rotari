@@ -23,28 +23,28 @@ import (
 
 const webDefaultPort = 8787
 
-//go:embed web_template.html
+//go:embed assets/web_template.html
 var webTemplateHTML string
 
-//go:embed web_app_core.js
+//go:embed assets/web_app_core.js
 var webAppCoreJS string
 
-//go:embed web_app_actions.js
+//go:embed assets/web_app_actions.js
 var webAppActionsJS string
 
-//go:embed web_app_logs.js
+//go:embed assets/web_app_logs.js
 var webAppLogsJS string
 
-//go:embed web_app_tables.js
+//go:embed assets/web_app_tables.js
 var webAppTablesJS string
 
-//go:embed web_app_charts.js
+//go:embed assets/web_app_charts.js
 var webAppChartsJS string
 
-//go:embed web_app_bootstrap.js
+//go:embed assets/web_app_bootstrap.js
 var webAppBootstrapJS string
 
-//go:embed web_styles.css
+//go:embed assets/web_styles.css
 var webStylesCSS string
 
 type webRun struct {
