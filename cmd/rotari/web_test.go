@@ -471,6 +471,12 @@ func TestWebSeparatesLogsFromActions(t *testing.T) {
 	}
 }
 
+func TestWebHostsColumnIsSortable(t *testing.T) {
+	if !strings.Contains(webIndexHTML, "header.dataset.sort='hosts'") {
+		t.Fatal("web page Hosts column is not sortable")
+	}
+}
+
 func TestWebQueueWorkingDirectoryUsesSeparateEditableColumn(t *testing.T) {
 	html := webHTML()
 	for _, want := range []string{
