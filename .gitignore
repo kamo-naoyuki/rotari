@@ -22,5 +22,6 @@ slurm-*.out
 
 # Local Go build cache (sandbox fallback)
 /.gocache/
+/.gomodcache/
 
 activate_python.sh

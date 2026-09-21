@@ -1094,7 +1094,7 @@ func TestZshCompletionIntegration(t *testing.T) {
 	if err := os.WriteFile(scriptPath, []byte(generateZshCompletion()), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(zshPath, "-ic", fmt.Sprintf("autoload -Uz compinit && compinit; source %q; whence -w _rotari", quoteForShell(scriptPath)))
+	cmd := exec.Command(zshPath, "-c", fmt.Sprintf("autoload -Uz compinit && compinit; source %s; whence -w _rotari", quoteForShell(scriptPath)))
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("zsh completion did not register: %v\n%s", err, out)
