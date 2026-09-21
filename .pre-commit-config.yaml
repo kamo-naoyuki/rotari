@@ -1,6 +1,9 @@
 default_language_version:
   python: python3
 
+ci:
+  autofix_prs: true
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -23,6 +26,13 @@ repos:
       - id: black
         files: ^python/
 
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        language_version: "22.23.2"
+        files: ^cmd/rotari/assets/web_(template\.html|app_.*\.js|styles\.css)$
+
   - repo: local
     hooks:
       - id: gofmt
@@ -36,12 +46,6 @@ repos:
         entry: bash -c 'test -z "$(gofmt -l $(git ls-files "*.go"))"'
         language: system
         pass_filenames: false
-
-      - id: prettier
-        name: prettier
-        entry: node_modules/.bin/prettier --write
-        language: system
-        files: ^cmd/rotari/assets/web_(template\.html|app_.*\.js|styles\.css)$
 
       - id: go-test
         name: go test
