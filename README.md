@@ -23,7 +23,7 @@ It is a lightweight workflow engine for experiments and builds that you run repe
 
 Rotari is intentionally lightweight. It is for experiments and builds where **ordinary shell scripts are already a natural way to describe what should run**, but running those commands repeatedly starts to become difficult to manage.
 
-You do not need to turn a simple sequence of commands into a workflow definition just to run it. **Write the commands as you normally would in a shell script, and use Rotari when you need execution, parallelism, logs, status, and run history.**
+You do not need to turn a simple sequence of commands into a workflow definition just to run it. **Write the commands as you normally would in a shell script, and use rotari when you need execution, parallelism, logs, status, and run history.**
 
 If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the basic idea should feel familiar: commands are dispatched locally or to a cluster, with logs and success/failure tracked consistently across backends.
 
