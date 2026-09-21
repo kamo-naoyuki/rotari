@@ -186,6 +186,22 @@ recovery commands below.
 ./scripts/example.sh
 ```
 
+The example runs entirely with the local executor by default, so it does not
+require Slurm or another scheduler. It adds a dependent job, a two-task array,
+and a job that intentionally fails once. The first run therefore has failures;
+`rotari retry` reruns only the failed array task and job, while carrying the
+successful work forward.
+
+To run the array job through Slurm instead, pass the optional flag. The local
+`prepare` and `failing-job` jobs remain local:
+
+```sh
+./scripts/example.sh --slurm
+```
+
+The first positional argument selects the project name, for example
+`./scripts/example.sh --slurm scheduler-demo`.
+
 ### Python interface
 
 The repository includes a small Python client that delegates execution to the
