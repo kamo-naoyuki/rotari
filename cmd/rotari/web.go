@@ -1321,7 +1321,15 @@ function shellQuote(v){`, 1)
 	template = strings.Replace(template, `textContent.trim()==='Delete'`, `textContent.trim()==='Delete'||button.textContent.trim()==='Delete run'`, 1)
 	template = strings.Replace(template, `function shellQuote(v){`, `function orderJobActions(){document.querySelectorAll('#app table.runs tbody tr').forEach(row=>{const cell=row.firstElementChild;if(!cell)return;const buttons=[...cell.querySelectorAll('button')];const order=['View log','Report','Diagnosis','Path','Suspend','Resume','Cancel'];const ordered=[];order.forEach(label=>{buttons.filter(button=>button.textContent.trim()===label).forEach(button=>ordered.push(button))});buttons.filter(button=>!ordered.includes(button)).forEach(button=>ordered.push(button));if(!ordered.length)return;cell.replaceChildren();ordered.forEach((button,index)=>{if(index)cell.append(' ');cell.append(button)})})}
 function shellQuote(v){`, 1)
+	template = strings.Replace(template, "state.queues.find(item=>item.queue_name===queue)", "state.projects.find(item=>item.project_name===queue)", -1)
 	template = strings.Replace(template, "fixTimelineLegendColors()};window.addEventListener", "fixTimelineLegendColors();addConfigButton();addAIButtons();arrangeRunControls();orderJobActions()};window.addEventListener", 1)
+	template = strings.NewReplacer(
+		"queue_name", "project_name",
+		"/queue/", "/project/",
+		"parts[0]!=='queue'", "parts[0]!=='project'",
+		"parts[0]==='queue'", "parts[0]==='project'",
+		"state.queues", "state.projects",
+	).Replace(template)
 	return template
 }
 
