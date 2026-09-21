@@ -37,11 +37,10 @@ repos:
         language: system
         pass_filenames: false
 
-      - id: prettier-check
-        name: prettier check
-        entry: npm run format:check
+      - id: prettier
+        name: prettier
+        entry: node_modules/.bin/prettier --write
         language: system
-        pass_filenames: false
         files: ^cmd/rotari/assets/web_(template\.html|app_.*\.js|styles\.css)$
 
       - id: go-test
