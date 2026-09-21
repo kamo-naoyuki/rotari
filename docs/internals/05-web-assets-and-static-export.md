@@ -90,8 +90,10 @@ the HTML template relative where possible.
 
 Static export injects a bootstrap before the app script. The bootstrap provides
 persisted state, logs, and reports through `fetch` and defines `routeParts()`.
-It must run before the app script: otherwise the first state request can hit
-GitHub Pages' 404 document and briefly render that HTML as application text.
+For a selected-job report, it returns only the selected jobs' pre-generated
+reports, rather than the whole run report. It must run before the app script:
+otherwise the first state request can hit GitHub Pages' 404 document and
+briefly render that HTML as application text.
 
 Static pages receive a copy of `web_styles.css` beside every generated
 `index.html`. If a new asset or static API endpoint is added, update both the

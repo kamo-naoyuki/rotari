@@ -892,6 +892,11 @@ window.fetch=async function(input, init){
     return new Response(window.__ROTARI_STATIC_LOGS__[key] || '', {headers:{'Content-Type':'text/plain'}});
   }
 	if(request.pathname.endsWith('/api/report')) {
+		const jobIDs=request.searchParams.getAll('job_ids');
+		if(jobIDs.length){
+			const selectedReports=jobIDs.map(jobID=>window.__ROTARI_STATIC_REPORTS__[staticReportKey(request.searchParams.get('project_name'), request.searchParams.get('run_id'), jobID)]);
+			return new Response(selectedReports.every(Boolean)?selectedReports.join('\n\n'):'Report not found', {status:selectedReports.every(Boolean)?200:404, headers:{'Content-Type':'text/markdown'}});
+		}
 	const key=staticReportKey(request.searchParams.get('project_name'), request.searchParams.get('run_id'), request.searchParams.get('job_id'));
 		return new Response(window.__ROTARI_STATIC_REPORTS__[key] || 'Report not found', {status:window.__ROTARI_STATIC_REPORTS__[key]?200:404, headers:{'Content-Type':'text/markdown'}});
 	}

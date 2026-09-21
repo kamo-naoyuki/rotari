@@ -579,6 +579,11 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 			t.Fatalf("static web page does not contain %q", want)
 		}
 	}
+	for _, want := range []string{"request.searchParams.getAll('job_ids')", "selectedReports", "join('\\n\\n')"} {
+		if !strings.Contains(string(index), want) {
+			t.Fatalf("static web page does not handle selected report jobs with %q", want)
+		}
+	}
 }
 
 func TestWebSeparatesLogsFromActions(t *testing.T) {
