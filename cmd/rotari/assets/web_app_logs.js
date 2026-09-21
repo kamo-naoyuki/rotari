@@ -285,8 +285,8 @@ function arrangeRunControls() {
   controls.replaceChildren(
     ...[
       selectAll,
-      unselectAll,
       failed,
+      unselectAll,
       create,
       append,
       report,

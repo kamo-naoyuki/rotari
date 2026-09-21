@@ -12,6 +12,26 @@ function updateSelectedRunJobs() {
   document
     .querySelectorAll(".create-selected,.append-selected")
     .forEach((button) => (button.disabled = selected.length === 0));
+  const failed = document.querySelector(".select-failed-unfinished");
+  if (failed) {
+    const parts = pageParts();
+    const project = state.projects.find(
+      (item) => item.project_name === decodeURIComponent(parts[1]),
+    );
+    const run =
+      project &&
+      project.runs.find((item) => item.run_id === decodeURIComponent(parts[3]));
+    const selectable = (run && run.jobs ? run.jobs : []).filter((job) => {
+      const status = jobDisplayStatus(job, run);
+      return (
+        status === "failed" ||
+        status === "pending" ||
+        status === "running" ||
+        status === "suspended"
+      );
+    });
+    failed.disabled = selectable.length === 0;
+  }
 }
 function addRunJobSelection() {
   const selectAll = document.getElementById("select-all-jobs");
