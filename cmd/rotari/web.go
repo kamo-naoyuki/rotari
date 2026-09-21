@@ -857,10 +857,7 @@ rewriteStaticLinks();
 new MutationObserver(rewriteStaticLinks).observe(document.body,{childList:true,subtree:true});
 </script>`, escapedState.String(), escapedLogs.String(), escapedReports.String())
 	baseTemplate := webHTML()
-	staticTemplate := strings.ReplaceAll(baseTemplate, "location.pathname.split('/').filter(Boolean)", "routeParts()")
-	staticTemplate = strings.ReplaceAll(staticTemplate, "location.pathname!=='/'&&location.pathname!==''", "routeParts().length")
-	staticTemplate = strings.ReplaceAll(staticTemplate, "const nextState=await r.json();const nextStateJSON=JSON.stringify(nextState);if(nextStateJSON===stateJSON)return;stateJSON=nextStateJSON;state=nextState;render()", "const nextState=await r.json();const nextStateJSON=JSON.stringify(nextState);if(nextStateJSON===stateJSON)return;stateJSON=nextStateJSON;state=nextState;render();rewriteStaticLinks()")
-	template := strings.Replace(staticTemplate, "<script>\nconst executorNames=", bootstrap+"<script>\nconst executorNames=", 1)
+	template := strings.Replace(baseTemplate, "<script>\nconst executorNames=", bootstrap+"<script>\nconst executorNames=", 1)
 	if template == baseTemplate {
 		return errors.New("web HTML script marker not found")
 	}
