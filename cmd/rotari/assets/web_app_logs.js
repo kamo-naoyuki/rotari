@@ -230,7 +230,8 @@ function addAIButtons() {
     button.className = "run-ai";
     button.textContent = "Report";
     button.title = "Prepare run report";
-    button.onclick = () => showAIReport(project, run, null, selectedRunJobIDs());
+    button.onclick = () =>
+      showAIReport(project, run, null, selectedRunJobIDs());
     controls.append(button);
   }
   const table = document.querySelector("#app table.runs");
