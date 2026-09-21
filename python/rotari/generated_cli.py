@@ -287,8 +287,7 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'generate a config fi
                          {'description': 'print machine-readable JSON for a run',
                           'name': 'json'}],
                'name': 'show'},
-              {'description': "send one job's command and log tail to an LLM for "
-                              'diagnosis',
+              {'description': 'diagnose one job with an LLM or local error rules',
                'flags': [{'description': 'state directory',
                           'environment': 'ROTARI_BASEDIR',
                           'name': 'basedir',
@@ -309,6 +308,9 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'generate a config fi
                           'name': 'job-id',
                           'short': 'j',
                           'value_name': 'ID'},
+                         {'description': 'use local rule-based diagnosis without '
+                                         'calling an LLM',
+                          'name': 'rules'},
                          {'description': 'LLM provider: openai, openai-chat, '
                                          'anthropic, gemini, or cohere',
                           'environment': 'ROTARI_LLM_PROVIDER',
