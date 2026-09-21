@@ -1,25 +1,28 @@
 # Local rule-based diagnosis
 
-`rotari diagnose --run-id RUN_ID --job-id JOB_ID --rules` examines a saved
-job's scheduler error and output locally. It sends no log content over the
-network, does not need an API key or model, and never reruns the job.
+When a failed job is finalized, rotari examines its scheduler error and output
+locally and stores the result in that run's `summary.json`. It sends no log
+content over the network, does not need an API key or model, and never reruns
+the job.
 
 The matcher ignores letter case, ANSI terminal color escapes, and repeated
 whitespace. Each match includes the actual matching line as evidence. Rules
 are deliberately narrow: no match means rotari has no rule-based conclusion,
 not that the job has no diagnosable cause.
 
-When a failed run is finalized, analysis annotations are saved in that job's
-entry in `summary.json` as `diagnoses`. This is a historical, informational
-snapshot; it does not affect job status, retries, dependencies, or scheduler
-control. Every finalized failed job records a recognized diagnosis, `No known
-rule-based diagnosis matched`, or `Rule-based diagnosis unavailable` when its
-output cannot be read.
+This is a historical, informational snapshot; it does not affect job status,
+retries, dependencies, or scheduler control. Every finalized failed job records
+a recognized diagnosis, `No known rule-based diagnosis matched`, or
+`Rule-based diagnosis unavailable` when its output cannot be read.
 
 View saved diagnoses in the CLI with `rotari show --run-id RUN_ID --job-id
 JOB_ID`. The Web UI always shows a `Diagnosis` button beside each job's log
 button; it is enabled for finalized failed jobs with saved analysis and opens
 the evidence and suggested next steps.
+
+To check a saved job manually, run `rotari diagnose --run-id RUN_ID --job-id
+JOB_ID --rules`. The `diagnose` command/API is experimental and may change in
+future releases.
 
 | Diagnosis | Recognized log signatures | Suggested next step |
 | --- | --- | --- |
@@ -35,6 +38,8 @@ the evidence and suggested next steps.
 | Scheduler cancelled job | Slurm `CANCELLED` state or `slurmstepd ... cancelled`, PBS job-deletion messages, LSF `TERM_OWNER`, `TERM_ADMIN`, `TERM_PREEMPT` | Inspect scheduler accounting for the cancellation reason and actor; resolve policy, preemption, dependency, or administrator-cancellation conditions before retrying. |
 | Host memory exhausted | `out of memory: kill process`, `oom-kill`, `memory cgroup out of memory`, `Killed process ... out of memory` | Request more host memory or reduce use; inspect scheduler memory limits and kernel OOM messages. |
 | Process killed | A log line consisting of `Killed` or `Killed PID` | Inspect scheduler accounting and host logs; SIGKILL can be OOM, a scheduler limit, or explicit cancellation. |
+| Kernel panic or kernel fault | `kernel panic`, `BUG: unable to handle kernel`, `Oops:`, `general protection fault`, watchdog hard/soft lockup, RCU stall | Treat the compute node as unhealthy: inspect kernel logs and scheduler node health, report it to the cluster administrator, and retry on another node if appropriate. |
+| Application panic | A log line beginning `panic:` | Inspect the application stack trace and failing invariant; fix the application error before retrying. |
 | Segmentation fault | `segmentation fault`, `SIGSEGV`, `signal 11` | Inspect native extensions, shared-library and driver compatibility, and a core dump or debugger backtrace if available. |
 | NVIDIA GPU driver/device error | `NVRM: Xid`, `GPU has fallen off the bus` | Inspect GPU/node health and NVIDIA kernel logs; retry on another GPU/node if appropriate. |
 | CUDA device-side assert | `device-side assert triggered` | Check tensor shapes, labels, and index ranges passed to CUDA kernels; rerun with synchronous CUDA error reporting if needed. |
@@ -46,6 +51,7 @@ the evidence and suggested next steps.
 | File or directory not found | `no such file or directory`, `FileNotFoundError`, `ENOENT` | Check the path, working directory, mounted filesystems, and whether an earlier job produced the required file. |
 | Permission denied | `permission denied`, `EACCES` | Check ownership, file and directory permissions, mount options, and the account used by the job. |
 | Command or executable not found | `command not found`, `executable file not found` | Check the command spelling and `PATH`, or use an absolute path and ensure the executable is installed on the execution host. |
+| Shared library or ABI mismatch | `undefined symbol`, `symbol lookup error`, missing `GLIBCXX_*`/`CXXABI_*`, `cannot open shared object file`, `wrong ELF class`, `undefined reference to` | Check `ldd`, `LD_LIBRARY_PATH`, and loaded `.so` files; align compiler, libstdc++, CUDA, and Python-extension ABI versions with the runtime host. |
 | Python import or module missing | `ModuleNotFoundError`, `ImportError`, `cannot import name` | Check the Python environment, `PYTHONPATH`, package installation, and version compatibility. |
 | Python dependency or version conflict | `requires ... but ... is installed`, dependency-resolver conflicts, incompatible-version messages | Check package versions and the environment lockfile or requirements, then install a compatible set. |
 | Python syntax or indentation error | `SyntaxError`, `IndentationError`, `TabError` | Inspect the reported source line for invalid syntax, indentation, tabs, or an incompatible Python language feature. |

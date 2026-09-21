@@ -3,6 +3,10 @@
 This guide configures `rotari diagnose` with OpenAI, Anthropic, Gemini, or an
 OpenAI-compatible endpoint.
 
+**Experimental:** The `diagnose` command/API is an early feature. Its command
+options, provider behavior, prompt, and response format may change in future
+releases.
+
 ## 1. Create an API key
 
 Create or select an OpenAI project, then create a secret API key in the

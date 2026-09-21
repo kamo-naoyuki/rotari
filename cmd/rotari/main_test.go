@@ -483,6 +483,24 @@ func TestResolveExistingRunTargetRejectsStaleRegistryEntry(t *testing.T) {
 	}
 }
 
+func TestResolveRunLocationRejectsInvalidRegistryMetadata(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	if err := registerRunLocation(runLocation{BaseDir: t.TempDir(), ProjectName: "", RunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := resolveRunLocation("run-1"); err == nil || found {
+		t.Fatalf("resolveRunLocation() err=%v found=%v, want invalid registry metadata rejection", err, found)
+	}
+}
+
+func TestRunLocationPathRejectsUnsafePathElementRunIDs(t *testing.T) {
+	for _, runID := range []string{"", ".", "..", "nested/run-1", "../outside", "run\\1", "/tmp/outside"} {
+		if _, err := runLocationPath(t.TempDir(), runID); err == nil {
+			t.Fatalf("runLocationPath accepted unsafe run ID %q", runID)
+		}
+	}
+}
+
 func TestSplitShellWords(t *testing.T) {
 	got, err := splitShellWords(`-p "short queue" --constraint='fast\ node' --exclusive`)
 	if err != nil {

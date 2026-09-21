@@ -160,6 +160,44 @@ func TestWebHTMLIncludesEmbeddedThemeFavicons(t *testing.T) {
 	}
 }
 
+func TestWebReadOnlyControlEndpointsRejectMutations(t *testing.T) {
+	baseDir := t.TempDir()
+	for _, endpoint := range []struct {
+		name string
+		body string
+		path string
+	}{
+		{name: "cancel-job", path: "/api/cancel-job", body: `{"project_name":"demo","job_id":"job-1"}`},
+		{name: "remove", path: "/api/remove", body: `{"project_name":"demo","job_id":"job-1"}`},
+		{name: "clear-run", path: "/api/clear-run", body: `{"project_name":"demo","run_id":"run-1"}`},
+	} {
+		t.Run(endpoint.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, endpoint.path, strings.NewReader(endpoint.body))
+			recorder := httptest.NewRecorder()
+			newWebHandler(baseDir, "", false).ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusForbidden {
+				t.Fatalf("endpoint %s status = %d, want %d; body=%s", endpoint.path, recorder.Code, http.StatusForbidden, recorder.Body.String())
+			}
+			if !strings.Contains(recorder.Body.String(), "read-only") {
+				t.Fatalf("endpoint %s body = %q, want read-only message", endpoint.path, recorder.Body.String())
+			}
+		})
+	}
+}
+
+func TestLoadWebConfigFilesRejectsUnsafeInputs(t *testing.T) {
+	baseDir := t.TempDir()
+	if _, err := loadWebConfigFiles(baseDir, "", "run-1"); err == nil || !strings.Contains(err.Error(), "project_name is required with run_id") {
+		t.Fatalf("loadWebConfigFiles(baseDir, \"\", \"run-1\") error = %v, want project_name requirement", err)
+	}
+	if _, err := loadWebConfigFiles(baseDir, "../outside", ""); err == nil || !strings.Contains(err.Error(), "invalid project_name") {
+		t.Fatalf("loadWebConfigFiles(baseDir, \"../outside\", \"\") error = %v, want invalid project_name", err)
+	}
+	if _, err := loadWebConfigFiles(baseDir, "demo", "../outside"); err == nil || !strings.Contains(err.Error(), "invalid run_id") {
+		t.Fatalf("loadWebConfigFiles(baseDir, \"demo\", \"../outside\") error = %v, want invalid run_id", err)
+	}
+}
+
 func TestWebHTMLIncludesProjectRuntime(t *testing.T) {
 	html := webHTML()
 	for _, want := range []string{"let projectRuntimeDetailsOpen=false", "runtimeDetails.open", "projectRuntimeDetailsOpen?' open'", "function addProjectRuntime()", "addProjectRuntime();addRunHostLine()", "Project runtime", "Internal state", "State lock: advisory and intentionally not probed"} {
@@ -456,7 +494,7 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 			t.Fatalf("static web page contains obsolete project identifier %q", obsolete)
 		}
 	}
-	for _, want := range []string{"project_name", "/project/", "state.projects", "All projects", "No projects found."} {
+	for _, want := range []string{"project_name", "/project/", "state.projects", "All projects", "No projects found.", "__ROTARI_STATIC_REPORTS__", "/api/report", "staticReportKey"} {
 		if !strings.Contains(string(index), want) {
 			t.Fatalf("static web page does not contain %q", want)
 		}
@@ -469,6 +507,37 @@ func TestWebSeparatesLogsFromActions(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
 		}
+	}
+}
+
+func TestWebProvidesCopyAndAIReports(t *testing.T) {
+	html := webHTML()
+	for _, want := range []string{
+		`id="copy-modal"`,
+		`id="copy-tail"`,
+		`Copy last 100 lines`,
+		`id="report-note"`,
+		`Markdown report for pasting into an AI assistant. Nothing is sent to external services automatically.`,
+		`fetch('/api/report?'+params)`,
+		`function addAIButtons()`,
+		`const actions=row.children[actionIndex]`,
+		`button.textContent='Report'`,
+		`Prepare run report`,
+		`Prepare job report`,
+		`dataset.view!=='ai'`,
+		`Open Gemini`,
+		`Open ChatGPT`,
+		`Open Claude`,
+		`https://gemini.google.com/app`,
+		`https://chatgpt.com/`,
+		`https://claude.ai/new`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("web page does not contain %q", want)
+		}
+	}
+	if strings.Index(html, `Open ChatGPT`) > strings.Index(html, `Open Gemini`) || strings.Index(html, `Open Gemini`) > strings.Index(html, `Open Claude`) {
+		t.Fatal("AI service buttons are not ordered ChatGPT, Gemini, Claude")
 	}
 }
 

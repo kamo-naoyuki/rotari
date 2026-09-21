@@ -40,11 +40,16 @@ func cmdShow(args []string) int {
 	followLogs := cliBool(fs, "follow", false)
 	noPager := cliBool(fs, "no-pager", false)
 	jsonOutput := cliBool(fs, "json", false)
+	reportOutput := cliBool(fs, "report", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 	if len(fs.Args()) != 0 {
 		printError("usage: " + cliUsage("show"))
+		return 1
+	}
+	if *reportOutput && (*showQueueOption || *showRunsList || *showProjectsList || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput) {
+		printError("--report cannot be combined with queue, list, log, follow, or JSON options")
 		return 1
 	}
 	if *showQueueOption && (*showRunsList || *runIDOption != "" || *failedOnly || *showLogs || *showFailedLogs || *followLogs) {
@@ -76,7 +81,7 @@ func cmdShow(args []string) int {
 		return showBaseDirs(masterDir)
 	}
 	if *queueNameOption == "" && os.Getenv(envProjectName) == "" && *runIDOption == "" &&
-		!(*showQueueOption || *showRunsList || *jobIDOption != "" || *failedOnly || *showLogs || *showFailedLogs || *followLogs || *jsonOutput) {
+		!(*showQueueOption || *showRunsList || *jobIDOption != "" || *failedOnly || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
 		baseDir, _, err := resolveBaseDir(*basedir)
 		if err != nil {
 			printErrorf("failed to resolve state directory: %v", err)
@@ -150,6 +155,10 @@ func cmdShow(args []string) int {
 					printError("logs and failed filters require --run-id")
 					return 1
 				}
+				if *reportOutput {
+					printError("--report requires --run-id when the current queue is not empty")
+					return 1
+				}
 				if *jobIDOption != "" {
 					return showQueueJob(paths, queue, *jobIDOption)
 				}
@@ -172,6 +181,15 @@ func cmdShow(args []string) int {
 		return 1
 	}
 	if *jobIDOption != "" {
+		if *reportOutput {
+			report, err := buildAIReport(paths, runID, *jobIDOption, false)
+			if err != nil {
+				printError(err)
+				return 1
+			}
+			fmt.Print(report)
+			return 0
+		}
 		if *jsonOutput {
 			printError("--json cannot be combined with --job-id")
 			return 1
@@ -200,6 +218,15 @@ func cmdShow(args []string) int {
 		return showWithPager(!*noPager, func(writer io.Writer) int {
 			return showRunLogs(writer, paths, runID, *showFailedLogs)
 		})
+	}
+	if *reportOutput {
+		report, err := buildAIReport(paths, runID, "", *failedOnly)
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		fmt.Print(report)
+		return 0
 	}
 	if *jsonOutput {
 		return showRunJSON(paths, runID)

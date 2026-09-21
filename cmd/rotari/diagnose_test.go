@@ -176,6 +176,8 @@ func TestDiagnoseWithRulesNormalizesAndMatchesKnownErrors(t *testing.T) {
 		{name: "scheduler cancelled", job: diagnosisJob{Log: "slurmstepd: error: CANCELLED AT 2026-09-21 DUE TO PREEMPTION"}, want: "Scheduler cancelled job"},
 		{name: "host OOM", job: diagnosisJob{Log: "Memory cgroup out of memory: Killed process 42"}, want: "Host memory exhausted"},
 		{name: "killed", job: diagnosisJob{Log: "Killed"}, want: "Process killed"},
+		{name: "kernel fault", job: diagnosisJob{Log: "BUG: unable to handle kernel NULL pointer dereference"}, want: "Kernel panic or kernel fault"},
+		{name: "application panic", job: diagnosisJob{Log: "panic: unexpected nil pointer"}, want: "Application panic"},
 		{name: "segmentation fault", job: diagnosisJob{Log: "Fatal Python error: Segmentation fault"}, want: "Segmentation fault"},
 		{name: "GPU Xid", job: diagnosisJob{Log: "NVRM: Xid (PCI:0000:01:00): 79, GPU has fallen off the bus."}, want: "NVIDIA GPU driver/device error"},
 		{name: "CUDA assertion", job: diagnosisJob{Log: "RuntimeError: CUDA error: device-side assert triggered"}, want: "CUDA device-side assert"},
@@ -187,6 +189,7 @@ func TestDiagnoseWithRulesNormalizesAndMatchesKnownErrors(t *testing.T) {
 		{name: "missing file", job: diagnosisJob{Log: "open input.json: no such file or directory"}, want: "File or directory not found"},
 		{name: "permission denied", job: diagnosisJob{Log: "./train: Permission denied"}, want: "Permission denied"},
 		{name: "missing command", job: diagnosisJob{Log: "python: command not found"}, want: "Command or executable not found"},
+		{name: "shared library ABI", job: diagnosisJob{Log: "ImportError: libstdc++.so.6: version `GLIBCXX_3.4.30' not found"}, want: "Shared library or ABI mismatch"},
 		{name: "Python import", job: diagnosisJob{Log: "ModuleNotFoundError: No module named 'torch'"}, want: "Python import or module missing"},
 		{name: "Python dependency", job: diagnosisJob{Log: "package-a requires package-b but version 1 is installed"}, want: "Python dependency or version conflict"},
 		{name: "Python syntax", job: diagnosisJob{Log: "SyntaxError: invalid syntax"}, want: "Python syntax or indentation error"},
@@ -275,6 +278,42 @@ func TestDiagnosisPromptIncludesRequestedLanguage(t *testing.T) {
 	}
 	if strings.Contains(diagnosisPrompt(diagnosisJob{}, ""), "BCP 47 tag") {
 		t.Fatal("diagnosisPrompt() included a language instruction without a requested language")
+	}
+}
+
+func TestRequestProviderDiagnosisRejectsUnsupportedProvider(t *testing.T) {
+	_, err := requestProviderDiagnosis(context.Background(), "unsupported", "https://example.com", "secret", "model", "prompt")
+	if err == nil || !strings.Contains(err.Error(), "unsupported LLM provider") {
+		t.Fatalf("requestProviderDiagnosis() error = %v, want unsupported provider", err)
+	}
+}
+
+func TestCmdDiagnoseRequiresAPIKeyBeforeLLMRequest(t *testing.T) {
+	oldStderr := os.Stderr
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = writer
+	code := cmdDiagnose([]string{"--job-id", "job-1", "--model", "model"})
+	_ = writer.Close()
+	os.Stderr = oldStderr
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 || !strings.Contains(string(output), "ROTARI_LLM_API_KEY is required") {
+		t.Fatalf("code=%d stderr=%q", code, output)
+	}
+}
+
+func TestDiagnoseJobResultRejectsInvalidJobIDWithUnavailableDiagnosis(t *testing.T) {
+	result := diagnoseJobResult(t.TempDir(), JobResult{ID: "../outside", ExitCode: 1, Error: "bad input"})
+	if len(result.Diagnoses) != 1 || result.Diagnoses[0].Name != unavailableRuleDiagnosisName {
+		t.Fatalf("result.Diagnoses = %#v, want unavailable diagnosis for invalid job ID", result.Diagnoses)
+	}
+	if !strings.Contains(result.Diagnoses[0].Evidence, "job ID is invalid") {
+		t.Fatalf("evidence = %q, want invalid job ID message", result.Diagnoses[0].Evidence)
 	}
 }
 

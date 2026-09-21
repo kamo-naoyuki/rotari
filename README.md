@@ -318,6 +318,17 @@ not exposed over HTTP. When a config file is active, the project and run pages
 also let you view its raw contents; keep the Web UI bound to a trusted host
 because config files may contain secrets.
 
+On a run page, use the `AI` button for the whole run or for an individual job
+to preview a Markdown report containing its execution details, saved diagnosis,
+and recent relevant output. `Copy` copies that report, while the `Open ChatGPT`,
+`Open Gemini`, and `Open Claude` buttons copy it and open the selected service in a new tab.
+rotari never submits the report automatically; paste and send it yourself after
+reviewing it. Log, diagnosis, and path dialogs also provide direct copy actions,
+including copying only the last 100 log lines. Reports redact known hostnames
+and paths, plus common absolute-path and fully-qualified-hostname patterns in
+logs. Review the report before sharing because complete redaction is not
+guaranteed.
+
 ## Projects, queues, runs, and state
 
 A project groups one current queue and its run history. `add` assembles the
@@ -524,6 +535,8 @@ rotari show --project-name build --failed
 rotari show --project-name build --job-id JOB_ID
 rotari show --project-name build --logs
 rotari show --project-name build --failed-logs
+rotari show --run-id RUN_ID --report
+rotari show --run-id RUN_ID --job-id JOB_ID --report
 ```
 
 `show --projects` lists every project in the resolved basedir with its queued
@@ -540,6 +553,10 @@ way. Use `--masterdir DIR` to inspect a non-default master registry.
 `--logs` prints the output log for every job in the selected run.
 `--failed-logs` prints logs only for jobs that failed. Both options accept
 `--run-id RUN_ID` to inspect a specific run.
+`--report` prints the same AI-ready Markdown report available from the Web UI.
+Without `--job-id` it describes the whole run and includes recent logs for
+failed jobs; with `--job-id` it describes that job and includes its recent log.
+Use `--failed` with a run report to omit successful jobs.
 Without `--run-id`, `show` displays the active run while a project is running,
 then the current queue when it has commands, and otherwise the latest run. A
 queued-jobs view includes the exact `rotari run` command needed to execute them.
@@ -587,36 +604,41 @@ lock. `run` and `reset` repeat the applicable checks before changing state, so
 they remain safe if the project changes after `check` returns. Inconsistent
 saved state is reported instead of starting or recovering a run.
 
+## Diagnosis
+**Experimental:** The `diagnose` command/API is an early feature. Its command
+options, prompts, supported providers, and response format may change in future
+releases.
+
 ### LLM error diagnosis
-
-**Experimental:** The LLM diagnosis command is an opt-in early feature. Its
-prompt, supported providers, and response format may change in future releases.
-
 See the [LLM diagnosis guide](docs/LLM_DIAGNOSIS.md) for setup,
 provider details, configuration, and execution examples.
 
 ### Local rule-based error diagnosis
 
-For common, recognizable failures, diagnose a saved job without an LLM, API
-key, or network request:
+For common, recognizable failures, rotari runs local rule-based diagnosis when
+a failed job is finalized. The saved analysis is informational only: it never
+changes job status, retries, dependencies, or scheduler control. View it with:
+
+```sh
+rotari show --run-id RUN_ID --job-id JOB_ID
+```
+
+Every finalized failed job records a recognized diagnosis, an explicit no-match
+result, or an analysis-unavailable result when its output cannot be read.
+The Web UI shows a `Diagnosis` button beside every job's log button and enables
+it when a finalized failed job has saved analysis.
+
+To check a saved job manually, run:
 
 ```sh
 rotari diagnose --run-id RUN_ID --job-id JOB_ID --rules
 ```
 
-This checks the scheduler error and recorded output against the documented
-[local diagnosis rules](docs/LOCAL_DIAGNOSIS.md). It normalizes case, ANSI
-color escapes, and whitespace, then prints the matching evidence line and a
-fixed next step. A no-match result deliberately makes no inferred diagnosis.
-Rules cover common scheduler, GPU, distributed-compute, Python, filesystem,
-network, and HTTP failures.
-When a job fails, rotari stores analysis annotations in that run's
-`summary.json`; they are informational snapshots and never affect run control.
-Every finalized failed job records a recognized diagnosis, an explicit no-match
-result, or an analysis-unavailable result when its output cannot be read.
-View them with `rotari show --run-id RUN_ID --job-id JOB_ID`. The Web UI shows
-a `Diagnosis` button beside every job's log button and enables it when a
-finalized failed job has saved analysis.
+The `diagnose` command/API is experimental. With `--rules`, it sends nothing
+over the network and needs no API key or model. It checks the scheduler error
+and recorded output against the documented [local diagnosis
+rules](docs/LOCAL_DIAGNOSIS.md), which cover common scheduler, GPU,
+distributed-compute, Python, filesystem, network, and HTTP failures.
 
 
 ## Recover and rerun

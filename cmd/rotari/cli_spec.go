@@ -189,6 +189,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "projects", Description: "list all projects in the state directory"},
 			cliFlagSpec{Name: "basedirs", Description: "list state directories known to the master registry"},
 			cliFlagSpec{Name: "json", Description: "print machine-readable JSON for a run"},
+			cliFlagSpec{Name: "report", Description: "print an AI-ready Markdown report"},
 		),
 	},
 	{

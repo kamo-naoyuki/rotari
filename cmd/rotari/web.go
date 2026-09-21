@@ -305,6 +305,31 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 		}
 		writeWebJSON(writer, map[string]any{"configs": files})
 	})
+	mux.HandleFunc("/api/report", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			methodNotAllowed(writer)
+			return
+		}
+		projectName := request.URL.Query().Get("project_name")
+		runID := request.URL.Query().Get("run_id")
+		jobID := request.URL.Query().Get("job_id")
+		if !validWebID(projectName) || !validWebID(runID) || (jobID != "" && !validWebID(jobID)) {
+			writeWebError(writer, fmt.Errorf("project_name and run_id are required; job_id must be valid when supplied"))
+			return
+		}
+		paths, err := resolvePaths(baseDir, projectName)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		report, err := buildAIReport(paths, runID, jobID, false)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writer.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		_, _ = writer.Write([]byte(report))
+	})
 	mux.HandleFunc("/api/log", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			methodNotAllowed(writer)
@@ -724,8 +749,16 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 		return err
 	}
 	logs := map[string]string{}
+	reports := map[string]string{}
 	for _, queue := range state.Queues {
+		paths, pathErr := resolvePaths(baseDir, queue.QueueName)
+		if pathErr != nil {
+			continue
+		}
 		for _, run := range queue.Runs {
+			if report, reportErr := buildAIReport(paths, run.RunID, "", false); reportErr == nil {
+				reports[staticReportKey(queue.QueueName, run.RunID, "")] = report
+			}
 			for _, job := range run.Jobs {
 				jobDir, pathErr := validatedJobDir(filepath.Join(baseDir, "projects", queue.QueueName, "runs", run.RunID), job.ID)
 				if pathErr != nil {
@@ -735,6 +768,9 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 				data, readErr := os.ReadFile(path)
 				if readErr == nil {
 					logs[staticLogKey(queue.QueueName, run.RunID, job.ID)] = string(data)
+				}
+				if report, reportErr := buildAIReport(paths, run.RunID, job.ID, false); reportErr == nil {
+					reports[staticReportKey(queue.QueueName, run.RunID, job.ID)] = report
 				}
 			}
 		}
@@ -747,12 +783,18 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 	if err != nil {
 		return err
 	}
-	var escapedState, escapedLogs bytes.Buffer
+	reportsJSON, err := json.Marshal(reports)
+	if err != nil {
+		return err
+	}
+	var escapedState, escapedLogs, escapedReports bytes.Buffer
 	json.HTMLEscape(&escapedState, stateJSON)
 	json.HTMLEscape(&escapedLogs, logsJSON)
+	json.HTMLEscape(&escapedReports, reportsJSON)
 	bootstrap := fmt.Sprintf(`<script>
 window.__ROTARI_STATIC_STATE__=%s;
 window.__ROTARI_STATIC_LOGS__=%s;
+window.__ROTARI_STATIC_REPORTS__=%s;
 window.fetch=async function(input, init){
   const request=new URL(input, window.location.href);
   if(request.pathname.endsWith('/api/state')) return new Response(JSON.stringify(window.__ROTARI_STATIC_STATE__), {headers:{'Content-Type':'application/json'}});
@@ -760,16 +802,21 @@ window.fetch=async function(input, init){
 	const key=staticLogKey(request.searchParams.get('project_name'), request.searchParams.get('run_id'), request.searchParams.get('job_id'));
     return new Response(window.__ROTARI_STATIC_LOGS__[key] || '', {headers:{'Content-Type':'text/plain'}});
   }
+	if(request.pathname.endsWith('/api/report')) {
+	const key=staticReportKey(request.searchParams.get('project_name'), request.searchParams.get('run_id'), request.searchParams.get('job_id'));
+		return new Response(window.__ROTARI_STATIC_REPORTS__[key] || 'Report not found', {status:window.__ROTARI_STATIC_REPORTS__[key]?200:404, headers:{'Content-Type':'text/markdown'}});
+	}
   return new Response('This is a read-only static demo.', {status:405});
 };
 function staticLogKey(queue, run, job){return [queue, run, job].join('/');}
+function staticReportKey(project, run, job){return [project, run, job || ''].join('/');}
 function staticRootPath(){const pathname=window.location.pathname;const parts=pathname.split('/').filter(Boolean);const projectIndex=parts.indexOf('project');if(projectIndex>=0)return '/'+parts.slice(0,projectIndex).join('/');if(pathname.endsWith('/index.html'))return '/'+parts.slice(0,-1).join('/');if(pathname.endsWith('/'))return parts.length?'/'+parts.join('/'):'';return '/'+parts.slice(0,-1).join('/')}
 function routeParts(){const root=staticRootPath().split('/').filter(Boolean);return window.location.pathname.split('/').filter(Boolean).slice(root.length)}
 function staticPath(path){const root=staticRootPath().replace(/\/$/,'');return path===root||path.startsWith(root+'/')?path:root+path}
 function rewriteStaticLinks(){document.querySelectorAll('a[href^="/"]').forEach(link=>{link.setAttribute('href',staticPath(link.getAttribute('href')))})}
 rewriteStaticLinks();
 new MutationObserver(rewriteStaticLinks).observe(document.body,{childList:true,subtree:true});
-</script>`, escapedState.String(), escapedLogs.String())
+</script>`, escapedState.String(), escapedLogs.String(), escapedReports.String())
 	baseTemplate := webHTML()
 	staticTemplate := strings.ReplaceAll(baseTemplate, "location.pathname.split('/').filter(Boolean)", "routeParts()")
 	staticTemplate = strings.ReplaceAll(staticTemplate, "location.pathname!=='/'&&location.pathname!==''", "routeParts().length")
@@ -813,6 +860,10 @@ new MutationObserver(rewriteStaticLinks).observe(document.body,{childList:true,s
 
 func staticLogKey(queueName, runID, jobID string) string {
 	return queueName + "/" + runID + "/" + jobID
+}
+
+func staticReportKey(projectName, runID, jobID string) string {
+	return projectName + "/" + runID + "/" + jobID
 }
 
 func writeStaticWebPage(path, contents string) error {
@@ -1079,6 +1130,9 @@ func webHTML() string {
 	executorJSON, _ := json.Marshal(executorNames())
 	template := strings.Replace(webIndexHTML, "<title>rotari</title>", "<title>rotari</title>"+faviconLinks(), 1)
 	template = strings.Replace(template, "<h1><!--brand-icon-->rotari Web</h1>", "<h1>"+brandIcon()+"rotari Web</h1>", 1)
+	template = strings.Replace(template,
+		`<header><strong>Output</strong><button onclick="closeOutputModal()">Close</button></header>`,
+		`<header><strong>Output</strong><div class="modal-actions"><button id="copy-modal" onclick="copyModalOutput(this)">Copy</button><button id="copy-tail" onclick="copyLogTail(this)" hidden>Copy last 100 lines</button><button id="open-chatgpt" onclick="openAI('https://chatgpt.com/',this)" hidden>Open ChatGPT</button><button id="open-gemini" onclick="openAI('https://gemini.google.com/app',this)" hidden>Open Gemini</button><button id="open-claude" onclick="openAI('https://claude.ai/new',this)" hidden>Open Claude</button><button onclick="closeOutputModal()">Close</button></div></header><p id="report-note" class="meta" hidden>Markdown report for pasting into an AI assistant. Nothing is sent to external services automatically.</p>`, 1)
 	template = strings.Replace(template, "<script>\nlet state;", "<script>\nconst executorNames="+string(executorJSON)+";\nlet state;", 1)
 	template = strings.NewReplacer(
 		"state.queues", "state.projects",
@@ -1182,11 +1236,23 @@ function addQueueEditors(queue,commands){`, 1)
 	template = strings.Replace(template, `Output</button>':'-';const jobName=`, `Output</button>'+diagnosisControl:diagnosisControl;const jobName=`, 1)
 	template = strings.Replace(template, `async function followOutput(){`, `function showDiagnosis(trigger){if(followTimer)clearInterval(followTimer);followTimer=null;selectedLog=null;const diagnoses=JSON.parse(trigger.dataset.diagnoses||'[]');selectedOutput=diagnoses.map(item=>item.name+'\nEvidence: '+item.evidence+'\nNext: '+item.suggestion).join('\n\n');const output=ensureModalOutput();output.textContent=selectedOutput;const modal=document.getElementById('output-modal');modal.dataset.view='diagnosis';modal.querySelector('strong').textContent='Diagnosis';openOutputModal(true)}
 async function followOutput(){`, 1)
-	template = strings.Replace(template, `dataset.view!=='config'`, `dataset.view!=='config'&&document.getElementById('output-modal').dataset.view!=='diagnosis'&&document.getElementById('output-modal').dataset.view!=='path'`, 1)
+	template = strings.Replace(template, `dataset.view!=='config'`, `dataset.view!=='config'&&document.getElementById('output-modal').dataset.view!=='diagnosis'&&document.getElementById('output-modal').dataset.view!=='path'&&document.getElementById('output-modal').dataset.view!=='ai'`, 1)
 	template = strings.Replace(template,
 		`const button=logCell.querySelector('button');if(button){const firstChild=actionCell.firstChild;actionCell.insertBefore(button,firstChild);actionCell.insertBefore(document.createTextNode(' '),firstChild)}logCell.remove()`,
 		`const buttons=[...logCell.querySelectorAll('button')];if(buttons.length){const controls=document.createDocumentFragment();buttons.forEach((button,index)=>{if(index)controls.append(' ');controls.append(button)});actionCell.insertBefore(controls,actionCell.firstChild)}logCell.remove()`, 1)
-	template = strings.Replace(template, "fixTimelineLegendColors()};window.addEventListener", "fixTimelineLegendColors();addConfigButton()};window.addEventListener", 1)
+	template = strings.Replace(template, `function shellQuote(v){`, `function lastLogLines(value,count){const lines=String(value||'').split('\n');return lines.slice(Math.max(0,lines.length-count)).join('\n')}
+async function copyText(value){if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(value);return}const area=document.createElement('textarea');area.value=value;area.style.position='fixed';area.style.opacity='0';document.body.append(area);area.select();document.execCommand('copy');area.remove()}
+function copied(button){const label=button.textContent;button.textContent='Copied';setTimeout(()=>button.textContent=label,1200)}
+async function fetchSelectedLog(tail){if(!selectedLog)return selectedOutput;const suffix=tail?'&tail='+tail:'';const response=await fetch('/api/log?project_name='+encodeURIComponent(selectedLog.queue)+'&run_id='+encodeURIComponent(selectedLog.run)+'&job_id='+encodeURIComponent(selectedLog.job)+suffix);if(!response.ok)throw new Error(await response.text());const value=await response.text();return tail?lastLogLines(value,tail):value}
+async function copyModalOutput(button){try{await copyText(document.getElementById('output-modal').dataset.view==='log'?await fetchSelectedLog(0):selectedOutput);copied(button)}catch(error){alert(error.message)}}
+async function copyLogTail(button){try{await copyText(await fetchSelectedLog(100));copied(button)}catch(error){alert(error.message)}}
+function updateModalActions(){const view=document.getElementById('output-modal').dataset.view;document.getElementById('copy-tail').hidden=view!=='log';document.getElementById('report-note').hidden=view!=='ai';['open-gemini','open-chatgpt','open-claude'].forEach(id=>document.getElementById(id).hidden=view!=='ai');document.getElementById('copy-modal').textContent=view==='log'?'Copy log':view==='ai'?'Copy':'Copy'}
+async function openAI(url,button){window.open(url,'_blank','noopener');await copyText(selectedOutput);copied(button)}
+async function showAIReport(project,run,job){const modal=document.getElementById('output-modal');modal.dataset.view='ai';modal.querySelector('strong').textContent=job?'Job report':'Run report';selectedLog=null;selectedOutput='Preparing...';ensureModalOutput().textContent=selectedOutput;openOutputModal(false);const params=new URLSearchParams({project_name:project.project_name,run_id:run.run_id});if(job)params.set('job_id',job.id);const response=await fetch('/api/report?'+params);selectedOutput=await response.text();if(!response.ok)selectedOutput='Failed to prepare report: '+selectedOutput;ensureModalOutput().textContent=selectedOutput;openOutputModal(false)}
+function addAIButtons(){const parts=location.pathname.split('/').filter(Boolean);if(parts[0]!=='project'||parts[2]!=='run')return;const project=state.projects.find(item=>item.project_name===decodeURIComponent(parts[1]));const run=project&&project.runs.find(item=>item.run_id===decodeURIComponent(parts[3]));if(!run)return;const controls=document.querySelector('.web-copy-controls');if(controls&&!controls.querySelector('.run-ai')){const button=document.createElement('button');button.className='run-ai';button.textContent='Report';button.title='Prepare run report';button.onclick=()=>showAIReport(project,run,null);controls.append(button)}const table=document.querySelector('#app table.runs');if(!table)return;const actionIndex=[...table.querySelectorAll('thead th')].findIndex(header=>header.textContent.trim()==='Actions');if(actionIndex<0)return;table.querySelectorAll('tbody tr').forEach((row,index)=>{const actions=row.children[actionIndex];const job=run.jobs[index];if(!actions||!job||actions.querySelector('.job-ai'))return;const button=document.createElement('button');button.className='job-ai';button.textContent='Report';button.title='Prepare job report';button.onclick=()=>showAIReport(project,run,job);actions.append(' ',button)})}
+function shellQuote(v){`, 1)
+	template = strings.Replace(template, `function openOutputModal(compact){const modal=document.getElementById('output-modal');modal.style.display='flex';`, `function openOutputModal(compact){const modal=document.getElementById('output-modal');updateModalActions();modal.style.display='flex';`, 1)
+	template = strings.Replace(template, "fixTimelineLegendColors()};window.addEventListener", "fixTimelineLegendColors();addConfigButton();addAIButtons()};window.addEventListener", 1)
 	return template
 }
 

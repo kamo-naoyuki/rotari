@@ -152,28 +152,30 @@ once it succeeds, the previously blocked dependents run on the next
 ## LLM diagnosis
 
 ### Can I diagnose common failures without sending logs to an LLM?
-Yes. Run `rotari diagnose --run-id RUN_ID --job-id JOB_ID --rules`. This is a
-local, read-only signature check: it sends nothing over the network and needs
-neither an API key nor a model. It recognizes only the documented error
-patterns, shows the matching log or scheduler-error line, and reports no
-diagnosis when none matches. See [local diagnosis rules](LOCAL_DIAGNOSIS.md)
-for the exact patterns and suggested actions.
-
-The documented rules include common scheduler, GPU, distributed-compute,
-Python, filesystem, network, and HTTP failures.
-
-When a job fails, analysis annotations are also saved in the run's
-`summary.json` result. They are informational snapshots and do not affect job
-status, retries, dependencies, or scheduler control. Every finalized failed
-job records a recognized diagnosis, an explicit no-match result, or an
-analysis-unavailable result when output cannot be read.
+Yes. For finalized failed jobs, rotari runs local rule-based diagnosis
+automatically and saves the result in that run's `summary.json`. The saved
+analysis is informational only and does not affect job status, retries,
+dependencies, or scheduler control. Every finalized failed job records a
+recognized diagnosis, an explicit no-match result, or an analysis-unavailable
+result when output cannot be read.
 
 Use `rotari show --run-id RUN_ID --job-id JOB_ID` to display saved diagnoses
 in the CLI. The Web UI always shows a `Diagnosis` button beside each job's log
 control; it is enabled for finalized failed jobs with saved analysis and opens
 the evidence and suggested next steps.
 
+You can also run `rotari diagnose --run-id RUN_ID --job-id JOB_ID --rules` to
+check a saved job manually. The `diagnose` command/API is experimental. With
+`--rules`, it is a local, read-only signature check: it sends nothing over the
+network and needs neither an API key nor a model. It recognizes only the
+documented error patterns, shows the matching log or scheduler-error line, and
+reports no diagnosis when none matches. See [local diagnosis
+rules](LOCAL_DIAGNOSIS.md) for the exact patterns and suggested actions.
+
 ### What does `rotari diagnose` send to an LLM?
+The `diagnose` command/API is experimental; its options, provider behavior,
+prompt, and response format may change in future releases.
+
 It sends one selected job's command, recorded exit code/error, and no more
 than the final 12,000 characters of that job's output log. It sends nothing
 until `ROTARI_LLM_API_KEY` and `--model` (or `ROTARI_LLM_MODEL`) are supplied.
@@ -368,6 +370,18 @@ No. The web UI is a separate, optional process you start explicitly
 (`rotari web`) and never starts or stops the runner itself — closing it has
 no effect on any run. It is unrelated to the background supervisor described
 below.
+
+### Does the Web UI send run details to an AI service?
+No. A run or job's `AI` button prepares a Markdown report locally in the
+browser. `Copy` only writes it to the clipboard. The `Open ChatGPT`, `Open
+Gemini`, and `Open Claude` buttons also open that service in a new tab, but
+they do not paste or submit anything; review the report and paste it yourself.
+Failed-job reports include at most the last 100 log lines and 12,000 characters
+per log. The same report is available in a terminal with `rotari show
+--run-id RUN_ID --report`, optionally with `--job-id JOB_ID` or `--failed`.
+Reports redact known hostnames and paths and apply heuristic redaction to common
+path and hostname patterns in logs. This is not a guarantee that every secret
+has been removed, so review the report before pasting it into an AI service.
 
 ### What does the project page's “Project runtime” panel show?
 It shows the persisted runner-lock record for that project, when present, and
