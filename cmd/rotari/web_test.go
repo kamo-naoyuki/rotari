@@ -145,7 +145,7 @@ func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {
 }
 
 func TestWebIndexTemplateUsesProjectVocabulary(t *testing.T) {
-	template := webTemplateHTML + webAppJS
+	template := webTemplateHTML + strings.Join([]string{webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppTablesJS, webAppChartsJS, webAppBootstrapJS}, "\n")
 	for _, obsolete := range []string{"queue_name", "/queue/", "state.queues"} {
 		if strings.Contains(template, obsolete) {
 			t.Fatalf("project web template contains obsolete identifier %q", obsolete)

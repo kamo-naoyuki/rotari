@@ -26,8 +26,23 @@ const webDefaultPort = 8787
 //go:embed web_template.html
 var webTemplateHTML string
 
-//go:embed web_app.js
-var webAppJS string
+//go:embed web_app_core.js
+var webAppCoreJS string
+
+//go:embed web_app_actions.js
+var webAppActionsJS string
+
+//go:embed web_app_logs.js
+var webAppLogsJS string
+
+//go:embed web_app_tables.js
+var webAppTablesJS string
+
+//go:embed web_app_charts.js
+var webAppChartsJS string
+
+//go:embed web_app_bootstrap.js
+var webAppBootstrapJS string
 
 //go:embed web_styles.css
 var webStylesCSS string
@@ -1209,6 +1224,7 @@ func webHTML() string {
 
 func webHTMLWithStaticBootstrap(bootstrap string) string {
 	executorJSON, _ := json.Marshal(executorNames())
+	webAppJS := strings.Join([]string{webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppTablesJS, webAppChartsJS, webAppBootstrapJS}, "\n")
 	template := strings.Replace(webTemplateHTML, "__ROTARI_WEB_APP__", webAppJS, 1)
 	template = strings.Replace(template, "__ROTARI_EXECUTORS__", string(executorJSON), 1)
 	template = strings.Replace(template, "__ROTARI_STATIC_BOOTSTRAP__", bootstrap, 1)
