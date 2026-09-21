@@ -205,7 +205,12 @@ function updateModalActions() {
   copyTail.dataset.copyIcon ||= copyTail.innerHTML;
   document.getElementById("report-note").hidden = view !== "ai";
   ["open-gemini", "open-chatgpt", "open-claude"].forEach(
-    (id) => (document.getElementById(id).hidden = view !== "ai"),
+    (id) => {
+      const button = document.getElementById(id);
+      button.hidden = view !== "ai";
+      button.dataset.copyTitle ||= button.textContent.trim();
+      button.dataset.copyIcon ||= button.innerHTML;
+    },
   );
   const copyButton = document.getElementById("copy-modal");
   const copyTitle = view === "log" ? "Copy log" : "Copy";

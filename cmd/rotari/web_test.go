@@ -610,6 +610,8 @@ func TestWebProvidesCopyAndAIReports(t *testing.T) {
 		`Markdown report for pasting into an AI assistant. Nothing is sent to external services automatically.`,
 		`fetch('/api/report?'+params)`,
 		`function addAIButtons()`,
+		`button.dataset.copyTitle ||= button.textContent.trim()`,
+		`button.dataset.copyIcon ||= button.innerHTML`,
 		`const actions=row.children[actionIndex]`,
 		`button.textContent='Report'`,
 		`Prepare run report`,
