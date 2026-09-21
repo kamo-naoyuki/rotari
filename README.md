@@ -217,9 +217,7 @@ options. `reset(recover=True)` passes the CLI's interrupted-run recovery flag.
 This is intentionally a thin wrapper, not a Python-native
 job executor: it accepts command argument lists such as `['./train.sh']`, not
 Python functions to serialize and submit. For a function-oriented Python job
-submission framework, see [Submitit](https://github.com/facebookincubator/submitit);
-Rotari instead exposes the existing CLI and its local, SSH, and scheduler
-backends to Python.
+submission framework, see [Submitit](https://github.com/facebookincubator/submitit).
 
 ## Local web UI
 
@@ -233,31 +231,14 @@ Start the local web status UI separately from the job runner:
 rotari web
 ```
 
-Pass `--allow-control=false` for a read-only UI that only serves state, logs,
-and the CLI/env docs and rejects the control APIs with `403 Forbidden`.
-For a non-loopback listener, set `ROTARI_WEB_AUTH_TOKEN` or pass
-`--auth-token TOKEN`; requests must include `Authorization: Bearer TOKEN` (or
-`X-Rotari-Token: TOKEN`). For the browser UI, use Basic authentication with
-username `rotari` and the token as the password. Prefer the environment
-variable so the token does not appear in the process list. This is lightweight
-HTTP authentication, not encryption, so use HTTPS or a trusted/private network
-when the token or job data must be protected in transit.
-The `/api/state` and `/environment/` pages report which environment
-variables are *set*, never their values, so secrets such as API tokens are
-not exposed over HTTP. When a config file is active, the project and run pages
-also let you view its raw contents; keep the Web UI bound to a trusted host
-because config files may contain secrets.
-
-On a run page, use the `AI` button for the whole run or for an individual job
-to preview a Markdown report containing its execution details, saved diagnosis,
-and recent relevant output. `Copy` copies that report, while the `Open ChatGPT`,
-`Open Gemini`, and `Open Claude` buttons copy it and open the selected service in a new tab.
-Rotari never submits the report automatically; paste and send it yourself after
-reviewing it. Log, diagnosis, and path dialogs also provide direct copy actions,
-including copying only the last 100 log lines. Reports redact known hostnames
-and paths, plus common absolute-path and fully-qualified-hostname patterns in
-logs. Review the report before sharing because complete redaction is not
-guaranteed.
+Use `--allow-control=false` for a read-only UI that serves state, logs, and
+CLI/env docs and returns `403 Forbidden` for control APIs. For non-loopback
+listeners, set `ROTARI_WEB_AUTH_TOKEN` (preferred) or pass `--auth-token TOKEN`;
+API requests use `Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`, and
+the browser UI uses Basic auth with username `rotari` and the token as password.
+This is HTTP authentication, not encryption: use HTTPS or a trusted network.
+`/api/state` and `/environment/` show only whether variables are set. Project
+and run pages can show raw config files, so keep the UI on a trusted host.
 
 ## Projects, queues, runs, and state
 
@@ -417,43 +398,27 @@ rotari run --project-name test --async
 rotari wait build test
 ```
 
-When `rotari wait` has no selector, it scans the resolved basedir. It waits
-automatically when exactly one project is running; when multiple projects are
-running, it prints their project and run IDs and asks for a selector. Use
-`rotari wait PROJECT` to choose one.
+`--async` starts the run in a detached `setsid` session, so it survives terminal
+closure. Use `rotari wait PROJECT`, `rotari wait RUN_NAME`, or
+`rotari wait --run-id RUN_ID` from any terminal, and `rotari cancel` to stop it.
 
-Pressing Ctrl-C during a synchronous `rotari run` requests cancellation and
-returns your terminal immediately (exit code 130) — it does not wait for
-jobs to stop. The supervisor keeps running in the background, cancels the
-still-running jobs, and only then finishes its normal cleanup, including the
-run summary, queue clearing, and run-lock removal; a new `run`/`add`/`copy`
-against the same project may be briefly rejected until that finishes.
-Routine interruption does not require `unlock` or `server shutdown`.
+With no selector, `rotari wait` scans the resolved basedir: it waits when one
+project is running, or lists project/run IDs and asks for a selector when
+several are running. Use `rotari wait PROJECT` (or a run name/ID) to choose.
 
-Pressing Ctrl-D during a synchronous `rotari run` detaches the client without
-cancelling the run. The terminal returns immediately and the run continues as
-if it had been started with `--async`; use `rotari wait --run-id RUN_ID` or
-`rotari show --run-id RUN_ID` to follow it.
+During synchronous `rotari run`, Ctrl-C returns immediately with exit code 130
+and asks the background supervisor to cancel the run; cleanup (summary, queue,
+and lock) finishes afterward, so the same project may briefly reject commands.
+No `unlock` or `server shutdown` is needed. Ctrl-D detaches without cancelling;
+follow the run with `rotari wait --run-id RUN_ID` or `rotari show --run-id RUN_ID`.
+Ctrl-Z only suspends the client; `fg` resumes it, but closing the terminal
+disconnects the run and requests cancellation. Use Ctrl-D or `--async` to detach.
 
-Ctrl-Z only suspends the foreground client through the shell's job control; the
-run continues while the client remains stopped, and `fg` resumes watching it.
-However, closing the terminal then kills the stopped client and disconnects
-the synchronous run, which requests cancellation. It is not a clean detach,
-so use Ctrl-D (or start with `rotari run --async`) when you want to leave the
-interactive progress view.
-
-An async run is started as a detached process in a new session (`setsid`), so
-it keeps running even if the terminal that launched it is closed. Use
-`rotari wait PROJECT`, `rotari wait RUN_NAME`, or `rotari wait --run-id RUN_ID`
-from any terminal (or later) to block on the run, and
-`rotari cancel` to stop it.
-
-The detached supervisor is not auto-restarted by rotari if the process itself
-crashes or is killed. The run lock records its PID and host, and local jobs use
-self-reporting wrappers so `rotari show --run-id RUN_ID` can still see job
-status written after the supervisor disappeared. If the run remains
-interrupted, confirm the jobs have stopped, then use the recovery command shown
-by `show` (`unlock` to keep the queue, or `reset --recover` to discard it).
+The supervisor is not auto-restarted after a crash or kill. The run lock records
+its PID and host, while local wrappers preserve job status for
+`rotari show --run-id RUN_ID`. If the run remains interrupted, confirm jobs have
+stopped and use the recovery command shown by `show`: `unlock` keeps the queue;
+`reset --recover` discards it.
 
 ## Inspect
 
@@ -926,72 +891,44 @@ run data.
 
 ## Shared filesystem locking
 
-Multiple hosts may use the same queue when they share the same state directory
-(`--basedir` or `ROTARI_BASEDIR`) on an NFS filesystem. Queue updates such as
-`add`, `change`, `remove`, `copy`, `run`, and `delete` are serialized with an
-advisory file lock. NFSv4 servers and clients must be configured to support
-file locking. Rotari waits up to 30 seconds when another update holds this
-lock, then returns an error; it does not remove the advisory lock file because
-doing so cannot release an active `flock` lock safely.
+Hosts sharing `--basedir`/`ROTARI_BASEDIR` on NFS can share a queue. Updates
+(`add`, `change`, `remove`, `copy`, `run`, `delete`) use an advisory file lock;
+NFSv4 locking must be enabled. Rotari waits up to 30 seconds, then errors, and
+never deletes the lock file because that cannot safely release an active `flock`.
 
-An active run is recorded in `running.lock` with its run ID, PID, and host.
-On the host that started the run, rotari removes the lock automatically when
-the PID is no longer alive, but retains the run metadata as interrupted and
-blocks queue mutations until `unlock` acknowledges recovery. A lock created on
-another host is always treated as active: rotari cannot reliably determine
-whether a remote PID is still alive.
+`running.lock` records the run ID, PID, and host. On the origin host, rotari
+removes it after the PID exits but marks the run interrupted and blocks queue
+updates until recovery is acknowledged. Locks from other hosts are always
+considered active. This is file coordination, not a distributed lock service:
+it requires consistent `O_EXCL`, atomic rename, and `flock`, and cannot fence a
+host after a partition or fix inconsistent mounts. Confirm failed-host jobs
+stopped before recovery. Separate project names have separate queue and lock
+files and are safer, but the base server, registry, and filesystem remain shared.
 
-This coordination is intentionally file-based, not a distributed lock service.
-It depends on the shared filesystem providing consistent `O_EXCL`, atomic
-rename, and advisory `flock` behavior. It does not fence a host after a
-network partition or repair stale/inconsistent mounts, so do not use the same
-project through mounts that can disagree about the state files. After a host
-failure, confirm that its jobs stopped before using `unlock` from another host.
-Different project names have separate queue, metadata, and run-lock files, so
-using different projects on multiple hosts is substantially safer than sharing
-one project. The base-level server, run registry, and filesystem are still
-shared, however.
-
-If a remote host has failed and the run is confirmed stopped, remove its stale
-run lock explicitly. First find the run ID, then unlock that exact run:
+After confirming a failed host's run has stopped, unlock that exact run:
 
 ```sh
 rotari show --project-name build --runs
 rotari unlock --project-name build --run-id RUN_ID
 ```
 
-`unlock` checks that the current lock or interrupted metadata belongs to the
-supplied run ID, removes a matching lock when present, and returns the project
-to queue collection. Do not use it while the run could still be executing;
-doing so can allow a second run for the same queue.
+`unlock` verifies the run ID, removes a matching lock, and returns the project
+to queue collection. Never use it while the run may still be executing, or a
+second run could start for the same queue.
 
 ## Security model
 
-Rotari assumes a trusted single-user or HPC/lab environment. The optional Web
-UI token described above provides lightweight HTTP authentication, but does
-not encrypt traffic. Other access is gated by:
+Rotari assumes a trusted single-user or HPC/lab environment. The Web UI token
+provides HTTP authentication, not encryption.
 
-- **Filesystem permissions.** By default, the state directory tree
-  (`--basedir`), server registry (`--masterdir`), and everything under them
-  (`queue.json`, `meta.json`, locks, job `output`/status, wrapper scripts)
-  are created with the same permissive `0755`/`0644` rotari has always used
-  — this is the "shared state" default, since colleagues on the same
-  HPC/lab cluster commonly point each other at a job's log path directly.
-  Set `ROTARI_PRIVATE_STATE=true` to switch to owner-only `0700`/`0600`
-  instead if you don't need that sharing and want to keep job commands,
-  working directories, and output readable only to yourself. This only
-  affects newly created paths — existing directories are not
-  retroactively re-chmod'd, and it's an all-or-nothing setting per
-  `--basedir` (mixing it complicates permissions on shared paths).
-- **The background server's Unix socket** (`<basedir>/server.sock`) accepts
-  `submit`/`cancel`/`suspend`/`resume`/`run`/`shutdown` — reaching it means
-  being able to control that server. Unlike the rest of the state
-  directory, it is always created `0600` regardless of `ROTARI_PRIVATE_STATE`,
-  and on Linux the server also verifies each connection's peer UID
-  (`SO_PEERCRED`) matches its own before accepting it.
-- **`rotari web`** (see above) adds an HTTP surface. Without
-  `ROTARI_WEB_AUTH_TOKEN` or `--auth-token`, keep it bound to `127.0.0.1`;
-  with a token, expose it only through a trusted network or HTTPS proxy.
+- **State files:** `--basedir`, `--masterdir`, and their contents default to
+  shared `0755`/`0644` permissions. Set `ROTARI_PRIVATE_STATE=true` for
+  owner-only `0700`/`0600`; this affects only newly created paths and applies
+  to the whole `--basedir`.
+- **Server socket:** `<basedir>/server.sock` permits server control and is
+  always `0600`. On Linux, `SO_PEERCRED` also requires the peer UID to match.
+- **Web UI:** without `ROTARI_WEB_AUTH_TOKEN` or `--auth-token`, bind it to
+  `127.0.0.1`; with a token, use only a trusted network or HTTPS proxy.
 
 None of this defends against another user with access to your own UID
 (e.g. root, or anyone who can read your home directory), only against other
