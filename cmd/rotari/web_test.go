@@ -116,6 +116,20 @@ func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 	}
 }
 
+func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {
+	html := webHTML()
+	for _, marker := range []string{"function rowCell(row,key)", "function copySelectedJobs(queue,run,append)", "function arrangeRunControls()", "function orderJobActions()"} {
+		if !strings.Contains(html, marker) {
+			t.Fatalf("web HTML is missing required generated hook %q", marker)
+		}
+	}
+	for _, obsolete := range []string{"queue_name", "/queue/", "state.queues"} {
+		if strings.Contains(html, obsolete) {
+			t.Fatalf("web HTML contains obsolete project identifier %q", obsolete)
+		}
+	}
+}
+
 func TestWebAuthTokenAcceptsBearerAndHeaderToken(t *testing.T) {
 	next := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusNoContent)
