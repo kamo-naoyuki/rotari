@@ -123,7 +123,7 @@ func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 	if !webContains(html, "Cancel run") || !webContains(html, "/api/cancel-run") {
 		t.Fatal("web run page does not contain run cancellation controls")
 	}
-	for _, marker := range []string{"select-all-jobs", "job-selection", "copySelectedJobs", "Select failed + unfinished", "Clear selection", ">Create</button>", ">Append</button>"} {
+	for _, marker := range []string{"select-all-jobs", "job-selection", "copySelectedJobs", "Select failed + unfinished", "Unselect all", ">Create</button>", ">Append</button>"} {
 		if !webContains(html, marker) {
 			t.Fatalf("web run page is missing job queue selection control %q", marker)
 		}

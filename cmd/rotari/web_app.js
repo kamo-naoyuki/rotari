@@ -1284,10 +1284,13 @@ function arrangeRunControls() {
   selectAll.title = "Select all jobs, or clear the current selection";
   selectAll.onclick = () => {
     const inputs = [...document.querySelectorAll(".job-selection")];
-    const select = inputs.some((input) => !input.checked);
-    inputs.forEach((input) => (input.checked = select));
+    inputs.forEach((input) => (input.checked = true));
     updateSelectedRunJobs();
   };
+  const unselectAll = document.createElement("button");
+  unselectAll.textContent = "Unselect all";
+  unselectAll.title = "Clear all selected jobs";
+  unselectAll.onclick = clearSelectedJobs;
   const failed = controls.querySelector(".select-failed-unfinished");
   const create = controls.querySelector(".create-selected");
   const append = controls.querySelector(".append-selected");
@@ -1304,9 +1307,16 @@ function arrangeRunControls() {
     if (button.textContent.trim() === "Clear selection") button.remove();
   });
   controls.replaceChildren(
-    ...[selectAll, failed, create, append, report, deleteButton, cancel].filter(
-      Boolean,
-    ),
+    ...[
+      selectAll,
+      unselectAll,
+      failed,
+      create,
+      append,
+      report,
+      deleteButton,
+      cancel,
+    ].filter(Boolean),
   );
   const load = document.querySelector(".run-environment");
   if (load) load.after(controls);
