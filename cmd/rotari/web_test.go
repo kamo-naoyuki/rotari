@@ -131,7 +131,7 @@ func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {
 }
 
 func TestWebIndexTemplateUsesProjectVocabulary(t *testing.T) {
-	template := webIndexHTML
+	template := webTemplateHTML + webAppJS
 	for _, obsolete := range []string{"queue_name", "/queue/", "state.queues"} {
 		if strings.Contains(template, obsolete) {
 			t.Fatalf("project web template contains obsolete identifier %q", obsolete)
@@ -578,7 +578,7 @@ func TestWebProvidesCopyAndAIReports(t *testing.T) {
 }
 
 func TestWebHostsColumnIsSortable(t *testing.T) {
-	if !strings.Contains(webIndexHTML, "header.dataset.sort='hosts'") {
+	if !strings.Contains(webHTML(), "header.dataset.sort='hosts'") {
 		t.Fatal("web page Hosts column is not sortable")
 	}
 }
