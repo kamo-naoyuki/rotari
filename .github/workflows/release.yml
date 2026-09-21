@@ -43,6 +43,9 @@ jobs:
       - name: Install JavaScript test dependencies
         run: npm ci
 
+      - name: Check web asset formatting
+        run: npm run format:check
+
       - name: Test
         run: go test ./...
 
