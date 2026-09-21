@@ -1170,15 +1170,8 @@ func writeWebError(writer http.ResponseWriter, err error) {
 	http.Error(writer, err.Error(), http.StatusBadRequest)
 }
 
-func webHTML() string {
-	executorJSON, _ := json.Marshal(executorNames())
-	template := strings.Replace(webIndexHTML, "<title>rotari</title>", "<title>rotari</title>"+faviconLinks(), 1)
-	template = strings.Replace(template, "<h1><!--brand-icon-->rotari Web</h1>", "<h1>"+brandIcon()+"rotari Web</h1>", 1)
-	template = strings.Replace(template,
-		`<header><strong>Output</strong><button onclick="closeOutputModal()">Close</button></header>`,
-		`<header><strong>Output</strong><div class="modal-actions"><button id="copy-modal" onclick="copyModalOutput(this)">Copy</button><button id="copy-tail" onclick="copyLogTail(this)" hidden>Copy last 100 lines</button><button id="open-chatgpt" onclick="openAI('https://chatgpt.com/',this)" hidden>Open ChatGPT</button><button id="open-gemini" onclick="openAI('https://gemini.google.com/app',this)" hidden>Open Gemini</button><button id="open-claude" onclick="openAI('https://claude.ai/new',this)" hidden>Open Claude</button><button onclick="closeOutputModal()">Close</button></div></header><p id="report-note" class="meta" hidden>Markdown report for pasting into an AI assistant. Nothing is sent to external services automatically.</p>`, 1)
-	template = strings.Replace(template, "<script>\nlet state;", "<script>\nconst executorNames="+string(executorJSON)+";\nlet state;", 1)
-	template = strings.NewReplacer(
+func projectWebTemplate() string {
+	return strings.NewReplacer(
 		"state.queues", "state.projects",
 		"queue_name", "project_name",
 		"/queue/", "/project/",
@@ -1193,7 +1186,17 @@ func webHTML() string {
 		" queues</span>", " projects</span>",
 		"No queues found.", "No projects found.",
 		"Queue: '", "Project: '",
-	).Replace(template)
+	).Replace(webIndexHTML)
+}
+
+func webHTML() string {
+	executorJSON, _ := json.Marshal(executorNames())
+	template := strings.Replace(projectWebTemplate(), "<title>rotari</title>", "<title>rotari</title>"+faviconLinks(), 1)
+	template = strings.Replace(template, "<h1><!--brand-icon-->rotari Web</h1>", "<h1>"+brandIcon()+"rotari Web</h1>", 1)
+	template = strings.Replace(template,
+		`<header><strong>Output</strong><button onclick="closeOutputModal()">Close</button></header>`,
+		`<header><strong>Output</strong><div class="modal-actions"><button id="copy-modal" onclick="copyModalOutput(this)">Copy</button><button id="copy-tail" onclick="copyLogTail(this)" hidden>Copy last 100 lines</button><button id="open-chatgpt" onclick="openAI('https://chatgpt.com/',this)" hidden>Open ChatGPT</button><button id="open-gemini" onclick="openAI('https://gemini.google.com/app',this)" hidden>Open Gemini</button><button id="open-claude" onclick="openAI('https://claude.ai/new',this)" hidden>Open Claude</button><button onclick="closeOutputModal()">Close</button></div></header><p id="report-note" class="meta" hidden>Markdown report for pasting into an AI assistant. Nothing is sent to external services automatically.</p>`, 1)
+	template = strings.Replace(template, "<script>\nlet state;", "<script>\nconst executorNames="+string(executorJSON)+";\nlet state;", 1)
 	template = strings.Replace(template, "rotari copy", "rotari retry", -1)
 	template = strings.Replace(template, "\\nrotari rerun'+basedir+' --project-name '+shellQuote(queueName)+' --job-id JOB_ID", "", -1)
 	template = strings.Replace(template, "rotari rerun", "rotari retry", -1)

@@ -130,6 +130,20 @@ func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {
 	}
 }
 
+func TestProjectWebTemplateUsesProjectVocabulary(t *testing.T) {
+	template := projectWebTemplate()
+	for _, obsolete := range []string{"queue_name", "/queue/", "state.queues"} {
+		if strings.Contains(template, obsolete) {
+			t.Fatalf("project web template contains obsolete identifier %q", obsolete)
+		}
+	}
+	for _, required := range []string{"project_name", "/project/", "state.projects"} {
+		if !strings.Contains(template, required) {
+			t.Fatalf("project web template is missing %q", required)
+		}
+	}
+}
+
 func TestWebAuthTokenAcceptsBearerAndHeaderToken(t *testing.T) {
 	next := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusNoContent)
