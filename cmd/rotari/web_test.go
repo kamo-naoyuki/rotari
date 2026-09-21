@@ -600,7 +600,9 @@ func TestWebProvidesCopyAndAIReports(t *testing.T) {
 	for _, want := range []string{
 		`id="copy-modal"`,
 		`id="copy-tail"`,
-		`Copy last 100 lines`,
+		`class="command-guide-copy modal-copy"`,
+		`title="Copy last 100 lines"`,
+		`<rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect>`,
 		`id="report-note"`,
 		`Markdown report for pasting into an AI assistant. Nothing is sent to external services automatically.`,
 		`fetch('/api/report?'+params)`,

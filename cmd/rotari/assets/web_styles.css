@@ -265,6 +265,7 @@ section {
   border: 1px solid var(--line);
   padding: 18px;
   box-shadow: 0 12px 50px #000;
+  position: relative;
 }
 .output-panel.compact {
   width: min(900px, 92vw);
@@ -273,6 +274,14 @@ section {
 .output-panel header {
   margin: 0 0 12px;
   padding: 0 0 10px;
+}
+.output-panel .modal-copy {
+  position: absolute;
+  top: 8px;
+  right: 52px;
+}
+.output-panel #copy-tail {
+  right: 88px;
 }
 .output-panel .log {
   height: calc(100% - 48px);

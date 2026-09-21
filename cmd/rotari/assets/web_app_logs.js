@@ -137,9 +137,18 @@ async function copyText(value) {
   area.remove();
 }
 function copied(button) {
-  const label = button.textContent;
-  button.textContent = "Copied";
-  setTimeout(() => (button.textContent = label), 1200);
+  clearTimeout(button.copyResetTimer);
+  button.classList.add("copied");
+  button.title = "Copied!";
+  button.setAttribute("aria-label", "Copied!");
+  button.innerHTML =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg>';
+  button.copyResetTimer = setTimeout(() => {
+    button.classList.remove("copied");
+    button.title = button.dataset.copyTitle;
+    button.setAttribute("aria-label", button.dataset.copyTitle);
+    button.innerHTML = button.dataset.copyIcon;
+  }, 1200);
 }
 async function fetchSelectedLog(tail) {
   if (!selectedLog) return selectedOutput;
@@ -179,13 +188,20 @@ async function copyLogTail(button) {
 }
 function updateModalActions() {
   const view = document.getElementById("output-modal").dataset.view;
-  document.getElementById("copy-tail").hidden = view !== "log";
+  const copyTail = document.getElementById("copy-tail");
+  copyTail.hidden = view !== "log";
+  copyTail.dataset.copyTitle = "Copy last 100 lines";
+  copyTail.dataset.copyIcon ||= copyTail.innerHTML;
   document.getElementById("report-note").hidden = view !== "ai";
   ["open-gemini", "open-chatgpt", "open-claude"].forEach(
     (id) => (document.getElementById(id).hidden = view !== "ai"),
   );
-  document.getElementById("copy-modal").textContent =
-    view === "log" ? "Copy log" : view === "ai" ? "Copy" : "Copy";
+  const copyButton = document.getElementById("copy-modal");
+  const copyTitle = view === "log" ? "Copy log" : "Copy";
+  copyButton.title = copyTitle;
+  copyButton.setAttribute("aria-label", copyTitle);
+  copyButton.dataset.copyTitle = copyTitle;
+  copyButton.dataset.copyIcon ||= copyButton.innerHTML;
 }
 async function openAI(url, button) {
   window.open(url, "_blank", "noopener");
