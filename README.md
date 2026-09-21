@@ -185,9 +185,9 @@ about project/run resolution, retries, array jobs, interrupted runs, and locking
 ## Quick start
 
 ```sh
-# Set the project once for the current shell. 
+# Set the project once for the current shell.
 export ROTARI_PROJECT_NAME=build
-# State is shared under ~/.local/state/rotari 
+# State is shared under ~/.local/state/rotari
 # by default; set ROTARI_BASEDIR to use another location.
 # export ROTARI_BASEDIR="$HOME/.local/state/rotari"
 
