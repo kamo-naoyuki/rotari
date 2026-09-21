@@ -137,18 +137,29 @@ async function copyText(value) {
   area.remove();
 }
 function copied(button) {
+  const status = button
+    .closest(".output-box")
+    ?.querySelector(".modal-copy-status");
   clearTimeout(button.copyResetTimer);
   button.classList.add("copied");
+  if (status) status.classList.add("visible");
   button.title = "Copied!";
   button.setAttribute("aria-label", "Copied!");
   button.innerHTML =
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg>';
   button.copyResetTimer = setTimeout(() => {
     button.classList.remove("copied");
+    if (status) status.classList.remove("visible");
     button.title = button.dataset.copyTitle;
     button.setAttribute("aria-label", button.dataset.copyTitle);
     button.innerHTML = button.dataset.copyIcon;
   }, 1200);
+}
+function copiedTextButton(button) {
+  const label = button.textContent;
+  button.textContent = "Copied";
+  clearTimeout(button.copyResetTimer);
+  button.copyResetTimer = setTimeout(() => (button.textContent = label), 1200);
 }
 async function fetchSelectedLog(tail) {
   if (!selectedLog) return selectedOutput;
@@ -181,7 +192,7 @@ async function copyModalOutput(button) {
 async function copyLogTail(button) {
   try {
     await copyText(await fetchSelectedLog(100));
-    copied(button);
+    copiedTextButton(button);
   } catch (error) {
     alert(error.message);
   }

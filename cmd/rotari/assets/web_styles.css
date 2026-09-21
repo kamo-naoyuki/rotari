@@ -265,7 +265,6 @@ section {
   border: 1px solid var(--line);
   padding: 18px;
   box-shadow: 0 12px 50px #000;
-  position: relative;
 }
 .output-panel.compact {
   width: min(900px, 92vw);
@@ -275,18 +274,43 @@ section {
   margin: 0 0 12px;
   padding: 0 0 10px;
 }
-.output-panel .modal-copy {
+.output-box {
+  position: relative;
+}
+.modal-copy-status {
   position: absolute;
   top: 8px;
-  right: 52px;
+  right: 48px;
+  border: 1px solid var(--line);
+  padding: 5px 8px;
+  color: var(--text);
+  background: var(--panel);
+  font:
+    12px/1.5 ui-sans-serif,
+    system-ui,
+    sans-serif;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(4px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
 }
-.output-panel #copy-tail {
-  right: 88px;
+.modal-copy-status.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+.output-box .modal-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
 }
 .output-panel .log {
   height: calc(100% - 48px);
   max-height: none;
   margin: 0;
+  padding-top: 14px;
+  padding-right: 52px;
 }
 .output-panel.compact .log {
   height: auto;

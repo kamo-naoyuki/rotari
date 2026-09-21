@@ -58,27 +58,12 @@
             <div class="modal-actions">
               <button
                 id="copy-tail"
-                class="command-guide-copy modal-copy"
                 onclick="copyLogTail(this)"
                 title="Copy last 100 lines"
                 aria-label="Copy last 100 lines"
                 hidden
               >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="4" y="9" width="11" height="11" rx="1"></rect>
-                  <rect x="9" y="4" width="11" height="11" rx="1"></rect>
-                </svg></button
-              ><button
-                id="copy-modal"
-                class="command-guide-copy modal-copy"
-                onclick="copyModalOutput(this)"
-                title="Copy"
-                aria-label="Copy"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="4" y="9" width="11" height="11" rx="1"></rect>
-                  <rect x="9" y="4" width="11" height="11" rx="1"></rect>
-                </svg></button
+                Copy last 100 lines</button
               ><button
                 id="open-chatgpt"
                 onclick="openAI('https://chatgpt.com/', this)"
@@ -104,7 +89,22 @@
             Markdown report for pasting into an AI assistant. Nothing is sent to
             external services automatically.
           </p>
-          <pre id="modal-log" class="log"></pre>
+          <div class="output-box">
+            <pre id="modal-log" class="log"></pre>
+            <span class="modal-copy-status" role="status">Copied!</span>
+            <button
+              id="copy-modal"
+              class="command-guide-copy modal-copy"
+              onclick="copyModalOutput(this)"
+              title="Copy"
+              aria-label="Copy"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="4" y="9" width="11" height="11" rx="1"></rect>
+                <rect x="9" y="4" width="11" height="11" rx="1"></rect>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </main>
