@@ -14,7 +14,7 @@ It is a lightweight workflow engine for experiments and builds that you run repe
 
 **Local commands, remote SSH commands, and scheduler jobs (Slurm, PBS, LSF) live in the same queue**, even when they depend on each other. **Every run keeps its own snapshot** of commands, status, and logs, so nothing gets lost between "one more try" and the next.
 
-## How is Rotari different?
+## How is rotari different?
 
 | Plain shell (background jobs) | rotari |
 | --- | --- |
