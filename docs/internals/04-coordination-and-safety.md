@@ -1,0 +1,112 @@
+# Coordination, durability, and safety
+
+## Job execution durability
+
+- Every executor runs the command through a self-reporting wrapper that writes
+  `<job-id>/status.json` with phase, exit code, and hosts.
+- The wrapper records status independently of the process that launched it, so
+  scheduler accounting lag cannot hide the result.
+- The local executor uses the same wrapper. If the coordinating server or async
+  worker is killed, the orphaned local job can finish and record its own status
+  instead of leaving no result.
+- Detached supervisors are not automatically restarted. Crash detection is
+  file-backed: the run lock records the supervisor PID and host, and readers
+  inspect per-job status files and missing summaries to report an active or
+  interrupted run. Recovery remains an explicit operator action.
+- The existing `show`/`web.go` fallback chain (`status` -> `status.json` ->
+  `summary.json`) consumes this state without reader changes.
+- This does not kill or reconcile leftover jobs during recovery; `reset
+  --recover` and `unlock` still require the operator to confirm that jobs have
+  stopped.
+
+## Shared-state coordination
+
+- Shared-base operation relies on exclusive file creation, atomic rename, and
+  advisory `flock` semantics from the shared filesystem.
+- The state lock serializes queue mutations and `running.lock` prevents a
+  second runner from starting the same project.
+- This is coordination, not distributed locking: it cannot fence a host after a
+  network partition or determine whether a remote PID is alive. A remote run
+  lock remains active until an operator confirms the run stopped and uses
+  `unlock`.
+- Project locks are scoped to project directories, so different projects largely
+  isolate queue and run state. Server, registry, and filesystem state remain
+  common base-level dependencies.
+- `controlQueueJobs` and `cancelJobs` signal local jobs by process group. The
+  wrapper's PID is also its process-group ID via `Setpgid`, so a negative PID
+  reaches both the wrapper and its command.
+- `localExecutorHostMismatch` compares the current host with `context.json`
+  before signaling. A cross-host local control request gets an explicit host
+  error instead of a misleading "job is not running" or a PID reuse hazard.
+- Scheduler executors and SSH are expected to work from any host with the
+  required access. Their control CLIs must still be installed on the host
+  issuing the request.
+- `schedulerCommandHint` turns missing scheduler binaries into explicit errors
+  and preserves scheduler stdout/stderr, including explanations for rejected
+  operations on queued jobs.
+- Whole-run cancel has the same PID locality issue. `runningWorkerHostMismatch`
+  checks `running.lock`'s host before signaling; a cross-host request fails
+  instead of reporting success while leaving the real runner untouched.
+- Finalization rechecks that `running.lock` belongs to the finishing run while
+  holding the state lock. New locks are written to a temporary file and
+  published without replacing an existing lock, preventing partial JSON.
+- State and registry trees use centralized permission helpers. The default
+  modes are `0755`/`0644`; `ROTARI_PRIVATE_STATE=true` switches new paths to
+  owner-only `0700`/`0600`/`0700`.
+- Permission settings apply only to newly created paths. Existing paths are not
+  rechmoded, so changing the setting can produce mixed permissions.
+- `generateStaticWeb` is the intentional exception and always emits
+  publishable `0755`/`0644` output.
+
+## Concurrency and safety
+
+- Project mutations hold the advisory `state.lock`.
+- `running.lock` represents an active run and includes host information, because
+  local PID checks cannot prove remote process liveness.
+
+`inspectProjectRunState` derives one of three states from just `running.lock` and
+`meta.json` -- never from job-level files like a job's own self-reported
+`status.json` (see "Job execution durability" above), which only feeds
+`show`/the web UI, not this state machine:
+
+| State | `running.lock` | `meta.json` phase | `run`/`add`/`copy`/`change`/`delete`/`remove` | `reset` |
+| --- | --- | --- | --- | --- |
+| `projectIdle` | absent, or present but stale (auto-removed) | `collecting`/`finished` | allowed | allowed |
+| `projectRunning` | present; owning coordinator PID is alive | `running`/`cancelling` | rejected: "is running; ... is not allowed" | rejected: same message |
+| `projectInterrupted` | absent, or present but the coordinator PID is dead | `running`/`cancelling` with `last_run_id` set | rejected: "has interrupted run ...; recover with unlock" | `--recover` proceeds |
+
+- A dead local run lock is removed automatically. `meta.json` remaining in
+  `running` or `cancelling` with `last_run_id` marks an interrupted run.
+- `ensureProjectIdleForPaths` is the shared check for `run`, `add`, `copy`,
+  `change`, `delete`, and `remove`. It rejects both active and interrupted
+  projects with the same message, preventing accidental queue mutation.
+- `interruptedRunStatusDetail` scans job directories rather than
+  `summary.json` and reports jobs whose `status` or `status.json` is still
+  non-terminal, along with phase and last-update time.
+- Missing or unparseable job status counts as still running. The detail only
+  improves rejection and confirmation messages; it does not change what
+  `--recover` or `unlock` may do.
+- Before `check` reports an active or interrupted run, and before `run` or
+  `reset` acts on that project state, rotari verifies that lock and metadata run
+  IDs agree, the run ID is a safe path element, and the run directory and
+  initial `context.json` exist. An interrupted run must also have its
+  `commands.json` snapshot. Active runs may temporarily lack `commands.json`
+  while the worker starts. Stale locks are removed only after these checks
+  succeed.
+- `unlock` with the exact run ID acknowledges recovery, keeps the retained queue,
+  and returns the phase to `collecting`.
+- `reset` discards the current queue while keeping defaults and history. It
+  confirms that jobs stopped before recovering an interrupted run, unless
+  `reset --recover` supplies that confirmation. It rejects an active run.
+- Server management is separate (`server status`, `server shutdown`); project
+  commands do not stop or query the server as a side effect.
+- Never silently remove a possibly active remote lock. Destructive commands
+  reject ambiguous targets, and exact IDs never degrade into latest-item
+  selection.
+- JSON writes use the common atomic helper. Optional fields must retain
+  backward-compatible reads, and unrelated history must not be rewritten.
+
+When behavior crosses these boundaries, add a focused test at the public
+command or persisted-state boundary. Keep CLI metadata, completion, README
+usage, and this document synchronized only where their contracts actually
+change.

@@ -1,0 +1,117 @@
+# Web UI and static export
+
+This document describes the Web UI, static export, and embedded asset
+boundaries. Read it for Web/API/static-site changes in addition to the main
+internal notes.
+
+## Asset layout
+
+Web assets live under `cmd/rotari/assets/`:
+
+```text
+cmd/rotari/assets/
+├── web_template.html
+├── web_styles.css
+├── web_app_core.js
+├── web_app_actions.js
+├── web_app_logs.js
+├── web_app_tables.js
+├── web_app_charts.js
+├── web_app_bootstrap.js
+├── favicon-dark.svg
+└── favicon-light.svg
+```
+
+`web.go` embeds these files. The JavaScript files are concatenated in this
+order and delivered as one script; they intentionally share the global scope:
+
+1. `web_app_core.js`
+2. `web_app_actions.js`
+3. `web_app_logs.js`
+4. `web_app_tables.js`
+5. `web_app_charts.js`
+6. `web_app_bootstrap.js`
+
+Do not reorder these files without running the full Web test suite. The
+separation is for source readability and ownership, not JavaScript module
+isolation.
+
+## Web server and control-plane security
+
+- `web` binds `--host`/`--port`, defaulting to `127.0.0.1:8787`.
+- A busy default port scans upward for a free port. An explicit port,
+  including `--port 0`, never falls back and fails immediately if unavailable.
+- The actually bound address is reported after listener creation. Non-loopback
+  hosts produce a warning when no Web UI token is configured.
+- `--auth-token` or `ROTARI_WEB_AUTH_TOKEN` wraps every Web route and accepts
+  `Authorization: Bearer TOKEN`, `X-Rotari-Token: TOKEN`, or Basic
+  authentication with username `rotari` and the token as the password; this is
+  authentication only and does not encrypt HTTP traffic.
+- `loadWebState` exposes persisted runtime metadata: `running.lock` fields and
+  the presence of `server.sock`/`server.pid`. The panel does not query process
+  liveness or infer that `state.lock` is held from the file's existence.
+- The Unix-socket control surface is separate from `ROTARI_PRIVATE_STATE`:
+  reaching it means controlling the server, not merely reading state.
+- `runServer` always sets the socket to `0600`. On Linux,
+  `verifyPeerCredential` rejects connections whose UID differs from the server
+  process; on other platforms the socket mode is the enforcement.
+- Web mutating routes are gated by `allowControl`, enabled by default and
+  configurable with `--allow-control` or `ROTARI_WEB_ALLOW_CONTROL`.
+  `--allow-control=false` rejects them with `403` before reading request bodies.
+  Read-only `GET` routes remain available.
+- Web state exposes only whether an environment variable is set. Raw values
+  never cross the HTTP boundary; `Value` is populated only by the local
+  `rotari env` CLI command.
+
+## Web UI model and reports
+
+The Web UI is a projection of the same persisted model, not a separate
+database. `show --report`, the Web UI's `/api/report`, and static Web
+generation all use the same Go formatter for AI reports. Opening an AI service
+copies the report and opens a new tab; rotari does not transmit or submit the
+report.
+
+Report generation redacts known hostnames and paths, then applies heuristic
+redaction to common absolute paths and FQDNs in log text. This is best-effort
+privacy protection, not complete secret detection; users must review reports
+before sharing them externally.
+
+## Runtime and static mode
+
+The ordinary Web UI and GitHub Pages static demo use the same JavaScript.
+`pageParts()` abstracts route parsing:
+
+- normal Web mode reads `location.pathname`;
+- static mode uses the injected `routeParts()` helper.
+
+`staticPath()` prefixes links with the repository base path, and
+`rewriteStaticLinks()` repairs dynamically created absolute links. Keep links in
+the HTML template relative where possible.
+
+Static export injects a bootstrap before the app script. The bootstrap provides
+persisted state, logs, and reports through `fetch` and defines `routeParts()`.
+It must run before the app script: otherwise the first state request can hit
+GitHub Pages' 404 document and briefly render that HTML as application text.
+
+Static pages receive a copy of `web_styles.css` beside every generated
+`index.html`. If a new asset or static API endpoint is added, update both the
+normal Web handler and `generateStaticWeb`/its bootstrap.
+
+## Editing rules
+
+- Edit HTML, CSS, and JavaScript in `cmd/rotari/assets/`, not in `web.go`.
+- Keep JavaScript additions in the responsibility file that owns the behavior.
+- Prefer stable semantic classes and data attributes for UI behavior and tests;
+  do not identify controls by their visible labels when a class or attribute can
+  express the meaning.
+- Tests should inspect final generated HTML for required hooks and obsolete
+  vocabulary. Avoid assertions that depend on formatter whitespace or quote
+  style.
+- Run `npm run format:check`, `go test ./...`, and `go build ./...` after Web
+  asset changes.
+
+## Generated Web pages
+
+`cliDocsHTML` and `environmentHTML` are still generated by Go because they
+iterate over Go metadata and escape dynamic values. They are separate from the
+main interactive Web assets and should not be folded into the JavaScript app.
