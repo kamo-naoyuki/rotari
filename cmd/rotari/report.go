@@ -22,13 +22,59 @@ var (
 )
 
 func buildAIReport(paths pathSet, runID, jobID string, failedOnly bool) (string, error) {
+	run, err := loadAIReportRun(paths, runID)
+	if err != nil {
+		return "", err
+	}
+	if jobID != "" {
+		if !isValidPathElement(jobID) {
+			return "", fmt.Errorf(jobNotFoundMessage, jobID, runID)
+		}
+		for _, job := range run.Jobs {
+			if job.ID == jobID {
+				return redactAIReport(formatJobAIReport(paths, run, job), paths, run), nil
+			}
+		}
+		return "", fmt.Errorf(jobNotFoundMessage, jobID, runID)
+	}
+	return redactAIReport(formatRunAIReport(paths, run, failedOnly), paths, run), nil
+}
+
+func buildAIReportForJobs(paths pathSet, runID string, jobIDs []string) (string, error) {
+	run, err := loadAIReportRun(paths, runID)
+	if err != nil {
+		return "", err
+	}
+	selected := make(map[string]bool, len(jobIDs))
+	for _, jobID := range jobIDs {
+		if !isValidPathElement(jobID) {
+			return "", fmt.Errorf(jobNotFoundMessage, jobID, runID)
+		}
+		selected[jobID] = true
+	}
+	for jobID := range selected {
+		found := false
+		for _, job := range run.Jobs {
+			if job.ID == jobID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return "", fmt.Errorf(jobNotFoundMessage, jobID, runID)
+		}
+	}
+	return redactAIReport(formatRunAIReportSelected(paths, run, selected, false), paths, run), nil
+}
+
+func loadAIReportRun(paths pathSet, runID string) (webRun, error) {
 	runDir, err := validatedRunDir(paths, runID)
 	if err != nil {
-		return "", fmt.Errorf(runNotFoundMessage, runID)
+		return webRun{}, fmt.Errorf(runNotFoundMessage, runID)
 	}
 	summary, err := loadRunSummary(filepath.Join(runDir, "summary.json"))
 	if err != nil && !os.IsNotExist(err) {
-		return "", fmt.Errorf("failed to read summary: %w", err)
+		return webRun{}, fmt.Errorf("failed to read summary: %w", err)
 	}
 	if summary.RunID == "" {
 		summary.RunID = runID
@@ -43,7 +89,7 @@ func buildAIReport(paths pathSet, runID, jobID string, failedOnly bool) (string,
 	}
 	jobs, err := loadWebJobs(runDir, summary)
 	if err != nil {
-		return "", err
+		return webRun{}, err
 	}
 	context := RunContext{}
 	if path, err := validatedStateFile(runDir, "context.json"); err == nil {
@@ -51,27 +97,22 @@ func buildAIReport(paths pathSet, runID, jobID string, failedOnly bool) (string,
 			_ = json.Unmarshal(data, &context)
 		}
 	}
-	run := webRun{RunSummary: summary, Jobs: jobs, CWD: context.CWD, Context: context, Running: running}
-	if jobID != "" {
-		if !isValidPathElement(jobID) {
-			return "", fmt.Errorf(jobNotFoundMessage, jobID, runID)
-		}
-		for _, job := range jobs {
-			if job.ID == jobID {
-				return redactAIReport(formatJobAIReport(paths, run, job), paths, run), nil
-			}
-		}
-		return "", fmt.Errorf(jobNotFoundMessage, jobID, runID)
-	}
-	return redactAIReport(formatRunAIReport(paths, run, failedOnly), paths, run), nil
+	return webRun{RunSummary: summary, Jobs: jobs, CWD: context.CWD, Context: context, Running: running}, nil
 }
 
 func formatRunAIReport(paths pathSet, run webRun, failedOnly bool) string {
+	return formatRunAIReportSelected(paths, run, nil, failedOnly)
+}
+
+func formatRunAIReportSelected(paths pathSet, run webRun, selected map[string]bool, failedOnly bool) string {
 	var builder strings.Builder
 	fmt.Fprintln(&builder, "# rotari run report")
 	fmt.Fprintf(&builder, "\n- Project: %s\n- Run ID: `%s`\n- Status: %s\n- Exit code: %d\n", paths.queueName, run.RunID, run.Status, run.ExitCode)
 	fmt.Fprintf(&builder, "- Started: %s\n- Finished: %s\n- Host: %s\n- Working directory: `%s`\n", reportValue(formatDisplayTimestamp(run.StartedAt)), reportValue(formatDisplayTimestamp(run.FinishedAt)), reportValue(run.Context.Hostname), reportValue(run.CWD))
 	for _, job := range run.Jobs {
+		if selected != nil && !selected[job.ID] {
+			continue
+		}
 		status := reportJobStatus(job, run.Running)
 		if failedOnly && status != "failed" && status != "blocked" {
 			continue

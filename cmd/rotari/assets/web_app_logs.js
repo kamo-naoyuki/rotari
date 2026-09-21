@@ -192,7 +192,7 @@ async function openAI(url, button) {
   await copyText(selectedOutput);
   copied(button);
 }
-async function showAIReport(project, run, job) {
+async function showAIReport(project, run, job, jobIDs) {
   const modal = document.getElementById("output-modal");
   modal.dataset.view = "ai";
   modal.querySelector("strong").textContent = job ? "Job report" : "Run report";
@@ -205,6 +205,8 @@ async function showAIReport(project, run, job) {
     run_id: run.run_id,
   });
   if (job) params.set("job_id", job.id);
+  if (!job && jobIDs)
+    jobIDs.forEach((jobID) => params.append("job_ids", jobID));
   const response = await fetch("/api/report?" + params);
   selectedOutput = await response.text();
   if (!response.ok)
@@ -228,7 +230,7 @@ function addAIButtons() {
     button.className = "run-ai";
     button.textContent = "Report";
     button.title = "Prepare run report";
-    button.onclick = () => showAIReport(project, run, null);
+    button.onclick = () => showAIReport(project, run, null, selectedRunJobIDs());
     controls.append(button);
   }
   const table = document.querySelector("#app table.runs");
@@ -299,6 +301,7 @@ function arrangeRunControls() {
   else table.before(controls);
   const headerSelect = document.getElementById("select-all-jobs");
   if (headerSelect) headerSelect.remove();
+  updateSelectedRunJobs();
 }
 function orderJobActions() {
   document.querySelectorAll("#app table.runs tbody tr").forEach((row) => {

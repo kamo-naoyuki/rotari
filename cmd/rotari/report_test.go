@@ -179,3 +179,16 @@ func TestShowReportAndWebAPIUseCommonReport(t *testing.T) {
 		t.Fatalf("report API status=%d body=%q, want %q", recorder.Code, recorder.Body.String(), want)
 	}
 }
+
+func TestWebAPISelectedJobsUsesRunReport(t *testing.T) {
+	baseDir, _, runID, jobID := createAIReportFixture(t)
+	request := httptest.NewRequest(http.MethodGet, "/api/report?project_name=demo&run_id="+runID+"&job_ids="+jobID, nil)
+	recorder := httptest.NewRecorder()
+	newWebHandler(baseDir, "", false).ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("selected report API status=%d body=%q", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "# rotari run report") {
+		t.Fatalf("selected report is not a run report:\n%s", recorder.Body.String())
+	}
+}

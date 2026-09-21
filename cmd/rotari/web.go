@@ -344,16 +344,44 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 		projectName := request.URL.Query().Get("project_name")
 		runID := request.URL.Query().Get("run_id")
 		jobID := request.URL.Query().Get("job_id")
-		if !validWebID(projectName) || !validWebID(runID) || (jobID != "" && !validWebID(jobID)) {
+		jobIDs := request.URL.Query()["job_ids"]
+		if !validWebID(projectName) || !validWebID(runID) {
 			writeWebError(writer, fmt.Errorf("project_name and run_id are required; job_id must be valid when supplied"))
 			return
+		}
+		if jobID != "" && len(jobIDs) > 0 {
+			writeWebError(writer, fmt.Errorf("job_id and job_ids cannot be combined"))
+			return
+		}
+		if jobID != "" {
+			jobIDs = []string{jobID}
+		}
+		for _, jobID := range jobIDs {
+			if !validWebID(jobID) {
+				writeWebError(writer, fmt.Errorf("project_name and run_id are required; job_id must be valid when supplied"))
+				return
+			}
 		}
 		paths, err := resolvePaths(baseDir, projectName)
 		if err != nil {
 			writeWebError(writer, err)
 			return
 		}
-		report, err := buildAIReport(paths, runID, jobID, false)
+		if request.URL.Query().Get("job_ids") != "" {
+			report, err := buildAIReportForJobs(paths, runID, jobIDs)
+			if err != nil {
+				writeWebError(writer, err)
+				return
+			}
+			writer.Header().Set(headerContentType, "text/markdown; charset=utf-8")
+			_, _ = writer.Write([]byte(report))
+			return
+		}
+		singleJobID := ""
+		if request.URL.Query().Get("job_id") != "" {
+			singleJobID = jobIDs[0]
+		}
+		report, err := buildAIReport(paths, runID, singleJobID, false)
 		if err != nil {
 			writeWebError(writer, err)
 			return
