@@ -19,9 +19,7 @@ function updateSelectedRunJobs() {
     .querySelectorAll(".run-ai")
     .forEach((button) => (button.disabled = selected.length === 0));
   const failed = document.querySelector(".select-failed");
-  const failedUnfinished = document.querySelector(
-    ".select-failed-unfinished",
-  );
+  const failedUnfinished = document.querySelector(".select-failed-unfinished");
   if (failed || failedUnfinished) {
     const parts = pageParts();
     const project = state.projects.find(
