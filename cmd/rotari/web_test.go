@@ -97,8 +97,8 @@ setTimeout(() => {
 
 func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 	html := webHTML()
-	if !strings.Contains(html, "rotari run'+basedir+' -p '+shellQuote(queueName)") {
-		t.Fatal("web queue guidance does not use the project-name shorthand")
+	if !strings.Contains(html, "rotari run'+basedir+' --project-name '+shellQuote(queueName)") {
+		t.Fatal("web queue guidance does not use the project-name option")
 	}
 	if !strings.Contains(html, "rotari retry -r '+shellQuote(runID)") {
 		t.Fatal("web run guidance does not contain a run-id-only retry command")

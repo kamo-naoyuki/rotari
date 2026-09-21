@@ -1225,7 +1225,7 @@ function addQueueEditors(queue,commands){`, 1)
 	template = strings.Replace(template, `let state;`, `let state;let projectRuntimeDetailsOpen=false;`, 1)
 	template = strings.Replace(template, `<details><summary>Internal state</summary>`, `<details'+(projectRuntimeDetailsOpen?' open':'')+'><summary>Internal state</summary>`, 1)
 	template = strings.Replace(template, `const originalRender=render;render=function(){originalRender();`, `const originalRender=render;render=function(){const runtimeDetails=document.querySelector('.project-runtime details');if(runtimeDetails)projectRuntimeDetailsOpen=runtimeDetails.open;originalRender();`, 1)
-	template = strings.Replace(template, "--queue-name", "-p", -1)
+	template = strings.Replace(template, "--queue-name", "--project-name", -1)
 	template = strings.NewReplacer(
 		"const basedir=state&&state.base_dir?(' --basedir '+shellQuote(state.base_dir)):' '",
 		"const basedir=state&&state.base_dir?(' -b '+shellQuote(state.base_dir)):' '",
