@@ -29,6 +29,9 @@ var webTemplateHTML string
 //go:embed web_app.js
 var webAppJS string
 
+//go:embed web_styles.css
+var webStylesCSS string
+
 type webRun struct {
 	RunSummary
 	Jobs     []webJob           `json:"jobs"`
@@ -270,6 +273,10 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
 		_, _ = writer.Write([]byte(webHTML()))
+	})
+	mux.HandleFunc("/web_styles.css", func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "text/css; charset=utf-8")
+		_, _ = writer.Write([]byte(webStylesCSS))
 	})
 	mux.HandleFunc("/docs/", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
@@ -856,10 +863,10 @@ function rewriteStaticLinks(){document.querySelectorAll('a[href^="/"]').forEach(
 rewriteStaticLinks();
 new MutationObserver(rewriteStaticLinks).observe(document.body,{childList:true,subtree:true});
 </script>`, escapedState.String(), escapedLogs.String(), escapedReports.String())
-	baseTemplate := webHTML()
-	template := strings.Replace(baseTemplate, "<script>\nconst executorNames=", bootstrap+"<script>\nconst executorNames=", 1)
-	if template == baseTemplate {
-		return errors.New("web HTML script marker not found")
+	baseTemplate := webHTMLWithStaticBootstrap(bootstrap)
+	template := baseTemplate
+	if bootstrap != "" && !strings.Contains(template, bootstrap) {
+		return errors.New("web HTML static bootstrap marker not found")
 	}
 	if err := os.RemoveAll(outputDir); err != nil {
 		return err
@@ -870,10 +877,19 @@ new MutationObserver(rewriteStaticLinks).observe(document.body,{childList:true,s
 	if err := writeStaticWebPage(filepath.Join(outputDir, "index.html"), template); err != nil {
 		return err
 	}
+	if err := writeStaticStylesheet(outputDir); err != nil {
+		return err
+	}
 	if err := writeStaticWebPage(filepath.Join(outputDir, "docs", "index.html"), cliDocsHTML("../")); err != nil {
 		return err
 	}
+	if err := writeStaticStylesheet(filepath.Join(outputDir, "docs")); err != nil {
+		return err
+	}
 	if err := writeStaticWebPage(filepath.Join(outputDir, "environment", "index.html"), environmentHTML("../", state.Environments)); err != nil {
+		return err
+	}
+	if err := writeStaticStylesheet(filepath.Join(outputDir, "environment")); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(outputDir, ".nojekyll"), nil, 0o644); err != nil {
@@ -884,9 +900,15 @@ new MutationObserver(rewriteStaticLinks).observe(document.body,{childList:true,s
 		if err := writeStaticWebPage(filepath.Join(queuePath, "index.html"), template); err != nil {
 			return err
 		}
+		if err := writeStaticStylesheet(queuePath); err != nil {
+			return err
+		}
 		for _, run := range queue.Runs {
 			runPath := filepath.Join(queuePath, "run", url.PathEscape(run.RunID))
 			if err := writeStaticWebPage(filepath.Join(runPath, "index.html"), template); err != nil {
+				return err
+			}
+			if err := writeStaticStylesheet(runPath); err != nil {
 				return err
 			}
 		}
@@ -907,6 +929,13 @@ func writeStaticWebPage(path, contents string) error {
 		return err
 	}
 	return os.WriteFile(path, []byte(contents), 0o644)
+}
+
+func writeStaticStylesheet(directory string) error {
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(directory, "web_styles.css"), []byte(webStylesCSS), 0o644)
 }
 
 func loadWebQueueState(paths pathSet) (webQueueState, error) {
@@ -1175,9 +1204,14 @@ func writeWebError(writer http.ResponseWriter, err error) {
 }
 
 func webHTML() string {
+	return webHTMLWithStaticBootstrap("")
+}
+
+func webHTMLWithStaticBootstrap(bootstrap string) string {
 	executorJSON, _ := json.Marshal(executorNames())
 	template := strings.Replace(webTemplateHTML, "__ROTARI_WEB_APP__", webAppJS, 1)
 	template = strings.Replace(template, "__ROTARI_EXECUTORS__", string(executorJSON), 1)
+	template = strings.Replace(template, "__ROTARI_STATIC_BOOTSTRAP__", bootstrap, 1)
 	return template
 }
 

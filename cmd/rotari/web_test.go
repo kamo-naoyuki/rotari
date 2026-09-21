@@ -539,6 +539,9 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 	if !strings.Contains(string(index), "data:image/svg+xml;base64,") {
 		t.Fatal("static web page does not contain embedded favicon data")
 	}
+	if stylesheet, readErr := os.ReadFile(filepath.Join(outputDir, "web_styles.css")); readErr != nil || !strings.Contains(string(stylesheet), "--bg:") {
+		t.Fatalf("static web stylesheet is missing or invalid: %v", readErr)
+	}
 	for _, obsolete := range []string{"queue_name", "/queue/", "state.queues", "All queues", "No queues found."} {
 		if strings.Contains(string(index), obsolete) {
 			t.Fatalf("static web page contains obsolete project identifier %q", obsolete)
