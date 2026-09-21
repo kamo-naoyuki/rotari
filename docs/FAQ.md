@@ -373,6 +373,14 @@ No. The web UI is a separate, optional process you start explicitly
 no effect on any run. It is unrelated to the background supervisor described
 below.
 
+### Can I start a run from the Web UI?
+No. Even with `--allow-control` enabled, the web UI has no endpoint that
+launches a run; its control operations (cancel/suspend/resume/change/remove/
+copy/clear) only ever act on an already-running run or edit the persisted
+queue. Starting execution is deliberately left to the CLI (`rotari run`) or
+your own scheduler/automation, so that no HTTP request can, by itself,
+trigger command execution on the host.
+
 ### What do Create and Append do on a run page?
 Select one or more jobs in the jobs table, then use `Create` to replace the
 current queue with those jobs or `Append` to add them to the current queue.
