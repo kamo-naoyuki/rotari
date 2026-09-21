@@ -170,6 +170,9 @@ configuration idempotently; it does not duplicate an existing rotari completion
 block. Start a new shell after installation, or source the shell configuration
 to apply it to the current shell.
 
+Options with a fixed set of values, such as `--executor`, reject values outside
+the choices shown by completion and `rotari schema --json` during CLI parsing.
+
 Dynamic candidates include project names, saved run IDs, and job IDs. Job ID
 completion normally includes IDs from the current queue and saved runs; when
 `--run-id RUN_ID` is present, it is limited to jobs in that run.
@@ -565,6 +568,25 @@ When output is a terminal, log views (including `--job-id`) longer than 24
 lines open in `$PAGER` (or `less -R` by default). Use `--no-pager` to print
 directly; piped and redirected output is always printed directly.
 
+### Check run readiness
+
+To check whether a project can start its queued run without changing any
+state:
+
+```sh
+rotari check --project-name build
+```
+
+`check` reports whether the project is ready to run, together with its project,
+queue, and lock state. It exits with status 0 when the queued run can start and
+status 1 otherwise. Pass `--json` for machine-readable output, or `--deep` to
+also check executables and local working directories on the current host.
+
+The command is read-only and does not reserve the project or remove a stale
+lock. `run` and `reset` repeat the applicable checks before changing state, so
+they remain safe if the project changes after `check` returns. Inconsistent
+saved state is reported instead of starting or recovering a run.
+
 ### LLM error diagnosis
 
 **Experimental:** The LLM diagnosis command is an opt-in early feature. Its
@@ -572,6 +594,29 @@ prompt, supported providers, and response format may change in future releases.
 
 See the [LLM diagnosis guide](docs/LLM_DIAGNOSIS.md) for setup,
 provider details, configuration, and execution examples.
+
+### Local rule-based error diagnosis
+
+For common, recognizable failures, diagnose a saved job without an LLM, API
+key, or network request:
+
+```sh
+rotari diagnose --run-id RUN_ID --job-id JOB_ID --rules
+```
+
+This checks the scheduler error and recorded output against the documented
+[local diagnosis rules](docs/LOCAL_DIAGNOSIS.md). It normalizes case, ANSI
+color escapes, and whitespace, then prints the matching evidence line and a
+fixed next step. A no-match result deliberately makes no inferred diagnosis.
+Rules cover common scheduler, GPU, distributed-compute, Python, filesystem,
+network, and HTTP failures.
+When a job fails, rotari stores analysis annotations in that run's
+`summary.json`; they are informational snapshots and never affect run control.
+Every finalized failed job records a recognized diagnosis, an explicit no-match
+result, or an analysis-unavailable result when its output cannot be read.
+View them with `rotari show --run-id RUN_ID --job-id JOB_ID`. The Web UI shows
+a `Diagnosis` button beside every job's log button and enables it when a
+finalized failed job has saved analysis.
 
 
 ## Recover and rerun
@@ -967,7 +1012,7 @@ doing so can allow a second run for the same queue.
 
 ## Security model
 
-rotari assumes a trusted single-user or HPC/lab environment. The optional Web
+Rotari assumes a trusted single-user or HPC/lab environment. The optional Web
 UI token described above provides lightweight HTTP authentication, but does
 not encrypt traffic. Other access is gated by:
 

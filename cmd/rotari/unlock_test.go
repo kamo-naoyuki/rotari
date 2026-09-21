@@ -25,6 +25,7 @@ func TestEnsureProjectIdleRejectsInterruptedRun(t *testing.T) {
 	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
+	writeTestRunStateFiles(t, paths, "run-1")
 
 	err = ensureProjectIdle(baseDir, "demo", "add")
 	if err == nil || !strings.Contains(err.Error(), `project "demo" has interrupted run "run-1"; add is not allowed`) {
@@ -52,6 +53,12 @@ func TestEnsureProjectIdleReportsStillRunningJobsForInterruptedRun(t *testing.T)
 		t.Fatal(err)
 	}
 	runDir := filepath.Join(paths.runsDir, "run-1")
+	if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{}); err != nil {
+		t.Fatal(err)
+	}
 	finishedDir := filepath.Join(runDir, "finished-job")
 	if err := os.MkdirAll(finishedDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -104,6 +111,12 @@ func TestEnsureProjectIdleReportsAllFinishedForInterruptedRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	runDir := filepath.Join(paths.runsDir, "run-1")
+	if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{}); err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range []string{"job-1", "job-2"} {
 		jobDir := filepath.Join(runDir, name)
 		if err := os.MkdirAll(jobDir, 0o755); err != nil {
@@ -236,6 +249,13 @@ func TestCmdResetNonInteractiveRejectionIncludesJobStatusDetail(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := writeJSON(paths.metaFile, Meta{Phase: "cancelling", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(paths.runsDir, "run-1")
+	if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{}); err != nil {
 		t.Fatal(err)
 	}
 	jobDir := filepath.Join(paths.runsDir, "run-1", "job-1")

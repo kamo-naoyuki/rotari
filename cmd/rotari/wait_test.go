@@ -137,6 +137,37 @@ func TestCmdWaitTimesOutForMalformedSummary(t *testing.T) {
 	}
 }
 
+func TestCmdWaitRejectsMissingRegisteredRunDirectory(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := registerRun(paths, "missing-run"); err != nil {
+		t.Fatal(err)
+	}
+
+	oldStderr := os.Stderr
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = writer
+	code := cmdWait([]string{"--run-id", "missing-run"})
+	os.Stderr = oldStderr
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 || !strings.Contains(string(output), "run \"missing-run\" is registered but its run directory is missing") {
+		t.Fatalf("cmdWait exit code = %d, stderr = %q", code, output)
+	}
+}
+
 func TestResolveActiveRunTarget(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "demo")

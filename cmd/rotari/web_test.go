@@ -464,8 +464,9 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 }
 
 func TestWebSeparatesLogsFromActions(t *testing.T) {
-	for _, want := range []string{"function mergeActionColumns(){}", "Job log", "View log", "Source log", "Logs"} {
-		if !strings.Contains(webIndexHTML, want) {
+	html := webHTML()
+	for _, want := range []string{"function mergeActionColumns(){}", "Job log", "View log", "Source log", "Logs", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const buttons=[...logCell.querySelectorAll('button')]", "const diagnosisControl=canDiagnose", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", "dataset.view!=='path'", "cell.style.display='table-cell'", "button.style.margin='0 6px 6px 0'", "cell.style.width='170px'"} {
+		if !strings.Contains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
 		}
 	}

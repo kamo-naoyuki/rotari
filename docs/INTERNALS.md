@@ -60,26 +60,7 @@ The normal state layout is:
 - Files may appear incrementally while a run is active.
 - Readers must tolerate missing optional or not-yet-written run files without
     inventing completed results.
-- The background server writes lifecycle, request, and error events to
-    `<basedir>/server.log`.
-- The server log is bounded: before an event would make it exceed 1 MiB, the
-    regular file is truncated and the new event is written.
 - Run output remains the durable execution record.
-- When `webhook.url` is configured, or `ROTARI_WEBHOOK_URL` is set, finalized
-    runs send one `POST` summary to that endpoint. The default format is the
-    generic rotari JSON payload; `webhook.format: slack` or
-    `ROTARI_WEBHOOK_FORMAT=slack` selects a Slack Incoming Webhook payload.
-    `webhook.on` and `ROTARI_WEBHOOK_ON` filter success/failure events;
-    environment variables override config files. Delivery errors are warnings
-    and do not change run status. A successful delivery is marked by
-    `webhook.sent` inside the run directory. New formats must be implemented as
-    webhook encoders without changing the generic payload contract.
-- `diagnose` is an explicitly invoked, stateless external integration. It sends
-    one job's command, recorded result, and at most the last 12,000 characters
-    of output to the configured OpenAI Responses API-compatible endpoint. API
-    keys and diagnoses are never persisted or injected into job environments.
-    A valid explicit BCP 47 response-language tag is added to the prompt; when
-    absent, Rotari makes no language selection.
 
 ## Core design contracts
 
@@ -87,15 +68,6 @@ The following rules govern the current CLI, server, web, and executor design.
 An intentional change to one is an architectural change: update this document,
 the user-facing documentation, and the affected tests together.
 
-- A completed run is historical and immutable. Its persisted snapshot,
-    results, and logs are not rewritten; it remains available until explicitly
-    deleted.
-- Every retry creates a new run. It may use a prior run as its reference, but
-    never modifies that source run.
-- Carry-forward writes reused results only into the destination run and never
-    changes the source run.
-- Carried-forward jobs retain an origin that identifies the source run and
-    job (per task for arrays), so their output remains traceable across runs.
 - The filesystem is the source of truth. Registries and in-memory state are
     indexes or coordination aids and must be recoverable from persisted files.
 - The server coordinates access and execution; it is not persistent
@@ -107,14 +79,12 @@ the user-facing documentation, and the affected tests together.
 - A project has at most one active run and runner at a time. That runner may
     execute multiple jobs concurrently, while different projects can run
     independently.
+- Completed runs are immutable history. Retries, filtered runs, and
+    carry-forward create or modify only a new destination run, never their
+    source run.
 - Executors implement job execution and scheduler integration, not run
     semantics. Run planning, dependency handling, carry-forward, and summary
     finalization belong to rotari's shared execution path.
-- Run dispatch has a local concurrency lane and one independent lane per
-    non-local executor. `local-concurrency` and `batch-concurrency` are common
-    defaults used when no executor-specific setting is supplied; executor
-    settings override those defaults, and job-specific executor options remain
-    highest priority.
 
 ## Resolution rules
 
@@ -214,6 +184,8 @@ Without a run-location lookup, base directories resolve in this order:
 ### Shell completion
 
 - Completion is generated from the same CLI metadata as command help.
+- A string option whose CLI metadata declares `Values` uses those values for
+    parse-time choice validation as well as completion and schema generation.
 - CLI environment defaults are declared in one flag-to-variable mapping, used
     for both default values and command-help descriptions.
 - It covers subcommands, options, executor values, run-selection values, and
@@ -245,6 +217,11 @@ order:
 3. `~/.local/state/rotari/master`
 
 - Register a run before exposing location-independent commands.
+- A run's directory and initial `context.json` are written before its registry
+    entry. During normal execution, a missing `summary.json` may mean the run
+    is still active, but a registry entry whose run directory is missing is
+    stale. Existing-run commands must report that case and direct the user to
+    `rotari gc` rather than falling back to another run.
 - Re-registering the same mapping is idempotent; mapping an existing ID to a
     different location fails.
 - The registry is only an index. Run files remain authoritative.
@@ -261,8 +238,10 @@ order:
 - Queue-editing commands mutate `queue.json`. Starting a run assigns a new
     ID, snapshots the queue, records context, and marks it active. Completion
     writes results and summary, updates metadata, clears the consumed queue, and
-    removes the active lock. Saved runs remain until explicitly deleted.
-- Retries and filtered runs create new history. `--retry N` retries a failed
+    removes the active lock. Completed run snapshots, results, and logs remain
+    immutable until the run is explicitly deleted.
+- Retries and filtered runs always create new history and never modify their
+    source run. `--retry N` retries a failed
     job up to N additional times within the same run. A failed job is one whose
     result has a non-zero exit code and is not explicitly cancelled.
 - An explicit cancellation is terminal for the current run. A job marked
@@ -274,7 +253,9 @@ order:
     new user decision to execute the job again.
 - In a filtered run, selected jobs execute. Completed jobs outside the
     selection carry forward their result and an origin pointing to the original
-    output; jobs without a completed result remain unfinished.
+    output; jobs without a completed result remain unfinished. Carry-forward
+    writes reused results only to the destination run and records the source
+    run and job so output remains traceable.
 - Dependencies use unique job names within a queue. Unknown names,
     duplicates, and cycles are rejected before execution. `add` also rejects a
     duplicate job name immediately, without writing the queue, so that mistake
@@ -315,6 +296,26 @@ order:
     failed prerequisite prevents its dependents from executing; each is
     persisted with a non-zero result and `blocked by failed dependency` error.
 
+## Validation and readiness
+
+- `run`, `reset`, and `check` share the same project-state inspector. `run` and
+    `reset` remove a stale local lock only after consistency checks pass;
+    read-only `check` never removes it.
+- `run` and `check` share queue loading and preflight validation: dependency
+    resolution, executor names and option tokenizing, SSH target requirements,
+    reserved native-array options, array range/task consistency, expanded job
+    ID uniqueness, non-empty commands, environment assignments, and
+    process-compatible working-directory values.
+- Preflight does not execute or contact an executor and does not require local
+    or remote working directories to exist.
+- `check` reports a remote-host lock as unverifiable rather than probing its
+    PID. It succeeds only for an idle project with a valid, non-empty queue.
+- `check --deep` extends preflight with current-host checks. It resolves
+    `/bin/sh`, the configured SSH executable, or the scheduler submit command
+    for each effective executor. Local job commands are resolved through
+    `/bin/sh` using the job's environment and working directory. Only local
+    working directories are checked; no SSH or scheduler connection is made.
+
 ## Run orchestration and executor responsibilities
 
 - `executeMixedRun` (`mixed_run.go`) is the single execution engine for every
@@ -325,6 +326,11 @@ order:
     enqueueing; `add --run-async` uses the async worker path after enqueueing.
 - Per-executor full-run orchestrators must not be added outside this path.
     Extend `JobExecutor` methods or `executeMixedRun` instead.
+- Run dispatch has a local concurrency lane and one independent lane per
+    non-local executor. `local-concurrency` and `batch-concurrency` are common
+    defaults used when no executor-specific setting is supplied; executor
+    settings override those defaults, and job-specific executor options remain
+    highest priority.
 - The former Slurm-only orchestration path was removed because it duplicated
     this responsibility and became dead after `executeMixedRun` replaced it.
 - `JobExecutor` is the scheduler boundary. Implementations share lifecycle
@@ -358,6 +364,9 @@ order:
 
 - The server supervises one base directory and may stop when idle, so durable
     behavior belongs in files, not memory.
+- The background server writes lifecycle, request, and error events to
+    `<basedir>/server.log`. Before an event would make the regular file exceed
+    1 MiB, it is truncated and the new event is written.
 - The web UI is a projection of the same model, not a separate database.
 - The optional Python interface invokes the installed CLI with `subprocess`
     and must not implement queue or execution semantics itself.
@@ -366,6 +375,34 @@ order:
 - `show --json` emits one object with the resolved location, available run
     summary, and saved commands. JSON modes are additive; default CLI output
     remains human-facing.
+
+## External integrations
+
+- When `webhook.url` is configured, or `ROTARI_WEBHOOK_URL` is set, finalized
+    runs send one `POST` summary to that endpoint. The default format is the
+    generic rotari JSON payload; `webhook.format` or
+    `ROTARI_WEBHOOK_FORMAT` selects a supported service-specific payload.
+    Event filters apply after environment-over-config precedence. Delivery
+    errors are warnings and do not change run status; successful delivery is
+    marked by `webhook.sent` in the run directory.
+- `diagnose` is an explicitly invoked, stateless integration. It sends one
+    job's command, recorded result, and at most the last 12,000 characters of
+    output to the configured LLM endpoint. API keys and diagnoses are never
+    persisted or injected into job environments. An explicit BCP 47 response
+    language is included when configured.
+- `diagnose --rules` is a local, read-only alternative. It evaluates the same
+    recorded scheduler error and output against a fixed set of documented
+    signatures after case, ANSI-escape, and whitespace normalization. It makes
+    no network request and reports only matched signatures with their evidence.
+    When a failed run is finalized, annotations are saved on its `summary.json`
+    result as informational snapshots; they never affect run status, retry
+    planning, dependency resolution, or scheduler control. Every finalized
+    failed job records a recognized diagnosis, an explicit no-match annotation,
+    or an analysis-unavailable annotation when output cannot be read.
+    `showJob` reads those saved annotations for CLI job detail, while the Web
+    UI always shows a `Diagnosis` control and enables it for finalized failed
+    jobs with saved annotations; it is disabled for live fallback results that
+    have no finalized summary analysis.
 
 ## Job execution durability
 
@@ -481,6 +518,10 @@ follows:
     warnings, running/blocked state, retries, and recovery/cancellation; cyan
     denotes informational labels and suggested actions; white denotes values.
 - Parsers and tests must rely on text, not ANSI sequences or color choice.
+- `check --json` emits the same result as its text view. `queued` is a JSON
+    number when known and `null` when an active or interrupted project's queue
+    cannot be read; `run_id` is omitted when no run is associated with the
+    state.
 - `show` uses a lazy pager. `--no-pager` and non-TTY output go directly to
     stdout. On a TTY, output of at most 24 lines is direct; longer output uses
     `$PAGER`, defaulting to `less -R`. Pager failure falls back to stdout.
@@ -513,6 +554,13 @@ feeds `show`/the web UI, not this state machine:
 - Missing or unparseable job status counts as still running. The detail only
     improves rejection and confirmation messages; it does not change what
     `--recover` or `unlock` may do.
+- Before `check` reports an active or interrupted run, and before `run` or
+    `reset` acts on that project state, rotari verifies that lock and metadata
+    run IDs agree, the run ID is a safe path element, and the run directory and
+    initial `context.json` exist. An interrupted run must also have its
+    `commands.json` snapshot. Active runs may temporarily lack `commands.json`
+    while the worker starts. Stale locks are removed only after these checks
+    succeed.
 - `unlock` with the exact run ID acknowledges recovery, keeps the retained
     queue, and returns the phase to `collecting`.
 - `reset` discards the current queue while keeping defaults and history. It

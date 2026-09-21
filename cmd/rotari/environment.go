@@ -66,12 +66,26 @@ var propagatedEnvironmentVariables = []string{
 
 func validateEnvironment(environment []string) error {
 	for _, entry := range environment {
-		name, _, ok := strings.Cut(entry, "=")
-		if !ok || name == "" || strings.ContainsAny(name, " \t\n=") {
+		name, value, ok := strings.Cut(entry, "=")
+		if !ok || !validEnvironmentName(name) || strings.ContainsRune(value, '\x00') {
 			return errors.New("expected KEY=VALUE")
 		}
 	}
 	return nil
+}
+
+func validEnvironmentName(name string) bool {
+	for index := 0; index < len(name); index++ {
+		character := name[index]
+		if (character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z') || character == '_' {
+			continue
+		}
+		if index > 0 && character >= '0' && character <= '9' {
+			continue
+		}
+		return false
+	}
+	return name != ""
 }
 
 type environmentDefinition struct {

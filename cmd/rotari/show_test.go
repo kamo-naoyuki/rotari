@@ -632,6 +632,39 @@ func TestShowJobSurfacesAccountingUnavailableFromSummary(t *testing.T) {
 	}
 }
 
+func TestShowJobDisplaysDiagnoses(t *testing.T) {
+	paths, err := resolvePaths(t.TempDir(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID, jobID := "run-1", "job-1"
+	runDir := filepath.Join(paths.runsDir, runID)
+	jobDir := filepath.Join(runDir, jobID)
+	job := JobSpec{ID: jobID, Command: []string{"false"}}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: jobID, Command: job.Command}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{Results: []JobResult{{ID: jobID, ExitCode: 1, Diagnoses: []ruleDiagnosis{{Name: "CUDA/GPU memory exhausted", Evidence: "CUDA out of memory", Suggestion: "Reduce batch size"}}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(jobDir, "status"), []byte("1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var output bytes.Buffer
+	if code := showJob(&output, paths, runID, jobID); code != 0 {
+		t.Fatalf("showJob exit code = %d, want 0", code)
+	}
+	for _, want := range []string{"Diagnosis:", "CUDA/GPU memory exhausted", "Evidence: CUDA out of memory", "Next: Reduce batch size"} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("showJob output does not contain %q:\n%s", want, output.String())
+		}
+	}
+}
+
 func TestShowJobRejectsTraversalInRunAndJobIDs(t *testing.T) {
 	paths, err := resolvePaths(t.TempDir(), "demo")
 	if err != nil {

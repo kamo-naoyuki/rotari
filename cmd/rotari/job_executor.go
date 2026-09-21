@@ -189,3 +189,131 @@ func executorNames() []string {
 	sort.Strings(names)
 	return names
 }
+
+func validateQueueForRun(queue Queue, requestedExecutor string, executorOptions []string, settings executorRunSettingsMap) error {
+	if err := validateQueueJobs(queue); err != nil {
+		return err
+	}
+	if err := validateQueueDependencies(queue); err != nil {
+		return err
+	}
+	defaultExecutor := requestedExecutor
+	if defaultExecutor == "" {
+		defaultExecutor = queue.DefaultExecutor
+	}
+	if defaultExecutor == "" {
+		defaultExecutor = "local"
+	}
+	if !isKnownExecutor(defaultExecutor) {
+		return fmt.Errorf("unsupported executor: %s", defaultExecutor)
+	}
+
+	for _, queued := range queue.Commands {
+		executorName := queued.Executor
+		if executorName == "" {
+			executorName = defaultExecutor
+		}
+		if !isKnownExecutor(executorName) {
+			return fmt.Errorf("job %q uses unsupported executor: %s", queued.ID, executorName)
+		}
+		options := queued.ExecutorOptions
+		if len(options) == 0 {
+			options = effectiveExecutorOptions(settings, executorName, executorOptions)
+		}
+		if len(options) == 0 {
+			options = queue.DefaultExecutorOptions
+		}
+		if err := validateExecutorOptions(executorName, options, queued.Array != nil); err != nil {
+			return fmt.Errorf("job %q executor options: %w", queued.ID, err)
+		}
+	}
+	return nil
+}
+
+func validateExecutorOptions(executorName string, options []string, array bool) error {
+	switch executorName {
+	case "local":
+		return nil
+	case "ssh":
+		_, _, err := sshTarget(options)
+		return err
+	case "slurm":
+		if array {
+			return rejectArraySchedulerOptions(options, "--array")
+		}
+	case "pbs":
+		if array {
+			return rejectArraySchedulerOptions(options, "-J", "-t")
+		}
+	case "lsf":
+		if array {
+			return rejectArraySchedulerOptions(options, "-J")
+		}
+	default:
+		return fmt.Errorf("unsupported executor: %s", executorName)
+	}
+	_, err := expandShellOptions(options)
+	return err
+}
+
+func validateLocalExecutionEnvironment(queue Queue) error {
+	defaultExecutor := queue.DefaultExecutor
+	if defaultExecutor == "" {
+		defaultExecutor = "local"
+	}
+	checkedExecutors := make(map[string]bool)
+	for _, queued := range queue.Commands {
+		executorName := queued.Executor
+		if executorName == "" {
+			executorName = defaultExecutor
+		}
+		if !checkedExecutors[executorName] {
+			if err := validateExecutorCommand(executorName); err != nil {
+				return err
+			}
+			checkedExecutors[executorName] = true
+		}
+		if executorName == "local" {
+			if err := validateLocalJobEnvironment(queued); err != nil {
+				return fmt.Errorf("job %q: %w", queued.ID, err)
+			}
+		}
+	}
+	return nil
+}
+
+func validateExecutorCommand(executorName string) error {
+	command := map[string]string{
+		"local": "/bin/sh",
+		"ssh":   sshCommandPath,
+		"slurm": "sbatch",
+		"pbs":   "qsub",
+		"lsf":   "bsub",
+	}[executorName]
+	if command == "" {
+		return fmt.Errorf("unsupported executor: %s", executorName)
+	}
+	if _, err := exec.LookPath(command); err != nil {
+		return fmt.Errorf("%s executor command %q is not available: %w", executorName, command, err)
+	}
+	return nil
+}
+
+func validateLocalJobEnvironment(job QueuedCommand) error {
+	if job.WorkingDirectory != "" {
+		info, err := os.Stat(job.WorkingDirectory)
+		if err != nil {
+			return fmt.Errorf("working directory %q is not accessible: %w", job.WorkingDirectory, err)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("working directory %q is not a directory", job.WorkingDirectory)
+		}
+	}
+	command := exec.Command("/bin/sh", "-c", `command -v "$1" >/dev/null 2>&1`, "sh", job.Command[0])
+	command.Dir = job.WorkingDirectory
+	command.Env = mergeEnvironment(os.Environ(), job.Environment)
+	if err := command.Run(); err != nil {
+		return fmt.Errorf("command %q is not available", job.Command[0])
+	}
+	return nil
+}

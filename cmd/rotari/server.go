@@ -1216,6 +1216,9 @@ func enqueueCommandWithWorkingDirectory(baseDir, queueName string, command []str
 	if queueName == "" || len(command) == 0 {
 		return "", errors.New("project name and command are required")
 	}
+	if err := validateEnvironment(environment); err != nil {
+		return "", fmt.Errorf("invalid environment: %w", err)
+	}
 	paths, err := resolvePaths(baseDir, queueName)
 	if err != nil {
 		return "", err
@@ -1248,6 +1251,9 @@ func enqueueCommandWithWorkingDirectory(baseDir, queueName string, command []str
 	}
 	job := QueuedCommand{
 		ID: makeJobID(), Command: command, WorkingDirectory: workingDirectory, Executor: executor, ExecutorOptions: executorOptions, Environment: environment, Name: jobName, DependsOn: dependsOn, Array: array,
+	}
+	if err := validateQueueJobs(Queue{Commands: append(append([]QueuedCommand(nil), queue.Commands...), job)}); err != nil {
+		return "", err
 	}
 	// Dependencies may refer to jobs added later, so only duplicate names are checked here.
 	if job.Name != "" {
@@ -1296,11 +1302,8 @@ func startServerRun(baseDir, queueName, runName string, localConcurrency, batchM
 	if err := ensureProjectIdleForPaths(paths, "run"); err != nil {
 		return "", err
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadRunQueue(paths, executor, executorOptions, executorSettings)
 	if err != nil {
-		return "", err
-	}
-	if err := validateQueueDependencies(queue); err != nil {
 		return "", err
 	}
 	if len(queue.Commands) == 0 {
@@ -1341,12 +1344,8 @@ func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMa
 		release()
 		return "", 1, err
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadRunQueue(paths, executor, executorOptions, executorSettings)
 	if err != nil {
-		release()
-		return "", 1, err
-	}
-	if err := validateQueueDependencies(queue); err != nil {
 		release()
 		return "", 1, err
 	}

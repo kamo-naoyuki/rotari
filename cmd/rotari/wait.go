@@ -236,6 +236,13 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 			}
 			return waitResult{exitCode: summary.ExitCode}
 		}
+		if runInfo, statErr := os.Stat(runDir); os.IsNotExist(statErr) || (statErr == nil && !runInfo.IsDir()) {
+			printErrorf("run %q is registered but its run directory is missing; run 'rotari gc' to inspect stale registry entries", runID)
+			return waitResult{exitCode: 1}
+		} else if statErr != nil {
+			printErrorf("failed to inspect run directory %s: %v", runDir, statErr)
+			return waitResult{exitCode: 1}
+		}
 		if !deadline.IsZero() && time.Now().After(deadline) {
 			printErrorf("timed out waiting for run %s", runID)
 			return waitResult{exitCode: 1, timedOut: true}

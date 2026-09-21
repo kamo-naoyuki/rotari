@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -154,6 +155,116 @@ func TestTailStringKeepsLogEnd(t *testing.T) {
 	got := tailString("0123456789", 4)
 	if !strings.HasPrefix(got, "[earlier log output omitted]") || !strings.HasSuffix(got, "6789") {
 		t.Fatalf("tailString() = %q", got)
+	}
+}
+
+func TestDiagnoseWithRulesNormalizesAndMatchesKnownErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		job  diagnosisJob
+		want string
+	}{
+		{name: "CUDA OOM", job: diagnosisJob{Log: "\x1b[31mCUDA Error: Out   Of Memory\x1b[0m"}, want: "CUDA/GPU memory exhausted"},
+		{name: "GPU unavailable", job: diagnosisJob{Log: "NVIDIA-SMI has failed because it couldn't communicate"}, want: "CUDA/GPU unavailable"},
+		{name: "Slurm memory limit", job: diagnosisJob{Log: "slurmstepd: error: Detected 1 oom-kill event(s) in StepId=1"}, want: "Slurm memory limit exceeded"},
+		{name: "Slurm time limit", job: diagnosisJob{Log: "slurmstepd: error: CANCELLED AT 2026-09-21 DUE TO TIME LIMIT"}, want: "Slurm time limit exceeded"},
+		{name: "PBS walltime", job: diagnosisJob{Log: "PBS: job exceeded walltime limit"}, want: "PBS resource or walltime limit exceeded"},
+		{name: "LSF memory limit", job: diagnosisJob{Log: "Exited with exit code 137. TERM_MEMLIMIT"}, want: "LSF memory limit exceeded"},
+		{name: "LSF run limit", job: diagnosisJob{Log: "TERM_RUNLIMIT: job killed after run limit"}, want: "LSF run time limit exceeded"},
+		{name: "scheduler submission", job: diagnosisJob{Log: "sbatch: error: Unable to contact slurm controller"}, want: "Scheduler submission failed"},
+		{name: "invalid scheduler resource", job: diagnosisJob{Log: "sbatch: error: Invalid qos specification"}, want: "Invalid scheduler resource request"},
+		{name: "scheduler cancelled", job: diagnosisJob{Log: "slurmstepd: error: CANCELLED AT 2026-09-21 DUE TO PREEMPTION"}, want: "Scheduler cancelled job"},
+		{name: "host OOM", job: diagnosisJob{Log: "Memory cgroup out of memory: Killed process 42"}, want: "Host memory exhausted"},
+		{name: "killed", job: diagnosisJob{Log: "Killed"}, want: "Process killed"},
+		{name: "segmentation fault", job: diagnosisJob{Log: "Fatal Python error: Segmentation fault"}, want: "Segmentation fault"},
+		{name: "GPU Xid", job: diagnosisJob{Log: "NVRM: Xid (PCI:0000:01:00): 79, GPU has fallen off the bus."}, want: "NVIDIA GPU driver/device error"},
+		{name: "CUDA assertion", job: diagnosisJob{Log: "RuntimeError: CUDA error: device-side assert triggered"}, want: "CUDA device-side assert"},
+		{name: "NCCL", job: diagnosisJob{Log: "NCCL WARN unhandled system error"}, want: "NCCL failure"},
+		{name: "MPI", job: diagnosisJob{Log: "MPI_ABORT was invoked on rank 0"}, want: "MPI runtime failure"},
+		{name: "disk quota", job: diagnosisJob{Log: "write: Disk quota exceeded"}, want: "Disk space or quota exhausted"},
+		{name: "storage I/O", job: diagnosisJob{Log: "cp: error writing 'checkpoint': Input/output error"}, want: "Storage device I/O error"},
+		{name: "read-only filesystem", job: diagnosisJob{Log: "open output: read-only file system"}, want: "Read-only filesystem"},
+		{name: "missing file", job: diagnosisJob{Log: "open input.json: no such file or directory"}, want: "File or directory not found"},
+		{name: "permission denied", job: diagnosisJob{Log: "./train: Permission denied"}, want: "Permission denied"},
+		{name: "missing command", job: diagnosisJob{Log: "python: command not found"}, want: "Command or executable not found"},
+		{name: "Python import", job: diagnosisJob{Log: "ModuleNotFoundError: No module named 'torch'"}, want: "Python import or module missing"},
+		{name: "Python dependency", job: diagnosisJob{Log: "package-a requires package-b but version 1 is installed"}, want: "Python dependency or version conflict"},
+		{name: "Python syntax", job: diagnosisJob{Log: "SyntaxError: invalid syntax"}, want: "Python syntax or indentation error"},
+		{name: "Python attribute", job: diagnosisJob{Log: "AttributeError: 'NoneType' object has no attribute 'shape'"}, want: "Python missing name or attribute"},
+		{name: "Python type", job: diagnosisJob{Log: "TypeError: expected str, got None"}, want: "Python type or value error"},
+		{name: "Python key", job: diagnosisJob{Log: "KeyError: 'learning_rate'"}, want: "Python key or index error"},
+		{name: "Python assertion", job: diagnosisJob{Log: "AssertionError: invalid dataset"}, want: "Python assertion failed"},
+		{name: "Python memory", job: diagnosisJob{Log: "MemoryError"}, want: "Python memory error"},
+		{name: "Python recursion", job: diagnosisJob{Log: "RecursionError: maximum recursion depth exceeded"}, want: "Python recursion limit exceeded"},
+		{name: "file descriptors", job: diagnosisJob{Log: "open: Too many open files"}, want: "File descriptor limit exceeded"},
+		{name: "process limit", job: diagnosisJob{Log: "fork: retry: Resource temporarily unavailable"}, want: "Process or thread limit exceeded"},
+		{name: "DNS", job: diagnosisJob{Log: "curl: (6) Could not resolve host: example.test"}, want: "DNS lookup failed"},
+		{name: "connection refused", job: diagnosisJob{Log: "dial tcp: connection refused"}, want: "Network connection refused"},
+		{name: "network timeout", job: diagnosisJob{Error: "dial tcp: i/o timeout"}, want: "Network connection timed out"},
+		{name: "connection reset", job: diagnosisJob{Log: "read: connection reset by peer"}, want: "Network connection reset or closed"},
+		{name: "TLS certificate", job: diagnosisJob{Log: "x509: certificate signed by unknown authority"}, want: "TLS certificate or handshake failure"},
+		{name: "HTTP authorization", job: diagnosisJob{Log: "HTTP 403 Forbidden"}, want: "HTTP authentication or authorization failed"},
+		{name: "HTTP rate limit", job: diagnosisJob{Log: "request failed: status code 429"}, want: "HTTP rate limited"},
+		{name: "HTTP unavailable", job: diagnosisJob{Log: "503 Service Unavailable"}, want: "HTTP service unavailable"},
+		{name: "HTTP gateway error", job: diagnosisJob{Log: "HTTP 502 Bad Gateway"}, want: "HTTP server or bad gateway error"},
+		{name: "HTTP gateway timeout", job: diagnosisJob{Log: "504 Gateway Timeout"}, want: "HTTP gateway timeout"},
+		{name: "SSH key", job: diagnosisJob{Log: "Permission denied (publickey)."}, want: "SSH authentication or host verification failed"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			diagnoses := diagnoseWithRules(test.job)
+			if len(diagnoses) != 1 || diagnoses[0].Name != test.want {
+				t.Fatalf("diagnoseWithRules() = %#v, want %q", diagnoses, test.want)
+			}
+		})
+	}
+}
+
+func TestDiagnoseWithRulesExtractsFinalPythonException(t *testing.T) {
+	diagnoses := diagnoseWithRules(diagnosisJob{Log: "Traceback (most recent call last):\n  File \"train.py\", line 10\nValueError: invalid batch size"})
+	if len(diagnoses) != 2 || diagnoses[0].Name != "Python type or value error" || diagnoses[1].Name != "Python exception" || diagnoses[1].Evidence != "ValueError: invalid batch size" {
+		t.Fatalf("diagnoseWithRules() = %#v, want specific and final Python exception", diagnoses)
+	}
+}
+
+func TestDiagnoseWithRulesDoesNotGuess(t *testing.T) {
+	if diagnoses := diagnoseWithRules(diagnosisJob{Log: "the job failed"}); len(diagnoses) != 0 {
+		t.Fatalf("diagnoseWithRules() = %#v, want no diagnosis", diagnoses)
+	}
+}
+
+func TestDiagnoseJobResultReadsOutputAndPreservesSavedDiagnoses(t *testing.T) {
+	runDir := t.TempDir()
+	jobDir := filepath.Join(runDir, "job-1")
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(jobDir, "output"), []byte("CUDA out of memory\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result := diagnoseJobResult(runDir, JobResult{ID: "job-1", ExitCode: 1})
+	if len(result.Diagnoses) != 1 || result.Diagnoses[0].Name != "CUDA/GPU memory exhausted" {
+		t.Fatalf("diagnoseJobResult() = %#v", result.Diagnoses)
+	}
+
+	saved := JobResult{ID: "job-1", ExitCode: 1, Diagnoses: []ruleDiagnosis{{Name: "Saved diagnosis"}}}
+	if got := diagnoseJobResult(runDir, saved); len(got.Diagnoses) != 1 || got.Diagnoses[0].Name != "Saved diagnosis" {
+		t.Fatalf("diagnoseJobResult() overwrote saved diagnoses: %#v", got.Diagnoses)
+	}
+}
+
+func TestDiagnoseJobResultPersistsNoMatch(t *testing.T) {
+	runDir := t.TempDir()
+	jobDir := filepath.Join(runDir, "job-1")
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(jobDir, "output"), []byte("unrecognized failure\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result := diagnoseJobResult(runDir, JobResult{ID: "job-1", ExitCode: 1})
+	if len(result.Diagnoses) != 1 || result.Diagnoses[0].Name != noRuleDiagnosisName {
+		t.Fatalf("diagnoseJobResult() = %#v, want no-match diagnosis", result.Diagnoses)
 	}
 }
 

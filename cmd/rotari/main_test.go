@@ -309,6 +309,78 @@ func TestCLIUsageIncludesShortOptions(t *testing.T) {
 			t.Fatalf("usage %q does not contain %q", usage, option)
 		}
 	}
+	if usage := cliUsage("check"); !strings.Contains(usage, "[--json]") {
+		t.Fatalf("usage %q does not contain --json", usage)
+	}
+	if usage := cliUsage("check"); !strings.Contains(usage, "[--deep]") {
+		t.Fatalf("usage %q does not contain --deep", usage)
+	}
+}
+
+func TestCLIStringRejectsValuesOutsideChoices(t *testing.T) {
+	for _, args := range [][]string{{"--executor", "invalid"}, {"-e", "invalid"}} {
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		executor := cliString(fs, "executor", "")
+		err := fs.Parse(args)
+		if err == nil || !strings.Contains(err.Error(), `invalid choice "invalid" (choose from local, lsf, pbs, slurm, ssh)`) {
+			t.Fatalf("Parse(%v) error = %v", args, err)
+		}
+		if *executor != "" {
+			t.Fatalf("Parse(%v) executor = %q, want unchanged", args, *executor)
+		}
+	}
+}
+
+func TestCLIStringAcceptsValueFromChoices(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	var output strings.Builder
+	fs.SetOutput(&output)
+	executor := cliString(fs, "executor", "")
+	if err := fs.Parse([]string{"--executor", "slurm"}); err != nil {
+		t.Fatal(err)
+	}
+	if *executor != "slurm" {
+		t.Fatalf("executor = %q, want slurm", *executor)
+	}
+	fs.PrintDefaults()
+	if !strings.Contains(output.String(), "choices: local, lsf, pbs, slurm, ssh") {
+		t.Fatalf("help does not list choices: %q", output.String())
+	}
+}
+
+func TestCLIStringAppliesChoicesFromFlagSpec(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		value string
+	}{
+		{name: "format", value: "xml"},
+		{name: "provider", value: "unknown"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fs := flag.NewFlagSet("test", flag.ContinueOnError)
+			fs.SetOutput(io.Discard)
+			cliString(fs, test.name, "")
+			if err := fs.Parse([]string{"--" + test.name, test.value}); err == nil || !strings.Contains(err.Error(), "invalid choice") {
+				t.Fatalf("Parse() error = %v", err)
+			}
+		})
+	}
+}
+
+func TestCmdAddRejectsExecutorOutsideChoicesBeforeWritingQueue(t *testing.T) {
+	baseDir := t.TempDir()
+	code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "--executor", "invalid", "--", "true"})
+	if code != 1 {
+		t.Fatalf("cmdAdd exit code = %d, want 1", code)
+	}
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(paths.queueFile); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("queue file exists after rejected choice: %v", err)
+	}
 }
 
 func TestEnvironmentDefinitionsAreUniqueAndIncludeCoreVariables(t *testing.T) {
@@ -379,6 +451,9 @@ func TestResolveExistingRunTargetUsesRegistryAndRejectsConflicts(t *testing.T) {
 	if err := registerRunLocation(location); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(baseDir, "projects", "demo", "runs", "run-1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	gotBaseDir, gotProject, err := resolveExistingRunTarget("", "", "run-1")
 	if err != nil {
@@ -392,6 +467,19 @@ func TestResolveExistingRunTargetUsesRegistryAndRejectsConflicts(t *testing.T) {
 	}
 	if _, _, err := resolveExistingRunTarget("", "other", "run-1"); err == nil {
 		t.Fatal("conflicting project was accepted")
+	}
+}
+
+func TestResolveExistingRunTargetRejectsStaleRegistryEntry(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	location := runLocation{BaseDir: t.TempDir(), ProjectName: "demo", RunID: "missing-run"}
+	if err := registerRunLocation(location); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err := resolveExistingRunTarget("", "", location.RunID)
+	if err == nil || !strings.Contains(err.Error(), "run \"missing-run\" is registered but its run directory is missing") {
+		t.Fatalf("resolveExistingRunTarget() error = %v, want stale registry error", err)
 	}
 }
 
@@ -548,6 +636,7 @@ func TestCmdResetRecoversInterruptedRunWithoutPrompt(t *testing.T) {
 	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
+	writeTestRunStateFiles(t, paths, "run-1")
 
 	if code := cmdReset([]string{"--basedir", baseDir, "--project-name", "demo", "--recover"}); code != 0 {
 		t.Fatalf("cmdReset exit code = %d, want 0", code)
@@ -580,6 +669,7 @@ func TestCmdResetRequiresRecoverFlagForInterruptedRun(t *testing.T) {
 	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
+	writeTestRunStateFiles(t, paths, "run-1")
 
 	if code := cmdReset([]string{"--basedir", baseDir, "--project-name", "demo"}); code == 0 {
 		t.Fatal("cmdReset recovered an interrupted run without confirmation")
@@ -751,6 +841,73 @@ func TestParseArrayRange(t *testing.T) {
 	}
 }
 
+func TestValidateQueueJobsRejectsInvalidArrayDefinitions(t *testing.T) {
+	tests := []struct {
+		name  string
+		array ArraySpec
+		want  string
+	}{
+		{name: "negative", array: ArraySpec{First: -1, Last: 1}, want: "task indexes must not be negative"},
+		{name: "reversed", array: ArraySpec{First: 4, Last: 2}, want: "first index must not be greater than last index"},
+		{name: "bounds mismatch", array: ArraySpec{First: 1, Last: 4, Tasks: []int{1, 3}}, want: "first and last indexes must match"},
+		{name: "out of range", array: ArraySpec{First: 1, Last: 4, Tasks: []int{1, 5, 4}}, want: "task index 5 is outside 1-4"},
+		{name: "duplicate", array: ArraySpec{First: 1, Last: 4, Tasks: []int{1, 3, 3, 4}}, want: "task indexes must be strictly increasing"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			queue := Queue{Commands: []QueuedCommand{{ID: "array", Command: []string{"true"}, Array: &test.array}}}
+			err := validateQueueJobs(queue)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("validateQueueJobs error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestValidateQueueJobsRejectsExpandedJobIDCollision(t *testing.T) {
+	queue := Queue{Commands: []QueuedCommand{
+		{ID: "array", Command: []string{"true"}, Array: &ArraySpec{First: 1, Last: 2}},
+		{ID: "array-1", Command: []string{"true"}},
+	}}
+	if err := validateQueueJobs(queue); err == nil || !strings.Contains(err.Error(), `duplicate job ID "array-1"`) {
+		t.Fatalf("validateQueueJobs error = %v", err)
+	}
+}
+
+func TestValidateQueueJobsRejectsInvalidJobFields(t *testing.T) {
+	tests := []struct {
+		name string
+		job  QueuedCommand
+		want string
+	}{
+		{name: "empty command", job: QueuedCommand{ID: "job-1"}, want: `job "job-1" has an empty command`},
+		{name: "empty executable", job: QueuedCommand{ID: "job-1", Command: []string{""}}, want: `job "job-1" has an empty command`},
+		{name: "invalid ID", job: QueuedCommand{ID: "../job-1", Command: []string{"true"}}, want: `invalid job ID "../job-1"`},
+		{name: "invalid environment name", job: QueuedCommand{ID: "job-1", Command: []string{"true"}, Environment: []string{"BAD-NAME=value"}}, want: `job "job-1" has invalid environment`},
+		{name: "NUL environment value", job: QueuedCommand{ID: "job-1", Command: []string{"true"}, Environment: []string{"KEY=value\x00tail"}}, want: `job "job-1" has invalid environment`},
+		{name: "NUL working directory", job: QueuedCommand{ID: "job-1", Command: []string{"true"}, WorkingDirectory: "work\x00dir"}, want: `job "job-1" working directory contains a NUL byte`},
+		{name: "NUL command argument", job: QueuedCommand{ID: "job-1", Command: []string{"printf", "value\x00tail"}}, want: `job "job-1" command contains a NUL byte`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateQueueJobs(Queue{Commands: []QueuedCommand{test.job}})
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("validateQueueJobs error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestValidateQueueJobsRejectsDuplicateJobID(t *testing.T) {
+	queue := Queue{Commands: []QueuedCommand{
+		{ID: "job-1", Command: []string{"true"}},
+		{ID: "job-1", Command: []string{"true"}},
+	}}
+	if err := validateQueueJobs(queue); err == nil || !strings.Contains(err.Error(), `duplicate job ID "job-1"`) {
+		t.Fatalf("validateQueueJobs error = %v", err)
+	}
+}
+
 func TestQueueToJobsExpandsSparseArray(t *testing.T) {
 	jobs := queueToJobs([]QueuedCommand{{
 		ID: "array", Command: []string{"echo", "hello"}, Array: &ArraySpec{First: 1, Last: 4, Tasks: []int{1, 3, 4}},
@@ -883,11 +1040,13 @@ func TestEnqueueCommandPersistsEnvironment(t *testing.T) {
 }
 
 func TestValidateEnvironment(t *testing.T) {
-	if err := validateEnvironment([]string{"KEY=value", "EMPTY="}); err != nil {
+	if err := validateEnvironment([]string{"KEY=value", "EMPTY=", "_PRIVATE=yes", "VALUE_2=ok"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := validateEnvironment([]string{"not-an-assignment"}); err == nil {
-		t.Fatal("validateEnvironment accepted a missing equals sign")
+	for _, environment := range [][]string{{"not-an-assignment"}, {"9KEY=value"}, {"BAD-NAME=value"}, {"KEY=value\x00tail"}} {
+		if err := validateEnvironment(environment); err == nil {
+			t.Errorf("validateEnvironment(%q) returned nil error", environment)
+		}
 	}
 }
 
@@ -1909,6 +2068,58 @@ func TestExecuteMixedRunKeepsPerJobExecutorOverrides(t *testing.T) {
 	}
 	if len(summary.Results) != 2 {
 		t.Fatalf("summary results = %#v, want local and slurm jobs", summary.Results)
+	}
+}
+
+func TestExecuteMixedRunPersistsRuleDiagnoses(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{
+		ID: "failed", Command: []string{"sh", "-c", "echo 'CUDA out of memory' >&2; exit 1"},
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	if code := executeMixedRun(paths, "diagnosed-run", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 1 {
+		t.Fatalf("executeMixedRun exit = %d, want 1", code)
+	}
+	summary, err := loadRunSummary(filepath.Join(paths.runsDir, "diagnosed-run", "summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(summary.Results) != 1 || len(summary.Results[0].Diagnoses) != 1 || summary.Results[0].Diagnoses[0].Name != "CUDA/GPU memory exhausted" {
+		t.Fatalf("summary results = %#v, want persisted CUDA diagnosis", summary.Results)
+	}
+}
+
+func TestExecuteMixedRunPersistsNoMatchDiagnosis(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{
+		ID: "failed", Command: []string{"sh", "-c", "echo ordinary failure >&2; exit 1"},
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	if code := executeMixedRun(paths, "no-match-run", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 1 {
+		t.Fatalf("executeMixedRun exit = %d, want 1", code)
+	}
+	summary, err := loadRunSummary(filepath.Join(paths.runsDir, "no-match-run", "summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(summary.Results) != 1 || len(summary.Results[0].Diagnoses) != 1 || summary.Results[0].Diagnoses[0].Name != noRuleDiagnosisName {
+		t.Fatalf("summary results = %#v, want persisted no-match diagnosis", summary.Results)
 	}
 }
 

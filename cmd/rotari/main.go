@@ -94,11 +94,12 @@ type JobSpec struct {
 }
 
 type JobResult struct {
-	ID       string   `json:"id"`
-	ExitCode int      `json:"exit_code"`
-	Error    string   `json:"error,omitempty"`
-	Command  []string `json:"command,omitempty"`
-	Hosts    []string `json:"hosts,omitempty"`
+	ID        string          `json:"id"`
+	ExitCode  int             `json:"exit_code"`
+	Error     string          `json:"error,omitempty"`
+	Command   []string        `json:"command,omitempty"`
+	Hosts     []string        `json:"hosts,omitempty"`
+	Diagnoses []ruleDiagnosis `json:"diagnoses,omitempty"`
 }
 
 type RunSummary struct {
@@ -198,6 +199,74 @@ func arrayTaskIDs(array *ArraySpec) []int {
 	return tasks
 }
 
+func validateQueueJobs(queue Queue) error {
+	expandedIDs := make(map[string]bool)
+	for _, command := range queue.Commands {
+		if !isValidPathElement(command.ID) {
+			return fmt.Errorf("invalid job ID %q", command.ID)
+		}
+		if len(command.Command) == 0 || command.Command[0] == "" {
+			return fmt.Errorf("job %q has an empty command", command.ID)
+		}
+		for _, argument := range command.Command {
+			if strings.ContainsRune(argument, '\x00') {
+				return fmt.Errorf("job %q command contains a NUL byte", command.ID)
+			}
+		}
+		if err := validateEnvironment(command.Environment); err != nil {
+			return fmt.Errorf("job %q has invalid environment: %w", command.ID, err)
+		}
+		if strings.ContainsRune(command.WorkingDirectory, '\x00') {
+			return fmt.Errorf("job %q working directory contains a NUL byte", command.ID)
+		}
+		if command.Array != nil {
+			if err := validateArraySpec(command.Array); err != nil {
+				return fmt.Errorf("job %q has invalid array: %w", command.ID, err)
+			}
+		}
+		jobIDs := []string{command.ID}
+		if command.Array != nil {
+			jobIDs = make([]string, 0, len(arrayTaskIDs(command.Array)))
+			for _, task := range arrayTaskIDs(command.Array) {
+				jobIDs = append(jobIDs, fmt.Sprintf("%s-%d", command.ID, task))
+			}
+		}
+		for _, jobID := range jobIDs {
+			if expandedIDs[jobID] {
+				return fmt.Errorf("duplicate job ID %q", jobID)
+			}
+			expandedIDs[jobID] = true
+		}
+	}
+	return nil
+}
+
+func validateArraySpec(array *ArraySpec) error {
+	if array.First < 0 || array.Last < 0 {
+		return errors.New("task indexes must not be negative")
+	}
+	if array.First > array.Last {
+		return errors.New("first index must not be greater than last index")
+	}
+	if len(array.Tasks) == 0 {
+		return nil
+	}
+	if array.Tasks[0] != array.First || array.Tasks[len(array.Tasks)-1] != array.Last {
+		return errors.New("first and last indexes must match the selected tasks")
+	}
+	previous := array.First - 1
+	for _, task := range array.Tasks {
+		if task < array.First || task > array.Last {
+			return fmt.Errorf("task index %d is outside %d-%d", task, array.First, array.Last)
+		}
+		if task <= previous {
+			return fmt.Errorf("task indexes must be strictly increasing: %d", task)
+		}
+		previous = task
+	}
+	return nil
+}
+
 func formatRunLabel(runID, runName string) string {
 	if runName == "" {
 		return runID
@@ -231,6 +300,8 @@ func run(args []string) int {
 	switch args[0] {
 	case "config":
 		return cmdConfig(args[1:])
+	case "check":
+		return cmdCheck(args[1:])
 	case "reset":
 		return cmdReset(args[1:])
 	case "cancel":
@@ -304,7 +375,7 @@ func recoverInterruptedProject(paths pathSet, runID string, discardQueue bool) e
 		return fmt.Errorf("failed to lock queue: %w", err)
 	}
 	defer release()
-	state, currentRunID, err := inspectProjectRunState(paths)
+	state, currentRunID, err := inspectConsistentProjectRunState(paths, true)
 	if err != nil {
 		return err
 	}
@@ -1215,6 +1286,17 @@ func loadQueue(path string) (Queue, error) {
 	return q, nil
 }
 
+func loadRunQueue(paths pathSet, requestedExecutor string, executorOptions []string, settings executorRunSettingsMap) (Queue, error) {
+	queue, err := loadQueue(paths.queueFile)
+	if err != nil {
+		return Queue{}, err
+	}
+	if err := validateQueueForRun(queue, requestedExecutor, executorOptions, settings); err != nil {
+		return Queue{}, err
+	}
+	return queue, nil
+}
+
 func writeJSON(path string, v any) error {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
@@ -1254,6 +1336,36 @@ func acquireStateLock(lockPath string) (func(), error) {
 	deadline := time.Now().Add(stateLockTimeout)
 	for {
 		err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EAGAIN) {
+			f.Close()
+			return nil, err
+		}
+		if time.Now().After(deadline) {
+			f.Close()
+			return nil, fmt.Errorf("timed out waiting %s for state lock", stateLockTimeout)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return func() {
+		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		_ = f.Close()
+	}, nil
+}
+
+func acquireStateReadLock(lockPath string) (func(), error) {
+	f, err := os.OpenFile(lockPath, os.O_RDONLY, stateFileMode()) // NOSONAR: lockPath is resolved from the trusted state root.
+	if errors.Is(err, os.ErrNotExist) {
+		return func() {}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	deadline := time.Now().Add(stateLockTimeout)
+	for {
+		err = syscall.Flock(int(f.Fd()), syscall.LOCK_SH|syscall.LOCK_NB)
 		if err == nil {
 			break
 		}
@@ -1321,29 +1433,44 @@ func acquireLock(lockPath string, info LockInfo) error {
 }
 
 func isRunning(lockPath string) (bool, error) {
+	state, _, err := inspectRunLock(lockPath, true)
+	return state == projectLockActive || state == projectLockRemote, err
+}
+
+type projectLockState string
+
+const (
+	projectLockNone   projectLockState = "none"
+	projectLockActive projectLockState = "active"
+	projectLockStale  projectLockState = "stale"
+	projectLockRemote projectLockState = "remote"
+)
+
+func inspectRunLock(lockPath string, cleanupStale bool) (projectLockState, LockInfo, error) {
 	lock, err := loadLockInfo(lockPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return false, nil
+			return projectLockNone, LockInfo{}, nil
 		}
-		return false, fmt.Errorf("read run lock: %w", err)
+		return projectLockNone, LockInfo{}, fmt.Errorf("read run lock: %w", err)
 	}
 
 	localHost, err := os.Hostname()
 	if err != nil {
-		return false, fmt.Errorf("determine local host: %w", err)
+		return projectLockNone, LockInfo{}, fmt.Errorf("determine local host: %w", err)
 	}
 	if lock.Host == "" || lock.Host != localHost {
-		return true, nil
+		return projectLockRemote, lock, nil
 	}
-	if lock.PID <= 0 || !processAlive(lock.PID) {
-		if removeErr := os.Remove(lockPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) { // NOSONAR: lockPath is the resolved state lock.
-			return false, removeErr
+	if lock.PID > 0 && processAlive(lock.PID) {
+		return projectLockActive, lock, nil
+	}
+	if cleanupStale {
+		if err := os.Remove(lockPath); err != nil && !errors.Is(err, os.ErrNotExist) { // NOSONAR: lockPath is the resolved state lock.
+			return projectLockStale, lock, err
 		}
-		return false, nil
 	}
-
-	return true, nil
+	return projectLockStale, lock, nil
 }
 
 type projectRunState int
@@ -1355,37 +1482,103 @@ const (
 )
 
 func inspectProjectRunState(paths pathSet) (projectRunState, string, error) {
-	running, err := isRunning(paths.lockFile)
+	inspection, err := inspectProjectState(paths, true)
+	return inspection.State, inspection.RunID, err
+}
+
+type projectStateInspection struct {
+	State     projectRunState
+	RunID     string
+	Lock      projectLockState
+	LockRunID string
+}
+
+func inspectProjectState(paths pathSet, cleanupStale bool) (projectStateInspection, error) {
+	lockState, lock, err := inspectRunLock(paths.lockFile, cleanupStale)
 	if err != nil {
-		return projectIdle, "", err
+		return projectStateInspection{}, err
 	}
-	if running {
-		lock, err := loadLockInfo(paths.lockFile)
-		if err != nil {
-			return projectIdle, "", err
-		}
-		return projectRunning, lock.RunID, nil
+	if lockState == projectLockActive || lockState == projectLockRemote {
+		return projectStateInspection{State: projectRunning, RunID: lock.RunID, Lock: lockState, LockRunID: lock.RunID}, nil
 	}
 	meta, err := loadMeta(paths.metaFile)
 	if err != nil {
-		return projectIdle, "", err
+		return projectStateInspection{}, err
 	}
 	switch meta.Phase {
 	case "collecting", "running", "cancelling", "finished":
 	default:
-		return projectIdle, "", fmt.Errorf("unknown project phase %q", meta.Phase)
+		return projectStateInspection{}, fmt.Errorf("unknown project phase %q", meta.Phase)
 	}
 	if (meta.Phase == "running" || meta.Phase == "cancelling") && meta.LastRunID != "" {
-		return projectInterrupted, meta.LastRunID, nil
+		return projectStateInspection{State: projectInterrupted, RunID: meta.LastRunID, Lock: lockState, LockRunID: lock.RunID}, nil
 	}
-	return projectIdle, "", nil
+	return projectStateInspection{State: projectIdle, Lock: lockState, LockRunID: lock.RunID}, nil
+}
+
+func validateProjectStateConsistency(paths pathSet, inspection projectStateInspection) error {
+	if inspection.Lock != projectLockNone && !isValidPathElement(inspection.LockRunID) {
+		return fmt.Errorf("invalid run ID %q in run lock", inspection.LockRunID)
+	}
+	meta, err := loadMeta(paths.metaFile)
+	if err != nil {
+		return fmt.Errorf("load metadata: %w", err)
+	}
+	if inspection.State == projectIdle {
+		if meta.Phase == "running" || meta.Phase == "cancelling" {
+			return fmt.Errorf("metadata phase is %q but last_run_id is empty", meta.Phase)
+		}
+		return nil
+	}
+	if !isValidPathElement(inspection.RunID) {
+		return fmt.Errorf("invalid run ID %q", inspection.RunID)
+	}
+	if meta.LastRunID != inspection.RunID {
+		return fmt.Errorf("run lock/state identifies %q but metadata identifies %q", inspection.RunID, meta.LastRunID)
+	}
+	if meta.Phase != "running" && meta.Phase != "cancelling" && !(inspection.State == projectRunning && meta.Phase == "finished") {
+		return fmt.Errorf("run %q is active or interrupted but metadata phase is %q", inspection.RunID, meta.Phase)
+	}
+	if inspection.Lock == projectLockStale && inspection.LockRunID != "" && inspection.LockRunID != inspection.RunID {
+		return fmt.Errorf("run lock identifies %q but metadata identifies %q", inspection.LockRunID, inspection.RunID)
+	}
+	runDir, err := validatedRunDir(paths, inspection.RunID)
+	if err != nil {
+		return err
+	}
+	if info, err := os.Stat(runDir); err != nil {
+		return fmt.Errorf("run %q directory is missing: %w", inspection.RunID, err)
+	} else if !info.IsDir() {
+		return fmt.Errorf("run %q path is not a directory", inspection.RunID)
+	}
+	if err := requireRunStateFile(runDir, "context.json", inspection.RunID); err != nil {
+		return err
+	}
+	if inspection.State == projectInterrupted {
+		if err := requireRunStateFile(runDir, "commands.json", inspection.RunID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func requireRunStateFile(runDir, name, runID string) error {
+	info, err := os.Stat(filepath.Join(runDir, name))
+	if err != nil {
+		return fmt.Errorf("run %q is missing %s: %w", runID, name, err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("run %q %s is not a regular file", runID, name)
+	}
+	return nil
 }
 
 func ensureProjectIdleForPaths(paths pathSet, operation string) error {
-	state, runID, err := inspectProjectRunState(paths)
+	inspection, err := inspectConsistentProjectState(paths, true)
 	if err != nil {
 		return fmt.Errorf("failed to check project state: %w", err)
 	}
+	state, runID := inspection.State, inspection.RunID
 	switch state {
 	case projectRunning:
 		return fmt.Errorf("project %q is running; %s is not allowed", paths.queueName, operation)
@@ -1402,6 +1595,30 @@ func ensureProjectIdleForPaths(paths pathSet, operation string) error {
 	default:
 		return nil
 	}
+}
+
+func inspectConsistentProjectRunState(paths pathSet, cleanupStale bool) (projectRunState, string, error) {
+	inspection, err := inspectConsistentProjectState(paths, cleanupStale)
+	if err != nil {
+		return projectIdle, "", err
+	}
+	return inspection.State, inspection.RunID, nil
+}
+
+func inspectConsistentProjectState(paths pathSet, cleanupStale bool) (projectStateInspection, error) {
+	inspection, err := inspectProjectState(paths, false)
+	if err != nil {
+		return projectStateInspection{}, err
+	}
+	if err := validateProjectStateConsistency(paths, inspection); err != nil {
+		return projectStateInspection{}, err
+	}
+	if cleanupStale && inspection.Lock == projectLockStale {
+		if err := os.Remove(paths.lockFile); err != nil && !errors.Is(err, os.ErrNotExist) { // NOSONAR: lockFile is rooted in the resolved project directory.
+			return projectStateInspection{}, err
+		}
+	}
+	return inspection, nil
 }
 
 // interruptedRunJobStatus summarizes what a run's own job directories report

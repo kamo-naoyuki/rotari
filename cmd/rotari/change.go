@@ -123,6 +123,9 @@ func changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, request
 	if err := applyChangeMutation(queue, jobIndex, mutation); err != nil {
 		return "", err
 	}
+	if err := validateQueueJobs(queue); err != nil {
+		return "", err
+	}
 	if err := validateDependencies(queueToJobs(queue.Commands)); err != nil {
 		return "", fmt.Errorf("invalid dependencies: %w", err)
 	}

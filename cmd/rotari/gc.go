@@ -118,8 +118,8 @@ func validRunRegistryLocation(location runLocation) bool {
 }
 
 func runLocationExists(location runLocation) bool {
-	_, err := os.Stat(filepath.Join(location.BaseDir, "projects", location.ProjectName, "runs", location.RunID))
-	return err == nil
+	info, err := os.Stat(filepath.Join(location.BaseDir, "projects", location.ProjectName, "runs", location.RunID))
+	return err == nil && info.IsDir()
 }
 
 func applyRunRegistryGC(masterDir string) int {

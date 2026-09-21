@@ -190,6 +190,7 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 			// Neither executed nor carried forward: leave it unfinished.
 			continue
 		}
+		result = diagnoseJobResult(runDir, result)
 		summary.Results = append(summary.Results, result)
 		if result.ExitCode != 0 {
 			summary.ExitCode = 1

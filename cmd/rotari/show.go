@@ -88,7 +88,7 @@ func cmdShow(args []string) int {
 			return 1
 		}
 		if multiple {
-			printErrorf("WARNING: multiple projects exist in state directory %q; showing project list. Please specify one with --project-name or ROTARI_PROJECT_NAME", baseDir)
+			printWarningf("WARNING: multiple projects exist in state directory %q; showing project list. Please specify one with --project-name or ROTARI_PROJECT_NAME", baseDir)
 			return showProjects(baseDir)
 		}
 	}
@@ -1317,6 +1317,14 @@ func showJob(writer io.Writer, paths pathSet, runID, jobID string) int {
 		}
 	}
 	command := readJSONCommand(filepath.Join(jobDir, commandJSONName))
+	if summary, err := loadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
+		for _, result := range summary.Results {
+			if result.ID == jobSpecs[jobID].ID {
+				writeJobDiagnoses(writer, result.Diagnoses)
+				break
+			}
+		}
+	}
 	fmt.Fprintf(writer, "%s %s\n", cyan("Command:"), command)
 	fmt.Fprintf(writer, "%s %s\n\n", cyan("Output:"), filepath.Join(jobDir, "output"))
 	output, err := os.ReadFile(filepath.Join(jobDir, "output"))
@@ -1324,6 +1332,16 @@ func showJob(writer io.Writer, paths pathSet, runID, jobID string) int {
 		fmt.Fprint(writer, string(output))
 	}
 	return 0
+}
+
+func writeJobDiagnoses(writer io.Writer, diagnoses []ruleDiagnosis) {
+	if len(diagnoses) == 0 {
+		return
+	}
+	fmt.Fprintf(writer, "%s\n", cyan("Diagnosis:"))
+	for _, diagnosis := range diagnoses {
+		fmt.Fprintf(writer, "  %s\n    Evidence: %s\n    Next: %s\n", diagnosis.Name, diagnosis.Evidence, diagnosis.Suggestion)
+	}
 }
 
 func readJobStatus(path string) (int, bool) {

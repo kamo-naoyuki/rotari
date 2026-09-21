@@ -42,6 +42,10 @@ func TestCmdRunWithRunIDRejectsRunningProjectBeforeQueueConfirmation(t *testing.
 	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
+		t.Fatal(err)
+	}
+	writeTestRunStateFiles(t, paths, "active-run")
 	defer os.Remove(paths.lockFile)
 
 	oldStderr := os.Stderr
@@ -117,6 +121,7 @@ func TestEnqueueCommandRejectsInterruptedRunWithoutChangingQueue(t *testing.T) {
 	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "interrupted-run"}); err != nil {
 		t.Fatal(err)
 	}
+	writeTestRunStateFiles(t, paths, "interrupted-run")
 
 	_, err = enqueueCommand(baseDir, "default", []string{"duplicate"}, "", nil, nil, "", nil)
 	if err == nil || !strings.Contains(err.Error(), `project "default" has interrupted run "interrupted-run"; add is not allowed`) {

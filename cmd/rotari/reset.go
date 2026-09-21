@@ -37,7 +37,7 @@ func cmdReset(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	state, runID, err := inspectProjectRunState(paths)
+	state, runID, err := inspectConsistentProjectRunState(paths, true)
 	if err != nil {
 		printErrorf("failed to check project state: %v", err)
 		return 1
@@ -48,7 +48,7 @@ func cmdReset(args []string) int {
 			if !waitForCancellation(paths, queueName) {
 				return 1
 			}
-			state, runID, err = inspectProjectRunState(paths)
+			state, runID, err = inspectConsistentProjectRunState(paths, true)
 			if err != nil {
 				printErrorf("failed to check project state: %v", err)
 				return 1

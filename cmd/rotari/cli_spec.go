@@ -90,6 +90,14 @@ var cliCommandSpecs = []cliCommandSpec{
 		),
 	},
 	{
+		Name:        "check",
+		Description: "check whether a project is ready to run",
+		Flags: append(commonCLIFlags(),
+			cliFlagSpec{Name: "json", Description: "print machine-readable JSON"},
+			cliFlagSpec{Name: "deep", Description: "check local executables and working directories"},
+		),
+	},
+	{
 		Name:        "reset",
 		Description: "discard the current, not-yet-run queue",
 		Flags: append(commonCLIFlags(),
@@ -185,10 +193,11 @@ var cliCommandSpecs = []cliCommandSpec{
 	},
 	{
 		Name:        "diagnose",
-		Description: "send one job's command and log tail to an LLM for diagnosis",
+		Description: "diagnose one job with an LLM or local error rules",
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "run-id", Description: "run ID", ValueName: "ID"},
 			cliFlagSpec{Name: "job-id", Description: "failed job ID", ValueName: "ID"},
+			cliFlagSpec{Name: "rules", Description: "use local rule-based diagnosis without calling an LLM"},
 			cliFlagSpec{Name: "provider", Description: "LLM provider: openai, openai-chat, anthropic, gemini, or cohere", ValueName: "PROVIDER", Values: []string{"openai", "openai-chat", "anthropic", "gemini", "cohere"}},
 			cliFlagSpec{Name: "endpoint", Description: "LLM API endpoint", ValueName: "URL"},
 			cliFlagSpec{Name: "model", Description: "LLM model name", ValueName: "MODEL"},
@@ -412,7 +421,16 @@ func cliString(fs *flag.FlagSet, name, defaultValue string) *string {
 		}
 	}
 	target := new(string)
+	*target = defaultValue
 	description := cliFlagDescription(spec)
+	if len(spec.Values) > 0 {
+		value := &cliChoiceValue{target: target, choices: spec.Values}
+		fs.Var(value, spec.Name, description)
+		if short := cliShortFlagNames[name]; short != "" {
+			fs.Var(value, short, description+" (shorthand)")
+		}
+		return target
+	}
 	fs.StringVar(target, spec.Name, defaultValue, description)
 	if short := cliShortFlagNames[name]; short != "" {
 		fs.StringVar(target, short, defaultValue, description+" (shorthand)")
@@ -420,11 +438,37 @@ func cliString(fs *flag.FlagSet, name, defaultValue string) *string {
 	return target
 }
 
-func cliFlagDescription(spec cliFlagSpec) string {
-	if envName := cliEnvironmentVariable(spec.Name); envName != "" {
-		return spec.Description + " (env: " + envName + ")"
+type cliChoiceValue struct {
+	target  *string
+	choices []string
+}
+
+func (value *cliChoiceValue) String() string {
+	if value == nil || value.target == nil {
+		return ""
 	}
-	return spec.Description
+	return *value.target
+}
+
+func (value *cliChoiceValue) Set(candidate string) error {
+	for _, choice := range value.choices {
+		if candidate == choice {
+			*value.target = candidate
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid choice %q (choose from %s)", candidate, strings.Join(value.choices, ", "))
+}
+
+func cliFlagDescription(spec cliFlagSpec) string {
+	description := spec.Description
+	if len(spec.Values) > 0 {
+		description += " (choices: " + strings.Join(spec.Values, ", ") + ")"
+	}
+	if envName := cliEnvironmentVariable(spec.Name); envName != "" {
+		description += " (env: " + envName + ")"
+	}
+	return description
 }
 
 func cliEnvironmentVariable(name string) string {

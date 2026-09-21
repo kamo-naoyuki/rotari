@@ -89,6 +89,10 @@ func TestCmdRemoveRejectsRunningProject(t *testing.T) {
 	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
+		t.Fatal(err)
+	}
+	writeTestRunStateFiles(t, paths, "active-run")
 	defer os.Remove(paths.lockFile)
 
 	oldStderr := os.Stderr

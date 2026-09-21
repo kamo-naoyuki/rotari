@@ -27,9 +27,12 @@ func colorText(text, color string, file *os.File) string {
 func green(text string) string    { return colorText(text, ansiGreen, os.Stdout) }
 func red(text string) string      { return colorText(text, ansiRed, os.Stdout) }
 func redError(text string) string { return colorText(text, ansiRed, os.Stderr) }
-func yellow(text string) string   { return colorText(text, ansiYellow, os.Stdout) }
-func cyan(text string) string     { return colorText(text, ansiCyan, os.Stdout) }
-func white(text string) string    { return colorText(text, ansiWhite, os.Stdout) }
+func yellowError(text string) string {
+	return colorText(text, ansiYellow, os.Stderr)
+}
+func yellow(text string) string { return colorText(text, ansiYellow, os.Stdout) }
+func cyan(text string) string   { return colorText(text, ansiCyan, os.Stdout) }
+func white(text string) string  { return colorText(text, ansiWhite, os.Stdout) }
 
 func colorLabeledDetails(details string, failed bool) string {
 	lines := strings.SplitAfter(details, "\n")
@@ -69,6 +72,11 @@ func printError(a ...any) {
 // printErrorf formats and writes a red-colored error line to stderr.
 func printErrorf(format string, a ...any) {
 	fmt.Fprintln(os.Stderr, redError(fmt.Sprintf(format, a...)))
+}
+
+// printWarningf formats and writes a yellow warning line to stderr.
+func printWarningf(format string, a ...any) {
+	fmt.Fprintln(os.Stderr, yellowError(fmt.Sprintf(format, a...)))
 }
 
 func colorMessage(message string) string {

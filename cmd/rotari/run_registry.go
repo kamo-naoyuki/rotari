@@ -113,6 +113,9 @@ func resolveExistingRunTarget(cliBaseDir, cliProjectName, runID string) (string,
 			if cliProjectName == "" {
 				cliProjectName = location.ProjectName
 			}
+			if !runLocationExists(location) {
+				return "", "", fmt.Errorf("run %q is registered but its run directory is missing; run 'rotari gc' to inspect stale registry entries", runID)
+			}
 		}
 	}
 	baseDir, _, err := resolveBaseDir(cliBaseDir)

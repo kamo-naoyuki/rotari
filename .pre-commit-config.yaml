@@ -20,7 +20,7 @@ repos:
 
       - id: gofmt-check
         name: gofmt check
-        entry: bash -c 'test -z "$(gofmt -l .)"'
+        entry: bash -c 'test -z "$(gofmt -l $(git ls-files "*.go"))"'
         language: system
         pass_filenames: false
 
