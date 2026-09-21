@@ -29,7 +29,7 @@ laptop or logged into a remote compute node.
 ## How is rotari different?
 
 Rotari focuses on **managing the iteration of experiments**, rather than executing or distributing individual tasks.
-If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the model should feel familiar: commands are dispatched locally or to a cluster, with logs and success/failure tracked consistently across backends. rotari extends this idea with persistent run history and experiment-oriented iteration.
+If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the model should feel familiar: commands are dispatched locally or to a cluster, with logs and success/failure tracked consistently across backends. Rotari extends this idea with persistent run history and experiment-oriented iteration.
 
 * **[Shell scripts](https://www.gnu.org/software/bash/)** are flexible and easy to start with, but repeated executions and their history are usually managed manually. rotari makes that iteration history explicit.
 * **[GNU Parallel](https://www.gnu.org/software/parallel/)** makes it easy to run many shell commands in parallel. rotari goes further by giving those executions persistent identities, logs, status, and an iteration history.
@@ -288,7 +288,7 @@ This is intentionally a thin wrapper, not a Python-native
 job executor: it accepts command argument lists such as `['./train.sh']`, not
 Python functions to serialize and submit. For a function-oriented Python job
 submission framework, see [Submitit](https://github.com/facebookincubator/submitit);
-rotari instead exposes the existing CLI and its local, SSH, and scheduler
+Rotari instead exposes the existing CLI and its local, SSH, and scheduler
 backends to Python.
 
 ## Local web UI
@@ -322,7 +322,7 @@ On a run page, use the `AI` button for the whole run or for an individual job
 to preview a Markdown report containing its execution details, saved diagnosis,
 and recent relevant output. `Copy` copies that report, while the `Open ChatGPT`,
 `Open Gemini`, and `Open Claude` buttons copy it and open the selected service in a new tab.
-rotari never submits the report automatically; paste and send it yourself after
+Rotari never submits the report automatically; paste and send it yourself after
 reviewing it. Log, diagnosis, and path dialogs also provide direct copy actions,
 including copying only the last 100 log lines. Reports redact known hostnames
 and paths, plus common absolute-path and fully-qualified-hostname patterns in
@@ -403,17 +403,20 @@ Use `--env KEY=VALUE` with `add` to save environment variables on a job. They
 are exported for every executor, including local, SSH, Slurm, PBS, and LSF, and
 are preserved when the job is copied or retried. `rotari change --env KEY=VALUE`
 replaces the job's saved environment; repeat it for multiple variables, or use
-`--clear-env` to remove them. rotari's own `ROTARI_*` context variables take
+`--clear-env` to remove them. Rotari's own `ROTARI_*` context variables take
 precedence over a same-named user value.
 
 ### SSH executor
 
 For the `ssh` executor, the first `--executor-option` is the SSH destination;
-remaining options are passed to `ssh`. rotari runs the command over that SSH
+remaining options are passed to `ssh`. Rotari runs the command over that SSH
 session, then stores its output, exit status, and destination host in the
 local run directory. Use `--working-directory DIR` to set the execution
 directory; for SSH this is a directory on the remote host. It can be changed
-later with `rotari change` or the web UI.
+later with `rotari change` or the web UI. The remote host must provide Linux
+`/proc`, `setsid`, and standard Linux command-line utilities. Rotari runs each
+remote job in its own process group; cancellation reconnects over SSH and sends
+`SIGTERM` only after the recorded PID and process start time still match.
 
 ```sh
 rotari add --project-name build \
@@ -842,7 +845,7 @@ flowchart LR
 
 ## State and project resolution
 
-rotari resolves the state directory before it resolves the project name. The
+Rotari resolves the state directory before it resolves the project name. The
 first matching state-directory entry wins:
 
 The resolution order for the state directory is:
@@ -946,7 +949,7 @@ new event would exceed that limit.
 
 ## Run registry maintenance
 
-Run IDs do not contain the base directory or project name. rotari therefore
+Run IDs do not contain the base directory or project name. Rotari therefore
 keeps a master **run registry**, a lookup table that maps each run ID back to
 the base directory and project that own it. This lets commands such as
 `show --run-id`, `wait --run-id`, and `copy --run-id` work without repeating
@@ -997,7 +1000,7 @@ Multiple hosts may use the same queue when they share the same state directory
 (`--basedir` or `ROTARI_BASEDIR`) on an NFS filesystem. Queue updates such as
 `add`, `change`, `remove`, `copy`, `run`, and `delete` are serialized with an
 advisory file lock. NFSv4 servers and clients must be configured to support
-file locking. rotari waits up to 30 seconds when another update holds this
+file locking. Rotari waits up to 30 seconds when another update holds this
 lock, then returns an error; it does not remove the advisory lock file because
 doing so cannot release an active `flock` lock safely.
 

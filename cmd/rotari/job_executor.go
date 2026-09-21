@@ -27,11 +27,19 @@ func writeSchedulerStatus(jobDir, state string) {
 	if state == "" {
 		return
 	}
-	_ = writeJSON(filepath.Join(jobDir, "scheduler_status.json"), schedulerStatus{State: state, UpdatedAt: nowRFC3339()})
+	path, err := validatedStateFile(jobDir, "scheduler_status.json")
+	if err != nil {
+		return
+	}
+	_ = writeJSON(path, schedulerStatus{State: state, UpdatedAt: nowRFC3339()})
 }
 
 func loadSchedulerStatus(jobDir string) string {
-	data, err := os.ReadFile(filepath.Join(jobDir, "scheduler_status.json"))
+	path, err := validatedStateFile(jobDir, "scheduler_status.json")
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}

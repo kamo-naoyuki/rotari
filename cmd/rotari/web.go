@@ -341,14 +341,27 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("project_name, run_id and job_id are required"))
 			return
 		}
-		projectDir := filepath.Join(baseDir, "projects", filepath.Base(queueName))
-		runDir := filepath.Join(projectDir, "runs", filepath.Base(runID))
+		projectDir, err := joinValidatedPath(filepath.Join(baseDir, "projects"), queueName)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		runDir, err := joinValidatedPath(filepath.Join(projectDir, "runs"), runID)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
 		jobDir, err := validatedJobDir(runDir, jobID)
 		if err != nil {
 			writeWebError(writer, err)
 			return
 		}
-		data, err := os.ReadFile(filepath.Join(jobDir, "output")) // NOSONAR: jobDir is built only after validWebID and validatedJobDir checks.
+		path, err := validatedStateFile(jobDir, "output")
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		data, err := os.ReadFile(path)
 		if err != nil {
 			writeWebError(writer, err)
 			return

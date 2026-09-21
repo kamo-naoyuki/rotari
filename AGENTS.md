@@ -1,43 +1,137 @@
 # AGENTS.md
 
-Before changing behavior or persistent state, read `docs/internals.md`. It
-summarizes the architecture, invariants, resolution rules, and code ownership.
-Update it when a change alters those contracts, but do not duplicate details
-that are clear from the code or the user-facing README.
+## Project overview
 
-A user-visible specification change (CLI options, resolution rules, run/queue
-semantics, etc.) generally needs updates in three places: `README.md` (feature
-behavior), `docs/faq.md` (affected Q&A, if any), and `docs/internals.md`
-(cross-cutting contracts). Check all three before considering the change done.
+`rotari` is a tool for managing and running jobs.
 
-Job status/result display has two independent implementations that must be
-kept in sync: `showJob`/`showRun` (`cmd/rotari/show.go`, CLI) and
-`loadWebJobs` (`cmd/rotari/web.go`, web UI). Both walk the same fallback chain
-(job's own `status`/`status.json` file, scheduler state, then
-`summary.json`'s `Results`) to decide what a job's status/error is. When
-adding a new source of truth or a new terminal state, update both, or one
-will silently show less than the other.
+Use `rotari` for the tool name in code, commands, inline code, and mid-sentence
+prose. At the beginning of an English sentence, capitalize it as `Rotari`.
 
-Common mistakes to avoid when editing this project:
+Before making changes, inspect the relevant existing implementation and tests.
+Do not assume behavior from names alone.
 
-- Tests that create Unix domain sockets cannot run in the terminal sandbox here;
-  do not retry the full Go test suite in the sandbox after seeing `operation not
-  permitted`. Run socket-dependent tests unsandboxed when validation is needed,
-  and report the environment limitation if unsandboxed execution is unavailable.
+## General rules
 
-- Treat project names, run IDs, and job IDs as path elements, not as arbitrary
-  strings. Validate them before any `filepath.Join`, `os.ReadFile`, or
-  `os.Stat` call. A value that is empty, `.`/`..`, absolute, or contains `/`
-  or `\` must be rejected, even if it looks harmless on one OS.
-- Do not duplicate validation ad hoc in one CLI path and forget the web or API
-  layer. The same guard must be reused across CLI, server, and web handlers,
-  otherwise a request path can bypass the stricter client-side checks.
-- When a status/result source is displayed in two places, keep those code paths
-  synchronized. A change in the fallback chain or terminal-state rules must be
-  mirrored in both `show` and `web` implementations.
-- A small-looking change to path construction can become a traversal bug if it
-  only checks `filepath.Base` or only rejects `/` while ignoring `\`.
-  The project intentionally blocks both separators to keep state under the
-  resolved base directory.
-- Write the project name as `rotari` in lowercase. Use `Rotari` only when it
-  appears at the beginning of a sentence and capitalization is unavoidable.
+* Keep changes focused on the requested task.
+* Do not refactor unrelated code.
+* Do not introduce new dependencies unless necessary for the task.
+* Preserve existing public behavior unless the task explicitly requires changing it.
+* Follow the existing code style and architecture.
+* Prefer small, local changes over broad rewrites.
+* Do not modify generated files unless the task explicitly requires it.
+
+## Before changing code
+
+Read the relevant implementation and tests first.
+
+If the change affects any of the following, also read `docs/INTERNALS.md`:
+
+* job state
+* scheduling
+* queue behavior
+* result or status resolution
+* persistent state
+* filesystem behavior
+* CLI behavior
+* web/API behavior
+
+When unsure whether a change affects these areas, read `docs/INTERNALS.md`.
+
+## Project invariants
+
+These rules are important and must not be violated.
+
+### Status / result resolution
+
+`showJob` / `showRun` and `loadWebJobs` use the same fallback chain.
+
+If the fallback behavior changes, inspect and update all relevant implementations.
+Do not change only one side.
+
+### Paths
+
+Path elements must be treated as arbitrary strings and must not be interpreted as filesystem paths.
+
+Both `/` and `\` must be rejected where path separators are not allowed.
+
+Path validation should be performed at the shared boundary rather than independently in each caller.
+
+When changing path handling, inspect all relevant CLI, server, and web code paths.
+
+### CLI / server / web behavior
+
+When changing validation or user-visible behavior, check all relevant interfaces:
+
+* CLI
+* server
+* web UI / API
+
+Do not assume that fixing one interface fixes the others.
+
+## Documentation
+
+A user-visible behavior change may require updates to:
+
+* `README.md`
+* `docs/FAQ.md`
+* `docs/INTERNALS.md`
+
+Examples include changes to:
+
+* CLI options
+* job/run semantics
+* scheduling behavior
+* queue behavior
+* status or result resolution
+* path rules
+* web/API behavior
+
+When behavior changes, inspect all three documents and update every affected document.
+
+## Testing
+
+When changing behavior:
+
+1. Find the existing tests covering the affected behavior.
+2. Add or update tests when appropriate.
+3. Run the smallest relevant test set first.
+4. Run broader tests when the change may affect other components.
+
+Do not modify tests merely to make them pass.
+Tests should reflect the intended behavior.
+
+If tests cannot be run, report that explicitly and explain why.
+
+From the repository root, prefer this validation order:
+
+1. Run the smallest relevant test first, for example `go test ./cmd/rotari -run TestName`.
+2. Run the package tests with `go test ./cmd/rotari`.
+3. For broader validation, run `go test ./...` and `go vet ./...`.
+
+If the Go cache is unavailable in the environment, retry with
+`GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache GOPROXY=off`.
+
+## Before finishing
+
+Before reporting a task as complete:
+
+1. Inspect the final diff.
+2. Verify that the requested behavior is implemented.
+3. Check for unrelated changes.
+4. Run relevant tests.
+5. Check relevant documentation when behavior changed.
+6. Re-check the project invariants above for affected code.
+7. Do not claim tests passed unless they were actually run.
+
+## Scope
+
+Do not:
+
+* perform unrelated refactoring
+* rename public APIs without a requirement
+* change behavior merely to make the implementation cleaner
+* add dependencies without necessity
+* modify unrelated documentation
+* remove existing behavior without an explicit reason
+
+When the task is ambiguous, prefer the smallest change consistent with the request and existing behavior.

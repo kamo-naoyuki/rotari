@@ -152,6 +152,21 @@ func TestValidatedStateDirectoriesRejectTraversal(t *testing.T) {
 	}
 }
 
+func TestJoinValidatedPathRejectsTraversal(t *testing.T) {
+	baseDir := filepath.Join(t.TempDir(), "runs")
+	got, err := joinValidatedPath(baseDir, "run-1")
+	if err != nil {
+		t.Fatalf("joinValidatedPath returned error for safe value: %v", err)
+	}
+	want := filepath.Join(baseDir, "run-1")
+	if got != want {
+		t.Fatalf("joinValidatedPath = %q, want %q", got, want)
+	}
+	if _, err := joinValidatedPath(baseDir, "../outside"); err == nil {
+		t.Fatal("joinValidatedPath accepted traversal value")
+	}
+}
+
 func TestResolveBaseDirPriority(t *testing.T) {
 	const envName = "ROTARI_BASEDIR"
 	old, existed := os.LookupEnv(envName)

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -18,6 +20,8 @@ type sshJobMetadata struct {
 	Command     []string `json:"command"`
 	Host        string   `json:"host"`
 	PID         int      `json:"pid"`
+	SSHOptions  []string `json:"ssh_options,omitempty"`
+	RemoteToken string   `json:"remote_token,omitempty"`
 	SubmittedAt string   `json:"submitted_at"`
 }
 
@@ -42,6 +46,10 @@ func (sshExecutor) Submit(runDir string, job JobSpec, options []string) (JobHand
 	if err != nil {
 		return JobHandle{}, err
 	}
+	remoteToken, err := makeSSHRemoteToken()
+	if err != nil {
+		return JobHandle{}, err
+	}
 	jobDir, err := validatedJobDir(runDir, job.ID)
 	if err != nil {
 		return JobHandle{}, err
@@ -57,14 +65,14 @@ func (sshExecutor) Submit(runDir string, job JobSpec, options []string) (JobHand
 		return JobHandle{}, err
 	}
 	cmd := exec.Command(sshCommandPath, append(sshOptions, "--", host, "sh", "-s")...)
-	cmd.Stdin = strings.NewReader(sshWrapperScript(job.Command, job.Environment, job.WorkingDirectory))
+	cmd.Stdin = strings.NewReader(sshWrapperScript(job.Command, job.Environment, job.WorkingDirectory, remoteToken))
 	cmd.Stdout = output
 	cmd.Stderr = output
 	if err := cmd.Start(); err != nil {
 		_ = output.Close()
 		return JobHandle{}, fmt.Errorf("ssh %s: %w", host, err)
 	}
-	metadata := sshJobMetadata{Executor: "ssh", JobID: job.ID, Command: job.Command, Host: host, PID: cmd.Process.Pid, SubmittedAt: nowRFC3339()}
+	metadata := sshJobMetadata{Executor: "ssh", JobID: job.ID, Command: job.Command, Host: host, PID: cmd.Process.Pid, SSHOptions: sshOptions, RemoteToken: remoteToken, SubmittedAt: nowRFC3339()}
 	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
@@ -117,6 +125,19 @@ func (sshExecutor) Cancel(jobDir string) error {
 	if err != nil {
 		return err
 	}
+	if metadata.RemoteToken != "" {
+		args := append(append([]string{}, metadata.SSHOptions...), "--", metadata.Host, "sh", "-s")
+		cmd := exec.Command(sshCommandPath, args...)
+		cmd.Stdin = strings.NewReader(sshCancelScript(metadata.RemoteToken))
+		if output, err := cmd.CombinedOutput(); err != nil {
+			message := strings.TrimSpace(string(output))
+			if message == "" {
+				message = err.Error()
+			}
+			return fmt.Errorf("cancel remote SSH job: %s", message)
+		}
+		return nil
+	}
 	sshProcesses.Lock()
 	process, ok := sshProcesses.commands[metadata.PID]
 	sshProcesses.Unlock()
@@ -133,6 +154,9 @@ func readSSHMetadata(jobDir string) (sshJobMetadata, error) {
 	}
 	var metadata sshJobMetadata
 	if err := json.Unmarshal(data, &metadata); err != nil || metadata.Executor != "ssh" {
+		return sshJobMetadata{}, fmt.Errorf("invalid SSH metadata")
+	}
+	if metadata.RemoteToken != "" && !validSSHRemoteToken(metadata.RemoteToken) {
 		return sshJobMetadata{}, fmt.Errorf("invalid SSH metadata")
 	}
 	return metadata, nil
@@ -152,7 +176,23 @@ func sshTarget(options []string) (string, []string, error) {
 	return expanded[0], expanded[1:], nil
 }
 
-func sshWrapperScript(command []string, environment []string, workingDirectory string) string {
+func makeSSHRemoteToken() (string, error) {
+	var value [16]byte
+	if _, err := rand.Read(value[:]); err != nil {
+		return "", fmt.Errorf("generate SSH remote token: %w", err)
+	}
+	return hex.EncodeToString(value[:]), nil
+}
+
+func validSSHRemoteToken(token string) bool {
+	if len(token) != 32 {
+		return false
+	}
+	_, err := hex.DecodeString(token)
+	return err == nil
+}
+
+func sshWrapperScript(command []string, environment []string, workingDirectory, remoteToken string) string {
 	exports := make([]string, 0, len(environment))
 	for _, entry := range environment {
 		parts := strings.SplitN(entry, "=", 2)
@@ -168,5 +208,64 @@ func sshWrapperScript(command []string, environment []string, workingDirectory s
 	if workingDirectory != "" {
 		changeDirectory = "cd " + shellQuote(workingDirectory) + " || exit 1\n"
 	}
-	return "#!/bin/sh\nset +e\n" + strings.Join(exports, "\n") + "\n" + changeDirectory + "exec " + strings.Join(quoted, " ") + "\n"
+	return `#!/bin/sh
+set +e
+umask 077
+runtime_base=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}
+state_root="$runtime_base/rotari-$(id -u)"
+mkdir "$state_root" 2>/dev/null || { [ -d "$state_root" ] && [ ! -L "$state_root" ]; } || exit 1
+[ "$(stat -c %u "$state_root" 2>/dev/null)" = "$(id -u)" ] || exit 1
+[ "$(stat -c %a "$state_root" 2>/dev/null)" = "700" ] || exit 1
+state_dir="$state_root/` + remoteToken + `"
+mkdir "$state_dir" || exit 1
+read_start_time() {
+	process_stat=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+	process_stat=${process_stat##*) }
+	set -- $process_stat
+	[ "$#" -ge 20 ] || return 1
+	shift 19
+	printf '%s\n' "$1"
+}
+` + strings.Join(exports, "\n") + "\n" + changeDirectory + `setsid sh -c 'exec "$@"' sh ` + strings.Join(quoted, " ") + ` &
+remote_pid=$!
+if remote_start=$(read_start_time "$remote_pid"); then
+	printf '%s %s\n' "$remote_pid" "$remote_start" > "$state_dir/process.tmp" && mv "$state_dir/process.tmp" "$state_dir/process"
+fi
+wait "$remote_pid"
+exit_code=$?
+rm -rf "$state_dir"
+exit "$exit_code"
+`
+}
+
+func sshCancelScript(remoteToken string) string {
+	return `#!/bin/sh
+set -eu
+runtime_base=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}
+state_root="$runtime_base/rotari-$(id -u)"
+state_dir="$state_root/` + remoteToken + `"
+attempt=0
+while [ ! -f "$state_dir/process" ]; do
+	attempt=$((attempt + 1))
+	[ "$attempt" -lt 50 ] || { echo 'SSH job is not running' >&2; exit 1; }
+	sleep 0.1
+done
+[ "$(stat -c %u "$state_root" 2>/dev/null)" = "$(id -u)" ] || { echo 'invalid SSH job state owner' >&2; exit 1; }
+[ ! -L "$state_root" ] && [ "$(stat -c %a "$state_root" 2>/dev/null)" = "700" ] || { echo 'invalid SSH job state permissions' >&2; exit 1; }
+[ -f "$state_dir/process" ] || { echo 'SSH job is not running' >&2; exit 1; }
+read remote_pid recorded_start extra < "$state_dir/process"
+case "$remote_pid:$recorded_start" in
+	*[!0-9:]*|:*|*:) echo 'invalid SSH job state' >&2; exit 1 ;;
+esac
+[ -z "${extra:-}" ] || { echo 'invalid SSH job state' >&2; exit 1; }
+process_stat=$(cat "/proc/$remote_pid/stat" 2>/dev/null) || { echo 'SSH job is not running' >&2; exit 1; }
+process_stat=${process_stat##*) }
+set -- $process_stat
+[ "$#" -ge 20 ] || { echo 'invalid remote process state' >&2; exit 1; }
+shift 19
+[ "$1" = "$recorded_start" ] || { echo 'remote PID has been reused; refusing to signal it' >&2; exit 1; }
+remote_pgid=$(ps -o pgid= -p "$remote_pid" | tr -d ' ')
+[ "$remote_pgid" = "$remote_pid" ] || { echo 'remote process group does not match recorded PID' >&2; exit 1; }
+kill -TERM "-$remote_pid"
+`
 }

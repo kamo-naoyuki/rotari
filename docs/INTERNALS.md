@@ -356,9 +356,14 @@ order:
     An SSH path is resolved on the remote host, not from local `context.json`.
 - The SSH executor treats its first executor option as the target host and
     the rest as `ssh` options. It records output and final status locally and
-    does not require the remote host to mount the run directory. Its native ID
-    is the local SSH process ID, so control is possible only while the
-    supervising rotari process remains alive.
+    does not require the remote host to mount the run directory. It starts each
+    command in a remote process group and records the PID plus Linux `/proc`
+    start time under an owner-only runtime directory keyed by a random token.
+    Cancellation opens another SSH connection and signals the group only when
+    the current process start time and group ID match the recorded values. Its
+    native ID remains the local SSH process ID for in-process waiting; legacy
+    jobs without remote metadata can only cancel that local SSH process while
+    the supervising rotari process remains alive.
 
 ## Server and read projections
 

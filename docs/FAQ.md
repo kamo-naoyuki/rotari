@@ -300,15 +300,17 @@ It depends on the executor. `local` runs the job command through its own
 self-reporting wrapper script in its own process group, and sends `SIGTERM` to
 that whole process group, so both the wrapper and the command it launched are
 signaled — but a command that itself spawns further children of its own still
-has to forward the signal to those if you want them killed too. `ssh` sends
-`SIGTERM` to the local `ssh` client process supervising the remote command;
-whether that reaches the remote command depends on your `ssh` options (e.g. a
-`-tt` pseudo-terminal). `slurm`/`pbs`/`lsf` call the scheduler's native cancel
-command (`scancel`/`qdel`/`bkill`) against the job's cluster ID instead of
-signaling a local process. In every case rotari only asks the job to stop
-(`SIGTERM` or the scheduler equivalent); it never escalates to `SIGKILL` for
-you, so a job that ignores the signal keeps running until it exits on its own
-or you intervene manually.
+has to forward the signal to those if you want them killed too. For `ssh`,
+rotari starts the remote command in its own process group and records its PID
+and Linux `/proc` start time in a private runtime directory. Cancellation
+reconnects over SSH, verifies both values to avoid signaling a reused PID, and
+signals that remote process group. Older SSH jobs without this metadata retain
+the previous local-client cancellation behavior. `slurm`/`pbs`/`lsf` call the
+scheduler's native cancel command (`scancel`/`qdel`/`bkill`) against the job's
+cluster ID instead of signaling a local process. In every case rotari only asks
+the job to stop (`SIGTERM` or the scheduler equivalent); it never escalates to
+`SIGKILL` for you, so a job that ignores the signal keeps running until it exits
+on its own or you intervene manually.
 
 ### I ran the runner on one host and `rotari web`/CLI on another over a shared base directory — why do `cancel`/`suspend`/`resume` say the job isn't running even though it clearly is?
 For a `local`-executor job, those commands signal the job by PID, and a PID

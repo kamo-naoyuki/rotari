@@ -1119,18 +1119,30 @@ func isValidPathElement(value string) bool {
 	return filepath.Base(value) == value
 }
 
-func validatedJobDir(runDir, jobID string) (string, error) {
-	if !isValidPathElement(jobID) {
-		return "", fmt.Errorf("invalid job ID %q", jobID)
+func joinValidatedPath(basePath, element string) (string, error) {
+	if !isValidPathElement(element) {
+		return "", fmt.Errorf("invalid path element %q", element)
 	}
-	return filepath.Join(runDir, filepath.Base(jobID)), nil
+	return filepath.Join(basePath, filepath.Base(element)), nil
+}
+
+func validatedStateFile(basePath, fileName string) (string, error) {
+	switch fileName {
+	case "commands.json", "summary.json", "context.json", "output", "scheduler_status.json",
+		"status.json", "status", "submitted_at", "finished_at", "command.json", "job.json",
+		"pid", "cancelled", "name":
+		return filepath.Join(basePath, fileName), nil
+	default:
+		return "", fmt.Errorf("invalid state file name %q", fileName)
+	}
+}
+
+func validatedJobDir(runDir, jobID string) (string, error) {
+	return joinValidatedPath(runDir, jobID)
 }
 
 func validatedRunDir(paths pathSet, runID string) (string, error) {
-	if !isValidPathElement(runID) {
-		return "", fmt.Errorf("invalid run ID %q", runID)
-	}
-	return filepath.Join(paths.runsDir, filepath.Base(runID)), nil
+	return joinValidatedPath(paths.runsDir, runID)
 }
 
 func isValidProjectName(projectName string) bool {

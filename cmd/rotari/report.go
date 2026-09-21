@@ -46,8 +46,10 @@ func buildAIReport(paths pathSet, runID, jobID string, failedOnly bool) (string,
 		return "", err
 	}
 	context := RunContext{}
-	if data, readErr := os.ReadFile(filepath.Join(runDir, "context.json")); readErr == nil {
-		_ = json.Unmarshal(data, &context)
+	if path, err := validatedStateFile(runDir, "context.json"); err == nil {
+		if data, readErr := os.ReadFile(path); readErr == nil {
+			_ = json.Unmarshal(data, &context)
+		}
 	}
 	run := webRun{RunSummary: summary, Jobs: jobs, CWD: context.CWD, Context: context, Running: running}
 	if jobID != "" {
@@ -192,7 +194,11 @@ func readReportLog(paths pathSet, runID string, job webJob) string {
 	if err != nil {
 		return ""
 	}
-	data, err := os.ReadFile(filepath.Join(jobDir, "output"))
+	path, err := validatedStateFile(jobDir, "output")
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}
