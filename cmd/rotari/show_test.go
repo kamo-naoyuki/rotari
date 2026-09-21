@@ -163,6 +163,29 @@ func TestSelectRunIDDoesNotFallbackForMissingRequestedRun(t *testing.T) {
 	}
 }
 
+func TestSelectRunIDResolvesLatestAlias(t *testing.T) {
+	paths, err := resolvePaths(t.TempDir(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(paths.runsDir, "latest-run"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	meta := defaultMeta()
+	meta.LastRunID = "latest-run"
+	if err := writeJSON(paths.metaFile, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	runID, err := selectRunID(paths, "latest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runID != "latest-run" {
+		t.Fatalf("run ID = %q, want latest-run", runID)
+	}
+}
+
 func TestCmdShowDisplaysCurrentQueue(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "demo")
@@ -196,6 +219,45 @@ func TestCmdShowDisplaysCurrentQueue(t *testing.T) {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("cmdShow output does not contain %q:\n%s", want, output)
 		}
+	}
+}
+
+func TestCmdShowWarnsAndSucceedsWhenProjectHasNoRunsOrQueue(t *testing.T) {
+	baseDir := t.TempDir()
+	if _, err := resolvePaths(baseDir, "demo"); err != nil {
+		t.Fatal(err)
+	}
+
+	oldStdout, oldStderr := os.Stdout, os.Stderr
+	stdoutReader, stdoutWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stderrReader, stderrWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout, os.Stderr = stdoutWriter, stderrWriter
+	code := cmdShow([]string{"--basedir", baseDir, "--project-name", "demo"})
+	os.Stdout, os.Stderr = oldStdout, oldStderr
+	_ = stdoutWriter.Close()
+	_ = stderrWriter.Close()
+	stdout, err := io.ReadAll(stdoutReader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stderr, err := io.ReadAll(stderrReader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 {
+		t.Fatalf("cmdShow exit code = %d, want 0; stderr=%q", code, stderr)
+	}
+	if !strings.Contains(string(stderr), "WARNING: project \"demo\" has no runs or queued jobs") {
+		t.Fatalf("cmdShow did not emit empty-project warning: %q", stderr)
+	}
+	if !strings.Contains(string(stdout), "No runs or queued jobs found.") {
+		t.Fatalf("cmdShow did not explain empty project: %q", stdout)
 	}
 }
 
@@ -811,6 +873,11 @@ func TestShowRunsListsRunsSortedByRecency(t *testing.T) {
 	if !strings.Contains(text, "Runs: 2") {
 		t.Fatalf("showRuns did not display the run count:\n%s", text)
 	}
+	for _, want := range []string{"To show jobs in a run:", "rotari show -p PROJECT -r RUN_ID"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("showRuns did not display %q:\n%s", want, text)
+		}
+	}
 	newIndex := strings.Index(text, "run-new")
 	oldIndex := strings.Index(text, "run-old")
 	if newIndex == -1 || oldIndex == -1 || newIndex > oldIndex {
@@ -884,9 +951,56 @@ func TestCmdShowProjectsListsProjectSummaries(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cmdShow exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"Base directory: " + baseDir, "Projects: 2", "demo", "demo-run", "example", "running"} {
+	for _, want := range []string{"Base directory: " + baseDir, "Projects: 2", "demo", "demo-run", "example", "running", "To show runs in a project:", "rotari show -p PROJECT", "To show jobs in a run:", "rotari show -p PROJECT -r latest"} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("cmdShow --projects output does not contain %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestCmdShowFallsBackToProjectsWithWarningWhenProjectIsAmbiguous(t *testing.T) {
+	baseDir := t.TempDir()
+	for _, projectName := range []string{"demo", "example"} {
+		paths, err := resolvePaths(baseDir, projectName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	oldStdout, oldStderr := os.Stdout, os.Stderr
+	stdoutReader, stdoutWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stderrReader, stderrWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout, os.Stderr = stdoutWriter, stderrWriter
+	code := cmdShow([]string{"--basedir", baseDir})
+	os.Stdout, os.Stderr = oldStdout, oldStderr
+	_ = stdoutWriter.Close()
+	_ = stderrWriter.Close()
+	stdout, err := io.ReadAll(stdoutReader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stderr, err := io.ReadAll(stderrReader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 {
+		t.Fatalf("cmdShow exit code = %d, want 0; stderr=%q", code, stderr)
+	}
+	if !strings.Contains(string(stderr), "WARNING: multiple projects exist") {
+		t.Fatalf("cmdShow did not emit warning: %q", stderr)
+	}
+	for _, want := range []string{"Projects: 2", "demo", "example"} {
+		if !strings.Contains(string(stdout), want) {
+			t.Fatalf("cmdShow fallback output does not contain %q:\n%s", want, stdout)
 		}
 	}
 }

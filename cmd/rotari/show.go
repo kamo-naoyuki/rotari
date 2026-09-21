@@ -75,6 +75,23 @@ func cmdShow(args []string) int {
 		}
 		return showBaseDirs(masterDir)
 	}
+	if *queueNameOption == "" && os.Getenv(envProjectName) == "" && *runIDOption == "" &&
+		!(*showQueueOption || *showRunsList || *jobIDOption != "" || *failedOnly || *showLogs || *showFailedLogs || *followLogs || *jsonOutput) {
+		baseDir, _, err := resolveBaseDir(*basedir)
+		if err != nil {
+			printErrorf("failed to resolve state directory: %v", err)
+			return 1
+		}
+		multiple, err := hasMultipleProjects(baseDir)
+		if err != nil {
+			printErrorf("failed to inspect projects directory: %v", err)
+			return 1
+		}
+		if multiple {
+			printErrorf("WARNING: multiple projects exist in state directory %q; showing project list. Please specify one with --project-name or ROTARI_PROJECT_NAME", baseDir)
+			return showProjects(baseDir)
+		}
+	}
 	baseDir, queueName, err := resolveExistingRunTarget(*basedir, *queueNameOption, *runIDOption)
 	if err != nil {
 		printError(err)
@@ -141,6 +158,12 @@ func cmdShow(args []string) int {
 				}
 				return showQueue(paths, queue)
 			}
+			if countProjectRuns(paths.runsDir) == 0 {
+				printErrorf("WARNING: project %q has no runs or queued jobs; nothing to show", paths.queueName)
+				writeShowTargetHeader(os.Stdout, paths)
+				fmt.Println("\nNo runs or queued jobs found.")
+				return 0
+			}
 		}
 	}
 	runID, err := selectRunID(paths, selectedRunID)
@@ -182,6 +205,23 @@ func cmdShow(args []string) int {
 		return showRunJSON(paths, runID)
 	}
 	return showRun(paths, runID, *failedOnly)
+}
+
+func hasMultipleProjects(baseDir string) (bool, error) {
+	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	projectCount := 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			projectCount++
+		}
+	}
+	return projectCount > 1, nil
 }
 
 type showJSON struct {
@@ -347,6 +387,9 @@ func isTerminal(file *os.File) bool {
 }
 
 func selectRunID(paths pathSet, requested string) (string, error) {
+	if requested == "latest" {
+		requested = ""
+	}
 	if requested != "" {
 		if !isValidPathElement(requested) {
 			return "", fmt.Errorf(runNotFoundMessage, requested)
@@ -609,15 +652,15 @@ func printFailedLogHints(runID string, failedJobs []JobSpec) {
 	if len(failedJobs) == 0 {
 		return
 	}
-	selector := "--job-id JOB_ID"
+	selector := "-j JOB_ID"
 	if len(failedJobs) == 1 {
-		selector = "--job-id " + failedJobs[0].ID
+		selector = "-j " + failedJobs[0].ID
 	}
 	fmt.Println("\n" + cyan("Logs:"))
 	fmt.Println("  " + cyan("e.g., Show logs for every failed job:"))
-	fmt.Printf("    rotari show --run-id %s --failed-logs\n", runID)
+	fmt.Printf("    rotari show -r %s --failed-logs\n", runID)
 	fmt.Println("  " + cyan("e.g., Show the log for one failed job:"))
-	fmt.Printf("    rotari show --run-id %s %s\n", runID, selector)
+	fmt.Printf("    rotari show -r %s %s\n", runID, selector)
 }
 
 func printChangeHints(paths pathSet, runID string, queue Queue, jobs []JobSpec) {
@@ -626,7 +669,7 @@ func printChangeHints(paths pathSet, runID string, queue Queue, jobs []JobSpec) 
 	}
 	hasSlurm := false
 	hasDependencies := false
-	selector := "--job-id JOB_ID"
+	selector := "-j JOB_ID"
 	if len(jobs) == 1 && jobs[0].Name != "" {
 		selector = "--job-name " + jobs[0].Name
 	}
@@ -644,14 +687,14 @@ func printChangeHints(paths pathSet, runID string, queue Queue, jobs []JobSpec) 
 	}
 	fmt.Println("\n" + cyan("Change:"))
 	fmt.Println("  " + cyan("e.g., Replace the command:"))
-	fmt.Printf("    rotari change --run-id %s %s -- <new-command ...>\n", runID, selector)
+	fmt.Printf("    rotari change -r %s %s -- <new-command ...>\n", runID, selector)
 	if hasSlurm {
 		fmt.Println("  " + cyan("e.g., Replace the executor options:"))
-		fmt.Printf("    rotari change --run-id %s %s --executor-option=\"<options>\"\n", runID, selector)
+		fmt.Printf("    rotari change -r %s %s --executor-option=\"<options>\"\n", runID, selector)
 	}
 	if hasDependencies {
 		fmt.Println("  " + cyan("e.g., Replace the dependencies:"))
-		fmt.Printf("    rotari change --run-id %s %s --depends-on <job-name>\n", runID, selector)
+		fmt.Printf("    rotari change -r %s %s --depends-on <job-name>\n", runID, selector)
 	}
 	fmt.Println("\n" + cyan("Retry:"))
 	fmt.Printf("    rotari retry --basedir %s --project-name %s\n", paths.baseDir, paths.queueName)
@@ -924,6 +967,8 @@ func showRuns(paths pathSet) int {
 		}
 		fmt.Printf("%-36s %-24s %-12s %-12s %-24s %-24s\n", r.id, name, statusText, exitCode, started, finished)
 	}
+	fmt.Println("\nTo show jobs in a run:")
+	fmt.Println("  rotari show -p PROJECT -r RUN_ID")
 	return 0
 }
 
@@ -986,6 +1031,10 @@ func showProjects(baseDir string) int {
 	for _, project := range projects {
 		fmt.Printf("%-24s %-8d %-14s %s\n", project.name, project.queued, project.state, project.lastRun)
 	}
+	fmt.Println("\nTo show runs in a project:")
+	fmt.Println("  rotari show -p PROJECT")
+	fmt.Println("To show jobs in a run:")
+	fmt.Println("  rotari show -p PROJECT -r latest")
 	return 0
 }
 

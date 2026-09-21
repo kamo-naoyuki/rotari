@@ -10,12 +10,12 @@ import (
 
 func cmdCompletion(args []string) int {
 	if len(args) == 0 {
-		printError("usage: rotari completion <bash|zsh|install [bash|zsh]>")
+		printError("usage: rotari completion <bash|zsh|fish|install [bash|zsh|fish]>")
 		return 1
 	}
 	if args[0] == "install" {
 		if len(args) > 2 {
-			printError("usage: rotari completion install [bash|zsh]")
+			printError("usage: rotari completion install [bash|zsh|fish]")
 			return 1
 		}
 		shell := ""
@@ -37,6 +37,8 @@ func cmdCompletion(args []string) int {
 		fmt.Print(generateBashCompletion())
 	case "zsh":
 		fmt.Print(generateZshCompletion())
+	case "fish":
+		fmt.Print(generateFishCompletion())
 	default:
 		printErrorf("unsupported shell: %s", args[0])
 		return 1
@@ -111,6 +113,7 @@ func cmdComplete(args []string) int {
 
 	values := make(map[string]struct{})
 	if args[0] == "run-id" {
+		values["latest"] = struct{}{}
 		entries, err := os.ReadDir(paths.runsDir)
 		if err != nil {
 			return 0
@@ -213,8 +216,23 @@ autoload -Uz _rotari && compdef _rotari rotari`); err != nil {
 			fmt.Printf("zsh completion already installed: %s\n", completionPath)
 		}
 		return nil
+	case "fish":
+		completionPath := filepath.Join(home, ".config", "fish", "completions", "rotari.fish")
+		if err := os.MkdirAll(filepath.Dir(completionPath), 0o755); err != nil {
+			return fmt.Errorf("failed to create %s: %w", filepath.Dir(completionPath), err)
+		}
+		newCompletion := generateFishCompletion()
+		if existing, err := os.ReadFile(completionPath); err == nil && string(existing) == newCompletion {
+			fmt.Printf("fish completion already installed: %s\n", completionPath)
+			return nil
+		}
+		if err := os.WriteFile(completionPath, []byte(newCompletion), 0o644); err != nil {
+			return fmt.Errorf("failed to write %s: %w", completionPath, err)
+		}
+		fmt.Printf("installed fish completion in %s\n", completionPath)
+		return nil
 	default:
-		return fmt.Errorf("unsupported shell %q; specify bash or zsh", shell)
+		return fmt.Errorf("unsupported shell %q; specify bash, zsh, or fish", shell)
 	}
 }
 
@@ -328,6 +346,37 @@ func shellOptionPattern(name string) string {
 		return "--" + name + "|-" + short
 	}
 	return "--" + name
+}
+
+func generateFishCompletion() string {
+	var builder strings.Builder
+	builder.WriteString("# rotari completion (fish)\n")
+	builder.WriteString("complete -c rotari -f\n")
+	builder.WriteString("complete -c rotari -n \"__fish_use_subcommand\" -a \"" + strings.Join(cliCommandNames(), " ") + "\"\n")
+	for _, command := range cliCommandSpecs {
+		if len(command.Subcommands) > 0 {
+			values := make([]string, 0, len(command.Subcommands))
+			for _, subcommand := range command.Subcommands {
+				values = append(values, subcommand.Name)
+			}
+			fmt.Fprintf(&builder, "complete -c rotari -n \"__fish_seen_subcommand_from %s\" -a \"%s\"\n", command.Name, strings.Join(values, " "))
+		}
+		for _, flag := range command.Flags {
+			builder.WriteString("complete -c rotari ")
+			if short := cliShortFlagNames[flag.Name]; short != "" {
+				fmt.Fprintf(&builder, "-s %s ", short)
+			}
+			fmt.Fprintf(&builder, "-l %s ", flag.Name)
+			if len(flag.Values) > 0 {
+				fmt.Fprintf(&builder, "-a \"%s\" ", strings.Join(flag.Values, " "))
+			} else if flag.Name == "project-name" || flag.Name == "run-id" || flag.Name == "job-id" {
+				fmt.Fprintf(&builder, "-a \"(rotari __complete %s 2>/dev/null)\" ", flag.Name)
+			}
+			fmt.Fprintf(&builder, "-d \"%s\"\n", strings.ReplaceAll(flag.Description, "\"", "\\\""))
+		}
+	}
+	builder.WriteString("complete -c rotari -n \"__fish_seen_subcommand_from completion\" -a \"bash zsh fish install\"\n")
+	return builder.String()
 }
 
 func generateZshCompletion() string {

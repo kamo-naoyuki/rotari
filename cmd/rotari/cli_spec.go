@@ -70,6 +70,7 @@ var cliEnvironmentVariables = map[string]string{
 	"port":              envWebPort,
 	"static-dir":        envWebStaticDir,
 	"allow-control":     envWebAllowControl,
+	"auth-token":        envWebAuthToken,
 }
 
 func commonCLIFlags() []cliFlagSpec {
@@ -168,7 +169,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Description: "show queue or run status",
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "masterdir", Description: "master registry directory", ValueName: "DIR"},
-			cliFlagSpec{Name: "run-id", Description: "run ID", ValueName: "ID"},
+			cliFlagSpec{Name: "run-id", Description: "run ID or latest", ValueName: "ID"},
 			cliFlagSpec{Name: "queue", Description: "show the current queue even when a run is selected"},
 			cliFlagSpec{Name: "job-id", Description: "job ID", ValueName: "ID"},
 			cliFlagSpec{Name: "failed", Description: "show failed jobs only"},
@@ -302,10 +303,11 @@ var cliCommandSpecs = []cliCommandSpec{
 		Name:        "web",
 		Description: "serve the web status UI",
 		Flags: append(commonCLIFlags(),
-			cliFlagSpec{Name: "host", Description: "HTTP listen host; binding to a non-loopback address exposes job logs, environment names, and job control over unauthenticated HTTP", ValueName: "HOST"},
+			cliFlagSpec{Name: "host", Description: "HTTP listen host", ValueName: "HOST"},
 			cliFlagSpec{Name: "port", Description: "HTTP listen port", ValueName: "PORT"},
 			cliFlagSpec{Name: "static-dir", Description: "generate a static web UI", ValueName: "DIR"},
 			cliFlagSpec{Name: "allow-control", Description: "enable job control (copy/change/remove/cancel/clear); pass --allow-control=false for a read-only UI"},
+			cliFlagSpec{Name: "auth-token", Description: "require this token in Authorization: Bearer or X-Rotari-Token; prefer ROTARI_WEB_AUTH_TOKEN for secrets", ValueName: "TOKEN"},
 		),
 	},
 	{
@@ -314,6 +316,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Subcommands: []cliSubcommandSpec{
 			{Name: "bash", Description: "bash completion"},
 			{Name: "zsh", Description: "zsh completion"},
+			{Name: "fish", Description: "fish completion"},
 			{Name: "install", Description: "install completion for the current shell"},
 		},
 	},

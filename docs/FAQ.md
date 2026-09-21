@@ -19,13 +19,16 @@ results. See [Projects, queues, runs, and state](../README.md#projects-queues-ru
 **I didn't pass `--project-name` — which project does rotari use?**
 `--project-name`, then `ROTARI_PROJECT_NAME`, then the only project in the
 resolved state directory. If no project exists yet, it defaults to `default`.
-If multiple projects exist and none of the above narrows it down, rotari
-errors and asks you to pick one explicitly.
+If multiple projects exist and none of the above narrows it down, commands
+other than a bare `rotari show` ask you to pick one explicitly. A bare
+`rotari show` prints a warning and falls back to `rotari show --projects`.
 
 **How do I list projects in a state directory?**
 Run `rotari show --projects`. It lists each project's queued-job count, run
 state, and latest run ID without requiring `--project-name`. Add `--basedir`
 to list projects in a specific state directory.
+The output also suggests `rotari show -p PROJECT` to inspect a project and
+`rotari show -p PROJECT -r latest` to inspect jobs in its latest run.
 
 **I don't know which basedir contains my jobs. How do I find it?**
 Run `rotari show --basedirs`. It prints the master directory and basedirs
@@ -66,9 +69,9 @@ that accepts JSON `POST` requests. Use `webhook.on` or `ROTARI_WEBHOOK_ON` with
 `success` or `failure` to filter events; the default is `always`. The payload
 includes run status, failed job IDs, and, for failed runs, a copy-pasteable
 command to display their logs. A webhook error is only a warning and does not
-alter the run result. Set `webhook.format: slack` or
-`ROTARI_WEBHOOK_FORMAT=slack` to send a Slack Incoming Webhook payload directly;
-the default format is the generic rotari JSON payload. See
+alter the run result. Set `webhook.format` to `slack`, `teams`, or `discord`, or set
+`ROTARI_WEBHOOK_FORMAT` to one of those values, to send a service-specific
+payload directly. The default format is the generic rotari JSON payload. See
 [Webhook integrations](WEBHOOK_INTEGRATIONS.md) for examples.
 
 **How are concurrency and executor options selected?**
@@ -84,7 +87,8 @@ priority.
 Without `--run-id`, `show` prioritizes current state: an active run first, an
 interrupted run second, a non-empty idle queue third, and only then the
 latest saved run. Pass `--run-id` (or `--runs` to list all saved runs) to
-target a specific run regardless of current queue state.
+target a specific run regardless of current queue state; `--run-id latest`
+selects the latest saved run.
 
 **How do I clean up run registry entries left by manual deletion?**
 Run `rotari gc` to scan for registry entries whose run directories no longer
@@ -310,15 +314,18 @@ troubleshooting view, not a liveness probe: in particular, the short-lived
 advisory state lock is intentionally not inspected.
 
 **Is `rotari web` safe to expose beyond `127.0.0.1`?**
-Treat it as an unauthenticated admin surface, not a public dashboard. By
-default the `copy`/`change`/`remove`/`cancel`/`clear-run` APIs are enabled
-with no authentication; pass `--allow-control=false` for a read-only UI that
-rejects them with `403`. Environment variable *values* are never returned by
-`/api/state` or `/environment/` (only whether each is set), so secrets in
-your shell environment are not exposed. Binding `--host` to anything other
-than loopback exposes job logs and (unless `--allow-control=false`)
-job-control operations to anyone who can reach that address; only do so on a
-trusted network.
+Set `ROTARI_WEB_AUTH_TOKEN` (or `--auth-token TOKEN`) and send the token as
+`Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`; the browser UI can
+use Basic authentication with username `rotari` and the token as the password.
+Prefer the environment variable so it does not appear in the process list.
+This protects the HTTP routes from unauthenticated requests, but it does not
+encrypt traffic; use HTTPS or a trusted/private network. Without a token, treat
+the UI as an unauthenticated admin surface and keep it on loopback. The
+`copy`/`change`/`remove`/`cancel`/`clear-run` APIs are enabled by default;
+pass `--allow-control=false` for a read-only UI that rejects them with `403`.
+Environment variable *values* are never returned by `/api/state` or
+`/environment/` (only whether each is set), so secrets in your shell
+environment are not exposed.
 
 ## Background server (supervisor)
 

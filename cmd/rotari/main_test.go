@@ -264,13 +264,15 @@ func TestCLIStringUsesRotariEnvironmentDefaults(t *testing.T) {
 func TestCLICommandSpecificEnvironmentDefaults(t *testing.T) {
 	t.Setenv("ROTARI_WEB_HOST", "127.0.0.2")
 	t.Setenv("ROTARI_WEB_PORT", "9000")
+	t.Setenv(envWebAuthToken, "token-from-env")
 	t.Setenv("ROTARI_WAIT_TIMEOUT", "2s")
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	host := cliString(fs, "host", "127.0.0.1")
 	port := cliInt(fs, "port", 8787)
+	authToken := cliString(fs, "auth-token", "")
 	timeout := cliDuration(fs, "timeout", 0)
-	if *host != "127.0.0.2" || *port != 9000 || *timeout != 2*time.Second {
-		t.Fatalf("defaults = %q, %d, %s", *host, *port, *timeout)
+	if *host != "127.0.0.2" || *port != 9000 || *authToken != "token-from-env" || *timeout != 2*time.Second {
+		t.Fatalf("defaults = %q, %d, %q, %s", *host, *port, *authToken, *timeout)
 	}
 }
 
@@ -981,20 +983,34 @@ func TestCompletionScriptsContainCommandOptions(t *testing.T) {
 			t.Errorf("Zsh completion does not contain %s", option)
 		}
 	}
-	if !strings.Contains(generateBashCompletion(), "bash zsh install") {
+	for _, option := range []string{"basedir", "project-name", "run-id", "job-id", "executor", "failed-logs", "no-pager", "job-name"} {
+		if !strings.Contains(generateFishCompletion(), option) {
+			t.Errorf("Fish completion does not contain %s", option)
+		}
+	}
+	if !strings.Contains(generateBashCompletion(), "bash zsh fish install") {
 		t.Error("Bash completion does not contain the install subcommand")
 	}
 	if !strings.Contains(generateZshCompletion(), "'install:install completion") {
 		t.Error("Zsh completion does not contain the install subcommand")
 	}
+	if !strings.Contains(generateFishCompletion(), "install") {
+		t.Error("Fish completion does not contain the install subcommand")
+	}
 	if !strings.Contains(generateZshCompletion(), "compdef _rotari rotari") {
 		t.Error("Zsh completion does not register rotari")
+	}
+	if !strings.Contains(generateFishCompletion(), "complete -c rotari") {
+		t.Error("Fish completion does not register rotari")
 	}
 	if !strings.Contains(generateBashCompletion(), "__complete project-name") {
 		t.Error("Bash completion does not dynamically complete project names")
 	}
 	if !strings.Contains(generateZshCompletion(), "_rotari_project_names") {
 		t.Error("Zsh completion does not dynamically complete project names")
+	}
+	if !strings.Contains(generateFishCompletion(), "__complete project-name") {
+		t.Error("Fish completion does not dynamically complete project names")
 	}
 }
 
@@ -1027,6 +1043,83 @@ func TestGenerateBashCompletionIsValidSyntax(t *testing.T) {
 	out, err := exec.Command(bashPath, "-n", scriptPath).CombinedOutput()
 	if err != nil {
 		t.Fatalf("generated bash completion has a syntax error: %v\n%s", err, out)
+	}
+}
+
+func TestGenerateFishCompletionIsValidSyntax(t *testing.T) {
+	fishPath, err := exec.LookPath("fish")
+	if err != nil {
+		t.Skip("fish not installed")
+	}
+	script := generateFishCompletion()
+	scriptPath := filepath.Join(t.TempDir(), "rotari-completion.fish")
+	if err := os.WriteFile(scriptPath, []byte(script), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(fishPath, "-n", scriptPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated fish completion has a syntax error: %v\n%s", err, out)
+	}
+}
+
+func quoteForShell(path string) string {
+	return "'" + strings.ReplaceAll(path, "'", "'\\''") + "'"
+}
+
+func TestBashCompletionIntegration(t *testing.T) {
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not installed")
+	}
+	scriptPath := filepath.Join(t.TempDir(), "rotari-completion.bash")
+	if err := os.WriteFile(scriptPath, []byte(generateBashCompletion()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(bashPath, "-ic", fmt.Sprintf("source %q; COMP_WORDS=(rotari); COMP_CWORD=1; _rotari_completion; printf '%%s\\n' \"${COMPREPLY[*]}\"", scriptPath))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("bash completion did not run: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "config") || !strings.Contains(string(out), "show") {
+		t.Fatalf("bash completion output = %q, want command candidates", out)
+	}
+}
+
+func TestZshCompletionIntegration(t *testing.T) {
+	zshPath, err := exec.LookPath("zsh")
+	if err != nil {
+		t.Skip("zsh not installed")
+	}
+	scriptPath := filepath.Join(t.TempDir(), "_rotari")
+	if err := os.WriteFile(scriptPath, []byte(generateZshCompletion()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(zshPath, "-ic", fmt.Sprintf("autoload -Uz compinit && compinit; source %q; whence -w _rotari", quoteForShell(scriptPath)))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("zsh completion did not register: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "_rotari") {
+		t.Fatalf("zsh registration output = %q, want _rotari function", out)
+	}
+}
+
+func TestFishCompletionIntegration(t *testing.T) {
+	fishPath, err := exec.LookPath("fish")
+	if err != nil {
+		t.Skip("fish not installed")
+	}
+	scriptPath := filepath.Join(t.TempDir(), "rotari-completion.fish")
+	if err := os.WriteFile(scriptPath, []byte(generateFishCompletion()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(fishPath, "-C", fmt.Sprintf("source %q; complete -C 'rotari '", scriptPath))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("fish completion did not run: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "config") || !strings.Contains(string(out), "show") {
+		t.Fatalf("fish completion output = %q, want command candidates", out)
 	}
 }
 
@@ -1330,6 +1423,30 @@ func TestInstallCompletionForZsh(t *testing.T) {
 	}
 	if !strings.Contains(string(rc), "autoload -Uz _rotari && compdef _rotari rotari") {
 		t.Fatal("Existing Zsh completion block was not upgraded")
+	}
+}
+
+func TestInstallCompletionForFish(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	if err := installCompletion("fish"); err != nil {
+		t.Fatal(err)
+	}
+	if err := installCompletion("fish"); err != nil {
+		t.Fatal(err)
+	}
+
+	completionPath := filepath.Join(home, ".config", "fish", "completions", "rotari.fish")
+	data, err := os.ReadFile(completionPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "complete -c rotari") {
+		t.Fatal("Fish completion script is missing")
+	}
+	if strings.Count(string(data), "# rotari completion (fish)") != 1 {
+		t.Fatal("Fish completion block was installed more than once")
 	}
 }
 

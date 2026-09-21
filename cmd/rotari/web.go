@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -145,6 +146,7 @@ func cmdWeb(args []string) int {
 	port := cliInt(fs, "port", webDefaultPort)
 	staticDir := cliString(fs, "static-dir", "")
 	allowControl := cliBool(fs, "allow-control", true)
+	authToken := cliString(fs, "auth-token", "")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -168,7 +170,7 @@ func cmdWeb(args []string) int {
 		}
 		return 0
 	}
-	if !isLoopbackWebHost(*host) {
+	if !isLoopbackWebHost(*host) && *authToken == "" {
 		controlWarning := "job logs and environment variable names"
 		if *allowControl {
 			controlWarning = "job logs, environment variable names, and job control (cancel/suspend/resume/change/remove/copy) operations"
@@ -176,6 +178,9 @@ func cmdWeb(args []string) int {
 		printErrorf("WARNING: --host %s exposes %s over unauthenticated HTTP.", *host, controlWarning)
 	}
 	handler := newWebHandler(baseDir, *queueNameOption, *allowControl)
+	if *authToken != "" {
+		handler = withWebAuthToken(handler, *authToken)
+	}
 	listener, err := listenWeb(*host, *port, !portExplicit)
 	if err != nil {
 		printErrorf("web server failed: %v", err)
@@ -192,6 +197,31 @@ func cmdWeb(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+func withWebAuthToken(next http.Handler, token string) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		provided := request.Header.Get("X-Rotari-Token")
+		if provided == "" {
+			const prefix = "Bearer "
+			authorization := request.Header.Get("Authorization")
+			if strings.HasPrefix(authorization, prefix) {
+				provided = strings.TrimPrefix(authorization, prefix)
+			}
+		}
+		if provided == "" {
+			if username, password, ok := request.BasicAuth(); ok && username == "rotari" {
+				provided = password
+			}
+		}
+		if len(provided) != len(token) || subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
+			writer.Header().Add("WWW-Authenticate", `Basic realm="rotari web"`)
+			writer.Header().Add("WWW-Authenticate", `Bearer realm="rotari web"`)
+			http.Error(writer, "authentication required", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(writer, request)
+	})
 }
 
 func isLoopbackWebHost(host string) bool {
@@ -1129,6 +1159,16 @@ function addQueueEditors(queue,commands){`, 1)
 	template = strings.Replace(template, `<details><summary>Internal state</summary>`, `<details'+(projectRuntimeDetailsOpen?' open':'')+'><summary>Internal state</summary>`, 1)
 	template = strings.Replace(template, `const originalRender=render;render=function(){originalRender();`, `const originalRender=render;render=function(){const runtimeDetails=document.querySelector('.project-runtime details');if(runtimeDetails)projectRuntimeDetailsOpen=runtimeDetails.open;originalRender();`, 1)
 	template = strings.Replace(template, "--queue-name", "--project-name", -1)
+	template = strings.NewReplacer(
+		"const basedir=state&&state.base_dir?(' --basedir '+shellQuote(state.base_dir)):' '",
+		"const basedir=state&&state.base_dir?(' -b '+shellQuote(state.base_dir)):' '",
+		"rotari retry --run-id '+shellQuote(runID)",
+		"rotari retry -r '+shellQuote(runID)",
+		"rotari retry'+basedir+' --project-name '+shellQuote(queueName)+' --job-id JOB_ID",
+		"rotari retry'+basedir+' -p '+shellQuote(queueName)+' -j JOB_ID",
+		"rotari retry'+basedir+' --project-name '+shellQuote(queueName)",
+		"rotari retry'+basedir+' -p '+shellQuote(queueName)",
+	).Replace(template)
 	template = strings.Replace(template, "function renderOverview(queues){", "function configText(paths){return paths&&paths.length?'\\nConfig: '+esc(paths.join(', ')):''}function renderOverview(queues){", 1)
 	template = strings.Replace(template, "function configText(paths){return paths&&paths.length?'\\nConfig: '+esc(paths.join(', ')):''}function renderOverview(queues){", "function configText(paths){return paths&&paths.length?'\\nConfig: '+esc(paths.join(', ')):''}function pageConfigPaths(){const parts=location.pathname.split('/').filter(Boolean);if(parts[0]!=='project')return state.config_path?[state.config_path]:[];const project=state.projects.find(item=>item.project_name===decodeURIComponent(parts[1]));if(!project)return [];if(parts[2]==='run'){const run=project.runs.find(item=>item.run_id===decodeURIComponent(parts[3]));return run&&run.context&&run.context.config_paths||[]}return project.config_path?[project.config_path]:[]}async function showConfig(){const parts=location.pathname.split('/').filter(Boolean);const params=new URLSearchParams();if(parts[0]==='project')params.set('project_name',decodeURIComponent(parts[1]));if(parts[2]==='run')params.set('run_id',decodeURIComponent(parts[3]));const response=await fetch('/api/config?'+params);const text=await response.text();if(!response.ok){alert(text);return}const payload=JSON.parse(text);const output=ensureModalOutput();output.textContent=(payload.configs||[]).map(item=>'# '+item.path+'\\n'+item.content).join('\\n\\n');document.querySelector('#output-modal strong').textContent='Config';openOutputModal(false)}function addConfigButton(){document.querySelectorAll('.config-button').forEach(button=>button.remove());const paths=pageConfigPaths();const button=document.createElement('button');button.className='config-button';button.textContent='Config';button.disabled=!paths.length;button.title=paths.length?'View config':'No config file';if(paths.length)button.onclick=showConfig;document.querySelector('.toolbar').append(button)}function renderOverview(queues){", 1)
 	template = strings.Replace(template, "state.base_dir+' / all projects'", "state.base_dir+' / all projects'+configText(state.config_path?[state.config_path]:[])", 1)

@@ -152,7 +152,7 @@ go install github.com/kamo-naoyuki/rotari/cmd/rotari@latest
 
 ## Shell completion
 
-Completion scripts are available for Bash and Zsh:
+Completion scripts are available for Bash, Zsh, and Fish:
 
 ```sh
 # Install for the default shell reported by $SHELL
@@ -161,6 +161,7 @@ rotari completion install
 # Select the shell explicitly when running a nested shell
 rotari completion install bash
 rotari completion install zsh
+rotari completion install fish
 ```
 
 Completion covers subcommands, command options, executor values, run selection
@@ -173,8 +174,8 @@ Dynamic candidates include project names, saved run IDs, and job IDs. Job ID
 completion normally includes IDs from the current queue and saved runs; when
 `--run-id RUN_ID` is present, it is limited to jobs in that run.
 
-For manual setup, `rotari completion bash` and `rotari completion zsh` print the
-raw completion scripts.
+For manual setup, `rotari completion bash`, `rotari completion zsh`, and
+`rotari completion fish` print the raw completion scripts.
 
 ## FAQ
 
@@ -184,9 +185,10 @@ about project/run resolution, retries, array jobs, interrupted runs, and locking
 ## Quick start
 
 ```sh
-# Set the project once for the current shell. State is shared under
-# ~/.local/state/rotari by default; set ROTARI_BASEDIR to use another location.
+# Set the project once for the current shell. 
 export ROTARI_PROJECT_NAME=build
+# State is shared under ~/.local/state/rotari 
+# by default; set ROTARI_BASEDIR to use another location.
 # export ROTARI_BASEDIR="$HOME/.local/state/rotari"
 
 # Start this example from a clean queue. This preserves run history but
@@ -211,7 +213,9 @@ contains its current queue and saved runs. For regular use, set
 `ROTARI_PROJECT_NAME` once in the shell; the project name can also be supplied
 with `--project-name` or omitted.
 When omitted, if only one project exists in the state directory, it is selected
-automatically; if multiple projects exist, you will be prompted to specify one.
+automatically; if multiple projects exist, commands other than a bare `show`
+ask you to specify one. A bare `rotari show` prints a warning and falls back to
+the project list.
 Use `--job-name NAME` to label a submitted job.
 Use `--run-name NAME` to label a run; the generated run ID remains available for
 unambiguous paths and commands.
@@ -295,6 +299,13 @@ rotari web
 
 Pass `--allow-control=false` for a read-only UI that only serves state, logs,
 and the CLI/env docs and rejects the control APIs with `403 Forbidden`.
+For a non-loopback listener, set `ROTARI_WEB_AUTH_TOKEN` or pass
+`--auth-token TOKEN`; requests must include `Authorization: Bearer TOKEN` (or
+`X-Rotari-Token: TOKEN`). For the browser UI, use Basic authentication with
+username `rotari` and the token as the password. Prefer the environment
+variable so the token does not appear in the process list. This is lightweight
+HTTP authentication, not encryption, so use HTTPS or a trusted/private network
+when the token or job data must be protected in transit.
 The `/api/state` and `/environment/` pages report which environment
 variables are *set*, never their values, so secrets such as API tokens are
 not exposed over HTTP. When a config file is active, the project and run pages
@@ -346,7 +357,7 @@ terminal returns.
 
 ## Scheduler
 
-Executor and scheduler options can be set per command:
+Each job can choose its execution backend and backend-specific options:
 
 ```sh
 rotari add --project-name build make
@@ -357,15 +368,18 @@ rotari add --project-name build \
 rotari run --project-name build --local-concurrency 4 --batch-concurrency 8
 ```
 
-Local and scheduler-backed commands may be mixed in the same queue. Use
-`--local-concurrency` for local jobs and `--batch-concurrency` as the dispatch default for non-local executors. Use `--ssh-concurrency`, `--slurm-concurrency`, `--pbs-concurrency`, or `--lsf-concurrency` for executor-specific limits.
-`--batch-concurrency` only limits how many scheduler jobs rotari submits and
-tracks concurrently. It does not change scheduler state, queue priority, or
-the scheduler's own execution limits; after submission, the scheduler decides
-whether each job is `pending`, `running`, or in another state.
+Local jobs and scheduler-backed jobs may be mixed in the same queue. Use
+`--local-concurrency` for local jobs and `--batch-concurrency` as the default
+submission limit for non-local execution backends. Use `--ssh-concurrency`,
+`--slurm-concurrency`, `--pbs-concurrency`, or `--lsf-concurrency` for
+backend-specific limits.
+`--batch-concurrency` only limits how many jobs rotari submits and tracks
+concurrently. It does not change the scheduler's own queue priority or
+execution limits; after submission, the scheduler decides whether each job is
+`pending`, `running`, or in another state.
 `--executor-option` is the common dispatch option list. Use `--ssh-options`,
-`--slurm-options`, `--pbs-options`, or `--lsf-options` for executor-specific
-options. Executor-specific settings take precedence over common dispatch
+`--slurm-options`, `--pbs-options`, or `--lsf-options` for backend-specific
+options. Backend-specific settings take precedence over common dispatch
 settings, while job-specific executor options take precedence over both.
 
 Use `--env KEY=VALUE` with `add` to save environment variables on a job. They
@@ -503,7 +517,9 @@ rotari show --project-name build --failed-logs
 
 `show --projects` lists every project in the resolved basedir with its queued
 job count, run state, and latest run ID. It does not select a project, so it
-also works when the basedir contains multiple projects.
+also works when the basedir contains multiple projects. The output includes
+commands for selecting a project and inspecting its latest run; `latest` is an
+alias for the latest saved run when used with `--run-id`.
 
 `show --basedirs` prints the resolved master directory and state directories
 known through its run and live-server registries. This is not exhaustive: a
@@ -516,7 +532,8 @@ way. Use `--masterdir DIR` to inspect a non-default master registry.
 Without `--run-id`, `show` displays the active run while a project is running,
 then the current queue when it has commands, and otherwise the latest run. A
 queued-jobs view includes the exact `rotari run` command needed to execute them.
-Use `--run-id` to inspect a specific saved run.
+Use `--run-id` to inspect a specific saved run, or use `--run-id latest` for
+the latest saved run.
 
 If a runner exits before finalizing its run, `show` reports the interrupted run
 and blocks `add`, `copy`, and `run` until you acknowledge it. First confirm
@@ -567,6 +584,14 @@ rotari run --project-name build --failed --unfinished
 rotari run --project-name build --job-id JOB_ID
 ```
 
+`retry` is shorthand for `run --failed --unfinished`. It selects failed and
+unfinished jobs from the reference run, copies them into the next run with
+successful results carried forward, and executes that run:
+
+```sh
+rotari retry --project-name build
+```
+
 The result filters select which jobs are actually re-executed:
 
 | Option | Executed jobs |
@@ -609,13 +634,6 @@ instead of the whole array running again. Pass `--partial-array=false` to
 re-execute every task whenever any one of them matches, as in earlier
 versions.
 
-`retry` is shorthand for `run --failed --unfinished`. It selects failed and
-unfinished jobs from the reference run, copies them into the next run with
-successful results carried forward, and executes that run:
-
-```sh
-rotari retry --project-name build
-```
 
 ### copy and change
 
@@ -709,7 +727,6 @@ rotari delete --project-name build --run-id RUN_ID
 ```
 
 `--run-id` removes only the specified run. Without it, all saved run logs are removed.
-The old name `clear` is still accepted as an alias for `delete`.
 
 The commands affect the current queue and saved run history differently:
 
@@ -806,13 +823,13 @@ are reported as warnings and do not change the run result.
 [webhook]
 url = "https://example.example/rotari-hook"
 on = "failure"
-# format = "slack"  # use Slack Incoming Webhooks directly
+# format = "slack"  # or "teams" / "discord"
 ```
 
 ```sh
 export ROTARI_WEBHOOK_URL=https://example.example/rotari-hook
 export ROTARI_WEBHOOK_ON=failure
-# export ROTARI_WEBHOOK_FORMAT=slack
+# export ROTARI_WEBHOOK_FORMAT=slack  # or teams / discord
 ```
 
 The payload contains the event, project, run, status, exit code, successful and
@@ -942,8 +959,9 @@ doing so can allow a second run for the same queue.
 
 ## Security model
 
-rotari assumes a trusted single-user or HPC/lab environment; it has no
-authentication of its own. Two things gate access instead:
+rotari assumes a trusted single-user or HPC/lab environment. The optional Web
+UI token described above provides lightweight HTTP authentication, but does
+not encrypt traffic. Other access is gated by:
 
 - **Filesystem permissions.** By default, the state directory tree
   (`--basedir`), server registry (`--masterdir`), and everything under them
@@ -963,9 +981,9 @@ authentication of its own. Two things gate access instead:
   directory, it is always created `0600` regardless of `ROTARI_PRIVATE_STATE`,
   and on Linux the server also verifies each connection's peer UID
   (`SO_PEERCRED`) matches its own before accepting it.
-- **`rotari web`** (see above) adds an HTTP surface with the same lack of
-  authentication; keep it bound to `127.0.0.1` unless you understand and
-  accept the tradeoffs described there.
+- **`rotari web`** (see above) adds an HTTP surface. Without
+  `ROTARI_WEB_AUTH_TOKEN` or `--auth-token`, keep it bound to `127.0.0.1`;
+  with a token, expose it only through a trusted network or HTTPS proxy.
 
 None of this defends against another user with access to your own UID
 (e.g. root, or anyone who can read your home directory), only against other

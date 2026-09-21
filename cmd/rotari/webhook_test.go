@@ -114,6 +114,40 @@ func TestSlackWebhookEncoder(t *testing.T) {
 	}
 }
 
+func TestTeamsWebhookEncoder(t *testing.T) {
+	encoded, err := (teamsWebhookEncoder{}).Encode(runWebhookPayload{
+		Project: "demo", Run: "nightly", Status: "failed", Success: 2, Failed: 1,
+		FailedJobs: []string{"train"}, ShowCommand: "rotari show --failed-logs",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, ok := encoded.(teamsWebhookPayload)
+	if !ok || payload.Type != "MessageCard" || payload.Context != "http://schema.org/extensions" || payload.ThemeColor != "C62828" || len(payload.Sections) != 1 {
+		t.Fatalf("Teams payload = %#v", encoded)
+	}
+	if payload.Sections[0].ActivityText != "Run completed with failed jobs." || len(payload.Sections[0].Facts) != 6 {
+		t.Fatalf("Teams section = %#v", payload.Sections[0])
+	}
+}
+
+func TestDiscordWebhookEncoder(t *testing.T) {
+	encoded, err := (discordWebhookEncoder{}).Encode(runWebhookPayload{
+		Project: "demo", Run: "nightly", Status: "failed", Success: 2, Failed: 1,
+		FailedJobs: []string{"train"}, ShowCommand: "rotari show --failed-logs",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, ok := encoded.(discordWebhookPayload)
+	if !ok || payload.Content != "rotari demo: failed" || len(payload.Embeds) != 1 || payload.Embeds[0].Color != 0xc62828 {
+		t.Fatalf("Discord payload = %#v", encoded)
+	}
+	if len(payload.Embeds[0].Fields) != 6 || payload.Embeds[0].Fields[4].Value != "train" || !strings.Contains(payload.Embeds[0].Fields[5].Value, "rotari show --failed-logs") {
+		t.Fatalf("Discord fields = %#v", payload.Embeds[0].Fields)
+	}
+}
+
 func TestNotifyRunWebhookSendsSlackPayload(t *testing.T) {
 	var received slackWebhookPayload
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -177,6 +211,68 @@ func TestNotifyRunWebhookSendsSlackFailureDetails(t *testing.T) {
 	blockText := received.Blocks[0].Text.Text
 	if !strings.Contains(blockText, "failed jobs: `train`") || !strings.Contains(blockText, "show: `rotari show --run-id 'run-slack-failed' --failed-logs --no-pager`") {
 		t.Fatalf("Slack failure details = %q", blockText)
+	}
+}
+
+func TestNotifyRunWebhookSendsTeamsPayload(t *testing.T) {
+	var received teamsWebhookPayload
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if err := json.NewDecoder(request.Body).Decode(&received); err != nil {
+			t.Errorf("decode Teams webhook: %v", err)
+		}
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	t.Setenv(envWebhookURL, server.URL)
+	t.Setenv(envWebhookFormat, "teams")
+
+	paths := testWebhookPaths(t)
+	runID := "run-teams"
+	runDir := filepath.Join(paths.runsDir, runID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{
+		RunID: runID, Status: "success", ExitCode: 0,
+		Results: []JobResult{{ID: "build", ExitCode: 0}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	notifyRunWebhook(paths, runID, 0)
+	if received.Type != "MessageCard" || received.Summary != "rotari demo: success" || len(received.Sections) != 1 {
+		t.Fatalf("Teams webhook payload = %#v", received)
+	}
+}
+
+func TestNotifyRunWebhookSendsDiscordPayload(t *testing.T) {
+	var received discordWebhookPayload
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if err := json.NewDecoder(request.Body).Decode(&received); err != nil {
+			t.Errorf("decode Discord webhook: %v", err)
+		}
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	t.Setenv(envWebhookURL, server.URL)
+	t.Setenv(envWebhookFormat, "discord")
+
+	paths := testWebhookPaths(t)
+	runID := "run-discord"
+	runDir := filepath.Join(paths.runsDir, runID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{
+		RunID: runID, Status: "success", ExitCode: 0,
+		Results: []JobResult{{ID: "build", ExitCode: 0}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	notifyRunWebhook(paths, runID, 0)
+	if received.Content != "rotari demo: success" || len(received.Embeds) != 1 || received.Embeds[0].Color != 0x2e7d32 {
+		t.Fatalf("Discord webhook payload = %#v", received)
 	}
 }
 

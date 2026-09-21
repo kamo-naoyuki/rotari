@@ -97,7 +97,7 @@ setTimeout(() => {
 
 func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 	html := webHTML()
-	if !strings.Contains(html, "rotari retry --run-id '+shellQuote(runID)") {
+	if !strings.Contains(html, "rotari retry -r '+shellQuote(runID)") {
 		t.Fatal("web run guidance does not contain a run-id-only retry command")
 	}
 	if strings.Contains(html, "rotari retry'+basedir+' --queue-name '+shellQuote(queueName)") {
@@ -105,6 +105,43 @@ func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 	}
 	if !strings.Contains(html, "Cancel run") || !strings.Contains(html, "/api/cancel-run") {
 		t.Fatal("web run page does not contain run cancellation controls")
+	}
+}
+
+func TestWebAuthTokenAcceptsBearerAndHeaderToken(t *testing.T) {
+	next := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	})
+	handler := withWebAuthToken(next, "secret")
+
+	for _, test := range []struct {
+		name       string
+		header     string
+		value      string
+		wantStatus int
+	}{
+		{name: "missing", wantStatus: http.StatusUnauthorized},
+		{name: "wrong", header: "Authorization", value: "Bearer wrong", wantStatus: http.StatusUnauthorized},
+		{name: "bearer", header: "Authorization", value: "Bearer secret", wantStatus: http.StatusNoContent},
+		{name: "token header", header: "X-Rotari-Token", value: "secret", wantStatus: http.StatusNoContent},
+		{name: "basic", header: "Authorization", value: "Basic cm90YXJpOnNlY3JldA==", wantStatus: http.StatusNoContent},
+		{name: "basic wrong user", header: "Authorization", value: "Basic b3RoZXI6c2VjcmV0", wantStatus: http.StatusUnauthorized},
+		{name: "basic wrong password", header: "Authorization", value: "Basic cm90YXJpOndyb25n", wantStatus: http.StatusUnauthorized},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "/", nil)
+			if test.header != "" {
+				request.Header.Set(test.header, test.value)
+			}
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, request)
+			if recorder.Code != test.wantStatus {
+				t.Fatalf("status = %d, want %d", recorder.Code, test.wantStatus)
+			}
+			if test.wantStatus == http.StatusUnauthorized && recorder.Header().Get("WWW-Authenticate") == "" {
+				t.Fatal("missing WWW-Authenticate header")
+			}
+		})
 	}
 }
 

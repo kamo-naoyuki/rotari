@@ -129,7 +129,8 @@ Without a run-location lookup, base directories resolve in this order:
 - Projects resolve from `--project-name`, then
     `ROTARI_PROJECT_NAME`, then the only project in the resolved base directory.
     With no projects the name is `default`; multiple projects require an
-    explicit choice.
+    explicit choice. The bare `show` command is an exception: it warns and
+    falls back to listing all projects.
 - `show --projects` lists all projects in the resolved base directory and does
     not resolve one project name.
 - `show --basedirs` lists state directories known to the run and live-server
@@ -143,7 +144,9 @@ Without a run-location lookup, base directories resolve in this order:
 - Persisted timestamps use UTC RFC3339. Human-readable CLI and web
     views use the IANA timezone from `TZ` when valid, otherwise Go's local
     timezone.
-- A supplied `--run-id` is exact, never an alias for latest.
+- A supplied `--run-id` is exact, except that the reserved value `latest`
+    selects the latest saved run using the normal metadata/newest-directory
+    fallback.
     Existing-run commands use the master registry for its base directory and
     project.
 - Explicit location options take priority, but conflicts with the
@@ -163,7 +166,9 @@ Without a run-location lookup, base directories resolve in this order:
 - Shell completion follows the same location rules with narrower
     candidates: `project-name` lists project directories, `run-id` lists saved
     runs, and `job-id` lists queue and saved-run job IDs according to the
-    selected run.
+    selected run. Completion generation is implemented for Bash, Zsh, and
+    Fish, and `rotari completion install` writes the appropriate shell-specific
+    script for the detected or requested shell.
 - Missing state directories produce no completion candidates
     instead of a shell error.
 
@@ -423,7 +428,11 @@ order:
 - A busy default port scans upward for a free port. An explicit port,
     including `--port 0`, never falls back and fails immediately if unavailable.
 - The actually bound address is reported after listener creation. Non-loopback
-    hosts produce a warning because the server has no authentication.
+    hosts produce a warning when no Web UI token is configured.
+- `--auth-token` or `ROTARI_WEB_AUTH_TOKEN` wraps every Web route and accepts
+    `Authorization: Bearer TOKEN`, `X-Rotari-Token: TOKEN`, or Basic
+    authentication with username `rotari` and the token as the password; this
+    is authentication only and does not encrypt HTTP traffic.
 - `loadWebState` exposes persisted runtime metadata: `running.lock` fields and
     the presence of `server.sock`/`server.pid`. The panel does not query process
     liveness or infer that `state.lock` is held from the file's existence.
