@@ -18,8 +18,11 @@ function updateSelectedRunJobs() {
   document
     .querySelectorAll(".run-ai")
     .forEach((button) => (button.disabled = selected.length === 0));
-  const failed = document.querySelector(".select-failed-unfinished");
-  if (failed) {
+  const failed = document.querySelector(".select-failed");
+  const failedUnfinished = document.querySelector(
+    ".select-failed-unfinished",
+  );
+  if (failed || failedUnfinished) {
     const parts = pageParts();
     const project = state.projects.find(
       (item) => item.project_name === decodeURIComponent(parts[1]),
@@ -36,7 +39,11 @@ function updateSelectedRunJobs() {
         status === "suspended"
       );
     });
-    failed.disabled = selectable.length === 0;
+    if (failed)
+      failed.disabled = !((run && run.jobs) || []).some(
+        (job) => jobDisplayStatus(job, run) === "failed",
+      );
+    if (failedUnfinished) failedUnfinished.disabled = selectable.length === 0;
   }
 }
 function addRunJobSelection() {
@@ -84,7 +91,7 @@ async function copySelectedJobs(queue, run, append) {
   alert(JSON.parse(text).message);
   window.location.href = "/project/" + encodeURIComponent(queue);
 }
-function selectFailedUnfinishedJobs() {
+function selectJobsByStatus(statuses) {
   const parts = pageParts();
   const project = state.projects.find(
     (item) => item.project_name === decodeURIComponent(parts[1]),
@@ -99,13 +106,15 @@ function selectFailedUnfinishedJobs() {
     );
     const status = jobDisplayStatus(job, run);
     if (row)
-      row.querySelector(".job-selection").checked =
-        status === "failed" ||
-        status === "pending" ||
-        status === "running" ||
-        status === "suspended";
+      row.querySelector(".job-selection").checked = statuses.includes(status);
   });
   updateSelectedRunJobs();
+}
+function selectFailedJobs() {
+  selectJobsByStatus(["failed"]);
+}
+function selectFailedUnfinishedJobs() {
+  selectJobsByStatus(["failed", "pending", "running", "suspended"]);
 }
 function clearSelectedJobs() {
   document
@@ -135,6 +144,13 @@ function syncRunControls() {
       "','" +
       esc(runID) +
       "',true)\">Append</button>";
+  }
+  if (!controls.querySelector(".select-failed")) {
+    const select = document.createElement("button");
+    select.className = "select-failed";
+    select.textContent = "Select failed";
+    select.onclick = selectFailedJobs;
+    controls.append(select);
   }
   if (!controls.querySelector(".select-failed-unfinished")) {
     const select = document.createElement("button");

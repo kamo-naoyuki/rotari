@@ -272,6 +272,7 @@ function arrangeRunControls() {
   unselectAll.title = "Clear all selected jobs";
   unselectAll.disabled = true;
   unselectAll.onclick = clearSelectedJobs;
+  const selectFailed = controls.querySelector(".select-failed");
   const failed = controls.querySelector(".select-failed-unfinished");
   const create = controls.querySelector(".create-selected");
   const append = controls.querySelector(".append-selected");
@@ -290,6 +291,7 @@ function arrangeRunControls() {
   controls.replaceChildren(
     ...[
       selectAll,
+      selectFailed,
       failed,
       unselectAll,
       create,
