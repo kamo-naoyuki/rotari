@@ -28,83 +28,14 @@ laptop or logged into a remote compute node.
 
 ## How is rotari different?
 
-Rotari focuses on **managing the iteration of experiments**, rather than executing or distributing individual tasks.
-If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the model should feel familiar: commands are dispatched locally or to a cluster, with logs and success/failure tracked consistently across backends. Rotari extends this idea with persistent run history and experiment-oriented iteration.
+Rotari is intentionally lightweight. It is for experiments that need job dispatch, parallel execution, logs, run history, and reruns, but do not need a workflow DAG.
+If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the model should feel familiar: commands are dispatched locally or to a cluster, with logs and success/failure tracked consistently across backends.
 
-* **[Shell scripts](https://www.gnu.org/software/bash/)** are flexible and easy to start with, but repeated executions and their history are usually managed manually. Rotari makes that iteration history explicit.
+* **[Snakemake](https://github.com/snakemake/snakemake)**, **[Nextflow](https://github.com/nextflow-io/nextflow)**, **[Airflow](https://github.com/apache/airflow)**, **[Prefect](https://github.com/PrefectHQ/prefect)**, and **[Dagster](https://github.com/dagster-io/dagster)** are centered around describing dependencies between tasks. They are a natural choice when your experiment has a workflow such as A → B → C, and you want the system to determine what can be run and in what order. Rotari does not require you to define such a workflow: you can dispatch independent commands and iterate on them directly.
 * **[GNU Parallel](https://www.gnu.org/software/parallel/)** makes it easy to run many shell commands in parallel. Rotari goes further by giving those executions persistent identities, logs, status, and an iteration history.
 * **[Slurm](https://github.com/SchedMD/slurm), [PBS](https://github.com/openpbs/openpbs), and LSF** focus on scheduling and executing jobs on a cluster. Rotari adds an experiment-oriented layer for tracking, inspecting, retrying, and modifying runs.
 * **[MLflow](https://github.com/mlflow/mlflow) and [Weights & Biases](https://github.com/wandb/wandb)** focus on tracking experiments, metrics, parameters, and artifacts. rotari focuses on running experiments, managing their execution, and keeping track of the history of successive runs. They can be used together: a rotari run can launch a training job that logs its results to MLflow or Weights & Biases.
-* **[Snakemake](https://github.com/snakemake/snakemake)**, **[Nextflow](https://github.com/nextflow-io/nextflow)**, **[Airflow](https://github.com/apache/airflow)**, **[Prefect](https://github.com/PrefectHQ/prefect)**, and **[Dagster](https://github.com/dagster-io/dagster)** focus on defining and orchestrating workflows by explicitly modeling tasks and their relationships. Rotari focuses on successive runs of an experiment without requiring the workflow to be defined up front.
 * **[Dask](https://github.com/dask/dask)** focuses on distributing Python computations across workers. Rotari focuses on running experiments as command-line jobs and keeping track of their execution history.
-
-```mermaid
-flowchart TB
-    subgraph ITER["Experiment iteration"]
-        R["rotari<br/>Run / Retry / Change / Copy<br/>Persistent history"]
-    end
-
-    subgraph WORK["What to run"]
-        W["Workflow<br/>Snakemake · Nextflow · Airflow · Prefect · Dagster"]
-        C["Commands<br/>Shell · Python · GNU Parallel"]
-        D["Distributed computation<br/>Dask"]
-    end
-
-    subgraph EXEC["Where to run"]
-        L["Local"]
-        SSH["SSH"]
-        S["Slurm"]
-        P["PBS"]
-        X["LSF"]
-    end
-
-    subgraph TRACK["What happened"]
-        M["MLflow · Weights & Biases<br/>Metrics / Artifacts / Results"]
-    end
-
-    R --> W
-    R --> C
-    R --> D
-
-    W --> L
-    W --> SSH
-    W --> S
-    W --> P
-    W --> X
-
-    C --> L
-    C --> SSH
-    C --> S
-    C --> P
-    C --> X
-
-    D --> L
-    D --> SSH
-    D --> S
-    D --> P
-    D --> X
-
-    W -. results .-> M
-    C -. results .-> M
-    D -. results .-> M
-
-    classDef rotari fill:#e8d5ff,stroke:#7c3aed,stroke-width:3px,color:#111;
-    classDef workflow fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111;
-    classDef command fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#111;
-    classDef distributed fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#111;
-    classDef execution fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111;
-    classDef tracking fill:#fce7f3,stroke:#db2777,stroke-width:2px,color:#111;
-
-    class R rotari;
-    class W workflow;
-    class C command;
-    class D distributed;
-    class L,SSH,S,P,X execution;
-    class M tracking;
-```
-
-
-
 
 ## Installation
 
