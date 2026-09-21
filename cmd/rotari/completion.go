@@ -381,46 +381,65 @@ func generateFishCompletion() string {
 
 func generateZshCompletion() string {
 	var builder strings.Builder
-	builder.WriteString("#compdef rotari\n\n_rotari_run_ids() {\n    local -a args\n    args=(\"${words[@]:3}\")\n    reply=(\"${(@f)$(rotari __complete run-id \"${args[@]}\" 2>/dev/null)}\")\n}\n_rotari_job_ids() {\n    local -a args\n    args=(\"${words[@]:3}\")\n    reply=(\"${(@f)$(rotari __complete job-id \"${args[@]}\" 2>/dev/null)}\")\n}\n\n_rotari() {\n    local -a commands\n    commands=(\n")
+	builder.WriteString(zshCompletionHeader)
+	writeZshCommandDescriptions(&builder)
+	writeZshCommandCases(&builder)
+	builder.WriteString(zshCompletionFooter)
+	return builder.String()
+}
+
+const zshCompletionHeader = "#compdef rotari\n\n_rotari_run_ids() {\n    local -a args\n    args=(\"${words[@]:3}\")\n    reply=(\"${(@f)$(rotari __complete run-id \"${args[@]}\" 2>/dev/null)}\")\n}\n_rotari_job_ids() {\n    local -a args\n    args=(\"${words[@]:3}\")\n    reply=(\"${(@f)$(rotari __complete job-id \"${args[@]}\" 2>/dev/null)}\")\n}\n\n_rotari() {\n    local -a commands\n    commands=(\n"
+
+func writeZshCommandDescriptions(builder *strings.Builder) {
 	for _, command := range cliCommandSpecs {
-		fmt.Fprintf(&builder, "        '%s:%s'\n", zshQuote(command.Name), zshQuote(command.Description))
+		fmt.Fprintf(builder, "        '%s:%s'\n", zshQuote(command.Name), zshQuote(command.Description))
 	}
 	builder.WriteString("    )\n\n    if (( CURRENT == 2 )); then\n        _describe 'command' commands\n        return\n    fi\n\n    case $words[2] in\n")
+}
+
+func writeZshCommandCases(builder *strings.Builder) {
 	subcommandIndex := 0
 	for _, command := range cliCommandSpecs {
 		if len(command.Flags) == 0 && len(command.Subcommands) == 0 {
 			continue
 		}
-		fmt.Fprintf(&builder, "        %s)\n", command.Name)
+		fmt.Fprintf(builder, "        %s)\n", command.Name)
 		if len(command.Subcommands) > 0 {
-			arrayName := fmt.Sprintf("subcommands%d", subcommandIndex)
+			writeZshSubcommandCase(builder, command, subcommandIndex)
 			subcommandIndex++
-			fmt.Fprintf(&builder, "            local -a %s\n            %s=(\n", arrayName, arrayName)
-			for _, subcommand := range command.Subcommands {
-				fmt.Fprintf(&builder, "                '%s:%s'\n", zshQuote(subcommand.Name), zshQuote(subcommand.Description))
-			}
-			fmt.Fprintf(&builder, "            )\n            if (( CURRENT == 3 )); then\n                _describe 'subcommand' %s\n            else\n", arrayName)
-			if len(command.Flags) > 0 {
-				fmt.Fprintf(&builder, "                _arguments %s\n", zshArguments(command.Flags))
-			}
-			builder.WriteString("            fi\n")
 		} else {
-			if len(command.Flags) > 0 {
-				fmt.Fprintf(&builder, "            case $words[CURRENT-1] in\n                --run-id|-r)\n                    _rotari_run_ids\n                    compadd -- $reply\n                    return\n                    ;;\n                --job-id|-j)\n                    _rotari_job_ids\n                    compadd -- $reply\n                    return\n                    ;;\n            esac\n            if [[ $words[CURRENT] == -* ]]; then\n                compadd -- %s\n                return\n            fi\n", zshOptionNames(command.Flags))
-			}
-			arguments := zshArguments(command.Flags)
-			if command.Positional != "" {
-				arguments += " '*:command:_command_names'"
-			}
-			fmt.Fprintf(&builder, "            _arguments %s\n", arguments)
+			writeZshFlagCase(builder, command)
 		}
 		builder.WriteString("            ;;\n")
 	}
-	builder.WriteString("    esac\n}\n\n_rotari_completion_context() {\n    local -a args\n    local i\n    for (( i = 3; i <= ${#words[@]}; i++ )); do\n        case $words[i] in\n            --basedir|-b|--project-name|-p)\n                if (( i + 1 <= ${#words[@]} )); then\n                    args+=(\"$words[i]\" \"$words[i+1]\")\n                    (( i++ ))\n                fi\n                ;;\n        esac\n    done\n    reply=(\"${(@f)$(rotari __complete \"$1\" \"${args[@]}\" 2>/dev/null)}\")\n}\n_rotari_run_ids() { _rotari_completion_context run-id }\n_rotari_job_ids() { _rotari_completion_context job-id }\n\nif (( $+functions[compdef] )); then\n    compdef _rotari rotari\nfi\n")
-	builder.WriteString("_rotari_job_ids() {\n    local -a args\n    local i\n    for (( i = 3; i <= ${#words[@]}; i++ )); do\n        case $words[i] in\n            --basedir|-b|--project-name|-p|--run-id|-r)\n                if (( i + 1 <= ${#words[@]} )); then\n                    args+=(\"$words[i]\" \"$words[i+1]\")\n                    (( i++ ))\n                fi\n                ;;\n        esac\n    done\n    reply=(\"${(@f)$(rotari __complete job-id \"${args[@]}\" 2>/dev/null)}\")\n}\n")
-	builder.WriteString("_rotari_project_names() { _rotari_completion_context project-name }\n")
-	return builder.String()
+	builder.WriteString("    esac\n}\n")
 }
+
+func writeZshSubcommandCase(builder *strings.Builder, command cliCommandSpec, subcommandIndex int) {
+	arrayName := fmt.Sprintf("subcommands%d", subcommandIndex)
+	fmt.Fprintf(builder, "            local -a %s\n            %s=(\n", arrayName, arrayName)
+	for _, subcommand := range command.Subcommands {
+		fmt.Fprintf(builder, "                '%s:%s'\n", zshQuote(subcommand.Name), zshQuote(subcommand.Description))
+	}
+	fmt.Fprintf(builder, "            )\n            if (( CURRENT == 3 )); then\n                _describe 'subcommand' %s\n            else\n", arrayName)
+	if len(command.Flags) > 0 {
+		fmt.Fprintf(builder, "                _arguments %s\n", zshArguments(command.Flags))
+	}
+	builder.WriteString("            fi\n")
+}
+
+func writeZshFlagCase(builder *strings.Builder, command cliCommandSpec) {
+	if len(command.Flags) > 0 {
+		fmt.Fprintf(builder, "            case $words[CURRENT-1] in\n                --run-id|-r)\n                    _rotari_run_ids\n                    compadd -- $reply\n                    return\n                    ;;\n                --job-id|-j)\n                    _rotari_job_ids\n                    compadd -- $reply\n                    return\n                    ;;\n            esac\n            if [[ $words[CURRENT] == -* ]]; then\n                compadd -- %s\n                return\n            fi\n", zshOptionNames(command.Flags))
+	}
+	arguments := zshArguments(command.Flags)
+	if command.Positional != "" {
+		arguments += " '*:command:_command_names'"
+	}
+	fmt.Fprintf(builder, "            _arguments %s\n", arguments)
+}
+
+const zshCompletionFooter = "\n_rotari_completion_context() {\n    local -a args\n    local i\n    for (( i = 3; i <= ${#words[@]}; i++ )); do\n        case $words[i] in\n            --basedir|-b|--project-name|-p)\n                if (( i + 1 <= ${#words[@]} )); then\n                    args+=(\"$words[i]\" \"$words[i+1]\")\n                    (( i++ ))\n                fi\n                ;;\n        esac\n    done\n    reply=(\"${(@f)$(rotari __complete \"$1\" \"${args[@]}\" 2>/dev/null)}\")\n}\n_rotari_run_ids() { _rotari_completion_context run-id }\n_rotari_job_ids() { _rotari_completion_context job-id }\n\nif (( $+functions[compdef] )); then\n    compdef _rotari rotari\nfi\n\n_rotari_job_ids() {\n    local -a args\n    local i\n    for (( i = 3; i <= ${#words[@]}; i++ )); do\n        case $words[i] in\n            --basedir|-b|--project-name|-p|--run-id|-r)\n                if (( i + 1 <= ${#words[@]} )); then\n                    args+=(\"$words[i]\" \"$words[i+1]\")\n                    (( i++ ))\n                fi\n                ;;\n        esac\n    done\n    reply=(\"${(@f)$(rotari __complete job-id \"${args[@]}\" 2>/dev/null)}\")\n}\n_rotari_project_names() { _rotari_completion_context project-name }\n"
 
 func zshArguments(flags []cliFlagSpec) string {
 	arguments := make([]string, 0, len(flags))

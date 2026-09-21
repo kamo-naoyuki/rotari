@@ -27,7 +27,7 @@ func writeSchedulerStatus(jobDir, state string) {
 	if state == "" {
 		return
 	}
-	path, err := validatedStateFile(jobDir, "scheduler_status.json")
+	path, err := validatedStateFile(jobDir, stateFileSchedulerJSON)
 	if err != nil {
 		return
 	}
@@ -35,7 +35,7 @@ func writeSchedulerStatus(jobDir, state string) {
 }
 
 func loadSchedulerStatus(jobDir string) string {
-	path, err := validatedStateFile(jobDir, "scheduler_status.json")
+	path, err := validatedStateFile(jobDir, stateFileSchedulerJSON)
 	if err != nil {
 		return ""
 	}

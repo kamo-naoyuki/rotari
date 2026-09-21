@@ -1107,7 +1107,22 @@ type pathSet struct {
 	runsDir         string
 }
 
-const commandJSONName = "command.json"
+const (
+	commandJSONName        = "command.json"
+	stateFileCommandsJSON  = "commands.json"
+	stateFileSummaryJSON   = "summary.json"
+	stateFileContextJSON   = "context.json"
+	stateFileOutput        = "output"
+	stateFileSchedulerJSON = "scheduler_status.json"
+	stateFileStatusJSON    = "status.json"
+	stateFileStatus        = "status"
+	stateFileSubmittedAt   = "submitted_at"
+	stateFileFinishedAt    = "finished_at"
+	stateFileJobJSON       = "job.json"
+	stateFilePID           = "pid"
+	stateFileCancelled     = "cancelled"
+	stateFileName          = "name"
+)
 
 func isValidPathElement(value string) bool {
 	if value == "" || value == "." || value == ".." || filepath.IsAbs(value) {
@@ -1128,9 +1143,10 @@ func joinValidatedPath(basePath, element string) (string, error) {
 
 func validatedStateFile(basePath, fileName string) (string, error) {
 	switch fileName {
-	case "commands.json", "summary.json", "context.json", "output", "scheduler_status.json",
-		"status.json", "status", "submitted_at", "finished_at", "command.json", "job.json",
-		"pid", "cancelled", "name":
+	case stateFileCommandsJSON, stateFileSummaryJSON, stateFileContextJSON, stateFileOutput,
+		stateFileSchedulerJSON, stateFileStatusJSON, stateFileStatus, stateFileSubmittedAt,
+		stateFileFinishedAt, commandJSONName, stateFileJobJSON, stateFilePID, stateFileCancelled,
+		stateFileName:
 		return filepath.Join(basePath, fileName), nil
 	default:
 		return "", fmt.Errorf("invalid state file name %q", fileName)
