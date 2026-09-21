@@ -1013,10 +1013,18 @@ func loadWebJobs(runDir string, summary RunSummary) ([]webJob, error) {
 }
 
 func loadLocalJobResult(jobDir string, job JobSpec) (JobResult, bool) {
-	if _, err := os.Stat(filepath.Join(jobDir, "finished_at")); err != nil {
+	finishedPath, err := validatedStateFile(jobDir, stateFileFinishedAt)
+	if err != nil {
 		return JobResult{}, false
 	}
-	data, err := os.ReadFile(filepath.Join(jobDir, "status"))
+	if _, err := os.Stat(finishedPath); err != nil {
+		return JobResult{}, false
+	}
+	statusPath, err := validatedStateFile(jobDir, stateFileStatus)
+	if err != nil {
+		return JobResult{}, false
+	}
+	data, err := os.ReadFile(statusPath) // NOSONAR: statusPath is restricted by validatedStateFile to status.
 	if err != nil {
 		return JobResult{}, false
 	}
