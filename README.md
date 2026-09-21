@@ -10,32 +10,33 @@
 
 **Rotari turns trial-and-error into a repeatable loop**: run a batch of jobs, see which failed, fix only their commands, and run it again — without losing the history of what already worked.
 
-It is for experiments and builds that you run repeatedly, but where defining a
-full workflow up front would be more work than the iteration itself.
+It is a lightweight workflow engine for experiments and builds that you run repeatedly. **Workflows are built from the CLI commands you already have**, with simple dependencies between them. There is no new workflow language to learn and no external database or server to set up.
 
-**Local commands, remote SSH commands, and scheduler jobs (Slurm, PBS, LSF) live
-in the same queue**, even when they depend on each other. **Every run keeps its
-own snapshot** of commands, status, and logs, so nothing gets lost between
-"one more try" and the next.
+**Local commands, remote SSH commands, and scheduler jobs (Slurm, PBS, LSF) live in the same queue**, even when they depend on each other. **Every run keeps its own snapshot** of commands, status, and logs, so nothing gets lost between "one more try" and the next.
 
-**No DAGs to design. No pipeline to describe up front.**: Just queue what you want to run. **State lives in plain JSON files on disk**,
-with no server or database to set up — it works the same whether you're on your
-laptop or logged into a remote compute node.
+If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the basic idea of dispatching commands locally or to a cluster should feel familiar. Rotari builds on that model with dependencies, persistent run history, and the ability to rerun or modify individual jobs.
+
+## How is Rotari different?
 
 | Plain shell (background jobs) | rotari |
 | --- | --- |
 | ![shell background jobs demo](https://kamo-naoyuki.github.io/rotari/demo-shell.gif) | ![rotari demo](https://kamo-naoyuki.github.io/rotari/demo-rotari.gif) |
 
-## How is rotari different?
 
-Rotari is intentionally lightweight. It is for experiments that need job dispatch, parallel execution, logs, run history, and reruns, but do not need a workflow DAG.
-If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the model should feel familiar: commands are dispatched locally or to a cluster, with logs and success/failure tracked consistently across backends.
+Rotari is intentionally lightweight. It is for experiments and builds where **ordinary shell scripts are already a natural way to describe what should run**, but running those commands repeatedly starts to become difficult to manage.
 
-* **[Snakemake](https://github.com/snakemake/snakemake)**, **[Nextflow](https://github.com/nextflow-io/nextflow)**, **[Airflow](https://github.com/apache/airflow)**, **[Prefect](https://github.com/PrefectHQ/prefect)**, and **[Dagster](https://github.com/dagster-io/dagster)** are centered around describing dependencies between tasks. They are a natural choice when your experiment has a workflow such as A → B → C, and you want the system to determine what can be run and in what order. Rotari does not require you to define such a workflow: you can dispatch independent commands and iterate on them directly.
-* **[GNU Parallel](https://www.gnu.org/software/parallel/)** makes it easy to run many shell commands in parallel. Rotari goes further by giving those executions persistent identities, logs, status, and an iteration history.
-* **[Slurm](https://github.com/SchedMD/slurm), [PBS](https://github.com/openpbs/openpbs), and LSF** focus on scheduling and executing jobs on a cluster. Rotari adds an experiment-oriented layer for tracking, inspecting, retrying, and modifying runs.
-* **[MLflow](https://github.com/mlflow/mlflow) and [Weights & Biases](https://github.com/wandb/wandb)** focus on tracking experiments, metrics, parameters, and artifacts. rotari focuses on running experiments, managing their execution, and keeping track of the history of successive runs. They can be used together: a rotari run can launch a training job that logs its results to MLflow or Weights & Biases.
-* **[Dask](https://github.com/dask/dask)** focuses on distributing Python computations across workers. Rotari focuses on running experiments as command-line jobs and keeping track of their execution history.
+You do not need to turn a simple sequence of commands into a workflow definition just to run it. **Write the commands as you normally would in a shell script, and use Rotari when you need execution, parallelism, logs, status, and run history.**
+
+If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the basic idea should feel familiar: commands are dispatched locally or to a cluster, with logs and success/failure tracked consistently across backends.
+
+* [**Snakemake**](https://github.com/snakemake/snakemake) is built around rules, inputs, outputs, and dependencies. This is useful when the workflow itself is an important part of the problem. But for a small experiment where a shell script already expresses what you want to run, introducing a workflow definition can make a simple task harder to read. **Rotari lets the shell script remain the workflow.**
+
+* [**Nextflow**](https://github.com/nextflow-io/nextflow) provides a DSL for describing processes, dataflow, and workflows. Rotari takes a simpler approach: **keep using the CLI commands and shell scripts you already have**, and use rotari to dispatch and track their execution.
+
+* [**Airflow**](https://github.com/apache/airflow), [**Prefect**](https://github.com/PrefectHQ/prefect), and [**Dagster**](https://github.com/dagster-io/dagster) provide richer workflow models, typically through Python-based workflow definitions. These are useful when you need that level of orchestration. **Rotari is for the cases where writing a shell script is already enough to describe the workflow, and you just need a better way to run and manage it.**
+
+The goal is not to replace shell scripts or compete with full-featured workflow systems. **It is to add just enough structure around the commands you already use, without making you rewrite them as a workflow.**
+
 
 ## Installation
 
