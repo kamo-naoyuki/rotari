@@ -57,11 +57,16 @@
   padding: 5px 8px;
   color: var(--text);
   background: var(--panel);
-  font: 12px/1.5 ui-sans-serif, system-ui, sans-serif;
+  font:
+    12px/1.5 ui-sans-serif,
+    system-ui,
+    sans-serif;
   opacity: 0;
   pointer-events: none;
   transform: translateX(4px);
-  transition: opacity 120ms ease, transform 120ms ease;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
 }
 .command-guide.copied .command-guide-copied {
   opacity: 1;

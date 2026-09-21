@@ -879,7 +879,10 @@ rewriteStaticLinks();
 new MutationObserver(rewriteStaticLinks).observe(document.body,{childList:true,subtree:true});
 </script>`, escapedState.String(), escapedLogs.String(), escapedReports.String())
 	baseTemplate := webHTMLWithStaticBootstrap(bootstrap)
-	template := baseTemplate
+	template := strings.Replace(baseTemplate, `href="/web_styles.css"`, `href="web_styles.css"`, 1)
+	if template == baseTemplate {
+		return errors.New("web HTML static stylesheet marker not found")
+	}
 	if bootstrap != "" && !strings.Contains(template, bootstrap) {
 		return errors.New("web HTML static bootstrap marker not found")
 	}

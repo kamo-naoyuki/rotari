@@ -519,6 +519,9 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
 		t.Fatal(err)
 	}
+	if err := writeJSON(filepath.Join(paths.runsDir, "run-1", "summary.json"), RunSummary{RunID: "run-1", Status: "finished"}); err != nil {
+		t.Fatal(err)
+	}
 	outputDir := filepath.Join(t.TempDir(), "web")
 	if err := generateStaticWeb(outputDir, baseDir, ""); err != nil {
 		t.Fatal(err)
@@ -546,6 +549,22 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 	}
 	if !strings.Contains(string(index), "data:image/svg+xml;base64,") {
 		t.Fatal("static web page does not contain embedded favicon data")
+	}
+	for _, page := range []string{
+		filepath.Join(outputDir, "index.html"),
+		filepath.Join(outputDir, "project", "default", "index.html"),
+		filepath.Join(outputDir, "project", "default", "run", "run-1", "index.html"),
+	} {
+		pageData, readErr := os.ReadFile(page)
+		if readErr != nil {
+			t.Fatalf("static web page is missing: %v", readErr)
+		}
+		if !strings.Contains(string(pageData), `href="web_styles.css"`) || strings.Contains(string(pageData), `href="/web_styles.css"`) {
+			t.Fatalf("static web page %s does not use a relative stylesheet path", page)
+		}
+		if _, statErr := os.Stat(filepath.Join(filepath.Dir(page), "web_styles.css")); statErr != nil {
+			t.Fatalf("static web stylesheet beside %s is missing: %v", page, statErr)
+		}
 	}
 	if stylesheet, readErr := os.ReadFile(filepath.Join(outputDir, "web_styles.css")); readErr != nil || !strings.Contains(string(stylesheet), "--bg:") {
 		t.Fatalf("static web stylesheet is missing or invalid: %v", readErr)
