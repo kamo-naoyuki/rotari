@@ -158,3 +158,73 @@ func TestResolveActiveRunTarget(t *testing.T) {
 		t.Fatalf("run ID = %q, want active-run", runID)
 	}
 }
+
+func TestResolveWaitTargetByProjectRunNameAndRunID(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "build")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: "run-id", RunName: "nightly"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := registerRun(paths, "run-id"); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		selector string
+		want     waitTarget
+	}{
+		{selector: "build", want: waitTarget{baseDir: baseDir, projectName: "build", runID: "run-id"}},
+		{selector: "nightly", want: waitTarget{baseDir: baseDir, projectName: "build", runID: "run-id"}},
+		{selector: "run-id", want: waitTarget{baseDir: baseDir, projectName: "build", runID: "run-id"}},
+	}
+	for _, test := range tests {
+		got, err := resolveWaitTarget(baseDir, "", test.selector)
+		if err != nil {
+			t.Fatalf("resolveWaitTarget(%q): %v", test.selector, err)
+		}
+		if got != test.want {
+			t.Fatalf("resolveWaitTarget(%q) = %#v, want %#v", test.selector, got, test.want)
+		}
+	}
+}
+
+func TestResolveWaitTargetRejectsAmbiguousRunName(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	for _, projectName := range []string{"alpha", "beta"} {
+		paths, err := resolvePaths(baseDir, projectName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := writeJSON(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: projectName + "-run", RunName: "nightly"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := resolveWaitTarget(baseDir, "", "nightly"); err == nil || !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("resolveWaitTarget() error = %v, want ambiguity error", err)
+	}
+}
+
+func TestResolveActiveWaitTargetsFindsAllProjects(t *testing.T) {
+	baseDir := t.TempDir()
+	for _, projectName := range []string{"beta", "alpha"} {
+		paths, err := resolvePaths(baseDir, projectName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := writeJSON(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: projectName + "-run"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := resolveActiveWaitTargets(baseDir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].projectName != "alpha" || got[1].projectName != "beta" {
+		t.Fatalf("active targets = %#v, want alpha then beta", got)
+	}
+}

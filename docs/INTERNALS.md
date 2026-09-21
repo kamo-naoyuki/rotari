@@ -156,8 +156,12 @@ Without a run-location lookup, base directories resolve in this order:
     `last_run_id`, then the newest run directory where supported. `show` may
     prefer an active run, an interrupted run, or a non-empty idle queue before
     history.
-- `wait` is the exception: without a run ID it requires an active
-    `running.lock` and never infers a historical run.
+- `wait` without a selector scans the resolved basedir's projects and waits
+    when exactly one active `running.lock` exists; multiple active projects
+    are listed for explicit selection, and no active project is an error. A
+    positional selector is resolved in this order: project name, active run
+    name, then run ID. An explicit `--run-id` bypasses this selector
+    resolution.
 - Run lookup applies to history commands (`show`, `wait`, `copy`,
     `change`, `remove`, `delete`, and rerun selection), not state-creating
     commands such as `add` or a plain new `run`.

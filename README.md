@@ -271,19 +271,22 @@ from rotari import Rotari
 rotari = Rotari(basedir=".rotari-state", project="experiment")
 rotari.add(["./train.sh"], job_name="train")
 run = rotari.run(async_=True)
-summary = rotari.wait(run.run_id)
+summary = rotari.wait()
+rotari.reset()
 ```
 
 The client invokes the `rotari` executable without a shell, so the `rotari`
 command must be available on `PATH` for the Python process. `wait` and `show`
 use the CLI's machine-readable JSON modes; all queue and run semantics remain
-owned by the CLI. This is intentionally a thin wrapper, not a Python-native
+owned by the CLI. `wait(selector)` accepts a project name, run name, or run ID;
+when omitted, it waits for the active run selected by the client's location
+options. `reset(recover=True)` passes the CLI's interrupted-run recovery flag.
+This is intentionally a thin wrapper, not a Python-native
 job executor: it accepts command argument lists such as `['./train.sh']`, not
 Python functions to serialize and submit. For a function-oriented Python job
 submission framework, see [Submitit](https://github.com/facebookincubator/submitit);
 rotari instead exposes the existing CLI and its local, SSH, and scheduler
 backends to Python.
-
 
 ## Local web UI
 
@@ -444,7 +447,7 @@ real LSF installation.
 
 ```sh
 rotari run --project-name build --async
-rotari wait --run-id RUN_ID
+rotari wait build
 ```
 
 To add a command and start the queue in one step, returning immediately after
@@ -455,18 +458,22 @@ rotari add --run-async go test ./...
 ```
 
 The async start message prints commands for checking status and cancelling the
-run. `wait` returns the overall run exit code. Pass multiple run IDs to wait
-for independent async runs together:
+run. `wait` returns the overall run exit code. Pass a project name, run name,
+or run ID as a positional selector. Rotari checks them in that order, so a
+project name wins over a run name and a run ID when the same string is used for
+more than one kind of identifier. Use `--run-id` to select a run explicitly.
+Pass multiple selectors to wait for independent async runs together:
 
 ```sh
 rotari run --project-name build --async
 rotari run --project-name test --async
-rotari wait RUN_ID_FROM_BUILD RUN_ID_FROM_TEST
+rotari wait build test
 ```
 
-When the project is already running, `rotari wait` without a run ID waits for
-that active run automatically. Use `--project-name` when more than one
-project exists.
+When `rotari wait` has no selector, it scans the resolved basedir. It waits
+automatically when exactly one project is running; when multiple projects are
+running, it prints their project and run IDs and asks for a selector. Use
+`rotari wait PROJECT` to choose one.
 
 Pressing Ctrl-C during a synchronous `rotari run` requests cancellation and
 returns your terminal immediately (exit code 130) — it does not wait for
@@ -490,7 +497,8 @@ interactive progress view.
 
 An async run is started as a detached process in a new session (`setsid`), so
 it keeps running even if the terminal that launched it is closed. Use
-`rotari wait --run-id RUN_ID` from any terminal (or later) to block on the run, and
+`rotari wait PROJECT`, `rotari wait RUN_NAME`, or `rotari wait --run-id RUN_ID`
+from any terminal (or later) to block on the run, and
 `rotari cancel` to stop it.
 
 The detached supervisor is not auto-restarted by rotari if the process itself

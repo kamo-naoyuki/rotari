@@ -72,6 +72,7 @@ type Meta struct {
 type LockInfo struct {
 	PID       int    `json:"pid"`
 	RunID     string `json:"run_id"`
+	RunName   string `json:"run_name,omitempty"`
 	StartedAt string `json:"started_at"`
 	Host      string `json:"host,omitempty"`
 }
@@ -216,7 +217,7 @@ func run(args []string) int {
 	}
 	cliConfigCommand = args[0]
 	isConfigCommand := args[0] == "config" || (args[0] == "run" && len(args) > 1 && args[1] == "config")
-	if !isConfigCommand && args[0] != "--version" && args[0] != "version" {
+	if !isConfigCommand && args[0] != "schema" && args[0] != "--version" && args[0] != "version" {
 		if err := loadCLIConfig(args[1:]); err != nil {
 			printErrorf("failed to load config: %v", err)
 			return 1
@@ -273,6 +274,8 @@ func run(args []string) int {
 		return cmdEnvironment(args[1:])
 	case "completion":
 		return cmdCompletion(args[1:])
+	case "schema":
+		return cmdSchema(args[1:])
 	case "__complete":
 		return cmdComplete(args[1:])
 	case "__server":
@@ -501,7 +504,7 @@ func finishRun(paths pathSet, runID string, exitCode int) error {
 }
 
 func launchAsyncRun(paths pathSet, queueName, runID, runName string, localConcurrency, batchMaxActive, retry int, executor string, executorOptions []string, selection string, jobIDs []string, sourceRunID string, partialArray bool, cwd string, onDone func(), executorSettings executorRunSettingsMap) int {
-	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: runID, StartedAt: nowRFC3339()}); err != nil {
+	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: runID, RunName: runName, StartedAt: nowRFC3339()}); err != nil {
 		printErrorf("project '%s' is running; run is not allowed: %v", queueName, err)
 		return 1
 	}
@@ -585,7 +588,7 @@ func launchAsyncRun(paths pathSet, queueName, runID, runName string, localConcur
 		printErrorf("failed to determine lock host: %v", err)
 		return 1
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: cmd.Process.Pid, RunID: runID, StartedAt: nowRFC3339(), Host: host}); err != nil {
+	if err := writeJSON(paths.lockFile, LockInfo{PID: cmd.Process.Pid, RunID: runID, RunName: runName, StartedAt: nowRFC3339(), Host: host}); err != nil {
 		_ = cmd.Process.Kill()
 		_ = os.Remove(paths.lockFile)
 		printErrorf("failed to update lock with child pid: %v", err)

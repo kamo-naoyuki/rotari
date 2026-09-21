@@ -64,6 +64,15 @@ jobs:
       - name: Check example script
         run: bash -n scripts/example.sh
 
+      - name: Check generated Python CLI metadata
+        run: |
+          tmpdir=$(mktemp -d)
+          go run ./cmd/rotari schema --json > "$tmpdir/schema.json"
+          python3 scripts/generate_python_cli.py \
+            --input "$tmpdir/schema.json" \
+            --output "$tmpdir/generated_cli.py"
+          diff -u python/rotari/generated_cli.py "$tmpdir/generated_cli.py"
+
   python:
     runs-on: ubuntu-latest
     steps:

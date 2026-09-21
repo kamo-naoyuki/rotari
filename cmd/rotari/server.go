@@ -1359,7 +1359,7 @@ func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMa
 		release()
 		return "", 1, err
 	}
-	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: runID, StartedAt: nowRFC3339()}); err != nil {
+	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: runID, RunName: runName, StartedAt: nowRFC3339()}); err != nil {
 		release()
 		return "", 1, fmt.Errorf("project %q is already running", queueName)
 	}

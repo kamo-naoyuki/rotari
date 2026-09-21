@@ -7,6 +7,7 @@ name = "rotari"
 version = "0.1.0"
 description = "Python client for the rotari command-line interface"
 requires-python = ">=3.10"
+readme = "README.md"
 
 [tool.setuptools]
 packages = ["rotari"]

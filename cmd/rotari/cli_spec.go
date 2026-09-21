@@ -17,8 +17,8 @@ type cliFlagSpec struct {
 }
 
 type cliSubcommandSpec struct {
-	Name        string
-	Description string
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 type cliCommandSpec struct {
@@ -197,20 +197,20 @@ var cliCommandSpecs = []cliCommandSpec{
 	},
 	{
 		Name:        "wait",
-		Description: "wait for asynchronous runs",
+		Description: "wait for an asynchronous run by project, run name, or run ID",
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "run-id", Description: "run ID; may be repeated", ValueName: "ID"},
 			cliFlagSpec{Name: "timeout", Description: "maximum wait duration", ValueName: "DURATION"},
 			cliFlagSpec{Name: "json", Description: "print each completed run as one JSON object"},
 		),
-		Positional: "[RUN_ID ...]",
+		Positional: "[PROJECT_OR_RUN_NAME_OR_RUN_ID ...]",
 	},
 	{
 		Name:        "add",
 		Description: "add a command to a queue",
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "executor", Description: "job executor", ValueName: "EXECUTOR", Values: executorNames()},
-			cliFlagSpec{Name: "executor-option", Description: "option passed to the selected scheduler (sbatch/qsub/...)", ValueName: "OPTION"},
+			cliFlagSpec{Name: "executor-option", Description: "option passed to the selected scheduler (sbatch/qsub/...); may be repeated", ValueName: "OPTION"},
 			cliFlagSpec{Name: "working-directory", Description: "working directory for the job", ValueName: "DIR"},
 			cliFlagSpec{Name: "env", Description: "environment variable for the job; may be repeated", ValueName: "KEY=VALUE"},
 			cliFlagSpec{Name: "job-name", Description: "job name label", ValueName: "NAME"},
@@ -251,7 +251,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "partial-array", Description: "with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches"},
 			cliFlagSpec{Name: "async", Description: "return after starting the run"},
 			cliFlagSpec{Name: "executor", Description: "execution executor override", ValueName: "EXECUTOR", Values: executorNames()},
-			cliFlagSpec{Name: "executor-option", Description: "option passed to the selected scheduler (sbatch/qsub/...)", ValueName: "OPTION"},
+			cliFlagSpec{Name: "executor-option", Description: "option passed to the selected scheduler (sbatch/qsub/...); may be repeated", ValueName: "OPTION"},
 			cliFlagSpec{Name: "ssh-concurrency", Description: "SSH executor concurrency", ValueName: "N"},
 			cliFlagSpec{Name: "ssh-options", Description: "SSH executor dispatch options; may be repeated", ValueName: "OPTION"},
 			cliFlagSpec{Name: "slurm-concurrency", Description: "Slurm executor concurrency", ValueName: "N"},
@@ -275,7 +275,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "job-id", Description: "also execute this job; may be repeated", ValueName: "ID"},
 			cliFlagSpec{Name: "async", Description: "return after starting the run"},
 			cliFlagSpec{Name: "executor", Description: "execution executor override", ValueName: "EXECUTOR", Values: executorNames()},
-			cliFlagSpec{Name: "executor-option", Description: "option passed to the selected scheduler (sbatch/qsub/...)", ValueName: "OPTION"},
+			cliFlagSpec{Name: "executor-option", Description: "option passed to the selected scheduler (sbatch/qsub/...); may be repeated", ValueName: "OPTION"},
 			cliFlagSpec{Name: "ssh-concurrency", Description: "SSH executor concurrency", ValueName: "N"},
 			cliFlagSpec{Name: "ssh-options", Description: "SSH executor dispatch options; may be repeated", ValueName: "OPTION"},
 			cliFlagSpec{Name: "slurm-concurrency", Description: "Slurm executor concurrency", ValueName: "N"},
@@ -319,6 +319,11 @@ var cliCommandSpecs = []cliCommandSpec{
 			{Name: "fish", Description: "fish completion"},
 			{Name: "install", Description: "install completion for the current shell"},
 		},
+	},
+	{
+		Name:        "schema",
+		Description: "print the CLI schema as JSON",
+		Flags:       []cliFlagSpec{{Name: "json", Description: "print the schema as JSON"}},
 	},
 	{
 		Name:        "version",

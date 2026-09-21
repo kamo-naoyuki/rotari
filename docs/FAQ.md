@@ -106,6 +106,14 @@ for the run through the normal synchronous client, while `add --run-async`
 returns after the background run has started. The options are mutually
 exclusive.
 
+**What exit status does `rotari run` return when a job fails?**
+For a synchronous run, `rotari run` returns `0` when every job succeeds and
+`1` when any job fails; it does not propagate an individual job's exit code.
+`rotari run --async` returns `0` once the background run starts successfully,
+regardless of its eventual result. Use `rotari wait PROJECT` or
+`rotari wait --run-id RUN_ID` to wait
+for an asynchronous run and obtain its recorded run exit status.
+
 **Can an array run only selected task IDs?**
 Yes. Use `--array 1,3,4` for a sparse task list (ranges such as `1-10` are
 also supported). Sparse lists run as independent scheduler submissions, so
@@ -221,9 +229,10 @@ cancellation of the run. Use Ctrl-D for a one-way detach, or start with
 progress view.
 
 **Can `wait` find the run ID for me?**
-Yes. With no run ID, `rotari wait` detects the active run for the resolved
-project and waits for it. Specify `--project-name` when the base directory has
-multiple projects.
+Yes. With no selector, `rotari wait` scans the resolved basedir and waits when
+exactly one project is running. If multiple projects are running, it prints
+their project and run IDs so you can choose one. A positional selector is
+resolved as project name, active run name, then run ID, in that priority order.
 
 **How does rotari actually stop a running job on Ctrl-C or `rotari cancel`?**
 It depends on the executor. `local` runs the job command through its own

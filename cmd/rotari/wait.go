@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
@@ -14,21 +15,44 @@ func cmdWait(args []string) int {
 	fs.SetOutput(os.Stderr)
 	basedir := cliString(fs, "basedir", "")
 	queueNameOption := cliString(fs, "project-name", "")
-	var runIDs stringSliceFlag
-	cliValue(fs, &runIDs, "run-id")
+	var explicitRunIDs stringSliceFlag
+	cliValue(fs, &explicitRunIDs, "run-id")
 	timeout := cliDuration(fs, "timeout", 0)
 	jsonOutput := cliBool(fs, "json", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	runIDs = append(runIDs, fs.Args()...)
-	if len(runIDs) == 0 {
-		runID, err := resolveActiveRunTarget(*basedir, *queueNameOption)
+	selectors := fs.Args()
+	targets := make([]waitTarget, 0, len(explicitRunIDs)+len(selectors))
+	for _, runID := range explicitRunIDs {
+		targets = append(targets, waitTarget{baseDir: *basedir, projectName: *queueNameOption, runID: runID})
+	}
+	for _, selector := range selectors {
+		target, err := resolveWaitTarget(*basedir, *queueNameOption, selector)
 		if err != nil {
 			printError(err)
 			return 1
 		}
-		runIDs = append(runIDs, runID)
+		targets = append(targets, target)
+	}
+	if len(targets) == 0 {
+		activeTargets, err := resolveActiveWaitTargets(*basedir, *queueNameOption)
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		if len(activeTargets) == 0 {
+			printError("no active runs")
+			return 1
+		}
+		if len(activeTargets) > 1 {
+			printError("multiple active runs; specify a project or selector:")
+			for _, target := range activeTargets {
+				fmt.Fprintf(os.Stderr, "  project=%s run=%s\n", target.projectName, target.runID)
+			}
+			return 1
+		}
+		targets = append(targets, activeTargets[0])
 	}
 	if *timeout < 0 {
 		printError("--timeout must be >= 0")
@@ -39,8 +63,8 @@ func cmdWait(args []string) int {
 		deadline = time.Now().Add(*timeout)
 	}
 	exitCode := 0
-	for _, runID := range runIDs {
-		result := waitForRun(*basedir, *queueNameOption, runID, deadline, *jsonOutput)
+	for _, target := range targets {
+		result := waitForRun(target.baseDir, target.projectName, target.runID, deadline, *jsonOutput)
 		if result.exitCode > exitCode {
 			exitCode = result.exitCode
 		}
@@ -49,6 +73,113 @@ func cmdWait(args []string) int {
 		}
 	}
 	return exitCode
+}
+
+type waitTarget struct {
+	baseDir     string
+	projectName string
+	runID       string
+}
+
+func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (waitTarget, error) {
+	baseDir, _, err := resolveBaseDir(cliBaseDir)
+	if err != nil {
+		return waitTarget{}, err
+	}
+	if isValidProjectName(selector) {
+		projectDir := filepath.Join(baseDir, "projects", selector)
+		if info, statErr := os.Stat(projectDir); statErr == nil && info.IsDir() {
+			runID, activeErr := resolveActiveRunTarget(baseDir, selector)
+			if activeErr != nil {
+				return waitTarget{}, activeErr
+			}
+			return waitTarget{baseDir: baseDir, projectName: selector, runID: runID}, nil
+		}
+	}
+
+	activeTargets, err := resolveActiveWaitTargets(baseDir, cliProjectName)
+	if err != nil {
+		return waitTarget{}, err
+	}
+	var matches []waitTarget
+	for _, target := range activeTargets {
+		paths, pathErr := resolvePaths(target.baseDir, target.projectName)
+		if pathErr != nil {
+			return waitTarget{}, pathErr
+		}
+		lock, lockErr := loadLockInfo(paths.lockFile)
+		if lockErr != nil {
+			return waitTarget{}, lockErr
+		}
+		if lock.RunName == selector {
+			matches = append(matches, target)
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	if len(matches) > 1 {
+		return waitTarget{}, fmt.Errorf("run name %q is ambiguous across active projects", selector)
+	}
+	if location, found, registryErr := resolveRunLocation(selector); registryErr != nil {
+		return waitTarget{}, registryErr
+	} else if found {
+		return waitTarget{baseDir: location.BaseDir, projectName: location.ProjectName, runID: location.RunID}, nil
+	}
+	return waitTarget{}, fmt.Errorf("no project, active run name, or run ID matches %q", selector)
+}
+
+func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]waitTarget, error) {
+	if cliProjectName != "" || os.Getenv(envProjectName) != "" {
+		runID, err := resolveActiveRunTarget(cliBaseDir, cliProjectName)
+		if err != nil {
+			return nil, err
+		}
+		baseDir, _, err := resolveBaseDir(cliBaseDir)
+		if err != nil {
+			return nil, err
+		}
+		projectName, err := resolveProjectName(baseDir, cliProjectName)
+		if err != nil {
+			return nil, err
+		}
+		return []waitTarget{{baseDir: baseDir, projectName: projectName, runID: runID}}, nil
+	}
+	baseDir, _, err := resolveBaseDir(cliBaseDir)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	active := make([]waitTarget, 0)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		paths, pathErr := resolvePaths(baseDir, entry.Name())
+		if pathErr != nil {
+			return nil, pathErr
+		}
+		running, runningErr := isRunning(paths.lockFile)
+		if runningErr != nil {
+			return nil, runningErr
+		}
+		if !running {
+			continue
+		}
+		lock, lockErr := loadLockInfo(paths.lockFile)
+		if lockErr != nil {
+			return nil, lockErr
+		}
+		active = append(active, waitTarget{baseDir: baseDir, projectName: entry.Name(), runID: lock.RunID})
+	}
+	sort.Slice(active, func(i, j int) bool { return active[i].projectName < active[j].projectName })
+	return active, nil
 }
 
 func resolveActiveRunTarget(cliBaseDir, cliProjectName string) (string, error) {

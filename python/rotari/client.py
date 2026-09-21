@@ -2,11 +2,87 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import inspect
 import os
 from pathlib import Path
 import re
 import subprocess
 from typing import Mapping, Sequence
+
+from .generated_cli import CLI_SCHEMA
+
+
+def _cli_option_name(name: str) -> str:
+    if name == "async_":
+        return "async"
+    if name.endswith("_ids"):
+        return name[:-1].replace("_", "-")
+    if name == "executor_options":
+        return "executor-option"
+    return name.replace("_", "-")
+
+
+def build_command_arguments(
+    command: str,
+    options: Mapping[str, object] | None = None,
+    positional: Sequence[str] = (),
+) -> list[str]:
+    """Build command argv from the generated CLI schema."""
+    command_spec = next((item for item in CLI_SCHEMA["commands"] if item["name"] == command), None)
+    if command_spec is None:
+        raise ValueError(f"unknown CLI command: {command}")
+    flags = {item["name"]: item for item in command_spec.get("flags", ())}
+    provided = {_cli_option_name(option): value for option, value in (options or {}).items()}
+    arguments = [command]
+    for name, flag in flags.items():
+        value = provided.get(name)
+        if value is None:
+            continue
+        prefix = f"--{name}"
+        values = value if flag.get("repeated") and isinstance(value, Sequence) and not isinstance(value, (str, bytes)) else (value,)
+        for item in values:
+            if isinstance(item, bool):
+                if item:
+                    arguments.append(prefix)
+            else:
+                arguments.extend((prefix, str(item)))
+    arguments.extend(positional)
+    return arguments
+
+
+def _python_option_name(name: str) -> str:
+    if name == "async":
+        return "async_"
+    if name == "executor-option":
+        return "executor_options"
+    if name == "job-id":
+        return "job_ids"
+    return name.replace("-", "_")
+
+
+def _install_cli_signatures() -> None:
+    for command_spec in CLI_SCHEMA["commands"]:
+        command = command_spec["name"]
+        method = getattr(Rotari, command, None)
+        if method is None:
+            continue
+        parameters = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+        if command == "add":
+            parameters.append(inspect.Parameter("command", inspect.Parameter.POSITIONAL_OR_KEYWORD))
+        elif command == "wait":
+            parameters.append(inspect.Parameter("selector", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None))
+        for flag in command_spec.get("flags", ()):
+            if flag["name"] in {"basedir", "project-name"}:
+                continue
+            name = _python_option_name(flag["name"])
+            if flag.get("repeated"):
+                default = ()
+            elif flag.get("value_name"):
+                default = None
+            else:
+                default = False
+            parameters.append(inspect.Parameter(name, inspect.Parameter.KEYWORD_ONLY, default=default))
+        method.__signature__ = inspect.Signature(parameters)
 
 
 @dataclass(frozen=True)
@@ -76,78 +152,39 @@ class Rotari:
     def add(
         self,
         command: Sequence[str],
-        *,
-        executor: str | None = None,
-        executor_options: Sequence[str] = (),
-        env: Sequence[str] = (),
-        job_name: str | None = None,
-        depends_on: Sequence[str] = (),
-        array: str | None = None,
-        run: bool = False,
+        **options: object,
     ) -> CommandResult:
-        arguments = ["add"]
-        if executor is not None:
-            arguments += ["--executor", executor]
-        for option in executor_options:
-            arguments += ["--executor-option", option]
-        for variable in env:
-            arguments += ["--env", variable]
-        if job_name is not None:
-            arguments += ["--job-name", job_name]
-        for dependency in depends_on:
-            arguments += ["--depends-on", dependency]
-        if array is not None:
-            arguments += ["--array", array]
-        if run:
-            arguments.append("--run")
+        arguments = build_command_arguments("add", options)
         arguments += ["--", *command]
         return self.command(*arguments)
 
-    def run(
-        self,
-        *,
-        run_id: str | None = None,
-        run_name: str | None = None,
-        async_: bool = False,
-        failed: bool = False,
-        unfinished: bool = False,
-        success: bool = False,
-        job_ids: Sequence[str] = (),
-        overwrite: bool = False,
-        partial_array: bool | None = None,
-    ) -> CommandResult:
-        arguments = ["run"]
-        if run_id is not None:
-            arguments += ["--run-id", run_id]
-        if run_name is not None:
-            arguments += ["--run-name", run_name]
-        if async_:
-            arguments.append("--async")
-        if failed:
-            arguments.append("--failed")
-        if unfinished:
-            arguments.append("--unfinished")
-        if success:
-            arguments.append("--success")
-        for job_id in job_ids:
-            arguments += ["--job-id", job_id]
-        if overwrite:
-            arguments.append("--overwrite")
-        if partial_array is not None:
-            arguments.append(f"--partial-array={str(partial_array).lower()}")
+    def run(self, **options: object) -> CommandResult:
+        if options.get("partial_array") is not None:
+            options["partial_array"] = str(options["partial_array"]).lower()
+        arguments = build_command_arguments("run", options)
         return self.command(*arguments)
 
     def retry(self, **options: object) -> CommandResult:
         """Retry failed and unfinished jobs using the CLI retry alias."""
 
-        arguments = ["retry"]
-        self._append_run_options(arguments, options)
+        arguments = build_command_arguments("retry", options)
         return self.command(*arguments)
 
-    def wait(self, run_id: str, *, timeout: str | None = None) -> dict[str, object]:
-        arguments = ["wait", "--run-id", run_id, "--json"]
-        if timeout is not None:
-            arguments += ["--timeout", timeout]
+    def reset(self, *, recover: bool = False) -> CommandResult:
+        """Clear the current queue, optionally recovering an interrupted run."""
+
+        arguments = build_command_arguments("reset", locals())
+        return self.command(*arguments)
+
+    def wait(
+        self,
+        selector: str | None = None,
+        **options: object,
+    ) -> dict[str, object]:
+        if selector is not None and options.get("run_id") is not None:
+            raise ValueError("selector and run_id cannot be used together")
+        options = {**options, "json": True}
+        arguments = build_command_arguments("wait", options, [selector] if selector is not None else ())
         result = self.command(*arguments, check=False)
         try:
             summary = result.json()
@@ -157,10 +194,8 @@ class Rotari:
             raise TypeError("rotari wait --json returned a non-object JSON value")
         return summary
 
-    def show(self, run_id: str | None = None) -> dict[str, object]:
-        arguments = ["show", "--json"]
-        if run_id is not None:
-            arguments += ["--run-id", run_id]
+    def show(self, **options: object) -> dict[str, object]:
+        arguments = build_command_arguments("show", {**options, "json": True})
         result = self.command(*arguments)
         value = result.json()
         if not isinstance(value, dict):
@@ -186,29 +221,4 @@ class Rotari:
         )
         return CommandResult(tuple(argv), process.returncode, process.stdout, process.stderr)
 
-    @staticmethod
-    def _append_run_options(arguments: list[str], options: Mapping[str, object]) -> None:
-        option_names = {
-            "run_id": "--run-id",
-            "run_name": "--run-name",
-            "async_": "--async",
-            "failed": "--failed",
-            "unfinished": "--unfinished",
-            "success": "--success",
-            "overwrite": "--overwrite",
-            "partial_array": "--partial-array",
-        }
-        for name, flag in option_names.items():
-            value = options.get(name)
-            if value is None:
-                continue
-            if value is False:
-                if name == "partial_array":
-                    arguments.append(f"{flag}=false")
-                continue
-            if value is True:
-                arguments.append(flag)
-            else:
-                arguments += [flag, str(value).lower() if isinstance(value, bool) else str(value)]
-        for job_id in options.get("job_ids", ()):
-            arguments += ["--job-id", str(job_id)]
+_install_cli_signatures()
