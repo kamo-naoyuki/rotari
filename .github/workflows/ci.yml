@@ -32,6 +32,14 @@ jobs:
           node-version: "22"
           cache: "npm"
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install Python formatting tools
+        run: python -m pip install black==25.1.0 isort==6.0.1
+
       - name: Install shell completion test dependencies
         run: sudo apt-get update && sudo apt-get install -y zsh fish
 
@@ -74,6 +82,8 @@ jobs:
           python3 scripts/generate_python_cli.py \
             --input "$tmpdir/schema.json" \
             --output "$tmpdir/generated_cli.py"
+          python -m isort --profile black "$tmpdir/generated_cli.py"
+          python -m black "$tmpdir/generated_cli.py"
           diff -u python/rotari/generated_cli.py "$tmpdir/generated_cli.py"
 
   python:
