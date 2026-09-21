@@ -13,6 +13,9 @@ function updateSelectedRunJobs() {
     .querySelectorAll(".create-selected,.append-selected")
     .forEach((button) => (button.disabled = selected.length === 0));
   document
+    .querySelectorAll(".unselect-all")
+    .forEach((button) => (button.disabled = selected.length === 0));
+  document
     .querySelectorAll(".run-ai")
     .forEach((button) => (button.disabled = selected.length === 0));
   const failed = document.querySelector(".select-failed-unfinished");

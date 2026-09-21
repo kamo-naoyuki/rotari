@@ -267,8 +267,10 @@ function arrangeRunControls() {
     updateSelectedRunJobs();
   };
   const unselectAll = document.createElement("button");
+  unselectAll.className = "unselect-all";
   unselectAll.textContent = "Unselect all";
   unselectAll.title = "Clear all selected jobs";
+  unselectAll.disabled = true;
   unselectAll.onclick = clearSelectedJobs;
   const failed = controls.querySelector(".select-failed-unfinished");
   const create = controls.querySelector(".create-selected");
