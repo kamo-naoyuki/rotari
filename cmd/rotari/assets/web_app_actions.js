@@ -271,6 +271,15 @@ function addExecutionGuide() {
   if (!queue) return;
   const guide = document.createElement("pre");
   guide.className = "command-guide execution-guide";
+  const copyButton = document.createElement("button");
+  copyButton.className = "command-guide-copy";
+  copyButton.type = "button";
+  copyButton.title = "Copy command";
+  copyButton.setAttribute("aria-label", "Copy command");
+  copyButton.innerHTML =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg>';
+  copyButton.dataset.icon = copyButton.innerHTML;
+  copyButton.onclick = () => copyCommandGuide(guide, copyButton);
   const basedir =
     state && state.base_dir ? " -b " + shellQuote(state.base_dir) : " ";
   if (parts[2] === "run") {
@@ -301,6 +310,7 @@ function addExecutionGuide() {
         shellQuote(runID) +
         " --job-id JOB_ID";
     }
+    addCommandGuideCopyButton(guide, copyButton);
     const workingDirectory = [...document.querySelectorAll("#app p")].find(
       (element) => element.textContent.startsWith("Working directory:"),
     );
@@ -323,8 +333,39 @@ function addExecutionGuide() {
     basedir +
     " --project-name " +
     shellQuote(queueName);
+  addCommandGuideCopyButton(guide, copyButton);
   const section = document.querySelector(".web-queue-commands");
   if (section) section.append(guide);
+}
+async function copyCommandGuide(guide, button) {
+  try {
+    await copyText(guide.dataset.copyText || "");
+    clearTimeout(button.copyResetTimer);
+    guide.classList.add("copied");
+    button.classList.add("copied");
+    button.title = "Copied!";
+    button.setAttribute("aria-label", "Copied!");
+    button.innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg>';
+    button.copyResetTimer = setTimeout(() => {
+      guide.classList.remove("copied");
+      button.classList.remove("copied");
+      button.title = "Copy command";
+      button.setAttribute("aria-label", "Copy command");
+      button.innerHTML = button.dataset.icon;
+    }, 1200);
+  } catch (error) {
+    alert(error.message);
+  }
+}
+function addCommandGuideCopyButton(guide, button) {
+  guide.dataset.copyText = guide.textContent;
+  const copied = document.createElement("span");
+  copied.className = "command-guide-copied";
+  copied.setAttribute("role", "status");
+  copied.textContent = "Copied!";
+  guide.append(copied);
+  guide.append(button);
 }
 function addPathButton(cell, path) {
   const button = document.createElement("button");

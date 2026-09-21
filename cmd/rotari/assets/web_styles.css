@@ -26,10 +26,54 @@
   white-space: pre-wrap;
   background: #0b1015;
   border: 1px solid var(--line);
-  padding: 14px;
+  padding: 14px 52px 14px 14px;
   color: #d7e2ea;
   margin: 12px 0 18px;
   overflow: auto;
+  position: relative;
+}
+.command-guide-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  color: var(--muted);
+  background: var(--panel);
+}
+.command-guide-copy:hover,
+.command-guide-copy.copied {
+  color: var(--text);
+}
+.command-guide-copy.copied {
+  border-color: var(--good);
+}
+.command-guide-copied {
+  position: absolute;
+  top: 8px;
+  right: 48px;
+  border: 1px solid var(--line);
+  padding: 5px 8px;
+  color: var(--text);
+  background: var(--panel);
+  font: 12px/1.5 ui-sans-serif, system-ui, sans-serif;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.command-guide.copied .command-guide-copied {
+  opacity: 1;
+  transform: translateX(0);
+}
+.command-guide-copy svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
 }
 #disconnect-banner {
   display: none;

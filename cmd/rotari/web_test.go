@@ -123,6 +123,11 @@ func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 	if !webContains(html, "Cancel run") || !webContains(html, "/api/cancel-run") {
 		t.Fatal("web run page does not contain run cancellation controls")
 	}
+	for _, marker := range []string{"command-guide-copy", "command-guide-copied", "copyCommandGuide", "Copy command", "Copied!"} {
+		if !webContains(html, marker) {
+			t.Fatalf("web command guidance is missing copy control %q", marker)
+		}
+	}
 	for _, marker := range []string{"select-all-jobs", "job-selection", "copySelectedJobs", "Select failed + unfinished", "Unselect all", ">Create</button>", ">Append</button>"} {
 		if !webContains(html, marker) {
 			t.Fatalf("web run page is missing job queue selection control %q", marker)
@@ -155,6 +160,9 @@ func TestWebIndexTemplateUsesProjectVocabulary(t *testing.T) {
 		if !strings.Contains(template, required) {
 			t.Fatalf("project web template is missing %q", required)
 		}
+	}
+	if !strings.Contains(webTemplateHTML, `href="/web_styles.css"`) {
+		t.Fatal("web template does not load the stylesheet from the server root")
 	}
 }
 
