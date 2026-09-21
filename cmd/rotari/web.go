@@ -90,11 +90,13 @@ type webState struct {
 }
 
 type webCopyRequest struct {
-	QueueName string `json:"project_name"`
-	RunID     string `json:"run_id"`
-	Selection string `json:"selection"`
-	Append    bool   `json:"append"`
-	Overwrite bool   `json:"overwrite"`
+	QueueName string   `json:"project_name"`
+	RunID     string   `json:"run_id"`
+	JobID     string   `json:"job_id,omitempty"`
+	JobIDs    []string `json:"job_ids,omitempty"`
+	Selection string   `json:"selection"`
+	Append    bool     `json:"append"`
+	Overwrite bool     `json:"overwrite"`
 }
 
 type webChangeRequest struct {
@@ -413,9 +415,26 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		if !validWebID(copyRequest.QueueName) || !validWebID(copyRequest.RunID) {
+		if !validWebID(copyRequest.QueueName) || !validWebID(copyRequest.RunID) || (copyRequest.JobID != "" && !validWebID(copyRequest.JobID)) {
 			writeWebError(writer, fmt.Errorf("project_name and run_id are required"))
 			return
+		}
+		if copyRequest.JobID != "" {
+			copyRequest.JobIDs = append(copyRequest.JobIDs, copyRequest.JobID)
+		}
+		for _, jobID := range copyRequest.JobIDs {
+			if !validWebID(jobID) {
+				writeWebError(writer, fmt.Errorf("job_ids must contain valid job IDs"))
+				return
+			}
+		}
+		if copyRequest.JobID != "" {
+			if copyRequest.Selection != "" && copyRequest.Selection != "job-id" {
+				writeWebError(writer, fmt.Errorf("job_id cannot be combined with selection %q", copyRequest.Selection))
+				return
+			}
+			copyRequest.Selection = "job-id"
+			copyRequest.Append = true
 		}
 		if copyRequest.Append && copyRequest.Overwrite {
 			writeWebError(writer, fmt.Errorf("append and overwrite cannot be used together"))
@@ -424,11 +443,11 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 		if copyRequest.Selection == "" {
 			copyRequest.Selection = "failed"
 		}
-		if copyRequest.Selection != "all" && copyRequest.Selection != "failed" && copyRequest.Selection != "unfinished" && copyRequest.Selection != "success" {
+		if copyRequest.Selection != "all" && copyRequest.Selection != "failed" && copyRequest.Selection != "unfinished" && copyRequest.Selection != "success" && copyRequest.Selection != "job-id" {
 			writeWebError(writer, fmt.Errorf("unsupported copy selection %q", copyRequest.Selection))
 			return
 		}
-		message, err := copyRunToQueue(baseDir, copyRequest.QueueName, copyRequest.RunID, copyRequest.Selection, nil, copyRequest.Append, copyRequest.Overwrite)
+		message, err := copyRunToQueue(baseDir, copyRequest.QueueName, copyRequest.RunID, copyRequest.Selection, copyRequest.JobIDs, copyRequest.Append, copyRequest.Overwrite)
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -1227,7 +1246,24 @@ function addQueueEditors(queue,commands){`, 1)
 		`<td>'+esc(dependencies||'-')+'</td><td>'+esc(j.working_directory||'-')+'</td><td class="command">`, 1)
 	template = strings.Replace(template,
 		`<th>Job name / ID</th><th>Executor</th><th>Executor options</th><th>Dependencies</th><th>Command</th><th>Started</th><th>Finished</th><th>Exit / error</th><th></th>`,
-		`<th data-sort="name">Job name / ID</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="exit">Exit / error</th><th data-sort="output"></th>`, 1)
+		`<th data-sort="name"><input id="select-all-jobs" type="checkbox" aria-label="Select all jobs"> Job name / ID</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="exit">Exit / error</th><th data-sort="output"></th>`, 1)
+	template = strings.Replace(template,
+		`return '<tr><td><strong>'+jobName+'</strong><div class="meta">'+esc(j.id)+'</div></td>`,
+		`return '<tr data-job-id="'+esc(j.id)+'"><td><input class="job-selection" type="checkbox" aria-label="Select '+esc(j.id)+'"> <strong>'+jobName+'</strong><div class="meta">'+esc(j.id)+'</div></td>`, 1)
+	template = strings.Replace(template,
+		`controls.innerHTML='<button onclick="copyRun(\'`+"'"+`'+esc(queue.queue_name)+\'`+"'"+`\',\'`+"'"+`'+esc(runID)+\'`+"'"+`\',\'failed\')">Copy failed jobs</button><button onclick="copyRun(\'`+"'"+`'+esc(queue.queue_name)+\'`+"'"+`\',\'`+"'"+`'+esc(runID)+\'`+"'"+`\',\'all\')">Copy all jobs</button>'`,
+		`controls.innerHTML='<button class="create-selected" disabled onclick="copySelectedJobs(\'`+"'"+`'+esc(queue.queue_name)+\'`+"'"+`\',\'`+"'"+`'+esc(runID)+\'`+"'"+`\',false)">Create</button><button class="append-selected" disabled onclick="copySelectedJobs(\'`+"'"+`'+esc(queue.queue_name)+\'`+"'"+`\',\'`+"'"+`'+esc(runID)+\'`+"'"+`\',true)">Append</button>'`, 1)
+	template = strings.Replace(template,
+		`async function copyRun(queue,run,selection){`,
+		`function selectedRunJobIDs(){return [...document.querySelectorAll('.job-selection:checked')].map(input=>input.closest('tr').dataset.jobId)}
+function updateSelectedRunJobs(){const selected=selectedRunJobIDs();const all=[...document.querySelectorAll('.job-selection')];const selectAll=document.getElementById('select-all-jobs');if(selectAll)selectAll.checked=all.length>0&&selected.length===all.length;document.querySelectorAll('.create-selected,.append-selected').forEach(button=>button.disabled=selected.length===0)}
+function addRunJobSelection(){const selectAll=document.getElementById('select-all-jobs');if(!selectAll)return;selectAll.onchange=()=>{document.querySelectorAll('.job-selection').forEach(input=>input.checked=selectAll.checked);updateSelectedRunJobs()};document.querySelectorAll('.job-selection').forEach(input=>input.onchange=updateSelectedRunJobs);updateSelectedRunJobs()}
+async function copySelectedJobs(queue,run,append){const jobIDs=selectedRunJobIDs();if(!jobIDs.length)return;const q=state.queues.find(item=>item.queue_name===queue);const existing=(q&&q.queue.commands||[]).length;if(!append&&existing&&!confirm('This will replace '+existing+' queued jobs. Continue?'))return;const response=await fetch('/api/copy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_name:queue,run_id:run,job_ids:jobIDs,selection:'job-id',append:append,overwrite:!append&&existing>0})});const text=await response.text();if(!response.ok){alert(text);return}alert(JSON.parse(text).message);window.location.href='/queue/'+encodeURIComponent(queue)}
+function selectFailedUnfinishedJobs(){const parts=location.pathname.split('/').filter(Boolean);const project=state.projects.find(item=>item.project_name===decodeURIComponent(parts[1]));const run=project&&project.runs.find(item=>item.run_id===decodeURIComponent(parts[3]));if(!run)return;(run.jobs||[]).forEach(job=>{const row=[...document.querySelectorAll('tr[data-job-id]')].find(item=>item.dataset.jobId===job.id);const status=jobDisplayStatus(job,run);if(row)row.querySelector('.job-selection').checked=status==='failed'||status==='pending'||status==='running'||status==='suspended'});updateSelectedRunJobs()}
+function clearSelectedJobs(){document.querySelectorAll('.job-selection,#select-all-jobs').forEach(input=>input.checked=false);updateSelectedRunJobs()}
+function syncRunControls(){const controls=document.querySelector('.web-copy-controls');if(!controls)return;const parts=location.pathname.split('/').filter(Boolean);const project=state.projects.find(item=>item.project_name===decodeURIComponent(parts[1]));const runID=decodeURIComponent(parts[3]);const buttons=controls.querySelectorAll('button');if(buttons.length>=2){buttons[0].outerHTML='<button class="create-selected" disabled onclick="copySelectedJobs(\''+esc(project.project_name)+'\',\''+esc(runID)+'\',false)">Create</button>';buttons[1].outerHTML='<button class="append-selected" disabled onclick="copySelectedJobs(\''+esc(project.project_name)+'\',\''+esc(runID)+'\',true)">Append</button>'}if(!controls.querySelector('.select-failed-unfinished')){const select=document.createElement('button');select.className='select-failed-unfinished';select.textContent='Select failed + unfinished';select.onclick=selectFailedUnfinishedJobs;const clear=document.createElement('button');clear.textContent='Clear selection';clear.onclick=clearSelectedJobs;controls.append(select,clear)}}
+async function copyRun(queue,run,selection){`, 1)
+	template = strings.Replace(template, `document.getElementById('app').prepend(controls);return}`, `document.getElementById('app').prepend(controls);syncRunControls();return}`, 1)
 	template = strings.Replace(template,
 		`function markJobHeaders(){const parts=location.pathname.split('/').filter(Boolean);if(parts[0]!=='project'||parts[2]!=='run')return;const table=document.querySelector('#app table.runs');if(!table)return;const keys=['name','status','executor','slurm','depends','command','exit'];table.querySelectorAll('thead th').forEach((header,index)=>{if(index<keys.length)header.dataset.sort=keys[index]})}`,
 		`function markJobHeaders(){}`, 1)
@@ -1276,8 +1312,16 @@ async function openAI(url,button){window.open(url,'_blank','noopener');await cop
 async function showAIReport(project,run,job){const modal=document.getElementById('output-modal');modal.dataset.view='ai';modal.querySelector('strong').textContent=job?'Job report':'Run report';selectedLog=null;selectedOutput='Preparing...';ensureModalOutput().textContent=selectedOutput;openOutputModal(false);const params=new URLSearchParams({project_name:project.project_name,run_id:run.run_id});if(job)params.set('job_id',job.id);const response=await fetch('/api/report?'+params);selectedOutput=await response.text();if(!response.ok)selectedOutput='Failed to prepare report: '+selectedOutput;ensureModalOutput().textContent=selectedOutput;openOutputModal(false)}
 function addAIButtons(){const parts=location.pathname.split('/').filter(Boolean);if(parts[0]!=='project'||parts[2]!=='run')return;const project=state.projects.find(item=>item.project_name===decodeURIComponent(parts[1]));const run=project&&project.runs.find(item=>item.run_id===decodeURIComponent(parts[3]));if(!run)return;const controls=document.querySelector('.web-copy-controls');if(controls&&!controls.querySelector('.run-ai')){const button=document.createElement('button');button.className='run-ai';button.textContent='Report';button.title='Prepare run report';button.onclick=()=>showAIReport(project,run,null);controls.append(button)}const table=document.querySelector('#app table.runs');if(!table)return;const actionIndex=[...table.querySelectorAll('thead th')].findIndex(header=>header.textContent.trim()==='Actions');if(actionIndex<0)return;table.querySelectorAll('tbody tr').forEach((row,index)=>{const actions=row.children[actionIndex];const job=run.jobs[index];if(!actions||!job||actions.querySelector('.job-ai'))return;const button=document.createElement('button');button.className='job-ai';button.textContent='Report';button.title='Prepare job report';button.onclick=()=>showAIReport(project,run,job);actions.append(' ',button)})}
 function shellQuote(v){`, 1)
+	template = strings.Replace(template, `function shellQuote(v){`, `function arrangeRunControls(){const parts=location.pathname.split('/').filter(Boolean);if(parts[0]!=='project'||parts[2]!=='run')return;const controls=document.querySelector('.web-copy-controls');const table=document.querySelector('#app table.runs');if(!controls||!table)return;const selectAll=document.createElement('button');selectAll.textContent='Select all';selectAll.title='Select all jobs, or clear the current selection';selectAll.onclick=()=>{const inputs=[...document.querySelectorAll('.job-selection')];const select=inputs.some(input=>!input.checked);inputs.forEach(input=>input.checked=select);updateSelectedRunJobs()};const failed=controls.querySelector('.select-failed-unfinished');const create=controls.querySelector('.create-selected');const append=controls.querySelector('.append-selected');const report=controls.querySelector('.run-ai');const deleteButton=[...controls.querySelectorAll('button')].find(button=>button.textContent.trim()==='Delete');const cancel=[...controls.querySelectorAll('button')].find(button=>button.textContent.trim()==='Cancel run');if(create)create.textContent='Create queue';if(append)append.textContent='Append to queue';controls.querySelectorAll('button').forEach(button=>{if(button.textContent.trim()==='Clear selection')button.remove()});controls.replaceChildren(...[selectAll,failed,create,append,report,deleteButton,cancel].filter(Boolean));const load=document.querySelector('.run-environment');if(load)load.after(controls);else table.before(controls);const headerSelect=document.getElementById('select-all-jobs');if(headerSelect)headerSelect.remove()}
+function shellQuote(v){`, 1)
+	template = strings.Replace(template, `addRunningCancelButtons();mergeActionColumns();`, `addRunningCancelButtons();addRunJobSelection();arrangeRunControls();mergeActionColumns();`, 1)
 	template = strings.Replace(template, `function openOutputModal(compact){const modal=document.getElementById('output-modal');modal.style.display='flex';`, `function openOutputModal(compact){const modal=document.getElementById('output-modal');updateModalActions();modal.style.display='flex';`, 1)
-	template = strings.Replace(template, "fixTimelineLegendColors()};window.addEventListener", "fixTimelineLegendColors();addConfigButton();addAIButtons()};window.addEventListener", 1)
+	template = strings.Replace(template, "fixTimelineLegendColors()};window.addEventListener", "fixTimelineLegendColors();addConfigButton();addAIButtons();arrangeRunControls()};window.addEventListener", 1)
+	template = strings.Replace(template, `button.textContent='Delete';`, `button.textContent='Delete run';`, 1)
+	template = strings.Replace(template, `textContent.trim()==='Delete'`, `textContent.trim()==='Delete'||button.textContent.trim()==='Delete run'`, 1)
+	template = strings.Replace(template, `function shellQuote(v){`, `function orderJobActions(){document.querySelectorAll('#app table.runs tbody tr').forEach(row=>{const cell=row.firstElementChild;if(!cell)return;const buttons=[...cell.querySelectorAll('button')];const order=['View log','Report','Diagnosis','Path','Suspend','Resume','Cancel'];const ordered=[];order.forEach(label=>{buttons.filter(button=>button.textContent.trim()===label).forEach(button=>ordered.push(button))});buttons.filter(button=>!ordered.includes(button)).forEach(button=>ordered.push(button));if(!ordered.length)return;cell.replaceChildren();ordered.forEach((button,index)=>{if(index)cell.append(' ');cell.append(button)})})}
+function shellQuote(v){`, 1)
+	template = strings.Replace(template, "fixTimelineLegendColors()};window.addEventListener", "fixTimelineLegendColors();addConfigButton();addAIButtons();arrangeRunControls();orderJobActions()};window.addEventListener", 1)
 	return template
 }
 

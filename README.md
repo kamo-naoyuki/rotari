@@ -239,6 +239,9 @@ the browser UI uses Basic auth with username `rotari` and the token as password.
 This is HTTP authentication, not encryption: use HTTPS or a trusted network.
 `/api/state` and `/environment/` show only whether variables are set. Project
 and run pages can show raw config files, so keep the UI on a trusted host.
+On a run page, select jobs and use `Create` to replace the current queue or
+`Append` to add them to it. These actions only update the queue; the separate
+runner executes the jobs later.
 
 ## Projects, queues, runs, and state
 

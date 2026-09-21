@@ -109,6 +109,11 @@ func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 	if !strings.Contains(html, "Cancel run") || !strings.Contains(html, "/api/cancel-run") {
 		t.Fatal("web run page does not contain run cancellation controls")
 	}
+	for _, marker := range []string{"select-all-jobs", "job-selection", "copySelectedJobs", "Select failed + unfinished", "Clear selection", ">Create</button>", ">Append</button>"} {
+		if !strings.Contains(html, marker) {
+			t.Fatalf("web run page is missing job queue selection control %q", marker)
+		}
+	}
 }
 
 func TestWebAuthTokenAcceptsBearerAndHeaderToken(t *testing.T) {
@@ -891,6 +896,38 @@ func TestWebCopyEndpointCopiesWithoutRunner(t *testing.T) {
 	}
 	if _, err := os.Stat(serverSocketPath(baseDir)); !os.IsNotExist(err) {
 		t.Fatalf("runner socket exists after web copy: %v", err)
+	}
+}
+
+func TestWebCopyEndpointQueuesOneJobWithoutRunner(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"true"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(paths.runsDir, "run-1")
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "failed", Command: []string{"false"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{Results: []JobResult{{ID: "job-1", ExitCode: 1}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/api/copy", strings.NewReader(`{"project_name":"default","run_id":"run-1","job_id":"job-1"}`))
+	recorder := httptest.NewRecorder()
+	newWebHandler(baseDir, "", true).ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	queue, err := loadQueue(paths.queueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 2 || queue.Commands[1].ID != "job-1" {
+		t.Fatalf("queue = %#v, want existing job plus queued retry", queue)
 	}
 }
 
