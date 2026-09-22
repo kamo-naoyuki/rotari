@@ -2,6 +2,7 @@
 /rotari
 /.rotari-state/
 /.example-state*/
+/.preview-state*/
 /*.test
 /coverage.out
 /coverage.html
