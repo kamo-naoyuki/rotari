@@ -412,6 +412,12 @@ CLI_SCHEMA: dict[str, Any] = {
                     "short": "j",
                     "value_name": "ID",
                 },
+                {
+                    "description": "job name",
+                    "environment": "ROTARI_JOB_NAME",
+                    "name": "job-name",
+                    "value_name": "NAME",
+                },
                 {"description": "show failed jobs only", "name": "failed"},
                 {"description": "print output logs for all jobs", "name": "logs"},
                 {
@@ -426,11 +432,6 @@ CLI_SCHEMA: dict[str, Any] = {
                     "description": "print logs directly instead of using a pager",
                     "name": "no-pager",
                 },
-                {"description": "list all runs in the project", "name": "runs"},
-                {
-                    "description": "list all projects in the state directory",
-                    "name": "projects",
-                },
                 {
                     "description": "list state directories known to the master "
                     "registry",
@@ -443,6 +444,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 {"description": "print an AI-ready Markdown report", "name": "report"},
             ],
             "name": "show",
+            "positional": "[SELECTOR]",
         },
         {
             "description": "list running and recently finished jobs across projects",
@@ -660,15 +662,6 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "array",
                     "value_name": "FIRST-LAST|TASK[,TASK...]",
                 },
-                {
-                    "description": "execute the queue after adding the command",
-                    "name": "run",
-                },
-                {
-                    "description": "execute the queue after adding the command "
-                    "and return immediately",
-                    "name": "run-async",
-                },
             ],
             "name": "add",
             "positional": "<command ...>",
@@ -719,6 +712,12 @@ CLI_SCHEMA: dict[str, Any] = {
                     "repeated": True,
                     "short": "j",
                     "value_name": "ID",
+                },
+                {
+                    "description": "copy a job by name",
+                    "environment": "ROTARI_JOB_NAME",
+                    "name": "job-name",
+                    "value_name": "NAME",
                 },
                 {"description": "append to a non-empty queue", "name": "append"},
                 {"description": "replace a non-empty queue", "name": "overwrite"},
@@ -805,6 +804,12 @@ CLI_SCHEMA: dict[str, Any] = {
                     "repeated": True,
                     "short": "j",
                     "value_name": "ID",
+                },
+                {
+                    "description": "only execute this job by name",
+                    "environment": "ROTARI_JOB_NAME",
+                    "name": "job-name",
+                    "value_name": "NAME",
                 },
                 {
                     "description": "with a result filter, select array jobs per "

@@ -137,7 +137,7 @@ for a project, run, or job, including logs and saved results.
 See [Projects, queues, runs, and state](#projects-queues-runs-and-state) for
 project selection and state layout, [Inspect](#inspect) for status and logs,
 [Recover and rerun](#recover-and-rerun) for retries, and [Async runs](#async-runs)
-for background execution. 
+for background execution.
 
 Use `--depends-on NAME` to define prerequisites.
 Use a job's name as `NAME`; the job waits until that prerequisite succeeds.
