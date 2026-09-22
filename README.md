@@ -167,12 +167,16 @@ rotari run
 
 A typical workflow is: run a script, inspect the jobs list, then drill into a
 failed or interesting job's output. For a detailed view, use the inspect commands
-below (`jobs` and `show`).
+below (`jobs` and `show`). Quick run + inspect flow:
 
 ```sh
+# Add and run a script immediately.
 rotari add --run ./scripts/example.sh
+# Check the current job status across projects.
 rotari jobs
+# Inspect one specific attempt in detail, including its output path and status.
 rotari show -j ATTEMPT_ID
+# Show only the failed-job logs for the selected project/run.
 rotari show -p build --failed-logs
 ```
 
@@ -564,7 +568,7 @@ stopped and use the recovery command shown by `show`: `unlock` keeps the queue;
 Use `jobs` to inspect the current project activity and recent execution history across the selected basedir.
 
 ```sh
-rotari jobs # list running and recently finished jobs across projects
+rotari jobs # list running and recently finished jobs across projects; good for a quick status scan
 rotari jobs --since 7d # include finished jobs from the last seven days
 rotari jobs --all # list jobs across basedirs known to the master registry
 rotari jobs --all --format "%s %b %p %a %n %c %t %e" # choose displayed fields
@@ -579,9 +583,9 @@ rotari show --projects # list every project in the resolved basedir
 rotari show -p build # show the selected project's current queue and latest run
 rotari show -p build --runs # list the project's saved runs
 rotari show -p build --failed # list failed jobs in the selected run
-rotari show -j ATTEMPT_ID # inspect a specific attempt without selecting a project or run
+rotari show -j ATTEMPT_ID # show one job attempt in detail: status, executor, command, and saved output path
 rotari show -p build --logs # print output logs for every job in the selected run
-rotari show -p build --failed-logs # print logs only for failed jobs
+rotari show -p build --failed-logs # print only the logs for failed jobs in the selected project/run
 rotari show -j ATTEMPT_ID --report # print an AI-ready Markdown report for one attempt
 rotari show -r RUN_ID --report # describe the whole run and include recent logs
 ```

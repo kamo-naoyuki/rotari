@@ -23,9 +23,11 @@ CLI_SCHEMA: dict[str, Any] = {
                     "short": "p",
                     "value_name": "NAME",
                 },
+                {"description": "list existing config files", "name": "list"},
                 {
                     "description": "config format: yaml, toml, or json",
                     "name": "format",
+                    "short": "o",
                     "value_name": "FORMAT",
                     "values": ["yaml", "toml", "json"],
                 },
@@ -441,6 +443,48 @@ CLI_SCHEMA: dict[str, Any] = {
                 {"description": "print an AI-ready Markdown report", "name": "report"},
             ],
             "name": "show",
+        },
+        {
+            "description": "list running and recently finished jobs across projects",
+            "flags": [
+                {
+                    "description": "state directory",
+                    "environment": "ROTARI_BASEDIR",
+                    "name": "basedir",
+                    "short": "b",
+                    "value_name": "DIR",
+                },
+                {
+                    "description": "project name",
+                    "environment": "ROTARI_PROJECT_NAME",
+                    "name": "project-name",
+                    "short": "p",
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "master registry directory for --all",
+                    "environment": "ROTARI_MASTERDIR",
+                    "name": "masterdir",
+                    "value_name": "DIR",
+                },
+                {
+                    "description": "include all basedirs known to the master "
+                    "registry",
+                    "name": "all",
+                },
+                {
+                    "description": "output fields; use %s %b %p %a %n %c %t %e",
+                    "name": "format",
+                    "short": "o",
+                    "value_name": "FORMAT",
+                },
+                {
+                    "description": "include finished jobs from this duration ago",
+                    "name": "since",
+                    "value_name": "DURATION",
+                },
+            ],
+            "name": "jobs",
         },
         {
             "description": "diagnose one job with an LLM or local error rules",
