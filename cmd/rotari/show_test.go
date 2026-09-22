@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -74,7 +75,7 @@ func TestCmdShowDisplaysFinishedArrayTaskFromStatusJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := cmdShow([]string{"--basedir", baseDir, "--project-name", "demo", "--no-pager"})
+	code := cmdShow([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", runID, "--no-pager"})
 	_ = writer.Close()
 	os.Stdout = oldStdout
 	output, err := io.ReadAll(reader)
@@ -83,6 +84,225 @@ func TestCmdShowDisplaysFinishedArrayTaskFromStatusJSON(t *testing.T) {
 	}
 	if code != 0 || !strings.Contains(string(output), "array-1") || !strings.Contains(string(output), " 0 ") || !strings.Contains(string(output), "Job status: success: 1, failed: 0, blocked: 0, running: 0, pending: 0") {
 		t.Fatalf("code=%d output=%q", code, output)
+	}
+}
+
+func TestCmdShowResolvesProjectFromRunID(t *testing.T) {
+	masterDir := t.TempDir()
+	baseDir := t.TempDir()
+	t.Setenv(envMasterDir, masterDir)
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := makeRunID()
+	runDir := filepath.Join(paths.runsDir, runID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "analysis", Command: []string{"true"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Status: "finished", Results: []JobResult{{ID: "job-1", ExitCode: 0}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "job-1", "command.json"), JobSpec{ID: "job-1", Name: "analysis", Command: []string{"true"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := registerRun(paths, runID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = unregisterRun(runID) })
+
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code := cmdShow([]string{"--run-id", runID, "--no-pager"})
+	_ = writer.Close()
+	os.Stdout = oldStdout
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 || !strings.Contains(string(output), "Project: demo") || !strings.Contains(string(output), "Run: "+runID) {
+		t.Fatalf("cmdShow code=%d output=%q", code, output)
+	}
+
+	reader, writer, err = os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code = cmdShow([]string{"--run-id", runID, "--job-id", "job-1", "--no-pager"})
+	_ = writer.Close()
+	os.Stdout = oldStdout
+	output, err = io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 || !strings.Contains(string(output), "Project: demo") || !strings.Contains(string(output), "Job: job-1") {
+		t.Fatalf("cmdShow job code=%d output=%q", code, output)
+	}
+
+	reader, writer, err = os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code = cmdShow([]string{"--no-pager", runID})
+	_ = writer.Close()
+	os.Stdout = oldStdout
+	output, err = io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 || !strings.Contains(string(output), "Project: demo") || !strings.Contains(string(output), "Run: "+runID) {
+		t.Fatalf("cmdShow positional run code=%d output=%q", code, output)
+	}
+
+	attemptID := makeAttemptID(runID, "job-1", 0)
+	attemptDir, err := specificAttemptJobDir(runDir, "job-1", attemptID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(attemptDir, "command.json"), JobSpec{ID: "job-1", Name: "analysis", Command: []string{"true"}}); err != nil {
+		t.Fatal(err)
+	}
+	reader, writer, err = os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code = cmdShow([]string{"--no-pager", attemptID})
+	_ = writer.Close()
+	os.Stdout = oldStdout
+	output, err = io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 || !strings.Contains(string(output), "Project: demo") || !strings.Contains(string(output), "Job: job-1") || !strings.Contains(string(output), "Attempt ID: "+attemptID) {
+		t.Fatalf("cmdShow positional attempt code=%d output=%q", code, output)
+	}
+
+	reader, writer, err = os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code = cmdShow([]string{"--run-id", runID, "--job-name", "analysis", "--no-pager"})
+	_ = writer.Close()
+	os.Stdout = oldStdout
+	output, err = io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 || !strings.Contains(string(output), "Project: demo") || !strings.Contains(string(output), "Job: job-1") {
+		t.Fatalf("cmdShow --run-id --job-name code=%d output=%q", code, output)
+	}
+
+	for _, selector := range []string{"job-1", "analysis"} {
+		reader, writer, err = os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.Stdout = writer
+		code = cmdShow([]string{"--basedir", baseDir, "--no-pager", selector})
+		_ = writer.Close()
+		os.Stdout = oldStdout
+		output, err = io.ReadAll(reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if code != 0 || !strings.Contains(string(output), "Project: demo") || !strings.Contains(string(output), "Job: job-1") {
+			t.Fatalf("cmdShow selector=%q code=%d output=%q", selector, code, output)
+		}
+	}
+	reader, writer, err = os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code = cmdShow([]string{"--basedir", baseDir, "--job-name", "analysis", "--no-pager"})
+	_ = writer.Close()
+	os.Stdout = oldStdout
+	output, err = io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 || !strings.Contains(string(output), "Project: demo") || !strings.Contains(string(output), "Job: job-1") {
+		t.Fatalf("cmdShow --job-name code=%d output=%q", code, output)
+	}
+}
+
+func TestCmdShowResolvesRunNameAcrossProjects(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "named-run"
+	runDir := filepath.Join(paths.runsDir, runID)
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, RunName: "nightly", Status: "finished"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{}); err != nil {
+		t.Fatal(err)
+	}
+
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code := cmdShow([]string{"--basedir", baseDir, "--no-pager", "nightly"})
+	_ = writer.Close()
+	os.Stdout = oldStdout
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 || !strings.Contains(string(output), "Project: demo") || !strings.Contains(string(output), "Run: nightly (named-run)") {
+		t.Fatalf("cmdShow code=%d output=%q", code, output)
+	}
+}
+
+func TestCmdShowJobSelectorsPreferCurrentQueue(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "queued-job", Name: "queued", Command: []string{"echo", "queued"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(paths.runsDir, "latest-run", "commands.json"), Queue{Commands: []QueuedCommand{{ID: "queued-job", Name: "queued", Command: []string{"echo", "latest"}}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, args := range [][]string{
+		{"--basedir", baseDir, "--job-id", "queued-job", "--no-pager"},
+		{"--basedir", baseDir, "--job-name", "queued", "--no-pager"},
+	} {
+		oldStdout := os.Stdout
+		reader, writer, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.Stdout = writer
+		code := cmdShow(args)
+		_ = writer.Close()
+		os.Stdout = oldStdout
+		output, err := io.ReadAll(reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if code != 0 || !strings.Contains(string(output), "SHOW MODE: PROJECT / QUEUE / JOB") || !strings.Contains(string(output), "queued-job") || strings.Contains(string(output), "latest") {
+			t.Fatalf("cmdShow args=%#v code=%d output=%q", args, code, output)
+		}
 	}
 }
 
@@ -215,10 +435,13 @@ func TestCmdShowDisplaysCurrentQueue(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cmdShow exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"Base directory: " + baseDir, "Project: demo", "Queue: " + paths.queueFile + " (1 jobs)", "Project state: idle", "Runner server: stopped", "Runs: 0", "Showing jobs queued for the next run", "job-1", "greeting", "run-1/job-old", "success", "printf hello", "To execute these jobs:", "rotari run -b '" + baseDir + "' -p 'demo'"} {
+	for _, want := range []string{"Base directory: " + baseDir, "Project: demo", "Queue: " + paths.queueFile + " (1 jobs)", "Project state: idle", "Runner server: stopped", "Runs: 0", "Queue:\nJOB ID", "job-1", "greeting", "run-1/job-old", "success", "printf hello", "To execute these jobs:", "rotari run -b '" + baseDir + "' -p 'demo'"} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("cmdShow output does not contain %q:\n%s", want, output)
 		}
+	}
+	if strings.Count(string(output), "=== SHOW MODE:") != 1 {
+		t.Fatalf("project overview emitted duplicate headers:\n%s", output)
 	}
 }
 
@@ -253,11 +476,11 @@ func TestCmdShowWarnsAndSucceedsWhenProjectHasNoRunsOrQueue(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cmdShow exit code = %d, want 0; stderr=%q", code, stderr)
 	}
-	if !strings.Contains(string(stderr), "WARNING: project \"demo\" has no runs or queued jobs") {
-		t.Fatalf("cmdShow did not emit empty-project warning: %q", stderr)
+	if len(stderr) != 0 {
+		t.Fatalf("cmdShow emitted unexpected stderr: %q", stderr)
 	}
-	if !strings.Contains(string(stdout), "No runs or queued jobs found.") {
-		t.Fatalf("cmdShow did not explain empty project: %q", stdout)
+	if !strings.Contains(string(stdout), "No runs found.") {
+		t.Fatalf("cmdShow did not show empty run list: %q", stdout)
 	}
 }
 
@@ -359,12 +582,12 @@ func TestCmdShowDisplaysActiveRunBeforeQueue(t *testing.T) {
 		t.Fatalf("cmdShow exit code = %d, want 0", code)
 	}
 	text := string(output)
-	for _, want := range []string{"Runs: 1", "Run: " + runID, "Job status: success: 0, failed: 0, blocked: 0, running: 1, pending: 0", "active-job", "echo active"} {
+	for _, want := range []string{"Runs: 1", runID, "Queue:\nJOB ID", "queued-job", "echo queued"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("cmdShow output does not contain %q:\n%s", want, text)
 		}
 	}
-	for _, unwanted := range []string{"Showing queued jobs", "queued-job", "echo queued"} {
+	for _, unwanted := range []string{"active-job", "echo active"} {
 		if strings.Contains(text, unwanted) {
 			t.Fatalf("cmdShow output unexpectedly contains %q:\n%s", unwanted, text)
 		}
@@ -384,7 +607,7 @@ func TestCmdShowDisplaysActiveRunBeforeQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 0 || !strings.Contains(string(output), "Showing jobs queued for the next run") || !strings.Contains(string(output), "queued-job") || strings.Contains(string(output), "active-job") {
+	if code != 0 || !strings.Contains(string(output), "Queue:\nJOB ID") || !strings.Contains(string(output), "queued-job") || strings.Contains(string(output), "active-job") {
 		t.Fatalf("--queue did not force current queue display, code=%d output=%q", code, output)
 	}
 }
@@ -432,12 +655,12 @@ func TestCmdShowDisplaysInterruptedRunBeforeQueue(t *testing.T) {
 		t.Fatalf("cmdShow exit code = %d, want 0", code)
 	}
 	text := string(output)
-	for _, want := range []string{"Run " + runID + " appears to have been interrupted.", "rotari unlock", "Run: " + runID, "run-job", "echo from-run"} {
+	for _, want := range []string{"Runs: 1", runID, "Queue:\nJOB ID", "queued-job", "echo queued"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("cmdShow output does not contain %q:\n%s", want, text)
 		}
 	}
-	for _, unwanted := range []string{"Showing jobs queued for the next run", "To execute these jobs:", "queued-job", "echo queued"} {
+	for _, unwanted := range []string{"run-job", "echo from-run"} {
 		if strings.Contains(text, unwanted) {
 			t.Fatalf("cmdShow output unexpectedly contains %q:\n%s", unwanted, text)
 		}
@@ -1001,6 +1224,9 @@ func TestCmdShowProjectsListsProjectSummaries(t *testing.T) {
 	if err := writeJSON(demo.metaFile, Meta{Phase: "finished", LastRunID: "demo-run"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(demo.runsDir, "demo-run"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if err := writeJSON(example.lockFile, LockInfo{PID: os.Getpid(), RunID: "example-run"}); err != nil {
 		t.Fatal(err)
 	}
@@ -1012,7 +1238,7 @@ func TestCmdShowProjectsListsProjectSummaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := cmdShow([]string{"--basedir", baseDir, "--projects"})
+	code := cmdShow([]string{"--basedir", baseDir})
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -1024,14 +1250,14 @@ func TestCmdShowProjectsListsProjectSummaries(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cmdShow exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"Base directory: " + baseDir, "Projects: 2", "demo", "demo-run", "example", "running", "To show runs in a project:", "rotari show -p PROJECT"} {
+	for _, want := range []string{baseDir, "Projects: 2", "PROJECT", "QUEUED", "RUNS", "demo", "demo-run", "example", "running", "To show runs in a project:", "rotari show -p PROJECT"} {
 		if !strings.Contains(string(output), want) {
-			t.Fatalf("cmdShow --projects output does not contain %q:\n%s", want, output)
+			t.Fatalf("cmdShow project listing output does not contain %q:\n%s", want, output)
 		}
 	}
 	for _, unwanted := range []string{"To show jobs in a run:", "rotari show -p PROJECT -r latest"} {
 		if strings.Contains(string(output), unwanted) {
-			t.Fatalf("cmdShow --projects output unexpectedly contains %q:\n%s", unwanted, output)
+			t.Fatalf("cmdShow project listing output unexpectedly contains %q:\n%s", unwanted, output)
 		}
 	}
 }
@@ -1073,12 +1299,59 @@ func TestCmdShowFallsBackToProjectsWithWarningWhenProjectIsAmbiguous(t *testing.
 	if code != 0 {
 		t.Fatalf("cmdShow exit code = %d, want 0; stderr=%q", code, stderr)
 	}
-	if !strings.Contains(string(stderr), "WARNING: multiple projects exist") {
-		t.Fatalf("cmdShow did not emit warning: %q", stderr)
+	if len(stderr) != 0 {
+		t.Fatalf("cmdShow emitted unexpected warning: %q", stderr)
 	}
 	for _, want := range []string{"Projects: 2", "demo", "example"} {
 		if !strings.Contains(string(stdout), want) {
 			t.Fatalf("cmdShow fallback output does not contain %q:\n%s", want, stdout)
+		}
+	}
+}
+
+func TestCmdShowListsProjectsAcrossKnownBaseDirs(t *testing.T) {
+	masterDir := t.TempDir()
+	t.Setenv(envMasterDir, masterDir)
+	baseDirs := []string{t.TempDir(), t.TempDir()}
+	for index, baseDir := range baseDirs {
+		paths, err := resolvePaths(baseDir, fmt.Sprintf("project-%d", index))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(paths.runsDir, fmt.Sprintf("run-%d", index)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := registerRun(paths, fmt.Sprintf("run-%d", index)); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = unregisterRun(fmt.Sprintf("run-%d", index)) })
+	}
+
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code := cmdShow(nil)
+	_ = writer.Close()
+	os.Stdout = oldStdout
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 {
+		t.Fatalf("cmdShow exit code = %d, output=%q", code, output)
+	}
+	text := string(output)
+	for index, baseDir := range baseDirs {
+		for _, want := range []string{baseDir, fmt.Sprintf("project-%d", index)} {
+			if !strings.Contains(text, want) {
+				t.Fatalf("cross-basedir project listing does not contain %q:\n%s", want, text)
+			}
 		}
 	}
 }

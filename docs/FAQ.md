@@ -21,19 +21,19 @@ results. See [Projects, queues, runs, and state](../README.md#projects-queues-ru
 resolved state directory. If no project exists yet, it defaults to `default`.
 If multiple projects exist and none of the above narrows it down, commands
 other than a bare `rotari show` ask you to pick one explicitly. A bare
-`rotari show` prints a warning and falls back to `rotari show --projects`.
+`rotari show` lists projects across known basedirs.
 
 ### How do I list projects in a state directory?
-Run `rotari show --projects`. It lists each project's queued-job count, run
-state, and latest run ID without requiring `--project-name`. Add `--basedir`
-to list projects in a specific state directory.
+Run `rotari show`. It lists each project's basedir, queued-job count, run
+state, and latest run ID across known basedirs. Add `--basedir` to limit the
+list to a specific state directory.
 The output also suggests `rotari show -p PROJECT` to inspect a project and
-`rotari show -p PROJECT -r latest` to inspect jobs in its latest run.
+`rotari show RUN_ID` to inspect jobs in a specific run.
 
 ### I don't know which basedir contains my jobs. How do I find it?
 Run `rotari show --basedirs`. It prints the master directory and basedirs
 known from saved-run and live-server registry records. Then inspect one with
-`rotari show --basedir DIR --projects`. A basedir with neither a registered
+`rotari show --basedir DIR`. A basedir with neither a registered
 run nor a running server cannot be discovered this way. Add `--masterdir DIR`
 to choose a registry explicitly.
 
@@ -91,11 +91,11 @@ and `--lsf-options` override it. Job-specific options have the highest
 priority.
 
 ### `rotari show` displayed my queue, not the run I expected — why?
-Without `--run-id`, `show` prioritizes current state: an active run first, an
-interrupted run second, a non-empty idle queue third, and only then the
-latest saved run. Pass `--run-id` (or `--runs` to list all saved runs) to
-target a specific run regardless of current queue state; `--run-id latest`
-selects the latest saved run.
+With no project, run, or job selector, `show` lists projects across known basedirs.
+Use `--basedir/-b` to limit that list to one basedir. With
+`--project-name/-p`, `show` lists the project's runs and includes its current
+queue when non-empty. Pass `--run-id` to target a specific run regardless of
+current queue state; `--run-id latest` selects the latest saved run.
 
 ### How do I clean up run registry entries left by manual deletion?
 Run `rotari gc` to scan for registry entries whose run directories no longer
@@ -107,11 +107,8 @@ and skips any run directory that has reappeared.
 
 ## Retries, copying, arrays, and dependencies
 
-### What is the difference between `add --run` and `add --run-async`?
-Both commands add the command and start the current queue. `add --run` waits
-for the run through the normal synchronous client, while `add --run-async`
-returns after the background run has started. The options are mutually
-exclusive.
+### How do I add a command and run it asynchronously?
+Add the command first, then start the queue with `rotari run --async`.
 
 ### What exit status does `rotari run` return when a job fails?
 For a synchronous run, `rotari run` returns `0` when every job succeeds and

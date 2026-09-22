@@ -120,9 +120,9 @@ rotari jobs
 rotari show
 ```
 
-For a single command, use `rotari add --run COMMAND`, which adds it and starts
-the run immediately. To inspect failed-job logs and retry only failed or
-unfinished work:
+Add commands first, then run the queue explicitly. Use `rotari run --async` when
+the run should continue in the background. To inspect failed-job logs and retry
+only failed or unfinished work:
 
 ```sh
 # Show logs for failed jobs in the selected project.
@@ -268,27 +268,35 @@ The `run-id` identifies a run and provides its project location. An
 `run-id`, so the command can resolve the same project location from the attempt
 alone.
 
-The `--job-id/-j` option accepts either a logical `job-id` or an `attempt-id`.
-When an `attempt-id` is provided, its associated job, run, project, and basedir
-are resolved automatically.
+For `show`, use a selector directly. `show` accepts a `RUN_ID`, `ATTEMPT_ID`,
+`JOB_ID`, or job name as its optional positional argument. The associated run,
+project, and basedir are resolved automatically when the selector identifies
+them.
 
 | Selector | Information available for resolution | Options that can be omitted |
 | --- | --- | --- |
-| `-r RUN_ID` | `run-id`, `basedir`, and `project` | `--basedir/-b`, `--project-name/-p` |
-| `-j ATTEMPT_ID` | `attempt-id`, `job-id`, `run-id`, `basedir`, and `project` | `--basedir/-b`, `--project-name/-p`, `--run-id/-r` |
+| `show RUN_ID` | `run-id`, `basedir`, and `project` | `--basedir/-b`, `--project-name/-p` |
+| `show ATTEMPT_ID` | `attempt-id`, `job-id`, `run-id`, `basedir`, and `project` | `--basedir/-b`, `--project-name/-p`, `--run-id/-r` |
+| `show JOB_ID` / `show JOB_NAME` | matching job in the relevant latest run or queue | `--job-id/-j`, `--job-name` |
 
-With an ordinary `job-id`, the location still needs to come from the explicit
-project/run options, the corresponding environment variables, or the normal
-single-project/current-run resolution rules. For example:
+When a selector matches more than one project, run, or job, `show` reports an
+ambiguous-selector error instead of choosing silently. Use explicit options to
+disambiguate. The option forms remain available when composing commands or
+when an exact run/job context is required:
 
 ```sh
-# rotari show -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j ATTEMPT_ID
-# is equivalent to
+# These are equivalent exact selectors.
+rotari show RUN_ID
+rotari show -r RUN_ID
+
+rotari show ATTEMPT_ID
 rotari show -j ATTEMPT_ID
-```
-```sh
-# rotari copy -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j JOB_ID
-# is equivalent to
+
+rotari show -b BASE_DIR -p PROJECT_NAME -j JOB_ID
+rotari show JOB_ID
+rotari show -j JOB_ID
+
+rotari copy -b BASE_DIR -p PROJECT_NAME -j JOB_ID
 rotari copy -r RUN_ID -j JOB_ID
 ```
 
@@ -391,11 +399,11 @@ rotari run -p build --async
 rotari wait build
 ```
 
-To add a command and start the queue in one step, returning immediately after
-the run starts:
+To add a command and then start the queue asynchronously:
 
 ```sh
-rotari add --run-async go test ./...
+rotari add go test ./...
+rotari run -p build --async
 ```
 
 The async start message prints commands for checking status and cancelling the
@@ -435,20 +443,20 @@ rotari jobs --all # list jobs across basedirs known to the master registry
 rotari jobs --all --format "%s %b %p %a %n %c %t %e" # choose displayed fields
 ```
 
-Use `show` to inspect the active run, an interrupted run, the pending queue, or any saved run.
+Use `show` to inspect a project's runs and pending queue, or a specific run/job.
 
 ```sh
-rotari show # show the active run, interrupted run, current queue, or latest run
+rotari show # list projects across known basedirs
 rotari show --basedirs # print the resolved master directory and state directories
-rotari show --projects # list every project in the resolved basedir
-rotari show -p build # show the selected project's current queue and latest run
-rotari show -p build --runs # list the project's saved runs
+rotari show -p build # list the project's runs and current queue, if non-empty
 rotari show -p build --failed # list failed jobs in the selected run
-rotari show -j ATTEMPT_ID # show one job attempt in detail: status, executor, command, and saved output path
+rotari show ATTEMPT_ID # show one job attempt in detail: status, executor, command, and saved output path
+rotari show JOB_ID # show a job from the resolved run or queue
+rotari show JOB_NAME # show a job by name
 rotari show -p build --logs # print output logs for every job in the selected run
 rotari show -p build --failed-logs # print only the logs for failed jobs in the selected project/run
-rotari show -j ATTEMPT_ID --report # print an AI-ready Markdown report for one attempt
-rotari show -r RUN_ID --report # describe the whole run and include recent logs
+rotari show ATTEMPT_ID --report # print an AI-ready Markdown report for one attempt
+rotari show RUN_ID --report # describe the whole run and include recent logs
 ```
 
 If a runner exits before finalizing its run, `show` reports the interrupted run
@@ -508,7 +516,7 @@ a failed job is finalized. The saved analysis is informational only: it never
 changes job status, retries, dependencies, or scheduler control. View it with:
 
 ```sh
-rotari show -j ATTEMPT_ID
+rotari show ATTEMPT_ID
 ```
 
 Every finalized failed job records a recognized diagnosis, an explicit no-match
@@ -830,7 +838,7 @@ runner fit together during a run.
 
 ```mermaid
 flowchart LR
-    Client["run client\nrotari run / add --run"] -->|start request| Server["server\nowns project state and lock"]
+    Client["run client\nrotari run"] -->|start request| Server["server\nowns project state and lock"]
     Server -->|begin active run| Runner["runner\nexecuteMixedRun"]
     Runner -->|dispatch jobs| Local["local jobs"]
     Runner -->|dispatch jobs| SSH["SSH jobs"]
@@ -915,7 +923,7 @@ separate, but the base directory and filesystem remain shared.
 After confirming a failed host's run has stopped, unlock that exact run:
 
 ```sh
-rotari show -p build --runs
+rotari show -p build
 rotari unlock -p build -r RUN_ID
 ```
 

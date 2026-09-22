@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -22,6 +23,221 @@ const (
 	jobNotFoundMessage = "job %q not found in run %q"
 )
 
+type showSelectorTarget struct {
+	waitTarget
+	jobID     string
+	fromQueue bool
+	priority  int
+}
+
+const (
+	showPriorityActive = iota
+	showPriorityInterrupted
+	showPriorityQueue
+	showPriorityLatest
+)
+
+func showDefaultJobTargets(paths pathSet, selector string, byName bool) ([]showSelectorTarget, error) {
+	state, stateRunID, err := inspectProjectRunState(paths)
+	if err != nil {
+		return nil, err
+	}
+	if state == projectRunning || state == projectInterrupted {
+		target, found, err := findShowJobInRun(paths, stateRunID, selector, byName)
+		if err != nil || !found {
+			return nil, err
+		}
+		target.priority = showPriorityActive
+		if state == projectInterrupted {
+			target.priority = showPriorityInterrupted
+		}
+		return []showSelectorTarget{target}, nil
+	}
+	targets := make([]showSelectorTarget, 0, 2)
+	queue, err := loadQueue(paths.queueFile)
+	if err != nil {
+		return nil, err
+	}
+	if len(queue.Commands) > 0 {
+		jobID, found := findShowJobInQueue(queue, selector, byName)
+		if found {
+			targets = append(targets, showSelectorTarget{
+				waitTarget: waitTarget{baseDir: paths.baseDir, projectName: paths.queueName},
+				jobID:      jobID, fromQueue: true, priority: showPriorityQueue,
+			})
+		}
+	}
+	runID, err := selectRunID(paths, "")
+	if err != nil {
+		return targets, nil
+	}
+	target, found, err := findShowJobInRun(paths, runID, selector, byName)
+	if err != nil || !found {
+		return targets, err
+	}
+	target.priority = showPriorityLatest
+	return append(targets, target), nil
+}
+
+func highestPriorityShowTargets(targets []showSelectorTarget) []showSelectorTarget {
+	if len(targets) == 0 {
+		return targets
+	}
+	bestPriority := targets[0].priority
+	for _, target := range targets[1:] {
+		if target.priority < bestPriority {
+			bestPriority = target.priority
+		}
+	}
+	best := make([]showSelectorTarget, 0, len(targets))
+	for _, target := range targets {
+		if target.priority == bestPriority {
+			best = append(best, target)
+		}
+	}
+	return best
+}
+
+func findShowJobInQueue(queue Queue, selector string, byName bool) (string, bool) {
+	for _, job := range queueToJobs(queue.Commands) {
+		if (byName && job.Name == selector) || (!byName && job.ID == selector) {
+			return job.ID, true
+		}
+	}
+	return "", false
+}
+
+func findShowJobInRun(paths pathSet, runID, selector string, byName bool) (showSelectorTarget, bool, error) {
+	queue, err := loadQueue(filepath.Join(paths.runsDir, runID, "commands.json"))
+	if err != nil {
+		return showSelectorTarget{}, false, nil
+	}
+	jobID, found := findShowJobInQueue(queue, selector, byName)
+	if !found {
+		return showSelectorTarget{}, false, nil
+	}
+	return showSelectorTarget{
+		waitTarget: waitTarget{baseDir: paths.baseDir, projectName: paths.queueName, runID: runID},
+		jobID:      jobID,
+	}, true, nil
+}
+
+func resolveShowJobTargets(cliBaseDir, cliProjectName, runID, selector string, byName bool) ([]showSelectorTarget, error) {
+	if runID != "" {
+		baseDir, projectName, err := resolveExistingRunTarget(cliBaseDir, cliProjectName, runID)
+		if err != nil {
+			return nil, err
+		}
+		paths, err := resolvePaths(baseDir, projectName)
+		if err != nil {
+			return nil, err
+		}
+		target, found, err := findShowJobInRun(paths, runID, selector, byName)
+		if err != nil || !found {
+			return nil, err
+		}
+		return []showSelectorTarget{target}, nil
+	}
+	return resolveJobTargets(cliBaseDir, cliProjectName, selector, byName, true)
+}
+
+func resolveJobTargets(cliBaseDir, cliProjectName, selector string, byName, includeQueue bool) ([]showSelectorTarget, error) {
+	baseDir, _, err := resolveBaseDir(cliBaseDir)
+	if err != nil {
+		return nil, err
+	}
+	projects, err := projectNamesForRunName(baseDir, cliProjectName)
+	if err != nil {
+		return nil, err
+	}
+	targets := make([]showSelectorTarget, 0)
+	for _, projectName := range projects {
+		paths, err := resolvePaths(baseDir, projectName)
+		if err != nil {
+			return nil, err
+		}
+		if includeQueue {
+			projectTargets, err := showDefaultJobTargets(paths, selector, byName)
+			if err != nil {
+				return nil, err
+			}
+			targets = append(targets, projectTargets...)
+			continue
+		}
+		runID, err := selectRunID(paths, "")
+		if err != nil {
+			continue
+		}
+		target, found, err := findShowJobInRun(paths, runID, selector, byName)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			target.priority = showPriorityLatest
+			targets = append(targets, target)
+		}
+	}
+	if includeQueue {
+		return highestPriorityShowTargets(targets), nil
+	}
+	return targets, nil
+}
+
+func resolveLatestJobIDSelection(cliBaseDir, cliProjectName string, jobIDs []string) (showSelectorTarget, error) {
+	var target showSelectorTarget
+	for index, jobID := range jobIDs {
+		targets, err := resolveJobTargets(cliBaseDir, cliProjectName, jobID, false, false)
+		if err != nil {
+			return showSelectorTarget{}, err
+		}
+		if len(targets) == 0 {
+			return showSelectorTarget{}, fmt.Errorf("job %q not found in latest runs", jobID)
+		}
+		if len(targets) > 1 {
+			return showSelectorTarget{}, fmt.Errorf("job %q is ambiguous across latest runs", jobID)
+		}
+		if index == 0 {
+			target = targets[0]
+		} else if targets[0].baseDir != target.baseDir || targets[0].projectName != target.projectName || targets[0].runID != target.runID {
+			return showSelectorTarget{}, errors.New("job IDs resolve to different latest runs")
+		}
+	}
+	return target, nil
+}
+
+func resolveShowSelector(cliBaseDir, cliProjectName, selector string) ([]showSelectorTarget, error) {
+	runTargets, err := resolveRunNameTargets(cliBaseDir, cliProjectName, selector, false)
+	if err != nil {
+		return nil, err
+	}
+	targets := make([]showSelectorTarget, 0, len(runTargets))
+	for _, target := range runTargets {
+		targets = append(targets, showSelectorTarget{waitTarget: target})
+	}
+
+	for _, byName := range []bool{false, true} {
+		jobTargets, err := resolveShowJobTargets(cliBaseDir, cliProjectName, "", selector, byName)
+		if err != nil {
+			return nil, err
+		}
+		for _, target := range jobTargets {
+			targets = append(targets, target)
+		}
+	}
+	return targets, nil
+}
+
+func showJobNameTargets(cliBaseDir, cliProjectName, runID, jobName string) ([]showSelectorTarget, error) {
+	return resolveShowJobTargets(cliBaseDir, cliProjectName, runID, jobName, true)
+}
+
+func applyShowSelectorTarget(target showSelectorTarget, basedir, projectName, runID, jobID *string, showQueue *bool) {
+	*basedir, *projectName, *runID, *jobID = target.baseDir, target.projectName, target.runID, target.jobID
+	if target.fromQueue {
+		*showQueue = true
+	}
+}
+
 func cmdShow(args []string) int {
 	fs := flag.NewFlagSet("show", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -30,9 +246,8 @@ func cmdShow(args []string) int {
 	runIDOption := cliString(fs, "run-id", "")
 	showQueueOption := cliBool(fs, "queue", false)
 	jobIDOption := cliString(fs, "job-id", "")
+	jobNameOption := cliString(fs, "job-name", "")
 	failedOnly := cliBool(fs, "failed", false)
-	showRunsList := cliBool(fs, "runs", false)
-	showProjectsList := cliBool(fs, "projects", false)
 	showBaseDirsList := cliBool(fs, "basedirs", false)
 	masterdir := cliString(fs, "masterdir", "")
 	showLogs := cliBool(fs, "logs", false)
@@ -44,11 +259,47 @@ func cmdShow(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if len(fs.Args()) != 0 {
+	if len(fs.Args()) > 1 {
 		printError("usage: " + cliUsage("show"))
 		return 1
 	}
+	selector := ""
+	if len(fs.Args()) == 1 {
+		selector = fs.Args()[0]
+		if *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput {
+			printError("a run name selector cannot be combined with run, job, queue, list, log, follow, JSON, or report options")
+			return 1
+		}
+	}
+	if *jobIDOption != "" && *jobNameOption != "" {
+		printError("--job-id cannot be combined with --job-name")
+		return 1
+	}
 	attemptID := ""
+	if selector != "" && strings.HasPrefix(selector, "att_") {
+		attemptID = selector
+		baseDir, projectName, resolvedRunID, resolvedJobID, err := resolveAttemptTarget(selector, *basedir, *queueNameOption, "")
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		*basedir, *queueNameOption, *runIDOption, *jobIDOption = baseDir, projectName, resolvedRunID, resolvedJobID
+		selector = ""
+	}
+	if selector != "" {
+		if location, found, err := resolveRunLocation(selector); err != nil {
+			printError(err)
+			return 1
+		} else if found {
+			baseDir, projectName, err := resolveExistingRunTarget(*basedir, *queueNameOption, selector)
+			if err != nil {
+				printError(err)
+				return 1
+			}
+			*basedir, *queueNameOption, *runIDOption = baseDir, projectName, location.RunID
+			selector = ""
+		}
+	}
 	if strings.HasPrefix(*jobIDOption, "att_") {
 		attemptID = *jobIDOption
 		baseDir, projectName, resolvedRunID, resolvedJobID, err := resolveAttemptTarget(*jobIDOption, *basedir, *queueNameOption, *runIDOption)
@@ -58,28 +309,64 @@ func cmdShow(args []string) int {
 		}
 		*basedir, *queueNameOption, *runIDOption, *jobIDOption = baseDir, projectName, resolvedRunID, resolvedJobID
 	}
-	if *reportOutput && (*showQueueOption || *showRunsList || *showProjectsList || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput) {
+	if *jobIDOption != "" && attemptID == "" && *runIDOption == "" {
+		targets, err := resolveShowJobTargets(*basedir, *queueNameOption, "", *jobIDOption, false)
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		if len(targets) == 0 {
+			printErrorf("job %q not found", *jobIDOption)
+			return 1
+		}
+		if len(targets) > 1 {
+			printErrorf("job %q is ambiguous", *jobIDOption)
+			return 1
+		}
+		applyShowSelectorTarget(targets[0], basedir, queueNameOption, runIDOption, jobIDOption, showQueueOption)
+	}
+	if selector != "" {
+		targets, err := resolveShowSelector(*basedir, *queueNameOption, selector)
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		if len(targets) == 0 {
+			printErrorf("selector %q not found", selector)
+			return 1
+		}
+		if len(targets) > 1 {
+			printErrorf("selector %q is ambiguous", selector)
+			return 1
+		}
+		applyShowSelectorTarget(targets[0], basedir, queueNameOption, runIDOption, jobIDOption, showQueueOption)
+	}
+	if *jobNameOption != "" {
+		targets, err := showJobNameTargets(*basedir, *queueNameOption, *runIDOption, *jobNameOption)
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		if len(targets) == 0 {
+			printErrorf("job name %q not found", *jobNameOption)
+			return 1
+		}
+		if len(targets) > 1 {
+			printErrorf("job name %q is ambiguous", *jobNameOption)
+			return 1
+		}
+		applyShowSelectorTarget(targets[0], basedir, queueNameOption, runIDOption, jobIDOption, showQueueOption)
+	}
+	if *reportOutput && (*showQueueOption || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput) {
 		printError("--report cannot be combined with queue, list, log, follow, or JSON options")
 		return 1
 	}
-	if *showQueueOption && (*showRunsList || *runIDOption != "" || *failedOnly || *showLogs || *showFailedLogs || *followLogs) {
+	if *showQueueOption && (*runIDOption != "" || *failedOnly || *showLogs || *showFailedLogs || *followLogs) {
 		printError("--queue cannot be combined with run, log, or filter options")
 		return 1
 	}
-	if *showProjectsList {
-		if *showRunsList || *runIDOption != "" || *jobIDOption != "" || *failedOnly || *showLogs || *showFailedLogs || *followLogs || *jsonOutput {
-			printError("--projects cannot be combined with run, job, log, filter, or JSON options")
-			return 1
-		}
-		baseDir, _, err := resolveBaseDir(*basedir)
-		if err != nil {
-			printErrorf("failed to resolve state directory: %v", err)
-			return 1
-		}
-		return showProjects(baseDir)
-	}
 	if *showBaseDirsList {
-		if *showProjectsList || *showRunsList || *runIDOption != "" || *jobIDOption != "" || *failedOnly || *showLogs || *showFailedLogs || *followLogs || *jsonOutput {
+		if *runIDOption != "" || *jobIDOption != "" || *failedOnly || *showLogs || *showFailedLogs || *followLogs || *jsonOutput {
 			printError("--basedirs cannot be combined with project, run, job, log, filter, or JSON options")
 			return 1
 		}
@@ -90,22 +377,9 @@ func cmdShow(args []string) int {
 		}
 		return showBaseDirs(masterDir)
 	}
-	if *queueNameOption == "" && os.Getenv(envProjectName) == "" && *runIDOption == "" &&
-		!(*showQueueOption || *showRunsList || *jobIDOption != "" || *failedOnly || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
-		baseDir, _, err := resolveBaseDir(*basedir)
-		if err != nil {
-			printErrorf("failed to resolve state directory: %v", err)
-			return 1
-		}
-		multiple, err := hasMultipleProjects(baseDir)
-		if err != nil {
-			printErrorf("failed to inspect projects directory: %v", err)
-			return 1
-		}
-		if multiple {
-			printWarningf("WARNING: multiple projects exist in state directory %q; showing project list. Please specify one with --project-name or ROTARI_PROJECT_NAME", baseDir)
-			return showProjects(baseDir)
-		}
+	if *queueNameOption == "" && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" &&
+		!(*showQueueOption || *showBaseDirsList || *failedOnly || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
+		return showAllProjects(*basedir, *masterdir)
 	}
 	baseDir, queueName, err := resolveExistingRunTarget(*basedir, *queueNameOption, *runIDOption)
 	if err != nil {
@@ -117,12 +391,9 @@ func cmdShow(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	if *showRunsList {
-		if *jsonOutput {
-			printError("--json cannot be combined with --runs")
-			return 1
-		}
-		return showRuns(paths)
+	projectOverview := (*queueNameOption != "") && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && !*showQueueOption && !*showBaseDirsList && !*showLogs && !*showFailedLogs && !*followLogs && !*jsonOutput && !*reportOutput && !*failedOnly
+	if projectOverview {
+		return showProjectOverview(paths)
 	}
 	if *showQueueOption {
 		queue, err := loadQueue(paths.queueFile)
@@ -785,10 +1056,14 @@ func printChangeHints(paths pathSet, runID string, queue Queue, jobs []JobSpec) 
 }
 
 func showQueue(paths pathSet, queue Queue) int {
+	writeShowTargetHeaderWithMode(os.Stdout, paths, "queue")
+	fmt.Println("\n" + cyan("Queue:"))
+	return showQueueContent(paths, queue)
+}
+
+func showQueueContent(paths pathSet, queue Queue) int {
 	jobs := queueToJobs(queue.Commands)
 	originByID := queueOriginsByJobID(queue)
-	writeShowTargetHeaderWithMode(os.Stdout, paths, "queue")
-	fmt.Printf("%s\n\n", cyan("Showing jobs queued for the next run"))
 	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-6s %-15s %-20s %-30s %-24s %-12s %s", "JOB ID", "TASK", "NAME", "DEPENDS ON", "EXECUTOR", "SOURCE RUN", "SOURCE STATUS", "COMMAND")))
 	for _, job := range jobs {
 		name := job.Name
@@ -957,10 +1232,22 @@ func slicesEqual(left, right []string) bool {
 }
 
 func showRuns(paths pathSet) int {
+	return showRunsWithHint(paths, true)
+}
+
+func showRunsOverview(paths pathSet) int {
+	return showRunsWithMode(paths, false, "project")
+}
+
+func showRunsWithHint(paths pathSet, showHint bool) int {
+	return showRunsWithMode(paths, showHint, "runs")
+}
+
+func showRunsWithMode(paths pathSet, showHint bool, mode string) int {
 	entries, err := os.ReadDir(paths.runsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			writeShowTargetHeaderWithMode(os.Stdout, paths, "runs")
+			writeShowTargetHeaderWithMode(os.Stdout, paths, mode)
 			fmt.Println("No runs found.")
 			return 0
 		}
@@ -1018,7 +1305,7 @@ func showRuns(paths pathSet) int {
 		return runs[i].modTime > runs[j].modTime
 	})
 
-	writeShowTargetHeaderWithMode(os.Stdout, paths, "runs")
+	writeShowTargetHeaderWithMode(os.Stdout, paths, mode)
 	fmt.Printf("%s %s\n", cyan("Runs directory:"), paths.runsDir)
 	fmt.Println("\n" + cyan("Runs:"))
 	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-36s %-24s %-12s %-12s %-24s %-24s", "RUN ID", "NAME", "STATUS", "EXIT CODE", "STARTED", "FINISHED")))
@@ -1051,70 +1338,134 @@ func showRuns(paths pathSet) int {
 		}
 		fmt.Printf("%-36s %-24s %-12s %-12s %-24s %-24s\n", r.id, name, statusText, exitCode, started, finished)
 	}
-	fmt.Println("\nTo show jobs in a run:")
-	fmt.Println("  rotari show -p PROJECT -r RUN_ID")
+	if showHint {
+		fmt.Println("\n" + cyan("To show jobs in a run:"))
+		fmt.Println("  rotari show -p PROJECT -r RUN_ID")
+	}
 	return 0
 }
 
-func showProjects(baseDir string) int {
-	fmt.Printf("%s\n", cyan("=== SHOW MODE: "+showViewLabel("projects")+" ==="))
-	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
+func showProjectOverview(paths pathSet) int {
+	if code := showRunsOverview(paths); code != 0 {
+		return code
+	}
+	queue, err := loadQueue(paths.queueFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Printf("%s %s\nNo projects found.\n", cyan("Base directory:"), baseDir)
 			return 0
 		}
-		printErrorf("failed to read projects directory: %v", err)
+		printErrorf("failed to load queue: %v", err)
 		return 1
 	}
+	if len(queue.Commands) == 0 {
+		return 0
+	}
+	fmt.Println("\n" + cyan("Queue:"))
+	return showQueueContent(paths, queue)
+}
+
+func showProjects(baseDir string) int {
+	return showProjectsForBaseDirs([]string{baseDir})
+}
+
+func showAllProjects(cliBaseDir, cliMasterDir string) int {
+	if cliBaseDir != "" {
+		baseDir, _, err := resolveBaseDir(cliBaseDir)
+		if err != nil {
+			printErrorf("failed to resolve state directory: %v", err)
+			return 1
+		}
+		return showProjectsForBaseDirs([]string{baseDir})
+	}
+	masterDir, err := resolveMasterDir(cliMasterDir)
+	if err != nil {
+		printErrorf("failed to resolve master directory: %v", err)
+		return 1
+	}
+	servers, err := listServers(masterDir)
+	if err != nil {
+		printErrorf("failed to list servers: %v", err)
+		return 1
+	}
+	known, err := listKnownBaseDirs(masterDir, servers)
+	if err != nil {
+		printErrorf("failed to list known state directories: %v", err)
+		return 1
+	}
+	baseDirs := make([]string, 0, len(known)+1)
+	seen := make(map[string]bool, len(known)+1)
+	for _, item := range known {
+		seen[item.BaseDir] = true
+		baseDirs = append(baseDirs, item.BaseDir)
+	}
+	if current, _, err := resolveBaseDir(""); err == nil && !seen[current] {
+		baseDirs = append(baseDirs, current)
+	}
+	sort.Strings(baseDirs)
+	return showProjectsForBaseDirs(baseDirs)
+}
+
+func showProjectsForBaseDirs(baseDirs []string) int {
+	fmt.Printf("%s\n", cyan("=== SHOW MODE: "+showViewLabel("projects")+" ==="))
 
 	type projectInfo struct {
+		baseDir string
 		name    string
 		queued  int
+		runs    int
 		state   string
 		lastRun string
 	}
-	projects := make([]projectInfo, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.IsDir() || !isValidProjectName(entry.Name()) {
-			continue
-		}
-		paths, err := resolvePaths(baseDir, entry.Name())
+	projects := make([]projectInfo, 0)
+	for _, baseDir := range baseDirs {
+		entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
 		if err != nil {
-			printErrorf("failed to resolve project %q: %v", entry.Name(), err)
+			if os.IsNotExist(err) {
+				continue
+			}
+			printErrorf("failed to read projects directory %q: %v", baseDir, err)
 			return 1
 		}
-		queue, err := loadQueue(paths.queueFile)
-		if err != nil {
-			printErrorf("failed to load queue for project %q: %v", entry.Name(), err)
-			return 1
+		for _, entry := range entries {
+			if !entry.IsDir() || !isValidProjectName(entry.Name()) {
+				continue
+			}
+			paths, err := resolvePaths(baseDir, entry.Name())
+			if err != nil {
+				printErrorf("failed to resolve project %q: %v", entry.Name(), err)
+				return 1
+			}
+			queue, err := loadQueue(paths.queueFile)
+			if err != nil {
+				printErrorf("failed to load queue for project %q: %v", entry.Name(), err)
+				return 1
+			}
+			state, _, err := inspectProjectRunState(paths)
+			if err != nil {
+				printErrorf("failed to check project %q state: %v", entry.Name(), err)
+				return 1
+			}
+			meta, err := loadMeta(paths.metaFile)
+			if err != nil {
+				printErrorf("failed to load project %q metadata: %v", entry.Name(), err)
+				return 1
+			}
+			lastRun := meta.LastRunID
+			if lastRun == "" {
+				lastRun = "-"
+			}
+			projects = append(projects, projectInfo{baseDir: baseDir, name: entry.Name(), queued: len(queue.Commands), runs: countProjectRuns(paths.runsDir), state: projectStateName(state), lastRun: lastRun})
 		}
-		state, _, err := inspectProjectRunState(paths)
-		if err != nil {
-			printErrorf("failed to check project %q state: %v", entry.Name(), err)
-			return 1
-		}
-		meta, err := loadMeta(paths.metaFile)
-		if err != nil {
-			printErrorf("failed to load project %q metadata: %v", entry.Name(), err)
-			return 1
-		}
-		lastRun := meta.LastRunID
-		if lastRun == "" {
-			lastRun = "-"
-		}
-		projects = append(projects, projectInfo{name: entry.Name(), queued: len(queue.Commands), state: projectStateName(state), lastRun: lastRun})
 	}
 
-	fmt.Printf("%s %s\n", cyan("Base directory:"), baseDir)
 	if len(projects) == 0 {
 		fmt.Println("No projects found.")
 		return 0
 	}
 	fmt.Printf("\n%s\n", cyan(fmt.Sprintf("Projects: %d", len(projects))))
-	fmt.Println(cyan(fmt.Sprintf("%-24s %-8s %-14s %s", "PROJECT", "QUEUED", "STATE", "LAST RUN")))
+	fmt.Println(cyan(fmt.Sprintf("%-36s %-24s %-8s %-8s %-14s %s", "BASEDIR", "PROJECT", "QUEUED", "RUNS", "STATE", "LAST RUN")))
 	for _, project := range projects {
-		fmt.Printf("%-24s %-8d %-14s %s\n", project.name, project.queued, project.state, project.lastRun)
+		fmt.Printf("%-36s %-24s %-8d %-8d %-14s %s\n", project.baseDir, project.name, project.queued, project.runs, project.state, project.lastRun)
 	}
 	fmt.Println("\n" + cyan("To show runs in a project:"))
 	fmt.Println("  rotari show -p PROJECT")

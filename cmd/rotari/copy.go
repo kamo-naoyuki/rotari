@@ -48,6 +48,7 @@ func cmdCopy(args []string) int {
 	basedir := cliString(fs, "basedir", "")
 	queueNameOption := cliString(fs, "project-name", "")
 	runID := cliString(fs, "run-id", "")
+	jobName := cliString(fs, "job-name", "")
 	failed := cliBool(fs, "failed", false)
 	unfinished := cliBool(fs, "unfinished", false)
 	success := cliBool(fs, "success", false)
@@ -62,23 +63,64 @@ func cmdCopy(args []string) int {
 		printError("usage: " + cliUsage("copy"))
 		return 1
 	}
-	if *runID == "" {
-		for _, jobID := range jobIDs {
-			payload, err := decodeAttemptID(jobID)
+	if *jobName != "" && len(jobIDs) > 0 {
+		printError("--job-name cannot be combined with --job-id")
+		return 1
+	}
+	if *jobName != "" {
+		if *runID != "" {
+			baseDir, projectName, err := resolveExistingRunTarget(*basedir, *queueNameOption, *runID)
 			if err != nil {
-				printError("copy requires --run-id/-r unless every --job-id is an ATTEMPT_ID")
+				printError(err)
 				return 1
 			}
-			if *runID == "" {
-				*runID = payload.RunID
-			} else if *runID != payload.RunID {
-				printError(fmt.Sprintf("attempt %q belongs to run %q, not %q", jobID, payload.RunID, *runID))
+			paths, err := resolvePaths(baseDir, projectName)
+			if err != nil {
+				printError(err)
 				return 1
+			}
+			target, found, err := findShowJobInRun(paths, *runID, *jobName, true)
+			if err != nil || !found {
+				printErrorf("job name %q not found in run %q", *jobName, *runID)
+				return 1
+			}
+			jobIDs = stringSliceFlag{target.jobID}
+		} else {
+			targets, err := resolveJobTargets(*basedir, *queueNameOption, *jobName, true, false)
+			if err != nil {
+				printError(err)
+				return 1
+			}
+			if len(targets) != 1 {
+				printErrorf("job name %q is %s", *jobName, map[bool]string{true: "ambiguous across latest runs", false: "not found"}[len(targets) > 1])
+				return 1
+			}
+			*basedir, *queueNameOption, *runID = targets[0].baseDir, targets[0].projectName, targets[0].runID
+			jobIDs = stringSliceFlag{targets[0].jobID}
+		}
+	}
+	if *runID == "" {
+		for _, jobID := range jobIDs {
+			if payload, err := decodeAttemptID(jobID); err == nil {
+				if *runID == "" {
+					*runID = payload.RunID
+				} else if *runID != payload.RunID {
+					printError(fmt.Sprintf("attempt %q belongs to run %q, not %q", jobID, payload.RunID, *runID))
+					return 1
+				}
 			}
 		}
 		if *runID == "" {
-			printError("copy requires --run-id/-r unless --job-id specifies an ATTEMPT_ID")
-			return 1
+			if len(jobIDs) == 0 {
+				printError("copy requires --run-id/-r unless --job-id is specified")
+				return 1
+			}
+			target, err := resolveLatestJobIDSelection(*basedir, *queueNameOption, jobIDs)
+			if err != nil {
+				printError(err)
+				return 1
+			}
+			*basedir, *queueNameOption, *runID = target.baseDir, target.projectName, target.runID
 		}
 	}
 

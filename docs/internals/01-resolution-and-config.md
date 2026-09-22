@@ -13,9 +13,7 @@ Without a run-location lookup, base directories resolve in this order:
 - Projects resolve from `--project-name`, then `ROTARI_PROJECT_NAME`, then the
   only project in the resolved base directory. With no projects the name is
   `default`; multiple projects require an explicit choice. The bare `show`
-  command is an exception: it warns and falls back to listing all projects.
-- `show --projects` lists all projects in the resolved base directory and does
-  not resolve one project name.
+  command lists projects across known basedirs instead of resolving one.
 - `show --basedirs` lists state directories known to the run and live-server
   registries under the resolved master directory; this discovery is not
   exhaustive.

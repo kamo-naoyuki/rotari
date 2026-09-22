@@ -81,6 +81,86 @@ type waitTarget struct {
 	runID       string
 }
 
+func resolveRunNameTargets(cliBaseDir, cliProjectName, runName string, activeOnly bool) ([]waitTarget, error) {
+	baseDir, _, err := resolveBaseDir(cliBaseDir)
+	if err != nil {
+		return nil, err
+	}
+	projectNames, err := projectNamesForRunName(baseDir, cliProjectName)
+	if err != nil {
+		return nil, err
+	}
+	targets := make([]waitTarget, 0)
+	for _, projectName := range projectNames {
+		paths, pathErr := resolvePaths(baseDir, projectName)
+		if pathErr != nil {
+			return nil, pathErr
+		}
+		if activeOnly {
+			running, runningErr := isRunning(paths.lockFile)
+			if runningErr != nil {
+				if os.IsNotExist(runningErr) {
+					continue
+				}
+				return nil, runningErr
+			}
+			if !running {
+				continue
+			}
+			lock, lockErr := loadLockInfo(paths.lockFile)
+			if lockErr != nil {
+				return nil, lockErr
+			}
+			if lock.RunName == runName {
+				targets = append(targets, waitTarget{baseDir: baseDir, projectName: projectName, runID: lock.RunID})
+			}
+			continue
+		}
+		entries, readErr := os.ReadDir(paths.runsDir)
+		if readErr != nil {
+			if os.IsNotExist(readErr) {
+				continue
+			}
+			return nil, readErr
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			summary, summaryErr := loadRunSummary(filepath.Join(paths.runsDir, entry.Name(), "summary.json"))
+			if summaryErr == nil && summary.RunName == runName {
+				targets = append(targets, waitTarget{baseDir: baseDir, projectName: projectName, runID: entry.Name()})
+			}
+		}
+	}
+	return targets, nil
+}
+
+func projectNamesForRunName(baseDir, cliProjectName string) ([]string, error) {
+	if cliProjectName != "" || os.Getenv(envProjectName) != "" {
+		projectName, err := resolveProjectName(baseDir, cliProjectName)
+		if err != nil {
+			return nil, err
+		}
+		return []string{projectName}, nil
+	}
+	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	projects := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			projects = append(projects, entry.Name())
+		}
+	}
+	sort.Strings(projects)
+	return projects, nil
+}
+
 func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (waitTarget, error) {
 	baseDir, _, err := resolveBaseDir(cliBaseDir)
 	if err != nil {
@@ -97,7 +177,7 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (waitTarget,
 		}
 	}
 
-	activeTargets, err := resolveActiveWaitTargets(baseDir, cliProjectName)
+	activeTargets, err := resolveRunNameTargets(baseDir, cliProjectName, selector, true)
 	if err != nil {
 		return waitTarget{}, err
 	}

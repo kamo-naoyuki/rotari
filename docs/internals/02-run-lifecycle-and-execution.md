@@ -23,6 +23,11 @@
   output; jobs without a completed result remain unfinished. Carry-forward writes
   reused results only to the destination run and records the source run and job
   so output remains traceable.
+- A filtered `run` is contractually equivalent to copying the same filter from
+  its source run into the queue and then running that queue. This applies to
+  `--failed`, `--unfinished`, `--success`, their combinations, and explicit
+  `--job-id`/`--job-name` selections. The source is the selected `--run-id`, or
+  the current project's latest run when it is omitted.
 - Dependencies use unique job names within a queue. Unknown names, duplicates,
   and cycles are rejected before execution. `add` also rejects a duplicate job
   name immediately, without writing the queue, so that mistake is never deferred
@@ -97,8 +102,8 @@
   run, regardless of executor mix.
 - Both the synchronous path (`runServerSync`) and async worker path
   (`cmdWorkerRun`) drive it. It expands array plans, dispatches to executors,
-  and writes the run summary. `add --run` uses the synchronous path after
-  enqueueing; `add --run-async` uses the async worker path after enqueueing.
+  and writes the run summary. Commands are enqueued by `add` and started by
+  `run`; `run --async` selects the async worker path.
 - Per-executor full-run orchestrators must not be added outside this path.
   Extend `JobExecutor` methods or `executeMixedRun` instead.
 - Run dispatch has a local concurrency lane and one independent lane per

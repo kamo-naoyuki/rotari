@@ -201,25 +201,6 @@ func TestCmdAddRejectsMissingCommand(t *testing.T) {
 	}
 }
 
-func TestCmdAddRejectsConflictingRunModesWithoutWriting(t *testing.T) {
-	baseDir := t.TempDir()
-	if code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "--run", "--run-async", "echo", "hello"}); code != 1 {
-		t.Fatalf("cmdAdd exit code = %d, want 1 for conflicting run modes", code)
-	}
-
-	paths, err := resolvePaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	queue, err := loadQueue(paths.queueFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(queue.Commands) != 0 {
-		t.Fatalf("queue commands = %#v, want no command after rejected add", queue.Commands)
-	}
-}
-
 func TestCmdAddRejectsInvalidArrayRange(t *testing.T) {
 	baseDir := t.TempDir()
 	code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "--array", "not-a-range", "echo", "hello"})

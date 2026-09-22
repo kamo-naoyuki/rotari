@@ -88,6 +88,53 @@ func TestCmdCopyDerivesRunIDFromAttemptID(t *testing.T) {
 	}
 }
 
+func TestCmdCopyJobIDUsesLatestRunWithoutRunID(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := makeRunID()
+	runDir := filepath.Join(paths.runsDir, runID)
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "train", Command: []string{"train"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Results: []JobResult{{ID: "job-1", ExitCode: 0}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.metaFile, Meta{LastRunID: runID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := registerRun(paths, runID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = unregisterRun(runID) })
+
+	if code := cmdCopy([]string{"--basedir", baseDir, "--project-name", "default", "--job-id", "job-1"}); code != 0 {
+		t.Fatalf("cmdCopy exit code = %d, want 0", code)
+	}
+	queue, err := loadQueue(paths.queueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 1 || queue.Commands[0].ID != "job-1" || queue.Commands[0].Origin == nil || queue.Commands[0].Origin.RunID != runID {
+		t.Fatalf("copied queue = %#v, want job from latest run %q", queue.Commands, runID)
+	}
+	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	if code := cmdCopy([]string{"--basedir", baseDir, "--project-name", "default", "--job-name", "train"}); code != 0 {
+		t.Fatalf("cmdCopy --job-name exit code = %d, want 0", code)
+	}
+	queue, err = loadQueue(paths.queueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 1 || queue.Commands[0].ID != "job-1" || queue.Commands[0].Origin == nil || queue.Commands[0].Origin.RunID != runID {
+		t.Fatalf("job-name copied queue = %#v, want job from latest run %q", queue.Commands, runID)
+	}
+}
+
 func TestCopyRunToQueuePreservesSourceJobIDs(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "default")

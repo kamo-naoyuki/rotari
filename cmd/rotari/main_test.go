@@ -1266,14 +1266,6 @@ func TestValidateEnvironment(t *testing.T) {
 	}
 }
 
-func TestAddRunArgsPreservesResolvedQueue(t *testing.T) {
-	got := addRunArgs("/tmp/rotari state", "build queue")
-	want := []string{"--basedir", "/tmp/rotari state", "--project-name", "build queue"}
-	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
-		t.Fatalf("addRunArgs() = %#v, want %#v", got, want)
-	}
-}
-
 func TestEnqueueCommandKeepsFinishedRunHistory(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "default")

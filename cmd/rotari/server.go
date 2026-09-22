@@ -259,13 +259,11 @@ func cmdAdd(args []string) int {
 	var dependsOn stringSliceFlag
 	cliValue(fs, &dependsOn, "depends-on")
 	arrayRange := cliString(fs, "array", "")
-	runAfterAdd := cliBool(fs, "run", false)
-	runAsyncAfterAdd := cliBool(fs, "run-async", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 	left := fs.Args()
-	if len(left) < 1 || (*runAfterAdd && *runAsyncAfterAdd) {
+	if len(left) < 1 {
 		printError("usage: " + cliUsage("add"))
 		return 1
 	}
@@ -298,18 +296,7 @@ func cmdAdd(args []string) int {
 		return 1
 	}
 	fmt.Println(colorKeyValueMessage(message, green))
-	if *runAfterAdd || *runAsyncAfterAdd {
-		runArgs := addRunArgs(baseDir, queueName)
-		if *runAsyncAfterAdd {
-			runArgs = append(runArgs, "--async")
-		}
-		return cmdRun(runArgs)
-	}
 	return 0
-}
-
-func addRunArgs(baseDir, queueName string) []string {
-	return []string{"--basedir", baseDir, "--project-name", queueName}
 }
 
 func cmdRun(args []string) int {
@@ -318,6 +305,7 @@ func cmdRun(args []string) int {
 	basedir := cliString(fs, "basedir", "")
 	queueNameOption := cliString(fs, "project-name", "")
 	runIDOption := cliString(fs, "run-id", "")
+	jobNameOption := cliString(fs, "job-name", "")
 	overwriteQueue := cliBool(fs, "overwrite", false)
 	runName := cliString(fs, "run-name", "")
 	localConcurrency := cliInt(fs, "local-concurrency", 8)
@@ -346,6 +334,42 @@ func cmdRun(args []string) int {
 		printError("usage: " + cliUsage("run"))
 		return 1
 	}
+	if *jobNameOption != "" && len(jobIDs) > 0 {
+		printError("--job-name cannot be combined with --job-id")
+		return 1
+	}
+	if *jobNameOption != "" {
+		if *runIDOption != "" {
+			baseDir, projectName, err := resolveExistingRunTarget(*basedir, *queueNameOption, *runIDOption)
+			if err != nil {
+				printError(err)
+				return 1
+			}
+			paths, err := resolvePaths(baseDir, projectName)
+			if err != nil {
+				printError(err)
+				return 1
+			}
+			target, found, err := findShowJobInRun(paths, *runIDOption, *jobNameOption, true)
+			if err != nil || !found {
+				printErrorf("job name %q not found in run %q", *jobNameOption, *runIDOption)
+				return 1
+			}
+			jobIDs = stringSliceFlag{target.jobID}
+		} else {
+			targets, err := resolveJobTargets(*basedir, *queueNameOption, *jobNameOption, true, false)
+			if err != nil {
+				printError(err)
+				return 1
+			}
+			if len(targets) != 1 {
+				printErrorf("job name %q is %s", *jobNameOption, map[bool]string{true: "ambiguous across latest runs", false: "not found"}[len(targets) > 1])
+				return 1
+			}
+			*basedir, *queueNameOption, *runIDOption = targets[0].baseDir, targets[0].projectName, targets[0].runID
+			jobIDs = stringSliceFlag{targets[0].jobID}
+		}
+	}
 	attemptSelection := false
 	for _, jobID := range jobIDs {
 		if !strings.HasPrefix(jobID, "att_") {
@@ -364,6 +388,14 @@ func cmdRun(args []string) int {
 			*runIDOption = payload.RunID
 			attemptSelection = true
 		}
+	}
+	if *runIDOption == "" && len(jobIDs) > 0 && !attemptSelection {
+		target, resolveErr := resolveLatestJobIDSelection(*basedir, *queueNameOption, jobIDs)
+		if resolveErr != nil {
+			printError(resolveErr)
+			return 1
+		}
+		*basedir, *queueNameOption, *runIDOption = target.baseDir, target.projectName, target.runID
 	}
 	if *overwriteQueue && *runIDOption == "" {
 		printError("usage: " + cliUsage("run"))
@@ -413,7 +445,10 @@ func cmdRun(args []string) int {
 			printErrorf("failed to load queue: %v", queueErr)
 			return 1
 		}
-		forceCopy = len(queue.Commands) == 0
+		// Explicit job selection is equivalent to copying the selected job
+		// from the latest run and then running it. Other filtered runs keep
+		// the current queue when it is already populated.
+		forceCopy = len(queue.Commands) == 0 || selection == "job-id"
 	}
 	if forceCopy {
 		// Only prompts when the queue actually has jobs to lose; an empty
