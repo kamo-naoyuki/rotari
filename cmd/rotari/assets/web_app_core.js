@@ -68,6 +68,19 @@ function render() {
 function configText(paths) {
   return paths && paths.length ? "\nConfig: " + esc(paths.join(", ")) : "";
 }
+function setLocation(base, paths) {
+  const location = document.getElementById("location");
+  location.textContent = base;
+  if (!paths || !paths.length) return;
+  location.append("\nConfig: ");
+  paths.forEach((path, index) => {
+    if (index) location.append(", ");
+    const copy = document.createRange().createContextualFragment(
+      copyIconForValue(path, "config path"),
+    );
+    location.append(copy, path);
+  });
+}
 function pageConfigPaths() {
   const parts = pageParts();
   if (parts[0] !== "project")
@@ -237,18 +250,17 @@ function renderRun(q, runID) {
     renderMissing("Run not found");
     return;
   }
-  document.getElementById("location").textContent =
-    state.base_dir +
-    " / " +
-    q.project_name +
-    " / " +
-    runID +
-    configText(run.context && run.context.config_paths);
-  document.getElementById("page-title").textContent = run.run_name || runID;
+  setLocation(
+    state.base_dir + " / " + q.project_name + " / " + runID,
+    run.context && run.context.config_paths,
+  );
+  document.getElementById("page-title").innerHTML =
+    copyIconForValue(runID, "run ID") + esc(run.run_name || runID);
   document.getElementById("summary").innerHTML =
     "<span>Project: " +
     esc(q.project_name) +
     "</span><span>Run ID: " +
+    copyIconForValue(run.run_id, "run ID") +
     esc(run.run_id) +
     "</span><span>Status: " +
     esc(run.status) +
@@ -288,21 +300,47 @@ function renderRun(q, runID) {
           "')\">Output</button>" +
           diagnosisControl
         : diagnosisControl;
-      const jobName =
-        esc(j.name || "-") +
-        (j.origin
-          ? '<div class="meta">carried from ' + esc(j.origin.run_id) + "</div>"
-          : "");
+      const jobName = esc(j.name || "-");
+      const carriedFrom = j.origin
+        ? '<div class="meta">carried from ' + esc(j.origin.run_id) + "</div>"
+        : "";
+      const copyIcon = (value, label) =>
+        '<button class="command-guide-copy identity-copy" type="button" title="Copy ' +
+        label +
+        '" aria-label="Copy ' +
+        label +
+        '" data-copy-value="' +
+        esc(value) +
+        '" data-copy-title="Copy ' +
+        label +
+        '" onclick="copyIdentityValue(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg></button>';
+      const jobNameCopy = j.name ? copyIcon(j.name, "job name") : "";
+      const jobIDCopy = copyIcon(j.id, "job ID");
+      const attemptCopy = j.attempt_id
+        ? copyIcon(j.attempt_id, "attempt ID")
+        : "";
+      const commandText = (j.command || []).join(" ");
+      const commandCopy = copyIcon(commandText, "command");
       return (
         '<tr data-job-id="' +
         esc(j.id) +
         '"><td><input class="job-selection" type="checkbox" aria-label="Select ' +
         esc(j.id) +
         '"> <strong>' +
+        '<span class="identity-line">' +
+        jobNameCopy +
         jobName +
-        '</strong><div class="meta">' +
+        "</span>" +
+        '<span class="identity-line">' +
+        jobIDCopy +
         esc(j.id) +
-        "</div></td><td>" +
+        "</span>" +
+        '<span class="identity-line">' +
+        attemptCopy +
+        esc(j.attempt_id || "-") +
+        "</span>" +
+        carriedFrom +
+        "</strong></td><td>" +
         esc(j.executor || "default") +
         "</td><td>" +
         esc(options || "-") +
@@ -311,7 +349,8 @@ function renderRun(q, runID) {
         "</td><td>" +
         esc(j.working_directory || "-") +
         '</td><td class="command">' +
-        esc((j.command || []).join(" ")) +
+        commandCopy +
+        esc(commandText) +
         "</td><td>" +
         esc(j.submitted_at || "-") +
         "</td><td>" +
@@ -328,6 +367,7 @@ function renderRun(q, runID) {
   const cwd = run.cwd || "-";
   const copy =
     "cd " + shellQuote(cwd) + " && rotari retry -r " + shellQuote(runID) + "";
+  const cwdCopy = copyIconForValue(cwd, "working directory");
   document.getElementById("app").innerHTML =
     '<div class="toolbar"><a class="link" href="/project/' +
     encodeURIComponent(q.project_name) +
@@ -339,13 +379,15 @@ function renderRun(q, runID) {
     esc(run.finished_at || "-") +
     " | Jobs: " +
     (run.jobs || []).length +
-    "</p><p>Working directory: <code>" +
+    "</p><p>Working directory: " +
+    cwdCopy +
+    "<code>" +
     esc(cwd) +
     '</code></p><pre class="log">Retry from a terminal:\n' +
     esc(copy) +
     "</pre>" +
     (jobs
-      ? '<table class="runs"><thead><tr><th data-sort="name"><input id="select-all-jobs" type="checkbox" aria-label="Select all jobs"> Job name / ID</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="exit">Exit / error</th><th data-sort="output"></th></tr></thead><tbody>' +
+      ? '<table class="runs"><thead><tr><th data-sort="name"><input id="select-all-jobs" type="checkbox" aria-label="Select all jobs"> job_name / job_id / attempt_id</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="exit">Exit / error</th><th data-sort="output"></th></tr></thead><tbody>' +
         jobs +
         "</tbody></table>"
       : '<div class="empty">No job definitions yet.</div>') +
@@ -356,6 +398,57 @@ function renderMissing(message) {
   document.getElementById("summary").textContent = "";
   document.getElementById("app").innerHTML =
     '<a class="link" href="/">All projects</a><p>' + esc(message) + "</p>";
+}
+function copyIconForValue(value, label) {
+  return '<button class="command-guide-copy identity-copy" type="button" title="Copy ' +
+    label +
+    '" aria-label="Copy ' +
+    label +
+    '" data-copy-value="' +
+    esc(value) +
+    '" data-copy-title="Copy ' +
+    label +
+    '" onclick="copyIdentityValue(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg></button>';
+}
+async function copyAttemptID(button) {
+  try {
+    await copyText(button.dataset.attemptId || "");
+    button.classList.add("copied");
+    button.title = "Copied!";
+    button.setAttribute("aria-label", "Copied!");
+    button.innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg>';
+    clearTimeout(button.copyResetTimer);
+    button.copyResetTimer = setTimeout(() => {
+      button.classList.remove("copied");
+      button.title = "Copy attempt ID";
+      button.setAttribute("aria-label", "Copy attempt ID");
+      button.innerHTML =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg>';
+    }, 1200);
+  } catch (error) {
+    alert(error.message);
+  }
+}
+async function copyIdentityValue(button) {
+  try {
+    await copyText(button.dataset.copyValue || "");
+    button.classList.add("copied");
+    button.title = "Copied!";
+    button.setAttribute("aria-label", "Copied!");
+    button.innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg>';
+    clearTimeout(button.copyResetTimer);
+    button.copyResetTimer = setTimeout(() => {
+      button.classList.remove("copied");
+      button.title = button.dataset.copyTitle || "Copy value";
+      button.setAttribute("aria-label", button.dataset.copyTitle || "Copy value");
+      button.innerHTML =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg>';
+    }, 1200);
+  } catch (error) {
+    alert(error.message);
+  }
 }
 function enhancePage() {
   document

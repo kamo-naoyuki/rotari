@@ -21,8 +21,8 @@ var (
 	reportFQDNPattern        = regexp.MustCompile(`\b[A-Za-z0-9][A-Za-z0-9.-]*\.(?:com|org|net|edu|gov|io|jp|local)\b`)
 )
 
-func buildAIReport(paths pathSet, runID, jobID string, failedOnly bool) (string, error) {
-	run, err := loadAIReportRun(paths, runID)
+func buildAIReport(paths pathSet, runID, jobID string, failedOnly bool, attemptIDs ...string) (string, error) {
+	run, err := loadAIReportRun(paths, runID, attemptIDs...)
 	if err != nil {
 		return "", err
 	}
@@ -67,7 +67,7 @@ func buildAIReportForJobs(paths pathSet, runID string, jobIDs []string) (string,
 	return redactAIReport(formatRunAIReportSelected(paths, run, selected, false), paths, run), nil
 }
 
-func loadAIReportRun(paths pathSet, runID string) (webRun, error) {
+func loadAIReportRun(paths pathSet, runID string, attemptIDs ...string) (webRun, error) {
 	runDir, err := validatedRunDir(paths, runID)
 	if err != nil {
 		return webRun{}, fmt.Errorf(runNotFoundMessage, runID)
@@ -87,7 +87,7 @@ func loadAIReportRun(paths pathSet, runID string) (webRun, error) {
 			summary.Status = "unknown"
 		}
 	}
-	jobs, err := loadWebJobs(runDir, summary)
+	jobs, err := loadWebJobs(runDir, summary, attemptIDs...)
 	if err != nil {
 		return webRun{}, err
 	}
@@ -222,6 +222,13 @@ func reportJobStatus(job webJob, running bool) string {
 }
 
 func readReportLog(paths pathSet, runID string, job webJob) string {
+	if job.AttemptDir != "" {
+		data, err := os.ReadFile(filepath.Join(job.AttemptDir, stateFileOutput))
+		if err != nil {
+			return ""
+		}
+		return tailReportLog(string(data))
+	}
 	jobID := job.ID
 	if job.Origin != nil {
 		runID = job.Origin.RunID
@@ -231,7 +238,7 @@ func readReportLog(paths pathSet, runID string, job webJob) string {
 	if err != nil {
 		return ""
 	}
-	jobDir, err := validatedJobDir(runDir, jobID)
+	jobDir, err := latestAttemptJobDir(runDir, jobID)
 	if err != nil {
 		return ""
 	}
@@ -243,7 +250,11 @@ func readReportLog(paths pathSet, runID string, job webJob) string {
 	if err != nil {
 		return ""
 	}
-	lines := strings.Split(string(data), "\n")
+	return tailReportLog(string(data))
+}
+
+func tailReportLog(data string) string {
+	lines := strings.Split(data, "\n")
 	if len(lines) > reportLogLines {
 		lines = lines[len(lines)-reportLogLines:]
 	}

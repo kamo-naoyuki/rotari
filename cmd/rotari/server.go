@@ -342,7 +342,30 @@ func cmdRun(args []string) int {
 	if len(jobIDs) > 0 && selection == "" {
 		selection = "job-id"
 	}
-	if len(left) != 0 || *localConcurrency < 1 || *batchConcurrency < 1 || *retry < -1 || (*overwriteQueue && *runIDOption == "") {
+	if len(left) != 0 || *localConcurrency < 1 || *batchConcurrency < 1 || *retry < -1 {
+		printError("usage: " + cliUsage("run"))
+		return 1
+	}
+	attemptSelection := false
+	for _, jobID := range jobIDs {
+		if !strings.HasPrefix(jobID, "att_") {
+			continue
+		}
+		payload, decodeErr := decodeAttemptID(jobID)
+		if decodeErr != nil {
+			printError(decodeErr)
+			return 1
+		}
+		if *runIDOption != "" && *runIDOption != payload.RunID {
+			printErrorf("attempt %q belongs to run %q, not %q", jobID, payload.RunID, *runIDOption)
+			return 1
+		}
+		if !attemptSelection {
+			*runIDOption = payload.RunID
+			attemptSelection = true
+		}
+	}
+	if *overwriteQueue && *runIDOption == "" {
 		printError("usage: " + cliUsage("run"))
 		return 1
 	}
@@ -365,6 +388,10 @@ func cmdRun(args []string) int {
 	// restored and edited via "change") is used as-is.
 	sourceRunID := *runIDOption
 	forceCopy := sourceRunID != ""
+	if attemptSelection {
+		selection = "job-id"
+		forceCopy = true
+	}
 	if sourceRunID == "" && selection != "" {
 		paths, pathErr := resolvePaths(baseDir, queueName)
 		if pathErr != nil {
@@ -381,12 +408,7 @@ func cmdRun(args []string) int {
 			return 1
 		}
 		sourceRunID = meta.LastRunID
-		queue, queueErr := loadQueue(paths.queueFile)
-		if queueErr != nil {
-			printErrorf("failed to load queue: %v", queueErr)
-			return 1
-		}
-		forceCopy = len(queue.Commands) == 0
+		forceCopy = true
 	}
 	if forceCopy {
 		// Only prompts when the queue actually has jobs to lose; an empty
@@ -396,12 +418,22 @@ func cmdRun(args []string) int {
 			printError(confirmErr)
 			return 1
 		}
-		message, copyErr := copyRunToQueue(baseDir, queueName, sourceRunID, "all", nil, false, overwriteConfirmed)
+		copySelection := "all"
+		copyJobIDs := []string(nil)
+		if selection != "" {
+			copySelection = selection
+			copyJobIDs = jobIDs
+		}
+		message, copyErr := copyRunToQueue(baseDir, queueName, sourceRunID, copySelection, copyJobIDs, false, overwriteConfirmed)
 		if copyErr != nil {
 			printError(copyErr)
 			return 1
 		}
 		fmt.Println(colorKeyValueMessage(message, green))
+	}
+	if selection != "" {
+		selection = ""
+		jobIDs = nil
 	}
 
 	if err := ensureServer(baseDir); err != nil {
@@ -721,6 +753,15 @@ func cmdCancel(args []string) int {
 		return 1
 	}
 	baseDir, _, err := resolveBaseDir(*basedir)
+	if len(jobIDs) > 0 && strings.HasPrefix(jobIDs[0], "att_") {
+		resolvedBaseDir, resolvedProject, _, _, resolveErr := resolveAttemptTarget(jobIDs[0], *basedir, *queueNameOption, "")
+		if resolveErr != nil {
+			printError(resolveErr)
+			return 1
+		}
+		baseDir, *queueNameOption = resolvedBaseDir, resolvedProject
+		err = nil
+	}
 	if err != nil {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
@@ -762,6 +803,15 @@ func cmdJobSignal(args []string, operation string) int {
 		return 1
 	}
 	baseDir, _, err := resolveBaseDir(*basedir)
+	if len(jobIDs) > 0 && strings.HasPrefix(jobIDs[0], "att_") {
+		resolvedBaseDir, resolvedProject, _, _, resolveErr := resolveAttemptTarget(jobIDs[0], *basedir, *queueNameOption, "")
+		if resolveErr != nil {
+			printError(resolveErr)
+			return 1
+		}
+		baseDir, *queueNameOption = resolvedBaseDir, resolvedProject
+		err = nil
+	}
 	if err != nil {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
@@ -975,6 +1025,10 @@ func controlQueueJobs(baseDir, queueName string, jobIDs []string, operation stri
 	if err != nil {
 		return "", err
 	}
+	jobIDs, err = normalizeRunningAttemptIDs(runDir, lock.RunID, jobIDs)
+	if err != nil {
+		return "", err
+	}
 	allJobs := len(jobIDs) == 0
 	targets := append([]string(nil), jobIDs...)
 	if allJobs {
@@ -990,7 +1044,7 @@ func controlQueueJobs(baseDir, queueName string, jobIDs []string, operation stri
 	}
 	controlled := 0
 	for _, jobID := range targets {
-		jobDir, err := validatedJobDir(runDir, jobID)
+		jobDir, err := latestAttemptJobDir(runDir, jobID)
 		if err != nil {
 			return "", err
 		}
@@ -1047,6 +1101,65 @@ func jobFinished(jobDir string) bool {
 	return json.Unmarshal(data, &status) == nil && status.Phase != "" && status.Phase != "running"
 }
 
+func normalizeRunningAttemptIDs(runDir, runID string, jobIDs []string) ([]string, error) {
+	normalized := make([]string, 0, len(jobIDs))
+	for _, jobID := range jobIDs {
+		if !strings.HasPrefix(jobID, "att_") {
+			normalized = append(normalized, jobID)
+			continue
+		}
+		payload, err := decodeAttemptID(jobID)
+		if err != nil {
+			return nil, err
+		}
+		if payload.RunID != runID {
+			return nil, fmt.Errorf("attempt %q belongs to run %q, not %q", jobID, payload.RunID, runID)
+		}
+		attemptDir, err := specificAttemptJobDir(runDir, payload.JobID, jobID)
+		if err != nil {
+			return nil, err
+		}
+		latestDir, err := latestAttemptJobDir(runDir, payload.JobID)
+		if err != nil || filepath.Clean(attemptDir) != filepath.Clean(latestDir) {
+			latestAttemptID := ""
+			if data, readErr := os.ReadFile(filepath.Join(filepath.Dir(filepath.Dir(latestDir)), stateFileLatestAttempt)); readErr == nil {
+				latestAttemptID = strings.TrimSpace(string(data))
+			}
+			if latestAttemptID != "" {
+				return nil, fmt.Errorf("attempt %q is not the latest attempt for job %q\nLatest attempt: %q (%s)", jobID, payload.JobID, latestAttemptID, attemptState(latestDir))
+			}
+			return nil, fmt.Errorf("attempt %q is not the latest attempt for job %q", jobID, payload.JobID)
+		}
+		if jobFinished(attemptDir) {
+			return nil, fmt.Errorf("attempt %q is finished", jobID)
+		}
+		if _, err := jobOwnerExecutor(attemptDir); err != nil {
+			return nil, fmt.Errorf("attempt %q is pending", jobID)
+		}
+		normalized = append(normalized, payload.JobID)
+	}
+	return normalized, nil
+}
+
+func attemptState(jobDir string) string {
+	if state := strings.ToLower(strings.TrimSpace(loadSchedulerStatus(jobDir))); state != "" {
+		return state
+	}
+	if data, err := os.ReadFile(filepath.Join(jobDir, stateFileStatusJSON)); err == nil {
+		var status slurmStatus
+		if json.Unmarshal(data, &status) == nil && status.Phase != "" {
+			return strings.ToLower(status.Phase)
+		}
+	}
+	if jobFinished(jobDir) {
+		return "finished"
+	}
+	if _, err := jobOwnerExecutor(jobDir); err == nil {
+		return "running"
+	}
+	return "pending"
+}
+
 func cancelQueueJobs(baseDir, queueName string, jobIDs []string, wait bool) (string, error) {
 	paths, err := resolvePaths(baseDir, queueName)
 	if err != nil {
@@ -1070,6 +1183,10 @@ func cancelQueueJobs(baseDir, queueName string, jobIDs []string, wait bool) (str
 	if err != nil {
 		return "", err
 	}
+	jobIDs, err = normalizeRunningAttemptIDs(runDir, lock.RunID, jobIDs)
+	if err != nil {
+		return "", err
+	}
 	if len(jobIDs) > 0 {
 		return cancelJobs(runDir, queueName, lock.RunID, jobIDs)
 	}
@@ -1090,7 +1207,7 @@ func cancelQueueJobs(baseDir, queueName string, jobIDs []string, wait bool) (str
 		}
 		targets := make([]string, 0, len(commandSnapshot.Commands))
 		for _, job := range queueToJobs(commandSnapshot.Commands) {
-			jobDir, err := validatedJobDir(runDir, job.ID)
+			jobDir, err := latestAttemptJobDir(runDir, job.ID)
 			if err != nil {
 				return "", err
 			}
@@ -1134,7 +1251,7 @@ func cancelJobs(runDir, queueName, runID string, jobIDs []string) (string, error
 		if !isValidPathElement(jobID) {
 			return "", fmt.Errorf("invalid job ID %q", jobID)
 		}
-		jobDir, err := validatedJobDir(runDir, jobID)
+		jobDir, err := latestAttemptJobDir(runDir, jobID)
 		if err != nil {
 			return "", err
 		}

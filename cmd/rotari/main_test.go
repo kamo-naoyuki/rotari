@@ -998,6 +998,174 @@ func TestPrepareJobEnvironmentsIncludesRunOptions(t *testing.T) {
 	}
 }
 
+func TestAssignAttemptIDsAreUniquePerRunAttempt(t *testing.T) {
+	jobs := []JobSpec{{ID: "job-1"}, {ID: "job-2"}}
+	runID := makeRunID()
+	assignAttemptIDs(jobs, runID, 0)
+	firstAttempt := []string{jobs[0].AttemptID, jobs[1].AttemptID}
+	for index, job := range jobs {
+		if job.AttemptID == "" {
+			t.Fatalf("job %d has no attempt ID", index)
+		}
+		if got, want := environmentEntry(job.Environment, envAttemptID); got != envAttemptID+"="+job.AttemptID || !want {
+			t.Fatalf("job %d attempt environment = %q, want %q", index, got, envAttemptID+"="+job.AttemptID)
+		}
+		payload, err := decodeAttemptID(job.AttemptID)
+		if err != nil {
+			t.Fatalf("decode attempt ID %q: %v", job.AttemptID, err)
+		}
+		if payload.RunID != runID || payload.JobID != job.ID || payload.Number != 0 {
+			t.Fatalf("attempt payload = %#v", payload)
+		}
+	}
+	if firstAttempt[0] == firstAttempt[1] {
+		t.Fatalf("attempt IDs are not unique: %#v", firstAttempt)
+	}
+
+	assignAttemptIDs(jobs, runID, 1)
+	for index, job := range jobs {
+		if job.AttemptID == firstAttempt[index] {
+			t.Fatalf("job %d attempt ID did not change on retry: %q", index, job.AttemptID)
+		}
+	}
+}
+
+func TestAttemptJobDirUsesLatestAttemptMarker(t *testing.T) {
+	runDir := t.TempDir()
+	job := JobSpec{ID: "job-1", AttemptID: makeAttemptID("20260922-000000-00000000", "job-1", 1)}
+	jobDir, err := attemptJobDir(runDir, job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(runDir, "job-1", "attempts", job.AttemptID)
+	if jobDir != want {
+		t.Fatalf("attempt job dir = %q, want %q", jobDir, want)
+	}
+	rootDir, err := validatedJobDir(runDir, job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(jobDir), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	markLatestAttempt(rootDir, job.AttemptID)
+	latest, err := latestAttemptJobDir(runDir, job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if latest != want {
+		t.Fatalf("latest attempt dir = %q, want %q", latest, want)
+	}
+}
+
+func TestListAttemptIDsSortsByAttemptNumber(t *testing.T) {
+	runDir := t.TempDir()
+	jobID := "job-1"
+	rootDir, err := validatedJobDir(runDir, jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attemptIDs := []string{
+		makeAttemptID("20260922-000000-00000000", jobID, 2),
+		makeAttemptID("20260922-000000-00000000", jobID, 0),
+		makeAttemptID("20260922-000000-00000000", jobID, 1),
+	}
+	for _, attemptID := range attemptIDs {
+		if err := os.MkdirAll(filepath.Join(rootDir, "attempts", attemptID), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := listAttemptIDs(runDir, jobID)
+	want := []string{attemptIDs[1], attemptIDs[2], attemptIDs[0]}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("attempt IDs = %#v, want %#v", got, want)
+	}
+}
+
+func TestResolveAttemptTargetUsesRunRegistry(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := makeRunID()
+	if err := os.MkdirAll(filepath.Join(paths.runsDir, runID), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := registerRun(paths, runID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = unregisterRun(runID) })
+	attemptID := makeAttemptID(runID, "job-1", 0)
+	gotBaseDir, gotProject, gotRunID, gotJobID, err := resolveAttemptTarget(attemptID, "", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotBaseDir != baseDir || gotProject != "demo" || gotRunID != runID || gotJobID != "job-1" {
+		t.Fatalf("resolved attempt = %q, %q, %q, %q", gotBaseDir, gotProject, gotRunID, gotJobID)
+	}
+}
+
+func TestNormalizeRunningAttemptIDsRequiresCurrentRunningAttempt(t *testing.T) {
+	runDir := t.TempDir()
+	runID := makeRunID()
+	jobID := "job-1"
+	oldAttempt := makeAttemptID(runID, jobID, 0)
+	currentAttempt := makeAttemptID(runID, jobID, 1)
+	rootDir, err := validatedJobDir(runDir, jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldDir, err := specificAttemptJobDir(runDir, jobID, oldAttempt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentDir, err := specificAttemptJobDir(runDir, jobID, currentAttempt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{oldDir, currentDir} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := writeJSON(filepath.Join(dir, stateFileJobJSON), slurmJobMetadata{Executor: "slurm", JobID: jobID}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	markLatestAttempt(rootDir, currentAttempt)
+	got, err := normalizeRunningAttemptIDs(runDir, runID, []string{currentAttempt})
+	if err != nil || len(got) != 1 || got[0] != jobID {
+		t.Fatalf("current attempt normalization = %#v, %v", got, err)
+	}
+	if _, err := normalizeRunningAttemptIDs(runDir, runID, []string{oldAttempt}); err == nil {
+		t.Fatal("finished/non-current attempt was accepted")
+	} else if !strings.Contains(err.Error(), fmt.Sprintf("Latest attempt: %q (running)", currentAttempt)) {
+		t.Fatalf("stale attempt error = %q", err)
+	}
+	if err := os.WriteFile(filepath.Join(currentDir, stateFileFinishedAt), []byte(nowRFC3339()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := normalizeRunningAttemptIDs(runDir, runID, []string{currentAttempt}); err == nil || !strings.Contains(err.Error(), "is finished") {
+		t.Fatalf("finished attempt error = %v", err)
+	}
+	pendingID := makeAttemptID(runID, "pending", 0)
+	pendingDir, err := specificAttemptJobDir(runDir, "pending", pendingID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(pendingDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	pendingRoot, err := validatedJobDir(runDir, "pending")
+	if err != nil {
+		t.Fatal(err)
+	}
+	markLatestAttempt(pendingRoot, pendingID)
+	if _, err := normalizeRunningAttemptIDs(runDir, runID, []string{pendingID}); err == nil || !strings.Contains(err.Error(), "is pending") {
+		t.Fatalf("pending attempt error = %v", err)
+	}
+}
+
 func TestEnqueueCommandPersistsStableJobID(t *testing.T) {
 	baseDir := t.TempDir()
 	message, err := enqueueCommand(baseDir, "default", []string{"echo", "old"}, "", nil, nil, "job", nil)
@@ -2605,14 +2773,16 @@ func TestExecuteMixedRunCarriesForwardNonSelectedResults(t *testing.T) {
 		{ID: "alpha", Command: []string{"/bin/sh", "-c", "exit 0"}, Name: "alpha"},
 		{ID: "beta", Command: []string{"/bin/sh", "-c", "exit 1"}, Name: "beta"},
 	}}
+	run1ID := makeRunID()
+	run2ID := makeRunID()
 	if err := writeJSON(paths.queueFile, queue); err != nil {
 		t.Fatal(err)
 	}
-	if code := executeMixedRun(paths, "run-1", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 1 {
+	if code := executeMixedRun(paths, run1ID, "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 1 {
 		t.Fatalf("first run exit = %d, want 1", code)
 	}
 	meta := defaultMeta()
-	meta.LastRunID = "run-1"
+	meta.LastRunID = run1ID
 	if err := writeJSON(paths.metaFile, meta); err != nil {
 		t.Fatal(err)
 	}
@@ -2620,18 +2790,18 @@ func TestExecuteMixedRunCarriesForwardNonSelectedResults(t *testing.T) {
 	if err := writeJSON(paths.queueFile, queue); err != nil {
 		t.Fatal(err)
 	}
-	if code := executeMixedRun(paths, "run-2", "", 1, 1, 0, "", nil, "failed", nil, "", true, nil, nil); code != 1 {
+	if code := executeMixedRun(paths, run2ID, "", 1, 1, 0, "", nil, "failed", nil, "", true, nil, nil); code != 1 {
 		t.Fatalf("second run exit = %d, want 1 (beta still fails)", code)
 	}
 
-	if _, err := os.Stat(filepath.Join(paths.runsDir, "run-2", "alpha")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(paths.runsDir, run2ID, "alpha")); !os.IsNotExist(err) {
 		t.Fatalf("alpha should not have been re-executed, stat error = %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(paths.runsDir, "run-2", "beta")); err != nil {
+	if _, err := os.Stat(filepath.Join(paths.runsDir, run2ID, "beta")); err != nil {
 		t.Fatalf("beta should have been re-executed: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(paths.runsDir, "run-2", "summary.json"))
+	data, err := os.ReadFile(filepath.Join(paths.runsDir, run2ID, "summary.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2647,7 +2817,7 @@ func TestExecuteMixedRunCarriesForwardNonSelectedResults(t *testing.T) {
 		t.Fatalf("summary results = %#v, want alpha carried success and beta re-run failed", results)
 	}
 
-	commandsData, err := os.ReadFile(filepath.Join(paths.runsDir, "run-2", "commands.json"))
+	commandsData, err := os.ReadFile(filepath.Join(paths.runsDir, run2ID, "commands.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2661,8 +2831,8 @@ func TestExecuteMixedRunCarriesForwardNonSelectedResults(t *testing.T) {
 			alphaOrigin = command.Origin
 		}
 	}
-	if alphaOrigin == nil || alphaOrigin.RunID != "run-1" || alphaOrigin.JobID != "alpha" || alphaOrigin.Status != "success" {
-		t.Fatalf("alpha origin = %#v, want run-1/alpha success", alphaOrigin)
+	if alphaOrigin == nil || alphaOrigin.RunID != run1ID || alphaOrigin.JobID != "alpha" || alphaOrigin.Status != "success" {
+		t.Fatalf("alpha origin = %#v, want %s/alpha success", alphaOrigin, run1ID)
 	}
 }
 
@@ -3192,7 +3362,7 @@ func TestRunServerSyncWithDisconnectCancelsRunningJob(t *testing.T) {
 	var pid int
 	deadline := time.Now().Add(5 * time.Second)
 	for pid == 0 && time.Now().Before(deadline) {
-		matches, err := filepath.Glob(filepath.Join(queueDir, "runs", "*", "slow-id", "pid"))
+		matches, err := filepath.Glob(filepath.Join(queueDir, "runs", "*", "slow-id", "attempts", "*", "pid"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3252,7 +3422,7 @@ func TestRunServerSyncWithDisconnectDetachesRunningJob(t *testing.T) {
 	var pid int
 	deadline := time.Now().Add(5 * time.Second)
 	for pid == 0 && time.Now().Before(deadline) {
-		matches, err := filepath.Glob(filepath.Join(queueDir, "runs", "*", "slow-id", "pid"))
+		matches, err := filepath.Glob(filepath.Join(queueDir, "runs", "*", "slow-id", "attempts", "*", "pid"))
 		if err != nil {
 			t.Fatal(err)
 		}

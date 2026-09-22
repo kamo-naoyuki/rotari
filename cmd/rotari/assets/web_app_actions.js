@@ -1,10 +1,26 @@
+const selectedRunJobsByRun = {};
+function selectedRunKey() {
+  const parts = pageParts();
+  return parts[0] === "project" && parts[2] === "run"
+    ? decodeURIComponent(parts[1]) + "/" + decodeURIComponent(parts[3])
+    : "";
+}
 function selectedRunJobIDs() {
   return [...document.querySelectorAll(".job-selection:checked")].map(
     (input) => input.closest("tr").dataset.jobId,
   );
 }
+function restoreSelectedRunJobs() {
+  const selected = selectedRunJobsByRun[selectedRunKey()];
+  if (!selected) return;
+  document.querySelectorAll(".job-selection").forEach((input) => {
+    input.checked = selected.has(input.closest("tr").dataset.jobId);
+  });
+}
 function updateSelectedRunJobs() {
   const selected = selectedRunJobIDs();
+  const key = selectedRunKey();
+  if (key) selectedRunJobsByRun[key] = new Set(selected);
   const all = [...document.querySelectorAll(".job-selection")];
   const selectAll = document.getElementById("select-all-jobs");
   if (selectAll)
@@ -47,6 +63,7 @@ function updateSelectedRunJobs() {
 function addRunJobSelection() {
   const selectAll = document.getElementById("select-all-jobs");
   if (!selectAll) return;
+  restoreSelectedRunJobs();
   selectAll.onchange = () => {
     document
       .querySelectorAll(".job-selection")

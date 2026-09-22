@@ -108,6 +108,25 @@ func TestCmdRunOverwriteSkipsQueueConfirmation(t *testing.T) {
 	}
 }
 
+func TestCmdRunRejectsMalformedAttemptID(t *testing.T) {
+	code := cmdRun([]string{"--job-id", "att_not-an-attempt"})
+	if code != 1 {
+		t.Fatalf("cmdRun exit code = %d, want 1", code)
+	}
+	code = cmdRetry([]string{"--job-id", "att_not-an-attempt"})
+	if code != 1 {
+		t.Fatalf("cmdRetry exit code = %d, want 1", code)
+	}
+}
+
+func TestCmdRunRejectsAttemptIDFromAnotherRun(t *testing.T) {
+	attemptID := makeAttemptID("20260922-000000-00000000", "job-1", 0)
+	code := cmdRun([]string{"--run-id", "other-run", "--job-id", attemptID})
+	if code != 1 {
+		t.Fatalf("cmdRun exit code = %d, want 1", code)
+	}
+}
+
 func TestEnqueueCommandRejectsInterruptedRunWithoutChangingQueue(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "default")
@@ -383,6 +402,94 @@ func TestCmdAddThenCmdRunExecutesLocalJobEndToEnd(t *testing.T) {
 	}
 	if len(queue.Commands) != 0 {
 		t.Fatalf("queue commands = %#v, want empty queue after run", queue.Commands)
+	}
+}
+
+func TestCmdRunWithAttemptIDCopiesAndExecutesSourceAttempt(t *testing.T) {
+	testCmdWithAttemptID(t, false)
+}
+
+func TestCmdRetryWithAttemptIDCopiesAndExecutesSourceAttempt(t *testing.T) {
+	testCmdWithAttemptID(t, true)
+}
+
+func testCmdWithAttemptID(t *testing.T, retry bool) {
+	baseDir, err := os.MkdirTemp("", "rotari-attempt-e2e-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(baseDir)
+	masterDir := t.TempDir()
+	t.Setenv("ROTARI_MASTERDIR", masterDir)
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.metaFile, defaultMeta()); err != nil {
+		t.Fatal(err)
+	}
+	sourceRunID := makeRunID()
+	attemptID := makeAttemptID(sourceRunID, "source", 0)
+	sourceRunDir := filepath.Join(paths.runsDir, sourceRunID)
+	if err := writeJSON(filepath.Join(sourceRunDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "source", Command: []string{"printf", "attempt-source"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(sourceRunDir, "summary.json"), RunSummary{RunID: sourceRunID, Status: "failed", Results: []JobResult{{ID: "source", AttemptID: attemptID, ExitCode: 1}}}); err != nil {
+		t.Fatal(err)
+	}
+	attemptDir, err := specificAttemptJobDir(sourceRunDir, "source", attemptID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(attemptDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := registerRun(paths, sourceRunID); err != nil {
+		t.Fatal(err)
+	}
+
+	serverDone := make(chan int, 1)
+	go func() { serverDone <- runServer(baseDir) }()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if response, pingErr := sendServerRequest(baseDir, serverRequest{Op: "ping"}); pingErr == nil && response.OK {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	args := []string{"--basedir", baseDir, "--project-name", "demo", "--job-id", attemptID}
+	if retry {
+		if code := cmdRetry(args); code != 0 {
+			t.Fatalf("cmdRetry exit code = %d", code)
+		}
+	} else if code := cmdRun(args); code != 0 {
+		t.Fatalf("cmdRun exit code = %d", code)
+	}
+	paths, err = resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta, err := loadMeta(paths.metaFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.LastRunID == sourceRunID || meta.Phase != "finished" {
+		t.Fatalf("meta = %#v, want a new finished run", meta)
+	}
+	queue, err := loadQueue(paths.queueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 0 {
+		t.Fatalf("queue = %#v, want empty queue", queue.Commands)
+	}
+	select {
+	case <-serverDone:
+	case <-time.After(3 * time.Second):
+		t.Log("server did not stop after attempt run")
 	}
 }
 

@@ -26,6 +26,7 @@ type slurmStatus struct {
 type slurmJobMetadata struct {
 	Executor    string   `json:"executor"`
 	JobID       string   `json:"job_id"`
+	AttemptID   string   `json:"attempt_id,omitempty"`
 	Command     []string `json:"command"`
 	SlurmJobID  string   `json:"slurm_job_id"`
 	SubmittedAt string   `json:"submitted_at"`
@@ -53,6 +54,7 @@ func (slurmExecutor) Wait(runDir string, handle JobHandle) JobResult {
 	metadata := slurmJobMetadata{
 		Executor:   "slurm",
 		JobID:      handle.Job.ID,
+		AttemptID:  handle.Job.AttemptID,
 		Command:    handle.Job.Command,
 		SlurmJobID: handle.Native,
 	}
@@ -118,13 +120,18 @@ func (flag *stringSliceFlag) Reset() {
 }
 
 func submitSlurmJob(runDir string, job JobSpec, executorOptions []string) (slurmJobMetadata, error) {
-	jobDir, err := validatedJobDir(runDir, job.ID)
+	jobDir, err := attemptJobDir(runDir, job)
+	if err != nil {
+		return slurmJobMetadata{}, err
+	}
+	rootJobDir, err := validatedJobDir(runDir, job.ID)
 	if err != nil {
 		return slurmJobMetadata{}, err
 	}
 	if err := os.MkdirAll(jobDir, stateDirMode()); err != nil {
 		return slurmJobMetadata{}, err
 	}
+	markLatestAttempt(rootJobDir, job.AttemptID)
 	if err := writeJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 		return slurmJobMetadata{}, err
 	}
@@ -151,7 +158,7 @@ func submitSlurmJob(runDir string, job JobSpec, executorOptions []string) (slurm
 		return slurmJobMetadata{}, errors.New("sbatch returned an empty job id")
 	}
 	metadata := slurmJobMetadata{
-		Executor: "slurm", JobID: job.ID, Command: job.Command,
+		Executor: "slurm", JobID: job.ID, AttemptID: job.AttemptID, Command: job.Command,
 		SlurmJobID: slurmJobID, SubmittedAt: nowRFC3339(),
 	}
 	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
@@ -216,7 +223,7 @@ func submitSlurmArray(runDir string, jobs []JobSpec, executorOptions []string) (
 	for _, job := range jobs {
 		task := *job.ArrayTaskID
 		nativeID := fmt.Sprintf("%s_%d", masterID, task)
-		metadata := slurmJobMetadata{Executor: "slurm", JobID: job.ID, Command: job.Command, SlurmJobID: nativeID, SubmittedAt: nowRFC3339()}
+		metadata := slurmJobMetadata{Executor: "slurm", JobID: job.ID, AttemptID: job.AttemptID, Command: job.Command, SlurmJobID: nativeID, SubmittedAt: nowRFC3339()}
 		jobDir, err := validatedJobDir(runDir, job.ID)
 		if err != nil {
 			return nil, err
@@ -441,7 +448,7 @@ func splitShellWords(input string) ([]string, error) {
 }
 
 func waitSlurmJob(runDir string, job slurmJobMetadata) JobResult {
-	jobDir, err := validatedJobDir(runDir, job.JobID)
+	jobDir, err := attemptJobDir(runDir, JobSpec{ID: job.JobID, AttemptID: job.AttemptID})
 	if err != nil {
 		return JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}

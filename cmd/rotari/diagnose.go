@@ -111,6 +111,7 @@ func cmdDiagnose(args []string) int {
 	projectName := cliString(fs, "project-name", "")
 	runIDOption := cliString(fs, "run-id", "")
 	jobID := cliString(fs, "job-id", "")
+	attemptID := ""
 	provider := cliString(fs, "provider", defaultLLMProvider)
 	endpoint := cliString(fs, "endpoint", defaultLLMEndpoint)
 	model := cliString(fs, "model", "")
@@ -122,6 +123,15 @@ func cmdDiagnose(args []string) int {
 	if len(fs.Args()) != 0 || *jobID == "" || (!*rules && *model == "") {
 		printError("usage: " + cliUsage("diagnose") + " (requires --job-id and --model unless --rules is set)")
 		return 1
+	}
+	if strings.HasPrefix(*jobID, "att_") {
+		attemptID = *jobID
+		baseDir, resolvedProjectName, resolvedRunID, resolvedJobID, err := resolveAttemptTarget(*jobID, *basedir, *projectName, *runIDOption)
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		*basedir, *projectName, *runIDOption, *jobID = baseDir, resolvedProjectName, resolvedRunID, resolvedJobID
 	}
 	if *rules {
 		baseDir, queueName, err := resolveExistingRunTarget(*basedir, *projectName, *runIDOption)
@@ -139,7 +149,7 @@ func cmdDiagnose(args []string) int {
 			printError(err)
 			return 1
 		}
-		job, err := loadDiagnosisJob(paths, runID, *jobID)
+		job, err := loadDiagnosisJob(paths, runID, *jobID, attemptID)
 		if err != nil {
 			printError(err)
 			return 1
@@ -187,7 +197,7 @@ func cmdDiagnose(args []string) int {
 		printError(err)
 		return 1
 	}
-	job, err := loadDiagnosisJob(paths, runID, *jobID)
+	job, err := loadDiagnosisJob(paths, runID, *jobID, attemptID)
 	if err != nil {
 		printError(err)
 		return 1
@@ -201,7 +211,7 @@ func cmdDiagnose(args []string) int {
 	return 0
 }
 
-func loadDiagnosisJob(paths pathSet, runID, jobID string) (diagnosisJob, error) {
+func loadDiagnosisJob(paths pathSet, runID, jobID string, attemptIDs ...string) (diagnosisJob, error) {
 	if !isValidPathElement(runID) || !isValidPathElement(jobID) {
 		return diagnosisJob{}, fmt.Errorf(jobNotFoundMessage, jobID, runID)
 	}
@@ -210,12 +220,22 @@ func loadDiagnosisJob(paths pathSet, runID, jobID string) (diagnosisJob, error) 
 		if err != nil {
 			return diagnosisJob{}, err
 		}
-		jobDir, err := validatedJobDir(runDir, jobID)
+		jobDir, err := latestAttemptJobDir(runDir, jobID)
+		attemptID := ""
+		if len(attemptIDs) > 0 {
+			attemptID = attemptIDs[0]
+		}
+		if attemptID != "" {
+			jobDir, err = specificAttemptJobDir(runDir, jobID, attemptID)
+		}
 		if err != nil {
 			return diagnosisJob{}, err
 		}
 		info, err := os.Stat(jobDir)
 		if err != nil || !info.IsDir() {
+			if attemptID != "" {
+				return diagnosisJob{}, fmt.Errorf(jobNotFoundMessage, jobID, runID)
+			}
 			origin := loadRunOrigin(runDir, jobID)
 			if origin == nil {
 				return diagnosisJob{}, fmt.Errorf(jobNotFoundMessage, jobID, runID)
@@ -305,7 +325,7 @@ func diagnoseJobResult(runDir string, result JobResult) JobResult {
 	if !isValidPathElement(result.ID) {
 		return unavailableRuleDiagnosis(result, "The job ID is invalid, so its output could not be inspected.")
 	}
-	jobDir, err := validatedJobDir(runDir, result.ID)
+	jobDir, err := latestAttemptJobDir(runDir, result.ID)
 	if err != nil {
 		return unavailableRuleDiagnosis(result, "The job directory could not be resolved: "+err.Error())
 	}

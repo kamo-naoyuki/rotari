@@ -58,6 +58,7 @@ type webRun struct {
 
 type webJob struct {
 	ID               string     `json:"id"`
+	AttemptID        string     `json:"attempt_id,omitempty"`
 	ArrayTaskID      *int       `json:"array_task_id,omitempty"`
 	ArrayFirst       int        `json:"array_first,omitempty"`
 	ArrayLast        int        `json:"array_last,omitempty"`
@@ -69,6 +70,7 @@ type webJob struct {
 	DependsOn        []string   `json:"depends_on,omitempty"`
 	Result           *JobResult `json:"result,omitempty"`
 	Origin           *JobOrigin `json:"origin,omitempty"`
+	AttemptDir       string     `json:"-"`
 	SubmittedAt      string     `json:"submitted_at,omitempty"`
 	FinishedAt       string     `json:"finished_at,omitempty"`
 	SchedulerState   string     `json:"scheduler_state,omitempty"`
@@ -1064,7 +1066,7 @@ func formatWebQueueDisplayTimes(state *webQueueState) {
 	}
 }
 
-func loadWebJobs(runDir string, summary RunSummary) ([]webJob, error) {
+func loadWebJobs(runDir string, summary RunSummary, attemptIDs ...string) ([]webJob, error) {
 	results := make(map[string]JobResult, len(summary.Results))
 	for _, result := range summary.Results {
 		results[result.ID] = result
@@ -1081,15 +1083,35 @@ func loadWebJobs(runDir string, summary RunSummary) ([]webJob, error) {
 		}
 	}
 	taskJobs := queueToJobs(commands.Commands)
+	selectedAttemptID := ""
+	selectedJobID := ""
+	if len(attemptIDs) > 0 && attemptIDs[0] != "" {
+		selectedAttemptID = attemptIDs[0]
+		if payload, err := decodeAttemptID(selectedAttemptID); err == nil {
+			selectedJobID = payload.JobID
+		}
+	}
 	webJobs := make([]webJob, 0, len(taskJobs))
 	for _, jobSpec := range taskJobs {
-		jobDir, pathErr := validatedJobDir(runDir, jobSpec.ID)
+		jobDir, pathErr := latestAttemptJobDir(runDir, jobSpec.ID)
+		if jobSpec.ID == selectedJobID {
+			jobDir, pathErr = specificAttemptJobDir(runDir, jobSpec.ID, selectedAttemptID)
+		}
 		if pathErr != nil {
 			return nil, fmt.Errorf("invalid job ID %q: %w", jobSpec.ID, pathErr)
 		}
 		origin := origins[jobSpec.ID]
 		submittedAt, finishedAt := webJobTimestamps(runDir, jobSpec.ID, origin)
-		job := webJob{ID: jobSpec.ID, Name: jobSpec.Name, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, DependsOn: jobSpec.DependsOn, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SubmittedAt: submittedAt, FinishedAt: finishedAt, SchedulerState: loadSchedulerStatus(jobDir)}
+		attemptID := jobSpec.AttemptID
+		if attemptID == "" {
+			if result, ok := results[jobSpec.ID]; ok {
+				attemptID = result.AttemptID
+			}
+		}
+		job := webJob{ID: jobSpec.ID, AttemptID: attemptID, AttemptDir: jobDir, Name: jobSpec.Name, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, DependsOn: jobSpec.DependsOn, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SubmittedAt: submittedAt, FinishedAt: finishedAt, SchedulerState: loadSchedulerStatus(jobDir)}
+		if jobSpec.ID == selectedJobID {
+			job.AttemptID = selectedAttemptID
+		}
 		if result, ok := results[jobSpec.ID]; ok {
 			job.Result = &result
 		} else if status, ok := loadSlurmStatus(filepath.Join(jobDir, stateFileStatusJSON)); ok && jobStatusTerminal(status) {
@@ -1102,6 +1124,16 @@ func loadWebJobs(runDir string, summary RunSummary) ([]webJob, error) {
 		} else if exitCode, ok := loadTerminalSchedulerState(jobDir); ok {
 			job.Result = &JobResult{ID: jobSpec.ID, Command: jobSpec.Command, ExitCode: exitCode}
 		}
+		if jobSpec.ID == selectedJobID {
+			if result, ok := loadLocalJobResult(jobDir, jobSpec); ok {
+				result.AttemptID = selectedAttemptID
+				job.Result = &result
+			} else if status, ok := loadSlurmStatus(filepath.Join(jobDir, stateFileStatusJSON)); ok && jobStatusTerminal(status) {
+				job.Result = &JobResult{ID: jobSpec.ID, AttemptID: selectedAttemptID, Command: jobSpec.Command, ExitCode: status.ExitCode, Error: status.Error, Hosts: status.Hosts}
+			}
+			job.SubmittedAt = readAttemptTimestamp(jobDir, stateFileSubmittedAt)
+			job.FinishedAt = readAttemptTimestamp(jobDir, stateFileFinishedAt)
+		}
 		webJobs = append(webJobs, job)
 		delete(results, jobSpec.ID)
 	}
@@ -1113,6 +1145,14 @@ func loadWebJobs(runDir string, summary RunSummary) ([]webJob, error) {
 		webJobs = append(webJobs, webJob{ID: result.ID, Command: result.Command, Result: &resultCopy, SubmittedAt: readJobTimestamp(runDir, result.ID, "submitted_at"), FinishedAt: readJobTimestamp(runDir, result.ID, "finished_at")})
 	}
 	return webJobs, nil
+}
+
+func readAttemptTimestamp(jobDir, name string) string {
+	data, err := os.ReadFile(filepath.Join(jobDir, name))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 func loadLocalJobResult(jobDir string, job JobSpec) (JobResult, bool) {
@@ -1142,8 +1182,10 @@ func webJobTimestamps(runDir, jobID string, origin *JobOrigin) (string, string) 
 	submittedAt := readJobTimestamp(runDir, jobID, "submitted_at")
 	finishedAt := readJobTimestamp(runDir, jobID, "finished_at")
 	if finishedAt == "" {
-		if status, ok := loadSlurmStatus(filepath.Join(runDir, jobID, "status.json")); ok {
-			finishedAt = status.FinishedAt
+		if jobDir, err := latestAttemptJobDir(runDir, jobID); err == nil {
+			if status, ok := loadSlurmStatus(filepath.Join(jobDir, "status.json")); ok {
+				finishedAt = status.FinishedAt
+			}
 		}
 	}
 	if origin == nil || (submittedAt != "" && finishedAt != "") {
@@ -1171,7 +1213,7 @@ func readJobTimestamp(runDir, jobID, name string) string {
 	if name != "submitted_at" && name != "finished_at" {
 		return ""
 	}
-	jobDir, err := validatedJobDir(runDir, jobID)
+	jobDir, err := latestAttemptJobDir(runDir, jobID)
 	if err != nil {
 		return ""
 	}

@@ -53,6 +53,41 @@ func TestCmdCopyRejectsRunningProjectBeforeQueueConfirmation(t *testing.T) {
 	}
 }
 
+func TestCmdCopyDerivesRunIDFromAttemptID(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := makeRunID()
+	attemptID := makeAttemptID(runID, "source", 0)
+	runDir := filepath.Join(paths.runsDir, runID)
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "source", Command: []string{"source"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{Results: []JobResult{{ID: "source", AttemptID: attemptID, ExitCode: 1}}}); err != nil {
+		t.Fatal(err)
+	}
+	attemptDir, err := specificAttemptJobDir(runDir, "source", attemptID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(attemptDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	if code := cmdCopy([]string{"--basedir", baseDir, "--project-name", "default", "--job-id", attemptID}); code != 0 {
+		t.Fatalf("cmdCopy exit code = %d", code)
+	}
+	queue, err := loadQueue(paths.queueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 1 || queue.Commands[0].Origin == nil || queue.Commands[0].Origin.AttemptID != attemptID {
+		t.Fatalf("copied queue = %#v, want attempt %q", queue.Commands, attemptID)
+	}
+}
+
 func TestCopyRunToQueuePreservesSourceJobIDs(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "default")
@@ -95,6 +130,80 @@ func TestCopyRunToQueuePreservesSourceJobIDs(t *testing.T) {
 	}
 	if copied.Origin == nil || copied.Origin.RunID != "run-1" || copied.Origin.JobID != "train-id" || copied.Origin.Status != "failed" {
 		t.Fatalf("copied origin = %#v, want source run/job and failed status", copied.Origin)
+	}
+}
+
+func TestCopyRunToQueuePreservesExplicitAttemptID(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := makeRunID()
+	attemptID := makeAttemptID(runID, "train-id", 0)
+	runDir := filepath.Join(paths.runsDir, runID)
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "train-id", Name: "train", Command: []string{"train"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	attemptDir, err := specificAttemptJobDir(runDir, "train-id", attemptID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(attemptDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{Results: []JobResult{{ID: "train-id", AttemptID: attemptID, ExitCode: 1}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := copyRunToQueue(baseDir, "default", runID, "job-id", []string{attemptID}, false); err != nil {
+		t.Fatal(err)
+	}
+	queue, err := loadQueue(paths.queueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 1 || queue.Commands[0].Origin == nil || queue.Commands[0].Origin.AttemptID != attemptID {
+		t.Fatalf("copied command = %#v, want explicit attempt %q", queue.Commands, attemptID)
+	}
+}
+
+func TestCopyRunToQueueExplicitArrayAttemptSelectsOnlyTask(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := makeRunID()
+	attemptID := makeAttemptID(runID, "train-2", 0)
+	runDir := filepath.Join(paths.runsDir, runID)
+	snapshot := Queue{Commands: []QueuedCommand{{ID: "train", Command: []string{"train"}, Array: &ArraySpec{First: 1, Last: 3}}}}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{Results: []JobResult{{ID: "train-1", AttemptID: makeAttemptID(runID, "train-1", 0), ExitCode: 0}, {ID: "train-2", AttemptID: attemptID, ExitCode: 1}, {ID: "train-3", AttemptID: makeAttemptID(runID, "train-3", 0), ExitCode: 0}}}); err != nil {
+		t.Fatal(err)
+	}
+	attemptDir, err := specificAttemptJobDir(runDir, "train-2", attemptID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(attemptDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := copyRunToQueue(baseDir, "default", runID, "job-id", []string{attemptID}, false); err != nil {
+		t.Fatal(err)
+	}
+	queue, err := loadQueue(paths.queueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 1 || queue.Commands[0].Array == nil || len(queue.Commands[0].Array.Tasks) != 1 || queue.Commands[0].Array.Tasks[0] != 2 {
+		t.Fatalf("copied array = %#v, want only task 2", queue.Commands)
+	}
+	if origin := queue.Commands[0].TaskOrigins["train-2"]; origin == nil || origin.AttemptID != attemptID {
+		t.Fatalf("task origin = %#v, want attempt %q", origin, attemptID)
 	}
 }
 
@@ -241,10 +350,10 @@ func TestCopyRunToQueueAggregatesArrayTaskResults(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{Results: []JobResult{
-		{ID: "success-array-1", ExitCode: 0},
-		{ID: "success-array-2", ExitCode: 0},
-		{ID: "failed-array-1", ExitCode: 0},
-		{ID: "failed-array-2", ExitCode: 1},
+		{ID: "success-array-1", AttemptID: makeAttemptID("20260922-000000-00000000", "success-array-1", 0), ExitCode: 0},
+		{ID: "success-array-2", AttemptID: makeAttemptID("20260922-000000-00000000", "success-array-2", 0), ExitCode: 0},
+		{ID: "failed-array-1", AttemptID: makeAttemptID("20260922-000000-00000000", "failed-array-1", 0), ExitCode: 0},
+		{ID: "failed-array-2", AttemptID: makeAttemptID("20260922-000000-00000000", "failed-array-2", 0), ExitCode: 1},
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -261,6 +370,9 @@ func TestCopyRunToQueueAggregatesArrayTaskResults(t *testing.T) {
 	}
 	if queue.Commands[0].Origin == nil || queue.Commands[0].Origin.Status != "failed" {
 		t.Fatalf("failed-array origin = %#v, want status=failed", queue.Commands[0].Origin)
+	}
+	if got := queue.Commands[0].TaskOrigins["failed-array-2"].AttemptID; got == "" {
+		t.Fatalf("failed-array task origin has no attempt ID")
 	}
 
 	if _, err := copyRunToQueue(baseDir, "default", "run-1", "success", nil, false, true); err != nil {

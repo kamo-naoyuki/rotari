@@ -13,6 +13,7 @@ const (
 	envMasterDir       = "ROTARI_MASTERDIR"
 	envRunID           = "ROTARI_RUN_ID"
 	envJobID           = "ROTARI_JOB_ID"
+	envAttemptID       = "ROTARI_ATTEMPT_ID"
 	envJobName         = "ROTARI_JOB_NAME"
 	envExecutor        = "ROTARI_EXECUTOR"
 	envExecutorOpts    = "ROTARI_EXECUTOR_OPTIONS"
@@ -57,7 +58,7 @@ const (
 )
 
 var propagatedEnvironmentVariables = []string{
-	envBaseDir, envProjectName, envMasterDir, envRunID, envJobID, envJobName,
+	envBaseDir, envProjectName, envMasterDir, envRunID, envJobID, envAttemptID, envJobName,
 	envExecutor, envExecutorOpts, envRunName, envRunLocalConc, envRunBatchConc,
 	envRunSSHConc, envRunSSHOptions, envRunSlurmConc, envRunSlurmOptions,
 	envRunPBSConc, envRunPBSOptions, envRunLSFConc, envRunLSFOptions,
@@ -105,6 +106,7 @@ func environmentDefinitions() []environmentDefinition {
 		{Name: envMasterDir, CLIDefault: true, Description: "Server registry directory; --masterdir default."},
 		{Name: envRunID, CLIDefault: true, Job: true, Array: true, Description: "Current run ID; --run-id default."},
 		{Name: envJobID, CLIDefault: true, Job: true, Array: true, Description: "Current job ID; --job-id default."},
+		{Name: envAttemptID, Job: true, Array: true, Description: "Current job attempt ID."},
 		{Name: envJobName, CLIDefault: true, Job: true, Array: true, Description: "Current job name; --job-name default."},
 		{Name: envExecutor, CLIDefault: true, Job: true, Array: true, Description: "Current executor; --executor default."},
 		{Name: envExecutorOpts, CLIDefault: true, Job: true, Array: true, Description: "Default scheduler executor options."},

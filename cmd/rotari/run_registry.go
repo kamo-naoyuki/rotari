@@ -13,6 +13,21 @@ type runLocation struct {
 	RunID       string `json:"run_id"`
 }
 
+func resolveAttemptTarget(attemptID, cliBaseDir, cliProjectName, cliRunID string) (string, string, string, string, error) {
+	payload, err := decodeAttemptID(attemptID)
+	if err != nil {
+		return "", "", "", "", err
+	}
+	if cliRunID != "" && cliRunID != payload.RunID {
+		return "", "", "", "", fmt.Errorf("attempt %q belongs to run %q, not %q", attemptID, payload.RunID, cliRunID)
+	}
+	baseDir, projectName, err := resolveExistingRunTarget(cliBaseDir, cliProjectName, payload.RunID)
+	if err != nil {
+		return "", "", "", "", err
+	}
+	return baseDir, projectName, payload.RunID, payload.JobID, nil
+}
+
 func registerRun(paths pathSet, runID string) error {
 	return registerRunLocation(runLocation{
 		BaseDir: paths.baseDir, ProjectName: paths.queueName, RunID: runID,

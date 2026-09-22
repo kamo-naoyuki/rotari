@@ -133,6 +133,20 @@ func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 			t.Fatalf("web run page is missing job queue selection control %q", marker)
 		}
 	}
+	for _, marker := range []string{"selectedRunJobsByRun", "function restoreSelectedRunJobs()", "restoreSelectedRunJobs();"} {
+		if !webContains(html, marker) {
+			t.Fatalf("web run page does not preserve job selection across refreshes: %q", marker)
+		}
+	}
+}
+
+func TestWebRunPageCopiesConfigPathsAndRunID(t *testing.T) {
+	html := webHTML()
+	for _, marker := range []string{"function setLocation(base, paths)", `copyIconForValue(path, "config path")`, `copyIconForValue(run.run_id, "run ID")`} {
+		if !webContains(html, marker) {
+			t.Fatalf("web run page is missing identity copy control %q", marker)
+		}
+	}
 }
 
 func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {

@@ -186,6 +186,7 @@ func planRerunSelection(paths pathSet, queue Queue, selection string, jobIDs []s
 		plan.CarriedOrigins[command.ID] = &JobOrigin{
 			RunID:       runID,
 			JobID:       command.ID,
+			AttemptID:   result.AttemptID,
 			Status:      status,
 			CWD:         originCWD,
 			SubmittedAt: readJobTimestamp(runDir, command.ID, "submitted_at"),
@@ -230,6 +231,7 @@ func planArrayTaskSelection(command QueuedCommand, selection string, results map
 		plan.CarriedOrigins[taskID] = &JobOrigin{
 			RunID:       runID,
 			JobID:       taskID,
+			AttemptID:   result.AttemptID,
 			Status:      status,
 			CWD:         originCWD,
 			SubmittedAt: readJobTimestamp(runDir, taskID, "submitted_at"),

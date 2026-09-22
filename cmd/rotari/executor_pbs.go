@@ -19,6 +19,7 @@ const pbsCommandTimeout = 30 * time.Second
 type pbsJobMetadata struct {
 	Executor    string   `json:"executor"`
 	JobID       string   `json:"job_id"`
+	AttemptID   string   `json:"attempt_id,omitempty"`
 	Command     []string `json:"command"`
 	PBSJobID    string   `json:"pbs_job_id"`
 	SubmittedAt string   `json:"submitted_at"`
@@ -44,10 +45,11 @@ func (pbsExecutor) SubmitArray(runDir string, jobs []JobSpec, options []string) 
 
 func (pbsExecutor) Wait(runDir string, handle JobHandle) JobResult {
 	metadata := pbsJobMetadata{
-		Executor: "pbs",
-		JobID:    handle.Job.ID,
-		Command:  handle.Job.Command,
-		PBSJobID: handle.Native,
+		Executor:  "pbs",
+		JobID:     handle.Job.ID,
+		AttemptID: handle.Job.AttemptID,
+		Command:   handle.Job.Command,
+		PBSJobID:  handle.Native,
 	}
 	return waitPBSJob(runDir, metadata)
 }
@@ -95,13 +97,18 @@ func readPBSMetadata(jobDir string) (pbsJobMetadata, error) {
 }
 
 func submitPBSJob(runDir string, job JobSpec, options []string) (pbsJobMetadata, error) {
-	jobDir, err := validatedJobDir(runDir, job.ID)
+	jobDir, err := attemptJobDir(runDir, job)
+	if err != nil {
+		return pbsJobMetadata{}, err
+	}
+	rootJobDir, err := validatedJobDir(runDir, job.ID)
 	if err != nil {
 		return pbsJobMetadata{}, err
 	}
 	if err := os.MkdirAll(jobDir, stateDirMode()); err != nil {
 		return pbsJobMetadata{}, err
 	}
+	markLatestAttempt(rootJobDir, job.AttemptID)
 	if err := writeJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 		return pbsJobMetadata{}, err
 	}
@@ -126,7 +133,7 @@ func submitPBSJob(runDir string, job JobSpec, options []string) (pbsJobMetadata,
 		return pbsJobMetadata{}, errors.New("qsub returned an empty job id")
 	}
 	metadata := pbsJobMetadata{
-		Executor: "pbs", JobID: job.ID, Command: job.Command,
+		Executor: "pbs", JobID: job.ID, AttemptID: job.AttemptID, Command: job.Command,
 		PBSJobID: pbsJobID, SubmittedAt: nowRFC3339(),
 	}
 	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
@@ -186,7 +193,7 @@ func submitPBSArray(runDir string, jobs []JobSpec, executorOptions []string) ([]
 	for _, job := range jobs {
 		taskID := *job.ArrayTaskID
 		nativeID := fmt.Sprintf("%s[%d]", masterID, taskID)
-		metadata := pbsJobMetadata{Executor: "pbs", JobID: job.ID, Command: job.Command, PBSJobID: nativeID, SubmittedAt: nowRFC3339()}
+		metadata := pbsJobMetadata{Executor: "pbs", JobID: job.ID, AttemptID: job.AttemptID, Command: job.Command, PBSJobID: nativeID, SubmittedAt: nowRFC3339()}
 		jobDir, err := validatedJobDir(runDir, job.ID)
 		if err != nil {
 			return nil, err
@@ -200,7 +207,7 @@ func submitPBSArray(runDir string, jobs []JobSpec, executorOptions []string) ([]
 }
 
 func waitPBSJob(runDir string, job pbsJobMetadata) JobResult {
-	jobDir, err := validatedJobDir(runDir, job.JobID)
+	jobDir, err := attemptJobDir(runDir, JobSpec{ID: job.JobID, AttemptID: job.AttemptID})
 	if err != nil {
 		return JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}

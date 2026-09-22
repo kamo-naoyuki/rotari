@@ -22,6 +22,7 @@ import (
 )
 
 const jobIDLen = 9
+const runIDLen = len("20060102-150405-00000000")
 const defaultProjectName = "default"
 
 type Queue struct {
@@ -56,10 +57,17 @@ type ArraySpec struct {
 type JobOrigin struct {
 	RunID       string `json:"run_id"`
 	JobID       string `json:"job_id"`
+	AttemptID   string `json:"attempt_id,omitempty"`
 	Status      string `json:"status,omitempty"`
 	CWD         string `json:"cwd,omitempty"`
 	SubmittedAt string `json:"submitted_at,omitempty"`
 	FinishedAt  string `json:"finished_at,omitempty"`
+}
+
+type attemptIDPayload struct {
+	RunID  string `json:"run_id"`
+	JobID  string `json:"job_id"`
+	Number int    `json:"number"`
 }
 
 type Meta struct {
@@ -79,6 +87,7 @@ type LockInfo struct {
 
 type JobSpec struct {
 	ID               string   `json:"id"`
+	AttemptID        string   `json:"attempt_id,omitempty"`
 	Command          []string `json:"command"`
 	WorkingDirectory string   `json:"working_directory,omitempty"`
 	Executor         string   `json:"executor,omitempty"`
@@ -95,6 +104,7 @@ type JobSpec struct {
 
 type JobResult struct {
 	ID        string          `json:"id"`
+	AttemptID string          `json:"attempt_id,omitempty"`
 	ExitCode  int             `json:"exit_code"`
 	Error     string          `json:"error,omitempty"`
 	Command   []string        `json:"command,omitempty"`
@@ -946,13 +956,18 @@ func failedJobHints(runID string, results []JobResult) string {
 
 func runOneJob(runDir string, job JobSpec) JobResult {
 	hostname, _ := os.Hostname()
-	jobDir, err := validatedJobDir(runDir, job.ID)
+	jobDir, err := attemptJobDir(runDir, job)
+	if err != nil {
+		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
+	}
+	rootJobDir, err := validatedJobDir(runDir, job.ID)
 	if err != nil {
 		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}
 	if err := os.MkdirAll(jobDir, stateDirMode()); err != nil {
 		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}
+	markLatestAttempt(rootJobDir, job.AttemptID)
 
 	if err := writeJSON(filepath.Join(jobDir, commandJSONName), job); err != nil {
 		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
@@ -1129,6 +1144,7 @@ const (
 	stateFilePID            = "pid"
 	stateFileCancelled      = "cancelled"
 	stateFileName           = "name"
+	stateFileLatestAttempt  = "latest_attempt"
 )
 
 func isValidPathElement(value string) bool {
@@ -1139,6 +1155,92 @@ func isValidPathElement(value string) bool {
 		return false
 	}
 	return filepath.Base(value) == value
+}
+
+func makeAttemptID(runID, jobID string, number int) string {
+	if !isValidPathElement(runID) || !isValidPathElement(jobID) || number < 0 {
+		panic(fmt.Sprintf("invalid attempt ID components: run=%q job=%q number=%d", runID, jobID, number))
+	}
+	return fmt.Sprintf("att_%s-%s-%d", runID, jobID, number)
+}
+
+func decodeAttemptID(attemptID string) (attemptIDPayload, error) {
+	if !strings.HasPrefix(attemptID, "att_") {
+		return attemptIDPayload{}, fmt.Errorf("invalid attempt ID %q", attemptID)
+	}
+	value := strings.TrimPrefix(attemptID, "att_")
+	separator := strings.LastIndexByte(value, '-')
+	if separator <= 0 || separator == len(value)-1 {
+		return attemptIDPayload{}, fmt.Errorf("invalid attempt ID %q", attemptID)
+	}
+	number, err := strconv.Atoi(value[separator+1:])
+	if err != nil || number < 0 {
+		return attemptIDPayload{}, fmt.Errorf("invalid attempt ID %q", attemptID)
+	}
+	core := value[:separator]
+	if len(core) <= runIDLen || core[runIDLen] != '-' {
+		return attemptIDPayload{}, fmt.Errorf("invalid attempt ID %q", attemptID)
+	}
+	payload := attemptIDPayload{RunID: core[:runIDLen], JobID: core[runIDLen+1:], Number: number}
+	if !isValidPathElement(payload.RunID) || !isValidPathElement(payload.JobID) {
+		return attemptIDPayload{}, fmt.Errorf("invalid attempt ID %q", attemptID)
+	}
+	return payload, nil
+}
+
+func attemptJobDir(runDir string, job JobSpec) (string, error) {
+	jobDir, err := validatedJobDir(runDir, job.ID)
+	if err != nil || job.AttemptID == "" {
+		return jobDir, err
+	}
+	if !isValidPathElement(job.AttemptID) {
+		return "", fmt.Errorf("invalid attempt ID %q", job.AttemptID)
+	}
+	return filepath.Join(jobDir, "attempts", job.AttemptID), nil
+}
+
+func markLatestAttempt(jobDir, attemptID string) {
+	if attemptID != "" {
+		_ = os.WriteFile(filepath.Join(jobDir, stateFileLatestAttempt), []byte(attemptID+"\n"), stateFileMode())
+	}
+}
+
+func latestAttemptJobDir(runDir, jobID string) (string, error) {
+	jobDir, err := validatedJobDir(runDir, jobID)
+	if err != nil {
+		return "", err
+	}
+	attemptID, err := readLatestAttemptID(jobDir)
+	if err != nil {
+		return jobDir, nil
+	}
+	if !isValidPathElement(attemptID) {
+		return "", fmt.Errorf("invalid latest attempt ID for job %q", jobID)
+	}
+	return filepath.Join(jobDir, "attempts", attemptID), nil
+}
+
+func readLatestAttemptID(jobDir string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(jobDir, stateFileLatestAttempt))
+	if err != nil {
+		return "", err
+	}
+	attemptID := strings.TrimSpace(string(data))
+	if !isValidPathElement(attemptID) {
+		return "", fmt.Errorf("invalid latest attempt ID")
+	}
+	return attemptID, nil
+}
+
+func specificAttemptJobDir(runDir, jobID, attemptID string) (string, error) {
+	jobDir, err := validatedJobDir(runDir, jobID)
+	if err != nil {
+		return "", err
+	}
+	if !isValidPathElement(attemptID) {
+		return "", fmt.Errorf("invalid attempt ID %q", attemptID)
+	}
+	return filepath.Join(jobDir, "attempts", attemptID), nil
 }
 
 func joinValidatedPath(basePath, element string) (string, error) {

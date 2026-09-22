@@ -48,6 +48,16 @@ func cmdShow(args []string) int {
 		printError("usage: " + cliUsage("show"))
 		return 1
 	}
+	attemptID := ""
+	if strings.HasPrefix(*jobIDOption, "att_") {
+		attemptID = *jobIDOption
+		baseDir, projectName, resolvedRunID, resolvedJobID, err := resolveAttemptTarget(*jobIDOption, *basedir, *queueNameOption, *runIDOption)
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		*basedir, *queueNameOption, *runIDOption, *jobIDOption = baseDir, projectName, resolvedRunID, resolvedJobID
+	}
 	if *reportOutput && (*showQueueOption || *showRunsList || *showProjectsList || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput) {
 		printError("--report cannot be combined with queue, list, log, follow, or JSON options")
 		return 1
@@ -182,7 +192,7 @@ func cmdShow(args []string) int {
 	}
 	if *jobIDOption != "" {
 		if *reportOutput {
-			report, err := buildAIReport(paths, runID, *jobIDOption, false)
+			report, err := buildAIReport(paths, runID, *jobIDOption, false, attemptID)
 			if err != nil {
 				printError(err)
 				return 1
@@ -203,7 +213,7 @@ func cmdShow(args []string) int {
 			return followJobLog(os.Stdout, paths, runID, *jobIDOption)
 		}
 		return showWithPager(!*noPager, func(writer io.Writer) int {
-			return showJob(writer, paths, runID, *jobIDOption)
+			return showJobAttempt(writer, paths, runID, *jobIDOption, attemptID)
 		})
 	}
 	if *followLogs {
@@ -570,13 +580,26 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 	}
 	fmt.Println("\n" + cyan("Jobs:"))
 	changeHints := make([]JobSpec, 0)
-	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-6s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s", "JOB ID", "TASK", "NAME", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "HOSTS", "COMMAND")))
+	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-42s %-6s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s", "JOB ID", "LATEST ATTEMPT", "TASK", "NAME", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "HOSTS", "COMMAND")))
 	for _, jobID := range jobIDs {
-		jobDir, err := validatedJobDir(runDir, jobID)
+		jobDir, err := latestAttemptJobDir(runDir, jobID)
 		if err != nil {
 			continue
 		}
 		jobSpec := jobSpecs[jobID]
+		latestAttemptID := "-"
+		if rootJobDir, rootErr := validatedJobDir(runDir, jobID); rootErr == nil {
+			if value, readErr := readLatestAttemptID(rootJobDir); readErr == nil {
+				latestAttemptID = value
+			}
+		}
+		if latestAttemptID == "-" {
+			if origin := originByID[jobID]; origin != nil && origin.AttemptID != "" {
+				latestAttemptID = origin.AttemptID
+			} else if result, ok := resultByID[jobSpec.ID]; ok && result.AttemptID != "" {
+				latestAttemptID = result.AttemptID
+			}
+		}
 		name := readJobName(jobDir)
 		if name == "" {
 			name = jobSpec.Name
@@ -654,14 +677,14 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 			} else if status != 0 {
 				statusText = red(strconv.Itoa(status))
 			}
-			fmt.Printf("%-12s %-6s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s\n", jobID, taskText, name, dependsOn, statusText, executorText, submittedAt, finishedAt, hosts, command)
+			fmt.Printf("%-12s %-42s %-6s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptID, taskText, name, dependsOn, statusText, executorText, submittedAt, finishedAt, hosts, command)
 		} else {
-			fmt.Printf("%-12s %-6s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s\n", jobID, taskText, name, dependsOn, yellow("running"), executorText, submittedAt, finishedAt, hosts, command)
+			fmt.Printf("%-12s %-42s %-6s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptID, taskText, name, dependsOn, yellow("running"), executorText, submittedAt, finishedAt, hosts, command)
 		}
 	}
 	fmt.Printf("\n%s success: %d, failed: %d, blocked: %d, running: %d, pending: %d\n", cyan("Job status:"), jobCounts.success, jobCounts.failed, jobCounts.blocked, jobCounts.running, jobCounts.pending)
 	printChangeHints(paths, runID, runQueue, changeHints)
-	printFailedLogHints(runID, changeHints)
+	printFailedLogHints(runID, changeHints, resultByID)
 	fmt.Printf("\n%s\n  rotari delete --run-id %s\n", cyan("To delete this run's saved logs:"), runID)
 	return 0
 }
@@ -675,19 +698,26 @@ func runIsActive(paths pathSet, runID string) bool {
 	return err == nil && lock.RunID == runID
 }
 
-func printFailedLogHints(runID string, failedJobs []JobSpec) {
+func printFailedLogHints(runID string, failedJobs []JobSpec, results map[string]JobResult) {
 	if len(failedJobs) == 0 {
 		return
 	}
 	selector := "-j JOB_ID"
 	if len(failedJobs) == 1 {
 		selector = "-j " + failedJobs[0].ID
+		if result, ok := results[failedJobs[0].ID]; ok && result.AttemptID != "" {
+			selector = "-j " + result.AttemptID
+		}
 	}
 	fmt.Println("\n" + cyan("Logs:"))
 	fmt.Println("  " + cyan("e.g., Show logs for every failed job:"))
 	fmt.Printf("    rotari show -r %s --failed-logs\n", runID)
 	fmt.Println("  " + cyan("e.g., Show the log for one failed job:"))
-	fmt.Printf("    rotari show -r %s %s\n", runID, selector)
+	if strings.HasPrefix(selector, "-j att_") {
+		fmt.Printf("    rotari show %s\n", selector)
+	} else {
+		fmt.Printf("    rotari show -r %s %s\n", runID, selector)
+	}
 }
 
 func printChangeHints(paths pathSet, runID string, queue Queue, jobs []JobSpec) {
@@ -1141,7 +1171,7 @@ func slurmStatusTerminal(phase string) bool {
 }
 
 func readSubmittedAt(runDir, jobID string) string {
-	jobDir, err := validatedJobDir(runDir, jobID)
+	jobDir, err := latestAttemptJobDir(runDir, jobID)
 	if err != nil {
 		return "-"
 	}
@@ -1161,7 +1191,7 @@ func readSubmittedAt(runDir, jobID string) string {
 }
 
 func readFinishedAt(runDir, jobID string) string {
-	jobDir, err := validatedJobDir(runDir, jobID)
+	jobDir, err := latestAttemptJobDir(runDir, jobID)
 	if err != nil {
 		return "-"
 	}
@@ -1220,7 +1250,11 @@ func loadRunJobSpecs(runDir string) map[string]JobSpec {
 		if !entry.IsDir() {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(runDir, entry.Name(), commandJSONName))
+		jobDir, err := latestAttemptJobDir(runDir, entry.Name())
+		if err != nil {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(jobDir, commandJSONName))
 		if err != nil {
 			continue
 		}
@@ -1252,6 +1286,36 @@ func loadRunOrigin(runDir, jobID string) *JobOrigin {
 }
 
 func showJob(writer io.Writer, paths pathSet, runID, jobID string) int {
+	return showJobAttempt(writer, paths, runID, jobID, "")
+}
+
+func listAttemptIDs(runDir, jobID string) []string {
+	jobDir, err := validatedJobDir(runDir, jobID)
+	if err != nil {
+		return nil
+	}
+	entries, err := os.ReadDir(filepath.Join(jobDir, "attempts"))
+	if err != nil {
+		return nil
+	}
+	attempts := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() && isValidPathElement(entry.Name()) {
+			attempts = append(attempts, entry.Name())
+		}
+	}
+	sort.SliceStable(attempts, func(left, right int) bool {
+		leftPayload, leftErr := decodeAttemptID(attempts[left])
+		rightPayload, rightErr := decodeAttemptID(attempts[right])
+		if leftErr == nil && rightErr == nil && leftPayload.Number != rightPayload.Number {
+			return leftPayload.Number < rightPayload.Number
+		}
+		return attempts[left] < attempts[right]
+	})
+	return attempts
+}
+
+func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID string) int {
 	if !isValidPathElement(runID) {
 		printErrorf(runNotFoundMessage, runID)
 		return 1
@@ -1260,12 +1324,19 @@ func showJob(writer io.Writer, paths pathSet, runID, jobID string) int {
 		printErrorf(jobNotFoundMessage, jobID, runID)
 		return 1
 	}
-	jobDir := filepath.Join(paths.runsDir, runID, jobID)
-	runDir := filepath.Dir(jobDir)
+	jobDir, err := latestAttemptJobDir(filepath.Join(paths.runsDir, runID), jobID)
+	if attemptID != "" {
+		jobDir, err = specificAttemptJobDir(filepath.Join(paths.runsDir, runID), jobID, attemptID)
+	}
+	if err != nil {
+		printErrorf(jobNotFoundMessage, jobID, runID)
+		return 1
+	}
+	runDir := filepath.Join(paths.runsDir, runID)
 	if info, err := os.Stat(jobDir); err != nil || !info.IsDir() {
 		if origin := loadRunOrigin(runDir, jobID); origin != nil {
 			fmt.Fprintf(writer, "%s carried forward from run %s (no re-execution)\n\n", cyan("Note:"), origin.RunID)
-			return showJob(writer, paths, origin.RunID, origin.JobID)
+			return showJobAttempt(writer, paths, origin.RunID, origin.JobID, "")
 		}
 		printErrorf(jobNotFoundMessage, jobID, runID)
 		return 1
@@ -1273,6 +1344,33 @@ func showJob(writer io.Writer, paths pathSet, runID, jobID string) int {
 	writeShowTargetHeader(writer, paths)
 	fmt.Fprintf(writer, "%s %s\n%s %s\n", cyan("Run:"), runID, cyan("Job:"), jobID)
 	jobSpecs := loadRunJobSpecs(runDir)
+	selectedAttemptID := attemptID
+	if selectedAttemptID == "" {
+		if rootDir, rootErr := validatedJobDir(runDir, jobID); rootErr == nil {
+			selectedAttemptID, _ = readLatestAttemptID(rootDir)
+		}
+	}
+	if selectedAttemptID != "" {
+		fmt.Fprintf(writer, "%s %s\n", cyan("Attempt ID:"), selectedAttemptID)
+	}
+	if attempts := listAttemptIDs(runDir, jobID); len(attempts) > 0 {
+		latestAttemptID, _ := readLatestAttemptID(filepath.Join(runDir, jobID))
+		fmt.Fprintln(writer, cyan("Attempts:"))
+		for _, listedAttemptID := range attempts {
+			labels := make([]string, 0, 2)
+			if listedAttemptID == latestAttemptID {
+				labels = append(labels, "latest")
+			}
+			if listedAttemptID == selectedAttemptID && attemptID != "" {
+				labels = append(labels, "selected")
+			}
+			if len(labels) > 0 {
+				fmt.Fprintf(writer, "  %s (%s)\n", listedAttemptID, strings.Join(labels, ", "))
+			} else {
+				fmt.Fprintf(writer, "  %s\n", listedAttemptID)
+			}
+		}
+	}
 	name := readJobName(jobDir)
 	if name == "" {
 		name = jobSpecs[jobID].Name
@@ -1416,7 +1514,10 @@ func showRunLogs(writer io.Writer, paths pathSet, runID string, failedOnly bool)
 			continue
 		}
 		jobID := entry.Name()
-		jobDir := filepath.Join(runDir, jobID)
+		jobDir, err := latestAttemptJobDir(runDir, jobID)
+		if err != nil {
+			continue
+		}
 
 		status, statusOK := readJobStatus(filepath.Join(jobDir, "status"))
 		if !statusOK {

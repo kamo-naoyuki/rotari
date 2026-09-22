@@ -80,6 +80,19 @@
   stroke: currentColor;
   stroke-width: 1.8;
 }
+.identity-copy {
+  position: static;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.identity-line {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 #disconnect-banner {
   display: none;
   background: #3b1d1d;

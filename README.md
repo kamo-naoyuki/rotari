@@ -274,47 +274,6 @@ runner executes the jobs later.
 A project groups one current queue and its run history. `add` assembles the
 next experiment in `queue.json`. `run` freezes that batch into one run ID and
 stores its snapshot, logs, and results separately.
-
-### IDs and location resolution
-
-Rotari uses three different IDs:
-
-| ID | Meaning |
-| --- | --- |
-| `run-id` | One execution of a project queue. It identifies the run snapshot, summary, and history. |
-| `job-id` | A logical job in a queue or run. For an array, expanded task IDs look like `job-id-1`, `job-id-2`, and so on. |
-| `attempt-id` | One concrete execution of one logical job, including a retry. It identifies the attempt output and status. |
-
-The `run-id` identifies a run and provides its project location. An
-`attempt-id` identifies one job execution and provides its `job-id` and
-`run-id`, so the command can resolve the same project location from the attempt
-alone.
-
-| Selector | Information available for resolution | Options that can be omitted |
-| --- | --- | --- |
-| `-r RUN_ID` | `run-id`, `basedir`, and `project` | `--basedir/-b`, `--project-name/-p` |
-| `-j ATTEMPT_ID` | `attempt-id`, `job-id`, `run-id`, `basedir`, and `project` | `--basedir/-b`, `--project-name/-p`, `--run-id/-r` |
-
-With an ordinary `job-id`, the location still needs to come from the explicit
-project/run options, the corresponding environment variables, or the normal
-single-project/current-run resolution rules. For example:
-
-```sh
-# rotari show -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j ATTEMPT_ID
-# is equivalent to
-rotari show -j ATTEMPT_ID
-# rotari copy -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j JOB_ID
-# is equivalent to
-rotari copy -r RUN_ID -j JOB_ID
-```
-
-The following commands accept an `ATTEMPT_ID` as their `--job-id/-j` selector:
-
-- `ATTEMPT_ID` supported: `show`, `diagnose`, `cancel`, `suspend`, `resume`,
-  `copy`, `run`, `retry`.
-- `ATTEMPT_ID` not supported: `add`, `change`, `remove`, `delete`, `wait`.
-  These commands operate on queue definitions or whole runs, not individual attempts.
-
 ### Project and queue
 
 A project keeps a single current queue plus a history of completed runs. Queues
@@ -371,6 +330,47 @@ with selections such as `rotari retry`. The next `add` starts a new batch while
 keeping the previous run history. Use `delete` to remove saved run logs
 explicitly. Use `run --async` when an experiment should continue after the
 terminal returns.
+
+### IDs and location resolution
+
+Rotari uses three different IDs:
+
+| ID | Meaning |
+| --- | --- |
+| `run-id` | One execution of a project queue. It identifies the run snapshot, summary, and history. |
+| `job-id` | A logical job in a queue or run. For an array, expanded task IDs look like `job-id-1`, `job-id-2`, and so on. |
+| `attempt-id` | One concrete execution of one logical job, including a retry. It identifies the attempt output and status. |
+
+The `run-id` identifies a run and provides its project location. An
+`attempt-id` identifies one job execution and provides its `job-id` and
+`run-id`, so the command can resolve the same project location from the attempt
+alone.
+
+| Selector | Information available for resolution | Options that can be omitted |
+| --- | --- | --- |
+| `-r RUN_ID` | `run-id`, `basedir`, and `project` | `--basedir/-b`, `--project-name/-p` |
+| `-j ATTEMPT_ID` | `attempt-id`, `job-id`, `run-id`, `basedir`, and `project` | `--basedir/-b`, `--project-name/-p`, `--run-id/-r` |
+
+With an ordinary `job-id`, the location still needs to come from the explicit
+project/run options, the corresponding environment variables, or the normal
+single-project/current-run resolution rules. For example:
+
+```sh
+# rotari show -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j ATTEMPT_ID
+# is equivalent to
+rotari show -j ATTEMPT_ID
+# rotari copy -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j JOB_ID
+# is equivalent to
+rotari copy -r RUN_ID -j JOB_ID
+```
+
+The following commands accept an `ATTEMPT_ID` as their `--job-id/-j` selector:
+
+- `ATTEMPT_ID` supported: `show`, `diagnose`, `cancel`, `suspend`, `resume`,
+  `copy`, `run`, `retry`.
+- `ATTEMPT_ID` not supported: `add`, `change`, `remove`, `delete`, `wait`.
+  These commands operate on queue definitions or whole runs, not individual attempts.
+
 
 ### Internal execution model
 

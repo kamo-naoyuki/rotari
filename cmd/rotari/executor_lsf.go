@@ -21,6 +21,7 @@ const lsfCommandTimeout = 30 * time.Second
 type lsfJobMetadata struct {
 	Executor    string   `json:"executor"`
 	JobID       string   `json:"job_id"`
+	AttemptID   string   `json:"attempt_id,omitempty"`
 	Command     []string `json:"command"`
 	LSFJobID    string   `json:"lsf_job_id"`
 	SubmittedAt string   `json:"submitted_at"`
@@ -96,13 +97,18 @@ func readLSFMetadata(jobDir string) (lsfJobMetadata, error) {
 }
 
 func submitLSFJob(runDir string, job JobSpec, options []string) (lsfJobMetadata, error) {
-	jobDir, err := validatedJobDir(runDir, job.ID)
+	jobDir, err := attemptJobDir(runDir, job)
+	if err != nil {
+		return lsfJobMetadata{}, err
+	}
+	rootJobDir, err := validatedJobDir(runDir, job.ID)
 	if err != nil {
 		return lsfJobMetadata{}, err
 	}
 	if err := os.MkdirAll(jobDir, stateDirMode()); err != nil {
 		return lsfJobMetadata{}, err
 	}
+	markLatestAttempt(rootJobDir, job.AttemptID)
 	if err := writeJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 		return lsfJobMetadata{}, err
 	}
@@ -126,7 +132,7 @@ func submitLSFJob(runDir string, job JobSpec, options []string) (lsfJobMetadata,
 		return lsfJobMetadata{}, err
 	}
 	metadata := lsfJobMetadata{
-		Executor: "lsf", JobID: job.ID, Command: job.Command,
+		Executor: "lsf", JobID: job.ID, AttemptID: job.AttemptID, Command: job.Command,
 		LSFJobID: jobID, SubmittedAt: nowRFC3339(),
 	}
 	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {

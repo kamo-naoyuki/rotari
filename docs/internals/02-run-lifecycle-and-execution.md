@@ -54,6 +54,12 @@
   `TaskOrigins` when resolving where a job's output lives. `--partial-array=false`
   restores the older whole-array behavior: any match re-executes every task,
   using only the whole-command `Origin`.
+- An `ATTEMPT_ID` passed to `copy --job-id` identifies one exact execution
+  attempt. A normal job ID selects the latest attempt. For an array task
+  attempt, copy narrows the source command to a sparse array containing only
+  that task; multiple task attempt IDs are grouped into one sparse command
+  where possible. `run --job-id ATTEMPT_ID` and
+  `retry --job-id ATTEMPT_ID` use the same copy-then-execute path.
 - `--depends-on` ordering is resolved entirely by rotari itself, wave by wave,
   inside `executeMixedRun`; it never relies on scheduler-native dependency
   features such as Slurm's `--dependency`. This keeps dependency semantics

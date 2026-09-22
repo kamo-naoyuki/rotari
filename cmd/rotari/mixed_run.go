@@ -145,6 +145,7 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 			if len(ready) == 0 {
 				break
 			}
+			assignAttemptIDs(ready, runID, attempt)
 			waveResults := executeMixedAttempt(runDir, queue, ready, localConcurrency, batchMaxActive, requestedExecutor, executorOptions, executorSettings, onStart)
 			for _, result := range waveResults {
 				finalResults[result.ID] = result
@@ -204,7 +205,10 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 }
 
 func jobWasExplicitlyCancelled(runDir, jobID string, result JobResult) bool {
-	jobDir := filepath.Join(runDir, jobID)
+	jobDir, err := latestAttemptJobDir(runDir, jobID)
+	if err != nil {
+		return false
+	}
 	if jobCancellationRequested(jobDir) {
 		return true
 	}
@@ -293,6 +297,14 @@ func prepareJobEnvironments(paths pathSet, runID string, jobs []JobSpec, runName
 	}
 }
 
+func assignAttemptIDs(jobs []JobSpec, runID string, attempt int) {
+	for index := range jobs {
+		job := &jobs[index]
+		job.AttemptID = makeAttemptID(runID, job.ID, attempt)
+		job.Environment = mergeEnvironment(job.Environment, []string{envAttemptID + "=" + job.AttemptID})
+	}
+}
+
 func environmentEntry(environment []string, name string) (string, bool) {
 	for _, entry := range environment {
 		if strings.HasPrefix(entry, name+"=") {
@@ -377,12 +389,14 @@ func runLocalLane(workers *sync.WaitGroup, runDir string, executor JobExecutor, 
 			sem <- struct{}{}
 			handle, err := executor.Submit(runDir, job, nil)
 			if err != nil {
-				results <- JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
+				results <- JobResult{ID: job.ID, AttemptID: job.AttemptID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 			} else {
 				if onStart != nil {
 					onStart(job)
 				}
-				results <- executor.Wait(runDir, handle)
+				result := executor.Wait(runDir, handle)
+				result.AttemptID = job.AttemptID
+				results <- result
 			}
 			<-sem
 		}(job)
@@ -411,7 +425,7 @@ func runBatchLane(workers *sync.WaitGroup, runDir string, queue Queue, executor 
 				handles, err := submitter.SubmitArray(runDir, jobs[start:end], options)
 				if err != nil {
 					for _, job := range jobs[start:end] {
-						results <- JobResult{ID: job.ID, ExitCode: 1, Error: err.Error()}
+						results <- JobResult{ID: job.ID, AttemptID: job.AttemptID, ExitCode: 1, Error: err.Error()}
 					}
 				} else {
 					if onStart != nil {
@@ -420,7 +434,9 @@ func runBatchLane(workers *sync.WaitGroup, runDir string, queue Queue, executor 
 						}
 					}
 					for _, handle := range handles {
-						results <- executor.Wait(runDir, handle)
+						result := executor.Wait(runDir, handle)
+						result.AttemptID = handle.Job.AttemptID
+						results <- result
 					}
 				}
 				start = end
@@ -435,7 +451,7 @@ func runBatchLane(workers *sync.WaitGroup, runDir string, queue Queue, executor 
 		for _, job := range jobs[start:end] {
 			jobDir, err := validatedJobDir(runDir, job.ID)
 			if err != nil {
-				results <- JobResult{ID: job.ID, ExitCode: 1, Error: err.Error()}
+				results <- JobResult{ID: job.ID, AttemptID: job.AttemptID, ExitCode: 1, Error: err.Error()}
 				continue
 			}
 			if jobCancellationRequested(jobDir) {
@@ -461,6 +477,7 @@ func runBatchLane(workers *sync.WaitGroup, runDir string, queue Queue, executor 
 		}
 		for _, handle := range handles {
 			result := executor.Wait(runDir, handle)
+			result.AttemptID = handle.Job.AttemptID
 			if result.ExitCode != 0 {
 				fmt.Printf("%s\n", colorKeyValueMessage(fmt.Sprintf("fail job=%s exit=%d command=%s", result.ID, result.ExitCode, strings.Join(result.Command, " ")), red))
 			}

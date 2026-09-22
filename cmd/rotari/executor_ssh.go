@@ -50,13 +50,18 @@ func (sshExecutor) Submit(runDir string, job JobSpec, options []string) (JobHand
 	if err != nil {
 		return JobHandle{}, err
 	}
-	jobDir, err := validatedJobDir(runDir, job.ID)
+	jobDir, err := attemptJobDir(runDir, job)
+	if err != nil {
+		return JobHandle{}, err
+	}
+	rootJobDir, err := validatedJobDir(runDir, job.ID)
 	if err != nil {
 		return JobHandle{}, err
 	}
 	if err := os.MkdirAll(jobDir, stateDirMode()); err != nil {
 		return JobHandle{}, err
 	}
+	markLatestAttempt(rootJobDir, job.AttemptID)
 	if err := writeJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 		return JobHandle{}, err
 	}

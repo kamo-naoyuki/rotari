@@ -39,7 +39,8 @@ that file for Web UI changes.
 - A base directory contains projects. Each project owns one mutable queue and a
   run history.
 - A run snapshots the queue and stores execution state, results, and logs by
-  stable job ID.
+  stable job ID. Each job stores every execution attempt separately and marks
+  the latest one in `latest_attempt`.
 - The CLI, server, executors, and web UI project the same persisted state model.
 
 The normal state layout is:
@@ -57,8 +58,11 @@ The normal state layout is:
         ├── context.json
         ├── summary.json
         └── <job-id>/
+          ├── latest_attempt
+          └── attempts/<attempt-id>/
             ├── command.json
             ├── output
+            ├── status.json
             └── executor-specific state
 ```
 
