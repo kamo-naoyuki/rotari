@@ -42,7 +42,7 @@ func TestCmdWaitReturnsCompletedRunExitCode(t *testing.T) {
 	if code != 2 {
 		t.Fatalf("cmdWait exit code = %d, want 2", code)
 	}
-	for _, want := range []string{"Run failed:", "nightly", "Success: 1", "Failed: 1"} {
+	for _, want := range []string{"=== Run failed ===", "nightly", "Success: 1", "Failed: 1"} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("cmdWait output does not contain %q:\n%s", want, output)
 		}
