@@ -8,7 +8,7 @@
 
 [![Go CI](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml/badge.svg)](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml) [![Slurm + PBS CI](https://img.shields.io/github/actions/workflow/status/kamo-naoyuki/rotari/scheduler-integration.yml?branch=main&label=Slurm%20%2B%20PBS%20CI)](https://github.com/kamo-naoyuki/rotari/actions/workflows/scheduler-integration.yml) [![codecov](https://codecov.io/gh/kamo-naoyuki/rotari/graph/badge.svg)](https://codecov.io/gh/kamo-naoyuki/rotari) [![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=kamo-naoyuki_rotari&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kamo-naoyuki_rotari) [![web demo](https://img.shields.io/website?url=https%3A%2F%2Fkamo-naoyuki.github.io%2Frotari%2F&label=web%20demo&style=flat)](https://kamo-naoyuki.github.io/rotari/) [![Python API](https://img.shields.io/badge/Python%20API-Sphinx-3776AB)](https://kamo-naoyuki.github.io/rotari/python-api/)
 
-[[FAQ]](docs/FAQ.md) · [[WEBHOOK_INTEGRATIONS]](docs/WEBHOOK_INTEGRATIONS.md) · [[Internals]](docs/INTERNALS.md) · [[Python-dev README]](python/README.md)
+[[FAQ]](docs/FAQ.md) · [[WEBHOOK INTEGRATIONS]](docs/WEBHOOK_INTEGRATIONS.md) · [[Internals]](docs/INTERNALS.md) · [[Python-dev README]](python/README.md)
 
 **Rotari turns trial-and-error into a repeatable loop**: run a batch of jobs, see which failed, fix only their commands, and run it again — without losing the history of what already worked.
 
@@ -98,102 +98,48 @@ rotari completion install fish
 ```
 
 Completion covers subcommands, command options, executor values, run selection
-values, and the `server` subcommands. `completion install` updates the shell
-configuration idempotently; it does not duplicate an existing rotari completion
-block. Start a new shell after installation, or source the shell configuration
-to apply it to the current shell.
-
-Options with a fixed set of values, such as `--executor/-e`, reject values outside
-the choices shown by completion and `rotari schema --json` during CLI parsing.
-
-Dynamic candidates include project names, saved run IDs, and job IDs. Job ID
-completion normally includes IDs from the current queue and saved runs; when
-`--run-id/-r RUN_ID` is present, it is limited to jobs in that run.
-
-For manual setup, `rotari completion bash`, `rotari completion zsh`, and
-`rotari completion fish` print the raw completion scripts.
+values, and the `server` subcommands. Dynamic candidates include project names,
+saved run IDs, and job IDs. For manual setup, `rotari completion bash`,
+`rotari completion zsh`, and `rotari completion fish` print the raw completion
+scripts.
 
 ## Quick start
 
 ```sh
-# Set the project once for the current shell.
+# Set the project once for the current shell. The default state directory is
+# ~/.local/state/rotari; set ROTARI_BASEDIR to use another location.
 export ROTARI_PROJECT_NAME=build
-# State is shared under ~/.local/state/rotari
-# by default; set ROTARI_BASEDIR to use another location.
-# export ROTARI_BASEDIR="$HOME/.local/state/rotari"
-
-# Start this example from a clean queue. This preserves run history but
-# discards any commands currently queued for the project.
-rotari reset
-
-# Queue multiple commands, then run them together.
+# Add commands to the current project queue.
 rotari add make
 rotari add go test ./...
+# Execute the queued commands and wait for the run to finish.
 rotari run
-
-# Or add and run a single command immediately.
-rotari add --run go test ./...
-```
-
-`add` adds a command. `run` executes the queued commands and waits for
-completion. Use `--retry N` to retry failed jobs up to N additional times, or
-`--retry -1` to retry failed jobs indefinitely. Jobs explicitly cancelled by
-the user are terminal for that run and are not automatically retried; a later
-`rotari retry` can select them explicitly as failed/unfinished. A project
-contains its current queue and saved runs. For regular use, set
-`ROTARI_PROJECT_NAME` once in the shell; the project name can also be supplied
-with `--project-name/-p` or omitted.
-When omitted, if only one project exists in the state directory, it is selected
-automatically; if multiple projects exist, commands other than a bare `show`
-ask you to specify one. A bare `rotari show` prints a warning and falls back to
-the project list.
-Use `--job-name NAME` to label a submitted job.
-Use `--run-name NAME` to label a run; the generated run ID remains available for
-unambiguous paths and commands.
-Use `add --run` to add a command and immediately execute the queue in one command.
-Use `add --run-async` for the same operation while returning after the run starts;
-these options cannot be combined. See [Async runs](#async-runs) for the
-background-run workflow.
-
-Use `--depends-on NAME` to make a job wait for a named prerequisite. Repeat the
-option to specify multiple prerequisites:
-
-```sh
-rotari add --job-name prepare ./prepare.sh
-rotari add --job-name train --depends-on prepare ./train.sh
-rotari run
-```
-
-A typical workflow is: run a script, inspect the jobs list, then drill into a
-failed or interesting job's output. For a detailed view, use the inspect commands
-below (`jobs` and `show`). Quick run + inspect flow:
-
-```sh
-# Add and run a script immediately.
-rotari add --run ./scripts/example.sh
-# Check the current job status across projects.
+# List job status across projects.
 rotari jobs
-# Inspect one specific attempt in detail, including its output path and status.
-rotari show -j ATTEMPT_ID
-# Show only the failed-job logs for the selected project/run.
-rotari show -p build --failed-logs
+# Inspect the current project's queue or most relevant run.
+rotari show
 ```
 
-The shortest retry loop is:
+For a single command, use `rotari add --run COMMAND`, which adds it and starts
+the run immediately. To inspect failed-job logs and retry only failed or
+unfinished work:
 
 ```sh
+# Show logs for failed jobs in the selected project.
 rotari show -p build --failed-logs
+# Start a new run for failed and unfinished jobs; successful jobs are reused.
 rotari retry -p build
 ```
 
-`rotari retry` reruns failed and unfinished job bodies without rerunning
-successful jobs. Jobs that already succeeded are carried forward into the new
-run with their previous result and a link back to the original output, so the
-whole run shows up together on one run page. When a failed job needs its saved
-command edited before retrying, use `rotari change`; see the inspection and
-recovery commands below.
+`jobs` gives a compact status overview across projects. `show` provides details
+for a project, run, or job, including logs and saved results.
 
-### Shorthand options
+See [Projects, queues, runs, and state](#projects-queues-runs-and-state) for
+project selection and state layout, [Inspect](#inspect) for status and logs,
+[Recover and rerun](#recover-and-rerun) for retries, and [Async runs](#async-runs)
+for background execution. Use `--depends-on NAME` to define prerequisites.
+
+## Common options
 
 Frequently used options have short forms:
 
@@ -206,7 +152,7 @@ Frequently used options have short forms:
 | `--executor` | `-e` |
 
 
-### Example
+## Example
 
 ```sh
 ./scripts/example.sh
@@ -227,36 +173,10 @@ To run the array job through Slurm instead, pass the optional flag. The local
 The first positional argument selects the project name, for example
 `./scripts/example.sh --slurm scheduler-demo`.
 
-### Python interface
+## Python interface
 
-The repository includes a small Python client that delegates execution to the
-`rotari` executable. Install it from a checkout with:
-
-```sh
-python3 -m pip install --no-deps ./python
-```
-
-It provides convenient queue, run, wait, and status calls without duplicating
-rotari's execution logic:
-
-```python
-from rotari import Rotari
-
-rotari = Rotari(basedir=".rotari-state", project="experiment")
-rotari.add(["./train.sh"], job_name="train")
-run = rotari.run(async_=True)
-summary = rotari.wait()
-rotari.reset()
-```
-
-The client runs `rotari` directly, so the executable must be on the Python
-process's `PATH`. It accepts command argument lists such as `['./train.sh']`,
-not Python functions. `wait(selector)` accepts a project name, run name, or run
-ID (or waits for the active run by default); `reset(recover=True)` enables
-interrupted-run recovery. For function-oriented submission, see
-[Submitit](https://github.com/facebookincubator/submitit). For the generated
-Python API reference and its build command, see the
-[Python client documentation](python/README.md#api-documentation).
+See the [Python client README](python/README.md) for installation, usage, and
+API documentation.
 
 ## Local web UI
 
@@ -622,6 +542,21 @@ successful results carried forward, and executes that run:
 ```sh
 rotari retry -p build
 ```
+
+`--retry N` is different: it retries failed jobs within the same run, up to N
+additional attempts. The default is `0`; use `--retry -1` to retry indefinitely.
+Jobs explicitly cancelled by the user are not retried by this option. For
+example, these commands allow two additional attempts or retry indefinitely:
+
+```sh
+# Run the queue; failed jobs may be attempted twice more.
+rotari run --retry 2
+
+# Keep retrying failed jobs until they succeed or are cancelled.
+rotari run --retry -1
+```
+
+Without `--retry`, each failed job is attempted only once.
 
 The result filters select which jobs are actually re-executed:
 
