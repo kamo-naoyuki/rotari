@@ -5,6 +5,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"testing"
 )
 
 const (
@@ -78,6 +79,16 @@ func printErrorf(format string, a ...any) {
 // printWarningf formats and writes a yellow warning line to stderr.
 func printWarningf(format string, a ...any) {
 	fmt.Fprintln(os.Stderr, yellowError(fmt.Sprintf(format, a...)))
+}
+
+// jobLogf prints background job-execution status lines (submit/success/fail).
+// It is silenced under `go test` (testing.Testing()) since no test asserts on
+// these lines and they otherwise clutter go test -v/failure output.
+func jobLogf(format string, a ...any) {
+	if testing.Testing() {
+		return
+	}
+	fmt.Printf(format, a...)
 }
 
 func colorMessage(message string) string {

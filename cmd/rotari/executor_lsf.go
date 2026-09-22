@@ -133,7 +133,7 @@ func submitLSFJob(runDir string, job JobSpec, options []string) (lsfJobMetadata,
 	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
 		return lsfJobMetadata{}, err
 	}
-	fmt.Printf("[%s] submit job=%s lsf_job_id=%s command=%s\n", metadata.SubmittedAt, job.ID, jobID, strings.Join(job.Command, " "))
+	jobLogf("[%s] submit job=%s lsf_job_id=%s command=%s\n", metadata.SubmittedAt, job.ID, jobID, strings.Join(job.Command, " "))
 	return metadata, nil
 }
 

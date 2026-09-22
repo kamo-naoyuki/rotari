@@ -158,7 +158,7 @@ func submitSlurmJob(runDir string, job JobSpec, executorOptions []string) (slurm
 	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
 		return slurmJobMetadata{}, err
 	}
-	fmt.Printf("[%s] submit job=%s slurm_job_id=%s command=%s\n", metadata.SubmittedAt, job.ID, slurmJobID, strings.Join(job.Command, " "))
+	jobLogf("[%s] submit job=%s slurm_job_id=%s command=%s\n", metadata.SubmittedAt, job.ID, slurmJobID, strings.Join(job.Command, " "))
 	return metadata, nil
 }
 

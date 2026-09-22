@@ -134,7 +134,7 @@ func submitPBSJob(runDir string, job JobSpec, options []string) (pbsJobMetadata,
 	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
 		return pbsJobMetadata{}, err
 	}
-	fmt.Printf("[%s] submit job=%s pbs_job_id=%s command=%s\n", metadata.SubmittedAt, job.ID, pbsJobID, strings.Join(job.Command, " "))
+	jobLogf("[%s] submit job=%s pbs_job_id=%s command=%s\n", metadata.SubmittedAt, job.ID, pbsJobID, strings.Join(job.Command, " "))
 	return metadata, nil
 }
 

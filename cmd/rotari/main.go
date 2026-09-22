@@ -1014,12 +1014,12 @@ func runOneJob(runDir string, job JobSpec) JobResult {
 	if err := cmd.Start(); err != nil {
 		_ = os.WriteFile(filepath.Join(jobDir, "status"), []byte("1\n"), stateFileMode())
 		_ = os.WriteFile(filepath.Join(jobDir, "finished_at"), []byte(nowRFC3339()+"\n"), stateFileMode())
-		fmt.Printf("fail job=%s command=%s error=%v\n", job.ID, strings.Join(job.Command, " "), err)
+		jobLogf("fail job=%s command=%s error=%v\n", job.ID, strings.Join(job.Command, " "), err)
 		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}
 
 	_ = os.WriteFile(filepath.Join(jobDir, "pid"), []byte(strconv.Itoa(cmd.Process.Pid)+"\n"), stateFileMode())
-	fmt.Printf("[%s] submit job=%s pid=%d command=%s\n", nowRFC3339(), job.ID, cmd.Process.Pid, strings.Join(job.Command, " "))
+	jobLogf("[%s] submit job=%s pid=%d command=%s\n", nowRFC3339(), job.ID, cmd.Process.Pid, strings.Join(job.Command, " "))
 
 	err = cmd.Wait()
 	exitCode := 0
@@ -1035,9 +1035,9 @@ func runOneJob(runDir string, job JobSpec) JobResult {
 	_ = os.WriteFile(filepath.Join(jobDir, "finished_at"), []byte(nowRFC3339()+"\n"), stateFileMode())
 
 	if exitCode == 0 {
-		fmt.Printf("%s\n", colorKeyValueMessage(fmt.Sprintf("success job=%s", job.ID), green))
+		jobLogf("%s\n", colorKeyValueMessage(fmt.Sprintf("success job=%s", job.ID), green))
 	} else {
-		fmt.Printf("%s\n", colorKeyValueMessage(fmt.Sprintf("fail job=%s exit=%d command=%s", job.ID, exitCode, strings.Join(job.Command, " ")), red))
+		jobLogf("%s\n", colorKeyValueMessage(fmt.Sprintf("fail job=%s exit=%d command=%s", job.ID, exitCode, strings.Join(job.Command, " ")), red))
 	}
 
 	return JobResult{ID: job.ID, Command: job.Command, ExitCode: exitCode, Hosts: []string{hostname}}
