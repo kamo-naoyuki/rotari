@@ -60,7 +60,11 @@ func loadCLIConfig(args []string) error {
 		return err
 	}
 	if projectName != "" {
-		projectConfig, err := loadConfigFile(filepath.Join(resolvedBaseDir, "projects", projectName))
+		projectDir, err := joinValidatedPath(filepath.Join(resolvedBaseDir, "projects"), projectName)
+		if err != nil {
+			return err
+		}
+		projectConfig, err := loadConfigFile(projectDir)
 		if err != nil {
 			return err
 		}
@@ -232,7 +236,9 @@ func configPathsForRun(baseDir, projectName string) []string {
 	}
 	paths = append(paths, configFilePaths(baseDir)...)
 	if projectName != "" {
-		paths = append(paths, configFilePaths(filepath.Join(baseDir, "projects", projectName))...)
+		if projectDir, err := joinValidatedPath(filepath.Join(baseDir, "projects"), projectName); err == nil {
+			paths = append(paths, configFilePaths(projectDir)...)
+		}
 	}
 	return paths
 }
@@ -472,7 +478,9 @@ func chooseConfigOutput(reader io.Reader, writer io.Writer, baseDir, projectName
 		{label: "basedir", path: filepath.Join(baseDir, "config"+extension)},
 	}
 	if projectName != "" {
-		candidates = append(candidates, candidate{label: "project " + projectName, path: filepath.Join(baseDir, "projects", projectName, "config"+extension)})
+		if projectDir, err := joinValidatedPath(filepath.Join(baseDir, "projects"), projectName); err == nil {
+			candidates = append(candidates, candidate{label: "project " + projectName, path: filepath.Join(projectDir, "config"+extension)})
+		}
 	} else if entries, err := os.ReadDir(filepath.Join(baseDir, "projects")); err == nil {
 		for _, entry := range entries {
 			if entry.IsDir() && isValidProjectName(entry.Name()) {

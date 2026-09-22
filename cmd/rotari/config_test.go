@@ -136,6 +136,16 @@ func TestConfigLoadDoesNotRejectAmbiguousProjects(t *testing.T) {
 	}
 }
 
+func TestConfigPathsForRunRejectsUnsafeProjectName(t *testing.T) {
+	baseDir := t.TempDir()
+	paths := configPathsForRun(baseDir, "../outside")
+	for _, path := range paths {
+		if strings.Contains(path, "outside") {
+			t.Fatalf("configPathsForRun returned path outside the project root: %q", path)
+		}
+	}
+}
+
 func TestRunConfigCommandGeneratesFile(t *testing.T) {
 	output := filepath.Join(t.TempDir(), "config.yaml")
 	if code := run([]string{"run", "config", "--output", output}); code != 0 {
