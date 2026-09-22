@@ -143,7 +143,11 @@ printf '54321;fake-host\n'
 		t.Fatalf("summary results = %#v, want both array tasks", summary.Results)
 	}
 	for _, id := range []string{"array-1", "array-2"} {
-		status, ok := loadSlurmStatus(filepath.Join(paths.runsDir, "array-run", id, "status.json"))
+		jobDir, err := latestAttemptJobDir(filepath.Join(paths.runsDir, "array-run"), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		status, ok := loadSlurmStatus(filepath.Join(jobDir, "status.json"))
 		if !ok || status.Phase != "finished" {
 			t.Fatalf("task %s status = %#v, ok=%v", id, status, ok)
 		}

@@ -301,7 +301,13 @@ func assignAttemptIDs(jobs []JobSpec, runID string, attempt int) {
 	for index := range jobs {
 		job := &jobs[index]
 		job.AttemptID = makeAttemptID(runID, job.ID, attempt)
-		job.Environment = mergeEnvironment(job.Environment, []string{envAttemptID + "=" + job.AttemptID})
+		environment := []string{envAttemptID + "=" + job.AttemptID}
+		if runDir, ok := environmentEntry(job.Environment, envRunDir); ok {
+			if jobDir, err := attemptJobDir(strings.TrimPrefix(runDir, envRunDir+"="), *job); err == nil {
+				environment = append(environment, envJobDir+"="+jobDir)
+			}
+		}
+		job.Environment = mergeEnvironment(job.Environment, environment)
 	}
 }
 

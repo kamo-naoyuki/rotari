@@ -255,3 +255,47 @@ exit 1
 		t.Fatalf("executeMixedRun exit code = %d, want 0", exitCode)
 	}
 }
+
+func TestExecuteMixedRunSubmitsAndCompletesPBSArrayTasks(t *testing.T) {
+	binDir := t.TempDir()
+	writeExecutable(t, binDir, "qsub", `#!/bin/sh
+wrapper=
+for arg in "$@"; do wrapper=$arg; done
+PBS_ARRAY_INDEX=1 sh "$wrapper"
+PBS_ARRAY_INDEX=2 sh "$wrapper"
+printf '999[].headnode\n'
+`)
+	writeExecutable(t, binDir, "qstat", "#!/bin/sh\nexit 1\n")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{
+		ID: "array", Name: "array", Executor: "pbs", Command: []string{"sh", "-c", "test \"$ROTARI_ARRAY_TASK_ID\" = \"${PBS_ARRAY_INDEX}\""}, Array: &ArraySpec{First: 1, Last: 2},
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	if code := executeMixedRun(paths, "array-run", "", 1, 2, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
+		t.Fatalf("executeMixedRun exit = %d, want 0", code)
+	}
+	summary, err := loadRunSummary(filepath.Join(paths.runsDir, "array-run", "summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(summary.Results) != 2 || summary.Results[0].ID != "array-1" || summary.Results[1].ID != "array-2" {
+		t.Fatalf("summary results = %#v, want both array tasks", summary.Results)
+	}
+	for _, id := range []string{"array-1", "array-2"} {
+		jobDir, err := latestAttemptJobDir(filepath.Join(paths.runsDir, "array-run"), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		status, ok := loadSlurmStatus(filepath.Join(jobDir, "status.json"))
+		if !ok || status.Phase != "finished" || status.ExitCode != 0 {
+			t.Fatalf("task %s status = %#v, ok=%v", id, status, ok)
+		}
+	}
+}

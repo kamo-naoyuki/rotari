@@ -148,7 +148,7 @@ func submitPBSArray(runDir string, jobs []JobSpec, executorOptions []string) ([]
 		if job.ArrayTaskID == nil || job.ArrayFirst != first || job.ArrayLast != last || !sameStrings(job.Command, command) {
 			return nil, errors.New("PBS array tasks must share one command and range")
 		}
-		jobDir, err := validatedJobDir(runDir, job.ID)
+		jobDir, err := attemptJobDir(runDir, job)
 		if err != nil {
 			return nil, err
 		}
@@ -189,7 +189,7 @@ func submitPBSArray(runDir string, jobs []JobSpec, executorOptions []string) ([]
 		taskID := *job.ArrayTaskID
 		nativeID := fmt.Sprintf("%s[%d]", masterID, taskID)
 		metadata := pbsJobMetadata{Executor: "pbs", JobID: job.ID, AttemptID: job.AttemptID, Command: job.Command, PBSJobID: nativeID, SubmittedAt: nowRFC3339()}
-		jobDir, err := validatedJobDir(runDir, job.ID)
+		jobDir, err := attemptJobDir(runDir, job)
 		if err != nil {
 			return nil, err
 		}

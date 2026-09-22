@@ -173,7 +173,7 @@ func submitSlurmArray(runDir string, jobs []JobSpec, executorOptions []string) (
 		if job.ArrayTaskID == nil || job.ArrayFirst != first || job.ArrayLast != last || !sameStrings(job.Command, command) {
 			return nil, errors.New("Slurm array tasks must share one command and range")
 		}
-		jobDir, err := validatedJobDir(runDir, job.ID)
+		jobDir, err := attemptJobDir(runDir, job)
 		if err != nil {
 			return nil, err
 		}
@@ -219,7 +219,7 @@ func submitSlurmArray(runDir string, jobs []JobSpec, executorOptions []string) (
 		task := *job.ArrayTaskID
 		nativeID := fmt.Sprintf("%s_%d", masterID, task)
 		metadata := slurmJobMetadata{Executor: "slurm", JobID: job.ID, AttemptID: job.AttemptID, Command: job.Command, SlurmJobID: nativeID, SubmittedAt: nowRFC3339()}
-		jobDir, err := validatedJobDir(runDir, job.ID)
+		jobDir, err := attemptJobDir(runDir, job)
 		if err != nil {
 			return nil, err
 		}

@@ -147,7 +147,7 @@ func submitLSFArray(runDir string, jobs []JobSpec, executorOptions []string) ([]
 		if job.ArrayTaskID == nil || job.ArrayFirst != first || job.ArrayLast != last || !sameStrings(job.Command, command) {
 			return nil, errors.New("LSF array tasks must share one command and range")
 		}
-		jobDir, err := validatedJobDir(runDir, job.ID)
+		jobDir, err := attemptJobDir(runDir, job)
 		if err != nil {
 			return nil, err
 		}
@@ -180,8 +180,8 @@ func submitLSFArray(runDir string, jobs []JobSpec, executorOptions []string) ([]
 	for _, job := range jobs {
 		taskID := *job.ArrayTaskID
 		nativeID := fmt.Sprintf("%s[%d]", masterID, taskID)
-		metadata := lsfJobMetadata{Executor: "lsf", JobID: job.ID, Command: job.Command, LSFJobID: nativeID, SubmittedAt: nowRFC3339()}
-		jobDir, err := validatedJobDir(runDir, job.ID)
+		metadata := lsfJobMetadata{Executor: "lsf", JobID: job.ID, AttemptID: job.AttemptID, Command: job.Command, LSFJobID: nativeID, SubmittedAt: nowRFC3339()}
+		jobDir, err := attemptJobDir(runDir, job)
 		if err != nil {
 			return nil, err
 		}
@@ -208,7 +208,7 @@ func parseLSFJobID(output string) (string, error) {
 }
 
 func waitLSFJob(runDir string, job lsfJobMetadata) JobResult {
-	jobDir, err := validatedJobDir(runDir, job.JobID)
+	jobDir, err := attemptJobDir(runDir, JobSpec{ID: job.JobID, AttemptID: job.AttemptID})
 	if err != nil {
 		return JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}
