@@ -947,8 +947,8 @@ func sendRunRequest(baseDir string, request serverRequest) (serverResponse, erro
 					fmt.Printf("%s\n%s\n", red(title), colorLabeledDetails(details, true))
 				} else if strings.HasPrefix(response.Message, "Retrying job") {
 					fmt.Printf("%s\n", colorKeyValueMessage(response.Message, yellow))
-				} else if strings.HasPrefix(response.Message, "Run started:") {
-					fmt.Printf("%s\n", colorKeyValueMessage(response.Message, cyan))
+				} else if strings.HasPrefix(response.Message, "=== Run started ===") {
+					fmt.Printf("%s\n", colorMessage(response.Message))
 					fmt.Println(cyan("Press Ctrl-D to detach; Ctrl-C to cancel."))
 				} else if strings.HasPrefix(response.Message, "Job running:") {
 					title, details, _ := strings.Cut(response.Message, "\n")
@@ -1446,7 +1446,7 @@ func startServerRun(baseDir, queueName, runName string, localConcurrency, batchM
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Run started:\n  Project: %s\n  Run: %s\n  Directory: %s\n\nCheck status:\n  rotari show --run-id %s\n\nCancel run:\n  rotari cancel --basedir %s --project-name %s",
+	return fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run: %s\n  Directory: %s\n\nCheck status:\n  rotari show --run-id %s\n\nCancel run:\n  rotari cancel --basedir %s --project-name %s",
 		queueName, formatRunLabel(runID, runName), runDir, runID, paths.baseDir, queueName), nil
 }
 
@@ -1523,7 +1523,7 @@ func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMa
 	excluded := len(queue.Commands) - submitted
 	release()
 	if progress != nil {
-		progress(serverResponse{Progress: true, Message: fmt.Sprintf("Run started: run_id=%s submitted=%d excluded=%d total=%d", runID, submitted, excluded, len(queue.Commands))})
+		progress(serverResponse{Progress: true, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", queueName, runID, submitted, excluded, len(queue.Commands))})
 	}
 
 	stopLoadSampling := startRunLoadSampling(paths, runID)
@@ -1535,9 +1535,13 @@ func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMa
 				if retry > 0 {
 					failureTitle = "Job failed after retry:"
 				}
-				message = fmt.Sprintf("%s\n  ID: %s\n  Command: %s\n  Show output:\n    rotari show --run-id %s --job-id %s",
+				attemptID := result.AttemptID
+				if attemptID == "" {
+					attemptID = result.ID
+				}
+				message = fmt.Sprintf("%s\n  ID: %s\n  Attempt ID: %s\n  Command: %s\n  Show output:\n    rotari show --run-id %s --job-id %s",
 					failureTitle,
-					result.ID, strings.Join(result.Command, " "), runID, result.ID)
+					result.ID, result.AttemptID, strings.Join(result.Command, " "), runID, attemptID)
 			} else if strings.HasPrefix(result.Error, "retry:") {
 				message = fmt.Sprintf("Retrying job: attempt=%s job=%s command=%v", strings.TrimPrefix(result.Error, "retry:"), result.ID, result.Command)
 			}
@@ -1551,8 +1555,8 @@ func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMa
 		if name == "" {
 			name = "-"
 		}
-		message := fmt.Sprintf("Job running:\n  ID: %s\n  Name: %s\n  Show:\n    rotari show --run-id %s --job-id %s",
-			job.ID, name, runID, job.ID)
+		message := fmt.Sprintf("Job running:\n  ID: %s\n  Attempt ID: %s\n  Name: %s\n  Show:\n    rotari show --run-id %s --job-id %s",
+			job.ID, job.AttemptID, name, runID, job.AttemptID)
 		progress(serverResponse{OK: true, Progress: true, Message: message, JobID: job.ID})
 	}, executorSettings)
 	stopLoadSampling()
@@ -1578,7 +1582,7 @@ func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMa
 			return formatRunCompletion(paths, runID, summary), exitCode, nil
 		}
 	}
-	return fmt.Sprintf("Run finished:\n  Project: %s\n  Run: %s\n  Exit code: %d", queueName, runID, exitCode), exitCode, nil
+	return fmt.Sprintf("=== Run finished ===\n  Project: %s\n  Run: %s\n  Exit code: %d", queueName, runID, exitCode), exitCode, nil
 }
 
 func joinCommand(command []string) string {

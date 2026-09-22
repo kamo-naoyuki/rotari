@@ -89,17 +89,17 @@ func colorMessage(message string) string {
 			failedJobOutput = false
 		}
 		switch {
-		case strings.HasPrefix(text, "Run failed:"):
+		case strings.HasPrefix(text, "=== Run failed ==="):
 			lines[i] = red(text) + newline(line)
-		case strings.HasPrefix(text, "Run finished:"):
+		case strings.HasPrefix(text, "=== Run finished ==="):
 			lines[i] = green(text) + newline(line)
 		case strings.HasPrefix(text, "Retrying job:"):
 			lines[i] = colorKeyValueMessage(text, yellow) + newline(line)
 		case strings.HasPrefix(text, "Failed job output:"):
 			failedJobOutput = true
 			lines[i] = red(text) + newline(line)
-		case strings.HasPrefix(text, "Run started"):
-			lines[i] = colorKeyValueMessage(text, cyan) + newline(line)
+		case strings.HasPrefix(text, "=== Run started ==="):
+			lines[i] = cyan(text) + newline(line)
 		case strings.HasPrefix(text, "Inspect"), strings.HasPrefix(text, "Check"), strings.HasPrefix(text, "Cancel"), strings.HasPrefix(text, "Rerun"), strings.HasPrefix(text, "Job running:"):
 			lines[i] = cyan(text) + newline(line)
 		case strings.Contains(text, ":"):

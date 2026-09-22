@@ -952,8 +952,12 @@ func failedJobHints(runID string, results []JobResult) string {
 		if hints.Len() > 0 {
 			hints.WriteString("  ----\n")
 		}
-		fmt.Fprintf(&hints, "  Job: %s\n  Hosts: %s\n  Command: %s\n  Show output:\n    rotari show --run-id %s --job-id %s\n",
-			result.ID, hosts, strings.Join(result.Command, " "), runID, result.ID)
+		attemptID := result.AttemptID
+		if attemptID == "" {
+			attemptID = result.ID
+		}
+		fmt.Fprintf(&hints, "  Job: %s\n  Attempt ID: %s\n  Hosts: %s\n  Command: %s\n  Show output:\n    rotari show --run-id %s --job-id %s\n",
+			result.ID, result.AttemptID, hosts, strings.Join(result.Command, " "), runID, attemptID)
 	}
 	return hints.String()
 }
