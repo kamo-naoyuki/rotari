@@ -1097,6 +1097,11 @@ func formatWebQueueDisplayTimes(state *webQueueState) {
 				job.Origin.SubmittedAt = formatDisplayTimestamp(job.Origin.SubmittedAt)
 				job.Origin.FinishedAt = formatDisplayTimestamp(job.Origin.FinishedAt)
 			}
+			for attemptIndex := range job.Attempts {
+				attempt := &job.Attempts[attemptIndex]
+				attempt.SubmittedAt = formatDisplayTimestamp(attempt.SubmittedAt)
+				attempt.FinishedAt = formatDisplayTimestamp(attempt.FinishedAt)
+			}
 		}
 	}
 }

@@ -7,6 +7,7 @@ let selectedOutput = "";
 let selectedLog = null;
 let followTimer = null;
 const selectedAttemptByJob = {};
+const openAttemptMenuByJob = {};
 let sortState = {
   queue: { key: "name", direction: 1 },
   run: { key: "started", direction: -1 },
@@ -339,7 +340,15 @@ function renderRun(q, runID) {
         : "";
       const attemptMenu =
         (j.attempts || []).length > 1
-          ? '<details class="attempt-menu"><summary title="Select attempt" aria-label="Select attempt"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg></summary><div class="attempt-options">' +
+          ? '<details class="attempt-menu"' +
+            (openAttemptMenuByJob[attemptKey(j.id)] ? " open" : "") +
+            ' ontoggle="setAttemptMenuOpen(\'' +
+            esc(q.project_name) +
+            "','" +
+            esc(runID) +
+            "','" +
+            esc(j.id) +
+            "',this.open)\"><summary title=\"Select attempt\" aria-label=\"Select attempt\"><svg view=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m7 10 5 5 5-5\"></path></svg></summary><div class=\"attempt-options\">" +
             j.attempts
               .map(
                 (attempt, index) =>
@@ -437,9 +446,24 @@ function renderRun(q, runID) {
     '<pre id="log" class="log">Select a job output.</pre>';
 }
 function selectJobAttempt(projectName, runID, jobID, attemptID) {
-  selectedAttemptByJob[projectName + "/" + runID + "/" + jobID] = attemptID;
+  const key = projectName + "/" + runID + "/" + jobID;
+  selectedAttemptByJob[key] = attemptID;
+  openAttemptMenuByJob[key] = false;
   render();
 }
+function setAttemptMenuOpen(projectName, runID, jobID, open) {
+  openAttemptMenuByJob[projectName + "/" + runID + "/" + jobID] = open;
+}
+function closeAttemptMenus() {
+  document.querySelectorAll(".attempt-menu[open]").forEach((menu) => {
+    menu.open = false;
+  });
+}
+document.addEventListener("pointerdown", (event) => {
+  if (event.target instanceof Element && event.target.closest(".attempt-menu"))
+    return;
+  closeAttemptMenus();
+});
 function renderMissing(message) {
   document.getElementById("page-title").textContent = "Not found";
   document.getElementById("summary").textContent = "";

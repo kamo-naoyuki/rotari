@@ -612,7 +612,7 @@ func TestWebSeparatesLogsFromActions(t *testing.T) {
 
 func TestWebProvidesAttemptSelector(t *testing.T) {
 	html := webHTML()
-	for _, want := range []string{"selectedAttemptByJob", "function selectJobAttempt", "attempt-menu", "attempt-options", "Select attempt", "attempt_id="} {
+	for _, want := range []string{"selectedAttemptByJob", "openAttemptMenuByJob", "function selectJobAttempt", "function setAttemptMenuOpen", "function closeAttemptMenus", "document.addEventListener(\"pointerdown\"", "attempt-menu", "attempt-options", "Select attempt", "attempt_id="} {
 		if !webContains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
 		}
@@ -735,6 +735,20 @@ func TestLoadWebJobsIncludesAttemptsNewestFirst(t *testing.T) {
 	latest := makeAttemptID(runID, job.ID, 1)
 	if jobs[0].Attempts[0].ID != latest || jobs[0].Attempts[0].Result == nil || jobs[0].Attempts[0].Result.ExitCode != 0 {
 		t.Fatalf("attempts = %#v, want latest successful attempt first", jobs[0].Attempts)
+	}
+}
+
+func TestFormatWebQueueDisplayTimesFormatsAttemptTimes(t *testing.T) {
+	t.Setenv("TZ", "Asia/Tokyo")
+	state := webQueueState{Runs: []webRun{{Jobs: []webJob{{Attempts: []webAttempt{{
+		SubmittedAt: "2026-09-22T08:47:59Z",
+		FinishedAt:  "2026-09-22T08:48:00Z",
+	}}}}}}}
+
+	formatWebQueueDisplayTimes(&state)
+	attempt := state.Runs[0].Jobs[0].Attempts[0]
+	if attempt.SubmittedAt != "2026-09-22 17:47:59 JST" || attempt.FinishedAt != "2026-09-22 17:48:00 JST" {
+		t.Fatalf("attempt timestamps = %#v, want JST display timestamps", attempt)
 	}
 }
 
