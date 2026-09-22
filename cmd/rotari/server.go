@@ -1141,7 +1141,7 @@ func jobFinished(jobDir string) bool {
 		return false
 	}
 	// NOSONAR: jobDir is produced by validated job and run path helpers.
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to status.json.
 	if err != nil {
 		return false
 	}

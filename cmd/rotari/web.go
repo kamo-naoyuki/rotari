@@ -1342,7 +1342,7 @@ func readJobTimestamp(runDir, jobID, name string) string {
 	if err != nil {
 		return ""
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to submitted_at or finished_at.
 	if err != nil {
 		return ""
 	}
