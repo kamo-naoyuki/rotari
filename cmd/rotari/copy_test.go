@@ -155,8 +155,32 @@ func TestCopyRunToQueueRejectsExcludedFailedDependency(t *testing.T) {
 	}
 
 	_, err = copyRunToQueue(baseDir, "default", "run-1", "job-id", []string{"train-id"}, false)
-	if err == nil || !strings.Contains(err.Error(), `excluded dependency "prepare" failed`) {
+	if err == nil || !strings.Contains(err.Error(), `excluded dependency "prepare" did not succeed`) {
 		t.Fatalf("copy error = %v, want excluded failed dependency error", err)
+	}
+}
+
+func TestCopyRunToQueueRejectsExcludedUnfinishedDependency(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(paths.runsDir, "run-1")
+	snapshot := Queue{Commands: []QueuedCommand{
+		{ID: "prepare-id", Name: "prepare", Command: []string{"prepare"}},
+		{ID: "train-id", Name: "train", Command: []string{"train"}, DependsOn: []string{"prepare"}},
+	}}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{Results: []JobResult{{ID: "train-id", ExitCode: 1}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = copyRunToQueue(baseDir, "default", "run-1", "job-id", []string{"train-id"}, false)
+	if err == nil || !strings.Contains(err.Error(), `excluded dependency "prepare" did not succeed`) {
+		t.Fatalf("copy error = %v, want excluded unfinished dependency error", err)
 	}
 }
 

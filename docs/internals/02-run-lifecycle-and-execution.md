@@ -43,8 +43,8 @@
   every task has a result, and any non-zero task exit code marks it failed as a
   whole.
 - When `copy` selects a job without one of its prerequisites, it removes that
-  dependency. A failed omitted prerequisite rejects the copy before the
-  destination queue is written.
+  dependency. An omitted prerequisite without a successful source result
+  rejects the copy before the destination queue is written.
 - `run`/`retry` default to `--partial-array=true`. For a filtered rerun,
   `planRerunSelection` evaluates each array task's own result against the
   selection (`planArrayTaskSelection`) instead of the aggregate, so only the

@@ -247,8 +247,8 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 			}
 			dependencyCommand := commandsByName[dependency]
 			result, finished := aggregatedJobResult(dependencyCommand.ID, dependencyCommand.Array, results)
-			if finished && result.ExitCode != 0 {
-				return "", fmt.Errorf("cannot copy job %q: excluded dependency %q failed in run %s", command.Name, dependency, runID)
+			if !finished || result.ExitCode != 0 {
+				return "", fmt.Errorf("cannot copy job %q: excluded dependency %q did not succeed in run %s", command.Name, dependency, runID)
 			}
 		}
 	}
