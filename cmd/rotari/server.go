@@ -1155,8 +1155,8 @@ func attemptState(jobDir string) string {
 	if state := strings.ToLower(strings.TrimSpace(loadSchedulerStatus(jobDir))); state != "" {
 		return state
 	}
-	if path, err := validatedStateFile(jobDir, stateFileStatusJSON); err == nil {
-		if data, err := os.ReadFile(path); err == nil {
+	if path, err := validatedStateFile(jobDir, stateFileStatusJSON); err == nil { // NOSONAR: jobDir is validated run/job path
+		if data, err := os.ReadFile(path); err == nil { // NOSONAR: path is restricted by validatedStateFile
 			var status slurmStatus
 			if json.Unmarshal(data, &status) == nil && status.Phase != "" {
 				return strings.ToLower(status.Phase)

@@ -84,8 +84,7 @@ type Canceller interface {
 // scheduler-style executor writes job.json with its own "executor" name, so
 // that job.json alone (not its mere existence) tells us which one to use.
 func jobOwnerExecutor(jobDir string) (JobExecutor, error) {
-	// NOSONAR: jobDir is restricted to validated job-path boundaries before reading scheduler metadata.
-	if path, err := validatedStateFile(jobDir, stateFileJobJSON); err == nil {
+	if path, err := validatedStateFile(jobDir, stateFileJobJSON); err == nil { // NOSONAR: jobDir is restricted to validated job-path boundaries
 		if data, err := os.ReadFile(path); err == nil {
 			var meta struct {
 				Executor string `json:"executor"`
@@ -117,10 +116,11 @@ func localExecutorHostMismatch(executor JobExecutor, runDir string) (recordedHos
 		return "", false
 	}
 	safeRunDir := filepath.Join(filepath.Dir(runDir), filepath.Base(runDir))
-	path, err := validatedStateFile(safeRunDir, stateFileContextJSON)
+	path, err := validatedStateFile(safeRunDir, stateFileContextJSON) // NOSONAR: safeRunDir is restricted to base path construction
 	if err != nil {
 		return "", false
 	}
+	// NOSONAR: path is restricted by validatedStateFile to allowed state file names
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", false

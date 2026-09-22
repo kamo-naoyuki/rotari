@@ -421,7 +421,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to output.log
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -850,7 +850,32 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 				reports[staticReportKey(queue.QueueName, run.RunID, "")] = report
 			}
 			for _, job := range run.Jobs {
-				collectStaticJobLogs(logs, paths.runsDir, queue.QueueName, run.RunID, job)
+				path, pathErr := webLogPath(paths.runsDir, run.RunID, job.ID, "")
+				if pathErr != nil {
+					continue
+				}
+				data, readErr := os.ReadFile(path)
+				if readErr == nil {
+					logs[staticLogKey(queue.QueueName, run.RunID, job.ID)] = string(data)
+				}
+				if job.AttemptID != "" {
+					attemptPath, attemptErr := webLogPath(paths.runsDir, run.RunID, job.ID, job.AttemptID)
+					if attemptErr == nil {
+						if attemptData, attemptReadErr := os.ReadFile(attemptPath); attemptReadErr == nil {
+							logs[staticLogKey(queue.QueueName, run.RunID, job.ID, job.AttemptID)] = string(attemptData)
+						}
+					}
+				}
+				for _, attempt := range job.Attempts {
+					attemptPath, attemptErr := webLogPath(paths.runsDir, run.RunID, job.ID, attempt.ID)
+					if attemptErr != nil {
+						continue
+					}
+					attemptData, attemptReadErr := os.ReadFile(attemptPath)
+					if attemptReadErr == nil {
+						logs[staticLogKey(queue.QueueName, run.RunID, job.ID, attempt.ID)] = string(attemptData)
+					}
+				}
 				if report, reportErr := buildAIReport(paths, run.RunID, job.ID, false); reportErr == nil {
 					reports[staticReportKey(queue.QueueName, run.RunID, job.ID)] = report
 				}
@@ -966,25 +991,6 @@ func staticLogKey(queueName, runID, jobID string, attemptIDs ...string) string {
 		attemptID = attemptIDs[0]
 	}
 	return queueName + "/" + runID + "/" + jobID + "/" + attemptID
-}
-
-func collectStaticJobLogs(logs map[string]string, runsDir, queueName, runID string, job webJob) {
-	store := func(attemptID string) {
-		path, err := webLogPath(runsDir, runID, job.ID, attemptID)
-		if err != nil {
-			return
-		}
-		if data, readErr := os.ReadFile(path); readErr == nil {
-			logs[staticLogKey(queueName, runID, job.ID, attemptID)] = string(data)
-		}
-	}
-	store("")
-	if job.AttemptID != "" {
-		store(job.AttemptID)
-	}
-	for _, attempt := range job.Attempts {
-		store(attempt.ID)
-	}
 }
 
 func webLogPath(runsDir, runID, jobID, attemptID string) (string, error) {
@@ -1256,8 +1262,7 @@ func readAttemptTimestamp(jobDir, name string) string {
 	if err != nil {
 		return ""
 	}
-	// NOSONAR: jobDir is a validated run/job directory and name is a fixed state-file name.
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to allowed state file names
 	if err != nil {
 		return ""
 	}
