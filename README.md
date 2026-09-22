@@ -252,16 +252,12 @@ summary = rotari.wait()
 rotari.reset()
 ```
 
-The client invokes the `rotari` executable without a shell, so the `rotari`
-command must be available on `PATH` for the Python process. `wait` and `show`
-use the CLI's machine-readable JSON modes; all queue and run semantics remain
-owned by the CLI. `wait(selector)` accepts a project name, run name, or run ID;
-when omitted, it waits for the active run selected by the client's location
-options. `reset(recover=True)` passes the CLI's interrupted-run recovery flag.
-This is intentionally a thin wrapper, not a Python-native
-job executor: it accepts command argument lists such as `['./train.sh']`, not
-Python functions to serialize and submit. For a function-oriented Python job
-submission framework, see [Submitit](https://github.com/facebookincubator/submitit).
+The client runs `rotari` directly, so the executable must be on the Python
+process's `PATH`. It accepts command argument lists such as `['./train.sh']`,
+not Python functions. `wait(selector)` accepts a project name, run name, or run
+ID (or waits for the active run by default); `reset(recover=True)` enables
+interrupted-run recovery. For function-oriented submission, see
+[Submitit](https://github.com/facebookincubator/submitit).
 
 ## Local web UI
 
@@ -281,56 +277,23 @@ listeners, set `ROTARI_WEB_AUTH_TOKEN` (preferred) or pass `--auth-token TOKEN`;
 API requests use `Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`, and
 the browser UI uses Basic auth with username `rotari` and the token as password.
 This is HTTP authentication, not encryption: use HTTPS or a trusted network.
-`/api/state` and `/environment/` show only whether variables are set. Project
-and run pages can show raw config files, so keep the UI on a trusted host.
-On a run page, select jobs and use `Create` to replace the current queue or
-`Append` to add them to it. These actions only update the queue; the separate
-runner executes the jobs later. For jobs with multiple attempts, use the arrow
-beside the attempt ID to inspect a specific attempt's status, timestamps,
-result, and log; each job can show a different attempt.
+`/api/state` and `/environment/` show only whether variables are set. 
 
 ## Projects, queues, runs, and state
-
-A project groups one current queue and its run history. `add` assembles the
-next experiment in `queue.json`. `run` freezes that batch into one run ID and
-stores its snapshot, logs, and results separately.
 ### Project and queue
-
-A project keeps a single current queue plus a history of completed runs. Queues
-are mutable and represent the jobs that are ready to execute next; runs are
-snapshots of that queue at a specific moment, so a later retry or filtered
-rerun can be traced back to the original job list without mutating earlier
-history. The on-disk state reflects that model: the live queue lives in
-`queue.json`, while each run stores its own immutable snapshot under
-`runs/<run-id>/`.
-
-The state directory mirrors this structure:
+A project has one mutable queue of jobs ready to run and an immutable history
+of completed runs. The live queue is `queue.json`; each run snapshots it under
+`runs/<run-id>/`, so retries and filtered reruns leave earlier history unchanged.
 
 ```text
-<basedir>/
-└── projects/<project-name>/
-    ├── queue.json
-    ├── meta.json
-    └── runs/<run-id>/
+<basedir>/projects/<project>/
+├── queue.json                 # current queue
+└── runs/
+    └── <run-id>/              # immutable run history
         ├── commands.json
-        ├── context.json
         ├── summary.json
-        └── <job-id>/
-            └── attempts/<attempt-id>/
-                ├── command.json
-                ├── output
-                ├── status.json
-                └── executor-specific state
+        └── <job-id>/...
 ```
-
-This is the shared project state: the live queue is in `queue.json`, while
-`meta.json` records the project's latest phase and run metadata. Each run stores
-an immutable command snapshot and execution context under
-`runs/<run-id>/`; each job keeps its individual attempt records, and the latest
-attempt is selected from the attempt directories. Files may appear incrementally
-while a run is active, so
-readers should treat missing optional files as incomplete state rather than as
-a successful result.
 
 ### Run and state
 
@@ -406,28 +369,6 @@ The following commands accept an `ATTEMPT_ID` as their `--job-id/-j` selector:
   These commands operate on queue definitions or whole runs, not individual attempts.
 
 
-### Internal execution model
-
-This section is the runtime architecture view: it explains who owns the project
-state, which process actually launches jobs, and how the queue, server, and
-runner fit together during a run.
-
-```mermaid
-flowchart LR
-    Client["run client\nrotari run / add --run"] -->|start request| Server["server\nowns project state and lock"]
-    Server -->|begin active run| Runner["runner\nexecuteMixedRun"]
-    Runner -->|dispatch jobs| Local["local jobs"]
-    Runner -->|dispatch jobs| SSH["SSH jobs"]
-    Runner -->|dispatch jobs| Scheduler["Slurm / PBS / LSF jobs"]
-    Runner -->|write logs + result| State[("project state\nqueue / run history")]
-    Server -->|status + progress| Client
-```
-
-The CLI is the user-facing entry point. It sends a run request to the
-long-lived server for the project, and the server owns the queue, lock, and
-final run state. The runner then executes the queued jobs, persists their logs
-and results, and reports progress back through the same server state.
-
 ## Scheduler
 
 Each job can choose its execution backend and backend-specific options:
@@ -464,15 +405,11 @@ precedence over a same-named user value.
 
 ### SSH executor
 
-For the `ssh` executor, the first `--executor-option` is the SSH destination;
-remaining options are passed to `ssh`. Rotari runs the command over that SSH
-session, then stores its output, exit status, and destination host in the
-local run directory. Use `--working-directory DIR` to set the execution
-directory; for SSH this is a directory on the remote host. It can be changed
-later with `rotari change` or the web UI. The remote host must provide Linux
-`/proc`, `setsid`, and standard Linux command-line utilities. Rotari runs each
-remote job in its own process group; cancellation reconnects over SSH and sends
-`SIGTERM` only after the recorded PID and process start time still match.
+For `ssh`, the first `--executor-option` is the destination and subsequent
+options go to `ssh`; `--working-directory` is a remote directory. Rotari
+records output, status, and host locally. The remote host needs Linux `/proc`,
+`setsid`, and standard command-line tools; cancellation reconnects to terminate
+the recorded process.
 
 ```sh
 rotari add -p build \
@@ -543,27 +480,18 @@ rotari run -p test --async
 rotari wait build test
 ```
 
-`--async` starts the run in a detached `setsid` session, so it survives terminal
-closure. Use `rotari wait PROJECT`, `rotari wait RUN_NAME`, or
-`rotari wait -r RUN_ID` from any terminal, and `rotari cancel` to stop it.
+`--async` detaches the run so it survives terminal closure. Use `rotari wait`
+with a project, run name, or run ID from any terminal, and `rotari cancel` to
+stop it. Without a selector, `wait` uses the single active project or asks you
+to choose when several projects are running.
 
-With no selector, `rotari wait` scans the resolved basedir: it waits when one
-project is running, or lists project/run IDs and asks for a selector when
-several are running. Use `rotari wait PROJECT` (or a run name/ID) to choose.
+During synchronous `rotari run`, Ctrl-C requests cancellation and returns exit
+code 130 while cleanup finishes. Ctrl-D detaches without cancelling; Ctrl-Z
+only suspends the client.
 
-During synchronous `rotari run`, Ctrl-C returns immediately with exit code 130
-and asks the background supervisor to cancel the run; cleanup (summary, queue,
-and lock) finishes afterward, so the same project may briefly reject commands.
-No `unlock` or `server shutdown` is needed. Ctrl-D detaches without cancelling;
-follow the run with `rotari wait -r RUN_ID` or `rotari show -r RUN_ID`.
-Ctrl-Z only suspends the client; `fg` resumes it, but closing the terminal
-disconnects the run and requests cancellation. Use Ctrl-D or `--async` to detach.
-
-The supervisor is not auto-restarted after a crash or kill. The run lock records
-its PID and host, while local wrappers preserve job status for
-`rotari show -r RUN_ID`. If the run remains interrupted, confirm jobs have
-stopped and use the recovery command shown by `show`: `unlock` keeps the queue;
-`reset --recover` discards it.
+If the supervisor crashes or is killed, `show` reports the interrupted run.
+After confirming jobs have stopped, use `unlock` to keep the queue or
+`reset --recover` to discard it.
 
 ## Inspect
 
@@ -705,38 +633,22 @@ The result filters select which jobs are actually re-executed:
 | `--success` | Finished jobs with exit code zero. |
 | `--failed --unfinished` | Failed or unfinished jobs. |
 
-Result filters and job IDs may be combined; jobs matching any selected filter
-or ID are copied for execution. Jobs that do not match but already have a
-finished result in the reference run are copied as carry-forward results: they
-are not re-executed, and their previous result and output remain visible on the
-new run's page. Jobs that neither match nor have a previous result are simply
-left unfinished.
-For example, `--failed --unfinished` re-executes failed or unfinished jobs
-while carrying forward everything that already succeeded.
+Result filters and repeated `--job-id/-j` select jobs to re-execute. Finished
+non-matching jobs carry forward their previous result and output; jobs without
+a result remain unfinished. Use `--failed --unfinished` to recover everything
+that did not complete successfully.
 
-Use `--failed --unfinished` when a run may have been interrupted and you want to
-recover everything that did not complete successfully. Use `--job-id/-j` to select
-specific jobs by ID instead of filtering by result; it may be repeated and is
-mutually exclusive with the result filters above. `--run-id/-r ID` changes the
-reference run used for both the queue snapshot and the result filters.
-
-`run --run-id/-r ID` can select jobs directly from a saved run instead of the live
-queue. It restores that run's jobs first, then applies result filters
-(`--failed`, `--unfinished`, `--success`, or `--job-id/-j`). A non-empty queue
-requires confirmation before replacement; add `--overwrite` to `run --run-id/-r`
-to replace it without asking. Finished jobs that do not match the filter are
-carried forward instead of re-executed. For example:
+`--run-id/-r ID` selects a saved run as both the queue snapshot and filter
+reference. A non-empty queue requires confirmation; add `--overwrite` to
+replace it without asking:
 
 ```sh
 rotari run -p build -r RUN_ID --failed
 ```
 
-For an array job (`--array`), result filters default to per-task selection
-(`--partial-array=true`): only the tasks matching the filter (e.g. the failed
-ones) re-execute, and the rest carry forward their own previous result
-instead of the whole array running again. Pass `--partial-array=false` to
-re-execute every task whenever any one of them matches, as in earlier
-versions.
+For array jobs, filters select matching tasks by default
+(`--partial-array=true`); use `--partial-array=false` to re-execute every task
+when any task matches.
 
 
 ### copy and change
@@ -963,6 +875,28 @@ Each command's `--help` output identifies an option's matching environment
 variable, when one is available.
 
 Use `rotari env` to print the same list with values from the current process.
+
+## Internal execution model
+
+This section is the runtime architecture view: it explains who owns the project
+state, which process actually launches jobs, and how the queue, server, and
+runner fit together during a run.
+
+```mermaid
+flowchart LR
+    Client["run client\nrotari run / add --run"] -->|start request| Server["server\nowns project state and lock"]
+    Server -->|begin active run| Runner["runner\nexecuteMixedRun"]
+    Runner -->|dispatch jobs| Local["local jobs"]
+    Runner -->|dispatch jobs| SSH["SSH jobs"]
+    Runner -->|dispatch jobs| Scheduler["Slurm / PBS / LSF jobs"]
+    Runner -->|write logs + result| State[("project state\nqueue / run history")]
+    Server -->|status + progress| Client
+```
+
+The CLI is the user-facing entry point. It sends a run request to the
+long-lived server for the project, and the server owns the queue, lock, and
+final run state. The runner then executes the queued jobs, persists their logs
+and results, and reports progress back through the same server state.
 
 
 ## Server management
