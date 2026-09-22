@@ -181,24 +181,10 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (waitTarget,
 	if err != nil {
 		return waitTarget{}, err
 	}
-	var matches []waitTarget
-	for _, target := range activeTargets {
-		paths, pathErr := resolvePaths(target.baseDir, target.projectName)
-		if pathErr != nil {
-			return waitTarget{}, pathErr
-		}
-		lock, lockErr := loadLockInfo(paths.lockFile)
-		if lockErr != nil {
-			return waitTarget{}, lockErr
-		}
-		if lock.RunName == selector {
-			matches = append(matches, target)
-		}
+	if len(activeTargets) == 1 {
+		return activeTargets[0], nil
 	}
-	if len(matches) == 1 {
-		return matches[0], nil
-	}
-	if len(matches) > 1 {
+	if len(activeTargets) > 1 {
 		return waitTarget{}, fmt.Errorf("run name %q is ambiguous across active projects", selector)
 	}
 	if location, found, registryErr := resolveRunLocation(selector); registryErr != nil {
