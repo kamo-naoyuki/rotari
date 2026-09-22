@@ -1031,8 +1031,8 @@ func TestAssignAttemptIDsAreUniquePerRunAttempt(t *testing.T) {
 }
 
 func TestLatestAttemptJobDirUsesAttemptDirectories(t *testing.T) {
-	runDir := t.TempDir()
-	job := JobSpec{ID: "job-1", AttemptID: makeAttemptID("20260922-000000-00000000", "job-1", 1)}
+	runDir := filepath.Join(t.TempDir(), "diagnosed-run")
+	job := JobSpec{ID: "job-1", AttemptID: makeAttemptID("diagnosed-run", "job-1", 1)}
 	jobDir, err := attemptJobDir(runDir, job)
 	if err != nil {
 		t.Fatal(err)

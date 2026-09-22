@@ -1209,6 +1209,7 @@ func latestAttemptID(runDir, jobID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	runID := filepath.Base(runDir)
 	entries, err := os.ReadDir(filepath.Join(jobDir, "attempts"))
 	if err != nil {
 		return "", err
@@ -1219,7 +1220,10 @@ func latestAttemptID(runDir, jobID string) (string, error) {
 		if !entry.IsDir() || !isValidPathElement(entry.Name()) {
 			continue
 		}
-		payload, decodeErr := decodeAttemptID(entry.Name())
+		payload, decodeErr := decodeAttemptIDForRun(entry.Name(), runID)
+		if decodeErr != nil {
+			payload, decodeErr = decodeAttemptID(entry.Name())
+		}
 		if decodeErr != nil || payload.JobID != jobID {
 			continue
 		}
@@ -1229,6 +1233,27 @@ func latestAttemptID(runDir, jobID string) (string, error) {
 		}
 	}
 	return latest, nil
+}
+
+func decodeAttemptIDForRun(attemptID, runID string) (attemptIDPayload, error) {
+	prefix := "att_" + runID + "-"
+	if !strings.HasPrefix(attemptID, prefix) {
+		return attemptIDPayload{}, fmt.Errorf("invalid attempt ID %q", attemptID)
+	}
+	value := strings.TrimPrefix(attemptID, prefix)
+	separator := strings.LastIndexByte(value, '-')
+	if separator <= 0 || separator == len(value)-1 {
+		return attemptIDPayload{}, fmt.Errorf("invalid attempt ID %q", attemptID)
+	}
+	number, err := strconv.Atoi(value[separator+1:])
+	if err != nil || number < 0 {
+		return attemptIDPayload{}, fmt.Errorf("invalid attempt ID %q", attemptID)
+	}
+	jobID := value[:separator]
+	if !isValidPathElement(runID) || !isValidPathElement(jobID) {
+		return attemptIDPayload{}, fmt.Errorf("invalid attempt ID %q", attemptID)
+	}
+	return attemptIDPayload{RunID: runID, JobID: jobID, Number: number}, nil
 }
 
 func specificAttemptJobDir(runDir, jobID, attemptID string) (string, error) {
