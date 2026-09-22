@@ -323,6 +323,8 @@ section {
   z-index: 10;
 }
 .output-panel {
+  display: flex;
+  flex-direction: column;
   width: min(1100px, 96vw);
   height: min(760px, 90vh);
   background: var(--panel);
@@ -340,6 +342,8 @@ section {
 }
 .output-box {
   position: relative;
+  flex: 1;
+  min-height: 0;
 }
 .modal-copy-status {
   position: absolute;
@@ -370,7 +374,7 @@ section {
   right: 8px;
 }
 .output-panel .log {
-  height: calc(100% - 48px);
+  height: 100%;
   max-height: none;
   margin: 0;
   padding-top: 14px;

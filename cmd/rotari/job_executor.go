@@ -84,19 +84,24 @@ type Canceller interface {
 // scheduler-style executor writes job.json with its own "executor" name, so
 // that job.json alone (not its mere existence) tells us which one to use.
 func jobOwnerExecutor(jobDir string) (JobExecutor, error) {
-	if data, err := os.ReadFile(filepath.Join(jobDir, "job.json")); err == nil { // NOSONAR: jobDir is supplied only by validated executor paths.
-		var meta struct {
-			Executor string `json:"executor"`
-		}
-		if err := json.Unmarshal(data, &meta); err == nil {
-			if executor, ok := lookupExecutor(meta.Executor); ok {
-				return executor, nil
+	// NOSONAR: jobDir is restricted to validated job-path boundaries before reading scheduler metadata.
+	if path, err := validatedStateFile(jobDir, stateFileJobJSON); err == nil {
+		if data, err := os.ReadFile(path); err == nil {
+			var meta struct {
+				Executor string `json:"executor"`
+			}
+			if err := json.Unmarshal(data, &meta); err == nil {
+				if executor, ok := lookupExecutor(meta.Executor); ok {
+					return executor, nil
+				}
 			}
 		}
 	}
-	if _, err := os.Stat(filepath.Join(jobDir, "pid")); err == nil {
-		executor, _ := lookupExecutor("local")
-		return executor, nil
+	if path, err := validatedStateFile(jobDir, stateFilePID); err == nil {
+		if _, err := os.Stat(path); err == nil {
+			executor, _ := lookupExecutor("local")
+			return executor, nil
+		}
 	}
 	return nil, fmt.Errorf("job is not running")
 }
@@ -112,7 +117,11 @@ func localExecutorHostMismatch(executor JobExecutor, runDir string) (recordedHos
 		return "", false
 	}
 	safeRunDir := filepath.Join(filepath.Dir(runDir), filepath.Base(runDir))
-	data, err := os.ReadFile(filepath.Join(safeRunDir, "context.json")) // NOSONAR: safeRunDir is derived from a validated state run directory.
+	path, err := validatedStateFile(safeRunDir, stateFileContextJSON)
+	if err != nil {
+		return "", false
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", false
 	}

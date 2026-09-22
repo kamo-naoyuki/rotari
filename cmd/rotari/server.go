@@ -1095,10 +1095,18 @@ func controlQueueJobs(baseDir, queueName string, jobIDs []string, operation stri
 }
 
 func jobFinished(jobDir string) bool {
-	if _, err := os.Stat(filepath.Join(jobDir, "finished_at")); err == nil {
-		return true
+	if path, err := validatedStateFile(jobDir, stateFileFinishedAt); err == nil {
+		if _, err := os.Stat(path); err == nil {
+			return true
+		}
 	}
-	data, err := os.ReadFile(filepath.Join(jobDir, "status.json")) // NOSONAR: jobDir is produced by validatedJobDir.
+	// NOSONAR: jobDir is produced by validated run/job path helpers before reading the status file.
+	path, err := validatedStateFile(jobDir, stateFileStatusJSON)
+	if err != nil {
+		return false
+	}
+	// NOSONAR: jobDir is produced by validated job and run path helpers.
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return false
 	}
@@ -1147,10 +1155,12 @@ func attemptState(jobDir string) string {
 	if state := strings.ToLower(strings.TrimSpace(loadSchedulerStatus(jobDir))); state != "" {
 		return state
 	}
-	if data, err := os.ReadFile(filepath.Join(jobDir, stateFileStatusJSON)); err == nil {
-		var status slurmStatus
-		if json.Unmarshal(data, &status) == nil && status.Phase != "" {
-			return strings.ToLower(status.Phase)
+	if path, err := validatedStateFile(jobDir, stateFileStatusJSON); err == nil {
+		if data, err := os.ReadFile(path); err == nil {
+			var status slurmStatus
+			if json.Unmarshal(data, &status) == nil && status.Phase != "" {
+				return strings.ToLower(status.Phase)
+			}
 		}
 	}
 	if jobFinished(jobDir) {

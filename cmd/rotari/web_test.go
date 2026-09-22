@@ -689,6 +689,60 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 	}
 }
 
+func TestGenerateStaticWebIncludesCarriedOriginLogs(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	sourceRunID, currentRunID := "20260922-070308-0d83bd39", "20260922-070309-0d83bd40"
+	attemptID := makeAttemptID(sourceRunID, "job-1", 0)
+	job := QueuedCommand{ID: "job-1", Command: []string{"true"}}
+	if err := writeJSON(filepath.Join(paths.runsDir, sourceRunID, "commands.json"), Queue{Commands: []QueuedCommand{job}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(paths.runsDir, sourceRunID, "summary.json"), RunSummary{RunID: sourceRunID, Status: "finished", Results: []JobResult{{ID: "job-1", AttemptID: attemptID}}}); err != nil {
+		t.Fatal(err)
+	}
+	job.Origin = &JobOrigin{RunID: sourceRunID, JobID: "job-1", Status: "success"}
+	if err := writeJSON(filepath.Join(paths.runsDir, currentRunID, "commands.json"), Queue{Commands: []QueuedCommand{job}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(paths.runsDir, currentRunID, "summary.json"), RunSummary{RunID: currentRunID, Status: "finished", Results: []JobResult{{ID: "job-1", AttemptID: attemptID}}}); err != nil {
+		t.Fatal(err)
+	}
+	sourceJobDir := filepath.Join(paths.runsDir, sourceRunID, "job-1")
+	if err := os.MkdirAll(filepath.Join(sourceJobDir, "attempts", attemptID), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceJobDir, "output"), []byte("source log\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceJobDir, "attempts", attemptID, "output"), []byte("source attempt log\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	outputDir := filepath.Join(t.TempDir(), "web")
+	if err := generateStaticWeb(outputDir, baseDir, "default"); err != nil {
+		t.Fatal(err)
+	}
+	index, err := os.ReadFile(filepath.Join(outputDir, "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`"default/` + currentRunID + `/job-1/":"source log\n"`,
+		`"default/` + currentRunID + `/job-1/` + attemptID + `":"source attempt log\n"`,
+	} {
+		if !strings.Contains(string(index), want) {
+			t.Fatalf("static web page does not contain carried log mapping %q", want)
+		}
+	}
+}
+
 func TestWebSeparatesLogsFromActions(t *testing.T) {
 	html := webHTML()
 	for _, want := range []string{"function mergeActionColumns(){}", "function orderJobActions()", "view-log", "show-path", "delete-run", "Job log", "View log", "Source log", "Logs", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const buttons=[...logCell.querySelectorAll('button')]", "const diagnosisControl=canDiagnose", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", "dataset.view!=='path'", "modal.dataset.view='log';modal.querySelector('strong').textContent='Job log';", "cell.style.display='table-cell'", "button.style.margin='0 6px 6px 0'", "cell.style.width='170px'"} {
@@ -742,6 +796,18 @@ func TestWebProvidesCopyAndAIReports(t *testing.T) {
 	}
 	if strings.Index(html, `Open ChatGPT`) > strings.Index(html, `Open Gemini`) || strings.Index(html, `Open Gemini`) > strings.Index(html, `Open Claude`) {
 		t.Fatal("AI service buttons are not ordered ChatGPT, Gemini, Claude")
+	}
+}
+
+func TestWebReportModalOutputScrollsWithinPanel(t *testing.T) {
+	for _, want := range []string{
+		".output-panel {\n  display: flex;\n  flex-direction: column;",
+		".output-box {\n  position: relative;\n  flex: 1;\n  min-height: 0;",
+		".output-panel .log {\n  height: 100%;",
+	} {
+		if !strings.Contains(webStylesCSS, want) {
+			t.Fatalf("web stylesheet does not constrain report output with %q", want)
+		}
 	}
 }
 
@@ -861,6 +927,53 @@ func TestWebLogReadsSelectedAttempt(t *testing.T) {
 	newWebHandler(baseDir, "", false).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK || recorder.Body.String() != "selected attempt\n" {
 		t.Fatalf("selected attempt log = (%d, %q), want selected attempt output", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestWebLogReadsCarriedOrigin(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceRunID := "20260922-070308-0d83bd39"
+	currentRunID := "20260922-070309-0d83bd40"
+	attemptID := makeAttemptID(sourceRunID, "job-1", 0)
+	currentRunDir := filepath.Join(paths.runsDir, currentRunID)
+	queue := Queue{Commands: []QueuedCommand{{
+		ID: "job-1", Command: []string{"true"},
+		Origin: &JobOrigin{RunID: sourceRunID, JobID: "job-1", Status: "success"},
+	}}}
+	if err := writeJSON(filepath.Join(currentRunDir, "commands.json"), queue); err != nil {
+		t.Fatal(err)
+	}
+	sourceJobDir := filepath.Join(paths.runsDir, sourceRunID, "job-1")
+	if err := os.MkdirAll(filepath.Join(sourceJobDir, "attempts", attemptID), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceJobDir, "output"), []byte("source log\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceJobDir, "attempts", attemptID, "output"), []byte("source attempt log\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, suffix := range map[string]string{
+		"job":     "",
+		"attempt": "&attempt_id=" + attemptID,
+	} {
+		t.Run(name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "/api/log?project_name=default&run_id="+currentRunID+"&job_id=job-1"+suffix, nil)
+			recorder := httptest.NewRecorder()
+			newWebHandler(baseDir, "", false).ServeHTTP(recorder, request)
+			want := "source log\n"
+			if name == "attempt" {
+				want = "source attempt log\n"
+			}
+			if recorder.Code != http.StatusOK || recorder.Body.String() != want {
+				t.Fatalf("carried log = (%d, %q), want %q", recorder.Code, recorder.Body.String(), want)
+			}
+		})
 	}
 }
 

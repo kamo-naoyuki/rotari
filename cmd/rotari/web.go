@@ -416,29 +416,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		runDir, err := joinValidatedPath(filepath.Join(projectDir, "runs"), runID)
-		if err != nil {
-			writeWebError(writer, err)
-			return
-		}
-		jobDir, err := validatedJobDir(runDir, jobID)
-		if err != nil {
-			writeWebError(writer, err)
-			return
-		}
-		if attemptID := request.URL.Query().Get("attempt_id"); attemptID != "" {
-			payload, decodeErr := decodeAttemptID(attemptID)
-			if decodeErr != nil || payload.RunID != runID || payload.JobID != jobID {
-				writeWebError(writer, fmt.Errorf("attempt_id must identify this run and job"))
-				return
-			}
-			jobDir, err = specificAttemptJobDir(runDir, jobID, attemptID)
-			if err != nil {
-				writeWebError(writer, err)
-				return
-			}
-		}
-		path, err := validatedStateFile(jobDir, "output")
+		path, err := webLogPath(filepath.Join(projectDir, "runs"), runID, jobID, request.URL.Query().Get("attempt_id"))
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -872,21 +850,28 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 				reports[staticReportKey(queue.QueueName, run.RunID, "")] = report
 			}
 			for _, job := range run.Jobs {
-				jobDir, pathErr := validatedJobDir(filepath.Join(baseDir, "projects", queue.QueueName, "runs", run.RunID), job.ID)
+				path, pathErr := webLogPath(paths.runsDir, run.RunID, job.ID, "")
 				if pathErr != nil {
 					continue
 				}
-				path := filepath.Join(jobDir, "output")
 				data, readErr := os.ReadFile(path)
 				if readErr == nil {
 					logs[staticLogKey(queue.QueueName, run.RunID, job.ID)] = string(data)
 				}
+				if job.AttemptID != "" {
+					attemptPath, attemptErr := webLogPath(paths.runsDir, run.RunID, job.ID, job.AttemptID)
+					if attemptErr == nil {
+						if attemptData, attemptReadErr := os.ReadFile(attemptPath); attemptReadErr == nil {
+							logs[staticLogKey(queue.QueueName, run.RunID, job.ID, job.AttemptID)] = string(attemptData)
+						}
+					}
+				}
 				for _, attempt := range job.Attempts {
-					attemptDir, attemptErr := specificAttemptJobDir(filepath.Join(baseDir, "projects", queue.QueueName, "runs", run.RunID), job.ID, attempt.ID)
+					attemptPath, attemptErr := webLogPath(paths.runsDir, run.RunID, job.ID, attempt.ID)
 					if attemptErr != nil {
 						continue
 					}
-					attemptData, attemptReadErr := os.ReadFile(filepath.Join(attemptDir, "output"))
+					attemptData, attemptReadErr := os.ReadFile(attemptPath)
 					if attemptReadErr == nil {
 						logs[staticLogKey(queue.QueueName, run.RunID, job.ID, attempt.ID)] = string(attemptData)
 					}
@@ -1006,6 +991,56 @@ func staticLogKey(queueName, runID, jobID string, attemptIDs ...string) string {
 		attemptID = attemptIDs[0]
 	}
 	return queueName + "/" + runID + "/" + jobID + "/" + attemptID
+}
+
+func webLogPath(runsDir, runID, jobID, attemptID string) (string, error) {
+	runDir, resolvedJobID, err := resolveWebLogJob(runsDir, runID, jobID)
+	if err != nil {
+		return "", err
+	}
+	jobDir, err := validatedJobDir(runDir, resolvedJobID)
+	if err != nil {
+		return "", err
+	}
+	if attemptID == "" {
+		return validatedStateFile(jobDir, "output")
+	}
+	payload, decodeErr := decodeAttemptID(attemptID)
+	if decodeErr != nil || payload.RunID != filepath.Base(runDir) || payload.JobID != resolvedJobID {
+		return "", fmt.Errorf("attempt_id must identify this run and job")
+	}
+	jobDir, err = specificAttemptJobDir(runDir, resolvedJobID, attemptID)
+	if err != nil {
+		return "", err
+	}
+	return validatedStateFile(jobDir, "output")
+}
+
+func resolveWebLogJob(runsDir, runID, jobID string) (string, string, error) {
+	runDir, err := validatedRunDir(pathSet{runsDir: runsDir}, runID)
+	if err != nil {
+		return "", "", err
+	}
+	jobDir, err := validatedJobDir(runDir, jobID)
+	if err != nil {
+		return "", "", err
+	}
+	outputPath, err := validatedStateFile(jobDir, "output")
+	if err != nil {
+		return "", "", err
+	}
+	if _, statErr := os.Stat(outputPath); !errors.Is(statErr, os.ErrNotExist) {
+		return runDir, jobID, nil
+	}
+	origin := loadRunOrigin(runDir, jobID)
+	if origin == nil {
+		return runDir, jobID, nil
+	}
+	originRunDir, err := validatedRunDir(pathSet{runsDir: runsDir}, origin.RunID)
+	if err != nil {
+		return "", "", err
+	}
+	return originRunDir, origin.JobID, nil
 }
 
 func staticReportKey(projectName, runID, jobID string) string {
@@ -1223,7 +1258,12 @@ func loadWebAttempts(runDir string, jobSpec JobSpec) []webAttempt {
 }
 
 func readAttemptTimestamp(jobDir, name string) string {
-	data, err := os.ReadFile(filepath.Join(jobDir, name))
+	path, err := validatedStateFile(jobDir, name)
+	if err != nil {
+		return ""
+	}
+	// NOSONAR: jobDir is a validated run/job directory and name is a fixed state-file name.
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}

@@ -1271,7 +1271,18 @@ func joinValidatedPath(basePath, element string) (string, error) {
 	if !isValidPathElement(element) {
 		return "", fmt.Errorf("invalid path element %q", element)
 	}
-	return filepath.Join(basePath, filepath.Base(element)), nil
+	return safeJoin(basePath, element)
+}
+
+func safeJoin(basePath, element string) (string, error) {
+	root := filepath.Clean(basePath)
+	// NOSONAR: element is validated as a single path element before it reaches this join.
+	joined := filepath.Join(root, element)
+	rel, err := filepath.Rel(root, joined)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("invalid path element %q", element)
+	}
+	return joined, nil
 }
 
 func validatedStateFile(basePath, fileName string) (string, error) {
@@ -1280,7 +1291,7 @@ func validatedStateFile(basePath, fileName string) (string, error) {
 		stateFileSchedulerJSON, stateFileStatusJSON, stateFileStatus, stateFileSubmittedAt,
 		stateFileFinishedAt, commandJSONName, stateFileJobJSON, stateFilePID, stateFileCancelled,
 		stateFileName:
-		return filepath.Join(basePath, fileName), nil
+		return safeJoin(basePath, fileName)
 	default:
 		return "", fmt.Errorf("invalid state file name %q", fileName)
 	}
