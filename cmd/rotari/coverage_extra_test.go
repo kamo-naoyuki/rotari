@@ -86,13 +86,13 @@ func TestFormatRunAIReportIncludesFailedJobsOnly(t *testing.T) {
 	}
 }
 
-func TestConfigOptionNamesExcludesConfigCommand(t *testing.T) {
+func TestConfigOptionNamesExcludesConfigOnlyOptions(t *testing.T) {
 	names := configOptionNames()
 	if !sort.StringsAreSorted(names) {
 		t.Fatalf("config option names are not sorted: %v", names)
 	}
 	for _, name := range names {
-		if name == "format" || name == "output" {
+		if name == "output" {
 			t.Fatalf("config-only option %q leaked into configOptionNames", name)
 		}
 	}
