@@ -257,7 +257,7 @@ function renderRun(q, runID) {
     run.context && run.context.config_paths,
   );
   document.getElementById("page-title").innerHTML =
-    copyIconForValue(runID, "run ID") + esc(run.run_name || runID);
+    esc(run.run_name || runID);
   document.getElementById("summary").innerHTML =
     "<span>Project: " +
     esc(q.project_name) +

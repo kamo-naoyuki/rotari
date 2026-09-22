@@ -148,6 +148,9 @@ func TestWebRunPageCopiesConfigPathsAndRunID(t *testing.T) {
 			t.Fatalf("web run page is missing identity copy control %q", marker)
 		}
 	}
+	if strings.Count(html, `copyIconForValue(run.run_id, "run ID")`) != 1 {
+		t.Fatal("web run page has duplicate run ID copy controls")
+	}
 }
 
 func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {
