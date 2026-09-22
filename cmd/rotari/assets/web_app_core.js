@@ -80,7 +80,7 @@ function setLocation(base, paths) {
     const copy = document
       .createRange()
       .createContextualFragment(copyIconForValue(path, "config path"));
-    location.append(copy, path);
+    location.append(path, copy);
   });
 }
 function pageConfigPaths() {
@@ -260,8 +260,8 @@ function renderRun(q, runID) {
     "<span>Project: " +
     esc(q.project_name) +
     "</span><span>Run ID: " +
-    copyIconForValue(run.run_id, "run ID") +
     esc(run.run_id) +
+    copyIconForValue(run.run_id, "run ID") +
     "</span><span>Status: " +
     esc(run.status) +
     "</span><span>Exit: " +
@@ -380,16 +380,16 @@ function renderRun(q, runID) {
         esc(j.id) +
         '"> <strong>' +
         '<span class="identity-line">' +
-        jobNameCopy +
         jobName +
+        jobNameCopy +
         "</span>" +
         '<span class="identity-line">' +
-        jobIDCopy +
         esc(j.id) +
+        jobIDCopy +
         "</span>" +
         '<span class="identity-line">' +
-        attemptCopy +
         esc(j.attempt_id || "-") +
+        attemptCopy +
         attemptMenu +
         "</span>" +
         carriedFrom +
@@ -402,8 +402,8 @@ function renderRun(q, runID) {
         "</td><td>" +
         esc(j.working_directory || "-") +
         '</td><td class="command">' +
-        commandCopy +
         esc(commandText) +
+        commandCopy +
         "</td><td>" +
         esc(j.submitted_at || "-") +
         "</td><td>" +
@@ -433,10 +433,11 @@ function renderRun(q, runID) {
     " | Jobs: " +
     (run.jobs || []).length +
     "</p><p>Working directory: " +
-    cwdCopy +
     "<code>" +
     esc(cwd) +
-    '</code></p><pre class="log">Retry from a terminal:\n' +
+    "</code>" +
+    cwdCopy +
+    '</p><pre class="log">Retry from a terminal:\n' +
     esc(copy) +
     "</pre>" +
     (jobs
