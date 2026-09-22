@@ -326,17 +326,7 @@ func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsR
 		if err != nil {
 			continue
 		}
-		status, statusOK := readJobStatus(filepath.Join(jobDir, stateFileStatus))
-		if !statusOK {
-			if scheduler, ok := loadSlurmStatus(filepath.Join(jobDir, statusJSONName)); ok && jobStatusTerminal(scheduler) {
-				status, statusOK = scheduler.ExitCode, true
-			}
-		}
-		if !statusOK {
-			if schedulerState, ok := loadTerminalSchedulerState(jobDir); ok {
-				status, statusOK = schedulerState, true
-			}
-		}
+		status, statusOK := loadTerminalJobStatus(jobDir)
 		if !statusOK {
 			if result, ok := resultByID[job.ID]; ok {
 				status, statusOK = result.ExitCode, true

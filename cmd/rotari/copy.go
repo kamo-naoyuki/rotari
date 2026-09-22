@@ -187,10 +187,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	if summaryErr != nil && selection != "all" {
 		return "", fmt.Errorf("failed to load run summary: %w", summaryErr)
 	}
-	results := make(map[string]JobResult, len(summary.Results))
-	for _, result := range summary.Results {
-		results[result.ID] = result
-	}
+	results := jobResultsByID(summary.Results)
 	originCWD := ""
 	if data, contextErr := os.ReadFile(filepath.Join(sourceRunDir, "context.json")); contextErr == nil { // NOSONAR: sourceRunDir is produced by validatedRunDir.
 		var context RunContext

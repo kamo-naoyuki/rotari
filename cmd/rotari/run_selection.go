@@ -126,10 +126,7 @@ func planRerunSelection(paths pathSet, queue Queue, selection string, jobIDs []s
 	if err != nil {
 		return rerunPlan{}, fmt.Errorf("failed to load run summary: %w", err)
 	}
-	results := make(map[string]JobResult, len(summary.Results))
-	for _, result := range summary.Results {
-		results[result.ID] = result
-	}
+	results := jobResultsByID(summary.Results)
 	originCWD := ""
 	if data, contextErr := os.ReadFile(filepath.Join(runDir, "context.json")); contextErr == nil {
 		var context RunContext

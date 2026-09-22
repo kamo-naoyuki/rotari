@@ -850,10 +850,7 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 	runQueue, runQueueErr := loadQueue(filepath.Join(runDir, "commands.json"))
 	runActive := runIsActive(paths, runID)
 	jobCounts := showJobCounts{}
-	resultByID := make(map[string]JobResult, len(summary.Results))
-	for _, result := range summary.Results {
-		resultByID[result.ID] = result
-	}
+	resultByID := jobResultsByID(summary.Results)
 	jobIDs := make([]string, 0, len(runQueue.Commands))
 	originByID := make(map[string]*JobOrigin, len(runQueue.Commands))
 	if runQueueErr == nil {
@@ -913,20 +910,8 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 		if dependsOn == "" {
 			dependsOn = "-"
 		}
-		status, statusOK := readJobStatus(filepath.Join(jobDir, "status"))
+		status, statusOK := loadTerminalJobStatus(jobDir)
 		blocked := false
-		if !statusOK {
-			if slurm, ok := loadSlurmStatus(filepath.Join(jobDir, statusJSONName)); ok && jobStatusTerminal(slurm) {
-				status = slurm.ExitCode
-				statusOK = true
-			}
-		}
-		if !statusOK {
-			if schedulerState, ok := loadTerminalSchedulerState(jobDir); ok {
-				status = schedulerState
-				statusOK = true
-			}
-		}
 		if !statusOK {
 			if result, ok := resultByID[jobSpec.ID]; ok {
 				status = result.ExitCode
@@ -1090,19 +1075,6 @@ func showQueueContent(paths pathSet, queue Queue) int {
 	}
 	fmt.Printf("\n%s\n  rotari run -b %s -p %s\n", cyan("To execute these jobs:"), shellQuote(paths.baseDir), shellQuote(paths.queueName))
 	return 0
-}
-
-func queueOriginsByJobID(queue Queue) map[string]*JobOrigin {
-	origins := make(map[string]*JobOrigin)
-	for _, command := range queue.Commands {
-		if command.Origin != nil {
-			origins[command.ID] = command.Origin
-		}
-		for taskID, origin := range command.TaskOrigins {
-			origins[taskID] = origin
-		}
-	}
-	return origins
 }
 
 func showQueueJob(paths pathSet, queue Queue, jobID string) int {

@@ -1149,21 +1149,12 @@ func formatWebQueueDisplayTimes(state *webQueueState) {
 }
 
 func loadWebJobs(runDir string, summary RunSummary, attemptIDs ...string) ([]webJob, error) {
-	results := make(map[string]JobResult, len(summary.Results))
-	for _, result := range summary.Results {
-		results[result.ID] = result
-	}
+	results := jobResultsByID(summary.Results)
 	commands, err := loadQueue(filepath.Join(runDir, "commands.json"))
 	if err != nil {
 		return nil, err
 	}
-	origins := make(map[string]*JobOrigin, len(commands.Commands))
-	for _, command := range commands.Commands {
-		origins[command.ID] = command.Origin
-		for taskID, origin := range command.TaskOrigins {
-			origins[taskID] = origin
-		}
-	}
+	origins := queueOriginsByJobID(commands)
 	taskJobs := queueToJobs(commands.Commands)
 	selectedAttemptID := ""
 	selectedJobID := ""
