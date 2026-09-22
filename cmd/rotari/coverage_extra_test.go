@@ -33,6 +33,27 @@ func TestCmdSchemaValidAndInvalidArguments(t *testing.T) {
 	}
 }
 
+func TestCmdCompletionValidatesArgumentsAndGeneratesScripts(t *testing.T) {
+	if code := cmdCompletion(nil); code != 1 {
+		t.Fatalf("cmdCompletion(nil) = %d, want 1", code)
+	}
+	if code := cmdCompletion([]string{"bash", "extra"}); code != 1 {
+		t.Fatalf("cmdCompletion with extra arguments = %d, want 1", code)
+	}
+	if code := cmdCompletion([]string{"unknown"}); code != 1 {
+		t.Fatalf("cmdCompletion with unknown shell = %d, want 1", code)
+	}
+	if code := cmdCompletion([]string{"install", "bash", "extra"}); code != 1 {
+		t.Fatalf("cmdCompletion install with extra arguments = %d, want 1", code)
+	}
+
+	for _, shell := range []string{"bash", "zsh", "fish"} {
+		if code := cmdCompletion([]string{shell}); code != 0 {
+			t.Fatalf("cmdCompletion(%q) = %d, want 0", shell, code)
+		}
+	}
+}
+
 func TestColorMessageCoversStatusAndFailureBranches(t *testing.T) {
 	message := strings.Join([]string{
 		"Run failed: exit status 1",
