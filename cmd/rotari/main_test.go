@@ -2637,7 +2637,7 @@ func TestChangeBatchRestoresAndEditsPreviousRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message, err := changeBatch(baseDir, "default", "", "train-id", "", "slurm",
+	message, err := changeBatch(baseDir, "default", "run-1", "train-id", "", "slurm",
 		[]string{"-p gpu"}, false, nil, false, "", []string{"prepare"}, false, []string{"./train-v2"})
 	if err != nil {
 		t.Fatal(err)
