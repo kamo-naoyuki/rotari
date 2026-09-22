@@ -145,6 +145,11 @@ whenever any one task matches, matching pre-partial-array behavior.
 job already in the destination queue. Otherwise the original ID — and any
 dependency relationships between copied jobs — is preserved.
 
+### Can I copy a job without its prerequisite?
+Yes. `copy` removes an omitted prerequisite from the copied job. If that
+prerequisite failed in the source run, `copy` rejects the selection; include
+the prerequisite in the copy selection before retrying.
+
 ### If a prerequisite job (`--depends-on`) fails, what happens to the jobs that depend on it?
 They are recorded as `blocked` and are never executed for that run. A retry
 reruns only the failed prerequisite (and any other failed/unfinished jobs);

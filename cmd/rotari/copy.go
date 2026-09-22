@@ -236,6 +236,22 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	if len(selected) == 0 {
 		return "", fmt.Errorf("run %s has no jobs matching selection", runID)
 	}
+	commandsByName := make(map[string]QueuedCommand, len(snapshot.Commands))
+	for _, command := range snapshot.Commands {
+		commandsByName[command.Name] = command
+	}
+	for _, command := range selected {
+		for _, dependency := range command.DependsOn {
+			if selectedNames[dependency] {
+				continue
+			}
+			dependencyCommand := commandsByName[dependency]
+			result, finished := aggregatedJobResult(dependencyCommand.ID, dependencyCommand.Array, results)
+			if finished && result.ExitCode != 0 {
+				return "", fmt.Errorf("cannot copy job %q: excluded dependency %q failed in run %s", command.Name, dependency, runID)
+			}
+		}
+	}
 
 	queue, err := loadQueue(paths.queueFile)
 	if err != nil {
