@@ -289,21 +289,29 @@ The state directory mirrors this structure:
 
 ```text
 <basedir>/
-├── server.log
-└── projects/
-  └── <project-name>/
+└── projects/<project-name>/
     ├── queue.json
-    └── runs/
-      └── <run-id>/
+    ├── meta.json
+    └── runs/<run-id>/
         ├── commands.json
+        ├── context.json
         ├── summary.json
         └── <job-id>/
-          ├── command.json
-          └── output
+            ├── latest_attempt
+            └── attempts/<attempt-id>/
+                ├── command.json
+                ├── output
+                ├── status.json
+                └── executor-specific state
 ```
 
-This is the shared project state: the live queue is in `queue.json`, while each
-run stores an immutable snapshot under `runs/<run-id>/`.
+This is the shared project state: the live queue is in `queue.json`, while
+`meta.json` records the project's latest phase and run metadata. Each run stores
+an immutable command snapshot and execution context under
+`runs/<run-id>/`; each job keeps its latest attempt pointer and its individual
+attempt records. Files may appear incrementally while a run is active, so
+readers should treat missing optional files as incomplete state rather than as
+a successful result.
 
 ### Run and state
 
@@ -360,6 +368,8 @@ single-project/current-run resolution rules. For example:
 # rotari show -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j ATTEMPT_ID
 # is equivalent to
 rotari show -j ATTEMPT_ID
+```
+```sh
 # rotari copy -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j JOB_ID
 # is equivalent to
 rotari copy -r RUN_ID -j JOB_ID
@@ -929,10 +939,6 @@ rotari server list
 rotari server shutdown
 ```
 
-The supervisor records lifecycle, request, and error events in
-`<basedir>/server.log`. The file is capped at 1 MiB and is truncated before a
-new event would exceed that limit.
-
 ## Run registry maintenance
 
 Run IDs do not contain the base directory or project name. Rotari therefore
@@ -980,21 +986,14 @@ The apply step removes registry entries only. It skips candidates whose
 registry location changed or whose run directory reappeared, and never deletes
 run data.
 
-## Shared filesystem locking
+## Shared filesystem use
 
 Hosts sharing `--basedir/-b`/`ROTARI_BASEDIR` on NFS can share a queue. Updates
-(`add`, `change`, `remove`, `copy`, `run`, `delete`) use an advisory file lock;
-NFSv4 locking must be enabled. Rotari waits up to 30 seconds, then errors, and
-never deletes the lock file because that cannot safely release an active `flock`.
-
-`running.lock` records the run ID, PID, and host. On the origin host, rotari
-removes it after the PID exits but marks the run interrupted and blocks queue
-updates until recovery is acknowledged. Locks from other hosts are always
-considered active. This is file coordination, not a distributed lock service:
-it requires consistent `O_EXCL`, atomic rename, and `flock`, and cannot fence a
-host after a partition or fix inconsistent mounts. Confirm failed-host jobs
-stopped before recovery. Separate project names have separate queue and lock
-files and are safer, but the base server, registry, and filesystem remain shared.
+are coordinated through the shared state directory. This requires a consistent
+shared filesystem; it cannot fence a host after a network partition or repair
+inconsistent mounts. Confirm that jobs on a failed host have stopped before
+recovering the project. Separate project names keep their queue and run history
+separate, but the base directory and filesystem remain shared.
 
 After confirming a failed host's run has stopped, unlock that exact run:
 
@@ -1016,8 +1015,6 @@ provides HTTP authentication, not encryption.
   shared `0755`/`0644` permissions. Set `ROTARI_PRIVATE_STATE=true` for
   owner-only `0700`/`0600`; this affects only newly created paths and applies
   to the whole `--basedir/-b`.
-- **Server socket:** `<basedir>/server.sock` permits server control and is
-  always `0600`. On Linux, `SO_PEERCRED` also requires the peer UID to match.
 - **Web UI:** without `ROTARI_WEB_AUTH_TOKEN` or `--auth-token`, bind it to
   `127.0.0.1`; with a token, use only a trusted network or HTTPS proxy.
 
