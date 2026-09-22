@@ -119,7 +119,7 @@ jobs:
           run_id="$(docker exec --user "$SCHEDULER_USER" "$SCHEDULER_CONTAINER" find /state/projects/integration/runs -mindepth 1 -maxdepth 1 -type d -print | sed 's#^.*/##' | sort | tail -1)"
           "${rotari[@]}" show --basedir /state --project-name integration --run-id "$run_id" --logs
           for task in 1 2; do
-            docker exec --user "$SCHEDULER_USER" "$SCHEDULER_CONTAINER" sh -c "test -s /state/projects/integration/runs/$run_id/*-$task/status.json"
+            docker exec --user "$SCHEDULER_USER" "$SCHEDULER_CONTAINER" sh -c "test -s /state/projects/integration/runs/$run_id/*-$task/attempts/*/status.json"
           done
 
       - name: Stop scheduler
