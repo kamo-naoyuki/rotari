@@ -245,6 +245,7 @@ This is intentionally a thin wrapper, not a Python-native
 job executor: it accepts command argument lists such as `['./train.sh']`, not
 Python functions to serialize and submit. For a function-oriented Python job
 submission framework, see [Submitit](https://github.com/facebookincubator/submitit).
+
 ## Local web UI
 
 See the [web demo](https://kamo-naoyuki.github.io/rotari/) for a read-only UI
