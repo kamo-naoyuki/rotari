@@ -110,6 +110,82 @@ setTimeout(() => {
 	}
 }
 
+func TestWebRunAttemptSelectionUpdatesDisplayedJob(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	script := `
+const fs = require('fs');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const html = fs.readFileSync(process.argv[1], 'utf8');
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+const dom = new JSDOM(html, {
+  runScripts: 'dangerously',
+  url: 'http://127.0.0.1/project/default/run/run-1',
+  virtualConsole,
+  beforeParse(window) {
+    window.fetch = async (url) => {
+      if (url === '/api/state') return {ok: true, json: async () => state};
+      throw new Error('unexpected fetch: ' + url);
+    };
+    window.setInterval = () => 1;
+  },
+});
+setTimeout(() => {
+  const row = () => dom.window.document.querySelector('tr[data-job-id="job-1"]');
+  const assert = (condition, message) => { if (!condition) throw new Error(message); };
+  try {
+    assert(row(), 'job row was not rendered');
+    assert(row().textContent.includes('attempt-1'), 'latest attempt is not displayed');
+    dom.window.setAttemptMenuOpen('default', 'run-1', 'job-1', true);
+    dom.window.render();
+    assert(row().querySelector('.attempt-menu').open, 'attempt menu did not stay open after render');
+    dom.window.selectJobAttempt('default', 'run-1', 'job-1', 'attempt-0');
+    assert(row().textContent.includes('attempt-0'), 'selected attempt is not displayed');
+    assert(row().textContent.includes('0'), 'selected attempt result is not displayed');
+    assert(row().textContent.includes('old-start'), 'selected attempt timestamp is not displayed');
+    assert(row().querySelector('.attempt-menu').open === false, 'attempt menu did not close after selection');
+    assert(row().querySelector('button[onclick*="attempt-0"]'), 'log button does not target selected attempt');
+    if (errors.length) throw new Error(errors.join('\n'));
+  } catch (error) {
+    console.error(error.stack || String(error));
+    process.exit(1);
+  }
+}, 50);
+`
+	htmlPath := filepath.Join(t.TempDir(), "index.html")
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	if err := os.WriteFile(htmlPath, []byte(webHTML()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state := webState{Queues: []webQueueState{{
+		QueueName: "default",
+		Runs: []webRun{{
+			RunSummary: RunSummary{RunID: "run-1", Status: "finished"},
+			Jobs: []webJob{{
+				ID: "job-1", Name: "train", Command: []string{"true"}, AttemptID: "attempt-1",
+				Attempts: []webAttempt{
+					{ID: "attempt-1", Result: &JobResult{ID: "job-1", AttemptID: "attempt-1", ExitCode: 1}, SubmittedAt: "latest-start"},
+					{ID: "attempt-0", Result: &JobResult{ID: "job-1", AttemptID: "attempt-0", ExitCode: 0}, SubmittedAt: "old-start"},
+				},
+			}},
+		}},
+	}}}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if output, err := exec.Command("node", "-e", script, htmlPath, statePath).CombinedOutput(); err != nil {
+		t.Fatalf("attempt selection runtime check failed: %v\n%s", err, output)
+	}
+}
+
 func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 	html := webHTML()
 	if !webContains(html, "rotari run'+basedir+' --project-name '+shellQuote(queueName)") {
@@ -776,6 +852,26 @@ func TestWebLogReadsSelectedAttempt(t *testing.T) {
 	newWebHandler(baseDir, "", false).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK || recorder.Body.String() != "selected attempt\n" {
 		t.Fatalf("selected attempt log = (%d, %q), want selected attempt output", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestWebLogRejectsAttemptForAnotherJobOrRun(t *testing.T) {
+	baseDir := t.TempDir()
+	runID := "20260922-070308-0d83bd39"
+	for _, attemptID := range []string{
+		makeAttemptID(runID, "other-job", 0),
+		makeAttemptID("20260922-070309-0d83bd40", "job-1", 0),
+		makeAttemptID(runID, "job-1", 99),
+		"not-an-attempt",
+	} {
+		t.Run(attemptID, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "/api/log?project_name=default&run_id="+runID+"&job_id=job-1&attempt_id="+attemptID, nil)
+			recorder := httptest.NewRecorder()
+			newWebHandler(baseDir, "", false).ServeHTTP(recorder, request)
+			if recorder.Code == http.StatusOK {
+				t.Fatalf("mismatched attempt %q was accepted", attemptID)
+			}
+		})
 	}
 }
 
