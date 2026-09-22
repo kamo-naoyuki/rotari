@@ -898,6 +898,13 @@ there.
 rotari config
 ```
 
+Use `rotari config --list` to list the existing config files found in the
+global, basedir, and project locations. 
+
+```sh
+rotari config --list --basedir DIR --project-name NAME
+```
+
 The resolution order is:
 
 ```text
