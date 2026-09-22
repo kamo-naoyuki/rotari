@@ -135,8 +135,7 @@ func submitSlurmJob(runDir string, job JobSpec, executorOptions []string) (slurm
 		return slurmJobMetadata{}, err
 	}
 	outputPath := filepath.Join(jobDir, "output")
-	runID := filepath.Base(runDir)
-	showCommand := fmt.Sprintf("rotari show --run-id %s --job-id %s", shellQuote(runID), shellQuote(job.ID))
+	showCommand := fmt.Sprintf("rotari show --job-id %s", shellQuote(job.AttemptID))
 	args := []string{"--parsable", "--job-name=" + showCommand, "--output=" + outputPath, "--error=" + outputPath}
 	expandedOptions, err := expandShellOptions(executorOptions)
 	if err != nil {

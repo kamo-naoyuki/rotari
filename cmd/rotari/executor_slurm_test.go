@@ -27,7 +27,7 @@ printf '12345;fake-host\n'
 	t.Setenv("ROTARI_MASTERDIR", masterDir)
 	baseDir := t.TempDir()
 	runDir := filepath.Join(baseDir, "projects", "demo", "runs", "run-1")
-	job := JobSpec{ID: "abc123", Command: []string{"echo", "hello"}}
+	job := JobSpec{ID: "abc123", AttemptID: "att_run-1-abc123-0", Command: []string{"echo", "hello"}}
 	metadata, err := submitSlurmJob(runDir, job, []string{"-p short --cpus-per-task=2"})
 	if err != nil {
 		t.Fatal(err)
@@ -41,7 +41,7 @@ printf '12345;fake-host\n'
 	if !strings.Contains(metadata.Command[0], "echo") {
 		t.Fatalf("unexpected command: %#v", metadata.Command)
 	}
-	wrapper, err := os.ReadFile(filepath.Join(runDir, "abc123", "slurm-wrapper.sh"))
+	wrapper, err := os.ReadFile(filepath.Join(runDir, "abc123", "attempts", "att_run-1-abc123-0", "slurm-wrapper.sh"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ printf '12345;fake-host\n'
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantShowCommand := "--job-name=rotari show --run-id 'run-1' --job-id 'abc123'"
+	wantShowCommand := "--job-name=rotari show --job-id 'att_run-1-abc123-0'"
 	if !strings.Contains(string(arguments), wantShowCommand+"\n") {
 		t.Fatalf("sbatch arguments = %q, want %q", arguments, wantShowCommand)
 	}
