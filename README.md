@@ -27,13 +27,15 @@ You do not need to turn a simple sequence of commands into a workflow definition
 
 If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the basic idea should feel familiar: commands are dispatched locally or to a cluster, with logs and success/failure tracked consistently across backends.
 
-* [**Snakemake**](https://github.com/snakemake/snakemake) is built around rules, inputs, outputs, and dependencies. This is useful when the workflow itself is an important part of the problem. But for a small experiment where a shell script already expresses what you want to run, introducing a workflow definition can make a simple task harder to read. **Rotari lets the shell script remain the workflow.**
+* [**Snakemake**](https://github.com/snakemake/snakemake) is built around rules, inputs, outputs, and dependencies. This is useful when the workflow itself is an important part of the problem. But for a small experiment where a shell script already expresses what you want to run, introducing a separate workflow definition can add concepts that are unnecessary for the task. **Rotari lets the shell script remain the workflow.**
 
-* [**Nextflow**](https://github.com/nextflow-io/nextflow) provides a DSL for describing processes, dataflow, and workflows. Rotari takes a simpler approach: **keep using the CLI commands and shell scripts you already have**, and use rotari to dispatch and track their execution.
 
-* [**Airflow**](https://github.com/apache/airflow), [**Prefect**](https://github.com/PrefectHQ/prefect), and [**Dagster**](https://github.com/dagster-io/dagster) provide richer workflow models, typically through Python-based workflow definitions. These are useful when you need that level of orchestration. **Rotari is for the cases where writing a shell script is already enough to describe the workflow, and you just need a better way to run and manage it.**
+* [**Nextflow**](https://github.com/nextflow-io/nextflow) provides a DSL for describing processes, dataflow, and workflows. It is useful when you want to express a workflow explicitly, but it also introduces a dedicated language for doing so. **Rotari is for cases where the commands you already have are enough to describe the workflow, and learning another workflow language would be unnecessary overhead.**
 
-The goal is not to replace shell scripts or compete with full-featured workflow systems. **It is to add just enough structure around the commands you already use, without making you rewrite them as a workflow.**
+* [**Airflow**](https://github.com/apache/airflow), [**Prefect**](https://github.com/PrefectHQ/prefect), and [**Dagster**](https://github.com/dagster-io/dagster) provide programmatic ways to define and orchestrate workflows. They are a good fit when the workflow itself needs to be expressed and managed as a program. **Rotari is aimed at a narrower case: when the CLI commands you already have are enough to describe the workflow, you can keep them as they are and use Rotari to run and manage them.**
+
+The goal is not to replace shell scripts or compete with full-featured workflow systems. **It is to add just enough structure to the commands you already use, and let the commands remain the workflow.**
+
 
 ## Installation
 
