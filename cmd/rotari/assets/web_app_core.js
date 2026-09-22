@@ -159,10 +159,7 @@ function renderOverview(queues) {
     " running</span>";
   const rows = queues
     .map((q) => {
-      let latest = null;
-      for (const run of q.runs) {
-        if (!latest || run.started_at > latest.started_at) latest = run;
-      }
+      const latest = latestRun(q.runs);
       return (
         '<tr><td><a class="link" href="/project/' +
         encodeURIComponent(q.project_name) +
@@ -218,7 +215,9 @@ function renderQueue(q) {
   const rows = q.runs
     .map(
       (r) =>
-        '<tr><td><a class="link run-id" href="/project/' +
+        '<tr><td>' +
+        esc(r.run_name || "-") +
+        '</td><td><a class="link run-id" href="/project/' +
         encodeURIComponent(q.project_name) +
         "/run/" +
         encodeURIComponent(r.run_id) +
@@ -241,7 +240,7 @@ function renderQueue(q) {
   document.getElementById("app").innerHTML =
     '<div class="toolbar"><a class="link" href="/">All projects</a></div>' +
     (rows
-      ? '<table class="runs"><thead><tr><th data-sort="run">Run</th><th data-sort="status">Status</th><th data-sort="exit">Exit</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th></tr></thead><tbody>' +
+      ? '<table class="runs"><thead><tr><th data-sort="run_name">run-name</th><th data-sort="run_id">run-id</th><th data-sort="status">Status</th><th data-sort="exit">Exit</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th></tr></thead><tbody>' +
         rows +
         "</tbody></table>"
       : '<div class="empty">No runs found.</div>');
@@ -292,9 +291,12 @@ function renderRun(q, runID) {
         result && result.error
           ? '<div class="error">' + esc(result.error) + "</div>"
           : "";
-      const logRun = j.origin ? j.origin.run_id : runID;
-      const logJob = j.origin ? j.origin.job_id : j.id;
-      const logAttemptID = j.origin ? "" : j.attempt_id;
+      const carried =
+        j.origin &&
+        (!j.attempt_id || j.attempt_id === (j.origin.attempt_id || ""));
+      const logRun = carried ? j.origin.run_id : runID;
+      const logJob = carried ? j.origin.job_id : j.id;
+      const logAttemptID = carried ? "" : j.attempt_id;
       const diagnoses = (result && result.diagnoses) || [];
       const canDiagnose = !!(
         result &&
@@ -319,7 +321,7 @@ function renderRun(q, runID) {
           diagnosisControl
         : diagnosisControl;
       const jobName = esc(j.name || "-");
-      const carriedFrom = j.origin
+      const carriedFrom = carried
         ? '<div class="meta">carried from ' + esc(j.origin.run_id) + "</div>"
         : "";
       const copyIcon = (value, label) =>

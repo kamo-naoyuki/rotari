@@ -572,16 +572,16 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			forbiddenReadOnly(writer)
 			return
 		}
-		var clear webClearRequest
-		if err := json.NewDecoder(request.Body).Decode(&clear); err != nil {
+		var clearRequest webClearRequest
+		if err := json.NewDecoder(request.Body).Decode(&clearRequest); err != nil {
 			writeWebError(writer, err)
 			return
 		}
-		if !validWebID(clear.QueueName) || !validWebID(clear.RunID) {
+		if !validWebID(clearRequest.QueueName) || !validWebID(clearRequest.RunID) {
 			writeWebError(writer, fmt.Errorf("project_name and run_id are required"))
 			return
 		}
-		if err := clearRunHistory(baseDir, clear.QueueName, clear.RunID); err != nil {
+		if err := clearRunHistory(baseDir, clearRequest.QueueName, clearRequest.RunID); err != nil {
 			writeWebError(writer, err)
 			return
 		}
@@ -994,22 +994,26 @@ func staticLogKey(queueName, runID, jobID string, attemptIDs ...string) string {
 }
 
 func webLogPath(runsDir, runID, jobID, attemptID string) (string, error) {
-	runDir, resolvedJobID, err := resolveWebLogJob(runsDir, runID, jobID)
-	if err != nil {
-		return "", err
-	}
-	if attemptID == "" {
-		jobDir, err := latestAttemptJobDir(runDir, resolvedJobID)
+	if attemptID != "" {
+		runDir, err := validatedRunDir(pathSet{runsDir: runsDir}, runID)
+		if err != nil {
+			return "", err
+		}
+		payload, decodeErr := decodeAttemptID(attemptID)
+		if decodeErr != nil || payload.RunID != runID || payload.JobID != jobID {
+			return "", fmt.Errorf("attempt_id must identify this run and job")
+		}
+		jobDir, err := specificAttemptJobDir(runDir, jobID, attemptID)
 		if err != nil {
 			return "", err
 		}
 		return validatedStateFile(jobDir, "output")
 	}
-	payload, decodeErr := decodeAttemptID(attemptID)
-	if decodeErr != nil || payload.RunID != filepath.Base(runDir) || payload.JobID != resolvedJobID {
-		return "", fmt.Errorf("attempt_id must identify this run and job")
+	runDir, resolvedJobID, err := resolveWebLogJob(runsDir, runID, jobID)
+	if err != nil {
+		return "", err
 	}
-	jobDir, err := specificAttemptJobDir(runDir, resolvedJobID, attemptID)
+	jobDir, err := latestAttemptJobDir(runDir, resolvedJobID)
 	if err != nil {
 		return "", err
 	}

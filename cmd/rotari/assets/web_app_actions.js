@@ -344,11 +344,7 @@ function addExecutionGuide() {
     const runID = decodeURIComponent(parts[3]);
     const run = queue.runs.find((item) => item.run_id === runID);
     if (!run) return;
-    const latest = queue.runs.reduce(
-      (current, item) =>
-        !current || item.started_at > current.started_at ? item : current,
-      null,
-    );
+    const latest = latestRun(queue.runs);
     const prefix =
       run.cwd && run.cwd !== "-" ? "cd " + shellQuote(run.cwd) + "\n" : "";
     if (latest && latest.run_id === runID) {

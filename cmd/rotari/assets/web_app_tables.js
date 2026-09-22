@@ -157,12 +157,18 @@ function enableTableSorting() {
   }
 }
 function runOrderKey(run) {
-  const sample =
-    run &&
-    run.context &&
-    run.context.load_samples &&
-    run.context.load_samples[0];
+  const sample = run?.context?.load_samples?.[0];
   return (sample && sample.at) || run.started_at || "";
+}
+function latestRun(runs) {
+  return (runs || []).reduce((latest, run) => {
+    if (!latest) return run;
+    const key = runOrderKey(run);
+    const latestKey = runOrderKey(latest);
+    return key > latestKey || (key === latestKey && run.run_id > latest.run_id)
+      ? run
+      : latest;
+  }, null);
 }
 function enhanceQueueOverview() {
   const parts = pageParts();
@@ -171,10 +177,7 @@ function enhanceQueueOverview() {
   document.querySelectorAll("#app section").forEach((section, index) => {
     const queue = queues[index];
     if (!queue) return;
-    let latest = null;
-    for (const run of queue.runs) {
-      if (!latest || runOrderKey(run) > runOrderKey(latest)) latest = run;
-    }
+    const latest = latestRun(queue.runs);
     const latestHTML = latest
       ? '<div class="meta">Latest run: <a class="link" href="/project/' +
         encodeURIComponent(queue.project_name) +
@@ -222,10 +225,7 @@ function markLatestRun() {
     const badge = row.querySelector(".latest-badge");
     if (badge) badge.remove();
   });
-  let latest = null;
-  for (const run of queue.runs) {
-    if (!latest || runOrderKey(run) > runOrderKey(latest)) latest = run;
-  }
+  const latest = latestRun(queue.runs);
   if (!latest) return;
   table.querySelectorAll("tbody tr").forEach((row) => {
     const link = row.querySelector("a.run-id");

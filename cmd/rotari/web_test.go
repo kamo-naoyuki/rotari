@@ -176,6 +176,7 @@ setTimeout(async () => {
 			RunSummary: RunSummary{RunID: "run-1", Status: "finished"},
 			Jobs: []webJob{{
 				ID: "job-1", Name: "train", Command: []string{"true"}, AttemptID: "attempt-1",
+				Origin: &JobOrigin{RunID: "source-run", JobID: "source-job", AttemptID: "source-attempt"},
 				Attempts: []webAttempt{
 					{ID: "attempt-1", Result: &JobResult{ID: "job-1", AttemptID: "attempt-1", ExitCode: 1}, SubmittedAt: "latest-start"},
 					{ID: "attempt-0", Result: &JobResult{ID: "job-1", AttemptID: "attempt-0", ExitCode: 0}, SubmittedAt: "old-start"},
@@ -243,6 +244,11 @@ func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {
 	for _, marker := range []string{"function rowCell(row,key)", "function copySelectedJobs(queue,run,append)", "function arrangeRunControls()", "function orderJobActions()"} {
 		if !webContains(html, marker) {
 			t.Fatalf("web HTML is missing required generated hook %q", marker)
+		}
+	}
+	for _, marker := range []string{"<th data-sort=\"run_name\">run-name</th>", "<th data-sort=\"run_id\">run-id</th>", "esc(r.run_name || \"-\")"} {
+		if !webContains(html, marker) {
+			t.Fatalf("web project runs table is missing %q", marker)
 		}
 	}
 	for _, obsolete := range []string{"queue_name", "/queue/", "state.queues"} {
@@ -700,6 +706,7 @@ func TestGenerateStaticWebIncludesCarriedOriginLogs(t *testing.T) {
 	}
 	sourceRunID, currentRunID := "20260922-070308-0d83bd39", "20260922-070309-0d83bd40"
 	attemptID := makeAttemptID(sourceRunID, "job-1", 0)
+	currentAttemptID := makeAttemptID(currentRunID, "job-1", 0)
 	job := QueuedCommand{ID: "job-1", Command: []string{"true"}}
 	if err := writeJSON(filepath.Join(paths.runsDir, sourceRunID, "commands.json"), Queue{Commands: []QueuedCommand{job}}); err != nil {
 		t.Fatal(err)
@@ -707,11 +714,11 @@ func TestGenerateStaticWebIncludesCarriedOriginLogs(t *testing.T) {
 	if err := writeJSON(filepath.Join(paths.runsDir, sourceRunID, "summary.json"), RunSummary{RunID: sourceRunID, Status: "finished", Results: []JobResult{{ID: "job-1", AttemptID: attemptID}}}); err != nil {
 		t.Fatal(err)
 	}
-	job.Origin = &JobOrigin{RunID: sourceRunID, JobID: "job-1", Status: "success"}
+	job.Origin = &JobOrigin{RunID: sourceRunID, JobID: "job-1", AttemptID: attemptID, Status: "success"}
 	if err := writeJSON(filepath.Join(paths.runsDir, currentRunID, "commands.json"), Queue{Commands: []QueuedCommand{job}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(paths.runsDir, currentRunID, "summary.json"), RunSummary{RunID: currentRunID, Status: "finished", Results: []JobResult{{ID: "job-1", AttemptID: attemptID}}}); err != nil {
+	if err := writeJSON(filepath.Join(paths.runsDir, currentRunID, "summary.json"), RunSummary{RunID: currentRunID, Status: "finished", Results: []JobResult{{ID: "job-1", AttemptID: currentAttemptID}}}); err != nil {
 		t.Fatal(err)
 	}
 	sourceJobDir := filepath.Join(paths.runsDir, sourceRunID, "job-1")
@@ -719,6 +726,13 @@ func TestGenerateStaticWebIncludesCarriedOriginLogs(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(sourceJobDir, "attempts", attemptID, "output"), []byte("source attempt log\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	currentAttemptDir := filepath.Join(paths.runsDir, currentRunID, "job-1", "attempts", currentAttemptID)
+	if err := os.MkdirAll(currentAttemptDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(currentAttemptDir, "output"), []byte("current attempt log\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -732,7 +746,7 @@ func TestGenerateStaticWebIncludesCarriedOriginLogs(t *testing.T) {
 	}
 	for _, want := range []string{
 		`"default/` + currentRunID + `/job-1/":"source attempt log\n"`,
-		`"default/` + currentRunID + `/job-1/` + attemptID + `":"source attempt log\n"`,
+		`"default/` + currentRunID + `/job-1/` + currentAttemptID + `":"current attempt log\n"`,
 	} {
 		if !strings.Contains(string(index), want) {
 			t.Fatalf("static web page does not contain carried log mapping %q", want)
@@ -772,6 +786,29 @@ func TestWebStatusColorsOnlyStatusCells(t *testing.T) {
 	}
 	if webContains(html, `document.querySelectorAll("td,span")`) {
 		t.Fatal("web page colors arbitrary table cells and spans as statuses")
+	}
+}
+
+func TestWebUsesSharedLatestRunResolver(t *testing.T) {
+	html := webHTML()
+	for _, want := range []string{
+		`function latestRun(runs)`,
+		`const key = runOrderKey(run)`,
+		`key === latestKey && run.run_id > latest.run_id`,
+		`const latest = latestRun(q.runs)`,
+		`const latest = latestRun(queue.runs)`,
+	} {
+		if !webContains(html, want) {
+			t.Fatalf("web page does not use the shared latest-run resolver %q", want)
+		}
+	}
+	for _, obsolete := range []string{
+		`run.started_at > latest.started_at`,
+		`item.started_at > current.started_at`,
+	} {
+		if webContains(html, obsolete) {
+			t.Fatalf("web page still contains inconsistent latest-run comparison %q", obsolete)
+		}
 	}
 }
 
@@ -968,18 +1005,30 @@ func TestWebLogReadsCarriedOrigin(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(sourceJobDir, "attempts", attemptID, "output"), []byte("source attempt log\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	currentAttemptID := makeAttemptID(currentRunID, "job-1", 0)
+	currentAttemptDir := filepath.Join(currentRunDir, "job-1", "attempts", currentAttemptID)
+	if err := os.MkdirAll(currentAttemptDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(currentAttemptDir, "output"), []byte("current attempt log\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
-	for name, suffix := range map[string]string{
-		"job":     "",
-		"attempt": "&attempt_id=" + attemptID,
+	for name, target := range map[string]struct {
+		runID  string
+		suffix string
+		want   string
+	}{
+		"job":             {runID: currentRunID, want: "source attempt log\n"},
+		"source-attempt":  {runID: sourceRunID, suffix: "&attempt_id=" + attemptID, want: "source attempt log\n"},
+		"current-attempt": {runID: currentRunID, suffix: "&attempt_id=" + currentAttemptID, want: "current attempt log\n"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodGet, "/api/log?project_name=default&run_id="+currentRunID+"&job_id=job-1"+suffix, nil)
+			request := httptest.NewRequest(http.MethodGet, "/api/log?project_name=default&run_id="+target.runID+"&job_id=job-1"+target.suffix, nil)
 			recorder := httptest.NewRecorder()
 			newWebHandler(baseDir, "", false).ServeHTTP(recorder, request)
-			want := "source attempt log\n"
-			if recorder.Code != http.StatusOK || recorder.Body.String() != want {
-				t.Fatalf("carried log = (%d, %q), want %q", recorder.Code, recorder.Body.String(), want)
+			if recorder.Code != http.StatusOK || recorder.Body.String() != target.want {
+				t.Fatalf("carried log = (%d, %q), want %q", recorder.Code, recorder.Body.String(), target.want)
 			}
 		})
 	}
