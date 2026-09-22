@@ -35,6 +35,8 @@ fi
 # Fix the failing job, then retry only it. "prepare" and "train" already
 # succeeded, so they are carried forward from the Demo run instead of being
 # re-executed: the retry run's page links back to their original output.
+# Restore the failed job into the current queue before editing it.
+"${binary}" copy --run-id "${first_run_id}" --failed --overwrite
 "${binary}" change --job-name failed -- sh -c 'echo validation now passes'
 "${binary}" run --failed --run-name "Retry run"
 

@@ -408,7 +408,12 @@ func cmdRun(args []string) int {
 			return 1
 		}
 		sourceRunID = meta.LastRunID
-		forceCopy = true
+		queue, queueErr := loadQueue(paths.queueFile)
+		if queueErr != nil {
+			printErrorf("failed to load queue: %v", queueErr)
+			return 1
+		}
+		forceCopy = len(queue.Commands) == 0
 	}
 	if forceCopy {
 		// Only prompts when the queue actually has jobs to lose; an empty

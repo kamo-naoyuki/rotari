@@ -104,7 +104,7 @@ func changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, request
 	if err != nil {
 		return "", fmt.Errorf("failed to load queue: %w", err)
 	}
-	if len(queue.Commands) == 0 || requestedRunID != "" {
+	if requestedRunID != "" {
 		queue, err = loadChangeSnapshot(paths, requestedRunID)
 		if err != nil {
 			return "", err

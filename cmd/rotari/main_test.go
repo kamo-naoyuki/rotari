@@ -1056,6 +1056,33 @@ func TestLatestAttemptJobDirUsesAttemptDirectories(t *testing.T) {
 	}
 }
 
+func TestLatestAttemptIDIgnoresOtherRunsAndJobs(t *testing.T) {
+	runDir := filepath.Join(t.TempDir(), "current-run")
+	jobDir, err := validatedJobDir(runDir, "job-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	attemptIDs := []string{
+		makeAttemptID("current-run", "job-1", 1),
+		makeAttemptID("other-run", "job-1", 99),
+		makeAttemptID("current-run", "other-job", 100),
+	}
+	for _, attemptID := range attemptIDs {
+		if err := os.MkdirAll(filepath.Join(jobDir, "attempts", attemptID), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := latestAttemptID(runDir, "job-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := attemptIDs[0]
+	if got != want {
+		t.Fatalf("latest attempt ID = %q, want %q", got, want)
+	}
+}
+
 func TestListAttemptIDsSortsByAttemptNumber(t *testing.T) {
 	runDir := t.TempDir()
 	jobID := "job-1"

@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -53,6 +54,34 @@ func TestCmdChangeUpdatesExecutorEnvironmentAndCommandByJobID(t *testing.T) {
 	}
 	if meta.Phase != "collecting" {
 		t.Fatalf("meta.Phase = %q, want collecting", meta.Phase)
+	}
+}
+
+func TestChangeDoesNotRestoreSnapshotIntoEmptyQueue(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.metaFile, Meta{LastRunID: "previous-run"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(paths.runsDir, "previous-run", "commands.json"), Queue{Commands: []QueuedCommand{{ID: "job-id", Name: "job", Command: []string{"old"}}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := changeBatch(baseDir, "default", "", "", "job", "", nil, false, nil, false, "", nil, false, []string{"new"}); err == nil {
+		t.Fatal("change restored a job from the previous run into an empty queue")
+	}
+	queue, err := loadQueue(paths.queueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 0 {
+		t.Fatalf("queue commands = %#v, want empty queue", queue.Commands)
 	}
 }
 

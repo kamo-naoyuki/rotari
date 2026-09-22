@@ -129,12 +129,13 @@ const dom = new JSDOM(html, {
   beforeParse(window) {
     window.fetch = async (url) => {
       if (url === '/api/state') return {ok: true, json: async () => state};
+			if (url.startsWith('/api/log?')) return {ok: true, text: async () => 'old-attempt-log'};
       throw new Error('unexpected fetch: ' + url);
     };
     window.setInterval = () => 1;
   },
 });
-setTimeout(() => {
+setTimeout(async () => {
   const row = () => dom.window.document.querySelector('tr[data-job-id="job-1"]');
   const assert = (condition, message) => { if (!condition) throw new Error(message); };
   try {
@@ -148,7 +149,11 @@ setTimeout(() => {
     assert(row().textContent.includes('0'), 'selected attempt result is not displayed');
     assert(row().textContent.includes('old-start'), 'selected attempt timestamp is not displayed');
     assert(row().querySelector('.attempt-menu').open === false, 'attempt menu did not close after selection');
-    assert(row().querySelector('button[onclick*="attempt-0"]'), 'log button does not target selected attempt');
+	const logButton = row().querySelector('button[onclick*="attempt-0"]');
+	assert(logButton, 'log button does not target selected attempt');
+	logButton.click();
+	await new Promise(resolve => setTimeout(resolve, 0));
+	assert(dom.window.document.getElementById('modal-log').textContent === 'old-attempt-log', 'selected attempt log was not loaded');
     if (errors.length) throw new Error(errors.join('\n'));
   } catch (error) {
     console.error(error.stack || String(error));
