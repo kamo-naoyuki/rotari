@@ -144,6 +144,10 @@ setTimeout(async () => {
     dom.window.setAttemptMenuOpen('default', 'run-1', 'job-1', true);
     dom.window.render();
     assert(row().querySelector('.attempt-menu').open, 'attempt menu did not stay open after render');
+	dom.window.document.body.dispatchEvent(new dom.window.PointerEvent('pointerdown', {bubbles: true}));
+	assert(row().querySelector('.attempt-menu').open === false, 'attempt menu did not close on outside click');
+	dom.window.setAttemptMenuOpen('default', 'run-1', 'job-1', true);
+	dom.window.render();
     dom.window.selectJobAttempt('default', 'run-1', 'job-1', 'attempt-0');
     assert(row().textContent.includes('attempt-0'), 'selected attempt is not displayed');
     assert(row().textContent.includes('0'), 'selected attempt result is not displayed');
