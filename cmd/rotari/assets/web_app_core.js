@@ -256,8 +256,7 @@ function renderRun(q, runID) {
     state.base_dir + " / " + q.project_name + " / " + runID,
     run.context && run.context.config_paths,
   );
-  document.getElementById("page-title").innerHTML =
-    esc(run.run_name || runID);
+  document.getElementById("page-title").innerHTML = esc(run.run_name || runID);
   document.getElementById("summary").innerHTML =
     "<span>Project: " +
     esc(q.project_name) +
