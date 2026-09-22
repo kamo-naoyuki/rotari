@@ -1,4 +1,4 @@
-async function loadLogChunk(queue, run, job, before) {
+async function loadLogChunk(queue, run, job, attemptID, before) {
   const response = await fetch(
     "/api/log?project_name=" +
       encodeURIComponent(queue) +
@@ -6,6 +6,7 @@ async function loadLogChunk(queue, run, job, before) {
       encodeURIComponent(run) +
       "&job_id=" +
       encodeURIComponent(job) +
+      (attemptID ? "&attempt_id=" + encodeURIComponent(attemptID) : "") +
       "&tail=200&before=" +
       before,
   );
@@ -28,6 +29,7 @@ function attachLogLoader(output) {
       selectedLog.queue,
       selectedLog.run,
       selectedLog.job,
+      selectedLog.attemptID,
       selectedLog.before + 200,
     );
     if (!chunk) {
@@ -48,10 +50,10 @@ async function showOriginalOutput(run, job, trigger) {
     decodeURIComponent(parts[1]),
     run,
     job,
-    trigger || (window.event && window.event.currentTarget),
+    "",
   );
 }
-async function showLog(queue, run, job) {
+async function showLog(queue, run, job, attemptID) {
   const modal = document.getElementById("output-modal");
   modal.dataset.view = "log";
   modal.querySelector("strong").textContent = "Job log";
@@ -60,11 +62,12 @@ async function showLog(queue, run, job) {
     queue: queue,
     run: run,
     job: job,
+    attemptID: attemptID,
     before: 0,
     loading: false,
     done: false,
   };
-  selectedOutput = await loadLogChunk(queue, run, job, 0);
+  selectedOutput = await loadLogChunk(queue, run, job, attemptID, 0);
   const output = ensureModalOutput();
   output.textContent = selectedOutput;
   openOutputModal(isCompactOutput(selectedOutput));
@@ -100,6 +103,7 @@ async function followOutput() {
     selectedLog.queue,
     selectedLog.run,
     selectedLog.job,
+    selectedLog.attemptID,
     0,
   );
   if (latest && latest !== selectedOutput) {
@@ -110,12 +114,12 @@ async function followOutput() {
     openOutputModal(isCompactOutput(latest));
   }
 }
-async function log(queue, run, job, trigger) {
+async function log(queue, run, job, attemptID) {
   await showLog(
     queue,
     run,
     job,
-    trigger || (window.event && window.event.currentTarget),
+    attemptID,
   );
 }
 function lastLogLines(value, count) {
@@ -171,6 +175,9 @@ async function fetchSelectedLog(tail) {
       encodeURIComponent(selectedLog.run) +
       "&job_id=" +
       encodeURIComponent(selectedLog.job) +
+      (selectedLog.attemptID
+        ? "&attempt_id=" + encodeURIComponent(selectedLog.attemptID)
+        : "") +
       suffix,
   );
   if (!response.ok) throw new Error(await response.text());

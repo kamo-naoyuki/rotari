@@ -268,7 +268,9 @@ This is HTTP authentication, not encryption: use HTTPS or a trusted network.
 and run pages can show raw config files, so keep the UI on a trusted host.
 On a run page, select jobs and use `Create` to replace the current queue or
 `Append` to add them to it. These actions only update the queue; the separate
-runner executes the jobs later.
+runner executes the jobs later. For jobs with multiple attempts, use the arrow
+beside the attempt ID to inspect a specific attempt's status, timestamps,
+result, and log; each job can show a different attempt.
 
 ## Projects, queues, runs, and state
 
@@ -354,6 +356,10 @@ The `run-id` identifies a run and provides its project location. An
 `attempt-id` identifies one job execution and provides its `job-id` and
 `run-id`, so the command can resolve the same project location from the attempt
 alone.
+
+The `--job-id/-j` option accepts either a logical `job-id` or an `attempt-id`.
+When an `attempt-id` is provided, its associated job, run, project, and basedir
+are resolved automatically.
 
 | Selector | Information available for resolution | Options that can be omitted |
 | --- | --- | --- |

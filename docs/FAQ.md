@@ -387,6 +387,11 @@ current queue with those jobs or `Append` to add them to the current queue.
 The web UI only updates the persisted queue; a separate runner must execute
 the queued jobs.
 
+### How do I view an older job attempt in the Web UI?
+Use the arrow beside a job's attempt ID and choose an attempt. The row switches
+to that attempt's status, timestamps, result, and log. The selection is per
+job, so multiple rows can show different attempts at the same time.
+
 ### Does the Web UI send run details to an AI service?
 No. A run or job's `AI` button prepares a Markdown report locally in the
 browser. `Copy` only writes it to the clipboard. The `Open ChatGPT`, `Open

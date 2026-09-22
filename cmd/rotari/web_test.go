@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -609,6 +610,15 @@ func TestWebSeparatesLogsFromActions(t *testing.T) {
 	}
 }
 
+func TestWebProvidesAttemptSelector(t *testing.T) {
+	html := webHTML()
+	for _, want := range []string{"selectedAttemptByJob", "function selectJobAttempt", "attempt-menu", "attempt-options", "Select attempt", "attempt_id="} {
+		if !webContains(html, want) {
+			t.Fatalf("web page does not contain %q", want)
+		}
+	}
+}
+
 func TestWebProvidesCopyAndAIReports(t *testing.T) {
 	html := webHTML()
 	for _, want := range []string{
@@ -691,6 +701,64 @@ func TestLoadWebJobsIncludesCommandMetadata(t *testing.T) {
 	job := jobs[0]
 	if job.Name != "train" || job.Executor != "slurm" || len(job.ExecutorOptions) != 2 || len(job.DependsOn) != 1 || job.Result == nil {
 		t.Fatalf("job = %#v, want command metadata and result", job)
+	}
+}
+
+func TestLoadWebJobsIncludesAttemptsNewestFirst(t *testing.T) {
+	runID := "20260922-070308-0d83bd39"
+	runDir := t.TempDir()
+	job := QueuedCommand{ID: "job-1", Command: []string{"true"}}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{job}}); err != nil {
+		t.Fatal(err)
+	}
+	for number, exitCode := range []int{1, 0} {
+		attemptID := makeAttemptID(runID, job.ID, number)
+		attemptDir := filepath.Join(runDir, job.ID, "attempts", attemptID)
+		if err := os.MkdirAll(attemptDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(attemptDir, stateFileStatus), []byte(strconv.Itoa(exitCode)+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(attemptDir, stateFileFinishedAt), []byte("2026-09-22T00:00:0"+strconv.Itoa(number)+"Z\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	jobs, err := loadWebJobs(runDir, RunSummary{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 1 || len(jobs[0].Attempts) != 2 {
+		t.Fatalf("jobs = %#v, want two attempts", jobs)
+	}
+	latest := makeAttemptID(runID, job.ID, 1)
+	if jobs[0].Attempts[0].ID != latest || jobs[0].Attempts[0].Result == nil || jobs[0].Attempts[0].Result.ExitCode != 0 {
+		t.Fatalf("attempts = %#v, want latest successful attempt first", jobs[0].Attempts)
+	}
+}
+
+func TestWebLogReadsSelectedAttempt(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "20260922-070308-0d83bd39"
+	attemptID := makeAttemptID(runID, "job-1", 0)
+	attemptDir := filepath.Join(paths.runsDir, runID, "job-1", "attempts", attemptID)
+	if err := os.MkdirAll(attemptDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(attemptDir, "output"), []byte("selected attempt\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/log?project_name=default&run_id="+runID+"&job_id=job-1&attempt_id="+attemptID, nil)
+	recorder := httptest.NewRecorder()
+	newWebHandler(baseDir, "", false).ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || recorder.Body.String() != "selected attempt\n" {
+		t.Fatalf("selected attempt log = (%d, %q), want selected attempt output", recorder.Code, recorder.Body.String())
 	}
 }
 

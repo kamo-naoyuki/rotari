@@ -71,6 +71,12 @@ generation all use the same Go formatter for AI reports. Opening an AI service
 copies the report and opens a new tab; rotari does not transmit or submit the
 report.
 
+Run job projections include each persisted attempt. The jobs table defaults to
+the latest attempt, but stores a browser-local selection per job so rows can
+independently display a prior attempt's result, timestamps, and log. The log
+endpoint validates that an optional attempt ID belongs to its requested run and
+job before reading that attempt directory.
+
 Report generation redacts known hostnames and paths, then applies heuristic
 redaction to common absolute paths and FQDNs in log text. This is best-effort
 privacy protection, not complete secret detection; users must review reports

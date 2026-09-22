@@ -6,6 +6,7 @@ const expandedRunGraphics = {};
 let selectedOutput = "";
 let selectedLog = null;
 let followTimer = null;
+const selectedAttemptByJob = {};
 let sortState = {
   queue: { key: "name", direction: 1 },
   run: { key: "started", direction: -1 },
@@ -75,9 +76,9 @@ function setLocation(base, paths) {
   location.append("\nConfig: ");
   paths.forEach((path, index) => {
     if (index) location.append(", ");
-    const copy = document.createRange().createContextualFragment(
-      copyIconForValue(path, "config path"),
-    );
+    const copy = document
+      .createRange()
+      .createContextualFragment(copyIconForValue(path, "config path"));
     location.append(copy, path);
   });
 }
@@ -267,6 +268,20 @@ function renderRun(q, runID) {
     "</span><span>Exit: " +
     (run.finished_at ? esc(run.exit_code) : "-") +
     "</span>";
+  const attemptKey = (jobID) => q.project_name + "/" + runID + "/" + jobID;
+  const selectAttempt = (job, attemptID) => {
+    const attempt = (job.attempts || []).find((item) => item.id === attemptID);
+    if (!attempt) return;
+    job.attempt_id = attempt.id;
+    job.result = attempt.result;
+    job.submitted_at = attempt.submitted_at;
+    job.finished_at = attempt.finished_at;
+    job.scheduler_state = attempt.scheduler_state;
+  };
+  (run.jobs || []).forEach((job) => {
+    const selectedAttempt = selectedAttemptByJob[attemptKey(job.id)];
+    if (selectedAttempt) selectAttempt(job, selectedAttempt);
+  });
   const jobs = (run.jobs || [])
     .map((j) => {
       const result = j.result;
@@ -279,6 +294,7 @@ function renderRun(q, runID) {
           : "";
       const logRun = j.origin ? j.origin.run_id : runID;
       const logJob = j.origin ? j.origin.job_id : j.id;
+      const logAttemptID = j.origin ? "" : j.attempt_id;
       const diagnoses = (result && result.diagnoses) || [];
       const canDiagnose = !!(
         result &&
@@ -297,6 +313,8 @@ function renderRun(q, runID) {
           esc(logRun) +
           "','" +
           esc(logJob) +
+          "','" +
+          esc(logAttemptID) +
           "')\">Output</button>" +
           diagnosisControl
         : diagnosisControl;
@@ -319,6 +337,29 @@ function renderRun(q, runID) {
       const attemptCopy = j.attempt_id
         ? copyIcon(j.attempt_id, "attempt ID")
         : "";
+      const attemptMenu = (j.attempts || []).length > 1
+        ? '<details class="attempt-menu"><summary title="Select attempt" aria-label="Select attempt"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg></summary><div class="attempt-options">' +
+          j.attempts
+            .map(
+              (attempt, index) =>
+                '<button type="button" class="' +
+                (attempt.id === j.attempt_id ? "selected" : "") +
+                '" onclick="selectJobAttempt(\'' +
+                esc(q.project_name) +
+                "','" +
+                esc(runID) +
+                "','" +
+                esc(j.id) +
+                "','" +
+                esc(attempt.id) +
+                "')\">" +
+                (index === 0 ? "Latest: " : "") +
+                esc(attempt.id) +
+                "</button>",
+            )
+            .join("") +
+          "</div></details>"
+        : "";
       const commandText = (j.command || []).join(" ");
       const commandCopy = copyIcon(commandText, "command");
       return (
@@ -338,6 +379,7 @@ function renderRun(q, runID) {
         '<span class="identity-line">' +
         attemptCopy +
         esc(j.attempt_id || "-") +
+        attemptMenu +
         "</span>" +
         carriedFrom +
         "</strong></td><td>" +
@@ -393,6 +435,10 @@ function renderRun(q, runID) {
       : '<div class="empty">No job definitions yet.</div>') +
     '<pre id="log" class="log">Select a job output.</pre>';
 }
+function selectJobAttempt(projectName, runID, jobID, attemptID) {
+  selectedAttemptByJob[projectName + "/" + runID + "/" + jobID] = attemptID;
+  render();
+}
 function renderMissing(message) {
   document.getElementById("page-title").textContent = "Not found";
   document.getElementById("summary").textContent = "";
@@ -400,7 +446,8 @@ function renderMissing(message) {
     '<a class="link" href="/">All projects</a><p>' + esc(message) + "</p>";
 }
 function copyIconForValue(value, label) {
-  return '<button class="command-guide-copy identity-copy" type="button" title="Copy ' +
+  return (
+    '<button class="command-guide-copy identity-copy" type="button" title="Copy ' +
     label +
     '" aria-label="Copy ' +
     label +
@@ -408,7 +455,8 @@ function copyIconForValue(value, label) {
     esc(value) +
     '" data-copy-title="Copy ' +
     label +
-    '" onclick="copyIdentityValue(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg></button>';
+    '" onclick="copyIdentityValue(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg></button>'
+  );
 }
 async function copyAttemptID(button) {
   try {
@@ -442,7 +490,10 @@ async function copyIdentityValue(button) {
     button.copyResetTimer = setTimeout(() => {
       button.classList.remove("copied");
       button.title = button.dataset.copyTitle || "Copy value";
-      button.setAttribute("aria-label", button.dataset.copyTitle || "Copy value");
+      button.setAttribute(
+        "aria-label",
+        button.dataset.copyTitle || "Copy value",
+      );
       button.innerHTML =
         '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg>';
     }, 1200);

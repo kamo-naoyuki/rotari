@@ -57,23 +57,32 @@ type webRun struct {
 }
 
 type webJob struct {
-	ID               string     `json:"id"`
-	AttemptID        string     `json:"attempt_id,omitempty"`
-	ArrayTaskID      *int       `json:"array_task_id,omitempty"`
-	ArrayFirst       int        `json:"array_first,omitempty"`
-	ArrayLast        int        `json:"array_last,omitempty"`
-	Name             string     `json:"name,omitempty"`
-	Command          []string   `json:"command"`
-	WorkingDirectory string     `json:"working_directory,omitempty"`
-	Executor         string     `json:"executor,omitempty"`
-	ExecutorOptions  []string   `json:"executor_options,omitempty"`
-	DependsOn        []string   `json:"depends_on,omitempty"`
-	Result           *JobResult `json:"result,omitempty"`
-	Origin           *JobOrigin `json:"origin,omitempty"`
-	AttemptDir       string     `json:"-"`
-	SubmittedAt      string     `json:"submitted_at,omitempty"`
-	FinishedAt       string     `json:"finished_at,omitempty"`
-	SchedulerState   string     `json:"scheduler_state,omitempty"`
+	ID               string       `json:"id"`
+	AttemptID        string       `json:"attempt_id,omitempty"`
+	Attempts         []webAttempt `json:"attempts,omitempty"`
+	ArrayTaskID      *int         `json:"array_task_id,omitempty"`
+	ArrayFirst       int          `json:"array_first,omitempty"`
+	ArrayLast        int          `json:"array_last,omitempty"`
+	Name             string       `json:"name,omitempty"`
+	Command          []string     `json:"command"`
+	WorkingDirectory string       `json:"working_directory,omitempty"`
+	Executor         string       `json:"executor,omitempty"`
+	ExecutorOptions  []string     `json:"executor_options,omitempty"`
+	DependsOn        []string     `json:"depends_on,omitempty"`
+	Result           *JobResult   `json:"result,omitempty"`
+	Origin           *JobOrigin   `json:"origin,omitempty"`
+	AttemptDir       string       `json:"-"`
+	SubmittedAt      string       `json:"submitted_at,omitempty"`
+	FinishedAt       string       `json:"finished_at,omitempty"`
+	SchedulerState   string       `json:"scheduler_state,omitempty"`
+}
+
+type webAttempt struct {
+	ID             string     `json:"id"`
+	Result         *JobResult `json:"result,omitempty"`
+	SubmittedAt    string     `json:"submitted_at,omitempty"`
+	FinishedAt     string     `json:"finished_at,omitempty"`
+	SchedulerState string     `json:"scheduler_state,omitempty"`
 }
 
 type webTimelinePoint struct {
@@ -416,6 +425,18 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 		if err != nil {
 			writeWebError(writer, err)
 			return
+		}
+		if attemptID := request.URL.Query().Get("attempt_id"); attemptID != "" {
+			payload, decodeErr := decodeAttemptID(attemptID)
+			if decodeErr != nil || payload.RunID != runID || payload.JobID != jobID {
+				writeWebError(writer, fmt.Errorf("attempt_id must identify this run and job"))
+				return
+			}
+			jobDir, err = specificAttemptJobDir(runDir, jobID, attemptID)
+			if err != nil {
+				writeWebError(writer, err)
+				return
+			}
 		}
 		path, err := validatedStateFile(jobDir, "output")
 		if err != nil {
@@ -860,6 +881,16 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 				if readErr == nil {
 					logs[staticLogKey(queue.QueueName, run.RunID, job.ID)] = string(data)
 				}
+				for _, attempt := range job.Attempts {
+					attemptDir, attemptErr := specificAttemptJobDir(filepath.Join(baseDir, "projects", queue.QueueName, "runs", run.RunID), job.ID, attempt.ID)
+					if attemptErr != nil {
+						continue
+					}
+					attemptData, attemptReadErr := os.ReadFile(filepath.Join(attemptDir, "output"))
+					if attemptReadErr == nil {
+						logs[staticLogKey(queue.QueueName, run.RunID, job.ID, attempt.ID)] = string(attemptData)
+					}
+				}
 				if report, reportErr := buildAIReport(paths, run.RunID, job.ID, false); reportErr == nil {
 					reports[staticReportKey(queue.QueueName, run.RunID, job.ID)] = report
 				}
@@ -890,7 +921,7 @@ window.fetch=async function(input, init){
   const request=new URL(input, window.location.href);
   if(request.pathname.endsWith('/api/state')) return new Response(JSON.stringify(window.__ROTARI_STATIC_STATE__), {headers:{'Content-Type':'application/json'}});
   if(request.pathname.endsWith('/api/log')) {
-	const key=staticLogKey(request.searchParams.get('project_name'), request.searchParams.get('run_id'), request.searchParams.get('job_id'));
+	const key=staticLogKey(request.searchParams.get('project_name'), request.searchParams.get('run_id'), request.searchParams.get('job_id'), request.searchParams.get('attempt_id'));
     return new Response(window.__ROTARI_STATIC_LOGS__[key] || '', {headers:{'Content-Type':'text/plain'}});
   }
 	if(request.pathname.endsWith('/api/report')) {
@@ -904,7 +935,7 @@ window.fetch=async function(input, init){
 	}
   return new Response('This is a read-only static demo.', {status:405});
 };
-function staticLogKey(queue, run, job){return [queue, run, job].join('/');}
+function staticLogKey(queue, run, job, attempt){return [queue, run, job, attempt || ''].join('/');}
 function staticReportKey(project, run, job){return [project, run, job || ''].join('/');}
 function staticRootPath(){const pathname=window.location.pathname;const parts=pathname.split('/').filter(Boolean);const projectIndex=parts.indexOf('project');if(projectIndex>=0)return '/'+parts.slice(0,projectIndex).join('/');if(pathname.endsWith('/index.html'))return '/'+parts.slice(0,-1).join('/');if(pathname.endsWith('/'))return parts.length?'/'+parts.join('/'):'';return '/'+parts.slice(0,-1).join('/')}
 function routeParts(){const root=staticRootPath().split('/').filter(Boolean);return window.location.pathname.split('/').filter(Boolean).slice(root.length)}
@@ -969,8 +1000,12 @@ new MutationObserver(rewriteStaticLinks).observe(document.body,{childList:true,s
 	return nil
 }
 
-func staticLogKey(queueName, runID, jobID string) string {
-	return queueName + "/" + runID + "/" + jobID
+func staticLogKey(queueName, runID, jobID string, attemptIDs ...string) string {
+	attemptID := ""
+	if len(attemptIDs) > 0 {
+		attemptID = attemptIDs[0]
+	}
+	return queueName + "/" + runID + "/" + jobID + "/" + attemptID
 }
 
 func staticReportKey(projectName, runID, jobID string) string {
@@ -1134,6 +1169,7 @@ func loadWebJobs(runDir string, summary RunSummary, attemptIDs ...string) ([]web
 			job.SubmittedAt = readAttemptTimestamp(jobDir, stateFileSubmittedAt)
 			job.FinishedAt = readAttemptTimestamp(jobDir, stateFileFinishedAt)
 		}
+		job.Attempts = loadWebAttempts(runDir, jobSpec)
 		webJobs = append(webJobs, job)
 		delete(results, jobSpec.ID)
 	}
@@ -1145,6 +1181,40 @@ func loadWebJobs(runDir string, summary RunSummary, attemptIDs ...string) ([]web
 		webJobs = append(webJobs, webJob{ID: result.ID, Command: result.Command, Result: &resultCopy, SubmittedAt: readJobTimestamp(runDir, result.ID, "submitted_at"), FinishedAt: readJobTimestamp(runDir, result.ID, "finished_at")})
 	}
 	return webJobs, nil
+}
+
+func loadWebAttempts(runDir string, jobSpec JobSpec) []webAttempt {
+	attemptIDs := listAttemptIDs(runDir, jobSpec.ID)
+	if len(attemptIDs) == 0 {
+		return nil
+	}
+	attempts := make([]webAttempt, 0, len(attemptIDs))
+	for index := len(attemptIDs) - 1; index >= 0; index-- {
+		attemptID := attemptIDs[index]
+		jobDir, err := specificAttemptJobDir(runDir, jobSpec.ID, attemptID)
+		if err != nil {
+			continue
+		}
+		attempt := webAttempt{
+			ID:             attemptID,
+			SubmittedAt:    readAttemptTimestamp(jobDir, stateFileSubmittedAt),
+			FinishedAt:     readAttemptTimestamp(jobDir, stateFileFinishedAt),
+			SchedulerState: loadSchedulerStatus(jobDir),
+		}
+		if result, ok := loadLocalJobResult(jobDir, jobSpec); ok {
+			result.AttemptID = attemptID
+			attempt.Result = &result
+		} else if status, ok := loadSlurmStatus(filepath.Join(jobDir, stateFileStatusJSON)); ok && jobStatusTerminal(status) {
+			attempt.Result = &JobResult{ID: jobSpec.ID, AttemptID: attemptID, Command: jobSpec.Command, ExitCode: status.ExitCode, Error: status.Error, Hosts: status.Hosts}
+			if attempt.FinishedAt == "" {
+				attempt.FinishedAt = status.FinishedAt
+			}
+		} else if exitCode, ok := loadTerminalSchedulerState(jobDir); ok {
+			attempt.Result = &JobResult{ID: jobSpec.ID, AttemptID: attemptID, Command: jobSpec.Command, ExitCode: exitCode}
+		}
+		attempts = append(attempts, attempt)
+	}
+	return attempts
 }
 
 func readAttemptTimestamp(jobDir, name string) string {
