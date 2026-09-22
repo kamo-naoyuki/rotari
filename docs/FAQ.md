@@ -46,7 +46,9 @@ ones. Common options such as `project-name` are root keys; command-specific
 options are nested under the command name, such as `run.batch-concurrency`.
 CLI options and environment variables override config values. If multiple
 config formats exist in one directory, rotari errors rather than selecting a
-format implicitly.
+format implicitly. When configs exist at multiple locations, project config has
+the highest priority, followed by basedir and then global config; `show` and
+the web UI display only the highest-priority path.
 
 ### How do I see every configurable option?
 Run `rotari config` to print a complete template, or pass `--output FILE` to

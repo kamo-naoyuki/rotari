@@ -35,6 +35,7 @@ var cliShortFlagNames = map[string]string{
 	"run-id":       "r",
 	"job-id":       "j",
 	"executor":     "e",
+	"format":       "o",
 }
 
 var cliEnvironmentVariables = map[string]string{
@@ -85,6 +86,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Name:        "config",
 		Description: "generate a config file template",
 		Flags: append(commonCLIFlags(),
+			cliFlagSpec{Name: "list", Description: "list existing config files"},
 			cliFlagSpec{Name: "format", Description: "config format: yaml, toml, or json", ValueName: "FORMAT", Values: []string{"yaml", "toml", "json"}},
 			cliFlagSpec{Name: "output", Description: "output config file path", ValueName: "FILE"},
 		),
@@ -190,6 +192,16 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "basedirs", Description: "list state directories known to the master registry"},
 			cliFlagSpec{Name: "json", Description: "print machine-readable JSON for a run"},
 			cliFlagSpec{Name: "report", Description: "print an AI-ready Markdown report"},
+		),
+	},
+	{
+		Name:        "jobs",
+		Description: "list running and recently finished jobs across projects",
+		Flags: append(commonCLIFlags(),
+			cliFlagSpec{Name: "masterdir", Description: "master registry directory for --all", ValueName: "DIR"},
+			cliFlagSpec{Name: "all", Description: "include all basedirs known to the master registry"},
+			cliFlagSpec{Name: "format", Description: "output fields; use %s %b %p %a %n %c %t %e", ValueName: "FORMAT"},
+			cliFlagSpec{Name: "since", Description: "include finished jobs from this duration ago", ValueName: "DURATION"},
 		),
 	},
 	{

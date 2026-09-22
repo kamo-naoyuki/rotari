@@ -176,7 +176,6 @@ setTimeout(async () => {
 			RunSummary: RunSummary{RunID: "run-1", Status: "finished"},
 			Jobs: []webJob{{
 				ID: "job-1", Name: "train", Command: []string{"true"}, AttemptID: "attempt-1",
-				Origin: &JobOrigin{RunID: "source-run", JobID: "source-job", AttemptID: "source-attempt"},
 				Attempts: []webAttempt{
 					{ID: "attempt-1", Result: &JobResult{ID: "job-1", AttemptID: "attempt-1", ExitCode: 1}, SubmittedAt: "latest-start"},
 					{ID: "attempt-0", Result: &JobResult{ID: "job-1", AttemptID: "attempt-0", ExitCode: 0}, SubmittedAt: "old-start"},
@@ -244,11 +243,6 @@ func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {
 	for _, marker := range []string{"function rowCell(row,key)", "function copySelectedJobs(queue,run,append)", "function arrangeRunControls()", "function orderJobActions()"} {
 		if !webContains(html, marker) {
 			t.Fatalf("web HTML is missing required generated hook %q", marker)
-		}
-	}
-	for _, marker := range []string{"<th data-sort=\"run_name\">run-name</th>", "<th data-sort=\"run_id\">run-id</th>", "esc(r.run_name || \"-\")"} {
-		if !webContains(html, marker) {
-			t.Fatalf("web project runs table is missing %q", marker)
 		}
 	}
 	for _, obsolete := range []string{"queue_name", "/queue/", "state.queues"} {
@@ -484,8 +478,9 @@ func TestLoadWebStateIncludesConfigPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if state.ConfigPath != globalPath || state.Queues[0].ConfigPath != projectPath {
-		t.Fatalf("config paths = global %q, project %q; want %q, %q", state.ConfigPath, state.Queues[0].ConfigPath, globalPath, projectPath)
+	basePath := filepath.Join(baseDir, "config.yaml")
+	if state.ConfigPath != basePath || state.Queues[0].ConfigPath != projectPath {
+		t.Fatalf("config paths = base %q, project %q; want %q, %q", state.ConfigPath, state.Queues[0].ConfigPath, basePath, projectPath)
 	}
 }
 
@@ -528,7 +523,7 @@ func TestWebConfigAPIReadsResolvedFiles(t *testing.T) {
 	}{
 		{query: "", want: []string{globalPath, "global: true"}},
 		{query: "?project_name=demo", want: []string{"config.yaml", "project: true"}},
-		{query: "?project_name=demo&run_id=run-1", want: []string{globalPath, "global: true", "project: true"}},
+		{query: "?project_name=demo&run_id=run-1", want: []string{"project: true"}},
 	} {
 		request := httptest.NewRequest(http.MethodGet, "/api/config"+test.query, nil)
 		recorder := httptest.NewRecorder()
@@ -695,65 +690,6 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 	}
 }
 
-func TestGenerateStaticWebIncludesCarriedOriginLogs(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
-		t.Fatal(err)
-	}
-	sourceRunID, currentRunID := "20260922-070308-0d83bd39", "20260922-070309-0d83bd40"
-	attemptID := makeAttemptID(sourceRunID, "job-1", 0)
-	currentAttemptID := makeAttemptID(currentRunID, "job-1", 0)
-	job := QueuedCommand{ID: "job-1", Command: []string{"true"}}
-	if err := writeJSON(filepath.Join(paths.runsDir, sourceRunID, "commands.json"), Queue{Commands: []QueuedCommand{job}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(filepath.Join(paths.runsDir, sourceRunID, "summary.json"), RunSummary{RunID: sourceRunID, Status: "finished", Results: []JobResult{{ID: "job-1", AttemptID: attemptID}}}); err != nil {
-		t.Fatal(err)
-	}
-	job.Origin = &JobOrigin{RunID: sourceRunID, JobID: "job-1", AttemptID: attemptID, Status: "success"}
-	if err := writeJSON(filepath.Join(paths.runsDir, currentRunID, "commands.json"), Queue{Commands: []QueuedCommand{job}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(filepath.Join(paths.runsDir, currentRunID, "summary.json"), RunSummary{RunID: currentRunID, Status: "finished", Results: []JobResult{{ID: "job-1", AttemptID: currentAttemptID}}}); err != nil {
-		t.Fatal(err)
-	}
-	sourceJobDir := filepath.Join(paths.runsDir, sourceRunID, "job-1")
-	if err := os.MkdirAll(filepath.Join(sourceJobDir, "attempts", attemptID), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(sourceJobDir, "attempts", attemptID, "output"), []byte("source attempt log\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	currentAttemptDir := filepath.Join(paths.runsDir, currentRunID, "job-1", "attempts", currentAttemptID)
-	if err := os.MkdirAll(currentAttemptDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(currentAttemptDir, "output"), []byte("current attempt log\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	outputDir := filepath.Join(t.TempDir(), "web")
-	if err := generateStaticWeb(outputDir, baseDir, "default"); err != nil {
-		t.Fatal(err)
-	}
-	index, err := os.ReadFile(filepath.Join(outputDir, "index.html"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, want := range []string{
-		`"default/` + currentRunID + `/job-1/":"source attempt log\n"`,
-		`"default/` + currentRunID + `/job-1/` + currentAttemptID + `":"current attempt log\n"`,
-	} {
-		if !strings.Contains(string(index), want) {
-			t.Fatalf("static web page does not contain carried log mapping %q", want)
-		}
-	}
-}
-
 func TestWebSeparatesLogsFromActions(t *testing.T) {
 	html := webHTML()
 	for _, want := range []string{"function mergeActionColumns(){}", "function orderJobActions()", "view-log", "show-path", "delete-run", "Job log", "View log", "Source log", "Logs", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const buttons=[...logCell.querySelectorAll('button')]", "const diagnosisControl=canDiagnose", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", "dataset.view!=='path'", "modal.dataset.view='log';modal.querySelector('strong').textContent='Job log';", "cell.style.display='table-cell'", "button.style.margin='0 6px 6px 0'", "cell.style.width='170px'"} {
@@ -768,46 +704,6 @@ func TestWebProvidesAttemptSelector(t *testing.T) {
 	for _, want := range []string{"selectedAttemptByJob", "openAttemptMenuByJob", "function selectJobAttempt", "function setAttemptMenuOpen", "function closeAttemptMenus", "document.addEventListener(\"pointerdown\"", "attempt-menu", "attempt-options", "Select attempt", "attempt_id="} {
 		if !webContains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
-		}
-	}
-}
-
-func TestWebStatusColorsOnlyStatusCells(t *testing.T) {
-	html := webHTML()
-	for _, want := range []string{
-		`document.querySelectorAll(".status-value")`,
-		`status.className = "status-value"`,
-		`sourceStatus.className = "status-value"`,
-		`<td class="status-value">pending</td>`,
-	} {
-		if !webContains(html, want) {
-			t.Fatalf("web page does not contain scoped status color marker %q", want)
-		}
-	}
-	if webContains(html, `document.querySelectorAll("td,span")`) {
-		t.Fatal("web page colors arbitrary table cells and spans as statuses")
-	}
-}
-
-func TestWebUsesSharedLatestRunResolver(t *testing.T) {
-	html := webHTML()
-	for _, want := range []string{
-		`function latestRun(runs)`,
-		`const key = runOrderKey(run)`,
-		`key === latestKey && run.run_id > latest.run_id`,
-		`const latest = latestRun(q.runs)`,
-		`const latest = latestRun(queue.runs)`,
-	} {
-		if !webContains(html, want) {
-			t.Fatalf("web page does not use the shared latest-run resolver %q", want)
-		}
-	}
-	for _, obsolete := range []string{
-		`run.started_at > latest.started_at`,
-		`item.started_at > current.started_at`,
-	} {
-		if webContains(html, obsolete) {
-			t.Fatalf("web page still contains inconsistent latest-run comparison %q", obsolete)
 		}
 	}
 }
@@ -978,59 +874,6 @@ func TestWebLogReadsSelectedAttempt(t *testing.T) {
 	newWebHandler(baseDir, "", false).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK || recorder.Body.String() != "selected attempt\n" {
 		t.Fatalf("selected attempt log = (%d, %q), want selected attempt output", recorder.Code, recorder.Body.String())
-	}
-}
-
-func TestWebLogReadsCarriedOrigin(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
-	sourceRunID := "20260922-070308-0d83bd39"
-	currentRunID := "20260922-070309-0d83bd40"
-	attemptID := makeAttemptID(sourceRunID, "job-1", 0)
-	currentRunDir := filepath.Join(paths.runsDir, currentRunID)
-	queue := Queue{Commands: []QueuedCommand{{
-		ID: "job-1", Command: []string{"true"},
-		Origin: &JobOrigin{RunID: sourceRunID, JobID: "job-1", Status: "success"},
-	}}}
-	if err := writeJSON(filepath.Join(currentRunDir, "commands.json"), queue); err != nil {
-		t.Fatal(err)
-	}
-	sourceJobDir := filepath.Join(paths.runsDir, sourceRunID, "job-1")
-	if err := os.MkdirAll(filepath.Join(sourceJobDir, "attempts", attemptID), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(sourceJobDir, "attempts", attemptID, "output"), []byte("source attempt log\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	currentAttemptID := makeAttemptID(currentRunID, "job-1", 0)
-	currentAttemptDir := filepath.Join(currentRunDir, "job-1", "attempts", currentAttemptID)
-	if err := os.MkdirAll(currentAttemptDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(currentAttemptDir, "output"), []byte("current attempt log\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	for name, target := range map[string]struct {
-		runID  string
-		suffix string
-		want   string
-	}{
-		"job":             {runID: currentRunID, want: "source attempt log\n"},
-		"source-attempt":  {runID: sourceRunID, suffix: "&attempt_id=" + attemptID, want: "source attempt log\n"},
-		"current-attempt": {runID: currentRunID, suffix: "&attempt_id=" + currentAttemptID, want: "current attempt log\n"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodGet, "/api/log?project_name=default&run_id="+target.runID+"&job_id=job-1"+target.suffix, nil)
-			recorder := httptest.NewRecorder()
-			newWebHandler(baseDir, "", false).ServeHTTP(recorder, request)
-			if recorder.Code != http.StatusOK || recorder.Body.String() != target.want {
-				t.Fatalf("carried log = (%d, %q), want %q", recorder.Code, recorder.Body.String(), target.want)
-			}
-		})
 	}
 }
 

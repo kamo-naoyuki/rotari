@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -142,6 +143,55 @@ func TestRunConfigCommandGeneratesFile(t *testing.T) {
 	}
 	if _, err := os.Stat(output); err != nil {
 		t.Fatalf("generated config: %v", err)
+	}
+}
+
+func TestConfigListIncludesMixedFormatsAcrossScopes(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	globalDir := filepath.Join(configHome, "rotari")
+	baseDir := t.TempDir()
+	projectDir := filepath.Join(baseDir, "projects", "demo")
+	for _, directory := range []string{globalDir, baseDir, projectDir} {
+		if err := os.MkdirAll(directory, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	paths := []string{
+		filepath.Join(globalDir, "config.yaml"),
+		filepath.Join(globalDir, "config.json"),
+		filepath.Join(baseDir, "config.toml"),
+		filepath.Join(projectDir, "config.yaml"),
+		filepath.Join(projectDir, "config.toml"),
+	}
+	for _, path := range paths {
+		if err := os.WriteFile(path, []byte("{}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code := cmdConfig([]string{"--basedir", baseDir, "--project-name", "demo", "--list"})
+	os.Stdout = oldStdout
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 {
+		t.Fatalf("cmdConfig exit code = %d", code)
+	}
+	stdout := string(data)
+	for _, path := range paths {
+		if !strings.Contains(stdout, path) {
+			t.Errorf("config list does not contain %q:\n%s", path, stdout)
+		}
 	}
 }
 

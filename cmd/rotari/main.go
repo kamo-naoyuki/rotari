@@ -332,6 +332,8 @@ func run(args []string) int {
 		return cmdRemove(args[1:])
 	case "show":
 		return cmdShow(args[1:])
+	case "jobs":
+		return cmdJobs(args[1:])
 	case "diagnose":
 		return cmdDiagnose(args[1:])
 	case "wait":
@@ -696,7 +698,9 @@ func writeRunContext(paths pathSet, runID, cwd string) error {
 		return err
 	}
 	context := captureRunContext(cwd)
-	context.ConfigPaths = configPathsForRun(paths.baseDir, paths.queueName)
+	if configPath := effectiveConfigPath(paths.baseDir, paths.queueName); configPath != "" {
+		context.ConfigPaths = []string{configPath}
+	}
 	if context.StartedLoad != nil {
 		if err := appendLoadSample(loadSamplesPath(paths, runID), LoadSample{At: nowRFC3339Nano(), LoadAverage: *context.StartedLoad}); err != nil {
 			return err

@@ -215,7 +215,7 @@ func TestCmdShowDisplaysCurrentQueue(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cmdShow exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"Base directory: " + baseDir, "Project: demo", "Queue: " + paths.queueFile + " (1 jobs)", "Project state: idle", "Runner server: stopped", "Runs: 0", "Showing jobs queued for the next run", "job-1", "greeting", "run-1/job-old", "success", "printf hello", "To execute these jobs:", "rotari run --basedir '" + baseDir + "' --project-name 'demo'"} {
+	for _, want := range []string{"Base directory: " + baseDir, "Project: demo", "Queue: " + paths.queueFile + " (1 jobs)", "Project state: idle", "Runner server: stopped", "Runs: 0", "Showing jobs queued for the next run", "job-1", "greeting", "run-1/job-old", "success", "printf hello", "To execute these jobs:", "rotari run -b '" + baseDir + "' -p 'demo'"} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("cmdShow output does not contain %q:\n%s", want, output)
 		}
@@ -311,9 +311,12 @@ func TestCmdShowDisplaysResolvedConfigPaths(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cmdShow exit code = %d, want 0", code)
 	}
-	want := "Config: " + strings.Join([]string{globalConfig, baseConfig, projectConfig}, ", ")
+	want := "Config: " + projectConfig
 	if !strings.Contains(string(output), want) {
-		t.Fatalf("cmdShow output does not contain config path summary %q:\n%s", want, output)
+		t.Fatalf("cmdShow output does not contain highest-priority config path %q:\n%s", want, output)
+	}
+	if strings.Contains(string(output), globalConfig) || strings.Contains(string(output), baseConfig) {
+		t.Fatalf("cmdShow output contains lower-priority config paths:\n%s", output)
 	}
 }
 
@@ -776,6 +779,43 @@ func TestShowQueueJobPrintsMatchingJob(t *testing.T) {
 	}
 }
 
+func TestShowQueueJobColorsLabelsInTTYMode(t *testing.T) {
+	oldCheck := terminalCheck
+	terminalCheck = func(*os.File) bool { return true }
+	defer func() { terminalCheck = oldCheck }()
+
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "build", Command: []string{"echo", "build"}, DependsOn: []string{"prepare"}}}}
+
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code := showQueueJob(paths, queue, "job-1")
+	os.Stdout = oldStdout
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 {
+		t.Fatalf("showQueueJob exit code = %d, want 0", code)
+	}
+	for _, want := range []string{cyan("Name:"), cyan("Executor:"), cyan("Command:")} {
+		if !strings.Contains(string(output), want) {
+			t.Fatalf("showQueueJob output does not contain colored label %q:\n%s", want, output)
+		}
+	}
+}
+
 func TestShowQueueDisplaysArrayTaskColumn(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "default")
@@ -984,9 +1024,14 @@ func TestCmdShowProjectsListsProjectSummaries(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cmdShow exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"Base directory: " + baseDir, "Projects: 2", "demo", "demo-run", "example", "running", "To show runs in a project:", "rotari show -p PROJECT", "To show jobs in a run:", "rotari show -p PROJECT -r latest"} {
+	for _, want := range []string{"Base directory: " + baseDir, "Projects: 2", "demo", "demo-run", "example", "running", "To show runs in a project:", "rotari show -p PROJECT"} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("cmdShow --projects output does not contain %q:\n%s", want, output)
+		}
+	}
+	for _, unwanted := range []string{"To show jobs in a run:", "rotari show -p PROJECT -r latest"} {
+		if strings.Contains(string(output), unwanted) {
+			t.Fatalf("cmdShow --projects output unexpectedly contains %q:\n%s", unwanted, output)
 		}
 	}
 }

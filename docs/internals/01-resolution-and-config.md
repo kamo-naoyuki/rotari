@@ -70,6 +70,9 @@ Without a run-location lookup, base directories resolve in this order:
 - After resolving the project name, the same lookup is performed in
   `projects/<project>/`. Project values override base-directory values.
 - Later scopes override earlier scopes: home, basedir, then project.
+- `rotari show` and the web UI display only the highest-priority existing
+  config path: project, then basedir, then home. Config loading still merges
+  all three scopes.
 - Multiple supported config files in the same directory are an error; file
   formats have no implicit priority.
 - Common configuration keys (`basedir` and `project-name`) are at the root;
@@ -82,7 +85,7 @@ Without a run-location lookup, base directories resolve in this order:
 - Without `--output`, `rotari config` offers home, basedir, existing project
   config paths, stdout, and an arbitrary path interactively; an explicit
   `--output` is non-interactive.
-- `rotari show` prints the resolved config path chain in its header so the
+- `rotari show` prints the highest-priority resolved config path in its header so the
   active home, basedir, and project config files are visible in CLI output as
   well as in the web UI.
 - The Web UI exposes config paths in its state and serves raw contents only for

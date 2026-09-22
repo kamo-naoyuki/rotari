@@ -16,9 +16,10 @@ const (
 	ansiWhite  = "\033[37m"
 )
 
+var terminalCheck = isTerminal
+
 func colorText(text, color string, file *os.File) string {
-	info, err := file.Stat()
-	if err != nil || info.Mode()&os.ModeCharDevice == 0 {
+	if file == nil || !terminalCheck(file) {
 		return text
 	}
 	return color + text + ansiReset

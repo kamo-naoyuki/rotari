@@ -715,7 +715,7 @@ func loadWebConfigFiles(baseDir, projectName, runID string) ([]webConfigFile, er
 		if runID != "" {
 			return nil, fmt.Errorf("project_name is required with run_id")
 		}
-		if path := globalConfigPath(); path != "" {
+		if path := effectiveConfigPath(baseDir, ""); path != "" {
 			paths = []string{path}
 		}
 	} else {
@@ -769,18 +769,21 @@ func loadRunConfigPaths(baseDir, projectName, runID string) ([]string, error) {
 	for _, path := range configPathsForRun(baseDir, projectName) {
 		allowed[filepath.Clean(path)] = true
 	}
-	result := make([]string, 0, len(context.ConfigPaths))
+	allowedPaths := make([]string, 0, len(context.ConfigPaths))
 	for _, path := range context.ConfigPaths {
 		cleanPath := filepath.Clean(path)
 		if allowed[cleanPath] {
-			result = append(result, cleanPath)
+			allowedPaths = append(allowedPaths, cleanPath)
 		}
 	}
-	return result, nil
+	if len(allowedPaths) == 0 {
+		return nil, nil
+	}
+	return []string{allowedPaths[len(allowedPaths)-1]}, nil
 }
 
 func loadWebState(baseDir, queueFilter string) (webState, error) {
-	state := webState{BaseDir: baseDir, ConfigPath: globalConfigPath(), Server: loadWebServerState(baseDir), Environments: environmentDefinitions(), UpdatedAt: nowRFC3339()}
+	state := webState{BaseDir: baseDir, ConfigPath: effectiveConfigPath(baseDir, ""), Server: loadWebServerState(baseDir), Environments: environmentDefinitions(), UpdatedAt: nowRFC3339()}
 	for index := range state.Environments {
 		// Only expose whether the variable is set, never its value: it may hold secrets (API keys, tokens).
 		_, state.Environments[index].Set = os.LookupEnv(state.Environments[index].Name)

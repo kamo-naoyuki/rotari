@@ -389,6 +389,7 @@ func cmdConfig(args []string) int {
 	fs.SetOutput(os.Stderr)
 	basedir := cliString(fs, "basedir", "")
 	projectName := cliString(fs, "project-name", "")
+	list := cliBool(fs, "list", false)
 	format := cliString(fs, "format", "")
 	output := cliString(fs, "output", "")
 	if err := fs.Parse(args); err != nil || len(fs.Args()) != 0 {
@@ -405,6 +406,21 @@ func cmdConfig(args []string) int {
 	if err != nil {
 		printErrorf("failed to resolve basedir: %v", err)
 		return 1
+	}
+	if *list {
+		if *format != "" || *output != "" {
+			printError("--list cannot be combined with --format or --output")
+			return 1
+		}
+		project, err := configProjectName(resolvedBaseDir, *projectName)
+		if err != nil {
+			printError(err.Error())
+			return 1
+		}
+		for _, path := range configPathsForRun(resolvedBaseDir, project) {
+			fmt.Println(path)
+		}
+		return 0
 	}
 	if *output == "" {
 		selectedOutput, ok := chooseConfigOutput(os.Stdin, os.Stderr, resolvedBaseDir, *projectName, selectedFormat)
