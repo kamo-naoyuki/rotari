@@ -35,7 +35,6 @@ If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https:/
 
 The goal is not to replace shell scripts or compete with full-featured workflow systems. **It is to add just enough structure around the commands you already use, without making you rewrite them as a workflow.**
 
-
 ## Installation
 
 ### Prebuilt binary
@@ -100,12 +99,12 @@ configuration idempotently; it does not duplicate an existing rotari completion
 block. Start a new shell after installation, or source the shell configuration
 to apply it to the current shell.
 
-Options with a fixed set of values, such as `--executor`, reject values outside
+Options with a fixed set of values, such as `--executor/-e`, reject values outside
 the choices shown by completion and `rotari schema --json` during CLI parsing.
 
 Dynamic candidates include project names, saved run IDs, and job IDs. Job ID
 completion normally includes IDs from the current queue and saved runs; when
-`--run-id RUN_ID` is present, it is limited to jobs in that run.
+`--run-id/-r RUN_ID` is present, it is limited to jobs in that run.
 
 For manual setup, `rotari completion bash`, `rotari completion zsh`, and
 `rotari completion fish` print the raw completion scripts.
@@ -144,7 +143,7 @@ the user are terminal for that run and are not automatically retried; a later
 `rotari retry` can select them explicitly as failed/unfinished. A project
 contains its current queue and saved runs. For regular use, set
 `ROTARI_PROJECT_NAME` once in the shell; the project name can also be supplied
-with `--project-name` or omitted.
+with `--project-name/-p` or omitted.
 When omitted, if only one project exists in the state directory, it is selected
 automatically; if multiple projects exist, commands other than a bare `show`
 ask you to specify one. A bare `rotari show` prints a warning and falls back to
@@ -169,8 +168,8 @@ rotari run
 The shortest retry loop is:
 
 ```sh
-rotari show --project-name build --failed-logs
-rotari retry --project-name build
+rotari show -p build --failed-logs
+rotari retry -p build
 ```
 
 `rotari retry` reruns failed and unfinished job bodies without rerunning
@@ -179,6 +178,19 @@ run with their previous result and a link back to the original output, so the
 whole run shows up together on one run page. When a failed job needs its saved
 command edited before retrying, use `rotari change`; see the inspection and
 recovery commands below.
+
+### Shorthand options
+
+Frequently used options have short forms:
+
+| Long option | Short option |
+| --- | --- |
+| `--project-name` | `-p` |
+| `--basedir` | `-b` |
+| `--run-id` | `-r` |
+| `--job-id` | `-j` |
+| `--executor` | `-e` |
+
 
 ### Example
 
@@ -233,7 +245,6 @@ This is intentionally a thin wrapper, not a Python-native
 job executor: it accepts command argument lists such as `['./train.sh']`, not
 Python functions to serialize and submit. For a function-oriented Python job
 submission framework, see [Submitit](https://github.com/facebookincubator/submitit).
-
 ## Local web UI
 
 See the [web demo](https://kamo-naoyuki.github.io/rotari/) for a read-only UI
@@ -264,19 +275,57 @@ A project groups one current queue and its run history. `add` assembles the
 next experiment in `queue.json`. `run` freezes that batch into one run ID and
 stores its snapshot, logs, and results separately.
 
-```mermaid
-flowchart LR
-  add([rotari add]) --> queue[(queue.json)]
-  queue --> run([rotari run])
-  run --> history[(runs/run-id/<br/>commands, logs, results)]
-  run --> empty[(queue.json: empty)]
-  empty -. next run .-> add
+### IDs and location resolution
 
-  classDef command fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
-  class add,run command
+Rotari uses three different IDs:
+
+| ID | Meaning |
+| --- | --- |
+| `run-id` | One execution of a project queue. It identifies the run snapshot, summary, and history. |
+| `job-id` | A logical job in a queue or run. For an array, expanded task IDs look like `job-id-1`, `job-id-2`, and so on. |
+| `attempt-id` | One concrete execution of one logical job, including a retry. It identifies the attempt output and status. |
+
+The `run-id` identifies a run and provides its project location. An
+`attempt-id` identifies one job execution and provides its `job-id` and
+`run-id`, so the command can resolve the same project location from the attempt
+alone.
+
+| Selector | Information available for resolution | Options that can be omitted |
+| --- | --- | --- |
+| `-r RUN_ID` | `run-id`, `basedir`, and `project` | `--basedir/-b`, `--project-name/-p` |
+| `-j ATTEMPT_ID` | `attempt-id`, `job-id`, `run-id`, `basedir`, and `project` | `--basedir/-b`, `--project-name/-p`, `--run-id/-r` |
+
+With an ordinary `job-id`, the location still needs to come from the explicit
+project/run options, the corresponding environment variables, or the normal
+single-project/current-run resolution rules. For example:
+
+```sh
+# rotari show -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j ATTEMPT_ID
+# is equivalent to
+rotari show -j ATTEMPT_ID
+# rotari copy -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j JOB_ID
+# is equivalent to
+rotari copy -r RUN_ID -j JOB_ID
 ```
 
-The state directory mirrors this lifecycle:
+The following commands accept an `ATTEMPT_ID` as their `--job-id/-j` selector:
+
+- `ATTEMPT_ID` supported: `show`, `diagnose`, `cancel`, `suspend`, `resume`,
+  `copy`, `run`, `retry`.
+- `ATTEMPT_ID` not supported: `add`, `change`, `remove`, `delete`, `wait`.
+  These commands operate on queue definitions or whole runs, not individual attempts.
+
+### Project and queue
+
+A project keeps a single current queue plus a history of completed runs. Queues
+are mutable and represent the jobs that are ready to execute next; runs are
+snapshots of that queue at a specific moment, so a later retry or filtered
+rerun can be traced back to the original job list without mutating earlier
+history. The on-disk state reflects that model: the live queue lives in
+`queue.json`, while each run stores its own immutable snapshot under
+`runs/<run-id>/`.
+
+The state directory mirrors this structure:
 
 ```text
 <basedir>/
@@ -293,6 +342,28 @@ The state directory mirrors this lifecycle:
           └── output
 ```
 
+This is the shared project state: the live queue is in `queue.json`, while each
+run stores an immutable snapshot under `runs/<run-id>/`.
+
+### Run and state
+
+Each run records its own command snapshot, success/failure status, logs, and
+metadata. When a run finishes, the runner updates the project state and leaves
+the completed run immutable, which makes retry loops and inspection easy to
+reason about without losing the earlier outcome.
+
+```mermaid
+flowchart LR
+  add([rotari add]) --> queue[(queue.json)]
+  queue --> run([rotari run])
+  run --> history[(runs/run-id/<br/>commands, logs, results)]
+  run --> empty[(queue.json: empty)]
+  empty -. next run .-> add
+
+  classDef command fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+  class add,run command
+```
+
 Each submitted command has a stable job ID. `run` saves the complete command
 snapshot under `runs/<run-id>/`, together with a summary and each job's log.
 After it finishes, the queue is emptied, while the run can be inspected or used
@@ -301,17 +372,39 @@ keeping the previous run history. Use `delete` to remove saved run logs
 explicitly. Use `run --async` when an experiment should continue after the
 terminal returns.
 
+### Internal execution model
+
+This section is the runtime architecture view: it explains who owns the project
+state, which process actually launches jobs, and how the queue, server, and
+runner fit together during a run.
+
+```mermaid
+flowchart LR
+    Client["run client\nrotari run / add --run"] -->|start request| Server["server\nowns project state and lock"]
+    Server -->|begin active run| Runner["runner\nexecuteMixedRun"]
+    Runner -->|dispatch jobs| Local["local jobs"]
+    Runner -->|dispatch jobs| SSH["SSH jobs"]
+    Runner -->|dispatch jobs| Scheduler["Slurm / PBS / LSF jobs"]
+    Runner -->|write logs + result| State[("project state\nqueue / run history")]
+    Server -->|status + progress| Client
+```
+
+The CLI is the user-facing entry point. It sends a run request to the
+long-lived server for the project, and the server owns the queue, lock, and
+final run state. The runner then executes the queued jobs, persists their logs
+and results, and reports progress back through the same server state.
+
 ## Scheduler
 
 Each job can choose its execution backend and backend-specific options:
 
 ```sh
-rotari add --project-name build make
-rotari add --project-name build \
-  --executor slurm \
+rotari add -p build make
+rotari add -p build \
+  -e slurm \
   --executor-option="-p short --cpus-per-task=2" \
   ./heavy-test.sh
-rotari run --project-name build --local-concurrency 4 --batch-concurrency 8
+rotari run -p build --local-concurrency 4 --batch-concurrency 8
 ```
 
 Local jobs and scheduler-backed jobs may be mixed in the same queue. Use
@@ -348,15 +441,15 @@ remote job in its own process group; cancellation reconnects over SSH and sends
 `SIGTERM` only after the recorded PID and process start time still match.
 
 ```sh
-rotari add --project-name build \
-  --executor ssh \
+rotari add -p build \
+  -e ssh \
   --executor-option="builder@worker-01" \
   --executor-option="-p 2222" \
   --working-directory=/work/build \
   --env DATASET=nightly \
   --env CUDA_VISIBLE_DEVICES=0 \
   ./heavy-test.sh
-rotari run --project-name build
+rotari run -p build
 ```
 
 ### Array jobs
@@ -364,9 +457,9 @@ rotari run --project-name build
 Array jobs can be added with a numeric range or a comma-separated task list:
 
 ```sh
-rotari add --array 1-10 --executor local ./train.sh
-rotari add --array 1-10 --executor slurm ./train.sh
-rotari add --array 1,3,4 --executor slurm ./train.sh
+rotari add --array 1-10 -e local ./train.sh
+rotari add --array 1-10 -e slurm ./train.sh
+rotari add --array 1,3,4 -e slurm ./train.sh
 ```
 
 Each task is tracked separately. Local execution starts one process per task;
@@ -392,7 +485,7 @@ real LSF installation.
 ## Async runs
 
 ```sh
-rotari run --project-name build --async
+rotari run -p build --async
 rotari wait build
 ```
 
@@ -407,18 +500,18 @@ The async start message prints commands for checking status and cancelling the
 run. `wait` returns the overall run exit code. Pass a project name, run name,
 or run ID as a positional selector. Rotari checks them in that order, so a
 project name wins over a run name and a run ID when the same string is used for
-more than one kind of identifier. Use `--run-id` to select a run explicitly.
+more than one kind of identifier. Use `--run-id/-r` to select a run explicitly.
 Pass multiple selectors to wait for independent async runs together:
 
 ```sh
-rotari run --project-name build --async
-rotari run --project-name test --async
+rotari run -p build --async
+rotari run -p test --async
 rotari wait build test
 ```
 
 `--async` starts the run in a detached `setsid` session, so it survives terminal
 closure. Use `rotari wait PROJECT`, `rotari wait RUN_NAME`, or
-`rotari wait --run-id RUN_ID` from any terminal, and `rotari cancel` to stop it.
+`rotari wait -r RUN_ID` from any terminal, and `rotari cancel` to stop it.
 
 With no selector, `rotari wait` scans the resolved basedir: it waits when one
 project is running, or lists project/run IDs and asks for a selector when
@@ -428,13 +521,13 @@ During synchronous `rotari run`, Ctrl-C returns immediately with exit code 130
 and asks the background supervisor to cancel the run; cleanup (summary, queue,
 and lock) finishes afterward, so the same project may briefly reject commands.
 No `unlock` or `server shutdown` is needed. Ctrl-D detaches without cancelling;
-follow the run with `rotari wait --run-id RUN_ID` or `rotari show --run-id RUN_ID`.
+follow the run with `rotari wait -r RUN_ID` or `rotari show -r RUN_ID`.
 Ctrl-Z only suspends the client; `fg` resumes it, but closing the terminal
 disconnects the run and requests cancellation. Use Ctrl-D or `--async` to detach.
 
 The supervisor is not auto-restarted after a crash or kill. The run lock records
 its PID and host, while local wrappers preserve job status for
-`rotari show --run-id RUN_ID`. If the run remains interrupted, confirm jobs have
+`rotari show -r RUN_ID`. If the run remains interrupted, confirm jobs have
 stopped and use the recovery command shown by `show`: `unlock` keeps the queue;
 `reset --recover` discards it.
 
@@ -443,52 +536,31 @@ stopped and use the recovery command shown by `show`: `unlock` keeps the queue;
 To inspect the latest run or list all runs:
 
 ```sh
-rotari show --basedirs
-rotari show --projects
-rotari show --project-name build
-rotari show --project-name build --runs
-rotari show --project-name build --failed
-rotari show --project-name build --job-id JOB_ID
-rotari show --project-name build --logs
-rotari show --project-name build --failed-logs
-rotari show --run-id RUN_ID --report
-rotari show --run-id RUN_ID --job-id JOB_ID --report
+rotari show # show the active run, interrupted run, current queue, or latest run
+rotari show --basedirs # print the resolved master directory and state directories
+rotari show --projects # list every project in the resolved basedir
+rotari show -p build # show the selected project's current queue and latest run
+rotari show -p build --runs # list the project's saved runs
+rotari show -p build --failed # list failed jobs in the selected run
+rotari show -j ATTEMPT_ID # inspect a specific attempt without selecting a project or run
+rotari show -p build --logs # print output logs for every job in the selected run
+rotari show -p build --failed-logs # print logs only for failed jobs
+rotari show -j ATTEMPT_ID --report # print an AI-ready Markdown report for one attempt
+rotari show -r RUN_ID --report # describe the whole run and include recent logs
 ```
 
-`show --projects` lists every project in the resolved basedir with its queued
-job count, run state, and latest run ID. It does not select a project, so it
-also works when the basedir contains multiple projects. The output includes
-commands for selecting a project and inspecting its latest run; `latest` is an
-alias for the latest saved run when used with `--run-id`.
-
-`show --basedirs` prints the resolved master directory and state directories
-known through its run and live-server registries. This is not exhaustive: a
-basedir with no registered run and no running server cannot be discovered this
-way. Use `--masterdir DIR` to inspect a non-default master registry.
-
-`--logs` prints the output log for every job in the selected run.
-`--failed-logs` prints logs only for jobs that failed. Both options accept
-`--run-id RUN_ID` to inspect a specific run.
-`--report` prints the same AI-ready Markdown report available from the Web UI.
-Without `--job-id` it describes the whole run and includes recent logs for
-failed jobs; with `--job-id` it describes that job and includes its recent log.
-Use `--failed` with a run report to omit successful jobs.
-Without `--run-id`, `show` displays the active run while a project is running,
-then the current queue when it has commands, and otherwise the latest run. A
-queued-jobs view includes the exact `rotari run` command needed to execute them.
-Use `--run-id` to inspect a specific saved run, or use `--run-id latest` for
-the latest saved run.
+Use `--run-id/-r latest` to inspect the latest saved run.
 
 If a runner exits before finalizing its run, `show` reports the interrupted run
 and blocks `add`, `copy`, and `run` until you acknowledge it. First confirm
 that all jobs have stopped:
 
 ```sh
-rotari show --project-name build
+rotari show -p build
 ```
 
 To keep the retained queue for the next run, execute the `rotari unlock`
-command printed by `show` (for example, `rotari unlock --run-id RUN_ID`). To
+command printed by `show` (for example, `rotari unlock -r RUN_ID`). To
 discard the queue while preserving the interrupted run's history, use:
 
 ```sh
@@ -497,7 +569,7 @@ rotari reset --recover
 
 Use `retry` or result filters when the interrupted run contains completed jobs.
 Outside an interrupted run, `rotari reset` simply discards the current queue.
-When output is a terminal, log views (including `--job-id`) longer than 24
+When output is a terminal, log views (including `--job-id/-j`) longer than 24
 lines open in `$PAGER` (or `less -R` by default). Use `--no-pager` to print
 directly; piped and redirected output is always printed directly.
 
@@ -507,7 +579,7 @@ To check whether a project can start its queued run without changing any
 state:
 
 ```sh
-rotari check --project-name build
+rotari check -p build
 ```
 
 `check` reports whether the project is ready to run, together with its project,
@@ -536,7 +608,7 @@ a failed job is finalized. The saved analysis is informational only: it never
 changes job status, retries, dependencies, or scheduler control. View it with:
 
 ```sh
-rotari show --run-id RUN_ID --job-id JOB_ID
+rotari show -j ATTEMPT_ID
 ```
 
 Every finalized failed job records a recognized diagnosis, an explicit no-match
@@ -547,7 +619,7 @@ it when a finalized failed job has saved analysis.
 To check a saved job manually, run:
 
 ```sh
-rotari diagnose --run-id RUN_ID --job-id JOB_ID --rules
+rotari diagnose -j ATTEMPT_ID --rules
 ```
 
 The `diagnose` command/API is experimental. With `--rules`, it sends nothing
@@ -561,18 +633,18 @@ distributed-compute, Python, filesystem, network, and HTTP failures.
 ### run and retry
 
 `run` can select jobs from the latest run, or from a saved run given by
-`--run-id`, and execute them as a new run while carrying forward everything
+`--run-id/-r`, and execute them as a new run while carrying forward everything
 else. Result filters select which jobs are copied into the new queue for
 execution; jobs with completed results that do not match are copied as
 carry-forward results. In other words, `run --failed`, `run --unfinished`, and
 similar commands copy the selected jobs and then run the resulting queue.
 
 ```sh
-rotari run --project-name build --failed
-rotari run --project-name build --unfinished
-rotari run --project-name build --success
-rotari run --project-name build --failed --unfinished
-rotari run --project-name build --job-id JOB_ID
+rotari run -p build --failed
+rotari run -p build --unfinished
+rotari run -p build --success
+rotari run -p build --failed --unfinished
+rotari run -j ATTEMPT_ID
 ```
 
 `retry` is shorthand for `run --failed --unfinished`. It selects failed and
@@ -580,7 +652,7 @@ unfinished jobs from the reference run, copies them into the next run with
 successful results carried forward, and executes that run:
 
 ```sh
-rotari retry --project-name build
+rotari retry -p build
 ```
 
 The result filters select which jobs are actually re-executed:
@@ -602,20 +674,20 @@ For example, `--failed --unfinished` re-executes failed or unfinished jobs
 while carrying forward everything that already succeeded.
 
 Use `--failed --unfinished` when a run may have been interrupted and you want to
-recover everything that did not complete successfully. Use `--job-id` to select
+recover everything that did not complete successfully. Use `--job-id/-j` to select
 specific jobs by ID instead of filtering by result; it may be repeated and is
-mutually exclusive with the result filters above. `--run-id ID` changes the
+mutually exclusive with the result filters above. `--run-id/-r ID` changes the
 reference run used for both the queue snapshot and the result filters.
 
-`run --run-id ID` can select jobs directly from a saved run instead of the live
+`run --run-id/-r ID` can select jobs directly from a saved run instead of the live
 queue. It restores that run's jobs first, then applies result filters
-(`--failed`, `--unfinished`, `--success`, or `--job-id`). A non-empty queue
-requires confirmation before replacement; add `--overwrite` to `run --run-id`
+(`--failed`, `--unfinished`, `--success`, or `--job-id/-j`). A non-empty queue
+requires confirmation before replacement; add `--overwrite` to `run --run-id/-r`
 to replace it without asking. Finished jobs that do not match the filter are
 carried forward instead of re-executed. For example:
 
 ```sh
-rotari run --project-name build --run-id RUN_ID --failed
+rotari run -p build -r RUN_ID --failed
 ```
 
 For an array job (`--array`), result filters default to per-task selection
@@ -631,7 +703,7 @@ versions.
 Copy jobs from a previous run into the current queue without executing them:
 
 ```sh
-rotari copy --project-name build --run-id RUN_ID --failed --unfinished
+rotari copy -j ATTEMPT_ID
 ```
 
 This is the explicit form of what `run --failed --unfinished` does: copy the
@@ -643,7 +715,7 @@ combinations.
 queue, and preserves dependencies between copied jobs. A non-empty queue
 requires confirmation before replacement; use `--append` to add jobs or
 `--overwrite` to replace it without asking. Selection options include
-`--failed`, `--unfinished`, `--success`, and repeated `--job-id`. Copied jobs
+`--failed`, `--unfinished`, `--success`, and repeated `--job-id/-j`. Copied jobs
 remain pending, with source run, status, and working-directory metadata kept
 for later inspection.
 
@@ -652,46 +724,46 @@ restores jobs into the current queue without executing them; then `change` can
 modify their commands or options while preserving the saved run history:
 
 ```sh
-rotari copy --project-name build --run-id RUN_ID --failed --unfinished
-rotari change --job-name train --executor local
+rotari copy -j ATTEMPT_ID
+rotari change --job-name train -e local
 rotari change --job-name train --executor-option="-p gpu"
 rotari change --job-name train --depends-on prepare -- ./train-v2.sh
 rotari run
 ```
 
-`change` requires exactly one target selector: `--job-id ID` or
+`change` requires exactly one target selector: `--job-id/-j ID` or
 `--job-name NAME`. It also requires at least one change, such as a new command,
-`--executor`, `--executor-option`, `--set-job-name`, or `--depends-on`.
+`--executor/-e`, `--executor-option`, `--set-job-name`, or `--depends-on`.
 It replaces only the options specified, keeps the job ID, and edits the current
 batch. If the queue is empty, the latest run snapshot is restored first. Use
-`--run-id` to select another run.
+`--run-id/-r` to select another run.
 
 ## Queue and job control
 
 Remove jobs from the current queue without affecting saved run history:
 
 ```sh
-rotari remove --project-name build --job-name train
-rotari remove --project-name build --job-id JOB_ID --job-id OTHER_JOB_ID
+rotari remove -p build --job-name train
+rotari remove -p build -j JOB_ID -j OTHER_JOB_ID
 ```
 
 If the queue is empty, `remove` restores the latest run snapshot first. Use
-`--run-id` to select another run. Specify exactly one target selector:
-`--job-name NAME` or one or more `--job-id ID` options. Removing a job that
+`--run-id/-r` to select another run. Specify exactly one target selector:
+`--job-name NAME` or one or more `--job-id/-j ID` options. Removing a job that
 another queued job depends on is rejected.
 
 Stop running jobs without stopping the supervisor:
 
 ```sh
-rotari cancel --project-name build
-rotari cancel --project-name build --job-id JOB_ID
+rotari cancel -p build
+rotari cancel -j ATTEMPT_ID
 ```
 
-`--job-id` is optional. Without it, all running jobs in the queue are
+`--job-id/-j` is optional. Without it, all running jobs in the queue are
 cancelled. With it, only the specified running jobs are cancelled, and the
-option may be repeated. `--job-id` cannot be used with `--wait`.
+option may be repeated. `--job-id/-j` cannot be used with `--wait`.
 
-Whole-run cancel (no `--job-id`) and, for `local`-executor jobs, `--job-id`
+Whole-run cancel (no `--job-id/-j`) and, for `local`-executor jobs, `--job-id/-j`
 cancel/suspend/resume all signal the runner or job by PID, which only means
 something on the host that actually runs it; run these commands from that
 host if it differs from wherever `cancel`/`suspend`/`resume` is invoked. See
@@ -701,23 +773,23 @@ when you can't.
 Temporarily suspend and resume running jobs:
 
 ```sh
-rotari suspend --project-name build
-rotari suspend --project-name build --job-id JOB_ID
-rotari resume --project-name build --job-id JOB_ID
+rotari suspend -p build
+rotari suspend -j ATTEMPT_ID
+rotari resume -j ATTEMPT_ID
 ```
 
-Without `--job-id`, all currently running jobs are affected. Repeat `--job-id`
+Without `--job-id/-j`, all currently running jobs are affected. Repeat `--job-id/-j`
 to control selected jobs. Local jobs use `SIGSTOP`/`SIGCONT`; Slurm jobs use
 `scontrol suspend`/`scontrol resume`.
 
 Delete saved run logs while keeping queued commands:
 
 ```sh
-rotari delete --project-name build
-rotari delete --project-name build --run-id RUN_ID
+rotari delete -p build
+rotari delete -p build -r RUN_ID
 ```
 
-`--run-id` removes only the specified run. Without it, all saved run logs are removed.
+`--run-id/-r` removes only the specified run. Without it, all saved run logs are removed.
 
 The commands affect the current queue and saved run history differently:
 
@@ -733,7 +805,7 @@ flowchart LR
   run -->|empty after start| queue
   history --> copy([rotari copy])
   copy -->|all jobs| queue
-  run -.->|--run-id: copy, then select/carry forward| queue
+  run -.->|--run-id/-r: copy, then select/carry forward| queue
   cancel([rotari cancel]) -->|stop selected/all| active
   suspend([rotari suspend]) -->|pause selected/all| active
   resume([rotari resume]) -->|continue selected/all| active
@@ -762,19 +834,19 @@ Rotari resolves the state directory before it resolves the project name. The
 first matching state-directory entry wins:
 
 The resolution order for the state directory is:
-1. `--basedir` option
+1. `--basedir/-b` option
 2. `ROTARI_BASEDIR` environment variable
 3. `./.rotari-state` (if it exists in the current directory)
 4. Default location (`$XDG_STATE_HOME/rotari` or `~/.local/state/rotari`)
 
-The resolution logic for the project name when `--project-name` is omitted is:
-1. `--project-name` option
+The resolution logic for the project name when `--project-name/-p` is omitted is:
+1. `--project-name/-p` option
 2. `ROTARI_PROJECT_NAME` environment variable
 3. Automatically select if exactly one project exists in the state directory
 4. Default project name (`default`) if no projects exist yet (if multiple projects exist, an error will prompt you to specify one)
 
 These rules apply consistently to commands that do not identify an existing
-run through its run registry. Use `--basedir` and `--project-name` when a
+run through its run registry. Use `--basedir/-b` and `--project-name/-p` when a
 command must target a specific location explicitly.
 
 ## Configuration files
@@ -865,8 +937,8 @@ new event would exceed that limit.
 Run IDs do not contain the base directory or project name. Rotari therefore
 keeps a master **run registry**, a lookup table that maps each run ID back to
 the base directory and project that own it. This lets commands such as
-`show --run-id`, `wait --run-id`, and `copy --run-id` work without repeating
-`--basedir` and `--project-name`.
+`show --run-id/-r`, `wait --run-id/-r`, and `copy --run-id/-r` work without repeating
+`--basedir/-b` and `--project-name/-p`.
 
 The run data itself remains under the project state directory:
 
@@ -909,7 +981,7 @@ run data.
 
 ## Shared filesystem locking
 
-Hosts sharing `--basedir`/`ROTARI_BASEDIR` on NFS can share a queue. Updates
+Hosts sharing `--basedir/-b`/`ROTARI_BASEDIR` on NFS can share a queue. Updates
 (`add`, `change`, `remove`, `copy`, `run`, `delete`) use an advisory file lock;
 NFSv4 locking must be enabled. Rotari waits up to 30 seconds, then errors, and
 never deletes the lock file because that cannot safely release an active `flock`.
@@ -926,8 +998,8 @@ files and are safer, but the base server, registry, and filesystem remain shared
 After confirming a failed host's run has stopped, unlock that exact run:
 
 ```sh
-rotari show --project-name build --runs
-rotari unlock --project-name build --run-id RUN_ID
+rotari show -p build --runs
+rotari unlock -p build -r RUN_ID
 ```
 
 `unlock` verifies the run ID, removes a matching lock, and returns the project
@@ -939,10 +1011,10 @@ second run could start for the same queue.
 Rotari assumes a trusted single-user or HPC/lab environment. The Web UI token
 provides HTTP authentication, not encryption.
 
-- **State files:** `--basedir`, `--masterdir`, and their contents default to
+- **State files:** `--basedir/-b`, `--masterdir`, and their contents default to
   shared `0755`/`0644` permissions. Set `ROTARI_PRIVATE_STATE=true` for
   owner-only `0700`/`0600`; this affects only newly created paths and applies
-  to the whole `--basedir`.
+  to the whole `--basedir/-b`.
 - **Server socket:** `<basedir>/server.sock` permits server control and is
   always `0600`. On Linux, `SO_PEERCRED` also requires the peer UID to match.
 - **Web UI:** without `ROTARI_WEB_AUTH_TOKEN` or `--auth-token`, bind it to
