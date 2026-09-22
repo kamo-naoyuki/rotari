@@ -215,7 +215,7 @@ function renderQueue(q) {
   const rows = q.runs
     .map(
       (r) =>
-        '<tr><td>' +
+        "<tr><td>" +
         esc(r.run_name || "-") +
         '</td><td><a class="link run-id" href="/project/' +
         encodeURIComponent(q.project_name) +
