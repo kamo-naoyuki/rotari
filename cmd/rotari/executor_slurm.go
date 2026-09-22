@@ -124,14 +124,9 @@ func submitSlurmJob(runDir string, job JobSpec, executorOptions []string) (slurm
 	if err != nil {
 		return slurmJobMetadata{}, err
 	}
-	rootJobDir, err := validatedJobDir(runDir, job.ID)
-	if err != nil {
-		return slurmJobMetadata{}, err
-	}
 	if err := os.MkdirAll(jobDir, stateDirMode()); err != nil {
 		return slurmJobMetadata{}, err
 	}
-	markLatestAttempt(rootJobDir, job.AttemptID)
 	if err := writeJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 		return slurmJobMetadata{}, err
 	}

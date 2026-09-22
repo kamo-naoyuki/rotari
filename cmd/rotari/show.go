@@ -587,17 +587,15 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 			continue
 		}
 		jobSpec := jobSpecs[jobID]
-		latestAttemptID := "-"
-		if rootJobDir, rootErr := validatedJobDir(runDir, jobID); rootErr == nil {
-			if value, readErr := readLatestAttemptID(rootJobDir); readErr == nil {
-				latestAttemptID = value
-			}
+		latestAttemptLabel := "-"
+		if value, readErr := latestAttemptID(runDir, jobID); readErr == nil && value != "" {
+			latestAttemptLabel = value
 		}
-		if latestAttemptID == "-" {
+		if latestAttemptLabel == "-" {
 			if origin := originByID[jobID]; origin != nil && origin.AttemptID != "" {
-				latestAttemptID = origin.AttemptID
+				latestAttemptLabel = origin.AttemptID
 			} else if result, ok := resultByID[jobSpec.ID]; ok && result.AttemptID != "" {
-				latestAttemptID = result.AttemptID
+				latestAttemptLabel = result.AttemptID
 			}
 		}
 		name := readJobName(jobDir)
@@ -677,9 +675,9 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 			} else if status != 0 {
 				statusText = red(strconv.Itoa(status))
 			}
-			fmt.Printf("%-12s %-42s %-6s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptID, taskText, name, dependsOn, statusText, executorText, submittedAt, finishedAt, hosts, command)
+			fmt.Printf("%-12s %-42s %-6s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptLabel, taskText, name, dependsOn, statusText, executorText, submittedAt, finishedAt, hosts, command)
 		} else {
-			fmt.Printf("%-12s %-42s %-6s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptID, taskText, name, dependsOn, yellow("running"), executorText, submittedAt, finishedAt, hosts, command)
+			fmt.Printf("%-12s %-42s %-6s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptLabel, taskText, name, dependsOn, yellow("running"), executorText, submittedAt, finishedAt, hosts, command)
 		}
 	}
 	fmt.Printf("\n%s success: %d, failed: %d, blocked: %d, running: %d, pending: %d\n", cyan("Job status:"), jobCounts.success, jobCounts.failed, jobCounts.blocked, jobCounts.running, jobCounts.pending)
@@ -1346,19 +1344,17 @@ func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID str
 	jobSpecs := loadRunJobSpecs(runDir)
 	selectedAttemptID := attemptID
 	if selectedAttemptID == "" {
-		if rootDir, rootErr := validatedJobDir(runDir, jobID); rootErr == nil {
-			selectedAttemptID, _ = readLatestAttemptID(rootDir)
-		}
+		selectedAttemptID, _ = latestAttemptID(runDir, jobID)
 	}
 	if selectedAttemptID != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Attempt ID:"), selectedAttemptID)
 	}
 	if attempts := listAttemptIDs(runDir, jobID); len(attempts) > 0 {
-		latestAttemptID, _ := readLatestAttemptID(filepath.Join(runDir, jobID))
+		latestAttemptLabel, _ := latestAttemptID(runDir, jobID)
 		fmt.Fprintln(writer, cyan("Attempts:"))
 		for _, listedAttemptID := range attempts {
 			labels := make([]string, 0, 2)
-			if listedAttemptID == latestAttemptID {
+			if listedAttemptID == latestAttemptLabel {
 				labels = append(labels, "latest")
 			}
 			if listedAttemptID == selectedAttemptID && attemptID != "" {

@@ -1030,7 +1030,7 @@ func TestAssignAttemptIDsAreUniquePerRunAttempt(t *testing.T) {
 	}
 }
 
-func TestAttemptJobDirUsesLatestAttemptMarker(t *testing.T) {
+func TestLatestAttemptJobDirUsesAttemptDirectories(t *testing.T) {
 	runDir := t.TempDir()
 	job := JobSpec{ID: "job-1", AttemptID: makeAttemptID("20260922-000000-00000000", "job-1", 1)}
 	jobDir, err := attemptJobDir(runDir, job)
@@ -1041,20 +1041,18 @@ func TestAttemptJobDirUsesLatestAttemptMarker(t *testing.T) {
 	if jobDir != want {
 		t.Fatalf("attempt job dir = %q, want %q", jobDir, want)
 	}
-	rootDir, err := validatedJobDir(runDir, job.ID)
-	if err != nil {
+	if err := os.MkdirAll(jobDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Dir(jobDir), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	markLatestAttempt(rootDir, job.AttemptID)
 	latest, err := latestAttemptJobDir(runDir, job.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if latest != want {
 		t.Fatalf("latest attempt dir = %q, want %q", latest, want)
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(filepath.Dir(jobDir)), "latest_attempt")); !os.IsNotExist(err) {
+		t.Fatalf("latest attempt marker exists: %v", err)
 	}
 }
 
@@ -1112,10 +1110,6 @@ func TestNormalizeRunningAttemptIDsRequiresCurrentRunningAttempt(t *testing.T) {
 	jobID := "job-1"
 	oldAttempt := makeAttemptID(runID, jobID, 0)
 	currentAttempt := makeAttemptID(runID, jobID, 1)
-	rootDir, err := validatedJobDir(runDir, jobID)
-	if err != nil {
-		t.Fatal(err)
-	}
 	oldDir, err := specificAttemptJobDir(runDir, jobID, oldAttempt)
 	if err != nil {
 		t.Fatal(err)
@@ -1132,7 +1126,6 @@ func TestNormalizeRunningAttemptIDsRequiresCurrentRunningAttempt(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	markLatestAttempt(rootDir, currentAttempt)
 	got, err := normalizeRunningAttemptIDs(runDir, runID, []string{currentAttempt})
 	if err != nil || len(got) != 1 || got[0] != jobID {
 		t.Fatalf("current attempt normalization = %#v, %v", got, err)
@@ -1156,11 +1149,6 @@ func TestNormalizeRunningAttemptIDsRequiresCurrentRunningAttempt(t *testing.T) {
 	if err := os.MkdirAll(pendingDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	pendingRoot, err := validatedJobDir(runDir, "pending")
-	if err != nil {
-		t.Fatal(err)
-	}
-	markLatestAttempt(pendingRoot, pendingID)
 	if _, err := normalizeRunningAttemptIDs(runDir, runID, []string{pendingID}); err == nil || !strings.Contains(err.Error(), "is pending") {
 		t.Fatalf("pending attempt error = %v", err)
 	}

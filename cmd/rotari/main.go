@@ -960,15 +960,9 @@ func runOneJob(runDir string, job JobSpec) JobResult {
 	if err != nil {
 		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}
-	rootJobDir, err := validatedJobDir(runDir, job.ID)
-	if err != nil {
-		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
-	}
 	if err := os.MkdirAll(jobDir, stateDirMode()); err != nil {
 		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}
-	markLatestAttempt(rootJobDir, job.AttemptID)
-
 	if err := writeJSON(filepath.Join(jobDir, commandJSONName), job); err != nil {
 		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}
@@ -1144,7 +1138,6 @@ const (
 	stateFilePID            = "pid"
 	stateFileCancelled      = "cancelled"
 	stateFileName           = "name"
-	stateFileLatestAttempt  = "latest_attempt"
 )
 
 func isValidPathElement(value string) bool {
@@ -1199,37 +1192,43 @@ func attemptJobDir(runDir string, job JobSpec) (string, error) {
 	return filepath.Join(jobDir, "attempts", job.AttemptID), nil
 }
 
-func markLatestAttempt(jobDir, attemptID string) {
-	if attemptID != "" {
-		_ = os.WriteFile(filepath.Join(jobDir, stateFileLatestAttempt), []byte(attemptID+"\n"), stateFileMode())
-	}
-}
-
 func latestAttemptJobDir(runDir, jobID string) (string, error) {
 	jobDir, err := validatedJobDir(runDir, jobID)
 	if err != nil {
 		return "", err
 	}
-	attemptID, err := readLatestAttemptID(jobDir)
-	if err != nil {
+	attemptID, err := latestAttemptID(runDir, jobID)
+	if err != nil || attemptID == "" {
 		return jobDir, nil
-	}
-	if !isValidPathElement(attemptID) {
-		return "", fmt.Errorf("invalid latest attempt ID for job %q", jobID)
 	}
 	return filepath.Join(jobDir, "attempts", attemptID), nil
 }
 
-func readLatestAttemptID(jobDir string) (string, error) {
-	data, err := os.ReadFile(filepath.Join(jobDir, stateFileLatestAttempt))
+func latestAttemptID(runDir, jobID string) (string, error) {
+	jobDir, err := validatedJobDir(runDir, jobID)
 	if err != nil {
 		return "", err
 	}
-	attemptID := strings.TrimSpace(string(data))
-	if !isValidPathElement(attemptID) {
-		return "", fmt.Errorf("invalid latest attempt ID")
+	entries, err := os.ReadDir(filepath.Join(jobDir, "attempts"))
+	if err != nil {
+		return "", err
 	}
-	return attemptID, nil
+	latest := ""
+	latestNumber := -1
+	for _, entry := range entries {
+		if !entry.IsDir() || !isValidPathElement(entry.Name()) {
+			continue
+		}
+		payload, decodeErr := decodeAttemptID(entry.Name())
+		if decodeErr != nil || payload.JobID != jobID {
+			continue
+		}
+		if payload.Number > latestNumber || (payload.Number == latestNumber && entry.Name() > latest) {
+			latest = entry.Name()
+			latestNumber = payload.Number
+		}
+	}
+	return latest, nil
 }
 
 func specificAttemptJobDir(runDir, jobID, attemptID string) (string, error) {

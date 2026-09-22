@@ -1121,10 +1121,7 @@ func normalizeRunningAttemptIDs(runDir, runID string, jobIDs []string) ([]string
 		}
 		latestDir, err := latestAttemptJobDir(runDir, payload.JobID)
 		if err != nil || filepath.Clean(attemptDir) != filepath.Clean(latestDir) {
-			latestAttemptID := ""
-			if data, readErr := os.ReadFile(filepath.Join(filepath.Dir(filepath.Dir(latestDir)), stateFileLatestAttempt)); readErr == nil {
-				latestAttemptID = strings.TrimSpace(string(data))
-			}
+			latestAttemptID, _ := latestAttemptID(runDir, payload.JobID)
 			if latestAttemptID != "" {
 				return nil, fmt.Errorf("attempt %q is not the latest attempt for job %q\nLatest attempt: %q (%s)", jobID, payload.JobID, latestAttemptID, attemptState(latestDir))
 			}

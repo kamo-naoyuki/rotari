@@ -101,14 +101,9 @@ func submitPBSJob(runDir string, job JobSpec, options []string) (pbsJobMetadata,
 	if err != nil {
 		return pbsJobMetadata{}, err
 	}
-	rootJobDir, err := validatedJobDir(runDir, job.ID)
-	if err != nil {
-		return pbsJobMetadata{}, err
-	}
 	if err := os.MkdirAll(jobDir, stateDirMode()); err != nil {
 		return pbsJobMetadata{}, err
 	}
-	markLatestAttempt(rootJobDir, job.AttemptID)
 	if err := writeJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 		return pbsJobMetadata{}, err
 	}

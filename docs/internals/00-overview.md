@@ -39,31 +39,35 @@ that file for Web UI changes.
 - A base directory contains projects. Each project owns one mutable queue and a
   run history.
 - A run snapshots the queue and stores execution state, results, and logs by
-  stable job ID. Each job stores every execution attempt separately and marks
-  the latest one in `latest_attempt`.
+  stable job ID. Each job stores every execution attempt separately; the latest
+  attempt is selected from the attempt directories.
 - The CLI, server, executors, and web UI project the same persisted state model.
+- The directory layout below is representative: job status and
+  executor-specific files may be added incrementally while a run is active.
 
 The normal state layout is:
 
 ```text
 <basedir>/
 ├── server.log
+├── server.lock
+├── server.sock          # while the background server is running
+├── server.pid           # while the background server is running
 └── projects/<project>/
     ├── queue.json
     ├── meta.json
     ├── state.lock
-    ├── running.lock
+    ├── running.lock      # while a project run is active
     └── runs/<run-id>/
         ├── commands.json
         ├── context.json
         ├── summary.json
         └── <job-id>/
-          ├── latest_attempt
-          └── attempts/<attempt-id>/
-            ├── command.json
-            ├── output
-            ├── status.json
-            └── executor-specific state
+            └── attempts/<attempt-id>/
+                ├── command.json
+                ├── output
+                ├── status.json
+                └── executor-specific state
 ```
 
 - Files may appear incrementally while a run is active.

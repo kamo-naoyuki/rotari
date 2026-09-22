@@ -101,14 +101,9 @@ func submitLSFJob(runDir string, job JobSpec, options []string) (lsfJobMetadata,
 	if err != nil {
 		return lsfJobMetadata{}, err
 	}
-	rootJobDir, err := validatedJobDir(runDir, job.ID)
-	if err != nil {
-		return lsfJobMetadata{}, err
-	}
 	if err := os.MkdirAll(jobDir, stateDirMode()); err != nil {
 		return lsfJobMetadata{}, err
 	}
-	markLatestAttempt(rootJobDir, job.AttemptID)
 	if err := writeJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 		return lsfJobMetadata{}, err
 	}

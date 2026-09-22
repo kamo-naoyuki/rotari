@@ -297,7 +297,6 @@ The state directory mirrors this structure:
         ├── context.json
         ├── summary.json
         └── <job-id>/
-            ├── latest_attempt
             └── attempts/<attempt-id>/
                 ├── command.json
                 ├── output
@@ -308,8 +307,9 @@ The state directory mirrors this structure:
 This is the shared project state: the live queue is in `queue.json`, while
 `meta.json` records the project's latest phase and run metadata. Each run stores
 an immutable command snapshot and execution context under
-`runs/<run-id>/`; each job keeps its latest attempt pointer and its individual
-attempt records. Files may appear incrementally while a run is active, so
+`runs/<run-id>/`; each job keeps its individual attempt records, and the latest
+attempt is selected from the attempt directories. Files may appear incrementally
+while a run is active, so
 readers should treat missing optional files as incomplete state rather than as
 a successful result.
 
