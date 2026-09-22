@@ -337,29 +337,30 @@ function renderRun(q, runID) {
       const attemptCopy = j.attempt_id
         ? copyIcon(j.attempt_id, "attempt ID")
         : "";
-      const attemptMenu = (j.attempts || []).length > 1
-        ? '<details class="attempt-menu"><summary title="Select attempt" aria-label="Select attempt"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg></summary><div class="attempt-options">' +
-          j.attempts
-            .map(
-              (attempt, index) =>
-                '<button type="button" class="' +
-                (attempt.id === j.attempt_id ? "selected" : "") +
-                '" onclick="selectJobAttempt(\'' +
-                esc(q.project_name) +
-                "','" +
-                esc(runID) +
-                "','" +
-                esc(j.id) +
-                "','" +
-                esc(attempt.id) +
-                "')\">" +
-                (index === 0 ? "Latest: " : "") +
-                esc(attempt.id) +
-                "</button>",
-            )
-            .join("") +
-          "</div></details>"
-        : "";
+      const attemptMenu =
+        (j.attempts || []).length > 1
+          ? '<details class="attempt-menu"><summary title="Select attempt" aria-label="Select attempt"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg></summary><div class="attempt-options">' +
+            j.attempts
+              .map(
+                (attempt, index) =>
+                  '<button type="button" class="' +
+                  (attempt.id === j.attempt_id ? "selected" : "") +
+                  '" onclick="selectJobAttempt(\'' +
+                  esc(q.project_name) +
+                  "','" +
+                  esc(runID) +
+                  "','" +
+                  esc(j.id) +
+                  "','" +
+                  esc(attempt.id) +
+                  "')\">" +
+                  (index === 0 ? "Latest: " : "") +
+                  esc(attempt.id) +
+                  "</button>",
+              )
+              .join("") +
+            "</div></details>"
+          : "";
       const commandText = (j.command || []).join(" ");
       const commandCopy = copyIcon(commandText, "command");
       return (

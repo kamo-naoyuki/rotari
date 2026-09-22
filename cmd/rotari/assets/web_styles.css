@@ -136,7 +136,9 @@
   border-radius: 0;
   background: transparent;
   text-align: left;
-  font: 12px/1.4 ui-monospace, monospace;
+  font:
+    12px/1.4 ui-monospace,
+    monospace;
 }
 .attempt-options button:hover,
 .attempt-options button.selected {

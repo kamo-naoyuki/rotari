@@ -46,12 +46,7 @@ function attachLogLoader(output) {
 }
 async function showOriginalOutput(run, job, trigger) {
   const parts = pageParts();
-  await showLog(
-    decodeURIComponent(parts[1]),
-    run,
-    job,
-    "",
-  );
+  await showLog(decodeURIComponent(parts[1]), run, job, "");
 }
 async function showLog(queue, run, job, attemptID) {
   const modal = document.getElementById("output-modal");
@@ -115,12 +110,7 @@ async function followOutput() {
   }
 }
 async function log(queue, run, job, attemptID) {
-  await showLog(
-    queue,
-    run,
-    job,
-    attemptID,
-  );
+  await showLog(queue, run, job, attemptID);
 }
 function lastLogLines(value, count) {
   const lines = String(value || "").split("\n");
