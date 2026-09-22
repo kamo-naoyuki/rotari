@@ -1,22 +1,76 @@
-language: ja
-
 reviews:
   profile: chill
   high_level_summary: true
   poem: false
   request_changes_workflow: false
+  suggested_labels: true
+  auto_apply_labels: true
+
   path_filters:
     - "!docs/web-demo/**"
     - "!**/*.svg"
   path_instructions:
     - path: "**/*.go"
       instructions: |
-        Pay particular attention to persisted state semantics, locking, executor behavior,
-        error handling, and whether changes preserve compatibility across local and scheduler executors.
+        Pay particular attention to:
+        - persisted state semantics and backward compatibility
+        - concurrency, locking, and race conditions
+        - executor behavior and differences between local and scheduler executors
+        - error propagation and whether errors are silently swallowed
+        - context cancellation and goroutine leaks
+        - resource cleanup and lifecycle management
+        - compatibility of changes with existing CLI behavior
+        - unnecessary API or behavioral changes
+        - whether behavior changes have focused tests and matching documentation
+        Focus on correctness, security, concurrency, persistence, compatibility,
+        and meaningful maintainability issues. Do not comment on minor style
+        preferences unless they affect readability or correctness.
     - path: "python/**/*.py"
       instructions: |
-        Check that the Python interface remains a thin CLI projection and does not duplicate
-        queue or execution semantics from the Go implementation.
+        Check that:
+        - the Python interface remains a thin CLI projection of the Go implementation
+        - queue and execution semantics are not duplicated in Python
+        - subprocess errors and exit codes are propagated correctly
+        - stdout is kept suitable for CLI users and scripts
+        - Python-side behavior remains compatible with the Go CLI
+        - public behavior changes have corresponding focused tests
+    - path: "**/*_test.go"
+      instructions: |
+        Check whether the change has focused regression coverage for its
+        behavior, including failure paths, cancellation, persistence, and
+        cross-interface compatibility where relevant. Do not request tests for
+        documentation-only or purely mechanical changes.
+    - path: "**/*.md"
+      instructions: |
+        Check that user-visible behavior changes are documented consistently
+        with the CLI, server/API, and web interfaces. Flag stale examples or
+        documentation that contradicts the implementation.
+    - path: ".github/workflows/**/*.yml"
+      instructions: |
+        Pay particular attention to:
+        - correct trigger conditions
+        - permissions following least privilege
+        - secrets and tokens not being exposed
+        - release workflows publishing only from intended tags
+        - reproducibility of builds
+        - artifact naming and platform coverage
+        - avoiding unnecessary workflow duplication
+  labeling_instructions:
+    - label: feature
+      instructions: |
+        Apply when the PR adds a new user-facing feature or capability.
+    - label: bug
+      instructions: |
+        Apply when the PR fixes incorrect behavior, a crash, error,
+        race condition, or regression.
+    - label: documentation
+      instructions: |
+        Apply when the PR primarily changes documentation, README,
+        examples, or comments.
+    - label: refactor
+      instructions: |
+        Apply when the PR changes internal structure without intentionally
+        changing externally observable behavior.
 
 chat:
   auto_reply: true
