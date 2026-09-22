@@ -342,13 +342,13 @@ function renderRun(q, runID) {
         (j.attempts || []).length > 1
           ? '<details class="attempt-menu"' +
             (openAttemptMenuByJob[attemptKey(j.id)] ? " open" : "") +
-            ' ontoggle="setAttemptMenuOpen(\'' +
+            " ontoggle=\"setAttemptMenuOpen('" +
             esc(q.project_name) +
             "','" +
             esc(runID) +
             "','" +
             esc(j.id) +
-            "',this.open)\"><summary title=\"Select attempt\" aria-label=\"Select attempt\"><svg view=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m7 10 5 5 5-5\"></path></svg></summary><div class=\"attempt-options\">" +
+            '\',this.open)"><summary title="Select attempt" aria-label="Select attempt"><svg view="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg></summary><div class="attempt-options">' +
             j.attempts
               .map(
                 (attempt, index) =>
