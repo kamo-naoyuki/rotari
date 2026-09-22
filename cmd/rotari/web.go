@@ -1335,7 +1335,11 @@ func readJobTimestamp(runDir, jobID, name string) string {
 	if err != nil {
 		return ""
 	}
-	data, err := os.ReadFile(filepath.Join(jobDir, name)) // NOSONAR: jobDir is produced by validatedJobDir and name is allowlisted above.
+	path, err := validatedStateFile(jobDir, name)
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}
