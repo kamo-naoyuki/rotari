@@ -249,6 +249,7 @@ function fixQueueSourceColumns(commands) {
     if (!rows[index]) return;
     const sourceRun = document.createElement("td");
     const sourceStatus = document.createElement("td");
+    sourceStatus.className = "status-value";
     const sourceStarted = document.createElement("td");
     const sourceFinished = document.createElement("td");
     const sourceOutput = document.createElement("td");

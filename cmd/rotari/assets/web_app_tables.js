@@ -8,7 +8,7 @@ function applyStatusColors() {
     failed: "#ff7c7c",
     blocked: "#ff9f68",
   };
-  document.querySelectorAll("td,span").forEach((element) => {
+  document.querySelectorAll(".status-value").forEach((element) => {
     const value = element.textContent.trim().toLowerCase();
     if (colors[value]) element.style.color = colors[value];
   });
@@ -288,6 +288,7 @@ function addRunJobStatusColumn() {
   (run.jobs || []).forEach((job, index) => {
     if (!rows[index]) return;
     const status = document.createElement("td");
+    status.className = "status-value";
     status.textContent = jobDisplayStatus(job, run);
     rows[index].insertBefore(status, rows[index].children[1]);
   });

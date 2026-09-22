@@ -850,32 +850,7 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 				reports[staticReportKey(queue.QueueName, run.RunID, "")] = report
 			}
 			for _, job := range run.Jobs {
-				path, pathErr := webLogPath(paths.runsDir, run.RunID, job.ID, "")
-				if pathErr != nil {
-					continue
-				}
-				data, readErr := os.ReadFile(path)
-				if readErr == nil {
-					logs[staticLogKey(queue.QueueName, run.RunID, job.ID)] = string(data)
-				}
-				if job.AttemptID != "" {
-					attemptPath, attemptErr := webLogPath(paths.runsDir, run.RunID, job.ID, job.AttemptID)
-					if attemptErr == nil {
-						if attemptData, attemptReadErr := os.ReadFile(attemptPath); attemptReadErr == nil {
-							logs[staticLogKey(queue.QueueName, run.RunID, job.ID, job.AttemptID)] = string(attemptData)
-						}
-					}
-				}
-				for _, attempt := range job.Attempts {
-					attemptPath, attemptErr := webLogPath(paths.runsDir, run.RunID, job.ID, attempt.ID)
-					if attemptErr != nil {
-						continue
-					}
-					attemptData, attemptReadErr := os.ReadFile(attemptPath)
-					if attemptReadErr == nil {
-						logs[staticLogKey(queue.QueueName, run.RunID, job.ID, attempt.ID)] = string(attemptData)
-					}
-				}
+				collectStaticJobLogs(logs, paths.runsDir, queue.QueueName, run.RunID, job)
 				if report, reportErr := buildAIReport(paths, run.RunID, job.ID, false); reportErr == nil {
 					reports[staticReportKey(queue.QueueName, run.RunID, job.ID)] = report
 				}
@@ -993,23 +968,42 @@ func staticLogKey(queueName, runID, jobID string, attemptIDs ...string) string {
 	return queueName + "/" + runID + "/" + jobID + "/" + attemptID
 }
 
+func collectStaticJobLogs(logs map[string]string, runsDir, queueName, runID string, job webJob) {
+	store := func(attemptID string) {
+		path, err := webLogPath(runsDir, runID, job.ID, attemptID)
+		if err != nil {
+			return
+		}
+		if data, readErr := os.ReadFile(path); readErr == nil {
+			logs[staticLogKey(queueName, runID, job.ID, attemptID)] = string(data)
+		}
+	}
+	store("")
+	if job.AttemptID != "" {
+		store(job.AttemptID)
+	}
+	for _, attempt := range job.Attempts {
+		store(attempt.ID)
+	}
+}
+
 func webLogPath(runsDir, runID, jobID, attemptID string) (string, error) {
 	runDir, resolvedJobID, err := resolveWebLogJob(runsDir, runID, jobID)
 	if err != nil {
 		return "", err
 	}
-	jobDir, err := validatedJobDir(runDir, resolvedJobID)
-	if err != nil {
-		return "", err
-	}
 	if attemptID == "" {
+		jobDir, err := latestAttemptJobDir(runDir, resolvedJobID)
+		if err != nil {
+			return "", err
+		}
 		return validatedStateFile(jobDir, "output")
 	}
 	payload, decodeErr := decodeAttemptID(attemptID)
 	if decodeErr != nil || payload.RunID != filepath.Base(runDir) || payload.JobID != resolvedJobID {
 		return "", fmt.Errorf("attempt_id must identify this run and job")
 	}
-	jobDir, err = specificAttemptJobDir(runDir, resolvedJobID, attemptID)
+	jobDir, err := specificAttemptJobDir(runDir, resolvedJobID, attemptID)
 	if err != nil {
 		return "", err
 	}

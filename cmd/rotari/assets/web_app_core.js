@@ -577,7 +577,7 @@ function enhancePage() {
               esc(j.id) +
               "</div></td><td>" +
               (j.array ? esc(j.array.first + "-" + j.array.last) : "-") +
-              "</td><td>pending</td><td>" +
+              '</td><td class="status-value">pending</td><td>' +
               esc(j.executor || "default") +
               "</td><td>" +
               esc((j.executor_options || []).join(" ") || "-") +

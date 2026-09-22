@@ -718,9 +718,6 @@ func TestGenerateStaticWebIncludesCarriedOriginLogs(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(sourceJobDir, "attempts", attemptID), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(sourceJobDir, "output"), []byte("source log\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	if err := os.WriteFile(filepath.Join(sourceJobDir, "attempts", attemptID, "output"), []byte("source attempt log\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -734,7 +731,7 @@ func TestGenerateStaticWebIncludesCarriedOriginLogs(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		`"default/` + currentRunID + `/job-1/":"source log\n"`,
+		`"default/` + currentRunID + `/job-1/":"source attempt log\n"`,
 		`"default/` + currentRunID + `/job-1/` + attemptID + `":"source attempt log\n"`,
 	} {
 		if !strings.Contains(string(index), want) {
@@ -758,6 +755,23 @@ func TestWebProvidesAttemptSelector(t *testing.T) {
 		if !webContains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
 		}
+	}
+}
+
+func TestWebStatusColorsOnlyStatusCells(t *testing.T) {
+	html := webHTML()
+	for _, want := range []string{
+		`document.querySelectorAll(".status-value")`,
+		`status.className = "status-value"`,
+		`sourceStatus.className = "status-value"`,
+		`<td class="status-value">pending</td>`,
+	} {
+		if !webContains(html, want) {
+			t.Fatalf("web page does not contain scoped status color marker %q", want)
+		}
+	}
+	if webContains(html, `document.querySelectorAll("td,span")`) {
+		t.Fatal("web page colors arbitrary table cells and spans as statuses")
 	}
 }
 
@@ -951,9 +965,6 @@ func TestWebLogReadsCarriedOrigin(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(sourceJobDir, "attempts", attemptID), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(sourceJobDir, "output"), []byte("source log\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	if err := os.WriteFile(filepath.Join(sourceJobDir, "attempts", attemptID, "output"), []byte("source attempt log\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -966,10 +977,7 @@ func TestWebLogReadsCarriedOrigin(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, "/api/log?project_name=default&run_id="+currentRunID+"&job_id=job-1"+suffix, nil)
 			recorder := httptest.NewRecorder()
 			newWebHandler(baseDir, "", false).ServeHTTP(recorder, request)
-			want := "source log\n"
-			if name == "attempt" {
-				want = "source attempt log\n"
-			}
+			want := "source attempt log\n"
 			if recorder.Code != http.StatusOK || recorder.Body.String() != want {
 				t.Fatalf("carried log = (%d, %q), want %q", recorder.Code, recorder.Body.String(), want)
 			}
