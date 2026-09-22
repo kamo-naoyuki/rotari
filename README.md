@@ -277,7 +277,7 @@ listeners, set `ROTARI_WEB_AUTH_TOKEN` (preferred) or pass `--auth-token TOKEN`;
 API requests use `Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`, and
 the browser UI uses Basic auth with username `rotari` and the token as password.
 This is HTTP authentication, not encryption: use HTTPS or a trusted network.
-`/api/state` and `/environment/` show only whether variables are set. 
+`/api/state` and `/environment/` show only whether variables are set.
 
 ## Projects, queues, runs, and state
 ### Project and queue
