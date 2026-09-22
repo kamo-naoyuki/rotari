@@ -8,6 +8,7 @@ Client
 
 .. autoclass:: Rotari
    :members:
+   :undoc-members:
 
 Results and errors
 ------------------

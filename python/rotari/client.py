@@ -181,11 +181,15 @@ class Rotari:
         command: Sequence[str],
         **options: object,
     ) -> CommandResult:
+        """Add an executable argument list to the current project queue."""
+
         arguments = build_command_arguments("add", options)
         arguments += ["--", *command]
         return self.command(*arguments)
 
     def run(self, **options: object) -> CommandResult:
+        """Run the current queue with the supplied CLI options."""
+
         if options.get("partial_array") is not None:
             options["partial_array"] = str(options["partial_array"]).lower()
         arguments = build_command_arguments("run", options)
@@ -208,6 +212,8 @@ class Rotari:
         selector: str | None = None,
         **options: object,
     ) -> dict[str, object]:
+        """Wait for a run and return its decoded JSON summary."""
+
         if selector is not None and options.get("run_id") is not None:
             raise ValueError("selector and run_id cannot be used together")
         options = {**options, "json": True}
@@ -224,6 +230,8 @@ class Rotari:
         return summary
 
     def show(self, **options: object) -> dict[str, object]:
+        """Return the decoded JSON view of a project, run, or job."""
+
         arguments = build_command_arguments("show", {**options, "json": True})
         result = self.command(*arguments)
         value = result.json()
