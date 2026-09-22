@@ -165,6 +165,17 @@ rotari add --job-name train --depends-on prepare ./train.sh
 rotari run
 ```
 
+A typical workflow is: run a script, inspect the jobs list, then drill into a
+failed or interesting job's output. For a detailed view, use the inspect commands
+below (`jobs` and `show`).
+
+```sh
+rotari add --run ./scripts/example.sh
+rotari jobs
+rotari show -j ATTEMPT_ID
+rotari show -p build --failed-logs
+```
+
 The shortest retry loop is:
 
 ```sh
@@ -550,7 +561,16 @@ stopped and use the recovery command shown by `show`: `unlock` keeps the queue;
 
 ## Inspect
 
-To inspect the latest run or list all runs:
+Use `jobs` to inspect the current project activity and recent execution history across the selected basedir.
+
+```sh
+rotari jobs # list running and recently finished jobs across projects
+rotari jobs --since 7d # include finished jobs from the last seven days
+rotari jobs --all # list jobs across basedirs known to the master registry
+rotari jobs --all --format "%s %b %p %a %n %c %t %e" # choose displayed fields
+```
+
+Use `show` to inspect the active run, an interrupted run, the pending queue, or any saved run.
 
 ```sh
 rotari show # show the active run, interrupted run, current queue, or latest run
@@ -565,8 +585,6 @@ rotari show -p build --failed-logs # print logs only for failed jobs
 rotari show -j ATTEMPT_ID --report # print an AI-ready Markdown report for one attempt
 rotari show -r RUN_ID --report # describe the whole run and include recent logs
 ```
-
-Use `--run-id/-r latest` to inspect the latest saved run.
 
 If a runner exits before finalizing its run, `show` reports the interrupted run
 and blocks `add`, `copy`, and `run` until you acknowledge it. First confirm
@@ -887,9 +905,9 @@ global config path (e.g., ~/.config/rotari/config.yaml)
 built-in default
 ```
 
-`rotari show` includes the resolved config path list in its header when config
-files are present, so the effective config chain is visible in the CLI as well
-as in the web UI.
+`rotari show` includes the highest-priority config path in its header when
+config files are present. The web UI uses the same project, basedir, then
+global priority and displays only that one path.
 
 ## Run completion webhook
 
