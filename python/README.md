@@ -3,6 +3,8 @@
 This directory contains a thin Python client for the `rotari` executable. For
 CLI behavior and examples, see the repository [README](../README.md).
 
+Documentation: [FAQ](../docs/FAQ.md) · [Internals](../docs/INTERNALS.md)
+
 ## Usage
 
 Install the package from a checkout, with the `rotari` executable available on

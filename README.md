@@ -8,9 +8,11 @@
 
 [![Go CI](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml/badge.svg)](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml) [![Slurm + PBS CI](https://img.shields.io/github/actions/workflow/status/kamo-naoyuki/rotari/scheduler-integration.yml?branch=main&label=Slurm%20%2B%20PBS%20CI)](https://github.com/kamo-naoyuki/rotari/actions/workflows/scheduler-integration.yml) [![codecov](https://codecov.io/gh/kamo-naoyuki/rotari/graph/badge.svg)](https://codecov.io/gh/kamo-naoyuki/rotari) [![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=kamo-naoyuki_rotari&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kamo-naoyuki_rotari) [![web demo](https://img.shields.io/website?url=https%3A%2F%2Fkamo-naoyuki.github.io%2Frotari%2F&label=web%20demo&style=flat)](https://kamo-naoyuki.github.io/rotari/) [![Python API](https://img.shields.io/badge/Python%20API-Sphinx-3776AB)](https://kamo-naoyuki.github.io/rotari/python-api/)
 
+[[FAQ]](docs/FAQ.md) · [[WEBHOOK_INTEGRATIONS]](docs/WEBHOOK_INTEGRATIONS.md) · [[Internals]](docs/INTERNALS.md) · [[Python-dev README]](python/README.md)
+
 **Rotari turns trial-and-error into a repeatable loop**: run a batch of jobs, see which failed, fix only their commands, and run it again — without losing the history of what already worked.
 
-It is a lightweight workflow engine for experiments and builds that you run repeatedly. **Workflows are built from the CLI commands you already have**, with simple dependencies between them. There is no new workflow language to learn and no external database or server to set up.
+It is a lightweight, **serverless workflow engine** for experiments and builds that you run repeatedly. **Workflows are built from the CLI commands you already have**, with simple dependencies between them. **You can keep using your existing shell scripts instead of learning a separate workflow language.** There is no external database or server to set up, and workflow state is kept in the filesystem.
 
 **Local commands, remote SSH commands, and scheduler jobs (Slurm, PBS, LSF) live in the same queue**, even when they depend on each other. **Every run keeps its own snapshot** of commands, status, and logs, so nothing gets lost between "one more try" and the next.
 
@@ -110,11 +112,6 @@ completion normally includes IDs from the current queue and saved runs; when
 
 For manual setup, `rotari completion bash`, `rotari completion zsh`, and
 `rotari completion fish` print the raw completion scripts.
-
-## FAQ
-
-See [FAQ](docs/FAQ.md) for answers to specific "what happens if...?" questions
-about project/run resolution, retries, array jobs, interrupted runs, and locking.
 
 ## Quick start
 
