@@ -178,6 +178,9 @@ func writeJobAIReport(builder *strings.Builder, paths pathSet, run webRun, job w
 	}
 	result := job.Result
 	fmt.Fprintf(builder, "\n## Job: %s\n- Job ID: `%s`\n- Status: %s\n- Executor: %s\n", name, job.ID, status, executor)
+	if job.AttemptID != "" {
+		fmt.Fprintf(builder, "- Attempt ID: `%s`\n", job.AttemptID)
+	}
 	fmt.Fprintf(builder, "- Dependencies: %s\n- Working directory: `%s`\n- Started: %s\n- Finished: %s\n", reportValue(strings.Join(job.DependsOn, ", ")), reportValue(firstNonEmpty(job.WorkingDirectory, run.CWD)), reportValue(formatDisplayTimestamp(job.SubmittedAt)), reportValue(formatDisplayTimestamp(job.FinishedAt)))
 	if result == nil {
 		fmt.Fprintln(builder, "- Exit code: -")

@@ -180,6 +180,64 @@ func TestShowReportAndWebAPIUseCommonReport(t *testing.T) {
 	}
 }
 
+func TestCmdShowReportSelectsAttemptID(t *testing.T) {
+	baseDir, paths, fixtureRunID, jobID := createAIReportFixture(t)
+	runID := "20260922-010000-00000000"
+	if err := os.Rename(filepath.Join(paths.runsDir, fixtureRunID), filepath.Join(paths.runsDir, runID)); err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(paths.runsDir, runID)
+	oldAttemptID := makeAttemptID(runID, jobID, 0)
+	latestAttemptID := makeAttemptID(runID, jobID, 1)
+	oldAttemptDir, err := specificAttemptJobDir(runDir, jobID, oldAttemptID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	latestAttemptDir, err := specificAttemptJobDir(runDir, jobID, latestAttemptID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, attemptDir := range []string{oldAttemptDir, latestAttemptDir} {
+		if err := os.MkdirAll(attemptDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(oldAttemptDir, stateFileStatus), []byte("1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(oldAttemptDir, stateFileFinishedAt), []byte("2026-09-22T01:00:00Z\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(oldAttemptDir, stateFileOutput), []byte("old-attempt-log\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Status: "finished", Results: []JobResult{{ID: jobID, AttemptID: latestAttemptID, ExitCode: 0}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code := cmdShow([]string{"--basedir", baseDir, "--project-name", "demo", "--job-id", oldAttemptID, "--report"})
+	_ = writer.Close()
+	os.Stdout = oldStdout
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"- Attempt ID: `" + oldAttemptID + "`", "- Status: failed", "old-attempt-log"} {
+		if code != 0 || !strings.Contains(string(output), want) {
+			t.Fatalf("show --report attempt code=%d output does not contain %q:\n%s", code, want, output)
+		}
+	}
+	if strings.Contains(string(output), latestAttemptID) {
+		t.Fatalf("show --report attempt contains latest attempt ID %q:\n%s", latestAttemptID, output)
+	}
+}
+
 func TestWebAPISelectedJobsUsesRunReport(t *testing.T) {
 	baseDir, _, runID, jobID := createAIReportFixture(t)
 	request := httptest.NewRequest(http.MethodGet, "/api/report?project_name=demo&run_id="+runID+"&job_ids="+jobID, nil)
