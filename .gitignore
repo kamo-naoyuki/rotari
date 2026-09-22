@@ -8,6 +8,14 @@
 /coverage.html
 /docs/web-demo/
 /docs/demo-*.gif
+/python/*.egg-info/
+/python/build/
+/python/dist/
+/python/docs/_build/
+
+# Python bytecode cache
+__pycache__/
+*.py[cod]
 /.venv/
 /node_modules/
 

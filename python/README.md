@@ -3,6 +3,44 @@
 This directory contains a thin Python client for the `rotari` executable. For
 CLI behavior and examples, see the repository [README](../README.md).
 
+## Usage
+
+Install the package from a checkout, with the `rotari` executable available on
+your `PATH`:
+
+```sh
+python3 -m pip install --no-deps ./python
+```
+
+Use `Rotari` to submit executable argument lists and inspect run state:
+
+```python
+from rotari import Rotari
+
+rotari = Rotari(basedir=".rotari-state", project="experiment")
+rotari.add(["./train.sh"], job_name="train")
+rotari.run(async_=True)
+summary = rotari.wait()
+```
+
+`wait()` and `show()` return decoded JSON objects. Other commands return a
+`CommandResult` or raise `RotariError` when the command exits unsuccessfully.
+Run `rotari schema --json` to inspect every dynamically generated command
+option and its CLI description.
+
+## API documentation
+
+Build the HTML API reference from the repository root with:
+
+```sh
+python3 -m pip install "./python[docs]"
+python3 -m sphinx -W -b html python/docs python/docs/_build/html
+```
+
+Open `python/docs/_build/html/index.html`. The reference obtains its method
+signatures from the checked-in CLI schema, so it reflects the generated Python
+interface.
+
 ## Generated CLI metadata
 
 The CLI metadata used by completion and help can be inspected with:

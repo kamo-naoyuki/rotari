@@ -9,5 +9,8 @@ description = "Python client for the rotari command-line interface"
 requires-python = ">=3.10"
 readme = "README.md"
 
+[project.optional-dependencies]
+docs = ["Sphinx>=7"]
+
 [tool.setuptools]
 packages = ["rotari"]

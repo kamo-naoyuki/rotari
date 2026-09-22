@@ -1,4 +1,4 @@
-name: Deploy web demo
+name: Deploy Pages
 
 on:
   push:
@@ -46,7 +46,7 @@ jobs:
 
       - name: Install terminal demo tools
         run: |
-          python -m pip install asciinema
+          python -m pip install asciinema "./python[docs]"
           cargo install --locked --git https://github.com/asciinema/agg
 
       - name: Generate terminal demos
@@ -54,13 +54,23 @@ jobs:
           scripts/generate-demos.sh
           cp docs/demo-shell.gif docs/demo-rotari.gif docs/web-demo/
 
+      - name: Build Python API documentation
+        run: |
+          python -m sphinx -W -b html python/docs "$RUNNER_TEMP/python-api"
+
+      - name: Assemble Pages site
+        run: |
+          mkdir -p "$RUNNER_TEMP/pages-site"
+          cp -a docs/web-demo/. "$RUNNER_TEMP/pages-site/"
+          cp -a "$RUNNER_TEMP/python-api" "$RUNNER_TEMP/pages-site/python-api"
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/web-demo
+          path: ${{ runner.temp }}/pages-site
 
   deploy:
     runs-on: ubuntu-latest

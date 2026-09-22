@@ -370,7 +370,9 @@ Install it with
 CLI's JSON output, while CLI errors remain exceptions. It accepts executable
 argument lists, not Python functions or closures to serialize and submit. This
 is deliberately different from function-oriented frameworks such as
-[Submitit](https://github.com/facebookincubator/submitit).
+[Submitit](https://github.com/facebookincubator/submitit). Build the generated
+HTML API reference with the command in the
+[Python client documentation](../python/README.md#api-documentation).
 
 ## Web UI
 
