@@ -16,17 +16,18 @@ import (
 )
 
 const defaultJobsSince = 24 * time.Hour
-const defaultJobsFormat = "%s %p %a %n %c %t %e"
+const defaultJobsFormat = "%s %p %a %n %c %f %e"
 
 type jobsRow struct {
-	state     string
-	baseDir   string
-	project   string
-	attemptID string
-	jobName   string
-	command   string
-	startedAt time.Time
-	elapsed   time.Duration
+	state      string
+	baseDir    string
+	project    string
+	attemptID  string
+	jobName    string
+	command    string
+	startedAt  time.Time
+	finishedAt time.Time
+	elapsed    time.Duration
 }
 
 type jobsColumn struct {
@@ -80,17 +81,24 @@ func cmdJobs(args []string) int {
 		return 0
 	}
 	sort.SliceStable(rows, func(left, right int) bool {
-		return rows[left].startedAt.After(rows[right].startedAt)
+		return jobsRowSortTime(rows[left]).After(jobsRowSortTime(rows[right]))
 	})
 
 	printJobsTableFormat(rows, columns)
 	return 0
 }
 
+func jobsRowSortTime(row jobsRow) time.Time {
+	if !row.finishedAt.IsZero() {
+		return row.finishedAt
+	}
+	return row.startedAt
+}
+
 func printJobsTable(rows []jobsRow, showBaseDir bool) {
 	format := defaultJobsFormat
 	if showBaseDir {
-		format = "%s %b %p %a %n %c %t %e"
+		format = "%s %b %p %a %n %c %f %e"
 	}
 	columns, _ := parseJobsFormat(format)
 	printJobsTableFormat(rows, columns)
@@ -155,7 +163,7 @@ func parseJobsFormat(format string) ([]jobsColumn, error) {
 			return nil, fmt.Errorf("invalid field %q", field)
 		}
 		code := field[position]
-		header := map[byte]string{'s': "STATE", 'b': "BASEDIR", 'p': "PROJECT", 'a': "ATTEMPT_ID", 'n': "JOB_NAME", 'c': "COMMAND", 't': "STARTED", 'e': "ELAPSED"}[code]
+		header := map[byte]string{'s': "STATE", 'b': "BASEDIR", 'p': "PROJECT", 'a': "ATTEMPT_ID", 'n': "JOB_NAME", 'c': "COMMAND", 't': "STARTED", 'f': "FINISHED", 'e': "ELAPSED"}[code]
 		if header == "" {
 			return nil, fmt.Errorf("unknown field %q", field)
 		}
@@ -180,6 +188,11 @@ func jobsColumnValue(code byte, row jobsRow) string {
 		return row.command
 	case 't':
 		return formatJobsTimestamp(row.startedAt)
+	case 'f':
+		if row.finishedAt.IsZero() {
+			return "-"
+		}
+		return formatJobsTimestamp(row.finishedAt)
 	case 'e':
 		return formatJobElapsed(row.elapsed)
 	default:
@@ -298,31 +311,41 @@ func collectJobs(baseDir string, projects []string, now time.Time, window time.D
 		}
 		sort.SliceStable(runs, func(left, right int) bool { return runs[left].Name() > runs[right].Name() })
 		for _, run := range runs {
-			runRows, include, err := collectRunJobs(paths, run.Name(), now, cutoff)
+			runRows, include, stop, err := collectRunJobs(paths, run.Name(), now, cutoff)
 			if err != nil {
 				return nil, err
 			}
 			if include {
 				rows = append(rows, runRows...)
 			}
+			// Run IDs are generated from UTC timestamps, and a project cannot
+			// start its next run until the previous run has finished. Therefore,
+			// after an ordinary completed run is older than the cutoff, every
+			// remaining run in this order is also outside the search window.
+			// This does not apply to active/interrupted runs or runs with missing
+			// or invalid summaries: those cases are deliberately not a signal to
+			// stop, because their completion order is unknown.
+			if stop {
+				break
+			}
 		}
 	}
 	return rows, nil
 }
 
-func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsRow, bool, error) {
+func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsRow, bool, bool, error) {
 	runDir := filepath.Join(paths.RunsDir, runID)
 	summary, summaryErr := state.LoadRunSummary(filepath.Join(runDir, stateFileSummaryJSON))
 	active := runIsActive(paths, runID)
 	if summaryErr == nil && !active {
 		finishedAt, err := parseJobsTimestamp(summary.FinishedAt)
 		if err == nil && finishedAt.Before(cutoff) {
-			return nil, false, nil
+			return nil, false, true, nil
 		}
 	}
 	runQueue, err := state.LoadQueue(filepath.Join(runDir, stateFileCommandsJSON))
 	if err != nil {
-		return nil, false, nil
+		return nil, false, false, nil
 	}
 	resultByID := make(map[string]JobResult, len(summary.Results))
 	for _, result := range summary.Results {
@@ -388,9 +411,9 @@ func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsR
 		if jobState != "running" {
 			end = finishedAt
 		}
-		rows = append(rows, jobsRow{state: jobState, baseDir: paths.BaseDir, project: paths.ProjectName, attemptID: attemptID, jobName: jobName, command: command, startedAt: startedAt, elapsed: end.Sub(startedAt)})
+		rows = append(rows, jobsRow{state: jobState, baseDir: paths.BaseDir, project: paths.ProjectName, attemptID: attemptID, jobName: jobName, command: command, startedAt: startedAt, finishedAt: finishedAt, elapsed: end.Sub(startedAt)})
 	}
-	return rows, true, nil
+	return rows, true, false, nil
 }
 
 func shortenJobsText(value string, maxLength int) string {

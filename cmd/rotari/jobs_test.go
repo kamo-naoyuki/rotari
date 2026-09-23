@@ -41,12 +41,12 @@ func TestPrintJobsTableAlignsMultipleRows(t *testing.T) {
 func TestCollectJobsAcrossProjectsIncludesRecentFinishedJobs(t *testing.T) {
 	baseDir := t.TempDir()
 	now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
-	recentStarted := now.Add(-2 * time.Hour)
-	recentFinished := recentStarted.Add(3 * time.Minute)
+	longRunningStarted := now.Add(-48 * time.Hour)
+	recentFinished := now.Add(-2 * time.Hour)
 	oldFinished := now.Add(-48 * time.Hour)
 
-	writeTestJobsRun(t, baseDir, "train", "20260922-090000-00000001", "train-job", recentStarted, recentFinished, 1)
-	writeTestJobsRun(t, baseDir, "report", "20260922-080000-00000002", "report-job", recentStarted.Add(time.Hour), recentFinished.Add(time.Hour), 0)
+	writeTestJobsRun(t, baseDir, "train", "20260922-090000-00000001", "train-job", longRunningStarted, recentFinished, 1)
+	writeTestJobsRun(t, baseDir, "report", "20260922-080000-00000002", "report-job", longRunningStarted.Add(time.Hour), recentFinished.Add(time.Hour), 0)
 	writeTestJobsRun(t, baseDir, "train", "20260920-090000-00000003", "old-job", oldFinished.Add(-time.Minute), oldFinished, 1)
 
 	rows, err := collectJobs(baseDir, []string{"report", "train"}, now, 24*time.Hour)
@@ -59,19 +59,37 @@ func TestCollectJobsAcrossProjectsIncludesRecentFinishedJobs(t *testing.T) {
 	if rows[0].project != "report" || rows[0].state != "success" {
 		t.Fatalf("first row = %#v, want recent report success", rows[0])
 	}
-	if rows[0].elapsed != 3*time.Minute {
-		t.Fatalf("success elapsed = %s, want 3m", rows[0].elapsed)
+	if rows[0].elapsed != 46*time.Hour {
+		t.Fatalf("success elapsed = %s, want 46h", rows[0].elapsed)
 	}
 	if rows[1].project != "train" || rows[1].state != "failed" {
 		t.Fatalf("second row = %#v, want recent train failure", rows[1])
 	}
-	if rows[1].elapsed != 3*time.Minute {
-		t.Fatalf("failure elapsed = %s, want 3m", rows[1].elapsed)
+	if rows[1].elapsed != 46*time.Hour {
+		t.Fatalf("failure elapsed = %s, want 46h", rows[1].elapsed)
 	}
 	for _, row := range rows {
 		if strings.Contains(row.attemptID, "old-job") {
 			t.Fatalf("old job was included: %#v", row)
 		}
+	}
+}
+
+func TestCollectRunJobsStopsAtOldCompletedRun(t *testing.T) {
+	baseDir := t.TempDir()
+	now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeTestJobsRun(t, baseDir, "demo", "20260920-090000-00000001", "old-job", now.Add(-48*time.Hour), now.Add(-25*time.Hour), 0)
+
+	rows, include, stop, err := collectRunJobs(paths, "20260920-090000-00000001", now, now.Add(-24*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if include || len(rows) != 0 || !stop {
+		t.Fatalf("collectRunJobs() = rows %d, include %v, stop %v; want no rows, no include, and stop", len(rows), include, stop)
 	}
 }
 
@@ -90,11 +108,11 @@ func TestFormatJobElapsed(t *testing.T) {
 }
 
 func TestParseJobsFormat(t *testing.T) {
-	columns, err := parseJobsFormat("%s %.12b %p %.24a %n %.20c %t %e")
+	columns, err := parseJobsFormat("%s %.12b %p %.24a %n %.20c %t %f %e")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(columns) != 8 || columns[1].code != 'b' || columns[1].width != 12 || columns[5].code != 'c' || columns[5].width != 20 {
+	if len(columns) != 9 || columns[1].code != 'b' || columns[1].width != 12 || columns[5].code != 'c' || columns[5].width != 20 || columns[7].code != 'f' {
 		t.Fatalf("parsed columns = %#v", columns)
 	}
 	for _, format := range []string{"", "state", "%x", "%.0p", "%2p"} {

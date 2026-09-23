@@ -201,8 +201,8 @@ var cliCommandSpecs = []cliCommandSpec{
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "masterdir", Description: "master registry directory for --all", ValueName: "DIR"},
 			cliFlagSpec{Name: "all", Description: "include all basedirs known to the master registry"},
-			cliFlagSpec{Name: "format", Description: "output fields; use %s %b %p %a %n %c %t %e", ValueName: "FORMAT"},
-			cliFlagSpec{Name: "since", Description: "include finished jobs from this duration ago", ValueName: "DURATION"},
+			cliFlagSpec{Name: "format", Description: "output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time)", ValueName: "FORMAT"},
+			cliFlagSpec{Name: "since", Description: "include jobs finished within this duration (running jobs are always included)", ValueName: "DURATION"},
 		),
 	},
 	{
