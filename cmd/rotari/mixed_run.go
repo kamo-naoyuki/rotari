@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 )
 
 func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, batchMaxActive, retry int, requestedExecutor string, executorOptions []string, selection string, jobIDs []string, referenceRunID string, partialArray bool, progress func(JobResult, int, int, int, int), onStart func(JobSpec), settings ...executorRunSettingsMap) int {
@@ -321,22 +323,11 @@ func environmentEntry(environment []string, name string) (string, bool) {
 }
 
 func jobIsPending(jobs []JobSpec, jobID string) bool {
-	for _, job := range jobs {
-		if job.ID == jobID {
-			return true
-		}
-	}
-	return false
+	return runcontract.JobIsPending(jobs, jobID)
 }
 
 func removeFinishedJobs(jobs []JobSpec, results map[string]JobResult) []JobSpec {
-	remaining := make([]JobSpec, 0, len(jobs))
-	for _, job := range jobs {
-		if _, done := results[job.ID]; !done {
-			remaining = append(remaining, job)
-		}
-	}
-	return remaining
+	return runcontract.RemoveFinishedJobs(jobs, results)
 }
 
 func executeMixedAttempt(runDir string, queue Queue, jobs []JobSpec, localConcurrency, batchMaxActive int, requestedExecutor string, executorOptions []string, executorSettings executorRunSettingsMap, onStart func(JobSpec)) []JobResult {
@@ -494,28 +485,9 @@ func runBatchLane(workers *sync.WaitGroup, runDir string, queue Queue, executor 
 }
 
 func completeArrayGroup(jobs []JobSpec, first, last int) bool {
-	if len(jobs) != last-first+1 {
-		return false
-	}
-	seen := make(map[int]bool, len(jobs))
-	for _, job := range jobs {
-		if job.ArrayTaskID == nil || *job.ArrayTaskID < first || *job.ArrayTaskID > last || seen[*job.ArrayTaskID] {
-			return false
-		}
-		seen[*job.ArrayTaskID] = true
-	}
-	return len(seen) == len(jobs)
+	return runcontract.CompleteArrayGroup(jobs, first, last)
 }
 
 func summarizeResults(results map[string]JobResult) (int, int, int) {
-	completed, succeeded, failed := 0, 0, 0
-	for _, result := range results {
-		completed++
-		if result.ExitCode == 0 {
-			succeeded++
-		} else {
-			failed++
-		}
-	}
-	return completed, succeeded, failed
+	return runcontract.SummarizeResults(results)
 }
