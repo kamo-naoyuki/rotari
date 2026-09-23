@@ -4,6 +4,17 @@ This document describes the Web UI, static export, and embedded asset
 boundaries. Read it for Web/API/static-site changes in addition to the main
 internal notes.
 
+Representative implementation and tests:
+
+- [cmd/rotari/web_assets.go](../../cmd/rotari/web_assets.go) for embedded asset
+  declarations.
+- [cmd/rotari/web.go](../../cmd/rotari/web.go) and
+  [cmd/rotari/web_test.go](../../cmd/rotari/web_test.go) for Web handlers and
+  static export.
+- [cmd/rotari/assets/web_app_core.js](../../cmd/rotari/assets/web_app_core.js)
+  and [cmd/rotari/assets/web_template.html](../../cmd/rotari/assets/web_template.html)
+  for the browser application and page shell.
+
 ## Asset layout
 
 Web assets live under `cmd/rotari/assets/`:

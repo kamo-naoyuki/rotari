@@ -1,9 +1,24 @@
 # Coordination, durability, and safety
 
+Representative implementation and tests:
+
+- [internal/state/lock.go](../../internal/state/lock.go) and
+  [internal/state/lock_test.go](../../internal/state/lock_test.go) for lock
+  inspection, with project-state coverage in
+  [cmd/rotari/state_test.go](../../cmd/rotari/state_test.go).
+- [internal/state/store.go](../../internal/state/store.go) and
+  [internal/state/store_test.go](../../internal/state/store_test.go) for
+  persisted-state load and write contracts.
+- [cmd/rotari/job_executor.go](../../cmd/rotari/job_executor.go) and
+  [cmd/rotari/job_executor_test.go](../../cmd/rotari/job_executor_test.go) for
+  executor status and control integration.
+
 ## Job execution durability
 
 - Every executor runs the command through a self-reporting wrapper that writes
-  `<job-id>/status.json` with phase, exit code, and hosts.
+  `<job-id>/status.json` with phase, exit code, and hosts. See
+  [`cmd/rotari/job_executor.go`](../../cmd/rotari/job_executor.go) and
+  [`cmd/rotari/job_executor_test.go`](../../cmd/rotari/job_executor_test.go).
 - The wrapper records status independently of the process that launched it, so
   scheduler accounting lag cannot hide the result.
 - The local executor uses the same wrapper. If the coordinating server or async
@@ -14,7 +29,10 @@
   inspect per-job status files and missing summaries to report an active or
   interrupted run. Recovery remains an explicit operator action.
 - The existing `show`/`web.go` fallback chain (`status` -> `status.json` ->
-  `summary.json`) consumes this state without reader changes.
+  `summary.json`) consumes this state without reader changes. See
+  [`cmd/rotari/show.go`](../../cmd/rotari/show.go),
+  [`cmd/rotari/web.go`](../../cmd/rotari/web.go), and
+  [`cmd/rotari/show_test.go`](../../cmd/rotari/show_test.go).
 - This does not kill or reconcile leftover jobs during recovery; `reset
   --recover` and `unlock` still require the operator to confirm that jobs have
   stopped.
@@ -22,9 +40,13 @@
 ## Shared-state coordination
 
 - Shared-base operation relies on exclusive file creation, atomic rename, and
-  advisory `flock` semantics from the shared filesystem.
+  advisory `flock` semantics from the shared filesystem. See
+  [`internal/state/lock.go`](../../internal/state/lock.go) and
+  [`internal/state/lock_test.go`](../../internal/state/lock_test.go).
 - The state lock serializes queue mutations and `running.lock` prevents a
-  second runner from starting the same project.
+  second runner from starting the same project. See
+  [`cmd/rotari/state_lock.go`](../../cmd/rotari/state_lock.go) and
+  [`cmd/rotari/state_test.go`](../../cmd/rotari/state_test.go).
 - This is coordination, not distributed locking: it cannot fence a host after a
   network partition or determine whether a remote PID is alive. A remote run
   lock remains active until an operator confirms the run stopped and uses
@@ -104,7 +126,9 @@
   reject ambiguous targets, and exact IDs never degrade into latest-item
   selection.
 - JSON writes use the common atomic helper. Optional fields must retain
-  backward-compatible reads, and unrelated history must not be rewritten.
+  backward-compatible reads, and unrelated history must not be rewritten. See
+  [`internal/state/store.go`](../../internal/state/store.go) and
+  [`internal/state/store_test.go`](../../internal/state/store_test.go).
 
 ## State load and write contracts
 

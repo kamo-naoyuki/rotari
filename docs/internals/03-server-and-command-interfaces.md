@@ -4,6 +4,17 @@ This file covers the server control surface, read projections, client lifecycle,
 and CLI presentation. Web-specific UI and asset behavior live in
 [05-web-assets-and-static-export.md](05-web-assets-and-static-export.md).
 
+Representative implementation and tests:
+
+- [cmd/rotari/server.go](../../cmd/rotari/server.go) and
+  [cmd/rotari/server_test.go](../../cmd/rotari/server_test.go) for server
+  lifecycle and client requests.
+- [cmd/rotari/show.go](../../cmd/rotari/show.go) and
+  [cmd/rotari/show_test.go](../../cmd/rotari/show_test.go) for CLI projections.
+- [cmd/rotari/wait.go](../../cmd/rotari/wait.go) and
+  [cmd/rotari/wait_test.go](../../cmd/rotari/wait_test.go) for wait output and
+  run selection.
+
 ## Server and read projections
 
 - The server supervises one base directory and may stop when idle, so durable

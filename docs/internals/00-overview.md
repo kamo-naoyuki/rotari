@@ -1,8 +1,8 @@
 # Overview and system model
 
 This is the entry point for Rotari's internal design notes. User-facing behavior
-belongs in [README.md](../README.md); local implementation details belong in code
-and tests. Update these notes when a cross-cutting contract changes, and replace
+belongs in [README.md](../../README.md); local implementation details belong in
+code and tests. Update these notes when a cross-cutting contract changes, and replace
 obsolete rules rather than accumulating history.
 
 Keep this file focused on the shared model and invariants; chapter-specific
@@ -83,21 +83,32 @@ the user-facing documentation, and the affected tests together.
 
 - The filesystem is the source of truth. Registries and in-memory state are
   indexes or coordination aids and must be recoverable from persisted files.
+  See [`internal/state/store.go`](../../internal/state/store.go) and
+  [`internal/state/store_test.go`](../../internal/state/store_test.go).
 - The server coordinates access and execution; it is not persistent authority
-  for project or run state.
+  for project or run state. See [`cmd/rotari/server.go`](../../cmd/rotari/server.go)
+  and [`cmd/rotari/server_test.go`](../../cmd/rotari/server_test.go).
 - Each project owns one mutable current queue as the staging area for the next
   run. Queue edits change that queue; starting a run snapshots it, and normal
   completion clears the consumed queue. An interrupted run retains the queue
-  until it is recovered or reset.
+  until it is recovered or reset. See [`cmd/rotari/mixed_run.go`](../../cmd/rotari/mixed_run.go),
+  [`cmd/rotari/reset.go`](../../cmd/rotari/reset.go), and
+  [`cmd/rotari/state_test.go`](../../cmd/rotari/state_test.go).
 - A project has at most one active run and runner at a time. That runner may
   execute multiple jobs concurrently, while different projects can run
-  independently.
+  independently. See [`cmd/rotari/project_state.go`](../../cmd/rotari/project_state.go)
+  and [`cmd/rotari/state_test.go`](../../cmd/rotari/state_test.go).
 - Completed runs are immutable history. Retries, filtered runs, and
   carry-forward create or modify only a new destination run, never their source
-  run.
+  run. See [`cmd/rotari/run_selection.go`](../../cmd/rotari/run_selection.go),
+  [`cmd/rotari/copy.go`](../../cmd/rotari/copy.go), and
+  [`cmd/rotari/run_selection_test.go`](../../cmd/rotari/run_selection_test.go).
 - Executors implement job execution and scheduler integration, not run
   semantics. Run planning, dependency handling, carry-forward, and summary
-  finalization belong to rotari's shared execution path.
+  finalization belong to rotari's shared execution path. See
+  [`cmd/rotari/mixed_run.go`](../../cmd/rotari/mixed_run.go),
+  [`internal/executor/contracts.go`](../../internal/executor/contracts.go), and
+  [`cmd/rotari/mixed_run_test.go`](../../cmd/rotari/mixed_run_test.go).
 
 ## Go package boundaries
 
@@ -122,3 +133,12 @@ When adding run behavior, prefer `internal/run` for orchestration, keeping
 filesystem access in `internal/state` and scheduler/process details in
 `internal/executor`. This prevents a new CLI or Web path from silently
 reimplementing run semantics.
+
+Representative implementation and tests:
+
+- [internal/model/model.go](../../internal/model/model.go) and
+  [internal/model/queue_test.go](../../internal/model/queue_test.go) for queue
+  and job modeling.
+- [internal/run/plan.go](../../internal/run/plan.go) for run planning.
+- [internal/executor/contracts.go](../../internal/executor/contracts.go) for
+  the executor boundary.

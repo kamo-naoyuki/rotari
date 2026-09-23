@@ -1,5 +1,20 @@
 # Resolution, configuration, and registry
 
+Representative implementation and tests:
+
+- [cmd/rotari/main.go](../../cmd/rotari/main.go) and
+  [cmd/rotari/main_test.go](../../cmd/rotari/main_test.go) for location
+  resolution and project paths.
+- [cmd/rotari/config.go](../../cmd/rotari/config.go) and
+  [cmd/rotari/config_test.go](../../cmd/rotari/config_test.go) for configuration
+  precedence and formats.
+- [cmd/rotari/run_registry.go](../../cmd/rotari/run_registry.go) and
+  [cmd/rotari/run_registry_test.go](../../cmd/rotari/run_registry_test.go) for
+  run-location indexing.
+- [cmd/rotari/completion.go](../../cmd/rotari/completion.go) and
+  [cmd/rotari/coverage_extra_test.go](../../cmd/rotari/coverage_extra_test.go)
+  for shell completion.
+
 ## Resolution rules
 
 Without a run-location lookup, base directories resolve in this order:
