@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func writeRunContext(paths pathSet, runID, cwd string) error {
@@ -25,7 +27,7 @@ func writeRunContext(paths pathSet, runID, cwd string) error {
 			return err
 		}
 	}
-	return writeJSON(filepath.Join(runDir, "context.json"), context)
+	return state.SaveContext(jsonStore(), runDir, context)
 }
 
 func finishRunContext(paths pathSet, runID string) error {
@@ -33,10 +35,9 @@ func finishRunContext(paths pathSet, runID string) error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(runDir, "context.json")
 	context := RunContext{}
-	if data, err := os.ReadFile(path); err == nil {
-		_ = json.Unmarshal(data, &context)
+	if loaded, err := state.LoadContext(jsonStore(), runDir); err == nil {
+		context = loaded
 	}
 	context.FinishedLoad = readLoadAverage()
 	if context.FinishedLoad != nil {
@@ -44,7 +45,7 @@ func finishRunContext(paths pathSet, runID string) error {
 			return err
 		}
 	}
-	return writeJSON(path, context)
+	return state.SaveContext(jsonStore(), runDir, context)
 }
 
 func captureRunContext(cwd string) RunContext {
