@@ -652,7 +652,16 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(index), "rewriteStaticLinks();") || !strings.Contains(string(index), "path===root||path.startsWith(root+'/')") || !strings.Contains(string(index), "new MutationObserver(rewriteStaticLinks)") {
+	for _, want := range []string{
+		"function rewriteStaticLinks()",
+		"path === root || path.startsWith(root + \"/\")",
+		"new MutationObserver(rewriteStaticLinks)",
+	} {
+		if !strings.Contains(string(index), want) {
+			t.Fatalf("static web page does not contain %q", want)
+		}
+	}
+	if !strings.Contains(string(index), "rewriteStaticLinks();") {
 		t.Fatal("static web page does not rewrite links before rendering")
 	}
 	if !strings.Contains(string(index), "data:image/svg+xml;base64,") {
@@ -687,7 +696,7 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 			t.Fatalf("static web page does not contain %q", want)
 		}
 	}
-	for _, want := range []string{"request.searchParams.getAll('job_ids')", "selectedReports", "join('\\n\\n')"} {
+	for _, want := range []string{"request.searchParams.getAll(\"job_ids\")", "selectedReports", "join(\"\\n\\n\")"} {
 		if !strings.Contains(string(index), want) {
 			t.Fatalf("static web page does not handle selected report jobs with %q", want)
 		}

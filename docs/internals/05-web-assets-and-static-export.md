@@ -29,6 +29,10 @@ cmd/rotari/assets/
 ├── web_app_tables.js
 ├── web_app_charts.js
 ├── web_app_bootstrap.js
+├── web_static_bootstrap.js
+├── cli_docs_template.html
+├── environment_template.html
+├── web_info_styles.css
 ├── favicon-dark.svg
 └── favicon-light.svg
 ```
@@ -46,6 +50,11 @@ order and delivered as one script; they intentionally share the global scope:
 Do not reorder these files without running the full Web test suite. The
 separation is for source readability and ownership, not JavaScript module
 isolation.
+
+The static export bootstrap is kept separately in `web_static_bootstrap.js`
+because it provides the static fetch and routing adapters used only by
+generated pages. It is formatted as ordinary JavaScript, then receives the
+generated state, logs, and reports during export.
 
 ## Web server and control-plane security
 

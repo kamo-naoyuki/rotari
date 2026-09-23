@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
+	"html"
 	"strings"
 )
 
@@ -28,6 +29,18 @@ var webAppChartsJS string
 //go:embed assets/web_app_bootstrap.js
 var webAppBootstrapJS string
 
+//go:embed assets/web_static_bootstrap.js
+var webStaticBootstrapJS string
+
+//go:embed assets/cli_docs_template.html
+var cliDocsTemplateHTML string
+
+//go:embed assets/environment_template.html
+var environmentTemplateHTML string
+
+//go:embed assets/web_info_styles.css
+var webInfoStylesCSS string
+
 //go:embed assets/web_styles.css
 var webStylesCSS string
 
@@ -37,6 +50,23 @@ func composeWebHTML(executors []string, bootstrap string) string {
 	template := strings.Replace(webTemplateHTML, "__ROTARI_WEB_APP__", webAppJS, 1)
 	template = strings.Replace(template, "__ROTARI_EXECUTORS__", string(executorJSON), 1)
 	template = strings.Replace(template, "__ROTARI_STATIC_BOOTSTRAP__", bootstrap, 1)
+	return template
+}
+
+func composeStaticBootstrap(state, logs, reports string) string {
+	bootstrap := webStaticBootstrapJS
+	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_STATE_DATA__", state, 1)
+	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_LOGS_DATA__", logs, 1)
+	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_REPORTS_DATA__", reports, 1)
+	return bootstrap
+}
+
+func composeInfoHTML(template, homePath, content string) string {
+	template = strings.Replace(template, "__ROTARI_FAVICON_LINKS__", faviconLinks(), 1)
+	template = strings.Replace(template, "__ROTARI_INFO_STYLES__", webInfoStylesCSS, 1)
+	template = strings.Replace(template, "__ROTARI_BRAND_ICON__", brandIcon(), 1)
+	template = strings.Replace(template, "__ROTARI_HOME_PATH__", html.EscapeString(homePath), 1)
+	template = strings.Replace(template, "__ROTARI_CONTENT__", content, 1)
 	return template
 }
 

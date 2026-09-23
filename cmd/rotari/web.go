@@ -808,37 +808,7 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 	json.HTMLEscape(&escapedState, stateJSON)
 	json.HTMLEscape(&escapedLogs, logsJSON)
 	json.HTMLEscape(&escapedReports, reportsJSON)
-	bootstrap := fmt.Sprintf(`<script>
-window.__ROTARI_STATIC_STATE__=%s;
-window.__ROTARI_STATIC_LOGS__=%s;
-window.__ROTARI_STATIC_REPORTS__=%s;
-window.fetch=async function(input, init){
-  const request=new URL(input, window.location.href);
-  if(request.pathname.endsWith('/api/state')) return new Response(JSON.stringify(window.__ROTARI_STATIC_STATE__), {headers:{'Content-Type':'application/json'}});
-  if(request.pathname.endsWith('/api/log')) {
-	const key=staticLogKey(request.searchParams.get('project_name'), request.searchParams.get('run_id'), request.searchParams.get('job_id'), request.searchParams.get('attempt_id'));
-    return new Response(window.__ROTARI_STATIC_LOGS__[key] || '', {headers:{'Content-Type':'text/plain'}});
-  }
-	if(request.pathname.endsWith('/api/report')) {
-		const jobIDs=request.searchParams.getAll('job_ids');
-		if(jobIDs.length){
-			const selectedReports=jobIDs.map(jobID=>window.__ROTARI_STATIC_REPORTS__[staticReportKey(request.searchParams.get('project_name'), request.searchParams.get('run_id'), jobID)]);
-			return new Response(selectedReports.every(Boolean)?selectedReports.join('\n\n'):'Report not found', {status:selectedReports.every(Boolean)?200:404, headers:{'Content-Type':'text/markdown'}});
-		}
-	const key=staticReportKey(request.searchParams.get('project_name'), request.searchParams.get('run_id'), request.searchParams.get('job_id'));
-		return new Response(window.__ROTARI_STATIC_REPORTS__[key] || 'Report not found', {status:window.__ROTARI_STATIC_REPORTS__[key]?200:404, headers:{'Content-Type':'text/markdown'}});
-	}
-  return new Response('This is a read-only static demo.', {status:405});
-};
-function staticLogKey(queue, run, job, attempt){return [queue, run, job, attempt || ''].join('/');}
-function staticReportKey(project, run, job){return [project, run, job || ''].join('/');}
-function staticRootPath(){const pathname=window.location.pathname;const parts=pathname.split('/').filter(Boolean);const projectIndex=parts.indexOf('project');if(projectIndex>=0)return '/'+parts.slice(0,projectIndex).join('/');if(pathname.endsWith('/index.html'))return '/'+parts.slice(0,-1).join('/');if(pathname.endsWith('/'))return parts.length?'/'+parts.join('/'):'';return '/'+parts.slice(0,-1).join('/')}
-function routeParts(){const root=staticRootPath().split('/').filter(Boolean);return window.location.pathname.split('/').filter(Boolean).slice(root.length)}
-function staticPath(path){const root=staticRootPath().replace(/\/$/,'');return path===root||path.startsWith(root+'/')?path:root+path}
-function rewriteStaticLinks(){document.querySelectorAll('a[href^="/"]').forEach(link=>{link.setAttribute('href',staticPath(link.getAttribute('href')))})}
-rewriteStaticLinks();
-new MutationObserver(rewriteStaticLinks).observe(document.body,{childList:true,subtree:true});
-</script>`, escapedState.String(), escapedLogs.String(), escapedReports.String())
+	bootstrap := "<script>\n" + composeStaticBootstrap(escapedState.String(), escapedLogs.String(), escapedReports.String()) + "\n</script>"
 	baseTemplate := webHTMLWithStaticBootstrap(bootstrap)
 	template := strings.Replace(baseTemplate, `href="/web_styles.css"`, `href="web_styles.css"`, 1)
 	if template == baseTemplate {
@@ -1120,11 +1090,6 @@ func forbiddenReadOnly(writer http.ResponseWriter) {
 
 func cliDocsHTML(homePath string) string {
 	var builder strings.Builder
-	builder.WriteString(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>rotari CLI documentation</title><style>
-:root{color-scheme:dark;--bg:#10151b;--panel:#18212b;--line:#2d3a47;--text:#e8eef4;--muted:#94a3b3;--accent:#b8d9f2}*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#10151b,#182733);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,sans-serif}main{max-width:1100px;margin:0 auto;padding:36px 22px}header{display:flex;justify-content:space-between;align-items:end;border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}h1{margin:0;font-size:32px;letter-spacing:.04em;display:flex;align-items:center;gap:10px}.brand-icon{width:.85em;height:.85em}h2{margin:0 0 8px;color:var(--accent)}h3{margin:22px 0 8px}.meta{color:var(--muted)}a{color:var(--accent)}section{background:rgba(24,33,43,.9);border:1px solid var(--line);padding:18px;margin-bottom:16px}pre{white-space:pre-wrap;background:#0b1015;border:1px solid var(--line);padding:12px;overflow:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid var(--line);padding:8px}th{color:var(--muted);font-size:12px;text-transform:uppercase}code{color:var(--accent)}
-</style></head><body><main><header><div><h1>` + brandIcon() + `rotari CLI</h1><div class="meta">Generated from the command metadata used by the binary</div></div><a href="`)
-	builder.WriteString(html.EscapeString(homePath))
-	builder.WriteString(`">Web UI</a></header><p class="meta">Every command below is available from <code>rotari</code>. The flag descriptions and usage lines are shared with shell completion and command help.</p>`)
 	for _, command := range cliCommandSpecs {
 		builder.WriteString(`<section><h2 id="`)
 		builder.WriteString(html.EscapeString(command.Name))
@@ -1165,17 +1130,12 @@ func cliDocsHTML(homePath string) string {
 		}
 		builder.WriteString(`</section>`)
 	}
-	builder.WriteString(`</main></body></html>`)
-	return strings.Replace(builder.String(), `<title>rotari CLI documentation</title>`, `<title>rotari CLI documentation</title>`+faviconLinks(), 1)
+	return composeInfoHTML(cliDocsTemplateHTML, homePath, builder.String())
 }
 
 func environmentHTML(homePath string, environments []environmentDefinition) string {
 	var builder strings.Builder
-	builder.WriteString(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>rotari environment variables</title><style>
-:root{color-scheme:dark;--bg:#10151b;--panel:#18212b;--line:#2d3a47;--text:#e8eef4;--muted:#94a3b3;--accent:#b8d9f2}*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#10151b,#182733);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,sans-serif}main{max-width:1100px;margin:0 auto;padding:36px 22px}header{display:flex;justify-content:space-between;align-items:end;border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}h1{margin:0;font-size:32px;letter-spacing:.04em;display:flex;align-items:center;gap:10px}.brand-icon{width:.85em;height:.85em}.meta{color:var(--muted)}a{color:var(--accent)}section{background:rgba(24,33,43,.9);border:1px solid var(--line);padding:18px;margin-bottom:16px}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid var(--line);padding:8px}th{color:var(--muted);font-size:12px;text-transform:uppercase}code{color:var(--accent)}
-</style></head><body><main><header><div><h1>` + brandIcon() + `rotari environment variables</h1><div class="meta">Variables read by the CLI, jobs, and array tasks</div></div><a href="`)
-	builder.WriteString(html.EscapeString(homePath))
-	builder.WriteString(`">Web UI</a></header><section><table><thead><tr><th>Variable</th><th>Set</th><th>CLI</th><th>Job</th><th>Array</th><th>Description</th></tr></thead><tbody>`)
+	builder.WriteString(`<section><table><thead><tr><th>Variable</th><th>Set</th><th>CLI</th><th>Job</th><th>Array</th><th>Description</th></tr></thead><tbody>`)
 	for _, environment := range environments {
 		value := "-"
 		if environment.Set {
@@ -1195,6 +1155,6 @@ func environmentHTML(homePath string, environments []environmentDefinition) stri
 		builder.WriteString(html.EscapeString(environment.Description))
 		builder.WriteString(`</td></tr>`)
 	}
-	builder.WriteString(`</tbody></table></section></main></body></html>`)
-	return strings.Replace(builder.String(), `<title>rotari environment variables</title>`, `<title>rotari environment variables</title>`+faviconLinks(), 1)
+	builder.WriteString(`</tbody></table></section>`)
+	return composeInfoHTML(environmentTemplateHTML, homePath, builder.String())
 }
