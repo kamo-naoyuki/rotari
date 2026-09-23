@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -624,40 +623,7 @@ func stateMode(privateMode, sharedMode os.FileMode) os.FileMode {
 }
 
 func resolveProjectName(baseDir string, cliProjectName string) (string, error) {
-	if cliProjectName != "" {
-		if !isValidProjectName(cliProjectName) {
-			return "", fmt.Errorf("invalid project name %q", cliProjectName)
-		}
-		return cliProjectName, nil
-	}
-	if value := os.Getenv(envProjectName); value != "" {
-		if !isValidProjectName(value) {
-			return "", fmt.Errorf("invalid project name %q", value)
-		}
-		return value, nil
-	}
-	projectsDir := filepath.Join(baseDir, "projects")
-	entries, err := os.ReadDir(projectsDir)
-	if err == nil {
-		var available []string
-		for _, entry := range entries {
-			if entry.IsDir() {
-				available = append(available, entry.Name())
-			}
-		}
-		if len(available) == 1 {
-			return available[0], nil
-		}
-		if len(available) > 1 {
-			sort.Strings(available)
-			var list []string
-			for _, q := range available {
-				list = append(list, "  - "+q)
-			}
-			return "", fmt.Errorf("multiple projects exist in state directory %q; please specify one with --project-name or ROTARI_PROJECT_NAME:\n%s", baseDir, strings.Join(list, "\n"))
-		}
-	}
-	return defaultProjectName, nil
+	return state.ResolveProjectName(baseDir, cliProjectName)
 }
 
 func isRunning(lockPath string) (bool, error) {

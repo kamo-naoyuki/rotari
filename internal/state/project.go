@@ -1,0 +1,61 @@
+package state
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+)
+
+const (
+	projectNameEnv     = "ROTARI_PROJECT_NAME"
+	defaultProjectName = "default"
+)
+
+func ResolveProjectName(baseDir, cliProjectName string) (string, error) {
+	if cliProjectName != "" {
+		if !IsValidPathElement(cliProjectName) {
+			return "", fmt.Errorf("invalid project name %q", cliProjectName)
+		}
+		return cliProjectName, nil
+	}
+	if value := os.Getenv(projectNameEnv); value != "" {
+		if !IsValidPathElement(value) {
+			return "", fmt.Errorf("invalid project name %q", value)
+		}
+		return value, nil
+	}
+	projectsDir := filepath.Join(baseDir, "projects")
+	entries, err := os.ReadDir(projectsDir)
+	if err == nil {
+		available := make([]string, 0)
+		for _, entry := range entries {
+			if entry.IsDir() {
+				available = append(available, entry.Name())
+			}
+		}
+		if len(available) == 1 {
+			return available[0], nil
+		}
+		if len(available) > 1 {
+			sort.Strings(available)
+			list := make([]string, 0, len(available))
+			for _, project := range available {
+				list = append(list, "  - "+project)
+			}
+			return "", fmt.Errorf("multiple projects exist in state directory %q; please specify one with --project-name or ROTARI_PROJECT_NAME:\n%s", baseDir, joinLines(list))
+		}
+	}
+	return defaultProjectName, nil
+}
+
+func joinLines(lines []string) string {
+	result := ""
+	for index, line := range lines {
+		if index > 0 {
+			result += "\n"
+		}
+		result += line
+	}
+	return result
+}
