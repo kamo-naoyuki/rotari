@@ -1052,34 +1052,11 @@ func loadWebQueueState(paths pathSet) (webQueueState, error) {
 }
 
 func formatWebQueueDisplayTimes(state *webQueueState) {
-	state.RunnerStartedAt = formatDisplayTimestamp(state.RunnerStartedAt)
-	for index := range state.Queue.Commands {
-		origin := state.Queue.Commands[index].Origin
-		if origin == nil {
-			continue
-		}
-		origin.SubmittedAt = formatDisplayTimestamp(origin.SubmittedAt)
-		origin.FinishedAt = formatDisplayTimestamp(origin.FinishedAt)
-	}
-	for index := range state.Runs {
-		run := &state.Runs[index]
-		run.StartedAt = formatDisplayTimestamp(run.StartedAt)
-		run.FinishedAt = formatDisplayTimestamp(run.FinishedAt)
-		for jobIndex := range run.Jobs {
-			job := &run.Jobs[jobIndex]
-			job.SubmittedAt = formatDisplayTimestamp(job.SubmittedAt)
-			job.FinishedAt = formatDisplayTimestamp(job.FinishedAt)
-			if job.Origin != nil {
-				job.Origin.SubmittedAt = formatDisplayTimestamp(job.Origin.SubmittedAt)
-				job.Origin.FinishedAt = formatDisplayTimestamp(job.Origin.FinishedAt)
-			}
-			for attemptIndex := range job.Attempts {
-				attempt := &job.Attempts[attemptIndex]
-				attempt.SubmittedAt = formatDisplayTimestamp(attempt.SubmittedAt)
-				attempt.FinishedAt = formatDisplayTimestamp(attempt.FinishedAt)
-			}
-		}
-	}
+	projection := webprojection.QueueState{QueueName: state.QueueName, Queue: state.Queue, Runs: state.Runs, RunnerStartedAt: state.RunnerStartedAt}
+	webprojection.FormatQueueDisplayTimes(&projection)
+	state.RunnerStartedAt = projection.RunnerStartedAt
+	state.Queue = projection.Queue
+	state.Runs = projection.Runs
 }
 
 func loadWebJobs(runDir string, summary RunSummary, attemptIDs ...string) ([]webJob, error) {
