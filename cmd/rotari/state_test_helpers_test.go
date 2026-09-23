@@ -19,3 +19,11 @@ func loadQueue(path string) (Queue, error) {
 func writeJSON(path string, value any) error {
 	return state.WriteJSON(path, value)
 }
+
+func latestAttemptJobDir(runDir, jobID string) (string, error) {
+	return state.LatestAttemptJobDir(runDir, jobID)
+}
+
+func specificAttemptJobDir(runDir, jobID, attemptID string) (string, error) {
+	return state.SpecificAttemptJobDir(runDir, jobID, attemptID)
+}

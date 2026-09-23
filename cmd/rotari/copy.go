@@ -206,7 +206,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 			if payload.RunID != runID {
 				return "", fmt.Errorf("attempt %q belongs to run %q, not %q", jobID, payload.RunID, runID)
 			}
-			attemptDir, pathErr := specificAttemptJobDir(sourceRunDir, payload.JobID, jobID)
+			attemptDir, pathErr := state.SpecificAttemptJobDir(sourceRunDir, payload.JobID, jobID)
 			if pathErr != nil {
 				return "", pathErr
 			}

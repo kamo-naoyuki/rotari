@@ -14,16 +14,8 @@ func decodeAttemptID(attemptID string) (attemptIDPayload, error) {
 	return state.DecodeAttemptID(attemptID)
 }
 
-func latestAttemptJobDir(runDir, jobID string) (string, error) {
-	return state.LatestAttemptJobDir(runDir, jobID)
-}
-
 func latestAttemptID(runDir, jobID string) (string, error) {
 	return state.LatestAttemptID(runDir, jobID)
-}
-
-func specificAttemptJobDir(runDir, jobID, attemptID string) (string, error) {
-	return state.SpecificAttemptJobDir(runDir, jobID, attemptID)
 }
 
 func validatedStateFile(basePath, fileName string) (string, error) {

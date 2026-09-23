@@ -5,6 +5,29 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
+const (
+	OpPing     = "ping"
+	OpShutdown = "shutdown"
+	OpRun      = "run"
+	OpSubmit   = "submit"
+	OpCancel   = "cancel"
+	OpSuspend  = "suspend"
+	OpResume   = "resume"
+	OpCopy     = "copy"
+	OpChange   = "change"
+	OpRemove   = "remove"
+	OpClear    = "clear"
+)
+
+func IsKnownOperation(op string) bool {
+	switch op {
+	case OpPing, OpShutdown, OpRun, OpSubmit, OpCancel, OpSuspend, OpResume:
+		return true
+	default:
+		return false
+	}
+}
+
 type Request struct {
 	Op               string                  `json:"op"`
 	QueueName        string                  `json:"project_name,omitempty"`

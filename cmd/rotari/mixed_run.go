@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -87,58 +86,22 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 			jobsByName[job.Name] = job
 		}
 	}
-	for attempt := 0; (retry == -1 || attempt <= retry) && len(pending) > 0; attempt++ {
-		pendingByID := make(map[string]bool, len(pending))
-		for _, job := range pending {
-			pendingByID[job.ID] = true
-		}
-		// Resolve dependency waves within this attempt: a job whose
-		// dependency finishes in an earlier wave of the same attempt must
-		// run in this attempt too, instead of waiting for the next retry.
-		unresolved := pending
-		var attemptResults []JobResult
-		for {
-			ready, blocked, stillUnresolved := runcontract.ResolveDependencyWave(unresolved, jobsByName, finalResults, pendingByID)
-			for _, job := range blocked {
-				finalResults[job.ID] = JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: "blocked by failed dependency"}
-			}
-			if len(ready) == 0 {
-				break
-			}
+	pending = runcontract.ExecuteDependencyRetries(pending, jobsByName, finalResults, retry, runcontract.AttemptCallbacks{
+		Execute: func(_ int, ready []model.JobSpec) []model.JobResult {
+			return executeMixedAttempt(runDir, queue, ready, localConcurrency, batchMaxActive, requestedExecutor, executorOptions, executorSettings, onStart)
+		},
+		AssignAttemptIDs: func(ready []model.JobSpec, attempt int) {
 			assignAttemptIDs(ready, runID, attempt)
-			waveResults := executeMixedAttempt(runDir, queue, ready, localConcurrency, batchMaxActive, requestedExecutor, executorOptions, executorSettings, onStart)
-			for _, result := range waveResults {
-				finalResults[result.ID] = result
+		},
+		ShouldRetry: func(job model.JobSpec, result model.JobResult) bool {
+			return !jobWasExplicitlyCancelled(runDir, job.ID, result)
+		},
+		Progress: func(result model.JobResult, completed, total, succeeded, failed int) {
+			if progress != nil {
+				progress(result, completed, total, succeeded, failed)
 			}
-			attemptResults = append(attemptResults, waveResults...)
-			unresolved = stillUnresolved
-		}
-		pending = runcontract.RetryPendingJobs(
-			pending,
-			finalResults,
-			attempt,
-			retry,
-			func(job model.JobSpec, result model.JobResult) bool {
-				return !jobWasExplicitlyCancelled(runDir, job.ID, result)
-			},
-		)
-		if len(pending) > 0 && (retry == -1 || attempt < retry) && progress != nil {
-			completed, succeeded, failed := runcontract.SummarizeResults(finalResults)
-			for _, job := range pending {
-				progress(JobResult{ID: job.ID, Command: job.Command, Error: fmt.Sprintf("retry:%d", attempt+1)}, completed, len(jobs), succeeded, failed)
-			}
-		}
-		if progress != nil {
-			completed, succeeded, failed := runcontract.SummarizeResults(finalResults)
-			for _, result := range attemptResults {
-				progressResult := result
-				if result.ExitCode != 0 && !runcontract.JobIsPending(pending, result.ID) {
-					progressResult.Error = "final-failure"
-				}
-				progress(progressResult, completed, len(jobs), succeeded, failed)
-			}
-		}
-	}
+		},
+	})
 	runcontract.FinalizePendingResults(pending, finalResults)
 
 	summary := runcontract.BuildRunSummary(runID, runName, nowRFC3339(), jobs, finalResults, func(result JobResult) JobResult {
@@ -151,7 +114,7 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 }
 
 func jobWasExplicitlyCancelled(runDir, jobID string, result JobResult) bool {
-	jobDir, err := latestAttemptJobDir(runDir, jobID)
+	jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 	if err != nil {
 		return false
 	}

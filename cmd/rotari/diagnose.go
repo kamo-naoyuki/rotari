@@ -214,13 +214,13 @@ func loadDiagnosisJob(paths pathSet, runID, jobID string, attemptIDs ...string) 
 		if err != nil {
 			return diagnosisJob{}, err
 		}
-		jobDir, err := latestAttemptJobDir(runDir, jobID)
+		jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 		attemptID := ""
 		if len(attemptIDs) > 0 {
 			attemptID = attemptIDs[0]
 		}
 		if attemptID != "" {
-			jobDir, err = specificAttemptJobDir(runDir, jobID, attemptID)
+			jobDir, err = state.SpecificAttemptJobDir(runDir, jobID, attemptID)
 		}
 		if err != nil {
 			return diagnosisJob{}, err
@@ -282,7 +282,7 @@ func diagnoseJobResult(runDir string, result JobResult) JobResult {
 	if !state.IsValidPathElement(result.ID) {
 		return unavailableRuleDiagnosis(result, "The job ID is invalid, so its output could not be inspected.")
 	}
-	jobDir, err := latestAttemptJobDir(runDir, result.ID)
+	jobDir, err := state.LatestAttemptJobDir(runDir, result.ID)
 	if err != nil {
 		return unavailableRuleDiagnosis(result, "The job directory could not be resolved: "+err.Error())
 	}

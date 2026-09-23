@@ -330,7 +330,7 @@ func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsR
 	}
 	rows := make([]jobsRow, 0)
 	for _, job := range model.QueueToJobs(runQueue.Commands) {
-		jobDir, err := latestAttemptJobDir(runDir, job.ID)
+		jobDir, err := state.LatestAttemptJobDir(runDir, job.ID)
 		if err != nil {
 			continue
 		}

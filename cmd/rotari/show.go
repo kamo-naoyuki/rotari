@@ -880,7 +880,7 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 	changeHints := make([]JobSpec, 0)
 	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-42s %-6s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s", "JOB ID", "LATEST ATTEMPT", "TASK", "NAME", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "HOSTS", "COMMAND")))
 	for _, jobID := range jobIDs {
-		jobDir, err := latestAttemptJobDir(runDir, jobID)
+		jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 		if err != nil {
 			continue
 		}
@@ -1496,7 +1496,7 @@ func loadTerminalSchedulerState(jobDir string) (int, bool) {
 }
 
 func readSubmittedAt(runDir, jobID string) string {
-	jobDir, err := latestAttemptJobDir(runDir, jobID)
+	jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 	if err != nil {
 		return "-"
 	}
@@ -1514,7 +1514,7 @@ func readSubmittedAt(runDir, jobID string) string {
 }
 
 func readFinishedAt(runDir, jobID string) string {
-	jobDir, err := latestAttemptJobDir(runDir, jobID)
+	jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 	if err != nil {
 		return "-"
 	}
@@ -1569,7 +1569,7 @@ func loadRunJobSpecs(runDir string) map[string]JobSpec {
 		if !entry.IsDir() {
 			continue
 		}
-		jobDir, err := latestAttemptJobDir(runDir, entry.Name())
+		jobDir, err := state.LatestAttemptJobDir(runDir, entry.Name())
 		if err != nil {
 			continue
 		}
@@ -1643,9 +1643,9 @@ func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID str
 		printErrorf(jobNotFoundMessage, jobID, runID)
 		return 1
 	}
-	jobDir, err := latestAttemptJobDir(filepath.Join(paths.RunsDir, runID), jobID)
+	jobDir, err := state.LatestAttemptJobDir(filepath.Join(paths.RunsDir, runID), jobID)
 	if attemptID != "" {
-		jobDir, err = specificAttemptJobDir(filepath.Join(paths.RunsDir, runID), jobID, attemptID)
+		jobDir, err = state.SpecificAttemptJobDir(filepath.Join(paths.RunsDir, runID), jobID, attemptID)
 	}
 	if err != nil {
 		printErrorf(jobNotFoundMessage, jobID, runID)
@@ -1831,7 +1831,7 @@ func showRunLogs(writer io.Writer, paths pathSet, runID string, failedOnly bool)
 			continue
 		}
 		jobID := entry.Name()
-		jobDir, err := latestAttemptJobDir(runDir, jobID)
+		jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 		if err != nil {
 			continue
 		}

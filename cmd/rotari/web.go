@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"crypto/subtle"
-	_ "embed"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -27,30 +26,6 @@ import (
 )
 
 const webDefaultPort = 8787
-
-//go:embed assets/web_template.html
-var webTemplateHTML string
-
-//go:embed assets/web_app_core.js
-var webAppCoreJS string
-
-//go:embed assets/web_app_actions.js
-var webAppActionsJS string
-
-//go:embed assets/web_app_logs.js
-var webAppLogsJS string
-
-//go:embed assets/web_app_tables.js
-var webAppTablesJS string
-
-//go:embed assets/web_app_charts.js
-var webAppChartsJS string
-
-//go:embed assets/web_app_bootstrap.js
-var webAppBootstrapJS string
-
-//go:embed assets/web_styles.css
-var webStylesCSS string
 
 type webRun = webprojection.Run
 type webJob = webprojection.Job
@@ -943,7 +918,7 @@ func webLogPath(runsDir, runID, jobID, attemptID string) (string, error) {
 		if decodeErr != nil || payload.RunID != runID || payload.JobID != jobID {
 			return "", fmt.Errorf("attempt_id must identify this run and job")
 		}
-		jobDir, err := specificAttemptJobDir(runDir, jobID, attemptID)
+		jobDir, err := stateinternal.SpecificAttemptJobDir(runDir, jobID, attemptID)
 		if err != nil {
 			return "", err
 		}
@@ -953,7 +928,7 @@ func webLogPath(runsDir, runID, jobID, attemptID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	jobDir, err := latestAttemptJobDir(runDir, resolvedJobID)
+	jobDir, err := stateinternal.LatestAttemptJobDir(runDir, resolvedJobID)
 	if err != nil {
 		return "", err
 	}
@@ -1062,10 +1037,10 @@ func loadWebJobs(runDir string, summary RunSummary, attemptIDs ...string) ([]web
 	jobs, err := webprojection.LoadJobs(model.Queue(commands), model.RunSummary(summary), attemptIDs, webprojection.JobLoader{
 		Origins: model.QueueOriginsByJobID(model.Queue(commands)),
 		LatestAttemptDir: func(jobID string) (string, error) {
-			return latestAttemptJobDir(runDir, jobID)
+			return stateinternal.LatestAttemptJobDir(runDir, jobID)
 		},
 		SpecificAttemptDir: func(jobID, attemptID string) (string, error) {
-			return specificAttemptJobDir(runDir, jobID, attemptID)
+			return stateinternal.SpecificAttemptJobDir(runDir, jobID, attemptID)
 		},
 		ListAttemptIDs: func(jobID string) []string {
 			return listAttemptIDs(runDir, jobID)
@@ -1104,7 +1079,7 @@ func webJobTimestamps(runDir, jobID string, origin *JobOrigin) (string, string) 
 	submittedAt := stateinternal.ReadJobTimestamp(runDir, jobID, "submitted_at")
 	finishedAt := stateinternal.ReadJobTimestamp(runDir, jobID, "finished_at")
 	if finishedAt == "" {
-		if jobDir, err := latestAttemptJobDir(runDir, jobID); err == nil {
+		if jobDir, err := stateinternal.LatestAttemptJobDir(runDir, jobID); err == nil {
 			if status, ok := loadSlurmStatus(filepath.Join(jobDir, "status.json")); ok {
 				finishedAt = status.FinishedAt
 			}
@@ -1137,12 +1112,7 @@ func webHTML() string {
 }
 
 func webHTMLWithStaticBootstrap(bootstrap string) string {
-	executorJSON, _ := json.Marshal(executorNames())
-	webAppJS := strings.Join([]string{webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppTablesJS, webAppChartsJS, webAppBootstrapJS}, "\n")
-	template := strings.Replace(webTemplateHTML, "__ROTARI_WEB_APP__", webAppJS, 1)
-	template = strings.Replace(template, "__ROTARI_EXECUTORS__", string(executorJSON), 1)
-	template = strings.Replace(template, "__ROTARI_STATIC_BOOTSTRAP__", bootstrap, 1)
-	return template
+	return composeWebHTML(executorNames(), bootstrap)
 }
 
 func methodNotAllowed(writer http.ResponseWriter) {

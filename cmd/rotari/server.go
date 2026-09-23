@@ -78,7 +78,7 @@ func cmdServer(args []string) int {
 	}
 
 	switch args[0] {
-	case "shutdown":
+	case serverinternal.OpShutdown:
 		return cmdServerRequest(args[1:], "shutdown")
 	case "status":
 		return cmdServerStatus(args[1:])
@@ -91,15 +91,15 @@ func cmdServer(args []string) int {
 }
 
 func ensureServer(baseDir string) error {
-	if response, err := sendServerRequest(baseDir, serverRequest{Op: "ping"}); err == nil && response.OK {
+	if response, err := sendServerRequest(baseDir, serverRequest{Op: serverinternal.OpPing}); err == nil && response.OK {
 		if response.Protocol == serverProtocolVersion {
 			return nil
 		}
-		if _, shutdownErr := sendServerRequest(baseDir, serverRequest{Op: "shutdown"}); shutdownErr != nil {
+		if _, shutdownErr := sendServerRequest(baseDir, serverRequest{Op: serverinternal.OpShutdown}); shutdownErr != nil {
 			return fmt.Errorf("server protocol mismatch (got %d, want %d); failed to stop old server: %w", response.Protocol, serverProtocolVersion, shutdownErr)
 		}
 		for range 40 {
-			if _, pingErr := sendServerRequest(baseDir, serverRequest{Op: "ping"}); pingErr != nil {
+			if _, pingErr := sendServerRequest(baseDir, serverRequest{Op: serverinternal.OpPing}); pingErr != nil {
 				break
 			}
 			time.Sleep(50 * time.Millisecond)
@@ -123,7 +123,7 @@ func ensureServer(baseDir string) error {
 		return fmt.Errorf("failed to start server: %w", err)
 	}
 	for range 40 {
-		if response, err := sendServerRequest(baseDir, serverRequest{Op: "ping"}); err == nil && response.OK {
+		if response, err := sendServerRequest(baseDir, serverRequest{Op: serverinternal.OpPing}); err == nil && response.OK {
 			return nil
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -143,7 +143,7 @@ func cmdServerStatus(args []string) int {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
 	}
-	response, err := sendServerRequest(baseDir, serverRequest{Op: "ping"})
+	response, err := sendServerRequest(baseDir, serverRequest{Op: serverinternal.OpPing})
 	if err != nil || !response.OK {
 		printError("server is not running")
 		return 1
@@ -440,7 +440,7 @@ func cmdRun(args []string) int {
 		return 1
 	}
 	request := serverRequest{
-		Op: "run", QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings, Retry: *retry, Async: *async,
+		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings, Retry: *retry, Async: *async,
 		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, CWD: cwd,
 		Selection: selection, JobIDs: jobIDs, SourceRunID: sourceRunID, PartialArray: *partialArray,
 	}
@@ -614,28 +614,33 @@ func (server *rotariServer) handle(baseDir string, conn net.Conn) {
 	server.logger.writef("request op=%s", request.Op)
 	response := serverResponse{}
 	encoder := json.NewEncoder(conn)
+	if !serverinternal.IsKnownOperation(request.Op) {
+		response.Message = "unknown server operation: " + request.Op
+		_ = encoder.Encode(response)
+		return
+	}
 	switch request.Op {
-	case "ping":
+	case serverinternal.OpPing:
 		response = serverResponse{OK: true, PID: os.Getpid(), Protocol: serverProtocolVersion}
-	case "submit":
+	case serverinternal.OpSubmit:
 		message, err := enqueueCommandWithWorkingDirectory(baseDir, request.QueueName, request.Command, request.Executor, request.ExecutorOptions, request.Environment, request.WorkingDirectory, request.JobName, request.DependsOn, request.Array)
 		response = serverResponse{OK: err == nil, Message: message}
 		if err != nil {
 			response.Message = err.Error()
 		}
-	case "cancel":
+	case serverinternal.OpCancel:
 		message, err := cancelQueueJobs(baseDir, request.QueueName, request.JobIDs, request.Wait)
 		response = serverResponse{OK: err == nil, Message: message}
 		if err != nil {
 			response.Message = err.Error()
 		}
-	case "suspend", "resume":
+	case serverinternal.OpSuspend, serverinternal.OpResume:
 		message, err := controlQueueJobs(baseDir, request.QueueName, request.JobIDs, request.Op)
 		response = serverResponse{OK: err == nil, Message: message}
 		if err != nil {
 			response.Message = err.Error()
 		}
-	case "run":
+	case serverinternal.OpRun:
 		var message string
 		var exitCode int
 		var err error
@@ -663,11 +668,11 @@ func (server *rotariServer) handle(baseDir string, conn net.Conn) {
 		if err != nil {
 			response.Message = err.Error()
 		}
-	case "shutdown":
+	case serverinternal.OpShutdown:
 		response = serverResponse{OK: true, Message: "server stopped"}
 		server.stop()
 	default:
-		response.Message = "unknown server operation: " + request.Op
+		response.Message = "unsupported server operation: " + request.Op
 	}
 	_ = encoder.Encode(response)
 }
@@ -769,7 +774,7 @@ func cmdCancel(args []string) int {
 		printError(err)
 		return 1
 	}
-	response, err := sendServerRequest(baseDir, serverRequest{Op: "cancel", QueueName: queueName, JobIDs: jobIDs, Wait: *wait})
+	response, err := sendServerRequest(baseDir, serverRequest{Op: serverinternal.OpCancel, QueueName: queueName, JobIDs: jobIDs, Wait: *wait})
 	if err != nil {
 		printErrorf("failed to contact server: %v", err)
 		return 1
@@ -1022,7 +1027,7 @@ func controlQueueJobs(baseDir, queueName string, jobIDs []string, operation stri
 	}
 	controlled := 0
 	for _, jobID := range targets {
-		jobDir, err := latestAttemptJobDir(runDir, jobID)
+		jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 		if err != nil {
 			return "", err
 		}
@@ -1100,11 +1105,11 @@ func normalizeRunningAttemptIDs(runDir, runID string, jobIDs []string) ([]string
 		if payload.RunID != runID {
 			return nil, fmt.Errorf("attempt %q belongs to run %q, not %q", jobID, payload.RunID, runID)
 		}
-		attemptDir, err := specificAttemptJobDir(runDir, payload.JobID, jobID)
+		attemptDir, err := state.SpecificAttemptJobDir(runDir, payload.JobID, jobID)
 		if err != nil {
 			return nil, err
 		}
-		latestDir, err := latestAttemptJobDir(runDir, payload.JobID)
+		latestDir, err := state.LatestAttemptJobDir(runDir, payload.JobID)
 		if err != nil || filepath.Clean(attemptDir) != filepath.Clean(latestDir) {
 			latestAttemptID, _ := latestAttemptID(runDir, payload.JobID)
 			if latestAttemptID != "" {
@@ -1187,7 +1192,7 @@ func cancelQueueJobs(baseDir, queueName string, jobIDs []string, wait bool) (str
 		}
 		targets := make([]string, 0, len(commandSnapshot.Commands))
 		for _, job := range model.QueueToJobs(commandSnapshot.Commands) {
-			jobDir, err := latestAttemptJobDir(runDir, job.ID)
+			jobDir, err := state.LatestAttemptJobDir(runDir, job.ID)
 			if err != nil {
 				return "", err
 			}
@@ -1229,7 +1234,7 @@ func cancelJobs(runDir, queueName, runID string, jobIDs []string) (string, error
 		if !state.IsValidPathElement(jobID) {
 			return "", fmt.Errorf("invalid job ID %q", jobID)
 		}
-		jobDir, err := latestAttemptJobDir(runDir, jobID)
+		jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 		if err != nil {
 			return "", err
 		}

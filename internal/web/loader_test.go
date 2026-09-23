@@ -74,6 +74,30 @@ func TestLoadJobsProjectsSummaryAndOrigin(t *testing.T) {
 	}
 }
 
+func TestLoadQueueStateFallsBackToRunningSummaryWhenMissing(t *testing.T) {
+	state, err := LoadQueueState(QueueLoader{
+		ProjectName: "demo",
+		Queue:       func() (model.Queue, error) { return model.Queue{}, nil },
+		Lock:        func() (model.LockInfo, error) { return model.LockInfo{RunID: "run-1", StartedAt: "started"}, nil },
+		Runs:        func() ([]string, error) { return []string{"run-1"}, nil },
+		Summary:     func(string) (model.RunSummary, error) { return model.RunSummary{}, assertNotFound{} },
+		Jobs: func(runID string, summary model.RunSummary) ([]Job, error) {
+			if summary.Status != "running" || summary.RunID != runID || summary.StartedAt != "started" {
+				t.Fatalf("fallback summary = %#v", summary)
+			}
+			return nil, nil
+		},
+		Context: func(string) (model.RunContext, error) { return model.RunContext{}, nil },
+		Samples: func(string) []model.LoadSample { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Runs) != 1 || state.Runs[0].Status != "running" || !state.Runs[0].Running {
+		t.Fatalf("state = %#v, want one running fallback run", state)
+	}
+}
+
 type assertNotFound struct{}
 
 func (assertNotFound) Error() string { return "not found" }

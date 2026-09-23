@@ -257,7 +257,7 @@ func readReportLog(paths pathSet, runID string, job webJob) string {
 	if err != nil {
 		return ""
 	}
-	jobDir, err := latestAttemptJobDir(runDir, jobID)
+	jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 	if err != nil {
 		return ""
 	}
