@@ -242,26 +242,6 @@ func TestShellQuoteAndConfigTemplateFormats(t *testing.T) {
 	}
 }
 
-func TestSplitShellWordsAndExpandShellOptions(t *testing.T) {
-	words, err := splitShellWords(`--partition "gpu queue" --constraint='a b' escaped\ value`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []string{"--partition", "gpu queue", "--constraint=a b", "escaped value"}
-	if strings.Join(words, "|") != strings.Join(want, "|") {
-		t.Fatalf("splitShellWords = %#v, want %#v", words, want)
-	}
-	expanded, err := expandShellOptions([]string{"-p gpu", "--cpus-per-task=2"})
-	if err != nil || strings.Join(expanded, " ") != "-p gpu --cpus-per-task=2" {
-		t.Fatalf("expandShellOptions = %#v, %v", expanded, err)
-	}
-	for _, input := range []string{`unterminated'`, `trailing\`} {
-		if _, err := splitShellWords(input); err == nil {
-			t.Fatalf("invalid shell words %q were accepted", input)
-		}
-	}
-}
-
 func TestConfigFormatMatchesAndNewlineHelpers(t *testing.T) {
 	for output, want := range map[string]string{
 		"config.yaml": "yaml",

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -72,7 +73,7 @@ func assertSchedulerContainerFileLines(t *testing.T, config schedulerContainerTe
 	for {
 		output := runSchedulerContainerCommand(t, config, fmt.Sprintf("cat %s 2>/dev/null || true", shellQuote(path)))
 		got := nonEmptySortedLines(output)
-		if sameStrings(got, want) {
+		if reflect.DeepEqual(got, want) {
 			return
 		}
 		if time.Now().After(deadline) {

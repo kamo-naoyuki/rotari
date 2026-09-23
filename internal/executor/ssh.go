@@ -1,4 +1,4 @@
-package main
+package executor
 
 import (
 	"crypto/rand"
@@ -13,6 +13,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -27,9 +28,20 @@ type sshJobMetadata struct {
 	SubmittedAt string   `json:"submitted_at"`
 }
 
-type sshExecutor struct{}
+// SSHCommandPath is the ssh binary invoked to run remote jobs; overridable
+// (e.g. in tests, or validateExecutorCommand's availability check) since it
+// is not always at a fixed path.
+var SSHCommandPath = "/usr/bin/ssh"
 
-var sshCommandPath = "/usr/bin/ssh"
+// SSH runs jobs on a remote host over ssh, tracking the local ssh client
+// process for the job's lifetime.
+type SSH struct {
+	Store state.Store
+}
+
+func NewSSH(store state.Store) SSH {
+	return SSH{Store: store}
+}
 
 type sshProcess struct {
 	command *exec.Cmd
@@ -41,10 +53,10 @@ var sshProcesses = struct {
 	commands map[int]sshProcess
 }{commands: make(map[int]sshProcess)}
 
-func (sshExecutor) Name() string { return "ssh" }
+func (SSH) Name() string { return "ssh" }
 
-func (sshExecutor) Submit(runDir string, job JobSpec, options []string) (JobHandle, error) {
-	host, sshOptions, err := sshTarget(options)
+func (ssh SSH) Submit(runDir string, job model.JobSpec, options []string) (JobHandle, error) {
+	host, sshOptions, err := SSHTarget(options)
 	if err != nil {
 		return JobHandle{}, err
 	}
@@ -52,21 +64,21 @@ func (sshExecutor) Submit(runDir string, job JobSpec, options []string) (JobHand
 	if err != nil {
 		return JobHandle{}, err
 	}
-	jobDir, err := attemptJobDir(runDir, job)
+	jobDir, err := state.AttemptJobDir(runDir, job)
 	if err != nil {
 		return JobHandle{}, err
 	}
-	if err := os.MkdirAll(jobDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(jobDir, ssh.Store.DirectoryMode); err != nil {
 		return JobHandle{}, err
 	}
-	if err := writeJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
+	if err := state.WriteJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 		return JobHandle{}, err
 	}
 	output, err := os.Create(filepath.Join(jobDir, "output"))
 	if err != nil {
 		return JobHandle{}, err
 	}
-	cmd := exec.Command(sshCommandPath, append(sshOptions, "--", host, "sh", "-s")...)
+	cmd := exec.Command(SSHCommandPath, append(sshOptions, "--", host, "sh", "-s")...)
 	cmd.Stdin = strings.NewReader(sshWrapperScript(job.Command, job.Environment, job.WorkingDirectory, remoteToken))
 	cmd.Stdout = output
 	cmd.Stderr = output
@@ -75,7 +87,7 @@ func (sshExecutor) Submit(runDir string, job JobSpec, options []string) (JobHand
 		return JobHandle{}, fmt.Errorf("ssh %s: %w", host, err)
 	}
 	metadata := sshJobMetadata{Executor: "ssh", JobID: job.ID, Command: job.Command, Host: host, PID: cmd.Process.Pid, SSHOptions: sshOptions, RemoteToken: remoteToken, SubmittedAt: nowRFC3339()}
-	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
+	if err := state.WriteJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 		_ = output.Close()
@@ -87,20 +99,20 @@ func (sshExecutor) Submit(runDir string, job JobSpec, options []string) (JobHand
 	return JobHandle{Job: job, Native: strconv.Itoa(cmd.Process.Pid)}, nil
 }
 
-func (sshExecutor) Wait(runDir string, handle JobHandle) JobResult {
-	jobDir, err := validatedJobDir(runDir, handle.Job.ID)
+func (ssh SSH) Wait(runDir string, handle JobHandle) model.JobResult {
+	jobDir, err := state.SafeJoin(runDir, handle.Job.ID)
 	if err != nil {
-		return JobResult{ID: handle.Job.ID, Command: handle.Job.Command, ExitCode: 1, Error: err.Error()}
+		return model.JobResult{ID: handle.Job.ID, Command: handle.Job.Command, ExitCode: 1, Error: err.Error()}
 	}
-	metadata, err := readSSHMetadata(jobDir)
+	metadata, err := readSSHMetadata(ssh.Store, jobDir)
 	if err != nil {
-		return JobResult{ID: handle.Job.ID, Command: handle.Job.Command, ExitCode: 1, Error: err.Error()}
+		return model.JobResult{ID: handle.Job.ID, Command: handle.Job.Command, ExitCode: 1, Error: err.Error()}
 	}
 	sshProcesses.Lock()
 	process, ok := sshProcesses.commands[metadata.PID]
 	sshProcesses.Unlock()
 	if !ok {
-		return JobResult{ID: handle.Job.ID, Command: handle.Job.Command, ExitCode: 1, Error: "SSH job is no longer managed by this process"}
+		return model.JobResult{ID: handle.Job.ID, Command: handle.Job.Command, ExitCode: 1, Error: "SSH job is no longer managed by this process"}
 	}
 	err = process.command.Wait()
 	_ = process.output.Close()
@@ -114,22 +126,22 @@ func (sshExecutor) Wait(runDir string, handle JobHandle) JobResult {
 			exitCode = exitError.ExitCode()
 		}
 	}
-	status := slurmStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339(), Hosts: []string{metadata.Host}}
+	status := WrapperStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339(), Hosts: []string{metadata.Host}}
 	if err != nil {
 		status.Error = err.Error()
 	}
-	_ = writeJSON(filepath.Join(jobDir, "status.json"), status)
+	_ = state.WriteJSON(filepath.Join(jobDir, "status.json"), status)
 	return jobResultFromStatus(handle.Job.ID, handle.Job.Command, status)
 }
 
-func (sshExecutor) Cancel(jobDir string) error {
-	metadata, err := readSSHMetadata(jobDir)
+func (ssh SSH) Cancel(jobDir string) error {
+	metadata, err := readSSHMetadata(ssh.Store, jobDir)
 	if err != nil {
 		return err
 	}
 	if metadata.RemoteToken != "" {
 		args := append(append([]string{}, metadata.SSHOptions...), "--", metadata.Host, "sh", "-s")
-		cmd := exec.Command(sshCommandPath, args...)
+		cmd := exec.Command(SSHCommandPath, args...)
 		cmd.Stdin = strings.NewReader(sshCancelScript(metadata.RemoteToken))
 		if output, err := cmd.CombinedOutput(); err != nil {
 			message := strings.TrimSpace(string(output))
@@ -149,9 +161,9 @@ func (sshExecutor) Cancel(jobDir string) error {
 	return process.command.Process.Signal(syscall.SIGTERM)
 }
 
-func readSSHMetadata(jobDir string) (sshJobMetadata, error) {
+func readSSHMetadata(store state.Store, jobDir string) (sshJobMetadata, error) {
 	var metadata sshJobMetadata
-	if err := jsonStore().ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil {
+	if err := store.ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil {
 		if errors.Is(err, state.ErrInvalidJSON) {
 			return sshJobMetadata{}, fmt.Errorf("invalid SSH metadata")
 		}
@@ -166,8 +178,11 @@ func readSSHMetadata(jobDir string) (sshJobMetadata, error) {
 	return metadata, nil
 }
 
-func sshTarget(options []string) (string, []string, error) {
-	expanded, err := expandShellOptions(options)
+// SSHTarget parses the SSH executor's options into a target host and the
+// remaining ssh(1) options, shared by both job submission and
+// cmd/rotari's up-front queue validation.
+func SSHTarget(options []string) (string, []string, error) {
+	expanded, err := ExpandShellOptions(options)
 	if err != nil {
 		return "", nil, err
 	}
@@ -201,16 +216,16 @@ func sshWrapperScript(command []string, environment []string, workingDirectory, 
 	for _, entry := range environment {
 		parts := strings.SplitN(entry, "=", 2)
 		if len(parts) == 2 {
-			exports = append(exports, "export "+parts[0]+"="+shellQuote(parts[1]))
+			exports = append(exports, "export "+parts[0]+"="+ShellQuote(parts[1]))
 		}
 	}
 	quoted := make([]string, 0, len(command))
 	for _, arg := range command {
-		quoted = append(quoted, shellQuote(arg))
+		quoted = append(quoted, ShellQuote(arg))
 	}
 	changeDirectory := ""
 	if workingDirectory != "" {
-		changeDirectory = "cd " + shellQuote(workingDirectory) + " || exit 1\n"
+		changeDirectory = "cd " + ShellQuote(workingDirectory) + " || exit 1\n"
 	}
 	return `#!/bin/sh
 set +e

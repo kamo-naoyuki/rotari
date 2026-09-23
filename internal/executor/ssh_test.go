@@ -1,4 +1,4 @@
-package main
+package executor
 
 import (
 	"fmt"
@@ -7,13 +7,16 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestSSHExecutorRunsRemoteCommandAndRecordsResult(t *testing.T) {
 	binDir := t.TempDir()
-	oldSSHCommandPath := sshCommandPath
-	sshCommandPath = filepath.Join(binDir, "ssh")
-	t.Cleanup(func() { sshCommandPath = oldSSHCommandPath })
+	oldSSHCommandPath := SSHCommandPath
+	SSHCommandPath = filepath.Join(binDir, "ssh")
+	t.Cleanup(func() { SSHCommandPath = oldSSHCommandPath })
 	argumentsPath := filepath.Join(t.TempDir(), "ssh-args")
 	writeExecutable(t, binDir, "ssh", fmt.Sprintf(`#!/bin/sh
 printf '%%s\n' "$@" > %q
@@ -27,12 +30,13 @@ sh "$ROTARI_SSH_SCRIPT"
 	t.Setenv("XDG_RUNTIME_DIR", remoteDir)
 
 	runDir := filepath.Join(t.TempDir(), "runs", "run-1")
-	job := JobSpec{ID: "job-1", Command: []string{"sh", "-c", "printf '%s' \"$ROTARI_JOB_ID\""}, Environment: []string{"ROTARI_JOB_ID=job-1"}}
-	handle, err := (sshExecutor{}).Submit(runDir, job, []string{"builder@example.test", "-p 2222"})
+	job := model.JobSpec{ID: "job-1", Command: []string{"sh", "-c", "printf '%s' \"$ROTARI_JOB_ID\""}, Environment: []string{"ROTARI_JOB_ID=job-1"}}
+	ssh := SSH{Store: testStore()}
+	handle, err := ssh.Submit(runDir, job, []string{"builder@example.test", "-p 2222"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	result := (sshExecutor{}).Wait(runDir, handle)
+	result := ssh.Wait(runDir, handle)
 	if result.ExitCode != 0 || len(result.Hosts) != 1 || result.Hosts[0] != "builder@example.test" {
 		t.Fatalf("result = %#v", result)
 	}
@@ -51,9 +55,9 @@ sh "$ROTARI_SSH_SCRIPT"
 
 func TestSSHExecutorCancelsRemoteProcessGroup(t *testing.T) {
 	binDir := t.TempDir()
-	oldSSHCommandPath := sshCommandPath
-	sshCommandPath = filepath.Join(binDir, "ssh")
-	t.Cleanup(func() { sshCommandPath = oldSSHCommandPath })
+	oldSSHCommandPath := SSHCommandPath
+	SSHCommandPath = filepath.Join(binDir, "ssh")
+	t.Cleanup(func() { SSHCommandPath = oldSSHCommandPath })
 	writeExecutable(t, binDir, "ssh", `#!/bin/sh
 script="${ROTARI_SSH_SCRIPT_DIR}/ssh-$$"
 cat > "$script"
@@ -67,20 +71,21 @@ exit "$status"
 	t.Setenv("XDG_RUNTIME_DIR", remoteDir)
 
 	runDir := filepath.Join(t.TempDir(), "runs", "run-1")
-	job := JobSpec{ID: "job-1", Command: []string{"sh", "-c", "trap 'exit 0' TERM; while :; do sleep 1; done"}}
-	handle, err := (sshExecutor{}).Submit(runDir, job, []string{"builder@example.test", "-p 2222"})
+	job := model.JobSpec{ID: "job-1", Command: []string{"sh", "-c", "trap 'exit 0' TERM; while :; do sleep 1; done"}}
+	ssh := SSH{Store: testStore()}
+	handle, err := ssh.Submit(runDir, job, []string{"builder@example.test", "-p 2222"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	metadata, err := readSSHMetadata(filepath.Join(runDir, job.ID))
+	metadata, err := readSSHMetadata(ssh.Store, filepath.Join(runDir, job.ID))
 	if err != nil {
 		t.Fatal(err)
 	}
 	stateFile := filepath.Join(remoteDir, "rotari-"+fmt.Sprint(os.Getuid()), metadata.RemoteToken, "process")
-	if err := (sshExecutor{}).Cancel(filepath.Join(runDir, job.ID)); err != nil {
+	if err := ssh.Cancel(filepath.Join(runDir, job.ID)); err != nil {
 		t.Fatal(err)
 	}
-	result := (sshExecutor{}).Wait(runDir, handle)
+	result := ssh.Wait(runDir, handle)
 	if result.ExitCode != 0 {
 		t.Fatalf("result = %#v", result)
 	}
@@ -111,17 +116,17 @@ func TestSSHCancelRefusesReusedPID(t *testing.T) {
 func TestReadSSHMetadataRejectsInvalidRemoteToken(t *testing.T) {
 	jobDir := t.TempDir()
 	metadata := sshJobMetadata{Executor: "ssh", RemoteToken: "'; echo unsafe; '"}
-	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
+	if err := state.WriteJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := readSSHMetadata(jobDir); err == nil {
+	if _, err := readSSHMetadata(testStore(), jobDir); err == nil {
 		t.Fatal("readSSHMetadata accepted an invalid remote token")
 	}
 }
 
 func TestSSHTargetRequiresHost(t *testing.T) {
-	if _, _, err := sshTarget(nil); err == nil {
-		t.Fatal("sshTarget accepted no target host")
+	if _, _, err := SSHTarget(nil); err == nil {
+		t.Fatal("SSHTarget accepted no target host")
 	}
 }
 

@@ -1519,7 +1519,9 @@ func readSubmittedAt(runDir, jobID string) string {
 	if err == nil {
 		return strings.TrimSpace(string(data))
 	}
-	var metadata slurmJobMetadata
+	var metadata struct {
+		SubmittedAt string `json:"submitted_at"`
+	}
 	if err := jsonStore().ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil || metadata.SubmittedAt == "" {
 		return "-"
 	}

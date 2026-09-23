@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -14,6 +13,26 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
+
+// stringSliceFlag collects repeated occurrences of a CLI flag (e.g. --executor-option).
+type stringSliceFlag []string
+
+func (flag *stringSliceFlag) String() string {
+	return strings.Join(*flag, ",")
+}
+
+func (flag *stringSliceFlag) Set(value string) error {
+	*flag = append(*flag, value)
+	return nil
+}
+
+func (flag *stringSliceFlag) Reset() {
+	*flag = nil
+}
+
+func shellQuote(value string) string {
+	return executor.ShellQuote(value)
+}
 
 type JobHandle = executor.JobHandle
 type JobExecutor = executor.JobExecutor
@@ -124,37 +143,15 @@ func runningWorkerHostMismatch(lock LockInfo) (recordedHost string, mismatch boo
 	return lock.Host, true
 }
 
-// schedulerCommandHint clarifies two common causes of an opaque scheduler
-// control command failure: the scheduler's client tools (scontrol/qsig/
-// bstop/...) not being installed on this host -- e.g. a web/CLI host outside
-// the cluster that only shares the state directory over NFS, where the raw
-// "executable file not found in $PATH" is easy to mistake for the job itself
-// not running -- and the command running fine but being rejected by the
-// scheduler itself (e.g. suspending a job that is still queued/pending
-// rather than actually running), where Go's generic "exit status 1" hides
-// the scheduler's own explanation unless the command's output is folded in.
-func schedulerCommandHint(binary string, output []byte, err error) error {
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, exec.ErrNotFound) {
-		return fmt.Errorf("%q is not installed on this host; run this command from a host with that scheduler's client tools (%w)", binary, err)
-	}
-	if text := strings.TrimSpace(string(output)); text != "" {
-		return fmt.Errorf("%w: %s", err, text)
-	}
-	return err
-}
-
 // executorRegistry is initialized eagerly (rather than in an init func) so
 // that other package-level vars, such as cliCommandSpecs, can depend on
 // executorNames() during their own initialization.
 var executorRegistry = map[string]JobExecutor{
 	"local": executor.NewLocal(jsonStore(), jobLogf),
-	"slurm": slurmExecutor{},
-	"pbs":   pbsExecutor{},
-	"lsf":   lsfExecutor{},
-	"ssh":   sshExecutor{},
+	"slurm": executor.NewSlurm(jsonStore(), jobLogf),
+	"pbs":   executor.NewPBS(jsonStore(), jobLogf),
+	"lsf":   executor.NewLSF(jsonStore(), jobLogf),
+	"ssh":   executor.NewSSH(jsonStore()),
 }
 
 func lookupExecutor(name string) (JobExecutor, bool) {
@@ -222,24 +219,24 @@ func validateExecutorOptions(executorName string, options []string, array bool) 
 	case "local":
 		return nil
 	case "ssh":
-		_, _, err := sshTarget(options)
+		_, _, err := executor.SSHTarget(options)
 		return err
 	case "slurm":
 		if array {
-			return rejectArraySchedulerOptions(options, "--array")
+			return executor.RejectArraySchedulerOptions(options, "--array")
 		}
 	case "pbs":
 		if array {
-			return rejectArraySchedulerOptions(options, "-J", "-t")
+			return executor.RejectArraySchedulerOptions(options, "-J", "-t")
 		}
 	case "lsf":
 		if array {
-			return rejectArraySchedulerOptions(options, "-J")
+			return executor.RejectArraySchedulerOptions(options, "-J")
 		}
 	default:
 		return fmt.Errorf("unsupported executor: %s", executorName)
 	}
-	_, err := expandShellOptions(options)
+	_, err := executor.ExpandShellOptions(options)
 	return err
 }
 
@@ -272,7 +269,7 @@ func validateLocalExecutionEnvironment(queue Queue) error {
 func validateExecutorCommand(executorName string) error {
 	command := map[string]string{
 		"local": "/bin/sh",
-		"ssh":   sshCommandPath,
+		"ssh":   executor.SSHCommandPath,
 		"slurm": "sbatch",
 		"pbs":   "qsub",
 		"lsf":   "bsub",

@@ -1,4 +1,4 @@
-package main
+package executor
 
 import (
 	"encoding/json"
@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestSubmitPBSJobWithFakePBS(t *testing.T) {
@@ -22,8 +25,8 @@ printf '123.headnode\n'
 	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
 
 	runDir := t.TempDir()
-	job := JobSpec{ID: "abc123", Command: []string{"echo", "hello"}}
-	metadata, err := submitPBSJob(runDir, job, []string{"-l select=1:ncpus=2"})
+	job := model.JobSpec{ID: "abc123", Command: []string{"echo", "hello"}}
+	metadata, err := submitPBSJob(testStore(), testLogf, runDir, job, []string{"-l select=1:ncpus=2"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,11 +66,11 @@ printf '123[].server\n'
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	runDir := t.TempDir()
 	taskOne, taskTwo := 1, 2
-	jobs := []JobSpec{
+	jobs := []model.JobSpec{
 		{ID: "array-1", ArrayGroup: "array", ArrayTaskID: &taskOne, ArrayFirst: 1, ArrayLast: 2, Command: []string{"echo", "hello"}, Environment: []string{"ROTARI_ARRAY_TASK_ID=1", "ROTARI_JOB_DIR=" + filepath.Join(runDir, "array-1")}},
 		{ID: "array-2", ArrayGroup: "array", ArrayTaskID: &taskTwo, ArrayFirst: 1, ArrayLast: 2, Command: []string{"echo", "hello"}, Environment: []string{"ROTARI_ARRAY_TASK_ID=2", "ROTARI_JOB_DIR=" + filepath.Join(runDir, "array-2")}},
 	}
-	handles, err := submitPBSArray(runDir, jobs, nil)
+	handles, err := submitPBSArray(testStore(), runDir, jobs, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,42 +127,6 @@ fi
 	}
 }
 
-func TestCancelJobsCancelsSelectedPBSJob(t *testing.T) {
-	binDir := t.TempDir()
-	argumentsPath := filepath.Join(t.TempDir(), "qdel-args")
-	writeExecutable(t, binDir, "qdel", fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' \"$@\" > %q\n", argumentsPath))
-	oldPath := os.Getenv("PATH")
-	if err := os.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
-
-	runDir := t.TempDir()
-	jobDir := filepath.Join(runDir, "job-1")
-	if err := os.MkdirAll(jobDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	metadata := pbsJobMetadata{Executor: "pbs", JobID: "job-1", PBSJobID: "123.headnode"}
-	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
-		t.Fatal(err)
-	}
-
-	message, err := cancelJobs(runDir, "default", "run-1", []string{"job-1"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(message, "Jobs: 1") {
-		t.Fatalf("message = %q, want one cancelled job", message)
-	}
-	args, err := os.ReadFile(argumentsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(args) != "123.headnode\n" {
-		t.Fatalf("qdel arguments = %q, want 123.headnode", args)
-	}
-}
-
 func TestPBSExecutorSuspendsAndResumesJob(t *testing.T) {
 	binDir := t.TempDir()
 	argumentsPath := filepath.Join(t.TempDir(), "qsig-args")
@@ -171,13 +138,14 @@ func TestPBSExecutorSuspendsAndResumesJob(t *testing.T) {
 	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
 
 	jobDir := t.TempDir()
-	if err := writeJSON(filepath.Join(jobDir, "job.json"), pbsJobMetadata{Executor: "pbs", PBSJobID: "123.headnode"}); err != nil {
+	if err := state.WriteJSON(filepath.Join(jobDir, "job.json"), pbsJobMetadata{Executor: "pbs", PBSJobID: "123.headnode"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := (pbsExecutor{}).Suspend(jobDir); err != nil {
+	pbs := PBS{Store: testStore()}
+	if err := pbs.Suspend(jobDir); err != nil {
 		t.Fatal(err)
 	}
-	if err := (pbsExecutor{}).Resume(jobDir); err != nil {
+	if err := pbs.Resume(jobDir); err != nil {
 		t.Fatal(err)
 	}
 	args, err := os.ReadFile(argumentsPath)
@@ -193,109 +161,32 @@ func TestPBSReportsMissingSchedulerBinaries(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 
 	jobDir := t.TempDir()
-	if err := writeJSON(filepath.Join(jobDir, "job.json"), pbsJobMetadata{Executor: "pbs", PBSJobID: "123.headnode"}); err != nil {
+	if err := state.WriteJSON(filepath.Join(jobDir, "job.json"), pbsJobMetadata{Executor: "pbs", PBSJobID: "123.headnode"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := (pbsExecutor{}).Suspend(jobDir); err == nil || !strings.Contains(err.Error(), "not installed on this host") {
+	pbs := PBS{Store: testStore()}
+	if err := pbs.Suspend(jobDir); err == nil || !strings.Contains(err.Error(), "not installed on this host") {
 		t.Fatalf("Suspend error = %v, want a hint that qsig is missing on this host", err)
 	}
-	if err := (pbsExecutor{}).Cancel(jobDir); err == nil || !strings.Contains(err.Error(), "not installed on this host") {
+	if err := pbs.Cancel(jobDir); err == nil || !strings.Contains(err.Error(), "not installed on this host") {
 		t.Fatalf("Cancel error = %v, want a hint that qdel is missing on this host", err)
 	}
 }
 
 func TestWaitPBSJobUsesWrapperStatus(t *testing.T) {
+	store := testStore()
 	runDir := t.TempDir()
 	job := pbsJobMetadata{Executor: "pbs", JobID: "job-1", Command: []string{"echo", "hi"}, PBSJobID: "123.headnode"}
 	jobDir := filepath.Join(runDir, job.JobID)
 	if err := os.MkdirAll(jobDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(jobDir, "status.json"), slurmStatus{Phase: "finished", ExitCode: 7, Error: "failed"}); err != nil {
+	if err := state.WriteJSON(filepath.Join(jobDir, "status.json"), WrapperStatus{Phase: "finished", ExitCode: 7, Error: "failed"}); err != nil {
 		t.Fatal(err)
 	}
 
-	result := waitPBSJob(runDir, job)
+	result := waitPBSJob(store, runDir, job)
 	if result.ExitCode != 7 || result.Error != "failed" {
 		t.Fatalf("result = %+v, want exit 7 and failed", result)
-	}
-}
-
-func TestExecuteMixedRunSupportsPBSExecutor(t *testing.T) {
-	binDir := t.TempDir()
-	writeExecutable(t, binDir, "qsub", `#!/bin/sh
-shift $(($#-1))
-sh "$1" >/dev/null 2>&1 &
-printf '999.headnode\n'
-`)
-	writeExecutable(t, binDir, "qstat", `#!/bin/sh
-exit 1
-`)
-	oldPath := os.Getenv("PATH")
-	if err := os.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
-
-	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	queue := Queue{Commands: []QueuedCommand{{ID: "pbs-job", Command: []string{"echo", "hi"}, Executor: "pbs"}}}
-	if err := writeJSON(paths.QueueFile, queue); err != nil {
-		t.Fatal(err)
-	}
-
-	exitCode := executeMixedRun(paths, makeRunID(), "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil)
-	if exitCode != 0 {
-		t.Fatalf("executeMixedRun exit code = %d, want 0", exitCode)
-	}
-}
-
-func TestExecuteMixedRunSubmitsAndCompletesPBSArrayTasks(t *testing.T) {
-	binDir := t.TempDir()
-	writeExecutable(t, binDir, "qsub", `#!/bin/sh
-wrapper=
-for arg in "$@"; do wrapper=$arg; done
-PBS_ARRAY_INDEX=1 sh "$wrapper"
-PBS_ARRAY_INDEX=2 sh "$wrapper"
-printf '999[].headnode\n'
-`)
-	writeExecutable(t, binDir, "qstat", "#!/bin/sh\nexit 1\n")
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-
-	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{
-		ID: "array", Name: "array", Executor: "pbs", Command: []string{"sh", "-c", "test \"$ROTARI_ARRAY_TASK_ID\" = \"${PBS_ARRAY_INDEX}\""}, Array: &ArraySpec{First: 1, Last: 2},
-	}}}); err != nil {
-		t.Fatal(err)
-	}
-	if code := executeMixedRun(paths, "array-run", "", 1, 2, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
-		t.Fatalf("executeMixedRun exit = %d, want 0", code)
-	}
-	summary, err := loadRunSummary(filepath.Join(paths.RunsDir, "array-run", "summary.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(summary.Results) != 2 || summary.Results[0].ID != "array-1" || summary.Results[1].ID != "array-2" {
-		t.Fatalf("summary results = %#v, want both array tasks", summary.Results)
-	}
-	for _, id := range []string{"array-1", "array-2"} {
-		jobDir, err := latestAttemptJobDir(filepath.Join(paths.RunsDir, "array-run"), id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		status, ok := loadSlurmStatus(filepath.Join(jobDir, "status.json"))
-		if !ok || status.Phase != "finished" || status.ExitCode != 0 {
-			t.Fatalf("task %s status = %#v, ok=%v", id, status, ok)
-		}
 	}
 }

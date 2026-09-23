@@ -519,39 +519,6 @@ func TestRunLocationPathRejectsUnsafePathElementRunIDs(t *testing.T) {
 	}
 }
 
-func TestSplitShellWords(t *testing.T) {
-	got, err := splitShellWords(`-p "short queue" --constraint='fast\ node' --exclusive`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []string{"-p", "short queue", "--constraint=fast\\ node", "--exclusive"}
-	if len(got) != len(want) {
-		t.Fatalf("got %#v, want %#v", got, want)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("word %d: got %q, want %q", i, got[i], want[i])
-		}
-	}
-}
-
-func TestSplitShellWordsRejectsUnterminatedInput(t *testing.T) {
-	for _, input := range []string{`"unterminated`, `trailing\`} {
-		if _, err := splitShellWords(input); err == nil {
-			t.Errorf("splitShellWords(%q) returned nil error", input)
-		}
-	}
-}
-
-func TestParseSlurmExitCode(t *testing.T) {
-	cases := map[string]int{"0:0": 0, "1:0": 1, "2:15": 2, "invalid": 1}
-	for input, want := range cases {
-		if got := parseSlurmExitCode(input); got != want {
-			t.Errorf("parseSlurmExitCode(%q) = %d, want %d", input, got, want)
-		}
-	}
-}
-
 func TestMakeRunIDFormat(t *testing.T) {
 	pattern := regexp.MustCompile(`^\d{8}-\d{6}-[0-9a-f]{8}$`)
 	first := makeRunID()
@@ -1152,7 +1119,10 @@ func TestNormalizeRunningAttemptIDsRequiresCurrentRunningAttempt(t *testing.T) {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(filepath.Join(dir, stateFileJobJSON), slurmJobMetadata{Executor: "slurm", JobID: jobID}); err != nil {
+		if err := writeJSON(filepath.Join(dir, stateFileJobJSON), struct {
+			Executor string `json:"executor"`
+			JobID    string `json:"job_id"`
+		}{Executor: "slurm", JobID: jobID}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -2960,6 +2930,176 @@ func TestFinalizeCompletedCancellationRemovesStaleServerLock(t *testing.T) {
 	}
 }
 
+func TestExecuteMixedRunSupportsLSFExecutor(t *testing.T) {
+	binDir := t.TempDir()
+	writeExecutable(t, binDir, "bsub", `#!/bin/sh
+cat >/dev/null
+printf 'Job <999> is submitted to default queue.\n'
+`)
+	writeExecutable(t, binDir, "bjobs", `#!/bin/sh
+if [ "$1" = "-a" ]; then
+    printf 'DONE 0\n'
+    exit 0
+fi
+exit 1
+`)
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
+
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	queue := Queue{Commands: []QueuedCommand{{ID: "lsf-job", Command: []string{"echo", "hi"}, Executor: "lsf"}}}
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+
+	if exitCode := executeMixedRun(paths, makeRunID(), "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); exitCode != 0 {
+		t.Fatalf("executeMixedRun exit code = %d, want 0", exitCode)
+	}
+}
+
+func TestExecuteMixedRunSupportsPBSExecutor(t *testing.T) {
+	binDir := t.TempDir()
+	writeExecutable(t, binDir, "qsub", `#!/bin/sh
+shift $(($#-1))
+sh "$1" >/dev/null 2>&1 &
+printf '999.headnode\n'
+`)
+	writeExecutable(t, binDir, "qstat", `#!/bin/sh
+exit 1
+`)
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
+
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	queue := Queue{Commands: []QueuedCommand{{ID: "pbs-job", Command: []string{"echo", "hi"}, Executor: "pbs"}}}
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+
+	exitCode := executeMixedRun(paths, makeRunID(), "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil)
+	if exitCode != 0 {
+		t.Fatalf("executeMixedRun exit code = %d, want 0", exitCode)
+	}
+}
+
+func TestExecuteMixedRunSubmitsAndCompletesPBSArrayTasks(t *testing.T) {
+	binDir := t.TempDir()
+	writeExecutable(t, binDir, "qsub", `#!/bin/sh
+wrapper=
+for arg in "$@"; do wrapper=$arg; done
+PBS_ARRAY_INDEX=1 sh "$wrapper"
+PBS_ARRAY_INDEX=2 sh "$wrapper"
+printf '999[].headnode\n'
+`)
+	writeExecutable(t, binDir, "qstat", "#!/bin/sh\nexit 1\n")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{
+		ID: "array", Name: "array", Executor: "pbs", Command: []string{"sh", "-c", "test \"$ROTARI_ARRAY_TASK_ID\" = \"${PBS_ARRAY_INDEX}\""}, Array: &ArraySpec{First: 1, Last: 2},
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	if code := executeMixedRun(paths, "array-run", "", 1, 2, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
+		t.Fatalf("executeMixedRun exit = %d, want 0", code)
+	}
+	summary, err := loadRunSummary(filepath.Join(paths.RunsDir, "array-run", "summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(summary.Results) != 2 || summary.Results[0].ID != "array-1" || summary.Results[1].ID != "array-2" {
+		t.Fatalf("summary results = %#v, want both array tasks", summary.Results)
+	}
+	for _, id := range []string{"array-1", "array-2"} {
+		jobDir, err := latestAttemptJobDir(filepath.Join(paths.RunsDir, "array-run"), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		status, ok := loadSlurmStatus(filepath.Join(jobDir, "status.json"))
+		if !ok || status.Phase != "finished" || status.ExitCode != 0 {
+			t.Fatalf("task %s status = %#v, ok=%v", id, status, ok)
+		}
+	}
+}
+
+func TestExecuteMixedRunSubmitsAndCompletesSlurmArrayTasks(t *testing.T) {
+	binDir := t.TempDir()
+	argumentsPath := filepath.Join(t.TempDir(), "sbatch-args")
+	writeExecutable(t, binDir, "sbatch", fmt.Sprintf(`#!/bin/sh
+printf '%%s\n' "$@" > %q
+wrapper=
+for arg in "$@"; do wrapper=$arg; done
+SLURM_ARRAY_TASK_ID=1 sh "$wrapper"
+SLURM_ARRAY_TASK_ID=2 sh "$wrapper"
+printf '54321;fake-host\n'
+`, argumentsPath))
+	writeExecutable(t, binDir, "squeue", "#!/bin/sh\nexit 0\n")
+	writeExecutable(t, binDir, "sacct", "#!/bin/sh\nprintf 'COMPLETED|0:0\n'\n")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{
+		ID: "array", Name: "array", Executor: "slurm", Command: []string{"sh", "-c", "exit 0"}, Array: &ArraySpec{First: 1, Last: 2},
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	if code := executeMixedRun(paths, "array-run", "", 1, 2, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
+		t.Fatalf("executeMixedRun exit = %d, want 0", code)
+	}
+	arguments, err := os.ReadFile(argumentsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(arguments), "--array=1-2\n") != 1 {
+		t.Fatalf("sbatch arguments = %q, want one native array submission", arguments)
+	}
+	summary, err := loadRunSummary(filepath.Join(paths.RunsDir, "array-run", "summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(summary.Results) != 2 || summary.Results[0].ID != "array-1" || summary.Results[1].ID != "array-2" {
+		t.Fatalf("summary results = %#v, want both array tasks", summary.Results)
+	}
+	for _, id := range []string{"array-1", "array-2"} {
+		jobDir, err := latestAttemptJobDir(filepath.Join(paths.RunsDir, "array-run"), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		status, ok := loadSlurmStatus(filepath.Join(jobDir, "status.json"))
+		if !ok || status.Phase != "finished" {
+			t.Fatalf("task %s status = %#v, ok=%v", id, status, ok)
+		}
+	}
+}
+
 func TestCancelJobsCancelsSelectedLocalJob(t *testing.T) {
 	runDir := filepath.Join(t.TempDir(), "run-1")
 	jobDir := filepath.Join(runDir, "job-1")
@@ -3172,6 +3312,99 @@ func TestControlQueueJobsRejectsInvalidOrUnavailableRequests(t *testing.T) {
 	baseDir := t.TempDir()
 	if _, err := controlQueueJobs(baseDir, "default", nil, "suspend"); err == nil {
 		t.Fatal("suspend without a running queue succeeded")
+	}
+}
+
+func TestLocalExecutorSignalRejectsMissingPID(t *testing.T) {
+	err := (executor.Local{}).Cancel(t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "job is not running") {
+		t.Fatalf("error = %v, want job is not running", err)
+	}
+}
+
+func TestLocalExecutorSignalRejectsMalformedPID(t *testing.T) {
+	jobDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(jobDir, "pid"), []byte("not-a-pid\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := (executor.Local{}).Suspend(jobDir)
+	if err == nil || !strings.Contains(err.Error(), "job is not running") {
+		t.Fatalf("error = %v, want job is not running", err)
+	}
+}
+
+func TestLocalExecutorSignalRejectsExitedProcess(t *testing.T) {
+	command := exec.Command("sh", "-c", "exit 0")
+	if err := command.Run(); err != nil {
+		t.Fatal(err)
+	}
+	jobDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(jobDir, "pid"), []byte(stringPID(command.Process.Pid)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := (executor.Local{}).Resume(jobDir)
+	if err == nil || !strings.Contains(err.Error(), "job is not running") {
+		t.Fatalf("error = %v, want job is not running", err)
+	}
+}
+
+func stringPID(pid int) string {
+	return fmt.Sprintf("%d\n", pid)
+}
+
+// runOneJob wraps local commands in the same self-reporting statusWrapperScript
+// used by scheduler executors, so status.json stays authoritative even if the
+// coordinator process dies before it can call cmd.Wait() itself.
+func TestRunOneJobSelfReportsStatusJSON(t *testing.T) {
+	runDir := t.TempDir()
+	job := JobSpec{ID: "job-1", Command: []string{"sh", "-c", "exit 3"}}
+	result := runOneJob(runDir, job)
+	if result.ExitCode != 3 {
+		t.Fatalf("ExitCode = %d, want 3", result.ExitCode)
+	}
+	status, ok := loadSlurmStatus(filepath.Join(runDir, "job-1", "status.json"))
+	if !ok {
+		t.Fatal("expected local job to self-report status.json like scheduler executors")
+	}
+	if status.Phase != "finished" || status.ExitCode != 3 {
+		t.Fatalf("status.json = %+v, want phase=finished exit_code=3", status)
+	}
+}
+
+func TestLocalJobWrapperSelfReportsStatusEvenIfCoordinatorNeverWaits(t *testing.T) {
+	jobDir := t.TempDir()
+	wrapperPath := filepath.Join(jobDir, "local-wrapper.sh")
+	wrapper := executor.StatusWrapperScript([]string{"sh", "-c", "exit 7"}, jobDir, nil, "")
+	if err := os.WriteFile(wrapperPath, []byte(wrapper), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("sh", wrapperPath)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate the coordinator dying before it calls cmd.Wait(); reap the
+	// process afterward only to avoid leaking a zombie in this test.
+	pid := cmd.Process.Pid
+	t.Cleanup(func() { _, _ = syscall.Wait4(pid, nil, 0, nil) })
+
+	deadline := time.Now().Add(2 * time.Second)
+	var status slurmStatus
+	var ok bool
+	for time.Now().Before(deadline) {
+		status, ok = loadSlurmStatus(filepath.Join(jobDir, "status.json"))
+		if ok && jobStatusTerminal(status) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !ok || !jobStatusTerminal(status) {
+		t.Fatalf("status.json was not self-reported by the orphaned job: %+v", status)
+	}
+	if status.ExitCode != 7 {
+		t.Fatalf("ExitCode = %d, want 7", status.ExitCode)
 	}
 }
 
@@ -3464,5 +3697,13 @@ func TestRunServerSyncWithDisconnectDetachesRunningJob(t *testing.T) {
 	case <-onDone:
 	case <-time.After(5 * time.Second):
 		t.Fatal("onDone was not called after detached run completed")
+	}
+}
+
+func writeExecutable(t *testing.T, dir, name, content string) {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+		t.Fatal(err)
 	}
 }

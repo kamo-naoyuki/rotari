@@ -1,4 +1,4 @@
-package main
+package executor
 
 import (
 	"fmt"
@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestSubmitLSFJobWithFakeLSF(t *testing.T) {
@@ -21,8 +24,8 @@ printf 'Job <123> is submitted to default queue.\n'
 	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
 
 	runDir := t.TempDir()
-	job := JobSpec{ID: "abc123", Command: []string{"echo", "hello"}}
-	metadata, err := submitLSFJob(runDir, job, []string{"-q short", "-n 2"})
+	job := model.JobSpec{ID: "abc123", Command: []string{"echo", "hello"}}
+	metadata, err := submitLSFJob(testStore(), testLogf, runDir, job, []string{"-q short", "-n 2"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,11 +53,11 @@ printf '%%s\n' "$@" > %q
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	runDir := t.TempDir()
 	taskOne, taskTwo := 1, 2
-	jobs := []JobSpec{
+	jobs := []model.JobSpec{
 		{ID: "array-1", ArrayGroup: "array", ArrayTaskID: &taskOne, ArrayFirst: 1, ArrayLast: 2, Command: []string{"echo", "hello"}, Environment: []string{"ROTARI_ARRAY_TASK_ID=1", "ROTARI_JOB_DIR=" + filepath.Join(runDir, "array-1")}},
 		{ID: "array-2", ArrayGroup: "array", ArrayTaskID: &taskTwo, ArrayFirst: 1, ArrayLast: 2, Command: []string{"echo", "hello"}, Environment: []string{"ROTARI_ARRAY_TASK_ID=2", "ROTARI_JOB_DIR=" + filepath.Join(runDir, "array-2")}},
 	}
-	handles, err := submitLSFArray(runDir, jobs, nil)
+	handles, err := submitLSFArray(testStore(), runDir, jobs, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,42 +110,6 @@ printf 'PEND\n'
 	}
 }
 
-func TestCancelJobsCancelsSelectedLSFJob(t *testing.T) {
-	binDir := t.TempDir()
-	argumentsPath := filepath.Join(t.TempDir(), "bkill-args")
-	writeExecutable(t, binDir, "bkill", fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' \"$@\" > %q\n", argumentsPath))
-	oldPath := os.Getenv("PATH")
-	if err := os.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
-
-	runDir := t.TempDir()
-	jobDir := filepath.Join(runDir, "job-1")
-	if err := os.MkdirAll(jobDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	metadata := lsfJobMetadata{Executor: "lsf", JobID: "job-1", LSFJobID: "123"}
-	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
-		t.Fatal(err)
-	}
-
-	message, err := cancelJobs(runDir, "default", "run-1", []string{"job-1"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(message, "Jobs: 1") {
-		t.Fatalf("message = %q, want one cancelled job", message)
-	}
-	args, err := os.ReadFile(argumentsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(args) != "123\n" {
-		t.Fatalf("bkill arguments = %q, want 123", args)
-	}
-}
-
 func TestLSFExecutorSuspendsAndResumesJob(t *testing.T) {
 	binDir := t.TempDir()
 	argumentsPath := filepath.Join(t.TempDir(), "control-args")
@@ -155,13 +122,14 @@ func TestLSFExecutorSuspendsAndResumesJob(t *testing.T) {
 	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
 
 	jobDir := t.TempDir()
-	if err := writeJSON(filepath.Join(jobDir, "job.json"), lsfJobMetadata{Executor: "lsf", LSFJobID: "123"}); err != nil {
+	if err := state.WriteJSON(filepath.Join(jobDir, "job.json"), lsfJobMetadata{Executor: "lsf", LSFJobID: "123"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := (lsfExecutor{}).Suspend(jobDir); err != nil {
+	lsf := LSF{Store: testStore()}
+	if err := lsf.Suspend(jobDir); err != nil {
 		t.Fatal(err)
 	}
-	if err := (lsfExecutor{}).Resume(jobDir); err != nil {
+	if err := lsf.Resume(jobDir); err != nil {
 		t.Fatal(err)
 	}
 	args, err := os.ReadFile(argumentsPath)
@@ -177,35 +145,38 @@ func TestLSFReportsMissingSchedulerBinaries(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 
 	jobDir := t.TempDir()
-	if err := writeJSON(filepath.Join(jobDir, "job.json"), lsfJobMetadata{Executor: "lsf", LSFJobID: "123"}); err != nil {
+	if err := state.WriteJSON(filepath.Join(jobDir, "job.json"), lsfJobMetadata{Executor: "lsf", LSFJobID: "123"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := (lsfExecutor{}).Suspend(jobDir); err == nil || !strings.Contains(err.Error(), "not installed on this host") {
+	lsf := LSF{Store: testStore()}
+	if err := lsf.Suspend(jobDir); err == nil || !strings.Contains(err.Error(), "not installed on this host") {
 		t.Fatalf("Suspend error = %v, want a hint that bstop is missing on this host", err)
 	}
-	if err := (lsfExecutor{}).Cancel(jobDir); err == nil || !strings.Contains(err.Error(), "not installed on this host") {
+	if err := lsf.Cancel(jobDir); err == nil || !strings.Contains(err.Error(), "not installed on this host") {
 		t.Fatalf("Cancel error = %v, want a hint that bkill is missing on this host", err)
 	}
 }
 
 func TestWaitLSFJobUsesWrapperStatus(t *testing.T) {
+	store := testStore()
 	runDir := t.TempDir()
 	job := lsfJobMetadata{Executor: "lsf", JobID: "job-1", Command: []string{"echo", "hi"}, LSFJobID: "123"}
 	jobDir := filepath.Join(runDir, job.JobID)
 	if err := os.MkdirAll(jobDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(jobDir, "status.json"), slurmStatus{Phase: "finished", ExitCode: 9, Error: "failed"}); err != nil {
+	if err := state.WriteJSON(filepath.Join(jobDir, "status.json"), WrapperStatus{Phase: "finished", ExitCode: 9, Error: "failed"}); err != nil {
 		t.Fatal(err)
 	}
 
-	result := waitLSFJob(runDir, job)
+	result := waitLSFJob(store, runDir, job)
 	if result.ExitCode != 9 || result.Error != "failed" {
 		t.Fatalf("result = %+v, want exit 9 and failed", result)
 	}
 }
 
 func TestWaitLSFJobPersistsNormalizedSchedulerStatus(t *testing.T) {
+	store := testStore()
 	binDir := t.TempDir()
 	runDir := t.TempDir()
 	job := lsfJobMetadata{Executor: "lsf", JobID: "job-1", Command: []string{"echo", "hi"}, LSFJobID: "123"}
@@ -224,48 +195,11 @@ printf 'RUN\n'
 	}
 	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
 
-	result := waitLSFJob(runDir, job)
+	result := waitLSFJob(store, runDir, job)
 	if result.ExitCode != 0 || result.Error != "" {
 		t.Fatalf("result = %+v, want successful result", result)
 	}
-	if state := loadSchedulerStatus(jobDir); state != "running" {
-		t.Fatalf("scheduler state = %q, want running", state)
-	}
-}
-
-func TestExecuteMixedRunSupportsLSFExecutor(t *testing.T) {
-	binDir := t.TempDir()
-	writeExecutable(t, binDir, "bsub", `#!/bin/sh
-cat >/dev/null
-printf 'Job <999> is submitted to default queue.\n'
-`)
-	writeExecutable(t, binDir, "bjobs", `#!/bin/sh
-if [ "$1" = "-a" ]; then
-    printf 'DONE 0\n'
-    exit 0
-fi
-exit 1
-`)
-	oldPath := os.Getenv("PATH")
-	if err := os.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
-
-	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	queue := Queue{Commands: []QueuedCommand{{ID: "lsf-job", Command: []string{"echo", "hi"}, Executor: "lsf"}}}
-	if err := writeJSON(paths.QueueFile, queue); err != nil {
-		t.Fatal(err)
-	}
-
-	if exitCode := executeMixedRun(paths, makeRunID(), "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); exitCode != 0 {
-		t.Fatalf("executeMixedRun exit code = %d, want 0", exitCode)
+	if got := LoadSchedulerStatus(store, jobDir); got != "running" {
+		t.Fatalf("scheduler state = %q, want running", got)
 	}
 }

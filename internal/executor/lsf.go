@@ -1,4 +1,4 @@
-package main
+package executor
 
 import (
 	"bytes"
@@ -13,7 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 const lsfAccountingWait = 60 * time.Second
@@ -28,66 +29,73 @@ type lsfJobMetadata struct {
 	SubmittedAt string   `json:"submitted_at"`
 }
 
-// lsfExecutor submits jobs to IBM LSF via bsub and tracks them with bjobs/bhist.
-type lsfExecutor struct{}
+// LSF submits jobs to IBM LSF via bsub and tracks them with bjobs/bhist.
+type LSF struct {
+	Store state.Store
+	Logf  func(string, ...any)
+}
 
-func (lsfExecutor) Name() string { return "lsf" }
+func NewLSF(store state.Store, logf func(string, ...any)) LSF {
+	return LSF{Store: store, Logf: logf}
+}
 
-func (lsfExecutor) Submit(runDir string, job JobSpec, options []string) (JobHandle, error) {
-	metadata, err := submitLSFJob(runDir, job, options)
+func (LSF) Name() string { return "lsf" }
+
+func (lsf LSF) Submit(runDir string, job model.JobSpec, options []string) (JobHandle, error) {
+	metadata, err := submitLSFJob(lsf.Store, lsf.Logf, runDir, job, options)
 	if err != nil {
 		return JobHandle{}, err
 	}
 	return JobHandle{Job: job, Native: metadata.LSFJobID}, nil
 }
 
-func (lsfExecutor) SubmitArray(runDir string, jobs []JobSpec, options []string) ([]JobHandle, error) {
-	return submitLSFArray(runDir, jobs, options)
+func (lsf LSF) SubmitArray(runDir string, jobs []model.JobSpec, options []string) ([]JobHandle, error) {
+	return submitLSFArray(lsf.Store, runDir, jobs, options)
 }
 
-func (lsfExecutor) Wait(runDir string, handle JobHandle) JobResult {
+func (lsf LSF) Wait(runDir string, handle JobHandle) model.JobResult {
 	metadata := lsfJobMetadata{
 		Executor: "lsf",
 		JobID:    handle.Job.ID,
 		Command:  handle.Job.Command,
 		LSFJobID: handle.Native,
 	}
-	return waitLSFJob(runDir, metadata)
+	return waitLSFJob(lsf.Store, runDir, metadata)
 }
 
-func (lsfExecutor) Suspend(jobDir string) error {
-	return lsfExecutor{}.runControl(jobDir, "bstop")
+func (lsf LSF) Suspend(jobDir string) error {
+	return lsf.runControl(jobDir, "bstop")
 }
 
-func (lsfExecutor) Resume(jobDir string) error {
-	return lsfExecutor{}.runControl(jobDir, "bresume")
+func (lsf LSF) Resume(jobDir string) error {
+	return lsf.runControl(jobDir, "bresume")
 }
 
-func (lsfExecutor) Cancel(jobDir string) error {
-	metadata, err := readLSFMetadata(jobDir)
+func (lsf LSF) Cancel(jobDir string) error {
+	metadata, err := readLSFMetadata(lsf.Store, jobDir)
 	if err != nil {
 		return err
 	}
 	if output, err := runLSFCommand("bkill", metadata.LSFJobID); err != nil {
-		return fmt.Errorf("bkill %s: %w", metadata.LSFJobID, schedulerCommandHint("bkill", output, err))
+		return fmt.Errorf("bkill %s: %w", metadata.LSFJobID, SchedulerCommandHint("bkill", output, err))
 	}
 	return nil
 }
 
-func (lsfExecutor) runControl(jobDir, command string) error {
-	metadata, err := readLSFMetadata(jobDir)
+func (lsf LSF) runControl(jobDir, command string) error {
+	metadata, err := readLSFMetadata(lsf.Store, jobDir)
 	if err != nil {
 		return err
 	}
 	if output, err := runLSFCommand(command, metadata.LSFJobID); err != nil {
-		return fmt.Errorf("%s %s: %w", command, metadata.LSFJobID, schedulerCommandHint(command, output, err))
+		return fmt.Errorf("%s %s: %w", command, metadata.LSFJobID, SchedulerCommandHint(command, output, err))
 	}
 	return nil
 }
 
-func readLSFMetadata(jobDir string) (lsfJobMetadata, error) {
+func readLSFMetadata(store state.Store, jobDir string) (lsfJobMetadata, error) {
 	var metadata lsfJobMetadata
-	if err := jsonStore().ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil {
+	if err := store.ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil {
 		if os.IsNotExist(err) {
 			return lsfJobMetadata{}, errors.New("job is not running")
 		}
@@ -99,24 +107,24 @@ func readLSFMetadata(jobDir string) (lsfJobMetadata, error) {
 	return metadata, nil
 }
 
-func submitLSFJob(runDir string, job JobSpec, options []string) (lsfJobMetadata, error) {
-	jobDir, err := attemptJobDir(runDir, job)
+func submitLSFJob(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, options []string) (lsfJobMetadata, error) {
+	jobDir, err := state.AttemptJobDir(runDir, job)
 	if err != nil {
 		return lsfJobMetadata{}, err
 	}
-	if err := os.MkdirAll(jobDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(jobDir, store.DirectoryMode); err != nil {
 		return lsfJobMetadata{}, err
 	}
-	if err := writeJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
+	if err := state.WriteJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 		return lsfJobMetadata{}, err
 	}
 	outputPath := filepath.Join(jobDir, "output")
 	wrapperPath := filepath.Join(jobDir, "lsf-wrapper.sh")
 	wrapper := lsfWrapperScript(job.Command, jobDir, outputPath, job.Environment, job.WorkingDirectory)
-	if err := os.WriteFile(wrapperPath, []byte(wrapper), stateScriptMode()); err != nil {
+	if err := os.WriteFile(wrapperPath, []byte(wrapper), store.ScriptMode); err != nil {
 		return lsfJobMetadata{}, err
 	}
-	expandedOptions, err := expandShellOptions(options)
+	expandedOptions, err := ExpandShellOptions(options)
 	if err != nil {
 		return lsfJobMetadata{}, err
 	}
@@ -133,14 +141,14 @@ func submitLSFJob(runDir string, job JobSpec, options []string) (lsfJobMetadata,
 		Executor: "lsf", JobID: job.ID, AttemptID: job.AttemptID, Command: job.Command,
 		LSFJobID: jobID, SubmittedAt: nowRFC3339(),
 	}
-	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
+	if err := state.WriteJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
 		return lsfJobMetadata{}, err
 	}
-	jobLogf("[%s] submit job=%s lsf_job_id=%s command=%s\n", metadata.SubmittedAt, job.ID, jobID, strings.Join(job.Command, " "))
+	logf("[%s] submit job=%s lsf_job_id=%s command=%s\n", metadata.SubmittedAt, job.ID, jobID, strings.Join(job.Command, " "))
 	return metadata, nil
 }
 
-func submitLSFArray(runDir string, jobs []JobSpec, executorOptions []string) ([]JobHandle, error) {
+func submitLSFArray(store state.Store, runDir string, jobs []model.JobSpec, executorOptions []string) ([]JobHandle, error) {
 	if len(jobs) == 0 || jobs[0].ArrayTaskID == nil {
 		return nil, errors.New("empty LSF array")
 	}
@@ -150,22 +158,22 @@ func submitLSFArray(runDir string, jobs []JobSpec, executorOptions []string) ([]
 		if job.ArrayTaskID == nil || job.ArrayFirst != first || job.ArrayLast != last || !sameStrings(job.Command, command) {
 			return nil, errors.New("LSF array tasks must share one command and range")
 		}
-		jobDir, err := attemptJobDir(runDir, job)
+		jobDir, err := state.AttemptJobDir(runDir, job)
 		if err != nil {
 			return nil, err
 		}
-		if err := os.MkdirAll(jobDir, stateDirMode()); err != nil {
+		if err := os.MkdirAll(jobDir, store.DirectoryMode); err != nil {
 			return nil, err
 		}
-		if err := writeJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
+		if err := state.WriteJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 			return nil, err
 		}
 	}
-	if err := rejectArraySchedulerOptions(executorOptions, "-J"); err != nil {
+	if err := RejectArraySchedulerOptions(executorOptions, "-J"); err != nil {
 		return nil, err
 	}
 	wrapper := "#BSUB -o /dev/null\n#BSUB -e /dev/null\n" + schedulerArrayWrapperScript(jobs, "LSB_JOBINDEX")
-	expandedOptions, err := expandShellOptions(executorOptions)
+	expandedOptions, err := ExpandShellOptions(executorOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -184,11 +192,11 @@ func submitLSFArray(runDir string, jobs []JobSpec, executorOptions []string) ([]
 		taskID := *job.ArrayTaskID
 		nativeID := fmt.Sprintf("%s[%d]", masterID, taskID)
 		metadata := lsfJobMetadata{Executor: "lsf", JobID: job.ID, AttemptID: job.AttemptID, Command: job.Command, LSFJobID: nativeID, SubmittedAt: nowRFC3339()}
-		jobDir, err := attemptJobDir(runDir, job)
+		jobDir, err := state.AttemptJobDir(runDir, job)
 		if err != nil {
 			return nil, err
 		}
-		if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
+		if err := state.WriteJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
 			return nil, err
 		}
 		handles = append(handles, JobHandle{Job: job, Native: nativeID})
@@ -197,7 +205,7 @@ func submitLSFArray(runDir string, jobs []JobSpec, executorOptions []string) ([]
 }
 
 func lsfWrapperScript(command []string, jobDir, outputPath string, environment []string, workingDirectory string) string {
-	return "#BSUB -o " + shellQuote(outputPath) + "\n#BSUB -e " + shellQuote(outputPath) + "\n" + executor.StatusWrapperScript(command, jobDir, environment, workingDirectory)
+	return "#BSUB -o " + ShellQuote(outputPath) + "\n#BSUB -e " + ShellQuote(outputPath) + "\n" + StatusWrapperScript(command, jobDir, environment, workingDirectory)
 }
 
 var lsfJobIDPattern = regexp.MustCompile(`<([0-9]+)>`)
@@ -210,41 +218,41 @@ func parseLSFJobID(output string) (string, error) {
 	return "", errors.New("bsub returned no job id")
 }
 
-func waitLSFJob(runDir string, job lsfJobMetadata) JobResult {
-	jobDir, err := attemptJobDir(runDir, JobSpec{ID: job.JobID, AttemptID: job.AttemptID})
+func waitLSFJob(store state.Store, runDir string, job lsfJobMetadata) model.JobResult {
+	jobDir, err := state.AttemptJobDir(runDir, model.JobSpec{ID: job.JobID, AttemptID: job.AttemptID})
 	if err != nil {
-		return JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
+		return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}
 	statusPath := filepath.Join(jobDir, "status.json")
 	var accountingDeadline time.Time
 	for {
-		if status, ok := loadSlurmStatus(statusPath); ok && status.Phase == "finished" {
+		if status, ok := LoadWrapperStatus(store, statusPath); ok && status.Phase == "finished" {
 			return jobResultFromStatus(job.JobID, job.Command, status)
 		}
-		state, err := lsfJobState(job.LSFJobID)
+		schedulerState, err := lsfJobState(job.LSFJobID)
 		if err != nil {
-			return JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
+			return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 		}
-		if state != "" {
-			executor.WriteSchedulerStatus(jsonStore(), jobDir, state, time.Now())
+		if schedulerState != "" {
+			WriteSchedulerStatus(store, jobDir, schedulerState, time.Now())
 		}
-		if state == "" {
+		if schedulerState == "" {
 			// A directory listing nudges NFS clients to drop stale attribute/dentry
 			// caches, the same way the Slurm wait loop does, before re-checking the
 			// wrapper's own status.json.
 			_, _ = os.ReadDir(jobDir)
-			if status, ok := loadSlurmStatus(statusPath); ok && status.Phase == "finished" {
+			if status, ok := LoadWrapperStatus(store, statusPath); ok && status.Phase == "finished" {
 				return jobResultFromStatus(job.JobID, job.Command, status)
 			}
 			if accountingDeadline.IsZero() {
 				accountingDeadline = time.Now().Add(lsfAccountingWait)
 			}
 			if exitCode, ok := lsfAccounting(job.LSFJobID); ok {
-				_ = writeJSON(statusPath, slurmStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339()})
-				return JobResult{ID: job.JobID, Command: job.Command, ExitCode: exitCode}
+				_ = state.WriteJSON(statusPath, WrapperStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339()})
+				return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: exitCode}
 			}
 			if time.Now().After(accountingDeadline) {
-				return JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: "LSF accounting result and wrapper status are unavailable"}
+				return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: "LSF accounting result and wrapper status are unavailable"}
 			}
 		}
 		time.Sleep(time.Second)
@@ -252,8 +260,8 @@ func waitLSFJob(runDir string, job lsfJobMetadata) JobResult {
 }
 
 func lsfJobActive(jobID string) (bool, error) {
-	state, err := lsfJobState(jobID)
-	return state != "", err
+	schedulerState, err := lsfJobState(jobID)
+	return schedulerState != "", err
 }
 
 func lsfJobState(jobID string) (string, error) {

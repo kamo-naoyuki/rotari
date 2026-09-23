@@ -159,9 +159,9 @@ func TestValidateLocalExecutionEnvironmentRequiresExecutorCommands(t *testing.T)
 	})
 
 	t.Run("ssh", func(t *testing.T) {
-		oldSSHCommandPath := sshCommandPath
-		sshCommandPath = filepath.Join(t.TempDir(), "missing-ssh")
-		t.Cleanup(func() { sshCommandPath = oldSSHCommandPath })
+		oldSSHCommandPath := executor.SSHCommandPath
+		executor.SSHCommandPath = filepath.Join(t.TempDir(), "missing-ssh")
+		t.Cleanup(func() { executor.SSHCommandPath = oldSSHCommandPath })
 		queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Executor: "ssh", ExecutorOptions: []string{"worker.example"}, Command: []string{"true"}}}}
 		if err := validateLocalExecutionEnvironment(queue); err == nil || !strings.Contains(err.Error(), "ssh executor command") {
 			t.Fatalf("missing SSH command error = %v", err)

@@ -8,6 +8,9 @@ This is an architectural map, not a command reference. User-facing behavior
 belongs in [../README.md](../README.md); implementation and tests remain in
 code.
 
+The current structural refactoring plan is documented in
+[docs/REFACTORING_PLAN.md](REFACTORING_PLAN.md).
+
 ## Split notes
 
 - [internals/00-overview.md](internals/00-overview.md): overview, system model,

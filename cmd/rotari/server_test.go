@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -303,6 +304,340 @@ func TestControlQueueJobsRejectsUnsafeRunIDFromLock(t *testing.T) {
 
 	if _, err := controlQueueJobs(baseDir, "default", nil, "suspend"); err == nil {
 		t.Fatal("controlQueueJobs accepted unsafe run ID from lock")
+	}
+}
+
+func TestCancelJobsCancelsSelectedLSFJob(t *testing.T) {
+	binDir := t.TempDir()
+	argumentsPath := filepath.Join(t.TempDir(), "bkill-args")
+	writeExecutable(t, binDir, "bkill", fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' \"$@\" > %q\n", argumentsPath))
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
+
+	runDir := t.TempDir()
+	jobDir := filepath.Join(runDir, "job-1")
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	metadata := struct {
+		Executor string `json:"executor"`
+		JobID    string `json:"job_id"`
+		LSFJobID string `json:"lsf_job_id"`
+	}{Executor: "lsf", JobID: "job-1", LSFJobID: "123"}
+	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
+		t.Fatal(err)
+	}
+
+	message, err := cancelJobs(runDir, "default", "run-1", []string{"job-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(message, "Jobs: 1") {
+		t.Fatalf("message = %q, want one cancelled job", message)
+	}
+	args, err := os.ReadFile(argumentsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(args) != "123\n" {
+		t.Fatalf("bkill arguments = %q, want 123", args)
+	}
+}
+
+func TestCancelJobsCancelsSelectedPBSJob(t *testing.T) {
+	binDir := t.TempDir()
+	argumentsPath := filepath.Join(t.TempDir(), "qdel-args")
+	writeExecutable(t, binDir, "qdel", fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' \"$@\" > %q\n", argumentsPath))
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
+
+	runDir := t.TempDir()
+	jobDir := filepath.Join(runDir, "job-1")
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	metadata := struct {
+		Executor string `json:"executor"`
+		JobID    string `json:"job_id"`
+		PBSJobID string `json:"pbs_job_id"`
+	}{Executor: "pbs", JobID: "job-1", PBSJobID: "123.headnode"}
+	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
+		t.Fatal(err)
+	}
+
+	message, err := cancelJobs(runDir, "default", "run-1", []string{"job-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(message, "Jobs: 1") {
+		t.Fatalf("message = %q, want one cancelled job", message)
+	}
+	args, err := os.ReadFile(argumentsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(args) != "123.headnode\n" {
+		t.Fatalf("qdel arguments = %q, want 123.headnode", args)
+	}
+}
+
+func TestCancelJobsCancelsSelectedSlurmJob(t *testing.T) {
+	binDir := t.TempDir()
+	argumentsPath := filepath.Join(t.TempDir(), "scancel-args")
+	writeExecutable(t, binDir, "scancel", fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' \"$@\" > %q\n", argumentsPath))
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
+
+	runDir := t.TempDir()
+	jobDir := filepath.Join(runDir, "job-1")
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	metadata := struct {
+		Executor   string `json:"executor"`
+		JobID      string `json:"job_id"`
+		SlurmJobID string `json:"slurm_job_id"`
+	}{Executor: "slurm", JobID: "job-1", SlurmJobID: "12345"}
+	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
+		t.Fatal(err)
+	}
+
+	message, err := cancelJobs(runDir, "default", "run-1", []string{"job-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(message, "Jobs: 1") {
+		t.Fatalf("message = %q, want one cancelled job", message)
+	}
+	args, err := os.ReadFile(argumentsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(args) != "12345\n" {
+		t.Fatalf("scancel arguments = %q, want 12345", args)
+	}
+}
+
+// Regression test: a whole-project cancel (no --job-id) must reach an
+// already-submitted Slurm job even mid-run, before the aggregate
+// slurm_jobs.json snapshot exists (it is only written once the whole run
+// finishes).
+func TestCancelQueueCancelsRunningSlurmJobMidRun(t *testing.T) {
+	binDir := t.TempDir()
+	argumentsPath := filepath.Join(t.TempDir(), "scancel-args")
+	writeExecutable(t, binDir, "scancel", fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' \"$@\" >> %q\n", argumentsPath))
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
+
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(paths.RunsDir, "run-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	queue := Queue{Commands: []QueuedCommand{
+		{ID: "job-1", Command: []string{"echo", "hi"}},
+		{ID: "job-2", Command: []string{"echo", "hi"}},
+	}}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
+		t.Fatal(err)
+	}
+	// job-1 is currently running under Slurm; job-2 has not been submitted
+	// yet (no job directory at all). Neither has slurm_jobs.json, which is
+	// only written after the whole run completes.
+	job1Dir := filepath.Join(runDir, "job-1")
+	if err := os.MkdirAll(job1Dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(job1Dir, "job.json"), struct {
+		Executor   string `json:"executor"`
+		JobID      string `json:"job_id"`
+		SlurmJobID string `json:"slurm_job_id"`
+	}{Executor: "slurm", JobID: "job-1", SlurmJobID: "12345"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := cancelQueue(baseDir, "default", false); err != nil {
+		t.Fatal(err)
+	}
+
+	args, err := os.ReadFile(argumentsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(args) != "12345\n" {
+		t.Fatalf("scancel arguments = %q, want 12345", args)
+	}
+	if _, err := os.Stat(filepath.Join(runDir, "job-2", "cancelled")); err != nil {
+		t.Fatalf("job-2 was not marked cancelled before submission: %v", err)
+	}
+	meta, err := loadMeta(paths.MetaFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.Phase != "cancelling" {
+		t.Fatalf("meta.Phase = %q, want cancelling", meta.Phase)
+	}
+}
+
+func TestControlQueueJobsControlsSelectedSlurmJob(t *testing.T) {
+	binDir := t.TempDir()
+	argumentsPath := filepath.Join(t.TempDir(), "scontrol-args")
+	writeExecutable(t, binDir, "scontrol", fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' \"$*\" >> %q\n", argumentsPath))
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
+
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+		t.Fatal(err)
+	}
+	jobDir := filepath.Join(paths.RunsDir, "run-1", "job-1")
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(jobDir, "job.json"), struct {
+		Executor   string `json:"executor"`
+		JobID      string `json:"job_id"`
+		SlurmJobID string `json:"slurm_job_id"`
+	}{Executor: "slurm", JobID: "job-1", SlurmJobID: "12345"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := controlQueueJobs(baseDir, "default", []string{"job-1"}, "suspend"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := controlQueueJobs(baseDir, "default", []string{"job-1"}, "resume"); err != nil {
+		t.Fatal(err)
+	}
+	args, err := os.ReadFile(argumentsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(args) != "suspend 12345\nresume 12345\n" {
+		t.Fatalf("scontrol arguments = %q, want suspend and resume for 12345", args)
+	}
+}
+
+func TestControlQueueJobsReportsMissingScontrolBinary(t *testing.T) {
+	emptyBinDir := t.TempDir()
+	t.Setenv("PATH", emptyBinDir)
+
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+		t.Fatal(err)
+	}
+	jobDir := filepath.Join(paths.RunsDir, "run-1", "job-1")
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(jobDir, "job.json"), struct {
+		Executor   string `json:"executor"`
+		JobID      string `json:"job_id"`
+		SlurmJobID string `json:"slurm_job_id"`
+	}{Executor: "slurm", JobID: "job-1", SlurmJobID: "12345"}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = controlQueueJobs(baseDir, "default", []string{"job-1"}, "suspend")
+	if err == nil {
+		t.Fatal("suspend without scontrol on PATH unexpectedly succeeded")
+	}
+	if !strings.Contains(err.Error(), "not installed on this host") {
+		t.Fatalf("error = %q, want a hint that scontrol is missing on this host", err)
+	}
+}
+
+func TestControlQueueJobsSurfacesScontrolRejectionForPendingJob(t *testing.T) {
+	binDir := t.TempDir()
+	// A Slurm job that is still queued (PENDING), not yet running, rejects
+	// scontrol suspend with a message on stderr; that explanation must reach
+	// the caller instead of a bare "exit status 1".
+	writeExecutable(t, binDir, "scontrol", "#!/bin/sh\necho 'slurm_suspend error: Job is not running' >&2\nexit 1\n")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+		t.Fatal(err)
+	}
+	jobDir := filepath.Join(paths.RunsDir, "run-1", "job-1")
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(jobDir, "job.json"), struct {
+		Executor   string `json:"executor"`
+		JobID      string `json:"job_id"`
+		SlurmJobID string `json:"slurm_job_id"`
+	}{Executor: "slurm", JobID: "job-1", SlurmJobID: "12345"}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = controlQueueJobs(baseDir, "default", []string{"job-1"}, "suspend")
+	if err == nil {
+		t.Fatal("suspend of a pending job unexpectedly succeeded")
+	}
+	if !strings.Contains(err.Error(), "slurm_suspend error: Job is not running") {
+		t.Fatalf("error = %q, want it to include scontrol's own explanation", err)
+	}
+}
+
+func TestCancelJobsReportsMissingScancelBinary(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+
+	runDir := t.TempDir()
+	jobDir := filepath.Join(runDir, "job-1")
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(jobDir, "job.json"), struct {
+		Executor   string `json:"executor"`
+		JobID      string `json:"job_id"`
+		SlurmJobID string `json:"slurm_job_id"`
+	}{Executor: "slurm", JobID: "job-1", SlurmJobID: "12345"}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := cancelJobs(runDir, "default", "run-1", []string{"job-1"})
+	if err == nil {
+		t.Fatal("cancel without scancel on PATH unexpectedly succeeded")
+	}
+	if !strings.Contains(err.Error(), "not installed on this host") {
+		t.Fatalf("error = %q, want a hint that scancel is missing on this host", err)
 	}
 }
 
