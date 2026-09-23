@@ -4,6 +4,11 @@ Answers to specific "what happens if...?" questions about rotari's behavior.
 For feature walkthroughs, see [README.md](../README.md); for the underlying
 contracts, see [INTERNALS.md](INTERNALS.md).
 
+## Projects, queues, runs, and registry
+
+For the complete base-directory and project-name precedence rules, see
+[State and project resolution](../README.md#state-and-project-resolution).
+
 ### Do I need to install a database server?
 No. Rotari is intentionally designed to be serverless: it stores project state,
 queue data, run history, and lock files in the filesystem instead of a
@@ -27,11 +32,6 @@ and filesystem semantics, and there is no SQL query layer or central database
 for arbitrary reporting. In exchange, you get a lightweight workflow runner
 that is easy to install and easy to reason about without requiring a database
 server.
-
-## Projects, queues, runs, and registry
-
-For the complete base-directory and project-name precedence rules, see
-[State and project resolution](../README.md#state-and-project-resolution).
 
 ### What's the difference between a project, a queue, and a run?
 A project is a named container (`--project-name`) that holds one current
@@ -92,6 +92,26 @@ Options with a finite choice list, including `--executor`, `--format`, and
 `--provider`, reject an explicit CLI value outside that list while parsing.
 The accepted values come from the same CLI metadata used by help, shell
 completion, and `rotari schema --json`.
+
+### Why is rotari written in Go instead of Python?
+Because Rotari is designed around a lot of small command dispatches and
+filesystem state updates, not one heavyweight Python process doing all the
+work. A workflow built from `rotari add ...` entries can generate a large
+number of fast CLI operations in a short time, and repeatedly starting Python
+for each step adds noticeable overhead. That startup cost becomes a real
+bottleneck when the tool is meant to feel lightweight and responsive while
+managing many commands, locks, and saved runs.
+
+Go is a better fit for this shape of program: it provides a single small
+binary with low startup cost, straightforward process management, and strong
+filesystem support for queue files, run snapshots, and lock files. The core
+runtime is intentionally file-based and CLI-first, so a compiled binary is a
+better match than repeatedly launching a Python interpreter.
+
+This is not a claim that Python is unsuitable for every workflow tool. It is a
+practical choice for a tool whose main job is to orchestrate lots of shell
+commands quickly and predictably without the overhead of a Python startup for
+every operation.
 
 ### How can I notify another service when a run finishes?
 
