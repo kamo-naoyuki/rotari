@@ -4,6 +4,30 @@ Answers to specific "what happens if...?" questions about rotari's behavior.
 For feature walkthroughs, see [README.md](../README.md); for the underlying
 contracts, see [INTERNALS.md](INTERNALS.md).
 
+### Do I need to install a database server?
+No. Rotari is intentionally designed to be serverless: it stores project state,
+queue data, run history, and lock files in the filesystem instead of a
+separate database service such as PostgreSQL or MySQL.
+
+This keeps the setup simple and makes the tool work well for local experiments,
+CLI workflows, and shared workstations that already have a normal filesystem.
+The run lock and project lock use file-based coordination (`flock`-style
+advisory locking) so that multiple local processes do not start the same
+project at the same time. A project directory contains the queue state, saved
+runs, and metadata needed to recover or inspect work later.
+
+So the main reason it does not need a database server is that Rotari is built
+around files as the source of truth, not a central database. That keeps
+installation and operating costs low and avoids a separate service to manage,
+backup, and monitor.
+
+The tradeoff is that this is not a general-purpose database-backed system.
+For multi-host use, all hosts must share a consistent view of the same basedir
+and filesystem semantics, and there is no SQL query layer or central database
+for arbitrary reporting. In exchange, you get a lightweight workflow runner
+that is easy to install and easy to reason about without requiring a database
+server.
+
 ## Projects, queues, runs, and registry
 
 For the complete base-directory and project-name precedence rules, see
