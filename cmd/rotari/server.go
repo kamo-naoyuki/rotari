@@ -57,15 +57,15 @@ type rotariServer struct {
 const serverIdleTimeout = time.Minute
 
 func serverSocketPath(baseDir string) string {
-	return filepath.Join(baseDir, "server.sock")
+	return serverinternal.SocketPath(baseDir)
 }
 
 func serverLockPath(baseDir string) string {
-	return filepath.Join(baseDir, "server.lock")
+	return serverinternal.LockPath(baseDir)
 }
 
 func serverPIDPath(baseDir string) string {
-	return filepath.Join(baseDir, "server.pid")
+	return serverinternal.PIDPath(baseDir)
 }
 
 func cmdServer(args []string) int {
