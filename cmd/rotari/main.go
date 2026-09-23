@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -660,15 +659,7 @@ func inspectRunLock(lockPath string, cleanupStale bool) (projectLockState, LockI
 }
 
 func loadLockInfo(lockPath string) (LockInfo, error) {
-	b, err := os.ReadFile(lockPath) // NOSONAR: lockPath is the resolved state lock.
-	if err != nil {
-		return LockInfo{}, err
-	}
-	var lock LockInfo
-	if err := json.Unmarshal(b, &lock); err != nil {
-		return LockInfo{}, err
-	}
-	return lock, nil
+	return state.LoadLock(lockPath)
 }
 
 func processAlive(pid int) bool {
