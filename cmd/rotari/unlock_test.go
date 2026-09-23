@@ -365,7 +365,7 @@ func TestCmdUnlockRemovesMatchingRunLock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", "run-1"}); code != 0 {
+	if code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "run-1"}); code != 0 {
 		t.Fatalf("cmdUnlock exit code = %d, want 0", code)
 	}
 	if _, err := os.Stat(paths.LockFile); !os.IsNotExist(err) {

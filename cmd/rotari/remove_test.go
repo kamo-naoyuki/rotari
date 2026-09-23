@@ -31,7 +31,7 @@ func TestCmdRemoveDeletesJobByID(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := cmdRemove([]string{"--basedir", baseDir, "--project-name", "default", "--job-id", removedID})
+	code := cmdRemove([]string{"--basedir", baseDir, "--project-name", "default", removedID})
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)

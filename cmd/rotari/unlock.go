@@ -18,7 +18,14 @@ func cmdUnlock(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if len(fs.Args()) != 0 || *runID == "" {
+	if len(fs.Args()) > 1 || (len(fs.Args()) == 1 && *runID != "") {
+		printError("usage: " + cliUsage("unlock"))
+		return 1
+	}
+	if len(fs.Args()) == 1 {
+		*runID = fs.Args()[0]
+	}
+	if *runID == "" {
 		printError("usage: " + cliUsage("unlock"))
 		return 1
 	}

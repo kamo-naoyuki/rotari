@@ -61,9 +61,12 @@ func cmdCopy(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if len(fs.Args()) != 0 || (*appendJobs && *overwriteJobs) {
+	if len(fs.Args()) > 1 || (len(fs.Args()) == 1 && *runID != "") || (*appendJobs && *overwriteJobs) {
 		printError("usage: " + cliUsage("copy"))
 		return 1
+	}
+	if len(fs.Args()) == 1 {
+		*runID = fs.Args()[0]
 	}
 	if *jobName != "" && len(jobIDs) > 0 {
 		printError("--job-name cannot be combined with --job-id")

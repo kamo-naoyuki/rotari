@@ -21,9 +21,14 @@ func cmdRemove(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if len(fs.Args()) > 0 || (*jobName == "" && len(jobIDs) == 0) || (*jobName != "" && len(jobIDs) > 0) {
+	if (len(fs.Args()) > 0 && (*jobName != "" || len(jobIDs) > 0)) ||
+		(*jobName == "" && len(jobIDs) == 0 && len(fs.Args()) == 0) ||
+		(*jobName != "" && len(jobIDs) > 0) {
 		printError("usage: " + cliUsage("remove"))
 		return 1
+	}
+	if len(fs.Args()) > 0 {
+		jobIDs = append(jobIDs, fs.Args()...)
 	}
 
 	baseDir, queueName, err := resolveExistingRunTarget(*basedir, *queueNameOption, *runID)

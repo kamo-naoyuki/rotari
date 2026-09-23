@@ -132,6 +132,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Name:        "delete",
 		Description: "delete saved run history",
 		Flags:       append(commonCLIFlags(), cliFlagSpec{Name: "run-id", Description: "delete only the specified run", ValueName: "ID"}),
+		Positional:  "[RUN_ID]",
 	},
 	{
 		Name:        "gc",
@@ -145,6 +146,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Name:        "unlock",
 		Description: "remove a confirmed stale run lock",
 		Flags:       append(commonCLIFlags(), cliFlagSpec{Name: "run-id", Description: "run ID recorded in the stale lock", ValueName: "ID"}),
+		Positional:  "RUN_ID",
 	},
 	{
 		Name:        "change",
@@ -174,6 +176,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "job-id", Description: "remove a job; may be repeated", ValueName: "ID"},
 			cliFlagSpec{Name: "job-name", Description: "remove a job by name", ValueName: "NAME"},
 		),
+		Positional: "[JOB_ID ...]",
 	},
 	{
 		Name:        "show",
@@ -217,6 +220,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "model", Description: "LLM model name", ValueName: "MODEL"},
 			cliFlagSpec{Name: "language", Description: "response language BCP 47 tag", ValueName: "TAG"},
 		),
+		Positional: "JOB_ID",
 	},
 	{
 		Name:        "wait",
@@ -255,6 +259,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "append", Description: "append to a non-empty queue"},
 			cliFlagSpec{Name: "overwrite", Description: "replace a non-empty queue"},
 		),
+		Positional: "[RUN_ID]",
 	},
 	{
 		Name:        "run",

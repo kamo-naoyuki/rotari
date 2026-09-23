@@ -335,6 +335,20 @@ func TestCLIUsageIncludesShortOptions(t *testing.T) {
 	if usage := cliUsage("check"); !strings.Contains(usage, "[--deep]") {
 		t.Fatalf("usage %q does not contain --deep", usage)
 	}
+	for _, command := range []struct {
+		name       string
+		positional string
+	}{
+		{name: "delete", positional: "[RUN_ID]"},
+		{name: "unlock", positional: "RUN_ID"},
+		{name: "copy", positional: "[RUN_ID]"},
+		{name: "remove", positional: "[JOB_ID ...]"},
+		{name: "diagnose", positional: "JOB_ID"},
+	} {
+		if usage := cliUsage(command.name); !strings.Contains(usage, command.positional) {
+			t.Fatalf("usage %q does not contain positional %q", usage, command.positional)
+		}
+	}
 }
 
 func TestCLIStringRejectsValuesOutsideChoices(t *testing.T) {
@@ -1984,7 +1998,7 @@ func TestDeleteRemovesOnlySelectedRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if code := cmdDelete([]string{"--basedir", baseDir, "--run-id", "run-2"}); code != 0 {
+	if code := cmdDelete([]string{"--basedir", baseDir, "run-2"}); code != 0 {
 		t.Fatalf("cmdDelete exit = %d, want 0", code)
 	}
 	if _, err := os.Stat(filepath.Join(paths.RunsDir, "run-1")); err != nil {

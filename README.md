@@ -8,13 +8,15 @@
 
 [![Go CI](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml/badge.svg)](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml) [![Slurm + PBS CI](https://img.shields.io/github/actions/workflow/status/kamo-naoyuki/rotari/scheduler-integration.yml?branch=main&label=Slurm%20%2B%20PBS%20CI)](https://github.com/kamo-naoyuki/rotari/actions/workflows/scheduler-integration.yml) [![codecov](https://codecov.io/gh/kamo-naoyuki/rotari/graph/badge.svg)](https://codecov.io/gh/kamo-naoyuki/rotari) [![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=kamo-naoyuki_rotari&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kamo-naoyuki_rotari) [![web demo](https://img.shields.io/website?url=https%3A%2F%2Fkamo-naoyuki.github.io%2Frotari%2F&label=web%20demo&style=flat)](https://kamo-naoyuki.github.io/rotari/) [![Python API](https://img.shields.io/badge/Python%20API-Sphinx-3776AB)](https://kamo-naoyuki.github.io/rotari/python-api/)
 
-[[FAQ]](docs/FAQ.md) · [[WEBHOOK INTEGRATIONS]](docs/WEBHOOK_INTEGRATIONS.md) ·[[Python README]](python/README.md) ·  [[Internals]](docs/INTERNALS.md)
+[[FAQ]](docs/FAQ.md) · [[Webhook notifications]](docs/WEBHOOK_INTEGRATIONS.md) ·[[Python README]](python/README.md) ·  [[Internal docs]](docs/INTERNALS.md)
 
-**Rotari turns trial-and-error into a repeatable loop**: run a batch of jobs, see which failed, fix only their commands, and run it again — without losing the history of what already worked.
 
-It is a lightweight, **serverless workflow engine** for experiments and builds that you run repeatedly. **Workflows are built from the CLI commands you already have**, with simple dependencies between them. **You can keep using your existing shell scripts instead of learning a separate workflow language.** There is no external database or server to set up, and workflow state is kept in the filesystem.
+**Rotari turns trial-and-error into a repeatable loop**: build a batch of jobs from the CLI, see which failed, fix only their commands, and run it again — without losing the history of what already worked.
 
-**Local commands, remote SSH commands, and scheduler jobs (Slurm, PBS, LSF) live in the same queue**, even when they depend on each other. **Every run keeps its own snapshot** of commands, status, and logs, so nothing gets lost between "one more try" and the next.
+Rotari is a lightweight, **serverless workflow engine** for experiments and builds that you run repeatedly. **Build workflows directly from the CLI, using commands and shell scripts as the building blocks.** Add simple dependencies between them, and run them locally, over SSH, or on Slurm, PBS, or LSF. There is no external database or server to set up; workflow state is kept in the filesystem.
+
+**You don't need a separate workflow language.** If a shell script is enough to describe your workflow, you can keep using it as-is. Rotari provides the execution, parallelism, logs, status, and run history around it.
+
 
 ## How is rotari different?
 
@@ -151,6 +153,34 @@ rotari add --job-name train --depends-on prepare -- ./train.sh
 rotari run
 ```
 
+## Commands at a glance
+
+| Command | Purpose |
+| --- | --- |
+| `add` | Add a command to the current queue. |
+| `run` | Run the queued jobs. |
+| `reset` | Discard the current queue. |
+| `show` | Show queue, run, job, or log details. |
+| `jobs` | List running and recently finished jobs across projects. |
+| `web` | Start the local web status UI. |
+| `retry` | Rerun failed or unfinished jobs. |
+| `cancel` | Cancel running jobs. |
+| `wait` | Wait for an asynchronous run to finish. |
+| `config` | Create or inspect configuration files. |
+| `suspend` / `resume` | Suspend or resume running jobs. |
+| `copy` | Copy jobs from a saved run into the queue. |
+| `change` | Change a queued or restored job. |
+| `remove` | Remove jobs from the queue. |
+| `delete` | Delete saved run history. |
+| `check` | Check whether a project is ready to run. |
+| `diagnose` | Diagnose a failed job. |
+| `env` | Show CLI and job environment variables. |
+| `completion` | Generate shell completion scripts. |
+| `gc` | Find and remove orphaned run registry entries. |
+| `unlock` | Recover a confirmed stale run lock. |
+| `server` | Inspect or control the project server. |
+| `schema` | Print the machine-readable CLI schema. |
+
 ## Common options
 
 Frequently used options have short forms:
@@ -162,7 +192,6 @@ Frequently used options have short forms:
 | `--run-id` | `-r` |
 | `--job-id` | `-j` |
 | `--executor` | `-e` |
-
 
 ## Example
 
@@ -268,7 +297,7 @@ The `run-id` identifies a run and provides its project location. An
 `run-id`, so the command can resolve the same project location from the attempt
 alone.
 
-For `show`, use a selector directly. `show` accepts a `RUN_ID`, `ATTEMPT_ID`,
+`show` accepts a `RUN_ID`, `ATTEMPT_ID`,
 `JOB_ID`, or job name as its optional positional argument. The associated run,
 project, and basedir are resolved automatically when the selector identifies
 them.
@@ -286,19 +315,34 @@ when an exact run/job context is required:
 
 ```sh
 # These are equivalent exact selectors.
-rotari show RUN_ID
+rotari show -b BASE_DIR -p PROJECT_NAME -r RUN_ID
 rotari show -r RUN_ID
+rotari show RUN_ID # ID can be passed positionally; -r can be omitted
 
-rotari show ATTEMPT_ID
+rotari show -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j ATTEMPT_ID
 rotari show -j ATTEMPT_ID
+rotari show ATTEMPT_ID
 
-rotari show -b BASE_DIR -p PROJECT_NAME -j JOB_ID
-rotari show JOB_ID
+rotari show -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j JOB_ID
 rotari show -j JOB_ID
+rotari show JOB_ID
 
-rotari copy -b BASE_DIR -p PROJECT_NAME -j JOB_ID
+rotari copy -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j JOB_ID
 rotari copy -r RUN_ID -j JOB_ID
 ```
+
+Run and job IDs can also be passed positionally when a command accepts one:
+
+```sh
+rotari copy -j JOB_ID RUN_ID
+rotari remove JOB_ID OTHER_JOB_ID
+rotari delete RUN_ID
+rotari unlock -p PROJECT_NAME RUN_ID
+rotari diagnose --model MODEL JOB_ID
+```
+
+These positional forms cannot be combined with the corresponding `--run-id/-r`
+or `--job-id/-j` option. `delete` without an ID still removes all saved runs.
 
 The following commands accept an `ATTEMPT_ID` as their `--job-id/-j` selector:
 
@@ -693,7 +737,7 @@ Delete saved run logs while keeping queued commands:
 
 ```sh
 rotari delete -p build
-rotari delete -p build -r RUN_ID
+rotari delete -p build RUN_ID
 ```
 
 `--run-id/-r` removes only the specified run. Without it, all saved run logs are removed.
@@ -924,7 +968,7 @@ After confirming a failed host's run has stopped, unlock that exact run:
 
 ```sh
 rotari show -p build
-rotari unlock -p build -r RUN_ID
+rotari unlock -p build RUN_ID
 ```
 
 `unlock` verifies the run ID, removes a matching lock, and returns the project

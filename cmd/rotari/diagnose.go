@@ -114,8 +114,15 @@ func cmdDiagnose(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if len(fs.Args()) != 0 || *jobID == "" || (!*rules && *model == "") {
-		printError("usage: " + cliUsage("diagnose") + " (requires --job-id and --model unless --rules is set)")
+	if len(fs.Args()) > 1 || (len(fs.Args()) == 1 && *jobID != "") {
+		printError("usage: " + cliUsage("diagnose"))
+		return 1
+	}
+	if len(fs.Args()) == 1 {
+		*jobID = fs.Args()[0]
+	}
+	if *jobID == "" || (!*rules && *model == "") {
+		printError("usage: " + cliUsage("diagnose") + " (requires a job ID and --model unless --rules is set)")
 		return 1
 	}
 	if strings.HasPrefix(*jobID, "att_") {

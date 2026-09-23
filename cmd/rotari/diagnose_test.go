@@ -295,7 +295,7 @@ func TestCmdDiagnoseRequiresAPIKeyBeforeLLMRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stderr = writer
-	code := cmdDiagnose([]string{"--job-id", "job-1", "--model", "model"})
+	code := cmdDiagnose([]string{"--model", "model", "job-1"})
 	_ = writer.Close()
 	os.Stderr = oldStderr
 	output, err := io.ReadAll(reader)

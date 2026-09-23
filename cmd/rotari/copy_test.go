@@ -36,7 +36,7 @@ func TestCmdCopyRejectsRunningProjectBeforeQueueConfirmation(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stderr = writer
-	code := cmdCopy([]string{"--basedir", baseDir, "--project-name", "default", "--run-id", runID})
+	code := cmdCopy([]string{"--basedir", baseDir, "--project-name", "default", runID})
 	os.Stderr = oldStderr
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
