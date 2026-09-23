@@ -184,20 +184,9 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 		}
 	}
 
-	summary := RunSummary{RunID: runID, RunName: runName, Status: "finished", StartedAt: nowRFC3339(), FinishedAt: nowRFC3339(), Results: make([]JobResult, 0, len(jobs))}
-	for _, job := range jobs {
-		result, ok := finalResults[job.ID]
-		if !ok {
-			// Neither executed nor carried forward: leave it unfinished.
-			continue
-		}
-		result = diagnoseJobResult(runDir, result)
-		summary.Results = append(summary.Results, result)
-		if result.ExitCode != 0 {
-			summary.ExitCode = 1
-		}
-	}
-	summary.Status = runStatus(summary.ExitCode)
+	summary := runcontract.BuildRunSummary(runID, runName, nowRFC3339(), jobs, finalResults, func(result JobResult) JobResult {
+		return diagnoseJobResult(runDir, result)
+	})
 	if err := writeJSON(filepath.Join(runDir, "summary.json"), summary); err != nil {
 		return 1
 	}
