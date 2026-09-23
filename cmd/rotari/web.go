@@ -54,36 +54,10 @@ type webJob = webprojection.Job
 type webAttempt = webprojection.Attempt
 type webTimelinePoint = webprojection.TimelinePoint
 
-type webQueueState struct {
-	QueueName       string   `json:"project_name"`
-	ConfigPath      string   `json:"config_path,omitempty"`
-	Queue           Queue    `json:"queue"`
-	Runs            []webRun `json:"runs"`
-	RunnerPID       int      `json:"runner_pid,omitempty"`
-	RunningRunID    string   `json:"running_run_id,omitempty"`
-	RunnerHost      string   `json:"runner_host,omitempty"`
-	RunnerStartedAt string   `json:"runner_started_at,omitempty"`
-}
-
-type webServerState struct {
-	PID           int  `json:"pid,omitempty"`
-	PIDFileExists bool `json:"pid_file_exists"`
-	SocketExists  bool `json:"socket_exists"`
-}
-
-type webConfigFile struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
-}
-
-type webState struct {
-	BaseDir      string                  `json:"base_dir"`
-	ConfigPath   string                  `json:"config_path,omitempty"`
-	Queues       []webQueueState         `json:"projects"`
-	Server       webServerState          `json:"server"`
-	Environments []environmentDefinition `json:"environments"`
-	UpdatedAt    string                  `json:"updated_at"`
-}
+type webQueueState = webprojection.QueueState
+type webServerState = webprojection.ServerState
+type webConfigFile = webprojection.ConfigFile
+type webState = webprojection.State
 
 type webCopyRequest struct {
 	QueueName string   `json:"project_name"`

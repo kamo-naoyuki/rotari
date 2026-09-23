@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
 
 const (
@@ -73,15 +74,7 @@ func validEnvironmentName(name string) bool {
 	return model.ValidEnvironmentName(name)
 }
 
-type environmentDefinition struct {
-	Name        string `json:"name"`
-	Value       string `json:"value,omitempty"`
-	Set         bool   `json:"set,omitempty"`
-	CLIDefault  bool   `json:"cli_default"`
-	Job         bool   `json:"job"`
-	Array       bool   `json:"array"`
-	Description string `json:"description"`
-}
+type environmentDefinition = webprojection.EnvironmentDefinition
 
 func environmentDefinitions() []environmentDefinition {
 	return []environmentDefinition{

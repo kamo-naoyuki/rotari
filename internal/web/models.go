@@ -2,6 +2,16 @@ package web
 
 import "github.com/kamo-naoyuki/rotari/internal/model"
 
+type EnvironmentDefinition struct {
+	Name        string `json:"name"`
+	Value       string `json:"value,omitempty"`
+	Set         bool   `json:"set,omitempty"`
+	CLIDefault  bool   `json:"cli_default"`
+	Job         bool   `json:"job"`
+	Array       bool   `json:"array"`
+	Description string `json:"description"`
+}
+
 type Run struct {
 	model.RunSummary
 	Jobs     []Job            `json:"jobs"`
@@ -38,4 +48,35 @@ type Attempt struct {
 	SubmittedAt    string           `json:"submitted_at,omitempty"`
 	FinishedAt     string           `json:"finished_at,omitempty"`
 	SchedulerState string           `json:"scheduler_state,omitempty"`
+}
+
+type QueueState struct {
+	QueueName       string      `json:"project_name"`
+	ConfigPath      string      `json:"config_path,omitempty"`
+	Queue           model.Queue `json:"queue"`
+	Runs            []Run       `json:"runs"`
+	RunnerPID       int         `json:"runner_pid,omitempty"`
+	RunningRunID    string      `json:"running_run_id,omitempty"`
+	RunnerHost      string      `json:"runner_host,omitempty"`
+	RunnerStartedAt string      `json:"runner_started_at,omitempty"`
+}
+
+type ServerState struct {
+	PID           int  `json:"pid,omitempty"`
+	PIDFileExists bool `json:"pid_file_exists"`
+	SocketExists  bool `json:"socket_exists"`
+}
+
+type ConfigFile struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+type State struct {
+	BaseDir      string                  `json:"base_dir"`
+	ConfigPath   string                  `json:"config_path,omitempty"`
+	Queues       []QueueState            `json:"projects"`
+	Server       ServerState             `json:"server"`
+	Environments []EnvironmentDefinition `json:"environments"`
+	UpdatedAt    string                  `json:"updated_at"`
 }
