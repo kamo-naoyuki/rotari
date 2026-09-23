@@ -3,6 +3,7 @@ package run
 import "github.com/kamo-naoyuki/rotari/internal/executor"
 
 type Options struct {
+	BaseDir          string
 	QueueName        string
 	RunID            string
 	RunName          string

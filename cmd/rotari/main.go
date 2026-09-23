@@ -19,6 +19,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -442,36 +443,9 @@ func launchAsyncRun(paths pathSet, options runOptions) int {
 		return 1
 	}
 
-	childArgs := []string{"__worker-run"}
-	if paths.baseDirExplicit {
-		childArgs = append(childArgs, "--basedir", paths.baseDir)
-	}
-	if options.Executor != "" {
-		childArgs = append(childArgs, "--executor", options.Executor)
-	}
-	for _, option := range options.ExecutorOptions {
-		childArgs = append(childArgs, "--executor-option", option)
-	}
-	for _, name := range executorRunSettingNames {
-		setting := options.ExecutorSettings[name]
-		if setting.Concurrency > 0 {
-			childArgs = append(childArgs, "--"+name+"-concurrency", strconv.Itoa(setting.Concurrency))
-		}
-		for _, option := range setting.Options {
-			childArgs = append(childArgs, "--"+name+"-options", option)
-		}
-	}
-	if options.Selection != "" {
-		childArgs = append(childArgs, "--selection", options.Selection)
-	}
-	for _, jobID := range options.JobIDs {
-		childArgs = append(childArgs, "--job-id", jobID)
-	}
-	if options.SourceRunID != "" {
-		childArgs = append(childArgs, "--source-run-id", options.SourceRunID)
-	}
-	childArgs = append(childArgs, "--partial-array", strconv.FormatBool(options.PartialArray))
-	childArgs = append(childArgs, options.QueueName, options.RunID, options.RunName, strconv.Itoa(options.LocalConcurrency), strconv.Itoa(options.BatchMaxActive), strconv.Itoa(options.Retry), options.CWD)
+	childOptions := options
+	childOptions.BaseDir = paths.baseDir
+	childArgs := runcontract.WorkerArgs(childOptions, paths.baseDirExplicit, executorRunSettingNames)
 
 	cmd := exec.Command(exe, childArgs...)
 	cmd.Stdout = os.Stdout
