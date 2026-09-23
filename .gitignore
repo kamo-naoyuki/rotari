@@ -34,3 +34,7 @@ slurm-*.out
 /.gomodcache/
 
 activate_python.sh
+
+# Local refactoring notes and unresolved issues
+/ISSUES.md
+/docs/REFACTORING_PLAN.md
