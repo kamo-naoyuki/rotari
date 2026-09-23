@@ -1211,25 +1211,13 @@ func webJobTimestamps(runDir, jobID string, origin *JobOrigin) (string, string) 
 			}
 		}
 	}
-	if origin == nil || (submittedAt != "" && finishedAt != "") {
-		return submittedAt, finishedAt
-	}
-	if submittedAt == "" {
-		submittedAt = origin.SubmittedAt
-	}
-	if finishedAt == "" {
-		finishedAt = origin.FinishedAt
-	}
-	sourceRunDir, err := validatedRunDir(pathSet{runsDir: filepath.Dir(runDir)}, origin.RunID)
-	if err == nil {
-		if submittedAt == "" {
-			submittedAt = readJobTimestamp(sourceRunDir, origin.JobID, "submitted_at")
+	return webprojection.ResolveOriginTimestamps(submittedAt, finishedAt, origin, func(runID, sourceJobID string) (string, string) {
+		sourceRunDir, err := validatedRunDir(pathSet{runsDir: filepath.Dir(runDir)}, runID)
+		if err != nil {
+			return "", ""
 		}
-		if finishedAt == "" {
-			finishedAt = readJobTimestamp(sourceRunDir, origin.JobID, "finished_at")
-		}
-	}
-	return submittedAt, finishedAt
+		return readJobTimestamp(sourceRunDir, sourceJobID, "submitted_at"), readJobTimestamp(sourceRunDir, sourceJobID, "finished_at")
+	})
 }
 
 func readJobTimestamp(runDir, jobID, name string) string {
