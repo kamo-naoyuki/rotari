@@ -98,3 +98,27 @@ the user-facing documentation, and the affected tests together.
 - Executors implement job execution and scheduler integration, not run
   semantics. Run planning, dependency handling, carry-forward, and summary
   finalization belong to rotari's shared execution path.
+
+## Go package boundaries
+
+The Go implementation is layered so command adapters do not own domain
+semantics:
+
+```text
+cmd/rotari
+  ├── internal/model     # queue, job, run, array, selection, validation
+  ├── internal/state     # paths, JSON persistence, locks, attempts
+  ├── internal/executor  # executor contracts and local execution primitives
+  ├── internal/diagnose  # rule-based log diagnosis
+  └── internal/run       # run planning, worker lifecycle, lanes, orchestration
+```
+
+`cmd/rotari` remains the CLI, server, Web, and filesystem adapter layer. It
+parses flags, resolves concrete state paths, connects callbacks, and formats
+user-facing output. The internal packages must not import `cmd/rotari`; shared
+behavior moves downward through explicit data and callback contracts instead.
+
+When adding run behavior, prefer `internal/run` for orchestration, keeping
+filesystem access in `internal/state` and scheduler/process details in
+`internal/executor`. This prevents a new CLI or Web path from silently
+reimplementing run semantics.
