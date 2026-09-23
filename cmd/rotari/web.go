@@ -49,52 +49,10 @@ var webAppBootstrapJS string
 //go:embed assets/web_styles.css
 var webStylesCSS string
 
-type webRun struct {
-	RunSummary
-	Jobs     []webJob           `json:"jobs"`
-	CWD      string             `json:"cwd,omitempty"`
-	Context  RunContext         `json:"context,omitempty"`
-	Timeline []webTimelinePoint `json:"timeline,omitempty"`
-	Running  bool               `json:"running"`
-}
-
-type webJob struct {
-	ID               string       `json:"id"`
-	AttemptID        string       `json:"attempt_id,omitempty"`
-	Attempts         []webAttempt `json:"attempts,omitempty"`
-	ArrayTaskID      *int         `json:"array_task_id,omitempty"`
-	ArrayFirst       int          `json:"array_first,omitempty"`
-	ArrayLast        int          `json:"array_last,omitempty"`
-	Name             string       `json:"name,omitempty"`
-	Command          []string     `json:"command"`
-	WorkingDirectory string       `json:"working_directory,omitempty"`
-	Executor         string       `json:"executor,omitempty"`
-	ExecutorOptions  []string     `json:"executor_options,omitempty"`
-	DependsOn        []string     `json:"depends_on,omitempty"`
-	Result           *JobResult   `json:"result,omitempty"`
-	Origin           *JobOrigin   `json:"origin,omitempty"`
-	AttemptDir       string       `json:"-"`
-	SubmittedAt      string       `json:"submitted_at,omitempty"`
-	FinishedAt       string       `json:"finished_at,omitempty"`
-	SchedulerState   string       `json:"scheduler_state,omitempty"`
-}
-
-type webAttempt struct {
-	ID             string     `json:"id"`
-	Result         *JobResult `json:"result,omitempty"`
-	SubmittedAt    string     `json:"submitted_at,omitempty"`
-	FinishedAt     string     `json:"finished_at,omitempty"`
-	SchedulerState string     `json:"scheduler_state,omitempty"`
-}
-
-type webTimelinePoint struct {
-	At       string `json:"at"`
-	Pending  int    `json:"pending"`
-	Running  int    `json:"running"`
-	Finished int    `json:"finished"`
-	Success  int    `json:"success"`
-	Failed   int    `json:"failed"`
-}
+type webRun = webprojection.Run
+type webJob = webprojection.Job
+type webAttempt = webprojection.Attempt
+type webTimelinePoint = webprojection.TimelinePoint
 
 type webQueueState struct {
 	QueueName       string   `json:"project_name"`
