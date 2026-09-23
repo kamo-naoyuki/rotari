@@ -19,6 +19,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
 
 const webDefaultPort = 8787
@@ -1341,62 +1343,16 @@ func readJobTimestamp(runDir, jobID, name string) string {
 }
 
 func buildWebTimeline(summary RunSummary, jobs []webJob) []webTimelinePoint {
-	type event struct {
-		at       string
-		pending  int
-		running  int
-		finished int
-		success  int
-		failed   int
-	}
-	events := make([]event, 0, len(jobs)*2)
-	initial := webTimelinePoint{At: summary.StartedAt}
+	inputs := make([]webprojection.JobTimelineInput, 0, len(jobs))
 	for _, job := range jobs {
-		if job.Result != nil && (job.Origin != nil || (job.SubmittedAt == "" && job.FinishedAt == "")) {
-			initial.Finished++
-			if job.Result.ExitCode == 0 {
-				initial.Success++
-			} else {
-				initial.Failed++
-			}
-			continue
-		}
-		initial.Pending++
-		if job.SubmittedAt != "" {
-			events = append(events, event{at: job.SubmittedAt, pending: -1, running: 1})
-		}
-		if job.FinishedAt != "" {
-			finished := event{at: job.FinishedAt, running: -1, finished: 1}
-			if job.Result != nil && job.Result.ExitCode == 0 {
-				finished.success = 1
-			} else {
-				finished.failed = 1
-			}
-			events = append(events, finished)
-		}
+		inputs = append(inputs, webprojection.JobTimelineInput{Finished: job.Result != nil, Carried: job.Origin != nil, SubmittedAt: job.SubmittedAt, FinishedAt: job.FinishedAt, Success: job.Result != nil && job.Result.ExitCode == 0})
 	}
-	sort.Slice(events, func(i, j int) bool { return events[i].at < events[j].at })
-	points := []webTimelinePoint{initial}
-	pending, running, finished, success, failed := initial.Pending, initial.Running, initial.Finished, initial.Success, initial.Failed
-	for i := 0; i < len(events); {
-		at := events[i].at
-		event := event{at: at}
-		for i < len(events) && events[i].at == at {
-			event.pending += events[i].pending
-			event.running += events[i].running
-			event.finished += events[i].finished
-			event.success += events[i].success
-			event.failed += events[i].failed
-			i++
-		}
-		pending += event.pending
-		running += event.running
-		finished += event.finished
-		success += event.success
-		failed += event.failed
-		points = append(points, webTimelinePoint{At: event.at, Pending: pending, Running: running, Finished: finished, Success: success, Failed: failed})
+	points := webprojection.BuildTimeline(summary.StartedAt, inputs)
+	result := make([]webTimelinePoint, len(points))
+	for index, point := range points {
+		result[index] = webTimelinePoint{At: point.At, Pending: point.Pending, Running: point.Running, Finished: point.Finished, Success: point.Success, Failed: point.Failed}
 	}
-	return points
+	return result
 }
 
 func validWebID(value string) bool {
