@@ -10,6 +10,13 @@ import (
 	"testing"
 )
 
+func TestCLIFlagSpecTracksRepeatedMetadata(t *testing.T) {
+	spec := cliFlagSpec{Name: "executor-option", Repeated: true}
+	if !spec.Repeated {
+		t.Fatal("cliFlagSpec repeated metadata was not retained")
+	}
+}
+
 func TestCmdSchemaValidAndInvalidArguments(t *testing.T) {
 	if code := cmdSchema(nil); code != 1 {
 		t.Fatalf("cmdSchema(nil) = %d, want 1", code)

@@ -252,6 +252,100 @@ func (p pathSet) projectNameValue() string {
 	return p.queueName
 }
 
+func (p pathSet) projectDirValue() string {
+	if p.ProjectDir != "" {
+		return p.ProjectDir
+	}
+	return p.projectDir
+}
+
+func (p pathSet) queueFileValue() string {
+	if p.QueueFile != "" {
+		return p.QueueFile
+	}
+	return p.queueFile
+}
+
+func (p pathSet) metaFileValue() string {
+	if p.MetaFile != "" {
+		return p.MetaFile
+	}
+	return p.metaFile
+}
+
+func (p pathSet) stateLockFileValue() string {
+	if p.StateLockFile != "" {
+		return p.StateLockFile
+	}
+	return p.stateLockFile
+}
+
+func (p pathSet) lockFileValue() string {
+	if p.LockFile != "" {
+		return p.LockFile
+	}
+	return p.lockFile
+}
+
+func (p pathSet) runsDirValue() string {
+	if p.RunsDir != "" {
+		return p.RunsDir
+	}
+	return p.runsDir
+}
+
+func (p pathSet) normalize() pathSet {
+	if p.BaseDir == "" {
+		p.BaseDir = p.baseDir
+	}
+	if p.ProjectName == "" {
+		p.ProjectName = p.queueName
+	}
+	if p.ProjectDir == "" {
+		p.ProjectDir = p.projectDir
+	}
+	if p.QueueFile == "" {
+		p.QueueFile = p.queueFile
+	}
+	if p.MetaFile == "" {
+		p.MetaFile = p.metaFile
+	}
+	if p.StateLockFile == "" {
+		p.StateLockFile = p.stateLockFile
+	}
+	if p.LockFile == "" {
+		p.LockFile = p.lockFile
+	}
+	if p.RunsDir == "" {
+		p.RunsDir = p.runsDir
+	}
+	if p.baseDir == "" {
+		p.baseDir = p.BaseDir
+	}
+	if p.queueName == "" {
+		p.queueName = p.ProjectName
+	}
+	if p.projectDir == "" {
+		p.projectDir = p.ProjectDir
+	}
+	if p.queueFile == "" {
+		p.queueFile = p.QueueFile
+	}
+	if p.metaFile == "" {
+		p.metaFile = p.MetaFile
+	}
+	if p.stateLockFile == "" {
+		p.stateLockFile = p.StateLockFile
+	}
+	if p.lockFile == "" {
+		p.lockFile = p.LockFile
+	}
+	if p.runsDir == "" {
+		p.runsDir = p.RunsDir
+	}
+	return p
+}
+
 func formatProjectRunningError(paths pathSet, runID string) string {
 	baseDir := paths.baseDirValue()
 	projectName := paths.projectNameValue()
@@ -615,23 +709,7 @@ func resolvePaths(cliBaseDir, projectName string) (pathSet, error) {
 		stateLockFile:   resolved.StateLockFile,
 		lockFile:        resolved.LockFile,
 		runsDir:         resolved.RunsDir,
-	}
-	if paths.BaseDir == "" { paths.BaseDir = paths.baseDir }
-	if paths.ProjectName == "" { paths.ProjectName = paths.queueName }
-	if paths.ProjectDir == "" { paths.ProjectDir = paths.projectDir }
-	if paths.QueueFile == "" { paths.QueueFile = paths.queueFile }
-	if paths.MetaFile == "" { paths.MetaFile = paths.metaFile }
-	if paths.StateLockFile == "" { paths.StateLockFile = paths.stateLockFile }
-	if paths.LockFile == "" { paths.LockFile = paths.lockFile }
-	if paths.RunsDir == "" { paths.RunsDir = paths.runsDir }
-	if paths.baseDir == "" { paths.baseDir = paths.BaseDir }
-	if paths.queueName == "" { paths.queueName = paths.ProjectName }
-	if paths.projectDir == "" { paths.projectDir = paths.ProjectDir }
-	if paths.queueFile == "" { paths.queueFile = paths.QueueFile }
-	if paths.metaFile == "" { paths.metaFile = paths.MetaFile }
-	if paths.stateLockFile == "" { paths.stateLockFile = paths.StateLockFile }
-	if paths.lockFile == "" { paths.lockFile = paths.LockFile }
-	if paths.runsDir == "" { paths.runsDir = paths.RunsDir }
+	}.normalize()
 	return paths, nil
 }
 

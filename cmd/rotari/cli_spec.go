@@ -14,6 +14,7 @@ type cliFlagSpec struct {
 	Description string
 	ValueName   string
 	Values      []string
+	Repeated    bool
 }
 
 type cliSubcommandSpec struct {

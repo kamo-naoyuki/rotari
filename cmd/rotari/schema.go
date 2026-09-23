@@ -47,7 +47,7 @@ func cmdSchema(args []string) int {
 				Name: flag.Name, Description: flag.Description, ValueName: flag.ValueName,
 				Values: flag.Values, Short: cliShortFlagNames[flag.Name],
 				Environment: cliEnvironmentVariables[flag.Name],
-				Repeated:    strings.Contains(flag.Description, "may be repeated"),
+				Repeated:    flag.Repeated || strings.Contains(flag.Description, "may be repeated"),
 			})
 		}
 		schema.Commands = append(schema.Commands, value)
