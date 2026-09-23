@@ -376,112 +376,18 @@ func executeMixedAttempt(runDir string, queue Queue, jobs []JobSpec, localConcur
 // runLocalLane runs jobs concurrently up to concurrency, used for the local
 // executor where jobs are cheap OS subprocesses rather than scheduler batches.
 func runLocalLane(workers *sync.WaitGroup, runDir string, executor JobExecutor, jobs []JobSpec, concurrency int, results chan<- JobResult, onStart func(JobSpec)) {
-	defer workers.Done()
-	sem := make(chan struct{}, concurrency)
-	var jobsWait sync.WaitGroup
-	for _, job := range jobs {
-		jobsWait.Add(1)
-		go func(job JobSpec) {
-			defer jobsWait.Done()
-			sem <- struct{}{}
-			handle, err := executor.Submit(runDir, job, nil)
-			if err != nil {
-				results <- JobResult{ID: job.ID, AttemptID: job.AttemptID, Command: job.Command, ExitCode: 1, Error: err.Error()}
-			} else {
-				if onStart != nil {
-					onStart(job)
-				}
-				result := executor.Wait(runDir, handle)
-				result.AttemptID = job.AttemptID
-				results <- result
-			}
-			<-sem
-		}(job)
-	}
-	jobsWait.Wait()
+	runcontract.RunLocalLane(workers, runDir, executor, jobs, concurrency, results, onStart)
 }
 
 // runBatchLane submits jobs to a scheduler-style executor (Slurm, PBS, ...) in
 // waves of at most maxActive concurrently-tracked jobs.
 func runBatchLane(workers *sync.WaitGroup, runDir string, queue Queue, executor JobExecutor, jobs []JobSpec, maxActive int, executorOptions []string, results chan<- JobResult, onStart func(JobSpec)) {
-	defer workers.Done()
-	for start := 0; start < len(jobs); {
-		if jobs[start].ArrayGroup != "" {
-			end := start + 1
-			for end < len(jobs) && jobs[end].ArrayGroup == jobs[start].ArrayGroup {
-				end++
-			}
-			if submitter, ok := executor.(ArraySubmitter); ok && completeArrayGroup(jobs[start:end], jobs[start].ArrayFirst, jobs[start].ArrayLast) {
-				options := jobs[start].ExecutorOptions
-				if len(options) == 0 {
-					options = executorOptions
-				}
-				if len(options) == 0 {
-					options = queue.DefaultExecutorOptions
-				}
-				handles, err := submitter.SubmitArray(runDir, jobs[start:end], options)
-				if err != nil {
-					for _, job := range jobs[start:end] {
-						results <- JobResult{ID: job.ID, AttemptID: job.AttemptID, ExitCode: 1, Error: err.Error()}
-					}
-				} else {
-					if onStart != nil {
-						for _, job := range jobs[start:end] {
-							onStart(job)
-						}
-					}
-					for _, handle := range handles {
-						result := executor.Wait(runDir, handle)
-						result.AttemptID = handle.Job.AttemptID
-						results <- result
-					}
-				}
-				start = end
-				continue
-			}
-		}
-		end := start + maxActive
-		if end > len(jobs) {
-			end = len(jobs)
-		}
-		handles := make([]JobHandle, 0, end-start)
-		for _, job := range jobs[start:end] {
-			jobDir, err := validatedJobDir(runDir, job.ID)
-			if err != nil {
-				results <- JobResult{ID: job.ID, AttemptID: job.AttemptID, ExitCode: 1, Error: err.Error()}
-				continue
-			}
-			if jobCancellationRequested(jobDir) {
-				results <- recordCancelledJob(jobDir, job)
-				continue
-			}
-			options := job.ExecutorOptions
-			if len(options) == 0 {
-				options = executorOptions
-			}
-			if len(options) == 0 {
-				options = queue.DefaultExecutorOptions
-			}
-			handle, err := executor.Submit(runDir, job, options)
-			if err != nil {
-				results <- JobResult{ID: job.ID, ExitCode: 1, Error: err.Error()}
-				continue
-			}
-			if onStart != nil {
-				onStart(job)
-			}
-			handles = append(handles, handle)
-		}
-		for _, handle := range handles {
-			result := executor.Wait(runDir, handle)
-			result.AttemptID = handle.Job.AttemptID
-			if result.ExitCode != 0 {
-				jobLogf("%s\n", colorKeyValueMessage(fmt.Sprintf("fail job=%s exit=%d command=%s", result.ID, result.ExitCode, strings.Join(result.Command, " ")), red))
-			}
-			results <- result
-		}
-		start = end
-	}
+	runcontract.RunBatchLane(workers, runDir, queue, executor, jobs, maxActive, executorOptions, results, runcontract.BatchLaneCallbacks{
+		ValidatedJobDir: validatedJobDir,
+		JobCancelled:    jobCancellationRequested,
+		RecordCancelled: recordCancelledJob,
+		Logf:            jobLogf,
+	}, onStart)
 }
 
 func completeArrayGroup(jobs []JobSpec, first, last int) bool {
