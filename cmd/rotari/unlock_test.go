@@ -19,10 +19,10 @@ func TestEnsureProjectIdleRejectsInterruptedRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "run-1")
@@ -31,7 +31,7 @@ func TestEnsureProjectIdleRejectsInterruptedRun(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), `project "demo" has interrupted run "run-1"; add is not allowed`) {
 		t.Fatalf("ensureProjectIdle error = %v, want interrupted run error", err)
 	}
-	if _, err := os.Stat(paths.lockFile); !os.IsNotExist(err) {
+	if _, err := os.Stat(paths.LockFile); !os.IsNotExist(err) {
 		t.Fatalf("stale local lock was not cleaned up: %v", err)
 	}
 }
@@ -46,13 +46,13 @@ func TestEnsureProjectIdleReportsStillRunningJobsForInterruptedRun(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{}); err != nil {
 		t.Fatal(err)
 	}
@@ -104,13 +104,13 @@ func TestEnsureProjectIdleReportsAllFinishedForInterruptedRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "cancelling", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "cancelling", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{}); err != nil {
 		t.Fatal(err)
 	}
@@ -209,10 +209,10 @@ func TestConfirmResetOfInterruptedRunIncludesJobStatusDetail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	jobDir := filepath.Join(paths.runsDir, "run-1", "job-1")
+	jobDir := filepath.Join(paths.RunsDir, "run-1", "job-1")
 	if err := os.MkdirAll(jobDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -245,20 +245,20 @@ func TestCmdResetNonInteractiveRejectionIncludesJobStatusDetail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "cancelling", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "cancelling", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{}); err != nil {
 		t.Fatal(err)
 	}
-	jobDir := filepath.Join(paths.runsDir, "run-1", "job-1")
+	jobDir := filepath.Join(paths.RunsDir, "run-1", "job-1")
 	if err := os.MkdirAll(jobDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +319,7 @@ func TestCmdUnlockRecoversInterruptedRunWithoutLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -341,7 +341,7 @@ func TestCmdUnlockRecoversInterruptedRunWithoutLock(t *testing.T) {
 	if code != 0 || !strings.Contains(string(output), "recovered queue project=demo run_id=run-1") {
 		t.Fatalf("cmdUnlock exit code = %d, stdout = %q", code, output)
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -356,20 +356,20 @@ func TestCmdUnlockRemovesMatchingRunLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{RunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{RunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 
 	if code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", "run-1"}); code != 0 {
 		t.Fatalf("cmdUnlock exit code = %d, want 0", code)
 	}
-	if _, err := os.Stat(paths.lockFile); !os.IsNotExist(err) {
+	if _, err := os.Stat(paths.LockFile); !os.IsNotExist(err) {
 		t.Fatalf("run lock still exists: %v", err)
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -384,17 +384,17 @@ func TestCmdUnlockRejectsDifferentRunLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{RunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{RunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 
 	if code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", "run-2"}); code == 0 {
 		t.Fatal("cmdUnlock accepted a different run ID")
 	}
-	lock, err := loadLockInfo(paths.lockFile)
+	lock, err := loadLockInfo(paths.LockFile)
 	if err != nil {
 		t.Fatal(err)
 	}

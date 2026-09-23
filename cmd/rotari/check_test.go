@@ -24,7 +24,7 @@ func TestCheckProjectReadyAndEmpty(t *testing.T) {
 		t.Fatalf("empty check = %#v", result)
 	}
 
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	result, err = checkProject(paths)
@@ -43,7 +43,7 @@ func TestCheckProjectValidatesQueueLikeRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "train", DependsOn: []string{"prepare"}, Command: []string{"true"}}}}
-	if err := writeJSON(paths.queueFile, queue); err != nil {
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
 
@@ -60,7 +60,7 @@ func TestCheckProjectValidatesExecutorOptionsLikeRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Executor: "ssh", Command: []string{"true"}}}}
-	if err := writeJSON(paths.queueFile, queue); err != nil {
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
 
@@ -77,7 +77,7 @@ func TestCheckProjectDeepValidatesLocalEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"./missing-command"}}}}
-	if err := writeJSON(paths.queueFile, queue); err != nil {
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := checkProject(paths); err != nil {
@@ -109,14 +109,14 @@ func TestCheckProjectReportsRunningAndRemoteLocks(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := writeJSON(paths.lockFile, test.lock); err != nil {
+			if err := writeJSON(paths.LockFile, test.lock); err != nil {
 				t.Fatal(err)
 			}
-			if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: test.lock.RunID}); err != nil {
+			if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: test.lock.RunID}); err != nil {
 				t.Fatal(err)
 			}
 			writeTestRunStateFiles(t, paths, test.lock.RunID)
-			if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+			if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 				t.Fatal(err)
 			}
 			result, err := checkProject(paths)
@@ -140,13 +140,13 @@ func TestCheckProjectDoesNotRemoveStaleLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "run-1")
@@ -158,7 +158,7 @@ func TestCheckProjectDoesNotRemoveStaleLock(t *testing.T) {
 	if result.State != "interrupted" || result.Runnable || result.Lock != "stale" || result.RunID != "run-1" || !result.QueuedKnown || result.Queued != 1 {
 		t.Fatalf("check = %#v", result)
 	}
-	if _, err := os.Stat(paths.lockFile); err != nil {
+	if _, err := os.Stat(paths.LockFile); err != nil {
 		t.Fatalf("check removed stale lock: %v", err)
 	}
 }
@@ -173,14 +173,14 @@ func TestCheckProjectKeepsRunningStateWhenQueueIsUnreadable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "run-1")
-	if err := os.WriteFile(paths.queueFile, []byte("not json\n"), 0o600); err != nil {
+	if err := os.WriteFile(paths.QueueFile, []byte("not json\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -203,10 +203,10 @@ func TestCheckProjectReportsReadyWithStaleLockOnIdleProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: -1, RunID: "old-run", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: "old-run", Host: host}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -217,7 +217,7 @@ func TestCheckProjectReportsReadyWithStaleLockOnIdleProject(t *testing.T) {
 	if result.State != "ready" || !result.Runnable || result.Lock != "stale" {
 		t.Fatalf("check = %#v", result)
 	}
-	if _, err := os.Stat(paths.lockFile); err != nil {
+	if _, err := os.Stat(paths.LockFile); err != nil {
 		t.Fatalf("check removed stale lock: %v", err)
 	}
 }
@@ -232,7 +232,7 @@ func TestCmdCheckExitCode(t *testing.T) {
 	if code := cmdCheck(args); code != 1 {
 		t.Fatalf("empty cmdCheck exit code = %d, want 1", code)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	if code := cmdCheck(args); code != 0 {
@@ -246,7 +246,7 @@ func TestCmdCheckJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -269,7 +269,7 @@ func TestCmdCheckDeepFlag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"./missing-command"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"./missing-command"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	if code := cmdCheck([]string{"--basedir", baseDir, "--project-name", "demo", "--deep"}); code != 1 {

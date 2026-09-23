@@ -27,7 +27,7 @@ func TestNotifyRunWebhookSendsSummaryAndMarksRun(t *testing.T) {
 
 	paths := testWebhookPaths(t)
 	runID := "run-1"
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestNotifyRunWebhookSendsSlackPayload(t *testing.T) {
 
 	paths := testWebhookPaths(t)
 	runID := "run-slack"
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestNotifyRunWebhookSendsSlackFailureDetails(t *testing.T) {
 
 	paths := testWebhookPaths(t)
 	runID := "run-slack-failed"
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +228,7 @@ func TestNotifyRunWebhookSendsTeamsPayload(t *testing.T) {
 
 	paths := testWebhookPaths(t)
 	runID := "run-teams"
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +259,7 @@ func TestNotifyRunWebhookSendsDiscordPayload(t *testing.T) {
 
 	paths := testWebhookPaths(t)
 	runID := "run-discord"
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +288,7 @@ func TestNotifyRunWebhookRejectsUnsupportedFormat(t *testing.T) {
 
 	paths := testWebhookPaths(t)
 	runID := "run-unknown-format"
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}

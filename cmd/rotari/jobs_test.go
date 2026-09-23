@@ -109,7 +109,7 @@ func writeTestJobsRun(t *testing.T, baseDir, project, runID, jobID string, start
 		t.Fatal(err)
 	}
 	attemptID := makeAttemptID(runID, jobID, 0)
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	queue := Queue{Commands: []QueuedCommand{{ID: jobID, Command: []string{"true"}}}}
 	if err := writeJSON(filepath.Join(runDir, stateFileCommandsJSON), queue); err != nil {
 		t.Fatal(err)

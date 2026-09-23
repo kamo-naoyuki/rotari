@@ -55,19 +55,19 @@ func planRerunSelection(paths pathSet, queue Queue, selection string, jobIDs []s
 	}
 	runID := referenceRunID
 	if runID == "" {
-		meta, err := loadMeta(paths.metaFile)
+		meta, err := loadMeta(paths.MetaFile)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
-				return rerunPlan{}, fmt.Errorf("project '%s' has no previous run: %w", paths.queueName, errNoPreviousRun)
+				return rerunPlan{}, fmt.Errorf("project '%s' has no previous run: %w", paths.ProjectName, errNoPreviousRun)
 			}
 			return rerunPlan{}, fmt.Errorf("failed to load metadata: %w", err)
 		}
 		if meta.LastRunID == "" {
-			return rerunPlan{}, fmt.Errorf("project '%s' has no previous run: %w", paths.queueName, errNoPreviousRun)
+			return rerunPlan{}, fmt.Errorf("project '%s' has no previous run: %w", paths.ProjectName, errNoPreviousRun)
 		}
 		runID = meta.LastRunID
 	}
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	summary, err := loadRunSummary(filepath.Join(runDir, "summary.json"))
 	if err != nil {
 		return rerunPlan{}, fmt.Errorf("failed to load run summary: %w", err)

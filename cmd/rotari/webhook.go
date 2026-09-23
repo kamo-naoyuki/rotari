@@ -206,7 +206,7 @@ func notifyRunWebhook(paths pathSet, runID string, exitCode int) {
 		printErrorf("WARNING: cannot load run summary for webhook: %v", err)
 		return
 	}
-	payload := makeRunWebhookPayload(paths.queueName, runID, summary)
+	payload := makeRunWebhookPayload(paths.ProjectName, runID, summary)
 	encoder, ok := webhookEncoders[normalizeWebhookFormat(config.Format)]
 	if !ok {
 		printErrorf("WARNING: unsupported webhook format %q", config.Format)
@@ -245,7 +245,7 @@ func notifyRunWebhook(paths pathSet, runID string, exitCode int) {
 
 func webhookSettings(paths pathSet) webhookConfig {
 	settings := map[string]any{}
-	for _, configPath := range configPathsForRun(paths.baseDir, paths.queueName) {
+	for _, configPath := range configPathsForRun(paths.BaseDir, paths.ProjectName) {
 		config, err := loadConfigFile(filepath.Dir(configPath))
 		if err != nil {
 			continue

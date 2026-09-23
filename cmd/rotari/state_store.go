@@ -43,7 +43,7 @@ func loadQueue(path string) (Queue, error) {
 }
 
 func loadRunQueue(paths pathSet, requestedExecutor string, executorOptions []string, settings executorRunSettingsMap) (Queue, error) {
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		return Queue{}, err
 	}

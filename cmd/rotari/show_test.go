@@ -51,23 +51,23 @@ func TestCmdShowDisplaysFinishedArrayTaskFromStatusJSON(t *testing.T) {
 	runID := "array-run"
 	task := 1
 	queue := Queue{Commands: []QueuedCommand{{ID: "array", Command: []string{"true"}, Executor: "slurm", Array: &ArraySpec{First: 1, Last: 1}}}}
-	if err := writeJSON(filepath.Join(paths.runsDir, runID, "commands.json"), queue); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), queue); err != nil {
 		t.Fatal(err)
 	}
-	jobDir := filepath.Join(paths.runsDir, runID, "array-1")
+	jobDir := filepath.Join(paths.RunsDir, runID, "array-1")
 	if err := writeJSON(filepath.Join(jobDir, "command.json"), JobSpec{ID: "array-1", Command: []string{"true"}, Executor: "slurm", ArrayTaskID: &task, ArrayFirst: 1, ArrayLast: 1}); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeJSON(filepath.Join(jobDir, "status.json"), slurmStatus{Phase: "running", ExitCode: 0, FinishedAt: "2026-09-18T00:00:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(paths.metaFile), Meta{Phase: "running", LastRunID: runID}); err != nil {
+	if err := writeJSON(filepath.Join(paths.MetaFile), Meta{Phase: "running", LastRunID: runID}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{RunID: runID, PID: os.Getpid()}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{RunID: runID, PID: os.Getpid()}); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Remove(paths.lockFile) })
+	t.Cleanup(func() { _ = os.Remove(paths.LockFile) })
 
 	oldStdout := os.Stdout
 	reader, writer, err := os.Pipe()
@@ -96,7 +96,7 @@ func TestCmdShowResolvesProjectFromRunID(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := makeRunID()
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +244,7 @@ func TestCmdShowResolvesRunNameAcrossProjects(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := "named-run"
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, RunName: "nightly", Status: "finished"}); err != nil {
 		t.Fatal(err)
 	}
@@ -276,10 +276,10 @@ func TestCmdShowJobSelectorsPreferCurrentQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "queued-job", Name: "queued", Command: []string{"echo", "queued"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "queued-job", Name: "queued", Command: []string{"echo", "queued"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(paths.runsDir, "latest-run", "commands.json"), Queue{Commands: []QueuedCommand{{ID: "queued-job", Name: "queued", Command: []string{"echo", "latest"}}}}); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, "latest-run", "commands.json"), Queue{Commands: []QueuedCommand{{ID: "queued-job", Name: "queued", Command: []string{"echo", "latest"}}}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -311,15 +311,15 @@ func TestSelectRunIDUsesValidMetaLastRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(paths.runsDir, "run-from-meta"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(paths.RunsDir, "run-from-meta"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(paths.runsDir, "newer-run"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(paths.RunsDir, "newer-run"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	meta := defaultMeta()
 	meta.LastRunID = "run-from-meta"
-	if err := writeJSON(paths.metaFile, meta); err != nil {
+	if err := writeJSON(paths.MetaFile, meta); err != nil {
 		t.Fatal(err)
 	}
 
@@ -337,8 +337,8 @@ func TestSelectRunIDFallsBackToNewestRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	olderPath := filepath.Join(paths.runsDir, "older-run")
-	newerPath := filepath.Join(paths.runsDir, "newer-run")
+	olderPath := filepath.Join(paths.RunsDir, "older-run")
+	newerPath := filepath.Join(paths.RunsDir, "newer-run")
 	if err := os.MkdirAll(olderPath, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -355,7 +355,7 @@ func TestSelectRunIDFallsBackToNewestRun(t *testing.T) {
 	}
 	meta := defaultMeta()
 	meta.LastRunID = "missing-run"
-	if err := writeJSON(paths.metaFile, meta); err != nil {
+	if err := writeJSON(paths.MetaFile, meta); err != nil {
 		t.Fatal(err)
 	}
 
@@ -373,7 +373,7 @@ func TestSelectRunIDDoesNotFallbackForMissingRequestedRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(paths.runsDir, "existing-run"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(paths.RunsDir, "existing-run"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -388,12 +388,12 @@ func TestSelectRunIDResolvesLatestAlias(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(paths.runsDir, "latest-run"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(paths.RunsDir, "latest-run"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	meta := defaultMeta()
 	meta.LastRunID = "latest-run"
-	if err := writeJSON(paths.metaFile, meta); err != nil {
+	if err := writeJSON(paths.MetaFile, meta); err != nil {
 		t.Fatal(err)
 	}
 
@@ -413,7 +413,7 @@ func TestCmdShowDisplaysCurrentQueue(t *testing.T) {
 		t.Fatal(err)
 	}
 	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "greeting", Command: []string{"printf", "hello"}, Origin: &JobOrigin{RunID: "run-1", JobID: "job-old", Status: "success"}}}}
-	if err := writeJSON(paths.queueFile, queue); err != nil {
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
 
@@ -435,7 +435,7 @@ func TestCmdShowDisplaysCurrentQueue(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cmdShow exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"Base directory: " + baseDir, "Project: demo", "Queue: " + paths.queueFile + " (1 jobs)", "Project state: idle", "Runner server: stopped", "Runs: 0", "Queue:\nJOB ID", "job-1", "greeting", "run-1/job-old", "success", "printf hello", "To execute these jobs:", "rotari run -b '" + baseDir + "' -p 'demo'"} {
+	for _, want := range []string{"Base directory: " + baseDir, "Project: demo", "Queue: " + paths.QueueFile + " (1 jobs)", "Project state: idle", "Runner server: stopped", "Runs: 0", "Queue:\nJOB ID", "job-1", "greeting", "run-1/job-old", "success", "printf hello", "To execute these jobs:", "rotari run -b '" + baseDir + "' -p 'demo'"} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("cmdShow output does not contain %q:\n%s", want, output)
 		}
@@ -512,7 +512,7 @@ func TestCmdShowDisplaysResolvedConfigPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "greeting", Command: []string{"printf", "hello"}}}}
-	if err := writeJSON(paths.queueFile, queue); err != nil {
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
 
@@ -550,18 +550,18 @@ func TestCmdShowDisplaysActiveRunBeforeQueue(t *testing.T) {
 		t.Fatal(err)
 	}
 	queue := Queue{Commands: []QueuedCommand{{ID: "queued-job", Command: []string{"echo", "queued"}}}}
-	if err := writeJSON(paths.queueFile, queue); err != nil {
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
 	runID := "active-run"
 	runQueue := Queue{Commands: []QueuedCommand{{ID: "active-job", Command: []string{"echo", "active"}}}}
-	if err := writeJSON(filepath.Join(paths.runsDir, runID, "commands.json"), runQueue); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), runQueue); err != nil {
 		t.Fatal(err)
 	}
-	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: runID}); err != nil {
+	if err := acquireLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: runID}); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(paths.lockFile)
+	defer os.Remove(paths.LockFile)
 
 	oldStdout := os.Stdout
 	reader, writer, err := os.Pipe()
@@ -618,21 +618,21 @@ func TestCmdShowDisplaysInterruptedRunBeforeQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "queued-job", Command: []string{"echo", "queued"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "queued-job", Command: []string{"echo", "queued"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	runID := "interrupted-run"
-	if err := writeJSON(filepath.Join(paths.runsDir, runID, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "run-job", Command: []string{"echo", "from-run"}}}}); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "run-job", Command: []string{"echo", "from-run"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	host, err := os.Hostname()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: -1, RunID: runID, Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: runID, Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: runID}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: runID}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -673,7 +673,7 @@ func TestCmdShowRejectsLogsForCurrentQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -733,7 +733,7 @@ func TestCmdShowFailedLogsFiltersSuccessfulJobs(t *testing.T) {
 		{id: "ok-job", name: "success", status: "0\n", output: "successful output\n", command: []string{"echo", "ok"}},
 		{id: "bad-job", name: "failure", status: "3\n", output: "failed output\n", command: []string{"false"}},
 	} {
-		jobDir := filepath.Join(paths.runsDir, runID, job.id)
+		jobDir := filepath.Join(paths.RunsDir, runID, job.id)
 		if err := writeJSON(filepath.Join(jobDir, "command.json"), JobSpec{ID: job.id, Name: job.name, Command: job.command}); err != nil {
 			t.Fatal(err)
 		}
@@ -784,7 +784,7 @@ func TestShowJobDisplaysPersistedDetails(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID, jobID := "run-1", "job-1"
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	jobDir := filepath.Join(runDir, jobID)
 	job := JobSpec{
 		ID: jobID, Name: "analysis", Command: []string{"python", "work.py"},
@@ -830,7 +830,7 @@ func TestShowJobSurfacesAccountingUnavailableFromSummary(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID, jobID := "run-1", "job-1"
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	jobDir := filepath.Join(runDir, jobID)
 	job := JobSpec{ID: jobID, Command: []string{"python", "work.py"}, Executor: "slurm"}
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{
@@ -864,7 +864,7 @@ func TestShowJobDisplaysDiagnoses(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID, jobID := "run-1", "job-1"
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	jobDir := filepath.Join(runDir, jobID)
 	job := JobSpec{ID: jobID, Command: []string{"false"}}
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: jobID, Command: job.Command}}}); err != nil {
@@ -896,7 +896,7 @@ func TestShowJobRejectsTraversalInRunAndJobIDs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	escapedDir := filepath.Join(filepath.Dir(paths.runsDir), "outside", "job-1")
+	escapedDir := filepath.Join(filepath.Dir(paths.RunsDir), "outside", "job-1")
 	if err := os.MkdirAll(escapedDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -922,18 +922,18 @@ func TestShowJobFollowsCarriedForwardOrigin(t *testing.T) {
 		t.Fatal(err)
 	}
 	jobID := "job-1"
-	currentRunDir := filepath.Join(paths.runsDir, "run-2")
+	currentRunDir := filepath.Join(paths.RunsDir, "run-2")
 	origin := &JobOrigin{RunID: "run-1", JobID: jobID, Status: "success"}
 	if err := writeJSON(filepath.Join(currentRunDir, "commands.json"), Queue{Commands: []QueuedCommand{{
 		ID: jobID, Name: "carried", Command: []string{"echo", "original"}, Origin: origin,
 	}}}); err != nil {
 		t.Fatal(err)
 	}
-	originJobDir := filepath.Join(paths.runsDir, origin.RunID, origin.JobID)
+	originJobDir := filepath.Join(paths.RunsDir, origin.RunID, origin.JobID)
 	if err := writeJSON(filepath.Join(originJobDir, "command.json"), JobSpec{ID: jobID, Name: "carried", Command: []string{"echo", "original"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(paths.runsDir, origin.RunID, "commands.json"), Queue{Commands: []QueuedCommand{{
+	if err := writeJSON(filepath.Join(paths.RunsDir, origin.RunID, "commands.json"), Queue{Commands: []QueuedCommand{{
 		ID: jobID, Name: "carried", Command: []string{"echo", "original"},
 	}}}); err != nil {
 		t.Fatal(err)
@@ -1126,8 +1126,8 @@ func TestShowRunsListsRunsSortedByRecency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	olderRun := filepath.Join(paths.runsDir, "run-old")
-	newerRun := filepath.Join(paths.runsDir, "run-new")
+	olderRun := filepath.Join(paths.RunsDir, "run-old")
+	newerRun := filepath.Join(paths.RunsDir, "run-new")
 	if err := writeJSON(filepath.Join(olderRun, "summary.json"), RunSummary{
 		RunID: "run-old", Status: "finished", ExitCode: 0, StartedAt: "2026-09-16T00:00:00Z", FinishedAt: "2026-09-16T00:00:01Z",
 	}); err != nil {
@@ -1269,7 +1269,7 @@ func TestCmdShowFallsBackToProjectsWithWarningWhenProjectIsAmbiguous(t *testing.
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+		if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1318,10 +1318,10 @@ func TestCmdShowListsProjectsAcrossKnownBaseDirs(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+		if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.MkdirAll(filepath.Join(paths.runsDir, fmt.Sprintf("run-%d", index)), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(paths.RunsDir, fmt.Sprintf("run-%d", index)), 0o755); err != nil {
 			t.Fatal(err)
 		}
 		if err := registerRun(paths, fmt.Sprintf("run-%d", index)); err != nil {

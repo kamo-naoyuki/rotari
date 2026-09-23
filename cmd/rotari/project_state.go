@@ -28,14 +28,14 @@ type projectStateInspection struct {
 }
 
 func inspectProjectState(paths pathSet, cleanupStale bool) (projectStateInspection, error) {
-	lockState, lock, err := inspectRunLock(paths.lockFile, cleanupStale)
+	lockState, lock, err := inspectRunLock(paths.LockFile, cleanupStale)
 	if err != nil {
 		return projectStateInspection{}, err
 	}
 	if lockState == projectLockActive || lockState == projectLockRemote {
 		return projectStateInspection{State: projectRunning, RunID: lock.RunID, Lock: lockState, LockRunID: lock.RunID}, nil
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		return projectStateInspection{}, err
 	}
@@ -54,7 +54,7 @@ func validateProjectStateConsistency(paths pathSet, inspection projectStateInspe
 	if inspection.Lock != projectLockNone && !isValidPathElement(inspection.LockRunID) {
 		return fmt.Errorf("invalid run ID %q in run lock", inspection.LockRunID)
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		return fmt.Errorf("load metadata: %w", err)
 	}
@@ -115,16 +115,16 @@ func ensureProjectIdleForPaths(paths pathSet, operation string) error {
 	state, runID := inspection.State, inspection.RunID
 	switch state {
 	case projectRunning:
-		return fmt.Errorf("project %q is running; %s is not allowed", paths.queueName, operation)
+		return fmt.Errorf("project %q is running; %s is not allowed", paths.ProjectName, operation)
 	case projectInterrupted:
 		detail, stillRunning := interruptedRunStatusDetail(paths, runID)
 		message := fmt.Sprintf("project %q has interrupted run %q%s; %s is not allowed\nInspect before deciding: rotari show --basedir %s --project-name %s --run-id %s\n",
-			paths.queueName, runID, detail, operation, shellQuote(paths.baseDir), shellQuote(paths.queueName), shellQuote(runID))
+			paths.ProjectName, runID, detail, operation, shellQuote(paths.BaseDir), shellQuote(paths.ProjectName), shellQuote(runID))
 		if stillRunning {
 			message += "Do not recover until you have independently confirmed those jobs have actually stopped.\n"
 		}
 		message += fmt.Sprintf("Recover with: rotari unlock --basedir %s --project-name %s --run-id %s",
-			shellQuote(paths.baseDir), shellQuote(paths.queueName), shellQuote(runID))
+			shellQuote(paths.BaseDir), shellQuote(paths.ProjectName), shellQuote(runID))
 		return errors.New(message)
 	default:
 		return nil
@@ -148,7 +148,7 @@ func inspectConsistentProjectState(paths pathSet, cleanupStale bool) (projectSta
 		return projectStateInspection{}, err
 	}
 	if cleanupStale && inspection.Lock == projectLockStale {
-		if err := os.Remove(paths.lockFile); err != nil && !errors.Is(err, os.ErrNotExist) { // NOSONAR: lockFile is rooted in the resolved project directory.
+		if err := os.Remove(paths.LockFile); err != nil && !errors.Is(err, os.ErrNotExist) { // NOSONAR: lockFile is rooted in the resolved project directory.
 			return projectStateInspection{}, err
 		}
 	}
@@ -199,7 +199,7 @@ func scanInterruptedRunJobStatus(runDir string) (interruptedRunJobStatus, error)
 // yet. stillRunning reports whether any job appears non-terminal, so callers
 // can add a stronger warning before offering to recover.
 func interruptedRunStatusDetail(paths pathSet, runID string) (detail string, stillRunning bool) {
-	status, err := scanInterruptedRunJobStatus(filepath.Join(paths.runsDir, runID))
+	status, err := scanInterruptedRunJobStatus(filepath.Join(paths.RunsDir, runID))
 	if err != nil || status.Total == 0 {
 		return "", false
 	}
@@ -209,7 +209,7 @@ func interruptedRunStatusDetail(paths pathSet, runID string) (detail string, sti
 	} else {
 		jobsClause = fmt.Sprintf("all %d job(s) report having finished", status.Total)
 	}
-	meta, metaErr := loadMeta(paths.metaFile)
+	meta, metaErr := loadMeta(paths.MetaFile)
 	if metaErr != nil || meta.UpdatedAt == "" {
 		return ": " + jobsClause, status.StillRunning > 0
 	}

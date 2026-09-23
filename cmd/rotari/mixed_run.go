@@ -18,14 +18,14 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 		printErrorf("invalid run ID %q", runID)
 		return 1
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		printErrorf("failed to load queue: %v", err)
 		return 1
 	}
 	jobs := queueToJobs(queue.Commands)
 	if len(jobs) == 0 {
-		printErrorf("queue '%s' has no valid commands", paths.queueName)
+		printErrorf("queue '%s' has no valid commands", paths.ProjectName)
 		return 1
 	}
 	for _, job := range jobs {
@@ -77,7 +77,7 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 		}
 	}
 
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := os.MkdirAll(runDir, stateDirMode()); err != nil {
 		return 1
 	}
@@ -214,7 +214,7 @@ func expandArrayPlan(commands []QueuedCommand, jobs []JobSpec, execute map[strin
 }
 
 func prepareJobEnvironments(paths pathSet, runID string, jobs []JobSpec, runName string, localConcurrency, batchConcurrency, retry int, executorOptions []string) {
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	cwd := ""
 	if data, err := os.ReadFile(filepath.Join(runDir, "context.json")); err == nil {
 		var context RunContext
@@ -236,7 +236,7 @@ func prepareJobEnvironments(paths pathSet, runID string, jobs []JobSpec, runName
 			JobName: envJobName, ArrayTaskID: envArrayTaskID, ArrayFirst: envArrayFirst, ArrayLast: envArrayLast,
 			ArraySize: envArraySize, RunName: envRunName, LocalConcurrency: envRunLocalConc,
 			BatchConcurrency: envRunBatchConc, Retry: envRunRetry, ExecutorOptions: envExecutorOpts,
-		}, BaseDir: paths.baseDir, ProjectName: paths.queueName, RunID: runID, RunDir: runDir,
+		}, BaseDir: paths.BaseDir, ProjectName: paths.ProjectName, RunID: runID, RunDir: runDir,
 		RunName: runName, Bin: bin, CWD: cwd, LocalConcurrency: localConcurrency,
 		BatchConcurrency: batchConcurrency, Retry: retry, ExecutorOptions: executorOptions,
 		Inherited: inherited, JobDir: func(runDir string, job JobSpec) (string, error) {

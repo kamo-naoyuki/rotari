@@ -381,7 +381,7 @@ func cmdRun(args []string) int {
 			printError(pathErr)
 			return 1
 		}
-		meta, metaErr := loadMeta(paths.metaFile)
+		meta, metaErr := loadMeta(paths.MetaFile)
 		if metaErr != nil {
 			printErrorf("failed to load metadata: %v", metaErr)
 			return 1
@@ -391,7 +391,7 @@ func cmdRun(args []string) int {
 			return 1
 		}
 		sourceRunID = meta.LastRunID
-		queue, queueErr := loadQueue(paths.queueFile)
+		queue, queueErr := loadQueue(paths.QueueFile)
 		if queueErr != nil {
 			printErrorf("failed to load queue: %v", queueErr)
 			return 1
@@ -948,7 +948,7 @@ func resolveQueueExecutor(baseDir, queueName, requested string) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		return "", err
 	}
@@ -986,7 +986,7 @@ func controlQueueJobs(baseDir, queueName string, jobIDs []string, operation stri
 	if err != nil {
 		return "", err
 	}
-	data, err := os.ReadFile(paths.lockFile) // NOSONAR: paths comes from resolvePaths, which validates the project path element.
+	data, err := os.ReadFile(paths.LockFile) // NOSONAR: paths comes from resolvePaths, which validates the project path element.
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", fmt.Errorf("project %q is not running", queueName)
@@ -1151,7 +1151,7 @@ func cancelQueueJobs(baseDir, queueName string, jobIDs []string, wait bool) (str
 	if err != nil {
 		return "", err
 	}
-	data, err := os.ReadFile(paths.lockFile) // NOSONAR: paths comes from resolvePaths, which validates the project name.
+	data, err := os.ReadFile(paths.LockFile) // NOSONAR: paths comes from resolvePaths, which validates the project name.
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", fmt.Errorf("project %q is not running", queueName)
@@ -1272,18 +1272,18 @@ func cancelJobs(runDir, queueName, runID string, jobIDs []string) (string, error
 }
 
 func markQueueCancelling(paths pathSet) error {
-	release, err := acquireStateLock(paths.stateLockFile)
+	release, err := acquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return fmt.Errorf("failed to lock queue: %w", err)
 	}
 	defer release()
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		return fmt.Errorf("failed to load metadata: %w", err)
 	}
 	meta.Phase = "cancelling"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.metaFile, meta); err != nil {
+	if err := writeJSON(paths.MetaFile, meta); err != nil {
 		return fmt.Errorf("failed to mark queue as cancelling: %w", err)
 	}
 	return nil
@@ -1293,7 +1293,7 @@ func finishCancelMessage(message string, paths pathSet, queueName, runID string,
 	if wait {
 		deadline := time.Now().Add(5 * time.Minute)
 		for {
-			running, err := isRunning(paths.lockFile)
+			running, err := isRunning(paths.LockFile)
 			if err != nil {
 				return "", err
 			}
@@ -1326,10 +1326,10 @@ func enqueueCommandWithWorkingDirectory(baseDir, queueName string, command []str
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(paths.projectDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
 		return "", err
 	}
-	release, err := acquireStateLock(paths.stateLockFile)
+	release, err := acquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return "", err
 	}
@@ -1337,11 +1337,11 @@ func enqueueCommandWithWorkingDirectory(baseDir, queueName string, command []str
 	if err := ensureProjectIdleForPaths(paths, "add"); err != nil {
 		return "", err
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		return "", err
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		return "", err
 	}
@@ -1367,12 +1367,12 @@ func enqueueCommandWithWorkingDirectory(baseDir, queueName string, command []str
 		}
 	}
 	queue.Commands = append(queue.Commands, job)
-	if err := writeJSON(paths.queueFile, queue); err != nil {
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		return "", err
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.metaFile, meta); err != nil {
+	if err := writeJSON(paths.MetaFile, meta); err != nil {
 		return "", err
 	}
 	message := fmt.Sprintf("submitted project=%s job_id=%s", queueName, job.ID)
@@ -1394,10 +1394,10 @@ func startServerRun(baseDir, queueName, runName string, localConcurrency, batchM
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(paths.projectDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
 		return "", err
 	}
-	release, err := acquireStateLock(paths.stateLockFile)
+	release, err := acquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return "", err
 	}
@@ -1427,7 +1427,7 @@ func startServerRun(baseDir, queueName, runName string, localConcurrency, batchM
 		return "", err
 	}
 	return fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run: %s\n  Directory: %s\n\nCheck status:\n  rotari show --run-id %s\n\nCancel run:\n  rotari cancel --basedir %s --project-name %s",
-		queueName, formatRunLabel(runID, runName), runDir, runID, paths.baseDir, queueName), nil
+		queueName, formatRunLabel(runID, runName), runDir, runID, paths.BaseDir, queueName), nil
 }
 
 func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMaxActive, retry int, executor string, executorOptions []string, selection string, jobIDs []string, sourceRunID string, partialArray bool, progress func(serverResponse), cwd string, executorSettings executorRunSettingsMap) (string, int, error) {
@@ -1442,10 +1442,10 @@ func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMa
 	if err != nil {
 		return "", 1, err
 	}
-	if err := os.MkdirAll(paths.projectDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
 		return "", 1, err
 	}
-	release, err := acquireStateLock(paths.stateLockFile)
+	release, err := acquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return "", 1, err
 	}
@@ -1467,35 +1467,35 @@ func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMa
 		release()
 		return "", 1, err
 	}
-	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: runID, RunName: runName, StartedAt: nowRFC3339()}); err != nil {
+	if err := acquireLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: runID, RunName: runName, StartedAt: nowRFC3339()}); err != nil {
 		release()
 		return "", 1, fmt.Errorf("project %q is already running", queueName)
 	}
 	if err := registerRun(paths, runID); err != nil {
-		_ = os.Remove(paths.lockFile)
+		_ = os.Remove(paths.LockFile)
 		if runDir, pathErr := validatedRunDir(paths, runID); pathErr == nil {
 			_ = os.RemoveAll(runDir)
 		}
 		release()
 		return "", 1, fmt.Errorf("failed to register run: %w", err)
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
-		_ = os.Remove(paths.lockFile)
+		_ = os.Remove(paths.LockFile)
 		release()
 		return "", 1, err
 	}
 	meta.Phase = "running"
 	meta.LastRunID = runID
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.metaFile, meta); err != nil {
-		_ = os.Remove(paths.lockFile)
+	if err := writeJSON(paths.MetaFile, meta); err != nil {
+		_ = os.Remove(paths.LockFile)
 		release()
 		return "", 1, err
 	}
 	plan, err := planRerunSelection(paths, queue, selection, jobIDs, sourceRunID, partialArray)
 	if err != nil {
-		_ = os.Remove(paths.lockFile)
+		_ = os.Remove(paths.LockFile)
 		release()
 		return "", 1, err
 	}
@@ -1541,14 +1541,14 @@ func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMa
 	}, executorSettings)
 	stopLoadSampling()
 	if err := finishRunContext(paths, runID); err != nil {
-		_ = os.Remove(paths.lockFile)
+		_ = os.Remove(paths.LockFile)
 		return "", 1, err
 	}
 	if err := finishRun(paths, runID, exitCode); err != nil {
-		_ = os.Remove(paths.lockFile)
+		_ = os.Remove(paths.LockFile)
 		return "", 1, err
 	}
-	if err := os.Remove(paths.lockFile); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := os.Remove(paths.LockFile); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", 1, err
 	}
 	runDir, err := validatedRunDir(paths, runID)

@@ -621,7 +621,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		data, err := os.ReadFile(paths.lockFile) // NOSONAR: paths comes from resolvePaths after validWebID validation.
+		data, err := os.ReadFile(paths.LockFile) // NOSONAR: paths comes from resolvePaths after validWebID validation.
 		if err != nil {
 			writeWebError(writer, fmt.Errorf("project %q is not running", cancel.QueueName))
 			return
@@ -789,7 +789,7 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 				reports[staticReportKey(queue.QueueName, run.RunID, "")] = report
 			}
 			for _, job := range run.Jobs {
-				path, pathErr := webLogPath(paths.runsDir, run.RunID, job.ID, "")
+				path, pathErr := webLogPath(paths.RunsDir, run.RunID, job.ID, "")
 				if pathErr != nil {
 					continue
 				}
@@ -798,7 +798,7 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 					logs[staticLogKey(queue.QueueName, run.RunID, job.ID)] = string(data)
 				}
 				if job.AttemptID != "" {
-					attemptPath, attemptErr := webLogPath(paths.runsDir, run.RunID, job.ID, job.AttemptID)
+					attemptPath, attemptErr := webLogPath(paths.RunsDir, run.RunID, job.ID, job.AttemptID)
 					if attemptErr == nil {
 						if attemptData, attemptReadErr := os.ReadFile(attemptPath); attemptReadErr == nil {
 							logs[staticLogKey(queue.QueueName, run.RunID, job.ID, job.AttemptID)] = string(attemptData)
@@ -806,7 +806,7 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 					}
 				}
 				for _, attempt := range job.Attempts {
-					attemptPath, attemptErr := webLogPath(paths.runsDir, run.RunID, job.ID, attempt.ID)
+					attemptPath, attemptErr := webLogPath(paths.RunsDir, run.RunID, job.ID, attempt.ID)
 					if attemptErr != nil {
 						continue
 					}
@@ -934,7 +934,7 @@ func staticLogKey(queueName, runID, jobID string, attemptIDs ...string) string {
 
 func webLogPath(runsDir, runID, jobID, attemptID string) (string, error) {
 	if attemptID != "" {
-		runDir, err := validatedRunDir(pathSet{runsDir: runsDir}, runID)
+		runDir, err := validatedRunDir(pathSet{RunsDir: runsDir}, runID)
 		if err != nil {
 			return "", err
 		}
@@ -960,7 +960,7 @@ func webLogPath(runsDir, runID, jobID, attemptID string) (string, error) {
 }
 
 func resolveWebLogJob(runsDir, runID, jobID string) (string, string, error) {
-	runDir, err := validatedRunDir(pathSet{runsDir: runsDir}, runID)
+	runDir, err := validatedRunDir(pathSet{RunsDir: runsDir}, runID)
 	if err != nil {
 		return "", "", err
 	}
@@ -979,7 +979,7 @@ func resolveWebLogJob(runsDir, runID, jobID string) (string, string, error) {
 	if origin == nil {
 		return runDir, jobID, nil
 	}
-	originRunDir, err := validatedRunDir(pathSet{runsDir: runsDir}, origin.RunID)
+	originRunDir, err := validatedRunDir(pathSet{RunsDir: runsDir}, origin.RunID)
 	if err != nil {
 		return "", "", err
 	}
@@ -1006,11 +1006,11 @@ func writeStaticStylesheet(directory string) error {
 
 func loadWebQueueState(paths pathSet) (webQueueState, error) {
 	state, err := webprojection.LoadQueueState(webprojection.QueueLoader{
-		ProjectName: paths.queueName,
-		Queue:       func() (model.Queue, error) { return loadQueue(paths.queueFile) },
-		Lock:        func() (model.LockInfo, error) { return loadLockInfo(paths.lockFile) },
+		ProjectName: paths.ProjectName,
+		Queue:       func() (model.Queue, error) { return loadQueue(paths.QueueFile) },
+		Lock:        func() (model.LockInfo, error) { return loadLockInfo(paths.LockFile) },
 		Runs: func() ([]string, error) {
-			entries, err := os.ReadDir(paths.runsDir)
+			entries, err := os.ReadDir(paths.RunsDir)
 			if os.IsNotExist(err) {
 				return nil, nil
 			}
@@ -1026,13 +1026,13 @@ func loadWebQueueState(paths pathSet) (webQueueState, error) {
 			return ids, nil
 		},
 		Summary: func(runID string) (model.RunSummary, error) {
-			return loadRunSummary(filepath.Join(paths.runsDir, runID, "summary.json"))
+			return loadRunSummary(filepath.Join(paths.RunsDir, runID, "summary.json"))
 		},
 		Jobs: func(runID string, summary model.RunSummary) ([]webprojection.Job, error) {
-			return loadWebJobs(filepath.Join(paths.runsDir, runID), summary)
+			return loadWebJobs(filepath.Join(paths.RunsDir, runID), summary)
 		},
 		Context: func(runID string) (model.RunContext, error) {
-			return stateinternal.LoadContext(jsonStore(), filepath.Join(paths.runsDir, runID))
+			return stateinternal.LoadContext(jsonStore(), filepath.Join(paths.RunsDir, runID))
 		},
 		Samples: func(runID string) []model.LoadSample { return readLoadSamples(loadSamplesPath(paths, runID)) },
 	})
@@ -1204,7 +1204,7 @@ func webJobTimestamps(runDir, jobID string, origin *JobOrigin) (string, string) 
 		}
 	}
 	return webprojection.ResolveOriginTimestamps(submittedAt, finishedAt, origin, func(runID, sourceJobID string) (string, string) {
-		sourceRunDir, err := validatedRunDir(pathSet{runsDir: filepath.Dir(runDir)}, runID)
+		sourceRunDir, err := validatedRunDir(pathSet{RunsDir: filepath.Dir(runDir)}, runID)
 		if err != nil {
 			return "", ""
 		}

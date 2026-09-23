@@ -24,6 +24,10 @@ import (
 const jobIDLen = 9
 const runIDLen = len("20060102-150405-00000000")
 const defaultProjectName = "default"
+const commandJSONName = "command.json"
+const authBearerPrefix = "Bearer "
+const headerContentType = "Content-Type"
+const mimeApplicationJSON = "application/json"
 
 type Queue = model.Queue
 type QueuedCommand = model.QueuedCommand
@@ -203,7 +207,7 @@ func printUsage() {
 }
 
 func recoverInterruptedProject(paths pathSet, runID string, discardQueue bool) error {
-	release, err := acquireStateLock(paths.stateLockFile)
+	release, err := acquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return fmt.Errorf("failed to lock queue: %w", err)
 	}
@@ -213,31 +217,47 @@ func recoverInterruptedProject(paths pathSet, runID string, discardQueue bool) e
 		return err
 	}
 	if state != projectInterrupted || currentRunID != runID {
-		return fmt.Errorf("project %q no longer has interrupted run %q", paths.queueName, runID)
+		return fmt.Errorf("project %q no longer has interrupted run %q", paths.ProjectName, runID)
 	}
 	if discardQueue {
-		queue, err := loadQueue(paths.queueFile)
+		queue, err := loadQueue(paths.QueueFile)
 		if err != nil {
 			return err
 		}
 		queue.Commands = nil
-		if err := writeJSON(paths.queueFile, queue); err != nil {
+		if err := writeJSON(paths.QueueFile, queue); err != nil {
 			return err
 		}
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		return err
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	return writeJSON(paths.metaFile, meta)
+	return writeJSON(paths.MetaFile, meta)
+}
+
+func (p pathSet) baseDirValue() string {
+	if p.BaseDir != "" {
+		return p.BaseDir
+	}
+	return p.baseDir
+}
+
+func (p pathSet) projectNameValue() string {
+	if p.ProjectName != "" {
+		return p.ProjectName
+	}
+	return p.queueName
 }
 
 func formatProjectRunningError(paths pathSet, runID string) string {
+	baseDir := paths.baseDirValue()
+	projectName := paths.projectNameValue()
 	return fmt.Sprintf("%s\n  Run: %s\n\nWait for completion:\n  rotari wait --basedir %s --project-name %s --run-id %s\n\nCancel run:\n  rotari cancel --basedir %s --project-name %s\n",
-		redError(fmt.Sprintf("project '%s' is running; new jobs are not allowed", paths.queueName)),
-		runID, paths.baseDir, paths.queueName, runID, paths.baseDir, paths.queueName)
+		redError(fmt.Sprintf("project '%s' is running; new jobs are not allowed", projectName)),
+		runID, baseDir, projectName, runID, baseDir, projectName)
 }
 
 const cancellationWaitTimeout = 5 * time.Minute
@@ -254,7 +274,7 @@ func waitForCancellation(paths pathSet, projectName string) bool {
 			fmt.Println(green("Cancellation complete"))
 			return true
 		}
-		running, err := isRunning(paths.lockFile)
+		running, err := isRunning(paths.LockFile)
 		if err != nil {
 			printErrorf("failed to check queue: %v", err)
 			return false
@@ -272,7 +292,7 @@ func waitForCancellation(paths pathSet, projectName string) bool {
 }
 
 func finalizeCompletedCancellation(paths pathSet) (bool, error) {
-	lock, err := loadLockInfo(paths.lockFile)
+	lock, err := loadLockInfo(paths.LockFile)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
@@ -290,7 +310,7 @@ func finalizeCompletedCancellation(paths pathSet) (bool, error) {
 	if err := finishRun(paths, lock.RunID, summary.ExitCode); err != nil {
 		return false, err
 	}
-	if err := os.Remove(paths.lockFile); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := os.Remove(paths.LockFile); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return false, err
 	}
 	return true, nil
@@ -338,11 +358,11 @@ func cmdWorkerRun(args []string) int {
 	exitCode, workerErr := runcontract.RunWorker(runcontract.WorkerCallbacks{
 		WriteContext: func() error { return writeRunContext(paths, runID, cwd) },
 		MarkRunning: func() error {
-			meta, _ := loadMeta(paths.metaFile)
+			meta, _ := loadMeta(paths.MetaFile)
 			meta.Phase = "running"
 			meta.LastRunID = runID
 			meta.UpdatedAt = nowRFC3339()
-			return writeJSON(paths.metaFile, meta)
+			return writeJSON(paths.MetaFile, meta)
 		},
 		StartSampling: func() func() { return startRunLoadSampling(paths, runID) },
 		Execute: func() int {
@@ -351,7 +371,7 @@ func cmdWorkerRun(args []string) int {
 		FinishContext: func() error { return finishRunContext(paths, runID) },
 		Finalize:      func(exitCode int) error { return finishRun(paths, runID, exitCode) },
 		RemoveLock: func() error {
-			err := os.Remove(paths.lockFile)
+			err := os.Remove(paths.LockFile)
 			if errors.Is(err, os.ErrNotExist) {
 				return nil
 			}
@@ -366,13 +386,13 @@ func cmdWorkerRun(args []string) int {
 }
 
 func finishRun(paths pathSet, runID string, exitCode int) error {
-	release, err := acquireStateLock(paths.stateLockFile)
+	release, err := acquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return fmt.Errorf("failed to lock queue: %w", err)
 	}
 	defer release()
 
-	lock, err := loadLockInfo(paths.lockFile)
+	lock, err := loadLockInfo(paths.LockFile)
 	if err != nil {
 		return fmt.Errorf("failed to verify run lock: %w", err)
 	}
@@ -380,11 +400,11 @@ func finishRun(paths pathSet, runID string, exitCode int) error {
 		return fmt.Errorf("run lock belongs to %q, not %q", lock.RunID, runID)
 	}
 
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		return fmt.Errorf("failed to load queue: %w", err)
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		return fmt.Errorf("failed to load metadata: %w", err)
 	}
@@ -392,10 +412,10 @@ func finishRun(paths pathSet, runID string, exitCode int) error {
 	if err != nil {
 		return err
 	}
-	if err := writeJSON(paths.queueFile, queue); err != nil {
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		return fmt.Errorf("failed to clear queue: %w", err)
 	}
-	if err := writeJSON(paths.metaFile, meta); err != nil {
+	if err := writeJSON(paths.MetaFile, meta); err != nil {
 		return fmt.Errorf("failed to finalize metadata: %w", err)
 	}
 	notifyRunWebhook(paths, runID, exitCode)
@@ -403,27 +423,27 @@ func finishRun(paths pathSet, runID string, exitCode int) error {
 }
 
 func launchAsyncRun(paths pathSet, options runOptions) int {
-	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339()}); err != nil {
+	if err := acquireLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339()}); err != nil {
 		printErrorf("project '%s' is running; run is not allowed: %v", options.QueueName, err)
 		return 1
 	}
 
-	meta, _ := loadMeta(paths.metaFile)
+	meta, _ := loadMeta(paths.MetaFile)
 	meta.Phase = "running"
 	meta.LastRunID = options.RunID
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.metaFile, meta); err != nil {
-		_ = os.Remove(paths.lockFile)
+	if err := writeJSON(paths.MetaFile, meta); err != nil {
+		_ = os.Remove(paths.LockFile)
 		printErrorf("failed to update metadata: %v", err)
 		return 1
 	}
 	if err := writeRunContext(paths, options.RunID, options.CWD); err != nil {
-		_ = os.Remove(paths.lockFile)
+		_ = os.Remove(paths.LockFile)
 		printErrorf("failed to save run context: %v", err)
 		return 1
 	}
 	if err := registerRun(paths, options.RunID); err != nil {
-		_ = os.Remove(paths.lockFile)
+		_ = os.Remove(paths.LockFile)
 		if runDir, pathErr := validatedRunDir(paths, options.RunID); pathErr == nil {
 			_ = os.RemoveAll(runDir)
 		}
@@ -433,14 +453,14 @@ func launchAsyncRun(paths pathSet, options runOptions) int {
 
 	exe, err := os.Executable()
 	if err != nil {
-		_ = os.Remove(paths.lockFile)
+		_ = os.Remove(paths.LockFile)
 		printErrorf("failed to detect executable path: %v", err)
 		return 1
 	}
 
 	childOptions := options
-	childOptions.BaseDir = paths.baseDir
-	childArgs := runcontract.WorkerArgs(childOptions, paths.baseDirExplicit, executorRunSettingNames)
+	childOptions.BaseDir = paths.BaseDir
+	childArgs := runcontract.WorkerArgs(childOptions, paths.BaseDirExplicit, executorRunSettingNames)
 
 	cmd := exec.Command(exe, childArgs...)
 	cmd.Stdout = os.Stdout
@@ -448,7 +468,7 @@ func launchAsyncRun(paths pathSet, options runOptions) int {
 	cmd.Stdin = nil
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
-		_ = os.Remove(paths.lockFile)
+		_ = os.Remove(paths.LockFile)
 		printErrorf("failed to launch async runner: %v", err)
 		return 1
 	}
@@ -456,13 +476,13 @@ func launchAsyncRun(paths pathSet, options runOptions) int {
 	host, err := os.Hostname()
 	if err != nil {
 		_ = cmd.Process.Kill()
-		_ = os.Remove(paths.lockFile)
+		_ = os.Remove(paths.LockFile)
 		printErrorf("failed to determine lock host: %v", err)
 		return 1
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: cmd.Process.Pid, RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339(), Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: cmd.Process.Pid, RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339(), Host: host}); err != nil {
 		_ = cmd.Process.Kill()
-		_ = os.Remove(paths.lockFile)
+		_ = os.Remove(paths.LockFile)
 		printErrorf("failed to update lock with child pid: %v", err)
 		return 1
 	}
@@ -534,6 +554,16 @@ func queueToJobs(commands []QueuedCommand) []JobSpec {
 }
 
 type pathSet struct {
+	BaseDir         string
+	BaseDirExplicit bool
+	ProjectName     string
+	ProjectDir      string
+	QueueFile       string
+	MetaFile        string
+	StateLockFile   string
+	LockFile        string
+	RunsDir         string
+
 	baseDir         string
 	baseDirExplicit bool
 	queueName       string
@@ -546,27 +576,19 @@ type pathSet struct {
 }
 
 const (
-	cliProjectNameFlag      = "project-name"
-	cliRunIDFlag            = "run-id"
-	cliJobIDFlag            = "job-id"
-	headerContentType       = "Content-Type"
-	mimeApplicationJSON     = "application/json"
-	authBearerPrefix        = "Bearer "
-	redactedPathPlaceholder = "[REDACTED_PATH]"
-	commandJSONName         = "command.json"
-	stateFileCommandsJSON   = "commands.json"
-	stateFileSummaryJSON    = "summary.json"
-	stateFileContextJSON    = "context.json"
-	stateFileOutput         = "output"
-	stateFileSchedulerJSON  = "scheduler_status.json"
-	stateFileStatusJSON     = "status.json"
-	stateFileStatus         = "status"
-	stateFileSubmittedAt    = "submitted_at"
-	stateFileFinishedAt     = "finished_at"
-	stateFileJobJSON        = "job.json"
-	stateFilePID            = "pid"
-	stateFileCancelled      = "cancelled"
-	stateFileName           = "name"
+	stateFileCommandsJSON = "commands.json"
+	stateFileSummaryJSON  = "summary.json"
+	stateFileContextJSON  = "context.json"
+	stateFileOutput       = "output"
+	stateFileSchedulerJSON = "scheduler_status.json"
+	stateFileStatusJSON   = "status.json"
+	stateFileStatus       = "status"
+	stateFileSubmittedAt  = "submitted_at"
+	stateFileFinishedAt   = "finished_at"
+	stateFileJobJSON      = "job.json"
+	stateFilePID          = "pid"
+	stateFileCancelled    = "cancelled"
+	stateFileName         = "name"
 )
 
 func resolvePaths(cliBaseDir, projectName string) (pathSet, error) {
@@ -574,24 +596,45 @@ func resolvePaths(cliBaseDir, projectName string) (pathSet, error) {
 	if err != nil {
 		return pathSet{}, err
 	}
-	return pathSet{
-		baseDir: resolved.BaseDir, baseDirExplicit: resolved.BaseDirExplicit,
-		queueName: resolved.ProjectName, projectDir: resolved.ProjectDir,
-		queueFile: resolved.QueueFile, metaFile: resolved.MetaFile,
-		stateLockFile: resolved.StateLockFile, lockFile: resolved.LockFile,
-		runsDir: resolved.RunsDir,
-	}, nil
+	paths := pathSet{
+		BaseDir:         resolved.BaseDir,
+		BaseDirExplicit: resolved.BaseDirExplicit,
+		ProjectName:     resolved.ProjectName,
+		ProjectDir:      resolved.ProjectDir,
+		QueueFile:       resolved.QueueFile,
+		MetaFile:        resolved.MetaFile,
+		StateLockFile:   resolved.StateLockFile,
+		LockFile:        resolved.LockFile,
+		RunsDir:         resolved.RunsDir,
+		baseDir:         resolved.BaseDir,
+		baseDirExplicit: resolved.BaseDirExplicit,
+		queueName:       resolved.ProjectName,
+		projectDir:      resolved.ProjectDir,
+		queueFile:       resolved.QueueFile,
+		metaFile:        resolved.MetaFile,
+		stateLockFile:   resolved.StateLockFile,
+		lockFile:        resolved.LockFile,
+		runsDir:         resolved.RunsDir,
+	}
+	if paths.BaseDir == "" { paths.BaseDir = paths.baseDir }
+	if paths.ProjectName == "" { paths.ProjectName = paths.queueName }
+	if paths.ProjectDir == "" { paths.ProjectDir = paths.projectDir }
+	if paths.QueueFile == "" { paths.QueueFile = paths.queueFile }
+	if paths.MetaFile == "" { paths.MetaFile = paths.metaFile }
+	if paths.StateLockFile == "" { paths.StateLockFile = paths.stateLockFile }
+	if paths.LockFile == "" { paths.LockFile = paths.lockFile }
+	if paths.RunsDir == "" { paths.RunsDir = paths.runsDir }
+	if paths.baseDir == "" { paths.baseDir = paths.BaseDir }
+	if paths.queueName == "" { paths.queueName = paths.ProjectName }
+	if paths.projectDir == "" { paths.projectDir = paths.ProjectDir }
+	if paths.queueFile == "" { paths.queueFile = paths.QueueFile }
+	if paths.metaFile == "" { paths.metaFile = paths.MetaFile }
+	if paths.stateLockFile == "" { paths.stateLockFile = paths.StateLockFile }
+	if paths.lockFile == "" { paths.lockFile = paths.LockFile }
+	if paths.runsDir == "" { paths.runsDir = paths.RunsDir }
+	return paths, nil
 }
 
-func resolveBaseDir(cliBaseDir string) (string, bool, error) {
-	return state.ResolveBaseDir(cliBaseDir)
-}
-
-// privateStateEnabled controls whether the state directory tree (queues,
-// runs, job output, locks) is created owner-only (0700/0600) instead of the
-// default shared (0755/0644) permissions. Shared is the default because
-// rotari is commonly used on shared HPC/lab filesystems where colleagues
-// point each other at a job's log path.
 func privateStateEnabled() bool {
 	return state.PrivateStateEnabled()
 }
@@ -611,6 +654,10 @@ func stateScriptMode() os.FileMode {
 
 func stateMode(privateMode, sharedMode os.FileMode) os.FileMode {
 	return state.Mode(privateMode, sharedMode)
+}
+
+func resolveBaseDir(cliBaseDir string) (string, bool, error) {
+	return state.ResolveBaseDir(cliBaseDir)
 }
 
 func resolveProjectName(baseDir string, cliProjectName string) (string, error) {

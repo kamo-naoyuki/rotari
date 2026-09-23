@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	reportLogLines = 100
-	reportLogChars = 12000
+	reportLogLines        = 100
+	reportLogChars        = 12000
+	redactedPathPlaceholder = "[REDACTED_PATH]"
 )
 
 var (
@@ -115,7 +116,7 @@ func formatRunAIReport(paths pathSet, run webRun, failedOnly bool) string {
 func formatRunAIReportSelected(paths pathSet, run webRun, selected map[string]bool, failedOnly bool) string {
 	var builder strings.Builder
 	fmt.Fprintln(&builder, "# rotari run report")
-	fmt.Fprintf(&builder, "\n- Project: %s\n- Run ID: `%s`\n- Status: %s\n- Exit code: %d\n", paths.queueName, run.RunID, run.Status, run.ExitCode)
+	fmt.Fprintf(&builder, "\n- Project: %s\n- Run ID: `%s`\n- Status: %s\n- Exit code: %d\n", paths.ProjectName, run.RunID, run.Status, run.ExitCode)
 	fmt.Fprintf(&builder, "- Started: %s\n- Finished: %s\n- Host: %s\n- Working directory: `%s`\n", reportValue(formatDisplayTimestamp(run.StartedAt)), reportValue(formatDisplayTimestamp(run.FinishedAt)), reportValue(run.Context.Hostname), reportValue(run.CWD))
 	for _, job := range run.Jobs {
 		if selected != nil && !selected[job.ID] {
@@ -134,13 +135,13 @@ func formatRunAIReportSelected(paths pathSet, run webRun, selected map[string]bo
 func formatJobAIReport(paths pathSet, run webRun, job webJob) string {
 	var builder strings.Builder
 	fmt.Fprintln(&builder, "# rotari job report")
-	fmt.Fprintf(&builder, "\n- Project: %s\n- Run ID: `%s`\n- Run status: %s\n- Host: %s\n", paths.queueName, run.RunID, run.Status, reportValue(run.Context.Hostname))
+	fmt.Fprintf(&builder, "\n- Project: %s\n- Run ID: `%s`\n- Run status: %s\n- Host: %s\n", paths.ProjectName, run.RunID, run.Status, reportValue(run.Context.Hostname))
 	writeJobAIReport(&builder, paths, run, job, reportJobStatus(job, run.Running), true)
 	return builder.String()
 }
 
 func redactAIReport(report string, paths pathSet, run webRun) string {
-	values := []string{paths.baseDir, run.CWD, run.Context.Hostname}
+	values := []string{paths.BaseDir, run.CWD, run.Context.Hostname}
 	for _, job := range run.Jobs {
 		values = append(values, job.WorkingDirectory)
 		if job.Origin != nil {

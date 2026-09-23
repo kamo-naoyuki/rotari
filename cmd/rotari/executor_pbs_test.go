@@ -242,11 +242,11 @@ exit 1
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(paths.projectDir, 0o755); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	queue := Queue{Commands: []QueuedCommand{{ID: "pbs-job", Command: []string{"echo", "hi"}, Executor: "pbs"}}}
-	if err := writeJSON(paths.queueFile, queue); err != nil {
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
 
@@ -273,7 +273,7 @@ printf '999[].headnode\n'
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{
 		ID: "array", Name: "array", Executor: "pbs", Command: []string{"sh", "-c", "test \"$ROTARI_ARRAY_TASK_ID\" = \"${PBS_ARRAY_INDEX}\""}, Array: &ArraySpec{First: 1, Last: 2},
 	}}}); err != nil {
 		t.Fatal(err)
@@ -281,7 +281,7 @@ printf '999[].headnode\n'
 	if code := executeMixedRun(paths, "array-run", "", 1, 2, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
 		t.Fatalf("executeMixedRun exit = %d, want 0", code)
 	}
-	summary, err := loadRunSummary(filepath.Join(paths.runsDir, "array-run", "summary.json"))
+	summary, err := loadRunSummary(filepath.Join(paths.RunsDir, "array-run", "summary.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +289,7 @@ printf '999[].headnode\n'
 		t.Fatalf("summary results = %#v, want both array tasks", summary.Results)
 	}
 	for _, id := range []string{"array-1", "array-2"} {
-		jobDir, err := latestAttemptJobDir(filepath.Join(paths.runsDir, "array-run"), id)
+		jobDir, err := latestAttemptJobDir(filepath.Join(paths.RunsDir, "array-run"), id)
 		if err != nil {
 			t.Fatal(err)
 		}

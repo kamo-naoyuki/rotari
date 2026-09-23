@@ -97,7 +97,7 @@ func resolveRunNameTargets(cliBaseDir, cliProjectName, runName string, activeOnl
 			return nil, pathErr
 		}
 		if activeOnly {
-			running, runningErr := isRunning(paths.lockFile)
+			running, runningErr := isRunning(paths.LockFile)
 			if runningErr != nil {
 				if os.IsNotExist(runningErr) {
 					continue
@@ -107,7 +107,7 @@ func resolveRunNameTargets(cliBaseDir, cliProjectName, runName string, activeOnl
 			if !running {
 				continue
 			}
-			lock, lockErr := loadLockInfo(paths.lockFile)
+			lock, lockErr := loadLockInfo(paths.LockFile)
 			if lockErr != nil {
 				return nil, lockErr
 			}
@@ -116,7 +116,7 @@ func resolveRunNameTargets(cliBaseDir, cliProjectName, runName string, activeOnl
 			}
 			continue
 		}
-		entries, readErr := os.ReadDir(paths.runsDir)
+		entries, readErr := os.ReadDir(paths.RunsDir)
 		if readErr != nil {
 			if os.IsNotExist(readErr) {
 				continue
@@ -127,7 +127,7 @@ func resolveRunNameTargets(cliBaseDir, cliProjectName, runName string, activeOnl
 			if !entry.IsDir() {
 				continue
 			}
-			summary, summaryErr := loadRunSummary(filepath.Join(paths.runsDir, entry.Name(), "summary.json"))
+			summary, summaryErr := loadRunSummary(filepath.Join(paths.RunsDir, entry.Name(), "summary.json"))
 			if summaryErr == nil && summary.RunName == runName {
 				targets = append(targets, waitTarget{baseDir: baseDir, projectName: projectName, runID: entry.Name()})
 			}
@@ -231,14 +231,14 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]waitTarget, 
 		if pathErr != nil {
 			return nil, pathErr
 		}
-		running, runningErr := isRunning(paths.lockFile)
+		running, runningErr := isRunning(paths.LockFile)
 		if runningErr != nil {
 			return nil, runningErr
 		}
 		if !running {
 			continue
 		}
-		lock, lockErr := loadLockInfo(paths.lockFile)
+		lock, lockErr := loadLockInfo(paths.LockFile)
 		if lockErr != nil {
 			return nil, lockErr
 		}
@@ -348,7 +348,7 @@ func formatRunCompletion(paths pathSet, runID string, summary RunSummary) string
 			failedCount++
 		}
 	}
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	title := "=== Run finished ==="
 	if summary.ExitCode != 0 {
 		title = red("=== Run failed ===")
@@ -356,10 +356,10 @@ func formatRunCompletion(paths pathSet, runID string, summary RunSummary) string
 		title = green(title)
 	}
 	message := title + "\n" + colorLabeledDetails(fmt.Sprintf("  Project: %s\n  Run: %s\n  Status: %s\n  Exit code: %d\n  Success: %d\n  Failed: %d\n  Directory: %s\n",
-		paths.queueName, formatRunLabel(runID, summary.RunName), summary.Status, summary.ExitCode, successCount, failedCount, runDir), summary.ExitCode != 0)
+		paths.ProjectName, formatRunLabel(runID, summary.RunName), summary.Status, summary.ExitCode, successCount, failedCount, runDir), summary.ExitCode != 0)
 	if failedCount > 0 {
 		message += colorLabeledDetails(fmt.Sprintf("\nInspect run:\n  rotari show --run-id %s\n\nSee failed job output below.\n\nFailed job output:\n%s\nRerun failed jobs:\n  rotari retry --basedir %s --project-name %s\n",
-			runID, failedJobHints(runID, summary.Results), paths.baseDir, paths.queueName), summary.ExitCode != 0)
+			runID, failedJobHints(runID, summary.Results), paths.BaseDir, paths.ProjectName), summary.ExitCode != 0)
 	}
 	return message
 }

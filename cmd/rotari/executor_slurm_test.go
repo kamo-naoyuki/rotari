@@ -120,7 +120,7 @@ printf '54321;fake-host\n'
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{
 		ID: "array", Name: "array", Executor: "slurm", Command: []string{"sh", "-c", "exit 0"}, Array: &ArraySpec{First: 1, Last: 2},
 	}}}); err != nil {
 		t.Fatal(err)
@@ -135,7 +135,7 @@ printf '54321;fake-host\n'
 	if strings.Count(string(arguments), "--array=1-2\n") != 1 {
 		t.Fatalf("sbatch arguments = %q, want one native array submission", arguments)
 	}
-	summary, err := loadRunSummary(filepath.Join(paths.runsDir, "array-run", "summary.json"))
+	summary, err := loadRunSummary(filepath.Join(paths.RunsDir, "array-run", "summary.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ printf '54321;fake-host\n'
 		t.Fatalf("summary results = %#v, want both array tasks", summary.Results)
 	}
 	for _, id := range []string{"array-1", "array-2"} {
-		jobDir, err := latestAttemptJobDir(filepath.Join(paths.runsDir, "array-run"), id)
+		jobDir, err := latestAttemptJobDir(filepath.Join(paths.RunsDir, "array-run"), id)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -275,13 +275,13 @@ func TestCancelQueueCancelsRunningSlurmJobMidRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(paths.projectDir, 0o755); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -317,7 +317,7 @@ func TestCancelQueueCancelsRunningSlurmJobMidRun(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(runDir, "job-2", "cancelled")); err != nil {
 		t.Fatalf("job-2 was not marked cancelled before submission: %v", err)
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,10 +341,10 @@ func TestControlQueueJobsControlsSelectedSlurmJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
-	jobDir := filepath.Join(paths.runsDir, "run-1", "job-1")
+	jobDir := filepath.Join(paths.RunsDir, "run-1", "job-1")
 	if err := os.MkdirAll(jobDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -376,10 +376,10 @@ func TestControlQueueJobsReportsMissingScontrolBinary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
-	jobDir := filepath.Join(paths.runsDir, "run-1", "job-1")
+	jobDir := filepath.Join(paths.RunsDir, "run-1", "job-1")
 	if err := os.MkdirAll(jobDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -409,10 +409,10 @@ func TestControlQueueJobsSurfacesScontrolRejectionForPendingJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
-	jobDir := filepath.Join(paths.runsDir, "run-1", "job-1")
+	jobDir := filepath.Join(paths.RunsDir, "run-1", "job-1")
 	if err := os.MkdirAll(jobDir, 0o755); err != nil {
 		t.Fatal(err)
 	}

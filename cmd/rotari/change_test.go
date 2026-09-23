@@ -17,7 +17,7 @@ func TestCmdChangeUpdatesExecutorEnvironmentAndCommandByJobID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestCmdChangeUpdatesExecutorEnvironmentAndCommandByJobID(t *testing.T) {
 		t.Fatalf("cmdChange exit code = %d, want 0", code)
 	}
 
-	queue, err = loadQueue(paths.queueFile)
+	queue, err = loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestCmdChangeUpdatesExecutorEnvironmentAndCommandByJobID(t *testing.T) {
 		t.Fatalf("changed command = %#v, want updated fields", changed)
 	}
 
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,20 +63,20 @@ func TestChangeDoesNotRestoreSnapshotIntoEmptyQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{LastRunID: "previous-run"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{LastRunID: "previous-run"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(paths.runsDir, "previous-run", "commands.json"), Queue{Commands: []QueuedCommand{{ID: "job-id", Name: "job", Command: []string{"old"}}}}); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, "previous-run", "commands.json"), Queue{Commands: []QueuedCommand{{ID: "job-id", Name: "job", Command: []string{"old"}}}}); err != nil {
 		t.Fatal(err)
 	}
 
 	if _, err := changeBatch(baseDir, "default", "", "", "job", "", nil, false, nil, false, "", nil, false, []string{"new"}); err == nil {
 		t.Fatal("change restored a job from the previous run into an empty queue")
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,14 +94,14 @@ func TestCmdChangeRejectsRunningProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
+	if err := acquireLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "active-run")
-	defer os.Remove(paths.lockFile)
+	defer os.Remove(paths.LockFile)
 
 	oldStderr := os.Stderr
 	reader, writer, err := os.Pipe()

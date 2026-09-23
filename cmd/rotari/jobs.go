@@ -275,7 +275,7 @@ func collectJobs(baseDir string, projects []string, now time.Time, window time.D
 		if err != nil {
 			return nil, err
 		}
-		runEntries, err := os.ReadDir(paths.runsDir)
+		runEntries, err := os.ReadDir(paths.RunsDir)
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue
@@ -303,7 +303,7 @@ func collectJobs(baseDir string, projects []string, now time.Time, window time.D
 }
 
 func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsRow, bool, error) {
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	summary, summaryErr := loadRunSummary(filepath.Join(runDir, stateFileSummaryJSON))
 	active := runIsActive(paths, runID)
 	if summaryErr == nil && !active {
@@ -380,7 +380,7 @@ func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsR
 		if state != "running" {
 			end = finishedAt
 		}
-		rows = append(rows, jobsRow{state: state, baseDir: paths.baseDir, project: paths.queueName, attemptID: attemptID, jobName: jobName, command: command, startedAt: startedAt, elapsed: end.Sub(startedAt)})
+		rows = append(rows, jobsRow{state: state, baseDir: paths.BaseDir, project: paths.ProjectName, attemptID: attemptID, jobName: jobName, command: command, startedAt: startedAt, elapsed: end.Sub(startedAt)})
 	}
 	return rows, true, nil
 }

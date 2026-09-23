@@ -32,11 +32,11 @@ func cmdDelete(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	if err := os.MkdirAll(paths.projectDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
 		printErrorf("failed to create queue directory: %v", err)
 		return 1
 	}
-	release, err := acquireStateLock(paths.stateLockFile)
+	release, err := acquireStateLock(paths.StateLockFile)
 	if err != nil {
 		printErrorf("failed to lock queue: %v", err)
 		return 1
@@ -56,25 +56,25 @@ func cmdDelete(args []string) int {
 		return 0
 	}
 
-	deletedRunIDs := runIDsInDirectory(paths.runsDir)
-	if err := os.RemoveAll(paths.runsDir); err != nil {
+	deletedRunIDs := runIDsInDirectory(paths.RunsDir)
+	if err := os.RemoveAll(paths.RunsDir); err != nil {
 		printErrorf("failed to clear run history: %v", err)
 		return 1
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		printErrorf("failed to load metadata: %v", err)
 		return 1
 	}
 	if *runIDOption == "" || meta.LastRunID == *runIDOption {
-		meta.LastRunID = latestRunID(paths.runsDir)
+		meta.LastRunID = latestRunID(paths.RunsDir)
 		if meta.LastRunID == "" {
 			meta.LastRunExitCode = 0
 		}
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.metaFile, meta); err != nil {
+	if err := writeJSON(paths.MetaFile, meta); err != nil {
 		printErrorf("failed to update metadata: %v", err)
 		return 1
 	}
@@ -84,7 +84,7 @@ func cmdDelete(args []string) int {
 			return 1
 		}
 	}
-	fmt.Printf("%s\n", colorKeyValueMessage(fmt.Sprintf("cleared logs project=%s directory=%s", queueName, filepath.Join(paths.projectDir, "runs")), green))
+	fmt.Printf("%s\n", colorKeyValueMessage(fmt.Sprintf("cleared logs project=%s directory=%s", queueName, filepath.Join(paths.ProjectDir, "runs")), green))
 	return 0
 }
 
@@ -117,16 +117,16 @@ func deleteRun(paths pathSet, runID string) error {
 	if err := os.RemoveAll(runDir); err != nil { // NOSONAR: runDir is produced by validatedRunDir.
 		return fmt.Errorf("failed to clear run %q: %w", runID, err)
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		return err
 	}
 	if meta.LastRunID == runID {
-		meta.LastRunID = latestRunID(paths.runsDir)
+		meta.LastRunID = latestRunID(paths.RunsDir)
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.metaFile, meta); err != nil {
+	if err := writeJSON(paths.MetaFile, meta); err != nil {
 		return err
 	}
 	return unregisterRun(runID)
@@ -158,7 +158,7 @@ func clearRunHistory(baseDir, queueName, runID string) error {
 	if err != nil {
 		return err
 	}
-	release, err := acquireStateLock(paths.stateLockFile)
+	release, err := acquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return fmt.Errorf("failed to lock queue: %w", err)
 	}

@@ -30,7 +30,7 @@ func resolveAttemptTarget(attemptID, cliBaseDir, cliProjectName, cliRunID string
 
 func registerRun(paths pathSet, runID string) error {
 	return registerRunLocation(runLocation{
-		BaseDir: paths.baseDir, ProjectName: paths.queueName, RunID: runID,
+		BaseDir: paths.BaseDir, ProjectName: paths.ProjectName, RunID: runID,
 	})
 }
 

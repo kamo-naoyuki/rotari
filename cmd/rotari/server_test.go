@@ -33,20 +33,20 @@ func TestCmdRunWithRunIDRejectsRunningProjectBeforeQueueConfirmation(t *testing.
 		t.Fatal(err)
 	}
 	runID := "run-running-source"
-	if err := writeJSON(filepath.Join(paths.runsDir, runID, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "source", Command: []string{"source"}}}}); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "source", Command: []string{"source"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
+	if err := acquireLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "active-run")
-	defer os.Remove(paths.lockFile)
+	defer os.Remove(paths.LockFile)
 
 	oldStderr := os.Stderr
 	reader, writer, err := os.Pipe()
@@ -77,11 +77,11 @@ func TestCmdRunOverwriteSkipsQueueConfirmation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	runID := "source-run"
-	if err := os.MkdirAll(filepath.Join(paths.runsDir, runID), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(paths.RunsDir, runID), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -134,10 +134,10 @@ func TestEnqueueCommandRejectsInterruptedRunWithoutChangingQueue(t *testing.T) {
 		t.Fatal(err)
 	}
 	original := Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}
-	if err := writeJSON(paths.queueFile, original); err != nil {
+	if err := writeJSON(paths.QueueFile, original); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "interrupted-run"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "interrupted-run"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "interrupted-run")
@@ -146,7 +146,7 @@ func TestEnqueueCommandRejectsInterruptedRunWithoutChangingQueue(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), `project "default" has interrupted run "interrupted-run"; add is not allowed`) {
 		t.Fatalf("enqueueCommand error = %v, want interrupted run error", err)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +184,7 @@ func TestCmdAddEnqueuesJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +230,7 @@ func TestCmdAddRejectsDuplicateJobNameWithoutWriting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +282,7 @@ func TestCancelQueueJobsRejectsUnsafeRunIDFromLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{RunID: "../outside"}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{RunID: "../outside"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -297,7 +297,7 @@ func TestControlQueueJobsRejectsUnsafeRunIDFromLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{RunID: "nested/run"}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{RunID: "nested/run"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -370,14 +370,14 @@ func TestCmdAddThenCmdRunExecutesLocalJobEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if meta.Phase != "finished" || meta.LastRunExitCode != 0 {
 		t.Fatalf("meta = %#v, want finished run with exit code 0", meta)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -406,15 +406,15 @@ func testCmdWithAttemptID(t *testing.T, retry bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, defaultMeta()); err != nil {
+	if err := writeJSON(paths.MetaFile, defaultMeta()); err != nil {
 		t.Fatal(err)
 	}
 	sourceRunID := makeRunID()
 	attemptID := makeAttemptID(sourceRunID, "source", 0)
-	sourceRunDir := filepath.Join(paths.runsDir, sourceRunID)
+	sourceRunDir := filepath.Join(paths.RunsDir, sourceRunID)
 	if err := writeJSON(filepath.Join(sourceRunDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "source", Command: []string{"printf", "attempt-source"}}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -453,14 +453,14 @@ func testCmdWithAttemptID(t *testing.T, retry bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if meta.LastRunID == sourceRunID || meta.Phase != "finished" {
 		t.Fatalf("meta = %#v, want a new finished run", meta)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -573,14 +573,14 @@ func TestServerHandleSubmitPersistsQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(queue.Commands) != 1 || queue.Commands[0].Name != "greeting" || queue.Commands[0].ID == "" {
 		t.Fatalf("queue = %+v, want one persisted named command with an ID", queue)
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -660,10 +660,10 @@ func TestCmdCancelRejectsWholeRunFromWrongHostViaCLI(t *testing.T) {
 	// A PID that isn't this test process's own, recorded as owned by
 	// another host, mirrors a runner that is genuinely still active
 	// elsewhere over a shared base directory.
-	if err := writeJSON(paths.lockFile, LockInfo{PID: os.Getpid() + 1, RunID: "run-1", StartedAt: nowRFC3339(), Host: "other-host"}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid() + 1, RunID: "run-1", StartedAt: nowRFC3339(), Host: "other-host"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(paths.runsDir, "run-1"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(paths.RunsDir, "run-1"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 

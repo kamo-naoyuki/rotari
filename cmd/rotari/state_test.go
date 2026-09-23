@@ -27,7 +27,7 @@ func TestValidateProjectStateConsistencyRejectsCorruptState(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.metaFile, Meta{Phase: "running"}); err != nil {
+		if err := writeJSON(paths.MetaFile, Meta{Phase: "running"}); err != nil {
 			t.Fatal(err)
 		}
 		err = validateProjectStateConsistency(paths, projectStateInspection{State: projectIdle, Lock: projectLockNone})
@@ -63,7 +63,7 @@ func TestValidateProjectStateConsistencyRejectsCorruptState(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-2"}); err != nil {
+		if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-2"}); err != nil {
 			t.Fatal(err)
 		}
 		err = validateProjectStateConsistency(paths, projectStateInspection{State: projectRunning, RunID: "run-1", Lock: projectLockActive, LockRunID: "run-1"})
@@ -77,7 +77,7 @@ func TestValidateProjectStateConsistencyRejectsCorruptState(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 			t.Fatal(err)
 		}
 		err = validateProjectStateConsistency(paths, projectStateInspection{State: projectInterrupted, RunID: "run-1", Lock: projectLockNone})
@@ -91,10 +91,10 @@ func TestValidateProjectStateConsistencyRejectsCorruptState(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.MkdirAll(filepath.Join(paths.runsDir, "run-1"), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(paths.RunsDir, "run-1"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 		err = validateProjectStateConsistency(paths, projectStateInspection{State: projectRunning, RunID: "run-1", Lock: projectLockActive, LockRunID: "run-1"})
@@ -108,10 +108,10 @@ func TestValidateProjectStateConsistencyRejectsCorruptState(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 			t.Fatal(err)
 		}
-		runDir := filepath.Join(paths.runsDir, "run-1")
+		runDir := filepath.Join(paths.RunsDir, "run-1")
 		if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{}); err != nil {
 			t.Fatal(err)
 		}
@@ -127,10 +127,10 @@ func TestValidateProjectStateConsistencyAllowsActiveRunBeforeCommandSnapshot(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{}); err != nil {
 		t.Fatal(err)
 	}
@@ -149,17 +149,17 @@ func TestInspectConsistentProjectStateKeepsStaleLockWhenValidationFails(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "run-2"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-2"}); err != nil {
 		t.Fatal(err)
 	}
 
 	if _, err := inspectConsistentProjectState(paths, true); err == nil {
 		t.Fatal("inspectConsistentProjectState accepted mismatched state")
 	}
-	if _, err := os.Stat(paths.lockFile); err != nil {
+	if _, err := os.Stat(paths.LockFile); err != nil {
 		t.Fatalf("stale lock was removed before validation: %v", err)
 	}
 }

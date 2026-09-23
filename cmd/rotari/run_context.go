@@ -19,7 +19,7 @@ func writeRunContext(paths pathSet, runID, cwd string) error {
 		return err
 	}
 	context := captureRunContext(cwd)
-	if configPath := effectiveConfigPath(paths.baseDir, paths.queueName); configPath != "" {
+	if configPath := effectiveConfigPath(paths.BaseDir, paths.ProjectName); configPath != "" {
 		context.ConfigPaths = []string{configPath}
 	}
 	if context.StartedLoad != nil {

@@ -98,7 +98,7 @@ func checkProject(paths pathSet) (projectCheck, error) {
 }
 
 func checkProjectWithOptions(paths pathSet, deep bool) (projectCheck, error) {
-	release, err := acquireStateReadLock(paths.stateLockFile)
+	release, err := acquireStateReadLock(paths.StateLockFile)
 	if err != nil {
 		return projectCheck{}, fmt.Errorf("lock project state: %w", err)
 	}
@@ -146,7 +146,7 @@ func checkProjectWithOptions(paths pathSet, deep bool) (projectCheck, error) {
 }
 
 func loadQueueCount(paths pathSet, result *projectCheck) {
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		return
 	}

@@ -19,7 +19,7 @@ func confirmQueueOverwrite(baseDir, queueName string, appendJobs, overwriteJobs 
 		if pathErr != nil {
 			return false, pathErr
 		}
-		queue, loadErr := loadQueue(paths.queueFile)
+		queue, loadErr := loadQueue(paths.QueueFile)
 		if loadErr != nil {
 			return false, loadErr
 		}
@@ -163,7 +163,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	if err != nil {
 		return "", err
 	}
-	release, err := acquireStateLock(paths.stateLockFile)
+	release, err := acquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to lock queue: %w", err)
 	}
@@ -292,7 +292,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 		}
 	}
 
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to load queue: %w", err)
 	}
@@ -345,16 +345,16 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	if err := validateDependencies(queueToJobs(queue.Commands)); err != nil {
 		return "", fmt.Errorf("invalid dependencies: %w", err)
 	}
-	if err := writeJSON(paths.queueFile, queue); err != nil {
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		return "", fmt.Errorf("failed to write queue: %w", err)
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to load metadata: %w", err)
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.metaFile, meta); err != nil {
+	if err := writeJSON(paths.MetaFile, meta); err != nil {
 		return "", fmt.Errorf("failed to update metadata: %w", err)
 	}
 	return fmt.Sprintf("copied jobs=%d from run=%s to queue=%s", len(selected), runID, queueName), nil

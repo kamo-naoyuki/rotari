@@ -30,7 +30,7 @@ func validatedJobDir(runDir, jobID string) (string, error) {
 }
 
 func validatedRunDir(paths pathSet, runID string) (string, error) {
-	return joinValidatedPath(paths.runsDir, runID)
+	return joinValidatedPath(paths.RunsDir, runID)
 }
 
 func isValidProjectName(projectName string) bool {

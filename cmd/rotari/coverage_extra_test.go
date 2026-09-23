@@ -79,7 +79,7 @@ func TestFormatRunAIReportIncludesFailedJobsOnly(t *testing.T) {
 			{ID: "success", Name: "success-job", Result: &JobResult{ID: "success", ExitCode: 0}},
 		},
 	}
-	paths := pathSet{queueName: "demo"}
+	paths := pathSet{ProjectName: "demo"}
 	report := formatRunAIReport(paths, run, true)
 	if !strings.Contains(report, "failed-job") || strings.Contains(report, "success-job") {
 		t.Fatalf("failed-only report = %s", report)

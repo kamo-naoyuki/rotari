@@ -90,7 +90,7 @@ setTimeout(() => {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
 		t.Fatal(err)
 	}
 	state, err := loadWebState(baseDir, "default")
@@ -383,7 +383,7 @@ func TestWebCancelRunRejectsStaleRunID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{RunID: "run-current", PID: os.Getpid()}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{RunID: "run-current", PID: os.Getpid()}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -405,10 +405,10 @@ func TestLoadWebStateIncludesAllQueues(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+		if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(filepath.Join(paths.runsDir, "run-1", "summary.json"), RunSummary{RunID: "run-1", Status: "finished"}); err != nil {
+		if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "summary.json"), RunSummary{RunID: "run-1", Status: "finished"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -463,14 +463,14 @@ func TestLoadWebStateIncludesConfigPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectPath := filepath.Join(paths.projectDir, "config.yaml")
-	if err := os.MkdirAll(paths.projectDir, 0o755); err != nil {
+	projectPath := filepath.Join(paths.ProjectDir, "config.yaml")
+	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(projectPath, []byte("run:\n  retry: 3\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -500,16 +500,16 @@ func TestWebConfigAPIReadsResolvedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(paths.projectDir, 0o755); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(paths.projectDir, "config.yaml"), []byte("project: true\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(paths.ProjectDir, "config.yaml"), []byte("project: true\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -551,11 +551,11 @@ func TestLoadWebStateIncludesRuntimeRecords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
 		t.Fatal(err)
 	}
 	lock := LockInfo{RunID: "run-active", PID: 1234, Host: "worker-a", StartedAt: "2026-09-16T00:00:00Z"}
-	if err := writeJSON(paths.lockFile, lock); err != nil {
+	if err := writeJSON(paths.LockFile, lock); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(serverPIDPath(baseDir), []byte("5678\n"), 0o600); err != nil {
@@ -620,10 +620,10 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(paths.runsDir, "run-1", "summary.json"), RunSummary{RunID: "run-1", Status: "finished"}); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "summary.json"), RunSummary{RunID: "run-1", Status: "finished"}); err != nil {
 		t.Fatal(err)
 	}
 	outputDir := filepath.Join(t.TempDir(), "web")
@@ -861,7 +861,7 @@ func TestWebLogReadsSelectedAttempt(t *testing.T) {
 	}
 	runID := "20260922-070308-0d83bd39"
 	attemptID := makeAttemptID(runID, "job-1", 0)
-	attemptDir := filepath.Join(paths.runsDir, runID, "job-1", "attempts", attemptID)
+	attemptDir := filepath.Join(paths.RunsDir, runID, "job-1", "attempts", attemptID)
 	if err := os.MkdirAll(attemptDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -1024,9 +1024,9 @@ func TestLoadWebStateIncludesRunContextAndTimeline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}
-	if err := writeJSON(paths.queueFile, queue); err != nil {
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
@@ -1108,7 +1108,7 @@ func TestWriteRunContext(t *testing.T) {
 	if err := writeRunContext(paths, "run-1", "/work/project"); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(paths.runsDir, "run-1", "context.json"))
+	data, err := os.ReadFile(filepath.Join(paths.RunsDir, "run-1", "context.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1129,7 +1129,7 @@ func TestWriteRunContext(t *testing.T) {
 	if err := finishRunContext(paths, "run-1"); err != nil {
 		t.Fatal(err)
 	}
-	data, err = os.ReadFile(filepath.Join(paths.runsDir, "run-1", "context.json"))
+	data, err = os.ReadFile(filepath.Join(paths.RunsDir, "run-1", "context.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1174,7 +1174,7 @@ func TestWebCopyEndpointCopiesWithoutRunner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "failed", Command: []string{"false"}}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -1188,7 +1188,7 @@ func TestWebCopyEndpointCopiesWithoutRunner(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1206,10 +1206,10 @@ func TestWebCopyEndpointQueuesOneJobWithoutRunner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "failed", Command: []string{"false"}}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -1223,7 +1223,7 @@ func TestWebCopyEndpointQueuesOneJobWithoutRunner(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1238,7 +1238,7 @@ func TestWebChangeEndpointUpdatesQueueJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"old"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"old"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	request := httptest.NewRequest(http.MethodPost, "/api/change", strings.NewReader(`{"project_name":"default","job_id":"job-1","command":["new","arg"],"executor_options":["-p","gpu"]}`))
@@ -1247,7 +1247,7 @@ func TestWebChangeEndpointUpdatesQueueJob(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}

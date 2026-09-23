@@ -20,7 +20,7 @@ func TestCmdWaitReturnsCompletedRunExitCode(t *testing.T) {
 		RunID: runID, RunName: "nightly", Status: "failed", ExitCode: 2,
 		Results: []JobResult{{ID: "job-1", ExitCode: 0}, {ID: "job-2", ExitCode: 2}},
 	}
-	if err := writeJSON(filepath.Join(paths.runsDir, runID, "summary.json"), summary); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), summary); err != nil {
 		t.Fatal(err)
 	}
 
@@ -109,7 +109,7 @@ func TestCmdWaitTimesOutForMalformedSummary(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := "run-1"
-	summaryPath := filepath.Join(paths.runsDir, runID, "summary.json")
+	summaryPath := filepath.Join(paths.RunsDir, runID, "summary.json")
 	if err := os.MkdirAll(filepath.Dir(summaryPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -174,10 +174,10 @@ func TestResolveActiveRunTarget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, defaultMeta()); err != nil {
+	if err := writeJSON(paths.MetaFile, defaultMeta()); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -197,7 +197,7 @@ func TestResolveWaitTargetByProjectRunNameAndRunID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: "run-id", RunName: "nightly"}); err != nil {
+	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-id", RunName: "nightly"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := registerRun(paths, "run-id"); err != nil {
@@ -231,7 +231,7 @@ func TestResolveWaitTargetRejectsAmbiguousRunName(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: projectName + "-run", RunName: "nightly"}); err != nil {
+		if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: projectName + "-run", RunName: "nightly"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -247,7 +247,7 @@ func TestResolveActiveWaitTargetsFindsAllProjects(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: projectName + "-run"}); err != nil {
+		if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: projectName + "-run"}); err != nil {
 			t.Fatal(err)
 		}
 	}

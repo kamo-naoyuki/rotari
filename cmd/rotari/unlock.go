@@ -35,13 +35,13 @@ func cmdUnlock(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	release, err := acquireStateLock(paths.stateLockFile)
+	release, err := acquireStateLock(paths.StateLockFile)
 	if err != nil {
 		printErrorf("failed to lock queue: %v", err)
 		return 1
 	}
 	defer release()
-	lock, err := loadLockInfo(paths.lockFile)
+	lock, err := loadLockInfo(paths.LockFile)
 	removedLock := false
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -53,13 +53,13 @@ func cmdUnlock(args []string) int {
 			printErrorf("run lock belongs to %q, not %q", lock.RunID, *runID)
 			return 1
 		}
-		if err := os.Remove(paths.lockFile); err != nil {
+		if err := os.Remove(paths.LockFile); err != nil {
 			printErrorf("failed to remove run lock: %v", err)
 			return 1
 		}
 		removedLock = true
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		printErrorf("failed to load metadata: %v", err)
 		return 1
@@ -70,7 +70,7 @@ func cmdUnlock(args []string) int {
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.metaFile, meta); err != nil {
+	if err := writeJSON(paths.MetaFile, meta); err != nil {
 		printErrorf("failed to update metadata: %v", err)
 		return 1
 	}

@@ -257,11 +257,11 @@ exit 1
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(paths.projectDir, 0o755); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	queue := Queue{Commands: []QueuedCommand{{ID: "lsf-job", Command: []string{"echo", "hi"}, Executor: "lsf"}}}
-	if err := writeJSON(paths.queueFile, queue); err != nil {
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
 

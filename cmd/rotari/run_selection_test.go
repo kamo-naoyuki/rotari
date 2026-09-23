@@ -44,7 +44,7 @@ func TestFilteredRunMatchesCopySelection(t *testing.T) {
 		{ID: "failed", Name: "failed", Command: []string{"failed"}},
 		{ID: "unfinished", Name: "unfinished", Command: []string{"unfinished"}},
 	}}
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		t.Fatal(err)
 	}
@@ -66,13 +66,13 @@ func TestFilteredRunMatchesCopySelection(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.selection, func(t *testing.T) {
-			if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+			if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := copyRunToQueue(baseDir, "default", runID, test.selection, nil, false); err != nil {
 				t.Fatal(err)
 			}
-			copied, err := loadQueue(paths.queueFile)
+			copied, err := loadQueue(paths.QueueFile)
 			if err != nil {
 				t.Fatal(err)
 			}

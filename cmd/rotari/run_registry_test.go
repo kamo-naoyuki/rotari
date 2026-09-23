@@ -82,7 +82,7 @@ func TestValidRunRegistryLocationRejectsTraversalInputs(t *testing.T) {
 }
 
 func TestDeleteRunRejectsUnsafeRunIDs(t *testing.T) {
-	paths := pathSet{runsDir: t.TempDir()}
+	paths := pathSet{RunsDir: t.TempDir()}
 	for _, runID := range []string{"", "../run-1", "nested/run-1", "run/..", "run/."} {
 		if err := deleteRun(paths, runID); err == nil {
 			t.Fatalf("deleteRun accepted unsafe run ID %q", runID)

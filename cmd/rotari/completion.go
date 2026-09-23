@@ -114,7 +114,7 @@ func cmdComplete(args []string) int {
 	values := make(map[string]struct{})
 	if args[0] == "run-id" {
 		values["latest"] = struct{}{}
-		entries, err := os.ReadDir(paths.runsDir)
+		entries, err := os.ReadDir(paths.RunsDir)
 		if err != nil {
 			return 0
 		}
@@ -124,7 +124,7 @@ func cmdComplete(args []string) int {
 			}
 		}
 	} else if runID != "" {
-		entries, err := os.ReadDir(filepath.Join(paths.runsDir, runID))
+		entries, err := os.ReadDir(filepath.Join(paths.RunsDir, runID))
 		if err != nil {
 			return 0
 		}
@@ -134,7 +134,7 @@ func cmdComplete(args []string) int {
 			}
 		}
 	} else {
-		queue, err := loadQueue(paths.queueFile)
+		queue, err := loadQueue(paths.QueueFile)
 		if err == nil {
 			for _, command := range queue.Commands {
 				if command.ID != "" {
@@ -142,13 +142,13 @@ func cmdComplete(args []string) int {
 				}
 			}
 		}
-		entries, err := os.ReadDir(paths.runsDir)
+		entries, err := os.ReadDir(paths.RunsDir)
 		if err == nil {
 			for _, run := range entries {
 				if !run.IsDir() {
 					continue
 				}
-				jobs, err := os.ReadDir(filepath.Join(paths.runsDir, run.Name()))
+				jobs, err := os.ReadDir(filepath.Join(paths.RunsDir, run.Name()))
 				if err != nil {
 					continue
 				}

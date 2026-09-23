@@ -15,20 +15,20 @@ func TestCmdCopyRejectsRunningProjectBeforeQueueConfirmation(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := "copy-running-source"
-	if err := writeJSON(filepath.Join(paths.runsDir, runID, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "source", Command: []string{"source"}}}}); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "source", Command: []string{"source"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
+	if err := acquireLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "active-run")
-	defer os.Remove(paths.lockFile)
+	defer os.Remove(paths.LockFile)
 
 	oldStderr := os.Stderr
 	reader, writer, err := os.Pipe()
@@ -61,7 +61,7 @@ func TestCmdCopyDerivesRunIDFromAttemptID(t *testing.T) {
 	}
 	runID := makeRunID()
 	attemptID := makeAttemptID(runID, "source", 0)
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "source", Command: []string{"source"}}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestCmdCopyDerivesRunIDFromAttemptID(t *testing.T) {
 	if code := cmdCopy([]string{"--basedir", baseDir, "--project-name", "default", "--job-id", attemptID}); code != 0 {
 		t.Fatalf("cmdCopy exit code = %d", code)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,14 +95,14 @@ func TestCmdCopyJobIDUsesLatestRunWithoutRunID(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := makeRunID()
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "train", Command: []string{"train"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Results: []JobResult{{ID: "job-1", ExitCode: 0}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{LastRunID: runID}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{LastRunID: runID}); err != nil {
 		t.Fatal(err)
 	}
 	if err := registerRun(paths, runID); err != nil {
@@ -113,20 +113,20 @@ func TestCmdCopyJobIDUsesLatestRunWithoutRunID(t *testing.T) {
 	if code := cmdCopy([]string{"--basedir", baseDir, "--project-name", "default", "--job-id", "job-1"}); code != 0 {
 		t.Fatalf("cmdCopy exit code = %d, want 0", code)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(queue.Commands) != 1 || queue.Commands[0].ID != "job-1" || queue.Commands[0].Origin == nil || queue.Commands[0].Origin.RunID != runID {
 		t.Fatalf("copied queue = %#v, want job from latest run %q", queue.Commands, runID)
 	}
-	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
 		t.Fatal(err)
 	}
 	if code := cmdCopy([]string{"--basedir", baseDir, "--project-name", "default", "--job-name", "train"}); code != 0 {
 		t.Fatalf("cmdCopy --job-name exit code = %d, want 0", code)
 	}
-	queue, err = loadQueue(paths.queueFile)
+	queue, err = loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestCopyRunToQueuePreservesSourceJobIDs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	snapshot := Queue{Commands: []QueuedCommand{
 		{ID: "prepare-id", Name: "prepare", Command: []string{"prepare"}},
 		{ID: "train-id", Name: "train", Command: []string{"train"}, DependsOn: []string{"prepare"}},
@@ -164,7 +164,7 @@ func TestCopyRunToQueuePreservesSourceJobIDs(t *testing.T) {
 	if message == "" {
 		t.Fatal("copy message is empty")
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +186,7 @@ func TestCopyRunToQueueRejectsExcludedFailedDependency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	snapshot := Queue{Commands: []QueuedCommand{
 		{ID: "prepare-id", Name: "prepare", Command: []string{"prepare"}},
 		{ID: "train-id", Name: "train", Command: []string{"train"}, DependsOn: []string{"prepare"}},
@@ -213,7 +213,7 @@ func TestCopyRunToQueueRejectsExcludedUnfinishedDependency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	snapshot := Queue{Commands: []QueuedCommand{
 		{ID: "prepare-id", Name: "prepare", Command: []string{"prepare"}},
 		{ID: "train-id", Name: "train", Command: []string{"train"}, DependsOn: []string{"prepare"}},
@@ -239,7 +239,7 @@ func TestCopyRunToQueuePreservesExplicitAttemptID(t *testing.T) {
 	}
 	runID := makeRunID()
 	attemptID := makeAttemptID(runID, "train-id", 0)
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "train-id", Name: "train", Command: []string{"train"}}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +257,7 @@ func TestCopyRunToQueuePreservesExplicitAttemptID(t *testing.T) {
 	if _, err := copyRunToQueue(baseDir, "default", runID, "job-id", []string{attemptID}, false); err != nil {
 		t.Fatal(err)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +274,7 @@ func TestCopyRunToQueueExplicitArrayAttemptSelectsOnlyTask(t *testing.T) {
 	}
 	runID := makeRunID()
 	attemptID := makeAttemptID(runID, "train-2", 0)
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	snapshot := Queue{Commands: []QueuedCommand{{ID: "train", Command: []string{"train"}, Array: &ArraySpec{First: 1, Last: 3}}}}
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), snapshot); err != nil {
 		t.Fatal(err)
@@ -293,7 +293,7 @@ func TestCopyRunToQueueExplicitArrayAttemptSelectsOnlyTask(t *testing.T) {
 	if _, err := copyRunToQueue(baseDir, "default", runID, "job-id", []string{attemptID}, false); err != nil {
 		t.Fatal(err)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,10 +311,10 @@ func TestCopyRunToQueueReassignsIDOnCollision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "train-id", Command: []string{"existing"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "train-id", Command: []string{"existing"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	snapshot := Queue{Commands: []QueuedCommand{
 		{ID: "train-id", Name: "train", Command: []string{"train"}},
 	}}
@@ -325,7 +325,7 @@ func TestCopyRunToQueueReassignsIDOnCollision(t *testing.T) {
 	if _, err := copyRunToQueue(baseDir, "default", "run-1", "all", nil, true); err != nil {
 		t.Fatal(err)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,7 +343,7 @@ func TestCopyRunToQueueCombinesResultSelections(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	snapshot := Queue{Commands: []QueuedCommand{
 		{ID: "success-id", Name: "success", Command: []string{"success"}},
 		{ID: "failed-id", Name: "failed", Command: []string{"failed"}},
@@ -362,7 +362,7 @@ func TestCopyRunToQueueCombinesResultSelections(t *testing.T) {
 	if _, err := copyRunToQueue(baseDir, "default", "run-1", "failed,unfinished", []string{"success-id"}, false); err != nil {
 		t.Fatal(err)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -377,10 +377,10 @@ func TestCopyRunToQueueRequiresAppendForNonEmptyQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "source", Command: []string{"source"}}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -391,7 +391,7 @@ func TestCopyRunToQueueRequiresAppendForNonEmptyQueue(t *testing.T) {
 	if _, err := copyRunToQueue(baseDir, "default", "run-1", "all", nil, true); err != nil {
 		t.Fatal(err)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -406,10 +406,10 @@ func TestCopyRunToQueueCanOverwriteNonEmptyQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "source", Command: []string{"source"}}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -417,7 +417,7 @@ func TestCopyRunToQueueCanOverwriteNonEmptyQueue(t *testing.T) {
 	if _, err := copyRunToQueue(baseDir, "default", "run-1", "all", nil, false, true); err != nil {
 		t.Fatal(err)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -439,7 +439,7 @@ func TestCopyRunToQueueAggregatesArrayTaskResults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, "run-1")
+	runDir := filepath.Join(paths.RunsDir, "run-1")
 	snapshot := Queue{Commands: []QueuedCommand{
 		{ID: "success-array", Name: "success-array", Command: []string{"true"}, Array: &ArraySpec{First: 1, Last: 2}},
 		{ID: "failed-array", Name: "failed-array", Command: []string{"false"}, Array: &ArraySpec{First: 1, Last: 2}},
@@ -459,7 +459,7 @@ func TestCopyRunToQueueAggregatesArrayTaskResults(t *testing.T) {
 	if _, err := copyRunToQueue(baseDir, "default", "run-1", "failed", nil, false); err != nil {
 		t.Fatal(err)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -476,7 +476,7 @@ func TestCopyRunToQueueAggregatesArrayTaskResults(t *testing.T) {
 	if _, err := copyRunToQueue(baseDir, "default", "run-1", "success", nil, false, true); err != nil {
 		t.Fatal(err)
 	}
-	queue, err = loadQueue(paths.queueFile)
+	queue, err = loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -507,7 +507,7 @@ func TestConfirmQueueOverwriteRejectsNonEmptyQueueWithoutTerminal(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.queueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
 		t.Fatal(err)
 	}
 

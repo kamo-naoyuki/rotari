@@ -14,7 +14,7 @@ func TestDeleteAllRunsResetsMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, runID := range []string{"run-1", "run-2"} {
-		if err := os.MkdirAll(filepath.Join(paths.runsDir, runID), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(paths.RunsDir, runID), 0o755); err != nil {
 			t.Fatal(err)
 		}
 		if err := registerRun(paths, runID); err != nil {
@@ -25,17 +25,17 @@ func TestDeleteAllRunsResetsMetadata(t *testing.T) {
 	meta.Phase = "finished"
 	meta.LastRunID = "run-2"
 	meta.LastRunExitCode = 7
-	if err := writeJSON(paths.metaFile, meta); err != nil {
+	if err := writeJSON(paths.MetaFile, meta); err != nil {
 		t.Fatal(err)
 	}
 
 	if code := cmdDelete([]string{"--basedir", baseDir, "--project-name", "demo"}); code != 0 {
 		t.Fatalf("cmdDelete exit code = %d, want 0", code)
 	}
-	if _, err := os.Stat(paths.runsDir); !os.IsNotExist(err) {
+	if _, err := os.Stat(paths.RunsDir); !os.IsNotExist(err) {
 		t.Fatalf("runs directory remains after deleting all history: %v", err)
 	}
-	updated, err := loadMeta(paths.metaFile)
+	updated, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,10 +57,10 @@ func TestClearRunHistoryRemovesRegistryEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := "run-1"
-	if err := os.MkdirAll(filepath.Join(paths.runsDir, runID), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(paths.RunsDir, runID), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "finished", LastRunID: runID}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "finished", LastRunID: runID}); err != nil {
 		t.Fatal(err)
 	}
 	if err := registerRun(paths, runID); err != nil {

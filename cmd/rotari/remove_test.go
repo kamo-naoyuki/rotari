@@ -19,7 +19,7 @@ func TestCmdRemoveDeletesJobByID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestCmdRemoveDeletesJobByID(t *testing.T) {
 		t.Fatalf("cmdRemove exit code = %d, stdout = %q", code, output)
 	}
 
-	queue, err = loadQueue(paths.queueFile)
+	queue, err = loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestCmdRemoveDeletesJobByName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,14 +86,14 @@ func TestCmdRemoveRejectsRunningProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
+	if err := acquireLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.metaFile, Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "active-run")
-	defer os.Remove(paths.lockFile)
+	defer os.Remove(paths.LockFile)
 
 	oldStderr := os.Stderr
 	reader, writer, err := os.Pipe()
@@ -179,7 +179,7 @@ func TestCmdRemoveByIDsRejectsWhenOneIDIsMissing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestCmdRemoveByIDsRejectsWhenOneIDIsMissing(t *testing.T) {
 		t.Fatalf("cmdRemove exit code = %d, stderr = %q", code, output)
 	}
 
-	queue, err = loadQueue(paths.queueFile)
+	queue, err = loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}

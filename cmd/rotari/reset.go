@@ -43,7 +43,7 @@ func cmdReset(args []string) int {
 		return 1
 	}
 	if state == projectRunning {
-		meta, metaErr := loadMeta(paths.metaFile)
+		meta, metaErr := loadMeta(paths.MetaFile)
 		if metaErr == nil && meta.Phase == "cancelling" {
 			if !waitForCancellation(paths, queueName) {
 				return 1
@@ -65,12 +65,12 @@ func cmdReset(args []string) int {
 			if !isTerminal(os.Stdin) {
 				detail, stillRunning := interruptedRunStatusDetail(paths, runID)
 				message := fmt.Sprintf("project %q has interrupted run %q%s; reset requires confirmation\nInspect before deciding: rotari show --basedir %s --project-name %s --run-id %s\n",
-					queueName, runID, detail, shellQuote(paths.baseDir), shellQuote(paths.queueName), shellQuote(runID))
+					queueName, runID, detail, shellQuote(paths.BaseDir), shellQuote(paths.ProjectName), shellQuote(runID))
 				if stillRunning {
 					message += "Do not recover until you have independently confirmed those jobs have actually stopped.\n"
 				}
 				message += fmt.Sprintf("Confirm with:\n  rotari reset --basedir %s --project-name %s --recover",
-					shellQuote(paths.baseDir), shellQuote(paths.queueName))
+					shellQuote(paths.BaseDir), shellQuote(paths.ProjectName))
 				printError(message)
 				return 1
 			}
@@ -84,7 +84,7 @@ func cmdReset(args []string) int {
 				return 1
 			}
 		}
-		queue, err := loadQueue(paths.queueFile)
+		queue, err := loadQueue(paths.QueueFile)
 		if err != nil {
 			printErrorf("failed to load queue: %v", err)
 			return 1
@@ -112,7 +112,7 @@ func cmdReset(args []string) int {
 
 func confirmResetOfInterruptedRun(input io.Reader, output io.Writer, paths pathSet, runID string) (bool, error) {
 	detail, _ := interruptedRunStatusDetail(paths, runID)
-	fmt.Fprintf(output, "project %q has interrupted run %q%s.\nConfirm all jobs have stopped and reset the queue? [y/N] ", paths.queueName, runID, detail)
+	fmt.Fprintf(output, "project %q has interrupted run %q%s.\nConfirm all jobs have stopped and reset the queue? [y/N] ", paths.ProjectName, runID, detail)
 	answer, err := bufio.NewReader(input).ReadString('\n')
 	if err != nil && len(answer) == 0 {
 		return false, err
@@ -123,39 +123,39 @@ func confirmResetOfInterruptedRun(input io.Reader, output io.Writer, paths pathS
 
 // resetQueueCommands preserves queue defaults and run history.
 func resetQueueCommands(paths pathSet) (int, error) {
-	if err := os.MkdirAll(paths.projectDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
 		return 0, fmt.Errorf("failed to create project directory: %w", err)
 	}
-	release, err := acquireStateLock(paths.stateLockFile)
+	release, err := acquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return 0, fmt.Errorf("failed to lock queue: %w", err)
 	}
 	defer release()
-	running, err := isRunning(paths.lockFile)
+	running, err := isRunning(paths.LockFile)
 	if err != nil {
 		return 0, fmt.Errorf("failed to check queue: %w", err)
 	}
 	if running {
-		return 0, fmt.Errorf("project %q is running; reset is not allowed", paths.queueName)
+		return 0, fmt.Errorf("project %q is running; reset is not allowed", paths.ProjectName)
 	}
-	queue, err := loadQueue(paths.queueFile)
+	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		return 0, fmt.Errorf("failed to load queue: %w", err)
 	}
 	cleared := len(queue.Commands)
 	if cleared > 0 {
 		queue.Commands = nil
-		if err := writeJSON(paths.queueFile, queue); err != nil {
+		if err := writeJSON(paths.QueueFile, queue); err != nil {
 			return 0, fmt.Errorf("failed to reset queue: %w", err)
 		}
 	}
-	meta, err := loadMeta(paths.metaFile)
+	meta, err := loadMeta(paths.MetaFile)
 	if err != nil {
 		return 0, fmt.Errorf("failed to load metadata: %w", err)
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.metaFile, meta); err != nil {
+	if err := writeJSON(paths.MetaFile, meta); err != nil {
 		return 0, fmt.Errorf("failed to update metadata: %w", err)
 	}
 	return cleared, nil

@@ -19,10 +19,10 @@ func createAIReportFixture(t *testing.T) (string, pathSet, string, string) {
 		t.Fatal(err)
 	}
 	runID, jobID := "run-1", "job-1"
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	jobDir := filepath.Join(runDir, jobID)
 	command := QueuedCommand{ID: jobID, Name: "train", Command: []string{"python", "train.py"}, Executor: "slurm", DependsOn: []string{"prepare"}}
-	if err := writeJSON(paths.queueFile, Queue{}); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{command}}); err != nil {
@@ -65,11 +65,11 @@ func TestBuildAIReportIncludesDiagnosisAndBoundedLog(t *testing.T) {
 
 func TestBuildAIReportRedactsKnownAndTypicalSensitiveValues(t *testing.T) {
 	_, paths, runID, jobID := createAIReportFixture(t)
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := os.WriteFile(filepath.Join(runDir, "context.json"), []byte(`{"cwd":"/work/demo","hostname":"worker-1"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(paths.runsDir, runID, jobID, "output"), []byte("failed at /home/alice/private.txt on node-1.example.com\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(paths.RunsDir, runID, jobID, "output"), []byte("failed at /home/alice/private.txt on node-1.example.com\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	report, err := buildAIReport(paths, runID, jobID, false)
@@ -90,7 +90,7 @@ func TestBuildAIReportRedactsKnownAndTypicalSensitiveValues(t *testing.T) {
 
 func TestBuildAIReportRedactsMultipleSecretsAndKeepsTheFirstVisibleMarker(t *testing.T) {
 	_, paths, runID, jobID := createAIReportFixture(t)
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := os.WriteFile(filepath.Join(runDir, "context.json"), []byte(`{"cwd":"/tmp/build-logs/run-42","hostname":"cluster-gpu-01.example.com"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestCmdShowReportRejectsCombinedFlags(t *testing.T) {
 
 func TestBuildJobAIReportIncludesSuccessfulJobLog(t *testing.T) {
 	_, paths, runID, jobID := createAIReportFixture(t)
-	if err := writeJSON(filepath.Join(paths.runsDir, runID, "summary.json"), RunSummary{RunID: runID, Status: "finished", Results: []JobResult{{ID: jobID, ExitCode: 0}}}); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), RunSummary{RunID: runID, Status: "finished", Results: []JobResult{{ID: jobID, ExitCode: 0}}}); err != nil {
 		t.Fatal(err)
 	}
 	report, err := buildAIReport(paths, runID, jobID, false)
@@ -183,10 +183,10 @@ func TestShowReportAndWebAPIUseCommonReport(t *testing.T) {
 func TestCmdShowReportSelectsAttemptID(t *testing.T) {
 	baseDir, paths, fixtureRunID, jobID := createAIReportFixture(t)
 	runID := "20260922-010000-00000000"
-	if err := os.Rename(filepath.Join(paths.runsDir, fixtureRunID), filepath.Join(paths.runsDir, runID)); err != nil {
+	if err := os.Rename(filepath.Join(paths.RunsDir, fixtureRunID), filepath.Join(paths.RunsDir, runID)); err != nil {
 		t.Fatal(err)
 	}
-	runDir := filepath.Join(paths.runsDir, runID)
+	runDir := filepath.Join(paths.RunsDir, runID)
 	oldAttemptID := makeAttemptID(runID, jobID, 0)
 	latestAttemptID := makeAttemptID(runID, jobID, 1)
 	oldAttemptDir, err := specificAttemptJobDir(runDir, jobID, oldAttemptID)
