@@ -300,26 +300,14 @@ func prepareJobEnvironments(paths pathSet, runID string, jobs []JobSpec, runName
 }
 
 func assignAttemptIDs(jobs []JobSpec, runID string, attempt int) {
-	for index := range jobs {
-		job := &jobs[index]
-		job.AttemptID = makeAttemptID(runID, job.ID, attempt)
-		environment := []string{envAttemptID + "=" + job.AttemptID}
-		if runDir, ok := environmentEntry(job.Environment, envRunDir); ok {
-			if jobDir, err := attemptJobDir(strings.TrimPrefix(runDir, envRunDir+"="), *job); err == nil {
-				environment = append(environment, envJobDir+"="+jobDir)
-			}
-		}
-		job.Environment = mergeEnvironment(job.Environment, environment)
-	}
+	runcontract.AssignAttemptIDs(jobs, runID, attempt, runcontract.AttemptIDCallbacks{
+		MakeAttemptID: makeAttemptID, AttemptJobDir: attemptJobDir,
+		AttemptIDName: envAttemptID, RunDirName: envRunDir, JobDirName: envJobDir,
+	})
 }
 
 func environmentEntry(environment []string, name string) (string, bool) {
-	for _, entry := range environment {
-		if strings.HasPrefix(entry, name+"=") {
-			return entry, true
-		}
-	}
-	return "", false
+	return runcontract.EnvironmentEntry(environment, name)
 }
 
 func jobIsPending(jobs []JobSpec, jobID string) bool {
