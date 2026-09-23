@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 const (
@@ -40,23 +42,23 @@ const (
 )
 
 func showDefaultJobTargets(paths pathSet, selector string, byName bool) ([]showSelectorTarget, error) {
-	state, stateRunID, err := inspectProjectRunState(paths)
+	projectState, stateRunID, err := inspectProjectRunState(paths)
 	if err != nil {
 		return nil, err
 	}
-	if state == projectRunning || state == projectInterrupted {
+	if projectState == projectRunning || projectState == projectInterrupted {
 		target, found, err := findShowJobInRun(paths, stateRunID, selector, byName)
 		if err != nil || !found {
 			return nil, err
 		}
 		target.priority = showPriorityActive
-		if state == projectInterrupted {
+		if projectState == projectInterrupted {
 			target.priority = showPriorityInterrupted
 		}
 		return []showSelectorTarget{target}, nil
 	}
 	targets := make([]showSelectorTarget, 0, 2)
-	queue, err := loadQueue(paths.QueueFile)
+	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +103,7 @@ func highestPriorityShowTargets(targets []showSelectorTarget) []showSelectorTarg
 }
 
 func findShowJobInQueue(queue Queue, selector string, byName bool) (string, bool) {
-	for _, job := range queueToJobs(queue.Commands) {
+	for _, job := range model.QueueToJobs(queue.Commands) {
 		if (byName && job.Name == selector) || (!byName && job.ID == selector) {
 			return job.ID, true
 		}
@@ -110,7 +112,7 @@ func findShowJobInQueue(queue Queue, selector string, byName bool) (string, bool
 }
 
 func findShowJobInRun(paths pathSet, runID, selector string, byName bool) (showSelectorTarget, bool, error) {
-	queue, err := loadQueue(filepath.Join(paths.RunsDir, runID, "commands.json"))
+	queue, err := state.LoadQueue(filepath.Join(paths.RunsDir, runID, "commands.json"))
 	if err != nil {
 		return showSelectorTarget{}, false, nil
 	}
@@ -398,7 +400,7 @@ func cmdShow(args []string) int {
 		return showProjectOverview(paths)
 	}
 	if *showQueueOption {
-		queue, err := loadQueue(paths.QueueFile)
+		queue, err := state.LoadQueue(paths.QueueFile)
 		if err != nil {
 			printErrorf("failed to load queue: %v", err)
 			return 1
@@ -417,18 +419,18 @@ func cmdShow(args []string) int {
 	}
 	selectedRunID := *runIDOption
 	if selectedRunID == "" {
-		state, stateRunID, err := inspectProjectRunState(paths)
+		projectState, stateRunID, err := inspectProjectRunState(paths)
 		if err != nil {
 			printErrorf("failed to check project state: %v", err)
 			return 1
 		}
-		if state == projectRunning {
+		if projectState == projectRunning {
 			selectedRunID = stateRunID
-		} else if state == projectInterrupted {
+		} else if projectState == projectInterrupted {
 			selectedRunID = stateRunID
 			printInterruptedRunNotice(paths, stateRunID)
 		} else {
-			queue, err := loadQueue(paths.QueueFile)
+			queue, err := state.LoadQueue(paths.QueueFile)
 			if err != nil {
 				printErrorf("failed to load queue: %v", err)
 				return 1
@@ -553,13 +555,13 @@ type showJobCounts struct {
 
 func showRunJSON(paths pathSet, runID string) int {
 	result := showJSON{BaseDir: paths.BaseDir, Project: paths.ProjectName, RunID: runID, RunDir: filepath.Join(paths.RunsDir, runID)}
-	if summary, err := loadRunSummary(filepath.Join(result.RunDir, "summary.json")); err == nil {
+	if summary, err := state.LoadRunSummary(filepath.Join(result.RunDir, "summary.json")); err == nil {
 		result.Summary = &summary
 	} else if !os.IsNotExist(err) {
 		printErrorf("failed to read summary: %v", err)
 		return 1
 	}
-	commands, err := loadQueue(filepath.Join(result.RunDir, "commands.json"))
+	commands, err := state.LoadQueue(filepath.Join(result.RunDir, "commands.json"))
 	if err != nil {
 		printErrorf("failed to read commands: %v", err)
 		return 1
@@ -701,7 +703,7 @@ func selectRunID(paths pathSet, requested string) (string, error) {
 		requested = ""
 	}
 	if requested != "" {
-		if !isValidPathElement(requested) {
+		if !state.IsValidPathElement(requested) {
 			return "", fmt.Errorf(runNotFoundMessage, requested)
 		}
 		if _, err := os.Stat(filepath.Join(paths.RunsDir, requested)); err != nil {
@@ -753,7 +755,7 @@ func writeShowTargetHeaderWithMode(writer io.Writer, paths pathSet, mode string)
 		fmt.Fprintf(writer, "%s\n", cyan("=== SHOW MODE: "+showViewLabel(mode)+" ==="))
 	}
 	fmt.Fprintf(writer, "%s %s\n%s %s\n", cyan("Base directory:"), paths.BaseDir, cyan("Project:"), paths.ProjectName)
-	if queue, err := loadQueue(paths.QueueFile); err == nil {
+	if queue, err := state.LoadQueue(paths.QueueFile); err == nil {
 		fmt.Fprintf(writer, "%s %s (%d jobs)\n", cyan("Queue:"), paths.QueueFile, len(queue.Commands))
 	} else {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Queue:"), paths.QueueFile)
@@ -812,7 +814,7 @@ func countProjectRuns(runsDir string) int {
 func printInterruptedRunNotice(paths pathSet, runID string) {
 	fmt.Printf("%s\n", yellow(fmt.Sprintf("Run %s appears to have been interrupted.", runID)))
 	fmt.Printf("Recover the queue before modifying or running it:\n  rotari unlock --basedir %s --project-name %s --run-id %s\n\n",
-		shellQuote(paths.BaseDir), shellQuote(paths.ProjectName), shellQuote(runID))
+		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
 }
 
 func showRun(paths pathSet, runID string, failedOnly bool) int {
@@ -821,7 +823,7 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 		printErrorf(runNotFoundMessage, runID)
 		return 1
 	}
-	summary, summaryErr := loadRunSummary(filepath.Join(runDir, "summary.json"))
+	summary, summaryErr := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
 	summaryOK := summaryErr == nil
 	if summaryErr != nil && !errors.Is(summaryErr, os.ErrNotExist) {
 		printErrorf("failed to read summary: %v", summaryErr)
@@ -835,10 +837,10 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 	}
 	fmt.Printf("%s %s\n", cyan("Directory:"), runDir)
 	if summaryOK {
-		fmt.Printf("%s %s\n%s %s\n%s %s\n%s %d\n", cyan("Status:"), summary.Status, cyan("Started:"), formatDisplayTimestamp(summary.StartedAt), cyan("Finished:"), formatDisplayTimestamp(summary.FinishedAt), cyan("Exit code:"), summary.ExitCode)
+		fmt.Printf("%s %s\n%s %s\n%s %s\n%s %d\n", cyan("Status:"), summary.Status, cyan("Started:"), model.FormatDisplayTimestamp(summary.StartedAt), cyan("Finished:"), model.FormatDisplayTimestamp(summary.FinishedAt), cyan("Exit code:"), summary.ExitCode)
 	}
 	fmt.Printf("%s %s\n", cyan("Output directory:"), runDir)
-	queue, queueErr := loadQueue(paths.QueueFile)
+	queue, queueErr := state.LoadQueue(paths.QueueFile)
 	if queueErr == nil && len(queue.Commands) > 0 {
 		if diff, err := compareQueueWithRun(paths.QueueFile, filepath.Join(runDir, "commands.json")); err == nil && diff.HasChanges() {
 			fmt.Printf("\n%s\n", yellow("Queue differs from this run:"))
@@ -846,14 +848,14 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 		}
 	}
 	jobSpecs := loadRunJobSpecs(runDir)
-	runQueue, runQueueErr := loadQueue(filepath.Join(runDir, "commands.json"))
+	runQueue, runQueueErr := state.LoadQueue(filepath.Join(runDir, "commands.json"))
 	runActive := runIsActive(paths, runID)
 	jobCounts := showJobCounts{}
-	resultByID := jobResultsByID(summary.Results)
+	resultByID := model.ResultsByID(summary.Results)
 	jobIDs := make([]string, 0, len(runQueue.Commands))
 	originByID := make(map[string]*JobOrigin, len(runQueue.Commands))
 	if runQueueErr == nil {
-		for _, job := range queueToJobs(runQueue.Commands) {
+		for _, job := range model.QueueToJobs(runQueue.Commands) {
 			jobIDs = append(jobIDs, job.ID)
 		}
 		for _, command := range runQueue.Commands {
@@ -950,8 +952,8 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 			command = strings.Join(jobSpec.Command, " ")
 		}
 		submittedAt, finishedAt := readShowJobTimestamps(runDir, jobID, originByID[jobID])
-		submittedAt = formatDisplayTimestamp(submittedAt)
-		finishedAt = formatDisplayTimestamp(finishedAt)
+		submittedAt = model.FormatDisplayTimestamp(submittedAt)
+		finishedAt = model.FormatDisplayTimestamp(finishedAt)
 		if statusOK {
 			statusText := green(strconv.Itoa(status))
 			if blocked {
@@ -1046,8 +1048,8 @@ func showQueue(paths pathSet, queue Queue) int {
 }
 
 func showQueueContent(paths pathSet, queue Queue) int {
-	jobs := queueToJobs(queue.Commands)
-	originByID := queueOriginsByJobID(queue)
+	jobs := model.QueueToJobs(queue.Commands)
+	originByID := model.QueueOriginsByJobID(model.Queue(queue))
 	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-6s %-15s %-20s %-30s %-24s %-12s %s", "JOB ID", "TASK", "NAME", "DEPENDS ON", "EXECUTOR", "SOURCE RUN", "SOURCE STATUS", "COMMAND")))
 	for _, job := range jobs {
 		name := job.Name
@@ -1072,16 +1074,16 @@ func showQueueContent(paths pathSet, queue Queue) int {
 		}
 		fmt.Printf("%-12s %-6s %-15s %-20s %-30s %-24s %-12s %s\n", job.ID, taskText, name, dependsOn, executorText, sourceRun, sourceStatus, strings.Join(job.Command, " "))
 	}
-	fmt.Printf("\n%s\n  rotari run -b %s -p %s\n", cyan("To execute these jobs:"), shellQuote(paths.BaseDir), shellQuote(paths.ProjectName))
+	fmt.Printf("\n%s\n  rotari run -b %s -p %s\n", cyan("To execute these jobs:"), executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName))
 	return 0
 }
 
 func showQueueJob(paths pathSet, queue Queue, jobID string) int {
-	if !isValidPathElement(jobID) {
+	if !state.IsValidPathElement(jobID) {
 		printErrorf("job %q not found in current queue", jobID)
 		return 1
 	}
-	for _, job := range queueToJobs(queue.Commands) {
+	for _, job := range model.QueueToJobs(queue.Commands) {
 		if job.ID != jobID {
 			continue
 		}
@@ -1137,17 +1139,17 @@ func (diff queueRunDiff) HasChanges() bool {
 }
 
 func compareQueueWithRun(queuePath, runCommandsPath string) (queueRunDiff, error) {
-	current, err := loadQueue(queuePath)
+	current, err := state.LoadQueue(queuePath)
 	if err != nil {
 		return queueRunDiff{}, err
 	}
-	runQueue, err := loadQueue(runCommandsPath)
+	runQueue, err := state.LoadQueue(runCommandsPath)
 	if err != nil {
 		return queueRunDiff{}, err
 	}
 
-	currentJobs := queueToJobs(current.Commands)
-	runJobs := queueToJobs(runQueue.Commands)
+	currentJobs := model.QueueToJobs(current.Commands)
+	runJobs := model.QueueToJobs(runQueue.Commands)
 	currentByID := make(map[string]JobSpec, len(currentJobs))
 	for _, job := range currentJobs {
 		currentByID[job.ID] = job
@@ -1247,14 +1249,14 @@ func showRunsWithMode(paths pathSet, showHint bool, mode string) int {
 		}
 
 		r := runInfo{id: runID, modTime: modTime}
-		if summary, err := loadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
+		if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
 			r.name = summary.RunName
 			r.startedAt = summary.StartedAt
 			r.finishedAt = summary.FinishedAt
 			r.exitCode = summary.ExitCode
 			r.status = summary.Status
 			if r.status == "" {
-				r.status = runStatus(summary.ExitCode)
+				r.status = model.RunStatus(summary.ExitCode)
 			}
 			r.hasSummary = true
 		}
@@ -1277,12 +1279,12 @@ func showRunsWithMode(paths pathSet, showHint bool, mode string) int {
 		if started == "" {
 			started = "-"
 		}
-		started = formatDisplayTimestamp(started)
+		started = model.FormatDisplayTimestamp(started)
 		finished := r.finishedAt
 		if finished == "" {
 			finished = "-"
 		}
-		finished = formatDisplayTimestamp(finished)
+		finished = model.FormatDisplayTimestamp(finished)
 		statusText := r.status
 		if statusText == "finished" {
 			statusText = green(statusText)
@@ -1312,7 +1314,7 @@ func showProjectOverview(paths pathSet) int {
 	if code := showRunsOverview(paths); code != 0 {
 		return code
 	}
-	queue, err := loadQueue(paths.QueueFile)
+	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return 0
@@ -1390,7 +1392,7 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 			return 1
 		}
 		for _, entry := range entries {
-			if !entry.IsDir() || !isValidProjectName(entry.Name()) {
+			if !entry.IsDir() || !state.IsValidPathElement(entry.Name()) {
 				continue
 			}
 			paths, err := resolvePaths(baseDir, entry.Name())
@@ -1398,7 +1400,7 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 				printErrorf("failed to resolve project %q: %v", entry.Name(), err)
 				return 1
 			}
-			queue, err := loadQueue(paths.QueueFile)
+			queue, err := state.LoadQueue(paths.QueueFile)
 			if err != nil {
 				printErrorf("failed to load queue for project %q: %v", entry.Name(), err)
 				return 1
@@ -1486,28 +1488,11 @@ func colorExecutor(executor string) string {
 }
 
 func jobStatusTerminal(status slurmStatus) bool {
-	return status.FinishedAt != "" || slurmStatusTerminal(status.Phase)
+	return status.FinishedAt != "" || executor.SchedulerStateTerminal(status.Phase)
 }
 
 func loadTerminalSchedulerState(jobDir string) (int, bool) {
-	state := strings.ToLower(executor.LoadSchedulerStatus(jsonStore(), jobDir))
-	switch state {
-	case "completed", "complete", "success", "succeeded":
-		return 0, true
-	case "failed", "cancelled", "canceled", "timeout", "out_of_memory", "oom":
-		return 1, true
-	default:
-		return 0, false
-	}
-}
-
-func slurmStatusTerminal(phase string) bool {
-	switch phase {
-	case "finished", "completed", "failed", "cancelled", "timeout", "out_of_memory", "unknown":
-		return true
-	default:
-		return false
-	}
+	return executor.ResolveTerminalExitCode(jsonStore(), jobDir)
 }
 
 func readSubmittedAt(runDir, jobID string) string {
@@ -1552,13 +1537,13 @@ func readShowJobTimestamps(runDir, jobID string, origin *JobOrigin) (string, str
 	}
 	if submittedAt == "-" {
 		submittedAt = origin.SubmittedAt
-		if submittedAt == "" && isValidPathElement(origin.RunID) {
+		if submittedAt == "" && state.IsValidPathElement(origin.RunID) {
 			submittedAt = readSubmittedAt(filepath.Join(filepath.Dir(runDir), origin.RunID), origin.JobID)
 		}
 	}
 	if finishedAt == "-" {
 		finishedAt = origin.FinishedAt
-		if finishedAt == "" && isValidPathElement(origin.RunID) {
+		if finishedAt == "" && state.IsValidPathElement(origin.RunID) {
 			finishedAt = readFinishedAt(filepath.Join(filepath.Dir(runDir), origin.RunID), origin.JobID)
 		}
 	}
@@ -1571,7 +1556,7 @@ func loadRunJobSpecs(runDir string) map[string]JobSpec {
 	if err == nil {
 		var queue Queue
 		if json.Unmarshal(data, &queue) == nil {
-			for _, job := range queueToJobs(queue.Commands) {
+			for _, job := range model.QueueToJobs(queue.Commands) {
 				specs[job.ID] = job
 			}
 		}
@@ -1604,7 +1589,7 @@ func loadRunJobSpecs(runDir string) map[string]JobSpec {
 // commands.json, if any. Carried-forward jobs (see planRerunSelection) are
 // not re-executed, so their output only exists under the origin run/job.
 func loadRunOrigin(runDir, jobID string) *JobOrigin {
-	queue, err := loadQueue(filepath.Join(runDir, "commands.json"))
+	queue, err := state.LoadQueue(filepath.Join(runDir, "commands.json"))
 	if err != nil {
 		return nil
 	}
@@ -1634,7 +1619,7 @@ func listAttemptIDs(runDir, jobID string) []string {
 	}
 	attempts := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		if entry.IsDir() && isValidPathElement(entry.Name()) {
+		if entry.IsDir() && state.IsValidPathElement(entry.Name()) {
 			attempts = append(attempts, entry.Name())
 		}
 	}
@@ -1650,11 +1635,11 @@ func listAttemptIDs(runDir, jobID string) []string {
 }
 
 func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID string) int {
-	if !isValidPathElement(runID) {
+	if !state.IsValidPathElement(runID) {
 		printErrorf(runNotFoundMessage, runID)
 		return 1
 	}
-	if !isValidPathElement(jobID) {
+	if !state.IsValidPathElement(jobID) {
 		printErrorf(jobNotFoundMessage, jobID, runID)
 		return 1
 	}
@@ -1721,9 +1706,9 @@ func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID str
 	if dependencies := jobSpecs[jobID].DependsOn; len(dependencies) > 0 {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Depends on:"), strings.Join(dependencies, ", "))
 	}
-	fmt.Fprintf(writer, "%s %s\n", cyan("Submitted:"), formatDisplayTimestamp(readSubmittedAt(runDir, jobID)))
-	fmt.Fprintf(writer, "%s %s\n", cyan("Finished:"), formatDisplayTimestamp(readFinishedAt(runDir, jobID)))
-	if summary, err := loadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
+	fmt.Fprintf(writer, "%s %s\n", cyan("Submitted:"), model.FormatDisplayTimestamp(readSubmittedAt(runDir, jobID)))
+	fmt.Fprintf(writer, "%s %s\n", cyan("Finished:"), model.FormatDisplayTimestamp(readFinishedAt(runDir, jobID)))
+	if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
 		for _, result := range summary.Results {
 			if result.ID == jobSpecs[jobID].ID {
 				hosts := strings.Join(result.Hosts, ",")
@@ -1751,7 +1736,7 @@ func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID str
 			fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), yellow(strings.TrimPrefix(status, "Status: ")))
 		}
 	} else {
-		summary, err := loadRunSummary(filepath.Join(runDir, "summary.json"))
+		summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
 		if err == nil {
 			for _, result := range summary.Results {
 				if result.ID != jobSpecs[jobID].ID {
@@ -1774,7 +1759,7 @@ func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID str
 		}
 	}
 	command := readJSONCommand(filepath.Join(jobDir, commandJSONName))
-	if summary, err := loadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
+	if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
 		for _, result := range summary.Results {
 			if result.ID == jobSpecs[jobID].ID {
 				writeJobDiagnoses(writer, result.Diagnoses)
@@ -1910,14 +1895,14 @@ func showRunLogs(writer io.Writer, paths pathSet, runID string, failedOnly bool)
 	for _, entry := range entries {
 		seen[entry.Name()] = true
 	}
-	queue, queueErr := loadQueue(filepath.Join(runDir, "commands.json"))
+	queue, queueErr := state.LoadQueue(filepath.Join(runDir, "commands.json"))
 	if queueErr == nil {
 		for _, command := range queue.Commands {
 			if command.Array == nil {
 				printCarriedForwardOutput(writer, paths, command.ID, command.Name, command.Command, command.WorkingDirectory, command.Origin, seen, failedOnly)
 				continue
 			}
-			for _, task := range arrayTaskIDs(command.Array) {
+			for _, task := range model.ArrayTaskIDs(command.Array) {
 				taskID := fmt.Sprintf("%s-%d", command.ID, task)
 				printCarriedForwardOutput(writer, paths, taskID, command.Name, command.Command, command.WorkingDirectory, command.TaskOrigins[taskID], seen, failedOnly)
 			}
@@ -1933,7 +1918,7 @@ func printCarriedForwardOutput(writer io.Writer, paths pathSet, id, name string,
 	if seen[id] || origin == nil {
 		return
 	}
-	if !isValidPathElement(origin.RunID) || !isValidPathElement(origin.JobID) {
+	if !state.IsValidPathElement(origin.RunID) || !state.IsValidPathElement(origin.JobID) {
 		return
 	}
 	if failedOnly && origin.Status != "failed" {
@@ -1979,11 +1964,11 @@ func printCarriedForwardOutput(writer io.Writer, paths pathSet, id, name string,
 }
 
 func followJobLog(writer io.Writer, paths pathSet, runID, jobID string) int {
-	if !isValidPathElement(runID) {
+	if !state.IsValidPathElement(runID) {
 		printErrorf(runNotFoundMessage, runID)
 		return 1
 	}
-	if !isValidPathElement(jobID) {
+	if !state.IsValidPathElement(jobID) {
 		printErrorf(jobNotFoundMessage, jobID, runID)
 		return 1
 	}

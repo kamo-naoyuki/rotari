@@ -129,7 +129,7 @@ func resolveRunNameTargets(cliBaseDir, cliProjectName, runName string, activeOnl
 			if !entry.IsDir() {
 				continue
 			}
-			summary, summaryErr := loadRunSummary(filepath.Join(paths.RunsDir, entry.Name(), "summary.json"))
+			summary, summaryErr := state.LoadRunSummary(filepath.Join(paths.RunsDir, entry.Name(), "summary.json"))
 			if summaryErr == nil && summary.RunName == runName {
 				targets = append(targets, waitTarget{baseDir: baseDir, projectName: projectName, runID: entry.Name()})
 			}
@@ -168,7 +168,7 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (waitTarget,
 	if err != nil {
 		return waitTarget{}, err
 	}
-	if isValidProjectName(selector) {
+	if state.IsValidPathElement(selector) {
 		projectDir := filepath.Join(baseDir, "projects", selector)
 		if info, statErr := os.Stat(projectDir); statErr == nil && info.IsDir() {
 			runID, activeErr := resolveActiveRunTarget(baseDir, selector)
@@ -300,7 +300,7 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 			printErrorf("invalid run directory %q", runID)
 			return waitResult{exitCode: 1}
 		}
-		summary, err := loadRunSummary(summaryPath)
+		summary, err := state.LoadRunSummary(summaryPath)
 		if err == nil {
 			if jsonOutput {
 				_ = json.NewEncoder(os.Stdout).Encode(summary)
@@ -322,11 +322,6 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-}
-
-func loadRunSummary(path string) (RunSummary, error) {
-	summary, err := state.LoadRunSummary(path)
-	return RunSummary(summary), err
 }
 
 func formatRunCompletion(paths pathSet, runID string, summary RunSummary) string {

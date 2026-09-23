@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -30,7 +32,7 @@ func buildAIReport(paths pathSet, runID, jobID string, failedOnly bool, attemptI
 		return "", err
 	}
 	if jobID != "" {
-		if !isValidPathElement(jobID) {
+		if !state.IsValidPathElement(jobID) {
 			return "", fmt.Errorf(jobNotFoundMessage, jobID, runID)
 		}
 		for _, job := range run.Jobs {
@@ -50,7 +52,7 @@ func buildAIReportForJobs(paths pathSet, runID string, jobIDs []string) (string,
 	}
 	selected := make(map[string]bool, len(jobIDs))
 	for _, jobID := range jobIDs {
-		if !isValidPathElement(jobID) {
+		if !state.IsValidPathElement(jobID) {
 			return "", fmt.Errorf(jobNotFoundMessage, jobID, runID)
 		}
 		selected[jobID] = true
@@ -77,12 +79,12 @@ func loadAIReportRun(paths pathSet, runID string, attemptIDs ...string) (webRun,
 	}
 	var summary RunSummary
 	if path, err := validatedStateFile(runDir, stateFileSummaryJSON); err == nil {
-		summary, err = loadRunSummary(path)
+		summary, err = state.LoadRunSummary(path)
 		if err != nil && !os.IsNotExist(err) {
 			return webRun{}, fmt.Errorf("failed to read summary: %w", err)
 		}
 	} else {
-		summary, err = loadRunSummary(filepath.Join(runDir, stateFileSummaryJSON))
+		summary, err = state.LoadRunSummary(filepath.Join(runDir, stateFileSummaryJSON))
 		if err != nil && !os.IsNotExist(err) {
 			return webRun{}, fmt.Errorf("failed to read summary: %w", err)
 		}
@@ -117,7 +119,7 @@ func formatRunAIReportSelected(paths pathSet, run webRun, selected map[string]bo
 	var builder strings.Builder
 	fmt.Fprintln(&builder, "# rotari run report")
 	fmt.Fprintf(&builder, "\n- Project: %s\n- Run ID: `%s`\n- Status: %s\n- Exit code: %d\n", paths.ProjectName, run.RunID, run.Status, run.ExitCode)
-	fmt.Fprintf(&builder, "- Started: %s\n- Finished: %s\n- Host: %s\n- Working directory: `%s`\n", reportValue(formatDisplayTimestamp(run.StartedAt)), reportValue(formatDisplayTimestamp(run.FinishedAt)), reportValue(run.Context.Hostname), reportValue(run.CWD))
+	fmt.Fprintf(&builder, "- Started: %s\n- Finished: %s\n- Host: %s\n- Working directory: `%s`\n", reportValue(model.FormatDisplayTimestamp(run.StartedAt)), reportValue(model.FormatDisplayTimestamp(run.FinishedAt)), reportValue(run.Context.Hostname), reportValue(run.CWD))
 	for _, job := range run.Jobs {
 		if selected != nil && !selected[job.ID] {
 			continue
@@ -128,7 +130,7 @@ func formatRunAIReportSelected(paths pathSet, run webRun, selected map[string]bo
 		}
 		writeJobAIReport(&builder, paths, run, job, status, status == "failed" || status == "running" || status == "suspended")
 	}
-	fmt.Fprintf(&builder, "\n## Suggested commands\n```sh\nrotari show -r %s --failed-logs\nrotari retry -r %s\n```\n", shellQuote(run.RunID), shellQuote(run.RunID))
+	fmt.Fprintf(&builder, "\n## Suggested commands\n```sh\nrotari show -r %s --failed-logs\nrotari retry -r %s\n```\n", executor.ShellQuote(run.RunID), executor.ShellQuote(run.RunID))
 	return builder.String()
 }
 
@@ -190,7 +192,7 @@ func writeJobAIReport(builder *strings.Builder, paths pathSet, run webRun, job w
 	if job.AttemptID != "" {
 		fmt.Fprintf(builder, "- Attempt ID: `%s`\n", job.AttemptID)
 	}
-	fmt.Fprintf(builder, "- Dependencies: %s\n- Working directory: `%s`\n- Started: %s\n- Finished: %s\n", reportValue(strings.Join(job.DependsOn, ", ")), reportValue(firstNonEmpty(job.WorkingDirectory, run.CWD)), reportValue(formatDisplayTimestamp(job.SubmittedAt)), reportValue(formatDisplayTimestamp(job.FinishedAt)))
+	fmt.Fprintf(builder, "- Dependencies: %s\n- Working directory: `%s`\n- Started: %s\n- Finished: %s\n", reportValue(strings.Join(job.DependsOn, ", ")), reportValue(firstNonEmpty(job.WorkingDirectory, run.CWD)), reportValue(model.FormatDisplayTimestamp(job.SubmittedAt)), reportValue(model.FormatDisplayTimestamp(job.FinishedAt)))
 	if result == nil {
 		fmt.Fprintln(builder, "- Exit code: -")
 	} else {

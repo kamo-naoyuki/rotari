@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 func TestPrintJobsTableAlignsMultipleRows(t *testing.T) {
@@ -118,7 +120,7 @@ func writeTestJobsRun(t *testing.T, baseDir, project, runID, jobID string, start
 	if err := writeJSON(filepath.Join(jobDir, commandJSONName), JobSpec{ID: jobID, AttemptID: attemptID, Command: []string{"true"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, stateFileSummaryJSON), RunSummary{RunID: runID, Status: runStatus(exitCode), StartedAt: started.Format(time.RFC3339), FinishedAt: finished.Format(time.RFC3339), Results: []JobResult{{ID: jobID, AttemptID: attemptID, ExitCode: exitCode}}}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, stateFileSummaryJSON), RunSummary{RunID: runID, Status: model.RunStatus(exitCode), StartedAt: started.Format(time.RFC3339), FinishedAt: finished.Format(time.RFC3339), Results: []JobResult{{ID: jobID, AttemptID: attemptID, ExitCode: exitCode}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeTestTimestamp(filepath.Join(jobDir, stateFileSubmittedAt), started); err != nil {

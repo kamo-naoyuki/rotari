@@ -21,6 +21,8 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestResolveProjectNamePriority(t *testing.T) {
@@ -157,7 +159,7 @@ func TestValidatedStateDirectoriesRejectTraversal(t *testing.T) {
 
 func TestJoinValidatedPathRejectsTraversal(t *testing.T) {
 	baseDir := filepath.Join(t.TempDir(), "runs")
-	got, err := joinValidatedPath(baseDir, "run-1")
+	got, err := state.SafeJoin(baseDir, "run-1")
 	if err != nil {
 		t.Fatalf("joinValidatedPath returned error for safe value: %v", err)
 	}
@@ -165,7 +167,7 @@ func TestJoinValidatedPathRejectsTraversal(t *testing.T) {
 	if got != want {
 		t.Fatalf("joinValidatedPath = %q, want %q", got, want)
 	}
-	if _, err := joinValidatedPath(baseDir, "../outside"); err == nil {
+	if _, err := state.SafeJoin(baseDir, "../outside"); err == nil {
 		t.Fatal("joinValidatedPath accepted traversal value")
 	}
 }
@@ -531,7 +533,7 @@ func TestMakeRunIDFormat(t *testing.T) {
 }
 
 func TestFormatProjectRunningErrorIncludesWaitAndCancelHints(t *testing.T) {
-	output := formatProjectRunningError(pathSet{BaseDir: "/state", queueName: "demo"}, "run-1")
+	output := formatProjectRunningError(pathSet{BaseDir: "/state", ProjectName: "demo"}, "run-1")
 	for _, want := range []string{
 		"project 'demo' is running",
 		"Run: run-1",
@@ -787,58 +789,25 @@ func TestConfirmResetOfInterruptedRun(t *testing.T) {
 }
 
 func TestRunStatus(t *testing.T) {
-	if got := runStatus(0); got != "finished" {
+	if got := model.RunStatus(0); got != "finished" {
 		t.Fatalf("runStatus(0) = %q, want finished", got)
 	}
-	if got := runStatus(1); got != "failed" {
+	if got := model.RunStatus(1); got != "failed" {
 		t.Fatalf("runStatus(1) = %q, want failed", got)
 	}
 }
 
-func TestQueueToJobsPreservesName(t *testing.T) {
-	jobs := queueToJobs([]QueuedCommand{{
-		ID:      "fixed-id",
-		Command: []string{"echo", "hello"},
-		Name:    "greeting",
-	}})
-	if len(jobs) != 1 {
-		t.Fatalf("got %d jobs, want 1", len(jobs))
-	}
-	if jobs[0].Name != "greeting" {
-		t.Fatalf("job name = %q, want greeting", jobs[0].Name)
-	}
-	if jobs[0].ID != "fixed-id" {
-		t.Fatalf("job id = %q, want fixed-id", jobs[0].ID)
-	}
-}
-
-func TestQueueToJobsExpandsArray(t *testing.T) {
-	taskJobs := queueToJobs([]QueuedCommand{{
-		ID: "array", Command: []string{"echo", "hello"}, Name: "train",
-		Array: &ArraySpec{First: 2, Last: 4},
-	}})
-	if len(taskJobs) != 3 {
-		t.Fatalf("got %d jobs, want 3", len(taskJobs))
-	}
-	for index, wantTask := range []int{2, 3, 4} {
-		job := taskJobs[index]
-		if job.ID != fmt.Sprintf("array-%d", wantTask) || job.ArrayTaskID == nil || *job.ArrayTaskID != wantTask || job.Name != fmt.Sprintf("train[%d]", wantTask) {
-			t.Fatalf("job %d = %#v, want task %d", index, job, wantTask)
-		}
-	}
-}
-
 func TestParseArrayRange(t *testing.T) {
-	got, err := parseArrayRange("2-4")
+	got, err := model.ParseArrayRange("2-4")
 	if err != nil || got.First != 2 || got.Last != 4 || len(got.Tasks) != 0 {
 		t.Fatalf("parseArrayRange = %#v, %v", got, err)
 	}
-	got, err = parseArrayRange("1,3,4")
+	got, err = model.ParseArrayRange("1,3,4")
 	if err != nil || !reflect.DeepEqual(got, ArraySpec{First: 1, Last: 4, Tasks: []int{1, 3, 4}}) {
 		t.Fatalf("parseArrayRange sparse = %#v, %v", got, err)
 	}
 	for _, value := range []string{"", "4-2", "one-2", "1,,3", "1,3,3"} {
-		if _, err := parseArrayRange(value); err == nil {
+		if _, err := model.ParseArrayRange(value); err == nil {
 			t.Errorf("parseArrayRange(%q) returned nil error", value)
 		}
 	}
@@ -912,7 +881,7 @@ func TestValidateQueueJobsRejectsDuplicateJobID(t *testing.T) {
 }
 
 func TestQueueToJobsExpandsSparseArray(t *testing.T) {
-	jobs := queueToJobs([]QueuedCommand{{
+	jobs := model.QueueToJobs([]QueuedCommand{{
 		ID: "array", Command: []string{"echo", "hello"}, Array: &ArraySpec{First: 1, Last: 4, Tasks: []int{1, 3, 4}},
 	}})
 	if len(jobs) != 3 {
@@ -926,10 +895,10 @@ func TestQueueToJobsExpandsSparseArray(t *testing.T) {
 }
 
 func TestSparseArrayUsesIndividualSubmissions(t *testing.T) {
-	jobs := queueToJobs([]QueuedCommand{{
+	jobs := model.QueueToJobs([]QueuedCommand{{
 		ID: "array", Command: []string{"echo", "hello"}, Array: &ArraySpec{First: 1, Last: 4, Tasks: []int{1, 3, 4}},
 	}})
-	if completeArrayGroup(jobs, 1, 4) {
+	if runcontract.CompleteArrayGroup(jobs, 1, 4) {
 		t.Fatal("sparse array must not use a native contiguous scheduler array")
 	}
 }
@@ -1003,7 +972,7 @@ func TestAssignAttemptIDsAreUniquePerRunAttempt(t *testing.T) {
 func TestLatestAttemptJobDirUsesAttemptDirectories(t *testing.T) {
 	runDir := filepath.Join(t.TempDir(), "diagnosed-run")
 	job := JobSpec{ID: "job-1", AttemptID: makeAttemptID("diagnosed-run", "job-1", 1)}
-	jobDir, err := attemptJobDir(runDir, job)
+	jobDir, err := state.AttemptJobDir(runDir, model.JobSpec(job))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1176,7 +1145,7 @@ func TestEnqueueCommandPersistsStableJobID(t *testing.T) {
 		t.Fatalf("enqueue message = %q, want job metadata and command", message)
 	}
 	queue.Commands[0].Command = []string{"echo", "new"}
-	jobs := queueToJobs(queue.Commands)
+	jobs := model.QueueToJobs(queue.Commands)
 	if len(jobs) != 1 || jobs[0].ID != id {
 		t.Fatalf("changed command ID = %q, want %q", jobs[0].ID, id)
 	}
@@ -1216,7 +1185,7 @@ func TestEnqueueCommandPersistsEnvironment(t *testing.T) {
 	if got := strings.Join(queue.Commands[0].Environment, "\x00"); got != "TOKEN=secret\x00MODE=test" {
 		t.Fatalf("environment = %q", got)
 	}
-	jobs := queueToJobs(queue.Commands)
+	jobs := model.QueueToJobs(queue.Commands)
 	prepareJobEnvironments(paths, "run-1", jobs, "", 1, 1, 0, nil)
 	values := make(map[string]string)
 	for _, entry := range jobs[0].Environment {
@@ -1229,11 +1198,11 @@ func TestEnqueueCommandPersistsEnvironment(t *testing.T) {
 }
 
 func TestValidateEnvironment(t *testing.T) {
-	if err := validateEnvironment([]string{"KEY=value", "EMPTY=", "_PRIVATE=yes", "VALUE_2=ok"}); err != nil {
+	if err := model.ValidateEnvironment([]string{"KEY=value", "EMPTY=", "_PRIVATE=yes", "VALUE_2=ok"}); err != nil {
 		t.Fatal(err)
 	}
 	for _, environment := range [][]string{{"not-an-assignment"}, {"9KEY=value"}, {"BAD-NAME=value"}, {"KEY=value\x00tail"}} {
-		if err := validateEnvironment(environment); err == nil {
+		if err := model.ValidateEnvironment(environment); err == nil {
 			t.Errorf("validateEnvironment(%q) returned nil error", environment)
 		}
 	}
@@ -1652,7 +1621,7 @@ func TestPrintChangeHintsUsesRetryLabel(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	printChangeHints(pathSet{BaseDir: "/tmp/rotari", queueName: "demo"}, "run-1", Queue{}, []JobSpec{{ID: "job-1"}})
+	printChangeHints(pathSet{BaseDir: "/tmp/rotari", ProjectName: "demo"}, "run-1", Queue{}, []JobSpec{{ID: "job-1"}})
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -2134,26 +2103,6 @@ func TestResolveQueueExecutorUsesDefaultExecutor(t *testing.T) {
 
 	if _, err := resolveQueueExecutor(baseDir, "default", "invalid"); err == nil {
 		t.Fatal("resolveQueueExecutor accepted unsupported executor")
-	}
-}
-
-func TestRemoveFinishedJobsDropsCompletedResults(t *testing.T) {
-	jobs := []JobSpec{{ID: "a"}, {ID: "b"}, {ID: "c"}}
-	remaining := removeFinishedJobs(jobs, map[string]JobResult{"b": {ID: "b", ExitCode: 0}})
-	if len(remaining) != 2 {
-		t.Fatalf("remaining jobs = %d, want 2", len(remaining))
-	}
-	ids := map[string]bool{}
-	for _, job := range remaining {
-		ids[job.ID] = true
-	}
-	if ids["b"] {
-		t.Fatal("completed job was not removed from remaining list")
-	}
-	for _, want := range []string{"a", "c"} {
-		if !ids[want] {
-			t.Fatalf("missing job %q in remaining list: %#v", want, remaining)
-		}
 	}
 }
 

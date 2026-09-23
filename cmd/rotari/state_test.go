@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func writeTestRunStateFiles(t *testing.T, paths pathSet, runID string) {
@@ -18,6 +20,21 @@ func writeTestRunStateFiles(t *testing.T, paths pathSet, runID string) {
 	}
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestStateLoadMetaDefaultsToCollectingAndTimestamp(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "meta.json")
+
+	meta, err := state.LoadMeta(path)
+	if err != nil {
+		t.Fatalf("state.LoadMeta returned error for missing file: %v", err)
+	}
+	if meta.Phase != "collecting" {
+		t.Fatalf("state.LoadMeta phase = %q, want %q", meta.Phase, "collecting")
+	}
+	if meta.UpdatedAt == "" {
+		t.Fatal("state.LoadMeta set an empty UpdatedAt for a missing meta file")
 	}
 }
 

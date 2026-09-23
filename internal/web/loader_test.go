@@ -42,6 +42,38 @@ func TestLoadQueueStateBuildsRunsFromCallbacks(t *testing.T) {
 	}
 }
 
+func TestLoadJobsProjectsSummaryAndOrigin(t *testing.T) {
+	origin := &model.JobOrigin{RunID: "run-0", JobID: "job-1", Status: "success"}
+	jobs, err := LoadJobs(
+		model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Name: "demo", Command: []string{"echo", "ok"}, Origin: origin}}},
+		model.RunSummary{Results: []model.JobResult{{ID: "job-1", ExitCode: 0}}},
+		nil,
+		JobLoader{
+			Origins:             map[string]*model.JobOrigin{"job-1": origin},
+			LatestAttemptDir:    func(string) (string, error) { return "/run/job-1", nil },
+			SpecificAttemptDir:  func(string, string) (string, error) { return "", nil },
+			ListAttemptIDs:      func(string) []string { return nil },
+			ReadTimestamp:       func(string, string) string { return "" },
+			ReadJobTimestamp:    func(string, string) string { return "" },
+			LoadSchedulerState:  func(string) string { return "running" },
+			LoadSchedulerResult: func(string, model.JobSpec) (model.JobResult, bool) { return model.JobResult{}, false },
+			SchedulerFinishedAt: func(string) string { return "" },
+			LoadLocalResult:     func(string, model.JobSpec) (model.JobResult, bool) { return model.JobResult{}, false },
+			LoadTerminalState:   func(string) (int, bool) { return 0, false },
+			ResolveTimestamps:   func(string, *model.JobOrigin) (string, string) { return "submitted", "finished" },
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 1 || jobs[0].ID != "job-1" || jobs[0].Result == nil || jobs[0].Result.ExitCode != 0 {
+		t.Fatalf("jobs = %#v, want one finished job", jobs)
+	}
+	if jobs[0].Origin != origin || jobs[0].SubmittedAt != "submitted" || jobs[0].FinishedAt != "finished" {
+		t.Fatalf("job projection = %#v, want origin and timestamps", jobs[0])
+	}
+}
+
 type assertNotFound struct{}
 
 func (assertNotFound) Error() string { return "not found" }

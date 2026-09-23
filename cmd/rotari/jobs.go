@@ -9,6 +9,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 const defaultJobsSince = 24 * time.Hour
@@ -31,36 +35,8 @@ type jobsColumn struct {
 	width  int
 }
 
-func queueOriginsByJobID(queue Queue) map[string]*JobOrigin {
-	origins := make(map[string]*JobOrigin)
-	for _, command := range queue.Commands {
-		if command.Origin != nil {
-			origins[command.ID] = command.Origin
-		}
-		for taskID, origin := range command.TaskOrigins {
-			origins[taskID] = origin
-		}
-	}
-	return origins
-}
-
-func jobResultsByID(results []JobResult) map[string]JobResult {
-	byID := make(map[string]JobResult, len(results))
-	for _, result := range results {
-		byID[result.ID] = result
-	}
-	return byID
-}
-
 func loadTerminalJobStatus(jobDir string) (int, bool) {
-	status, ok := readJobStatus(filepath.Join(jobDir, stateFileStatus))
-	if ok {
-		return status, true
-	}
-	if scheduler, ok := loadSlurmStatus(filepath.Join(jobDir, stateFileStatusJSON)); ok && jobStatusTerminal(scheduler) {
-		return scheduler.ExitCode, true
-	}
-	return loadTerminalSchedulerState(jobDir)
+	return executor.ResolveTerminalExitCode(jsonStore(), jobDir)
 }
 
 func cmdJobs(args []string) int {
@@ -277,7 +253,7 @@ func collectJobsAcrossBaseDirs(baseDirs []string, project string, now time.Time,
 
 func jobsProjects(baseDir, requested string) ([]string, error) {
 	if requested != "" {
-		if !isValidProjectName(requested) {
+		if !state.IsValidPathElement(requested) {
 			return nil, fmt.Errorf("invalid project name %q", requested)
 		}
 		return []string{requested}, nil
@@ -291,7 +267,7 @@ func jobsProjects(baseDir, requested string) ([]string, error) {
 	}
 	projects := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		if entry.IsDir() && isValidProjectName(entry.Name()) {
+		if entry.IsDir() && state.IsValidPathElement(entry.Name()) {
 			projects = append(projects, entry.Name())
 		}
 	}
@@ -316,7 +292,7 @@ func collectJobs(baseDir string, projects []string, now time.Time, window time.D
 		}
 		runs := make([]os.DirEntry, 0, len(runEntries))
 		for _, entry := range runEntries {
-			if entry.IsDir() && isValidPathElement(entry.Name()) {
+			if entry.IsDir() && state.IsValidPathElement(entry.Name()) {
 				runs = append(runs, entry)
 			}
 		}
@@ -336,7 +312,7 @@ func collectJobs(baseDir string, projects []string, now time.Time, window time.D
 
 func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsRow, bool, error) {
 	runDir := filepath.Join(paths.RunsDir, runID)
-	summary, summaryErr := loadRunSummary(filepath.Join(runDir, stateFileSummaryJSON))
+	summary, summaryErr := state.LoadRunSummary(filepath.Join(runDir, stateFileSummaryJSON))
 	active := runIsActive(paths, runID)
 	if summaryErr == nil && !active {
 		finishedAt, err := parseJobsTimestamp(summary.FinishedAt)
@@ -344,7 +320,7 @@ func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsR
 			return nil, false, nil
 		}
 	}
-	runQueue, err := loadQueue(filepath.Join(runDir, stateFileCommandsJSON))
+	runQueue, err := state.LoadQueue(filepath.Join(runDir, stateFileCommandsJSON))
 	if err != nil {
 		return nil, false, nil
 	}
@@ -353,7 +329,7 @@ func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsR
 		resultByID[result.ID] = result
 	}
 	rows := make([]jobsRow, 0)
-	for _, job := range queueToJobs(runQueue.Commands) {
+	for _, job := range model.QueueToJobs(runQueue.Commands) {
 		jobDir, err := latestAttemptJobDir(runDir, job.ID)
 		if err != nil {
 			continue

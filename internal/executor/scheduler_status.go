@@ -1,6 +1,8 @@
 package executor
 
 import (
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,4 +36,40 @@ func LoadSchedulerStatus(store state.Store, jobDir string) string {
 		return ""
 	}
 	return status.State
+}
+
+func SchedulerStateTerminal(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "finished", "completed", "complete", "success", "succeeded", "failed", "cancelled", "canceled", "timeout", "out_of_memory", "oom", "unknown":
+		return true
+	default:
+		return false
+	}
+}
+
+func SchedulerStateExitCode(value string) (int, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "completed", "complete", "success", "succeeded", "finished":
+		return 0, true
+	case "failed", "cancelled", "canceled", "timeout", "out_of_memory", "oom", "unknown":
+		return 1, true
+	default:
+		return 0, false
+	}
+}
+
+func ResolveTerminalExitCode(store state.Store, jobDir string) (int, bool) {
+	if path, err := state.ValidatedStateFile(jobDir, "status"); err == nil {
+		if data, err := os.ReadFile(path); err == nil {
+			if exitCode, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
+				return exitCode, true
+			}
+		}
+	}
+	if path, err := state.ValidatedStateFile(jobDir, "status.json"); err == nil {
+		if status, ok := LoadWrapperStatus(store, path); ok && (status.FinishedAt != "" || SchedulerStateTerminal(status.Phase)) {
+			return status.ExitCode, true
+		}
+	}
+	return SchedulerStateExitCode(LoadSchedulerStatus(store, jobDir))
 }

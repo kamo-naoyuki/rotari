@@ -1,11 +1,14 @@
 package state
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
@@ -67,7 +70,7 @@ func (s Store) WriteJSON(path string, value any) error {
 }
 
 func DefaultMeta() model.Meta {
-	return model.Meta{Phase: "collecting", UpdatedAt: ""}
+	return model.Meta{Phase: "collecting", UpdatedAt: time.Now().UTC().Format(time.RFC3339)}
 }
 
 func LoadMeta(path string) (model.Meta, error) {
@@ -75,12 +78,15 @@ func LoadMeta(path string) (model.Meta, error) {
 	store := NewStore(0o700, 0o600)
 	if err := store.ReadJSON(path, &meta); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return model.Meta{Phase: "collecting", UpdatedAt: ""}, nil
+			return DefaultMeta(), nil
 		}
 		return model.Meta{}, err
 	}
 	if meta.Phase == "" {
-		meta = model.Meta{Phase: "collecting", UpdatedAt: ""}
+		meta.Phase = "collecting"
+	}
+	if meta.UpdatedAt == "" {
+		meta.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	}
 	return meta, nil
 }
@@ -99,4 +105,42 @@ func LoadQueue(path string) (model.Queue, error) {
 
 func WriteJSON(path string, value any) error {
 	return NewStore(0o700, 0o600).WriteJSON(path, value)
+}
+
+func AppendLoadSample(path string, sample model.LoadSample) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	data, err := json.Marshal(sample)
+	if err != nil {
+		return err
+	}
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	_, err = file.Write(append(data, '\n'))
+	return err
+}
+
+func ReadLoadSamples(path string) []model.LoadSample {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+	var samples []model.LoadSample
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		var sample model.LoadSample
+		if json.Unmarshal(line, &sample) == nil {
+			samples = append(samples, sample)
+		}
+	}
+	return samples
 }

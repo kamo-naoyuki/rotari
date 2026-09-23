@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func cmdUnlock(args []string) int {
@@ -70,7 +72,7 @@ func cmdUnlock(args []string) int {
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.MetaFile, meta); err != nil {
+	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		printErrorf("failed to update metadata: %v", err)
 		return 1
 	}

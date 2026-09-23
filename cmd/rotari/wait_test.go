@@ -63,10 +63,10 @@ func TestCmdWaitAcceptsMultipleRunIDs(t *testing.T) {
 	}
 	runA := "run-a"
 	runB := "run-b"
-	if err := writeJSON(filepath.Join(pathsA.runsDir, runA, "summary.json"), RunSummary{RunID: runA, Status: "success", Results: []JobResult{{ID: "job-a", ExitCode: 0}}}); err != nil {
+	if err := writeJSON(filepath.Join(pathsA.RunsDir, runA, "summary.json"), RunSummary{RunID: runA, Status: "success", Results: []JobResult{{ID: "job-a", ExitCode: 0}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(pathsB.runsDir, runB, "summary.json"), RunSummary{RunID: runB, Status: "failed", ExitCode: 3, Results: []JobResult{{ID: "job-b", ExitCode: 3}}}); err != nil {
+	if err := writeJSON(filepath.Join(pathsB.RunsDir, runB, "summary.json"), RunSummary{RunID: runB, Status: "failed", ExitCode: 3, Results: []JobResult{{ID: "job-b", ExitCode: 3}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := registerRun(pathsA, runA); err != nil {

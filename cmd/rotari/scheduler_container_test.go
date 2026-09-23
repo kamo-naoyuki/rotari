@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 )
 
 type schedulerContainerTestConfig struct {
@@ -42,8 +44,8 @@ func TestSchedulerContainerSlurmArrayTaskVariable(t *testing.T) {
 	}
 
 	marker := fmt.Sprintf("/state/rotari-slurm-array-%d.out", time.Now().UnixNano())
-	wrapped := fmt.Sprintf("printf '%%s\\n' \"$SLURM_ARRAY_TASK_ID\" >> %s", shellQuote(marker))
-	runSchedulerContainerCommand(t, config, fmt.Sprintf("rm -f %s; sbatch --parsable --array=1-2 --wrap %s", shellQuote(marker), shellQuote(wrapped)))
+	wrapped := fmt.Sprintf("printf '%%s\\n' \"$SLURM_ARRAY_TASK_ID\" >> %s", executor.ShellQuote(marker))
+	runSchedulerContainerCommand(t, config, fmt.Sprintf("rm -f %s; sbatch --parsable --array=1-2 --wrap %s", executor.ShellQuote(marker), executor.ShellQuote(wrapped)))
 
 	assertSchedulerContainerFileLines(t, config, marker, []string{"1", "2"})
 }
@@ -62,7 +64,7 @@ printf '%%s\n' "$PBS_ARRAY_INDEX" >> %s
 ROTARI_SCRIPT
 chmod +x %s
 rm -f %s
-qsub -j oe -J 1-2 %s`, shellQuote(scriptPath), shellQuote(marker), shellQuote(scriptPath), shellQuote(marker), shellQuote(scriptPath)))
+qsub -j oe -J 1-2 %s`, executor.ShellQuote(scriptPath), executor.ShellQuote(marker), executor.ShellQuote(scriptPath), executor.ShellQuote(marker), executor.ShellQuote(scriptPath)))
 
 	assertSchedulerContainerFileLines(t, config, marker, []string{"1", "2"})
 }
@@ -71,7 +73,7 @@ func assertSchedulerContainerFileLines(t *testing.T, config schedulerContainerTe
 	t.Helper()
 	deadline := time.Now().Add(45 * time.Second)
 	for {
-		output := runSchedulerContainerCommand(t, config, fmt.Sprintf("cat %s 2>/dev/null || true", shellQuote(path)))
+		output := runSchedulerContainerCommand(t, config, fmt.Sprintf("cat %s 2>/dev/null || true", executor.ShellQuote(path)))
 		got := nonEmptySortedLines(output)
 		if reflect.DeepEqual(got, want) {
 			return

@@ -15,6 +15,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"gopkg.in/yaml.v3"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 var cliConfig map[string]any
@@ -60,7 +62,7 @@ func loadCLIConfig(args []string) error {
 		return err
 	}
 	if projectName != "" {
-		projectDir, err := joinValidatedPath(filepath.Join(resolvedBaseDir, "projects"), projectName)
+		projectDir, err := state.SafeJoin(filepath.Join(resolvedBaseDir, "projects"), projectName)
 		if err != nil {
 			return err
 		}
@@ -76,13 +78,13 @@ func loadCLIConfig(args []string) error {
 
 func configProjectName(baseDir, requested string) (string, error) {
 	if requested != "" {
-		if !isValidProjectName(requested) {
+		if !state.IsValidPathElement(requested) {
 			return "", fmt.Errorf("invalid project name %q", requested)
 		}
 		return requested, nil
 	}
 	if value := os.Getenv(envProjectName); value != "" {
-		if !isValidProjectName(value) {
+		if !state.IsValidPathElement(value) {
 			return "", fmt.Errorf("invalid project name %q", value)
 		}
 		return value, nil
@@ -236,7 +238,7 @@ func configPathsForRun(baseDir, projectName string) []string {
 	}
 	paths = append(paths, configFilePaths(baseDir)...)
 	if projectName != "" {
-		if projectDir, err := joinValidatedPath(filepath.Join(baseDir, "projects"), projectName); err == nil {
+		if projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), projectName); err == nil {
 			paths = append(paths, configFilePaths(projectDir)...)
 		}
 	}
@@ -478,12 +480,12 @@ func chooseConfigOutput(reader io.Reader, writer io.Writer, baseDir, projectName
 		{label: "basedir", path: filepath.Join(baseDir, "config"+extension)},
 	}
 	if projectName != "" {
-		if projectDir, err := joinValidatedPath(filepath.Join(baseDir, "projects"), projectName); err == nil {
+		if projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), projectName); err == nil {
 			candidates = append(candidates, candidate{label: "project " + projectName, path: filepath.Join(projectDir, "config"+extension)})
 		}
 	} else if entries, err := os.ReadDir(filepath.Join(baseDir, "projects")); err == nil {
 		for _, entry := range entries {
-			if entry.IsDir() && isValidProjectName(entry.Name()) {
+			if entry.IsDir() && state.IsValidPathElement(entry.Name()) {
 				candidates = append(candidates, candidate{label: "project " + entry.Name(), path: filepath.Join(baseDir, "projects", entry.Name(), "config"+extension)})
 			}
 		}

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 type runLocation struct {
@@ -59,7 +61,7 @@ func registerRunLocation(location runLocation) error {
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("run id %q is already registered to another location", location.RunID)
 	}
-	return writeJSON(path, location)
+	return state.WriteJSON(path, location)
 }
 
 func unregisterRun(runID string) error {
@@ -148,7 +150,7 @@ func runRegistryDir() (string, error) {
 }
 
 func runLocationPath(dir, runID string) (string, error) {
-	if !isValidPathElement(runID) {
+	if !state.IsValidPathElement(runID) {
 		return "", fmt.Errorf("invalid run id %q", runID)
 	}
 	return filepath.Join(dir, runID+".json"), nil

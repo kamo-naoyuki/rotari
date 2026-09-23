@@ -348,7 +348,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("project_name, run_id and job_id are required"))
 			return
 		}
-		projectDir, err := joinValidatedPath(filepath.Join(baseDir, "projects"), queueName)
+		projectDir, err := stateinternal.SafeJoin(filepath.Join(baseDir, "projects"), queueName)
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -752,7 +752,7 @@ func loadWebState(baseDir, queueFilter string) (webState, error) {
 		queueState.ConfigPath = effectiveConfigPath(baseDir, queueName)
 		state.Queues = append(state.Queues, queueState)
 	}
-	state.UpdatedAt = formatDisplayTimestamp(state.UpdatedAt)
+	state.UpdatedAt = model.FormatDisplayTimestamp(state.UpdatedAt)
 	return state, nil
 }
 
@@ -1008,7 +1008,7 @@ func writeStaticStylesheet(directory string) error {
 func loadWebQueueState(paths pathSet) (webQueueState, error) {
 	state, err := webprojection.LoadQueueState(webprojection.QueueLoader{
 		ProjectName: paths.ProjectName,
-		Queue:       func() (model.Queue, error) { return loadQueue(paths.QueueFile) },
+		Queue:       func() (model.Queue, error) { return stateinternal.LoadQueue(paths.QueueFile) },
 		Lock:        func() (model.LockInfo, error) { return loadLockInfo(paths.LockFile) },
 		Runs: func() ([]string, error) {
 			entries, err := os.ReadDir(paths.RunsDir)
@@ -1027,7 +1027,7 @@ func loadWebQueueState(paths pathSet) (webQueueState, error) {
 			return ids, nil
 		},
 		Summary: func(runID string) (model.RunSummary, error) {
-			return loadRunSummary(filepath.Join(paths.RunsDir, runID, "summary.json"))
+			return stateinternal.LoadRunSummary(filepath.Join(paths.RunsDir, runID, "summary.json"))
 		},
 		Jobs: func(runID string, summary model.RunSummary) ([]webprojection.Job, error) {
 			return loadWebJobs(filepath.Join(paths.RunsDir, runID), summary)
@@ -1035,7 +1035,9 @@ func loadWebQueueState(paths pathSet) (webQueueState, error) {
 		Context: func(runID string) (model.RunContext, error) {
 			return stateinternal.LoadContext(jsonStore(), filepath.Join(paths.RunsDir, runID))
 		},
-		Samples: func(runID string) []model.LoadSample { return readLoadSamples(loadSamplesPath(paths, runID)) },
+		Samples: func(runID string) []model.LoadSample {
+			return stateinternal.ReadLoadSamples(loadSamplesPath(paths, runID))
+		},
 	})
 	if err != nil {
 		return webQueueState{}, err
@@ -1053,150 +1055,54 @@ func formatWebQueueDisplayTimes(state *webQueueState) {
 }
 
 func loadWebJobs(runDir string, summary RunSummary, attemptIDs ...string) ([]webJob, error) {
-	results := jobResultsByID(summary.Results)
-	commands, err := loadQueue(filepath.Join(runDir, "commands.json"))
+	commands, err := stateinternal.LoadQueue(filepath.Join(runDir, "commands.json"))
 	if err != nil {
 		return nil, err
 	}
-	origins := queueOriginsByJobID(commands)
-	taskJobs := queueToJobs(commands.Commands)
-	selectedAttemptID := ""
-	selectedJobID := ""
-	if len(attemptIDs) > 0 && attemptIDs[0] != "" {
-		selectedAttemptID = attemptIDs[0]
-		if payload, err := decodeAttemptID(selectedAttemptID); err == nil {
-			selectedJobID = payload.JobID
-		}
-	}
-	webJobs := make([]webJob, 0, len(taskJobs))
-	for _, jobSpec := range taskJobs {
-		jobDir, pathErr := latestAttemptJobDir(runDir, jobSpec.ID)
-		if jobSpec.ID == selectedJobID {
-			jobDir, pathErr = specificAttemptJobDir(runDir, jobSpec.ID, selectedAttemptID)
-		}
-		if pathErr != nil {
-			return nil, fmt.Errorf("invalid job ID %q: %w", jobSpec.ID, pathErr)
-		}
-		origin := origins[jobSpec.ID]
-		submittedAt, finishedAt := webJobTimestamps(runDir, jobSpec.ID, origin)
-		attemptID := jobSpec.AttemptID
-		if attemptID == "" {
-			if result, ok := results[jobSpec.ID]; ok {
-				attemptID = result.AttemptID
+	jobs, err := webprojection.LoadJobs(model.Queue(commands), model.RunSummary(summary), attemptIDs, webprojection.JobLoader{
+		Origins: model.QueueOriginsByJobID(model.Queue(commands)),
+		LatestAttemptDir: func(jobID string) (string, error) {
+			return latestAttemptJobDir(runDir, jobID)
+		},
+		SpecificAttemptDir: func(jobID, attemptID string) (string, error) {
+			return specificAttemptJobDir(runDir, jobID, attemptID)
+		},
+		ListAttemptIDs: func(jobID string) []string {
+			return listAttemptIDs(runDir, jobID)
+		},
+		ReadTimestamp:    stateinternal.ReadAttemptTimestamp,
+		ReadJobTimestamp: func(jobID, name string) string { return stateinternal.ReadJobTimestamp(runDir, jobID, name) },
+		LoadSchedulerState: func(jobDir string) string {
+			return executor.LoadSchedulerStatus(jsonStore(), jobDir)
+		},
+		LoadSchedulerResult: func(jobDir string, job model.JobSpec) (model.JobResult, bool) {
+			status, ok := loadSlurmStatus(filepath.Join(jobDir, stateFileStatusJSON))
+			if !ok || !jobStatusTerminal(status) {
+				return model.JobResult{}, false
 			}
-		}
-		job := webJob{ID: jobSpec.ID, AttemptID: attemptID, AttemptDir: jobDir, Name: jobSpec.Name, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, DependsOn: jobSpec.DependsOn, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SubmittedAt: submittedAt, FinishedAt: finishedAt, SchedulerState: executor.LoadSchedulerStatus(jsonStore(), jobDir)}
-		if jobSpec.ID == selectedJobID {
-			job.AttemptID = selectedAttemptID
-		}
-		if result, ok := results[jobSpec.ID]; ok {
-			job.Result = &result
-		} else if status, ok := loadSlurmStatus(filepath.Join(jobDir, stateFileStatusJSON)); ok && jobStatusTerminal(status) {
-			job.Result = &JobResult{ID: jobSpec.ID, Command: jobSpec.Command, ExitCode: status.ExitCode, Error: status.Error, Hosts: status.Hosts}
-			if job.FinishedAt == "" {
-				job.FinishedAt = status.FinishedAt
+			return model.JobResult{ID: job.ID, Command: job.Command, ExitCode: status.ExitCode, Error: status.Error, Hosts: status.Hosts}, true
+		},
+		SchedulerFinishedAt: func(jobDir string) string {
+			status, ok := loadSlurmStatus(filepath.Join(jobDir, stateFileStatusJSON))
+			if !ok {
+				return ""
 			}
-		} else if result, ok := loadLocalJobResult(jobDir, jobSpec); ok {
-			job.Result = &result
-		} else if exitCode, ok := loadTerminalSchedulerState(jobDir); ok {
-			job.Result = &JobResult{ID: jobSpec.ID, Command: jobSpec.Command, ExitCode: exitCode}
-		}
-		if jobSpec.ID == selectedJobID {
-			if result, ok := loadLocalJobResult(jobDir, jobSpec); ok {
-				result.AttemptID = selectedAttemptID
-				job.Result = &result
-			} else if status, ok := loadSlurmStatus(filepath.Join(jobDir, stateFileStatusJSON)); ok && jobStatusTerminal(status) {
-				job.Result = &JobResult{ID: jobSpec.ID, AttemptID: selectedAttemptID, Command: jobSpec.Command, ExitCode: status.ExitCode, Error: status.Error, Hosts: status.Hosts}
-			}
-			job.SubmittedAt = readAttemptTimestamp(jobDir, stateFileSubmittedAt)
-			job.FinishedAt = readAttemptTimestamp(jobDir, stateFileFinishedAt)
-		}
-		job.Attempts = loadWebAttempts(runDir, jobSpec)
-		webJobs = append(webJobs, job)
-		delete(results, jobSpec.ID)
-	}
-	for _, result := range summary.Results {
-		if _, exists := results[result.ID]; !exists {
-			continue
-		}
-		resultCopy := result
-		webJobs = append(webJobs, webJob{ID: result.ID, Command: result.Command, Result: &resultCopy, SubmittedAt: readJobTimestamp(runDir, result.ID, "submitted_at"), FinishedAt: readJobTimestamp(runDir, result.ID, "finished_at")})
-	}
-	return webJobs, nil
-}
-
-func loadWebAttempts(runDir string, jobSpec JobSpec) []webAttempt {
-	attemptIDs := listAttemptIDs(runDir, jobSpec.ID)
-	if len(attemptIDs) == 0 {
-		return nil
-	}
-	attempts := make([]webAttempt, 0, len(attemptIDs))
-	for index := len(attemptIDs) - 1; index >= 0; index-- {
-		attemptID := attemptIDs[index]
-		jobDir, err := specificAttemptJobDir(runDir, jobSpec.ID, attemptID)
-		if err != nil {
-			continue
-		}
-		attempt := webAttempt{
-			ID:             attemptID,
-			SubmittedAt:    readAttemptTimestamp(jobDir, stateFileSubmittedAt),
-			FinishedAt:     readAttemptTimestamp(jobDir, stateFileFinishedAt),
-			SchedulerState: executor.LoadSchedulerStatus(jsonStore(), jobDir),
-		}
-		if result, ok := loadLocalJobResult(jobDir, jobSpec); ok {
-			result.AttemptID = attemptID
-			attempt.Result = &result
-		} else if status, ok := loadSlurmStatus(filepath.Join(jobDir, stateFileStatusJSON)); ok && jobStatusTerminal(status) {
-			attempt.Result = &JobResult{ID: jobSpec.ID, AttemptID: attemptID, Command: jobSpec.Command, ExitCode: status.ExitCode, Error: status.Error, Hosts: status.Hosts}
-			if attempt.FinishedAt == "" {
-				attempt.FinishedAt = status.FinishedAt
-			}
-		} else if exitCode, ok := loadTerminalSchedulerState(jobDir); ok {
-			attempt.Result = &JobResult{ID: jobSpec.ID, AttemptID: attemptID, Command: jobSpec.Command, ExitCode: exitCode}
-		}
-		attempts = append(attempts, attempt)
-	}
-	return attempts
-}
-
-func readAttemptTimestamp(jobDir, name string) string {
-	path, err := validatedStateFile(jobDir, name)
-	if err != nil {
-		return ""
-	}
-	data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to allowed state file names
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(data))
-}
-
-func loadLocalJobResult(jobDir string, job JobSpec) (JobResult, bool) {
-	finishedPath, err := validatedStateFile(jobDir, stateFileFinishedAt)
-	if err != nil {
-		return JobResult{}, false
-	}
-	if _, err := os.Stat(finishedPath); err != nil {
-		return JobResult{}, false
-	}
-	statusPath, err := validatedStateFile(jobDir, stateFileStatus)
-	if err != nil {
-		return JobResult{}, false
-	}
-	data, err := os.ReadFile(statusPath) // NOSONAR: statusPath is restricted by validatedStateFile to status.
-	if err != nil {
-		return JobResult{}, false
-	}
-	exitCode, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil {
-		return JobResult{}, false
-	}
-	return JobResult{ID: job.ID, Command: job.Command, ExitCode: exitCode}, true
+			return status.FinishedAt
+		},
+		LoadLocalResult: func(jobDir string, job model.JobSpec) (model.JobResult, bool) {
+			return stateinternal.LoadLocalJobResult(jobDir, job)
+		},
+		LoadTerminalState: loadTerminalSchedulerState,
+		ResolveTimestamps: func(jobID string, origin *model.JobOrigin) (string, string) {
+			return webJobTimestamps(runDir, jobID, (*JobOrigin)(origin))
+		},
+	})
+	return jobs, err
 }
 
 func webJobTimestamps(runDir, jobID string, origin *JobOrigin) (string, string) {
-	submittedAt := readJobTimestamp(runDir, jobID, "submitted_at")
-	finishedAt := readJobTimestamp(runDir, jobID, "finished_at")
+	submittedAt := stateinternal.ReadJobTimestamp(runDir, jobID, "submitted_at")
+	finishedAt := stateinternal.ReadJobTimestamp(runDir, jobID, "finished_at")
 	if finishedAt == "" {
 		if jobDir, err := latestAttemptJobDir(runDir, jobID); err == nil {
 			if status, ok := loadSlurmStatus(filepath.Join(jobDir, "status.json")); ok {
@@ -1209,44 +1115,12 @@ func webJobTimestamps(runDir, jobID string, origin *JobOrigin) (string, string) 
 		if err != nil {
 			return "", ""
 		}
-		return readJobTimestamp(sourceRunDir, sourceJobID, "submitted_at"), readJobTimestamp(sourceRunDir, sourceJobID, "finished_at")
+		return stateinternal.ReadJobTimestamp(sourceRunDir, sourceJobID, "submitted_at"), stateinternal.ReadJobTimestamp(sourceRunDir, sourceJobID, "finished_at")
 	})
 }
 
-func readJobTimestamp(runDir, jobID, name string) string {
-	if name != "submitted_at" && name != "finished_at" {
-		return ""
-	}
-	jobDir, err := latestAttemptJobDir(runDir, jobID)
-	if err != nil {
-		return ""
-	}
-	path, err := validatedStateFile(jobDir, name)
-	if err != nil {
-		return ""
-	}
-	data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to submitted_at or finished_at.
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(data))
-}
-
-func buildWebTimeline(summary RunSummary, jobs []webJob) []webTimelinePoint {
-	inputs := make([]webprojection.JobTimelineInput, 0, len(jobs))
-	for _, job := range jobs {
-		inputs = append(inputs, webprojection.JobTimelineInput{Finished: job.Result != nil, Carried: job.Origin != nil, SubmittedAt: job.SubmittedAt, FinishedAt: job.FinishedAt, Success: job.Result != nil && job.Result.ExitCode == 0})
-	}
-	points := webprojection.BuildTimeline(summary.StartedAt, inputs)
-	result := make([]webTimelinePoint, len(points))
-	for index, point := range points {
-		result[index] = webTimelinePoint{At: point.At, Pending: point.Pending, Running: point.Running, Finished: point.Finished, Success: point.Success, Failed: point.Failed}
-	}
-	return result
-}
-
 func validWebID(value string) bool {
-	return isValidPathElement(value)
+	return stateinternal.IsValidPathElement(value)
 }
 
 func writeWebJSON(writer http.ResponseWriter, value any) {

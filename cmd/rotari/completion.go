@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func cmdCompletion(args []string) int {
@@ -134,7 +136,7 @@ func cmdComplete(args []string) int {
 			}
 		}
 	} else {
-		queue, err := loadQueue(paths.QueueFile)
+		queue, err := state.LoadQueue(paths.QueueFile)
 		if err == nil {
 			for _, command := range queue.Commands {
 				if command.ID != "" {

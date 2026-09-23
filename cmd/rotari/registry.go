@@ -53,7 +53,7 @@ func registerServer(masterDir string, record serverRecord) error {
 	if err := os.MkdirAll(masterDir, stateDirMode()); err != nil {
 		return err
 	}
-	return writeJSON(serverRecordPath(masterDir, record.BaseDir), record)
+	return state.WriteJSON(serverRecordPath(masterDir, record.BaseDir), record)
 }
 
 func unregisterServer(masterDir, baseDir string) error {
@@ -71,7 +71,7 @@ func touchServerRecord(masterDir, baseDir string) error {
 		return err
 	}
 	record.LastSeen = nowRFC3339()
-	return writeJSON(path, record)
+	return state.WriteJSON(path, record)
 }
 
 func listServers(masterDir string) ([]serverRecord, error) {
@@ -105,7 +105,7 @@ func listServers(masterDir string) ([]serverRecord, error) {
 			continue
 		}
 		record.LastSeen = nowRFC3339()
-		_ = writeJSON(path, record)
+		_ = state.WriteJSON(path, record)
 		servers = append(servers, record)
 	}
 	sort.Slice(servers, func(i, j int) bool { return servers[i].BaseDir < servers[j].BaseDir })

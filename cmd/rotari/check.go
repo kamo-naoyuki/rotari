@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 type projectCheck struct {
@@ -116,14 +118,14 @@ func checkProjectWithOptions(paths pathSet, deep bool) (projectCheck, error) {
 		} else {
 			result.State = "running"
 		}
-		if queue, err := loadQueue(paths.QueueFile); err == nil {
+		if queue, err := state.LoadQueue(paths.QueueFile); err == nil {
 			result.Queued = len(queue.Commands)
 			result.QueuedKnown = true
 		}
 		return result, nil
 	case projectInterrupted:
 		result.State = "interrupted"
-		if queue, err := loadQueue(paths.QueueFile); err == nil {
+		if queue, err := state.LoadQueue(paths.QueueFile); err == nil {
 			result.Queued = len(queue.Commands)
 			result.QueuedKnown = true
 		}

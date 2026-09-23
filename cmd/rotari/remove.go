@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func cmdRemove(args []string) int {
@@ -53,7 +54,7 @@ func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []st
 		return "", err
 	}
 
-	queue, err := loadQueue(paths.QueueFile)
+	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to load queue: %w", err)
 	}
@@ -103,10 +104,10 @@ func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []st
 		remaining = append(remaining, job)
 	}
 	queue.Commands = remaining
-	if err := model.ValidateDependencies(queueToJobs(queue.Commands)); err != nil {
+	if err := model.ValidateDependencies(model.QueueToJobs(queue.Commands)); err != nil {
 		return "", fmt.Errorf("invalid dependencies: %w", err)
 	}
-	if err := writeJSON(paths.QueueFile, queue); err != nil {
+	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
 		return "", fmt.Errorf("failed to save removed queue: %w", err)
 	}
 	meta, err := loadMeta(paths.MetaFile)
@@ -115,7 +116,7 @@ func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []st
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.MetaFile, meta); err != nil {
+	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		return "", fmt.Errorf("failed to update metadata: %w", err)
 	}
 	return fmt.Sprintf("removed %d job(s) from queue=%s", len(removed), queueName), nil

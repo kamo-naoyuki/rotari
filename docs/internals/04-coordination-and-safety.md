@@ -106,6 +106,35 @@
 - JSON writes use the common atomic helper. Optional fields must retain
   backward-compatible reads, and unrelated history must not be rewritten.
 
+## State load and write contracts
+
+The `internal/state` package is the shared boundary for persisted project and
+run data:
+
+- `LoadMeta` treats a missing `meta.json` as a new project and returns the
+  collecting default with an RFC3339 `updated_at`. Existing metadata with an
+  empty phase or timestamp receives the same defaults. Other read errors,
+  including invalid JSON, are returned to the caller.
+- `LoadQueue` treats a missing `queue.json` as an empty queue. Other read and
+  decode errors are returned.
+- `LoadRunSummary` and `LoadContext` do not invent missing state. A missing
+  or invalid file is returned as an error so callers can distinguish a run in
+  progress from a completed run.
+- `ReadJobTimestamp` resolves the latest valid attempt and returns an empty
+  string for an unsafe path element, unsupported state filename, or missing
+  file. `ReadAttemptTimestamp` applies the same file-name boundary to an
+  already resolved attempt directory.
+- `LoadLocalJobResult` requires the `finished_at` marker and a numeric
+  `status` file. It returns the saved command and exit code, and treats
+  missing, unsafe, or malformed state as no local result rather than
+  fabricating one.
+- `WriteJSON` and `Store.WriteJSON` create parent directories, write through a
+  temporary file, apply the configured file mode, and publish with rename.
+  Directory, encoding, permission, and rename failures are returned.
+- `AppendLoadSample` creates the sample file as needed and appends one JSONL
+  record. `ReadLoadSamples` ignores missing files, blank lines, and malformed
+  records because load sampling is observational metadata, not run state.
+
 When behavior crosses these boundaries, add a focused test at the public
 command or persisted-state boundary. Keep CLI metadata, completion, README
 usage, and this document synchronized only where their contracts actually

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 )
 
 func TestCLIFlagSpecTracksRepeatedMetadata(t *testing.T) {
@@ -228,7 +229,7 @@ func TestReportStatusAndValueHelpers(t *testing.T) {
 }
 
 func TestShellQuoteAndConfigTemplateFormats(t *testing.T) {
-	if got := shellQuote("it's safe"); got != `'it'\''s safe'` {
+	if got := executor.ShellQuote("it's safe"); got != `'it'\''s safe'` {
 		t.Fatalf("shellQuote = %q", got)
 	}
 	for _, format := range []string{"yaml", "json", "toml"} {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -53,7 +54,7 @@ func inspectProjectState(paths pathSet, cleanupStale bool) (projectStateInspecti
 }
 
 func validateProjectStateConsistency(paths pathSet, inspection projectStateInspection) error {
-	if inspection.Lock != projectLockNone && !isValidPathElement(inspection.LockRunID) {
+	if inspection.Lock != projectLockNone && !state.IsValidPathElement(inspection.LockRunID) {
 		return fmt.Errorf("invalid run ID %q in run lock", inspection.LockRunID)
 	}
 	meta, err := state.LoadMeta(paths.MetaFile)
@@ -66,7 +67,7 @@ func validateProjectStateConsistency(paths pathSet, inspection projectStateInspe
 		}
 		return nil
 	}
-	if !isValidPathElement(inspection.RunID) {
+	if !state.IsValidPathElement(inspection.RunID) {
 		return fmt.Errorf("invalid run ID %q", inspection.RunID)
 	}
 	if meta.LastRunID != inspection.RunID {
@@ -121,12 +122,12 @@ func ensureProjectIdleForPaths(paths pathSet, operation string) error {
 	case projectInterrupted:
 		detail, stillRunning := interruptedRunStatusDetail(paths, runID)
 		message := fmt.Sprintf("project %q has interrupted run %q%s; %s is not allowed\nInspect before deciding: rotari show --basedir %s --project-name %s --run-id %s\n",
-			paths.ProjectName, runID, detail, operation, shellQuote(paths.BaseDir), shellQuote(paths.ProjectName), shellQuote(runID))
+			paths.ProjectName, runID, detail, operation, executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
 		if stillRunning {
 			message += "Do not recover until you have independently confirmed those jobs have actually stopped.\n"
 		}
 		message += fmt.Sprintf("Recover with: rotari unlock --basedir %s --project-name %s --run-id %s",
-			shellQuote(paths.BaseDir), shellQuote(paths.ProjectName), shellQuote(runID))
+			executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
 		return errors.New(message)
 	default:
 		return nil

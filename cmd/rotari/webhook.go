@@ -10,6 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 type runWebhookPayload struct {
@@ -201,7 +204,7 @@ func notifyRunWebhook(paths pathSet, runID string, exitCode int) {
 		printErrorf("WARNING: cannot inspect webhook notification marker: %v", err)
 		return
 	}
-	summary, err := loadRunSummary(filepath.Join(runDir, "summary.json"))
+	summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
 	if err != nil {
 		printErrorf("WARNING: cannot load run summary for webhook: %v", err)
 		return
@@ -311,7 +314,7 @@ func makeRunWebhookPayload(project, runID string, summary RunSummary) runWebhook
 		}
 	}
 	if payload.Failed > 0 {
-		payload.ShowCommand = fmt.Sprintf("rotari show --run-id %s --failed-logs --no-pager", shellQuote(runID))
+		payload.ShowCommand = fmt.Sprintf("rotari show --run-id %s --failed-logs --no-pager", executor.ShellQuote(runID))
 	}
 	return payload
 }

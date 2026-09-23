@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 const (
@@ -205,7 +206,7 @@ func cmdDiagnose(args []string) int {
 }
 
 func loadDiagnosisJob(paths pathSet, runID, jobID string, attemptIDs ...string) (diagnosisJob, error) {
-	if !isValidPathElement(runID) || !isValidPathElement(jobID) {
+	if !state.IsValidPathElement(runID) || !state.IsValidPathElement(jobID) {
 		return diagnosisJob{}, fmt.Errorf(jobNotFoundMessage, jobID, runID)
 	}
 	for range 16 {
@@ -245,7 +246,7 @@ func loadDiagnosisJob(paths pathSet, runID, jobID string, attemptIDs ...string) 
 			return diagnosisJob{}, fmt.Errorf("read job output: %w", err)
 		}
 		job := diagnosisJob{RunID: runID, JobID: jobID, Command: spec.Command, Log: tailString(string(log), diagnosisLogLimit)}
-		if summary, err := loadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
+		if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
 			for _, result := range summary.Results {
 				if result.ID == jobID {
 					exitCode := result.ExitCode
@@ -278,7 +279,7 @@ func diagnoseJobResult(runDir string, result JobResult) JobResult {
 	if result.ExitCode == 0 || len(result.Diagnoses) > 0 {
 		return result
 	}
-	if !isValidPathElement(result.ID) {
+	if !state.IsValidPathElement(result.ID) {
 		return unavailableRuleDiagnosis(result, "The job ID is invalid, so its output could not be inspected.")
 	}
 	jobDir, err := latestAttemptJobDir(runDir, result.ID)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, batchMaxActive, retry int, requestedExecutor string, executorOptions []string, selection string, jobIDs []string, referenceRunID string, partialArray bool, progress func(JobResult, int, int, int, int), onStart func(JobSpec), settings ...executorRunSettingsMap) int {
@@ -15,22 +16,22 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 	if len(settings) > 0 {
 		executorSettings = settings[0]
 	}
-	if !isValidPathElement(runID) {
+	if !state.IsValidPathElement(runID) {
 		printErrorf("invalid run ID %q", runID)
 		return 1
 	}
-	queue, err := loadQueue(paths.QueueFile)
+	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
 		printErrorf("failed to load queue: %v", err)
 		return 1
 	}
-	jobs := queueToJobs(queue.Commands)
+	jobs := model.QueueToJobs(queue.Commands)
 	if len(jobs) == 0 {
 		printErrorf("queue '%s' has no valid commands", paths.ProjectName)
 		return 1
 	}
 	for _, job := range jobs {
-		if !isValidPathElement(job.ID) {
+		if !state.IsValidPathElement(job.ID) {
 			printErrorf("invalid job ID %q", job.ID)
 			return 1
 		}
@@ -58,31 +59,14 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 		printErrorf("failed to prepare job selection: %v", err)
 		return 1
 	}
-	expandArrayPlan(queue.Commands, jobs, plan.Execute)
-	for index := range queue.Commands {
-		command := &queue.Commands[index]
-		if origin, ok := plan.CarriedOrigins[command.ID]; ok {
-			command.Origin = origin
-		}
-		if command.Array == nil {
-			continue
-		}
-		for _, task := range arrayTaskIDs(command.Array) {
-			taskID := fmt.Sprintf("%s-%d", command.ID, task)
-			if origin, ok := plan.CarriedOrigins[taskID]; ok {
-				if command.TaskOrigins == nil {
-					command.TaskOrigins = make(map[string]*JobOrigin)
-				}
-				command.TaskOrigins[taskID] = origin
-			}
-		}
-	}
+	runcontract.ExpandArrayPlan(queue.Commands, jobs, plan.Execute)
+	runcontract.ApplyCarriedOrigins(queue.Commands, plan.CarriedOrigins)
 
 	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := os.MkdirAll(runDir, stateDirMode()); err != nil {
 		return 1
 	}
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
+	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		return 1
 	}
 
@@ -114,32 +98,7 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 		unresolved := pending
 		var attemptResults []JobResult
 		for {
-			blocked := make([]JobSpec, 0)
-			ready := make([]JobSpec, 0, len(unresolved))
-			stillUnresolved := make([]JobSpec, 0, len(unresolved))
-			for _, job := range unresolved {
-				blockedBy := ""
-				readyForRun := true
-				for _, dependency := range job.DependsOn {
-					dependencyJob := jobsByName[dependency]
-					result, done := finalResults[dependencyJob.ID]
-					if !done || (result.ExitCode != 0 && pendingByID[dependencyJob.ID]) {
-						readyForRun = false
-						continue
-					}
-					if result.ExitCode != 0 {
-						blockedBy = dependency
-						break
-					}
-				}
-				if blockedBy != "" {
-					blocked = append(blocked, job)
-				} else if readyForRun {
-					ready = append(ready, job)
-				} else {
-					stillUnresolved = append(stillUnresolved, job)
-				}
-			}
+			ready, blocked, stillUnresolved := runcontract.ResolveDependencyWave(unresolved, jobsByName, finalResults, pendingByID)
 			for _, job := range blocked {
 				finalResults[job.ID] = JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: "blocked by failed dependency"}
 			}
@@ -154,41 +113,38 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 			attemptResults = append(attemptResults, waveResults...)
 			unresolved = stillUnresolved
 		}
-		nextPending := make([]JobSpec, 0, len(jobs))
-		for _, job := range pending {
-			result, ok := finalResults[job.ID]
-			if !ok || (result.ExitCode != 0 && attempt < retry && !jobWasExplicitlyCancelled(runDir, job.ID, result)) {
-				nextPending = append(nextPending, job)
-			}
-		}
-		pending = nextPending
+		pending = runcontract.RetryPendingJobs(
+			pending,
+			finalResults,
+			attempt,
+			retry,
+			func(job model.JobSpec, result model.JobResult) bool {
+				return !jobWasExplicitlyCancelled(runDir, job.ID, result)
+			},
+		)
 		if len(pending) > 0 && (retry == -1 || attempt < retry) && progress != nil {
-			completed, succeeded, failed := summarizeResults(finalResults)
+			completed, succeeded, failed := runcontract.SummarizeResults(finalResults)
 			for _, job := range pending {
 				progress(JobResult{ID: job.ID, Command: job.Command, Error: fmt.Sprintf("retry:%d", attempt+1)}, completed, len(jobs), succeeded, failed)
 			}
 		}
 		if progress != nil {
-			completed, succeeded, failed := summarizeResults(finalResults)
+			completed, succeeded, failed := runcontract.SummarizeResults(finalResults)
 			for _, result := range attemptResults {
 				progressResult := result
-				if result.ExitCode != 0 && !jobIsPending(pending, result.ID) {
+				if result.ExitCode != 0 && !runcontract.JobIsPending(pending, result.ID) {
 					progressResult.Error = "final-failure"
 				}
 				progress(progressResult, completed, len(jobs), succeeded, failed)
 			}
 		}
 	}
-	for _, job := range pending {
-		if _, ok := finalResults[job.ID]; !ok {
-			finalResults[job.ID] = JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: "blocked by failed dependency"}
-		}
-	}
+	runcontract.FinalizePendingResults(pending, finalResults)
 
 	summary := runcontract.BuildRunSummary(runID, runName, nowRFC3339(), jobs, finalResults, func(result JobResult) JobResult {
 		return diagnoseJobResult(runDir, result)
 	})
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), summary); err != nil {
+	if err := state.WriteJSON(filepath.Join(runDir, "summary.json"), summary); err != nil {
 		return 1
 	}
 	return summary.ExitCode
@@ -208,10 +164,6 @@ func jobWasExplicitlyCancelled(runDir, jobID string, result JobResult) bool {
 			return ""
 		},
 	)
-}
-
-func expandArrayPlan(commands []QueuedCommand, jobs []JobSpec, execute map[string]bool) {
-	runcontract.ExpandArrayPlan(commands, jobs, execute)
 }
 
 func prepareJobEnvironments(paths pathSet, runID string, jobs []JobSpec, runName string, localConcurrency, batchConcurrency, retry int, executorOptions []string) {
@@ -248,21 +200,15 @@ func prepareJobEnvironments(paths pathSet, runID string, jobs []JobSpec, runName
 
 func assignAttemptIDs(jobs []JobSpec, runID string, attempt int) {
 	runcontract.AssignAttemptIDs(jobs, runID, attempt, runcontract.AttemptIDCallbacks{
-		MakeAttemptID: makeAttemptID, AttemptJobDir: attemptJobDir,
+		MakeAttemptID: makeAttemptID, AttemptJobDir: func(runDir string, job JobSpec) (string, error) {
+			return state.AttemptJobDir(runDir, model.JobSpec(job))
+		},
 		AttemptIDName: envAttemptID, RunDirName: envRunDir, JobDirName: envJobDir,
 	})
 }
 
 func environmentEntry(environment []string, name string) (string, bool) {
 	return runcontract.EnvironmentEntry(environment, name)
-}
-
-func jobIsPending(jobs []JobSpec, jobID string) bool {
-	return runcontract.JobIsPending(jobs, jobID)
-}
-
-func removeFinishedJobs(jobs []JobSpec, results map[string]JobResult) []JobSpec {
-	return runcontract.RemoveFinishedJobs(jobs, results)
 }
 
 func executeMixedAttempt(runDir string, queue Queue, jobs []JobSpec, localConcurrency, batchMaxActive int, requestedExecutor string, executorOptions []string, executorSettings executorRunSettingsMap, onStart func(JobSpec)) []JobResult {
@@ -277,12 +223,4 @@ func executeMixedAttempt(runDir string, queue Queue, jobs []JobSpec, localConcur
 			Logf:            jobLogf,
 		},
 	}, onStart)
-}
-
-func completeArrayGroup(jobs []JobSpec, first, last int) bool {
-	return runcontract.CompleteArrayGroup(jobs, first, last)
-}
-
-func summarizeResults(results map[string]JobResult) (int, int, int) {
-	return runcontract.SummarizeResults(results)
 }

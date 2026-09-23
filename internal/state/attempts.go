@@ -134,3 +134,57 @@ func SpecificAttemptJobDir(runDir, jobID, attemptID string) (string, error) {
 	}
 	return filepath.Join(jobDir, "attempts", attemptID), nil
 }
+
+func ReadJobTimestamp(runDir, jobID, name string) string {
+	if name != "submitted_at" && name != "finished_at" {
+		return ""
+	}
+	jobDir, err := LatestAttemptJobDir(runDir, jobID)
+	if err != nil {
+		return ""
+	}
+	path, err := ValidatedStateFile(jobDir, name)
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+func ReadAttemptTimestamp(jobDir, name string) string {
+	path, err := ValidatedStateFile(jobDir, name)
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+func LoadLocalJobResult(jobDir string, job model.JobSpec) (model.JobResult, bool) {
+	finishedPath, err := ValidatedStateFile(jobDir, "finished_at")
+	if err != nil {
+		return model.JobResult{}, false
+	}
+	if _, err := os.Stat(finishedPath); err != nil {
+		return model.JobResult{}, false
+	}
+	path, err := ValidatedStateFile(jobDir, "status")
+	if err != nil {
+		return model.JobResult{}, false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return model.JobResult{}, false
+	}
+	exitCode, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return model.JobResult{}, false
+	}
+	return model.JobResult{ID: job.ID, Command: job.Command, ExitCode: exitCode}, true
+}

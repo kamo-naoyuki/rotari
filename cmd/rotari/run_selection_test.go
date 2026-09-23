@@ -129,9 +129,9 @@ func TestAggregatedJobResultForArray(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result, done := aggregatedJobResult("job", array, test.results)
+			result, done := model.AggregatedJobResult("job", array, test.results)
 			if done != test.wantDone || result.ExitCode != test.wantExit {
-				t.Fatalf("aggregatedJobResult() = (exit=%d, done=%t), want (exit=%d, done=%t)", result.ExitCode, done, test.wantExit, test.wantDone)
+				t.Fatalf("AggregatedJobResult() = (exit=%d, done=%t), want (exit=%d, done=%t)", result.ExitCode, done, test.wantExit, test.wantDone)
 			}
 		})
 	}

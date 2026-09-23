@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 const runRegistryGCCacheTTL = 10 * time.Minute
@@ -49,7 +51,7 @@ func scanRunRegistryGC(masterDir string) int {
 		printErrorf("failed to create master directory: %v", err)
 		return 1
 	}
-	if err := writeJSON(cachePath, cache); err != nil {
+	if err := state.WriteJSON(cachePath, cache); err != nil {
 		printErrorf("failed to save GC plan: %v", err)
 		return 1
 	}
@@ -113,8 +115,8 @@ func orphanRunRegistryEntries(masterDir string) ([]runLocation, []string, error)
 
 func validRunRegistryLocation(location runLocation) bool {
 	return location.BaseDir != "" && filepath.IsAbs(location.BaseDir) &&
-		isValidPathElement(location.ProjectName) &&
-		isValidPathElement(location.RunID)
+		state.IsValidPathElement(location.ProjectName) &&
+		state.IsValidPathElement(location.RunID)
 }
 
 func runLocationExists(location runLocation) bool {

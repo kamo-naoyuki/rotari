@@ -45,22 +45,10 @@ type LoadSample = model.LoadSample
 type ruleDiagnosis = model.RuleDiagnosis
 type runOptions = runcontract.Options
 
-func runStatus(exitCode int) string {
-	return model.RunStatus(exitCode)
-}
-
-func parseArrayRange(value string) (ArraySpec, error) {
-	return model.ParseArrayRange(value)
-}
-
-func arrayTaskIDs(array *ArraySpec) []int {
-	return model.ArrayTaskIDs(array)
-}
-
 func validateQueueJobs(queue Queue) error {
 	expandedIDs := make(map[string]bool)
 	for _, command := range queue.Commands {
-		if !isValidPathElement(command.ID) {
+		if !state.IsValidPathElement(command.ID) {
 			return fmt.Errorf("invalid job ID %q", command.ID)
 		}
 		if len(command.Command) == 0 || command.Command[0] == "" {
@@ -71,21 +59,21 @@ func validateQueueJobs(queue Queue) error {
 				return fmt.Errorf("job %q command contains a NUL byte", command.ID)
 			}
 		}
-		if err := validateEnvironment(command.Environment); err != nil {
+		if err := model.ValidateEnvironment(command.Environment); err != nil {
 			return fmt.Errorf("job %q has invalid environment: %w", command.ID, err)
 		}
 		if strings.ContainsRune(command.WorkingDirectory, '\x00') {
 			return fmt.Errorf("job %q working directory contains a NUL byte", command.ID)
 		}
 		if command.Array != nil {
-			if err := validateArraySpec(command.Array); err != nil {
+			if err := model.ValidateArraySpec(command.Array); err != nil {
 				return fmt.Errorf("job %q has invalid array: %w", command.ID, err)
 			}
 		}
 		jobIDs := []string{command.ID}
 		if command.Array != nil {
-			jobIDs = make([]string, 0, len(arrayTaskIDs(command.Array)))
-			for _, task := range arrayTaskIDs(command.Array) {
+			jobIDs = make([]string, 0, len(model.ArrayTaskIDs(command.Array)))
+			for _, task := range model.ArrayTaskIDs(command.Array) {
 				jobIDs = append(jobIDs, fmt.Sprintf("%s-%d", command.ID, task))
 			}
 		}
@@ -97,10 +85,6 @@ func validateQueueJobs(queue Queue) error {
 		}
 	}
 	return nil
-}
-
-func validateArraySpec(array *ArraySpec) error {
-	return model.ValidateArraySpec(array)
 }
 
 func formatRunLabel(runID, runName string) string {
@@ -213,20 +197,20 @@ func recoverInterruptedProject(paths pathSet, runID string, discardQueue bool) e
 		return fmt.Errorf("failed to lock queue: %w", err)
 	}
 	defer release()
-	state, currentRunID, err := inspectConsistentProjectRunState(paths, true)
+	projectState, currentRunID, err := inspectConsistentProjectRunState(paths, true)
 	if err != nil {
 		return err
 	}
-	if state != projectInterrupted || currentRunID != runID {
+	if projectState != projectInterrupted || currentRunID != runID {
 		return fmt.Errorf("project %q no longer has interrupted run %q", paths.ProjectName, runID)
 	}
 	if discardQueue {
-		queue, err := loadQueue(paths.QueueFile)
+		queue, err := state.LoadQueue(paths.QueueFile)
 		if err != nil {
 			return err
 		}
 		queue.Commands = nil
-		if err := writeJSON(paths.QueueFile, queue); err != nil {
+		if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
 			return err
 		}
 	}
@@ -236,120 +220,12 @@ func recoverInterruptedProject(paths pathSet, runID string, discardQueue bool) e
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	return writeJSON(paths.MetaFile, meta)
-}
-
-func (p pathSet) baseDirValue() string {
-	if p.BaseDir != "" {
-		return p.BaseDir
-	}
-	return p.baseDir
-}
-
-func (p pathSet) projectNameValue() string {
-	if p.ProjectName != "" {
-		return p.ProjectName
-	}
-	return p.queueName
-}
-
-func (p pathSet) projectDirValue() string {
-	if p.ProjectDir != "" {
-		return p.ProjectDir
-	}
-	return p.projectDir
-}
-
-func (p pathSet) queueFileValue() string {
-	if p.QueueFile != "" {
-		return p.QueueFile
-	}
-	return p.queueFile
-}
-
-func (p pathSet) metaFileValue() string {
-	if p.MetaFile != "" {
-		return p.MetaFile
-	}
-	return p.metaFile
-}
-
-func (p pathSet) stateLockFileValue() string {
-	if p.StateLockFile != "" {
-		return p.StateLockFile
-	}
-	return p.stateLockFile
-}
-
-func (p pathSet) lockFileValue() string {
-	if p.LockFile != "" {
-		return p.LockFile
-	}
-	return p.lockFile
-}
-
-func (p pathSet) runsDirValue() string {
-	if p.RunsDir != "" {
-		return p.RunsDir
-	}
-	return p.runsDir
-}
-
-func (p pathSet) normalize() pathSet {
-	if p.BaseDir == "" {
-		p.BaseDir = p.baseDir
-	}
-	if p.ProjectName == "" {
-		p.ProjectName = p.queueName
-	}
-	if p.ProjectDir == "" {
-		p.ProjectDir = p.projectDir
-	}
-	if p.QueueFile == "" {
-		p.QueueFile = p.queueFile
-	}
-	if p.MetaFile == "" {
-		p.MetaFile = p.metaFile
-	}
-	if p.StateLockFile == "" {
-		p.StateLockFile = p.stateLockFile
-	}
-	if p.LockFile == "" {
-		p.LockFile = p.lockFile
-	}
-	if p.RunsDir == "" {
-		p.RunsDir = p.runsDir
-	}
-	if p.baseDir == "" {
-		p.baseDir = p.BaseDir
-	}
-	if p.queueName == "" {
-		p.queueName = p.ProjectName
-	}
-	if p.projectDir == "" {
-		p.projectDir = p.ProjectDir
-	}
-	if p.queueFile == "" {
-		p.queueFile = p.QueueFile
-	}
-	if p.metaFile == "" {
-		p.metaFile = p.MetaFile
-	}
-	if p.stateLockFile == "" {
-		p.stateLockFile = p.StateLockFile
-	}
-	if p.lockFile == "" {
-		p.lockFile = p.LockFile
-	}
-	if p.runsDir == "" {
-		p.runsDir = p.RunsDir
-	}
-	return p
+	return state.WriteJSON(paths.MetaFile, meta)
 }
 
 func formatProjectRunningError(paths pathSet, runID string) string {
-	baseDir := paths.baseDirValue()
-	projectName := paths.projectNameValue()
+	baseDir := paths.BaseDir
+	projectName := paths.ProjectName
 	return fmt.Sprintf("%s\n  Run: %s\n\nWait for completion:\n  rotari wait --basedir %s --project-name %s --run-id %s\n\nCancel run:\n  rotari cancel --basedir %s --project-name %s\n",
 		redError(fmt.Sprintf("project '%s' is running; new jobs are not allowed", projectName)),
 		runID, baseDir, projectName, runID, baseDir, projectName)
@@ -398,7 +274,7 @@ func finalizeCompletedCancellation(paths pathSet) (bool, error) {
 	if pathErr != nil {
 		return false, pathErr
 	}
-	summary, err := loadRunSummary(filepath.Join(runDir, "summary.json"))
+	summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
 	if err != nil || summary.FinishedAt == "" {
 		return false, nil
 	}
@@ -457,7 +333,7 @@ func cmdWorkerRun(args []string) int {
 			meta.Phase = "running"
 			meta.LastRunID = runID
 			meta.UpdatedAt = nowRFC3339()
-			return writeJSON(paths.MetaFile, meta)
+			return state.WriteJSON(paths.MetaFile, meta)
 		},
 		StartSampling: func() func() { return startRunLoadSampling(paths, runID) },
 		Execute: func() int {
@@ -495,7 +371,7 @@ func finishRun(paths pathSet, runID string, exitCode int) error {
 		return fmt.Errorf("run lock belongs to %q, not %q", lock.RunID, runID)
 	}
 
-	queue, err := loadQueue(paths.QueueFile)
+	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
 		return fmt.Errorf("failed to load queue: %w", err)
 	}
@@ -507,10 +383,10 @@ func finishRun(paths pathSet, runID string, exitCode int) error {
 	if err != nil {
 		return err
 	}
-	if err := writeJSON(paths.QueueFile, queue); err != nil {
+	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
 		return fmt.Errorf("failed to clear queue: %w", err)
 	}
-	if err := writeJSON(paths.MetaFile, meta); err != nil {
+	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		return fmt.Errorf("failed to finalize metadata: %w", err)
 	}
 	notifyRunWebhook(paths, runID, exitCode)
@@ -527,7 +403,7 @@ func launchAsyncRun(paths pathSet, options runOptions) int {
 	meta.Phase = "running"
 	meta.LastRunID = options.RunID
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.MetaFile, meta); err != nil {
+	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		_ = os.Remove(paths.LockFile)
 		printErrorf("failed to update metadata: %v", err)
 		return 1
@@ -575,7 +451,7 @@ func launchAsyncRun(paths pathSet, options runOptions) int {
 		printErrorf("failed to determine lock host: %v", err)
 		return 1
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: cmd.Process.Pid, RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339(), Host: host}); err != nil {
+	if err := state.WriteJSON(paths.LockFile, LockInfo{PID: cmd.Process.Pid, RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339(), Host: host}); err != nil {
 		_ = cmd.Process.Kill()
 		_ = os.Remove(paths.LockFile)
 		printErrorf("failed to update lock with child pid: %v", err)
@@ -594,10 +470,6 @@ func waitForAsyncRun(cmd *exec.Cmd, onDone func()) {
 			onDone()
 		}
 	}()
-}
-
-func countRunResults(results []JobResult) (successCount, failedCount int) {
-	return model.CountRunResults(results)
 }
 
 func printFailedJobHints(runID string, results []JobResult) {
@@ -644,31 +516,7 @@ func recordCancelledJob(jobDir string, job JobSpec) JobResult {
 	return executor.RecordCancelledJob(jobDir, model.JobSpec(job), jsonStore())
 }
 
-func queueToJobs(commands []QueuedCommand) []JobSpec {
-	return model.QueueToJobs(commands)
-}
-
-type pathSet struct {
-	BaseDir         string
-	BaseDirExplicit bool
-	ProjectName     string
-	ProjectDir      string
-	QueueFile       string
-	MetaFile        string
-	StateLockFile   string
-	LockFile        string
-	RunsDir         string
-
-	baseDir         string
-	baseDirExplicit bool
-	queueName       string
-	projectDir      string
-	queueFile       string
-	metaFile        string
-	stateLockFile   string
-	lockFile        string
-	runsDir         string
-}
+type pathSet = state.ProjectPaths
 
 const (
 	stateFileCommandsJSON  = "commands.json"
@@ -700,16 +548,7 @@ func resolvePaths(cliBaseDir, projectName string) (pathSet, error) {
 		StateLockFile:   resolved.StateLockFile,
 		LockFile:        resolved.LockFile,
 		RunsDir:         resolved.RunsDir,
-		baseDir:         resolved.BaseDir,
-		baseDirExplicit: resolved.BaseDirExplicit,
-		queueName:       resolved.ProjectName,
-		projectDir:      resolved.ProjectDir,
-		queueFile:       resolved.QueueFile,
-		metaFile:        resolved.MetaFile,
-		stateLockFile:   resolved.StateLockFile,
-		lockFile:        resolved.LockFile,
-		runsDir:         resolved.RunsDir,
-	}.normalize()
+	}
 	return paths, nil
 }
 
@@ -806,8 +645,4 @@ func nowRFC3339() string {
 
 func nowRFC3339Nano() string {
 	return time.Now().UTC().Format(time.RFC3339Nano)
-}
-
-func formatDisplayTimestamp(value string) string {
-	return model.FormatDisplayTimestamp(value)
 }

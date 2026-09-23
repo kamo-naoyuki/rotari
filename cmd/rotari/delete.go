@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func cmdDelete(args []string) int {
@@ -74,7 +76,7 @@ func cmdDelete(args []string) int {
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.MetaFile, meta); err != nil {
+	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		printErrorf("failed to update metadata: %v", err)
 		return 1
 	}
@@ -103,7 +105,7 @@ func runIDsInDirectory(runsDir string) []string {
 }
 
 func deleteRun(paths pathSet, runID string) error {
-	if !isValidPathElement(runID) {
+	if !state.IsValidPathElement(runID) {
 		return fmt.Errorf("run %q not found", runID)
 	}
 	runDir, err := validatedRunDir(paths, runID)
@@ -126,7 +128,7 @@ func deleteRun(paths pathSet, runID string) error {
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.MetaFile, meta); err != nil {
+	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		return err
 	}
 	return unregisterRun(runID)

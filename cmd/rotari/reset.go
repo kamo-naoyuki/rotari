@@ -7,6 +7,9 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func cmdReset(args []string) int {
@@ -37,40 +40,40 @@ func cmdReset(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	state, runID, err := inspectConsistentProjectRunState(paths, true)
+	projectState, runID, err := inspectConsistentProjectRunState(paths, true)
 	if err != nil {
 		printErrorf("failed to check project state: %v", err)
 		return 1
 	}
-	if state == projectRunning {
+	if projectState == projectRunning {
 		meta, metaErr := loadMeta(paths.MetaFile)
 		if metaErr == nil && meta.Phase == "cancelling" {
 			if !waitForCancellation(paths, queueName) {
 				return 1
 			}
-			state, runID, err = inspectConsistentProjectRunState(paths, true)
+			projectState, runID, err = inspectConsistentProjectRunState(paths, true)
 			if err != nil {
 				printErrorf("failed to check project state: %v", err)
 				return 1
 			}
 		}
 	}
-	if state == projectRunning {
+	if projectState == projectRunning {
 		fmt.Fprint(os.Stderr, formatProjectRunningError(paths, runID))
 		return 1
 	}
-	if state == projectInterrupted {
+	if projectState == projectInterrupted {
 		confirmed := *recoverOption
 		if !confirmed {
 			if !isTerminal(os.Stdin) {
 				detail, stillRunning := interruptedRunStatusDetail(paths, runID)
 				message := fmt.Sprintf("project %q has interrupted run %q%s; reset requires confirmation\nInspect before deciding: rotari show --basedir %s --project-name %s --run-id %s\n",
-					queueName, runID, detail, shellQuote(paths.BaseDir), shellQuote(paths.ProjectName), shellQuote(runID))
+					queueName, runID, detail, executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
 				if stillRunning {
 					message += "Do not recover until you have independently confirmed those jobs have actually stopped.\n"
 				}
 				message += fmt.Sprintf("Confirm with:\n  rotari reset --basedir %s --project-name %s --recover",
-					shellQuote(paths.BaseDir), shellQuote(paths.ProjectName))
+					executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName))
 				printError(message)
 				return 1
 			}
@@ -84,7 +87,7 @@ func cmdReset(args []string) int {
 				return 1
 			}
 		}
-		queue, err := loadQueue(paths.QueueFile)
+		queue, err := state.LoadQueue(paths.QueueFile)
 		if err != nil {
 			printErrorf("failed to load queue: %v", err)
 			return 1
@@ -138,14 +141,14 @@ func resetQueueCommands(paths pathSet) (int, error) {
 	if running {
 		return 0, fmt.Errorf("project %q is running; reset is not allowed", paths.ProjectName)
 	}
-	queue, err := loadQueue(paths.QueueFile)
+	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
 		return 0, fmt.Errorf("failed to load queue: %w", err)
 	}
 	cleared := len(queue.Commands)
 	if cleared > 0 {
 		queue.Commands = nil
-		if err := writeJSON(paths.QueueFile, queue); err != nil {
+		if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
 			return 0, fmt.Errorf("failed to reset queue: %w", err)
 		}
 	}
@@ -155,7 +158,7 @@ func resetQueueCommands(paths pathSet) (int, error) {
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.MetaFile, meta); err != nil {
+	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		return 0, fmt.Errorf("failed to update metadata: %w", err)
 	}
 	return cleared, nil

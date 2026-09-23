@@ -20,6 +20,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 type serverRequest = serverinternal.Request
@@ -222,7 +223,7 @@ func cmdAdd(args []string) int {
 	}
 	var array *ArraySpec
 	if *arrayRange != "" {
-		parsed, parseErr := parseArrayRange(*arrayRange)
+		parsed, parseErr := model.ParseArrayRange(*arrayRange)
 		if parseErr != nil {
 			printErrorf("invalid --array: %v", parseErr)
 			return 1
@@ -239,7 +240,7 @@ func cmdAdd(args []string) int {
 		printError(err)
 		return 1
 	}
-	if err := validateEnvironment(environment); err != nil {
+	if err := model.ValidateEnvironment(environment); err != nil {
 		printErrorf("invalid --env: %v", err)
 		return 1
 	}
@@ -393,7 +394,7 @@ func cmdRun(args []string) int {
 			return 1
 		}
 		sourceRunID = meta.LastRunID
-		queue, queueErr := loadQueue(paths.QueueFile)
+		queue, queueErr := state.LoadQueue(paths.QueueFile)
 		if queueErr != nil {
 			printErrorf("failed to load queue: %v", queueErr)
 			return 1
@@ -950,7 +951,7 @@ func resolveQueueExecutor(baseDir, queueName, requested string) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	queue, err := loadQueue(paths.QueueFile)
+	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
 		return "", err
 	}
@@ -1185,7 +1186,7 @@ func cancelQueueJobs(baseDir, queueName string, jobIDs []string, wait bool) (str
 			return "", err
 		}
 		targets := make([]string, 0, len(commandSnapshot.Commands))
-		for _, job := range queueToJobs(commandSnapshot.Commands) {
+		for _, job := range model.QueueToJobs(commandSnapshot.Commands) {
 			jobDir, err := latestAttemptJobDir(runDir, job.ID)
 			if err != nil {
 				return "", err
@@ -1220,12 +1221,12 @@ func cancelJobs(runDir, queueName, runID string, jobIDs []string) (string, error
 		return "", err
 	}
 	knownJobs := make(map[string]JobSpec)
-	for _, job := range queueToJobs(commandSnapshot.Commands) {
+	for _, job := range model.QueueToJobs(commandSnapshot.Commands) {
 		knownJobs[job.ID] = job
 	}
 	cancelled := 0
 	for jobID := range requested {
-		if !isValidPathElement(jobID) {
+		if !state.IsValidPathElement(jobID) {
 			return "", fmt.Errorf("invalid job ID %q", jobID)
 		}
 		jobDir, err := latestAttemptJobDir(runDir, jobID)
@@ -1284,7 +1285,7 @@ func markQueueCancelling(paths pathSet) error {
 	}
 	meta.Phase = "cancelling"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.MetaFile, meta); err != nil {
+	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		return fmt.Errorf("failed to mark queue as cancelling: %w", err)
 	}
 	return nil
@@ -1320,7 +1321,7 @@ func enqueueCommandWithWorkingDirectory(baseDir, queueName string, command []str
 	if queueName == "" || len(command) == 0 {
 		return "", errors.New("project name and command are required")
 	}
-	if err := validateEnvironment(environment); err != nil {
+	if err := model.ValidateEnvironment(environment); err != nil {
 		return "", fmt.Errorf("invalid environment: %w", err)
 	}
 	paths, err := resolvePaths(baseDir, queueName)
@@ -1342,7 +1343,7 @@ func enqueueCommandWithWorkingDirectory(baseDir, queueName string, command []str
 	if err != nil {
 		return "", err
 	}
-	queue, err := loadQueue(paths.QueueFile)
+	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
 		return "", err
 	}
@@ -1368,12 +1369,12 @@ func enqueueCommandWithWorkingDirectory(baseDir, queueName string, command []str
 		}
 	}
 	queue.Commands = append(queue.Commands, job)
-	if err := writeJSON(paths.QueueFile, queue); err != nil {
+	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
 		return "", err
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.MetaFile, meta); err != nil {
+	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		return "", err
 	}
 	message := fmt.Sprintf("submitted project=%s job_id=%s", queueName, job.ID)
@@ -1489,7 +1490,7 @@ func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMa
 	meta.Phase = "running"
 	meta.LastRunID = runID
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.MetaFile, meta); err != nil {
+	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		_ = os.Remove(paths.LockFile)
 		release()
 		return "", 1, err

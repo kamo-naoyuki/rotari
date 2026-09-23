@@ -57,6 +57,27 @@ func ResultSelectionMatches(selection string, finished bool, exitCode int) bool 
 	return false
 }
 
+func ResultsByID(results []JobResult) map[string]JobResult {
+	byID := make(map[string]JobResult, len(results))
+	for _, result := range results {
+		byID[result.ID] = result
+	}
+	return byID
+}
+
+func QueueOriginsByJobID(queue Queue) map[string]*JobOrigin {
+	origins := make(map[string]*JobOrigin)
+	for _, command := range queue.Commands {
+		if command.Origin != nil {
+			origins[command.ID] = command.Origin
+		}
+		for taskID, origin := range command.TaskOrigins {
+			origins[taskID] = origin
+		}
+	}
+	return origins
+}
+
 func AggregatedJobResult(id string, array *ArraySpec, results map[string]JobResult) (JobResult, bool) {
 	if array == nil {
 		result, finished := results[id]

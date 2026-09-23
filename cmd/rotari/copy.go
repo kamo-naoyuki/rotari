@@ -21,7 +21,7 @@ func confirmQueueOverwrite(baseDir, queueName string, appendJobs, overwriteJobs 
 		if pathErr != nil {
 			return false, pathErr
 		}
-		queue, loadErr := loadQueue(paths.QueueFile)
+		queue, loadErr := state.LoadQueue(paths.QueueFile)
 		if loadErr != nil {
 			return false, loadErr
 		}
@@ -178,18 +178,18 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	if err != nil {
 		return "", err
 	}
-	snapshot, err := loadQueue(filepath.Join(sourceRunDir, "commands.json")) // NOSONAR: sourceRunDir is produced by validatedRunDir.
+	snapshot, err := state.LoadQueue(filepath.Join(sourceRunDir, "commands.json")) // NOSONAR: sourceRunDir is produced by validatedRunDir.
 	if err != nil {
 		return "", fmt.Errorf("failed to load command snapshot: %w", err)
 	}
 	if len(snapshot.Commands) == 0 {
 		return "", errors.New("command snapshot has no jobs")
 	}
-	summary, summaryErr := loadRunSummary(filepath.Join(sourceRunDir, "summary.json")) // NOSONAR: sourceRunDir is produced by validatedRunDir.
+	summary, summaryErr := state.LoadRunSummary(filepath.Join(sourceRunDir, "summary.json")) // NOSONAR: sourceRunDir is produced by validatedRunDir.
 	if summaryErr != nil && selection != "all" {
 		return "", fmt.Errorf("failed to load run summary: %w", summaryErr)
 	}
-	results := jobResultsByID(summary.Results)
+	results := model.ResultsByID(summary.Results)
 	originCWD := ""
 	if context, contextErr := state.LoadContext(jsonStore(), sourceRunDir); contextErr == nil {
 		originCWD = context.CWD
@@ -214,7 +214,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 				return "", fmt.Errorf("attempt %q not found in run %s", jobID, runID)
 			}
 			found := false
-			for _, task := range queueToJobs(snapshot.Commands) {
+			for _, task := range model.QueueToJobs(snapshot.Commands) {
 				if task.ID == payload.JobID {
 					if task.ArrayGroup != "" {
 						requested[task.ArrayGroup] = true
@@ -241,7 +241,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	selected := make([]QueuedCommand, 0, len(snapshot.Commands))
 	selectedNames := make(map[string]bool)
 	for _, command := range snapshot.Commands {
-		result, finished := aggregatedJobResult(command.ID, command.Array, results)
+		result, finished := model.AggregatedJobResult(command.ID, command.Array, results)
 		include := false
 		switch selection {
 		case "all":
@@ -284,14 +284,14 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 				continue
 			}
 			dependencyCommand := commandsByName[dependency]
-			result, finished := aggregatedJobResult(dependencyCommand.ID, dependencyCommand.Array, results)
+			result, finished := model.AggregatedJobResult(dependencyCommand.ID, dependencyCommand.Array, results)
 			if !finished || result.ExitCode != 0 {
 				return "", fmt.Errorf("cannot copy job %q: excluded dependency %q did not succeed in run %s", command.Name, dependency, runID)
 			}
 		}
 	}
 
-	queue, err := loadQueue(paths.QueueFile)
+	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to load queue: %w", err)
 	}
@@ -321,7 +321,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 		selected[index].DependsOn = dependencies
 		originStatus := "unfinished"
 		originAttemptID := ""
-		if result, finished := aggregatedJobResult(sourceJobID, selected[index].Array, results); finished {
+		if result, finished := model.AggregatedJobResult(sourceJobID, selected[index].Array, results); finished {
 			originAttemptID = result.AttemptID
 			originStatus = "failed"
 			if result.ExitCode == 0 {
@@ -341,10 +341,10 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 		queue.Commands = nil
 	}
 	queue.Commands = append(queue.Commands, selected...)
-	if err := model.ValidateDependencies(queueToJobs(queue.Commands)); err != nil {
+	if err := model.ValidateDependencies(model.QueueToJobs(queue.Commands)); err != nil {
 		return "", fmt.Errorf("invalid dependencies: %w", err)
 	}
-	if err := writeJSON(paths.QueueFile, queue); err != nil {
+	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
 		return "", fmt.Errorf("failed to write queue: %w", err)
 	}
 	meta, err := loadMeta(paths.MetaFile)
@@ -353,7 +353,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.MetaFile, meta); err != nil {
+	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		return "", fmt.Errorf("failed to update metadata: %w", err)
 	}
 	return fmt.Sprintf("copied jobs=%d from run=%s to queue=%s", len(selected), runID, queueName), nil
@@ -364,7 +364,7 @@ func narrowArrayCommand(command *QueuedCommand, taskIDs map[string]bool) {
 		return
 	}
 	tasks := make([]int, 0, len(taskIDs))
-	for _, task := range arrayTaskIDs(command.Array) {
+	for _, task := range model.ArrayTaskIDs(command.Array) {
 		if taskIDs[fmt.Sprintf("%s-%d", command.ID, task)] {
 			tasks = append(tasks, task)
 		}
@@ -378,7 +378,7 @@ func narrowArrayCommand(command *QueuedCommand, taskIDs map[string]bool) {
 
 func copyArrayTaskOrigins(runDir, runID, commandID string, array *ArraySpec, results map[string]JobResult, requestedAttempts map[string]string, cwd string) map[string]*JobOrigin {
 	origins := make(map[string]*JobOrigin)
-	for _, task := range arrayTaskIDs(array) {
+	for _, task := range model.ArrayTaskIDs(array) {
 		taskID := fmt.Sprintf("%s-%d", commandID, task)
 		result, finished := results[taskID]
 		if !finished {
@@ -394,8 +394,8 @@ func copyArrayTaskOrigins(runDir, runID, commandID string, array *ArraySpec, res
 		}
 		origins[taskID] = &JobOrigin{
 			RunID: runID, JobID: taskID, AttemptID: attemptID, Status: status, CWD: cwd,
-			SubmittedAt: readJobTimestamp(runDir, taskID, stateFileSubmittedAt),
-			FinishedAt:  readJobTimestamp(runDir, taskID, stateFileFinishedAt),
+			SubmittedAt: state.ReadJobTimestamp(runDir, taskID, stateFileSubmittedAt),
+			FinishedAt:  state.ReadJobTimestamp(runDir, taskID, stateFileFinishedAt),
 		}
 	}
 	return origins
@@ -407,15 +407,15 @@ func copyArrayTaskOrigins(runDir, runID, commandID string, array *ArraySpec, res
 // completion across all tasks instead of a non-existent "id" directory.
 func originTimestamps(runDir, id string, array *ArraySpec) (string, string) {
 	if array == nil {
-		return readJobTimestamp(runDir, id, "submitted_at"), readJobTimestamp(runDir, id, "finished_at")
+		return state.ReadJobTimestamp(runDir, id, "submitted_at"), state.ReadJobTimestamp(runDir, id, "finished_at")
 	}
 	var submittedAt, finishedAt string
-	for _, task := range arrayTaskIDs(array) {
+	for _, task := range model.ArrayTaskIDs(array) {
 		taskID := fmt.Sprintf("%s-%d", id, task)
-		if value := readJobTimestamp(runDir, taskID, "submitted_at"); value != "" && (submittedAt == "" || value < submittedAt) {
+		if value := state.ReadJobTimestamp(runDir, taskID, "submitted_at"); value != "" && (submittedAt == "" || value < submittedAt) {
 			submittedAt = value
 		}
-		if value := readJobTimestamp(runDir, taskID, "finished_at"); value != "" && value > finishedAt {
+		if value := state.ReadJobTimestamp(runDir, taskID, "finished_at"); value != "" && value > finishedAt {
 			finishedAt = value
 		}
 	}

@@ -13,6 +13,10 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
+	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
 
 func compactWebHTML(value string) string {
@@ -573,7 +577,7 @@ func TestLoadWebStateIncludesRuntimeRecords(t *testing.T) {
 	if project.RunningRunID != lock.RunID || project.RunnerPID != lock.PID || project.RunnerHost != lock.Host {
 		t.Fatalf("project runtime = %#v, want lock %#v", project, lock)
 	}
-	if project.RunnerStartedAt != formatDisplayTimestamp(lock.StartedAt) {
+	if project.RunnerStartedAt != model.FormatDisplayTimestamp(lock.StartedAt) {
 		t.Fatalf("runner started at = %q, want formatted lock timestamp", project.RunnerStartedAt)
 	}
 	if !state.Server.SocketExists || !state.Server.PIDFileExists || state.Server.PID != 5678 {
@@ -1002,10 +1006,10 @@ func TestLoadWebJobsUsesCarriedOriginTimestamps(t *testing.T) {
 
 func TestReadJobTimestampRejectsUnsafePathElements(t *testing.T) {
 	runDir := t.TempDir()
-	if got := readJobTimestamp(runDir, "../outside", "submitted_at"); got != "" {
+	if got := stateinternal.ReadJobTimestamp(runDir, "../outside", "submitted_at"); got != "" {
 		t.Fatalf("unsafe job ID timestamp = %q, want empty", got)
 	}
-	if got := readJobTimestamp(runDir, "job-1", "../submitted_at"); got != "" {
+	if got := stateinternal.ReadJobTimestamp(runDir, "job-1", "../submitted_at"); got != "" {
 		t.Fatalf("unsafe timestamp name = %q, want empty", got)
 	}
 }
@@ -1035,7 +1039,7 @@ func TestLoadWebStateIncludesRunContextAndTimeline(t *testing.T) {
 	if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{CWD: "/work/project", Hostname: "node-a", StartedLoad: &LoadAverage{One: 1.25, Five: 1.5, Fifteen: 2}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := appendLoadSample(loadSamplesPath(paths, "run-1"), LoadSample{At: "2026-09-16T00:00:01Z", LoadAverage: LoadAverage{One: 1.25, Five: 1.5, Fifteen: 2}}); err != nil {
+	if err := stateinternal.AppendLoadSample(loadSamplesPath(paths, "run-1"), LoadSample{At: "2026-09-16T00:00:01Z", LoadAverage: LoadAverage{One: 1.25, Five: 1.5, Fifteen: 2}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: "run-1", Status: "finished", StartedAt: "2026-09-16T00:00:00Z", FinishedAt: "2026-09-16T00:00:03Z", Results: []JobResult{{ID: "job-1", ExitCode: 0}}}); err != nil {
@@ -1084,7 +1088,11 @@ func TestBuildWebTimelineCountsCarriedResultsAtStart(t *testing.T) {
 		{ID: "rerun-failed", SubmittedAt: "2026-09-16T00:00:01Z", FinishedAt: "2026-09-16T00:00:02Z", Result: &JobResult{ID: "rerun-failed", ExitCode: 1}},
 	}
 
-	timeline := buildWebTimeline(summary, jobs)
+	inputs := make([]webprojection.JobTimelineInput, 0, len(jobs))
+	for _, job := range jobs {
+		inputs = append(inputs, webprojection.JobTimelineInput{Finished: job.Result != nil, Carried: job.Origin != nil, SubmittedAt: job.SubmittedAt, FinishedAt: job.FinishedAt, Success: job.Result != nil && job.Result.ExitCode == 0})
+	}
+	timeline := webprojection.BuildTimeline(summary.StartedAt, inputs)
 	if len(timeline) != 3 {
 		t.Fatalf("timeline = %#v, want start, submitted, and finished points", timeline)
 	}
@@ -1122,7 +1130,7 @@ func TestWriteRunContext(t *testing.T) {
 	if len(context.ConfigPaths) == 0 || context.ConfigPaths[len(context.ConfigPaths)-1] != filepath.Join(baseDir, "config.yaml") {
 		t.Fatalf("config paths = %#v, want basedir config", context.ConfigPaths)
 	}
-	samples := readLoadSamples(loadSamplesPath(paths, "run-1"))
+	samples := stateinternal.ReadLoadSamples(loadSamplesPath(paths, "run-1"))
 	if context.StartedLoad != nil && len(samples) != 1 {
 		t.Fatalf("load samples = %#v, want initial load sample", samples)
 	}
@@ -1136,7 +1144,7 @@ func TestWriteRunContext(t *testing.T) {
 	if err := json.Unmarshal(data, &context); err != nil {
 		t.Fatal(err)
 	}
-	samples = readLoadSamples(loadSamplesPath(paths, "run-1"))
+	samples = stateinternal.ReadLoadSamples(loadSamplesPath(paths, "run-1"))
 	if context.FinishedLoad != nil && len(samples) != 2 {
 		t.Fatalf("load samples = %#v, want initial and final load samples", samples)
 	}

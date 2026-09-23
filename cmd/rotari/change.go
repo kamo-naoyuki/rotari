@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func cmdChange(args []string) int {
@@ -42,7 +43,7 @@ func cmdChange(args []string) int {
 		printError("usage: " + cliUsage("change"))
 		return 1
 	}
-	if err := validateEnvironment(environment); err != nil {
+	if err := model.ValidateEnvironment(environment); err != nil {
 		printErrorf("invalid --env: %v", err)
 		return 1
 	}
@@ -86,7 +87,7 @@ type changeMutation struct {
 func changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, requestedJobID, requestedJobName, executor string,
 	executorOptions []string, clearExecutorOptions bool, environment []string, clearEnvironment bool, workingDirectory string, clearWorkingDirectory bool, setJobName string, dependsOn []string,
 	clearDependsOn bool, command []string) (string, error) {
-	if err := validateEnvironment(environment); err != nil {
+	if err := model.ValidateEnvironment(environment); err != nil {
 		return "", fmt.Errorf("invalid environment: %w", err)
 	}
 	paths, err := resolvePaths(baseDir, queueName)
@@ -102,7 +103,7 @@ func changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, request
 		return "", err
 	}
 
-	queue, err := loadQueue(paths.QueueFile)
+	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to load queue: %w", err)
 	}
@@ -113,7 +114,7 @@ func changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, request
 		}
 	}
 
-	jobs := queueToJobs(queue.Commands)
+	jobs := model.QueueToJobs(queue.Commands)
 	jobIndex, err := selectChangeJob(jobs, requestedJobID, requestedJobName)
 	if err != nil {
 		return "", err
@@ -128,10 +129,10 @@ func changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, request
 	if err := validateQueueJobs(queue); err != nil {
 		return "", err
 	}
-	if err := model.ValidateDependencies(queueToJobs(queue.Commands)); err != nil {
+	if err := model.ValidateDependencies(model.QueueToJobs(queue.Commands)); err != nil {
 		return "", fmt.Errorf("invalid dependencies: %w", err)
 	}
-	if err := writeJSON(paths.QueueFile, queue); err != nil {
+	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
 		return "", fmt.Errorf("failed to save changed queue: %w", err)
 	}
 	meta, err := loadMeta(paths.MetaFile)
@@ -140,7 +141,7 @@ func changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, request
 	}
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.MetaFile, meta); err != nil {
+	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		return "", fmt.Errorf("failed to update metadata: %w", err)
 	}
 	return fmt.Sprintf("changed queue=%s job=%s", queueName, jobs[jobIndex].ID), nil
@@ -194,7 +195,7 @@ func applyChangeMutation(queue Queue, jobIndex int, mutation changeMutation) err
 }
 
 func validateChangeRename(queue Queue, jobIndex int, newName string) error {
-	jobs := queueToJobs(queue.Commands)
+	jobs := model.QueueToJobs(queue.Commands)
 	for index, job := range jobs {
 		if index != jobIndex && job.Name == newName {
 			return fmt.Errorf("job name %q is already in use", newName)

@@ -18,34 +18,13 @@ func loadSlurmStatus(path string) (slurmStatus, bool) {
 	return executor.LoadWrapperStatus(jsonStore(), path)
 }
 
-func defaultMeta() Meta {
-	return Meta{Phase: "collecting", UpdatedAt: nowRFC3339()}
-}
-
 func loadMeta(path string) (Meta, error) {
 	meta, err := state.LoadMeta(path)
-	if err != nil {
-		return Meta{}, err
-	}
-	if meta.Phase == "" {
-		meta = defaultMeta()
-	}
-	if meta.UpdatedAt == "" {
-		meta.UpdatedAt = nowRFC3339()
-	}
-	return Meta(meta), nil
-}
-
-func loadQueue(path string) (Queue, error) {
-	queue, err := state.LoadQueue(path)
-	if err != nil {
-		return Queue{}, err
-	}
-	return Queue(queue), nil
+	return Meta(meta), err
 }
 
 func loadRunQueue(paths pathSet, requestedExecutor string, executorOptions []string, settings executorRunSettingsMap) (Queue, error) {
-	queue, err := loadQueue(paths.QueueFile)
+	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
 		return Queue{}, err
 	}
@@ -53,8 +32,4 @@ func loadRunQueue(paths pathSet, requestedExecutor string, executorOptions []str
 		return Queue{}, err
 	}
 	return queue, nil
-}
-
-func writeJSON(path string, v any) error {
-	return state.WriteJSON(path, v)
 }

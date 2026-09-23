@@ -66,10 +66,6 @@ var propagatedEnvironmentVariables = []string{
 	envRunRetry, envRunAsync, envArrayRange,
 }
 
-func validateEnvironment(environment []string) error {
-	return model.ValidateEnvironment(environment)
-}
-
 type environmentDefinition = webprojection.EnvironmentDefinition
 
 func environmentDefinitions() []environmentDefinition {

@@ -30,10 +30,6 @@ func (flag *stringSliceFlag) Reset() {
 	*flag = nil
 }
 
-func shellQuote(value string) string {
-	return executor.ShellQuote(value)
-}
-
 type JobHandle = executor.JobHandle
 type JobExecutor = executor.JobExecutor
 type ArraySubmitter = executor.ArraySubmitter

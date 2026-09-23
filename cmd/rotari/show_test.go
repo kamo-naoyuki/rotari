@@ -9,14 +9,16 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 func TestFormatDisplayTimestampUsesJST(t *testing.T) {
 	t.Setenv("TZ", "Asia/Tokyo")
-	if got := formatDisplayTimestamp("2026-09-16T00:00:01Z"); got != "2026-09-16 09:00:01 JST" {
+	if got := model.FormatDisplayTimestamp("2026-09-16T00:00:01Z"); got != "2026-09-16 09:00:01 JST" {
 		t.Fatalf("formatDisplayTimestamp() = %q, want JST display", got)
 	}
-	if got := formatDisplayTimestamp("-"); got != "-" {
+	if got := model.FormatDisplayTimestamp("-"); got != "-" {
 		t.Fatalf("formatDisplayTimestamp(-) = %q, want unchanged marker", got)
 	}
 }
@@ -1218,19 +1220,19 @@ func TestCmdShowProjectsListsProjectSummaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(demo.queueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(demo.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(demo.metaFile, Meta{Phase: "finished", LastRunID: "demo-run"}); err != nil {
+	if err := writeJSON(demo.MetaFile, Meta{Phase: "finished", LastRunID: "demo-run"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(demo.runsDir, "demo-run"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(demo.RunsDir, "demo-run"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(example.lockFile, LockInfo{PID: os.Getpid(), RunID: "example-run"}); err != nil {
+	if err := writeJSON(example.LockFile, LockInfo{PID: os.Getpid(), RunID: "example-run"}); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Remove(example.lockFile) })
+	t.Cleanup(func() { _ = os.Remove(example.LockFile) })
 
 	oldStdout := os.Stdout
 	reader, writer, err := os.Pipe()
