@@ -210,17 +210,15 @@ func jobWasExplicitlyCancelled(runDir, jobID string, result JobResult) bool {
 	if err != nil {
 		return false
 	}
-	if jobCancellationRequested(jobDir) {
-		return true
-	}
-	if status, ok := loadSlurmStatus(filepath.Join(jobDir, "status.json")); ok {
-		phase := strings.ToLower(strings.TrimSpace(status.Phase))
-		if phase == "cancelled" || phase == "canceled" {
-			return true
-		}
-	}
-	errorText := strings.ToLower(strings.TrimSpace(result.Error))
-	return errorText == "cancelled" || errorText == "canceled" || strings.HasPrefix(errorText, "cancelled ") || strings.HasPrefix(errorText, "canceled ")
+	return runcontract.WasExplicitlyCancelled(result.Error,
+		func() bool { return jobCancellationRequested(jobDir) },
+		func() string {
+			if status, ok := loadSlurmStatus(filepath.Join(jobDir, "status.json")); ok {
+				return status.Phase
+			}
+			return ""
+		},
+	)
 }
 
 func expandArrayPlan(commands []QueuedCommand, jobs []JobSpec, execute map[string]bool) {
