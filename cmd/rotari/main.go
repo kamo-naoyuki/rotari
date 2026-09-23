@@ -14,197 +14,42 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 const jobIDLen = 9
 const runIDLen = len("20060102-150405-00000000")
 const defaultProjectName = "default"
 
-type Queue struct {
-	DefaultExecutor        string          `json:"default_executor,omitempty"`
-	DefaultExecutorOptions []string        `json:"default_executor_options,omitempty"`
-	Commands               []QueuedCommand `json:"commands"`
-}
+type Queue = model.Queue
+type QueuedCommand = model.QueuedCommand
+type ArraySpec = model.ArraySpec
+type JobOrigin = model.JobOrigin
 
-type QueuedCommand struct {
-	ID               string     `json:"id"`
-	Command          []string   `json:"command"`
-	WorkingDirectory string     `json:"working_directory,omitempty"`
-	Executor         string     `json:"executor,omitempty"`
-	ExecutorOptions  []string   `json:"executor_options,omitempty"`
-	Environment      []string   `json:"environment,omitempty"`
-	Name             string     `json:"name,omitempty"`
-	DependsOn        []string   `json:"depends_on,omitempty"`
-	Origin           *JobOrigin `json:"origin,omitempty"`
-	Array            *ArraySpec `json:"array,omitempty"`
-	// TaskOrigins records, per expanded task ID (e.g. "id-1"), the origin of
-	// array tasks carried forward individually (see planArrayTaskSelection);
-	// Origin above only covers the whole (unexpanded) command.
-	TaskOrigins map[string]*JobOrigin `json:"task_origins,omitempty"`
-}
-
-type ArraySpec struct {
-	First int   `json:"first"`
-	Last  int   `json:"last"`
-	Tasks []int `json:"tasks,omitempty"`
-}
-
-type JobOrigin struct {
-	RunID       string `json:"run_id"`
-	JobID       string `json:"job_id"`
-	AttemptID   string `json:"attempt_id,omitempty"`
-	Status      string `json:"status,omitempty"`
-	CWD         string `json:"cwd,omitempty"`
-	SubmittedAt string `json:"submitted_at,omitempty"`
-	FinishedAt  string `json:"finished_at,omitempty"`
-}
-
-type attemptIDPayload struct {
-	RunID  string `json:"run_id"`
-	JobID  string `json:"job_id"`
-	Number int    `json:"number"`
-}
-
-type Meta struct {
-	Phase           string `json:"phase"`
-	LastRunID       string `json:"last_run_id,omitempty"`
-	LastRunExitCode int    `json:"last_run_exit_code,omitempty"`
-	UpdatedAt       string `json:"updated_at"`
-}
-
-type LockInfo struct {
-	PID       int    `json:"pid"`
-	RunID     string `json:"run_id"`
-	RunName   string `json:"run_name,omitempty"`
-	StartedAt string `json:"started_at"`
-	Host      string `json:"host,omitempty"`
-}
-
-type JobSpec struct {
-	ID               string   `json:"id"`
-	AttemptID        string   `json:"attempt_id,omitempty"`
-	Command          []string `json:"command"`
-	WorkingDirectory string   `json:"working_directory,omitempty"`
-	Executor         string   `json:"executor,omitempty"`
-	ExecutorOptions  []string `json:"executor_options,omitempty"`
-	Name             string   `json:"name,omitempty"`
-	DependsOn        []string `json:"depends_on,omitempty"`
-	ArrayGroup       string   `json:"array_group,omitempty"`
-	ArrayTaskID      *int     `json:"array_task_id,omitempty"`
-	ArrayFirst       int      `json:"array_first,omitempty"`
-	ArrayLast        int      `json:"array_last,omitempty"`
-	ArraySize        int      `json:"array_size,omitempty"`
-	Environment      []string `json:"environment,omitempty"`
-}
-
-type JobResult struct {
-	ID        string          `json:"id"`
-	AttemptID string          `json:"attempt_id,omitempty"`
-	ExitCode  int             `json:"exit_code"`
-	Error     string          `json:"error,omitempty"`
-	Command   []string        `json:"command,omitempty"`
-	Hosts     []string        `json:"hosts,omitempty"`
-	Diagnoses []ruleDiagnosis `json:"diagnoses,omitempty"`
-}
-
-type RunSummary struct {
-	RunID      string      `json:"run_id"`
-	RunName    string      `json:"run_name,omitempty"`
-	Status     string      `json:"status"`
-	StartedAt  string      `json:"started_at"`
-	FinishedAt string      `json:"finished_at"`
-	ExitCode   int         `json:"exit_code"`
-	Results    []JobResult `json:"results"`
-}
-
-type RunContext struct {
-	CWD          string       `json:"cwd"`
-	ConfigPaths  []string     `json:"config_paths,omitempty"`
-	Hostname     string       `json:"hostname,omitempty"`
-	StartedLoad  *LoadAverage `json:"started_load,omitempty"`
-	FinishedLoad *LoadAverage `json:"finished_load,omitempty"`
-	LoadSamples  []LoadSample `json:"load_samples,omitempty"`
-}
-
-type LoadAverage struct {
-	One     float64 `json:"one"`
-	Five    float64 `json:"five"`
-	Fifteen float64 `json:"fifteen"`
-}
-
-type LoadSample struct {
-	At string `json:"at"`
-	LoadAverage
-}
+type Meta = model.Meta
+type LockInfo = model.LockInfo
+type JobSpec = model.JobSpec
+type JobResult = model.JobResult
+type RunSummary = model.RunSummary
+type RunContext = model.RunContext
+type LoadAverage = model.LoadAverage
+type LoadSample = model.LoadSample
+type ruleDiagnosis = model.RuleDiagnosis
 
 func runStatus(exitCode int) string {
-	if exitCode == 0 {
-		return "finished"
-	}
-	return "failed"
+	return model.RunStatus(exitCode)
 }
 
 func parseArrayRange(value string) (ArraySpec, error) {
-	values := strings.Split(value, ",")
-	if len(values) == 1 && strings.TrimSpace(values[0]) == "" {
-		return ArraySpec{}, fmt.Errorf("want FIRST-LAST or TASK[,TASK...]")
-	}
-	tasks := make([]int, 0, len(values))
-	seen := make(map[int]bool, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			return ArraySpec{}, fmt.Errorf("empty task index")
-		}
-		parts := strings.Split(value, "-")
-		if len(parts) > 2 {
-			return ArraySpec{}, fmt.Errorf("invalid task range %q", value)
-		}
-		first, err := strconv.Atoi(strings.TrimSpace(parts[0]))
-		if err != nil {
-			return ArraySpec{}, fmt.Errorf("invalid task index: %w", err)
-		}
-		last := first
-		if len(parts) == 2 {
-			last, err = strconv.Atoi(strings.TrimSpace(parts[1]))
-			if err != nil {
-				return ArraySpec{}, fmt.Errorf("invalid last index: %w", err)
-			}
-			if first > last {
-				return ArraySpec{}, errors.New("first index must not be greater than last index")
-			}
-		}
-		for task := first; task <= last; task++ {
-			if seen[task] {
-				return ArraySpec{}, fmt.Errorf("duplicate task index: %d", task)
-			}
-			seen[task] = true
-			tasks = append(tasks, task)
-		}
-	}
-	sort.Ints(tasks)
-	array := ArraySpec{First: tasks[0], Last: tasks[len(tasks)-1]}
-	if len(tasks) != array.Last-array.First+1 {
-		array.Tasks = tasks
-	}
-	return array, nil
+	return model.ParseArrayRange(value)
 }
 
 func arrayTaskIDs(array *ArraySpec) []int {
-	if array == nil {
-		return nil
-	}
-	if len(array.Tasks) > 0 {
-		return array.Tasks
-	}
-	tasks := make([]int, 0, array.Last-array.First+1)
-	for task := array.First; task <= array.Last; task++ {
-		tasks = append(tasks, task)
-	}
-	return tasks
+	return model.ArrayTaskIDs(array)
 }
 
 func validateQueueJobs(queue Queue) error {
@@ -250,29 +95,7 @@ func validateQueueJobs(queue Queue) error {
 }
 
 func validateArraySpec(array *ArraySpec) error {
-	if array.First < 0 || array.Last < 0 {
-		return errors.New("task indexes must not be negative")
-	}
-	if array.First > array.Last {
-		return errors.New("first index must not be greater than last index")
-	}
-	if len(array.Tasks) == 0 {
-		return nil
-	}
-	if array.Tasks[0] != array.First || array.Tasks[len(array.Tasks)-1] != array.Last {
-		return errors.New("first and last indexes must match the selected tasks")
-	}
-	previous := array.First - 1
-	for _, task := range array.Tasks {
-		if task < array.First || task > array.Last {
-			return fmt.Errorf("task index %d is outside %d-%d", task, array.First, array.Last)
-		}
-		if task <= previous {
-			return fmt.Errorf("task indexes must be strictly increasing: %d", task)
-		}
-		previous = task
-	}
-	return nil
+	return model.ValidateArraySpec(array)
 }
 
 func formatRunLabel(runID, runName string) string {
@@ -584,29 +407,29 @@ func finishRun(paths pathSet, runID string, exitCode int) error {
 	return nil
 }
 
-func launchAsyncRun(paths pathSet, queueName, runID, runName string, localConcurrency, batchMaxActive, retry int, executor string, executorOptions []string, selection string, jobIDs []string, sourceRunID string, partialArray bool, cwd string, onDone func(), executorSettings executorRunSettingsMap) int {
-	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: runID, RunName: runName, StartedAt: nowRFC3339()}); err != nil {
-		printErrorf("project '%s' is running; run is not allowed: %v", queueName, err)
+func launchAsyncRun(paths pathSet, options runOptions) int {
+	if err := acquireLock(paths.lockFile, LockInfo{PID: os.Getpid(), RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339()}); err != nil {
+		printErrorf("project '%s' is running; run is not allowed: %v", options.QueueName, err)
 		return 1
 	}
 
 	meta, _ := loadMeta(paths.metaFile)
 	meta.Phase = "running"
-	meta.LastRunID = runID
+	meta.LastRunID = options.RunID
 	meta.UpdatedAt = nowRFC3339()
 	if err := writeJSON(paths.metaFile, meta); err != nil {
 		_ = os.Remove(paths.lockFile)
 		printErrorf("failed to update metadata: %v", err)
 		return 1
 	}
-	if err := writeRunContext(paths, runID, cwd); err != nil {
+	if err := writeRunContext(paths, options.RunID, options.CWD); err != nil {
 		_ = os.Remove(paths.lockFile)
 		printErrorf("failed to save run context: %v", err)
 		return 1
 	}
-	if err := registerRun(paths, runID); err != nil {
+	if err := registerRun(paths, options.RunID); err != nil {
 		_ = os.Remove(paths.lockFile)
-		if runDir, pathErr := validatedRunDir(paths, runID); pathErr == nil {
+		if runDir, pathErr := validatedRunDir(paths, options.RunID); pathErr == nil {
 			_ = os.RemoveAll(runDir)
 		}
 		printErrorf("failed to register run: %v", err)
@@ -624,14 +447,14 @@ func launchAsyncRun(paths pathSet, queueName, runID, runName string, localConcur
 	if paths.baseDirExplicit {
 		childArgs = append(childArgs, "--basedir", paths.baseDir)
 	}
-	if executor != "" {
-		childArgs = append(childArgs, "--executor", executor)
+	if options.Executor != "" {
+		childArgs = append(childArgs, "--executor", options.Executor)
 	}
-	for _, option := range executorOptions {
+	for _, option := range options.ExecutorOptions {
 		childArgs = append(childArgs, "--executor-option", option)
 	}
 	for _, name := range executorRunSettingNames {
-		setting := executorSettings[name]
+		setting := options.ExecutorSettings[name]
 		if setting.Concurrency > 0 {
 			childArgs = append(childArgs, "--"+name+"-concurrency", strconv.Itoa(setting.Concurrency))
 		}
@@ -639,17 +462,17 @@ func launchAsyncRun(paths pathSet, queueName, runID, runName string, localConcur
 			childArgs = append(childArgs, "--"+name+"-options", option)
 		}
 	}
-	if selection != "" {
-		childArgs = append(childArgs, "--selection", selection)
+	if options.Selection != "" {
+		childArgs = append(childArgs, "--selection", options.Selection)
 	}
-	for _, jobID := range jobIDs {
+	for _, jobID := range options.JobIDs {
 		childArgs = append(childArgs, "--job-id", jobID)
 	}
-	if sourceRunID != "" {
-		childArgs = append(childArgs, "--source-run-id", sourceRunID)
+	if options.SourceRunID != "" {
+		childArgs = append(childArgs, "--source-run-id", options.SourceRunID)
 	}
-	childArgs = append(childArgs, "--partial-array", strconv.FormatBool(partialArray))
-	childArgs = append(childArgs, queueName, runID, runName, strconv.Itoa(localConcurrency), strconv.Itoa(batchMaxActive), strconv.Itoa(retry), cwd)
+	childArgs = append(childArgs, "--partial-array", strconv.FormatBool(options.PartialArray))
+	childArgs = append(childArgs, options.QueueName, options.RunID, options.RunName, strconv.Itoa(options.LocalConcurrency), strconv.Itoa(options.BatchMaxActive), strconv.Itoa(options.Retry), options.CWD)
 
 	cmd := exec.Command(exe, childArgs...)
 	cmd.Stdout = os.Stdout
@@ -669,15 +492,15 @@ func launchAsyncRun(paths pathSet, queueName, runID, runName string, localConcur
 		printErrorf("failed to determine lock host: %v", err)
 		return 1
 	}
-	if err := writeJSON(paths.lockFile, LockInfo{PID: cmd.Process.Pid, RunID: runID, RunName: runName, StartedAt: nowRFC3339(), Host: host}); err != nil {
+	if err := writeJSON(paths.lockFile, LockInfo{PID: cmd.Process.Pid, RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339(), Host: host}); err != nil {
 		_ = cmd.Process.Kill()
 		_ = os.Remove(paths.lockFile)
 		printErrorf("failed to update lock with child pid: %v", err)
 		return 1
 	}
-	waitForAsyncRun(cmd, onDone)
+	waitForAsyncRun(cmd, options.OnDone)
 
-	fmt.Printf("submitted project=%s run_id=%s pid=%d\n", queueName, runID, cmd.Process.Pid)
+	fmt.Printf("submitted project=%s run_id=%s pid=%d\n", options.QueueName, options.RunID, cmd.Process.Pid)
 	return 0
 }
 
@@ -690,106 +513,8 @@ func waitForAsyncRun(cmd *exec.Cmd, onDone func()) {
 	}()
 }
 
-func executeRun(paths pathSet, runID string, numParallel int) int {
-	if !isValidPathElement(runID) {
-		printErrorf("invalid run ID %q", runID)
-		return 1
-	}
-	queue, err := loadQueue(paths.queueFile)
-	if err != nil {
-		printErrorf("failed to load queue: %v", err)
-		return 1
-	}
-	if len(queue.Commands) == 0 {
-		printErrorf("queue '%s' has no queued commands", paths.queueName)
-		return 1
-	}
-
-	runDir, err := validatedRunDir(paths, runID)
-	if err != nil {
-		printErrorf("invalid run ID %q", runID)
-		return 1
-	}
-	if err := os.MkdirAll(runDir, stateDirMode()); err != nil {
-		printErrorf("failed to create run directory: %v", err)
-		return 1
-	}
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
-		printErrorf("failed to write command snapshot: %v", err)
-		return 1
-	}
-
-	jobs := queueToJobs(queue.Commands)
-	if len(jobs) == 0 {
-		printErrorf("queue '%s' has no valid commands", paths.queueName)
-		return 1
-	}
-	for _, job := range jobs {
-		if !isValidPathElement(job.ID) {
-			printErrorf("invalid job ID %q", job.ID)
-			return 1
-		}
-	}
-
-	startedAt := nowRFC3339()
-	sem := make(chan struct{}, numParallel)
-	results := make(chan JobResult, len(jobs))
-	var wg sync.WaitGroup
-	for _, job := range jobs {
-		wg.Add(1)
-		go func(j JobSpec) {
-			defer wg.Done()
-			sem <- struct{}{}
-			result := runOneJob(runDir, j)
-			<-sem
-			results <- result
-		}(job)
-	}
-
-	wg.Wait()
-	close(results)
-
-	summary := RunSummary{
-		RunID:      runID,
-		Status:     "finished",
-		StartedAt:  startedAt,
-		FinishedAt: nowRFC3339(),
-		ExitCode:   0,
-		Results:    make([]JobResult, 0, len(jobs)),
-	}
-	for r := range results {
-		summary.Results = append(summary.Results, r)
-		if r.ExitCode != 0 {
-			summary.ExitCode = 1
-		}
-	}
-	summary.Status = runStatus(summary.ExitCode)
-	successCount, failedCount := countRunResults(summary.Results)
-
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), summary); err != nil {
-		printErrorf("failed to write summary: %v", err)
-		return 1
-	}
-
-	completionMessage := fmt.Sprintf("run finished run_id=%s success=%d failed=%d dir=%s", runID, successCount, failedCount, runDir)
-	if summary.ExitCode == 0 {
-		fmt.Println(colorKeyValueMessage(completionMessage, green))
-	} else {
-		fmt.Println(colorKeyValueMessage(completionMessage, red))
-		printFailedJobHints(runID, summary.Results)
-	}
-	return summary.ExitCode
-}
-
 func countRunResults(results []JobResult) (successCount, failedCount int) {
-	for _, result := range results {
-		if result.ExitCode == 0 {
-			successCount++
-		} else {
-			failedCount++
-		}
-	}
-	return successCount, failedCount
+	return model.CountRunResults(results)
 }
 
 func printFailedJobHints(runID string, results []JobResult) {
@@ -824,153 +549,20 @@ func failedJobHints(runID string, results []JobResult) string {
 }
 
 func runOneJob(runDir string, job JobSpec) JobResult {
-	hostname, _ := os.Hostname()
-	jobDir, err := attemptJobDir(runDir, job)
-	if err != nil {
-		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
-	}
-	if err := os.MkdirAll(jobDir, stateDirMode()); err != nil {
-		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
-	}
-	if err := writeJSON(filepath.Join(jobDir, commandJSONName), job); err != nil {
-		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
-	}
-	if job.Name != "" {
-		_ = os.WriteFile(filepath.Join(jobDir, "name"), []byte(job.Name+"\n"), stateFileMode())
-	}
-	if err := os.WriteFile(filepath.Join(jobDir, "submitted_at"), []byte(nowRFC3339()+"\n"), stateFileMode()); err != nil {
-		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
-	}
-	if jobCancellationRequested(jobDir) {
-		return recordCancelledJob(jobDir, job)
-	}
-
-	logPath := filepath.Join(jobDir, "output")
-	logf, err := os.Create(logPath)
-	if err != nil {
-		return JobResult{ID: job.ID, ExitCode: 1, Error: err.Error()}
-	}
-	defer logf.Close()
-
-	if len(job.Command) == 0 {
-		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: "empty command"}
-	}
-
-	// Run through the same self-reporting wrapper as scheduler executors
-	// (statusWrapperScript, executor_slurm.go) so the job process itself
-	// records its own status.json even if this coordinator process dies
-	// before cmd.Wait() returns; see docs/INTERNALS.md.
-	wrapperPath := filepath.Join(jobDir, "local-wrapper.sh")
-	wrapper := statusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory)
-	if err := os.WriteFile(wrapperPath, []byte(wrapper), stateScriptMode()); err != nil {
-		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
-	}
-
-	cmd := exec.Command("/bin/sh", wrapperPath)
-	cmd.Stdout = logf
-	cmd.Stderr = logf
-	// New process group so Suspend/Resume/Cancel (which signal -pid) reach
-	// both the wrapper and the actual command it execs.
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := cmd.Start(); err != nil {
-		_ = os.WriteFile(filepath.Join(jobDir, "status"), []byte("1\n"), stateFileMode())
-		_ = os.WriteFile(filepath.Join(jobDir, "finished_at"), []byte(nowRFC3339()+"\n"), stateFileMode())
-		jobLogf("fail job=%s command=%s error=%v\n", job.ID, strings.Join(job.Command, " "), err)
-		return JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
-	}
-
-	_ = os.WriteFile(filepath.Join(jobDir, "pid"), []byte(strconv.Itoa(cmd.Process.Pid)+"\n"), stateFileMode())
-	jobLogf("[%s] submit job=%s pid=%d command=%s\n", nowRFC3339(), job.ID, cmd.Process.Pid, strings.Join(job.Command, " "))
-
-	err = cmd.Wait()
-	exitCode := 0
-	if err != nil {
-		var ee *exec.ExitError
-		if errors.As(err, &ee) {
-			exitCode = ee.ExitCode()
-		} else {
-			exitCode = 1
-		}
-	}
-	_ = os.WriteFile(filepath.Join(jobDir, "status"), []byte(strconv.Itoa(exitCode)+"\n"), stateFileMode())
-	_ = os.WriteFile(filepath.Join(jobDir, "finished_at"), []byte(nowRFC3339()+"\n"), stateFileMode())
-
-	if exitCode == 0 {
-		jobLogf("%s\n", colorKeyValueMessage(fmt.Sprintf("success job=%s", job.ID), green))
-	} else {
-		jobLogf("%s\n", colorKeyValueMessage(fmt.Sprintf("fail job=%s exit=%d command=%s", job.ID, exitCode, strings.Join(job.Command, " ")), red))
-	}
-
-	return JobResult{ID: job.ID, Command: job.Command, ExitCode: exitCode, Hosts: []string{hostname}}
-}
-
-func mergeEnvironment(base, overrides []string) []string {
-	values := make(map[string]string)
-	order := make([]string, 0, len(base)+len(overrides))
-	for _, entry := range append(append([]string(nil), base...), overrides...) {
-		parts := strings.SplitN(entry, "=", 2)
-		if len(parts) != 2 || parts[0] == "" {
-			continue
-		}
-		if _, exists := values[parts[0]]; !exists {
-			order = append(order, parts[0])
-		}
-		values[parts[0]] = parts[1]
-	}
-	merged := make([]string, 0, len(order))
-	for _, name := range order {
-		merged = append(merged, name+"="+values[name])
-	}
-	return merged
+	return executor.RunLocalJob(runDir, model.JobSpec(job), jsonStore(), jobLogf)
 }
 
 func jobCancellationRequested(jobDir string) bool {
-	_, err := os.Stat(filepath.Join(jobDir, "cancelled"))
+	_, err := os.Stat(filepath.Join(jobDir, stateFileCancelled))
 	return err == nil
 }
 
 func recordCancelledJob(jobDir string, job JobSpec) JobResult {
-	message := "cancelled before start"
-	_ = os.MkdirAll(jobDir, stateDirMode())
-	_ = writeJSON(filepath.Join(jobDir, "command.json"), job)
-	if job.Name != "" {
-		_ = os.WriteFile(filepath.Join(jobDir, "name"), []byte(job.Name+"\n"), stateFileMode())
-	}
-	_ = os.WriteFile(filepath.Join(jobDir, "submitted_at"), []byte(nowRFC3339()+"\n"), stateFileMode())
-	_ = os.WriteFile(filepath.Join(jobDir, "output"), []byte(message+"\n"), stateFileMode())
-	_ = os.WriteFile(filepath.Join(jobDir, "status"), []byte("143\n"), stateFileMode())
-	_ = os.WriteFile(filepath.Join(jobDir, "finished_at"), []byte(nowRFC3339()+"\n"), stateFileMode())
-	return JobResult{ID: job.ID, Command: job.Command, ExitCode: 143, Error: message}
+	return executor.RecordCancelledJob(jobDir, model.JobSpec(job), jsonStore())
 }
 
 func queueToJobs(commands []QueuedCommand) []JobSpec {
-	jobs := make([]JobSpec, 0, len(commands))
-	for _, queued := range commands {
-		if len(queued.Command) == 0 {
-			continue
-		}
-		if queued.Array == nil {
-			jobs = append(jobs, JobSpec{
-				ID: queued.ID, Command: queued.Command, WorkingDirectory: queued.WorkingDirectory, Name: queued.Name,
-				Executor: queued.Executor, ExecutorOptions: queued.ExecutorOptions, Environment: queued.Environment, DependsOn: queued.DependsOn,
-			})
-			continue
-		}
-		for _, task := range arrayTaskIDs(queued.Array) {
-			id := fmt.Sprintf("%s-%d", queued.ID, task)
-			name := queued.Name
-			if name != "" {
-				name = fmt.Sprintf("%s[%d]", name, task)
-			}
-			taskID := task
-			jobs = append(jobs, JobSpec{
-				ID: id, Command: queued.Command, WorkingDirectory: queued.WorkingDirectory, Name: name,
-				Executor: queued.Executor, ExecutorOptions: queued.ExecutorOptions, Environment: queued.Environment, DependsOn: queued.DependsOn,
-				ArrayGroup: queued.ID, ArrayTaskID: &taskID, ArrayFirst: queued.Array.First, ArrayLast: queued.Array.Last, ArraySize: len(arrayTaskIDs(queued.Array)),
-			})
-		}
-	}
-	return jobs
+	return model.QueueToJobs(commands)
 }
 
 type pathSet struct {

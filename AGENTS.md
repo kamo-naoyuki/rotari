@@ -16,9 +16,25 @@ Do not assume behavior from names alone.
 * Do not refactor unrelated code.
 * Do not introduce new dependencies unless necessary for the task.
 * Preserve existing public behavior unless the task explicitly requires changing it.
-* Follow the existing code style and architecture.
-* Prefer small, local changes over broad rewrites.
+* Follow existing code style, but do not preserve an unhealthy architecture merely for compatibility.
+* When the task is refactoring, prioritize clear responsibilities, one-way dependencies, and appropriate package boundaries over minimal file churn.
+* Prefer incremental structural changes with compile/test checkpoints over broad unverified rewrites.
 * Do not modify generated files unless the task explicitly requires it.
+
+### Refactoring priorities
+
+When the user asks for refactoring, assess the architecture before applying
+local cleanups. Prefer this order when applicable:
+
+1. Establish clear package and dependency boundaries.
+2. Separate domain types from CLI, Web, persistence, and executor adapters.
+3. Remove duplicated logic and consolidate shared behavior.
+4. Improve local readability and naming.
+
+Moving code between packages is an intended refactoring, not an unrelated
+change, when it makes dependencies and responsibilities easier to understand.
+Do not stop at moving code between files in the same package if the main
+problem is package-level coupling.
 
 ## Before changing code
 
@@ -134,4 +150,8 @@ Do not:
 * modify unrelated documentation
 * remove existing behavior without an explicit reason
 
-When the task is ambiguous, prefer the smallest change consistent with the request and existing behavior.
+When the task is ambiguous, prefer the smallest change that moves the code
+toward clear responsibilities and one-way dependencies while preserving
+existing behavior. If the request is specifically about structure or
+refactoring, a larger package-level change is preferable to a sequence of
+temporary file-only cleanups.

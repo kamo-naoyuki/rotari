@@ -1,10 +1,10 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
-	"strings"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 const (
@@ -66,27 +66,11 @@ var propagatedEnvironmentVariables = []string{
 }
 
 func validateEnvironment(environment []string) error {
-	for _, entry := range environment {
-		name, value, ok := strings.Cut(entry, "=")
-		if !ok || !validEnvironmentName(name) || strings.ContainsRune(value, '\x00') {
-			return errors.New("expected KEY=VALUE")
-		}
-	}
-	return nil
+	return model.ValidateEnvironment(environment)
 }
 
 func validEnvironmentName(name string) bool {
-	for index := 0; index < len(name); index++ {
-		character := name[index]
-		if (character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z') || character == '_' {
-			continue
-		}
-		if index > 0 && character >= '0' && character <= '9' {
-			continue
-		}
-		return false
-	}
-	return name != ""
+	return model.ValidEnvironmentName(name)
 }
 
 type environmentDefinition struct {

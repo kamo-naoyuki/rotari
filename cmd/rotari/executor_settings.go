@@ -2,16 +2,14 @@ package main
 
 import (
 	"flag"
+
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 )
 
 // ExecutorRunSettings controls the dispatch defaults for one executor.
 // Job-specific options remain higher priority than these values.
-type ExecutorRunSettings struct {
-	Concurrency int      `json:"concurrency,omitempty"`
-	Options     []string `json:"options,omitempty"`
-}
-
-type executorRunSettingsMap map[string]ExecutorRunSettings
+type ExecutorRunSettings = executor.RunSettings
+type executorRunSettingsMap = executor.RunSettingsMap
 
 var executorRunSettingNames = []string{"ssh", "slurm", "pbs", "lsf"}
 

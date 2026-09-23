@@ -2,48 +2,27 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
-	"strings"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func isValidPathElement(value string) bool {
-	if value == "" || value == "." || value == ".." || filepath.IsAbs(value) {
-		return false
-	}
-	if strings.ContainsAny(value, `/\\`) {
-		return false
-	}
-	return filepath.Base(value) == value
+	return state.IsValidPathElement(value)
 }
 
 func joinValidatedPath(basePath, element string) (string, error) {
 	if !isValidPathElement(element) {
 		return "", fmt.Errorf("invalid path element %q", element)
 	}
-	return safeJoin(basePath, element)
+	return state.SafeJoin(basePath, element)
 }
 
 func safeJoin(basePath, element string) (string, error) {
-	root := filepath.Clean(basePath)
-	// NOSONAR: element is validated as a single path element before it reaches this join.
-	joined := filepath.Join(root, element)
-	rel, err := filepath.Rel(root, joined)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("invalid path element %q", element)
-	}
-	return joined, nil
+	return state.SafeJoin(basePath, element)
 }
 
 func validatedStateFile(basePath, fileName string) (string, error) {
-	switch fileName {
-	case stateFileCommandsJSON, stateFileSummaryJSON, stateFileContextJSON, stateFileOutput,
-		stateFileSchedulerJSON, stateFileStatusJSON, stateFileStatus, stateFileSubmittedAt,
-		stateFileFinishedAt, commandJSONName, stateFileJobJSON, stateFilePID, stateFileCancelled,
-		stateFileName:
-		return safeJoin(basePath, fileName)
-	default:
-		return "", fmt.Errorf("invalid state file name %q", fileName)
-	}
+	return state.ValidatedStateFile(basePath, fileName)
 }
 
 func validatedJobDir(runDir, jobID string) (string, error) {

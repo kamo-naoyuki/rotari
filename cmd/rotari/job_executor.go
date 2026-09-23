@@ -9,12 +9,22 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 )
 
-// JobHandle carries what a JobExecutor needs to wait for a previously submitted job.
-type JobHandle struct {
-	Job    JobSpec
-	Native string //executor-specific job id (e.g. Slurm job id); empty when unused
+type JobHandle = executor.JobHandle
+type JobExecutor = executor.JobExecutor
+type ArraySubmitter = executor.ArraySubmitter
+type Suspender = executor.Suspender
+type Canceller = executor.Canceller
+
+func mergeEnvironment(base, overrides []string) []string {
+	return executor.MergeEnvironment(base, overrides)
+}
+
+func statusWrapperScript(command []string, jobDir string, environment []string, workingDirectory string) string {
+	return executor.StatusWrapperScript(command, jobDir, environment, workingDirectory)
 }
 
 type schedulerStatus struct {
@@ -48,35 +58,6 @@ func loadSchedulerStatus(jobDir string) string {
 		return ""
 	}
 	return status.State
-}
-
-// JobExecutor abstracts a job execution executor (e.g. "local", "slurm"). Adding a
-// new scheduler (PBS, LSF, ...) means implementing this interface and
-// registering it in the init() below.
-type JobExecutor interface {
-	Name() string
-	Submit(runDir string, job JobSpec, options []string) (JobHandle, error)
-	Wait(runDir string, handle JobHandle) JobResult
-}
-
-type ArraySubmitter interface {
-	SubmitArray(runDir string, jobs []JobSpec, options []string) ([]JobHandle, error)
-}
-
-// Suspender is implemented by executor that can pause and resume a running
-// job in place (e.g. Slurm, local processes). Executor that cannot support
-// this (e.g. Kubernetes) simply do not implement it; callers must type-assert
-// before using it.
-type Suspender interface {
-	Suspend(jobDir string) error
-	Resume(jobDir string) error
-}
-
-// Canceller is implemented by executor that can cancel an already-submitted
-// job. Jobs that were never submitted (no executor owns them yet) are
-// cancelled outside of this interface; see cancelJobs.
-type Canceller interface {
-	Cancel(jobDir string) error
 }
 
 // jobOwnerExecutor determines which executor owns the job recorded in jobDir,
@@ -180,7 +161,7 @@ func schedulerCommandHint(binary string, output []byte, err error) error {
 // that other package-level vars, such as cliCommandSpecs, can depend on
 // executorNames() during their own initialization.
 var executorRegistry = map[string]JobExecutor{
-	"local": localExecutor{},
+	"local": executor.NewLocal(jsonStore(), jobLogf),
 	"slurm": slurmExecutor{},
 	"pbs":   pbsExecutor{},
 	"lsf":   lsfExecutor{},

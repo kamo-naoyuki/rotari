@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 )
 
 const (
@@ -43,15 +45,6 @@ type diagnosisRule struct {
 	Excludes   []*regexp.Regexp
 	Suggestion string
 }
-
-type ruleDiagnosis struct {
-	Name       string `json:"name"`
-	Evidence   string `json:"evidence"`
-	Suggestion string `json:"suggestion"`
-}
-
-var ansiEscapeSequence = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]`)
-var pythonExceptionPattern = regexp.MustCompile(`^(?:[a-z_][a-z0-9_.]*\.)?[a-z_][a-z0-9_]*(?:error|exception): .+`)
 
 var diagnosisRules = []diagnosisRule{
 	{Name: "CUDA/GPU memory exhausted", Patterns: []*regexp.Regexp{regexp.MustCompile(`cuda.*out of memory`), regexp.MustCompile(`torch\.cuda\.outofmemoryerror`), regexp.MustCompile(`cublas_status_alloc_failed`), regexp.MustCompile(`cudnn_status_alloc_failed`)}, Suggestion: "Reduce batch size or model memory use, select a GPU with more free memory, and check for other processes using the GPU."},
@@ -278,44 +271,15 @@ func tailString(value string, limit int) string {
 }
 
 func diagnoseWithRules(job diagnosisJob) []ruleDiagnosis {
-	lines := strings.Split(job.Error+"\n"+job.Log, "\n")
-	var diagnoses []ruleDiagnosis
+	rules := make([]diagnose.Rule, 0, len(diagnosisRules))
 	for _, rule := range diagnosisRules {
-		for _, line := range lines {
-			evidence := strings.TrimSpace(ansiEscapeSequence.ReplaceAllString(line, ""))
-			normalized := strings.Join(strings.Fields(strings.ToLower(evidence)), " ")
-			if matchesAny(normalized, rule.Excludes) {
-				continue
-			}
-			for _, pattern := range rule.Patterns {
-				if pattern.MatchString(normalized) {
-					diagnoses = append(diagnoses, ruleDiagnosis{Name: rule.Name, Evidence: evidence, Suggestion: rule.Suggestion})
-					goto nextRule
-				}
-			}
-		}
-	nextRule:
+		rules = append(rules, diagnose.Rule{Name: rule.Name, Patterns: rule.Patterns, Excludes: rule.Excludes, Suggestion: rule.Suggestion})
 	}
-	if exception := findPythonException(lines); exception != "" {
-		diagnoses = append(diagnoses, ruleDiagnosis{Name: "Python exception", Evidence: exception, Suggestion: "Inspect the traceback and the failing call named above; fix the reported exception before retrying."})
-	}
-	return diagnoses
+	return diagnose.Diagnose(job.Error, job.Log, rules)
 }
 
-func findPythonException(lines []string) string {
-	hasTraceback := false
-	exception := ""
-	for _, line := range lines {
-		evidence := strings.TrimSpace(ansiEscapeSequence.ReplaceAllString(line, ""))
-		if strings.EqualFold(evidence, "Traceback (most recent call last):") {
-			hasTraceback = true
-			continue
-		}
-		if hasTraceback && pythonExceptionPattern.MatchString(strings.ToLower(evidence)) {
-			exception = evidence
-		}
-	}
-	return exception
+func matchesAny(value string, patterns []*regexp.Regexp) bool {
+	return diagnose.MatchesAny(value, patterns)
 }
 
 func diagnoseJobResult(runDir string, result JobResult) JobResult {
@@ -355,15 +319,6 @@ func unavailableRuleDiagnosis(result JobResult, evidence string) JobResult {
 		Suggestion: "Inspect the job directory and output file permissions, then run rotari diagnose --rules after resolving the read error.",
 	}}
 	return result
-}
-
-func matchesAny(value string, patterns []*regexp.Regexp) bool {
-	for _, pattern := range patterns {
-		if pattern.MatchString(value) {
-			return true
-		}
-	}
-	return false
 }
 
 func formatRuleDiagnoses(diagnoses []ruleDiagnosis) string {

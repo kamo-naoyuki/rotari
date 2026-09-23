@@ -1474,7 +1474,13 @@ func startServerRun(baseDir, queueName, runName string, localConcurrency, batchM
 		return "", fmt.Errorf("queue %q has no queued commands", queueName)
 	}
 	runID := makeRunID()
-	if err := launchAsyncRun(paths, queueName, runID, runName, localConcurrency, batchMaxActive, retry, executor, executorOptions, selection, jobIDs, sourceRunID, partialArray, cwd, onDone, executorSettings); err != 0 {
+	if err := launchAsyncRun(paths, runOptions{
+		QueueName: queueName, RunID: runID, RunName: runName,
+		LocalConcurrency: localConcurrency, BatchMaxActive: batchMaxActive, Retry: retry,
+		Executor: executor, ExecutorOptions: executorOptions, Selection: selection,
+		JobIDs: jobIDs, SourceRunID: sourceRunID, PartialArray: partialArray,
+		CWD: cwd, OnDone: onDone, ExecutorSettings: executorSettings,
+	}); err != 0 {
 		return "", errors.New("queue is already running")
 	}
 	runDir, err := validatedRunDir(paths, runID)
