@@ -1,0 +1,45 @@
+package server
+
+import (
+	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
+)
+
+type Request struct {
+	Op               string                  `json:"op"`
+	QueueName        string                  `json:"project_name,omitempty"`
+	Command          []string                `json:"command,omitempty"`
+	LocalConcurrency int                     `json:"local_concurrency,omitempty"`
+	BatchMaxActive   int                     `json:"batch_max_active,omitempty"`
+	ExecutorSettings executor.RunSettingsMap `json:"executor_settings,omitempty"`
+	Retry            int                     `json:"retry,omitempty"`
+	RunName          string                  `json:"run_name,omitempty"`
+	CWD              string                  `json:"cwd,omitempty"`
+	Wait             bool                    `json:"wait,omitempty"`
+	Async            bool                    `json:"async,omitempty"`
+	Executor         string                  `json:"executor,omitempty"`
+	ExecutorOptions  []string                `json:"executor_options,omitempty"`
+	WorkingDirectory string                  `json:"working_directory,omitempty"`
+	Environment      []string                `json:"environment,omitempty"`
+	JobIDs           []string                `json:"job_ids,omitempty"`
+	Selection        string                  `json:"selection,omitempty"`
+	SourceRunID      string                  `json:"source_run_id,omitempty"`
+	PartialArray     bool                    `json:"partial_array,omitempty"`
+	JobName          string                  `json:"job_name,omitempty"`
+	DependsOn        []string                `json:"depends_on,omitempty"`
+	Array            *model.ArraySpec        `json:"array,omitempty"`
+}
+
+type Response struct {
+	OK        bool   `json:"ok"`
+	Message   string `json:"message,omitempty"`
+	PID       int    `json:"pid,omitempty"`
+	Protocol  int    `json:"protocol,omitempty"`
+	ExitCode  int    `json:"exit_code,omitempty"`
+	Progress  bool   `json:"progress,omitempty"`
+	JobID     string `json:"job_id,omitempty"`
+	Completed int    `json:"completed,omitempty"`
+	Total     int    `json:"total,omitempty"`
+	Succeeded int    `json:"succeeded,omitempty"`
+	Failed    int    `json:"failed,omitempty"`
+}
