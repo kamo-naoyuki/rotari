@@ -19,6 +19,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 const jobIDLen = 9
@@ -387,19 +388,17 @@ func finishRun(paths pathSet, runID string, exitCode int) error {
 	if err != nil {
 		return fmt.Errorf("failed to load queue: %w", err)
 	}
-	queue.Commands = nil
-	if err := writeJSON(paths.queueFile, queue); err != nil {
-		return fmt.Errorf("failed to clear queue: %w", err)
-	}
-
 	meta, err := loadMeta(paths.metaFile)
 	if err != nil {
 		return fmt.Errorf("failed to load metadata: %w", err)
 	}
-	meta.Phase = "finished"
-	meta.LastRunID = runID
-	meta.LastRunExitCode = exitCode
-	meta.UpdatedAt = nowRFC3339()
+	queue, meta, err = state.FinalizeRun(queue, meta, runID, exitCode, time.Now())
+	if err != nil {
+		return err
+	}
+	if err := writeJSON(paths.queueFile, queue); err != nil {
+		return fmt.Errorf("failed to clear queue: %w", err)
+	}
 	if err := writeJSON(paths.metaFile, meta); err != nil {
 		return fmt.Errorf("failed to finalize metadata: %w", err)
 	}
