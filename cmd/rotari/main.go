@@ -594,26 +594,7 @@ func resolvePaths(cliBaseDir, projectName string) (pathSet, error) {
 }
 
 func resolveBaseDir(cliBaseDir string) (string, bool, error) {
-	if cliBaseDir != "" {
-		return cliBaseDir, true, nil
-	}
-	if v := os.Getenv(envBaseDir); v != "" {
-		return v, true, nil
-	}
-	if cwd, err := os.Getwd(); err == nil {
-		localState := filepath.Join(cwd, ".rotari-state")
-		if info, err := os.Stat(localState); err == nil && info.IsDir() {
-			return localState, false, nil
-		}
-	}
-	if v := os.Getenv("XDG_STATE_HOME"); v != "" {
-		return filepath.Join(v, "rotari"), false, nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", false, err
-	}
-	return filepath.Join(home, ".local", "state", "rotari"), false, nil
+	return state.ResolveBaseDir(cliBaseDir)
 }
 
 // privateStateEnabled controls whether the state directory tree (queues,
@@ -622,28 +603,24 @@ func resolveBaseDir(cliBaseDir string) (string, bool, error) {
 // rotari is commonly used on shared HPC/lab filesystems where colleagues
 // point each other at a job's log path.
 func privateStateEnabled() bool {
-	value, _ := strconv.ParseBool(os.Getenv(envPrivateState))
-	return value
+	return state.PrivateStateEnabled()
 }
 
 func stateDirMode() os.FileMode {
-	return stateMode(0o700, 0o755)
+	return state.DirectoryMode()
 }
 
 func stateFileMode() os.FileMode {
-	return stateMode(0o600, 0o644)
+	return state.FileMode()
 }
 
 // stateScriptMode is for generated wrapper scripts, which must stay executable.
 func stateScriptMode() os.FileMode {
-	return stateMode(0o700, 0o755)
+	return state.ScriptMode()
 }
 
 func stateMode(privateMode, sharedMode os.FileMode) os.FileMode {
-	if privateStateEnabled() {
-		return privateMode
-	}
-	return sharedMode
+	return state.Mode(privateMode, sharedMode)
 }
 
 func resolveProjectName(baseDir string, cliProjectName string) (string, error) {
