@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 )
@@ -319,23 +318,6 @@ func executeMixedAttempt(runDir string, queue Queue, jobs []JobSpec, localConcur
 			RecordCancelled: recordCancelledJob,
 			Logf:            jobLogf,
 		},
-	}, onStart)
-}
-
-// runLocalLane runs jobs concurrently up to concurrency, used for the local
-// executor where jobs are cheap OS subprocesses rather than scheduler batches.
-func runLocalLane(workers *sync.WaitGroup, runDir string, executor JobExecutor, jobs []JobSpec, concurrency int, results chan<- JobResult, onStart func(JobSpec)) {
-	runcontract.RunLocalLane(workers, runDir, executor, jobs, concurrency, results, onStart)
-}
-
-// runBatchLane submits jobs to a scheduler-style executor (Slurm, PBS, ...) in
-// waves of at most maxActive concurrently-tracked jobs.
-func runBatchLane(workers *sync.WaitGroup, runDir string, queue Queue, executor JobExecutor, jobs []JobSpec, maxActive int, executorOptions []string, results chan<- JobResult, onStart func(JobSpec)) {
-	runcontract.RunBatchLane(workers, runDir, queue, executor, jobs, maxActive, executorOptions, results, runcontract.BatchLaneCallbacks{
-		ValidatedJobDir: validatedJobDir,
-		JobCancelled:    jobCancellationRequested,
-		RecordCancelled: recordCancelledJob,
-		Logf:            jobLogf,
 	}, onStart)
 }
 
