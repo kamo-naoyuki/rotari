@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 )
@@ -27,37 +28,14 @@ func statusWrapperScript(command []string, jobDir string, environment []string, 
 	return executor.StatusWrapperScript(command, jobDir, environment, workingDirectory)
 }
 
-type schedulerStatus struct {
-	State     string `json:"state"`
-	UpdatedAt string `json:"updated_at"`
-}
+type schedulerStatus = executor.SchedulerStatus
 
 func writeSchedulerStatus(jobDir, state string) {
-	state = strings.ToLower(strings.TrimSpace(state))
-	if state == "" {
-		return
-	}
-	path, err := validatedStateFile(jobDir, stateFileSchedulerJSON)
-	if err != nil {
-		return
-	}
-	_ = writeJSON(path, schedulerStatus{State: state, UpdatedAt: nowRFC3339()})
+	executor.WriteSchedulerStatus(jsonStore(), jobDir, state, time.Now())
 }
 
 func loadSchedulerStatus(jobDir string) string {
-	path, err := validatedStateFile(jobDir, stateFileSchedulerJSON)
-	if err != nil {
-		return ""
-	}
-	data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to scheduler_status.json.
-	if err != nil {
-		return ""
-	}
-	var status schedulerStatus
-	if json.Unmarshal(data, &status) != nil {
-		return ""
-	}
-	return status.State
+	return executor.LoadSchedulerStatus(jsonStore(), jobDir)
 }
 
 // jobOwnerExecutor determines which executor owns the job recorded in jobDir,
