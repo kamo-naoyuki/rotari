@@ -663,8 +663,7 @@ func loadLockInfo(lockPath string) (LockInfo, error) {
 }
 
 func processAlive(pid int) bool {
-	err := syscall.Kill(pid, 0)
-	return err == nil || errors.Is(err, syscall.EPERM)
+	return state.ProcessAlive(pid)
 }
 
 func makeRunID() string {
