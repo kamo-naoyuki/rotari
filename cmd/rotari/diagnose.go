@@ -367,20 +367,7 @@ func requestDiagnosis(ctx context.Context, endpoint, apiKey, model, prompt strin
 }
 
 func requestProviderDiagnosis(ctx context.Context, provider, endpoint, apiKey, model, prompt string) (string, error) {
-	switch provider {
-	case "openai":
-		return requestOpenAIDiagnosis(ctx, endpoint, apiKey, model, prompt)
-	case "openai-chat":
-		return requestChatCompletionsDiagnosis(ctx, endpoint, apiKey, model, prompt)
-	case "anthropic":
-		return requestAnthropicDiagnosis(ctx, endpoint, apiKey, model, prompt)
-	case "gemini":
-		return requestGeminiDiagnosis(ctx, endpoint, apiKey, prompt)
-	case "cohere":
-		return requestCohereDiagnosis(ctx, endpoint, apiKey, model, prompt)
-	default:
-		return "", fmt.Errorf("unsupported LLM provider %q", provider)
-	}
+	return diagnose.RequestProviderDiagnosis(ctx, provider, endpoint, apiKey, model, prompt)
 }
 
 func requestOpenAIDiagnosis(ctx context.Context, endpoint, apiKey, model, prompt string) (string, error) {
