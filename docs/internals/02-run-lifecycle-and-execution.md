@@ -34,6 +34,15 @@
   to execution time. A `--depends-on` name may still refer to a job added later
   in the same queue, so unknown-name and cycle checks remain deferred to the
   execution boundary.
+- A queued command may belong to a named stage. A dependency name that matches
+  a stage expands to every job in that stage before dependency validation and
+  execution. Stage members run concurrently; all must succeed before a
+  dependent job is ready. Stage names and explicit job names share a namespace
+  and therefore cannot collide. Commands without an explicit job name receive
+  a runtime-only name derived from their job ID when they are stage members.
+  See [stage expansion](../../internal/model/model.go), [queue dependency
+  validation](../../internal/model/dependencies.go), [stage barrier test](../../cmd/rotari/mixed_run_test.go),
+  and [copy preservation test](../../cmd/rotari/copy_test.go).
 - An array queue command has an inclusive `first-last` range or an explicit
   comma-separated task list. Runtime expansion creates one `JobSpec` and
   persisted job directory per selected task. Local executors run those tasks as

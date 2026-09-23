@@ -167,7 +167,7 @@ func TestCmdAddEnqueuesJob(t *testing.T) {
 	os.Stdout = writer
 	code := cmdAdd([]string{
 		"--basedir", baseDir, "--project-name", "demo", "--job-name", "job",
-		"--executor", "local", "--env", "TOKEN=secret", "echo", "hello",
+		"--stage", "prepare", "--executor", "local", "--env", "TOKEN=secret", "echo", "hello",
 	})
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
@@ -189,7 +189,7 @@ func TestCmdAddEnqueuesJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(queue.Commands) != 1 || queue.Commands[0].Name != "job" || queue.Commands[0].Executor != "local" ||
+	if len(queue.Commands) != 1 || queue.Commands[0].Name != "job" || queue.Commands[0].Stage != "prepare" || queue.Commands[0].Executor != "local" ||
 		len(queue.Commands[0].Environment) != 1 || queue.Commands[0].Environment[0] != "TOKEN=secret" {
 		t.Fatalf("queue commands = %#v, want persisted job with executor and env", queue.Commands)
 	}

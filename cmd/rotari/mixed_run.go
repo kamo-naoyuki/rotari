@@ -35,7 +35,7 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 			return 1
 		}
 	}
-	if err := model.ValidateDependencies(jobs); err != nil {
+	if err := model.ValidateQueueDependencies(queue.Commands); err != nil {
 		printErrorf("invalid dependencies: %v", err)
 		return 1
 	}

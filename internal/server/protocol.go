@@ -49,6 +49,7 @@ type Request struct {
 	SourceRunID      string                  `json:"source_run_id,omitempty"`
 	PartialArray     bool                    `json:"partial_array,omitempty"`
 	JobName          string                  `json:"job_name,omitempty"`
+	Stage            string                  `json:"stage,omitempty"`
 	DependsOn        []string                `json:"depends_on,omitempty"`
 	Array            *model.ArraySpec        `json:"array,omitempty"`
 }

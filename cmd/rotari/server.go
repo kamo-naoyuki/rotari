@@ -210,6 +210,7 @@ func cmdAdd(args []string) int {
 	var environment stringSliceFlag
 	cliValue(fs, &environment, "env")
 	jobName := cliString(fs, "job-name", "")
+	stage := cliString(fs, "stage", "")
 	var dependsOn stringSliceFlag
 	cliValue(fs, &dependsOn, "depends-on")
 	arrayRange := cliString(fs, "array", "")
@@ -244,7 +245,7 @@ func cmdAdd(args []string) int {
 		printErrorf("invalid --env: %v", err)
 		return 1
 	}
-	message, err := enqueueCommandWithWorkingDirectory(baseDir, queueName, left, *executor, executorOptions, environment, *workingDirectory, *jobName, dependsOn, array)
+	message, err := enqueueCommandWithStageAndWorkingDirectory(baseDir, queueName, left, *executor, executorOptions, environment, *workingDirectory, *jobName, *stage, dependsOn, array)
 	if err != nil {
 		printError(err)
 		return 1
@@ -623,7 +624,7 @@ func (server *rotariServer) handle(baseDir string, conn net.Conn) {
 	case serverinternal.OpPing:
 		response = serverResponse{OK: true, PID: os.Getpid(), Protocol: serverProtocolVersion}
 	case serverinternal.OpSubmit:
-		message, err := enqueueCommandWithWorkingDirectory(baseDir, request.QueueName, request.Command, request.Executor, request.ExecutorOptions, request.Environment, request.WorkingDirectory, request.JobName, request.DependsOn, request.Array)
+		message, err := enqueueCommandWithStageAndWorkingDirectory(baseDir, request.QueueName, request.Command, request.Executor, request.ExecutorOptions, request.Environment, request.WorkingDirectory, request.JobName, request.Stage, request.DependsOn, request.Array)
 		response = serverResponse{OK: err == nil, Message: message}
 		if err != nil {
 			response.Message = err.Error()
@@ -1315,10 +1316,14 @@ func finishCancelMessage(message string, paths pathSet, queueName, runID string,
 }
 
 func enqueueCommand(baseDir, queueName string, command []string, executor string, executorOptions, environment []string, jobName string, dependsOn []string, arrays ...*ArraySpec) (string, error) {
-	return enqueueCommandWithWorkingDirectory(baseDir, queueName, command, executor, executorOptions, environment, "", jobName, dependsOn, arrays...)
+	return enqueueCommandWithStageAndWorkingDirectory(baseDir, queueName, command, executor, executorOptions, environment, "", jobName, "", dependsOn, arrays...)
 }
 
 func enqueueCommandWithWorkingDirectory(baseDir, queueName string, command []string, executor string, executorOptions, environment []string, workingDirectory, jobName string, dependsOn []string, arrays ...*ArraySpec) (string, error) {
+	return enqueueCommandWithStageAndWorkingDirectory(baseDir, queueName, command, executor, executorOptions, environment, workingDirectory, jobName, "", dependsOn, arrays...)
+}
+
+func enqueueCommandWithStageAndWorkingDirectory(baseDir, queueName string, command []string, executor string, executorOptions, environment []string, workingDirectory, jobName, stage string, dependsOn []string, arrays ...*ArraySpec) (string, error) {
 	if queueName == "" || len(command) == 0 {
 		return "", errors.New("project name and command are required")
 	}
@@ -1356,7 +1361,7 @@ func enqueueCommandWithWorkingDirectory(baseDir, queueName string, command []str
 		array = arrays[0]
 	}
 	job := QueuedCommand{
-		ID: makeJobID(), Command: command, WorkingDirectory: workingDirectory, Executor: executor, ExecutorOptions: executorOptions, Environment: environment, Name: jobName, DependsOn: dependsOn, Array: array,
+		ID: makeJobID(), Command: command, WorkingDirectory: workingDirectory, Executor: executor, ExecutorOptions: executorOptions, Environment: environment, Name: jobName, Stage: stage, DependsOn: dependsOn, Array: array,
 	}
 	if err := validateQueueJobs(Queue{Commands: append(append([]QueuedCommand(nil), queue.Commands...), job)}); err != nil {
 		return "", err

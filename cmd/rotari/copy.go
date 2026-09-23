@@ -278,12 +278,42 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 		return "", fmt.Errorf("run %s has no jobs matching selection", runID)
 	}
 	commandsByName := make(map[string]QueuedCommand, len(snapshot.Commands))
+	stageSizes := make(map[string]int)
 	for _, command := range snapshot.Commands {
 		commandsByName[command.Name] = command
+		if command.Stage != "" {
+			stageSizes[command.Stage]++
+		}
+	}
+	selectedStageSizes := make(map[string]int)
+	for _, command := range selected {
+		if command.Stage != "" {
+			selectedStageSizes[command.Stage]++
+		}
+	}
+	selectedStages := make(map[string]bool)
+	for stage, size := range stageSizes {
+		selectedStages[stage] = selectedStageSizes[stage] == size
 	}
 	for _, command := range selected {
 		for _, dependency := range command.DependsOn {
-			if selectedNames[dependency] {
+			if selectedNames[dependency] || selectedStages[dependency] {
+				continue
+			}
+			if stageSize, isStage := stageSizes[dependency]; isStage {
+				completed := 0
+				for _, candidate := range snapshot.Commands {
+					if candidate.Stage != dependency {
+						continue
+					}
+					result, finished := model.AggregatedJobResult(candidate.ID, candidate.Array, results)
+					if finished && result.ExitCode == 0 {
+						completed++
+					}
+				}
+				if completed != stageSize {
+					return "", fmt.Errorf("cannot copy job %q: excluded dependency %q did not succeed in run %s", command.Name, dependency, runID)
+				}
 				continue
 			}
 			dependencyCommand := commandsByName[dependency]
@@ -311,7 +341,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 		sourceJobID := selected[index].ID
 		dependencies := make([]string, 0, len(selected[index].DependsOn))
 		for _, dependency := range selected[index].DependsOn {
-			if selectedNames[dependency] {
+			if selectedNames[dependency] || selectedStages[dependency] {
 				dependencies = append(dependencies, dependency)
 			}
 		}
@@ -344,7 +374,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 		queue.Commands = nil
 	}
 	queue.Commands = append(queue.Commands, selected...)
-	if err := model.ValidateDependencies(model.QueueToJobs(queue.Commands)); err != nil {
+	if err := model.ValidateQueueDependencies(queue.Commands); err != nil {
 		return "", fmt.Errorf("invalid dependencies: %w", err)
 	}
 	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {

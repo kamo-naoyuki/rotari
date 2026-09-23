@@ -32,3 +32,28 @@ func TestQueueToJobsExpandsDenseAndSparseArrays(t *testing.T) {
 		})
 	}
 }
+
+func TestQueueToJobsExpandsStageDependency(t *testing.T) {
+	commands := []QueuedCommand{
+		{ID: "prepare-a", Stage: "prepare", Command: []string{"prepare-a"}},
+		{ID: "prepare-b", Stage: "prepare", Command: []string{"prepare-b"}},
+		{ID: "train", Name: "train", DependsOn: []string{"prepare"}, Command: []string{"train"}},
+	}
+	jobs := QueueToJobs(commands)
+	if got, want := jobs[2].DependsOn, []string{"prepare-a", "prepare-b"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("dependencies = %v, want %v", got, want)
+	}
+	if err := ValidateQueueDependencies(commands); err != nil {
+		t.Fatalf("ValidateQueueDependencies() error = %v", err)
+	}
+}
+
+func TestValidateQueueDependenciesRejectsStageJobNameConflict(t *testing.T) {
+	err := ValidateQueueDependencies([]QueuedCommand{
+		{ID: "prepare", Name: "build", Command: []string{"prepare"}},
+		{ID: "compile", Stage: "build", Command: []string{"compile"}},
+	})
+	if err == nil || err.Error() != "job name conflicts with stage name: build" {
+		t.Fatalf("ValidateQueueDependencies() error = %v, want stage/job name conflict", err)
+	}
+}

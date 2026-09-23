@@ -129,7 +129,7 @@ func changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, request
 	if err := validateQueueJobs(queue); err != nil {
 		return "", err
 	}
-	if err := model.ValidateDependencies(model.QueueToJobs(queue.Commands)); err != nil {
+	if err := model.ValidateQueueDependencies(queue.Commands); err != nil {
 		return "", fmt.Errorf("invalid dependencies: %w", err)
 	}
 	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {

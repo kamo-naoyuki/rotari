@@ -4,6 +4,23 @@ Answers to specific "what happens if...?" questions about rotari's behavior.
 For feature walkthroughs, see [README.md](../README.md); for the underlying
 contracts, see [INTERNALS.md](INTERNALS.md).
 
+This FAQ is intentionally kept current and user-facing; it does not list
+legacy or obsolete names from older rotari versions. If you are looking for a
+current behavior question, start with the sections below in the order that
+matches the tasks you are trying to do.
+
+## Quick navigation
+
+- [Projects, queues, runs, and registry](#projects-queues-runs-and-registry)
+- [Retries, copying, arrays, and dependencies](#retries-copying-arrays-and-dependencies)
+- [LLM diagnosis](#llm-diagnosis)
+- [Interrupted runs and locking](#interrupted-runs-and-locking)
+- [Client control and job cancellation](#client-control-and-job-cancellation)
+- [Python interface](#python-interface)
+- [Web UI](#web-ui)
+- [Background server (supervisor)](#background-server-supervisor)
+- [Timestamps and environment](#timestamps-and-environment)
+
 ## Projects, queues, runs, and registry
 
 For the complete base-directory and project-name precedence rules, see
@@ -196,6 +213,13 @@ They are recorded as `blocked` and are never executed for that run. A retry
 reruns only the failed prerequisite (and any other failed/unfinished jobs);
 once it succeeds, the previously blocked dependents run on the next
 `rotari run`/`retry` that includes them.
+
+### Can jobs wait for a whole stage instead of listing every prerequisite?
+Yes. Add related jobs with the same `--stage NAME`, then use that name with
+`--depends-on NAME`. Jobs in the stage can run concurrently. A dependent job
+starts only after every stage job succeeds; if any one fails, it is recorded as
+blocked. Stage names share a namespace with job names, so a stage name cannot
+also be a job name in the same queue.
 
 ## LLM diagnosis
 

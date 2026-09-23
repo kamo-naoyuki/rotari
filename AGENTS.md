@@ -106,7 +106,7 @@ Examples include changes to:
 * path rules
 * web/API behavior
 
-When behavior changes, inspect all three documents and update every affected document.
+When behavior changes, inspect all three documents and update every affected document. When the behavior is covered by `docs/INTERNALS.md` or `docs/internals/`, keep the relevant internal note current and add or update links to the representative implementation and tests in the same change.
 
 ## Testing
 

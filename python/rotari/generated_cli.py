@@ -200,6 +200,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
             ],
             "name": "delete",
+            "positional": "[RUN_ID]",
         },
         {
             "description": "find and remove orphan run registry entries",
@@ -240,6 +241,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
             ],
             "name": "unlock",
+            "positional": "RUN_ID",
         },
         {
             "description": "change a job in the current or previous batch",
@@ -369,6 +371,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
             ],
             "name": "remove",
+            "positional": "[JOB_ID ...]",
         },
         {
             "description": "show queue or run status",
@@ -475,13 +478,15 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "all",
                 },
                 {
-                    "description": "output fields; use %s %b %p %a %n %c %t %e",
+                    "description": "output fields; use %s %b %p %a %n %c %t %f "
+                    "%e (%f is finished time)",
                     "name": "format",
                     "short": "o",
                     "value_name": "FORMAT",
                 },
                 {
-                    "description": "include finished jobs from this duration ago",
+                    "description": "include jobs finished within this duration "
+                    "(running jobs are always included)",
                     "name": "since",
                     "value_name": "DURATION",
                 },
@@ -558,6 +563,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
             ],
             "name": "diagnose",
+            "positional": "JOB_ID",
         },
         {
             "description": "wait for an asynchronous run by project, run name, or "
@@ -651,7 +657,13 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "name of a prerequisite job; may be repeated",
+                    "description": "stage that contains the job",
+                    "name": "stage",
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "name of a prerequisite job or stage; may be "
+                    "repeated",
                     "name": "depends-on",
                     "repeated": True,
                     "value_name": "NAME",
@@ -723,6 +735,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 {"description": "replace a non-empty queue", "name": "overwrite"},
             ],
             "name": "copy",
+            "positional": "[RUN_ID]",
         },
         {
             "description": "execute queued commands, optionally selecting jobs from "

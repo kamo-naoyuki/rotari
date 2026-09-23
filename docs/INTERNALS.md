@@ -8,6 +8,11 @@ This is an architectural map, not a command reference. User-facing behavior
 belongs in [../README.md](../README.md); implementation and tests remain in
 code.
 
+When a behavior contract changes, update the relevant internal note in the
+same change. Include links to the representative implementation and tests so
+future contributors and coding agents can move from the contract to the code
+quickly.
+
 ## Split notes
 
 - [internals/00-overview.md](internals/00-overview.md): overview, system model,
@@ -27,10 +32,20 @@ code.
 ## Cross-cutting rules to keep in sync
 
 - Keep the filesystem as the source of truth; registry and in-memory state are
-  only indexes or coordination helpers.
+  only indexes or coordination helpers. The main persistence boundary is
+  [`internal/state/store.go`](../internal/state/store.go), with coverage in
+  [`internal/state/store_test.go`](../internal/state/store_test.go).
 - Preserve the same fallback and resolution contracts across CLI, server, and
-  web paths.
+  web paths. Start with [`cmd/rotari/show.go`](../cmd/rotari/show.go),
+  [`cmd/rotari/report.go`](../cmd/rotari/report.go), and
+  [`cmd/rotari/web.go`](../cmd/rotari/web.go); representative tests are in
+  [`cmd/rotari/show_test.go`](../cmd/rotari/show_test.go) and
+  [`cmd/rotari/web_test.go`](../cmd/rotari/web_test.go).
 - Treat path elements as arbitrary strings and reject unsafe separators before
-  filesystem access.
+  filesystem access. The shared boundary is
+  [`internal/state/paths.go`](../internal/state/paths.go), with path safety
+  checks in [`cmd/rotari/main_test.go`](../cmd/rotari/main_test.go).
 - Update user-facing docs and relevant tests whenever a behavior contract
-  changes.
+  changes. The user-facing entry points are [`README.md`](../README.md) and
+  [`docs/FAQ.md`](FAQ.md); keep the relevant package tests alongside the
+  implementation change.

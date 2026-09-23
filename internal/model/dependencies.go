@@ -2,6 +2,30 @@ package model
 
 import "fmt"
 
+// ValidateQueueDependencies checks queue-level names before validating the
+// expanded job dependency graph used by the runner.
+func ValidateQueueDependencies(commands []QueuedCommand) error {
+	if err := ValidateStageNames(commands); err != nil {
+		return err
+	}
+	return ValidateDependencies(QueueToJobs(commands))
+}
+
+func ValidateStageNames(commands []QueuedCommand) error {
+	stages := make(map[string]bool)
+	for _, command := range commands {
+		if command.Stage != "" {
+			stages[command.Stage] = true
+		}
+	}
+	for _, command := range commands {
+		if command.Name != "" && stages[command.Name] {
+			return fmt.Errorf("job name conflicts with stage name: %s", command.Name)
+		}
+	}
+	return nil
+}
+
 func ValidateDependencies(jobs []JobSpec) error {
 	byName := make(map[string]JobSpec, len(jobs))
 	for _, job := range jobs {

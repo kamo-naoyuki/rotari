@@ -46,6 +46,9 @@ type ruleDiagnosis = model.RuleDiagnosis
 type runOptions = runcontract.Options
 
 func validateQueueJobs(queue Queue) error {
+	if err := model.ValidateStageNames(queue.Commands); err != nil {
+		return err
+	}
 	expandedIDs := make(map[string]bool)
 	for _, command := range queue.Commands {
 		if !state.IsValidPathElement(command.ID) {

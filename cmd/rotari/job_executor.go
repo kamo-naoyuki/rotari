@@ -174,7 +174,7 @@ func validateQueueForRun(queue Queue, requestedExecutor string, executorOptions 
 	if err := validateQueueJobs(queue); err != nil {
 		return err
 	}
-	if err := model.ValidateDependencies(model.QueueToJobs(queue.Commands)); err != nil {
+	if err := model.ValidateQueueDependencies(queue.Commands); err != nil {
 		return fmt.Errorf("invalid dependencies: %w", err)
 	}
 	defaultExecutor := requestedExecutor

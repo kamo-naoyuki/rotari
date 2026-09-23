@@ -1,6 +1,6 @@
 # Webhook integrations
 
-rotari sends one JSON `POST` request when a run is finalized. The request is
+Rotari sends one JSON `POST` request when a run is finalized. The request is
 service-independent, so the receiving workflow can forward it to Slack,
 Discord, email, or another notification service.
 

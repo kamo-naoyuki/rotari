@@ -105,6 +105,35 @@ func TestExecuteMixedRunKeepsPerJobExecutorOverrides(t *testing.T) {
 	}
 }
 
+func TestExecuteMixedRunWaitsForEveryJobInDependentStage(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	scheduler := &recordingExecutor{name: "slurm"}
+	previous := executorRegistry["slurm"]
+	executorRegistry["slurm"] = scheduler
+	t.Cleanup(func() { executorRegistry["slurm"] = previous })
+	queue := Queue{Commands: []QueuedCommand{
+		{ID: "prepare-a", Stage: "prepare", Executor: "slurm", Command: []string{"prepare-a"}},
+		{ID: "prepare-b", Stage: "prepare", Executor: "slurm", Command: []string{"prepare-b"}},
+		{ID: "train", Name: "train", DependsOn: []string{"prepare"}, Executor: "slurm", Command: []string{"train"}},
+	}}
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+	if code := executeMixedRun(paths, "stage-run", "", 1, 3, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
+		t.Fatalf("executeMixedRun exit = %d, want 0", code)
+	}
+	if len(scheduler.submitted) != 3 || scheduler.submitted[2] != "train" {
+		t.Fatalf("scheduler submissions = %#v, want train after both prepare jobs", scheduler.submitted)
+	}
+}
+
 func TestExecuteMixedRunPersistsRuleDiagnoses(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "default")

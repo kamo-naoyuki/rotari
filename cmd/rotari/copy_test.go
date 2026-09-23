@@ -180,6 +180,33 @@ func TestCopyRunToQueuePreservesSourceJobIDs(t *testing.T) {
 	}
 }
 
+func TestCopyRunToQueuePreservesCompleteStageDependency(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(paths.RunsDir, "run-1")
+	snapshot := Queue{Commands: []QueuedCommand{
+		{ID: "prepare-a", Stage: "prepare", Command: []string{"prepare-a"}},
+		{ID: "prepare-b", Stage: "prepare", Command: []string{"prepare-b"}},
+		{ID: "train", Name: "train", DependsOn: []string{"prepare"}, Command: []string{"train"}},
+	}}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := copyRunToQueue(baseDir, "default", "run-1", "all", nil, false); err != nil {
+		t.Fatal(err)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := queue.Commands[2].DependsOn; len(got) != 1 || got[0] != "prepare" {
+		t.Fatalf("copied dependencies = %v, want [prepare]", got)
+	}
+}
+
 func TestCopyRunToQueueRejectsExcludedFailedDependency(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "default")

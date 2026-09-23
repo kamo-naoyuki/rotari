@@ -153,6 +153,20 @@ rotari add --job-name train --depends-on prepare -- ./train.sh
 rotari run
 ```
 
+For a barrier between batches of jobs, assign the jobs to a stage and depend on
+the stage name. Jobs in a stage run concurrently; a dependent job starts only
+after every job in the stage succeeds:
+
+```sh
+rotari add --stage prepare -- ./prepare-data.sh
+rotari add --stage prepare -- ./prepare-config.sh
+rotari add --job-name train --depends-on prepare -- ./train.sh
+rotari run
+```
+
+`--depends-on` accepts either a job name or a stage name. A job name and stage
+name cannot be the same within one queue.
+
 ## Commands at a glance
 
 | Command | Purpose |

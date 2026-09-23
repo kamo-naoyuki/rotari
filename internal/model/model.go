@@ -22,6 +22,7 @@ type QueuedCommand struct {
 	ExecutorOptions  []string              `json:"executor_options,omitempty"`
 	Environment      []string              `json:"environment,omitempty"`
 	Name             string                `json:"name,omitempty"`
+	Stage            string                `json:"stage,omitempty"`
 	DependsOn        []string              `json:"depends_on,omitempty"`
 	Origin           *JobOrigin            `json:"origin,omitempty"`
 	Array            *ArraySpec            `json:"array,omitempty"`
@@ -203,32 +204,71 @@ type LoadSample struct {
 
 func QueueToJobs(commands []QueuedCommand) []JobSpec {
 	jobs := make([]JobSpec, 0, len(commands))
+	stageJobs := make(map[string][]string)
 	for _, queued := range commands {
-		if len(queued.Command) == 0 {
-			continue
-		}
-		if queued.Array == nil {
-			jobs = append(jobs, JobSpec{
-				ID: queued.ID, Command: queued.Command, WorkingDirectory: queued.WorkingDirectory, Name: queued.Name,
-				Executor: queued.Executor, ExecutorOptions: queued.ExecutorOptions, Environment: queued.Environment, DependsOn: queued.DependsOn,
-			})
-			continue
-		}
-		for _, task := range ArrayTaskIDs(queued.Array) {
-			id := fmt.Sprintf("%s-%d", queued.ID, task)
-			name := queued.Name
-			if name != "" {
-				name = fmt.Sprintf("%s[%d]", name, task)
+		commandJobs := queueCommandToJobs(queued)
+		jobs = append(jobs, commandJobs...)
+		if queued.Stage != "" {
+			for _, job := range commandJobs {
+				stageJobs[queued.Stage] = append(stageJobs[queued.Stage], job.Name)
 			}
-			taskID := task
-			jobs = append(jobs, JobSpec{
-				ID: id, Command: queued.Command, WorkingDirectory: queued.WorkingDirectory, Name: name,
-				Executor: queued.Executor, ExecutorOptions: queued.ExecutorOptions, Environment: queued.Environment, DependsOn: queued.DependsOn,
-				ArrayGroup: queued.ID, ArrayTaskID: &taskID, ArrayFirst: queued.Array.First, ArrayLast: queued.Array.Last, ArraySize: len(ArrayTaskIDs(queued.Array)),
-			})
 		}
 	}
+	expandStageDependencies(jobs, stageJobs)
 	return jobs
+}
+
+func queueCommandToJobs(queued QueuedCommand) []JobSpec {
+	if len(queued.Command) == 0 {
+		return nil
+	}
+	if queued.Array == nil {
+		return []JobSpec{queueCommandJob(queued, queued.ID, queued.Name, nil)}
+	}
+	tasks := ArrayTaskIDs(queued.Array)
+	jobs := make([]JobSpec, 0, len(tasks))
+	for _, task := range tasks {
+		id := fmt.Sprintf("%s-%d", queued.ID, task)
+		name := queued.Name
+		if name != "" {
+			name = fmt.Sprintf("%s[%d]", name, task)
+		}
+		taskID := task
+		jobs = append(jobs, queueCommandJob(queued, id, name, &taskID))
+	}
+	return jobs
+}
+
+func queueCommandJob(queued QueuedCommand, id, name string, taskID *int) JobSpec {
+	if name == "" && queued.Stage != "" {
+		name = id
+	}
+	job := JobSpec{
+		ID: id, Command: queued.Command, WorkingDirectory: queued.WorkingDirectory, Name: name,
+		Executor: queued.Executor, ExecutorOptions: queued.ExecutorOptions, Environment: queued.Environment, DependsOn: queued.DependsOn,
+	}
+	if taskID != nil {
+		job.ArrayGroup = queued.ID
+		job.ArrayTaskID = taskID
+		job.ArrayFirst = queued.Array.First
+		job.ArrayLast = queued.Array.Last
+		job.ArraySize = len(ArrayTaskIDs(queued.Array))
+	}
+	return job
+}
+
+func expandStageDependencies(jobs []JobSpec, stageJobs map[string][]string) {
+	for index := range jobs {
+		dependencies := make([]string, 0, len(jobs[index].DependsOn))
+		for _, dependency := range jobs[index].DependsOn {
+			if stageMembers, ok := stageJobs[dependency]; ok {
+				dependencies = append(dependencies, stageMembers...)
+			} else {
+				dependencies = append(dependencies, dependency)
+			}
+		}
+		jobs[index].DependsOn = dependencies
+	}
 }
 
 func ArrayTaskIDs(array *ArraySpec) []int {
