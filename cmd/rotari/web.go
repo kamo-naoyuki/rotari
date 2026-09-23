@@ -1077,7 +1077,7 @@ func loadWebJobs(runDir string, summary RunSummary, attemptIDs ...string) ([]web
 		},
 		LoadSchedulerResult: func(jobDir string, job model.JobSpec) (model.JobResult, bool) {
 			status, ok := loadSlurmStatus(filepath.Join(jobDir, stateFileStatusJSON))
-			if !ok || !jobStatusTerminal(status) {
+			if !ok || (status.FinishedAt == "" && !executor.SchedulerStateTerminal(status.Phase)) {
 				return model.JobResult{}, false
 			}
 			return model.JobResult{ID: job.ID, Command: job.Command, ExitCode: status.ExitCode, Error: status.Error, Hosts: status.Hosts}, true
