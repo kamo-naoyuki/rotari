@@ -331,46 +331,17 @@ func removeFinishedJobs(jobs []JobSpec, results map[string]JobResult) []JobSpec 
 }
 
 func executeMixedAttempt(runDir string, queue Queue, jobs []JobSpec, localConcurrency, batchMaxActive int, requestedExecutor string, executorOptions []string, executorSettings executorRunSettingsMap, onStart func(JobSpec)) []JobResult {
-	defaultExecutor := requestedExecutor
-	if defaultExecutor == "" {
-		defaultExecutor = queue.DefaultExecutor
-	}
-	if defaultExecutor == "" {
-		defaultExecutor = "local"
-	}
-	grouped := make(map[string][]JobSpec)
-	for _, job := range jobs {
-		jobExecutor := job.Executor
-		if jobExecutor == "" {
-			jobExecutor = defaultExecutor
-		}
-		grouped[jobExecutor] = append(grouped[jobExecutor], job)
-	}
-
-	results := make(chan JobResult, len(jobs))
-	var workers sync.WaitGroup
-	for executorName, executorJobs := range grouped {
-		executor, ok := lookupExecutor(executorName)
-		if !ok {
-			for _, job := range executorJobs {
-				results <- JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: fmt.Sprintf("unsupported executor: %s", executorName)}
-			}
-			continue
-		}
-		workers.Add(1)
-		if executorName == "local" {
-			go runLocalLane(&workers, runDir, executor, executorJobs, effectiveExecutorConcurrency(executorSettings, executorName, localConcurrency), results, onStart)
-		} else {
-			go runBatchLane(&workers, runDir, queue, executor, executorJobs, effectiveExecutorConcurrency(executorSettings, executorName, batchMaxActive), effectiveExecutorOptions(executorSettings, executorName, executorOptions), results, onStart)
-		}
-	}
-	workers.Wait()
-	close(results)
-	collected := make([]JobResult, 0, len(jobs))
-	for result := range results {
-		collected = append(collected, result)
-	}
-	return collected
+	return runcontract.RunAttempt(runDir, queue, jobs, runcontract.AttemptOptions{
+		LocalConcurrency: localConcurrency, BatchMaxActive: batchMaxActive,
+		RequestedExecutor: requestedExecutor, ExecutorOptions: executorOptions,
+		Settings: executorSettings, ResolveExecutor: lookupExecutor,
+		Callbacks: runcontract.BatchLaneCallbacks{
+			ValidatedJobDir: validatedJobDir,
+			JobCancelled:    jobCancellationRequested,
+			RecordCancelled: recordCancelledJob,
+			Logf:            jobLogf,
+		},
+	}, onStart)
 }
 
 // runLocalLane runs jobs concurrently up to concurrency, used for the local
