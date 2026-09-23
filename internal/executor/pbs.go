@@ -96,7 +96,7 @@ func (pbs PBS) Cancel(jobDir string) error {
 func readPBSMetadata(store state.Store, jobDir string) (pbsJobMetadata, error) {
 	var metadata pbsJobMetadata
 	if err := store.ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return pbsJobMetadata{}, fmt.Errorf("job is not running")
 		}
 		return pbsJobMetadata{}, fmt.Errorf("invalid PBS metadata: %w", err)

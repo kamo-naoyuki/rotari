@@ -99,7 +99,7 @@ func (slurm Slurm) scontrol(jobDir, command string) error {
 func readSlurmMetadata(store state.Store, jobDir string) (slurmJobMetadata, error) {
 	var metadata slurmJobMetadata
 	if err := store.ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return slurmJobMetadata{}, fmt.Errorf("job is not running")
 		}
 		return slurmJobMetadata{}, fmt.Errorf("invalid Slurm metadata: %w", err)

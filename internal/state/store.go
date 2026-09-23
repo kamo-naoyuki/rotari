@@ -75,7 +75,7 @@ func DefaultMeta() model.Meta {
 
 func LoadMeta(path string) (model.Meta, error) {
 	var meta model.Meta
-	store := NewStore(0o700, 0o600)
+	store := NewStore(DirectoryMode(), FileMode())
 	if err := store.ReadJSON(path, &meta); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return DefaultMeta(), nil
@@ -93,7 +93,7 @@ func LoadMeta(path string) (model.Meta, error) {
 
 func LoadQueue(path string) (model.Queue, error) {
 	var queue model.Queue
-	store := NewStore(0o700, 0o600)
+	store := NewStore(DirectoryMode(), FileMode())
 	if err := store.ReadJSON(path, &queue); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return model.Queue{}, nil
@@ -104,7 +104,7 @@ func LoadQueue(path string) (model.Queue, error) {
 }
 
 func WriteJSON(path string, value any) error {
-	return NewStore(0o700, 0o600).WriteJSON(path, value)
+	return NewStore(DirectoryMode(), FileMode()).WriteJSON(path, value)
 }
 
 func AppendLoadSample(path string, sample model.LoadSample) error {

@@ -96,7 +96,7 @@ func (lsf LSF) runControl(jobDir, command string) error {
 func readLSFMetadata(store state.Store, jobDir string) (lsfJobMetadata, error) {
 	var metadata lsfJobMetadata
 	if err := store.ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return lsfJobMetadata{}, errors.New("job is not running")
 		}
 		return lsfJobMetadata{}, fmt.Errorf("invalid LSF metadata: %w", err)

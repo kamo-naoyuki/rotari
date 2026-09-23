@@ -5,7 +5,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"testing"
 )
 
 const (
@@ -82,12 +81,9 @@ func printWarningf(format string, a ...any) {
 }
 
 // jobLogf prints background job-execution status lines (submit/success/fail).
-// It is silenced under `go test` (testing.Testing()) since no test asserts on
-// these lines and they otherwise clutter go test -v/failure output.
-func jobLogf(format string, a ...any) {
-	if testing.Testing() {
-		return
-	}
+// Tests can replace this package-level hook with a silent logger when they want
+// to suppress output without depending on the Go test runtime.
+var jobLogf = func(format string, a ...any) {
 	fmt.Printf(format, a...)
 }
 

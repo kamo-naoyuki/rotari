@@ -164,10 +164,13 @@ func (ssh SSH) Cancel(jobDir string) error {
 func readSSHMetadata(store state.Store, jobDir string) (sshJobMetadata, error) {
 	var metadata sshJobMetadata
 	if err := store.ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return sshJobMetadata{}, fmt.Errorf("job is not running")
+		}
 		if errors.Is(err, state.ErrInvalidJSON) {
 			return sshJobMetadata{}, fmt.Errorf("invalid SSH metadata")
 		}
-		return sshJobMetadata{}, fmt.Errorf("job is not running")
+		return sshJobMetadata{}, fmt.Errorf("invalid SSH metadata: %w", err)
 	}
 	if metadata.Executor != "ssh" {
 		return sshJobMetadata{}, fmt.Errorf("invalid SSH metadata")

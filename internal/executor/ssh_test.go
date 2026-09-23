@@ -124,6 +124,21 @@ func TestReadSSHMetadataRejectsInvalidRemoteToken(t *testing.T) {
 	}
 }
 
+func TestReadSSHMetadataSeparatesMissingAndUnreadableState(t *testing.T) {
+	missingJobDir := t.TempDir()
+	if _, err := readSSHMetadata(testStore(), missingJobDir); err == nil || !strings.Contains(err.Error(), "job is not running") {
+		t.Fatalf("missing metadata error = %v, want job is not running", err)
+	}
+
+	jobDir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(jobDir, "job.json"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readSSHMetadata(testStore(), jobDir); err == nil || strings.Contains(err.Error(), "job is not running") {
+		t.Fatalf("unreadable metadata error = %v, want distinct read failure", err)
+	}
+}
+
 func TestSSHTargetRequiresHost(t *testing.T) {
 	if _, _, err := SSHTarget(nil); err == nil {
 		t.Fatal("SSHTarget accepted no target host")

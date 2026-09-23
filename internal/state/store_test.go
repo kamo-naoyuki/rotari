@@ -53,9 +53,51 @@ func TestWriteJSONCreatesParentAndReadableDocument(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := info.Mode().Perm(); got != 0o600 {
-		t.Fatalf("written JSON mode = %o, want 600", got)
+	if got := info.Mode().Perm(); got != 0o644 {
+		t.Fatalf("written JSON mode = %o, want 644", got)
 	}
+}
+
+func TestWriteJSONRespectsConfiguredStateModes(t *testing.T) {
+	t.Setenv(privateStateEnv, "")
+	path := filepath.Join(t.TempDir(), "shared", "value.json")
+	if err := WriteJSON(path, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := fileModeForTest(path); got != 0o644 {
+		t.Fatalf("shared state mode = %o, want 0644", got)
+	}
+	if got := dirModeForTest(filepath.Dir(path)); got != 0o755 {
+		t.Fatalf("shared state dir mode = %o, want 0755", got)
+	}
+
+	t.Setenv(privateStateEnv, "true")
+	path = filepath.Join(t.TempDir(), "private", "value.json")
+	if err := WriteJSON(path, model.Queue{Commands: []model.QueuedCommand{{ID: "job-2"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := fileModeForTest(path); got != 0o600 {
+		t.Fatalf("private state mode = %o, want 0600", got)
+	}
+	if got := dirModeForTest(filepath.Dir(path)); got != 0o700 {
+		t.Fatalf("private state dir mode = %o, want 0700", got)
+	}
+}
+
+func fileModeForTest(path string) os.FileMode {
+	info, err := os.Stat(path)
+	if err != nil {
+		panic(err)
+	}
+	return info.Mode().Perm()
+}
+
+func dirModeForTest(path string) os.FileMode {
+	info, err := os.Stat(path)
+	if err != nil {
+		panic(err)
+	}
+	return info.Mode().Perm()
 }
 
 func TestRequireRunStateFileRequiresRegularValidatedFiles(t *testing.T) {
