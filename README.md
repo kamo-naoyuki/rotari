@@ -70,6 +70,14 @@ rotari version
 rotari --version
 ```
 
+### Homebrew
+
+Install rotari with Homebrew on macOS or Linuxbrew on Linux:
+
+```sh
+brew install kamo-naoyuki/tap/rotari
+```
+
 ### Build from source
 
 If you have Go installed, you can build rotari from source:
