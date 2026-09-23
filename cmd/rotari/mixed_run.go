@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 )
@@ -235,55 +234,26 @@ func prepareJobEnvironments(paths pathSet, runID string, jobs []JobSpec, runName
 		}
 	}
 	bin, _ := os.Executable()
-	for index := range jobs {
-		job := &jobs[index]
-		jobDir, err := validatedJobDir(runDir, job.ID)
-		if err != nil {
-			continue
+	inherited := make(map[string]string)
+	for _, name := range propagatedEnvironmentVariables {
+		if value, exists := os.LookupEnv(name); exists {
+			inherited[name] = value
 		}
-		environment := []string{
-			envBaseDir + "=" + paths.baseDir,
-			envProjectName + "=" + paths.queueName,
-			envRunID + "=" + runID,
-			envJobID + "=" + job.ID,
-			envExecutor + "=" + job.Executor,
-			envBin + "=" + bin,
-			envRunDir + "=" + runDir,
-			envJobDir + "=" + jobDir,
-			envCWD + "=" + cwd,
-		}
-		if job.Name != "" {
-			environment = append(environment, envJobName+"="+job.Name)
-		}
-		if job.ArrayTaskID != nil {
-			environment = append(environment,
-				fmt.Sprintf("%s=%d", envArrayTaskID, *job.ArrayTaskID),
-				fmt.Sprintf("%s=%d", envArrayFirst, job.ArrayFirst),
-				fmt.Sprintf("%s=%d", envArrayLast, job.ArrayLast),
-				fmt.Sprintf("%s=%d", envArraySize, job.ArraySize),
-			)
-		}
-		if runName != "" {
-			environment = append(environment, envRunName+"="+runName)
-		}
-		environment = append(environment,
-			fmt.Sprintf("%s=%d", envRunLocalConc, localConcurrency),
-			fmt.Sprintf("%s=%d", envRunBatchConc, batchConcurrency),
-			fmt.Sprintf("%s=%d", envRunRetry, retry),
-		)
-		if len(executorOptions) > 0 {
-			environment = append(environment, envExecutorOpts+"="+strings.Join(executorOptions, " "))
-		}
-		for _, name := range propagatedEnvironmentVariables {
-			if _, exists := environmentEntry(environment, name); exists {
-				continue
-			}
-			if value, exists := os.LookupEnv(name); exists {
-				environment = append(environment, name+"="+value)
-			}
-		}
-		job.Environment = mergeEnvironment(job.Environment, environment)
 	}
+	runcontract.PrepareJobEnvironments(jobs, runcontract.EnvironmentConfig{
+		Names: runcontract.EnvironmentNames{
+			BaseDir: envBaseDir, ProjectName: envProjectName, RunID: envRunID, JobID: envJobID,
+			Executor: envExecutor, Bin: envBin, RunDir: envRunDir, JobDir: envJobDir, CWD: envCWD,
+			JobName: envJobName, ArrayTaskID: envArrayTaskID, ArrayFirst: envArrayFirst, ArrayLast: envArrayLast,
+			ArraySize: envArraySize, RunName: envRunName, LocalConcurrency: envRunLocalConc,
+			BatchConcurrency: envRunBatchConc, Retry: envRunRetry, ExecutorOptions: envExecutorOpts,
+		}, BaseDir: paths.baseDir, ProjectName: paths.queueName, RunID: runID, RunDir: runDir,
+		RunName: runName, Bin: bin, CWD: cwd, LocalConcurrency: localConcurrency,
+		BatchConcurrency: batchConcurrency, Retry: retry, ExecutorOptions: executorOptions,
+		Inherited: inherited, JobDir: func(runDir string, job JobSpec) (string, error) {
+			return validatedJobDir(runDir, job.ID)
+		},
+	})
 }
 
 func assignAttemptIDs(jobs []JobSpec, runID string, attempt int) {
