@@ -20,6 +20,8 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
 	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
 
@@ -1003,50 +1005,40 @@ func writeStaticStylesheet(directory string) error {
 }
 
 func loadWebQueueState(paths pathSet) (webQueueState, error) {
-	queue, err := loadQueue(paths.queueFile)
+	state, err := webprojection.LoadQueueState(webprojection.QueueLoader{
+		ProjectName: paths.queueName,
+		Queue:       func() (model.Queue, error) { return loadQueue(paths.queueFile) },
+		Lock:        func() (model.LockInfo, error) { return loadLockInfo(paths.lockFile) },
+		Runs: func() ([]string, error) {
+			entries, err := os.ReadDir(paths.runsDir)
+			if os.IsNotExist(err) {
+				return nil, nil
+			}
+			if err != nil {
+				return nil, err
+			}
+			ids := make([]string, 0, len(entries))
+			for _, entry := range entries {
+				if entry.IsDir() {
+					ids = append(ids, entry.Name())
+				}
+			}
+			return ids, nil
+		},
+		Summary: func(runID string) (model.RunSummary, error) {
+			return loadRunSummary(filepath.Join(paths.runsDir, runID, "summary.json"))
+		},
+		Jobs: func(runID string, summary model.RunSummary) ([]webprojection.Job, error) {
+			return loadWebJobs(filepath.Join(paths.runsDir, runID), summary)
+		},
+		Context: func(runID string) (model.RunContext, error) {
+			return stateinternal.LoadContext(jsonStore(), filepath.Join(paths.runsDir, runID))
+		},
+		Samples: func(runID string) []model.LoadSample { return readLoadSamples(loadSamplesPath(paths, runID)) },
+	})
 	if err != nil {
 		return webQueueState{}, err
 	}
-	state := webQueueState{QueueName: paths.queueName, Queue: queue, Runs: make([]webRun, 0)}
-	runningStartedAt := ""
-	if data, err := os.ReadFile(paths.lockFile); err == nil {
-		var lock LockInfo
-		if json.Unmarshal(data, &lock) == nil {
-			state.RunningRunID = lock.RunID
-			state.RunnerPID = lock.PID
-			state.RunnerHost = lock.Host
-			state.RunnerStartedAt = lock.StartedAt
-			runningStartedAt = lock.StartedAt
-		}
-	}
-	entries, err := os.ReadDir(paths.runsDir)
-	if err != nil && !os.IsNotExist(err) {
-		return webQueueState{}, err
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		runID := entry.Name()
-		summary, err := loadRunSummary(filepath.Join(paths.runsDir, runID, "summary.json"))
-		if err != nil {
-			summary = RunSummary{RunID: runID, Status: "running", StartedAt: runningStartedAt}
-		}
-		if summary.RunID == "" {
-			summary.RunID = runID
-		}
-		jobs, err := loadWebJobs(filepath.Join(paths.runsDir, runID), summary)
-		if err != nil {
-			return webQueueState{}, err
-		}
-		context := RunContext{}
-		if data, contextErr := os.ReadFile(filepath.Join(paths.runsDir, runID, "context.json")); contextErr == nil {
-			_ = json.Unmarshal(data, &context)
-		}
-		context.LoadSamples = readLoadSamples(loadSamplesPath(paths, runID))
-		state.Runs = append(state.Runs, webRun{RunSummary: summary, Jobs: jobs, CWD: context.CWD, Context: context, Timeline: buildWebTimeline(summary, jobs), Running: runID == state.RunningRunID})
-	}
-	sort.Slice(state.Runs, func(i, j int) bool { return state.Runs[i].RunID > state.Runs[j].RunID })
 	formatWebQueueDisplayTimes(&state)
 	return state, nil
 }
