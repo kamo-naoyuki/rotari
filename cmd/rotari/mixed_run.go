@@ -225,17 +225,7 @@ func jobWasExplicitlyCancelled(runDir, jobID string, result JobResult) bool {
 }
 
 func expandArrayPlan(commands []QueuedCommand, jobs []JobSpec, execute map[string]bool) {
-	for _, command := range commands {
-		if command.Array == nil || !execute[command.ID] {
-			continue
-		}
-		delete(execute, command.ID)
-		for _, job := range jobs {
-			if job.ArrayGroup == command.ID {
-				execute[job.ID] = true
-			}
-		}
-	}
+	runcontract.ExpandArrayPlan(commands, jobs, execute)
 }
 
 func prepareJobEnvironments(paths pathSet, runID string, jobs []JobSpec, runName string, localConcurrency, batchConcurrency, retry int, executorOptions []string) {

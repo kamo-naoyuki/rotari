@@ -46,3 +46,17 @@ func SummarizeResults(results map[string]model.JobResult) (completed, succeeded,
 	}
 	return completed, succeeded, failed
 }
+
+func ExpandArrayPlan(commands []model.QueuedCommand, jobs []model.JobSpec, execute map[string]bool) {
+	for _, command := range commands {
+		if command.Array == nil || !execute[command.ID] {
+			continue
+		}
+		delete(execute, command.ID)
+		for _, job := range jobs {
+			if job.ArrayGroup == command.ID {
+				execute[job.ID] = true
+			}
+		}
+	}
+}
