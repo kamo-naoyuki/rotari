@@ -286,6 +286,7 @@ function renderRun(q, runID) {
       const result = j.result;
       const options = (j.executor_options || []).join(" ");
       const dependencies = (j.depends_on || []).join(", ");
+      const stage = j.stage || "-";
       const exit = result ? esc(result.exit_code) : "-";
       const error =
         result && result.error
@@ -336,6 +337,7 @@ function renderRun(q, runID) {
         '" onclick="copyIdentityValue(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg></button>';
       const jobNameCopy = j.name ? copyIcon(j.name, "job name") : "";
       const jobIDCopy = copyIcon(j.id, "job ID");
+      const stageCopy = j.stage ? copyIcon(j.stage, "stage name") : "";
       const attemptCopy = j.attempt_id
         ? copyIcon(j.attempt_id, "attempt ID")
         : "";
@@ -398,6 +400,9 @@ function renderRun(q, runID) {
         "</td><td>" +
         esc(options || "-") +
         "</td><td>" +
+        esc(stage) +
+        stageCopy +
+        "</td><td>" +
         esc(dependencies || "-") +
         "</td><td>" +
         esc(j.working_directory || "-") +
@@ -441,7 +446,7 @@ function renderRun(q, runID) {
     esc(copy) +
     "</pre>" +
     (jobs
-      ? '<table class="runs"><thead><tr><th data-sort="name"><input id="select-all-jobs" type="checkbox" aria-label="Select all jobs"> job_name / job_id / attempt_id</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="exit">Exit / error</th><th data-sort="output"></th></tr></thead><tbody>' +
+      ? '<table class="runs"><thead><tr><th data-sort="name"><input id="select-all-jobs" type="checkbox" aria-label="Select all jobs"> job_name / job_id / attempt_id</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="exit">Exit / error</th><th data-sort="output"></th></tr></thead><tbody>' +
         jobs +
         "</tbody></table>"
       : '<div class="empty">No job definitions yet.</div>') +
@@ -570,7 +575,7 @@ function enhancePage() {
   section.innerHTML =
     "<h2>Current queue</h2>" +
     (commands.length
-      ? '<table class="runs web-queue-jobs"><thead><tr><th data-sort="name">Job name / ID</th><th data-sort="array">Array</th><th data-sort="status">Status</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="depends">Dependencies</th><th data-sort="command">Command</th></tr></thead><tbody>' +
+      ? '<table class="runs web-queue-jobs"><thead><tr><th data-sort="name">Job name / ID</th><th data-sort="array">Array</th><th data-sort="status">Status</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="command">Command</th></tr></thead><tbody>' +
         commands
           .map(
             (j) =>
@@ -584,6 +589,9 @@ function enhancePage() {
               esc(j.executor || "default") +
               "</td><td>" +
               esc((j.executor_options || []).join(" ") || "-") +
+              "</td><td>" +
+              esc(j.stage || "-") +
+              (j.stage ? copyIconForValue(j.stage, "stage name") : "") +
               "</td><td>" +
               esc((j.depends_on || []).join(", ") || "-") +
               '</td><td class="command">' +

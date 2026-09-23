@@ -878,7 +878,7 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 	}
 	fmt.Println("\n" + cyan("Jobs:"))
 	changeHints := make([]JobSpec, 0)
-	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-42s %-6s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s", "JOB ID", "LATEST ATTEMPT", "TASK", "NAME", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "HOSTS", "COMMAND")))
+	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-42s %-6s %-15s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s", "JOB ID", "LATEST ATTEMPT", "TASK", "NAME", "STAGE", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "HOSTS", "COMMAND")))
 	for _, jobID := range jobIDs {
 		jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 		if err != nil {
@@ -902,6 +902,10 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 		}
 		if name == "" {
 			name = "-"
+		}
+		stage := jobSpec.Stage
+		if stage == "" {
+			stage = "-"
 		}
 		taskText := "-"
 		if jobSpec.ArrayTaskID != nil {
@@ -961,9 +965,9 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 			} else if status != 0 {
 				statusText = red(strconv.Itoa(status))
 			}
-			fmt.Printf("%-12s %-42s %-6s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptLabel, taskText, name, dependsOn, statusText, executorText, submittedAt, finishedAt, hosts, command)
+			fmt.Printf("%-12s %-42s %-6s %-15s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptLabel, taskText, name, stage, dependsOn, statusText, executorText, submittedAt, finishedAt, hosts, command)
 		} else {
-			fmt.Printf("%-12s %-42s %-6s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptLabel, taskText, name, dependsOn, yellow("running"), executorText, submittedAt, finishedAt, hosts, command)
+			fmt.Printf("%-12s %-42s %-6s %-15s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s\n", jobID, latestAttemptLabel, taskText, name, stage, dependsOn, yellow("running"), executorText, submittedAt, finishedAt, hosts, command)
 		}
 	}
 	fmt.Printf("\n%s success: %d, failed: %d, blocked: %d, running: %d, pending: %d\n", cyan("Job status:"), jobCounts.success, jobCounts.failed, jobCounts.blocked, jobCounts.running, jobCounts.pending)
@@ -1050,11 +1054,15 @@ func showQueue(paths pathSet, queue Queue) int {
 func showQueueContent(paths pathSet, queue Queue) int {
 	jobs := model.QueueToJobs(queue.Commands)
 	originByID := model.QueueOriginsByJobID(model.Queue(queue))
-	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-6s %-15s %-20s %-30s %-24s %-12s %s", "JOB ID", "TASK", "NAME", "DEPENDS ON", "EXECUTOR", "SOURCE RUN", "SOURCE STATUS", "COMMAND")))
+	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-6s %-15s %-15s %-20s %-30s %-24s %-12s %s", "JOB ID", "TASK", "NAME", "STAGE", "DEPENDS ON", "EXECUTOR", "SOURCE RUN", "SOURCE STATUS", "COMMAND")))
 	for _, job := range jobs {
 		name := job.Name
 		if name == "" {
 			name = "-"
+		}
+		stage := job.Stage
+		if stage == "" {
+			stage = "-"
 		}
 		dependsOn := strings.Join(job.DependsOn, ",")
 		if dependsOn == "" {
@@ -1072,7 +1080,7 @@ func showQueueContent(paths pathSet, queue Queue) int {
 				sourceStatus = origin.Status
 			}
 		}
-		fmt.Printf("%-12s %-6s %-15s %-20s %-30s %-24s %-12s %s\n", job.ID, taskText, name, dependsOn, executorText, sourceRun, sourceStatus, strings.Join(job.Command, " "))
+		fmt.Printf("%-12s %-6s %-15s %-15s %-20s %-30s %-24s %-12s %s\n", job.ID, taskText, name, stage, dependsOn, executorText, sourceRun, sourceStatus, strings.Join(job.Command, " "))
 	}
 	fmt.Printf("\n%s\n  rotari run -b %s -p %s\n", cyan("To execute these jobs:"), executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName))
 	return 0
@@ -1091,6 +1099,9 @@ func showQueueJob(paths pathSet, queue Queue, jobID string) int {
 		fmt.Printf("%s %s\n", cyan("Job:"), job.ID)
 		if job.Name != "" {
 			fmt.Printf("%s %s\n", cyan("Name:"), job.Name)
+		}
+		if job.Stage != "" {
+			fmt.Printf("%s %s\n", cyan("Stage:"), job.Stage)
 		}
 		if job.ArrayTaskID != nil {
 			fmt.Printf("%s %d (range %d-%d)\n", cyan("Array task:"), *job.ArrayTaskID, job.ArrayFirst, job.ArrayLast)
@@ -1660,6 +1671,9 @@ func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID str
 	}
 	if name != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Name:"), name)
+	}
+	if stage := jobSpecs[jobID].Stage; stage != "" {
+		fmt.Fprintf(writer, "%s %s\n", cyan("Stage:"), stage)
 	}
 	executor, options := jobSpecs[jobID].Executor, jobSpecs[jobID].ExecutorOptions
 	if executor == "" {

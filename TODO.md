@@ -1,5 +1,22 @@
 # TODO
 
+- Consider `rotari show --stage NAME` to filter the selected queue or run to
+  jobs in that stage. Use the stage name directly rather than introducing a
+  generated `--stage-id`.
+
+- Revisit a declarative workflow manifest after collecting cases that remain
+  awkward with shell scripts and stages. Prefer a constrained manifest compiled
+  into the existing queue over a standalone DSL; keep shell commands as the
+  execution language and do not add automatic input/output freshness checks.
+  Candidate formats are YAML, TOML, and JSON, using one shared schema. The
+  initial schema could cover named jobs, stages, dependencies, command argv,
+  environment, working directory, executor/options, and array or matrix
+  expansion. Consider `rotari workflow plan FILE` for static validation and
+  expanded-DAG preview, `rotari workflow import FILE` to replace or append to a
+  queue, and `rotari workflow export` to write the current queue as a manifest.
+  Define whether export preserves queue job IDs and how import reports generated
+  or colliding IDs before implementing it.
+
 - Consider allowing positional job IDs for `cancel`, `suspend`, and `resume`.
   These commands accept repeated `--job-id` values, so define the interaction
   between positional IDs and repeated flags before implementing it.

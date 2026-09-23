@@ -103,7 +103,7 @@ func LoadJobs(commands model.Queue, summary model.RunSummary, attemptIDs []strin
 				attemptID = result.AttemptID
 			}
 		}
-		job := Job{ID: jobSpec.ID, AttemptID: attemptID, AttemptDir: jobDir, Name: jobSpec.Name, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, DependsOn: jobSpec.DependsOn, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SubmittedAt: submittedAt, FinishedAt: finishedAt, SchedulerState: loader.LoadSchedulerState(jobDir)}
+		job := Job{ID: jobSpec.ID, AttemptID: attemptID, AttemptDir: jobDir, Name: jobSpec.Name, Stage: jobSpec.Stage, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, DependsOn: jobSpec.DependsOn, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SubmittedAt: submittedAt, FinishedAt: finishedAt, SchedulerState: loader.LoadSchedulerState(jobDir)}
 		if jobSpec.ID == selectedJobID {
 			job.AttemptID = selectedAttemptID
 		}

@@ -976,7 +976,7 @@ func TestShowQueueJobPrintsMatchingJob(t *testing.T) {
 		t.Fatal(err)
 	}
 	queue := Queue{Commands: []QueuedCommand{
-		{ID: "job-1", Name: "build", Command: []string{"echo", "build"}, DependsOn: []string{"prepare"}},
+		{ID: "job-1", Name: "build", Stage: "compile", Command: []string{"echo", "build"}, DependsOn: []string{"prepare"}},
 	}}
 
 	oldStdout := os.Stdout
@@ -997,7 +997,7 @@ func TestShowQueueJobPrintsMatchingJob(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("showQueueJob exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"Job: job-1", "Name: build", "Depends on: prepare", "Command: echo build"} {
+	for _, want := range []string{"Job: job-1", "Name: build", "Stage: compile", "Depends on: prepare", "Command: echo build"} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("showQueueJob output does not contain %q:\n%s", want, output)
 		}
@@ -1048,7 +1048,7 @@ func TestShowQueueDisplaysArrayTaskColumn(t *testing.T) {
 		t.Fatal(err)
 	}
 	queue := Queue{Commands: []QueuedCommand{
-		{ID: "train", Name: "train", Command: []string{"echo", "train"}, Array: &ArraySpec{First: 1, Last: 2}},
+		{ID: "train", Name: "train", Stage: "training", Command: []string{"echo", "train"}, Array: &ArraySpec{First: 1, Last: 2}},
 	}}
 
 	oldStdout := os.Stdout
@@ -1069,7 +1069,7 @@ func TestShowQueueDisplaysArrayTaskColumn(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("showQueue exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"TASK", "train-1", "train-2"} {
+	for _, want := range []string{"TASK", "STAGE", "training", "train-1", "train-2"} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("showQueue output does not contain %q:\n%s", want, output)
 		}

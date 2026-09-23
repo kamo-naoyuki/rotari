@@ -45,7 +45,7 @@ func TestLoadQueueStateBuildsRunsFromCallbacks(t *testing.T) {
 func TestLoadJobsProjectsSummaryAndOrigin(t *testing.T) {
 	origin := &model.JobOrigin{RunID: "run-0", JobID: "job-1", Status: "success"}
 	jobs, err := LoadJobs(
-		model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Name: "demo", Command: []string{"echo", "ok"}, Origin: origin}}},
+		model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Name: "demo", Stage: "build", Command: []string{"echo", "ok"}, Origin: origin}}},
 		model.RunSummary{Results: []model.JobResult{{ID: "job-1", ExitCode: 0}}},
 		nil,
 		JobLoader{
@@ -69,7 +69,7 @@ func TestLoadJobsProjectsSummaryAndOrigin(t *testing.T) {
 	if len(jobs) != 1 || jobs[0].ID != "job-1" || jobs[0].Result == nil || jobs[0].Result.ExitCode != 0 {
 		t.Fatalf("jobs = %#v, want one finished job", jobs)
 	}
-	if jobs[0].Origin != origin || jobs[0].SubmittedAt != "submitted" || jobs[0].FinishedAt != "finished" {
+	if jobs[0].Stage != "build" || jobs[0].Origin != origin || jobs[0].SubmittedAt != "submitted" || jobs[0].FinishedAt != "finished" {
 		t.Fatalf("job projection = %#v, want origin and timestamps", jobs[0])
 	}
 }

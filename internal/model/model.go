@@ -147,6 +147,7 @@ type JobSpec struct {
 	Executor         string   `json:"executor,omitempty"`
 	ExecutorOptions  []string `json:"executor_options,omitempty"`
 	Name             string   `json:"name,omitempty"`
+	Stage            string   `json:"stage,omitempty"`
 	DependsOn        []string `json:"depends_on,omitempty"`
 	ArrayGroup       string   `json:"array_group,omitempty"`
 	ArrayTaskID      *int     `json:"array_task_id,omitempty"`
@@ -245,7 +246,7 @@ func queueCommandJob(queued QueuedCommand, id, name string, taskID *int) JobSpec
 	}
 	job := JobSpec{
 		ID: id, Command: queued.Command, WorkingDirectory: queued.WorkingDirectory, Name: name,
-		Executor: queued.Executor, ExecutorOptions: queued.ExecutorOptions, Environment: queued.Environment, DependsOn: queued.DependsOn,
+		Executor: queued.Executor, ExecutorOptions: queued.ExecutorOptions, Environment: queued.Environment, Stage: queued.Stage, DependsOn: queued.DependsOn,
 	}
 	if taskID != nil {
 		job.ArrayGroup = queued.ID

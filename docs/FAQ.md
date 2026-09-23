@@ -219,7 +219,8 @@ Yes. Add related jobs with the same `--stage NAME`, then use that name with
 `--depends-on NAME`. Jobs in the stage can run concurrently. A dependent job
 starts only after every stage job succeeds; if any one fails, it is recorded as
 blocked. Stage names share a namespace with job names, so a stage name cannot
-also be a job name in the same queue.
+also be a job name in the same queue. `rotari show` and the Web UI display each
+job's stage membership.
 
 ## LLM diagnosis
 

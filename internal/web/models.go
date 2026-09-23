@@ -29,6 +29,7 @@ type Job struct {
 	ArrayFirst       int              `json:"array_first,omitempty"`
 	ArrayLast        int              `json:"array_last,omitempty"`
 	Name             string           `json:"name,omitempty"`
+	Stage            string           `json:"stage,omitempty"`
 	Command          []string         `json:"command"`
 	WorkingDirectory string           `json:"working_directory,omitempty"`
 	Executor         string           `json:"executor,omitempty"`
