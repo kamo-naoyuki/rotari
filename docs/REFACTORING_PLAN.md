@@ -226,6 +226,31 @@ server protocol、command mapping、transport、Web projection、asset compositi
 - 無関係な責務を同じ cmd file に統合していない
 - state / executor / model の adapter は、実際の mode・validation・表示責務を持つものだけが残っている
 
+## Phase 7: cmd/rotari 内カーネルの分離(検討の記録)
+
+**ステータス: 見送り**
+
+### 背景
+
+`cmd/rotari` 直下のファイル数を減らしたいという要望を受けて調査した。`cli_spec.go`・`config.go`・`color.go`・`state_lock.go`・`project_state.go`・`run_registry.go`・`registry.go`・`job_executor.go`・`environment.go` は、コマンド固有ではない共有基盤として `resolvePaths`(214箇所)、`printErrorf`(176箇所)、`cliString`(95箇所)など**cmd/rotari のほぼ全ファイルから合計900箇所超**参照されていることが分かった。
+
+### 検討した案と見送った理由
+
+これらを `cmd/rotari/internal/cliutil` に実体ごと移し、呼び出し側900箇所超を `cliutil.Xxx` に書き換える案を検討したが、以下の理由で見送った。
+
+- 動作を一切変えない、純粋なファイル配置の変更であり、機能追加や不具合修正が楽になるといった具体的な効果がない
+- 一方でコストは、このリポジトリが path/lock 安全性について特に神経質になっている領域にまで及ぶ900箇所超の書き換えであり、「段階的・検証可能な変更を優先し、大きな未検証の書き換えは避ける」という方針に反する
+- 発端の要望も「ファイル数が多い」という見た目の違和感であり、具体的に困っている実害ではなかった
+
+### 代わりに実施したこと
+
+- `server_peercred_linux.go`/`server_peercred_other.go`(`verifyPeerCredential`)は他ファイルに依存しない自己完結コードだったため `internal/server`(`VerifyPeerCredential`)へ移動した
+- `state_store.go` は `jsonStore`/`loadSlurmStatus`/`loadRunQueue` という3つの薄い転送関数のみで構成されていたため、`main.go` の `stateDirMode`/`stateFileMode` の隣に統合し、ファイルを削除した
+- `internal/run` 等の小さいファイル群は、それぞれ単一責務を持つ実質的なロジックであり(`cancellation.go`/`options.go`/`summary.go`/`worker.go`/`local_lane.go` 等)、統合対象ではないと判断した
+
+同様の大規模な package 再編を再検討する場合は、具体的な困りごと(バグ・テスト困難・機能追加のしにくさ)が先に存在することを確認してから着手すること。
+
+
 ## Compatibility wrapper の扱い
 
 移行期間中の wrapper は許容するが、期限なしで残さない。

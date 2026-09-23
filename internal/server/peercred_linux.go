@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"fmt"
@@ -7,9 +7,9 @@ import (
 	"syscall"
 )
 
-// verifyPeerCredential rejects unix-socket connections from a UID other than
+// VerifyPeerCredential rejects unix-socket connections from a UID other than
 // the server's own, defending in depth alongside the socket's 0600 mode.
-func verifyPeerCredential(conn net.Conn) error {
+func VerifyPeerCredential(conn net.Conn) error {
 	unixConn, ok := conn.(*net.UnixConn)
 	if !ok {
 		return nil

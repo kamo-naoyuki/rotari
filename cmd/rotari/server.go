@@ -553,7 +553,7 @@ func runServer(baseDir string) int {
 			}
 			continue
 		}
-		if err := verifyPeerCredential(conn); err != nil {
+		if err := serverinternal.VerifyPeerCredential(conn); err != nil {
 			_ = conn.Close()
 			continue
 		}
