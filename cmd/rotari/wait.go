@@ -289,13 +289,13 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 		printErrorf("failed to resolve paths: %v", err)
 		return waitResult{exitCode: 1}
 	}
-	runDir, err := validatedRunDir(paths, runID)
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		printErrorf("invalid run ID %q", runID)
 		return waitResult{exitCode: 1}
 	}
 	for {
-		summaryPath, pathErr := validatedStateFile(runDir, "summary.json")
+		summaryPath, pathErr := state.ValidatedStateFile(runDir, "summary.json")
 		if pathErr != nil {
 			printErrorf("invalid run directory %q", runID)
 			return waitResult{exitCode: 1}

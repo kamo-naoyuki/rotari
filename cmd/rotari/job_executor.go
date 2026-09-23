@@ -80,7 +80,7 @@ func effectiveExecutorOptions(settings executorRunSettingsMap, name string, fall
 // scheduler-style executor writes job.json with its own "executor" name, so
 // that job.json alone (not its mere existence) tells us which one to use.
 func jobOwnerExecutor(jobDir string) (JobExecutor, error) {
-	if path, err := validatedStateFile(jobDir, stateFileJobJSON); err == nil { // NOSONAR: jobDir is restricted to validated job-path boundaries
+	if path, err := state.ValidatedStateFile(jobDir, stateFileJobJSON); err == nil { // NOSONAR: jobDir is restricted to validated job-path boundaries
 		var meta struct {
 			Executor string `json:"executor"`
 		}
@@ -90,7 +90,7 @@ func jobOwnerExecutor(jobDir string) (JobExecutor, error) {
 			}
 		}
 	}
-	if path, err := validatedStateFile(jobDir, stateFilePID); err == nil {
+	if path, err := state.ValidatedStateFile(jobDir, stateFilePID); err == nil {
 		if _, err := os.Stat(path); err == nil {
 			executor, _ := lookupExecutor("local")
 			return executor, nil

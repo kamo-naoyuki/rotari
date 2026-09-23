@@ -135,7 +135,7 @@ func changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, request
 	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
 		return "", fmt.Errorf("failed to save changed queue: %w", err)
 	}
-	meta, err := loadMeta(paths.MetaFile)
+	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to load metadata: %w", err)
 	}
@@ -220,7 +220,7 @@ func loadChangeSnapshot(paths pathSet, requestedRunID string) (Queue, error) {
 	if err != nil {
 		return Queue{}, err
 	}
-	runDir, err := validatedRunDir(paths, runID)
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return Queue{}, err
 	}

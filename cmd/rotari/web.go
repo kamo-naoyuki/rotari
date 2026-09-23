@@ -665,7 +665,7 @@ func loadRunConfigPaths(baseDir, projectName, runID string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	runDir, err := validatedRunDir(paths, runID)
+	runDir, err := stateinternal.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return nil, err
 	}
@@ -910,11 +910,11 @@ func staticLogKey(queueName, runID, jobID string, attemptIDs ...string) string {
 
 func webLogPath(runsDir, runID, jobID, attemptID string) (string, error) {
 	if attemptID != "" {
-		runDir, err := validatedRunDir(pathSet{RunsDir: runsDir}, runID)
+		runDir, err := stateinternal.SafeJoin(runsDir, runID)
 		if err != nil {
 			return "", err
 		}
-		payload, decodeErr := decodeAttemptID(attemptID)
+		payload, decodeErr := stateinternal.DecodeAttemptID(attemptID)
 		if decodeErr != nil || payload.RunID != runID || payload.JobID != jobID {
 			return "", fmt.Errorf("attempt_id must identify this run and job")
 		}
@@ -922,7 +922,7 @@ func webLogPath(runsDir, runID, jobID, attemptID string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return validatedStateFile(jobDir, "output")
+		return stateinternal.ValidatedStateFile(jobDir, "output")
 	}
 	runDir, resolvedJobID, err := resolveWebLogJob(runsDir, runID, jobID)
 	if err != nil {
@@ -932,19 +932,19 @@ func webLogPath(runsDir, runID, jobID, attemptID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return validatedStateFile(jobDir, "output")
+	return stateinternal.ValidatedStateFile(jobDir, "output")
 }
 
 func resolveWebLogJob(runsDir, runID, jobID string) (string, string, error) {
-	runDir, err := validatedRunDir(pathSet{RunsDir: runsDir}, runID)
+	runDir, err := stateinternal.SafeJoin(runsDir, runID)
 	if err != nil {
 		return "", "", err
 	}
-	jobDir, err := validatedJobDir(runDir, jobID)
+	jobDir, err := stateinternal.SafeJoin(runDir, jobID)
 	if err != nil {
 		return "", "", err
 	}
-	outputPath, err := validatedStateFile(jobDir, "output")
+	outputPath, err := stateinternal.ValidatedStateFile(jobDir, "output")
 	if err != nil {
 		return "", "", err
 	}
@@ -955,7 +955,7 @@ func resolveWebLogJob(runsDir, runID, jobID string) (string, string, error) {
 	if origin == nil {
 		return runDir, jobID, nil
 	}
-	originRunDir, err := validatedRunDir(pathSet{RunsDir: runsDir}, origin.RunID)
+	originRunDir, err := stateinternal.SafeJoin(runsDir, origin.RunID)
 	if err != nil {
 		return "", "", err
 	}
@@ -1086,7 +1086,7 @@ func webJobTimestamps(runDir, jobID string, origin *JobOrigin) (string, string) 
 		}
 	}
 	return webprojection.ResolveOriginTimestamps(submittedAt, finishedAt, origin, func(runID, sourceJobID string) (string, string) {
-		sourceRunDir, err := validatedRunDir(pathSet{RunsDir: filepath.Dir(runDir)}, runID)
+		sourceRunDir, err := stateinternal.SafeJoin(filepath.Dir(runDir), runID)
 		if err != nil {
 			return "", ""
 		}

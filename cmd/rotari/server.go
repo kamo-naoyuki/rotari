@@ -329,7 +329,7 @@ func cmdRun(args []string) int {
 		if !strings.HasPrefix(jobID, "att_") {
 			continue
 		}
-		payload, decodeErr := decodeAttemptID(jobID)
+		payload, decodeErr := state.DecodeAttemptID(jobID)
 		if decodeErr != nil {
 			printError(decodeErr)
 			return 1
@@ -384,7 +384,7 @@ func cmdRun(args []string) int {
 			printError(pathErr)
 			return 1
 		}
-		meta, metaErr := loadMeta(paths.MetaFile)
+		meta, metaErr := state.LoadMeta(paths.MetaFile)
 		if metaErr != nil {
 			printErrorf("failed to load metadata: %v", metaErr)
 			return 1
@@ -1004,7 +1004,7 @@ func controlQueueJobs(baseDir, queueName string, jobIDs []string, operation stri
 	if !validWebID(lock.RunID) {
 		return "", fmt.Errorf("invalid run ID %q", lock.RunID)
 	}
-	runDir, err := validatedRunDir(paths, lock.RunID)
+	runDir, err := state.SafeJoin(paths.RunsDir, lock.RunID)
 	if err != nil {
 		return "", err
 	}
@@ -1073,13 +1073,13 @@ func controlQueueJobs(baseDir, queueName string, jobIDs []string, operation stri
 }
 
 func jobFinished(jobDir string) bool {
-	if path, err := validatedStateFile(jobDir, stateFileFinishedAt); err == nil {
+	if path, err := state.ValidatedStateFile(jobDir, stateFileFinishedAt); err == nil {
 		if _, err := os.Stat(path); err == nil {
 			return true
 		}
 	}
 	// NOSONAR: jobDir is produced by validated run/job path helpers before reading the status file.
-	path, err := validatedStateFile(jobDir, stateFileStatusJSON)
+	path, err := state.ValidatedStateFile(jobDir, stateFileStatusJSON)
 	if err != nil {
 		return false
 	}
@@ -1098,7 +1098,7 @@ func normalizeRunningAttemptIDs(runDir, runID string, jobIDs []string) ([]string
 			normalized = append(normalized, jobID)
 			continue
 		}
-		payload, err := decodeAttemptID(jobID)
+		payload, err := state.DecodeAttemptID(jobID)
 		if err != nil {
 			return nil, err
 		}
@@ -1111,7 +1111,7 @@ func normalizeRunningAttemptIDs(runDir, runID string, jobIDs []string) ([]string
 		}
 		latestDir, err := state.LatestAttemptJobDir(runDir, payload.JobID)
 		if err != nil || filepath.Clean(attemptDir) != filepath.Clean(latestDir) {
-			latestAttemptID, _ := latestAttemptID(runDir, payload.JobID)
+			latestAttemptID, _ := state.LatestAttemptID(runDir, payload.JobID)
 			if latestAttemptID != "" {
 				return nil, fmt.Errorf("attempt %q is not the latest attempt for job %q\nLatest attempt: %q (%s)", jobID, payload.JobID, latestAttemptID, attemptState(latestDir))
 			}
@@ -1132,7 +1132,7 @@ func attemptState(jobDir string) string {
 	if state := strings.ToLower(strings.TrimSpace(executor.LoadSchedulerStatus(jsonStore(), jobDir))); state != "" {
 		return state
 	}
-	if path, err := validatedStateFile(jobDir, stateFileStatusJSON); err == nil { // NOSONAR: jobDir is validated run/job path
+	if path, err := state.ValidatedStateFile(jobDir, stateFileStatusJSON); err == nil { // NOSONAR: jobDir is validated run/job path
 		var status slurmStatus
 		if err := jsonStore().ReadJSON(path, &status); err == nil && status.Phase != "" {
 			return strings.ToLower(status.Phase)
@@ -1166,7 +1166,7 @@ func cancelQueueJobs(baseDir, queueName string, jobIDs []string, wait bool) (str
 	if !validWebID(lock.RunID) {
 		return "", fmt.Errorf("invalid run ID %q", lock.RunID)
 	}
-	runDir, err := validatedRunDir(paths, lock.RunID)
+	runDir, err := state.SafeJoin(paths.RunsDir, lock.RunID)
 	if err != nil {
 		return "", err
 	}
@@ -1284,7 +1284,7 @@ func markQueueCancelling(paths pathSet) error {
 		return fmt.Errorf("failed to lock queue: %w", err)
 	}
 	defer release()
-	meta, err := loadMeta(paths.MetaFile)
+	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		return fmt.Errorf("failed to load metadata: %w", err)
 	}
@@ -1344,7 +1344,7 @@ func enqueueCommandWithWorkingDirectory(baseDir, queueName string, command []str
 	if err := ensureProjectIdleForPaths(paths, "add"); err != nil {
 		return "", err
 	}
-	meta, err := loadMeta(paths.MetaFile)
+	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		return "", err
 	}
@@ -1429,7 +1429,7 @@ func startServerRun(baseDir, queueName, runName string, localConcurrency, batchM
 	}); err != 0 {
 		return "", errors.New("queue is already running")
 	}
-	runDir, err := validatedRunDir(paths, runID)
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return "", err
 	}
@@ -1480,13 +1480,13 @@ func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMa
 	}
 	if err := registerRun(paths, runID); err != nil {
 		_ = os.Remove(paths.LockFile)
-		if runDir, pathErr := validatedRunDir(paths, runID); pathErr == nil {
+		if runDir, pathErr := state.SafeJoin(paths.RunsDir, runID); pathErr == nil {
 			_ = os.RemoveAll(runDir)
 		}
 		release()
 		return "", 1, fmt.Errorf("failed to register run: %w", err)
 	}
-	meta, err := loadMeta(paths.MetaFile)
+	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		_ = os.Remove(paths.LockFile)
 		release()
@@ -1558,7 +1558,7 @@ func runServerSync(baseDir, queueName, runName string, localConcurrency, batchMa
 	if err := os.Remove(paths.LockFile); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", 1, err
 	}
-	runDir, err := validatedRunDir(paths, runID)
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return "", 1, err
 	}

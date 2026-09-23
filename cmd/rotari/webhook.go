@@ -192,7 +192,7 @@ func notifyRunWebhook(paths pathSet, runID string, exitCode int) {
 		printErrorf("WARNING: invalid %s URL", envWebhookURL)
 		return
 	}
-	runDir, err := validatedRunDir(paths, runID)
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		printErrorf("WARNING: cannot prepare webhook notification: %v", err)
 		return

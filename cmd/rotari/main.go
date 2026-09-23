@@ -214,7 +214,7 @@ func recoverInterruptedProject(paths pathSet, runID string, discardQueue bool) e
 			return err
 		}
 	}
-	meta, err := loadMeta(paths.MetaFile)
+	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		return err
 	}
@@ -270,7 +270,7 @@ func finalizeCompletedCancellation(paths pathSet) (bool, error) {
 		}
 		return false, err
 	}
-	runDir, pathErr := validatedRunDir(paths, lock.RunID)
+	runDir, pathErr := state.SafeJoin(paths.RunsDir, lock.RunID)
 	if pathErr != nil {
 		return false, pathErr
 	}
@@ -329,7 +329,7 @@ func cmdWorkerRun(args []string) int {
 	exitCode, workerErr := runcontract.RunWorker(runcontract.WorkerCallbacks{
 		WriteContext: func() error { return writeRunContext(paths, runID, cwd) },
 		MarkRunning: func() error {
-			meta, _ := loadMeta(paths.MetaFile)
+			meta, _ := state.LoadMeta(paths.MetaFile)
 			meta.Phase = "running"
 			meta.LastRunID = runID
 			meta.UpdatedAt = nowRFC3339()
@@ -375,7 +375,7 @@ func finishRun(paths pathSet, runID string, exitCode int) error {
 	if err != nil {
 		return fmt.Errorf("failed to load queue: %w", err)
 	}
-	meta, err := loadMeta(paths.MetaFile)
+	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		return fmt.Errorf("failed to load metadata: %w", err)
 	}
@@ -399,7 +399,7 @@ func launchAsyncRun(paths pathSet, options runOptions) int {
 		return 1
 	}
 
-	meta, _ := loadMeta(paths.MetaFile)
+	meta, _ := state.LoadMeta(paths.MetaFile)
 	meta.Phase = "running"
 	meta.LastRunID = options.RunID
 	meta.UpdatedAt = nowRFC3339()
@@ -415,7 +415,7 @@ func launchAsyncRun(paths pathSet, options runOptions) int {
 	}
 	if err := registerRun(paths, options.RunID); err != nil {
 		_ = os.Remove(paths.LockFile)
-		if runDir, pathErr := validatedRunDir(paths, options.RunID); pathErr == nil {
+		if runDir, pathErr := state.SafeJoin(paths.RunsDir, options.RunID); pathErr == nil {
 			_ = os.RemoveAll(runDir)
 		}
 		printErrorf("failed to register run: %v", err)

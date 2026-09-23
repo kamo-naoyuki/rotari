@@ -156,14 +156,14 @@ func prepareJobEnvironments(paths pathSet, runID string, jobs []JobSpec, runName
 		RunName: runName, Bin: bin, CWD: cwd, LocalConcurrency: localConcurrency,
 		BatchConcurrency: batchConcurrency, Retry: retry, ExecutorOptions: executorOptions,
 		Inherited: inherited, JobDir: func(runDir string, job JobSpec) (string, error) {
-			return validatedJobDir(runDir, job.ID)
+			return state.SafeJoin(runDir, job.ID)
 		},
 	})
 }
 
 func assignAttemptIDs(jobs []JobSpec, runID string, attempt int) {
 	runcontract.AssignAttemptIDs(jobs, runID, attempt, runcontract.AttemptIDCallbacks{
-		MakeAttemptID: makeAttemptID, AttemptJobDir: func(runDir string, job JobSpec) (string, error) {
+		MakeAttemptID: state.MakeAttemptID, AttemptJobDir: func(runDir string, job JobSpec) (string, error) {
 			return state.AttemptJobDir(runDir, model.JobSpec(job))
 		},
 		AttemptIDName: envAttemptID, RunDirName: envRunDir, JobDirName: envJobDir,
@@ -180,7 +180,7 @@ func executeMixedAttempt(runDir string, queue Queue, jobs []JobSpec, localConcur
 		RequestedExecutor: requestedExecutor, ExecutorOptions: executorOptions,
 		Settings: executorSettings, ResolveExecutor: lookupExecutor,
 		Callbacks: runcontract.BatchLaneCallbacks{
-			ValidatedJobDir: validatedJobDir,
+			ValidatedJobDir: state.SafeJoin,
 			JobCancelled:    jobCancellationRequested,
 			RecordCancelled: recordCancelledJob,
 			Logf:            jobLogf,

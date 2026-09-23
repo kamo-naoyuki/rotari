@@ -79,7 +79,7 @@ func validateProjectStateConsistency(paths pathSet, inspection projectStateInspe
 	if inspection.Lock == projectLockStale && inspection.LockRunID != "" && inspection.LockRunID != inspection.RunID {
 		return fmt.Errorf("run lock identifies %q but metadata identifies %q", inspection.LockRunID, inspection.RunID)
 	}
-	runDir, err := validatedRunDir(paths, inspection.RunID)
+	runDir, err := state.SafeJoin(paths.RunsDir, inspection.RunID)
 	if err != nil {
 		return err
 	}

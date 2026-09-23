@@ -110,7 +110,7 @@ func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []st
 	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
 		return "", fmt.Errorf("failed to save removed queue: %w", err)
 	}
-	meta, err := loadMeta(paths.MetaFile)
+	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to load metadata: %w", err)
 	}

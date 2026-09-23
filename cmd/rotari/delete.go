@@ -63,7 +63,7 @@ func cmdDelete(args []string) int {
 		printErrorf("failed to clear run history: %v", err)
 		return 1
 	}
-	meta, err := loadMeta(paths.MetaFile)
+	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		printErrorf("failed to load metadata: %v", err)
 		return 1
@@ -108,7 +108,7 @@ func deleteRun(paths pathSet, runID string) error {
 	if !state.IsValidPathElement(runID) {
 		return fmt.Errorf("run %q not found", runID)
 	}
-	runDir, err := validatedRunDir(paths, runID)
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func deleteRun(paths pathSet, runID string) error {
 	if err := os.RemoveAll(runDir); err != nil { // NOSONAR: runDir is produced by validatedRunDir.
 		return fmt.Errorf("failed to clear run %q: %w", runID, err)
 	}
-	meta, err := loadMeta(paths.MetaFile)
+	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		return err
 	}

@@ -46,7 +46,7 @@ func cmdReset(args []string) int {
 		return 1
 	}
 	if projectState == projectRunning {
-		meta, metaErr := loadMeta(paths.MetaFile)
+		meta, metaErr := state.LoadMeta(paths.MetaFile)
 		if metaErr == nil && meta.Phase == "cancelling" {
 			if !waitForCancellation(paths, queueName) {
 				return 1
@@ -152,7 +152,7 @@ func resetQueueCommands(paths pathSet) (int, error) {
 			return 0, fmt.Errorf("failed to reset queue: %w", err)
 		}
 	}
-	meta, err := loadMeta(paths.MetaFile)
+	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		return 0, fmt.Errorf("failed to load metadata: %w", err)
 	}

@@ -10,7 +10,7 @@ import (
 )
 
 func writeRunContext(paths pathSet, runID, cwd string) error {
-	runDir, err := validatedRunDir(paths, runID)
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return err
 	}
@@ -27,7 +27,7 @@ func writeRunContext(paths pathSet, runID, cwd string) error {
 }
 
 func finishRunContext(paths pathSet, runID string) error {
-	runDir, err := validatedRunDir(paths, runID)
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func startRunLoadSampling(paths pathSet, runID string) func() {
 }
 
 func loadSamplesPath(paths pathSet, runID string) string {
-	runDir, err := validatedRunDir(paths, runID)
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return ""
 	}

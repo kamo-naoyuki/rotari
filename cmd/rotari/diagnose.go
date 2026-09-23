@@ -210,7 +210,7 @@ func loadDiagnosisJob(paths pathSet, runID, jobID string, attemptIDs ...string) 
 		return diagnosisJob{}, fmt.Errorf(jobNotFoundMessage, jobID, runID)
 	}
 	for range 16 {
-		runDir, err := validatedRunDir(paths, runID)
+		runDir, err := state.SafeJoin(paths.RunsDir, runID)
 		if err != nil {
 			return diagnosisJob{}, err
 		}

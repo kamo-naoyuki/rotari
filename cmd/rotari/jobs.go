@@ -340,15 +340,15 @@ func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsR
 				status, statusOK = result.ExitCode, true
 			}
 		}
-		state := ""
+		jobState := ""
 		if statusOK {
 			if status == 0 {
-				state = "success"
+				jobState = "success"
 			} else {
-				state = "failed"
+				jobState = "failed"
 			}
 		} else if active {
-			state = "running"
+			jobState = "running"
 		} else {
 			continue
 		}
@@ -364,10 +364,10 @@ func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsR
 		if finishedErr != nil && summary.FinishedAt != "" && statusOK {
 			finishedAt, finishedErr = parseJobsTimestamp(summary.FinishedAt)
 		}
-		if state != "running" && (finishedErr != nil || finishedAt.Before(cutoff)) {
+		if jobState != "running" && (finishedErr != nil || finishedAt.Before(cutoff)) {
 			continue
 		}
-		attemptID, _ := latestAttemptID(runDir, job.ID)
+		attemptID, _ := state.LatestAttemptID(runDir, job.ID)
 		if attemptID == "" {
 			if result, ok := resultByID[job.ID]; ok {
 				attemptID = result.AttemptID
@@ -385,10 +385,10 @@ func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsR
 		}
 		command := shortenJobsText(strings.Join(job.Command, " "), 40)
 		end := now
-		if state != "running" {
+		if jobState != "running" {
 			end = finishedAt
 		}
-		rows = append(rows, jobsRow{state: state, baseDir: paths.BaseDir, project: paths.ProjectName, attemptID: attemptID, jobName: jobName, command: command, startedAt: startedAt, elapsed: end.Sub(startedAt)})
+		rows = append(rows, jobsRow{state: jobState, baseDir: paths.BaseDir, project: paths.ProjectName, attemptID: attemptID, jobName: jobName, command: command, startedAt: startedAt, elapsed: end.Sub(startedAt)})
 	}
 	return rows, true, nil
 }

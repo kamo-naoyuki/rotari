@@ -73,12 +73,12 @@ func buildAIReportForJobs(paths pathSet, runID string, jobIDs []string) (string,
 }
 
 func loadAIReportRun(paths pathSet, runID string, attemptIDs ...string) (webRun, error) {
-	runDir, err := validatedRunDir(paths, runID)
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return webRun{}, fmt.Errorf(runNotFoundMessage, runID)
 	}
 	var summary RunSummary
-	if path, err := validatedStateFile(runDir, stateFileSummaryJSON); err == nil {
+	if path, err := state.ValidatedStateFile(runDir, stateFileSummaryJSON); err == nil {
 		summary, err = state.LoadRunSummary(path)
 		if err != nil && !os.IsNotExist(err) {
 			return webRun{}, fmt.Errorf("failed to read summary: %w", err)
@@ -238,7 +238,7 @@ func reportJobStatus(job webJob, running bool) string {
 func readReportLog(paths pathSet, runID string, job webJob) string {
 	if job.AttemptDir != "" {
 		// NOSONAR: job.AttemptDir is created from validated path elements only.
-		path, err := validatedStateFile(job.AttemptDir, stateFileOutput)
+		path, err := state.ValidatedStateFile(job.AttemptDir, stateFileOutput)
 		if err != nil {
 			return ""
 		}
@@ -253,7 +253,7 @@ func readReportLog(paths pathSet, runID string, job webJob) string {
 		runID = job.Origin.RunID
 		jobID = job.Origin.JobID
 	}
-	runDir, err := validatedRunDir(paths, runID)
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return ""
 	}
@@ -261,7 +261,7 @@ func readReportLog(paths pathSet, runID string, job webJob) string {
 	if err != nil {
 		return ""
 	}
-	path, err := validatedStateFile(jobDir, "output")
+	path, err := state.ValidatedStateFile(jobDir, "output")
 	if err != nil {
 		return ""
 	}

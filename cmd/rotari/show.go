@@ -711,7 +711,7 @@ func selectRunID(paths pathSet, requested string) (string, error) {
 		}
 		return requested, nil
 	}
-	meta, err := loadMeta(paths.MetaFile)
+	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to load metadata: %w", err)
 	}
@@ -818,7 +818,7 @@ func printInterruptedRunNotice(paths pathSet, runID string) {
 }
 
 func showRun(paths pathSet, runID string, failedOnly bool) int {
-	runDir, err := validatedRunDir(paths, runID)
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		printErrorf(runNotFoundMessage, runID)
 		return 1
@@ -886,7 +886,7 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 		}
 		jobSpec := jobSpecs[jobID]
 		latestAttemptLabel := "-"
-		if value, readErr := latestAttemptID(runDir, jobID); readErr == nil && value != "" {
+		if value, readErr := state.LatestAttemptID(runDir, jobID); readErr == nil && value != "" {
 			latestAttemptLabel = value
 		}
 		if latestAttemptLabel == "-" {
@@ -1405,12 +1405,12 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 				printErrorf("failed to load queue for project %q: %v", entry.Name(), err)
 				return 1
 			}
-			state, _, err := inspectProjectRunState(paths)
+			projectState, _, err := inspectProjectRunState(paths)
 			if err != nil {
 				printErrorf("failed to check project %q state: %v", entry.Name(), err)
 				return 1
 			}
-			meta, err := loadMeta(paths.MetaFile)
+			meta, err := state.LoadMeta(paths.MetaFile)
 			if err != nil {
 				printErrorf("failed to load project %q metadata: %v", entry.Name(), err)
 				return 1
@@ -1419,7 +1419,7 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 			if lastRun == "" {
 				lastRun = "-"
 			}
-			projects = append(projects, projectInfo{baseDir: baseDir, name: entry.Name(), queued: len(queue.Commands), runs: countProjectRuns(paths.RunsDir), state: projectStateName(state), lastRun: lastRun})
+			projects = append(projects, projectInfo{baseDir: baseDir, name: entry.Name(), queued: len(queue.Commands), runs: countProjectRuns(paths.RunsDir), state: projectStateName(projectState), lastRun: lastRun})
 		}
 	}
 
@@ -1609,7 +1609,7 @@ func showJob(writer io.Writer, paths pathSet, runID, jobID string) int {
 }
 
 func listAttemptIDs(runDir, jobID string) []string {
-	jobDir, err := validatedJobDir(runDir, jobID)
+	jobDir, err := state.SafeJoin(runDir, jobID)
 	if err != nil {
 		return nil
 	}
@@ -1624,8 +1624,8 @@ func listAttemptIDs(runDir, jobID string) []string {
 		}
 	}
 	sort.SliceStable(attempts, func(left, right int) bool {
-		leftPayload, leftErr := decodeAttemptID(attempts[left])
-		rightPayload, rightErr := decodeAttemptID(attempts[right])
+		leftPayload, leftErr := state.DecodeAttemptID(attempts[left])
+		rightPayload, rightErr := state.DecodeAttemptID(attempts[right])
 		if leftErr == nil && rightErr == nil && leftPayload.Number != rightPayload.Number {
 			return leftPayload.Number < rightPayload.Number
 		}
@@ -1665,13 +1665,13 @@ func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID str
 	jobSpecs := loadRunJobSpecs(runDir)
 	selectedAttemptID := attemptID
 	if selectedAttemptID == "" {
-		selectedAttemptID, _ = latestAttemptID(runDir, jobID)
+		selectedAttemptID, _ = state.LatestAttemptID(runDir, jobID)
 	}
 	if selectedAttemptID != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Attempt ID:"), selectedAttemptID)
 	}
 	if attempts := listAttemptIDs(runDir, jobID); len(attempts) > 0 {
-		latestAttemptLabel, _ := latestAttemptID(runDir, jobID)
+		latestAttemptLabel, _ := state.LatestAttemptID(runDir, jobID)
 		fmt.Fprintln(writer, cyan("Attempts:"))
 		for _, listedAttemptID := range attempts {
 			labels := make([]string, 0, 2)
@@ -1941,11 +1941,11 @@ func printCarriedForwardOutput(writer io.Writer, paths pathSet, id, name string,
 		fmt.Fprintf(writer, "Working directory: %s\n", workingDirectory)
 	}
 	fmt.Fprintf(writer, "Command: %s\n", strings.Join(command, " "))
-	originRunDir, err := validatedRunDir(paths, origin.RunID)
+	originRunDir, err := state.SafeJoin(paths.RunsDir, origin.RunID)
 	if err != nil {
 		return
 	}
-	originDir, err := validatedJobDir(originRunDir, origin.JobID)
+	originDir, err := state.SafeJoin(originRunDir, origin.JobID)
 	if err != nil {
 		return
 	}
@@ -1972,12 +1972,12 @@ func followJobLog(writer io.Writer, paths pathSet, runID, jobID string) int {
 		printErrorf(jobNotFoundMessage, jobID, runID)
 		return 1
 	}
-	runDir, err := validatedRunDir(paths, runID)
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		printErrorf(runNotFoundMessage, runID)
 		return 1
 	}
-	jobDir, err := validatedJobDir(runDir, jobID)
+	jobDir, err := state.SafeJoin(runDir, jobID)
 	if err != nil {
 		printErrorf(jobNotFoundMessage, jobID, runID)
 		return 1
@@ -1989,8 +1989,8 @@ func followJobLog(writer io.Writer, paths pathSet, runID, jobID string) int {
 			// Carried forward: it already finished under the origin run, so
 			// there is nothing new to follow, just print its output once.
 			fmt.Fprintf(writer, "%s carried forward from run %s (no re-execution)\n\n", cyan("Note:"), origin.RunID)
-			originRunDir, pathErr := validatedRunDir(paths, origin.RunID)
-			originDir, jobErr := validatedJobDir(originRunDir, origin.JobID)
+			originRunDir, pathErr := state.SafeJoin(paths.RunsDir, origin.RunID)
+			originDir, jobErr := state.SafeJoin(originRunDir, origin.JobID)
 			if pathErr != nil || jobErr != nil {
 				return 0
 			}

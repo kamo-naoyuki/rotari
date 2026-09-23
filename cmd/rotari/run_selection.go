@@ -38,7 +38,7 @@ func planRerunSelection(paths pathSet, queue Queue, selection string, jobIDs []s
 	}
 	runID := referenceRunID
 	if runID == "" {
-		meta, err := loadMeta(paths.MetaFile)
+		meta, err := state.LoadMeta(paths.MetaFile)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				return rerunPlan{}, fmt.Errorf("project '%s' has no previous run: %w", paths.ProjectName, errNoPreviousRun)

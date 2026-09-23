@@ -18,11 +18,6 @@ func loadSlurmStatus(path string) (slurmStatus, bool) {
 	return executor.LoadWrapperStatus(jsonStore(), path)
 }
 
-func loadMeta(path string) (Meta, error) {
-	meta, err := state.LoadMeta(path)
-	return Meta(meta), err
-}
-
 func loadRunQueue(paths pathSet, requestedExecutor string, executorOptions []string, settings executorRunSettingsMap) (Queue, error) {
 	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {

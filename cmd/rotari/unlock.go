@@ -61,7 +61,7 @@ func cmdUnlock(args []string) int {
 		}
 		removedLock = true
 	}
-	meta, err := loadMeta(paths.MetaFile)
+	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		printErrorf("failed to load metadata: %v", err)
 		return 1

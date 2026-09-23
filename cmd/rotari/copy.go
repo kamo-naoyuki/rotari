@@ -103,7 +103,7 @@ func cmdCopy(args []string) int {
 	}
 	if *runID == "" {
 		for _, jobID := range jobIDs {
-			if payload, err := decodeAttemptID(jobID); err == nil {
+			if payload, err := state.DecodeAttemptID(jobID); err == nil {
 				if *runID == "" {
 					*runID = payload.RunID
 				} else if *runID != payload.RunID {
@@ -174,7 +174,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 		return "", err
 	}
 
-	sourceRunDir, err := validatedRunDir(paths, runID)
+	sourceRunDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return "", err
 	}
@@ -199,7 +199,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	requestedTasks := make(map[string]map[string]bool)
 	for _, jobID := range jobIDs {
 		if strings.HasPrefix(jobID, "att_") {
-			payload, decodeErr := decodeAttemptID(jobID)
+			payload, decodeErr := state.DecodeAttemptID(jobID)
 			if decodeErr != nil {
 				return "", decodeErr
 			}
@@ -347,7 +347,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
 		return "", fmt.Errorf("failed to write queue: %w", err)
 	}
-	meta, err := loadMeta(paths.MetaFile)
+	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to load metadata: %w", err)
 	}

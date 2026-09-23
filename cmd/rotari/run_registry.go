@@ -15,7 +15,7 @@ type runLocation struct {
 }
 
 func resolveAttemptTarget(attemptID, cliBaseDir, cliProjectName, cliRunID string) (string, string, string, string, error) {
-	payload, err := decodeAttemptID(attemptID)
+	payload, err := state.DecodeAttemptID(attemptID)
 	if err != nil {
 		return "", "", "", "", err
 	}
