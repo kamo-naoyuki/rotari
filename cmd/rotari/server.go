@@ -854,19 +854,7 @@ func (server *rotariServer) isBusy() bool {
 }
 
 func sendServerRequest(baseDir string, request serverRequest) (serverResponse, error) {
-	conn, err := net.DialTimeout("unix", serverSocketPath(baseDir), time.Second)
-	if err != nil {
-		return serverResponse{}, err
-	}
-	defer conn.Close()
-	if err := json.NewEncoder(conn).Encode(request); err != nil {
-		return serverResponse{}, err
-	}
-	var response serverResponse
-	if err := json.NewDecoder(conn).Decode(&response); err != nil {
-		return serverResponse{}, err
-	}
-	return response, nil
+	return serverinternal.SendRequest(baseDir, request)
 }
 
 func sendRunRequest(baseDir string, request serverRequest) (serverResponse, error) {
