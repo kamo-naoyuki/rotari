@@ -17,11 +17,11 @@ import (
 	"syscall"
 	"time"
 
-	serverprotocol "github.com/kamo-naoyuki/rotari/internal/server"
+	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 )
 
-type serverRequest = serverprotocol.Request
-type serverResponse = serverprotocol.Response
+type serverRequest = serverinternal.Request
+type serverResponse = serverinternal.Response
 
 const runDetachControl byte = 0x04
 
@@ -30,33 +30,18 @@ const serverProtocolVersion = 2
 const maxServerLogSize = 1 << 20
 
 type serverLogger struct {
-	mu   sync.Mutex
 	path string
+	log  serverinternal.Logger
 }
 
 func (logger *serverLogger) writef(format string, args ...interface{}) {
 	if logger == nil {
 		return
 	}
-
-	line := nowRFC3339() + " " + fmt.Sprintf(format, args...) + "\n"
-	if len(line) > maxServerLogSize {
-		line = line[:maxServerLogSize]
-	}
-
-	logger.mu.Lock()
-	defer logger.mu.Unlock()
-	file, err := os.OpenFile(logger.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, stateFileMode())
-	if err != nil {
-		return
-	}
-	defer file.Close()
-	if info, err := file.Stat(); err == nil && (info.Size() >= maxServerLogSize || info.Size()+int64(len(line)) > maxServerLogSize) {
-		if err := file.Truncate(0); err != nil {
-			return
-		}
-	}
-	_, _ = file.WriteString(line)
+	logger.log.Path = logger.path
+	logger.log.FileMode = stateFileMode()
+	logger.log.MaxBytes = maxServerLogSize
+	logger.log.Writef(format, args...)
 }
 
 type rotariServer struct {
