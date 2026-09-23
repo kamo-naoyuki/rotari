@@ -571,24 +571,16 @@ const (
 )
 
 func resolvePaths(cliBaseDir, projectName string) (pathSet, error) {
-	if !isValidProjectName(projectName) {
-		return pathSet{}, fmt.Errorf("invalid project name %q", projectName)
-	}
-	baseDir, explicit, err := resolveBaseDir(cliBaseDir)
+	resolved, err := state.ResolveProjectPaths(cliBaseDir, projectName)
 	if err != nil {
 		return pathSet{}, err
 	}
-	projectDir := filepath.Join(baseDir, "projects", projectName)
 	return pathSet{
-		baseDir:         baseDir,
-		baseDirExplicit: explicit,
-		queueName:       projectName,
-		projectDir:      projectDir,
-		queueFile:       filepath.Join(projectDir, "queue.json"),
-		metaFile:        filepath.Join(projectDir, "meta.json"),
-		stateLockFile:   filepath.Join(projectDir, "state.lock"),
-		lockFile:        filepath.Join(projectDir, "running.lock"),
-		runsDir:         filepath.Join(projectDir, "runs"),
+		baseDir: resolved.BaseDir, baseDirExplicit: resolved.BaseDirExplicit,
+		queueName: resolved.ProjectName, projectDir: resolved.ProjectDir,
+		queueFile: resolved.QueueFile, metaFile: resolved.MetaFile,
+		stateLockFile: resolved.StateLockFile, lockFile: resolved.LockFile,
+		runsDir: resolved.RunsDir,
 	}, nil
 }
 
