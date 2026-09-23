@@ -131,6 +131,13 @@ type LockInfo struct {
 	Host      string `json:"host,omitempty"`
 }
 
+// EnvJobDir is the environment variable name used to carry a job's working
+// state directory into scheduler array wrapper scripts. It is a wire-format
+// contract shared between cmd/rotari (which sets it) and internal/executor
+// (which reads it back out of JobSpec.Environment) and must stay in sync
+// with cmd/rotari's envJobDir constant.
+const EnvJobDir = "ROTARI_JOB_DIR"
+
 type JobSpec struct {
 	ID               string   `json:"id"`
 	AttemptID        string   `json:"attempt_id,omitempty"`

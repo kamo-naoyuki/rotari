@@ -3,6 +3,8 @@ package main
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 func TestResultSelectionMatches(t *testing.T) {
@@ -25,7 +27,7 @@ func TestResultSelectionMatches(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := resultSelectionMatches(test.selection, test.finished, test.exitCode); got != test.want {
+			if got := model.ResultSelectionMatches(test.selection, test.finished, test.exitCode); got != test.want {
 				t.Fatalf("resultSelectionMatches(%q, %t, %d) = %t, want %t", test.selection, test.finished, test.exitCode, got, test.want)
 			}
 		})

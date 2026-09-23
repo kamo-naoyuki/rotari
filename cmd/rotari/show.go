@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 )
 
 const (
@@ -819,14 +821,11 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 		printErrorf(runNotFoundMessage, runID)
 		return 1
 	}
-	var summary RunSummary
-	summaryData, err := os.ReadFile(filepath.Join(runDir, "summary.json"))
-	summaryOK := err == nil
-	if err == nil {
-		if err := json.Unmarshal(summaryData, &summary); err != nil {
-			printErrorf("failed to read summary: %v", err)
-			return 1
-		}
+	summary, summaryErr := loadRunSummary(filepath.Join(runDir, "summary.json"))
+	summaryOK := summaryErr == nil
+	if summaryErr != nil && !errors.Is(summaryErr, os.ErrNotExist) {
+		printErrorf("failed to read summary: %v", summaryErr)
+		return 1
 	}
 
 	writeShowTargetHeaderWithMode(os.Stdout, paths, "run")
@@ -1142,12 +1141,8 @@ func compareQueueWithRun(queuePath, runCommandsPath string) (queueRunDiff, error
 	if err != nil {
 		return queueRunDiff{}, err
 	}
-	runData, err := os.ReadFile(runCommandsPath)
+	runQueue, err := loadQueue(runCommandsPath)
 	if err != nil {
-		return queueRunDiff{}, err
-	}
-	var runQueue Queue
-	if err := json.Unmarshal(runData, &runQueue); err != nil {
 		return queueRunDiff{}, err
 	}
 
@@ -1252,20 +1247,16 @@ func showRunsWithMode(paths pathSet, showHint bool, mode string) int {
 		}
 
 		r := runInfo{id: runID, modTime: modTime}
-		summaryData, err := os.ReadFile(filepath.Join(runDir, "summary.json"))
-		if err == nil {
-			var summary RunSummary
-			if json.Unmarshal(summaryData, &summary) == nil {
-				r.name = summary.RunName
-				r.startedAt = summary.StartedAt
-				r.finishedAt = summary.FinishedAt
-				r.exitCode = summary.ExitCode
-				r.status = summary.Status
-				if r.status == "" {
-					r.status = runStatus(summary.ExitCode)
-				}
-				r.hasSummary = true
+		if summary, err := loadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
+			r.name = summary.RunName
+			r.startedAt = summary.StartedAt
+			r.finishedAt = summary.FinishedAt
+			r.exitCode = summary.ExitCode
+			r.status = summary.Status
+			if r.status == "" {
+				r.status = runStatus(summary.ExitCode)
 			}
+			r.hasSummary = true
 		}
 		if !r.hasSummary {
 			r.status = "running"
@@ -1499,7 +1490,7 @@ func jobStatusTerminal(status slurmStatus) bool {
 }
 
 func loadTerminalSchedulerState(jobDir string) (int, bool) {
-	state := strings.ToLower(loadSchedulerStatus(jobDir))
+	state := strings.ToLower(executor.LoadSchedulerStatus(jsonStore(), jobDir))
 	switch state {
 	case "completed", "complete", "success", "succeeded":
 		return 0, true
@@ -1528,12 +1519,8 @@ func readSubmittedAt(runDir, jobID string) string {
 	if err == nil {
 		return strings.TrimSpace(string(data))
 	}
-	data, err = os.ReadFile(filepath.Join(jobDir, "job.json"))
-	if err != nil {
-		return "-"
-	}
 	var metadata slurmJobMetadata
-	if json.Unmarshal(data, &metadata) != nil || metadata.SubmittedAt == "" {
+	if err := jsonStore().ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil || metadata.SubmittedAt == "" {
 		return "-"
 	}
 	return metadata.SubmittedAt
@@ -1548,12 +1535,8 @@ func readFinishedAt(runDir, jobID string) string {
 	if err == nil {
 		return strings.TrimSpace(string(data))
 	}
-	data, err = os.ReadFile(filepath.Join(jobDir, statusJSONName))
-	if err != nil {
-		return "-"
-	}
 	var status slurmStatus
-	if json.Unmarshal(data, &status) != nil || status.FinishedAt == "" {
+	if err := jsonStore().ReadJSON(filepath.Join(jobDir, statusJSONName), &status); err != nil || status.FinishedAt == "" {
 		return "-"
 	}
 	return status.FinishedAt

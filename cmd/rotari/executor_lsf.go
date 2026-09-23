@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 )
 
 const lsfAccountingWait = 60 * time.Second
@@ -85,13 +86,15 @@ func (lsfExecutor) runControl(jobDir, command string) error {
 }
 
 func readLSFMetadata(jobDir string) (lsfJobMetadata, error) {
-	data, err := os.ReadFile(filepath.Join(jobDir, "job.json"))
-	if err != nil {
-		return lsfJobMetadata{}, errors.New("job is not running")
-	}
 	var metadata lsfJobMetadata
-	if err := json.Unmarshal(data, &metadata); err != nil {
+	if err := jsonStore().ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil {
+		if os.IsNotExist(err) {
+			return lsfJobMetadata{}, errors.New("job is not running")
+		}
 		return lsfJobMetadata{}, fmt.Errorf("invalid LSF metadata: %w", err)
+	}
+	if metadata.LSFJobID == "" {
+		return lsfJobMetadata{}, errors.New("job is not running")
 	}
 	return metadata, nil
 }
@@ -194,7 +197,7 @@ func submitLSFArray(runDir string, jobs []JobSpec, executorOptions []string) ([]
 }
 
 func lsfWrapperScript(command []string, jobDir, outputPath string, environment []string, workingDirectory string) string {
-	return "#BSUB -o " + shellQuote(outputPath) + "\n#BSUB -e " + shellQuote(outputPath) + "\n" + statusWrapperScript(command, jobDir, environment, workingDirectory)
+	return "#BSUB -o " + shellQuote(outputPath) + "\n#BSUB -e " + shellQuote(outputPath) + "\n" + executor.StatusWrapperScript(command, jobDir, environment, workingDirectory)
 }
 
 var lsfJobIDPattern = regexp.MustCompile(`<([0-9]+)>`)
@@ -223,7 +226,7 @@ func waitLSFJob(runDir string, job lsfJobMetadata) JobResult {
 			return JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 		}
 		if state != "" {
-			writeSchedulerStatus(jobDir, state)
+			executor.WriteSchedulerStatus(jsonStore(), jobDir, state, time.Now())
 		}
 		if state == "" {
 			// A directory listing nudges NFS clients to drop stale attribute/dentry

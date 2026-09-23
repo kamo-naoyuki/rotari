@@ -50,7 +50,7 @@ const (
 	envPrivateState    = "ROTARI_PRIVATE_STATE"
 	envBin             = "ROTARI_BIN"
 	envRunDir          = "ROTARI_RUN_DIR"
-	envJobDir          = "ROTARI_JOB_DIR"
+	envJobDir          = model.EnvJobDir
 	envCWD             = "ROTARI_CWD"
 	envArrayTaskID     = "ROTARI_ARRAY_TASK_ID"
 	envArrayFirst      = "ROTARI_ARRAY_FIRST"
@@ -68,10 +68,6 @@ var propagatedEnvironmentVariables = []string{
 
 func validateEnvironment(environment []string) error {
 	return model.ValidateEnvironment(environment)
-}
-
-func validEnvironmentName(name string) bool {
-	return model.ValidEnvironmentName(name)
 }
 
 type environmentDefinition = webprojection.EnvironmentDefinition

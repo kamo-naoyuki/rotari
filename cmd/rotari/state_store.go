@@ -1,9 +1,6 @@
 package main
 
 import (
-	"errors"
-	"os"
-
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -16,30 +13,25 @@ func defaultMeta() Meta {
 }
 
 func loadMeta(path string) (Meta, error) {
-	var meta Meta
-	err := jsonStore().ReadJSON(path, &meta) // NOSONAR: callers pass paths rooted in the resolved state directory.
+	meta, err := state.LoadMeta(path)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return defaultMeta(), nil
-		}
 		return Meta{}, err
 	}
 	if meta.Phase == "" {
 		meta = defaultMeta()
 	}
-	return meta, nil
+	if meta.UpdatedAt == "" {
+		meta.UpdatedAt = nowRFC3339()
+	}
+	return Meta(meta), nil
 }
 
 func loadQueue(path string) (Queue, error) {
-	var queue Queue
-	err := jsonStore().ReadJSON(path, &queue) // NOSONAR: callers pass queue paths rooted in the resolved state directory.
+	queue, err := state.LoadQueue(path)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return Queue{}, nil
-		}
 		return Queue{}, err
 	}
-	return queue, nil
+	return Queue(queue), nil
 }
 
 func loadRunQueue(paths pathSet, requestedExecutor string, executorOptions []string, settings executorRunSettingsMap) (Queue, error) {
@@ -54,5 +46,5 @@ func loadRunQueue(paths pathSet, requestedExecutor string, executorOptions []str
 }
 
 func writeJSON(path string, v any) error {
-	return jsonStore().WriteJSON(path, v)
+	return state.WriteJSON(path, v)
 }

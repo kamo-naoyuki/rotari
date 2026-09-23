@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 )
 
 type slurmStatus struct {
@@ -70,13 +71,9 @@ func (slurmExecutor) Resume(jobDir string) error {
 }
 
 func (slurmExecutor) Cancel(jobDir string) error {
-	data, err := os.ReadFile(filepath.Join(jobDir, "job.json"))
+	metadata, err := readSlurmMetadata(jobDir)
 	if err != nil {
-		return fmt.Errorf("job is not running")
-	}
-	var metadata slurmJobMetadata
-	if err := json.Unmarshal(data, &metadata); err != nil {
-		return fmt.Errorf("invalid Slurm metadata: %w", err)
+		return err
 	}
 	if output, err := runSlurmCommand("scancel", metadata.SlurmJobID); err != nil {
 		return fmt.Errorf("scancel %s: %w", metadata.SlurmJobID, schedulerCommandHint("scancel", output, err))
@@ -85,18 +82,28 @@ func (slurmExecutor) Cancel(jobDir string) error {
 }
 
 func (slurmExecutor) scontrol(jobDir, command string) error {
-	data, err := os.ReadFile(filepath.Join(jobDir, "job.json"))
+	metadata, err := readSlurmMetadata(jobDir)
 	if err != nil {
-		return fmt.Errorf("job is not running")
-	}
-	var metadata slurmJobMetadata
-	if err := json.Unmarshal(data, &metadata); err != nil {
-		return fmt.Errorf("invalid Slurm metadata: %w", err)
+		return err
 	}
 	if output, err := runSlurmCommand("scontrol", command, metadata.SlurmJobID); err != nil {
 		return fmt.Errorf("scontrol %s %s: %w", command, metadata.SlurmJobID, schedulerCommandHint("scontrol", output, err))
 	}
 	return nil
+}
+
+func readSlurmMetadata(jobDir string) (slurmJobMetadata, error) {
+	var metadata slurmJobMetadata
+	if err := jsonStore().ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil {
+		if os.IsNotExist(err) {
+			return slurmJobMetadata{}, fmt.Errorf("job is not running")
+		}
+		return slurmJobMetadata{}, fmt.Errorf("invalid Slurm metadata: %w", err)
+	}
+	if metadata.SlurmJobID == "" {
+		return slurmJobMetadata{}, fmt.Errorf("job is not running")
+	}
+	return metadata, nil
 }
 
 const slurmCommandTimeout = 30 * time.Second
@@ -131,7 +138,7 @@ func submitSlurmJob(runDir string, job JobSpec, executorOptions []string) (slurm
 		return slurmJobMetadata{}, err
 	}
 	wrapperPath := filepath.Join(jobDir, "slurm-wrapper.sh")
-	if err := os.WriteFile(wrapperPath, []byte(statusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory)), stateScriptMode()); err != nil {
+	if err := os.WriteFile(wrapperPath, []byte(executor.StatusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory)), stateScriptMode()); err != nil {
 		return slurmJobMetadata{}, err
 	}
 	outputPath := filepath.Join(jobDir, "output")
@@ -407,7 +414,7 @@ func waitSlurmJob(runDir string, job slurmJobMetadata) JobResult {
 			return JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 		}
 		if state != "" {
-			writeSchedulerStatus(jobDir, state)
+			executor.WriteSchedulerStatus(jsonStore(), jobDir, state, time.Now())
 		}
 		if state == "" {
 			// A directory listing nudges NFS clients to drop stale attribute/dentry
@@ -436,12 +443,8 @@ func jobResultFromStatus(jobID string, command []string, status slurmStatus) Job
 }
 
 func loadSlurmStatus(path string) (slurmStatus, bool) {
-	data, err := os.ReadFile(path) // NOSONAR: callers pass executor state paths below validated job directories.
-	if err != nil {
-		return slurmStatus{}, false
-	}
 	var status slurmStatus
-	if json.Unmarshal(data, &status) != nil {
+	if err := jsonStore().ReadJSON(path, &status); err != nil {
 		return slurmStatus{}, false
 	}
 	return status, true

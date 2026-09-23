@@ -116,11 +116,17 @@ func checkProjectWithOptions(paths pathSet, deep bool) (projectCheck, error) {
 		} else {
 			result.State = "running"
 		}
-		loadQueueCount(paths, &result)
+		if queue, err := loadQueue(paths.QueueFile); err == nil {
+			result.Queued = len(queue.Commands)
+			result.QueuedKnown = true
+		}
 		return result, nil
 	case projectInterrupted:
 		result.State = "interrupted"
-		loadQueueCount(paths, &result)
+		if queue, err := loadQueue(paths.QueueFile); err == nil {
+			result.Queued = len(queue.Commands)
+			result.QueuedKnown = true
+		}
 		return result, nil
 	}
 
@@ -143,13 +149,4 @@ func checkProjectWithOptions(paths pathSet, deep bool) (projectCheck, error) {
 	result.State = "ready"
 	result.Runnable = true
 	return result, nil
-}
-
-func loadQueueCount(paths pathSet, result *projectCheck) {
-	queue, err := loadQueue(paths.QueueFile)
-	if err != nil {
-		return
-	}
-	result.Queued = len(queue.Commands)
-	result.QueuedKnown = true
 }

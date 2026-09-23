@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -9,17 +8,10 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 var errNoPreviousRun = errors.New("no previous run")
-
-func resultSelection(failed, unfinished, success bool) string {
-	return model.ResultSelection(failed, unfinished, success)
-}
-
-func resultSelectionMatches(selection string, finished bool, exitCode int) bool {
-	return model.ResultSelectionMatches(selection, finished, exitCode)
-}
 
 // aggregatedJobResult returns the result and finished state for a command
 // ID, aggregating per-task results when array is non-nil: results are keyed
@@ -74,11 +66,8 @@ func planRerunSelection(paths pathSet, queue Queue, selection string, jobIDs []s
 	}
 	results := jobResultsByID(summary.Results)
 	originCWD := ""
-	if data, contextErr := os.ReadFile(filepath.Join(runDir, "context.json")); contextErr == nil {
-		var context RunContext
-		if json.Unmarshal(data, &context) == nil {
-			originCWD = context.CWD
-		}
+	if context, contextErr := state.LoadContext(jsonStore(), runDir); contextErr == nil {
+		originCWD = context.CWD
 	}
 	plan, err := runcontract.PlanSelection(model.Queue(queue), selection, jobIDs, partialArray, runcontract.Reference{
 		RunID: runID, CWD: originCWD, Results: results,
@@ -99,7 +88,7 @@ func planArrayTaskSelection(command QueuedCommand, selection string, results map
 	for _, task := range arrayTaskIDs(command.Array) {
 		taskID := fmt.Sprintf("%s-%d", command.ID, task)
 		result, finished := results[taskID]
-		if resultSelectionMatches(selection, finished, result.ExitCode) {
+		if model.ResultSelectionMatches(selection, finished, result.ExitCode) {
 			plan.Execute[taskID] = true
 			continue
 		}

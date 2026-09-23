@@ -9,10 +9,12 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 )
 
 func TestLocalExecutorSignalRejectsMissingPID(t *testing.T) {
-	err := (localExecutor{}).Cancel(t.TempDir())
+	err := (executor.Local{}).Cancel(t.TempDir())
 	if err == nil || !strings.Contains(err.Error(), "job is not running") {
 		t.Fatalf("error = %v, want job is not running", err)
 	}
@@ -24,7 +26,7 @@ func TestLocalExecutorSignalRejectsMalformedPID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := (localExecutor{}).Suspend(jobDir)
+	err := (executor.Local{}).Suspend(jobDir)
 	if err == nil || !strings.Contains(err.Error(), "job is not running") {
 		t.Fatalf("error = %v, want job is not running", err)
 	}
@@ -40,7 +42,7 @@ func TestLocalExecutorSignalRejectsExitedProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := (localExecutor{}).Resume(jobDir)
+	err := (executor.Local{}).Resume(jobDir)
 	if err == nil || !strings.Contains(err.Error(), "job is not running") {
 		t.Fatalf("error = %v, want job is not running", err)
 	}
@@ -72,7 +74,7 @@ func TestRunOneJobSelfReportsStatusJSON(t *testing.T) {
 func TestLocalJobWrapperSelfReportsStatusEvenIfCoordinatorNeverWaits(t *testing.T) {
 	jobDir := t.TempDir()
 	wrapperPath := filepath.Join(jobDir, "local-wrapper.sh")
-	wrapper := statusWrapperScript([]string{"sh", "-c", "exit 7"}, jobDir, nil, "")
+	wrapper := executor.StatusWrapperScript([]string{"sh", "-c", "exit 7"}, jobDir, nil, "")
 	if err := os.WriteFile(wrapperPath, []byte(wrapper), 0o755); err != nil {
 		t.Fatal(err)
 	}

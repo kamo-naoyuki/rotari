@@ -92,6 +92,10 @@ A user-visible behavior change may require updates to:
 * `docs/FAQ.md`
 * `docs/INTERNALS.md`
 
+When an unrelated bug, design concern, or technical debt is discovered during
+work, record it in `ISSUES.md`. Remove the item when it is resolved, or move it
+to the `Resolved` section when a short record is useful.
+
 Examples include changes to:
 
 * CLI options

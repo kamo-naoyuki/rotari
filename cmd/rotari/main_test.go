@@ -18,6 +18,9 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 func TestResolveProjectNamePriority(t *testing.T) {
@@ -965,7 +968,7 @@ func TestSparseArrayUsesIndividualSubmissions(t *testing.T) {
 }
 
 func TestMergeEnvironmentOverridesValues(t *testing.T) {
-	got := mergeEnvironment([]string{"PATH=/bin", "ROTARI_JOB_ID=old"}, []string{"ROTARI_JOB_ID=new", "ROTARI_TASK=value"})
+	got := executor.MergeEnvironment([]string{"PATH=/bin", "ROTARI_JOB_ID=old"}, []string{"ROTARI_JOB_ID=new", "ROTARI_TASK=value"})
 	want := []string{"PATH=/bin", "ROTARI_JOB_ID=new", "ROTARI_TASK=value"}
 	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
 		t.Fatalf("mergeEnvironment = %#v, want %#v", got, want)
@@ -2848,7 +2851,7 @@ func TestValidateDependencies(t *testing.T) {
 		{Name: "job1", Command: []string{"echo", "1"}},
 		{Name: "job2", Command: []string{"echo", "2"}, DependsOn: []string{"job1"}},
 	}
-	if err := validateDependencies(valid); err != nil {
+	if err := model.ValidateDependencies(valid); err != nil {
 		t.Fatalf("valid dependencies returned error: %v", err)
 	}
 	cases := []struct {
@@ -2873,7 +2876,7 @@ func TestValidateDependencies(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			if err := validateDependencies(testCase.jobs); err == nil {
+			if err := model.ValidateDependencies(testCase.jobs); err == nil {
 				t.Fatal("validateDependencies returned nil")
 			}
 		})

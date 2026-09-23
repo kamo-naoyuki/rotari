@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func cmdWait(args []string) int {
@@ -303,7 +305,7 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 			if jsonOutput {
 				_ = json.NewEncoder(os.Stdout).Encode(summary)
 			} else {
-				printRunCompletion(paths, runID, summary)
+				fmt.Print(formatRunCompletion(paths, runID, summary))
 			}
 			return waitResult{exitCode: summary.ExitCode}
 		}
@@ -323,19 +325,8 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 }
 
 func loadRunSummary(path string) (RunSummary, error) {
-	data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to summary.json.
-	if err != nil {
-		return RunSummary{}, err
-	}
-	var summary RunSummary
-	if err := json.Unmarshal(data, &summary); err != nil {
-		return RunSummary{}, err
-	}
-	return summary, nil
-}
-
-func printRunCompletion(paths pathSet, runID string, summary RunSummary) {
-	fmt.Print(formatRunCompletion(paths, runID, summary))
+	summary, err := state.LoadRunSummary(path)
+	return RunSummary(summary), err
 }
 
 func formatRunCompletion(paths pathSet, runID string, summary RunSummary) string {

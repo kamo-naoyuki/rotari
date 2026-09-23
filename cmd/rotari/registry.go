@@ -3,12 +3,14 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 type serverRecord struct {
@@ -64,12 +66,8 @@ func unregisterServer(masterDir, baseDir string) error {
 
 func touchServerRecord(masterDir, baseDir string) error {
 	path := serverRecordPath(masterDir, baseDir)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
 	var record serverRecord
-	if err := json.Unmarshal(data, &record); err != nil {
+	if err := jsonStore().ReadJSON(path, &record); err != nil {
 		return err
 	}
 	record.LastSeen = nowRFC3339()
@@ -90,12 +88,14 @@ func listServers(masterDir string) ([]serverRecord, error) {
 			continue
 		}
 		path := filepath.Join(masterDir, entry.Name())
-		data, err := os.ReadFile(path)
-		if err != nil {
+		var record serverRecord
+		if err := jsonStore().ReadJSON(path, &record); err != nil {
+			if errors.Is(err, state.ErrInvalidJSON) {
+				_ = os.Remove(path)
+			}
 			continue
 		}
-		var record serverRecord
-		if json.Unmarshal(data, &record) != nil || record.BaseDir == "" {
+		if record.BaseDir == "" {
 			_ = os.Remove(path)
 			continue
 		}
@@ -138,12 +138,11 @@ func listKnownBaseDirs(masterDir string, servers []serverRecord) ([]knownBaseDir
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(masterDir, "runs", entry.Name()))
-		if err != nil {
+		var location runLocation
+		if err := jsonStore().ReadJSON(filepath.Join(masterDir, "runs", entry.Name()), &location); err != nil {
 			continue
 		}
-		var location runLocation
-		if json.Unmarshal(data, &location) != nil || location.BaseDir == "" {
+		if location.BaseDir == "" {
 			continue
 		}
 		value := known[location.BaseDir]

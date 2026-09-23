@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 )
 
 func TestCLIFlagSpecTracksRepeatedMetadata(t *testing.T) {
@@ -273,7 +275,7 @@ func TestConfigFormatMatchesAndNewlineHelpers(t *testing.T) {
 		}
 	}
 	patterns := []*regexp.Regexp{regexp.MustCompile(`error`), regexp.MustCompile(`failed`)}
-	if !matchesAny("job failed", patterns) || matchesAny("job succeeded", patterns) {
+	if !diagnose.MatchesAny("job failed", patterns) || diagnose.MatchesAny("job succeeded", patterns) {
 		t.Fatal("matchesAny returned an unexpected result")
 	}
 	if newline("line\n") != "\n" || newline("line") != "" {

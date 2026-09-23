@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 func cmdChange(args []string) int {
@@ -126,7 +128,7 @@ func changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, request
 	if err := validateQueueJobs(queue); err != nil {
 		return "", err
 	}
-	if err := validateDependencies(queueToJobs(queue.Commands)); err != nil {
+	if err := model.ValidateDependencies(queueToJobs(queue.Commands)); err != nil {
 		return "", fmt.Errorf("invalid dependencies: %w", err)
 	}
 	if err := writeJSON(paths.QueueFile, queue); err != nil {

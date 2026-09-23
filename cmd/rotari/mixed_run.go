@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 )
 
@@ -34,7 +35,7 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 			return 1
 		}
 	}
-	if err := validateDependencies(jobs); err != nil {
+	if err := model.ValidateDependencies(jobs); err != nil {
 		printErrorf("invalid dependencies: %v", err)
 		return 1
 	}

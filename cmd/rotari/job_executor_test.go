@@ -5,7 +5,18 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 )
+
+func writeSchedulerStatus(jobDir, state string) {
+	executor.WriteSchedulerStatus(jsonStore(), jobDir, state, time.Now())
+}
+
+func loadSchedulerStatus(jobDir string) string {
+	return executor.LoadSchedulerStatus(jsonStore(), jobDir)
+}
 
 func TestSchedulerStatusRoundTripNormalizesState(t *testing.T) {
 	jobDir := t.TempDir()

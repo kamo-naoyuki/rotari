@@ -236,12 +236,8 @@ func loadDiagnosisJob(paths pathSet, runID, jobID string, attemptIDs ...string) 
 			runID, jobID = origin.RunID, origin.JobID
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(jobDir, commandJSONName))
-		if err != nil {
-			return diagnosisJob{}, fmt.Errorf("read job command: %w", err)
-		}
 		var spec JobSpec
-		if err := json.Unmarshal(data, &spec); err != nil {
+		if err := jsonStore().ReadJSON(filepath.Join(jobDir, commandJSONName), &spec); err != nil {
 			return diagnosisJob{}, fmt.Errorf("read job command: %w", err)
 		}
 		log, err := os.ReadFile(filepath.Join(jobDir, "output"))
@@ -276,10 +272,6 @@ func diagnoseWithRules(job diagnosisJob) []ruleDiagnosis {
 		rules = append(rules, diagnose.Rule{Name: rule.Name, Patterns: rule.Patterns, Excludes: rule.Excludes, Suggestion: rule.Suggestion})
 	}
 	return diagnose.Diagnose(job.Error, job.Log, rules)
-}
-
-func matchesAny(value string, patterns []*regexp.Regexp) bool {
-	return diagnose.MatchesAny(value, patterns)
 }
 
 func diagnoseJobResult(runDir string, result JobResult) JobResult {

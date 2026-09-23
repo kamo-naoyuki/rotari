@@ -43,6 +43,7 @@ type RunContext = model.RunContext
 type LoadAverage = model.LoadAverage
 type LoadSample = model.LoadSample
 type ruleDiagnosis = model.RuleDiagnosis
+type runOptions = runcontract.Options
 
 func runStatus(exitCode int) string {
 	return model.RunStatus(exitCode)
@@ -670,19 +671,18 @@ type pathSet struct {
 }
 
 const (
-	stateFileCommandsJSON = "commands.json"
-	stateFileSummaryJSON  = "summary.json"
-	stateFileContextJSON  = "context.json"
-	stateFileOutput       = "output"
+	stateFileCommandsJSON  = "commands.json"
+	stateFileSummaryJSON   = "summary.json"
+	stateFileOutput        = "output"
 	stateFileSchedulerJSON = "scheduler_status.json"
-	stateFileStatusJSON   = "status.json"
-	stateFileStatus       = "status"
-	stateFileSubmittedAt  = "submitted_at"
-	stateFileFinishedAt   = "finished_at"
-	stateFileJobJSON      = "job.json"
-	stateFilePID          = "pid"
-	stateFileCancelled    = "cancelled"
-	stateFileName         = "name"
+	stateFileStatusJSON    = "status.json"
+	stateFileStatus        = "status"
+	stateFileSubmittedAt   = "submitted_at"
+	stateFileFinishedAt    = "finished_at"
+	stateFileJobJSON       = "job.json"
+	stateFilePID           = "pid"
+	stateFileCancelled     = "cancelled"
+	stateFileName          = "name"
 )
 
 func resolvePaths(cliBaseDir, projectName string) (pathSet, error) {
@@ -713,10 +713,6 @@ func resolvePaths(cliBaseDir, projectName string) (pathSet, error) {
 	return paths, nil
 }
 
-func privateStateEnabled() bool {
-	return state.PrivateStateEnabled()
-}
-
 func stateDirMode() os.FileMode {
 	return state.DirectoryMode()
 }
@@ -728,10 +724,6 @@ func stateFileMode() os.FileMode {
 // stateScriptMode is for generated wrapper scripts, which must stay executable.
 func stateScriptMode() os.FileMode {
 	return state.ScriptMode()
-}
-
-func stateMode(privateMode, sharedMode os.FileMode) os.FileMode {
-	return state.Mode(privateMode, sharedMode)
 }
 
 func resolveBaseDir(cliBaseDir string) (string, bool, error) {

@@ -3,7 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 type sshJobMetadata struct {
@@ -148,12 +150,14 @@ func (sshExecutor) Cancel(jobDir string) error {
 }
 
 func readSSHMetadata(jobDir string) (sshJobMetadata, error) {
-	data, err := os.ReadFile(filepath.Join(jobDir, "job.json"))
-	if err != nil {
+	var metadata sshJobMetadata
+	if err := jsonStore().ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil {
+		if errors.Is(err, state.ErrInvalidJSON) {
+			return sshJobMetadata{}, fmt.Errorf("invalid SSH metadata")
+		}
 		return sshJobMetadata{}, fmt.Errorf("job is not running")
 	}
-	var metadata sshJobMetadata
-	if err := json.Unmarshal(data, &metadata); err != nil || metadata.Executor != "ssh" {
+	if metadata.Executor != "ssh" {
 		return sshJobMetadata{}, fmt.Errorf("invalid SSH metadata")
 	}
 	if metadata.RemoteToken != "" && !validSSHRemoteToken(metadata.RemoteToken) {

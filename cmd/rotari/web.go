@@ -20,6 +20,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
 	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
@@ -1084,7 +1085,7 @@ func loadWebJobs(runDir string, summary RunSummary, attemptIDs ...string) ([]web
 				attemptID = result.AttemptID
 			}
 		}
-		job := webJob{ID: jobSpec.ID, AttemptID: attemptID, AttemptDir: jobDir, Name: jobSpec.Name, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, DependsOn: jobSpec.DependsOn, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SubmittedAt: submittedAt, FinishedAt: finishedAt, SchedulerState: loadSchedulerStatus(jobDir)}
+		job := webJob{ID: jobSpec.ID, AttemptID: attemptID, AttemptDir: jobDir, Name: jobSpec.Name, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, DependsOn: jobSpec.DependsOn, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SubmittedAt: submittedAt, FinishedAt: finishedAt, SchedulerState: executor.LoadSchedulerStatus(jsonStore(), jobDir)}
 		if jobSpec.ID == selectedJobID {
 			job.AttemptID = selectedAttemptID
 		}
@@ -1140,7 +1141,7 @@ func loadWebAttempts(runDir string, jobSpec JobSpec) []webAttempt {
 			ID:             attemptID,
 			SubmittedAt:    readAttemptTimestamp(jobDir, stateFileSubmittedAt),
 			FinishedAt:     readAttemptTimestamp(jobDir, stateFileFinishedAt),
-			SchedulerState: loadSchedulerStatus(jobDir),
+			SchedulerState: executor.LoadSchedulerStatus(jsonStore(), jobDir),
 		}
 		if result, ok := loadLocalJobResult(jobDir, jobSpec); ok {
 			result.AttemptID = attemptID

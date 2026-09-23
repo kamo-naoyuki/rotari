@@ -8,11 +8,13 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 const (
-	reportLogLines        = 100
-	reportLogChars        = 12000
+	reportLogLines          = 100
+	reportLogChars          = 12000
 	redactedPathPlaceholder = "[REDACTED_PATH]"
 )
 
@@ -101,10 +103,8 @@ func loadAIReportRun(paths pathSet, runID string, attemptIDs ...string) (webRun,
 		return webRun{}, err
 	}
 	context := RunContext{}
-	if path, err := validatedStateFile(runDir, "context.json"); err == nil {
-		if data, readErr := os.ReadFile(path); readErr == nil { // NOSONAR: path is restricted by validatedStateFile to context.json.
-			_ = json.Unmarshal(data, &context)
-		}
+	if loaded, err := state.LoadContext(jsonStore(), runDir); err == nil {
+		context = RunContext(loaded)
 	}
 	return webRun{RunSummary: summary, Jobs: jobs, CWD: context.CWD, Context: context, Running: running}, nil
 }

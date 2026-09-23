@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 type projectRunState int
@@ -35,7 +37,7 @@ func inspectProjectState(paths pathSet, cleanupStale bool) (projectStateInspecti
 	if lockState == projectLockActive || lockState == projectLockRemote {
 		return projectStateInspection{State: projectRunning, RunID: lock.RunID, Lock: lockState, LockRunID: lock.RunID}, nil
 	}
-	meta, err := loadMeta(paths.MetaFile)
+	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		return projectStateInspection{}, err
 	}
@@ -54,7 +56,7 @@ func validateProjectStateConsistency(paths pathSet, inspection projectStateInspe
 	if inspection.Lock != projectLockNone && !isValidPathElement(inspection.LockRunID) {
 		return fmt.Errorf("invalid run ID %q in run lock", inspection.LockRunID)
 	}
-	meta, err := loadMeta(paths.MetaFile)
+	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		return fmt.Errorf("load metadata: %w", err)
 	}
@@ -209,7 +211,7 @@ func interruptedRunStatusDetail(paths pathSet, runID string) (detail string, sti
 	} else {
 		jobsClause = fmt.Sprintf("all %d job(s) report having finished", status.Total)
 	}
-	meta, metaErr := loadMeta(paths.MetaFile)
+	meta, metaErr := state.LoadMeta(paths.MetaFile)
 	if metaErr != nil || meta.UpdatedAt == "" {
 		return ": " + jobsClause, status.StillRunning > 0
 	}

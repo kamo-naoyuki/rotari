@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,6 +9,9 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func confirmQueueOverwrite(baseDir, queueName string, appendJobs, overwriteJobs bool) (bool, error) {
@@ -124,7 +126,7 @@ func cmdCopy(args []string) int {
 		}
 	}
 
-	selection := resultSelection(*failed, *unfinished, *success)
+	selection := model.ResultSelection(*failed, *unfinished, *success)
 	if len(jobIDs) > 0 {
 		if selection == "" {
 			selection = "job-id"
@@ -189,11 +191,8 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	}
 	results := jobResultsByID(summary.Results)
 	originCWD := ""
-	if data, contextErr := os.ReadFile(filepath.Join(sourceRunDir, "context.json")); contextErr == nil { // NOSONAR: sourceRunDir is produced by validatedRunDir.
-		var context RunContext
-		if json.Unmarshal(data, &context) == nil {
-			originCWD = context.CWD
-		}
+	if context, contextErr := state.LoadContext(jsonStore(), sourceRunDir); contextErr == nil {
+		originCWD = context.CWD
 	}
 	requested := make(map[string]bool, len(jobIDs))
 	requestedAttempts := make(map[string]string, len(jobIDs))
@@ -250,7 +249,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 		case "job-id":
 			include = requested[command.ID]
 		default:
-			include = resultSelectionMatches(selection, finished, result.ExitCode)
+			include = model.ResultSelectionMatches(selection, finished, result.ExitCode)
 		}
 		if requested[command.ID] {
 			include = true
@@ -342,7 +341,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 		queue.Commands = nil
 	}
 	queue.Commands = append(queue.Commands, selected...)
-	if err := validateDependencies(queueToJobs(queue.Commands)); err != nil {
+	if err := model.ValidateDependencies(queueToJobs(queue.Commands)); err != nil {
 		return "", fmt.Errorf("invalid dependencies: %w", err)
 	}
 	if err := writeJSON(paths.QueueFile, queue); err != nil {

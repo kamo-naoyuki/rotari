@@ -31,6 +31,38 @@ type jobsColumn struct {
 	width  int
 }
 
+func queueOriginsByJobID(queue Queue) map[string]*JobOrigin {
+	origins := make(map[string]*JobOrigin)
+	for _, command := range queue.Commands {
+		if command.Origin != nil {
+			origins[command.ID] = command.Origin
+		}
+		for taskID, origin := range command.TaskOrigins {
+			origins[taskID] = origin
+		}
+	}
+	return origins
+}
+
+func jobResultsByID(results []JobResult) map[string]JobResult {
+	byID := make(map[string]JobResult, len(results))
+	for _, result := range results {
+		byID[result.ID] = result
+	}
+	return byID
+}
+
+func loadTerminalJobStatus(jobDir string) (int, bool) {
+	status, ok := readJobStatus(filepath.Join(jobDir, stateFileStatus))
+	if ok {
+		return status, true
+	}
+	if scheduler, ok := loadSlurmStatus(filepath.Join(jobDir, stateFileStatusJSON)); ok && jobStatusTerminal(scheduler) {
+		return scheduler.ExitCode, true
+	}
+	return loadTerminalSchedulerState(jobDir)
+}
+
 func cmdJobs(args []string) int {
 	fs := flag.NewFlagSet("jobs", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)

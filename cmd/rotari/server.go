@@ -17,6 +17,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 )
 
@@ -277,7 +279,7 @@ func cmdRun(args []string) int {
 		return 1
 	}
 	left := fs.Args()
-	selection := resultSelection(*failed, *unfinished, *success)
+	selection := model.ResultSelection(*failed, *unfinished, *success)
 	if len(jobIDs) > 0 && selection == "" {
 		selection = "job-id"
 	}
@@ -986,15 +988,11 @@ func controlQueueJobs(baseDir, queueName string, jobIDs []string, operation stri
 	if err != nil {
 		return "", err
 	}
-	data, err := os.ReadFile(paths.LockFile) // NOSONAR: paths comes from resolvePaths, which validates the project path element.
-	if err != nil {
+	var lock LockInfo
+	if err := jsonStore().ReadJSON(paths.LockFile, &lock); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", fmt.Errorf("project %q is not running", queueName)
 		}
-		return "", err
-	}
-	var lock LockInfo
-	if err := json.Unmarshal(data, &lock); err != nil {
 		return "", fmt.Errorf("invalid running lock: %w", err)
 	}
 	if !validWebID(lock.RunID) {
@@ -1033,19 +1031,19 @@ func controlQueueJobs(baseDir, queueName string, jobIDs []string, operation stri
 			}
 			return "", fmt.Errorf("job %q is not running", jobID)
 		}
-		executor, err := jobOwnerExecutor(jobDir)
+		jobExecutor, err := jobOwnerExecutor(jobDir)
 		if err != nil {
 			if allJobs {
 				continue
 			}
 			return "", fmt.Errorf("job %q is not running", jobID)
 		}
-		if host, mismatch := localExecutorHostMismatch(executor, runDir); mismatch {
+		if host, mismatch := localExecutorHostMismatch(jobExecutor, runDir); mismatch {
 			return "", fmt.Errorf("job %q runs on host %q; run %s from that host", jobID, host, operation)
 		}
-		suspender, ok := executor.(Suspender)
+		suspender, ok := jobExecutor.(Suspender)
 		if !ok {
-			return "", fmt.Errorf("executor %q does not support %s", executor.Name(), operation)
+			return "", fmt.Errorf("executor %q does not support %s", jobExecutor.Name(), operation)
 		}
 		if operation == "resume" {
 			err = suspender.Resume(jobDir)
@@ -1056,9 +1054,9 @@ func controlQueueJobs(baseDir, queueName string, jobIDs []string, operation stri
 			return "", fmt.Errorf("%s job %s: %w", operation, jobID, err)
 		}
 		if operation == "resume" {
-			writeSchedulerStatus(jobDir, "running")
+			executor.WriteSchedulerStatus(jsonStore(), jobDir, "running", time.Now())
 		} else {
-			writeSchedulerStatus(jobDir, "suspended")
+			executor.WriteSchedulerStatus(jsonStore(), jobDir, "suspended", time.Now())
 		}
 		controlled++
 	}
@@ -1080,12 +1078,11 @@ func jobFinished(jobDir string) bool {
 		return false
 	}
 	// NOSONAR: jobDir is produced by validated job and run path helpers.
-	data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to status.json.
-	if err != nil {
+	var status slurmStatus
+	if err := jsonStore().ReadJSON(path, &status); err != nil {
 		return false
 	}
-	var status slurmStatus
-	return json.Unmarshal(data, &status) == nil && status.Phase != "" && status.Phase != "running"
+	return status.Phase != "" && status.Phase != "running"
 }
 
 func normalizeRunningAttemptIDs(runDir, runID string, jobIDs []string) ([]string, error) {
@@ -1126,15 +1123,13 @@ func normalizeRunningAttemptIDs(runDir, runID string, jobIDs []string) ([]string
 }
 
 func attemptState(jobDir string) string {
-	if state := strings.ToLower(strings.TrimSpace(loadSchedulerStatus(jobDir))); state != "" {
+	if state := strings.ToLower(strings.TrimSpace(executor.LoadSchedulerStatus(jsonStore(), jobDir))); state != "" {
 		return state
 	}
 	if path, err := validatedStateFile(jobDir, stateFileStatusJSON); err == nil { // NOSONAR: jobDir is validated run/job path
-		if data, err := os.ReadFile(path); err == nil { // NOSONAR: path is restricted by validatedStateFile
-			var status slurmStatus
-			if json.Unmarshal(data, &status) == nil && status.Phase != "" {
-				return strings.ToLower(status.Phase)
-			}
+		var status slurmStatus
+		if err := jsonStore().ReadJSON(path, &status); err == nil && status.Phase != "" {
+			return strings.ToLower(status.Phase)
 		}
 	}
 	if jobFinished(jobDir) {
@@ -1185,11 +1180,9 @@ func cancelQueueJobs(baseDir, queueName string, jobIDs []string, wait bool) (str
 		// relying on an aggregate metadata file that schedulers only write
 		// once the whole run finishes -- otherwise a cancel issued mid-run
 		// never reaches an already-submitted Slurm/PBS/LSF job.
-		var commandSnapshot Queue
-		if data, err := os.ReadFile(filepath.Join(runDir, "commands.json")); err == nil { // NOSONAR: runDir is produced by validatedRunDir.
-			if err := json.Unmarshal(data, &commandSnapshot); err != nil {
-				return "", fmt.Errorf("invalid command snapshot: %w", err)
-			}
+		commandSnapshot, err := loadCommandSnapshot(runDir)
+		if err != nil {
+			return "", err
 		}
 		targets := make([]string, 0, len(commandSnapshot.Commands))
 		for _, job := range queueToJobs(commandSnapshot.Commands) {
@@ -1222,11 +1215,9 @@ func cancelJobs(runDir, queueName, runID string, jobIDs []string) (string, error
 	for _, jobID := range jobIDs {
 		requested[jobID] = true
 	}
-	var commandSnapshot Queue
-	if data, err := os.ReadFile(filepath.Join(runDir, "commands.json")); err == nil { // NOSONAR: runDir is produced by validatedRunDir.
-		if err := json.Unmarshal(data, &commandSnapshot); err != nil {
-			return "", fmt.Errorf("invalid command snapshot: %w", err)
-		}
+	commandSnapshot, err := loadCommandSnapshot(runDir)
+	if err != nil {
+		return "", err
 	}
 	knownJobs := make(map[string]JobSpec)
 	for _, job := range queueToJobs(commandSnapshot.Commands) {
@@ -1269,6 +1260,16 @@ func cancelJobs(runDir, queueName, runID string, jobIDs []string) (string, error
 		cancelled++
 	}
 	return fmt.Sprintf("Cancel requested\n  Project: %s\n  Run: %s\n  Jobs: %d", queueName, runID, cancelled), nil
+}
+
+func loadCommandSnapshot(runDir string) (Queue, error) {
+	var snapshot Queue
+	if data, err := os.ReadFile(filepath.Join(runDir, "commands.json")); err == nil { // NOSONAR: runDir is produced by validatedRunDir.
+		if err := json.Unmarshal(data, &snapshot); err != nil {
+			return Queue{}, fmt.Errorf("invalid command snapshot: %w", err)
+		}
+	}
+	return snapshot, nil
 }
 
 func markQueueCancelling(paths pathSet) error {

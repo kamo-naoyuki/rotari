@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -51,14 +50,14 @@ func registerRunLocation(location runLocation) error {
 	if err != nil {
 		return err
 	}
-	if data, err := os.ReadFile(path); err == nil {
-		var existing runLocation
-		if json.Unmarshal(data, &existing) != nil || existing != location {
+	var existing runLocation
+	if err := jsonStore().ReadJSON(path, &existing); err == nil {
+		if existing != location {
 			return fmt.Errorf("run id %q is already registered to another location", location.RunID)
 		}
 		return nil
 	} else if !os.IsNotExist(err) {
-		return err
+		return fmt.Errorf("run id %q is already registered to another location", location.RunID)
 	}
 	return writeJSON(path, location)
 }
@@ -87,15 +86,11 @@ func resolveRunLocation(runID string) (runLocation, bool, error) {
 	if err != nil {
 		return runLocation{}, false, err
 	}
-	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return runLocation{}, false, nil
-	}
-	if err != nil {
-		return runLocation{}, false, err
-	}
 	var location runLocation
-	if err := json.Unmarshal(data, &location); err != nil {
+	if err := jsonStore().ReadJSON(path, &location); err != nil {
+		if os.IsNotExist(err) {
+			return runLocation{}, false, nil
+		}
 		return runLocation{}, false, fmt.Errorf("invalid run registry entry for %q: %w", runID, err)
 	}
 	if location.BaseDir == "" || location.ProjectName == "" || location.RunID != runID {

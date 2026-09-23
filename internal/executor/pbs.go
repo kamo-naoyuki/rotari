@@ -1,4 +1,4 @@
-package main
+package executor
 
 import (
 	"context"
@@ -11,7 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 const pbsAccountingWait = 60 * time.Second
@@ -26,25 +27,32 @@ type pbsJobMetadata struct {
 	SubmittedAt string   `json:"submitted_at"`
 }
 
-// pbsExecutor submits jobs to a PBS/Torque scheduler via qsub and tracks them
+// PBS submits jobs to a PBS/Torque scheduler via qsub and tracks them
 // through qstat, mirroring the Slurm executor's submit/poll/accounting model.
-type pbsExecutor struct{}
+type PBS struct {
+	Store state.Store
+	Logf  func(string, ...any)
+}
 
-func (pbsExecutor) Name() string { return "pbs" }
+func NewPBS(store state.Store, logf func(string, ...any)) PBS {
+	return PBS{Store: store, Logf: logf}
+}
 
-func (pbsExecutor) Submit(runDir string, job JobSpec, options []string) (JobHandle, error) {
-	metadata, err := submitPBSJob(runDir, job, options)
+func (PBS) Name() string { return "pbs" }
+
+func (pbs PBS) Submit(runDir string, job model.JobSpec, options []string) (JobHandle, error) {
+	metadata, err := submitPBSJob(pbs.Store, pbs.Logf, runDir, job, options)
 	if err != nil {
 		return JobHandle{}, err
 	}
 	return JobHandle{Job: job, Native: metadata.PBSJobID}, nil
 }
 
-func (pbsExecutor) SubmitArray(runDir string, jobs []JobSpec, options []string) ([]JobHandle, error) {
-	return submitPBSArray(runDir, jobs, options)
+func (pbs PBS) SubmitArray(runDir string, jobs []model.JobSpec, options []string) ([]JobHandle, error) {
+	return submitPBSArray(pbs.Store, runDir, jobs, options)
 }
 
-func (pbsExecutor) Wait(runDir string, handle JobHandle) JobResult {
+func (pbs PBS) Wait(runDir string, handle JobHandle) model.JobResult {
 	metadata := pbsJobMetadata{
 		Executor:  "pbs",
 		JobID:     handle.Job.ID,
@@ -52,42 +60,42 @@ func (pbsExecutor) Wait(runDir string, handle JobHandle) JobResult {
 		Command:   handle.Job.Command,
 		PBSJobID:  handle.Native,
 	}
-	return waitPBSJob(runDir, metadata)
+	return waitPBSJob(pbs.Store, runDir, metadata)
 }
 
-func (pbsExecutor) Suspend(jobDir string) error {
-	return pbsExecutor{}.qsig(jobDir, "suspend")
+func (pbs PBS) Suspend(jobDir string) error {
+	return pbs.qsig(jobDir, "suspend")
 }
 
-func (pbsExecutor) Resume(jobDir string) error {
-	return pbsExecutor{}.qsig(jobDir, "resume")
+func (pbs PBS) Resume(jobDir string) error {
+	return pbs.qsig(jobDir, "resume")
 }
 
-func (pbsExecutor) qsig(jobDir, signal string) error {
-	metadata, err := readPBSMetadata(jobDir)
+func (pbs PBS) qsig(jobDir, signal string) error {
+	metadata, err := readPBSMetadata(pbs.Store, jobDir)
 	if err != nil {
 		return err
 	}
 	if output, err := runPBSCommand("qsig", "-s", signal, metadata.PBSJobID); err != nil {
-		return fmt.Errorf("qsig -s %s %s: %w", signal, metadata.PBSJobID, schedulerCommandHint("qsig", output, err))
+		return fmt.Errorf("qsig -s %s %s: %w", signal, metadata.PBSJobID, SchedulerCommandHint("qsig", output, err))
 	}
 	return nil
 }
 
-func (pbsExecutor) Cancel(jobDir string) error {
-	metadata, err := readPBSMetadata(jobDir)
+func (pbs PBS) Cancel(jobDir string) error {
+	metadata, err := readPBSMetadata(pbs.Store, jobDir)
 	if err != nil {
 		return err
 	}
 	if output, err := runPBSCommand("qdel", metadata.PBSJobID); err != nil {
-		return fmt.Errorf("qdel %s: %w", metadata.PBSJobID, schedulerCommandHint("qdel", output, err))
+		return fmt.Errorf("qdel %s: %w", metadata.PBSJobID, SchedulerCommandHint("qdel", output, err))
 	}
 	return nil
 }
 
-func readPBSMetadata(jobDir string) (pbsJobMetadata, error) {
+func readPBSMetadata(store state.Store, jobDir string) (pbsJobMetadata, error) {
 	var metadata pbsJobMetadata
-	if err := jsonStore().ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil {
+	if err := store.ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil {
 		if os.IsNotExist(err) {
 			return pbsJobMetadata{}, fmt.Errorf("job is not running")
 		}
@@ -99,24 +107,24 @@ func readPBSMetadata(jobDir string) (pbsJobMetadata, error) {
 	return metadata, nil
 }
 
-func submitPBSJob(runDir string, job JobSpec, options []string) (pbsJobMetadata, error) {
-	jobDir, err := attemptJobDir(runDir, job)
+func submitPBSJob(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, options []string) (pbsJobMetadata, error) {
+	jobDir, err := state.AttemptJobDir(runDir, job)
 	if err != nil {
 		return pbsJobMetadata{}, err
 	}
-	if err := os.MkdirAll(jobDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(jobDir, store.DirectoryMode); err != nil {
 		return pbsJobMetadata{}, err
 	}
-	if err := writeJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
+	if err := state.WriteJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 		return pbsJobMetadata{}, err
 	}
 	wrapperPath := filepath.Join(jobDir, "pbs-wrapper.sh")
-	if err := os.WriteFile(wrapperPath, []byte(executor.StatusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory)), stateScriptMode()); err != nil {
+	if err := os.WriteFile(wrapperPath, []byte(StatusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory)), store.ScriptMode); err != nil {
 		return pbsJobMetadata{}, err
 	}
 	outputPath := filepath.Join(jobDir, "output")
 	args := []string{"-j", "oe", "-o", outputPath}
-	expandedOptions, err := expandShellOptions(options)
+	expandedOptions, err := ExpandShellOptions(options)
 	if err != nil {
 		return pbsJobMetadata{}, err
 	}
@@ -134,14 +142,14 @@ func submitPBSJob(runDir string, job JobSpec, options []string) (pbsJobMetadata,
 		Executor: "pbs", JobID: job.ID, AttemptID: job.AttemptID, Command: job.Command,
 		PBSJobID: pbsJobID, SubmittedAt: nowRFC3339(),
 	}
-	if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
+	if err := state.WriteJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
 		return pbsJobMetadata{}, err
 	}
-	jobLogf("[%s] submit job=%s pbs_job_id=%s command=%s\n", metadata.SubmittedAt, job.ID, pbsJobID, strings.Join(job.Command, " "))
+	logf("[%s] submit job=%s pbs_job_id=%s command=%s\n", metadata.SubmittedAt, job.ID, pbsJobID, strings.Join(job.Command, " "))
 	return metadata, nil
 }
 
-func submitPBSArray(runDir string, jobs []JobSpec, executorOptions []string) ([]JobHandle, error) {
+func submitPBSArray(store state.Store, runDir string, jobs []model.JobSpec, executorOptions []string) ([]JobHandle, error) {
 	if len(jobs) == 0 || jobs[0].ArrayTaskID == nil {
 		return nil, errors.New("empty PBS array")
 	}
@@ -151,25 +159,25 @@ func submitPBSArray(runDir string, jobs []JobSpec, executorOptions []string) ([]
 		if job.ArrayTaskID == nil || job.ArrayFirst != first || job.ArrayLast != last || !sameStrings(job.Command, command) {
 			return nil, errors.New("PBS array tasks must share one command and range")
 		}
-		jobDir, err := attemptJobDir(runDir, job)
+		jobDir, err := state.AttemptJobDir(runDir, job)
 		if err != nil {
 			return nil, err
 		}
-		if err := os.MkdirAll(jobDir, stateDirMode()); err != nil {
+		if err := os.MkdirAll(jobDir, store.DirectoryMode); err != nil {
 			return nil, err
 		}
-		if err := writeJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
+		if err := state.WriteJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 			return nil, err
 		}
 	}
-	if err := rejectArraySchedulerOptions(executorOptions, "-J", "-t"); err != nil {
+	if err := RejectArraySchedulerOptions(executorOptions, "-J", "-t"); err != nil {
 		return nil, err
 	}
 	wrapperPath := filepath.Join(runDir, jobs[0].ArrayGroup+"-pbs-array-wrapper.sh")
-	if err := os.WriteFile(wrapperPath, []byte(schedulerArrayWrapperScript(jobs, "PBS_ARRAY_INDEX")), stateScriptMode()); err != nil {
+	if err := os.WriteFile(wrapperPath, []byte(schedulerArrayWrapperScript(jobs, "PBS_ARRAY_INDEX")), store.ScriptMode); err != nil {
 		return nil, err
 	}
-	expandedOptions, err := expandShellOptions(executorOptions)
+	expandedOptions, err := ExpandShellOptions(executorOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -192,11 +200,11 @@ func submitPBSArray(runDir string, jobs []JobSpec, executorOptions []string) ([]
 		taskID := *job.ArrayTaskID
 		nativeID := fmt.Sprintf("%s[%d]", masterID, taskID)
 		metadata := pbsJobMetadata{Executor: "pbs", JobID: job.ID, AttemptID: job.AttemptID, Command: job.Command, PBSJobID: nativeID, SubmittedAt: nowRFC3339()}
-		jobDir, err := attemptJobDir(runDir, job)
+		jobDir, err := state.AttemptJobDir(runDir, job)
 		if err != nil {
 			return nil, err
 		}
-		if err := writeJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
+		if err := state.WriteJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
 			return nil, err
 		}
 		handles = append(handles, JobHandle{Job: job, Native: nativeID})
@@ -204,41 +212,41 @@ func submitPBSArray(runDir string, jobs []JobSpec, executorOptions []string) ([]
 	return handles, nil
 }
 
-func waitPBSJob(runDir string, job pbsJobMetadata) JobResult {
-	jobDir, err := attemptJobDir(runDir, JobSpec{ID: job.JobID, AttemptID: job.AttemptID})
+func waitPBSJob(store state.Store, runDir string, job pbsJobMetadata) model.JobResult {
+	jobDir, err := state.AttemptJobDir(runDir, model.JobSpec{ID: job.JobID, AttemptID: job.AttemptID})
 	if err != nil {
-		return JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
+		return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}
 	statusPath := filepath.Join(jobDir, "status.json")
 	var accountingDeadline time.Time
 	for {
-		if status, ok := loadSlurmStatus(statusPath); ok && status.Phase == "finished" {
+		if status, ok := LoadWrapperStatus(store, statusPath); ok && status.Phase == "finished" {
 			return jobResultFromStatus(job.JobID, job.Command, status)
 		}
-		state, err := pbsJobState(job.PBSJobID)
+		schedulerState, err := pbsJobState(job.PBSJobID)
 		if err != nil {
-			return JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
+			return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 		}
-		if state != "" {
-			executor.WriteSchedulerStatus(jsonStore(), jobDir, state, time.Now())
+		if schedulerState != "" {
+			WriteSchedulerStatus(store, jobDir, schedulerState, time.Now())
 		}
-		if state == "" {
+		if schedulerState == "" {
 			// A directory listing nudges NFS clients to drop stale attribute/dentry
 			// caches, the same way the Slurm wait loop does, before re-checking the
 			// wrapper's own status.json.
 			_, _ = os.ReadDir(jobDir)
-			if status, ok := loadSlurmStatus(statusPath); ok && status.Phase == "finished" {
+			if status, ok := LoadWrapperStatus(store, statusPath); ok && status.Phase == "finished" {
 				return jobResultFromStatus(job.JobID, job.Command, status)
 			}
 			if accountingDeadline.IsZero() {
 				accountingDeadline = time.Now().Add(pbsAccountingWait)
 			}
 			if exitCode, ok := pbsAccounting(job.PBSJobID); ok {
-				_ = writeJSON(statusPath, slurmStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339()})
-				return JobResult{ID: job.JobID, Command: job.Command, ExitCode: exitCode}
+				_ = state.WriteJSON(statusPath, WrapperStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339()})
+				return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: exitCode}
 			}
 			if time.Now().After(accountingDeadline) {
-				return JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: "PBS accounting result and wrapper status are unavailable"}
+				return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: "PBS accounting result and wrapper status are unavailable"}
 			}
 		}
 		time.Sleep(time.Second)
@@ -248,8 +256,8 @@ func waitPBSJob(runDir string, job pbsJobMetadata) JobResult {
 // pbsJobActive reports whether the scheduler still tracks the job. qstat
 // exits non-zero once a job has been purged from its queue view.
 func pbsJobActive(jobID string) (bool, error) {
-	state, err := pbsJobState(jobID)
-	return state != "", err
+	schedulerState, err := pbsJobState(jobID)
+	return schedulerState != "", err
 }
 
 func pbsJobState(jobID string) (string, error) {

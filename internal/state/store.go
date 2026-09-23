@@ -2,9 +2,15 @@ package state
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
 )
+
+var ErrInvalidJSON = errors.New("invalid JSON")
 
 type Store struct {
 	DirectoryMode os.FileMode
@@ -25,7 +31,10 @@ func (s Store) ReadJSON(path string, value any) error {
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(data, value)
+	if err := json.Unmarshal(data, value); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidJSON, err)
+	}
+	return nil
 }
 
 func (s Store) WriteJSON(path string, value any) error {
@@ -55,4 +64,39 @@ func (s Store) WriteJSON(path string, value any) error {
 		return err
 	}
 	return os.Rename(temporaryName, path)
+}
+
+func DefaultMeta() model.Meta {
+	return model.Meta{Phase: "collecting", UpdatedAt: ""}
+}
+
+func LoadMeta(path string) (model.Meta, error) {
+	var meta model.Meta
+	store := NewStore(0o700, 0o600)
+	if err := store.ReadJSON(path, &meta); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return model.Meta{Phase: "collecting", UpdatedAt: ""}, nil
+		}
+		return model.Meta{}, err
+	}
+	if meta.Phase == "" {
+		meta = model.Meta{Phase: "collecting", UpdatedAt: ""}
+	}
+	return meta, nil
+}
+
+func LoadQueue(path string) (model.Queue, error) {
+	var queue model.Queue
+	store := NewStore(0o700, 0o600)
+	if err := store.ReadJSON(path, &queue); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return model.Queue{}, nil
+		}
+		return model.Queue{}, err
+	}
+	return queue, nil
+}
+
+func WriteJSON(path string, value any) error {
+	return NewStore(0o700, 0o600).WriteJSON(path, value)
 }

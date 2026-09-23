@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+)
 
 func TestDependenciesReady(t *testing.T) {
 	dependency := JobSpec{ID: "dependency", Name: "build"}
@@ -20,7 +24,7 @@ func TestDependenciesReady(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ready, failedBy := dependenciesReady(job, test.results, jobsByName)
+			ready, failedBy := model.DependenciesReady(job, test.results, jobsByName)
 			if ready != test.wantReady || failedBy != test.wantFailedBy {
 				t.Fatalf("dependenciesReady() = (%t, %q), want (%t, %q)", ready, failedBy, test.wantReady, test.wantFailedBy)
 			}
@@ -38,7 +42,7 @@ func TestDependenciesReadyRequiresAllDependencies(t *testing.T) {
 		"build": {ID: "build", ExitCode: 0},
 	}
 
-	ready, failedBy := dependenciesReady(job, results, jobsByName)
+	ready, failedBy := model.DependenciesReady(job, results, jobsByName)
 	if ready || failedBy != "" {
 		t.Fatalf("dependenciesReady() = (%t, %q), want (false, empty)", ready, failedBy)
 	}

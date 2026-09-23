@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 func cmdRemove(args []string) int {
@@ -101,7 +103,7 @@ func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []st
 		remaining = append(remaining, job)
 	}
 	queue.Commands = remaining
-	if err := validateDependencies(queueToJobs(queue.Commands)); err != nil {
+	if err := model.ValidateDependencies(queueToJobs(queue.Commands)); err != nil {
 		return "", fmt.Errorf("invalid dependencies: %w", err)
 	}
 	if err := writeJSON(paths.QueueFile, queue); err != nil {

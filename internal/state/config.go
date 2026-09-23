@@ -34,17 +34,17 @@ func ResolveBaseDir(cliBaseDir string) (string, bool, error) {
 	return filepath.Join(home, ".local", "state", "rotari"), false, nil
 }
 
-func PrivateStateEnabled() bool {
+func privateStateEnabled() bool {
 	return os.Getenv(privateStateEnv) == "true"
 }
 
-func Mode(privateMode, sharedMode os.FileMode) os.FileMode {
-	if PrivateStateEnabled() {
+func mode(privateMode, sharedMode os.FileMode) os.FileMode {
+	if privateStateEnabled() {
 		return privateMode
 	}
 	return sharedMode
 }
 
-func DirectoryMode() os.FileMode { return Mode(0o700, 0o755) }
-func FileMode() os.FileMode      { return Mode(0o600, 0o644) }
-func ScriptMode() os.FileMode    { return Mode(0o700, 0o755) }
+func DirectoryMode() os.FileMode { return mode(0o700, 0o755) }
+func FileMode() os.FileMode      { return mode(0o600, 0o644) }
+func ScriptMode() os.FileMode    { return mode(0o700, 0o755) }

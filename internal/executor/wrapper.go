@@ -10,19 +10,19 @@ func StatusWrapperScript(command []string, jobDir string, environment []string, 
 	statusPath := filepath.Join(jobDir, "status.json")
 	quoted := make([]string, 0, len(command))
 	for _, arg := range command {
-		quoted = append(quoted, shellQuote(arg))
+		quoted = append(quoted, ShellQuote(arg))
 	}
 	commandLine := strings.Join(quoted, " ")
 	exports := make([]string, 0, len(environment))
 	for _, entry := range environment {
 		parts := strings.SplitN(entry, "=", 2)
 		if len(parts) == 2 {
-			exports = append(exports, "export "+parts[0]+"="+shellQuote(parts[1]))
+			exports = append(exports, "export "+parts[0]+"="+ShellQuote(parts[1]))
 		}
 	}
 	changeDirectory := ""
 	if workingDirectory != "" {
-		changeDirectory = "cd " + shellQuote(workingDirectory) + " || exit 1\n"
+		changeDirectory = "cd " + ShellQuote(workingDirectory) + " || exit 1\n"
 	}
 	return fmt.Sprintf(`#!/bin/sh
 set +e
@@ -50,9 +50,9 @@ trap 'write_status cancelled 131; exit 131' QUIT
 code=$?
 write_status finished "$code"
 exit "$code"
-`, shellQuote(statusPath), strings.Join(exports, "\n"), changeDirectory, commandLine)
+`, ShellQuote(statusPath), strings.Join(exports, "\n"), changeDirectory, commandLine)
 }
 
-func shellQuote(value string) string {
+func ShellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }

@@ -1,17 +1,18 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 type JobHandle = executor.JobHandle
@@ -20,22 +21,43 @@ type ArraySubmitter = executor.ArraySubmitter
 type Suspender = executor.Suspender
 type Canceller = executor.Canceller
 
-func mergeEnvironment(base, overrides []string) []string {
-	return executor.MergeEnvironment(base, overrides)
+// ExecutorRunSettings controls the dispatch defaults for one executor.
+// Job-specific options remain higher priority than these values.
+type ExecutorRunSettings = executor.RunSettings
+type executorRunSettingsMap = executor.RunSettingsMap
+
+var executorRunSettingNames = []string{"ssh", "slurm", "pbs", "lsf"}
+
+func cliExecutorRunSettings(fs *flag.FlagSet) executorRunSettingsMap {
+	settings := make(executorRunSettingsMap)
+	for _, name := range executorRunSettingNames {
+		concurrency := cliInt(fs, name+"-concurrency", 0)
+		var options stringSliceFlag
+		cliValue(fs, &options, name+"-options")
+		settings[name] = ExecutorRunSettings{Concurrency: *concurrency, Options: options}
+	}
+	return settings
 }
 
-func statusWrapperScript(command []string, jobDir string, environment []string, workingDirectory string) string {
-	return executor.StatusWrapperScript(command, jobDir, environment, workingDirectory)
+func executorSettingsFor(settings executorRunSettingsMap, name string) ExecutorRunSettings {
+	if settings == nil {
+		return ExecutorRunSettings{}
+	}
+	return settings[name]
 }
 
-type schedulerStatus = executor.SchedulerStatus
-
-func writeSchedulerStatus(jobDir, state string) {
-	executor.WriteSchedulerStatus(jsonStore(), jobDir, state, time.Now())
+func effectiveExecutorConcurrency(settings executorRunSettingsMap, name string, fallback int) int {
+	if concurrency := executorSettingsFor(settings, name).Concurrency; concurrency > 0 {
+		return concurrency
+	}
+	return fallback
 }
 
-func loadSchedulerStatus(jobDir string) string {
-	return executor.LoadSchedulerStatus(jsonStore(), jobDir)
+func effectiveExecutorOptions(settings executorRunSettingsMap, name string, fallback []string) []string {
+	if options := executorSettingsFor(settings, name).Options; len(options) > 0 {
+		return options
+	}
+	return fallback
 }
 
 // jobOwnerExecutor determines which executor owns the job recorded in jobDir,
@@ -44,14 +66,12 @@ func loadSchedulerStatus(jobDir string) string {
 // that job.json alone (not its mere existence) tells us which one to use.
 func jobOwnerExecutor(jobDir string) (JobExecutor, error) {
 	if path, err := validatedStateFile(jobDir, stateFileJobJSON); err == nil { // NOSONAR: jobDir is restricted to validated job-path boundaries
-		if data, err := os.ReadFile(path); err == nil { // NOSONAR: path is restricted by validatedStateFile to job.json.
-			var meta struct {
-				Executor string `json:"executor"`
-			}
-			if err := json.Unmarshal(data, &meta); err == nil {
-				if executor, ok := lookupExecutor(meta.Executor); ok {
-					return executor, nil
-				}
+		var meta struct {
+			Executor string `json:"executor"`
+		}
+		if err := jsonStore().ReadJSON(path, &meta); err == nil {
+			if executor, ok := lookupExecutor(meta.Executor); ok {
+				return executor, nil
 			}
 		}
 	}
@@ -75,17 +95,8 @@ func localExecutorHostMismatch(executor JobExecutor, runDir string) (recordedHos
 		return "", false
 	}
 	safeRunDir := filepath.Join(filepath.Dir(runDir), filepath.Base(runDir))
-	path, err := validatedStateFile(safeRunDir, stateFileContextJSON) // NOSONAR: safeRunDir is restricted to base path construction
-	if err != nil {
-		return "", false
-	}
-	// NOSONAR: path is restricted by validatedStateFile to allowed state file names
-	data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to context.json.
-	if err != nil {
-		return "", false
-	}
-	var context RunContext
-	if json.Unmarshal(data, &context) != nil || context.Hostname == "" {
+	context, err := state.LoadContext(jsonStore(), safeRunDir)
+	if err != nil || context.Hostname == "" {
 		return "", false
 	}
 	host, err := os.Hostname()
@@ -170,8 +181,8 @@ func validateQueueForRun(queue Queue, requestedExecutor string, executorOptions 
 	if err := validateQueueJobs(queue); err != nil {
 		return err
 	}
-	if err := validateQueueDependencies(queue); err != nil {
-		return err
+	if err := model.ValidateDependencies(model.QueueToJobs(queue.Commands)); err != nil {
+		return fmt.Errorf("invalid dependencies: %w", err)
 	}
 	defaultExecutor := requestedExecutor
 	if defaultExecutor == "" {
@@ -287,7 +298,7 @@ func validateLocalJobEnvironment(job QueuedCommand) error {
 	}
 	command := exec.Command("/bin/sh", "-c", `command -v "$1" >/dev/null 2>&1`, "sh", job.Command[0])
 	command.Dir = job.WorkingDirectory
-	command.Env = mergeEnvironment(os.Environ(), job.Environment)
+	command.Env = executor.MergeEnvironment(os.Environ(), job.Environment)
 	if err := command.Run(); err != nil {
 		return fmt.Errorf("command %q is not available", job.Command[0])
 	}

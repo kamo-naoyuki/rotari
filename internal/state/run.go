@@ -18,3 +18,11 @@ func FinalizeRun(queue model.Queue, meta model.Meta, runID string, exitCode int,
 	meta.UpdatedAt = now.UTC().Format(time.RFC3339)
 	return queue, meta, nil
 }
+
+func LoadRunSummary(path string) (model.RunSummary, error) {
+	var summary model.RunSummary
+	if err := NewStore(0o700, 0o600).ReadJSON(path, &summary); err != nil {
+		return model.RunSummary{}, err
+	}
+	return summary, nil
+}
