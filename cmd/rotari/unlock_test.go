@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestEnsureProjectIdleRejectsInterruptedRun(t *testing.T) {
@@ -394,7 +396,7 @@ func TestCmdUnlockRejectsDifferentRunLock(t *testing.T) {
 	if code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", "run-2"}); code == 0 {
 		t.Fatal("cmdUnlock accepted a different run ID")
 	}
-	lock, err := loadLockInfo(paths.LockFile)
+	lock, err := state.LoadLock(paths.LockFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -447,7 +449,7 @@ func TestAcquireLockRejectsActiveLockWithoutReplacingIt(t *testing.T) {
 	if err := acquireLock(lockPath, LockInfo{PID: os.Getpid(), RunID: "run-2"}); err == nil || !strings.Contains(err.Error(), "active lock exists") {
 		t.Fatalf("second acquire error = %v, want active lock exists", err)
 	}
-	stored, err := loadLockInfo(lockPath)
+	stored, err := state.LoadLock(lockPath)
 	if err != nil {
 		t.Fatal(err)
 	}

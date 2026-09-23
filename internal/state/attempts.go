@@ -1,6 +1,7 @@
 package state
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -144,14 +145,40 @@ func ReadJobTimestamp(runDir, jobID, name string) string {
 		return ""
 	}
 	path, err := ValidatedStateFile(jobDir, name)
-	if err != nil {
-		return ""
+	if err == nil {
+		if data, err := os.ReadFile(path); err == nil {
+			return strings.TrimSpace(string(data))
+		}
 	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return ""
+	metadataPath, err := ValidatedStateFile(jobDir, "job.json")
+	if err == nil {
+		data, err := os.ReadFile(metadataPath)
+		if err == nil {
+			var metadata struct {
+				SubmittedAt string `json:"submitted_at"`
+			}
+			if err := json.Unmarshal(data, &metadata); err == nil && metadata.SubmittedAt != "" {
+				if name == "submitted_at" {
+					return metadata.SubmittedAt
+				}
+			}
+		}
 	}
-	return strings.TrimSpace(string(data))
+	statusPath, err := ValidatedStateFile(jobDir, "status.json")
+	if err == nil {
+		data, err := os.ReadFile(statusPath)
+		if err == nil {
+			var status struct {
+				FinishedAt string `json:"finished_at"`
+			}
+			if err := json.Unmarshal(data, &status); err == nil && status.FinishedAt != "" {
+				if name == "finished_at" {
+					return status.FinishedAt
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func ReadAttemptTimestamp(jobDir, name string) string {

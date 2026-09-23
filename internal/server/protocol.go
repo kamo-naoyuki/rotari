@@ -21,7 +21,7 @@ const (
 
 func IsKnownOperation(op string) bool {
 	switch op {
-	case OpPing, OpShutdown, OpRun, OpSubmit, OpCancel, OpSuspend, OpResume:
+	case OpPing, OpShutdown, OpRun, OpSubmit, OpCancel, OpSuspend, OpResume, OpCopy, OpChange, OpRemove, OpClear:
 		return true
 	default:
 		return false

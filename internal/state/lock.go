@@ -2,10 +2,21 @@ package state
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"syscall"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+)
+
+type LockState string
+
+const (
+	LockNone   LockState = "none"
+	LockActive LockState = "active"
+	LockStale  LockState = "stale"
+	LockRemote LockState = "remote"
 )
 
 func ProcessAlive(pid int) bool {
@@ -23,4 +34,31 @@ func LoadLock(path string) (model.LockInfo, error) {
 		return model.LockInfo{}, err
 	}
 	return lock, nil
+}
+
+func InspectLock(path string, cleanupStale bool) (LockState, model.LockInfo, error) {
+	lock, err := LoadLock(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return LockNone, model.LockInfo{}, nil
+		}
+		return LockNone, model.LockInfo{}, fmt.Errorf("read run lock: %w", err)
+	}
+
+	localHost, err := os.Hostname()
+	if err != nil {
+		return LockNone, model.LockInfo{}, fmt.Errorf("determine local host: %w", err)
+	}
+	if lock.Host == "" || lock.Host != localHost {
+		return LockRemote, lock, nil
+	}
+	if lock.PID > 0 && ProcessAlive(lock.PID) {
+		return LockActive, lock, nil
+	}
+	if cleanupStale {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return LockStale, lock, err
+		}
+	}
+	return LockStale, lock, nil
 }

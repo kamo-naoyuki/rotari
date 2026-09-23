@@ -109,7 +109,7 @@ func resolveRunNameTargets(cliBaseDir, cliProjectName, runName string, activeOnl
 			if !running {
 				continue
 			}
-			lock, lockErr := loadLockInfo(paths.LockFile)
+			lock, lockErr := state.LoadLock(paths.LockFile)
 			if lockErr != nil {
 				return nil, lockErr
 			}
@@ -240,7 +240,7 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]waitTarget, 
 		if !running {
 			continue
 		}
-		lock, lockErr := loadLockInfo(paths.LockFile)
+		lock, lockErr := state.LoadLock(paths.LockFile)
 		if lockErr != nil {
 			return nil, lockErr
 		}

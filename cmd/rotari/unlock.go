@@ -43,7 +43,7 @@ func cmdUnlock(args []string) int {
 		return 1
 	}
 	defer release()
-	lock, err := loadLockInfo(paths.LockFile)
+	lock, err := state.LoadLock(paths.LockFile)
 	removedLock := false
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {

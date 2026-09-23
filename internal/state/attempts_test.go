@@ -29,6 +29,27 @@ func TestReadJobTimestampUsesLatestAttempt(t *testing.T) {
 	}
 }
 
+func TestReadJobTimestampFallsBackToMetadataAndSchedulerStatus(t *testing.T) {
+	runDir := filepath.Join(t.TempDir(), "20260923-000000-00000000")
+	jobDir := filepath.Join(runDir, "job-1", "attempts", "att_20260923-000000-00000000-job-1-1")
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(jobDir, "job.json"), []byte(`{"submitted_at":"2026-09-23T00:00:01Z"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(jobDir, "status.json"), []byte(`{"phase":"finished","exit_code":0,"finished_at":"2026-09-23T00:00:02Z"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := ReadJobTimestamp(runDir, "job-1", "submitted_at"); got != "2026-09-23T00:00:01Z" {
+		t.Fatalf("ReadJobTimestamp(submitted_at) = %q, want metadata fallback", got)
+	}
+	if got := ReadJobTimestamp(runDir, "job-1", "finished_at"); got != "2026-09-23T00:00:02Z" {
+		t.Fatalf("ReadJobTimestamp(finished_at) = %q, want scheduler status fallback", got)
+	}
+}
+
 func TestLoadLocalJobResult(t *testing.T) {
 	jobDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(jobDir, "finished_at"), nil, 0o600); err != nil {

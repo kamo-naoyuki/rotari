@@ -994,8 +994,8 @@ func controlQueueJobs(baseDir, queueName string, jobIDs []string, operation stri
 	if err != nil {
 		return "", err
 	}
-	var lock LockInfo
-	if err := jsonStore().ReadJSON(paths.LockFile, &lock); err != nil {
+	lock, err := state.LoadLock(paths.LockFile)
+	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", fmt.Errorf("project %q is not running", queueName)
 		}
@@ -1152,16 +1152,12 @@ func cancelQueueJobs(baseDir, queueName string, jobIDs []string, wait bool) (str
 	if err != nil {
 		return "", err
 	}
-	data, err := os.ReadFile(paths.LockFile) // NOSONAR: paths comes from resolvePaths, which validates the project name.
+	lock, err := state.LoadLock(paths.LockFile)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", fmt.Errorf("project %q is not running", queueName)
 		}
 		return "", err
-	}
-	var lock LockInfo
-	if err := json.Unmarshal(data, &lock); err != nil {
-		return "", fmt.Errorf("invalid running lock: %w", err)
 	}
 	if !validWebID(lock.RunID) {
 		return "", fmt.Errorf("invalid run ID %q", lock.RunID)

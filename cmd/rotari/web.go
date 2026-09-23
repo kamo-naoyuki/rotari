@@ -597,14 +597,9 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		data, err := os.ReadFile(paths.LockFile) // NOSONAR: paths comes from resolvePaths after validWebID validation.
+		lock, err := stateinternal.LoadLock(paths.LockFile)
 		if err != nil {
 			writeWebError(writer, fmt.Errorf("project %q is not running", cancel.QueueName))
-			return
-		}
-		var lock LockInfo
-		if err := json.Unmarshal(data, &lock); err != nil {
-			writeWebError(writer, fmt.Errorf("invalid running lock: %w", err))
 			return
 		}
 		if lock.RunID != cancel.RunID {
@@ -984,7 +979,7 @@ func loadWebQueueState(paths pathSet) (webQueueState, error) {
 	state, err := webprojection.LoadQueueState(webprojection.QueueLoader{
 		ProjectName: paths.ProjectName,
 		Queue:       func() (model.Queue, error) { return stateinternal.LoadQueue(paths.QueueFile) },
-		Lock:        func() (model.LockInfo, error) { return loadLockInfo(paths.LockFile) },
+		Lock:        func() (model.LockInfo, error) { return stateinternal.LoadLock(paths.LockFile) },
 		Runs: func() ([]string, error) {
 			entries, err := os.ReadDir(paths.RunsDir)
 			if os.IsNotExist(err) {

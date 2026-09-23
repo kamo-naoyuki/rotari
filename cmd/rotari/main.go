@@ -263,7 +263,7 @@ func waitForCancellation(paths pathSet, projectName string) bool {
 }
 
 func finalizeCompletedCancellation(paths pathSet) (bool, error) {
-	lock, err := loadLockInfo(paths.LockFile)
+	lock, err := state.LoadLock(paths.LockFile)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
@@ -363,7 +363,7 @@ func finishRun(paths pathSet, runID string, exitCode int) error {
 	}
 	defer release()
 
-	lock, err := loadLockInfo(paths.LockFile)
+	lock, err := state.LoadLock(paths.LockFile)
 	if err != nil {
 		return fmt.Errorf("failed to verify run lock: %w", err)
 	}
@@ -578,48 +578,18 @@ func isRunning(lockPath string) (bool, error) {
 	return state == projectLockActive || state == projectLockRemote, err
 }
 
-type projectLockState string
+type projectLockState = state.LockState
 
 const (
-	projectLockNone   projectLockState = "none"
-	projectLockActive projectLockState = "active"
-	projectLockStale  projectLockState = "stale"
-	projectLockRemote projectLockState = "remote"
+	projectLockNone   = state.LockNone
+	projectLockActive = state.LockActive
+	projectLockStale  = state.LockStale
+	projectLockRemote = state.LockRemote
 )
 
 func inspectRunLock(lockPath string, cleanupStale bool) (projectLockState, LockInfo, error) {
-	lock, err := loadLockInfo(lockPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return projectLockNone, LockInfo{}, nil
-		}
-		return projectLockNone, LockInfo{}, fmt.Errorf("read run lock: %w", err)
-	}
-
-	localHost, err := os.Hostname()
-	if err != nil {
-		return projectLockNone, LockInfo{}, fmt.Errorf("determine local host: %w", err)
-	}
-	if lock.Host == "" || lock.Host != localHost {
-		return projectLockRemote, lock, nil
-	}
-	if lock.PID > 0 && processAlive(lock.PID) {
-		return projectLockActive, lock, nil
-	}
-	if cleanupStale {
-		if err := os.Remove(lockPath); err != nil && !errors.Is(err, os.ErrNotExist) { // NOSONAR: lockPath is the resolved state lock.
-			return projectLockStale, lock, err
-		}
-	}
-	return projectLockStale, lock, nil
-}
-
-func loadLockInfo(lockPath string) (LockInfo, error) {
-	return state.LoadLock(lockPath)
-}
-
-func processAlive(pid int) bool {
-	return state.ProcessAlive(pid)
+	lockState, lock, err := state.InspectLock(lockPath, cleanupStale)
+	return lockState, lock, err
 }
 
 func makeRunID() string {

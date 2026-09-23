@@ -2,7 +2,9 @@ package state
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -39,4 +41,65 @@ func ValidatedStateFile(basePath, fileName string) (string, error) {
 	default:
 		return "", fmt.Errorf("invalid state file name %q", fileName)
 	}
+}
+
+func RequireRunStateFile(runDir, name, runID string) error {
+	path, err := ValidatedStateFile(runDir, name)
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("run %q is missing %s: %w", runID, name, err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("run %q %s is not a regular file", runID, name)
+	}
+	return nil
+}
+
+func ValidateRunDirectory(runsDir, runID string, requireCommands bool) (string, error) {
+	runDir, err := SafeJoin(runsDir, runID)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(runDir)
+	if err != nil {
+		return "", fmt.Errorf("run %q directory is missing: %w", runID, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("run %q path is not a directory", runID)
+	}
+	if err := RequireRunStateFile(runDir, "context.json", runID); err != nil {
+		return "", err
+	}
+	if requireCommands {
+		if err := RequireRunStateFile(runDir, "commands.json", runID); err != nil {
+			return "", err
+		}
+	}
+	return runDir, nil
+}
+
+func ListRunJobDirs(runDir string) ([]string, error) {
+	entries, err := os.ReadDir(runDir)
+	if err != nil {
+		return nil, err
+	}
+	jobDirs := make([]string, 0)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		jobDir, err := SafeJoin(runDir, entry.Name())
+		if err != nil {
+			continue
+		}
+		if err := RequireRunStateFile(jobDir, "command.json", entry.Name()); err != nil {
+			continue
+		}
+		jobDirs = append(jobDirs, jobDir)
+	}
+	sort.Strings(jobDirs)
+	return jobDirs, nil
 }

@@ -978,7 +978,7 @@ func runIsActive(paths pathSet, runID string) bool {
 	if err != nil || !running {
 		return false
 	}
-	lock, err := loadLockInfo(paths.LockFile)
+	lock, err := state.LoadLock(paths.LockFile)
 	return err == nil && lock.RunID == runID
 }
 
@@ -1495,56 +1495,22 @@ func loadTerminalSchedulerState(jobDir string) (int, bool) {
 	return executor.ResolveTerminalExitCode(jsonStore(), jobDir)
 }
 
-func readSubmittedAt(runDir, jobID string) string {
-	jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
-	if err != nil {
-		return "-"
-	}
-	data, err := os.ReadFile(filepath.Join(jobDir, "submitted_at"))
-	if err == nil {
-		return strings.TrimSpace(string(data))
-	}
-	var metadata struct {
-		SubmittedAt string `json:"submitted_at"`
-	}
-	if err := jsonStore().ReadJSON(filepath.Join(jobDir, "job.json"), &metadata); err != nil || metadata.SubmittedAt == "" {
-		return "-"
-	}
-	return metadata.SubmittedAt
-}
-
-func readFinishedAt(runDir, jobID string) string {
-	jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
-	if err != nil {
-		return "-"
-	}
-	data, err := os.ReadFile(filepath.Join(jobDir, "finished_at"))
-	if err == nil {
-		return strings.TrimSpace(string(data))
-	}
-	var status slurmStatus
-	if err := jsonStore().ReadJSON(filepath.Join(jobDir, statusJSONName), &status); err != nil || status.FinishedAt == "" {
-		return "-"
-	}
-	return status.FinishedAt
-}
-
 func readShowJobTimestamps(runDir, jobID string, origin *JobOrigin) (string, string) {
-	submittedAt := readSubmittedAt(runDir, jobID)
-	finishedAt := readFinishedAt(runDir, jobID)
+	submittedAt := state.ReadJobTimestamp(runDir, jobID, "submitted_at")
+	finishedAt := state.ReadJobTimestamp(runDir, jobID, "finished_at")
 	if origin == nil {
 		return submittedAt, finishedAt
 	}
-	if submittedAt == "-" {
+	if submittedAt == "" {
 		submittedAt = origin.SubmittedAt
 		if submittedAt == "" && state.IsValidPathElement(origin.RunID) {
-			submittedAt = readSubmittedAt(filepath.Join(filepath.Dir(runDir), origin.RunID), origin.JobID)
+			submittedAt = state.ReadJobTimestamp(filepath.Join(filepath.Dir(runDir), origin.RunID), origin.JobID, "submitted_at")
 		}
 	}
-	if finishedAt == "-" {
+	if finishedAt == "" {
 		finishedAt = origin.FinishedAt
 		if finishedAt == "" && state.IsValidPathElement(origin.RunID) {
-			finishedAt = readFinishedAt(filepath.Join(filepath.Dir(runDir), origin.RunID), origin.JobID)
+			finishedAt = state.ReadJobTimestamp(filepath.Join(filepath.Dir(runDir), origin.RunID), origin.JobID, "finished_at")
 		}
 	}
 	return submittedAt, finishedAt
@@ -1706,8 +1672,8 @@ func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID str
 	if dependencies := jobSpecs[jobID].DependsOn; len(dependencies) > 0 {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Depends on:"), strings.Join(dependencies, ", "))
 	}
-	fmt.Fprintf(writer, "%s %s\n", cyan("Submitted:"), model.FormatDisplayTimestamp(readSubmittedAt(runDir, jobID)))
-	fmt.Fprintf(writer, "%s %s\n", cyan("Finished:"), model.FormatDisplayTimestamp(readFinishedAt(runDir, jobID)))
+	fmt.Fprintf(writer, "%s %s\n", cyan("Submitted:"), model.FormatDisplayTimestamp(state.ReadJobTimestamp(runDir, jobID, "submitted_at")))
+	fmt.Fprintf(writer, "%s %s\n", cyan("Finished:"), model.FormatDisplayTimestamp(state.ReadJobTimestamp(runDir, jobID, "finished_at")))
 	if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
 		for _, result := range summary.Results {
 			if result.ID == jobSpecs[jobID].ID {

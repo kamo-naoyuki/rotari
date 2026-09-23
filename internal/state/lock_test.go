@@ -2,6 +2,7 @@ package state
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -35,5 +36,37 @@ func TestLoadLockReadsModelContract(t *testing.T) {
 	}
 	if lock.PID != 42 || lock.RunID != "run-1" || lock.Host != "worker-1" {
 		t.Fatalf("lock = %#v, want persisted lock fields", lock)
+	}
+}
+
+func TestInspectLockClassifiesMissingRemoteAndStaleLocks(t *testing.T) {
+	missing, _, err := InspectLock(filepath.Join(t.TempDir(), "running.lock"), false)
+	if err != nil || missing != LockNone {
+		t.Fatalf("missing lock = %q, error = %v, want none", missing, err)
+	}
+
+	remotePath := filepath.Join(t.TempDir(), "running.lock")
+	if err := os.WriteFile(remotePath, []byte(`{"run_id":"remote-run","host":"other-host"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	remote, _, err := InspectLock(remotePath, false)
+	if err != nil || remote != LockRemote {
+		t.Fatalf("remote lock = %q, error = %v, want remote", remote, err)
+	}
+
+	stalePath := filepath.Join(t.TempDir(), "running.lock")
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(stalePath, []byte(fmt.Sprintf(`{"run_id":"stale-run","pid":-1,"host":%q}`, host)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stale, _, err := InspectLock(stalePath, true)
+	if err != nil || stale != LockStale {
+		t.Fatalf("stale lock = %q, error = %v, want stale", stale, err)
+	}
+	if _, err := os.Stat(stalePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("stale lock stat error = %v, want removed lock", err)
 	}
 }

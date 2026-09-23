@@ -79,33 +79,8 @@ func validateProjectStateConsistency(paths pathSet, inspection projectStateInspe
 	if inspection.Lock == projectLockStale && inspection.LockRunID != "" && inspection.LockRunID != inspection.RunID {
 		return fmt.Errorf("run lock identifies %q but metadata identifies %q", inspection.LockRunID, inspection.RunID)
 	}
-	runDir, err := state.SafeJoin(paths.RunsDir, inspection.RunID)
-	if err != nil {
+	if _, err := state.ValidateRunDirectory(paths.RunsDir, inspection.RunID, inspection.State == projectInterrupted); err != nil {
 		return err
-	}
-	if info, err := os.Stat(runDir); err != nil {
-		return fmt.Errorf("run %q directory is missing: %w", inspection.RunID, err)
-	} else if !info.IsDir() {
-		return fmt.Errorf("run %q path is not a directory", inspection.RunID)
-	}
-	if err := requireRunStateFile(runDir, "context.json", inspection.RunID); err != nil {
-		return err
-	}
-	if inspection.State == projectInterrupted {
-		if err := requireRunStateFile(runDir, "commands.json", inspection.RunID); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func requireRunStateFile(runDir, name, runID string) error {
-	info, err := os.Stat(filepath.Join(runDir, name))
-	if err != nil {
-		return fmt.Errorf("run %q is missing %s: %w", runID, name, err)
-	}
-	if !info.Mode().IsRegular() {
-		return fmt.Errorf("run %q %s is not a regular file", runID, name)
 	}
 	return nil
 }
@@ -171,19 +146,12 @@ type interruptedRunJobStatus struct {
 // way to tell that apart from a job that is genuinely still executing, and
 // treating "unknown" as "running" is the safer default here.
 func scanInterruptedRunJobStatus(runDir string) (interruptedRunJobStatus, error) {
-	entries, err := os.ReadDir(runDir)
+	jobDirs, err := state.ListRunJobDirs(runDir)
 	if err != nil {
 		return interruptedRunJobStatus{}, err
 	}
 	var status interruptedRunJobStatus
-	for _, entry := range entries {
-		jobDir := filepath.Join(runDir, entry.Name())
-		if !entry.IsDir() {
-			continue
-		}
-		if _, err := os.Stat(filepath.Join(jobDir, "command.json")); err != nil {
-			continue
-		}
+	for _, jobDir := range jobDirs {
 		status.Total++
 		if _, ok := readJobStatus(filepath.Join(jobDir, "status")); ok {
 			continue
