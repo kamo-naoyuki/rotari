@@ -337,36 +337,33 @@ func cmdWorkerRun(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	if err := writeRunContext(paths, runID, cwd); err != nil {
-		printErrorf("failed to save run context: %v", err)
+	exitCode, workerErr := runcontract.RunWorker(runcontract.WorkerCallbacks{
+		WriteContext: func() error { return writeRunContext(paths, runID, cwd) },
+		MarkRunning: func() error {
+			meta, _ := loadMeta(paths.metaFile)
+			meta.Phase = "running"
+			meta.LastRunID = runID
+			meta.UpdatedAt = nowRFC3339()
+			return writeJSON(paths.metaFile, meta)
+		},
+		StartSampling: func() func() { return startRunLoadSampling(paths, runID) },
+		Execute: func() int {
+			return executeMixedRun(paths, runID, runName, localConcurrency, batchMaxActive, retry, *executor, executorOptions, *selection, jobIDs, *sourceRunID, *partialArray, nil, nil, executorSettings)
+		},
+		FinishContext: func() error { return finishRunContext(paths, runID) },
+		Finalize:      func(exitCode int) error { return finishRun(paths, runID, exitCode) },
+		RemoveLock: func() error {
+			err := os.Remove(paths.lockFile)
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		},
+	})
+	if workerErr != nil {
+		printErrorf("worker run failed: %v", workerErr)
 		return 1
 	}
-
-	meta, _ := loadMeta(paths.metaFile)
-	meta.Phase = "running"
-	meta.LastRunID = runID
-	meta.UpdatedAt = nowRFC3339()
-	if err := writeJSON(paths.metaFile, meta); err != nil {
-		printErrorf("failed to update metadata: %v", err)
-		return 1
-	}
-
-	stopLoadSampling := startRunLoadSampling(paths, runID)
-	exitCode := executeMixedRun(paths, runID, runName, localConcurrency, batchMaxActive, retry, *executor, executorOptions, *selection, jobIDs, *sourceRunID, *partialArray, nil, nil, executorSettings)
-	stopLoadSampling()
-	if err := finishRunContext(paths, runID); err != nil {
-		printErrorf("failed to save run context: %v", err)
-		return 1
-	}
-	if err := finishRun(paths, runID, exitCode); err != nil {
-		printErrorf("failed to finalize metadata: %v", err)
-		return 1
-	}
-
-	if err := os.Remove(paths.lockFile); err != nil && !errors.Is(err, os.ErrNotExist) {
-		printErrorf("failed to remove lock file: %v", err)
-	}
-
 	return exitCode
 }
 
