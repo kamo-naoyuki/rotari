@@ -1,4 +1,4 @@
-{% set version = environ.get("PKG_VERSION", "0.0.0") %}
+{% set version = environ.get("ROTARI_RELEASE_VERSION", "0.0.0") %}
 {% set python_min = "3.10" %}
 
 package:
