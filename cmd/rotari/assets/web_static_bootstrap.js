@@ -1,8 +1,8 @@
 window.__ROTARI_STATIC_STATE__ = __ROTARI_STATIC_STATE_DATA__;
 window.__ROTARI_STATIC_LOGS__ = __ROTARI_STATIC_LOGS_DATA__;
 window.__ROTARI_STATIC_REPORTS__ = __ROTARI_STATIC_REPORTS_DATA__;
-window.__ROTARI_STATIC_CONFIG_TEMPLATE__ =
-  __ROTARI_STATIC_CONFIG_TEMPLATE_DATA__;
+// prettier-ignore
+window.__ROTARI_STATIC_CONFIG_TEMPLATE__ = __ROTARI_STATIC_CONFIG_TEMPLATE_DATA__;
 
 window.fetch = async function (input, init) {
   const request = new URL(input, window.location.href);
