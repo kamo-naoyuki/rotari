@@ -50,6 +50,27 @@ func TestRunRegistryGCFindsAndAppliesOnlyOrphans(t *testing.T) {
 	}
 }
 
+func TestRunLocationExistsRejectsUnsafeLocations(t *testing.T) {
+	baseDir := t.TempDir()
+	runDir := filepath.Join(baseDir, "projects", "demo", "runs", "run-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if !runLocationExists(runLocation{BaseDir: baseDir, ProjectName: "demo", RunID: "run-1"}) {
+		t.Fatal("runLocationExists rejected an existing run")
+	}
+	for _, location := range []runLocation{
+		{BaseDir: "relative", ProjectName: "demo", RunID: "run-1"},
+		{BaseDir: baseDir, ProjectName: "../outside", RunID: "run-1"},
+		{BaseDir: baseDir, ProjectName: "demo", RunID: "../outside"},
+	} {
+		if runLocationExists(location) {
+			t.Fatalf("runLocationExists accepted unsafe location %#v", location)
+		}
+	}
+}
+
 func TestApplyRunRegistryGCRejectsExpiredPlan(t *testing.T) {
 	masterDir := t.TempDir()
 	t.Setenv("ROTARI_MASTERDIR", masterDir)

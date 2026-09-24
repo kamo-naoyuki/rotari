@@ -37,6 +37,25 @@ func TestLoadStateReturnsInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestValidateStatePathRejectsTraversalSegments(t *testing.T) {
+	for _, path := range []string{
+		"",
+		".",
+		"..",
+		"safe/../escape.json",
+		"safe\\..\\escape.json",
+	} {
+		if err := ValidateStatePath(path); err == nil {
+			t.Errorf("ValidateStatePath accepted unsafe path %q", path)
+		}
+	}
+	for _, path := range []string{"/tmp/rotari/queue.json", "relative/queue.json", "safe\\queue.json"} {
+		if err := ValidateStatePath(path); err != nil {
+			t.Errorf("ValidateStatePath rejected valid path %q: %v", path, err)
+		}
+	}
+}
+
 func TestReadJSONRejectsTraversalPath(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "safe") + string(os.PathSeparator) + ".." + string(os.PathSeparator) + "escape.json"
 	var queue model.Queue
@@ -64,6 +83,27 @@ func TestWriteJSONRejectsTraversalPath(t *testing.T) {
 	basePath := filepath.Join(t.TempDir(), "safe", "value.json")
 	if err := WriteJSON(basePath, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1"}}}); err != nil {
 		t.Fatalf("WriteJSON rejected a valid absolute state path: %v", err)
+	}
+}
+
+func TestLoadSamplesRoundTripAndRejectsTraversalPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nested", "load.jsonl")
+	want := []model.LoadSample{{At: "2026-09-25T00:00:00Z"}, {At: "2026-09-25T00:00:01Z"}}
+	for _, sample := range want {
+		if err := AppendLoadSample(path, sample); err != nil {
+			t.Fatalf("AppendLoadSample() error = %v", err)
+		}
+	}
+	if got := ReadLoadSamples(path); len(got) != len(want) || got[0].At != want[0].At || got[1].At != want[1].At {
+		t.Fatalf("ReadLoadSamples() = %#v, want %#v", got, want)
+	}
+
+	unsafePath := filepath.Join(t.TempDir(), "safe") + string(os.PathSeparator) + ".." + string(os.PathSeparator) + "escape.jsonl"
+	if err := AppendLoadSample(unsafePath, model.LoadSample{}); err == nil {
+		t.Fatalf("AppendLoadSample accepted traversal path %q", unsafePath)
+	}
+	if got := ReadLoadSamples(unsafePath); got != nil {
+		t.Fatalf("ReadLoadSamples accepted traversal path %q: %#v", unsafePath, got)
 	}
 }
 
