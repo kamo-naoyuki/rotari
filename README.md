@@ -78,15 +78,6 @@ Install rotari with Homebrew on macOS or Linuxbrew on Linux:
 brew install kamo-naoyuki/tap/rotari
 ```
 
-### Conda
-
-The Conda package installs both the `rotari` command and the `rotari` Python
-package on Linux or macOS:
-
-```sh
-conda install -c kamo-naoyuki rotari
-```
-
 ### Build from source
 
 If you have Go installed, you can build rotari from source:

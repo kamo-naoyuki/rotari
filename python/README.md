@@ -5,12 +5,6 @@ CLI behavior and examples, see the repository [README](../README.md).
 
 ## Usage
 
-Install the Python client together with the `rotari` executable using Conda:
-
-```sh
-conda install -c kamo-naoyuki rotari
-```
-
 The client is not published on PyPI. Wheels built from tagged releases bundle
 the matching `rotari` executable and are available through a static
 [package index](https://kamo-naoyuki.github.io/rotari/simple/) hosted on
@@ -21,7 +15,7 @@ python3 -m pip install --index-url https://kamo-naoyuki.github.io/rotari/simple/
 ```
 
 This installs both the Python client and a `rotari` command on `PATH` for the
-current platform; no separate Conda/Homebrew/binary install is needed. On an
+current platform; no separate Homebrew/binary install is needed. On an
 unsupported platform, install the client from a checkout and place `rotari` on
 `PATH` yourself.
 
