@@ -11,6 +11,7 @@ matches the tasks you are trying to do.
 
 ## Quick navigation
 
+- [Why is it called rotari?](#why-is-it-called-rotari)
 - [Projects, queues, runs, and registry](#projects-queues-runs-and-registry)
 - [Language and implementation choices](#language-and-implementation-choices)
 - [Retries, copying, arrays, and dependencies](#retries-copying-arrays-and-dependencies)
@@ -21,6 +22,26 @@ matches the tasks you are trying to do.
 - [Web UI](#web-ui)
 - [Background server (supervisor)](#background-server-supervisor)
 - [Timestamps and environment](#timestamps-and-environment)
+
+## Why is it called rotari?
+The name was chosen to be a short, general-purpose term rather than a too-
+specific label that would clash with existing tools or conventions. We wanted a
+name that described the project without sounding like a competitor to an
+existing job-queue or scheduler product.
+
+Names such as `jobq` were considered, but they were too narrow and too easy to
+collide with an existing tool or ecosystem name. A more general term also makes
+it easier to keep the project focused on workflow execution itself rather than
+on a specific queue implementation or vendor-specific branding.
+
+The name also fits the tool's purpose: it is about repeatable execution,
+looping through batches, and running the same kind of work again while keeping
+track of what changed. That makes it memorable in a shell, easy to type, and
+consistent with the workflow model of repeated experiments and builds.
+
+The logo was also designed by the project author, so the overall visual identity
+was kept intentionally simple and consistent with that lightweight, CLI-focused
+feel.
 
 ## Projects, queues, runs, and registry
 
@@ -558,6 +579,13 @@ current queue with those jobs or `Append` to add them to the current queue.
 The web UI only updates the persisted queue; a separate runner must execute
 the queued jobs.
 
+### Can I create a config file from the Web UI?
+Yes. `View config` only displays the resolved configuration, while `Generate
+config` offers YAML, TOML, and JSON templates for the basedir or current
+project. Choosing the same format as an existing config replaces it after a
+confirmation. A run page is historical and only offers viewing its recorded
+config; `--allow-control=false` also disables generation.
+
 ### How do I view an older job attempt in the Web UI?
 Use the arrow beside a job's attempt ID and choose an attempt. The row switches
 to that attempt's status, timestamps, result, and log. The selection is per
@@ -596,7 +624,7 @@ Prefer the environment variable so it does not appear in the process list.
 This protects the HTTP routes from unauthenticated requests, but it does not
 encrypt traffic; use HTTPS or a trusted/private network. Without a token, treat
 the UI as an unauthenticated admin surface and keep it on loopback. The
-`copy`/`change`/`remove`/`cancel`/`clear-run` APIs are enabled by default;
+`copy`/`change`/`remove`/`cancel`/`clear-run`/`generate-config` APIs are enabled by default;
 pass `--allow-control=false` for a read-only UI that rejects them with `403`.
 Environment variable *values* are never returned by `/api/state` or
 `/environment/` (only whether each is set), so secrets in your shell
