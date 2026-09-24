@@ -242,6 +242,24 @@ func configPathsForRun(baseDir, projectName string) []string {
 	return nil
 }
 
+// configListPaths returns every config file found across all scopes (global,
+// basedir, project), for `config --list`. Unlike configPathsForRun, it does
+// not stop at the first scope that has files: --list is meant to show the
+// user everything, not just the one scope that would take effect.
+func configListPaths(baseDir, projectName string) []string {
+	var paths []string
+	if configHome, err := configHomeDir(); err == nil {
+		paths = append(paths, configFilePaths(configHome)...)
+	}
+	paths = append(paths, configFilePaths(baseDir)...)
+	if projectName != "" {
+		if projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), projectName); err == nil {
+			paths = append(paths, configFilePaths(projectDir)...)
+		}
+	}
+	return paths
+}
+
 func configValue(name string) (any, bool) {
 	if cliConfigCommand != "" {
 		if section, ok := cliConfig[cliConfigCommand].(map[string]any); ok {
@@ -423,7 +441,7 @@ func cmdConfig(args []string) int {
 			printError(err.Error())
 			return 1
 		}
-		for _, path := range configPathsForRun(resolvedBaseDir, project) {
+		for _, path := range configListPaths(resolvedBaseDir, project) {
 			fmt.Println(path)
 		}
 		return 0
