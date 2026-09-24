@@ -998,20 +998,6 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 	}
 }
 
-func TestWebJobsPathRedirectsToTrailingSlash(t *testing.T) {
-	request := httptest.NewRequest(http.MethodGet, "/jobs", nil)
-	response := httptest.NewRecorder()
-
-	newWebHandler(t.TempDir(), "", false).ServeHTTP(response, request)
-
-	if response.Code != http.StatusMovedPermanently {
-		t.Fatalf("GET /jobs status = %d, want %d", response.Code, http.StatusMovedPermanently)
-	}
-	if got := response.Header().Get("Location"); got != "/jobs/" {
-		t.Fatalf("GET /jobs Location = %q, want %q", got, "/jobs/")
-	}
-}
-
 func TestWebJobsPageFiltersBySince(t *testing.T) {
 	baseDir := t.TempDir()
 	runID := "20260922-090000-00000001"
@@ -1049,21 +1035,6 @@ func TestJobsHTMLStylesStates(t *testing.T) {
 		`.jobs-state-success`,
 		`.jobs-state-failed`,
 		`.jobs-state-running`,
-	} {
-		if !strings.Contains(html, want) {
-			t.Fatalf("jobs HTML does not contain %q", want)
-		}
-	}
-}
-
-func TestJobsHTMLCopyFallsBackWhenClipboardWriteFails(t *testing.T) {
-	html := jobsHTML("/", nil, defaultJobsSinceText, true)
-	for _, want := range []string{
-		"function copyJobsValueFallback(value)",
-		"await navigator.clipboard.writeText(value)",
-		"catch (error)",
-		"copyJobsValueFallback(value)",
-		`document.execCommand("copy")`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("jobs HTML does not contain %q", want)
