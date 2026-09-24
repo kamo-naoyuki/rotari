@@ -4,7 +4,7 @@ The Web UI can show a browser desktop notification when a run finishes or a
 job fails. This is entirely local: it reuses the existing state polling that
 already renders the page, sends no extra network requests, and never talks to
 an external service. This is the local-only alternative to
-[Webhook integrations](WEBHOOK_INTEGRATIONS.md) for anyone who cannot send run
+[Webhook integrations](WEBHOOK_NOTIFICATIONS.md) for anyone who cannot send run
 data outside their network.
 
 ## Enabling notifications

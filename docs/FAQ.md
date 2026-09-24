@@ -152,7 +152,7 @@ command to display their logs. A webhook error is only a warning and does not
 alter the run result. Set `webhook.format` to `slack`, `teams`, or `discord`, or set
 `ROTARI_WEBHOOK_FORMAT` to one of those values, to send a service-specific
 payload directly. The default format is the generic rotari JSON payload. See
-[Webhook integrations](WEBHOOK_INTEGRATIONS.md) for examples.
+[Webhook integrations](WEBHOOK_NOTIFICATIONS.md) for examples.
 
 ### How are concurrency and executor options selected?
 `--local-concurrency` applies to local jobs. `--batch-concurrency` is the
