@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Go API documentation</title>
+<style>
+:root { color-scheme: light; }
+body { background: #f8fafc; color: #1f2937; font-family: ui-sans-serif, system-ui, sans-serif; line-height: 1.55; margin: 0; }
+main { margin: 0 auto; max-width: 920px; padding: 3rem 1.5rem; }
+a { color: #0f766e; }
+h1 { font-size: 2rem; margin: 0 0 0.5rem; }
+h2 { color: #334155; font-size: 1.1rem; margin: 0 0 1rem; }
+.package-list { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; line-height: 1.9; margin-top: 1.5rem; padding: 1rem 1.5rem 1rem 2rem; }
+.dependency-graph { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; margin-top: 1.5rem; padding: 1rem; }
+.dependency-graph img { display: block; height: auto; max-width: 100%; }
+.meta { color: #64748b; margin: 0; }
+code { background: #eef2f7; border-radius: 4px; padding: 0.1rem 0.25rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Go API documentation</h1>
+<p class="meta">Generated from <code>go doc -all</code> for module <code>$module</code>.</p>
+$dependency_graph
+<ul class="package-list">$package_links</ul>
+</main>
+</body>
+</html>

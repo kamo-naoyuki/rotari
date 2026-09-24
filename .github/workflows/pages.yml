@@ -36,10 +36,19 @@ jobs:
         run: |
           GO_BINARY="$(command -v go)" scripts/generate-static-web.sh
 
+      - name: Install graphviz
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+
+      - name: Generate Go API documentation
+        run: |
+          python3 scripts/generate_go_docs.py \
+            --output-dir "$RUNNER_TEMP/go-api" \
+            --dependency-graph
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -62,6 +71,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/pages-site"
           cp -a docs/web-demo/. "$RUNNER_TEMP/pages-site/"
+          cp -a "$RUNNER_TEMP/go-api" "$RUNNER_TEMP/pages-site/go-api"
           cp -a "$RUNNER_TEMP/python-api" "$RUNNER_TEMP/pages-site/python-api"
 
       - name: Configure GitHub Pages

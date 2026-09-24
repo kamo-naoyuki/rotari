@@ -75,14 +75,17 @@ jobs:
       - name: Install graphviz
         run: sudo apt-get update && sudo apt-get install -y graphviz
 
-      - name: Generate dependency graph
-        run: scripts/generate-dep-graph.sh "${{ runner.temp }}/dep-graph"
+      - name: Generate Go API documentation
+        run: >-
+          python3 scripts/generate_go_docs.py
+          --output-dir "${{ runner.temp }}/go-api"
+          --dependency-graph
 
-      - name: Upload dependency graph
+      - name: Upload Go API documentation
         uses: actions/upload-artifact@v4
         with:
-          name: dep-graph
-          path: ${{ runner.temp }}/dep-graph
+          name: go-api
+          path: ${{ runner.temp }}/go-api
 
       - name: Check example script
         run: bash -n scripts/example.sh
