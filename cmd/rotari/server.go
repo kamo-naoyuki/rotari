@@ -766,29 +766,18 @@ func cmdCancel(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if len(fs.Args()) != 0 {
+	if len(fs.Args()) > 0 && len(jobIDs) > 0 {
 		printError("usage: " + cliUsage("cancel"))
 		return 1
 	}
+	if len(fs.Args()) > 0 {
+		jobIDs = append(jobIDs, fs.Args()...)
+	}
 	if len(jobIDs) > 0 && *wait {
-		printError("--wait may not be used with --job-id")
+		printError("--wait may not be used with a job selection")
 		return 1
 	}
-	baseDir, _, err := resolveBaseDir(*basedir)
-	if len(jobIDs) > 0 && strings.HasPrefix(jobIDs[0], "att_") {
-		resolvedBaseDir, resolvedProject, _, _, resolveErr := resolveAttemptTarget(jobIDs[0], *basedir, *queueNameOption, "")
-		if resolveErr != nil {
-			printError(resolveErr)
-			return 1
-		}
-		baseDir, *queueNameOption = resolvedBaseDir, resolvedProject
-		err = nil
-	}
-	if err != nil {
-		printErrorf("failed to resolve state directory: %v", err)
-		return 1
-	}
-	queueName, err := resolveProjectName(baseDir, *queueNameOption)
+	baseDir, queueName, selection, err := resolveJobSelectionTarget(*basedir, *queueNameOption, jobIDs)
 	if err != nil {
 		printError(err)
 		return 1
@@ -797,7 +786,7 @@ func cmdCancel(args []string) int {
 		printError(err)
 		return 1
 	}
-	response, err := sendServerRequest(baseDir, serverRequest{Op: serverinternal.OpCancel, QueueName: queueName, JobIDs: jobIDs, Wait: *wait})
+	response, err := sendServerRequest(baseDir, serverRequest{Op: serverinternal.OpCancel, QueueName: queueName, JobIDs: selection, Wait: *wait})
 	if err != nil {
 		printErrorf("failed to contact server: %v", err)
 		return 1
@@ -821,25 +810,14 @@ func cmdJobSignal(args []string, operation string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if len(fs.Args()) != 0 {
+	if len(fs.Args()) > 0 && len(jobIDs) > 0 {
 		printError("usage: " + cliUsage(operation))
 		return 1
 	}
-	baseDir, _, err := resolveBaseDir(*basedir)
-	if len(jobIDs) > 0 && strings.HasPrefix(jobIDs[0], "att_") {
-		resolvedBaseDir, resolvedProject, _, _, resolveErr := resolveAttemptTarget(jobIDs[0], *basedir, *queueNameOption, "")
-		if resolveErr != nil {
-			printError(resolveErr)
-			return 1
-		}
-		baseDir, *queueNameOption = resolvedBaseDir, resolvedProject
-		err = nil
+	if len(fs.Args()) > 0 {
+		jobIDs = append(jobIDs, fs.Args()...)
 	}
-	if err != nil {
-		printErrorf("failed to resolve state directory: %v", err)
-		return 1
-	}
-	queueName, err := resolveProjectName(baseDir, *queueNameOption)
+	baseDir, queueName, selection, err := resolveJobSelectionTarget(*basedir, *queueNameOption, jobIDs)
 	if err != nil {
 		printError(err)
 		return 1
@@ -848,7 +826,7 @@ func cmdJobSignal(args []string, operation string) int {
 		printError(err)
 		return 1
 	}
-	response, err := sendServerRequest(baseDir, serverRequest{Op: operation, QueueName: queueName, JobIDs: jobIDs})
+	response, err := sendServerRequest(baseDir, serverRequest{Op: operation, QueueName: queueName, JobIDs: selection})
 	if err != nil {
 		printErrorf("failed to contact server: %v", err)
 		return 1

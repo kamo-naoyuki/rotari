@@ -4,9 +4,51 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
+
+// runIDPattern matches the generated run ID shape (see makeRunID), letting
+// callers tell a bare run ID apart from a job ID or an "att_" attempt ID.
+var runIDPattern = regexp.MustCompile(`^[0-9]{8}-[0-9]{6}-[0-9a-f]{8}$`)
+
+// resolveJobSelectionTarget resolves the base directory and project for a
+// cancel/suspend/resume job selection that may mix plain job IDs, "att_"
+// attempt IDs, and at most one bare run ID. A bare run ID only locates the
+// target run through the run registry; it is not itself a job selector, so it
+// is removed from the returned job IDs.
+func resolveJobSelectionTarget(cliBaseDir, cliProjectName string, ids []string) (string, string, []string, error) {
+	targetRunID := ""
+	jobIDs := make([]string, 0, len(ids))
+	for _, id := range ids {
+		switch {
+		case runIDPattern.MatchString(id):
+			if targetRunID != "" && targetRunID != id {
+				return "", "", nil, fmt.Errorf("selection mixes run %q and run %q", targetRunID, id)
+			}
+			targetRunID = id
+		case strings.HasPrefix(id, "att_"):
+			payload, err := state.DecodeAttemptID(id)
+			if err != nil {
+				return "", "", nil, err
+			}
+			if targetRunID != "" && targetRunID != payload.RunID {
+				return "", "", nil, fmt.Errorf("attempt %q belongs to run %q, not %q", id, payload.RunID, targetRunID)
+			}
+			targetRunID = payload.RunID
+			jobIDs = append(jobIDs, id)
+		default:
+			jobIDs = append(jobIDs, id)
+		}
+	}
+	baseDir, queueName, err := resolveExistingRunTarget(cliBaseDir, cliProjectName, targetRunID)
+	if err != nil {
+		return "", "", nil, err
+	}
+	return baseDir, queueName, jobIDs, nil
+}
 
 type runLocation struct {
 	BaseDir     string `json:"base_dir"`

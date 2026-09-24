@@ -21,20 +21,31 @@
       __ROTARI_CONTENT__
     </main>
     <script>
+      function copyJobsValueFallback(value) {
+        const input = document.createElement("textarea");
+        input.value = value;
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        document.body.append(input);
+        input.select();
+        const copied = document.execCommand("copy");
+        input.remove();
+        if (!copied) throw new Error("Copy failed");
+      }
+
       async function copyJobsValue(button) {
         const value = button.dataset.copyValue;
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(value);
+          try {
+            await navigator.clipboard.writeText(value);
+          } catch (error) {
+            copyJobsValueFallback(value);
+          }
         } else {
-          const input = document.createElement("textarea");
-          input.value = value;
-          document.body.append(input);
-          input.select();
-          document.execCommand("copy");
-          input.remove();
+          copyJobsValueFallback(value);
         }
-        button.title = "Copied";
-        button.setAttribute("aria-label", "Copied");
+        button.title = "Copied!";
+        button.setAttribute("aria-label", "Copied!");
       }
     </script>
   </body>

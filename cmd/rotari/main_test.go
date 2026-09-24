@@ -2132,6 +2132,24 @@ func TestCmdCancelRejectsWaitWithJobID(t *testing.T) {
 	}
 }
 
+func TestCmdCancelRejectsPositionalCombinedWithJobIDFlag(t *testing.T) {
+	if code := cmdCancel([]string{"--basedir", t.TempDir(), "--job-id", "job-1", "job-2"}); code != 1 {
+		t.Fatalf("cmdCancel exit = %d, want 1", code)
+	}
+}
+
+func TestCmdJobSignalRejectsPositionalCombinedWithJobIDFlag(t *testing.T) {
+	if code := cmdJobSignal([]string{"--basedir", t.TempDir(), "--job-id", "job-1", "job-2"}, "suspend"); code != 1 {
+		t.Fatalf("cmdJobSignal exit = %d, want 1", code)
+	}
+}
+
+func TestCmdCancelRejectsWaitWithPositionalJobID(t *testing.T) {
+	if code := cmdCancel([]string{"--basedir", t.TempDir(), "--wait", "job-1"}); code != 1 {
+		t.Fatalf("cmdCancel exit = %d, want 1", code)
+	}
+}
+
 func TestFollowJobLogReadsAppendedOutputUntilFinished(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "default")

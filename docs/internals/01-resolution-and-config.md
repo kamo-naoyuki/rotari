@@ -57,6 +57,13 @@ Without a run-location lookup, base directories resolve in this order:
 - Run lookup applies to history commands (`show`, `wait`, `copy`, `change`,
   `remove`, `delete`, and rerun selection), not state-creating commands such as
   `add` or a plain new `run`.
+- `cancel`, `suspend`, and `resume` merge positional selectors with repeated
+  `--job-id/-j` (mutually exclusive with each other) and accept plain job IDs,
+  `att_` attempt IDs, and a bare run ID in the same list. A bare run ID only
+  locates the target run through the run registry; it is stripped before the
+  remaining IDs are sent as job selectors, so passing only a run ID behaves
+  like omitting `--job-id/-j` (all running jobs in that run). Mixing IDs that
+  resolve to different runs is rejected.
 - Multiple run IDs passed to `wait` are resolved independently, so one command
   may wait for runs from different projects or base directories.
 - Shell completion follows the same location rules with narrower candidates:

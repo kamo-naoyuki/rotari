@@ -403,10 +403,18 @@ rotari remove JOB_ID OTHER_JOB_ID
 rotari delete RUN_ID
 rotari unlock -p PROJECT_NAME RUN_ID
 rotari diagnose --model MODEL JOB_ID
+rotari cancel JOB_ID OTHER_JOB_ID
+rotari cancel RUN_ID
+rotari suspend ATTEMPT_ID
+rotari resume ATTEMPT_ID
 ```
 
 These positional forms cannot be combined with the corresponding `--run-id/-r`
 or `--job-id/-j` option. `delete` without an ID still removes all saved runs.
+For `cancel`, `suspend`, and `resume`, a positional `JOB_ID` or `ATTEMPT_ID`
+selects jobs the same way `--job-id/-j` does; a bare `RUN_ID` only locates the
+target run through the run registry and is not itself a job selector, so it
+behaves like omitting `--job-id/-j` (all running jobs in that run).
 
 ## Scheduler
 
@@ -764,11 +772,14 @@ Stop running jobs without stopping the supervisor:
 ```sh
 rotari cancel -p build
 rotari cancel -j ATTEMPT_ID
+rotari cancel ATTEMPT_ID
+rotari cancel RUN_ID
 ```
 
 `--job-id/-j` is optional. Without it, all running jobs in the queue are
 cancelled. With it, only the specified running jobs are cancelled, and the
-option may be repeated. `--job-id/-j` cannot be used with `--wait`.
+option may be repeated. `--job-id/-j` cannot be used with `--wait`, nor combined
+with a positional `JOB_ID`/`ATTEMPT_ID`/`RUN_ID`.
 
 Whole-run cancel (no `--job-id/-j`) and, for `local`-executor jobs, `--job-id/-j`
 cancel/suspend/resume all signal the runner or job by PID, which only means
@@ -783,6 +794,8 @@ Temporarily suspend and resume running jobs:
 rotari suspend -p build
 rotari suspend -j ATTEMPT_ID
 rotari resume -j ATTEMPT_ID
+rotari suspend ATTEMPT_ID
+rotari resume RUN_ID
 ```
 
 Without `--job-id/-j`, all currently running jobs are affected. Repeat `--job-id/-j`

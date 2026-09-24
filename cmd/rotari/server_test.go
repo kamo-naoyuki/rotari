@@ -1109,6 +1109,139 @@ func TestCmdCancelRejectsWholeRunFromWrongHostViaCLI(t *testing.T) {
 	}
 }
 
+// TestCmdCancelAcceptsPositionalJobID exercises the CLI entry point with a
+// positional job ID (instead of --job-id), checking that it reaches the
+// server and cancels the not-yet-submitted job.
+func TestCmdCancelAcceptsPositionalJobID(t *testing.T) {
+	baseDir, err := os.MkdirTemp("", "rotari-cli-positional-job-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(baseDir) })
+
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(paths.RunsDir, "run-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"echo", "hi"}}}}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
+		t.Fatal(err)
+	}
+
+	listener, err := net.Listen("unix", serverSocketPath(baseDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	server := &rotariServer{listener: listener, stopped: make(chan struct{}), lastAccess: time.Now()}
+	go func() {
+		for {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+			go server.handle(baseDir, conn)
+		}
+	}()
+
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code := cmdCancel([]string{"--basedir", baseDir, "--project-name", "default", "job-1"})
+	os.Stdout = oldStdout
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 {
+		t.Fatalf("cmdCancel exit = %d, want 0; stdout=%s", code, output)
+	}
+	if !strings.Contains(string(output), "Jobs: 1") {
+		t.Fatalf("stdout = %q, want it to report one cancelled job", output)
+	}
+	if _, err := os.Stat(filepath.Join(runDir, "job-1", "cancelled")); err != nil {
+		t.Fatalf("job-1 was not marked cancelled: %v", err)
+	}
+}
+
+// TestCmdCancelAcceptsPositionalRunID exercises the CLI entry point with a
+// bare run ID resolved through the run registry, checking that it locates the
+// run's project the same way an "att_" attempt ID does.
+func TestCmdCancelAcceptsPositionalRunID(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir, err := os.MkdirTemp("", "rotari-cli-positional-run-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(baseDir) })
+
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "20260922-000000-00000000"
+	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid() + 1, RunID: runID, StartedAt: nowRFC3339(), Host: "other-host"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(paths.RunsDir, runID), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := registerRunLocation(runLocation{BaseDir: baseDir, ProjectName: "default", RunID: runID}); err != nil {
+		t.Fatal(err)
+	}
+
+	listener, err := net.Listen("unix", serverSocketPath(baseDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	server := &rotariServer{listener: listener, stopped: make(chan struct{}), lastAccess: time.Now()}
+	go func() {
+		for {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+			go server.handle(baseDir, conn)
+		}
+	}()
+
+	oldStderr := os.Stderr
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = writer
+	code := cmdCancel([]string{"--project-name", "default", runID})
+	os.Stderr = oldStderr
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 {
+		t.Fatalf("cmdCancel exit = %d, want 1; stderr=%s", code, output)
+	}
+	if !strings.Contains(string(output), "other-host") {
+		t.Fatalf("stderr = %q, want it to mention the recorded host", output)
+	}
+}
+
 func TestCmdServerStatusReportsRunningServer(t *testing.T) {
 	baseDir, err := os.MkdirTemp("", "rotari-status-server-")
 	if err != nil {

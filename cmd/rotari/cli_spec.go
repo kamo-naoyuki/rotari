@@ -124,6 +124,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "job-id", Description: "cancel a running job; may be repeated", ValueName: "ID"},
 			cliFlagSpec{Name: "wait", Description: "wait until cancellation is complete"},
 		),
+		Positional: "[JOB_ID|ATTEMPT_ID|RUN_ID ...]",
 	},
 	{
 		Name:        "suspend",
@@ -131,6 +132,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "job-id", Description: "suspend a running job; may be repeated", ValueName: "ID"},
 		),
+		Positional: "[JOB_ID|ATTEMPT_ID|RUN_ID ...]",
 	},
 	{
 		Name:        "resume",
@@ -138,6 +140,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "job-id", Description: "resume a suspended job; may be repeated", ValueName: "ID"},
 		),
+		Positional: "[JOB_ID|ATTEMPT_ID|RUN_ID ...]",
 	},
 	{
 		Name:        "delete",

@@ -107,6 +107,28 @@ func TestFormatJobElapsed(t *testing.T) {
 	}
 }
 
+func TestParseJobsSince(t *testing.T) {
+	for _, test := range []struct {
+		value string
+		want  time.Duration
+	}{
+		{value: "", want: defaultJobsSince},
+		{value: "30m", want: 30 * time.Minute},
+		{value: "0s", want: 0},
+	} {
+		got, err := parseJobsSince(test.value)
+		if err != nil || got != test.want {
+			t.Errorf("parseJobsSince(%q) = (%s, %v), want (%s, nil)", test.value, got, err, test.want)
+		}
+	}
+
+	for _, value := range []string{"invalid", "-1m", "-1s"} {
+		if _, err := parseJobsSince(value); err == nil {
+			t.Errorf("parseJobsSince(%q) succeeded, want error", value)
+		}
+	}
+}
+
 func TestParseJobsFormat(t *testing.T) {
 	columns, err := parseJobsFormat("%s %.12b %p %.24a %n %.20c %t %f %e")
 	if err != nil {

@@ -89,3 +89,81 @@ func TestDeleteRunRejectsUnsafeRunIDs(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveJobSelectionTargetPassesThroughPlainJobIDs(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+
+	gotBaseDir, gotProject, gotJobIDs, err := resolveJobSelectionTarget(baseDir, "demo", []string{"job-1", "job-2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotBaseDir != baseDir || gotProject != "demo" || strings.Join(gotJobIDs, ",") != "job-1,job-2" {
+		t.Fatalf("got = (%q, %q, %v)", gotBaseDir, gotProject, gotJobIDs)
+	}
+}
+
+func TestResolveJobSelectionTargetResolvesBareRunIDAndStripsIt(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	runID := "20260922-000000-00000000"
+	if err := registerRunLocation(runLocation{BaseDir: baseDir, ProjectName: "demo", RunID: runID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(baseDir, "projects", "demo", "runs", runID), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	gotBaseDir, gotProject, gotJobIDs, err := resolveJobSelectionTarget("", "", []string{runID, "job-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantBaseDir, err := filepath.Abs(baseDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotBaseDir != wantBaseDir || gotProject != "demo" || strings.Join(gotJobIDs, ",") != "job-1" {
+		t.Fatalf("got = (%q, %q, %v)", gotBaseDir, gotProject, gotJobIDs)
+	}
+}
+
+func TestResolveJobSelectionTargetResolvesAttemptID(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	runID := "20260922-000000-00000000"
+	if err := registerRunLocation(runLocation{BaseDir: baseDir, ProjectName: "demo", RunID: runID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(baseDir, "projects", "demo", "runs", runID), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	attemptID := makeAttemptID(runID, "job-1", 0)
+
+	gotBaseDir, gotProject, gotJobIDs, err := resolveJobSelectionTarget("", "", []string{attemptID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantBaseDir, err := filepath.Abs(baseDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotBaseDir != wantBaseDir || gotProject != "demo" || strings.Join(gotJobIDs, ",") != attemptID {
+		t.Fatalf("got = (%q, %q, %v)", gotBaseDir, gotProject, gotJobIDs)
+	}
+}
+
+func TestResolveJobSelectionTargetRejectsMixedRuns(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	otherRunID := "20260922-000000-11111111"
+	attemptID := makeAttemptID("20260922-000000-00000000", "job-1", 0)
+
+	if _, _, _, err := resolveJobSelectionTarget("", "", []string{otherRunID, attemptID}); err == nil ||
+		!strings.Contains(err.Error(), "belongs to run") {
+		t.Fatalf("resolveJobSelectionTarget() error = %v, want run mismatch error", err)
+	}
+	if _, _, _, err := resolveJobSelectionTarget("", "", []string{otherRunID, "20260922-000000-00000000"}); err == nil ||
+		!strings.Contains(err.Error(), "selection mixes run") {
+		t.Fatalf("resolveJobSelectionTarget() error = %v, want mixed-run error", err)
+	}
+}
+
