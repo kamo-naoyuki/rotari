@@ -67,12 +67,21 @@ jobs:
         run: |
           python -m sphinx -W -b html python/docs "$RUNNER_TEMP/python-api"
 
+      - name: Generate PyPI-style package index
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/generate_pypi_index.py \
+            --repo "$GITHUB_REPOSITORY" \
+            --output-dir "$RUNNER_TEMP/pypi-index"
+
       - name: Assemble Pages site
         run: |
           mkdir -p "$RUNNER_TEMP/pages-site"
           cp -a docs/web-demo/. "$RUNNER_TEMP/pages-site/"
           cp -a "$RUNNER_TEMP/go-api" "$RUNNER_TEMP/pages-site/go-api"
           cp -a "$RUNNER_TEMP/python-api" "$RUNNER_TEMP/pages-site/python-api"
+          cp -a "$RUNNER_TEMP/pypi-index/simple" "$RUNNER_TEMP/pages-site/simple"
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

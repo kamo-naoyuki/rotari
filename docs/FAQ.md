@@ -220,7 +220,16 @@ Not necessarily. Rotari's `running` means submitted but unfinished, which includ
 
 ### Is there a Python API?
 
-Yes. The `python/` package is a thin subprocess wrapper around the `rotari` executable. Install it with `python3 -m pip install --no-deps ./python`. It does not serialize Python functions as jobs.
+Yes. The `python/` package is a thin subprocess wrapper around the `rotari` executable. Install both with `conda install -c kamo-naoyuki rotari`, or install the client from a checkout with `python3 -m pip install --no-deps ./python`. It does not serialize Python functions as jobs.
+
+### Is the Python client published on PyPI?
+
+No. Wheels built from tagged releases bundle the matching `rotari` executable
+and are published to a static [PEP 503](https://peps.python.org/pep-0503/)
+package index hosted on GitHub Pages instead: `python3 -m pip install --index-url https://kamo-naoyuki.github.io/rotari/simple/ rotari`. This installs both
+the Python client and a `rotari` command on `PATH` for Linux/macOS on
+x86_64/arm64; other platforms need the `rotari` executable installed
+separately (Conda, Homebrew, or a downloaded binary).
 
 ## Web UI
 

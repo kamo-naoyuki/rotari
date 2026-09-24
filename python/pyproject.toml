@@ -12,5 +12,11 @@ readme = "README.md"
 [project.optional-dependencies]
 docs = ["Sphinx>=7"]
 
+[project.scripts]
+rotari = "rotari._cli:main"
+
 [tool.setuptools]
 packages = ["rotari"]
+
+[tool.setuptools.package-data]
+rotari = ["_bin/rotari"]

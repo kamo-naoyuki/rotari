@@ -5,8 +5,28 @@ CLI behavior and examples, see the repository [README](../README.md).
 
 ## Usage
 
-Install the package from a checkout, with the `rotari` executable available on
-your `PATH`:
+Install the Python client together with the `rotari` executable using Conda:
+
+```sh
+conda install -c kamo-naoyuki rotari
+```
+
+The client is not published on PyPI. Wheels built from tagged releases bundle
+the matching `rotari` executable and are available through a static
+[package index](https://kamo-naoyuki.github.io/rotari/simple/) hosted on
+GitHub Pages (Linux x86_64/arm64, macOS x86_64/arm64):
+
+```sh
+python3 -m pip install --index-url https://kamo-naoyuki.github.io/rotari/simple/ rotari
+```
+
+This installs both the Python client and a `rotari` command on `PATH` for the
+current platform; no separate Conda/Homebrew/binary install is needed. On an
+unsupported platform, install the client from a checkout and place `rotari` on
+`PATH` yourself.
+
+To install the client from a checkout instead, ensure that the `rotari`
+executable is available on your `PATH`, then run:
 
 ```sh
 python3 -m pip install --no-deps ./python
