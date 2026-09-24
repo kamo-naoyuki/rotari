@@ -95,14 +95,17 @@ jobs:
           docker logs "$SCHEDULER_CONTAINER"
           exit 1
 
+      - name: Install gotestsum
+        run: go install gotest.tools/gotestsum@v1.12.0
+
       - name: Run unit tests
-        run: go test ./...
+        run: gotestsum --format pkgname-and-test-fails -- ./...
 
       - name: Run scheduler container unit tests
         env:
           ROTARI_SCHEDULER_CONTAINER_TEST: "1"
           ROTARI_SCHEDULER_EXECUTOR: ${{ matrix.executor }}
-        run: go test ./cmd/rotari -run '^TestSchedulerContainer' -count=1
+        run: gotestsum --format pkgname-and-test-fails -- ./cmd/rotari -run '^TestSchedulerContainer' -count=1
 
       - name: Build rotari
         run: CGO_ENABLED=0 go build -o rotari ./cmd/rotari

@@ -45,8 +45,11 @@ jobs:
       - name: Check web asset formatting
         run: npm run format:check
 
+      - name: Install gotestsum
+        run: go install gotest.tools/gotestsum@v1.12.0
+
       - name: Run Go tests with coverage
-        run: go test -coverprofile=coverage.out ./...
+        run: gotestsum --format pkgname-and-test-fails -- -coverprofile=coverage.out ./...
 
       - name: Run Python tests with coverage
         run: |
