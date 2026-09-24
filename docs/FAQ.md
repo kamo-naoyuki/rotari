@@ -12,6 +12,7 @@ matches the tasks you are trying to do.
 ## Quick navigation
 
 - [Projects, queues, runs, and registry](#projects-queues-runs-and-registry)
+- [Language and implementation choices](#language-and-implementation-choices)
 - [Retries, copying, arrays, and dependencies](#retries-copying-arrays-and-dependencies)
 - [LLM diagnosis](#llm-diagnosis)
 - [Interrupted runs and locking](#interrupted-runs-and-locking)
@@ -141,6 +142,44 @@ Options with a finite choice list, including `--executor`, `--format`, and
 The accepted values come from the same CLI metadata used by help, shell
 completion, and `rotari schema --json`.
 
+### How can I notify another service when a run finishes?
+
+Set `webhook.url` in a config file or `ROTARI_WEBHOOK_URL` to a service endpoint
+that accepts JSON `POST` requests. Use `webhook.on` or `ROTARI_WEBHOOK_ON` with
+`success` or `failure` to filter events; the default is `always`. The payload
+includes run status, failed job IDs, and, for failed runs, a copy-pasteable
+command to display their logs. A webhook error is only a warning and does not
+alter the run result. Set `webhook.format` to `slack`, `teams`, or `discord`, or set
+`ROTARI_WEBHOOK_FORMAT` to one of those values, to send a service-specific
+payload directly. The default format is the generic rotari JSON payload. See
+[Webhook integrations](WEBHOOK_INTEGRATIONS.md) for examples.
+
+### How are concurrency and executor options selected?
+`--local-concurrency` applies to local jobs. `--batch-concurrency` is the
+common dispatch default for non-local executors, while `--ssh-concurrency`,
+`--slurm-concurrency`, `--pbs-concurrency`, and `--lsf-concurrency` provide
+independent limits. Similarly, `--executor-option` is the common option list,
+and the executor-specific `--ssh-options`, `--slurm-options`, `--pbs-options`,
+and `--lsf-options` override it. Job-specific options have the highest
+priority.
+
+### `rotari show` displayed my queue, not the run I expected — why?
+With no project, run, or job selector, `show` lists projects across known basedirs.
+Use `--basedir/-b` to limit that list to one basedir. With
+`--project-name/-p`, `show` lists the project's runs and includes its current
+queue when non-empty. Pass `--run-id` to target a specific run regardless of
+current queue state; `--run-id latest` selects the latest saved run.
+
+### How do I clean up run registry entries left by manual deletion?
+Run `rotari gc` to scan for registry entries whose run directories no longer
+exist. It caches the candidates for ten minutes and does not delete anything
+by itself. Malformed or invalid registry files are reported and left
+untouched; inspect their run data and repair or remove them manually. Review
+the result, then run `rotari gc --apply`; it removes only unchanged candidates
+and skips any run directory that has reappeared.
+
+## Language and implementation choices
+
 ### Why is rotari written in Go instead of Python?
 Because Rotari is designed around a lot of small command dispatches and
 filesystem state updates, not one heavyweight Python process doing all the
@@ -181,42 +220,6 @@ Rust would likely be a good choice for a more heavily typed, higher-assurance
 core or a future rewrite with stricter invariants. For the current project shape,
 though, Go gives a better balance between safety, implementation speed, and
 operational simplicity, which is why Rotari remains a Go-based CLI tool.
-
-### How can I notify another service when a run finishes?
-
-Set `webhook.url` in a config file or `ROTARI_WEBHOOK_URL` to a service endpoint
-that accepts JSON `POST` requests. Use `webhook.on` or `ROTARI_WEBHOOK_ON` with
-`success` or `failure` to filter events; the default is `always`. The payload
-includes run status, failed job IDs, and, for failed runs, a copy-pasteable
-command to display their logs. A webhook error is only a warning and does not
-alter the run result. Set `webhook.format` to `slack`, `teams`, or `discord`, or set
-`ROTARI_WEBHOOK_FORMAT` to one of those values, to send a service-specific
-payload directly. The default format is the generic rotari JSON payload. See
-[Webhook integrations](WEBHOOK_INTEGRATIONS.md) for examples.
-
-### How are concurrency and executor options selected?
-`--local-concurrency` applies to local jobs. `--batch-concurrency` is the
-common dispatch default for non-local executors, while `--ssh-concurrency`,
-`--slurm-concurrency`, `--pbs-concurrency`, and `--lsf-concurrency` provide
-independent limits. Similarly, `--executor-option` is the common option list,
-and the executor-specific `--ssh-options`, `--slurm-options`, `--pbs-options`,
-and `--lsf-options` override it. Job-specific options have the highest
-priority.
-
-### `rotari show` displayed my queue, not the run I expected — why?
-With no project, run, or job selector, `show` lists projects across known basedirs.
-Use `--basedir/-b` to limit that list to one basedir. With
-`--project-name/-p`, `show` lists the project's runs and includes its current
-queue when non-empty. Pass `--run-id` to target a specific run regardless of
-current queue state; `--run-id latest` selects the latest saved run.
-
-### How do I clean up run registry entries left by manual deletion?
-Run `rotari gc` to scan for registry entries whose run directories no longer
-exist. It caches the candidates for ten minutes and does not delete anything
-by itself. Malformed or invalid registry files are reported and left
-untouched; inspect their run data and repair or remove them manually. Review
-the result, then run `rotari gc --apply`; it removes only unchanged candidates
-and skips any run directory that has reappeared.
 
 ## Retries, copying, arrays, and dependencies
 
