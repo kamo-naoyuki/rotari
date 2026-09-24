@@ -18,6 +18,10 @@
 - A later explicit `rotari retry` may select a cancelled job through the normal
   `failed`/`unfinished` result filters. This is a new run, so it is a new user
   decision to execute the job again.
+- `retry` is a shorthand for `run --failed --unfinished` and does not have a
+  separate `ROTARI_RETRY_*` environment-variable namespace. It shares the
+  corresponding `ROTARI_RUN_*` defaults, including `ROTARI_RUN_RETRY`,
+  `ROTARI_RUN_ASYNC`, and `ROTARI_RUN_QUIET`.
 - In a filtered run, selected jobs execute. Completed jobs outside the
   selection carry forward their result and an origin pointing to the original
   output; jobs without a completed result remain unfinished. Carry-forward writes

@@ -122,6 +122,53 @@ func TestGlobalConfigSupportsCommandSections(t *testing.T) {
 	}
 }
 
+func TestQuietEnvironmentVariablesSupportGlobalAndCommandDefaults(t *testing.T) {
+	t.Setenv(envQuiet, "true")
+	t.Setenv(envAddQuiet, "false")
+	t.Setenv(envRunQuiet, "true")
+	for _, test := range []struct {
+		command string
+		want    bool
+	}{
+		{command: "add", want: false},
+		{command: "copy", want: true},
+		{command: "run", want: true},
+	} {
+		fs := flag.NewFlagSet(test.command, flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		if got := *cliBool(fs, "quiet", false); got != test.want {
+			t.Errorf("%s quiet = %t, want %t", test.command, got, test.want)
+		}
+	}
+}
+
+func TestQuietConfigSupportsGlobalAndCommandDefaults(t *testing.T) {
+	oldConfig, oldCommand := cliConfig, cliConfigCommand
+	cliConfig = map[string]any{
+		"quiet": true,
+		"add":   map[string]any{"quiet": false},
+	}
+	cliConfigCommand = "add"
+	t.Cleanup(func() {
+		cliConfig = oldConfig
+		cliConfigCommand = oldCommand
+	})
+	t.Setenv(envQuiet, "")
+	t.Setenv(envAddQuiet, "")
+
+	addFlags := flag.NewFlagSet("add", flag.ContinueOnError)
+	addFlags.SetOutput(io.Discard)
+	if got := *cliBool(addFlags, "quiet", false); got {
+		t.Fatal("add quiet = true, want command config false")
+	}
+	runFlags := flag.NewFlagSet("run", flag.ContinueOnError)
+	runFlags.SetOutput(io.Discard)
+	cliConfigCommand = "run"
+	if got := *cliBool(runFlags, "quiet", false); !got {
+		t.Fatal("run quiet = false, want global config true")
+	}
+}
+
 func TestConfigLoadDoesNotRejectAmbiguousProjects(t *testing.T) {
 	baseDir := t.TempDir()
 	for _, project := range []string{"demo", "example"} {

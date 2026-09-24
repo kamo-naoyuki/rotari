@@ -287,7 +287,7 @@ func configOptionNames() []string {
 }
 
 func configSections() (map[string][]string, []string) {
-	common := []string{"basedir", "project-name"}
+	common := []string{"basedir", "project-name", "quiet"}
 	commonSet := map[string]bool{"basedir": true, "project-name": true}
 	sections := make(map[string][]string)
 	for _, command := range cliCommandSpecs {

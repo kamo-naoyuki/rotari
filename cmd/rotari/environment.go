@@ -9,54 +9,62 @@ import (
 )
 
 const (
-	envBaseDir         = "ROTARI_BASEDIR"
-	envProjectName     = "ROTARI_PROJECT_NAME"
-	envMasterDir       = "ROTARI_MASTERDIR"
-	envRunID           = "ROTARI_RUN_ID"
-	envJobID           = "ROTARI_JOB_ID"
-	envAttemptID       = "ROTARI_ATTEMPT_ID"
-	envJobName         = "ROTARI_JOB_NAME"
-	envExecutor        = "ROTARI_EXECUTOR"
-	envExecutorOpts    = "ROTARI_EXECUTOR_OPTIONS"
-	envRunName         = "ROTARI_RUN_NAME"
-	envRunLocalConc    = "ROTARI_RUN_LOCAL_CONCURRENCY"
-	envRunBatchConc    = "ROTARI_RUN_BATCH_CONCURRENCY"
-	envRunSSHConc      = "ROTARI_RUN_SSH_CONCURRENCY"
-	envRunSSHOptions   = "ROTARI_RUN_SSH_OPTIONS"
-	envRunSlurmConc    = "ROTARI_RUN_SLURM_CONCURRENCY"
-	envRunSlurmOptions = "ROTARI_RUN_SLURM_OPTIONS"
-	envRunPBSConc      = "ROTARI_RUN_PBS_CONCURRENCY"
-	envRunPBSOptions   = "ROTARI_RUN_PBS_OPTIONS"
-	envRunLSFConc      = "ROTARI_RUN_LSF_CONCURRENCY"
-	envRunLSFOptions   = "ROTARI_RUN_LSF_OPTIONS"
-	envRunRetry        = "ROTARI_RUN_RETRY"
-	envRunAsync        = "ROTARI_RUN_ASYNC"
-	envQuiet           = "ROTARI_QUIET"
-	envArrayRange      = "ROTARI_ARRAY_RANGE"
-	envResetRecover    = "ROTARI_RESET_RECOVER"
-	envWaitTimeout     = "ROTARI_WAIT_TIMEOUT"
-	envWebHost         = "ROTARI_WEB_HOST"
-	envWebPort         = "ROTARI_WEB_PORT"
-	envWebStaticDir    = "ROTARI_WEB_STATIC_DIR"
-	envWebAllowControl = "ROTARI_WEB_ALLOW_CONTROL"
-	envWebAuthToken    = "ROTARI_WEB_AUTH_TOKEN"
-	envLLMAPIKey       = "ROTARI_LLM_API_KEY"
-	envLLMProvider     = "ROTARI_LLM_PROVIDER"
-	envLLMEndpoint     = "ROTARI_LLM_ENDPOINT"
-	envLLMModel        = "ROTARI_LLM_MODEL"
-	envLLMLanguage     = "ROTARI_LLM_LANGUAGE"
-	envWebhookURL      = "ROTARI_WEBHOOK_URL"
-	envWebhookOn       = "ROTARI_WEBHOOK_ON"
-	envWebhookFormat   = "ROTARI_WEBHOOK_FORMAT"
-	envPrivateState    = "ROTARI_PRIVATE_STATE"
-	envBin             = "ROTARI_BIN"
-	envRunDir          = "ROTARI_RUN_DIR"
-	envJobDir          = model.EnvJobDir
-	envCWD             = "ROTARI_CWD"
-	envArrayTaskID     = "ROTARI_ARRAY_TASK_ID"
-	envArrayFirst      = "ROTARI_ARRAY_FIRST"
-	envArrayLast       = "ROTARI_ARRAY_LAST"
-	envArraySize       = "ROTARI_ARRAY_SIZE"
+	envBaseDir          = "ROTARI_BASEDIR"
+	envProjectName      = "ROTARI_PROJECT_NAME"
+	envMasterDir        = "ROTARI_MASTERDIR"
+	envRunID            = "ROTARI_RUN_ID"
+	envJobID            = "ROTARI_JOB_ID"
+	envAttemptID        = "ROTARI_ATTEMPT_ID"
+	envJobName          = "ROTARI_JOB_NAME"
+	envExecutor         = "ROTARI_EXECUTOR"
+	envExecutorOpts     = "ROTARI_EXECUTOR_OPTIONS"
+	envRunName          = "ROTARI_RUN_NAME"
+	envRunLocalConc     = "ROTARI_RUN_LOCAL_CONCURRENCY"
+	envRunBatchConc     = "ROTARI_RUN_BATCH_CONCURRENCY"
+	envRunSSHConc       = "ROTARI_RUN_SSH_CONCURRENCY"
+	envRunSSHOptions    = "ROTARI_RUN_SSH_OPTIONS"
+	envRunSlurmConc     = "ROTARI_RUN_SLURM_CONCURRENCY"
+	envRunSlurmOptions  = "ROTARI_RUN_SLURM_OPTIONS"
+	envRunPBSConc       = "ROTARI_RUN_PBS_CONCURRENCY"
+	envRunPBSOptions    = "ROTARI_RUN_PBS_OPTIONS"
+	envRunLSFConc       = "ROTARI_RUN_LSF_CONCURRENCY"
+	envRunLSFOptions    = "ROTARI_RUN_LSF_OPTIONS"
+	envRunRetry         = "ROTARI_RUN_RETRY"
+	envRunAsync         = "ROTARI_RUN_ASYNC"
+	envQuiet            = "ROTARI_QUIET"
+	envAddQuiet         = "ROTARI_ADD_QUIET"
+	envCopyQuiet        = "ROTARI_COPY_QUIET"
+	envChangeQuiet      = "ROTARI_CHANGE_QUIET"
+	envRemoveQuiet      = "ROTARI_REMOVE_QUIET"
+	envResetQuiet       = "ROTARI_RESET_QUIET"
+	envCheckQuiet       = "ROTARI_CHECK_QUIET"
+	envRunQuiet         = "ROTARI_RUN_QUIET"
+	envArrayRange       = "ROTARI_ARRAY_RANGE"
+	envResetRecover     = "ROTARI_RESET_RECOVER"
+	envWaitTimeout      = "ROTARI_WAIT_TIMEOUT"
+	envWebHost          = "ROTARI_WEB_HOST"
+	envWebPort          = "ROTARI_WEB_PORT"
+	envWebStaticDir     = "ROTARI_WEB_STATIC_DIR"
+	envWebAllowControl  = "ROTARI_WEB_ALLOW_CONTROL"
+	envWebAuthToken     = "ROTARI_WEB_AUTH_TOKEN"
+	envWebNotifications = "ROTARI_WEB_NOTIFICATIONS"
+	envLLMAPIKey        = "ROTARI_LLM_API_KEY"
+	envLLMProvider      = "ROTARI_LLM_PROVIDER"
+	envLLMEndpoint      = "ROTARI_LLM_ENDPOINT"
+	envLLMModel         = "ROTARI_LLM_MODEL"
+	envLLMLanguage      = "ROTARI_LLM_LANGUAGE"
+	envWebhookURL       = "ROTARI_WEBHOOK_URL"
+	envWebhookOn        = "ROTARI_WEBHOOK_ON"
+	envWebhookFormat    = "ROTARI_WEBHOOK_FORMAT"
+	envPrivateState     = "ROTARI_PRIVATE_STATE"
+	envBin              = "ROTARI_BIN"
+	envRunDir           = "ROTARI_RUN_DIR"
+	envJobDir           = model.EnvJobDir
+	envCWD              = "ROTARI_CWD"
+	envArrayTaskID      = "ROTARI_ARRAY_TASK_ID"
+	envArrayFirst       = "ROTARI_ARRAY_FIRST"
+	envArrayLast        = "ROTARI_ARRAY_LAST"
+	envArraySize        = "ROTARI_ARRAY_SIZE"
 )
 
 var propagatedEnvironmentVariables = []string{
@@ -64,7 +72,7 @@ var propagatedEnvironmentVariables = []string{
 	envExecutor, envExecutorOpts, envRunName, envRunLocalConc, envRunBatchConc,
 	envRunSSHConc, envRunSSHOptions, envRunSlurmConc, envRunSlurmOptions,
 	envRunPBSConc, envRunPBSOptions, envRunLSFConc, envRunLSFOptions,
-envRunRetry, envRunAsync, envQuiet, envArrayRange,
+	envRunRetry, envRunAsync, envQuiet, envRunQuiet, envArrayRange,
 }
 
 type environmentDefinition = webprojection.EnvironmentDefinition
@@ -93,7 +101,14 @@ func environmentDefinitions() []environmentDefinition {
 		{Name: envRunLSFOptions, CLIDefault: true, Description: "LSF dispatch options; --lsf-options default."},
 		{Name: envRunRetry, CLIDefault: true, Job: true, Array: true, Description: "Retry count; --retry default."},
 		{Name: envRunAsync, CLIDefault: true, Job: true, Array: true, Description: "Async run mode; --async default."},
-		{Name: envQuiet, CLIDefault: true, Job: true, Array: true, Description: "Quiet mode; --quiet default."},
+		{Name: envQuiet, CLIDefault: true, Job: true, Array: true, Description: "Global quiet mode; --quiet default."},
+		{Name: envAddQuiet, CLIDefault: true, Description: "Add command quiet mode; --quiet default."},
+		{Name: envCopyQuiet, CLIDefault: true, Description: "Copy command quiet mode; --quiet default."},
+		{Name: envChangeQuiet, CLIDefault: true, Description: "Change command quiet mode; --quiet default."},
+		{Name: envRemoveQuiet, CLIDefault: true, Description: "Remove command quiet mode; --quiet default."},
+		{Name: envResetQuiet, CLIDefault: true, Description: "Reset command quiet mode; --quiet default."},
+		{Name: envCheckQuiet, CLIDefault: true, Description: "Check command quiet mode; --quiet default."},
+		{Name: envRunQuiet, CLIDefault: true, Job: true, Array: true, Description: "Run-specific quiet mode; --quiet default."},
 		{Name: envArrayRange, CLIDefault: true, Job: true, Array: true, Description: "Array range; --array default."},
 		{Name: envBin, Job: true, Array: true, Description: "Absolute path to the rotari binary."},
 		{Name: envRunDir, Job: true, Array: true, Description: "Current run directory."},
@@ -110,6 +125,7 @@ func environmentDefinitions() []environmentDefinition {
 		{Name: envWebStaticDir, CLIDefault: true, Description: "--static-dir default for web."},
 		{Name: envWebAllowControl, CLIDefault: true, Description: "--allow-control default for web."},
 		{Name: envWebAuthToken, CLIDefault: true, Description: "--auth-token default for web; never exposed by the Web UI."},
+		{Name: envWebNotifications, CLIDefault: true, Description: "--notifications default for web."},
 		{Name: envLLMAPIKey, Description: "API key for the diagnose command; never persisted or passed to jobs."},
 		{Name: envLLMProvider, CLIDefault: true, Description: "LLM provider (openai, openai-chat, anthropic, gemini, or cohere); --provider default for diagnose."},
 		{Name: envLLMEndpoint, CLIDefault: true, Description: "LLM API endpoint; --endpoint default for diagnose."},

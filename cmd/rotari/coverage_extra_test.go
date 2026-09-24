@@ -125,7 +125,7 @@ func TestCLIStringVarRegistersLongAndShortFlags(t *testing.T) {
 
 func TestConfigSectionsGroupsNonCommonOptions(t *testing.T) {
 	sections, common := configSections()
-	if len(common) != 2 || common[0] != "basedir" || common[1] != "project-name" {
+	if len(common) != 3 || common[0] != "basedir" || common[1] != "project-name" || common[2] != "quiet" {
 		t.Fatalf("common config options = %v", common)
 	}
 	if _, ok := sections["config"]; ok {
@@ -134,6 +134,12 @@ func TestConfigSectionsGroupsNonCommonOptions(t *testing.T) {
 	if len(sections["run"]) == 0 {
 		t.Fatal("run section has no options")
 	}
+	for _, name := range sections["run"] {
+		if name == "quiet" {
+			return
+		}
+	}
+	t.Fatal("run section has no quiet option")
 }
 
 func TestCLIChoiceValueAndDescription(t *testing.T) {

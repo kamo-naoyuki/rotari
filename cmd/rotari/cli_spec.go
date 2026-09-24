@@ -66,6 +66,13 @@ var cliEnvironmentVariables = map[string]string{
 	"retry":             envRunRetry,
 	"async":             envRunAsync,
 	"quiet":             envQuiet,
+	"add-quiet":         envAddQuiet,
+	"copy-quiet":        envCopyQuiet,
+	"change-quiet":      envChangeQuiet,
+	"remove-quiet":      envRemoveQuiet,
+	"reset-quiet":       envResetQuiet,
+	"check-quiet":       envCheckQuiet,
+	"run-quiet":         envRunQuiet,
 	"array":             envArrayRange,
 	"recover":           envResetRecover,
 	"timeout":           envWaitTimeout,
@@ -74,6 +81,7 @@ var cliEnvironmentVariables = map[string]string{
 	"static-dir":        envWebStaticDir,
 	"allow-control":     envWebAllowControl,
 	"auth-token":        envWebAuthToken,
+	"notifications":     envWebNotifications,
 }
 
 func commonCLIFlags() []cliFlagSpec {
@@ -346,6 +354,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "static-dir", Description: "generate a static web UI", ValueName: "DIR"},
 			cliFlagSpec{Name: "allow-control", Description: "enable job control (copy/change/remove/cancel/clear); pass --allow-control=false for a read-only UI"},
 			cliFlagSpec{Name: "auth-token", Description: "require this token in Authorization: Bearer or X-Rotari-Token; prefer ROTARI_WEB_AUTH_TOKEN for secrets", ValueName: "TOKEN"},
+			cliFlagSpec{Name: "notifications", Description: "default state of the browser desktop-notification toggle; pass --notifications=false to default it off"},
 		),
 	},
 	{
@@ -496,6 +505,9 @@ func cliFlagDescription(spec cliFlagSpec) string {
 	}
 	if envName := cliEnvironmentVariable(spec.Name); envName != "" {
 		description += " (env: " + envName + ")"
+		if spec.Name == "quiet" {
+			description += " (command env: ROTARI_<COMMAND>_QUIET)"
+		}
 	}
 	return description
 }
@@ -516,9 +528,15 @@ func cliStringVar(fs *flag.FlagSet, target *string, name, defaultValue string) {
 func cliBool(fs *flag.FlagSet, name string, defaultValue bool) *bool {
 	spec := cliFlag(name)
 	defaultValue = configBool(name, defaultValue)
-	if value, ok := os.LookupEnv(cliEnvironmentVariable(name)); ok {
-		if parsed, err := strconv.ParseBool(value); err == nil {
-			defaultValue = parsed
+	environmentNames := []string{cliEnvironmentVariable(name)}
+	if name == "quiet" {
+		environmentNames = []string{envQuiet, commandQuietEnvironmentVariable(fs.Name())}
+	}
+	for _, environmentName := range environmentNames {
+		if value, ok := os.LookupEnv(environmentName); ok {
+			if parsed, err := strconv.ParseBool(value); err == nil {
+				defaultValue = parsed
+			}
 		}
 	}
 	target := new(bool)
@@ -528,6 +546,10 @@ func cliBool(fs *flag.FlagSet, name string, defaultValue bool) *bool {
 		fs.BoolVar(target, short, defaultValue, description+" (shorthand)")
 	}
 	return target
+}
+
+func commandQuietEnvironmentVariable(command string) string {
+	return "ROTARI_" + strings.ToUpper(strings.ReplaceAll(command, "-", "_")) + "_QUIET"
 }
 
 func cliInt(fs *flag.FlagSet, name string, defaultValue int) *int {

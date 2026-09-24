@@ -27,6 +27,10 @@ import (
 
 const webDefaultPort = 8787
 
+// webNotificationsDefault controls whether the served web UI's desktop
+// notification toggle defaults to on or off; set once by cmdWeb.
+var webNotificationsDefault = true
+
 type webRun = webprojection.Run
 type webJob = webprojection.Job
 type webAttempt = webprojection.Attempt
@@ -98,6 +102,7 @@ func cmdWeb(args []string) int {
 	staticDir := cliString(fs, "static-dir", "")
 	allowControl := cliBool(fs, "allow-control", true)
 	authToken := cliString(fs, "auth-token", "")
+	notifications := cliBool(fs, "notifications", true)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -114,6 +119,7 @@ func cmdWeb(args []string) int {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
 	}
+	webNotificationsDefault = *notifications
 	if *staticDir != "" {
 		if err := generateStaticWeb(*staticDir, baseDir, *queueNameOption); err != nil {
 			printErrorf("failed to generate static web: %v", err)

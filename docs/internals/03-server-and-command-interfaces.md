@@ -67,10 +67,17 @@ follows:
 
 ### Quiet output contract
 
-- `--quiet` and `ROTARI_QUIET=true` are equivalent defaults for all commands
-  that support quiet output. The shared environment-variable mapping is
-  defined in [`cmd/rotari/environment.go`](../../cmd/rotari/environment.go)
-  and [`cmd/rotari/cli_spec.go`](../../cmd/rotari/cli_spec.go).
+- `--quiet` and `ROTARI_QUIET=true` are equivalent global defaults for all
+  commands that support quiet output. Each command also accepts its own
+  environment default (`ROTARI_ADD_QUIET`, `ROTARI_COPY_QUIET`,
+  `ROTARI_CHANGE_QUIET`, `ROTARI_REMOVE_QUIET`, `ROTARI_RESET_QUIET`,
+  `ROTARI_CHECK_QUIET` or `ROTARI_RUN_QUIET`), which overrides the global
+  value. The `retry` shorthand shares `ROTARI_RUN_QUIET`. Config files support
+  root `quiet` and command-specific values such as `add.quiet` and `run.quiet`
+  with the same precedence.
+  The shared environment-variable mapping is defined in
+  [`cmd/rotari/environment.go`](../../cmd/rotari/environment.go) and
+  [`cmd/rotari/cli_spec.go`](../../cmd/rotari/cli_spec.go).
 - For `run`, quiet is carried in the server request as `Request.Quiet`; the
   client suppresses successful progress and completion output. Job failures,
   startup errors, and other command errors remain visible, and synchronous

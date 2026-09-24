@@ -261,9 +261,12 @@ regardless of its eventual result. Use `rotari wait PROJECT` or
 If you want the same exit-code behavior without the interactive progress output,
 use `rotari run --quiet` or set `ROTARI_QUIET=true`; the command still exits
 with the run result. Quiet mode suppresses successful progress and completion
-output, but job failures and other errors are still printed. The same option
-and environment variable apply to queue-editing commands such as `add`,
-`copy`, `change`, `remove`, `reset`, and `check`.
+output, but job failures and other errors are still printed. `ROTARI_QUIET` is
+the global default, while `ROTARI_ADD_QUIET`, `ROTARI_COPY_QUIET`,
+`ROTARI_CHANGE_QUIET`, `ROTARI_REMOVE_QUIET`, `ROTARI_RESET_QUIET`,
+`ROTARI_CHECK_QUIET` and `ROTARI_RUN_QUIET` are command-specific overrides.
+Config files provide the same behavior with root `quiet` and command sections
+such as `add.quiet` or `run.quiet`.
 
 ### Can an array run only selected task IDs?
 Yes. Use `--array 1,3,4` for a sparse task list (ranges such as `1-10` are

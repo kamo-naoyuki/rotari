@@ -262,7 +262,12 @@ This is HTTP authentication, not encryption: use HTTPS or a trusted network.
 `/api/state` and `/environment/` show only whether variables are set.
 
 For non-interactive runs, `rotari run --quiet` suppresses the live progress and
-final summary output while still returning the run exit code.
+final summary output while still returning the run exit code. `ROTARI_QUIET`
+sets the global default; command-specific defaults such as `ROTARI_ADD_QUIET`,
+`ROTARI_COPY_QUIET`, `ROTARI_CHANGE_QUIET`, `ROTARI_REMOVE_QUIET`,
+`ROTARI_RESET_QUIET`, `ROTARI_CHECK_QUIET`, and `ROTARI_RUN_QUIET` override it
+for that command. The config file supports the same split with root `quiet`
+and command sections such as `add.quiet` or `run.quiet`.
 
 ## Projects, queues, runs, and state
 ### Project and queue

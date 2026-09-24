@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"html"
+	"strconv"
 	"strings"
 )
 
@@ -26,6 +27,9 @@ var webAppTablesJS string
 //go:embed assets/web_app_charts.js
 var webAppChartsJS string
 
+//go:embed assets/web_app_notifications.js
+var webAppNotificationsJS string
+
 //go:embed assets/web_app_bootstrap.js
 var webAppBootstrapJS string
 
@@ -46,9 +50,11 @@ var webStylesCSS string
 
 func composeWebHTML(executors []string, bootstrap string) string {
 	executorJSON, _ := json.Marshal(executors)
-	webAppJS := strings.Join([]string{webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppTablesJS, webAppChartsJS, webAppBootstrapJS}, "\n")
+	webAppJS := strings.Join([]string{webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppTablesJS, webAppChartsJS, webAppNotificationsJS, webAppBootstrapJS}, "\n")
 	template := strings.Replace(webTemplateHTML, "__ROTARI_WEB_APP__", webAppJS, 1)
 	template = strings.Replace(template, "__ROTARI_EXECUTORS__", string(executorJSON), 1)
+	template = strings.Replace(template, "__ROTARI_NOTIFICATION_ICON__", faviconDataURL(webFaviconDarkSVG), 1)
+	template = strings.Replace(template, "__ROTARI_NOTIFICATION_DEFAULT__", strconv.FormatBool(webNotificationsDefault), 1)
 	template = strings.Replace(template, "__ROTARI_STATIC_BOOTSTRAP__", bootstrap, 1)
 	return template
 }
