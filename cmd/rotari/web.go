@@ -25,7 +25,10 @@ import (
 	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
 
-const webDefaultPort = 8787
+const (
+	webDefaultPort    = 8787
+	webConfigFileName = "config.toml"
+)
 
 // webNotificationsDefault controls whether the served web UI's desktop
 // notification toggle defaults to on or off; set once by cmdWeb.
@@ -40,6 +43,21 @@ type webQueueState = webprojection.QueueState
 type webServerState = webprojection.ServerState
 type webConfigFile = webprojection.ConfigFile
 type webState = webprojection.State
+
+type webGenerateConfigRequest struct {
+	QueueName string `json:"project_name"`
+	Location  string `json:"location"`
+}
+
+type webConfigTarget struct {
+	Location string `json:"location"`
+	Path     string `json:"path"`
+}
+
+type webSaveConfigRequest struct {
+	QueueName string `json:"project_name"`
+	Content   string `json:"content"`
+}
 
 type webCopyRequest struct {
 	QueueName string   `json:"project_name"`
@@ -265,6 +283,60 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			return
 		}
 		writeWebJSON(writer, map[string]any{"configs": files})
+	})
+	mux.HandleFunc("/api/save-config", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost {
+			methodNotAllowed(writer)
+			return
+		}
+		if !allowControl {
+			forbiddenReadOnly(writer)
+			return
+		}
+		var save webSaveConfigRequest
+		if err := json.NewDecoder(request.Body).Decode(&save); err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		path, err := saveWebConfig(baseDir, save.QueueName, save.Content)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writeWebJSON(writer, map[string]string{"message": "config saved", "path": path})
+	})
+	mux.HandleFunc("/api/generate-config", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost {
+			methodNotAllowed(writer)
+			return
+		}
+		if !allowControl {
+			forbiddenReadOnly(writer)
+			return
+		}
+		var generate webGenerateConfigRequest
+		if err := json.NewDecoder(request.Body).Decode(&generate); err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		path, err := generateWebConfig(baseDir, generate.QueueName, generate.Location)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writeWebJSON(writer, map[string]string{"message": "config generated", "path": path})
+	})
+	mux.HandleFunc("/api/config-targets", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			methodNotAllowed(writer)
+			return
+		}
+		targets, err := webConfigTargets(baseDir, request.URL.Query().Get("project_name"))
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writeWebJSON(writer, map[string]any{"targets": targets})
 	})
 	mux.HandleFunc("/api/report", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
@@ -644,11 +716,7 @@ func loadWebConfigFiles(baseDir, projectName, runID string) ([]webConfigFile, er
 			if !validWebID(runID) {
 				return nil, fmt.Errorf("invalid run_id %q", runID)
 			}
-			var err error
-			paths, err = loadRunConfigPaths(baseDir, projectName, runID)
-			if err != nil {
-				return nil, err
-			}
+			return loadRunConfigFiles(baseDir, projectName, runID)
 		}
 	}
 	files := make([]webConfigFile, 0, len(paths))
@@ -662,7 +730,24 @@ func loadWebConfigFiles(baseDir, projectName, runID string) ([]webConfigFile, er
 	return files, nil
 }
 
-func loadRunConfigPaths(baseDir, projectName, runID string) ([]string, error) {
+func saveWebConfig(baseDir, projectName, content string) (string, error) {
+	if projectName != "" && !validWebID(projectName) {
+		return "", fmt.Errorf("invalid project_name %q", projectName)
+	}
+	path := effectiveConfigPath(baseDir, projectName)
+	if path == "" {
+		return "", fmt.Errorf("no config file exists to edit")
+	}
+	if _, err := parseConfigContent(path, []byte(content)); err != nil {
+		return "", fmt.Errorf("invalid %s config: %w", strings.TrimPrefix(filepath.Ext(path), "."), err)
+	}
+	if err := os.WriteFile(path, []byte(content), stateFileMode()); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func loadRunConfigFiles(baseDir, projectName, runID string) ([]webConfigFile, error) {
 	paths, err := resolvePaths(baseDir, projectName)
 	if err != nil {
 		return nil, err
@@ -671,20 +756,100 @@ func loadRunConfigPaths(baseDir, projectName, runID string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(filepath.Join(runDir, "context.json")) // NOSONAR: runDir is produced by validatedRunDir.
+	context, err := stateinternal.LoadContext(jsonStore(), runDir)
 	if err != nil {
 		return nil, err
 	}
-	var context RunContext
-	if err := json.Unmarshal(data, &context); err != nil {
+	if len(context.ConfigSnapshotFiles) == 0 {
+		return loadLegacyRunConfigFiles(baseDir, projectName, context.ConfigPaths)
+	}
+	if len(context.ConfigPaths) != len(context.ConfigSnapshotFiles) {
+		return nil, fmt.Errorf("run %q has inconsistent config snapshots", runID)
+	}
+	snapshotDir, err := stateinternal.SafeJoin(runDir, "configs")
+	if err != nil {
 		return nil, err
 	}
+	files := make([]webConfigFile, 0, len(context.ConfigSnapshotFiles))
+	for index, fileName := range context.ConfigSnapshotFiles {
+		snapshotPath, err := stateinternal.SafeJoin(snapshotDir, fileName)
+		if err != nil {
+			return nil, err
+		}
+		data, err := os.ReadFile(snapshotPath) // NOSONAR: snapshotPath is safely joined below the validated run directory.
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, webConfigFile{Path: context.ConfigPaths[index], Content: string(data)})
+	}
+	return files, nil
+}
+
+func webConfigTargets(baseDir, projectName string) ([]webConfigTarget, error) {
+	configHome, err := configHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	targets := []webConfigTarget{
+		{Location: "global", Path: filepath.Join(configHome, webConfigFileName)},
+		{Location: "basedir", Path: filepath.Join(baseDir, webConfigFileName)},
+	}
+	if projectName == "" {
+		return targets, nil
+	}
+	if !validWebID(projectName) {
+		return nil, fmt.Errorf("invalid project_name %q", projectName)
+	}
+	paths, err := resolvePaths(baseDir, projectName)
+	if err != nil {
+		return nil, err
+	}
+	return append(targets, webConfigTarget{Location: "project", Path: filepath.Join(paths.ProjectDir, webConfigFileName)}), nil
+}
+
+func generateWebConfig(baseDir, projectName, location string) (string, error) {
+	targets, err := webConfigTargets(baseDir, projectName)
+	if err != nil {
+		return "", err
+	}
+	var target string
+	for _, candidate := range targets {
+		if candidate.Location == location {
+			target = candidate.Path
+			break
+		}
+	}
+	if target == "" {
+		return "", fmt.Errorf("invalid config location %q", location)
+	}
+	directory := filepath.Dir(target)
+	existing := configFilePaths(directory)
+	if len(existing) > 1 {
+		return "", fmt.Errorf("multiple config files found in %s: %s", directory, strings.Join(existing, ", "))
+	}
+	if len(existing) == 1 && filepath.Clean(existing[0]) != filepath.Clean(target) {
+		return "", fmt.Errorf("config file %s already exists; remove it before generating config.toml", existing[0])
+	}
+	data, err := configTemplate("toml")
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(directory, stateDirMode()); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(target, data, stateFileMode()); err != nil {
+		return "", err
+	}
+	return target, nil
+}
+
+func loadLegacyRunConfigFiles(baseDir, projectName string, configPaths []string) ([]webConfigFile, error) {
 	allowed := make(map[string]bool)
 	for _, path := range configPathsForRun(baseDir, projectName) {
 		allowed[filepath.Clean(path)] = true
 	}
-	allowedPaths := make([]string, 0, len(context.ConfigPaths))
-	for _, path := range context.ConfigPaths {
+	allowedPaths := make([]string, 0, len(configPaths))
+	for _, path := range configPaths {
 		cleanPath := filepath.Clean(path)
 		if allowed[cleanPath] {
 			allowedPaths = append(allowedPaths, cleanPath)
@@ -693,7 +858,12 @@ func loadRunConfigPaths(baseDir, projectName, runID string) ([]string, error) {
 	if len(allowedPaths) == 0 {
 		return nil, nil
 	}
-	return []string{allowedPaths[len(allowedPaths)-1]}, nil
+	path := allowedPaths[len(allowedPaths)-1]
+	data, err := os.ReadFile(path) // NOSONAR: path is one of the current allowed config locations.
+	if err != nil {
+		return nil, err
+	}
+	return []webConfigFile{{Path: path, Content: string(data)}}, nil
 }
 
 // loadWebState projects persisted server and project state into the Web API

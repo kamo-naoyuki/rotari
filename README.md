@@ -261,6 +261,18 @@ the browser UI uses Basic auth with username `rotari` and the token as password.
 This is HTTP authentication, not encryption: use HTTPS or a trusted network.
 `/api/state` and `/environment/` show only whether variables are set.
 
+The toolbar keeps `View config` and `Generate config` separate. `View config`
+shows the highest-priority resolved config for the current page. `Generate
+config` on the all-projects or project page offers the valid global, basedir,
+and project locations as applicable, then generates or replaces `config.toml`
+at the selected location after confirmation. On those non-run pages, `View
+config` also permits saving edits to the resolved config. Historical run pages
+only display their recorded config copies; generation and editing are
+unavailable there and in read-only Web mode.
+
+Saving validates JSON, TOML, or YAML according to the existing config file's
+extension. Invalid content is rejected without changing the file.
+
 The Web UI can show a browser desktop notification, entirely client-side, when
 a run finishes or a job fails — see
 [Web browser notifications](docs/WEB_BROWSER_NOTIFICATIONS.md).
@@ -870,6 +882,12 @@ built-in default
 `rotari show` includes the highest-priority config path in its header when
 config files are present. The web UI uses the same project, basedir, then
 global priority and displays only that one path.
+
+Only the first existing config in that priority order is loaded; lower-priority
+config files are ignored. When a run starts, rotari copies that selected config
+into its run directory. The run page's `View config` displays the copy, so
+later edits do not change historical run details. Its `Config:` location lists
+the run-local copy path.
 
 ## Run completion webhook
 

@@ -45,32 +45,15 @@ func loadCLIConfig(args []string) error {
 	if err != nil {
 		return err
 	}
-	configHome, err := configHomeDir()
-	if err != nil {
-		return err
-	}
-	config, err := loadConfigFile(configHome)
-	if err != nil {
-		return err
-	}
-	baseConfig, err := loadConfigFile(resolvedBaseDir)
-	if err != nil {
-		return err
-	}
-	mergeConfig(config, baseConfig)
 	if projectName, err = configProjectName(resolvedBaseDir, projectName); err != nil {
 		return err
 	}
-	if projectName != "" {
-		projectDir, err := state.SafeJoin(filepath.Join(resolvedBaseDir, "projects"), projectName)
+	config := map[string]any{}
+	if path := effectiveConfigPath(resolvedBaseDir, projectName); path != "" {
+		config, err = loadConfigFile(filepath.Dir(path))
 		if err != nil {
 			return err
 		}
-		projectConfig, err := loadConfigFile(projectDir)
-		if err != nil {
-			return err
-		}
-		mergeConfig(config, projectConfig)
 	}
 	cliConfig = config
 	return nil
@@ -182,18 +165,29 @@ func loadConfigFile(directory string) (map[string]any, error) {
 		printErrorf("WARNING: cannot read config %s: %v", paths[0], err)
 		return map[string]any{}, nil
 	}
+	config, err := parseConfigContent(paths[0], data)
+	if err != nil {
+		printErrorf("WARNING: cannot parse config %s: %v", paths[0], err)
+		return map[string]any{}, nil
+	}
+	return config, nil
+}
+
+func parseConfigContent(path string, data []byte) (map[string]any, error) {
 	config := make(map[string]any)
-	switch filepath.Ext(paths[0]) {
+	var err error
+	switch filepath.Ext(path) {
 	case ".json":
 		err = json.Unmarshal(data, &config)
 	case ".yaml":
 		err = yaml.Unmarshal(data, &config)
 	case ".toml":
 		_, err = toml.Decode(string(data), &config)
+	default:
+		return nil, fmt.Errorf("unsupported config format %q", filepath.Ext(path))
 	}
 	if err != nil {
-		printErrorf("WARNING: cannot parse config %s: %v", paths[0], err)
-		return map[string]any{}, nil
+		return nil, err
 	}
 	return config, nil
 }
@@ -232,17 +226,20 @@ func globalConfigPath() string {
 }
 
 func configPathsForRun(baseDir, projectName string) []string {
-	paths := make([]string, 0, len(configExtensions)+2)
-	if configHome, err := configHomeDir(); err == nil {
-		paths = append(paths, configFilePaths(configHome)...)
-	}
-	paths = append(paths, configFilePaths(baseDir)...)
 	if projectName != "" {
 		if projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), projectName); err == nil {
-			paths = append(paths, configFilePaths(projectDir)...)
+			if paths := configFilePaths(projectDir); len(paths) > 0 {
+				return paths
+			}
 		}
 	}
-	return paths
+	if paths := configFilePaths(baseDir); len(paths) > 0 {
+		return paths
+	}
+	if configHome, err := configHomeDir(); err == nil {
+		return configFilePaths(configHome)
+	}
+	return nil
 }
 
 func configValue(name string) (any, bool) {

@@ -3,10 +3,10 @@
 ## Run lifecycle
 
 - Queue-editing commands mutate `queue.json`. Starting a run assigns a new ID,
-  snapshots the queue, records context, and marks it active. Completion writes
-  results and summary, updates metadata, clears the consumed queue, and removes
-  the active lock. Completed run snapshots, results, and logs remain immutable
-  until the run is explicitly deleted.
+  snapshots the queue and every active config file, records context, and marks
+  it active. Completion writes results and summary, updates metadata, clears the
+  consumed queue, and removes the active lock. Completed run snapshots, results,
+  logs, and config copies remain immutable until the run is explicitly deleted.
 - Retries and filtered runs always create new history and never modify their
   source run. `--retry N` retries a failed job up to N additional times within
   the same run. A failed job is one whose result has a non-zero exit code and is

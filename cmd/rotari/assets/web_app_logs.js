@@ -195,7 +195,8 @@ async function copyLogTail(button) {
   }
 }
 function updateModalActions() {
-  const view = document.getElementById("output-modal").dataset.view;
+  const modal = document.getElementById("output-modal");
+  const view = modal.dataset.view;
   const copyTail = document.getElementById("copy-tail");
   copyTail.hidden = view !== "log";
   copyTail.dataset.copyTitle = "Copy last 100 lines";
@@ -208,6 +209,8 @@ function updateModalActions() {
     button.dataset.copyIcon ||= button.innerHTML;
   });
   const copyButton = document.getElementById("copy-modal");
+  copyButton.hidden =
+    view === "generate-config" || modal.dataset.editing === "true";
   const copyTitle = view === "log" ? "Copy log" : "Copy";
   copyButton.title = copyTitle;
   copyButton.setAttribute("aria-label", copyTitle);
@@ -393,6 +396,13 @@ function ensureModalOutput() {
 }
 function openOutputModal(compact) {
   const modal = document.getElementById("output-modal");
+  const view = modal.dataset.view;
+  const editingConfig = view === "config" && modal.dataset.editing === "true";
+  const generatingConfig = view === "generate-config";
+  ensureModalOutput().hidden = editingConfig || generatingConfig;
+  document.getElementById("config-editor").hidden = !editingConfig;
+  document.getElementById("config-generator").hidden = !generatingConfig;
+  if (!editingConfig) delete modal.dataset.editing;
   updateModalActions();
   modal.style.display = "flex";
   modal.querySelector(".output-panel").classList.toggle("compact", !!compact);
@@ -400,6 +410,7 @@ function openOutputModal(compact) {
 function closeOutputModal() {
   document.getElementById("output-modal").style.display = "none";
   delete document.getElementById("output-modal").dataset.view;
+  delete document.getElementById("output-modal").dataset.editing;
   if (followTimer) clearInterval(followTimer);
   followTimer = null;
   selectedLog = null;

@@ -385,6 +385,43 @@ section {
   max-height: 240px;
   min-height: 0;
 }
+.config-editor {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  gap: 12px;
+}
+.config-editor[hidden],
+.config-generator[hidden] {
+  display: none;
+}
+.config-editor textarea {
+  flex: 1;
+  min-height: 180px;
+  resize: vertical;
+  font:
+    13px/1.5 ui-monospace,
+    monospace;
+}
+.config-editor button {
+  align-self: flex-end;
+}
+.config-generator {
+  padding: 4px 0;
+}
+.config-generator p {
+  margin: 0 0 16px;
+}
+.config-target-options {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.config-target-options button {
+  overflow-wrap: anywhere;
+  text-align: left;
+}
 @media (max-width: 650px) {
   header {
     display: block;

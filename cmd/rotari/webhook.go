@@ -250,12 +250,12 @@ func notifyRunWebhook(paths pathSet, runID string, exitCode int) {
 
 func webhookSettings(paths pathSet) webhookConfig {
 	settings := map[string]any{}
-	for _, configPath := range configPathsForRun(paths.BaseDir, paths.ProjectName) {
+	if configPaths := configPathsForRun(paths.BaseDir, paths.ProjectName); len(configPaths) > 0 {
+		configPath := configPaths[0]
 		config, err := loadConfigFile(filepath.Dir(configPath))
-		if err != nil {
-			continue
+		if err == nil {
+			settings = config
 		}
-		mergeConfig(settings, config)
 	}
 	webhook, _ := settings["webhook"].(map[string]any)
 	config := webhookConfig{Format: "json"}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -15,8 +16,14 @@ func writeRunContext(paths pathSet, runID, cwd string) error {
 		return err
 	}
 	context := captureRunContext(cwd)
-	if configPath := effectiveConfigPath(paths.BaseDir, paths.ProjectName); configPath != "" {
-		context.ConfigPaths = []string{configPath}
+	context.ConfigPaths = configPathsForRun(paths.BaseDir, paths.ProjectName)
+	if len(context.ConfigPaths) > 0 {
+		files, snapshotPaths, err := snapshotRunConfigs(runDir, context.ConfigPaths)
+		if err != nil {
+			return err
+		}
+		context.ConfigSnapshotFiles = files
+		context.ConfigSnapshotPaths = snapshotPaths
 	}
 	if context.StartedLoad != nil {
 		if err := state.AppendLoadSample(loadSamplesPath(paths, runID), LoadSample{At: nowRFC3339Nano(), LoadAverage: *context.StartedLoad}); err != nil {
@@ -24,6 +31,35 @@ func writeRunContext(paths pathSet, runID, cwd string) error {
 		}
 	}
 	return state.SaveContext(jsonStore(), runDir, context)
+}
+
+func snapshotRunConfigs(runDir string, configPaths []string) ([]string, []string, error) {
+	snapshotDir, err := state.SafeJoin(runDir, "configs")
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := os.MkdirAll(snapshotDir, stateDirMode()); err != nil {
+		return nil, nil, err
+	}
+	files := make([]string, 0, len(configPaths))
+	snapshotPaths := make([]string, 0, len(configPaths))
+	for index, configPath := range configPaths {
+		data, err := os.ReadFile(configPath)
+		if err != nil {
+			return nil, nil, err
+		}
+		fileName := fmt.Sprintf("config-%d%s", index+1, filepath.Ext(configPath))
+		snapshotPath, err := state.SafeJoin(snapshotDir, fileName)
+		if err != nil {
+			return nil, nil, err
+		}
+		if err := os.WriteFile(snapshotPath, data, stateFileMode()); err != nil {
+			return nil, nil, err
+		}
+		files = append(files, fileName)
+		snapshotPaths = append(snapshotPaths, snapshotPath)
+	}
+	return files, snapshotPaths, nil
 }
 
 func finishRunContext(paths pathSet, runID string) error {

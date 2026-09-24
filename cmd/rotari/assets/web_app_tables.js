@@ -443,6 +443,8 @@ function labelJobActionHeaders() {
 function clarifyLogControls() {
   if (
     document.getElementById("output-modal").dataset.view !== "config" &&
+    document.getElementById("output-modal").dataset.view !==
+      "generate-config" &&
     document.getElementById("output-modal").dataset.view !== "diagnosis" &&
     document.getElementById("output-modal").dataset.view !== "path" &&
     document.getElementById("output-modal").dataset.view !== "ai"

@@ -184,12 +184,14 @@ type RunSummary struct {
 }
 
 type RunContext struct {
-	CWD          string       `json:"cwd"`
-	ConfigPaths  []string     `json:"config_paths,omitempty"`
-	Hostname     string       `json:"hostname,omitempty"`
-	StartedLoad  *LoadAverage `json:"started_load,omitempty"`
-	FinishedLoad *LoadAverage `json:"finished_load,omitempty"`
-	LoadSamples  []LoadSample `json:"load_samples,omitempty"`
+	CWD                 string       `json:"cwd"`
+	ConfigPaths         []string     `json:"config_paths,omitempty"`
+	ConfigSnapshotFiles []string     `json:"config_snapshot_files,omitempty"`
+	ConfigSnapshotPaths []string     `json:"config_snapshot_paths,omitempty"`
+	Hostname            string       `json:"hostname,omitempty"`
+	StartedLoad         *LoadAverage `json:"started_load,omitempty"`
+	FinishedLoad        *LoadAverage `json:"finished_load,omitempty"`
+	LoadSamples         []LoadSample `json:"load_samples,omitempty"`
 }
 
 type LoadAverage struct {

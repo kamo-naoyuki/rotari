@@ -95,11 +95,18 @@ function pageConfigPaths() {
     const run = project.runs.find(
       (item) => item.run_id === decodeURIComponent(parts[3]),
     );
-    return (run && run.context && run.context.config_paths) || [];
+    return (run && run.context && run.context.config_snapshot_paths) || [];
   }
   return project.config_path ? [project.config_path] : [];
 }
 async function showConfig() {
+  const modal = document.getElementById("output-modal");
+  const generator = document.getElementById("config-generator");
+  const editor = document.getElementById("config-editor");
+  const output = ensureModalOutput();
+  generator.hidden = true;
+  editor.hidden = true;
+  output.hidden = false;
   const parts = pageParts();
   const params = new URLSearchParams();
   if (parts[0] === "project")
@@ -112,27 +119,169 @@ async function showConfig() {
     return;
   }
   const payload = JSON.parse(text);
-  const output = ensureModalOutput();
-  output.textContent = (payload.configs || [])
+  const files = payload.configs || [];
+  const content = files
     .map((item) => "# " + item.path + "\n" + item.content)
     .join("\n\n");
-  document.querySelector("#output-modal strong").textContent = "Config";
-  document.getElementById("output-modal").dataset.view = "config";
+  selectedLog = null;
+  selectedOutput = content;
+  const project = configGenerationProject();
+  if (project === null) {
+    delete modal.dataset.editing;
+    output.textContent = content;
+  } else {
+    const file = files[0];
+    if (!file) {
+      alert("No config file exists to edit.");
+      return;
+    }
+    output.hidden = true;
+    editor.hidden = false;
+    const textarea = editor.querySelector("textarea");
+    const saveButton = editor.querySelector("button");
+    textarea.value = file.content;
+    textarea.dataset.initial = file.content;
+    textarea.oninput = () => updateConfigSaveState(editor);
+    updateConfigSaveState(editor);
+    saveButton.onclick = async () => {
+      const button = editor.querySelector("button");
+      button.disabled = true;
+      const response = await fetch("/api/save-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_name: project,
+          content: textarea.value,
+        }),
+      });
+      const saveText = await response.text();
+      button.disabled = false;
+      if (!response.ok) {
+        alert(saveText);
+        return;
+      }
+      textarea.dataset.initial = textarea.value;
+      updateConfigSaveState(editor);
+      selectedOutput = textarea.value;
+      await refresh();
+      alert("Saved " + JSON.parse(saveText).path);
+    };
+    modal.dataset.editing = "true";
+  }
+  modal.querySelector("strong").textContent = "Config";
+  modal.dataset.view = "config";
   openOutputModal(false);
+}
+function updateConfigSaveState(editor) {
+  const textarea = editor.querySelector("textarea");
+  const changed = textarea.value !== textarea.dataset.initial;
+  textarea.classList.toggle("dirty", changed);
+  editor.querySelector("button").disabled = !changed;
+}
+function configGenerationProject() {
+  const parts = pageParts();
+  if (typeof routeParts === "function" || parts[2] === "run") return null;
+  return parts[0] === "project" ? decodeURIComponent(parts[1]) : "";
+}
+function showGenerateConfig() {
+  const project = configGenerationProject();
+  if (project === null) return;
+  const modal = document.getElementById("output-modal");
+  const output = ensureModalOutput();
+  const generator = document.getElementById("config-generator");
+  const editor = document.getElementById("config-editor");
+  output.hidden = true;
+  editor.hidden = true;
+  generator.hidden = false;
+  delete modal.dataset.editing;
+  generator.replaceChildren();
+  generator.textContent = "Loading config locations...";
+  const params = new URLSearchParams();
+  if (project) params.set("project_name", project);
+  fetch("/api/config-targets?" + params)
+    .then(async (response) => {
+      const text = await response.text();
+      if (!response.ok) throw new Error(text);
+      return JSON.parse(text);
+    })
+    .then((payload) => {
+      generator.replaceChildren(
+        Object.assign(document.createElement("p"), {
+          textContent: "Choose where to generate config.toml.",
+        }),
+      );
+      const options = document.createElement("div");
+      options.className = "config-target-options";
+      (payload.targets || []).forEach((target) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = target.path;
+        button.title = "Generate config.toml in " + target.location;
+        button.onclick = async () => {
+          if (
+            !confirm(
+              "Generate config.toml at " +
+                target.path +
+                "? Existing contents of that file will be replaced.",
+            )
+          )
+            return;
+          button.disabled = true;
+          const response = await fetch("/api/generate-config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              project_name: project,
+              location: target.location,
+            }),
+          });
+          const text = await response.text();
+          button.disabled = false;
+          if (!response.ok) {
+            alert(text);
+            return;
+          }
+          const result = JSON.parse(text);
+          closeOutputModal();
+          await refresh();
+          alert("Generated " + result.path);
+        };
+        options.append(button);
+      });
+      generator.append(options);
+    })
+    .catch((error) => {
+      generator.textContent =
+        "Failed to load config locations: " + error.message;
+    });
+  modal.querySelector("strong").textContent = "Generate config";
+  modal.dataset.view = "generate-config";
+  openOutputModal(true);
 }
 function addConfigButton() {
   document
-    .querySelectorAll(".config-button")
+    .querySelectorAll(".config-button,.generate-config-button")
     .forEach((button) => button.remove());
   const paths = pageConfigPaths();
-  const button = document.createElement("button");
-  button.className = "config-button";
-  button.textContent = "Config";
-  button.disabled = !paths.length;
-  button.title = paths.length ? "View config" : "No config file";
-  if (paths.length) button.onclick = showConfig;
+  const viewButton = document.createElement("button");
+  viewButton.className = "config-button";
+  viewButton.textContent = "View config";
+  viewButton.disabled = !paths.length;
+  viewButton.title = paths.length ? "View config" : "No config file";
+  if (paths.length) viewButton.onclick = showConfig;
   const toolbar = document.querySelector(".toolbar");
-  toolbar.insertBefore(button, document.getElementById("notify-toggle"));
+  toolbar.insertBefore(viewButton, document.getElementById("notify-toggle"));
+  if (configGenerationProject() !== null) {
+    const generateButton = document.createElement("button");
+    generateButton.className = "generate-config-button";
+    generateButton.textContent = "Generate config";
+    generateButton.title = "Generate or replace a config template";
+    generateButton.onclick = showGenerateConfig;
+    toolbar.insertBefore(
+      generateButton,
+      document.getElementById("notify-toggle"),
+    );
+  }
 }
 function renderOverview(queues) {
   let queued = 0,
@@ -254,7 +403,7 @@ function renderRun(q, runID) {
   }
   setLocation(
     state.base_dir + " / " + q.project_name + " / " + runID,
-    run.context && run.context.config_paths,
+    run.context && run.context.config_snapshot_paths,
   );
   document.getElementById("page-title").innerHTML = esc(run.run_name || runID);
   document.getElementById("summary").innerHTML =

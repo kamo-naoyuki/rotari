@@ -80,8 +80,32 @@ setTimeout(() => {
     process.exit(1);
   }
   if (!app || app.textContent.includes('loading...')) process.exit(2);
-	const configButton = dom.window.document.querySelector('.config-button');
-	if (!configButton || !configButton.disabled) process.exit(3);
+	const viewConfig = dom.window.document.querySelector('.config-button');
+	const generateConfig = dom.window.document.querySelector('.generate-config-button');
+	if (!viewConfig || !viewConfig.disabled || !generateConfig) process.exit(3);
+	const modal = dom.window.document.getElementById('output-modal');
+	modal.dataset.view = 'generate-config';
+	modal.querySelector('strong').textContent = 'Generate config';
+	dom.window.styleActionColumns();
+	if (modal.querySelector('strong').textContent !== 'Generate config') process.exit(4);
+	modal.dataset.view = 'config';
+	modal.dataset.editing = 'true';
+	dom.window.openOutputModal(false);
+	if (!dom.window.document.getElementById('copy-modal').hidden) process.exit(5);
+	const editor = dom.window.document.getElementById('config-editor');
+	const textarea = editor.querySelector('textarea');
+	const save = editor.querySelector('button');
+	textarea.dataset.initial = 'original';
+	textarea.value = 'original';
+	dom.window.updateConfigSaveState(editor);
+	if (!save.disabled || textarea.classList.contains('dirty')) process.exit(6);
+	textarea.value = 'changed';
+	dom.window.updateConfigSaveState(editor);
+	if (save.disabled || !textarea.classList.contains('dirty')) process.exit(7);
+	dom.window.showPath('/work/job');
+	if (!editor.hidden || !dom.window.document.getElementById('config-generator').hidden) process.exit(8);
+	if (dom.window.document.getElementById('modal-log').hidden) process.exit(9);
+	if (modal.querySelector('strong').textContent !== 'Job path') process.exit(10);
 }, 50);
 `
 	htmlPath := filepath.Join(t.TempDir(), "index.html")
@@ -240,6 +264,9 @@ func TestWebRunPageCopiesConfigPathsAndRunID(t *testing.T) {
 	if strings.Count(html, `copyIconForValue(run.run_id, "run ID")`) != 1 {
 		t.Fatal("web run page has duplicate run ID copy controls")
 	}
+	if webContains(html, "run.context.config_paths") {
+		t.Fatal("web run page displays source config paths instead of snapshots")
+	}
 }
 
 func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {
@@ -374,10 +401,13 @@ func TestWebHTMLIncludesProjectRuntime(t *testing.T) {
 
 func TestWebHTMLIncludesConfigPaths(t *testing.T) {
 	html := webHTML()
-	for _, want := range []string{"configText(paths)", "function addConfigButton()", "state.config_path", "q.config_path", "run.context.config_paths"} {
+	for _, want := range []string{"configText(paths)", "function addConfigButton()", "function showGenerateConfig()", "generate-config-button", "config-editor", "/api/save-config", "/api/config-targets", "config-target-options", "state.config_path", "q.config_path", "run.context.config_snapshot_paths"} {
 		if !webContains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
 		}
+	}
+	if !strings.Contains(webStylesCSS, ".config-editor[hidden],\n.config-generator[hidden]") {
+		t.Fatal("web stylesheet does not hide inactive config controls")
 	}
 }
 
@@ -546,6 +576,223 @@ func TestWebConfigAPIReadsResolvedFiles(t *testing.T) {
 	handler.ServeHTTP(recorder, request)
 	if recorder.Code == http.StatusOK {
 		t.Fatal("config API accepted a traversal project name")
+	}
+}
+
+func TestWebConfigAPIReadsRunConfigSnapshots(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	globalDir := filepath.Join(configHome, "rotari")
+	if err := os.MkdirAll(globalDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(globalDir, "config.yaml"), []byte("global: original\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	baseDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(baseDir, "config.yaml"), []byte("base: original\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(paths.ProjectDir, "config.yaml")
+	if err := os.WriteFile(projectPath, []byte("project: original\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeRunContext(paths, "run-1", "/work/project"); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{filepath.Join(globalDir, "config.yaml"), filepath.Join(baseDir, "config.yaml"), projectPath} {
+		if err := os.WriteFile(path, []byte("changed: true\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/config?project_name=demo&run_id=run-1", nil)
+	recorder := httptest.NewRecorder()
+	newWebHandler(baseDir, "", false).ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("config snapshot status = %d, body = %q", recorder.Code, recorder.Body.String())
+	}
+	for _, want := range []string{"project: original"} {
+		if !strings.Contains(recorder.Body.String(), want) {
+			t.Fatalf("config snapshot body does not contain %q: %s", want, recorder.Body.String())
+		}
+	}
+	for _, unwanted := range []string{"global: original", "base: original"} {
+		if strings.Contains(recorder.Body.String(), unwanted) {
+			t.Fatalf("config snapshot body contains ignored lower-priority config %q: %s", unwanted, recorder.Body.String())
+		}
+	}
+	if strings.Contains(recorder.Body.String(), "changed: true") {
+		t.Fatalf("config snapshot body contains updated source config: %s", recorder.Body.String())
+	}
+}
+
+func TestWebSaveConfigWritesOnlyTheResolvedCurrentConfig(t *testing.T) {
+	baseDir := t.TempDir()
+	basePath := filepath.Join(baseDir, "config.toml")
+	if err := os.WriteFile(basePath, []byte("base = true\n"), stateFileMode()); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
+		t.Fatal(err)
+	}
+	projectPath := filepath.Join(paths.ProjectDir, "config.toml")
+	if err := os.WriteFile(projectPath, []byte("project = true\n"), stateFileMode()); err != nil {
+		t.Fatal(err)
+	}
+	handler := newWebHandler(baseDir, "", true)
+	request := httptest.NewRequest(http.MethodPost, "/api/save-config", strings.NewReader(`{"project_name":"demo","content":"project = false\n"}`))
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("save config status = %d, body = %q", recorder.Code, recorder.Body.String())
+	}
+	projectData, err := os.ReadFile(projectPath)
+	if err != nil || string(projectData) != "project = false\n" {
+		t.Fatalf("project config = %q, err = %v", projectData, err)
+	}
+	baseData, err := os.ReadFile(basePath)
+	if err != nil || string(baseData) != "base = true\n" {
+		t.Fatalf("base config = %q, err = %v", baseData, err)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/save-config", strings.NewReader(`{"project_name":"../outside","content":"bad = true\n"}`))
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), "invalid project_name") {
+		t.Fatalf("unsafe save status = %d, body = %q", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestWebSaveConfigRejectsReadOnlyMode(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/api/save-config", strings.NewReader(`{"content":"value = true\n"}`))
+	recorder := httptest.NewRecorder()
+	newWebHandler(t.TempDir(), "", false).ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("read-only save status = %d, want %d", recorder.Code, http.StatusForbidden)
+	}
+}
+
+func TestWebSaveConfigRejectsInvalidFormatWithoutWriting(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		extension string
+		original  string
+		invalid   string
+	}{
+		{name: "json", extension: ".json", original: `{"run":{"retry":1}}`, invalid: `{"run":`},
+		{name: "toml", extension: ".toml", original: "[run]\nretry = 1\n", invalid: "[run\n"},
+		{name: "yaml", extension: ".yaml", original: "run:\n  retry: 1\n", invalid: "run: [invalid\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			baseDir := t.TempDir()
+			path := filepath.Join(baseDir, "config"+test.extension)
+			if err := os.WriteFile(path, []byte(test.original), stateFileMode()); err != nil {
+				t.Fatal(err)
+			}
+			request := httptest.NewRequest(http.MethodPost, "/api/save-config", strings.NewReader(`{"content":`+strconv.Quote(test.invalid)+`}`))
+			recorder := httptest.NewRecorder()
+			newWebHandler(baseDir, "", true).ServeHTTP(recorder, request)
+			if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), "invalid "+test.name+" config") {
+				t.Fatalf("save status = %d, body = %q", recorder.Code, recorder.Body.String())
+			}
+			data, err := os.ReadFile(path)
+			if err != nil || string(data) != test.original {
+				t.Fatalf("config after rejected save = %q, err = %v", data, err)
+			}
+		})
+	}
+}
+
+func TestWebGenerateConfigCreatesAndOverwritesTOMLAtSelectedLocation(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	baseDir := t.TempDir()
+	handler := newWebHandler(baseDir, "", true)
+
+	request := httptest.NewRequest(http.MethodPost, "/api/generate-config", strings.NewReader(`{"location":"basedir"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("generate config status = %d, body = %q", recorder.Code, recorder.Body.String())
+	}
+	path := filepath.Join(baseDir, "config.toml")
+	data, err := os.ReadFile(path)
+	if err != nil || !strings.Contains(string(data), "[run]") {
+		t.Fatalf("generated config = %q, err = %v", data, err)
+	}
+	if err := os.WriteFile(path, []byte("custom: true\n"), stateFileMode()); err != nil {
+		t.Fatal(err)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/generate-config", strings.NewReader(`{"location":"basedir"}`))
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	data, err = os.ReadFile(path)
+	if recorder.Code != http.StatusOK || err != nil || strings.Contains(string(data), "custom: true") {
+		t.Fatalf("overwrite status = %d, config = %q, err = %v", recorder.Code, data, err)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/generate-config", strings.NewReader(`{"location":"invalid"}`))
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), "invalid config location") {
+		t.Fatalf("invalid location status = %d, body = %q", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestWebGenerateConfigRejectsReadOnlyAndUnsafeProject(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/api/generate-config", strings.NewReader(`{"location":"basedir"}`))
+	recorder := httptest.NewRecorder()
+	newWebHandler(t.TempDir(), "", false).ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("read-only generate status = %d, want %d", recorder.Code, http.StatusForbidden)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/generate-config", strings.NewReader(`{"project_name":"../outside","location":"project"}`))
+	recorder = httptest.NewRecorder()
+	newWebHandler(t.TempDir(), "", true).ServeHTTP(recorder, request)
+	if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), "invalid project_name") {
+		t.Fatalf("unsafe project status = %d, body = %q", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestWebConfigTargetsListResolvedTOMLLocations(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets, err := webConfigTargets(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []webConfigTarget{
+		{Location: "global", Path: filepath.Join(configHome, "rotari", "config.toml")},
+		{Location: "basedir", Path: filepath.Join(baseDir, "config.toml")},
+		{Location: "project", Path: filepath.Join(paths.ProjectDir, "config.toml")},
+	}
+	if len(targets) != len(want) {
+		t.Fatalf("targets = %#v, want %#v", targets, want)
+	}
+	for index := range want {
+		if targets[index] != want[index] {
+			t.Fatalf("target %d = %#v, want %#v", index, targets[index], want[index])
+		}
 	}
 }
 
@@ -1138,6 +1385,16 @@ func TestWriteRunContext(t *testing.T) {
 	}
 	if len(context.ConfigPaths) == 0 || context.ConfigPaths[len(context.ConfigPaths)-1] != filepath.Join(baseDir, "config.yaml") {
 		t.Fatalf("config paths = %#v, want basedir config", context.ConfigPaths)
+	}
+	if len(context.ConfigSnapshotFiles) != 1 {
+		t.Fatalf("config snapshot files = %#v, want one snapshot", context.ConfigSnapshotFiles)
+	}
+	if len(context.ConfigSnapshotPaths) != 1 || context.ConfigSnapshotPaths[0] != filepath.Join(paths.RunsDir, "run-1", "configs", context.ConfigSnapshotFiles[0]) {
+		t.Fatalf("config snapshot paths = %#v, want run-local config path", context.ConfigSnapshotPaths)
+	}
+	snapshot, err := os.ReadFile(filepath.Join(paths.RunsDir, "run-1", "configs", context.ConfigSnapshotFiles[0]))
+	if err != nil || string(snapshot) != "run:\n  retry: 1\n" {
+		t.Fatalf("config snapshot = %q, err = %v", snapshot, err)
 	}
 	samples := stateinternal.ReadLoadSamples(loadSamplesPath(paths, "run-1"))
 	if context.StartedLoad != nil && len(samples) != 1 {

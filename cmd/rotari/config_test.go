@@ -66,13 +66,13 @@ func TestLoadConfigFileWarnsAndIgnoresInvalidFormat(t *testing.T) {
 	}
 }
 
-func TestProjectConfigOverridesBaseConfig(t *testing.T) {
+func TestProjectConfigIgnoresLowerPriorityScopes(t *testing.T) {
 	baseDir := t.TempDir()
 	projectDir := filepath.Join(baseDir, "projects", "demo")
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(baseDir, "config.json"), []byte(`{"executor":"local","retry":1}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(baseDir, "config.json"), []byte(`{"executor":`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(projectDir, "config.json"), []byte(`{"executor":"slurm"}`), 0o644); err != nil {
@@ -83,12 +83,12 @@ func TestProjectConfigOverridesBaseConfig(t *testing.T) {
 	if err := loadCLIConfig([]string{"--basedir", baseDir, "--project-name", "demo"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := configString("executor", ""); got != "slurm" || configInt("retry", 0) != 1 {
+	if got := configString("executor", ""); got != "slurm" || configInt("retry", 0) != 0 {
 		t.Fatalf("config = %#v", cliConfig)
 	}
 }
 
-func TestGlobalConfigSupportsCommandSections(t *testing.T) {
+func TestBasedirConfigIgnoresGlobalCommandSections(t *testing.T) {
 	configHome := t.TempDir()
 	baseDir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(baseDir, "projects", "demo"), 0o755); err != nil {
@@ -98,7 +98,7 @@ func TestGlobalConfigSupportsCommandSections(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(configHome, "rotari"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(configHome, "rotari", "config.yaml"), []byte("project-name: global-project\nrun:\n  executor: slurm\n  retry: 4\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(configHome, "rotari", "config.yaml"), []byte("run: [invalid\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(baseDir, "config.yaml"), []byte("run:\n  executor: local\n"), 0o644); err != nil {
@@ -113,12 +113,12 @@ func TestGlobalConfigSupportsCommandSections(t *testing.T) {
 		t.Fatal(err)
 	}
 	cliConfigCommand = "run"
-	if got := configString("executor", ""); got != "local" || configInt("retry", 0) != 4 {
-		t.Fatalf("global command config = %#v", cliConfig)
+	if got := configString("executor", ""); got != "local" || configInt("retry", 0) != 0 {
+		t.Fatalf("basedir command config = %#v", cliConfig)
 	}
 	cliConfigCommand = "show"
-	if got := configString("project-name", ""); got != "global-project" {
-		t.Fatalf("global root config = %q", got)
+	if got := configString("project-name", ""); got != "" {
+		t.Fatalf("project name = %q, want empty", got)
 	}
 }
 

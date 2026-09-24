@@ -77,15 +77,11 @@ Without a run-location lookup, base directories resolve in this order:
   `base_dir` and `project_name` for configuration loading as well as for the
   command. When the project is still ambiguous, only global and basedir config
   are loaded; project selection remains the command's responsibility.
-- CLI option defaults are loaded from one of `config.yaml`, `config.toml`, or
-  `config.json` in `$XDG_CONFIG_HOME/rotari` (or `~/.config/rotari`), then the
-  resolved base directory.
-- After resolving the project name, the same lookup is performed in
-  `projects/<project>/`. Project values override base-directory values.
-- Later scopes override earlier scopes: home, basedir, then project.
-- `rotari show` and the web UI display only the highest-priority existing
-  config path: project, then basedir, then home. Config loading still merges
-  all three scopes.
+- After resolving the project name, config lookup chooses the first directory
+  containing one supported file: `projects/<project>/`, then the resolved
+  basedir, then `$XDG_CONFIG_HOME/rotari` (or `~/.config/rotari`). It loads only
+  that config; lower-priority scopes are ignored rather than merged.
+- `rotari show` and the web UI display that selected config path.
 - Multiple supported config files in the same directory are an error; file
   formats have no implicit priority.
 - Common configuration keys (`basedir` and `project-name`) are at the root;
@@ -102,8 +98,24 @@ Without a run-location lookup, base directories resolve in this order:
   active home, basedir, and project config files are visible in CLI output as
   well as in the web UI.
 - The Web UI exposes config paths in its state and serves raw contents only for
-  the resolved global/project files or config paths recorded in a run's
-  `context.json`; it does not accept arbitrary filesystem paths.
+  the selected config. At run creation, that config is copied below the run
+  directory and listed in `context.json`; a run page serves the immutable copy
+  rather than rereading the source path. It does not accept arbitrary filesystem
+  paths. Older runs without snapshots retain the legacy resolved-path fallback.
+  The projected run context separately records the snapshot path for the Web
+  UI's `Config:` location display.
+- On all-projects and project pages, the Web UI also offers a control-gated
+  `config-targets`/`generate-config` pair. It uses the same `configTemplate`
+  generator as the CLI to write TOML at a selected global, basedir, or project
+  path and may replace an existing TOML config. It refuses to add a second
+  supported config format in the same directory; run pages stay view-only
+  because their paths describe historical execution context.
+- The control-gated `save-config` endpoint writes only the currently resolved
+  config for an all-projects or project page. It accepts a project name and
+  content, never a filesystem path or run ID. Run pages expose only the copied
+  configuration snapshots recorded at run creation. Before writing, the
+  endpoint parses JSON, TOML, or YAML according to the existing file extension,
+  so an invalid edit cannot replace the valid config.
 
 ## Shell completion
 

@@ -85,7 +85,7 @@ func TestWebhookSettingsUseProjectConfigAndEnvironmentOverrides(t *testing.T) {
 	t.Setenv(envWebhookURL, "")
 	t.Setenv(envWebhookOn, "")
 	config := webhookSettings(paths)
-	if config.URL != "https://project.example/hook" || config.On != "success" || config.Format != "slack" {
+	if config.URL != "https://project.example/hook" || config.On != "" || config.Format != "json" {
 		t.Fatalf("config webhook settings = %#v", config)
 	}
 	t.Setenv(envWebhookURL, "https://env.example/hook")
