@@ -78,6 +78,15 @@ Install rotari with Homebrew on macOS or Linuxbrew on Linux:
 brew install kamo-naoyuki/tap/rotari
 ```
 
+### pip
+
+Install the `rotari` command together with the Python client using `pip`
+(Linux and macOS, x86_64/arm64):
+
+```sh
+python3 -m pip install --index-url https://kamo-naoyuki.github.io/rotari/simple/ rotari
+```
+
 ### Build from source
 
 If you have Go installed, you can build rotari from source:
