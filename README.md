@@ -80,7 +80,8 @@ brew install kamo-naoyuki/tap/rotari
 
 ### pip
 
-Install the `rotari` command together with the Python client using `pip`
+The Python wheel bundles the matching `rotari` executable, so installing it
+with `pip` also puts a `rotari` command on `PATH` — not just the Python API
 (Linux and macOS, x86_64/arm64):
 
 ```sh
