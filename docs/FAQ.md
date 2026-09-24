@@ -161,6 +161,26 @@ practical choice for a tool whose main job is to orchestrate lots of shell
 commands quickly and predictably without the overhead of a Python startup for
 every operation.
 
+C++ can also produce a single binary, but that is not the deciding factor for
+this project. A small standalone binary is only part of the story; this tool
+also needs a pleasant development cycle, straightforward filesystem and process
+management, and low maintenance cost for a large number of CLI operations and
+state updates. Go fits that combination well, and that is why Rotari remains a
+Go-based tool.
+
+### Why not Rust?
+Rust is an excellent language for high-safety systems, and it would be a strong
+fit for a very large or long-lived execution engine. In practice, though, this
+project also values fast iteration, easy maintenance, and a small binary with
+simple process control. The runtime is built around many small filesystem
+updates, queue operations, and command submissions, and those are ergonomically
+pleasant in Go.
+
+Rust would likely be a good choice for a more heavily typed, higher-assurance
+core or a future rewrite with stricter invariants. For the current project shape,
+though, Go gives a better balance between safety, implementation speed, and
+operational simplicity, which is why Rotari remains a Go-based CLI tool.
+
 ### How can I notify another service when a run finishes?
 
 Set `webhook.url` in a config file or `ROTARI_WEBHOOK_URL` to a service endpoint
