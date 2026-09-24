@@ -112,3 +112,50 @@ jobs:
           git add Formula/rotari.rb
           git commit -m "rotari ${VERSION}"
           git push
+
+  publish-conda:
+    name: Publish Conda package (${{ matrix.subdir }})
+    needs: release
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            subdir: linux-64
+          - runner: macos-15-intel
+            subdir: osx-64
+          - runner: macos-14
+            subdir: osx-arm64
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: conda-build
+          channels: conda-forge
+          conda-remove-defaults: true
+
+      - name: Install packaging tools
+        run: conda install --yes conda-build anaconda-client
+
+      - name: Build package
+        env:
+          PKG_VERSION: ${{ github.ref_name }}
+        run: |
+          export PKG_VERSION="${PKG_VERSION#v}"
+          conda build conda/recipe --output-folder dist
+
+      - name: Upload package to Anaconda.org
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
+          ANACONDA_USER: ${{ github.repository_owner }}
+        run: |
+          test -n "$ANACONDA_API_TOKEN" || { echo "ANACONDA_API_TOKEN is not configured" >&2; exit 1; }
+          anaconda -t "$ANACONDA_API_TOKEN" upload --user "$ANACONDA_USER" "dist/${{ matrix.subdir }}"/rotari-*.conda

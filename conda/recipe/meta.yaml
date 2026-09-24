@@ -1,0 +1,32 @@
+{% set version = environ.get("PKG_VERSION", "0.0.0") %}
+
+package:
+  name: rotari
+  version: {{ version }}
+
+source:
+  path: ../..
+
+build:
+  number: 0
+  skip: true  # [win]
+
+requirements:
+  build:
+    - go >=1.22
+
+test:
+  commands:
+    - rotari version
+    - rotari --version
+
+about:
+  home: https://github.com/kamo-naoyuki/rotari
+  license: MIT
+  license_file: LICENSE
+  summary: Manage and run command-line jobs
+  dev_url: https://github.com/kamo-naoyuki/rotari
+
+extra:
+  recipe-maintainers:
+    - kamo-naoyuki
