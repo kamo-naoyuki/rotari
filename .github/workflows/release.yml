@@ -84,7 +84,7 @@ jobs:
       - name: Build platform-specific wheel
         working-directory: python
         run: |
-          python -m pip install --upgrade setuptools wheel
+          python -m pip install --upgrade setuptools setuptools-scm wheel
           python setup.py bdist_wheel --python-tag py3 --plat-name "${{ matrix.wheel_plat }}" --dist-dir ../dist
 
       - name: Upload wheel
