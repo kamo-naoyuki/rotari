@@ -48,6 +48,7 @@ func RequireRunStateFile(runDir, name, runID string) error {
 	if err != nil {
 		return err
 	}
+	// codeql[go/path-injection]: path is restricted by ValidatedStateFile to a fixed state file name.
 	info, err := os.Stat(path)
 	if err != nil {
 		return fmt.Errorf("run %q is missing %s: %w", runID, name, err)
@@ -63,6 +64,7 @@ func ValidateRunDirectory(runsDir, runID string, requireCommands bool) (string, 
 	if err != nil {
 		return "", err
 	}
+	// codeql[go/path-injection]: runDir is produced by SafeJoin after validating runID.
 	info, err := os.Stat(runDir)
 	if err != nil {
 		return "", fmt.Errorf("run %q directory is missing: %w", runID, err)

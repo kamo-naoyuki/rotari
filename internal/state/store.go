@@ -30,6 +30,7 @@ func NewStore(directoryMode, fileMode os.FileMode) Store {
 }
 
 func (s Store) ReadJSON(path string, value any) error {
+	// codeql[go/path-injection]: callers provide paths under the validated state root.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -46,6 +47,7 @@ func (s Store) WriteJSON(path string, value any) error {
 		return err
 	}
 	data = append(data, '\n')
+	// codeql[go/path-injection]: callers provide paths under the validated state root.
 	if err := os.MkdirAll(filepath.Dir(path), s.DirectoryMode); err != nil {
 		return err
 	}
@@ -54,6 +56,7 @@ func (s Store) WriteJSON(path string, value any) error {
 		return err
 	}
 	temporaryName := temporary.Name()
+	// codeql[go/path-injection]: temporaryName is created by os.CreateTemp in the target directory.
 	defer os.Remove(temporaryName)
 	if err := temporary.Chmod(s.FileMode); err != nil {
 		_ = temporary.Close()
@@ -66,6 +69,7 @@ func (s Store) WriteJSON(path string, value any) error {
 	if err := temporary.Close(); err != nil {
 		return err
 	}
+	// codeql[go/path-injection]: path is supplied by callers after state-path validation.
 	return os.Rename(temporaryName, path)
 }
 

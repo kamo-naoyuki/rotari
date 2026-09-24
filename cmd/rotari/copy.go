@@ -217,6 +217,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 			if pathErr != nil {
 				return "", pathErr
 			}
+			// codeql[go/path-injection]: attemptDir is produced by validated attempt path helpers.
 			if info, statErr := os.Stat(attemptDir); statErr != nil || !info.IsDir() {
 				return "", fmt.Errorf("attempt %q not found in run %s", jobID, runID)
 			}

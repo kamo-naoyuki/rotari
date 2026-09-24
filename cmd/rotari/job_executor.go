@@ -91,6 +91,7 @@ func jobOwnerExecutor(jobDir string) (JobExecutor, error) {
 		}
 	}
 	if path, err := state.ValidatedStateFile(jobDir, stateFilePID); err == nil {
+		// codeql[go/path-injection]: path is returned by ValidatedStateFile.
 		if _, err := os.Stat(path); err == nil {
 			executor, _ := lookupExecutor("local")
 			return executor, nil

@@ -196,6 +196,7 @@ func configFilePaths(directory string) []string {
 	paths := make([]string, 0, len(configExtensions))
 	for _, extension := range configExtensions {
 		path := filepath.Join(directory, "config"+extension)
+		// codeql[go/path-injection]: path is built from the trusted config directory and fixed suffix.
 		if _, err := os.Stat(path); err == nil {
 			paths = append(paths, path)
 		} else if !errors.Is(err, os.ErrNotExist) {

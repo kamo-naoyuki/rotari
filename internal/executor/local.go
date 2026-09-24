@@ -36,6 +36,7 @@ func (local Local) Resume(jobDir string) error  { return local.signal(jobDir, sy
 func (local Local) Cancel(jobDir string) error  { return local.signal(jobDir, syscall.SIGTERM) }
 
 func (Local) signal(jobDir string, sig syscall.Signal) error {
+	// codeql[go/path-injection]: jobDir is a validated job directory and pid is a fixed file name.
 	pidData, err := os.ReadFile(filepath.Join(jobDir, "pid"))
 	if err != nil {
 		return fmt.Errorf("job is not running")

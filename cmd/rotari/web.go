@@ -440,6 +440,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
+		// codeql[go/path-injection]: path is restricted by webLogPath to the validated output file.
 		data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to output.log
 		if err != nil {
 			writeWebError(writer, err)
@@ -749,6 +750,7 @@ func loadWebConfigFiles(baseDir, projectName, runID string) ([]webConfigFile, er
 	}
 	files := make([]webConfigFile, 0, len(paths))
 	for _, path := range paths {
+		// codeql[go/path-injection]: paths contain only resolved config files or validated run context entries.
 		data, err := os.ReadFile(path) // NOSONAR: paths contain only the resolved global/project config files or validated run context entries.
 		if err != nil {
 			return nil, err
@@ -769,6 +771,7 @@ func saveWebConfig(baseDir, projectName, content string) (string, error) {
 	if _, err := parseConfigContent(path, []byte(content)); err != nil {
 		return "", fmt.Errorf("invalid %s config: %w", strings.TrimPrefix(filepath.Ext(path), "."), err)
 	}
+	// codeql[go/path-injection]: path is returned by the allow-listed config resolver.
 	if err := os.WriteFile(path, []byte(content), stateFileMode()); err != nil {
 		return "", err
 	}
@@ -804,6 +807,7 @@ func loadRunConfigFiles(baseDir, projectName, runID string) ([]webConfigFile, er
 		if err != nil {
 			return nil, err
 		}
+		// codeql[go/path-injection]: snapshotPath is safely joined below the validated run directory.
 		data, err := os.ReadFile(snapshotPath) // NOSONAR: snapshotPath is safely joined below the validated run directory.
 		if err != nil {
 			return nil, err
@@ -862,9 +866,11 @@ func generateWebConfig(baseDir, projectName, location string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// codeql[go/path-injection]: directory is the resolved config directory.
 	if err := os.MkdirAll(directory, stateDirMode()); err != nil {
 		return "", err
 	}
+	// codeql[go/path-injection]: target is the resolved config file path.
 	if err := os.WriteFile(target, data, stateFileMode()); err != nil {
 		return "", err
 	}
@@ -1144,6 +1150,7 @@ func resolveWebLogJob(runsDir, runID, jobID string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
+	// codeql[go/path-injection]: outputPath is under the validated run/job directory.
 	if _, statErr := os.Stat(outputPath); !errors.Is(statErr, os.ErrNotExist) {
 		return runDir, jobID, nil
 	}

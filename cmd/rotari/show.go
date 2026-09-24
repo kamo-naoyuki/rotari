@@ -707,6 +707,7 @@ func selectRunID(paths pathSet, requested string) (string, error) {
 		if !state.IsValidPathElement(requested) {
 			return "", fmt.Errorf(runNotFoundMessage, requested)
 		}
+		// codeql[go/path-injection]: requested is validated by IsValidPathElement.
 		if _, err := os.Stat(filepath.Join(paths.RunsDir, requested)); err != nil {
 			return "", fmt.Errorf(runNotFoundMessage, requested)
 		}
@@ -717,6 +718,7 @@ func selectRunID(paths pathSet, requested string) (string, error) {
 		return "", fmt.Errorf("failed to load metadata: %w", err)
 	}
 	if meta.LastRunID != "" {
+		// codeql[go/path-injection]: LastRunID is loaded from validated state metadata.
 		if info, err := os.Stat(filepath.Join(paths.RunsDir, meta.LastRunID)); err == nil && info.IsDir() {
 			return meta.LastRunID, nil
 		}
@@ -739,7 +741,9 @@ func selectRunID(paths pathSet, requested string) (string, error) {
 			return "", fmt.Errorf("project %q has no runs (runs_dir=%s)", paths.ProjectName, paths.RunsDir)
 		}
 		sort.Slice(runIDs, func(i, j int) bool {
+			// codeql[go/path-injection]: runIDs come from directory entries under RunsDir.
 			left, _ := os.Stat(filepath.Join(paths.RunsDir, runIDs[i]))
+			// codeql[go/path-injection]: runIDs come from directory entries under RunsDir.
 			right, _ := os.Stat(filepath.Join(paths.RunsDir, runIDs[j]))
 			return left.ModTime().After(right.ModTime())
 		})
@@ -1591,6 +1595,7 @@ func listAttemptIDs(runDir, jobID string) []string {
 	if err != nil {
 		return nil
 	}
+	// codeql[go/path-injection]: jobDir is validated and attempts is a fixed directory.
 	entries, err := os.ReadDir(filepath.Join(jobDir, "attempts"))
 	if err != nil {
 		return nil
@@ -1768,6 +1773,7 @@ func writeJobDiagnoses(writer io.Writer, diagnoses []ruleDiagnosis) {
 }
 
 func readJobStatus(path string) (int, bool) {
+	// codeql[go/path-injection]: callers pass paths built from validated run/job IDs.
 	data, err := os.ReadFile(path) // NOSONAR: callers pass paths built from validated run/job IDs.
 	if err != nil {
 		return 0, false

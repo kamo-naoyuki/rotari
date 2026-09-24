@@ -229,6 +229,7 @@ func loadChangeSnapshot(paths pathSet, requestedRunID string) (Queue, error) {
 	if err != nil {
 		return Queue{}, err
 	}
+	// codeql[go/path-injection]: runDir is produced by validatedRunDir and commands.json is fixed.
 	data, err := os.ReadFile(filepath.Join(runDir, "commands.json")) // NOSONAR: runDir is produced by validatedRunDir.
 	if err != nil {
 		return Queue{}, fmt.Errorf("failed to load command snapshot: %w", err)

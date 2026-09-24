@@ -116,10 +116,12 @@ func deleteRun(paths pathSet, runID string) error {
 	if err != nil {
 		return err
 	}
+	// codeql[go/path-injection]: runDir is produced by validatedRunDir.
 	info, err := os.Stat(runDir) // NOSONAR: runDir is produced by validatedRunDir.
 	if err != nil || !info.IsDir() {
 		return fmt.Errorf("run %q not found", runID)
 	}
+	// codeql[go/path-injection]: runDir is produced by validatedRunDir.
 	if err := os.RemoveAll(runDir); err != nil { // NOSONAR: runDir is produced by validatedRunDir.
 		return fmt.Errorf("failed to clear run %q: %w", runID, err)
 	}

@@ -79,6 +79,7 @@ func LatestAttemptID(runDir, jobID string) (string, error) {
 		return "", err
 	}
 	runID := filepath.Base(runDir)
+	// codeql[go/path-injection]: jobDir is produced by SafeJoin and attempts is a fixed directory.
 	entries, err := os.ReadDir(filepath.Join(jobDir, "attempts"))
 	if err != nil {
 		return "", err
@@ -146,12 +147,14 @@ func ReadJobTimestamp(runDir, jobID, name string) string {
 	}
 	path, err := ValidatedStateFile(jobDir, name)
 	if err == nil {
+		// codeql[go/path-injection]: path is restricted by ValidatedStateFile to a fixed timestamp file.
 		if data, err := os.ReadFile(path); err == nil {
 			return strings.TrimSpace(string(data))
 		}
 	}
 	metadataPath, err := ValidatedStateFile(jobDir, "job.json")
 	if err == nil {
+		// codeql[go/path-injection]: metadataPath is restricted by ValidatedStateFile to job.json.
 		data, err := os.ReadFile(metadataPath)
 		if err == nil {
 			var metadata struct {
@@ -166,6 +169,7 @@ func ReadJobTimestamp(runDir, jobID, name string) string {
 	}
 	statusPath, err := ValidatedStateFile(jobDir, "status.json")
 	if err == nil {
+		// codeql[go/path-injection]: statusPath is restricted by ValidatedStateFile to status.json.
 		data, err := os.ReadFile(statusPath)
 		if err == nil {
 			var status struct {

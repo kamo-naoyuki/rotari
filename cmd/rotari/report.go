@@ -267,6 +267,7 @@ func readReportLog(paths pathSet, runID string, job webJob) string {
 	if err != nil {
 		return ""
 	}
+	// codeql[go/path-injection]: path is restricted by validatedStateFile to output.
 	data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to output.
 	if err != nil {
 		return ""

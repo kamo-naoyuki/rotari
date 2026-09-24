@@ -128,6 +128,7 @@ func inspectConsistentProjectState(paths pathSet, cleanupStale bool) (projectSta
 		return projectStateInspection{}, err
 	}
 	if cleanupStale && inspection.Lock == projectLockStale {
+		// codeql[go/path-injection]: LockFile is rooted in the resolved project directory.
 		if err := os.Remove(paths.LockFile); err != nil && !errors.Is(err, os.ErrNotExist) { // NOSONAR: lockFile is rooted in the resolved project directory.
 			return projectStateInspection{}, err
 		}

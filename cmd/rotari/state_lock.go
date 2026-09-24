@@ -13,6 +13,7 @@ import (
 const stateLockTimeout = 30 * time.Second
 
 func acquireStateLock(lockPath string) (func(), error) {
+	// codeql[go/path-injection]: lockPath is resolved from the trusted state root.
 	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, stateFileMode()) // NOSONAR: lockPath is resolved from the trusted state root.
 	if err != nil {
 		return nil, err

@@ -1024,6 +1024,7 @@ func controlQueueJobs(baseDir, queueName string, jobIDs []string, operation stri
 	allJobs := len(jobIDs) == 0
 	targets := append([]string(nil), jobIDs...)
 	if allJobs {
+		// codeql[go/path-injection]: runDir is produced by the validated run path helper.
 		entries, err := os.ReadDir(runDir)
 		if err != nil {
 			return "", err
@@ -1083,6 +1084,7 @@ func controlQueueJobs(baseDir, queueName string, jobIDs []string, operation stri
 
 func jobFinished(jobDir string) bool {
 	if path, err := state.ValidatedStateFile(jobDir, stateFileFinishedAt); err == nil {
+		// codeql[go/path-injection]: path is returned by ValidatedStateFile for a fixed state file.
 		if _, err := os.Stat(path); err == nil {
 			return true
 		}
@@ -1262,9 +1264,11 @@ func cancelJobs(runDir, queueName, runID string, jobIDs []string) (string, error
 		if _, ok := knownJobs[jobID]; !ok {
 			return "", fmt.Errorf("job %q is not found", jobID)
 		}
+		// codeql[go/path-injection]: jobDir comes from validatedJobDir.
 		if err := os.MkdirAll(jobDir, stateDirMode()); err != nil { // NOSONAR: jobDir comes from validatedJobDir.
 			return "", fmt.Errorf("prepare cancellation for job %s: %w", jobID, err)
 		}
+		// codeql[go/path-injection]: jobDir is validated and cancelled is a fixed file name.
 		if err := os.WriteFile(filepath.Join(jobDir, "cancelled"), []byte(nowRFC3339()+"\n"), stateFileMode()); err != nil { // NOSONAR: jobDir comes from validatedJobDir.
 			return "", fmt.Errorf("record cancellation for job %s: %w", jobID, err)
 		}
@@ -1275,6 +1279,7 @@ func cancelJobs(runDir, queueName, runID string, jobIDs []string) (string, error
 
 func loadCommandSnapshot(runDir string) (Queue, error) {
 	var snapshot Queue
+	// codeql[go/path-injection]: runDir is produced by validatedRunDir and commands.json is fixed.
 	if data, err := os.ReadFile(filepath.Join(runDir, "commands.json")); err == nil { // NOSONAR: runDir is produced by validatedRunDir.
 		if err := json.Unmarshal(data, &snapshot); err != nil {
 			return Queue{}, fmt.Errorf("invalid command snapshot: %w", err)

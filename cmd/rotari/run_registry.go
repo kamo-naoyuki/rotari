@@ -117,6 +117,7 @@ func unregisterRun(runID string) error {
 	if err != nil {
 		return err
 	}
+	// codeql[go/path-injection]: path is the validated registry file path.
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
 	}
