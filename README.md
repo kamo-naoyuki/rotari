@@ -80,15 +80,12 @@ brew install kamo-naoyuki/tap/rotari
 
 ### Conda
 
-Install rotari from Anaconda.org on Linux or macOS:
+The Conda package installs both the `rotari` command and the `rotari` Python
+package on Linux or macOS:
 
 ```sh
 conda install -c kamo-naoyuki rotari
 ```
-
-Tagged releases are published by GitHub Actions. Repository maintainers must
-configure an Anaconda.org API token for the repository owner as the
-`ANACONDA_API_TOKEN` repository secret.
 
 ### Build from source
 
