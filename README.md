@@ -261,6 +261,9 @@ the browser UI uses Basic auth with username `rotari` and the token as password.
 This is HTTP authentication, not encryption: use HTTPS or a trusted network.
 `/api/state` and `/environment/` show only whether variables are set.
 
+For non-interactive runs, `rotari run --quiet` suppresses the live progress and
+final summary output while still returning the run exit code.
+
 ## Projects, queues, runs, and state
 ### Project and queue
 A project has one mutable queue of jobs ready to run and an immutable history

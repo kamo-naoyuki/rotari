@@ -59,6 +59,7 @@ func cmdCopy(args []string) int {
 	cliValue(fs, &jobIDs, "job-id")
 	appendJobs := cliBool(fs, "append", false)
 	overwriteJobs := cliBool(fs, "overwrite", false)
+	quiet := cliBool(fs, "quiet", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -159,7 +160,9 @@ func cmdCopy(args []string) int {
 		printError(err)
 		return 1
 	}
-	fmt.Println(colorKeyValueMessage(message, green))
+	if !*quiet {
+		fmt.Println(colorKeyValueMessage(message, green))
+	}
 	return 0
 }
 

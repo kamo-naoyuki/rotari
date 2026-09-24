@@ -20,6 +20,7 @@ func cmdReset(args []string) int {
 	basedir := cliString(fs, "basedir", "")
 	queueNameOption := cliString(fs, "project-name", "")
 	recoverOption := cliBool(fs, "recover", false)
+	quiet := cliBool(fs, "quiet", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -99,13 +100,18 @@ func cmdReset(args []string) int {
 			printErrorf("failed to recover interrupted run: %v", err)
 			return 1
 		}
-		fmt.Printf("%s\n", colorKeyValueMessage(fmt.Sprintf("reset project=%s cleared=%d job(s); recovered interrupted run=%s", queueName, cleared, runID), yellow))
+		if !*quiet {
+			fmt.Printf("%s\n", colorKeyValueMessage(fmt.Sprintf("reset project=%s cleared=%d job(s); recovered interrupted run=%s", queueName, cleared, runID), yellow))
+		}
 		return 0
 	}
 	cleared, err := resetQueueCommands(paths)
 	if err != nil {
 		printErrorf("failed to reset queue: %v", err)
 		return 1
+	}
+	if *quiet {
+		return 0
 	}
 	color := green
 	if cleared > 0 {

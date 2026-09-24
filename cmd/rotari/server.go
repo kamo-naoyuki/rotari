@@ -222,6 +222,7 @@ func cmdAdd(args []string) int {
 	var dependsOn stringSliceFlag
 	cliValue(fs, &dependsOn, "depends-on")
 	arrayRange := cliString(fs, "array", "")
+	quiet := cliBool(fs, "quiet", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -258,7 +259,9 @@ func cmdAdd(args []string) int {
 		printError(err)
 		return 1
 	}
-	fmt.Println(colorKeyValueMessage(message, green))
+	if !*quiet {
+		fmt.Println(colorKeyValueMessage(message, green))
+	}
 	return 0
 }
 
@@ -284,6 +287,7 @@ func cmdRun(args []string) int {
 	cliValue(fs, &jobIDs, "job-id")
 	partialArray := cliBool(fs, "partial-array", true)
 	async := cliBool(fs, "async", false)
+	quiet := cliBool(fs, "quiet", false)
 	executor := cliString(fs, "executor", "")
 	var executorOptions stringSliceFlag
 	cliValue(fs, &executorOptions, "executor-option")
@@ -451,7 +455,7 @@ func cmdRun(args []string) int {
 		return 1
 	}
 	request := serverRequest{
-		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings, Retry: *retry, Async: *async,
+		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings, Retry: *retry, Async: *async, Quiet: *quiet,
 		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, CWD: cwd,
 		Selection: selection, JobIDs: jobIDs, SourceRunID: sourceRunID, PartialArray: *partialArray,
 	}
@@ -469,7 +473,9 @@ func cmdRun(args []string) int {
 		printError(response.Message)
 		return 1
 	}
-	fmt.Print(colorMessage(response.Message))
+	if !*quiet {
+		fmt.Print(colorMessage(response.Message))
+	}
 	return response.ExitCode
 }
 
@@ -930,10 +936,14 @@ func sendRunRequest(baseDir string, request serverRequest) (serverResponse, erro
 				return serverResponse{}, err
 			}
 			_ = conn.Close()
-			fmt.Println(cyan("Run detached; it continues in the background."))
+			if !request.Quiet {
+				fmt.Println(cyan("Run detached; it continues in the background."))
+			}
 			return serverResponse{OK: true}, nil
 		case <-signals:
-			fmt.Println(yellow("Cancellation requested; stopping running jobs..."))
+			if !request.Quiet {
+				fmt.Println(yellow("Cancellation requested; stopping running jobs..."))
+			}
 			_ = conn.Close()
 			return serverResponse{OK: true, ExitCode: 130}, nil
 		case err := <-decodeErrors:
@@ -941,6 +951,9 @@ func sendRunRequest(baseDir string, request serverRequest) (serverResponse, erro
 		case response = <-responses:
 		}
 		if response.Progress {
+			if request.Quiet && !strings.HasPrefix(response.Message, "Job failed") {
+				continue
+			}
 			if response.Message != "" {
 				if strings.HasPrefix(response.Message, "Job failed") {
 					title, details, _ := strings.Cut(response.Message, "\n")

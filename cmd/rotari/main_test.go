@@ -429,7 +429,7 @@ func TestEnvironmentDefinitionsAreUniqueAndIncludeCoreVariables(t *testing.T) {
 		}
 		seen[definition.Name] = true
 	}
-	for _, name := range []string{envBaseDir, envRunID, envJobID, envExecutor, envRunRetry, envRunAsync, envArrayTaskID, envWebPort} {
+	for _, name := range []string{envBaseDir, envRunID, envJobID, envExecutor, envRunRetry, envRunAsync, envQuiet, envArrayTaskID, envWebPort} {
 		if !seen[name] {
 			t.Errorf("missing environment definition %q", name)
 		}

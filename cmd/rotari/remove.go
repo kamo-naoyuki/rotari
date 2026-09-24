@@ -20,6 +20,7 @@ func cmdRemove(args []string) int {
 	jobName := cliString(fs, "job-name", "")
 	var jobIDs stringSliceFlag
 	cliValue(fs, &jobIDs, "job-id")
+	quiet := cliBool(fs, "quiet", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -43,7 +44,9 @@ func cmdRemove(args []string) int {
 		printError(err)
 		return 1
 	}
-	fmt.Println(colorKeyValueMessage(message, green))
+	if !*quiet {
+		fmt.Println(colorKeyValueMessage(message, green))
+	}
 	return 0
 }
 

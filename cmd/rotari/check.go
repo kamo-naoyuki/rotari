@@ -28,6 +28,7 @@ func cmdCheck(args []string) int {
 	projectNameOption := cliString(fs, "project-name", "")
 	jsonOutput := cliBool(fs, "json", false)
 	deep := cliBool(fs, "deep", false)
+	quiet := cliBool(fs, "quiet", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -57,9 +58,11 @@ func cmdCheck(args []string) int {
 		return 1
 	}
 
-	if err := writeProjectCheck(os.Stdout, projectName, result, *jsonOutput); err != nil {
-		printErrorf("failed to print project check: %v", err)
-		return 1
+	if !*quiet || !result.Runnable {
+		if err := writeProjectCheck(os.Stdout, projectName, result, *jsonOutput); err != nil {
+			printErrorf("failed to print project check: %v", err)
+			return 1
+		}
 	}
 	if result.Runnable {
 		return 0

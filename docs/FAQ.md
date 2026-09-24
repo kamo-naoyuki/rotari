@@ -232,8 +232,14 @@ For a synchronous run, `rotari run` returns `0` when every job succeeds and
 `1` when any job fails; it does not propagate an individual job's exit code.
 `rotari run --async` returns `0` once the background run starts successfully,
 regardless of its eventual result. Use `rotari wait PROJECT` or
-`rotari wait --run-id RUN_ID` to wait
-for an asynchronous run and obtain its recorded run exit status.
+`rotari wait --run-id RUN_ID` to wait.
+
+If you want the same exit-code behavior without the interactive progress output,
+use `rotari run --quiet` or set `ROTARI_QUIET=true`; the command still exits
+with the run result. Quiet mode suppresses successful progress and completion
+output, but job failures and other errors are still printed. The same option
+and environment variable apply to queue-editing commands such as `add`,
+`copy`, `change`, `remove`, `reset`, and `check`.
 
 ### Can an array run only selected task IDs?
 Yes. Use `--array 1,3,4` for a sparse task list (ranges such as `1-10` are

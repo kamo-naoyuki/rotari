@@ -31,6 +31,7 @@ const (
 	envRunLSFOptions   = "ROTARI_RUN_LSF_OPTIONS"
 	envRunRetry        = "ROTARI_RUN_RETRY"
 	envRunAsync        = "ROTARI_RUN_ASYNC"
+	envQuiet           = "ROTARI_QUIET"
 	envArrayRange      = "ROTARI_ARRAY_RANGE"
 	envResetRecover    = "ROTARI_RESET_RECOVER"
 	envWaitTimeout     = "ROTARI_WAIT_TIMEOUT"
@@ -63,7 +64,7 @@ var propagatedEnvironmentVariables = []string{
 	envExecutor, envExecutorOpts, envRunName, envRunLocalConc, envRunBatchConc,
 	envRunSSHConc, envRunSSHOptions, envRunSlurmConc, envRunSlurmOptions,
 	envRunPBSConc, envRunPBSOptions, envRunLSFConc, envRunLSFOptions,
-	envRunRetry, envRunAsync, envArrayRange,
+envRunRetry, envRunAsync, envQuiet, envArrayRange,
 }
 
 type environmentDefinition = webprojection.EnvironmentDefinition
@@ -92,6 +93,7 @@ func environmentDefinitions() []environmentDefinition {
 		{Name: envRunLSFOptions, CLIDefault: true, Description: "LSF dispatch options; --lsf-options default."},
 		{Name: envRunRetry, CLIDefault: true, Job: true, Array: true, Description: "Retry count; --retry default."},
 		{Name: envRunAsync, CLIDefault: true, Job: true, Array: true, Description: "Async run mode; --async default."},
+		{Name: envQuiet, CLIDefault: true, Job: true, Array: true, Description: "Quiet mode; --quiet default."},
 		{Name: envArrayRange, CLIDefault: true, Job: true, Array: true, Description: "Array range; --array default."},
 		{Name: envBin, Job: true, Array: true, Description: "Absolute path to the rotari binary."},
 		{Name: envRunDir, Job: true, Array: true, Description: "Current run directory."},

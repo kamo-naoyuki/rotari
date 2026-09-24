@@ -35,6 +35,7 @@ func cmdChange(args []string) int {
 	var dependsOn stringSliceFlag
 	cliValue(fs, &dependsOn, "depends-on")
 	clearDependsOn := cliBool(fs, "clear-depends-on", false)
+	quiet := cliBool(fs, "quiet", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -61,7 +62,9 @@ func cmdChange(args []string) int {
 		printError(err)
 		return 1
 	}
-	fmt.Println(colorKeyValueMessage(message, green))
+	if !*quiet {
+		fmt.Println(colorKeyValueMessage(message, green))
+	}
 	return 0
 }
 

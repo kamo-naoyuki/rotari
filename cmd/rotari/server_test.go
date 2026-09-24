@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 )
 
 func TestWaitForAsyncRunCallsOnDone(t *testing.T) {
@@ -106,6 +108,72 @@ func TestCmdRunOverwriteSkipsQueueConfirmation(t *testing.T) {
 	}
 	if strings.Contains(string(output), "queue is not empty") {
 		t.Fatalf("cmdRun prompted instead of honoring --overwrite: %q", output)
+	}
+}
+
+func TestSendRunRequestQuietSuppressesProgress(t *testing.T) {
+	baseDir, err := os.MkdirTemp("", "rotari-quiet-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(baseDir)
+	listener, err := net.Listen("unix", serverSocketPath(baseDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	serverDone := make(chan error, 1)
+	go func() {
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			serverDone <- acceptErr
+			return
+		}
+		defer conn.Close()
+		var request serverRequest
+		if err := json.NewDecoder(conn).Decode(&request); err != nil {
+			serverDone <- err
+			return
+		}
+		if !request.Quiet {
+			serverDone <- fmt.Errorf("request.Quiet = false, want true")
+			return
+		}
+		if err := json.NewEncoder(conn).Encode(serverResponse{Progress: true, Message: "=== Run started ===\n  Project: demo"}); err != nil {
+			serverDone <- err
+			return
+		}
+		if err := json.NewEncoder(conn).Encode(serverResponse{OK: true, Message: "=== Run finished ===\n  Project: demo\n  Exit code: 0", ExitCode: 0}); err != nil {
+			serverDone <- err
+			return
+		}
+		serverDone <- nil
+	}()
+
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	response, err := sendRunRequest(baseDir, serverRequest{Op: serverinternal.OpRun, QueueName: "demo", Quiet: true})
+	os.Stdout = oldStdout
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err != nil || response.ExitCode != 0 || response.Message != "=== Run finished ===\n  Project: demo\n  Exit code: 0" {
+		t.Fatalf("sendRunRequest err=%v response=%#v stdout=%q", err, response, output)
+	}
+	if len(output) != 0 {
+		t.Fatalf("quiet run printed stdout=%q", output)
+	}
+	if err := <-serverDone; err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -40,6 +40,7 @@ type Request struct {
 	CWD              string                  `json:"cwd,omitempty"`
 	Wait             bool                    `json:"wait,omitempty"`
 	Async            bool                    `json:"async,omitempty"`
+	Quiet            bool                    `json:"quiet,omitempty"`
 	Executor         string                  `json:"executor,omitempty"`
 	ExecutorOptions  []string                `json:"executor_options,omitempty"`
 	WorkingDirectory string                  `json:"working_directory,omitempty"`
