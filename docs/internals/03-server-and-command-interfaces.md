@@ -64,3 +64,19 @@ follows:
 - `show` uses a lazy pager. `--no-pager` and non-TTY output go directly to
   stdout. On a TTY, output of at most 24 lines is direct; longer output uses
   `$PAGER`, defaulting to `less -R`. Pager failure falls back to stdout.
+
+### Quiet output contract
+
+- `--quiet` and `ROTARI_QUIET=true` are equivalent defaults for all commands
+  that support quiet output. The shared environment-variable mapping is
+  defined in [`cmd/rotari/environment.go`](../../cmd/rotari/environment.go)
+  and [`cmd/rotari/cli_spec.go`](../../cmd/rotari/cli_spec.go).
+- For `run`, quiet is carried in the server request as `Request.Quiet`; the
+  client suppresses successful progress and completion output. Job failures,
+  startup errors, and other command errors remain visible, and synchronous
+  `run` still returns a non-zero status when a job fails.
+- The same success-silent/error-visible rule applies to queue-editing commands
+  (`add`, `copy`, `change`, `remove`, `reset`, and `check`). The protocol field
+  is defined in [`internal/server/protocol.go`](../../internal/server/protocol.go),
+  with client behavior covered by
+  [`cmd/rotari/server_test.go`](../../cmd/rotari/server_test.go).
