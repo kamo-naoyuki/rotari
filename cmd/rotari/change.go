@@ -12,6 +12,8 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
+// cmdChange updates queued jobs or prepares a modified follow-up run from a
+// completed run snapshot.
 func cmdChange(args []string) int {
 	fs := flag.NewFlagSet("change", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)

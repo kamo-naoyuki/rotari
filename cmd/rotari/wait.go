@@ -12,6 +12,8 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
+// cmdWait waits for selected runs to finish and returns the final run exit code
+// when a single run is targeted.
 func cmdWait(args []string) int {
 	fs := flag.NewFlagSet("wait", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)

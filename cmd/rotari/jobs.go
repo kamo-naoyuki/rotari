@@ -40,6 +40,8 @@ func loadTerminalJobStatus(jobDir string) (int, bool) {
 	return executor.ResolveTerminalExitCode(jsonStore(), jobDir)
 }
 
+// cmdJobs lists historical jobs across runs for the selected project, with
+// filters for status, command metadata, and time windows.
 func cmdJobs(args []string) int {
 	fs := flag.NewFlagSet("jobs", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)

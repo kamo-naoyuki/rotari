@@ -9,6 +9,8 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
+// cmdUnlock removes a stale running lock after validating that the recorded
+// runner process is no longer active.
 func cmdUnlock(args []string) int {
 	fs := flag.NewFlagSet("unlock", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)

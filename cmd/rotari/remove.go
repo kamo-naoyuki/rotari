@@ -9,6 +9,8 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
+// cmdRemove removes jobs from the current queue or prepares a filtered
+// follow-up run from historical commands.
 func cmdRemove(args []string) int {
 	fs := flag.NewFlagSet("remove", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)

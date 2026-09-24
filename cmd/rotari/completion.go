@@ -10,6 +10,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
+// cmdCompletion prints static shell completion scripts for supported shells.
 func cmdCompletion(args []string) int {
 	if len(args) == 0 {
 		printError("usage: rotari completion <bash|zsh|fish|install [bash|zsh|fish]>")
@@ -48,6 +49,7 @@ func cmdCompletion(args []string) int {
 	return 0
 }
 
+// cmdComplete serves dynamic completion requests from generated shell scripts.
 func cmdComplete(args []string) int {
 	if len(args) == 0 || (args[0] != "project-name" && args[0] != "run-id" && args[0] != "job-id") {
 		return 1

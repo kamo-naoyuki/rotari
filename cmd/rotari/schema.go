@@ -30,6 +30,7 @@ type cliSchemaFlag struct {
 	Repeated    bool     `json:"repeated,omitempty"`
 }
 
+// cmdSchema prints the machine-readable CLI configuration schema.
 func cmdSchema(args []string) int {
 	if len(args) != 1 || args[0] != "--json" {
 		printError("usage: rotari schema --json")

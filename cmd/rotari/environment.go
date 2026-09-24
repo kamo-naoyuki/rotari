@@ -120,6 +120,8 @@ func environmentDefinitions() []environmentDefinition {
 	}
 }
 
+// cmdEnvironment prints Rotari environment variable definitions and current
+// values for CLI, job, and array contexts.
 func cmdEnvironment(args []string) int {
 	if len(args) != 0 {
 		printError("usage: " + cliUsage("env"))

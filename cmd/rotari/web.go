@@ -88,6 +88,7 @@ type webClearRequest struct {
 	RunID     string `json:"run_id"`
 }
 
+// cmdWeb serves the embedded Web UI or writes a static export of project state.
 func cmdWeb(args []string) int {
 	fs := newFlagSet("web")
 	basedir := cliString(fs, "basedir", "")
@@ -689,6 +690,8 @@ func loadRunConfigPaths(baseDir, projectName, runID string) ([]string, error) {
 	return []string{allowedPaths[len(allowedPaths)-1]}, nil
 }
 
+// loadWebState projects persisted server and project state into the Web API
+// model consumed by the embedded and static Web UIs.
 func loadWebState(baseDir, queueFilter string) (webState, error) {
 	state := webState{BaseDir: baseDir, ConfigPath: effectiveConfigPath(baseDir, ""), Server: loadWebServerState(baseDir), Environments: environmentDefinitions(), UpdatedAt: nowRFC3339()}
 	for index := range state.Environments {

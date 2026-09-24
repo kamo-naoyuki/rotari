@@ -26,6 +26,7 @@ var (
 	reportFQDNPattern        = regexp.MustCompile(`\b[A-Za-z0-9][A-Za-z0-9.-]*\.(?:com|org|net|edu|gov|io|jp|local)\b`)
 )
 
+// buildAIReport formats run or job evidence for AI-assisted diagnosis.
 func buildAIReport(paths pathSet, runID, jobID string, failedOnly bool, attemptIDs ...string) (string, error) {
 	run, err := loadAIReportRun(paths, runID, attemptIDs...)
 	if err != nil {
@@ -45,6 +46,7 @@ func buildAIReport(paths pathSet, runID, jobID string, failedOnly bool, attemptI
 	return redactAIReport(formatRunAIReport(paths, run, failedOnly), paths, run), nil
 }
 
+// buildAIReportForJobs formats evidence for a selected set of jobs in one run.
 func buildAIReportForJobs(paths pathSet, runID string, jobIDs []string) (string, error) {
 	run, err := loadAIReportRun(paths, runID)
 	if err != nil {

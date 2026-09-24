@@ -242,6 +242,7 @@ func applyShowSelectorTarget(target showSelectorTarget, basedir, projectName, ru
 	}
 }
 
+// cmdShow displays project, queue, run, job, log, report, and registry views.
 func cmdShow(args []string) int {
 	fs := flag.NewFlagSet("show", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)

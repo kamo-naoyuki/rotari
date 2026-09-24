@@ -10,6 +10,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
+// cmdDelete removes one run or all historical runs from the selected project.
 func cmdDelete(args []string) int {
 	fs := flag.NewFlagSet("delete", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)

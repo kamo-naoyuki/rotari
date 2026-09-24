@@ -18,6 +18,8 @@ const (
 	projectInterrupted
 )
 
+// inspectProjectRunState classifies a project as idle, running, or interrupted
+// from its lock and meta files without mutating state.
 func inspectProjectRunState(paths pathSet) (projectRunState, string, error) {
 	inspection, err := inspectProjectState(paths, true)
 	return inspection.State, inspection.RunID, err

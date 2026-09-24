@@ -19,6 +19,8 @@ type projectCheck struct {
 	Lock        string
 }
 
+// cmdCheck validates whether the selected project state is ready for queue
+// edits, runs, and optional deep local execution checks.
 func cmdCheck(args []string) int {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)

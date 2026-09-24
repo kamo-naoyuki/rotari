@@ -35,6 +35,8 @@ func registerRun(paths pathSet, runID string) error {
 	})
 }
 
+// registerRunLocation records where a run ID lives so commands can resolve run
+// IDs across known base directories.
 func registerRunLocation(location runLocation) error {
 	baseDir, err := filepath.Abs(location.BaseDir)
 	if err != nil {

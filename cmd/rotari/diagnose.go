@@ -27,6 +27,8 @@ const unavailableRuleDiagnosisName = "Rule-based diagnosis unavailable"
 
 type diagnosisJob = diagnose.Job
 
+// cmdDiagnose builds a failure diagnosis prompt and optionally sends it to an
+// external provider.
 func cmdDiagnose(args []string) int {
 	fs := flag.NewFlagSet("diagnose", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)

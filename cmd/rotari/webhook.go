@@ -182,6 +182,8 @@ var webhookEncoders = map[string]webhookEncoder{
 	"teams":   teamsWebhookEncoder{},
 }
 
+// notifyRunWebhook sends a configured run-completion webhook after summary
+// state is available.
 func notifyRunWebhook(paths pathSet, runID string, exitCode int) {
 	config := webhookSettings(paths)
 	if config.URL == "" || !webhookShouldSend(exitCode, config.On) {

@@ -71,6 +71,8 @@ func serverPIDPath(baseDir string) string {
 	return serverinternal.PIDPath(baseDir)
 }
 
+// cmdServer dispatches server lifecycle subcommands such as status, list, and
+// shutdown.
 func cmdServer(args []string) int {
 	if len(args) == 0 {
 		printError("usage: " + cliUsage("server"))
@@ -131,6 +133,8 @@ func ensureServer(baseDir string) error {
 	return fmt.Errorf("server did not become ready (pid=%d)", child.Process.Pid)
 }
 
+// cmdServerStatus reports whether the selected base directory has a reachable
+// compatible background server.
 func cmdServerStatus(args []string) int {
 	fs := flag.NewFlagSet("server status", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -152,6 +156,7 @@ func cmdServerStatus(args []string) int {
 	return 0
 }
 
+// cmdServerList lists registered servers from the master registry.
 func cmdServerList(args []string) int {
 	fs := flag.NewFlagSet("server list", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -173,6 +178,7 @@ func cmdServerList(args []string) int {
 	return 0
 }
 
+// cmdServerRequest sends a simple lifecycle operation to the selected server.
 func cmdServerRequest(args []string, op string) int {
 	fs := flag.NewFlagSet("server request", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -198,6 +204,8 @@ func cmdServerRequest(args []string, op string) int {
 	return 0
 }
 
+// cmdAdd appends a command to the current project queue through the background
+// server.
 func cmdAdd(args []string) int {
 	fs := flag.NewFlagSet("add", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -254,6 +262,8 @@ func cmdAdd(args []string) int {
 	return 0
 }
 
+// cmdRun starts a run, optionally repopulating the queue from historical run
+// results or selected attempts before submitting work to the background server.
 func cmdRun(args []string) int {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -463,10 +473,14 @@ func cmdRun(args []string) int {
 	return response.ExitCode
 }
 
+// cmdRetry reruns failed and unfinished jobs by delegating to cmdRun with the
+// retry selection flags.
 func cmdRetry(args []string) int {
 	return cmdRun(append([]string{"--failed", "--unfinished"}, args...))
 }
 
+// cmdServerProcess runs the hidden background server process for one base
+// directory.
 func cmdServerProcess(args []string) int {
 	fs := flag.NewFlagSet("__server", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -733,6 +747,8 @@ func runServerSyncWithDisconnectAndDoneWithSettings(conn net.Conn, baseDir, queu
 	}
 }
 
+// cmdCancel cancels the active run or selected running jobs through the
+// background server.
 func cmdCancel(args []string) int {
 	fs := flag.NewFlagSet("cancel", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -788,6 +804,7 @@ func cmdCancel(args []string) int {
 	return 0
 }
 
+// cmdJobSignal sends suspend or resume requests for selected running jobs.
 func cmdJobSignal(args []string, operation string) int {
 	fs := flag.NewFlagSet(operation, flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)

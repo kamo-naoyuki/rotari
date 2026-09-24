@@ -290,6 +290,8 @@ func finalizeCompletedCancellation(paths pathSet) (bool, error) {
 	return true, nil
 }
 
+// cmdWorkerRun executes a single scheduler-dispatched job attempt inside an
+// existing run directory.
 func cmdWorkerRun(args []string) int {
 	fs := flag.NewFlagSet("__worker-run", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)

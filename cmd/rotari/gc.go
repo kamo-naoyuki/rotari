@@ -18,6 +18,7 @@ type runRegistryGCCache struct {
 	Entries   []runLocation `json:"entries"`
 }
 
+// cmdGC removes stale run registry entries from the master registry.
 func cmdGC(args []string) int {
 	fs := flag.NewFlagSet("gc", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)

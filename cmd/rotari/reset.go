@@ -12,6 +12,8 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
+// cmdReset clears interrupted project state so the queue can be edited or run
+// again.
 func cmdReset(args []string) int {
 	fs := flag.NewFlagSet("reset", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)

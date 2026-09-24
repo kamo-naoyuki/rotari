@@ -44,6 +44,7 @@ func confirmQueueOverwrite(baseDir, queueName string, appendJobs, overwriteJobs 
 	return overwriteConfirmed, nil
 }
 
+// cmdCopy copies queued or historical jobs into the current project queue.
 func cmdCopy(args []string) int {
 	fs := flag.NewFlagSet("copy", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)

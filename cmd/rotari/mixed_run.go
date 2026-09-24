@@ -10,6 +10,8 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
+// executeMixedRun snapshots a queue, plans selected work, runs local and batch
+// jobs through the shared run engine, and persists final run state.
 func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, batchMaxActive, retry int, requestedExecutor string, executorOptions []string, selection string, jobIDs []string, referenceRunID string, partialArray bool, progress func(JobResult, int, int, int, int), onStart func(JobSpec), settings ...executorRunSettingsMap) int {
 	var executorSettings executorRunSettingsMap
 	if len(settings) > 0 {

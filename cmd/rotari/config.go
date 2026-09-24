@@ -389,6 +389,7 @@ func configFormatFromOutput(output string) string {
 	}
 }
 
+// cmdConfig writes, reads, validates, and explains Rotari configuration files.
 func cmdConfig(args []string) int {
 	oldCommand := cliConfigCommand
 	cliConfigCommand = "config"
