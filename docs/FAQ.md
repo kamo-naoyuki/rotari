@@ -246,6 +246,8 @@ completed-job window.
 ### Can I create a config file from the Web UI?
 
 Yes. `View config` and `Generate config` can save configuration. The format is validated first, and invalid edits leave the existing file unchanged.
+In the read-only static demo, `Generate config` downloads a `config.toml`
+template instead of writing to the host.
 
 ### How do I view an older job attempt in the Web UI?
 

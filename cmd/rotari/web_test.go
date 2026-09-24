@@ -957,7 +957,7 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 			t.Fatalf("static web page contains obsolete project identifier %q", obsolete)
 		}
 	}
-	for _, want := range []string{"project_name", "/project/", "state.projects", "All projects", "No projects found.", "__ROTARI_STATIC_REPORTS__", "/api/report", "staticReportKey"} {
+	for _, want := range []string{"project_name", "/project/", "state.projects", "All projects", "No projects found.", "__ROTARI_STATIC_REPORTS__", "__ROTARI_STATIC_CONFIG_TEMPLATE__", "/api/report", "staticReportKey", "Download config.toml", "application/toml"} {
 		if !strings.Contains(string(index), want) {
 			t.Fatalf("static web page does not contain %q", want)
 		}

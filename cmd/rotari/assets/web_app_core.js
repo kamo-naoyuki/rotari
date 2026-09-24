@@ -182,7 +182,6 @@ function configGenerationProject() {
 }
 function showGenerateConfig() {
   const project = configGenerationProject();
-  if (project === null) return;
   const modal = document.getElementById("output-modal");
   const output = ensureModalOutput();
   const generator = document.getElementById("config-generator");
@@ -192,6 +191,34 @@ function showGenerateConfig() {
   generator.hidden = false;
   delete modal.dataset.editing;
   generator.replaceChildren();
+  if (project === null && typeof window.__ROTARI_STATIC_CONFIG_TEMPLATE__ === "string") {
+    generator.replaceChildren(
+      Object.assign(document.createElement("p"), {
+        textContent: "Download a config.toml template for use with rotari.",
+      }),
+    );
+    const button = Object.assign(document.createElement("button"), {
+      type: "button",
+      textContent: "Download config.toml",
+      title: "Download config.toml",
+    });
+    button.onclick = () => {
+      const blob = new Blob([window.__ROTARI_STATIC_CONFIG_TEMPLATE__], {
+        type: "application/toml",
+      });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "config.toml";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    };
+    generator.append(button);
+    modal.querySelector("strong").textContent = "Generate config";
+    modal.dataset.view = "generate-config";
+    openOutputModal(false);
+    return;
+  }
+  if (project === null) return;
   generator.textContent = "Loading config locations...";
   const params = new URLSearchParams();
   if (project) params.set("project_name", project);

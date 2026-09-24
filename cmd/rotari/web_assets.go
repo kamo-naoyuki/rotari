@@ -63,11 +63,12 @@ func composeWebHTML(executors []string, bootstrap string) string {
 	return template
 }
 
-func composeStaticBootstrap(state, logs, reports string) string {
+func composeStaticBootstrap(state, logs, reports, configTemplate string) string {
 	bootstrap := webStaticBootstrapJS
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_STATE_DATA__", state, 1)
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_LOGS_DATA__", logs, 1)
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_REPORTS_DATA__", reports, 1)
+	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_CONFIG_TEMPLATE_DATA__", configTemplate, 1)
 	return bootstrap
 }
 

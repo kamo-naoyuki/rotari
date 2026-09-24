@@ -1011,11 +1011,20 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 	if err != nil {
 		return err
 	}
-	var escapedState, escapedLogs, escapedReports bytes.Buffer
+	config, err := configTemplate("toml")
+	if err != nil {
+		return err
+	}
+	configJSON, err := json.Marshal(string(config))
+	if err != nil {
+		return err
+	}
+	var escapedState, escapedLogs, escapedReports, escapedConfig bytes.Buffer
 	json.HTMLEscape(&escapedState, stateJSON)
 	json.HTMLEscape(&escapedLogs, logsJSON)
 	json.HTMLEscape(&escapedReports, reportsJSON)
-	bootstrap := "<script>\n" + composeStaticBootstrap(escapedState.String(), escapedLogs.String(), escapedReports.String()) + "\n</script>"
+	json.HTMLEscape(&escapedConfig, configJSON)
+	bootstrap := "<script>\n" + composeStaticBootstrap(escapedState.String(), escapedLogs.String(), escapedReports.String(), escapedConfig.String()) + "\n</script>"
 	baseTemplate := webHTMLWithStaticBootstrap(bootstrap)
 	template := strings.Replace(baseTemplate, `href="/web_styles.css"`, `href="web_styles.css"`, 1)
 	if template == baseTemplate {
