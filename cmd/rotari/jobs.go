@@ -409,8 +409,14 @@ func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsR
 		if finishedErr != nil && summary.FinishedAt != "" && statusOK {
 			finishedAt, finishedErr = parseJobsTimestamp(summary.FinishedAt)
 		}
-		if jobState != "running" && (finishedErr != nil || finishedAt.Before(cutoff)) {
-			continue
+		if jobState != "running" {
+			if finishedErr == nil {
+				if finishedAt.Before(cutoff) {
+					continue
+				}
+			} else if startedAt.Before(cutoff) {
+				continue
+			}
 		}
 		attemptID, _ := state.LatestAttemptID(runDir, job.ID)
 		if attemptID == "" {
@@ -433,6 +439,9 @@ func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsR
 		end := now
 		if jobState != "running" {
 			end = finishedAt
+		}
+		if jobState != "running" && finishedErr != nil {
+			end = time.Time{}
 		}
 		rows = append(rows, jobsRow{state: jobState, baseDir: paths.BaseDir, project: paths.ProjectName, runID: runID, attemptID: attemptID, jobName: jobName, command: command, fullCommand: fullCommand, startedAt: startedAt, finishedAt: finishedAt, elapsed: end.Sub(startedAt)})
 	}

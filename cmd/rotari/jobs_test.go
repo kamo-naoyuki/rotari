@@ -93,6 +93,48 @@ func TestCollectRunJobsStopsAtOldCompletedRun(t *testing.T) {
 	}
 }
 
+func TestCollectRunJobsIncludesTerminalJobUsingStartedAtWhenFinishedAtMissing(t *testing.T) {
+	baseDir := t.TempDir()
+	now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
+	started := now.Add(-2 * time.Hour)
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "20260922-090000-00000001"
+	jobID := "failed-job"
+	attemptID := makeAttemptID(runID, jobID, 0)
+	runDir := filepath.Join(paths.RunsDir, runID)
+	queue := Queue{Commands: []QueuedCommand{{ID: jobID, Command: []string{"false"}}}}
+	if err := writeJSON(filepath.Join(runDir, stateFileCommandsJSON), queue); err != nil {
+		t.Fatal(err)
+	}
+	jobDir := filepath.Join(runDir, jobID, "attempts", attemptID)
+	if err := writeJSON(filepath.Join(jobDir, commandJSONName), JobSpec{ID: jobID, AttemptID: attemptID, Command: []string{"false"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, stateFileSummaryJSON), RunSummary{RunID: runID, Status: "failed", StartedAt: started.Format(time.RFC3339), Results: []JobResult{{ID: jobID, AttemptID: attemptID, ExitCode: 1}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeTestTimestamp(filepath.Join(jobDir, stateFileSubmittedAt), started); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeTestFile(filepath.Join(jobDir, stateFileStatus), []byte("1\n")); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, include, stop, err := collectRunJobs(paths, runID, now, now.Add(-24*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !include || stop || len(rows) != 1 {
+		t.Fatalf("collectRunJobs() = rows %d, include %v, stop %v; want one row, include, and no stop", len(rows), include, stop)
+	}
+	if rows[0].state != "failed" || !rows[0].finishedAt.IsZero() || rows[0].elapsed >= 0 {
+		t.Fatalf("row = %#v, want failed with unknown finish and elapsed", rows[0])
+	}
+}
+
 func TestFormatJobElapsed(t *testing.T) {
 	cases := map[time.Duration]string{
 		0:                             "0s",
