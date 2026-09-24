@@ -180,7 +180,7 @@ jobs:
           PKG_VERSION: ${{ github.ref_name }}
         run: |
           export PKG_VERSION="${PKG_VERSION#v}"
-          conda build conda/recipe --output-folder dist
+          conda-build conda/recipe --output-folder dist
 
       - name: Upload package to Anaconda.org
         env:
