@@ -128,9 +128,6 @@ From the repository root, prefer this validation order:
 2. Run the package tests with `go test ./cmd/rotari`.
 3. For broader validation, run `go test ./...` and `go vet ./...`.
 
-If the Go cache is unavailable in the environment, retry with
-`GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache GOPROXY=off`.
-
 ## Before finishing
 
 Before reporting a task as complete:
