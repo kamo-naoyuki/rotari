@@ -191,7 +191,10 @@ function showGenerateConfig() {
   generator.hidden = false;
   delete modal.dataset.editing;
   generator.replaceChildren();
-  if (project === null && typeof window.__ROTARI_STATIC_CONFIG_TEMPLATE__ === "string") {
+  if (
+    project === null &&
+    typeof window.__ROTARI_STATIC_CONFIG_TEMPLATE__ === "string"
+  ) {
     generator.replaceChildren(
       Object.assign(document.createElement("p"), {
         textContent: "Download a config.toml template for use with rotari.",
