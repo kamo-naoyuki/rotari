@@ -26,7 +26,14 @@ func compactWebHTML(value string) string {
 		}
 		return r
 	}, value)
-	return strings.ReplaceAll(value, `"`, `'`)
+	value = strings.ReplaceAll(value, `"`, `'`)
+	// Prettier adds trailing commas before closing brackets when it wraps a
+	// call/array/object onto multiple lines; strip them so marker literals
+	// don't depend on incidental line-wrapping.
+	for _, closer := range []string{")", "]", "}"} {
+		value = strings.ReplaceAll(value, ","+closer, closer)
+	}
+	return value
 }
 
 func webContains(html, marker string) bool {
@@ -413,7 +420,7 @@ func TestWebHTMLIncludesProjectRuntime(t *testing.T) {
 
 func TestWebHTMLIncludesConfigPaths(t *testing.T) {
 	html := webHTML()
-	for _, want := range []string{"configText(paths)", "function addConfigButton()", "function showGenerateConfig()", "generate-config-button", "config-editor", "/api/save-config", "/api/config-targets", "config-target-options", "state.config_path", "q.config_path", "run.context.config_snapshot_paths"} {
+	for _, want := range []string{"function setLocation(base, paths)", "function addConfigButton()", "function showGenerateConfig()", "generate-config-button", "config-editor", "/api/save-config", "/api/config-targets", "config-target-options", "state.config_path", "q.config_path", "run.context.config_snapshot_paths"} {
 		if !webContains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
 		}
