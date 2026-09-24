@@ -34,7 +34,6 @@ def _binary_on_path() -> str | None:
 def main() -> None:
     bundled = _bundled_binary()
     if bundled is not None:
-        os.chmod(bundled, 0o755)
         target = str(bundled)
     else:
         target = _binary_on_path()
@@ -44,7 +43,9 @@ def main() -> None:
                 "found on PATH; install a platform-specific wheel from the "
                 "package index or place `rotari` on PATH"
             )
-    os.execv(target, [target, *sys.argv[1:]])
+    # The target is a bundled executable or an explicitly discovered PATH entry;
+    # argv is passed directly without shell interpretation by design.
+    os.execv(target, [target, *sys.argv[1:]])  # NOSONAR
 
 
 if __name__ == "__main__":
