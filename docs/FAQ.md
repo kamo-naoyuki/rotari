@@ -284,6 +284,13 @@ blocked. Stage names share a namespace with job names, so a stage name cannot
 also be a job name in the same queue. `rotari show` and the Web UI display each
 job's stage membership.
 
+### Can a job depend on a job in a different run or project?
+No. `--depends-on` resolves a job or stage name within the queue being run; it
+cannot refer to a run ID or to a job in another project. To chain separate
+runs or projects, coordinate them outside the dependency graph, for example
+with `rotari wait --run-id RUN_ID && rotari run --project-name PROJECT`, or use
+a run-completion webhook to trigger the next workflow.
+
 ## LLM diagnosis
 
 ### Can I diagnose common failures without sending logs to an LLM?
