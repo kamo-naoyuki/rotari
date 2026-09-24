@@ -8,7 +8,7 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- None
+- **`add` command's `--quiet` flag is documented but not implemented** (`cmd/rotari/cli_spec.go` declares it in the `add` flag spec / help text, but the actual flag set registered for `add` rejects `-quiet` with "flag provided but not defined"). Either wire it up or remove it from the spec.
 
 ## Resolved
 
