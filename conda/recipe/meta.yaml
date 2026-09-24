@@ -11,10 +11,14 @@ source:
 build:
   number: 0
   skip: true  # [win]
+  ignore_run_exports_from:
+    - python
 
 requirements:
   build:
     - go >=1.22
+  host:
+    - python {{ python_min }}
   run:
     - python >={{ python_min }}
 
