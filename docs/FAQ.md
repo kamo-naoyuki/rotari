@@ -161,6 +161,7 @@ practical choice for a tool whose main job is to orchestrate lots of shell
 commands quickly and predictably without the overhead of a Python startup for
 every operation.
 
+### Why not C++?
 C++ can also produce a single binary, but that is not the deciding factor for
 this project. A small standalone binary is only part of the story; this tool
 also needs a pleasant development cycle, straightforward filesystem and process
