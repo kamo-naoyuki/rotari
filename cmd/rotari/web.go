@@ -963,12 +963,33 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 	}
 	logs := map[string]string{}
 	reports := map[string]string{}
+	configTargets := map[string][]webConfigTarget{}
+	configs := map[string][]webConfigFile{}
+	allTargets, err := webConfigTargets(baseDir, "")
+	if err != nil {
+		return err
+	}
+	configTargets[""] = allTargets
+	if files, configErr := loadWebConfigFiles(baseDir, "", ""); configErr == nil {
+		configs[staticConfigKey("", "")] = files
+	}
 	for _, queue := range state.Queues {
+		targets, targetErr := webConfigTargets(baseDir, queue.QueueName)
+		if targetErr != nil {
+			return targetErr
+		}
+		configTargets[queue.QueueName] = targets
+		if files, configErr := loadWebConfigFiles(baseDir, queue.QueueName, ""); configErr == nil {
+			configs[staticConfigKey(queue.QueueName, "")] = files
+		}
 		paths, pathErr := resolvePaths(baseDir, queue.QueueName)
 		if pathErr != nil {
 			continue
 		}
 		for _, run := range queue.Runs {
+			if files, configErr := loadWebConfigFiles(baseDir, queue.QueueName, run.RunID); configErr == nil {
+				configs[staticConfigKey(queue.QueueName, run.RunID)] = files
+			}
 			if report, reportErr := buildAIReport(paths, run.RunID, "", false); reportErr == nil {
 				reports[staticReportKey(queue.QueueName, run.RunID, "")] = report
 			}
@@ -1017,20 +1038,21 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 	if err != nil {
 		return err
 	}
-	config, err := configTemplate("toml")
+	configTargetsJSON, err := json.Marshal(configTargets)
 	if err != nil {
 		return err
 	}
-	configJSON, err := json.Marshal(string(config))
+	configsJSON, err := json.Marshal(configs)
 	if err != nil {
 		return err
 	}
-	var escapedState, escapedLogs, escapedReports, escapedConfig bytes.Buffer
+	var escapedState, escapedLogs, escapedReports, escapedConfigTargets, escapedConfigs bytes.Buffer
 	json.HTMLEscape(&escapedState, stateJSON)
 	json.HTMLEscape(&escapedLogs, logsJSON)
 	json.HTMLEscape(&escapedReports, reportsJSON)
-	json.HTMLEscape(&escapedConfig, configJSON)
-	bootstrap := "<script>\n" + composeStaticBootstrap(escapedState.String(), escapedLogs.String(), escapedReports.String(), escapedConfig.String()) + "\n</script>"
+	json.HTMLEscape(&escapedConfigTargets, configTargetsJSON)
+	json.HTMLEscape(&escapedConfigs, configsJSON)
+	bootstrap := "<script>\n" + composeStaticBootstrap(escapedState.String(), escapedLogs.String(), escapedReports.String(), escapedConfigTargets.String(), escapedConfigs.String()) + "\n</script>"
 	baseTemplate := webHTMLWithStaticBootstrap(bootstrap)
 	template := strings.Replace(baseTemplate, `href="/web_styles.css"`, `href="web_styles.css"`, 1)
 	if template == baseTemplate {
@@ -1108,6 +1130,10 @@ func staticLogKey(queueName, runID, jobID string, attemptIDs ...string) string {
 		attemptID = attemptIDs[0]
 	}
 	return queueName + "/" + runID + "/" + jobID + "/" + attemptID
+}
+
+func staticConfigKey(projectName, runID string) string {
+	return projectName + "/" + runID
 }
 
 func webLogPath(runsDir, runID, jobID, attemptID string) (string, error) {

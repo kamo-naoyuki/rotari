@@ -21,12 +21,13 @@ func TestComposeWebHTMLAssemblesAssetBoundaries(t *testing.T) {
 }
 
 func TestComposeStaticBootstrapInjectsData(t *testing.T) {
-	bootstrap := composeStaticBootstrap("state", "logs", "reports", "config")
+	bootstrap := composeStaticBootstrap("state", "logs", "reports", "targets", "configs")
 	for _, want := range []string{
 		"window.__ROTARI_STATIC_STATE__ = state;",
 		"window.__ROTARI_STATIC_LOGS__ = logs;",
 		"window.__ROTARI_STATIC_REPORTS__ = reports;",
-		"window.__ROTARI_STATIC_CONFIG_TEMPLATE__ = config;",
+		"window.__ROTARI_STATIC_CONFIG_TARGETS__ = targets;",
+		"window.__ROTARI_STATIC_CONFIGS__ = configs;",
 	} {
 		if !strings.Contains(bootstrap, want) {
 			t.Fatalf("static bootstrap does not contain %q", want)
@@ -35,7 +36,8 @@ func TestComposeStaticBootstrapInjectsData(t *testing.T) {
 	if strings.Contains(bootstrap, "__ROTARI_STATIC_STATE_DATA__") ||
 		strings.Contains(bootstrap, "__ROTARI_STATIC_LOGS_DATA__") ||
 		strings.Contains(bootstrap, "__ROTARI_STATIC_REPORTS_DATA__") ||
-		strings.Contains(bootstrap, "__ROTARI_STATIC_CONFIG_TEMPLATE_DATA__") {
+		strings.Contains(bootstrap, "__ROTARI_STATIC_CONFIG_TARGETS_DATA__") ||
+		strings.Contains(bootstrap, "__ROTARI_STATIC_CONFIGS_DATA__") {
 		t.Fatal("static bootstrap contains an unreplaced data placeholder")
 	}
 }

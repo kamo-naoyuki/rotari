@@ -145,6 +145,101 @@ setTimeout(() => {
 	}
 }
 
+func TestStaticWebUsesGenerateConfigReadOnlyFlow(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "config.toml"), []byte("name = \"static demo\"\n"), stateFileMode()); err != nil {
+		t.Fatal(err)
+	}
+	outputDir := filepath.Join(t.TempDir(), "web")
+	if err := generateStaticWeb(outputDir, baseDir, ""); err != nil {
+		t.Fatal(err)
+	}
+	script := `
+const fs = require('fs');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const html = fs.readFileSync(process.argv[1], 'utf8');
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+const dom = new JSDOM(html, {
+	runScripts: 'dangerously',
+	url: 'https://example.test/',
+	virtualConsole,
+	beforeParse(window) {
+		window.Response = class Response {
+			constructor(body, init = {}) {
+				this.body = body;
+				this.status = init.status || 200;
+				this.ok = this.status >= 200 && this.status < 300;
+			}
+			json() { return Promise.resolve(JSON.parse(this.body)); }
+			text() { return Promise.resolve(this.body); }
+		};
+		window.Notification = {
+			permission: 'default',
+			requestPermission: async () => 'default',
+		};
+		window.setInterval = () => 1;
+	},
+});
+setTimeout(() => {
+	const readOnlyMessage = 'the web UI is read-only; restart with --allow-control to enable job control';
+	if (errors.length) {
+		console.error(errors.join('\n'));
+		process.exit(1);
+	}
+	const button = dom.window.document.querySelector('.generate-config-button');
+	if (!button) process.exit(2);
+	const notify = dom.window.document.getElementById('notify-toggle');
+	if (!notify || notify.textContent !== 'Notification off' || notify.disabled) process.exit(8);
+	const view = dom.window.document.querySelector('.config-button');
+	if (!view || view.disabled) process.exit(3);
+	dom.window.confirm = () => true;
+	let alertText = '';
+	dom.window.alert = text => { alertText = String(text); };
+	view.click();
+	setTimeout(() => {
+		const editor = dom.window.document.getElementById('config-editor');
+		const textarea = editor.querySelector('textarea');
+		if (editor.hidden || textarea.value !== 'name = "static demo"\n') process.exit(4);
+		textarea.value = 'name = "changed"\n';
+		textarea.dispatchEvent(new dom.window.Event('input'));
+		editor.querySelector('button').click();
+		setTimeout(() => {
+			if (alertText !== readOnlyMessage + '\n') process.exit(5);
+			alertText = '';
+			button.click();
+			setTimeout(() => {
+				const target = dom.window.document.querySelector('.config-target-options button');
+				if (!target) process.exit(6);
+				target.click();
+				setTimeout(() => {
+					if (alertText !== readOnlyMessage + '\n') process.exit(7);
+					if (errors.length) {
+						console.error(errors.join('\n'));
+						process.exit(1);
+					}
+				}, 0);
+			}, 0);
+		}, 0);
+	}, 0);
+}, 50);
+`
+	if output, err := exec.Command("node", "-e", script, filepath.Join(outputDir, "index.html")).CombinedOutput(); err != nil {
+		t.Fatalf("static web config flow check failed: %v\n%s", err, output)
+	}
+}
+
 func TestWebRunAttemptSelectionUpdatesDisplayedJob(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -957,7 +1052,7 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 			t.Fatalf("static web page contains obsolete project identifier %q", obsolete)
 		}
 	}
-	for _, want := range []string{"project_name", "/project/", "state.projects", "All projects", "No projects found.", "__ROTARI_STATIC_REPORTS__", "__ROTARI_STATIC_CONFIG_TEMPLATE__", "/api/report", "staticReportKey", "Download config.toml", "application/toml"} {
+	for _, want := range []string{"project_name", "/project/", "state.projects", "All projects", "No projects found.", "__ROTARI_STATIC_REPORTS__", "__ROTARI_STATIC_CONFIG_TARGETS__", "__ROTARI_STATIC_CONFIGS__", "/api/report", "/api/config-targets", "/api/config", "staticReportKey", "staticConfigKey", "the web UI is read-only"} {
 		if !strings.Contains(string(index), want) {
 			t.Fatalf("static web page does not contain %q", want)
 		}

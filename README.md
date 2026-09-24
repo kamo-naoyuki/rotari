@@ -276,9 +276,10 @@ config` on the all-projects or project page offers the valid global, basedir,
 and project locations as applicable, then generates or replaces `config.toml`
 at the selected location after confirmation. On those non-run pages, `View
 config` also permits saving edits to the resolved config. The read-only static
-demo instead downloads a `config.toml` template and never writes to the host.
-Historical run pages only display their recorded config copies; server-side
-generation and editing are unavailable there and in read-only Web mode.
+demo presents the same generation flow, but reports that the UI is read-only
+when a file write is requested. Historical run pages only display their
+recorded config copies; server-side generation and editing are unavailable
+there and in read-only Web mode.
 
 The `Job activity` link lists running jobs and jobs that finished during the preceding
 24 hours, matching the default scope of `rotari jobs`. Enter a Go duration such

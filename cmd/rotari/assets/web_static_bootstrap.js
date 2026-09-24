@@ -1,13 +1,36 @@
 window.__ROTARI_STATIC_STATE__ = __ROTARI_STATIC_STATE_DATA__;
 window.__ROTARI_STATIC_LOGS__ = __ROTARI_STATIC_LOGS_DATA__;
 window.__ROTARI_STATIC_REPORTS__ = __ROTARI_STATIC_REPORTS_DATA__;
-// prettier-ignore
-window.__ROTARI_STATIC_CONFIG_TEMPLATE__ = __ROTARI_STATIC_CONFIG_TEMPLATE_DATA__;
+window.__ROTARI_STATIC_CONFIG_TARGETS__ = __ROTARI_STATIC_CONFIG_TARGETS_DATA__;
+window.__ROTARI_STATIC_CONFIGS__ = __ROTARI_STATIC_CONFIGS_DATA__;
 
 window.fetch = async function (input, init) {
   const request = new URL(input, window.location.href);
   if (request.pathname.endsWith("/api/state")) {
     return new Response(JSON.stringify(window.__ROTARI_STATIC_STATE__), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (request.pathname.endsWith("/api/config-targets")) {
+    const project = request.searchParams.get("project_name") || "";
+    const targets = window.__ROTARI_STATIC_CONFIG_TARGETS__[project];
+    if (!targets) {
+      return new Response("invalid project_name " + JSON.stringify(project), {
+        status: 400,
+      });
+    }
+    return new Response(JSON.stringify({ targets }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (request.pathname.endsWith("/api/config")) {
+    const key = staticConfigKey(
+      request.searchParams.get("project_name") || "",
+      request.searchParams.get("run_id") || "",
+    );
+    const configs = window.__ROTARI_STATIC_CONFIGS__[key];
+    if (!configs) return new Response("Config not found", { status: 404 });
+    return new Response(JSON.stringify({ configs }), {
       headers: { "Content-Type": "application/json" },
     });
   }
@@ -55,7 +78,10 @@ window.fetch = async function (input, init) {
       headers: { "Content-Type": "text/markdown" },
     });
   }
-  return new Response("This is a read-only static demo.", { status: 405 });
+  return new Response(
+    "the web UI is read-only; restart with --allow-control to enable job control\n",
+    { status: 403 },
+  );
 };
 
 function staticLogKey(queue, run, job, attempt) {
@@ -64,6 +90,10 @@ function staticLogKey(queue, run, job, attempt) {
 
 function staticReportKey(project, run, job) {
   return [project, run, job || ""].join("/");
+}
+
+function staticConfigKey(project, run) {
+  return [project, run].join("/");
 }
 
 function staticRootPath() {

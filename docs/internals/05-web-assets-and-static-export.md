@@ -161,13 +161,15 @@ The ordinary Web UI and GitHub Pages static demo use the same JavaScript.
 the HTML template relative where possible.
 
 Static export injects a bootstrap before the app script. The bootstrap provides
-persisted state, logs, reports, and the `config.toml` template, and defines
-`routeParts()`. For a selected-job report, it returns only the selected jobs'
-pre-generated reports, rather than the whole run report. The static `Generate
-config` control downloads that template without making a write request. The
-bootstrap must run before the app script: otherwise the first state request can
-hit GitHub Pages' 404 document and briefly render that HTML as application
-text.
+persisted state, logs, reports, configuration files, config-generation targets,
+and defines `routeParts()`. For a selected-job report, it returns only the
+selected jobs' pre-generated reports, rather than the whole run report. The
+static app uses the same UI functions and request flow as the ordinary Web UI
+whenever possible, including configuration viewing and editing. Requests that
+would mutate state or files return the same read-only `403` message as a server
+started with `--allow-control=false`. The bootstrap must run before the app
+script: otherwise the first state request can hit GitHub Pages' 404 document
+and briefly render that HTML as application text.
 
 Static pages receive a copy of `web_styles.css` beside every generated
 `index.html`. If a new asset or static API endpoint is added, update both the

@@ -19,15 +19,11 @@ function updateNotifyToggleLabel() {
     button.hidden = true;
     return;
   }
-  if (Notification.permission !== "granted") {
-    button.textContent = "Enable notifications";
-    button.disabled = Notification.permission === "denied";
-    return;
-  }
-  button.disabled = false;
-  button.textContent = notificationsEnabled()
-    ? "Notifications on"
-    : "Notifications off";
+  button.disabled = Notification.permission === "denied";
+  button.textContent =
+    Notification.permission === "granted" && notificationsEnabled()
+      ? "Notification on"
+      : "Notification off";
 }
 async function toggleRunNotifications() {
   if (!notificationsSupported()) return;
