@@ -28,6 +28,7 @@ cmd/rotari/assets/
 ├── web_app_logs.js
 ├── web_app_tables.js
 ├── web_app_charts.js
+├── web_app_notifications.js
 ├── web_app_bootstrap.js
 ├── web_static_bootstrap.js
 ├── cli_docs_template.html
@@ -45,11 +46,15 @@ order and delivered as one script; they intentionally share the global scope:
 3. `web_app_logs.js`
 4. `web_app_tables.js`
 5. `web_app_charts.js`
-6. `web_app_bootstrap.js`
+6. `web_app_notifications.js`
+7. `web_app_bootstrap.js`
 
 Do not reorder these files without running the full Web test suite. The
 separation is for source readability and ownership, not JavaScript module
-isolation.
+isolation. `web_app_notifications.js` must load before `web_app_bootstrap.js`:
+it wraps the global `refresh()` function, and bootstrap both calls `refresh()`
+immediately and passes it to `setInterval`, so the wrap must already be in
+place by then.
 
 The static export bootstrap is kept separately in `web_static_bootstrap.js`
 because it provides the static fetch and routing adapters used only by
@@ -82,6 +87,39 @@ generated state, logs, and reports during export.
 - Web state exposes only whether an environment variable is set. Raw values
   never cross the HTTP boundary; `Value` is populated only by the local
   `rotari env` CLI command.
+
+## Desktop notifications
+
+`cmd/rotari/assets/web_app_notifications.js` shows a browser `Notification`
+when a run finishes or a job fails. It is entirely client-side: no server
+route, socket, or webhook exists for this. `runServer` (the job-execution
+daemon) and `rotari web` are separate processes that never talk to each other
+directly; `rotari web` only re-reads persisted state from disk per request
+(see "Web UI model and reports" below), so there is no event to push from the
+runner side even if one were added. Instead this feature wraps the existing
+`refresh()` polling loop (`web_app_core.js`) and diffs the previous and next
+`/api/state` snapshots on every tick:
+
+- A run is newly finished when it stops being `running` between two polls, or
+  when it is seen for the first time already finished (covers runs shorter
+  than the 2-second poll interval).
+- A job is newly failed when `jobDisplayStatus(job, run)` (`web_app_tables.js`)
+  becomes `"failed"` and was not already `"failed"` on the previous poll.
+- Job failures and a run's own completion detected in the same poll tick are
+  merged into one `Notification` per run; events from different ticks stay
+  separate.
+- The very first poll after page load never notifies (there is no previous
+  snapshot to diff against), so existing history never triggers a notification
+  burst on open.
+
+The permission itself (`Notification.permission`) cannot be revoked from
+JavaScript once granted, so the toolbar's on/off toggle is a separate
+`localStorage` flag (`rotari-notifications-enabled`) checked before showing
+each notification; it does not touch the browser's actual permission grant.
+`--notifications`/`ROTARI_WEB_NOTIFICATIONS` (`webNotificationsDefault` in
+`web.go`, injected into the bundle as `__ROTARI_NOTIFICATION_DEFAULT__`) only
+seeds the toggle's starting value for an origin that has never set the
+`localStorage` flag; an explicit prior toggle click always wins.
 
 ## Web UI model and reports
 

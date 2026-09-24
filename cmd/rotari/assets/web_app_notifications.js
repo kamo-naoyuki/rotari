@@ -100,7 +100,10 @@ function notifyRunEvent(info, failedJobNames, runFinished) {
       ? "\nstatus: " + (info.status === "failed" ? "failed" : "success")
       : "") +
     (failedJobNames.length ? "\n" + failedJobNames.join(", ") : "");
-  const notification = new Notification(title, { body, icon: notificationIconURL });
+  const notification = new Notification(title, {
+    body,
+    icon: notificationIconURL,
+  });
   notification.onclick = () => {
     window.focus();
     location.href =
@@ -120,7 +123,8 @@ function checkRunNotifications(previousState, nextState) {
   const events = new Map();
   nextRuns.forEach((info, runKey) => {
     const before = previousRuns.get(runKey);
-    const newlyFinished = !info.running && ((before && before.running) || !before);
+    const newlyFinished =
+      !info.running && ((before && before.running) || !before);
     if (newlyFinished) {
       events.set(runKey, { info, failedJobNames: [], runFinished: true });
     }
@@ -132,9 +136,11 @@ function checkRunNotifications(previousState, nextState) {
         if (jobDisplayStatus(job, run) !== "failed") continue;
         const jobKey = runKey + "/" + job.id;
         if (previousJobs.get(jobKey) === "failed") continue;
-        const event =
-          events.get(runKey) ||
-          { info: nextRuns.get(runKey), failedJobNames: [], runFinished: false };
+        const event = events.get(runKey) || {
+          info: nextRuns.get(runKey),
+          failedJobNames: [],
+          runFinished: false,
+        };
         event.failedJobNames.push(job.name || job.id);
         events.set(runKey, event);
       }

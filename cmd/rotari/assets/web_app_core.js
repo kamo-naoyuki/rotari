@@ -131,7 +131,8 @@ function addConfigButton() {
   button.disabled = !paths.length;
   button.title = paths.length ? "View config" : "No config file";
   if (paths.length) button.onclick = showConfig;
-  document.querySelector(".toolbar").append(button);
+  const toolbar = document.querySelector(".toolbar");
+  toolbar.insertBefore(button, document.getElementById("notify-toggle"));
 }
 function renderOverview(queues) {
   let queued = 0,

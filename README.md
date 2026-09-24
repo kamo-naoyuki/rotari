@@ -8,7 +8,7 @@
 
 [![Go CI](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml/badge.svg)](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml) [![Slurm + PBS CI](https://img.shields.io/github/actions/workflow/status/kamo-naoyuki/rotari/scheduler-integration.yml?branch=main&label=Slurm%20%2B%20PBS%20CI)](https://github.com/kamo-naoyuki/rotari/actions/workflows/scheduler-integration.yml) [![codecov](https://codecov.io/gh/kamo-naoyuki/rotari/graph/badge.svg)](https://codecov.io/gh/kamo-naoyuki/rotari) [![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=kamo-naoyuki_rotari&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kamo-naoyuki_rotari) [![web demo](https://img.shields.io/website?url=https%3A%2F%2Fkamo-naoyuki.github.io%2Frotari%2F&label=web%20demo&style=flat)](https://kamo-naoyuki.github.io/rotari/) [![Go API](https://img.shields.io/badge/Go%20API-go%20doc-00ADD8)](https://kamo-naoyuki.github.io/rotari/go-api/) [![Python API](https://img.shields.io/badge/Python%20API-Sphinx-3776AB)](https://kamo-naoyuki.github.io/rotari/python-api/)
 
-[[FAQ]](docs/FAQ.md) · [[Webhook notifications]](docs/WEBHOOK_INTEGRATIONS.md) ·[[Python README]](python/README.md) ·  [[Internal docs]](docs/INTERNALS.md)
+[[FAQ]](docs/FAQ.md) · [[Webhook notifications]](docs/WEBHOOK_INTEGRATIONS.md) · [[Web browser notifications]](docs/WEB_BROWSER_NOTIFICATIONS.md) ·[[Python README]](python/README.md) ·  [[Internal docs]](docs/INTERNALS.md)
 
 
 **Rotari turns trial-and-error into a repeatable loop**: build a batch of jobs from the CLI, see which failed, fix only their commands, and run it again — without losing the history of what already worked.
@@ -260,6 +260,10 @@ API requests use `Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`, and
 the browser UI uses Basic auth with username `rotari` and the token as password.
 This is HTTP authentication, not encryption: use HTTPS or a trusted network.
 `/api/state` and `/environment/` show only whether variables are set.
+
+The Web UI can show a browser desktop notification, entirely client-side, when
+a run finishes or a job fails — see
+[Web browser notifications](docs/WEB_BROWSER_NOTIFICATIONS.md).
 
 For non-interactive runs, `rotari run --quiet` suppresses the live progress and
 final summary output while still returning the run exit code. `ROTARI_QUIET`

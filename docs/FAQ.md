@@ -563,6 +563,13 @@ Use the arrow beside a job's attempt ID and choose an attempt. The row switches
 to that attempt's status, timestamps, result, and log. The selection is per
 job, so multiple rows can show different attempts at the same time.
 
+### Can the Web UI notify me when a run finishes?
+Yes, entirely locally through the browser's own notification permission —
+nothing is sent to an external service. See
+[Web browser notifications](WEB_BROWSER_NOTIFICATIONS.md) for how to enable it,
+what triggers a notification, and the `--notifications`/`ROTARI_WEB_NOTIFICATIONS`
+default.
+
 ### Does the Web UI send run details to an AI service?
 No. A run or job's `AI` button prepares a Markdown report locally in the
 browser. `Copy` only writes it to the clipboard. The `Open ChatGPT`, `Open
