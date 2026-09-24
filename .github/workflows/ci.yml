@@ -56,11 +56,14 @@ jobs:
       - name: Run vet
         run: go vet ./...
 
+      - name: Install gotestsum
+        run: go install gotest.tools/gotestsum@v1.12.0
+
       - name: Run tests
-        run: go test -coverprofile=coverage.out ./...
+        run: gotestsum --format pkgname-and-test-fails -- -coverprofile=coverage.out ./...
 
       - name: Run race detector
-        run: go test -race ./...
+        run: gotestsum --format pkgname-and-test-fails -- -race ./...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
