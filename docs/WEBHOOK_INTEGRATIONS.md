@@ -61,7 +61,7 @@ run result.
 Run a small command that is expected to fail:
 
 ```sh
-rotari add --run --project-name demo 'false'
+rotari add --project-name demo -- false && rotari run --project-name demo
 ```
 
 Then check the configured Slack channel. If the run was already notified,

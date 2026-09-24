@@ -50,6 +50,37 @@ for arbitrary reporting. In exchange, you get a lightweight workflow runner
 that is easy to install and easy to reason about without requiring a database
 server.
 
+### Can rotari manage jobs for multiple users like Slurm?
+No. Rotari is not a multi-user job scheduler or a multi-tenant service: it has
+no user accounts, per-user job ownership, quotas, priorities, fair-share
+scheduling, or authorization rules. A project separates queue and run state;
+it does not isolate one person's jobs from another's.
+
+Multiple Unix users can each run rotari with separate `--basedir` locations
+and their own credentials. When rotari submits jobs through a Slurm, PBS, or
+LSF executor, that scheduler remains responsible for user identity, resource
+policy, and accounting; rotari only submits and monitors the jobs available to
+the account that starts it. Do not share a writable state directory or Web UI
+token between mutually untrusted users. The local server also accepts Unix
+socket clients only from its own UID on Linux, so it is not a shared
+cross-account control service.
+
+### Which workflow-orchestrator features does rotari provide?
+Rotari focuses on executing and recording shell commands rather than defining
+or operating workflows as a separate service. Compared with features commonly
+provided by systems such as Snakemake, Nextflow, Airflow, Prefect, and Dagster:
+
+| Capability | rotari |
+| --- | --- |
+| Named job/stage dependencies, parallel execution, retries, logs, and run history | Yes |
+| Local, SSH, Slurm, PBS, and LSF execution | Yes |
+| Array jobs, Web UI, and run-completion webhooks | Yes |
+| A workflow DSL or Python-defined tasks | No; jobs are shell commands submitted through the CLI. |
+| Input/output file declarations, freshness checks, and artifact caching | No; use Snakemake or `make` when files determine what must rerun. |
+| Time-based schedules or event-driven triggers | No; invoke rotari from cron, a CI system, or another orchestrator. |
+| Asset/data lineage and data-aware orchestration | No. |
+| Multi-user tenancy, RBAC, quotas, or fair-share scheduling | No; use the underlying scheduler or a dedicated service. |
+
 ### What's the difference between a project, a queue, and a run?
 A project is a named container (`--project-name`) that holds one current
 queue and its saved run history. The queue (`queue.json`) is the batch of
@@ -170,6 +201,31 @@ and skips any run directory that has reappeared.
 
 ### How do I add a command and run it asynchronously?
 Add the command first, then start the queue with `rotari run --async`.
+
+### Do I have to run `add` and `run` separately for one command?
+Rotari has no `add --run` shortcut. Use the shell's `&&` operator to make a
+one-liner that starts the run only when adding the command succeeds:
+
+```sh
+rotari add --project-name demo -- ./build.sh && rotari run --project-name demo
+```
+
+Use the same `--basedir` and `--project-name` options on both commands when
+they are not already selected through the environment. The separate commands
+are intentional for a batch: add several jobs and their dependencies first,
+then run their queue together.
+
+### Can rotari rerun jobs when input or output files change, like Snakemake?
+No. Rotari does not declare input or output files, watch the filesystem, or
+compare file timestamps, hashes, or contents to decide whether a job is stale.
+Its dependency graph is between explicitly named jobs or stages, and its retry
+selection is based on saved job results (`failed`, `unfinished`, or `success`),
+not on files.
+
+Use Snakemake or `make` when file-derived freshness is the workflow's source
+of truth. A rotari job may run such a tool, but rotari records only that
+command's execution result; the tool itself remains responsible for deciding
+which file-producing steps need to run.
 
 ### What exit status does `rotari run` return when a job fails?
 For a synchronous run, `rotari run` returns `0` when every job succeeds and
