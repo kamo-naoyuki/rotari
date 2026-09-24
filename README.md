@@ -336,7 +336,7 @@ disambiguate. The option forms remain available when composing commands or
 when an exact run/job context is required:
 
 ```sh
-# These are equivalent exact selectors.
+# These are equivalent exact selectors
 rotari show -b BASE_DIR -p PROJECT_NAME -r RUN_ID
 rotari show -r RUN_ID
 rotari show RUN_ID # ID can be passed positionally; -r can be omitted
@@ -344,7 +344,20 @@ rotari show RUN_ID # ID can be passed positionally; -r can be omitted
 rotari show -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j ATTEMPT_ID
 rotari show -j ATTEMPT_ID
 rotari show ATTEMPT_ID
+```
 
+The following commands accept an `ATTEMPT_ID` as their `--job-id/-j` selector:
+
+- `ATTEMPT_ID` supported: `show`, `diagnose`, `cancel`, `suspend`, `resume`,
+  `copy`, `run`, `retry`.
+- `ATTEMPT_ID` not supported: `add`, `change`, `remove`, `delete`, `wait`.
+  These commands operate on queue definitions or whole runs, not individual attempts.
+
+`ATTEMPT_ID` and `RUN_ID` include the run and job context needed for resolution.
+`JOB_ID` does not, so the following `JOB_ID` forms are equivalent only when no
+other searched run or queue contains the same job ID.
+
+```sh
 rotari show -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j JOB_ID
 rotari show -j JOB_ID
 
@@ -365,14 +378,6 @@ rotari diagnose --model MODEL JOB_ID
 
 These positional forms cannot be combined with the corresponding `--run-id/-r`
 or `--job-id/-j` option. `delete` without an ID still removes all saved runs.
-
-The following commands accept an `ATTEMPT_ID` as their `--job-id/-j` selector:
-
-- `ATTEMPT_ID` supported: `show`, `diagnose`, `cancel`, `suspend`, `resume`,
-  `copy`, `run`, `retry`.
-- `ATTEMPT_ID` not supported: `add`, `change`, `remove`, `delete`, `wait`.
-  These commands operate on queue definitions or whole runs, not individual attempts.
-
 
 ## Scheduler
 
