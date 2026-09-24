@@ -171,13 +171,15 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (waitTarget,
 		return waitTarget{}, err
 	}
 	if state.IsValidPathElement(selector) {
-		projectDir := filepath.Join(baseDir, "projects", selector)
-		if info, statErr := os.Stat(projectDir); statErr == nil && info.IsDir() {
-			runID, activeErr := resolveActiveRunTarget(baseDir, selector)
-			if activeErr != nil {
-				return waitTarget{}, activeErr
+		projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), selector)
+		if err == nil {
+			if info, statErr := os.Stat(projectDir); statErr == nil && info.IsDir() {
+				runID, activeErr := resolveActiveRunTarget(baseDir, selector)
+				if activeErr != nil {
+					return waitTarget{}, activeErr
+				}
+				return waitTarget{baseDir: baseDir, projectName: selector, runID: runID}, nil
 			}
-			return waitTarget{baseDir: baseDir, projectName: selector, runID: runID}, nil
 		}
 	}
 

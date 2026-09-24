@@ -121,7 +121,26 @@ func validRunRegistryLocation(location runLocation) bool {
 }
 
 func runLocationExists(location runLocation) bool {
-	info, err := os.Stat(filepath.Join(location.BaseDir, "projects", location.ProjectName, "runs", location.RunID))
+	if location.BaseDir == "" || !filepath.IsAbs(location.BaseDir) {
+		return false
+	}
+	projectDir, err := state.SafeJoin(filepath.Clean(location.BaseDir), "projects")
+	if err != nil {
+		return false
+	}
+	projectDir, err = state.SafeJoin(projectDir, location.ProjectName)
+	if err != nil {
+		return false
+	}
+	runsDir, err := state.SafeJoin(projectDir, "runs")
+	if err != nil {
+		return false
+	}
+	path, err := state.SafeJoin(runsDir, location.RunID)
+	if err != nil {
+		return false
+	}
+	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
 }
 

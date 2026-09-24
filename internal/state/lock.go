@@ -25,6 +25,9 @@ func ProcessAlive(pid int) bool {
 }
 
 func LoadLock(path string) (model.LockInfo, error) {
+	if err := ValidateStatePath(path); err != nil {
+		return model.LockInfo{}, err
+	}
 	// codeql[go/path-injection]: callers pass the project lock path from the resolved state root.
 	data, err := os.ReadFile(path)
 	if err != nil {

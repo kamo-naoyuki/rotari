@@ -15,6 +15,11 @@ func TestLoadLockPreservesMissingAndInvalidErrors(t *testing.T) {
 		t.Fatalf("missing lock error = %v, want os.ErrNotExist", err)
 	}
 
+	unsafePath := filepath.Join(t.TempDir(), "safe") + string(os.PathSeparator) + ".." + string(os.PathSeparator) + "escape.lock"
+	if _, err := LoadLock(unsafePath); err == nil {
+		t.Fatalf("LoadLock accepted traversal path %q", unsafePath)
+	}
+
 	invalidPath := filepath.Join(t.TempDir(), "running.lock")
 	if err := os.WriteFile(invalidPath, []byte("{invalid}\n"), 0o600); err != nil {
 		t.Fatal(err)

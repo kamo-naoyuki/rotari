@@ -18,6 +18,18 @@ func IsValidPathElement(value string) bool {
 	return filepath.Base(value) == value
 }
 
+func ValidateStatePath(path string) error {
+	if path == "" {
+		return fmt.Errorf("empty state path")
+	}
+	for _, element := range strings.Split(filepath.ToSlash(path), "/") {
+		if element == "." || element == ".." {
+			return fmt.Errorf("invalid state path %q", path)
+		}
+	}
+	return nil
+}
+
 func SafeJoin(basePath, element string) (string, error) {
 	if !IsValidPathElement(element) {
 		return "", fmt.Errorf("invalid path element %q", element)

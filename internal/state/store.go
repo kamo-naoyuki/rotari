@@ -30,7 +30,10 @@ func NewStore(directoryMode, fileMode os.FileMode) Store {
 }
 
 func (s Store) ReadJSON(path string, value any) error {
-	// codeql[go/path-injection]: callers provide paths under the validated state root.
+	if err := ValidateStatePath(path); err != nil {
+		return err
+	}
+	// codeql[go/path-injection]: path is validated before it reaches the filesystem boundary.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -42,12 +45,15 @@ func (s Store) ReadJSON(path string, value any) error {
 }
 
 func (s Store) WriteJSON(path string, value any) error {
+	if err := ValidateStatePath(path); err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
 		return err
 	}
 	data = append(data, '\n')
-	// codeql[go/path-injection]: callers provide paths under the validated state root.
+	// codeql[go/path-injection]: path is validated before it reaches the filesystem boundary.
 	if err := os.MkdirAll(filepath.Dir(path), s.DirectoryMode); err != nil {
 		return err
 	}
@@ -69,7 +75,6 @@ func (s Store) WriteJSON(path string, value any) error {
 	if err := temporary.Close(); err != nil {
 		return err
 	}
-	// codeql[go/path-injection]: path is supplied by callers after state-path validation.
 	return os.Rename(temporaryName, path)
 }
 
@@ -112,6 +117,9 @@ func WriteJSON(path string, value any) error {
 }
 
 func AppendLoadSample(path string, sample model.LoadSample) error {
+	if err := ValidateStatePath(path); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
@@ -129,6 +137,9 @@ func AppendLoadSample(path string, sample model.LoadSample) error {
 }
 
 func ReadLoadSamples(path string) []model.LoadSample {
+	if err := ValidateStatePath(path); err != nil {
+		return nil
+	}
 	file, err := os.Open(path)
 	if err != nil {
 		return nil

@@ -37,6 +37,36 @@ func TestLoadStateReturnsInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestReadJSONRejectsTraversalPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "safe") + string(os.PathSeparator) + ".." + string(os.PathSeparator) + "escape.json"
+	var queue model.Queue
+	if err := NewStore(0o700, 0o600).ReadJSON(path, &queue); err == nil {
+		t.Fatalf("ReadJSON accepted traversal path %q", path)
+	}
+	baseDir := filepath.Join(t.TempDir(), "safe")
+	basePath := filepath.Join(baseDir, "queue.json")
+	if err := os.MkdirAll(baseDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(basePath, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewStore(0o700, 0o600).ReadJSON(basePath, &queue); err != nil {
+		t.Fatalf("ReadJSON rejected a valid absolute state path: %v", err)
+	}
+}
+
+func TestWriteJSONRejectsTraversalPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "safe") + string(os.PathSeparator) + ".." + string(os.PathSeparator) + "escape.json"
+	if err := WriteJSON(path, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1"}}}); err == nil {
+		t.Fatalf("WriteJSON accepted traversal path %q", path)
+	}
+	basePath := filepath.Join(t.TempDir(), "safe", "value.json")
+	if err := WriteJSON(basePath, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1"}}}); err != nil {
+		t.Fatalf("WriteJSON rejected a valid absolute state path: %v", err)
+	}
+}
+
 func TestWriteJSONCreatesParentAndReadableDocument(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "value.json")
 	if err := WriteJSON(path, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1"}}}); err != nil {

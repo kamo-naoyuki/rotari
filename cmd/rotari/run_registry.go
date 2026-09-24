@@ -198,5 +198,5 @@ func runLocationPath(dir, runID string) (string, error) {
 	if !state.IsValidPathElement(runID) {
 		return "", fmt.Errorf("invalid run id %q", runID)
 	}
-	return filepath.Join(dir, runID+".json"), nil
+	return state.SafeJoin(dir, runID+".json")
 }
