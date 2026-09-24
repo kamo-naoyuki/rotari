@@ -253,8 +253,8 @@ Start the local web status UI separately from the job runner:
 rotari web
 ```
 
-Use `--allow-control=false` for a read-only UI that serves state, logs, and
-CLI/env docs and returns `403 Forbidden` for control APIs. For non-loopback
+Use `--allow-control=false` for a read-only UI that serves state, logs, the
+recent-jobs page, and CLI/env docs and returns `403 Forbidden` for control APIs. For non-loopback
 listeners, set `ROTARI_WEB_AUTH_TOKEN` (preferred) or pass `--auth-token TOKEN`;
 API requests use `Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`, and
 the browser UI uses Basic auth with username `rotari` and the token as password.
@@ -269,6 +269,11 @@ at the selected location after confirmation. On those non-run pages, `View
 config` also permits saving edits to the resolved config. Historical run pages
 only display their recorded config copies; generation and editing are
 unavailable there and in read-only Web mode.
+
+The `Job activity` link lists running jobs and jobs that finished during the preceding
+24 hours, matching the default scope of `rotari jobs`. Enter a Go duration such
+as `6h` or `168h` in `Since` to change the completed-job window. Select a job
+name to open its run page.
 
 Saving validates JSON, TOML, or YAML according to the existing config file's
 extension. Invalid content is rejected without changing the file.

@@ -1,6 +1,25 @@
 package web
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
+
+func TestTimelinePointUsesBrowserJSONKeys(t *testing.T) {
+	data, err := json.Marshal(TimelinePoint{At: "start", Pending: 1, Running: 2, Finished: 3, Success: 4, Failed: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var point map[string]any
+	if err := json.Unmarshal(data, &point); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"at", "pending", "running", "finished", "success", "failed"} {
+		if _, ok := point[key]; !ok {
+			t.Fatalf("JSON point does not contain %q: %s", key, data)
+		}
+	}
+}
 
 func TestBuildTimelineCountsCarriedJobsAtStart(t *testing.T) {
 	points := BuildTimeline("start", []JobTimelineInput{

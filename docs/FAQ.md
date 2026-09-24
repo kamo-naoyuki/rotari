@@ -232,6 +232,13 @@ No. The Web UI is a separate process and closing it does not affect runs.
 
 No. The Web UI controls existing runs and edits queues; execution starts through `rotari run`.
 
+### What does the Job activity link show?
+
+It lists running jobs and jobs that finished during the preceding 24 hours,
+using the same default scope as `rotari jobs`. Select a job name to open its
+run page. Enter a Go duration such as `6h` or `168h` in `Since` to change the
+completed-job window.
+
 ### What do Create and Append do on a run page?
 
 `Create` replaces the queue with selected jobs; `Append` adds them to the current queue. A separate runner executes the queue.

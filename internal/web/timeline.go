@@ -11,12 +11,12 @@ type JobTimelineInput struct {
 }
 
 type TimelinePoint struct {
-	At       string
-	Pending  int
-	Running  int
-	Finished int
-	Success  int
-	Failed   int
+	At       string `json:"at"`
+	Pending  int    `json:"pending"`
+	Running  int    `json:"running"`
+	Finished int    `json:"finished"`
+	Success  int    `json:"success"`
+	Failed   int    `json:"failed"`
 }
 
 func BuildTimeline(startedAt string, jobs []JobTimelineInput) []TimelinePoint {

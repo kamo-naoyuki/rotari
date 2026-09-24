@@ -269,6 +269,18 @@ func TestWebRunPageCopiesConfigPathsAndRunID(t *testing.T) {
 	}
 }
 
+func TestWebProjectAndOverviewPagesCopyConfigPaths(t *testing.T) {
+	html := webHTML()
+	for _, marker := range []string{
+		`setLocation(state.base_dir + " / all projects", state.config_path ? [state.config_path] : [])`,
+		`setLocation(state.base_dir + " / " + q.project_name, q.config_path ? [q.config_path] : [])`,
+	} {
+		if !webContains(html, marker) {
+			t.Fatalf("web page is missing config path copy control setup %q", marker)
+		}
+	}
+}
+
 func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {
 	html := webHTML()
 	for _, marker := range []string{"function rowCell(row,key)", "function copySelectedJobs(queue,run,append)", "function arrangeRunControls()", "function orderJobActions()"} {
@@ -946,6 +958,99 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 	for _, want := range []string{"request.searchParams.getAll(\"job_ids\")", "selectedReports", "join(\"\\n\\n\")"} {
 		if !strings.Contains(string(index), want) {
 			t.Fatalf("static web page does not handle selected report jobs with %q", want)
+		}
+	}
+}
+
+func TestWebJobsPageShowsRecentJobs(t *testing.T) {
+	baseDir := t.TempDir()
+	runID := "20260922-090000-00000001"
+	now := time.Now().UTC()
+	writeTestJobsRun(t, baseDir, "demo", runID, "job-1", now.Add(-time.Minute), now, 0)
+
+	request := httptest.NewRequest(http.MethodGet, "/jobs/", nil)
+	response := httptest.NewRecorder()
+	newWebHandler(baseDir, "", false).ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("GET /jobs/ status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	for _, want := range []string{
+		"rotari Job activity",
+		`name="since" value="24h"`,
+		"job-1",
+		`href="/project/demo"`,
+		`href="/project/demo/run/` + runID + `"`,
+		`title="Copy command"`,
+		`title="Copy attempt ID"`,
+		`data-copy-value="true"`,
+	} {
+		if !strings.Contains(response.Body.String(), want) {
+			t.Fatalf("GET /jobs/ response does not contain %q: %s", want, response.Body.String())
+		}
+	}
+}
+
+func TestWebJobsPageFiltersBySince(t *testing.T) {
+	baseDir := t.TempDir()
+	runID := "20260922-090000-00000001"
+	now := time.Now().UTC()
+	writeTestJobsRun(t, baseDir, "demo", runID, "old-job", now.Add(-2*time.Hour), now.Add(-time.Hour), 0)
+
+	request := httptest.NewRequest(http.MethodGet, "/jobs/?since=30m", nil)
+	response := httptest.NewRecorder()
+	newWebHandler(baseDir, "", false).ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("GET /jobs/?since=30m status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), "old-job") || !strings.Contains(response.Body.String(), `value="30m"`) {
+		t.Fatalf("GET /jobs/?since=30m response = %s", response.Body.String())
+	}
+}
+
+func TestWebJobsPageRejectsInvalidSince(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/jobs/?since=invalid", nil)
+	response := httptest.NewRecorder()
+	newWebHandler(t.TempDir(), "", false).ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("GET /jobs/?since=invalid status = %d, want %d: %s", response.Code, http.StatusBadRequest, response.Body.String())
+	}
+}
+
+func TestJobsHTMLStylesStates(t *testing.T) {
+	html := jobsHTML("/", []jobsRow{{state: "success"}, {state: "failed"}, {state: "running"}}, defaultJobsSinceText, true)
+	for _, want := range []string{
+		`class="jobs-state jobs-state-success"`,
+		`class="jobs-state jobs-state-failed"`,
+		`class="jobs-state jobs-state-running"`,
+		`.jobs-state-success`,
+		`.jobs-state-failed`,
+		`.jobs-state-running`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("jobs HTML does not contain %q", want)
+		}
+	}
+}
+
+func TestGenerateStaticWebIncludesJobsPage(t *testing.T) {
+	baseDir := t.TempDir()
+	runID := "20260922-090000-00000001"
+	now := time.Now().UTC()
+	writeTestJobsRun(t, baseDir, "demo", runID, "job-1", now.Add(-time.Minute), now, 0)
+	outputDir := filepath.Join(t.TempDir(), "web")
+	if err := generateStaticWeb(outputDir, baseDir, ""); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(outputDir, "jobs", "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"rotari Job activity", "job-1", `href="../project/demo/run/` + runID + `"`} {
+		if !strings.Contains(string(data), want) {
+			t.Fatalf("static jobs page does not contain %q: %s", want, string(data))
 		}
 	}
 }

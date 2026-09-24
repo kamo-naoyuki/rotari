@@ -67,9 +67,6 @@ function render() {
   }
   renderQueue(queue);
 }
-function configText(paths) {
-  return paths && paths.length ? "\nConfig: " + esc(paths.join(", ")) : "";
-}
 function setLocation(base, paths) {
   const location = document.getElementById("location");
   location.textContent = base;
@@ -292,10 +289,7 @@ function renderOverview(queues) {
     runs += q.runs.length;
     running += q.runs.filter((r) => r.running).length;
   });
-  document.getElementById("location").textContent =
-    state.base_dir +
-    " / all projects" +
-    configText(state.config_path ? [state.config_path] : []);
+  setLocation(state.base_dir + " / all projects", state.config_path ? [state.config_path] : []);
   document.getElementById("page-title").textContent = "All projects";
   document.getElementById("summary").innerHTML =
     "<span>" +
@@ -348,11 +342,7 @@ function renderOverview(queues) {
     : "No projects found.";
 }
 function renderQueue(q) {
-  document.getElementById("location").textContent =
-    state.base_dir +
-    " / " +
-    q.project_name +
-    configText(q.config_path ? [q.config_path] : []);
+  setLocation(state.base_dir + " / " + q.project_name, q.config_path ? [q.config_path] : []);
   document.getElementById("page-title").textContent = q.project_name;
   document.getElementById("summary").innerHTML =
     "<span>" +

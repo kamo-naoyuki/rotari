@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -247,6 +248,33 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 	})
 	mux.HandleFunc("/docs", func(writer http.ResponseWriter, request *http.Request) {
 		http.Redirect(writer, request, "/docs/", http.StatusMovedPermanently)
+	})
+	mux.HandleFunc("/jobs/", func(writer http.ResponseWriter, request *http.Request) {
+		sinceText := request.URL.Query().Get("since")
+		window, err := parseJobsSince(sinceText)
+		if err != nil {
+			writeWebError(writer, fmt.Errorf("invalid since duration %q", sinceText))
+			return
+		}
+		if sinceText == "" {
+			sinceText = defaultJobsSinceText
+		}
+		projects, err := jobsProjects(baseDir, queueFilter)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		rows, err := collectJobs(baseDir, projects, time.Now(), window)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		sortJobsRows(rows)
+		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
+		_, _ = writer.Write([]byte(jobsHTML("/", rows, sinceText, true)))
+	})
+	mux.HandleFunc("/jobs", func(writer http.ResponseWriter, request *http.Request) {
+		http.Redirect(writer, request, "/jobs/", http.StatusMovedPermanently)
 	})
 	mux.HandleFunc("/environment/", func(writer http.ResponseWriter, request *http.Request) {
 		state, err := loadWebState(baseDir, queueFilter)
@@ -1012,6 +1040,21 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 		return err
 	}
 	if err := writeStaticStylesheet(filepath.Join(outputDir, "docs")); err != nil {
+		return err
+	}
+	projects, err := jobsProjects(baseDir, queueFilter)
+	if err != nil {
+		return err
+	}
+	jobs, err := collectJobs(baseDir, projects, time.Now(), defaultJobsSince)
+	if err != nil {
+		return err
+	}
+	sortJobsRows(jobs)
+	if err := writeStaticWebPage(filepath.Join(outputDir, "jobs", "index.html"), jobsHTML("../", jobs, defaultJobsSinceText, false)); err != nil {
+		return err
+	}
+	if err := writeStaticStylesheet(filepath.Join(outputDir, "jobs")); err != nil {
 		return err
 	}
 	if err := writeStaticWebPage(filepath.Join(outputDir, "environment", "index.html"), environmentHTML("../", state.Environments)); err != nil {

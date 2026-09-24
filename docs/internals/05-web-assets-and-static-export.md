@@ -33,6 +33,7 @@ cmd/rotari/assets/
 ├── web_static_bootstrap.js
 ├── cli_docs_template.html
 ├── environment_template.html
+├── jobs_template.html
 ├── web_info_styles.css
 ├── favicon-dark.svg
 └── favicon-light.svg
@@ -60,6 +61,13 @@ The static export bootstrap is kept separately in `web_static_bootstrap.js`
 because it provides the static fetch and routing adapters used only by
 generated pages. It is formatted as ordinary JavaScript, then receives the
 generated state, logs, and reports during export.
+
+`/jobs/` is server-rendered from the same `collectJobs` path as `rotari jobs`:
+it includes running jobs and jobs completed within the preceding 24 hours by
+default. The dynamic page accepts `?since=DURATION`, validated by the shared
+`parseJobsSince` helper. Its static equivalent is `jobs/index.html` and remains
+fixed at the default window; preserve that page whenever changing the Web export
+layout.
 
 ## Web server and control-plane security
 

@@ -15,19 +15,24 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-const defaultJobsSince = 24 * time.Hour
+const (
+	defaultJobsSince     = 24 * time.Hour
+	defaultJobsSinceText = "24h"
+)
 const defaultJobsFormat = "%s %p %a %n %c %f %e"
 
 type jobsRow struct {
-	state      string
-	baseDir    string
-	project    string
-	attemptID  string
-	jobName    string
-	command    string
-	startedAt  time.Time
-	finishedAt time.Time
-	elapsed    time.Duration
+	state       string
+	baseDir     string
+	project     string
+	runID       string
+	attemptID   string
+	jobName     string
+	command     string
+	fullCommand string
+	startedAt   time.Time
+	finishedAt  time.Time
+	elapsed     time.Duration
 }
 
 type jobsColumn struct {
@@ -50,7 +55,7 @@ func cmdJobs(args []string) int {
 	masterdir := cliString(fs, "masterdir", "")
 	allBaseDirs := cliBool(fs, "all", false)
 	format := cliString(fs, "format", defaultJobsFormat)
-	since := cliString(fs, "since", defaultJobsSince.String())
+	since := cliString(fs, "since", defaultJobsSinceText)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -63,8 +68,8 @@ func cmdJobs(args []string) int {
 		printErrorf("invalid --format: %v", err)
 		return 1
 	}
-	window, err := time.ParseDuration(*since)
-	if err != nil || window < 0 {
+	window, err := parseJobsSince(*since)
+	if err != nil {
 		printErrorf("invalid --since duration %q", *since)
 		return 1
 	}
@@ -82,12 +87,21 @@ func cmdJobs(args []string) int {
 		fmt.Println("No running or recently finished jobs found.")
 		return 0
 	}
-	sort.SliceStable(rows, func(left, right int) bool {
-		return jobsRowSortTime(rows[left]).After(jobsRowSortTime(rows[right]))
-	})
+	sortJobsRows(rows)
 
 	printJobsTableFormat(rows, columns)
 	return 0
+}
+
+func parseJobsSince(value string) (time.Duration, error) {
+	if value == "" {
+		return defaultJobsSince, nil
+	}
+	window, err := time.ParseDuration(value)
+	if err != nil || window < 0 {
+		return 0, fmt.Errorf("invalid duration")
+	}
+	return window, nil
 }
 
 func jobsRowSortTime(row jobsRow) time.Time {
@@ -95,6 +109,12 @@ func jobsRowSortTime(row jobsRow) time.Time {
 		return row.finishedAt
 	}
 	return row.startedAt
+}
+
+func sortJobsRows(rows []jobsRow) {
+	sort.SliceStable(rows, func(left, right int) bool {
+		return jobsRowSortTime(rows[left]).After(jobsRowSortTime(rows[right]))
+	})
 }
 
 func printJobsTable(rows []jobsRow, showBaseDir bool) {
@@ -408,12 +428,13 @@ func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsR
 		if jobName == "" {
 			jobName = "-"
 		}
-		command := shortenJobsText(strings.Join(job.Command, " "), 40)
+		fullCommand := strings.Join(job.Command, " ")
+		command := shortenJobsText(fullCommand, 40)
 		end := now
 		if jobState != "running" {
 			end = finishedAt
 		}
-		rows = append(rows, jobsRow{state: jobState, baseDir: paths.BaseDir, project: paths.ProjectName, attemptID: attemptID, jobName: jobName, command: command, startedAt: startedAt, finishedAt: finishedAt, elapsed: end.Sub(startedAt)})
+		rows = append(rows, jobsRow{state: jobState, baseDir: paths.BaseDir, project: paths.ProjectName, runID: runID, attemptID: attemptID, jobName: jobName, command: command, fullCommand: fullCommand, startedAt: startedAt, finishedAt: finishedAt, elapsed: end.Sub(startedAt)})
 	}
 	return rows, true, false, nil
 }
