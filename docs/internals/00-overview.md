@@ -124,6 +124,26 @@ cmd/rotari
   └── internal/run       # run planning, worker lifecycle, lanes, orchestration
 ```
 
+The three packages that most often look similar are split by responsibility:
+
+- `internal/model` owns Rotari's domain data and pure domain rules. It defines
+  what a queue, queued command, job, run summary, job result, selection, and
+  array job mean without knowing where they are stored or how they are run.
+- `internal/state` owns the filesystem boundary. It turns model values into
+  durable JSON files, validates path elements, lists run and attempt
+  directories, and manages locks and persistence details. It should not decide
+  execution policy.
+- `internal/run` owns run orchestration. It uses model values and caller-provided
+  state to decide what should execute, what can be carried forward, how
+  dependencies unblock work, when retries happen, and how workers and lanes
+  advance a run.
+
+A useful placement test is: if the code can be explained without mentioning
+paths, files, locks, or directories, it probably does not belong in
+`internal/state`; if it decides the next execution step for a run, it belongs in
+`internal/run`; if it only defines or validates Rotari concepts, it belongs in
+`internal/model`.
+
 `cmd/rotari` remains the CLI, server, Web, and filesystem adapter layer. It
 parses flags, resolves concrete state paths, connects callbacks, and formats
 user-facing output. The internal packages must not import `cmd/rotari`; shared
