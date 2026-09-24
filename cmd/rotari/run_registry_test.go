@@ -166,4 +166,3 @@ func TestResolveJobSelectionTargetRejectsMixedRuns(t *testing.T) {
 		t.Fatalf("resolveJobSelectionTarget() error = %v, want mixed-run error", err)
 	}
 }
-

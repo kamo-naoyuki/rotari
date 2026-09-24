@@ -289,7 +289,10 @@ function renderOverview(queues) {
     runs += q.runs.length;
     running += q.runs.filter((r) => r.running).length;
   });
-  setLocation(state.base_dir + " / all projects", state.config_path ? [state.config_path] : []);
+  setLocation(
+    state.base_dir + " / all projects",
+    state.config_path ? [state.config_path] : [],
+  );
   document.getElementById("page-title").textContent = "All projects";
   document.getElementById("summary").innerHTML =
     "<span>" +
@@ -342,7 +345,10 @@ function renderOverview(queues) {
     : "No projects found.";
 }
 function renderQueue(q) {
-  setLocation(state.base_dir + " / " + q.project_name, q.config_path ? [q.config_path] : []);
+  setLocation(
+    state.base_dir + " / " + q.project_name,
+    q.config_path ? [q.config_path] : [],
+  );
   document.getElementById("page-title").textContent = q.project_name;
   document.getElementById("summary").innerHTML =
     "<span>" +

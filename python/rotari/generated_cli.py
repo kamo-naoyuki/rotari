@@ -61,6 +61,11 @@ CLI_SCHEMA: dict[str, Any] = {
                     "description": "check local executables and working " "directories",
                     "name": "deep",
                 },
+                {
+                    "description": "suppress success output",
+                    "environment": "ROTARI_QUIET",
+                    "name": "quiet",
+                },
             ],
             "name": "check",
         },
@@ -86,6 +91,11 @@ CLI_SCHEMA: dict[str, Any] = {
                     "without prompting",
                     "environment": "ROTARI_RESET_RECOVER",
                     "name": "recover",
+                },
+                {
+                    "description": "suppress success output",
+                    "environment": "ROTARI_QUIET",
+                    "name": "quiet",
                 },
             ],
             "name": "reset",
@@ -117,6 +127,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 {"description": "wait until cancellation is complete", "name": "wait"},
             ],
             "name": "cancel",
+            "positional": "[JOB_ID|ATTEMPT_ID|RUN_ID ...]",
         },
         {
             "description": "suspend running jobs",
@@ -145,6 +156,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
             ],
             "name": "suspend",
+            "positional": "[JOB_ID|ATTEMPT_ID|RUN_ID ...]",
         },
         {
             "description": "resume suspended jobs",
@@ -173,6 +185,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
             ],
             "name": "resume",
+            "positional": "[JOB_ID|ATTEMPT_ID|RUN_ID ...]",
         },
         {
             "description": "delete saved run history",
@@ -327,6 +340,11 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {"description": "clear prerequisites", "name": "clear-depends-on"},
+                {
+                    "description": "suppress success output",
+                    "environment": "ROTARI_QUIET",
+                    "name": "quiet",
+                },
             ],
             "name": "change",
             "positional": "<command ...>",
@@ -368,6 +386,11 @@ CLI_SCHEMA: dict[str, Any] = {
                     "environment": "ROTARI_JOB_NAME",
                     "name": "job-name",
                     "value_name": "NAME",
+                },
+                {
+                    "description": "suppress success output",
+                    "environment": "ROTARI_QUIET",
+                    "name": "quiet",
                 },
             ],
             "name": "remove",
@@ -485,8 +508,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "FORMAT",
                 },
                 {
-                    "description": "include jobs finished within this duration "
-                    "(running jobs are always included)",
+                    "description": "include jobs finished within this duration; "
+                    "use 0 for running jobs only",
                     "name": "since",
                     "value_name": "DURATION",
                 },
@@ -674,6 +697,11 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "array",
                     "value_name": "FIRST-LAST|TASK[,TASK...]",
                 },
+                {
+                    "description": "suppress success output",
+                    "environment": "ROTARI_QUIET",
+                    "name": "quiet",
+                },
             ],
             "name": "add",
             "positional": "<command ...>",
@@ -733,6 +761,11 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {"description": "append to a non-empty queue", "name": "append"},
                 {"description": "replace a non-empty queue", "name": "overwrite"},
+                {
+                    "description": "suppress success output",
+                    "environment": "ROTARI_QUIET",
+                    "name": "quiet",
+                },
             ],
             "name": "copy",
             "positional": "[RUN_ID]",
@@ -835,6 +868,11 @@ CLI_SCHEMA: dict[str, Any] = {
                     "description": "return after starting the run",
                     "environment": "ROTARI_RUN_ASYNC",
                     "name": "async",
+                },
+                {
+                    "description": "suppress progress and completion output",
+                    "environment": "ROTARI_QUIET",
+                    "name": "quiet",
                 },
                 {
                     "description": "execution executor override",
@@ -975,6 +1013,11 @@ CLI_SCHEMA: dict[str, Any] = {
                     "description": "return after starting the run",
                     "environment": "ROTARI_RUN_ASYNC",
                     "name": "async",
+                },
+                {
+                    "description": "suppress progress and completion output",
+                    "environment": "ROTARI_QUIET",
+                    "name": "quiet",
                 },
                 {
                     "description": "execution executor override",
@@ -1121,6 +1164,13 @@ CLI_SCHEMA: dict[str, Any] = {
                     "environment": "ROTARI_WEB_AUTH_TOKEN",
                     "name": "auth-token",
                     "value_name": "TOKEN",
+                },
+                {
+                    "description": "default state of the browser "
+                    "desktop-notification toggle; pass "
+                    "--notifications=false to default it off",
+                    "environment": "ROTARI_WEB_NOTIFICATIONS",
+                    "name": "notifications",
                 },
             ],
             "name": "web",
