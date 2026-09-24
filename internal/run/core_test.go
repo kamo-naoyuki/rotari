@@ -214,6 +214,7 @@ func TestRunAttemptRunsLocalBatchArrayAndUnsupportedJobs(t *testing.T) {
 	local := &testExecutor{name: "local"}
 	batch := &testExecutor{name: "slurm", array: true}
 	started := make(map[string]bool)
+	var startedMu sync.Mutex
 	jobs := []model.JobSpec{
 		{ID: "local-1", Executor: "local", Command: []string{"true"}},
 		{ID: "batch-1", Executor: "slurm", Command: []string{"run"}},
@@ -234,7 +235,11 @@ func TestRunAttemptRunsLocalBatchArrayAndUnsupportedJobs(t *testing.T) {
 			}
 		},
 		Callbacks: BatchLaneCallbacks{ValidatedJobDir: func(string, string) (string, error) { return "/job", nil }, JobCancelled: func(string) bool { return false }},
-	}, func(job model.JobSpec) { started[job.ID] = true })
+	}, func(job model.JobSpec) {
+		startedMu.Lock()
+		started[job.ID] = true
+		startedMu.Unlock()
+	})
 	byID := make(map[string]model.JobResult)
 	for _, result := range results {
 		byID[result.ID] = result
@@ -242,7 +247,13 @@ func TestRunAttemptRunsLocalBatchArrayAndUnsupportedJobs(t *testing.T) {
 	if len(byID) != len(jobs) || byID["local-1"].ExitCode != 0 || byID["array-2"].ExitCode != 0 || byID["unknown"].Error != "unsupported executor: pbs" {
 		t.Fatalf("results = %#v", byID)
 	}
-	if !started["local-1"] || !started["batch-1"] || !started["array-1"] || !started["array-2"] {
+	startedMu.Lock()
+	localStarted := started["local-1"]
+	batchStarted := started["batch-1"]
+	arrayOneStarted := started["array-1"]
+	arrayTwoStarted := started["array-2"]
+	startedMu.Unlock()
+	if !localStarted || !batchStarted || !arrayOneStarted || !arrayTwoStarted {
 		t.Fatalf("started = %#v", started)
 	}
 	if len(batch.options) != 2 || len(batch.options[0]) != 1 || batch.options[0][0] != "--batch" || len(batch.options[1]) != 1 || batch.options[1][0] != "--batch" {
