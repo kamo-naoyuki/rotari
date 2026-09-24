@@ -15,8 +15,6 @@ build:
 requirements:
   build:
     - go >=1.22
-  host:
-    - python {{ python_min }}
   run:
     - python >={{ python_min }}
 

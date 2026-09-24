@@ -187,4 +187,4 @@ jobs:
           ANACONDA_USER: ${{ github.repository_owner }}
         run: |
           test -n "$ANACONDA_API_TOKEN" || { echo "ANACONDA_API_TOKEN is not configured" >&2; exit 1; }
-          anaconda -t "$ANACONDA_API_TOKEN" upload --user "$ANACONDA_USER" "dist/${{ matrix.subdir }}"/rotari-*.conda
+          anaconda -t "$ANACONDA_API_TOKEN" upload --force --user "$ANACONDA_USER" "dist/${{ matrix.subdir }}"/rotari-*.conda
