@@ -11,6 +11,18 @@ export, and routing notes live in
 [05-web-assets-and-static-export.md](05-web-assets-and-static-export.md). Read
 that file for Web UI changes.
 
+## Terminology
+
+- **Supervisor** means the background process that coordinates runs for one
+  base directory over its Unix socket. Existing source names, package names,
+  files such as `server.go`, and the `rotari server` management command retain
+  the older **server** terminology for now.
+- **Web server** means the HTTP process started by `rotari web` that serves the
+  browser UI and API.
+- In prose and user-facing messages, use **supervisor** or **Web server** when
+  the distinction matters rather than referring to either process only as the
+  server.
+
 ## Technology rationale
 
 - The core implementation uses Go because rotari is primarily a command-line

@@ -15,6 +15,9 @@ func TestComposeWebHTMLAssemblesAssetBoundaries(t *testing.T) {
 	if !strings.Contains(html, "local") || !strings.Contains(html, "slurm") || !strings.Contains(html, "window.__BOOTSTRAP__") {
 		t.Fatalf("composed HTML omitted embedded asset data")
 	}
+	if !strings.Contains(html, "Lost connection to the Rotari Web server.") {
+		t.Fatal("disconnect banner does not identify the Web server")
+	}
 }
 
 func TestComposeStaticBootstrapInjectsData(t *testing.T) {
