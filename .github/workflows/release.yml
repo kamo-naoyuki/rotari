@@ -31,6 +31,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -72,9 +74,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-
-      - name: Set package version from tag
-        run: sed -i "s/^version = .*/version = \"${GITHUB_REF_NAME#v}\"/" python/pyproject.toml
 
       - name: Bundle rotari executable into Python package
         run: |

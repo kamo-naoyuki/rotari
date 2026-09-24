@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "rotari"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Python client for the rotari command-line interface"
 requires-python = ">=3.10"
 readme = "README.md"
@@ -14,6 +14,10 @@ docs = ["Sphinx>=7"]
 
 [project.scripts]
 rotari = "rotari._cli:main"
+
+[tool.setuptools_scm]
+# python/ is a subdirectory of the repository; the git root is one level up.
+root = ".."
 
 [tool.setuptools]
 packages = ["rotari"]
