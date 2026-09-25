@@ -8,9 +8,8 @@ import (
 	"time"
 )
 
-func SocketPath(baseDir string) string { return filepath.Join(baseDir, "server.sock") }
-func LockPath(baseDir string) string   { return filepath.Join(baseDir, "server.lock") }
-func PIDPath(baseDir string) string    { return filepath.Join(baseDir, "server.pid") }
+func LockPath(baseDir string) string { return filepath.Join(baseDir, "server.lock") }
+func PIDPath(baseDir string) string  { return filepath.Join(baseDir, "server.pid") }
 
 type Logger struct {
 	Path     string

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -144,8 +145,13 @@ func runServer(baseDir string) int {
 		printErrorf("failed to create state directory: %v", err)
 		return 1
 	}
+	logger := newServerLogger(baseDir)
 	listener, release, err := serverinternal.Listen(baseDir, state.FileMode())
 	if err != nil {
+		// A detached server's stderr is discarded, so record why it stopped.
+		if !errors.Is(err, serverinternal.ErrAlreadyRunning) {
+			logger.Writef("start failed: %v", err)
+		}
 		printError(err)
 		return 1
 	}
@@ -165,7 +171,6 @@ func runServer(baseDir string) int {
 	}
 	defer unregisterServer(masterDir, baseDir)
 
-	logger := newServerLogger(baseDir)
 	server := serverinternal.New(listener, serverOperations{baseDir: baseDir}, logger)
 	logger.Writef("started pid=%d", os.Getpid())
 	defer logger.Writef("stopped")

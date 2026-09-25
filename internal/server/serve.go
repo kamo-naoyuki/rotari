@@ -75,11 +75,15 @@ func Listen(baseDir string, fileMode os.FileMode) (net.Listener, func(), error) 
 		return nil, nil, ErrAlreadyRunning
 	}
 	socketPath := SocketPath(baseDir)
+	if err := prepareSocketDir(socketPath); err != nil {
+		_ = lease.Close()
+		return nil, nil, err
+	}
 	_ = os.Remove(socketPath)
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		_ = lease.Close()
-		return nil, nil, fmt.Errorf("failed to listen on server socket: %w", err)
+		return nil, nil, fmt.Errorf("failed to listen on server socket %s: %w", socketPath, err)
 	}
 	release := func() {
 		_ = listener.Close()

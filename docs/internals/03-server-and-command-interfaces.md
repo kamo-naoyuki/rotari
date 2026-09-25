@@ -28,6 +28,19 @@ Representative implementation and tests:
 
 - The server supervises one base directory and may stop when idle, so durable
   behavior belongs in files, not memory.
+- `SocketPath` in [internal/server/socket.go](../../internal/server/socket.go)
+  uses `<basedir>/server.sock` when it fits in 103 bytes (the smallest
+  `sun_path` limit, on macOS and BSD). Longer paths use
+  `/tmp/rotari-<uid>/<sha256 prefix of the resolved basedir>.sock`, a fixed
+  root rather than `$TMPDIR` so every client of a basedir computes the same
+  path, and symlinks are resolved so aliases share one server. `Listen` creates
+  that directory `0700` and refuses one that is not a real directory owned by
+  the current user with no group or other access. Covered by
+  [internal/server/socket_test.go](../../internal/server/socket_test.go).
+- A detached server discards stderr, so `runServer` writes a `start failed`
+  event to `server.log` when `Listen` fails for any reason other than another
+  server holding the lease, and `Ensure` names that log when the server does
+  not become ready.
 - The background server writes lifecycle, request, and error events to
   `<basedir>/server.log`. Before an event would make the regular file exceed
   1 MiB, it is truncated and the new event is written.

@@ -63,7 +63,7 @@ The normal state layout is:
 <basedir>/
 ├── server.log
 ├── server.lock
-├── server.sock          # while the background server is running
+├── server.sock          # while the server runs; /tmp/rotari-<uid>/<hash>.sock if too long
 ├── server.pid           # while the background server is running
 └── projects/<project>/
     ├── queue.json

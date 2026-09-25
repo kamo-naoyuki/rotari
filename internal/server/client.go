@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 	"time"
 )
@@ -125,5 +126,5 @@ func Ensure(baseDir string, command []string) error {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	return fmt.Errorf("server did not become ready (pid=%d)", child.Process.Pid)
+	return fmt.Errorf("server did not become ready (pid=%d); see %s for the cause", child.Process.Pid, filepath.Join(baseDir, "server.log"))
 }

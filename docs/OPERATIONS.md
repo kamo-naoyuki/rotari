@@ -111,7 +111,11 @@ provides HTTP authentication, not encryption.
 - **Server socket:** `<basedir>/server.sock` accepts job submission and control
   requests, so reaching it means controlling that server. It is always created
   `0600` regardless of `ROTARI_PRIVATE_STATE`, and on Linux the server also
-  rejects connections from a different UID.
+  rejects connections from a different UID. Unix socket paths are limited to
+  about 100 bytes, so when that path would be longer, rotari uses
+  `/tmp/rotari-<uid>/<hash>.sock` instead, derived from the resolved basedir.
+  The directory must be owned by you with mode `0700`; otherwise the server
+  refuses to start and records the reason in `<basedir>/server.log`.
 - **Web UI:** without `ROTARI_WEB_AUTH_TOKEN` or `--auth-token`, bind it to
   `127.0.0.1`; with a token, use only a trusted network or HTTPS proxy. Prefer
   the environment variable so the token does not appear in the process list.

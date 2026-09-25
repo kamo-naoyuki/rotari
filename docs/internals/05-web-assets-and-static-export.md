@@ -81,7 +81,7 @@ layout.
   authentication with username `rotari` and the token as the password; this is
   authentication only and does not encrypt HTTP traffic.
 - `loadWebState` exposes persisted runtime metadata: `running.lock` fields and
-  the presence of `server.sock`/`server.pid`. The panel does not query process
+  the presence of the server socket (`SocketPath`) and `server.pid`. The panel does not query process
   liveness or infer that `state.lock` is held from the file's existence.
 - The Unix-socket control surface is separate from `ROTARI_PRIVATE_STATE`:
   reaching it means controlling the server, not merely reading state.
