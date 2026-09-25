@@ -246,7 +246,7 @@ func TestConfigListIncludesMixedFormatsAcrossScopes(t *testing.T) {
 		t.Fatalf("cmdConfig exit code = %d", code)
 	}
 	stdout := string(data)
-	if strings.Contains(stdout, "Common:\n") || strings.Contains(stdout, "Projects:\n") || !strings.Contains(stdout, "demo: "+filepath.Join(projectDir, "config.yaml")+"\n") {
+	if !strings.Contains(stdout, "Common:\n") || !strings.Contains(stdout, "Projects:\n") || !strings.Contains(stdout, "  demo:\n    "+filepath.Join(projectDir, "config.yaml")+"\n") {
 		t.Fatalf("config list has unexpected format:\n%s", stdout)
 	}
 	for _, path := range paths {
@@ -290,7 +290,7 @@ func TestConfigListIncludesAllProjectConfigs(t *testing.T) {
 	}
 	stdout := string(data)
 	for project, path := range paths {
-		if !strings.Contains(stdout, project+": "+path+"\n") {
+		if !strings.Contains(stdout, "  "+project+":\n    "+path+"\n") {
 			t.Errorf("config list does not contain %s config %q:\n%s", project, path, stdout)
 		}
 	}
@@ -329,7 +329,7 @@ func TestConfigListLimitsProjectsToProjectName(t *testing.T) {
 		t.Fatalf("cmdConfig exit code = %d", code)
 	}
 	stdout := string(data)
-	if !strings.Contains(stdout, "alpha: "+paths["alpha"]+"\n") {
+	if !strings.Contains(stdout, "Projects:\n  alpha:\n    "+paths["alpha"]+"\n") {
 		t.Errorf("config list does not contain alpha config %q:\n%s", paths["alpha"], stdout)
 	}
 	if strings.Contains(stdout, paths["beta"]) {

@@ -463,18 +463,23 @@ func cmdConfig(args []string) int {
 			return 1
 		}
 		common, projects := configListPaths(resolvedBaseDir, *projectName)
-		for _, path := range common {
-			fmt.Println(path)
+		if len(common) > 0 {
+			fmt.Println("Common:")
+			for _, path := range common {
+				fmt.Printf("  %s\n", path)
+			}
 		}
 		if len(projects) > 0 {
+			fmt.Println("Projects:")
 			projectNames := make([]string, 0, len(projects))
 			for projectName := range projects {
 				projectNames = append(projectNames, projectName)
 			}
 			sort.Strings(projectNames)
 			for _, projectName := range projectNames {
+				fmt.Printf("  %s:\n", projectName)
 				for _, path := range projects[projectName] {
-					fmt.Printf("%s: %s\n", projectName, path)
+					fmt.Printf("    %s\n", path)
 				}
 			}
 		}

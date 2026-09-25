@@ -920,11 +920,15 @@ there.
 rotari config
 ```
 
-Use `rotari config --list` to list the existing config files found in the
-global, basedir, and project locations.
+Use `rotari config --list` to list every existing config file found in the
+global and basedir locations plus every project below the basedir. It groups
+common files under `Common:` and project-specific files under `Projects:`, with
+each project name followed by indented paths. This is an inventory, not the
+single config selected by priority. Supplying `--project-name` limits the
+project-specific entries to that project.
 
 ```sh
-rotari config --list --basedir DIR --project-name NAME
+rotari config --list --basedir DIR
 ```
 
 The resolution order is:

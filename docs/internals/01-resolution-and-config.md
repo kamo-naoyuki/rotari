@@ -107,10 +107,10 @@ Without a run-location lookup, base directories resolve in this order:
   options. YAML and JSON use `null` for unset values; TOML uses comments because
   it has no null value. Null values are ignored during resolution.
 - `rotari config --list` is an inventory rather than a resolution operation. It
-  prints every supported config found in the global and basedir scopes, then
-  scans every `projects/<project>/` directory and prints each project file as
-  `PROJECT: PATH`. An explicit `--project-name` limits only project-specific
-  entries to that project.
+  lists every supported config found in the global and basedir scopes under
+  `Common:`, then scans every `projects/<project>/` directory and lists paths
+  beneath each project name under `Projects:`. An explicit `--project-name`
+  limits only project-specific entries to that project.
 - Without `--output`, `rotari config` offers home, basedir, existing project
   config paths, stdout, and an arbitrary path interactively; an explicit
   `--output` is non-interactive.
