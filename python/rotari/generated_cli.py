@@ -88,7 +88,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "confirm an interrupted run has stopped without prompting",
+                    "description": "confirm an interrupted run has stopped "
+                    "without prompting",
                     "environment": "ROTARI_RESET_RECOVER",
                     "name": "recover",
                 },
@@ -352,7 +353,8 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "<command ...>",
         },
         {
-            "description": "export the current queue or saved runs as a workflow manifest",
+            "description": "export the current queue or saved runs as a workflow "
+            "manifest",
             "flags": [
                 {
                     "description": "state directory",
@@ -537,7 +539,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "no-pager",
                 },
                 {
-                    "description": "list state directories known to the master registry",
+                    "description": "list state directories known to the master "
+                    "registry",
                     "name": "basedirs",
                 },
                 {
@@ -577,13 +580,15 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "all",
                 },
                 {
-                    "description": "output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time)",
+                    "description": "output fields; use %s %b %p %a %n %c %t %f "
+                    "%e (%f is finished time)",
                     "name": "format",
                     "short": "o",
                     "value_name": "FORMAT",
                 },
                 {
-                    "description": "include jobs finished within this duration; use 0 for running jobs only",
+                    "description": "include jobs finished within this duration; "
+                    "use 0 for running jobs only",
                     "name": "since",
                     "value_name": "DURATION",
                 },
@@ -623,11 +628,13 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "ID",
                 },
                 {
-                    "description": "use local rule-based diagnosis without calling an LLM",
+                    "description": "use local rule-based diagnosis without "
+                    "calling an LLM",
                     "name": "rules",
                 },
                 {
-                    "description": "LLM provider: openai, openai-chat, anthropic, gemini, or cohere",
+                    "description": "LLM provider: openai, openai-chat, "
+                    "anthropic, gemini, or cohere",
                     "environment": "ROTARI_LLM_PROVIDER",
                     "name": "provider",
                     "value_name": "PROVIDER",
@@ -662,7 +669,8 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "JOB_ID",
         },
         {
-            "description": "wait for an asynchronous run by project, run name, or run ID",
+            "description": "wait for an asynchronous run by project, run name, or "
+            "run ID",
             "flags": [
                 {
                     "description": "state directory",
@@ -726,7 +734,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "values": ["local", "lsf", "pbs", "slurm", "ssh"],
                 },
                 {
-                    "description": "option passed to the selected scheduler (sbatch/qsub/...); may be repeated",
+                    "description": "option passed to the selected scheduler "
+                    "(sbatch/qsub/...); may be repeated",
                     "environment": "ROTARI_EXECUTOR_OPTIONS",
                     "name": "executor-option",
                     "repeated": True,
@@ -755,7 +764,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "name of a prerequisite job or stage; may be repeated",
+                    "description": "name of a prerequisite job or stage; may be "
+                    "repeated",
                     "name": "depends-on",
                     "repeated": True,
                     "value_name": "NAME",
@@ -767,7 +777,9 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "FIRST-LAST|TASK[,TASK...]",
                 },
                 {
-                    "description": "expand a command into jobs from KEY=VALUE[,VALUE...] dimensions; may be repeated",
+                    "description": "expand a command into jobs from "
+                    "KEY=VALUE[,VALUE...] dimensions; may be "
+                    "repeated",
                     "name": "matrix",
                     "repeated": True,
                     "value_name": "KEY=VALUE[,VALUE...]",
@@ -806,15 +818,18 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "ID",
                 },
                 {
-                    "description": "include failed jobs; may be combined with result filters",
+                    "description": "include failed jobs; may be combined with "
+                    "result filters",
                     "name": "failed",
                 },
                 {
-                    "description": "include unfinished jobs; may be combined with result filters",
+                    "description": "include unfinished jobs; may be combined "
+                    "with result filters",
                     "name": "unfinished",
                 },
                 {
-                    "description": "include successful jobs; may be combined with result filters",
+                    "description": "include successful jobs; may be combined "
+                    "with result filters",
                     "name": "success",
                 },
                 {
@@ -843,7 +858,8 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "[RUN_ID]",
         },
         {
-            "description": "execute queued commands, optionally selecting jobs from a run",
+            "description": "execute queued commands, optionally selecting jobs from "
+            "a run",
             "flags": [
                 {
                     "description": "state directory",
@@ -869,7 +885,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "ID",
                 },
                 {
-                    "description": "replace a non-empty queue without prompting; requires --run-id",
+                    "description": "replace a non-empty queue without prompting; "
+                    "requires --run-id",
                     "name": "overwrite",
                 },
                 {
@@ -891,25 +908,30 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "N",
                 },
                 {
-                    "description": "retry failed jobs up to N times; explicit cancellations are not retried",
+                    "description": "retry failed jobs up to N times; explicit "
+                    "cancellations are not retried",
                     "environment": "ROTARI_RUN_RETRY",
                     "name": "retry",
                     "value_name": "N",
                 },
                 {
-                    "description": "only execute failed jobs; others carry forward their previous result",
+                    "description": "only execute failed jobs; others carry "
+                    "forward their previous result",
                     "name": "failed",
                 },
                 {
-                    "description": "only execute unfinished jobs; others carry forward their previous result",
+                    "description": "only execute unfinished jobs; others carry "
+                    "forward their previous result",
                     "name": "unfinished",
                 },
                 {
-                    "description": "only execute successful jobs; others carry forward their previous result",
+                    "description": "only execute successful jobs; others carry "
+                    "forward their previous result",
                     "name": "success",
                 },
                 {
-                    "description": "only execute this job; may be repeated; others carry forward their previous result",
+                    "description": "only execute this job; may be repeated; "
+                    "others carry forward their previous result",
                     "environment": "ROTARI_JOB_ID",
                     "name": "job-id",
                     "repeated": True,
@@ -948,7 +970,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "values": ["local", "lsf", "pbs", "slurm", "ssh"],
                 },
                 {
-                    "description": "option passed to the selected scheduler (sbatch/qsub/...); may be repeated",
+                    "description": "option passed to the selected scheduler "
+                    "(sbatch/qsub/...); may be repeated",
                     "environment": "ROTARI_EXECUTOR_OPTIONS",
                     "name": "executor-option",
                     "repeated": True,
@@ -987,7 +1010,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "DURATION",
                 },
                 {
-                    "description": "maximum retries for transient Slurm submission failures",
+                    "description": "maximum retries for transient Slurm "
+                    "submission failures",
                     "environment": "ROTARI_RUN_SLURM_SUBMIT_RETRY_LIMIT",
                     "name": "slurm-submit-retry-limit",
                     "value_name": "N",
@@ -1012,7 +1036,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "DURATION",
                 },
                 {
-                    "description": "maximum retries for transient PBS submission failures",
+                    "description": "maximum retries for transient PBS submission "
+                    "failures",
                     "environment": "ROTARI_RUN_PBS_SUBMIT_RETRY_LIMIT",
                     "name": "pbs-submit-retry-limit",
                     "value_name": "N",
@@ -1037,7 +1062,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "DURATION",
                 },
                 {
-                    "description": "maximum retries for transient LSF submission failures",
+                    "description": "maximum retries for transient LSF submission "
+                    "failures",
                     "environment": "ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT",
                     "name": "lsf-submit-retry-limit",
                     "value_name": "N",
@@ -1063,14 +1089,16 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "repopulate the queue from this run before executing; defaults to the latest run",
+                    "description": "repopulate the queue from this run before "
+                    "executing; defaults to the latest run",
                     "environment": "ROTARI_RUN_ID",
                     "name": "run-id",
                     "short": "r",
                     "value_name": "ID",
                 },
                 {
-                    "description": "replace a non-empty queue without prompting; requires --run-id",
+                    "description": "replace a non-empty queue without prompting; "
+                    "requires --run-id",
                     "name": "overwrite",
                 },
                 {
@@ -1092,7 +1120,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "N",
                 },
                 {
-                    "description": "retry failed jobs up to N times; explicit cancellations are not retried",
+                    "description": "retry failed jobs up to N times; explicit "
+                    "cancellations are not retried",
                     "environment": "ROTARI_RUN_RETRY",
                     "name": "retry",
                     "value_name": "N",
@@ -1124,7 +1153,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "values": ["local", "lsf", "pbs", "slurm", "ssh"],
                 },
                 {
-                    "description": "option passed to the selected scheduler (sbatch/qsub/...); may be repeated",
+                    "description": "option passed to the selected scheduler "
+                    "(sbatch/qsub/...); may be repeated",
                     "environment": "ROTARI_EXECUTOR_OPTIONS",
                     "name": "executor-option",
                     "repeated": True,
@@ -1163,7 +1193,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "DURATION",
                 },
                 {
-                    "description": "maximum retries for transient Slurm submission failures",
+                    "description": "maximum retries for transient Slurm "
+                    "submission failures",
                     "environment": "ROTARI_RUN_SLURM_SUBMIT_RETRY_LIMIT",
                     "name": "slurm-submit-retry-limit",
                     "value_name": "N",
@@ -1188,7 +1219,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "DURATION",
                 },
                 {
-                    "description": "maximum retries for transient PBS submission failures",
+                    "description": "maximum retries for transient PBS submission "
+                    "failures",
                     "environment": "ROTARI_RUN_PBS_SUBMIT_RETRY_LIMIT",
                     "name": "pbs-submit-retry-limit",
                     "value_name": "N",
@@ -1213,7 +1245,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "DURATION",
                 },
                 {
-                    "description": "maximum retries for transient LSF submission failures",
+                    "description": "maximum retries for transient LSF submission "
+                    "failures",
                     "environment": "ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT",
                     "name": "lsf-submit-retry-limit",
                     "value_name": "N",
