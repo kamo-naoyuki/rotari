@@ -1639,6 +1639,13 @@ func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID str
 	runDir := filepath.Join(paths.RunsDir, runID)
 	if info, err := os.Stat(jobDir); err != nil || !info.IsDir() {
 		if origin := loadRunOrigin(runDir, jobID); origin != nil {
+			if runResultAccepted(runDir, jobID) {
+				// The destination result is an accepted success; the source
+				// details below keep the original attempt and exit code.
+				fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), green("success (accepted)"))
+				fmt.Fprintf(writer, "%s manually accepted from run %s attempt %s (no re-execution)\n\n", cyan("Note:"), origin.RunID, origin.AttemptID)
+				return showJobAttempt(writer, paths, origin.RunID, origin.JobID, origin.AttemptID)
+			}
 			fmt.Fprintf(writer, "%s carried forward from run %s (no re-execution)\n\n", cyan("Note:"), origin.RunID)
 			return showJobAttempt(writer, paths, origin.RunID, origin.JobID, "")
 		}
@@ -2029,4 +2036,13 @@ func followJobLog(writer io.Writer, paths pathSet, runID, jobID string) int {
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
+}
+
+func runResultAccepted(runDir, jobID string) bool {
+	summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
+	if err != nil {
+		return false
+	}
+	result, ok := model.ResultsByID(summary.Results)[jobID]
+	return ok && result.Accepted
 }

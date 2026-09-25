@@ -442,3 +442,29 @@ func TestExecuteMixedRunPersistsAcceptedArrayTask(t *testing.T) {
 		t.Fatalf("summary results = %#v", summary.Results)
 	}
 }
+
+func TestRecoverInterruptedProjectClearsWorkflowImportOnlyWhenDiscarding(t *testing.T) {
+	for _, discard := range []bool{false, true} {
+		paths, err := resolvePaths(t.TempDir(), "default")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := writeJSON(paths.QueueFile, Queue{WorkflowImport: true, Commands: []QueuedCommand{{ID: "job", Command: []string{"true"}, Force: true}}}); err != nil {
+			t.Fatal(err)
+		}
+		if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+			t.Fatal(err)
+		}
+		writeTestRunStateFiles(t, paths, "run-1")
+		if err := recoverInterruptedProject(paths, "run-1", discard); err != nil {
+			t.Fatalf("recoverInterruptedProject(discard=%v): %v", discard, err)
+		}
+		queue := loadCarryStateQueue(t, paths)
+		if discard && (queue.WorkflowImport || len(queue.Commands) != 0) {
+			t.Fatalf("discarded queue = %#v", queue)
+		}
+		if !discard && (!queue.WorkflowImport || len(queue.Commands) != 1 || !queue.Commands[0].Force) {
+			t.Fatalf("retained queue = %#v", queue)
+		}
+	}
+}

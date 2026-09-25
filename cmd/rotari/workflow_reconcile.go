@@ -297,6 +297,10 @@ func (catalog *workflowSourceCatalog) resolveAttempt(attemptID string) (workflow
 	}
 	result, finished := run.results[payload.JobID]
 	if !finished || result.AttemptID != attemptID {
+		if local, ok := state.LoadLocalJobResult(attemptDir, JobSpec{ID: payload.JobID, Command: command.Command}); ok {
+			local.AttemptID = attemptID
+			return workflowSourceLeaf{run: run, command: command, jobID: payload.JobID, result: local, finished: true}, nil
+		}
 		status, ok := executor.LoadWrapperStatus(jsonStore(), filepath.Join(attemptDir, statusJSONName))
 		if !ok || (status.Phase != "finished" && status.Phase != "failed" && status.Phase != "cancelled") {
 			return workflowSourceLeaf{}, fmt.Errorf("attempt %q has no completed result", attemptID)
