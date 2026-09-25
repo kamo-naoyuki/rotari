@@ -682,3 +682,149 @@ func TestCopyRunToQueueDropsFullyExcludedSuccessfulStage(t *testing.T) {
 		t.Fatalf("copied queue = %#v", queue.Commands)
 	}
 }
+
+func writeCopySourceRun(t *testing.T, paths pathSet, runID string, commands []QueuedCommand) {
+	t.Helper()
+	runDir := filepath.Join(paths.RunsDir, runID)
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: commands}); err != nil {
+		t.Fatal(err)
+	}
+	results := make([]JobResult, 0, len(commands))
+	for _, command := range commands {
+		results = append(results, JobResult{ID: command.ID, ExitCode: 0})
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Results: results}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.MetaFile, Meta{LastRunID: runID}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func captureCopyStderr(t *testing.T, args []string) (int, string) {
+	t.Helper()
+	oldStderr := os.Stderr
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = writer
+	code := cmdCopy(args)
+	os.Stderr = oldStderr
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return code, string(output)
+}
+
+func TestCmdCopyJobNameWithRunIDSelectsJobFromThatRun(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	olderRunID := "copy-older-run"
+	writeCopySourceRun(t, paths, olderRunID, []QueuedCommand{{ID: "job-old", Name: "train", Command: []string{"old"}}})
+	writeCopySourceRun(t, paths, "copy-latest-run", []QueuedCommand{{ID: "job-new", Name: "train", Command: []string{"new"}}})
+
+	if code := cmdCopy([]string{"--basedir", baseDir, "--project-name", "default", "--run-id", olderRunID, "--job-name", "train", "--quiet"}); code != 0 {
+		t.Fatalf("cmdCopy --run-id --job-name exit code = %d, want 0", code)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 1 || queue.Commands[0].ID != "job-old" || queue.Commands[0].Origin == nil || queue.Commands[0].Origin.RunID != olderRunID {
+		t.Fatalf("copied queue = %#v, want job-old from run %q", queue.Commands, olderRunID)
+	}
+}
+
+func TestCmdCopyJobNameRejectsMissingAndAmbiguousNames(t *testing.T) {
+	t.Setenv(envProjectName, "")
+	baseDir := t.TempDir()
+	projectPaths := make(map[string]pathSet)
+	for _, projectName := range []string{"first", "second"} {
+		paths, err := resolvePaths(baseDir, projectName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeCopySourceRun(t, paths, "copy-run-"+projectName, []QueuedCommand{{ID: "job-" + projectName, Name: "train", Command: []string{"train"}}})
+		projectPaths[projectName] = paths
+	}
+
+	tests := map[string]struct {
+		args []string
+		want string
+	}{
+		"missing in run":    {[]string{"--project-name", "first", "--run-id", "copy-run-first", "--job-name", "missing"}, `job name "missing" not found in run "copy-run-first"`},
+		"missing in latest": {[]string{"--project-name", "first", "--job-name", "missing"}, `job name "missing" is not found`},
+		"ambiguous":         {[]string{"--job-name", "train"}, `job name "train" is ambiguous across latest runs`},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			code, output := captureCopyStderr(t, append([]string{"--basedir", baseDir}, test.args...))
+			if code != 1 || !strings.Contains(output, test.want) {
+				t.Fatalf("cmdCopy exit code = %d, stderr = %q, want %q", code, output, test.want)
+			}
+			for projectName, paths := range projectPaths {
+				if _, err := os.Stat(paths.QueueFile); !os.IsNotExist(err) {
+					t.Fatalf("rejected copy wrote the %s queue: %v", projectName, err)
+				}
+			}
+		})
+	}
+}
+
+func TestCmdCopyRejectsInvalidOptionCombinations(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstRunID, secondRunID := makeRunID(), makeRunID()
+	writeCopySourceRun(t, paths, firstRunID, []QueuedCommand{{ID: "job-1", Name: "train", Command: []string{"train"}}})
+
+	tests := map[string]struct {
+		args []string
+		want string
+	}{
+		"append and overwrite":   {[]string{"--append", "--overwrite"}, "usage:"},
+		"positional and run-id":  {[]string{"--run-id", firstRunID, firstRunID}, "usage:"},
+		"two positional run IDs": {[]string{firstRunID, secondRunID}, "usage:"},
+		"job-name and job-id":    {[]string{"--job-name", "train", "--job-id", "job-1"}, "--job-name cannot be combined with --job-id"},
+		"attempts from two runs": {
+			[]string{"--job-id", makeAttemptID(firstRunID, "job-1", 0), "--job-id", makeAttemptID(secondRunID, "job-1", 0)},
+			"belongs to run",
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			code, output := captureCopyStderr(t, append([]string{"--basedir", baseDir, "--project-name", "default"}, test.args...))
+			if code != 1 || !strings.Contains(output, test.want) {
+				t.Fatalf("cmdCopy exit code = %d, stderr = %q, want %q", code, output, test.want)
+			}
+			if _, err := os.Stat(paths.QueueFile); !os.IsNotExist(err) {
+				t.Fatalf("rejected copy wrote a queue: %v", err)
+			}
+		})
+	}
+}
+
+func TestCmdCopyRejectsProjectWithoutPreviousRun(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.MetaFile, Meta{}); err != nil {
+		t.Fatal(err)
+	}
+	code, output := captureCopyStderr(t, []string{"--basedir", baseDir, "--project-name", "default"})
+	if code != 1 || !strings.Contains(output, `project "default" has no previous run`) {
+		t.Fatalf("cmdCopy exit code = %d, stderr = %q", code, output)
+	}
+}
