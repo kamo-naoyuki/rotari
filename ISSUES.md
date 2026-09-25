@@ -8,6 +8,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **Workflow import of a filtered array retry silently accepts stale failed tasks** (`cmd/rotari/workflow_reconcile.go`, `reconcileCommandLeaves` / `sourceLeafForCommand`; test `TestWorkflowExportImportOfFilteredArrayRetryReusesRetriedTask`): an all-success array run whose task 1 was carried from an earlier run exports its job-level `attempt_id` from that earlier run. Import anchors the whole array on that earlier run and reads the other tasks' results from it, so a task that was re-executed successfully in the exported run resolves to its earlier failed attempt. Because the aggregate status is `success`, that task becomes `TaskAccepted` (`success (accepted)`) linked to the failed attempt instead of reusing the successful retry.
+
 ## Resolved
 
 <!-- Keep only short records of resolved items when they may help prevent recurrence. -->
