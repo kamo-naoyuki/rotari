@@ -336,7 +336,7 @@ Yes. It uses browser notifications locally and sends nothing to an external serv
 
 ### Does the Web UI send run details to an AI service?
 
-No. AI reports are generated in the browser; external AI pages are only opened for you to review and paste manually. Check for sensitive data first.
+No. On a run page, the `Report` button in the toolbar (for the run, or for the selected jobs) or in a job's row previews a Markdown report with execution details, saved diagnosis, and recent relevant output. The copy button copies it; `Open ChatGPT`, `Open Gemini`, and `Open Claude` copy it and open that service in a new tab. Rotari never submits the report; paste and send it yourself. Reports redact known hostnames and paths plus common absolute-path and hostname patterns in logs, but redaction is best-effort, so review the report before sharing it. Log dialogs can also copy only the last 100 lines.
 
 ### What does the project page's “Project runtime” panel show?
 

@@ -77,8 +77,15 @@ rotari completion install zsh
 rotari completion install fish
 ```
 
+`completion install` adds a marked block to the shell configuration only when
+it is absent, so running it again does not duplicate it. Start a new shell, or
+source the shell configuration, to apply it to the current shell.
+
 Completion covers subcommands, command options, executor values, run selection
-values, and the `server` subcommands. Dynamic candidates include project names,
-saved run IDs, and job IDs. For manual setup, `rotari completion bash`,
+values, and the `server` subcommands. Options with a fixed set of values, such
+as `--executor/-e`, also reject other values during parsing. Dynamic candidates
+include project names, saved run IDs, and job IDs; job ID candidates come from
+the current queue and saved runs, or only from the selected run when
+`--run-id/-r` is present. For manual setup, `rotari completion bash`,
 `rotari completion zsh`, and `rotari completion fish` print the raw completion
-scripts.
+scripts. Run `rotari completion --help` to list the subcommands.

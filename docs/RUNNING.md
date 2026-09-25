@@ -29,16 +29,28 @@ rotari run -p test --async
 rotari wait build test
 ```
 
-`--async` detaches the run so it survives terminal closure. Use `rotari wait`
-with a project, run name, or run ID from any terminal, and `rotari cancel` to
-stop it. Without a selector, `wait` uses the single active project or asks you
-to choose when several projects are running.
+`--async` starts the run in a detached session (`setsid`), so it survives
+terminal closure. Use `rotari wait` with a project, run name, or run ID from any
+terminal, and `rotari cancel` to stop it. Without a selector, `wait` scans the
+resolved basedir: it waits when exactly one project is running, and lists the
+running projects and run IDs and asks for a selector when several are running.
 
-During synchronous `rotari run`, Ctrl-C requests cancellation and returns exit
-code 130 while cleanup finishes. Ctrl-D detaches without cancelling; Ctrl-Z
-only suspends the client.
+### Interrupting a synchronous run
 
-If the supervisor crashes or is killed, `show` reports the interrupted run.
+During a synchronous `rotari run`, the terminal keys behave as follows:
+
+| Key | Effect |
+| --- | --- |
+| Ctrl-C | Requests cancellation and returns immediately with exit code 130. The supervisor cancels the remaining jobs and then finishes its normal cleanup (run summary, queue clearing, and run-lock removal) in the background, so `run`, `add`, or `copy` on the same project may be rejected briefly. No `unlock` or `server shutdown` is needed. |
+| Ctrl-D | Detaches the client without cancelling. The run continues as if it had been started with `--async`; follow it with `rotari wait -r RUN_ID` or `rotari show -r RUN_ID`. |
+| Ctrl-Z | Only suspends the client through shell job control. The run continues, and `fg` resumes the progress view. Closing the terminal while the client is stopped disconnects it and requests cancellation, so use Ctrl-D or `--async` to leave the progress view. |
+
+### Supervisor failure
+
+The supervisor is not restarted automatically if the process crashes or is
+killed. The run lock records its PID and host, and local jobs report their own
+status through wrappers, so `rotari show -r RUN_ID` still sees results written
+after the supervisor disappeared. `show` then reports the interrupted run.
 After confirming jobs have stopped, use `unlock` to keep the queue or
 `reset --recover` to discard it.
 
@@ -94,7 +106,9 @@ The result filters select which jobs are actually re-executed:
 
 Result filters and repeated `--job-id/-j` select jobs to re-execute. Finished
 non-matching jobs carry forward their previous result and output; jobs without
-a result remain unfinished. Use `--failed --unfinished` to recover everything
+a result remain unfinished. Carried-forward jobs are not re-executed, but they
+appear on the new run with a link to their original output, so the whole run
+can be inspected in one place. Use `--failed --unfinished` to recover everything
 that did not complete successfully.
 
 `--run-id/-r ID` selects a saved run as both the queue snapshot and filter

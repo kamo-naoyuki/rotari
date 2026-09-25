@@ -22,12 +22,24 @@ The queue has different roles depending on the project state:
 ```text
 <basedir>/projects/<project>/
 ├── queue.json                 # current queue
+├── meta.json                  # latest project phase and run metadata
+├── running.lock               # while a run is active: run ID, PID, and host
 └── runs/
     └── <run-id>/              # immutable run history
-        ├── commands.json
-        ├── summary.json
-        └── <job-id>/...
+        ├── commands.json      # command snapshot
+        ├── context.json       # execution context and config snapshot paths
+        ├── summary.json       # run result
+        └── <job-id>/
+            └── attempts/<attempt-id>/
+                ├── command.json
+                ├── output     # the job's log
+                ├── status.json
+                └── ...        # executor-specific state
 ```
+
+Files may appear incrementally while a run is active. When reading state
+directly, treat a missing optional file as an incomplete result, not as a
+success.
 
 ### Run and state
 
@@ -48,7 +60,9 @@ flowchart LR
   class add,run command
 ```
 
-Each added command has a stable job ID. `run` saves the complete command
+Each added command has a stable job ID. Use `add --job-name NAME` to give a
+job a readable label, and `run --run-name NAME` (or `ROTARI_RUN_NAME`) to label
+a run; the generated IDs remain available for unambiguous commands and paths. `run` saves the complete command
 snapshot under `runs/<run-id>/`, together with a summary and each job's log.
 After it finishes, the queue is emptied, while the run can be inspected or used
 with selections such as `rotari retry`. The next `add` starts a new batch while

@@ -69,6 +69,22 @@ inconsistent mounts. Confirm that jobs on a failed host have stopped before
 recovering the project. Separate project names keep their queue and run history
 separate, but the base directory and filesystem remain shared.
 
+Queue updates such as `add`, `change`, `remove`, `copy`, `run`, and `delete` are
+serialized with an advisory file lock, so NFSv4 servers and clients must be
+configured to support file locking. When another update holds the lock, rotari
+waits up to 30 seconds and then returns an error. The coordination relies on
+the filesystem providing consistent exclusive file creation, atomic rename, and
+advisory `flock` behavior; do not use the same project through mounts that can
+disagree about the state files.
+
+An active run is recorded in `running.lock` with its run ID, PID, and host. On
+the host that started the run, rotari detects when that PID is gone, removes
+the lock, and keeps the run as interrupted until you acknowledge it with
+`unlock` or `reset --recover`. A lock created on another host is always treated
+as active, because rotari cannot tell whether a remote PID is still alive.
+Using different project names on different hosts is therefore much safer than
+sharing one project.
+
 After confirming a failed host's run has stopped, unlock that exact run:
 
 ```sh
@@ -85,12 +101,22 @@ second run could start for the same queue.
 Rotari assumes a trusted single-user or HPC/lab environment. The Web UI token
 provides HTTP authentication, not encryption.
 
-- **State files:** `--basedir/-b`, `--masterdir`, and their contents default to
-  shared `0755`/`0644` permissions. Set `ROTARI_PRIVATE_STATE=true` for
-  owner-only `0700`/`0600`; this affects only newly created paths and applies
-  to the whole `--basedir/-b`.
+- **State files:** `--basedir/-b`, `--masterdir`, and their contents (queues,
+  metadata, locks, job output and status, wrapper scripts) default to shared
+  `0755`/`0644` permissions, because colleagues on the same cluster commonly
+  share a job's log path directly. Set `ROTARI_PRIVATE_STATE=true` for
+  owner-only `0700`/`0600` to keep job commands, working directories, and
+  output private. This affects only newly created paths, which are not
+  re-chmodded later, and applies to the whole `--basedir/-b`.
+- **Server socket:** `<basedir>/server.sock` accepts job submission and control
+  requests, so reaching it means controlling that server. It is always created
+  `0600` regardless of `ROTARI_PRIVATE_STATE`, and on Linux the server also
+  rejects connections from a different UID.
 - **Web UI:** without `ROTARI_WEB_AUTH_TOKEN` or `--auth-token`, bind it to
-  `127.0.0.1`; with a token, use only a trusted network or HTTPS proxy.
+  `127.0.0.1`; with a token, use only a trusted network or HTTPS proxy. Prefer
+  the environment variable so the token does not appear in the process list.
+  Environment variable values are never exposed over HTTP, but project and run
+  pages show raw config files, which may contain secrets.
 
 None of this defends against another user with access to your own UID
 (e.g. root, or anyone who can read your home directory), only against other
