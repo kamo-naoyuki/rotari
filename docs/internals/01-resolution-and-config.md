@@ -148,6 +148,14 @@ Without a run-location lookup, base directories resolve in this order:
   configuration snapshots recorded at run creation. Before writing, the
   endpoint parses JSON, TOML, or YAML according to the existing file extension,
   so an invalid edit cannot replace the valid config.
+- The Web side is implemented by `loadWebConfigFiles`, `loadRunConfigFiles`,
+  `saveWebConfig`, `webConfigTargets`, and `generateWebConfig` in
+  [`cmd/rotari/web.go`](../../cmd/rotari/web.go). Representative tests are
+  `TestWebConfigAPIReadsResolvedFiles`, `TestWebConfigAPIReadsRunConfigSnapshots`,
+  `TestWebSaveConfigWritesOnlyTheResolvedCurrentConfig`,
+  `TestWebSaveConfigRejectsReadOnlyMode`, and
+  `TestStaticWebUsesGenerateConfigReadOnlyFlow` in
+  [`cmd/rotari/web_test.go`](../../cmd/rotari/web_test.go).
 
 ## Shell completion
 
