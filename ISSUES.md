@@ -8,6 +8,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **`/dev/null` stdin is treated as a terminal** (`cmd/rotari/show.go`, `isTerminal`; callers in `reset.go`, `copy.go`, `server.go`): `isTerminal` only checks `os.ModeCharDevice`, which `/dev/null` also has. With stdin redirected from `/dev/null` (cron, `nohup`, `go test`), `reset` of an interrupted run and `copy` into a non-empty queue prompt and fail with `EOF` instead of printing the non-interactive guidance (`--recover`, `--append`/`--overwrite`). It still fails safely; a real TTY check (for example an `ioctl` terminal query) would restore the guidance.
+
 ## Resolved
 
 <!-- Keep only short records of resolved items when they may help prevent recurrence. -->
