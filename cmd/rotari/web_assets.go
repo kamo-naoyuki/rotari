@@ -28,6 +28,9 @@ var webAppTablesJS string
 //go:embed assets/web_app_charts.js
 var webAppChartsJS string
 
+//go:embed assets/web_app_matrix.js
+var webAppMatrixJS string
+
 //go:embed assets/web_app_notifications.js
 var webAppNotificationsJS string
 
@@ -54,7 +57,7 @@ var webStylesCSS string
 
 func composeWebHTML(executors []string, bootstrap string) string {
 	executorJSON, _ := json.Marshal(executors)
-	webAppJS := strings.Join([]string{webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppTablesJS, webAppChartsJS, webAppNotificationsJS, webAppBootstrapJS}, "\n")
+	webAppJS := strings.Join([]string{webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppTablesJS, webAppChartsJS, webAppMatrixJS, webAppNotificationsJS, webAppBootstrapJS}, "\n")
 	template := strings.Replace(webTemplateHTML, "__ROTARI_WEB_APP__", webAppJS, 1)
 	template = strings.Replace(template, "__ROTARI_EXECUTORS__", string(executorJSON), 1)
 	template = strings.Replace(template, "__ROTARI_NOTIFICATION_ICON__", faviconDataURL(webFaviconDarkSVG), 1)

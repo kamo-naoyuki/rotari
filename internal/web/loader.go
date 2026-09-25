@@ -75,6 +75,12 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 			selectedJobID = payload.JobID
 		}
 	}
+	matrices := make(map[string]*Matrix)
+	for _, command := range commands.Commands {
+		if spec := command.Matrix; spec != nil {
+			matrices[command.ID] = &Matrix{GroupID: spec.GroupID, BaseName: spec.BaseName, Dimensions: spec.Dimensions, Values: spec.Values}
+		}
+	}
 	jobs := make([]Job, 0, len(taskJobs))
 	for _, jobSpec := range taskJobs {
 		selected := jobSpec.ID == selectedJobID
@@ -94,6 +100,10 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 		}
 		attempt := jobstatus.ReadAttempt(store, jobDir)
 		job := Job{ID: jobSpec.ID, AttemptID: attemptID, AttemptDir: jobDir, Name: jobSpec.Name, Stage: jobSpec.Stage, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, DependsOn: jobSpec.DependsOn, DependsOnFinished: jobSpec.DependsOnFinished, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SubmittedAt: submittedAt, FinishedAt: finishedAt, SchedulerState: attempt.SchedulerState}
+		job.Matrix = matrices[jobSpec.ID]
+		if jobSpec.ArrayGroup != "" {
+			job.Matrix = matrices[jobSpec.ArrayGroup]
+		}
 		latest := true
 		if selected {
 			// A selected older attempt shows its own outcome; the summary

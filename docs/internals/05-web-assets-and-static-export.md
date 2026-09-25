@@ -28,6 +28,7 @@ cmd/rotari/assets/
 ├── web_app_logs.js
 ├── web_app_tables.js
 ├── web_app_charts.js
+├── web_app_matrix.js
 ├── web_app_notifications.js
 ├── web_app_bootstrap.js
 ├── web_static_bootstrap.js
@@ -148,6 +149,20 @@ the latest attempt, but stores a browser-local selection per job so rows can
 independently display a prior attempt's result, timestamps, and log. The log
 endpoint validates that an optional attempt ID belongs to its requested run and
 job before reading that attempt directory.
+
+A run page draws one grid per matrix group above the jobs table
+([web_app_matrix.js](../../cmd/rotari/assets/web_app_matrix.js)). `LoadJobs`
+attaches each member's group ID, base name, dimensions, and values from the
+run's command snapshot; it leaves out the base environment, which may hold
+secrets. The first dimension forms rows and the second columns; further
+dimensions split the group into one grid per remaining combination. A cell
+takes the worst state of its jobs (array tasks share a cell and show
+`succeeded/total`), classified from the same resolved `result` as the jobs
+table, and clicking it scrolls to and highlights the job's table row and
+presses that row's Output button, so carried and attempt-specific logs behave
+as in the table. Jobs whose matrix provenance was cleared by a partial copy or
+change appear only in the table. Covered by `TestWebRunViewDrawsMatrixGrid` in
+[cmd/rotari/web_test.go](../../cmd/rotari/web_test.go).
 
 Report generation redacts known hostnames and paths, then applies heuristic
 redaction to common absolute paths and FQDNs in log text. This is best-effort

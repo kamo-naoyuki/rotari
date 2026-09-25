@@ -438,3 +438,52 @@ section {
     display: none;
   }
 }
+.matrix-panel {
+  margin: 12px 0 18px;
+}
+.matrix-panel h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.matrix-grid {
+  border-collapse: collapse;
+  margin: 4px 0 10px;
+}
+.matrix-grid th,
+.matrix-grid td {
+  border: 1px solid var(--line);
+  padding: 4px 10px;
+  text-align: center;
+  white-space: nowrap;
+}
+.matrix-grid th {
+  color: var(--muted);
+  font-weight: 400;
+}
+.matrix-cell {
+  cursor: pointer;
+  min-width: 56px;
+}
+.matrix-success {
+  background: rgba(99, 210, 151, 0.22);
+  color: var(--good);
+}
+.matrix-failed {
+  background: rgba(255, 124, 124, 0.25);
+  color: var(--bad);
+}
+.matrix-blocked,
+.matrix-running {
+  background: rgba(243, 201, 105, 0.18);
+  color: var(--warn);
+}
+.matrix-pending,
+.matrix-missing {
+  color: var(--muted);
+}
+.matrix-missing {
+  cursor: default;
+}
+.runs tr.matrix-focus td {
+  background: rgba(184, 217, 242, 0.16);
+}

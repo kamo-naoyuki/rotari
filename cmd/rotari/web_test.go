@@ -1880,3 +1880,84 @@ func TestCmdWebRejectsPositionalArguments(t *testing.T) {
 		t.Fatalf("cmdWeb exit code = %d, want 1 for unexpected positional argument", code)
 	}
 }
+
+func TestWebRunViewDrawsMatrixGrid(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"--job-name", "train", "--matrix", "LR=a,b", "--matrix", "SEED=1,2", "--env", "SECRET=hidden", "--", "/bin/sh", "-c", `[ "$LR$SEED" != b2 ]`},
+		{"--job-name", "plain", "--", "true"},
+	} {
+		if code := cmdAdd(append([]string{"--basedir", baseDir, "--project-name", "default", "--quiet"}, args...)); code != 0 {
+			t.Fatalf("cmdAdd(%v) exit = %d", args, code)
+		}
+	}
+	executeMixedRun(paths, "run-1", "", 4, 1, 0, "", nil, "", nil, "", true, nil, nil)
+	if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	state, err := loadWebState(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"base_environment"`) {
+		t.Fatal("web state exposes the matrix base environment")
+	}
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	if err := os.WriteFile(statePath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	htmlPath := filepath.Join(t.TempDir(), "index.html")
+	if err := os.WriteFile(htmlPath, []byte(webHTML()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := `
+const fs = require('fs');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const html = fs.readFileSync(process.argv[1], 'utf8');
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+const dom = new JSDOM(html, {
+  runScripts: 'dangerously',
+  url: 'http://127.0.0.1/project/default/run/run-1',
+  virtualConsole,
+  beforeParse(window) {
+    window.fetch = async () => ({ok: true, json: async () => state, text: async () => 'log text'});
+    window.setInterval = () => 1;
+  },
+});
+setTimeout(() => {
+  const document = dom.window.document;
+  if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
+  const panels = document.querySelectorAll('.matrix-panel');
+  if (panels.length !== 1 || !panels[0].textContent.includes('Matrix: train')) { console.error(document.getElementById('app').innerHTML); process.exit(2); }
+  const cells = Array.from(panels[0].querySelectorAll('td.matrix-cell'));
+  const classes = cells.map(cell => cell.className.replace('matrix-cell ', ''));
+  if (JSON.stringify(classes) !== JSON.stringify(['matrix-success', 'matrix-success', 'matrix-success', 'matrix-failed'])) { console.error(classes); process.exit(3); }
+  const headers = Array.from(panels[0].querySelectorAll('th')).map(th => th.textContent);
+  if (!headers.includes('LR=b') || !headers.includes('SEED=2')) { console.error(headers); process.exit(4); }
+  const failedID = cells[3].dataset.jobIds;
+  cells[3].click();
+  const row = Array.from(document.querySelectorAll('tr[data-job-id]')).find(r => r.dataset.jobId === failedID);
+  if (!row || !row.classList.contains('matrix-focus')) { console.error('row not focused', failedID); process.exit(5); }
+  if (errors.length) { console.error(errors.join('\n')); process.exit(6); }
+  process.exit(0);
+}, 100);
+`
+	if output, err := exec.Command("node", "-e", script, htmlPath, statePath).CombinedOutput(); err != nil {
+		t.Fatalf("web matrix grid check failed: %v\n%s", err, output)
+	}
+}
