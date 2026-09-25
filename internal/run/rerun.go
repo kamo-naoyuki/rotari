@@ -139,7 +139,7 @@ func acceptImportedResult(destinationID string, origin *model.JobOrigin, plan *P
 	result.ExitCode = 0
 	result.Accepted = true
 	result.Error = ""
-	result.Diagnoses = nil
+	result.ClearDiagnosis()
 	delete(plan.Execute, destinationID)
 	plan.CarriedResults[destinationID] = result
 	plan.CarriedOrigins[destinationID] = origin

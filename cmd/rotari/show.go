@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -1588,19 +1589,20 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	writeShowTargetHeaderWithMode(writer, paths, "run job")
 	fmt.Fprintf(writer, "%s %s\n%s %s\n", cyan("Run:"), runID, cyan("Job:"), jobID)
 	jobSpecs := loadRunJobSpecs(runDir)
+	latestAttemptID, _ := state.LatestAttemptID(runDir, jobID)
 	selectedAttemptID := attemptID
 	if selectedAttemptID == "" {
-		selectedAttemptID, _ = state.LatestAttemptID(runDir, jobID)
+		selectedAttemptID = latestAttemptID
 	}
+	latest := selectedAttemptID == latestAttemptID
 	if selectedAttemptID != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Attempt ID:"), selectedAttemptID)
 	}
 	if attempts := state.ListAttemptIDs(runDir, jobID); len(attempts) > 0 {
-		latestAttemptLabel, _ := state.LatestAttemptID(runDir, jobID)
 		fmt.Fprintln(writer, cyan("Attempts:"))
 		for _, listedAttemptID := range attempts {
 			labels := make([]string, 0, 2)
-			if listedAttemptID == latestAttemptLabel {
+			if listedAttemptID == latestAttemptID {
 				labels = append(labels, "latest")
 			}
 			if listedAttemptID == selectedAttemptID && attemptID != "" {
@@ -1634,22 +1636,27 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	if dependencies := jobSpecs[jobID].DependsOn; len(dependencies) > 0 {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Depends on:"), strings.Join(dependencies, ", "))
 	}
-	fmt.Fprintf(writer, "%s %s\n", cyan("Submitted:"), model.FormatDisplayTimestamp(state.ReadJobTimestamp(runDir, jobID, "submitted_at")))
-	fmt.Fprintf(writer, "%s %s\n", cyan("Finished:"), model.FormatDisplayTimestamp(state.ReadJobTimestamp(runDir, jobID, "finished_at")))
+	submittedAt, finishedAt := state.ReadJobTimestamp(runDir, jobID, "submitted_at"), state.ReadJobTimestamp(runDir, jobID, "finished_at")
+	if !latest {
+		submittedAt, finishedAt = state.ReadAttemptTimestamp(jobDir, "submitted_at"), state.ReadAttemptTimestamp(jobDir, "finished_at")
+	}
+	fmt.Fprintf(writer, "%s %s\n", cyan("Submitted:"), model.FormatDisplayTimestamp(submittedAt))
+	fmt.Fprintf(writer, "%s %s\n", cyan("Finished:"), model.FormatDisplayTimestamp(finishedAt))
 	summaryResult, hasSummary := loadRunResult(runDir, jobSpecs[jobID].ID)
-	if hasSummary {
-		hosts := strings.Join(summaryResult.Hosts, ",")
+	resolved := jobstatus.ResolveAttempt(jobstatus.ReadAttempt(jsonStore(), jobDir), latest, summaryResult, hasSummary)
+	if resolved.HasSummary {
+		hosts := strings.Join(resolved.Summary.Hosts, ",")
 		if hosts == "" {
 			hosts = "-"
 		}
 		fmt.Fprintf(writer, "%s %s\n", cyan("Hosts:"), hosts)
 	}
-	if status, ok := jobAttemptStatusText(jobstatus.ReadJob(jsonStore(), jobDir, summaryResult, hasSummary)); ok {
+	if status, ok := jobAttemptStatusText(resolved); ok {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), status)
 	}
 	command := readJSONCommand(filepath.Join(jobDir, commandJSONName))
-	if hasSummary {
-		writeJobDiagnoses(writer, summaryResult.Diagnoses)
+	if resolved.HasSummary {
+		writeJobDiagnoses(writer, resolved.Summary)
 	}
 	fmt.Fprintf(writer, "%s %s\n", cyan("Command:"), command)
 	fmt.Fprintf(writer, "%s %s\n\n", cyan("Output:"), filepath.Join(jobDir, "output"))
@@ -1706,13 +1713,22 @@ func exitCodeStatusText(exitCode int, text string) string {
 	return red(text)
 }
 
-func writeJobDiagnoses(writer io.Writer, diagnoses []model.RuleDiagnosis) {
-	if len(diagnoses) == 0 {
+func writeJobDiagnoses(writer io.Writer, result model.JobResult) {
+	switch {
+	case result.DiagnosisStatus == model.DiagnosisNoMatch:
+		fmt.Fprintf(writer, "%s no known rule matched\n  Next: %s\n", cyan("Diagnosis:"), noMatchDiagnosisNext)
+	case result.DiagnosisStatus == model.DiagnosisUnavailable:
+		fmt.Fprintf(writer, "%s unavailable: %s\n  Next: %s\n", cyan("Diagnosis:"), result.DiagnosisNote, unavailableDiagnosisNext)
+	case len(result.Diagnoses) > 0:
+		fmt.Fprintf(writer, "%s\n", cyan("Diagnosis:"))
+		for _, diagnosis := range result.Diagnoses {
+			fmt.Fprintf(writer, "  %s\n    Evidence: %s\n    Next: %s\n", diagnosis.Name, diagnosis.Evidence, diagnosis.Suggestion)
+		}
+	default:
 		return
 	}
-	fmt.Fprintf(writer, "%s\n", cyan("Diagnosis:"))
-	for _, diagnosis := range diagnoses {
-		fmt.Fprintf(writer, "  %s\n    Evidence: %s\n    Next: %s\n", diagnosis.Name, diagnosis.Evidence, diagnosis.Suggestion)
+	if diagnose.Outdated(result) {
+		fmt.Fprintf(writer, "  Note: %s\n", outdatedDiagnosisNote)
 	}
 }
 

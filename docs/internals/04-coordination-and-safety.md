@@ -36,11 +36,17 @@ Representative implementation and tests:
   `scheduler_status.json`, and finally the run's `summary.json` result. A
   summary result still supplies acceptance, blocked state, hosts, and diagnoses
   when an attempt file decides the exit code. `show`, `jobs`, `report`, and the
-  Web UI all use it, and a selected older attempt in the Web UI shows its own
-  outcome. See [`internal/jobstatus`](../../internal/jobstatus/),
+  Web UI all use it. The summary result belongs to the latest attempt, so a
+  selected older attempt (`show ATTEMPT_ID` or the Web UI attempt selector)
+  resolves from its own files only and shows its own timestamps
+  (`jobstatus.ResolveAttempt`). See
+  [`internal/jobstatus`](../../internal/jobstatus/),
   [`internal/jobstatus/attempt_test.go`](../../internal/jobstatus/attempt_test.go),
-  [`internal/jobstatus/job_test.go`](../../internal/jobstatus/job_test.go), and
-  `TestShowAndWebShareStatusFallbackChain` in
+  [`internal/jobstatus/job_test.go`](../../internal/jobstatus/job_test.go),
+  `TestLoadJobsSelectedOlderAttemptIgnoresSummary` in
+  [`internal/web/loader_test.go`](../../internal/web/loader_test.go), and
+  `TestShowAndWebShareStatusFallbackChain` and
+  `TestShowJobOlderAttemptIgnoresLatestSummary` in
   [`cmd/rotari/show_test.go`](../../cmd/rotari/show_test.go).
 - This does not kill or reconcile leftover jobs during recovery; `reset
   --recover` and `unlock` still require the operator to confirm that jobs have

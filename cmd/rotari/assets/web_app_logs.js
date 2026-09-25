@@ -74,17 +74,28 @@ function showDiagnosis(trigger) {
   if (followTimer) clearInterval(followTimer);
   followTimer = null;
   selectedLog = null;
-  const diagnoses = JSON.parse(trigger.dataset.diagnoses || "[]");
-  selectedOutput = diagnoses
-    .map(
-      (item) =>
-        item.name +
-        "\nEvidence: " +
-        item.evidence +
-        "\nNext: " +
-        item.suggestion,
-    )
-    .join("\n\n");
+  const analysis = JSON.parse(trigger.dataset.diagnoses || "{}");
+  const sections = (analysis.diagnoses || []).map(
+    (item) =>
+      item.name + "\nEvidence: " + item.evidence + "\nNext: " + item.suggestion,
+  );
+  if (analysis.status === "no_match") {
+    sections.push(
+      "No known rule matched.\nNext: Inspect the full job output and scheduler accounting for the failure details.",
+    );
+  } else if (analysis.status === "unavailable") {
+    sections.push(
+      "Unavailable: " +
+        analysis.note +
+        "\nNext: Resolve the read error, then run rotari diagnose --rules.",
+    );
+  }
+  if (analysis.outdated) {
+    sections.push(
+      "Note: Saved with earlier diagnosis rules; rotari diagnose --rules shows the result under the current rules.",
+    );
+  }
+  selectedOutput = sections.join("\n\n");
   const output = ensureModalOutput();
   output.textContent = selectedOutput;
   const modal = document.getElementById("output-modal");

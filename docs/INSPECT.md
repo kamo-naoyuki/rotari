@@ -29,6 +29,10 @@ rotari show ATTEMPT_ID --report # print an AI-ready Markdown report for one atte
 rotari show RUN_ID --report # describe the whole run and include recent logs
 ```
 
+An older `ATTEMPT_ID` shows that attempt's own status, timestamps, and output.
+The run's saved hosts and diagnoses belong to the latest attempt, so they are
+not shown for an older one.
+
 If a runner exits before finalizing its run, `show` reports the interrupted run
 and blocks `add`, `copy`, and `run` until you acknowledge it. First confirm
 that all jobs have stopped:
@@ -94,7 +98,9 @@ rotari show ATTEMPT_ID
 Every finalized failed job records a recognized diagnosis, an explicit no-match
 result, or an analysis-unavailable result when its output cannot be read.
 The Web UI shows a `Diagnosis` button beside every job's log button and enables
-it when a finalized failed job has saved analysis.
+it when a finalized failed job has saved analysis. Saved analysis is not
+updated when the rules change; `show`, reports, and the Web UI note when it was
+produced by earlier rules.
 
 To check a saved job manually, run:
 

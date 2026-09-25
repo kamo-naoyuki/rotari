@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -93,18 +94,24 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 		}
 		attempt := jobstatus.ReadAttempt(store, jobDir)
 		job := Job{ID: jobSpec.ID, AttemptID: attemptID, AttemptDir: jobDir, Name: jobSpec.Name, Stage: jobSpec.Stage, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, DependsOn: jobSpec.DependsOn, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SubmittedAt: submittedAt, FinishedAt: finishedAt, SchedulerState: attempt.SchedulerState}
+		latest := true
 		if selected {
-			// A selected attempt shows its own outcome; the summary result
-			// belongs to the latest attempt.
+			// A selected older attempt shows its own outcome; the summary
+			// result belongs to the latest attempt.
+			latestAttemptID, _ := state.LatestAttemptID(runDir, jobSpec.ID)
+			latest = selectedAttemptID == latestAttemptID
 			job.AttemptID = selectedAttemptID
 			job.SubmittedAt = state.ReadAttemptTimestamp(jobDir, "submitted_at")
 			job.FinishedAt = state.ReadAttemptTimestamp(jobDir, "finished_at")
 		}
-		if result, ok := attempt.Result(jobSpec); selected && ok {
-			result.AttemptID = selectedAttemptID
+		if result, ok := jobstatus.ResolveAttempt(attempt, latest, summaryResult, hasSummary).Result(jobSpec); ok {
+			if selected {
+				result.AttemptID = selectedAttemptID
+			}
 			job.Result = &result
-		} else if result, ok := jobstatus.ResolveJob(attempt, summaryResult, hasSummary).Result(jobSpec); ok {
-			job.Result = &result
+		}
+		if job.Result != nil {
+			job.DiagnosisOutdated = diagnose.Outdated(*job.Result)
 		}
 		if job.Result != nil && job.FinishedAt == "" && attempt.HasWrapper {
 			job.FinishedAt = attempt.Wrapper.FinishedAt
@@ -118,7 +125,7 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 			continue
 		}
 		resultCopy := result
-		jobs = append(jobs, Job{ID: result.ID, Command: result.Command, Result: &resultCopy, SubmittedAt: state.ReadJobTimestamp(runDir, result.ID, "submitted_at"), FinishedAt: state.ReadJobTimestamp(runDir, result.ID, "finished_at")})
+		jobs = append(jobs, Job{ID: result.ID, Command: result.Command, Result: &resultCopy, DiagnosisOutdated: diagnose.Outdated(result), SubmittedAt: state.ReadJobTimestamp(runDir, result.ID, "submitted_at"), FinishedAt: state.ReadJobTimestamp(runDir, result.ID, "finished_at")})
 	}
 	return jobs, nil
 }

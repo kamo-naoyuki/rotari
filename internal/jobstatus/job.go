@@ -30,6 +30,16 @@ func ResolveJob(attempt Attempt, summary model.JobResult, hasSummary bool) Job {
 	return job
 }
 
+// ResolveAttempt resolves a displayed attempt of a job. The run's summary
+// result belongs to the job's latest attempt, so an older attempt resolves
+// from its own files only and stays unfinished without a terminal state.
+func ResolveAttempt(attempt Attempt, latest bool, summary model.JobResult, hasSummary bool) Job {
+	if !latest {
+		return ResolveJob(attempt, model.JobResult{}, false)
+	}
+	return ResolveJob(attempt, summary, hasSummary)
+}
+
 // ReadJob reads the job's attempt directory and resolves it against the
 // job's summary result, if any.
 func ReadJob(store state.Store, jobDir string, summary model.JobResult, hasSummary bool) Job {

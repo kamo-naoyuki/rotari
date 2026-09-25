@@ -21,8 +21,14 @@ when no more specific rule already matches the final exception line.
 
 This is a historical, informational snapshot; it does not affect job status,
 retries, dependencies, or scheduler control. Every finalized failed job records
-a recognized diagnosis, `No known rule-based diagnosis matched`, or
-`Rule-based diagnosis unavailable` when its output cannot be read.
+one of three outcomes in `diagnosis_status`: `matched` with its recognized
+`diagnoses`, `no_match`, or `unavailable` with the reason in `diagnosis_note`
+when its output cannot be read.
+
+The snapshot also records `diagnosis_rules`, an identifier of the rule set that
+produced it. Saved results are not recomputed when rotari's rules change.
+`show`, reports, and the Web UI note when a saved result came from earlier
+rules; run `rotari diagnose --rules` to see the result under the current rules.
 
 View saved diagnoses in the CLI with `rotari show --run-id RUN_ID --job-id
 JOB_ID`. The Web UI always shows a `Diagnosis` button beside each job's log

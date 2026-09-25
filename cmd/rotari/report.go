@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -206,11 +207,8 @@ func writeJobAIReport(builder *strings.Builder, paths state.ProjectPaths, run we
 	}
 	command, _ := json.Marshal(job.Command)
 	fmt.Fprintf(builder, "\n### Command\n```json\n%s\n```\n", command)
-	if result != nil && len(result.Diagnoses) > 0 {
-		fmt.Fprintln(builder, "\n### Diagnosis")
-		for _, diagnosis := range result.Diagnoses {
-			fmt.Fprintf(builder, "- %s\n  Evidence: %s\n  Next: %s\n", diagnosis.Name, diagnosis.Evidence, diagnosis.Suggestion)
-		}
+	if result != nil {
+		writeReportDiagnoses(builder, *result)
 	}
 	if includeLog {
 		if output := readReportLog(paths, run.RunID, job); output != "" {
@@ -302,4 +300,23 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func writeReportDiagnoses(builder *strings.Builder, result model.JobResult) {
+	switch {
+	case result.DiagnosisStatus == model.DiagnosisNoMatch:
+		fmt.Fprintf(builder, "\n### Diagnosis\n- No known rule matched.\n  Next: %s\n", noMatchDiagnosisNext)
+	case result.DiagnosisStatus == model.DiagnosisUnavailable:
+		fmt.Fprintf(builder, "\n### Diagnosis\n- Unavailable: %s\n  Next: %s\n", result.DiagnosisNote, unavailableDiagnosisNext)
+	case len(result.Diagnoses) > 0:
+		fmt.Fprintln(builder, "\n### Diagnosis")
+		for _, diagnosis := range result.Diagnoses {
+			fmt.Fprintf(builder, "- %s\n  Evidence: %s\n  Next: %s\n", diagnosis.Name, diagnosis.Evidence, diagnosis.Suggestion)
+		}
+	default:
+		return
+	}
+	if diagnose.Outdated(result) {
+		fmt.Fprintf(builder, "\nNote: %s\n", outdatedDiagnosisNote)
+	}
 }

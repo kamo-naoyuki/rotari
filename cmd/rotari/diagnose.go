@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -23,8 +24,11 @@ const (
 	diagnosisLogLimit    = 12000
 )
 
-const noRuleDiagnosisName = "No known rule-based diagnosis matched"
-const unavailableRuleDiagnosisName = "Rule-based diagnosis unavailable"
+const (
+	noMatchDiagnosisNext     = "Inspect the full job output and scheduler accounting for the failure details."
+	unavailableDiagnosisNext = "Resolve the read error, then run rotari diagnose --rules."
+	outdatedDiagnosisNote    = "Saved with earlier diagnosis rules; rotari diagnose --rules shows the result under the current rules."
+)
 
 // cmdDiagnose builds a failure diagnosis prompt and optionally sends it to an
 // external provider.
@@ -201,43 +205,29 @@ func diagnoseWithRules(job diagnose.Job) []model.RuleDiagnosis {
 	return diagnose.DiagnoseDefault(job)
 }
 
+// diagnoseJobResult saves the rule-based analysis of a failed result from its
+// latest attempt's output.
 func diagnoseJobResult(runDir string, result model.JobResult) model.JobResult {
-	if result.ExitCode == 0 || len(result.Diagnoses) > 0 {
+	if result.ExitCode == 0 || result.DiagnosisStatus != "" {
 		return result
 	}
-	if !state.IsValidPathElement(result.ID) {
-		return unavailableRuleDiagnosis(result, "The job ID is invalid, so its output could not be inspected.")
+	log, err := readDiagnosisLog(runDir, result.ID)
+	return diagnose.AnalyzeResult(result, log, err)
+}
+
+func readDiagnosisLog(runDir, jobID string) (string, error) {
+	if !state.IsValidPathElement(jobID) {
+		return "", errors.New("the job ID is invalid, so its output could not be inspected")
 	}
-	jobDir, err := state.LatestAttemptJobDir(runDir, result.ID)
+	jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 	if err != nil {
-		return unavailableRuleDiagnosis(result, "The job directory could not be resolved: "+err.Error())
+		return "", fmt.Errorf("the job directory could not be resolved: %w", err)
 	}
 	data, err := os.ReadFile(filepath.Join(jobDir, "output"))
 	if err != nil && !os.IsNotExist(err) {
-		return unavailableRuleDiagnosis(result, "The job output could not be read: "+err.Error())
+		return "", fmt.Errorf("the job output could not be read: %w", err)
 	}
-	result.Diagnoses = diagnoseWithRules(diagnose.Job{
-		JobID: result.ID,
-		Error: result.Error,
-		Log:   diagnose.TailLog(string(data), diagnosisLogLimit),
-	})
-	if len(result.Diagnoses) == 0 {
-		result.Diagnoses = []model.RuleDiagnosis{{
-			Name:       noRuleDiagnosisName,
-			Evidence:   "No recognized signature in the recorded scheduler error or log.",
-			Suggestion: "Inspect the full job output and scheduler accounting for the failure details.",
-		}}
-	}
-	return result
-}
-
-func unavailableRuleDiagnosis(result model.JobResult, evidence string) model.JobResult {
-	result.Diagnoses = []model.RuleDiagnosis{{
-		Name:       unavailableRuleDiagnosisName,
-		Evidence:   evidence,
-		Suggestion: "Inspect the job directory and output file permissions, then run rotari diagnose --rules after resolving the read error.",
-	}}
-	return result
+	return diagnose.TailLog(string(data), diagnosisLogLimit), nil
 }
 
 func formatRuleDiagnoses(diagnoses []model.RuleDiagnosis) string {

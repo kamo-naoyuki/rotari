@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -257,15 +258,70 @@ type RuleDiagnosis struct {
 	Suggestion string `json:"suggestion"`
 }
 
+// JobResult is one job's outcome in a run summary. A failed result carries
+// its saved rule-based analysis: DiagnosisStatus is DiagnosisMatched,
+// DiagnosisNoMatch, or DiagnosisUnavailable (empty when never analyzed);
+// Diagnoses lists only recognized diagnoses; DiagnosisNote says why an
+// unavailable analysis could not run; and DiagnosisRules identifies the rule
+// set that produced the analysis.
 type JobResult struct {
-	ID        string          `json:"id"`
-	AttemptID string          `json:"attempt_id,omitempty"`
-	ExitCode  int             `json:"exit_code"`
-	Accepted  bool            `json:"accepted,omitempty"`
-	Error     string          `json:"error,omitempty"`
-	Command   []string        `json:"command,omitempty"`
-	Hosts     []string        `json:"hosts,omitempty"`
-	Diagnoses []RuleDiagnosis `json:"diagnoses,omitempty"`
+	ID              string          `json:"id"`
+	AttemptID       string          `json:"attempt_id,omitempty"`
+	ExitCode        int             `json:"exit_code"`
+	Accepted        bool            `json:"accepted,omitempty"`
+	Error           string          `json:"error,omitempty"`
+	Command         []string        `json:"command,omitempty"`
+	Hosts           []string        `json:"hosts,omitempty"`
+	Diagnoses       []RuleDiagnosis `json:"diagnoses,omitempty"`
+	DiagnosisStatus string          `json:"diagnosis_status,omitempty"`
+	DiagnosisNote   string          `json:"diagnosis_note,omitempty"`
+	DiagnosisRules  string          `json:"diagnosis_rules,omitempty"`
+}
+
+// Rule-based analysis outcomes saved in JobResult.DiagnosisStatus.
+const (
+	DiagnosisMatched     = "matched"
+	DiagnosisNoMatch     = "no_match"
+	DiagnosisUnavailable = "unavailable"
+)
+
+// Names of the entries that recorded a no-match or unavailable analysis in
+// Diagnoses before DiagnosisStatus existed.
+const (
+	legacyNoMatchDiagnosisName     = "No known rule-based diagnosis matched"
+	legacyUnavailableDiagnosisName = "Rule-based diagnosis unavailable"
+)
+
+// ClearDiagnosis removes the saved rule-based analysis.
+func (result *JobResult) ClearDiagnosis() {
+	result.Diagnoses = nil
+	result.DiagnosisStatus = ""
+	result.DiagnosisNote = ""
+	result.DiagnosisRules = ""
+}
+
+// UnmarshalJSON decodes a job result and converts an analysis saved before
+// DiagnosisStatus existed, whose outcome was stored as a Diagnoses entry.
+func (result *JobResult) UnmarshalJSON(data []byte) error {
+	type plainJobResult JobResult
+	if err := json.Unmarshal(data, (*plainJobResult)(result)); err != nil {
+		return err
+	}
+	if result.DiagnosisStatus != "" || len(result.Diagnoses) == 0 {
+		return nil
+	}
+	if len(result.Diagnoses) == 1 {
+		switch entry := result.Diagnoses[0]; entry.Name {
+		case legacyNoMatchDiagnosisName:
+			result.DiagnosisStatus, result.Diagnoses = DiagnosisNoMatch, nil
+			return nil
+		case legacyUnavailableDiagnosisName:
+			result.DiagnosisStatus, result.DiagnosisNote, result.Diagnoses = DiagnosisUnavailable, entry.Evidence, nil
+			return nil
+		}
+	}
+	result.DiagnosisStatus = DiagnosisMatched
+	return nil
 }
 
 type RunSummary struct {

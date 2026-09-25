@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -906,6 +907,80 @@ func TestShowJobDisplaysDiagnoses(t *testing.T) {
 	}
 }
 
+func TestShowJobDisplaysDiagnosisStatusAndOutdatedRules(t *testing.T) {
+	tests := []struct {
+		name     string
+		result   model.JobResult
+		wanted   []string
+		unwanted []string
+	}{
+		{
+			name:     "current match",
+			result:   model.JobResult{DiagnosisStatus: model.DiagnosisMatched, DiagnosisRules: diagnose.RulesVersion(), Diagnoses: []model.RuleDiagnosis{{Name: "Permission denied", Evidence: "permission denied", Suggestion: "check"}}},
+			wanted:   []string{"Diagnosis:", "Permission denied"},
+			unwanted: []string{"earlier diagnosis rules"},
+		},
+		{
+			name:   "outdated no match",
+			result: model.JobResult{DiagnosisStatus: model.DiagnosisNoMatch, DiagnosisRules: "old"},
+			wanted: []string{"Diagnosis: no known rule matched", noMatchDiagnosisNext, "Note: " + outdatedDiagnosisNote},
+		},
+		{
+			name:     "unavailable",
+			result:   model.JobResult{DiagnosisStatus: model.DiagnosisUnavailable, DiagnosisNote: "the job output could not be read"},
+			wanted:   []string{"Diagnosis: unavailable: the job output could not be read", unavailableDiagnosisNext},
+			unwanted: []string{"earlier diagnosis rules"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var output bytes.Buffer
+			writeJobDiagnoses(&output, test.result)
+			for _, want := range test.wanted {
+				if !strings.Contains(output.String(), want) {
+					t.Fatalf("output does not contain %q:\n%s", want, output.String())
+				}
+			}
+			for _, unwanted := range test.unwanted {
+				if strings.Contains(output.String(), unwanted) {
+					t.Fatalf("output contains %q:\n%s", unwanted, output.String())
+				}
+			}
+		})
+	}
+}
+
+func TestShowJobConvertsLegacyNoMatchDiagnosis(t *testing.T) {
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID, jobID := "run-1", "job-1"
+	runDir := filepath.Join(paths.RunsDir, runID)
+	jobDir := filepath.Join(runDir, jobID)
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: jobID, Command: []string{"false"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	legacy := `{"results":[{"id":"job-1","exit_code":1,"diagnoses":[{"name":"No known rule-based diagnosis matched","evidence":"No recognized signature.","suggestion":"Inspect."}]}]}`
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "summary.json"), []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(jobDir, "status"), []byte("1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if code := showJob(&output, paths, runID, jobID); code != 0 {
+		t.Fatalf("showJob exit code = %d, want 0", code)
+	}
+	text := output.String()
+	if !strings.Contains(text, "Diagnosis: no known rule matched") || !strings.Contains(text, outdatedDiagnosisNote) || strings.Contains(text, "No recognized signature.") {
+		t.Fatalf("showJob output = %q, want legacy no-match converted and marked outdated", text)
+	}
+}
+
 func TestShowJobRejectsTraversalInRunAndJobIDs(t *testing.T) {
 	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
 	if err != nil {
@@ -1455,6 +1530,64 @@ func TestShowAndWebShareStatusFallbackChain(t *testing.T) {
 	}
 	if len(jobs) != len(want) {
 		t.Fatalf("web jobs = %#v, want %d jobs", jobs, len(want))
+	}
+}
+
+func TestShowJobOlderAttemptIgnoresLatestSummary(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := makeRunID()
+	runDir := filepath.Join(paths.RunsDir, runID)
+	first := state.MakeAttemptID(runID, "job-a", 1)
+	second := state.MakeAttemptID(runID, "job-a", 2)
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job-a", Command: []string{"true"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	firstDir := filepath.Join(runDir, "job-a", "attempts", first)
+	if err := writeJSON(filepath.Join(firstDir, "status.json"), executor.WrapperStatus{Phase: "running"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(firstDir, "submitted_at"), []byte("2026-09-25T01:00:00Z\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	secondDir := filepath.Join(runDir, "job-a", "attempts", second)
+	if err := os.MkdirAll(secondDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(secondDir, "status"), []byte("0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(secondDir, "submitted_at"), []byte("2026-09-25T02:00:00Z\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	summary := model.RunSummary{RunID: runID, Results: []model.JobResult{{
+		ID: "job-a", AttemptID: second, ExitCode: 0, Hosts: []string{"latest-host"},
+		Diagnoses: []model.RuleDiagnosis{{Name: "latest-diagnosis"}},
+	}}}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), summary); err != nil {
+		t.Fatal(err)
+	}
+
+	var older bytes.Buffer
+	if code := showJobAttempt(&older, paths, runID, "job-a", first); code != 0 {
+		t.Fatalf("showJobAttempt(older) code=%d output=%q", code, older.String())
+	}
+	text := older.String()
+	for _, unwanted := range []string{"latest-host", "latest-diagnosis", "Hosts:", model.FormatDisplayTimestamp("2026-09-25T02:00:00Z")} {
+		if strings.Contains(text, unwanted) {
+			t.Fatalf("older attempt output contains %q from the latest attempt: %q", unwanted, text)
+		}
+	}
+	if !strings.Contains(text, "running (exit code 0)") || !strings.Contains(text, model.FormatDisplayTimestamp("2026-09-25T01:00:00Z")) {
+		t.Fatalf("older attempt output = %q, want its own phase and timestamp", text)
+	}
+
+	var latest bytes.Buffer
+	if code := showJobAttempt(&latest, paths, runID, "job-a", second); code != 0 || !strings.Contains(latest.String(), "latest-host") || !strings.Contains(latest.String(), "latest-diagnosis") {
+		t.Fatalf("showJobAttempt(latest) code=%d output=%q, want summary hosts and diagnoses", code, latest.String())
 	}
 }
 

@@ -213,7 +213,7 @@ func TestExecuteMixedRunPersistsNoMatchDiagnosis(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(summary.Results) != 1 || len(summary.Results[0].Diagnoses) != 1 || summary.Results[0].Diagnoses[0].Name != noRuleDiagnosisName {
+	if len(summary.Results) != 1 || len(summary.Results[0].Diagnoses) != 0 || summary.Results[0].DiagnosisStatus != model.DiagnosisNoMatch {
 		t.Fatalf("summary results = %#v, want persisted no-match diagnosis", summary.Results)
 	}
 }

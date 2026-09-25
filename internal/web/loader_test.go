@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -112,6 +113,47 @@ func TestLoadJobsSelectedAttemptUsesItsOwnOutcome(t *testing.T) {
 	}
 	if len(jobs[0].Attempts) != 2 || jobs[0].Attempts[0].ID != second || jobs[0].Attempts[1].Result == nil || jobs[0].Attempts[1].Result.ExitCode != 2 {
 		t.Fatalf("attempts = %#v, want newest first with results", jobs[0].Attempts)
+	}
+}
+
+func TestLoadJobsSelectedOlderAttemptIgnoresSummary(t *testing.T) {
+	runID := "20260925-000000-00000000"
+	runDir := filepath.Join(t.TempDir(), runID)
+	first := state.MakeAttemptID(runID, "job-1", 1)
+	second := state.MakeAttemptID(runID, "job-1", 2)
+	writeTestFile(t, filepath.Join(runDir, "job-1", "attempts", first, "status.json"), `{"phase":"running"}`)
+	writeTestFile(t, filepath.Join(runDir, "job-1", "attempts", second, "status"), "0")
+	summary := model.RunSummary{Results: []model.JobResult{{ID: "job-1", AttemptID: second, ExitCode: 0, Hosts: []string{"node2"}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}
+	jobs, err := LoadJobs(state.NewStore(0o700, 0o600), runDir, queue, summary, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 1 || jobs[0].Result != nil {
+		t.Fatalf("jobs = %#v, want unfinished selected older attempt without summary result", jobs)
+	}
+	jobs, err = LoadJobs(state.NewStore(0o700, 0o600), runDir, queue, summary, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 1 || jobs[0].Result == nil || jobs[0].Result.AttemptID != second || len(jobs[0].Result.Hosts) != 1 {
+		t.Fatalf("jobs = %#v, want selected latest attempt with summary metadata", jobs)
+	}
+}
+
+func TestLoadJobsMarksOutdatedDiagnosis(t *testing.T) {
+	runDir := filepath.Join(t.TempDir(), "20260925-000000-00000000")
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "old", Command: []string{"false"}}, {ID: "current", Command: []string{"false"}}}}
+	summary := model.RunSummary{Results: []model.JobResult{
+		{ID: "old", ExitCode: 1, DiagnosisStatus: model.DiagnosisNoMatch, DiagnosisRules: "old"},
+		{ID: "current", ExitCode: 1, DiagnosisStatus: model.DiagnosisNoMatch, DiagnosisRules: diagnose.RulesVersion()},
+	}}
+	jobs, err := LoadJobs(state.NewStore(0o700, 0o600), runDir, queue, summary, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 2 || !jobs[0].DiagnosisOutdated || jobs[1].DiagnosisOutdated {
+		t.Fatalf("jobs = %#v, want only the old analysis marked outdated", jobs)
 	}
 }
 

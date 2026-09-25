@@ -55,7 +55,7 @@ func TestBuildAIReportIncludesDiagnosisAndBoundedLog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"# rotari job report", "Python exception", "Evidence: ValueError: bad value", "Next: Inspect the traceback", "log-line-021", "log-line-120"} {
+	for _, want := range []string{"# rotari job report", "Python exception", "Evidence: ValueError: bad value", "Next: Inspect the traceback", outdatedDiagnosisNote, "log-line-021", "log-line-120"} {
 		if !strings.Contains(report, want) {
 			t.Fatalf("report does not contain %q:\n%s", want, report)
 		}

@@ -41,6 +41,9 @@ type Job struct {
 	SubmittedAt      string           `json:"submitted_at,omitempty"`
 	FinishedAt       string           `json:"finished_at,omitempty"`
 	SchedulerState   string           `json:"scheduler_state,omitempty"`
+	// DiagnosisOutdated reports that Result's saved rule-based analysis was
+	// produced by earlier diagnosis rules.
+	DiagnosisOutdated bool `json:"diagnosis_outdated,omitempty"`
 }
 
 type Attempt struct {

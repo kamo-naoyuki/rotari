@@ -73,3 +73,23 @@ func TestResolveJobWithoutOutcome(t *testing.T) {
 		t.Fatalf("Hosts() = %#v, want wrapper hosts", job.Hosts())
 	}
 }
+
+func TestResolveAttemptIgnoresSummaryForOlderAttempt(t *testing.T) {
+	jobDir := t.TempDir()
+	writeFile(t, filepath.Join(jobDir, "status.json"), `{"phase":"running","hosts":["old-host"]}`)
+	summary := model.JobResult{ID: "job-1", AttemptID: "att-2", ExitCode: 0, Hosts: []string{"summary-host"}}
+	attempt := ReadAttempt(testStore(), jobDir)
+
+	older := ResolveAttempt(attempt, false, summary, true)
+	if older.Finished() || older.HasSummary {
+		t.Fatalf("ResolveAttempt(older) = %#v, want unfinished attempt without summary", older)
+	}
+	if _, ok := older.Result(model.JobSpec{ID: "job-1"}); ok {
+		t.Fatal("older unfinished attempt returned the summary result")
+	}
+
+	latest := ResolveAttempt(attempt, true, summary, true)
+	if latest.Source != SourceSummary || !latest.HasSummary {
+		t.Fatalf("ResolveAttempt(latest) = %#v, want summary fallback", latest)
+	}
+}

@@ -416,9 +416,11 @@ function renderRun(q, runID) {
   const attemptKey = (jobID) => q.project_name + "/" + runID + "/" + jobID;
   const selectAttempt = (job, attemptID) => {
     const attempt = (job.attempts || []).find((item) => item.id === attemptID);
-    if (!attempt) return;
+    // The job row already shows the latest attempt with its summary result.
+    if (!attempt || attempt === job.attempts[0]) return;
     job.attempt_id = attempt.id;
     job.result = attempt.result;
+    job.diagnosis_outdated = false;
     job.submitted_at = attempt.submitted_at;
     job.finished_at = attempt.finished_at;
     job.scheduler_state = attempt.scheduler_state;
@@ -445,14 +447,22 @@ function renderRun(q, runID) {
       const logJob = carried ? j.origin.job_id : j.id;
       const logAttemptID = carried ? "" : j.attempt_id;
       const diagnoses = (result && result.diagnoses) || [];
+      const diagnosisStatus = (result && result.diagnosis_status) || "";
       const canDiagnose = !!(
         result &&
         result.exit_code !== 0 &&
-        diagnoses.length
+        (diagnosisStatus || diagnoses.length)
       );
       const diagnosisControl = canDiagnose
         ? ' <button class="diagnosis" data-diagnoses="' +
-          esc(JSON.stringify(diagnoses)) +
+          esc(
+            JSON.stringify({
+              status: diagnosisStatus,
+              note: result.diagnosis_note || "",
+              outdated: !!j.diagnosis_outdated,
+              diagnoses: diagnoses,
+            }),
+          ) +
           '" onclick="showDiagnosis(this)">Diagnosis</button>'
         : ' <button class="diagnosis" disabled title="Available after a finalized failed result with saved analysis">Diagnosis</button>';
       const output = result

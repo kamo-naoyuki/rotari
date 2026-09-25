@@ -147,6 +147,58 @@ setTimeout(() => {
 	}
 }
 
+func TestWebShowDiagnosisRendersAnalysisStatus(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	script := `
+const fs = require('fs');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const html = fs.readFileSync(process.argv[1], 'utf8');
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+const dom = new JSDOM(html, {
+  runScripts: 'dangerously',
+  url: 'http://127.0.0.1/',
+  virtualConsole,
+  beforeParse(window) {
+    window.fetch = async () => ({ok: true, json: async () => ({project_name: 'demo', queue: {commands: []}, runs: []})});
+    window.setInterval = () => 1;
+  },
+});
+setTimeout(() => {
+  const render = analysis => {
+    const trigger = dom.window.document.createElement('button');
+    trigger.dataset.diagnoses = JSON.stringify(analysis);
+    dom.window.showDiagnosis(trigger);
+    return dom.window.document.getElementById('output-modal').textContent;
+  };
+  const checks = [
+    [{status: 'matched', diagnoses: [{name: 'Rule', evidence: 'line', suggestion: 'fix'}]}, ['Rule', 'Evidence: line', 'Next: fix'], ['earlier diagnosis rules']],
+    [{status: 'no_match', outdated: true, diagnoses: []}, ['No known rule matched.', 'earlier diagnosis rules'], ['Evidence:']],
+    [{status: 'unavailable', note: 'read failed', diagnoses: []}, ['Unavailable: read failed'], ['earlier diagnosis rules']],
+  ];
+  for (const [analysis, wanted, unwanted] of checks) {
+    const text = render(analysis);
+    for (const want of wanted) if (!text.includes(want)) { console.error(JSON.stringify(analysis), 'missing', want, text); process.exit(2); }
+    for (const want of unwanted) if (text.includes(want)) { console.error(JSON.stringify(analysis), 'unexpected', want, text); process.exit(3); }
+  }
+  if (errors.length) {
+    console.error(errors.join('\n'));
+    process.exit(1);
+  }
+}, 50);
+`
+	htmlPath := filepath.Join(t.TempDir(), "index.html")
+	if err := os.WriteFile(htmlPath, []byte(webHTML()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if output, err := exec.Command("node", "-e", script, htmlPath).CombinedOutput(); err != nil {
+		t.Fatalf("web diagnosis check failed: %v\n%s", err, output)
+	}
+}
+
 func TestStaticWebUsesGenerateConfigReadOnlyFlow(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")

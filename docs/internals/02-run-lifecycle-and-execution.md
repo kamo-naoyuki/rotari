@@ -267,12 +267,21 @@
   dropped when a specific rule explains the same line
   ([rules.go](../../internal/diagnose/rules.go),
   [rules_test.go](../../internal/diagnose/rules_test.go)). When
-  a failed run is finalized, annotations are saved on its `summary.json` result
-  as informational snapshots; they never affect run status, retry planning,
-  dependency resolution, or scheduler control. Every finalized failed job
-  records a recognized diagnosis, an explicit no-match annotation, or an
-  analysis-unavailable annotation when output cannot be read. `showJob` reads
-  those saved annotations for CLI job detail, while the Web UI always shows a
-  `Diagnosis` control and enables it for finalized failed jobs with saved
-  annotations; it is disabled for live fallback results that have no finalized
+  a failed run is finalized, the analysis is saved on its `summary.json` result
+  as an informational snapshot; it never affects run status, retry planning,
+  dependency resolution, or scheduler control. `diagnosis_status` records
+  `matched`, `no_match`, or `unavailable` (with the reason in
+  `diagnosis_note`), and `diagnoses` lists only recognized diagnoses.
+  `diagnosis_rules` is a hash of the rule definitions and matcher revision;
+  saved analyses are never recomputed, and `show`, `report`, and the Web UI
+  mark a matched or no-match analysis whose hash differs from the current
+  rules as produced by earlier rules. Results saved before these fields existed
+  are converted when decoded: a lone no-match or unavailable entry becomes the
+  status, and they carry no rules hash
+  ([analysis.go](../../internal/diagnose/analysis.go),
+  [analysis_test.go](../../internal/diagnose/analysis_test.go),
+  [job_result_test.go](../../internal/model/job_result_test.go)). `showJob`
+  reads the saved analysis for CLI job detail, while the Web UI always shows a
+  `Diagnosis` control and enables it for finalized failed jobs with a saved
+  analysis; it is disabled for live fallback results that have no finalized
   summary analysis.

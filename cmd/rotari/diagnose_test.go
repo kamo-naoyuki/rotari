@@ -170,11 +170,11 @@ func TestDiagnoseJobResultReadsOutputAndPreservesSavedDiagnoses(t *testing.T) {
 		t.Fatal(err)
 	}
 	result := diagnoseJobResult(runDir, model.JobResult{ID: "job-1", ExitCode: 1})
-	if len(result.Diagnoses) != 1 || result.Diagnoses[0].Name != "CUDA/GPU memory exhausted" {
-		t.Fatalf("diagnoseJobResult() = %#v", result.Diagnoses)
+	if len(result.Diagnoses) != 1 || result.Diagnoses[0].Name != "CUDA/GPU memory exhausted" || result.DiagnosisStatus != model.DiagnosisMatched || result.DiagnosisRules != diagnose.RulesVersion() {
+		t.Fatalf("diagnoseJobResult() = %#v", result)
 	}
 
-	saved := model.JobResult{ID: "job-1", ExitCode: 1, Diagnoses: []model.RuleDiagnosis{{Name: "Saved diagnosis"}}}
+	saved := model.JobResult{ID: "job-1", ExitCode: 1, Diagnoses: []model.RuleDiagnosis{{Name: "Saved diagnosis"}}, DiagnosisStatus: model.DiagnosisMatched}
 	if got := diagnoseJobResult(runDir, saved); len(got.Diagnoses) != 1 || got.Diagnoses[0].Name != "Saved diagnosis" {
 		t.Fatalf("diagnoseJobResult() overwrote saved diagnoses: %#v", got.Diagnoses)
 	}
@@ -190,8 +190,8 @@ func TestDiagnoseJobResultPersistsNoMatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	result := diagnoseJobResult(runDir, model.JobResult{ID: "job-1", ExitCode: 1})
-	if len(result.Diagnoses) != 1 || result.Diagnoses[0].Name != noRuleDiagnosisName {
-		t.Fatalf("diagnoseJobResult() = %#v, want no-match diagnosis", result.Diagnoses)
+	if len(result.Diagnoses) != 0 || result.DiagnosisStatus != model.DiagnosisNoMatch {
+		t.Fatalf("diagnoseJobResult() = %#v, want no-match status without diagnoses", result)
 	}
 }
 
@@ -233,11 +233,11 @@ func TestCmdDiagnoseRequiresAPIKeyBeforeLLMRequest(t *testing.T) {
 
 func TestDiagnoseJobResultRejectsInvalidJobIDWithUnavailableDiagnosis(t *testing.T) {
 	result := diagnoseJobResult(t.TempDir(), model.JobResult{ID: "../outside", ExitCode: 1, Error: "bad input"})
-	if len(result.Diagnoses) != 1 || result.Diagnoses[0].Name != unavailableRuleDiagnosisName {
-		t.Fatalf("result.Diagnoses = %#v, want unavailable diagnosis for invalid job ID", result.Diagnoses)
+	if len(result.Diagnoses) != 0 || result.DiagnosisStatus != model.DiagnosisUnavailable {
+		t.Fatalf("result = %#v, want unavailable status for invalid job ID", result)
 	}
-	if !strings.Contains(result.Diagnoses[0].Evidence, "job ID is invalid") {
-		t.Fatalf("evidence = %q, want invalid job ID message", result.Diagnoses[0].Evidence)
+	if !strings.Contains(result.DiagnosisNote, "job ID is invalid") {
+		t.Fatalf("note = %q, want invalid job ID message", result.DiagnosisNote)
 	}
 }
 
