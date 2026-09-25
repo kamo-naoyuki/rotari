@@ -163,6 +163,11 @@ code {
   background: var(--panel);
 }
 
+.jobs-copy.copied {
+  border-color: var(--good, #63d297);
+  color: var(--good, #63d297);
+}
+
 .jobs-copy svg {
   display: block;
   width: 100%;

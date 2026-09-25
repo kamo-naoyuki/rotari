@@ -1971,3 +1971,35 @@ setTimeout(() => {
 		t.Fatalf("web matrix grid check failed: %v\n%s", err, output)
 	}
 }
+
+func TestJobsPageCopyButtonShowsFeedback(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	htmlPath := filepath.Join(t.TempDir(), "jobs.html")
+	page := jobsHTML("/", []jobsRow{{state: "success", project: "p", runID: "r", jobName: "j", command: "echo hi", fullCommand: "echo hi", attemptID: "att_1"}}, defaultJobsSinceText, false)
+	if err := os.WriteFile(htmlPath, []byte(page), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := `
+const fs = require('fs');
+const { JSDOM } = require('jsdom');
+const copied = [];
+const dom = new JSDOM(fs.readFileSync(process.argv[1], 'utf8'), {
+  runScripts: 'dangerously',
+  beforeParse(window) {
+    Object.defineProperty(window.navigator, 'clipboard', {value: {writeText: async value => copied.push(value)}});
+  },
+});
+const button = dom.window.document.querySelectorAll('button.jobs-copy')[1];
+button.click();
+setTimeout(() => {
+  if (copied[0] !== 'att_1') { console.error('copied', copied); process.exit(2); }
+  if (!button.classList.contains('copied') || button.title !== 'Copied!' || !button.innerHTML.includes('path')) { console.error(button.outerHTML); process.exit(3); }
+  process.exit(0);
+}, 50);
+`
+	if output, err := exec.Command("node", "-e", script, htmlPath).CombinedOutput(); err != nil {
+		t.Fatalf("jobs page copy check failed: %v\n%s", err, output)
+	}
+}
