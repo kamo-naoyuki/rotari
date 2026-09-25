@@ -9,20 +9,41 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
 )
 
 type importPlan struct {
-	Version int             `json:"version"`
-	Project string          `json:"project"`
-	Jobs    []importPlanJob `json:"jobs"`
+	Version int                  `json:"version"`
+	Project string               `json:"project"`
+	Jobs    []importPlanJob      `json:"jobs"`
+	Removed []workflowRemovedJob `json:"removed"`
 }
 
 type importPlanJob struct {
-	ID     string `json:"id"`
-	Name   string `json:"name,omitempty"`
-	Action string `json:"action"`
+	ID     string            `json:"id"`
+	Name   string            `json:"name,omitempty"`
+	Action string            `json:"action"`
+	Source *importPlanSource `json:"source,omitempty"`
+	Tasks  []importPlanTask  `json:"tasks,omitempty"`
+}
+
+// importPlanTask reports the disposition of one array task that has source
+// provenance.
+type importPlanTask struct {
+	ID     string            `json:"id"`
+	Action string            `json:"action"`
+	Source *importPlanSource `json:"source,omitempty"`
+}
+
+// importPlanSource names the decoded source attempt so a reviewer can check
+// which earlier result a reused, accepted, or re-executed job refers to.
+type importPlanSource struct {
+	RunID     string `json:"run_id"`
+	JobID     string `json:"job_id"`
+	AttemptID string `json:"attempt_id,omitempty"`
+	Status    string `json:"status"`
 }
 
 func cmdImport(args []string) int {
@@ -85,7 +106,7 @@ func cmdImport(args []string) int {
 		printError(err)
 		return 1
 	}
-	queue, err = reconcileWorkflowManifest(baseDir, manifest, queue)
+	queue, removed, err := reconcileWorkflowManifest(baseDir, manifest, queue)
 	if err != nil {
 		printError(err)
 		return 1
@@ -94,7 +115,7 @@ func cmdImport(args []string) int {
 		printErrorf("invalid workflow queue: %v", err)
 		return 1
 	}
-	plan := newImportPlan(resolvedProject, queue)
+	plan := newImportPlan(resolvedProject, queue, removed)
 	if *dryRun {
 		if err := validateImportDestination(baseDir, resolvedProject, *overwrite); err != nil {
 			printError(err)
@@ -155,13 +176,34 @@ func writeImportPlan(plan importPlan, jsonOutput bool) error {
 		return encoder.Encode(plan)
 	}
 	for _, job := range plan.Jobs {
-		if job.Name == "" {
-			fmt.Printf("%s job_id=%s\n", job.Action, job.ID)
-		} else {
-			fmt.Printf("%s job_id=%s job_name=%s\n", job.Action, job.ID, job.Name)
+		fields := append([]string{job.Action, "job_id=" + job.ID}, optionalField("job_name", job.Name)...)
+		fmt.Println(strings.Join(append(fields, importSourceFields(job.Source)...), " "))
+		for _, task := range job.Tasks {
+			fields := append([]string{" ", task.Action, "task_id=" + task.ID}, importSourceFields(task.Source)...)
+			fmt.Println(strings.Join(fields, " "))
 		}
 	}
+	for _, removed := range plan.Removed {
+		fields := append([]string{"remove", "job_id=" + removed.JobID}, optionalField("job_name", removed.Name)...)
+		fmt.Println(strings.Join(append(fields, "source_run_id="+removed.RunID), " "))
+	}
 	return nil
+}
+
+func importSourceFields(source *importPlanSource) []string {
+	if source == nil {
+		return nil
+	}
+	fields := []string{"source_run_id=" + source.RunID, "source_job_id=" + source.JobID}
+	fields = append(fields, optionalField("source_attempt_id", source.AttemptID)...)
+	return append(fields, "source_status="+source.Status)
+}
+
+func optionalField(key, value string) []string {
+	if value == "" {
+		return nil
+	}
+	return []string{key + "=" + value}
 }
 
 func workflowFormatFromPath(path string) (string, error) {
@@ -177,8 +219,11 @@ func workflowFormatFromPath(path string) (string, error) {
 	}
 }
 
-func newImportPlan(project string, queue Queue) importPlan {
-	plan := importPlan{Version: 1, Project: project, Jobs: make([]importPlanJob, 0, len(queue.Commands))}
+func newImportPlan(project string, queue Queue, removed []workflowRemovedJob) importPlan {
+	if removed == nil {
+		removed = []workflowRemovedJob{}
+	}
+	plan := importPlan{Version: 1, Project: project, Jobs: make([]importPlanJob, 0, len(queue.Commands)), Removed: removed}
 	for _, command := range queue.Commands {
 		action := "execute"
 		if command.Accepted || len(command.TaskAccepted) > 0 {
@@ -189,9 +234,40 @@ func newImportPlan(project string, queue Queue) importPlan {
 		if command.Force || len(command.TaskForce) > 0 {
 			action = "execute"
 		}
-		plan.Jobs = append(plan.Jobs, importPlanJob{ID: command.ID, Name: command.Name, Action: action})
+		job := importPlanJob{ID: command.ID, Name: command.Name, Action: action}
+		if command.Array == nil {
+			job.Source = newImportPlanSource(command.Origin)
+		} else if len(command.TaskOrigins) > 0 {
+			job.Tasks = importPlanTasks(command)
+		}
+		plan.Jobs = append(plan.Jobs, job)
 	}
 	return plan
+}
+
+func importPlanTasks(command QueuedCommand) []importPlanTask {
+	tasks := make([]importPlanTask, 0, len(command.TaskOrigins))
+	for _, task := range model.ArrayTaskIDs(command.Array) {
+		taskID := fmt.Sprintf("%s-%d", command.ID, task)
+		origin := command.TaskOrigins[taskID]
+		action := "execute"
+		switch {
+		case command.Force || command.TaskForce[taskID]:
+		case command.TaskAccepted[taskID]:
+			action = "accept"
+		case origin != nil:
+			action = "reuse"
+		}
+		tasks = append(tasks, importPlanTask{ID: taskID, Action: action, Source: newImportPlanSource(origin)})
+	}
+	return tasks
+}
+
+func newImportPlanSource(origin *JobOrigin) *importPlanSource {
+	if origin == nil {
+		return nil
+	}
+	return &importPlanSource{RunID: origin.RunID, JobID: origin.JobID, AttemptID: origin.AttemptID, Status: origin.Status}
 }
 
 func writeImportedQueue(baseDir, projectName string, queue Queue, overwrite bool) error {

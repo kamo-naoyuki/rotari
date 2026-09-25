@@ -37,27 +37,126 @@ type workflowSourceLeaf struct {
 	finished bool
 }
 
-func reconcileWorkflowManifest(baseDir string, manifest workflow.Manifest, queue Queue) (Queue, error) {
+// workflowRemovedJob is a source job that the manifest no longer describes.
+type workflowRemovedJob struct {
+	RunID string `json:"run_id"`
+	JobID string `json:"job_id"`
+	Name  string `json:"name,omitempty"`
+}
+
+func reconcileWorkflowManifest(baseDir string, manifest workflow.Manifest, queue Queue) (Queue, []workflowRemovedJob, error) {
 	if manifest.Source == nil {
-		return queue, nil
+		return queue, nil, nil
 	}
 	catalog, err := loadWorkflowSourceCatalog(baseDir, *manifest.Source)
 	if err != nil {
-		return Queue{}, err
+		return Queue{}, nil, err
 	}
 	queue.WorkflowImport = true
 	cursor := 0
 	for _, job := range manifest.Jobs {
 		count, err := reconcileWorkflowJob(job, queue.Commands[cursor:], catalog)
 		if err != nil {
-			return Queue{}, err
+			return Queue{}, nil, err
 		}
 		cursor += count
 	}
 	if err := validateQueueJobs(queue); err != nil {
-		return Queue{}, err
+		return Queue{}, nil, err
 	}
-	return queue, nil
+	return queue, catalog.removedJobs(manifest, queue), nil
+}
+
+// removedJobs lists exported source commands that no manifest job refers to.
+// A source command is kept when the manifest names one of its attempts, when
+// another member of its matrix group is kept, when its name is still queued,
+// or, for an unnamed command without attempts, when an identical definition
+// is still queued. The result is informational; import never infers identity
+// from it.
+func (catalog *workflowSourceCatalog) removedJobs(manifest workflow.Manifest, queue Queue) []workflowRemovedJob {
+	attempts := make(map[string]bool)
+	for _, job := range manifest.Jobs {
+		attempts[job.AttemptID] = true
+		for _, instance := range job.Instances {
+			attempts[instance.AttemptID] = true
+		}
+	}
+	delete(attempts, "")
+	names := make(map[string]bool, len(queue.Commands))
+	for _, command := range queue.Commands {
+		if command.Name != "" {
+			names[command.Name] = true
+		}
+	}
+	sources := catalog.exportedCommands()
+	kept := make([]bool, len(sources))
+	keptGroups := make(map[string]bool)
+	for index, source := range sources {
+		for _, attemptID := range catalog.leafAttemptIDs(source) {
+			if attempts[attemptID] {
+				kept[index] = true
+			}
+		}
+		if kept[index] && source.command.Matrix != nil {
+			keptGroups[source.run.id+"\x00"+source.command.Matrix.GroupID] = true
+		}
+	}
+	removed := make([]workflowRemovedJob, 0)
+	for index, source := range sources {
+		command := source.command
+		switch {
+		case kept[index]:
+		case command.Matrix != nil && keptGroups[source.run.id+"\x00"+command.Matrix.GroupID]:
+		case command.Name != "" && names[command.Name]:
+		case command.Name == "" && len(catalog.leafAttemptIDs(source)) == 0 && queueHasEquivalentCommand(queue, command):
+		default:
+			removed = append(removed, workflowRemovedJob{RunID: source.run.id, JobID: command.ID, Name: command.Name})
+		}
+	}
+	return removed
+}
+
+// exportedCommands returns the latest listed snapshot of each source command
+// ID in first-appearance order, matching the export merge.
+func (catalog *workflowSourceCatalog) exportedCommands() []workflowSourceLeaf {
+	seen := make(map[string]bool)
+	sources := make([]workflowSourceLeaf, 0)
+	for _, run := range catalog.ordered {
+		for _, command := range run.queue.Commands {
+			if seen[command.ID] {
+				continue
+			}
+			seen[command.ID] = true
+			sources = append(sources, catalog.listedCommandRun(workflowSourceLeaf{run: run, command: command}))
+		}
+	}
+	return sources
+}
+
+func (catalog *workflowSourceCatalog) leafAttemptIDs(source workflowSourceLeaf) []string {
+	leafIDs := []string{source.command.ID}
+	if source.command.Array != nil {
+		leafIDs = leafIDs[:0]
+		for _, task := range model.ArrayTaskIDs(source.command.Array) {
+			leafIDs = append(leafIDs, fmt.Sprintf("%s-%d", source.command.ID, task))
+		}
+	}
+	attempts := make([]string, 0, len(leafIDs))
+	for _, leafID := range leafIDs {
+		if result, ok := source.run.results[leafID]; ok && result.AttemptID != "" {
+			attempts = append(attempts, result.AttemptID)
+		}
+	}
+	return attempts
+}
+
+func queueHasEquivalentCommand(queue Queue, command QueuedCommand) bool {
+	for _, candidate := range queue.Commands {
+		if workflow.EquivalentCommand(candidate, command) {
+			return true
+		}
+	}
+	return false
 }
 
 func reconcileWorkflowJob(job workflow.Job, remaining []QueuedCommand, catalog *workflowSourceCatalog) (int, error) {

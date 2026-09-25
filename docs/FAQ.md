@@ -169,7 +169,10 @@ and its non-zero exit code remain unchanged.
 
 `attempt_id` is provenance and should normally not be edited. Import validates
 its embedded run and job IDs against the source state. A malformed, missing, or
-unreachable attempt rejects the import before the queue is written.
+unreachable attempt rejects the import before the queue is written. Because a
+different real attempt of the same job cannot be told apart from an intentional
+choice, check the `source_attempt_id` that `import --dry-run` prints for each
+reused or accepted job before importing.
 
 ### Does retrying an array job rerun every task?
 

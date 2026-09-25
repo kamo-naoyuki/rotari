@@ -105,12 +105,19 @@
   reference the immutable failed source result and output. `show` run and job
   views and the Web job table all read the destination result first, so they
   display `success (accepted)`; `show` job then shows the accepted source
-  attempt named by `Origin`, not merely the source's latest attempt. See
+  attempt named by `Origin`, not merely the source's latest attempt. The
+  import plan reports each job's decoded source run, job, attempt, and status
+  (per task for arrays) and lists exported source jobs that the manifest no
+  longer describes as `remove`. A source job is kept when the manifest names
+  one of its attempts, another member of its matrix group is kept, its name is
+  still queued, or it is unnamed, has no attempts, and an identical definition
+  is still queued; this report never affects reconciliation. See
   [workflow reconciliation](../../cmd/rotari/workflow_reconcile.go),
   [run planning](../../cmd/rotari/run_selection.go),
   [workflow integration tests](../../cmd/rotari/import_test.go),
   [workflow reconciliation edge cases](../../cmd/rotari/workflow_manifest_errors_test.go),
-  and [accepted result display tests](../../cmd/rotari/workflow_accepted_display_test.go).
+  [accepted result display tests](../../cmd/rotari/workflow_accepted_display_test.go),
+  and [import plan tests](../../cmd/rotari/workflow_import_plan_test.go).
 - An `ATTEMPT_ID` passed to `copy --job-id` identifies one exact execution
   attempt. A normal job ID selects the latest attempt. For an array task
   attempt, copy narrows the source command to a sparse array containing only
