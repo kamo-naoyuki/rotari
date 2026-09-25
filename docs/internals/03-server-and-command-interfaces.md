@@ -6,9 +6,17 @@ and CLI presentation. Web-specific UI and asset behavior live in
 
 Representative implementation and tests:
 
+- [internal/server/serve.go](../../internal/server/serve.go),
+  [internal/server/client.go](../../internal/server/client.go), and
+  [internal/server/serve_test.go](../../internal/server/serve_test.go) for the
+  server lease, request dispatch, active-run tracking, and the detach and
+  disconnect protocol.
 - [cmd/rotari/server.go](../../cmd/rotari/server.go) and
   [cmd/rotari/server_test.go](../../cmd/rotari/server_test.go) for server
-  lifecycle and client requests.
+  commands and the `Operations` that perform queue, cancel, and run work.
+  The request handlers live in [cmd/rotari/add.go](../../cmd/rotari/add.go),
+  [cmd/rotari/run_command.go](../../cmd/rotari/run_command.go), and
+  [cmd/rotari/job_control.go](../../cmd/rotari/job_control.go).
 - [cmd/rotari/show.go](../../cmd/rotari/show.go) and
   [cmd/rotari/show_test.go](../../cmd/rotari/show_test.go) for CLI projections.
 - [cmd/rotari/wait.go](../../cmd/rotari/wait.go) and
@@ -47,7 +55,7 @@ follows:
   count, and interrupted-run recovery is reserved for failures that bypass
   finalization.
 - Completed sync and async runs decrement the active-run count immediately
-  through `beginRun`/`endRun`. When it reaches zero, the server stops without
+  through `Server.BeginRun`/`Server.EndRun`. When it reaches zero, the server stops without
   waiting for the idle timeout.
 
 ## CLI presentation

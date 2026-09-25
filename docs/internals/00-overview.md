@@ -142,6 +142,7 @@ cmd/rotari
   ├── internal/executor  # executor contracts and local execution primitives
   ├── internal/jobstatus # read-side job result and timestamp resolution
   ├── internal/diagnose  # rule-based log diagnosis
+  ├── internal/server    # server protocol, transport, and lifetime
   └── internal/run       # run planning, worker lifecycle, lanes, orchestration
 ```
 

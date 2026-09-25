@@ -23,6 +23,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
+	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -3278,29 +3279,6 @@ func TestJobWasExplicitlyCancelledUsesCancellationStateNotExitCode(t *testing.T)
 	}
 }
 
-func TestServerBeginAndEndRunTracksActiveState(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer listener.Close()
-
-	server := &rotariServer{listener: listener, stopped: make(chan struct{}), lastAccess: time.Now()}
-	server.beginRun()
-	if server.activeRuns != 1 {
-		t.Fatalf("activeRuns = %d, want 1", server.activeRuns)
-	}
-	server.endRun()
-	if server.activeRuns != 0 {
-		t.Fatalf("activeRuns = %d, want 0", server.activeRuns)
-	}
-	select {
-	case <-server.stopped:
-	default:
-		t.Fatal("server.stop was not triggered when activeRuns reached 0")
-	}
-}
-
 func TestFinishCancelMessageIncludesInspectHintWhenNotWaiting(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "default")
@@ -3320,27 +3298,6 @@ func TestFinishCancelMessageIncludesInspectHintWhenNotWaiting(t *testing.T) {
 	}
 	if !strings.Contains(message, "rotari show --run-id run-1") {
 		t.Fatalf("message = %q, want show command hint", message)
-	}
-}
-
-func TestFjobServerBusyStateTracksRunBoundary(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer listener.Close()
-
-	server := &rotariServer{listener: listener, stopped: make(chan struct{}), lastAccess: time.Now()}
-	if server.isBusy() {
-		t.Fatal("server should be idle before any run begins")
-	}
-	server.beginRun()
-	if !server.isBusy() {
-		t.Fatal("server should report busy while a run is active")
-	}
-	server.endRun()
-	if server.isBusy() {
-		t.Fatal("server should not report busy after all runs finish")
 	}
 }
 
@@ -3409,7 +3366,7 @@ func TestSendRunRequestReadsProgressThenFinalResponse(t *testing.T) {
 	}
 }
 
-func TestRunServerSyncWithDisconnectCancelsRunningJob(t *testing.T) {
+func TestServerSyncRunDisconnectCancelsRunningJob(t *testing.T) {
 	baseDir := t.TempDir()
 	queueDir := filepath.Join(baseDir, "projects", "default")
 	if err := os.MkdirAll(queueDir, 0o755); err != nil {
@@ -3429,8 +3386,9 @@ func TestRunServerSyncWithDisconnectCancelsRunningJob(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		_, _, _ = runServerSyncWithDisconnect(serverConn, baseDir, "default", "", 1, 1, 0, "", nil, "", nil, "", true, func(serverResponse) {})
+		newRotariServer(baseDir).Handle(serverConn)
 	}()
+	startAttachedTestRun(t, client)
 
 	var pid int
 	deadline := time.Now().Add(5 * time.Second)
@@ -3466,7 +3424,7 @@ func TestRunServerSyncWithDisconnectCancelsRunningJob(t *testing.T) {
 	}
 }
 
-func TestRunServerSyncWithDisconnectDetachesRunningJob(t *testing.T) {
+func TestServerSyncRunDetachLeavesJobRunning(t *testing.T) {
 	baseDir := t.TempDir()
 	queueDir := filepath.Join(baseDir, "projects", "default")
 	if err := os.MkdirAll(queueDir, 0o755); err != nil {
@@ -3483,14 +3441,12 @@ func TestRunServerSyncWithDisconnectDetachesRunningJob(t *testing.T) {
 	defer client.Close()
 	defer serverConn.Close()
 	done := make(chan struct{})
-	onDone := make(chan struct{})
+	server := newRotariServer(baseDir)
 	go func() {
 		defer close(done)
-		_, _, _, detached := runServerSyncWithDisconnectAndDone(serverConn, baseDir, "default", "", 1, 1, 0, "", nil, "", nil, "", true, func(serverResponse) {}, func() { close(onDone) })
-		if !detached {
-			t.Errorf("run was not detached")
-		}
+		server.Handle(serverConn)
 	}()
+	responses := startAttachedTestRun(t, client)
 
 	var pid int
 	deadline := time.Now().Add(5 * time.Second)
@@ -3512,7 +3468,7 @@ func TestRunServerSyncWithDisconnectDetachesRunningJob(t *testing.T) {
 	if pid == 0 {
 		t.Fatal("job did not start")
 	}
-	if _, err := client.Write([]byte{runDetachControl}); err != nil {
+	if _, err := client.Write([]byte{serverinternal.DetachControl}); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -3523,11 +3479,41 @@ func TestRunServerSyncWithDisconnectDetachesRunningJob(t *testing.T) {
 	if !state.ProcessAlive(pid) {
 		t.Fatalf("running job %d was stopped by detach", pid)
 	}
-	select {
-	case <-onDone:
-	case <-time.After(5 * time.Second):
-		t.Fatal("onDone was not called after detached run completed")
+	if final := <-responses; !final.OK || final.Message != serverinternal.DetachedMessage {
+		t.Fatalf("final response = %#v, want detached message", final)
 	}
+	deadline = time.Now().Add(5 * time.Second)
+	for server.Busy() && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if server.Busy() || !server.Stopped() {
+		t.Fatal("server did not end the detached run after it completed")
+	}
+}
+
+// startAttachedTestRun sends a synchronous run request for the default
+// project and drains progress, returning the final response.
+func startAttachedTestRun(t *testing.T, client net.Conn) <-chan serverResponse {
+	t.Helper()
+	if err := json.NewEncoder(client).Encode(serverRequest{Op: serverinternal.OpRun, QueueName: "default", LocalConcurrency: 1, BatchMaxActive: 1, PartialArray: true}); err != nil {
+		t.Fatal(err)
+	}
+	final := make(chan serverResponse, 1)
+	go func() {
+		decoder := json.NewDecoder(client)
+		for {
+			var response serverResponse
+			if err := decoder.Decode(&response); err != nil {
+				close(final)
+				return
+			}
+			if !response.Progress {
+				final <- response
+				return
+			}
+		}
+	}()
+	return final
 }
 
 func writeExecutable(t *testing.T, dir, name, content string) {

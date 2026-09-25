@@ -196,118 +196,6 @@ func TestCmdRunRejectsAttemptIDFromAnotherRun(t *testing.T) {
 	}
 }
 
-func TestEnqueueCommandRejectsInterruptedRunWithoutChangingQueue(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
-	original := Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}
-	if err := writeJSON(paths.QueueFile, original); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "interrupted-run"}); err != nil {
-		t.Fatal(err)
-	}
-	writeTestRunStateFiles(t, paths, "interrupted-run")
-
-	_, err = enqueueCommand(baseDir, "default", []string{"duplicate"}, "", nil, nil, "", nil)
-	if err == nil || !strings.Contains(err.Error(), `project "default" has interrupted run "interrupted-run"; add is not allowed`) {
-		t.Fatalf("enqueueCommand error = %v, want interrupted run error", err)
-	}
-	queue, err := loadQueue(paths.QueueFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(queue.Commands) != 1 || queue.Commands[0].ID != "existing" {
-		t.Fatalf("queue changed after rejected add: %#v", queue.Commands)
-	}
-}
-
-func TestCmdAddEnqueuesJob(t *testing.T) {
-	baseDir := t.TempDir()
-
-	oldStdout := os.Stdout
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	os.Stdout = writer
-	code := cmdAdd([]string{
-		"--basedir", baseDir, "--project-name", "demo", "--job-name", "job",
-		"--stage", "prepare", "--executor", "local", "--env", "TOKEN=secret", "echo", "hello",
-	})
-	os.Stdout = oldStdout
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
-	output, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if code != 0 || !strings.Contains(string(output), "added project=demo") {
-		t.Fatalf("cmdAdd exit code = %d, stdout = %q", code, output)
-	}
-
-	paths, err := resolvePaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	queue, err := loadQueue(paths.QueueFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(queue.Commands) != 1 || queue.Commands[0].Name != "job" || queue.Commands[0].Stage != "prepare" || queue.Commands[0].Executor != "local" ||
-		len(queue.Commands[0].Environment) != 1 || queue.Commands[0].Environment[0] != "TOKEN=secret" {
-		t.Fatalf("queue commands = %#v, want persisted job with executor and env", queue.Commands)
-	}
-}
-
-func TestCmdAddRejectsMissingCommand(t *testing.T) {
-	baseDir := t.TempDir()
-	if code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo"}); code != 1 {
-		t.Fatalf("cmdAdd exit code = %d, want 1 for missing command", code)
-	}
-}
-
-func TestCmdAddRejectsInvalidArrayRange(t *testing.T) {
-	baseDir := t.TempDir()
-	code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "--array", "not-a-range", "echo", "hello"})
-	if code != 1 {
-		t.Fatalf("cmdAdd exit code = %d, want 1 for invalid array range", code)
-	}
-}
-
-func TestCmdAddRejectsInvalidEnv(t *testing.T) {
-	baseDir := t.TempDir()
-	code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "--env", "NOVALUE", "echo", "hello"})
-	if code != 1 {
-		t.Fatalf("cmdAdd exit code = %d, want 1 for invalid --env", code)
-	}
-}
-
-func TestCmdAddRejectsDuplicateJobNameWithoutWriting(t *testing.T) {
-	baseDir := t.TempDir()
-	if code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "--job-name", "prepare", "echo", "one"}); code != 0 {
-		t.Fatalf("first cmdAdd exit code = %d, want 0", code)
-	}
-	if code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "--job-name", "prepare", "echo", "two"}); code == 0 {
-		t.Fatal("cmdAdd accepted a duplicate job name")
-	}
-
-	paths, err := resolvePaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	queue, err := loadQueue(paths.QueueFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(queue.Commands) != 1 || queue.Commands[0].Command[len(queue.Commands[0].Command)-1] != "one" {
-		t.Fatalf("queue commands = %#v, want only the first job (rejected add must not write)", queue.Commands)
-	}
-}
-
 func TestCmdServerRequestFailsWithoutRunningServer(t *testing.T) {
 	baseDir := t.TempDir()
 
@@ -946,8 +834,8 @@ func TestServerHandlePing(t *testing.T) {
 	client, serverConn := net.Pipe()
 	defer client.Close()
 
-	server := &rotariServer{stopped: make(chan struct{}), lastAccess: time.Now()}
-	go server.handle(t.TempDir(), serverConn)
+	server := newRotariServer(t.TempDir())
+	go server.Handle(serverConn)
 
 	if err := json.NewEncoder(client).Encode(serverRequest{Op: "ping"}); err != nil {
 		t.Fatal(err)
@@ -956,17 +844,17 @@ func TestServerHandlePing(t *testing.T) {
 	if err := json.NewDecoder(client).Decode(&response); err != nil {
 		t.Fatal(err)
 	}
-	if !response.OK || response.PID == 0 || response.Protocol != serverProtocolVersion {
+	if !response.OK || response.PID == 0 || response.Protocol != serverinternal.ProtocolVersion {
 		t.Fatalf("response = %+v, want successful ping", response)
 	}
 }
 
 func TestServerLoggerCapsFileSize(t *testing.T) {
-	logger := &serverLogger{path: filepath.Join(t.TempDir(), "server.log")}
-	logger.writef("%s", strings.Repeat("x", maxServerLogSize))
-	logger.writef("latest event")
+	logger := newServerLogger(t.TempDir())
+	logger.Writef("%s", strings.Repeat("x", maxServerLogSize))
+	logger.Writef("latest event")
 
-	data, err := os.ReadFile(logger.path)
+	data, err := os.ReadFile(logger.Path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -982,8 +870,8 @@ func TestServerHandleRejectsMalformedJSON(t *testing.T) {
 	client, serverConn := net.Pipe()
 	defer client.Close()
 
-	server := &rotariServer{stopped: make(chan struct{}), lastAccess: time.Now()}
-	go server.handle(t.TempDir(), serverConn)
+	server := newRotariServer(t.TempDir())
+	go server.Handle(serverConn)
 
 	if _, err := client.Write([]byte("{invalid}\n")); err != nil {
 		t.Fatal(err)
@@ -1001,8 +889,8 @@ func TestServerHandleRejectsUnknownOperation(t *testing.T) {
 	client, serverConn := net.Pipe()
 	defer client.Close()
 
-	server := &rotariServer{stopped: make(chan struct{}), lastAccess: time.Now()}
-	go server.handle(t.TempDir(), serverConn)
+	server := newRotariServer(t.TempDir())
+	go server.Handle(serverConn)
 	if err := json.NewEncoder(client).Encode(serverRequest{Op: "unknown"}); err != nil {
 		t.Fatal(err)
 	}
@@ -1020,8 +908,8 @@ func TestServerHandleSubmitPersistsQueue(t *testing.T) {
 	client, serverConn := net.Pipe()
 	defer client.Close()
 
-	server := &rotariServer{stopped: make(chan struct{}), lastAccess: time.Now()}
-	go server.handle(baseDir, serverConn)
+	server := newRotariServer(baseDir)
+	go server.Handle(serverConn)
 	request := serverRequest{
 		Op: "submit", QueueName: "demo", Command: []string{"printf", "hello"},
 		JobName: "greeting", DependsOn: []string{"setup"},
@@ -1069,11 +957,11 @@ func TestSendServerRequestOverUnixSocket(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = listener.Close() })
-	server := &rotariServer{listener: listener, stopped: make(chan struct{}), lastAccess: time.Now()}
+	server := newRotariServer(baseDir)
 	go func() {
 		conn, acceptErr := listener.Accept()
 		if acceptErr == nil {
-			server.handle(baseDir, conn)
+			server.Handle(conn)
 		}
 	}()
 
@@ -1081,7 +969,7 @@ func TestSendServerRequestOverUnixSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !response.OK || response.Protocol != serverProtocolVersion {
+	if !response.OK || response.Protocol != serverinternal.ProtocolVersion {
 		t.Fatalf("response = %+v, want successful ping", response)
 	}
 }
@@ -1097,11 +985,11 @@ func TestEnsureServerReusesCompatibleServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = listener.Close() })
-	server := &rotariServer{listener: listener, stopped: make(chan struct{}), lastAccess: time.Now()}
+	server := newRotariServer(baseDir)
 	go func() {
 		conn, acceptErr := listener.Accept()
 		if acceptErr == nil {
-			server.handle(baseDir, conn)
+			server.Handle(conn)
 		}
 	}()
 
@@ -1140,14 +1028,14 @@ func TestCmdCancelRejectsWholeRunFromWrongHostViaCLI(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = listener.Close() })
-	server := &rotariServer{listener: listener, stopped: make(chan struct{}), lastAccess: time.Now()}
+	server := newRotariServer(baseDir)
 	go func() {
 		for {
 			conn, acceptErr := listener.Accept()
 			if acceptErr != nil {
 				return
 			}
-			go server.handle(baseDir, conn)
+			go server.Handle(conn)
 		}
 	}()
 
@@ -1205,14 +1093,14 @@ func TestCmdCancelAcceptsPositionalJobID(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = listener.Close() })
-	server := &rotariServer{listener: listener, stopped: make(chan struct{}), lastAccess: time.Now()}
+	server := newRotariServer(baseDir)
 	go func() {
 		for {
 			conn, acceptErr := listener.Accept()
 			if acceptErr != nil {
 				return
 			}
-			go server.handle(baseDir, conn)
+			go server.Handle(conn)
 		}
 	}()
 
@@ -1273,14 +1161,14 @@ func TestCmdCancelAcceptsPositionalRunID(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = listener.Close() })
-	server := &rotariServer{listener: listener, stopped: make(chan struct{}), lastAccess: time.Now()}
+	server := newRotariServer(baseDir)
 	go func() {
 		for {
 			conn, acceptErr := listener.Accept()
 			if acceptErr != nil {
 				return
 			}
-			go server.handle(baseDir, conn)
+			go server.Handle(conn)
 		}
 	}()
 
@@ -1318,11 +1206,11 @@ func TestCmdServerStatusReportsRunningServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = listener.Close() })
-	server := &rotariServer{listener: listener, stopped: make(chan struct{}), lastAccess: time.Now()}
+	server := newRotariServer(baseDir)
 	go func() {
 		conn, acceptErr := listener.Accept()
 		if acceptErr == nil {
-			server.handle(baseDir, conn)
+			server.Handle(conn)
 		}
 	}()
 
@@ -1385,11 +1273,11 @@ func TestCmdServerListReportsLiveServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = listener.Close() })
-	server := &rotariServer{listener: listener, stopped: make(chan struct{}), lastAccess: time.Now()}
+	server := newRotariServer(baseDir)
 	go func() {
 		conn, acceptErr := listener.Accept()
 		if acceptErr == nil {
-			server.handle(baseDir, conn)
+			server.Handle(conn)
 		}
 	}()
 	if err := registerServer(masterDir, serverRecord{BaseDir: baseDir, PID: os.Getpid(), LastSeen: nowRFC3339()}); err != nil {
@@ -1433,11 +1321,11 @@ func TestListServersKeepsLiveAndRemovesInvalidRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = listener.Close() })
-	server := &rotariServer{listener: listener, stopped: make(chan struct{}), lastAccess: time.Now()}
+	server := newRotariServer(liveBaseDir)
 	go func() {
 		conn, acceptErr := listener.Accept()
 		if acceptErr == nil {
-			server.handle(liveBaseDir, conn)
+			server.Handle(conn)
 		}
 	}()
 
