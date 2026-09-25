@@ -24,9 +24,12 @@ func cmdReset(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if len(fs.Args()) != 0 {
+	if len(fs.Args()) > 1 || (len(fs.Args()) == 1 && cliOptionSet(fs, "project-name")) {
 		printError("usage: " + cliUsage("reset"))
 		return 1
+	}
+	if len(fs.Args()) == 1 {
+		*queueNameOption = fs.Args()[0]
 	}
 	baseDir, _, err := resolveBaseDir(*basedir)
 	if err != nil {

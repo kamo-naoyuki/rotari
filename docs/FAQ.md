@@ -106,7 +106,7 @@ commands after a start or crash.
 
 ### How do I clean up run registry entries left by manual deletion?
 
-Run `rotari gc` to review candidates, then `rotari gc --apply` to remove them. Rotari checks the candidate again before deletion, so entries that reappeared or changed are skipped rather than removed blindly.
+Run `rotari gc [MASTERDIR]` to review candidates, then `rotari gc --apply [MASTERDIR]` to remove them. Reappeared or changed candidates are skipped.
 
 ## Language and implementation choices
 
@@ -204,19 +204,19 @@ Use a BCP 47 tag such as `--language ja`, or set `ROTARI_LLM_LANGUAGE`.
 
 ### How can I check whether a project is ready to run without changing it?
 
-Run `rotari check --project-name PROJECT`. Its status and output identify active runs, stale locks, interruptions, and empty queues. `--deep` also checks required local executables but does not connect to remote hosts.
+Run `rotari check PROJECT` (or `rotari check --project-name PROJECT`). Its status and output identify active runs, stale locks, interruptions, and empty queues. `--deep` also checks required local executables but does not connect to remote hosts.
 
 ### What happens if runners on multiple hosts use the same project?
 
-It works when the shared filesystem correctly provides locking and atomic operations, but it is not a distributed lock service. The host that starts a local job owns its process, so control commands for that job must run on the runner host. After a host failure, confirm that jobs stopped before using `rotari unlock --run-id RUN_ID`.
+It works when the shared filesystem correctly provides locking and atomic operations, but it is not a distributed lock service. After a host failure, confirm that jobs stopped before using `rotari unlock PROJECT`.
 
 ### A runner or supervisor process died mid-run — what do I do?
 
-Rotari does not automatically assume that jobs stopped when the supervisor disappears; jobs may still be running or may have completed independently. Confirm that jobs have stopped, inspect `rotari show --run-id RUN_ID`, then run `rotari unlock --run-id RUN_ID` to retain the queue. Use `rotari reset --recover` only when you also want to discard that retained queue.
+Confirm that jobs have stopped, inspect `rotari show --run-id RUN_ID`, then run `rotari unlock PROJECT`. Use `rotari reset --recover` to discard the retained queue.
 
 ### A remote host's lock looks stuck even though the job actually stopped — why won't `unlock` go away automatically?
 
-A lock from another host cannot be cleared by checking its PID. Confirm that the job stopped, then run `rotari unlock --run-id RUN_ID` explicitly.
+A lock from another host cannot be cleared by checking its PID. Confirm that the job stopped, then run `rotari unlock PROJECT` explicitly.
 
 ## Client control and job cancellation
 
@@ -276,8 +276,8 @@ No. The Web UI controls existing runs and edits queues; execution starts through
 
 It lists running jobs and jobs that finished during the preceding 24 hours,
 using the same default scope as `rotari jobs`. Select a job name to open its
-run page. Enter a Go duration such as `6h` or `168h` in `Since` to change the
-completed-job window.
+run page. `rotari jobs PROJECT` narrows the CLI list to one project. Enter a Go
+duration such as `6h` or `168h` in `Since` to change the completed-job window.
 
 ### What do Create and Append do on a run page?
 

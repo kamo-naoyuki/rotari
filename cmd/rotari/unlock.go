@@ -20,16 +20,18 @@ func cmdUnlock(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if len(fs.Args()) > 1 || (len(fs.Args()) == 1 && *runID != "") {
+	projectNameSet := cliOptionSet(fs, "project-name")
+	runIDSet := cliOptionSet(fs, "run-id")
+	if len(fs.Args()) > 1 || (len(fs.Args()) == 1 && projectNameSet && runIDSet) {
 		printError("usage: " + cliUsage("unlock"))
 		return 1
 	}
 	if len(fs.Args()) == 1 {
-		*runID = fs.Args()[0]
-	}
-	if *runID == "" {
-		printError("usage: " + cliUsage("unlock"))
-		return 1
+		if projectNameSet {
+			*runID = fs.Args()[0]
+		} else {
+			*queueNameOption = fs.Args()[0]
+		}
 	}
 	baseDir, _, err := resolveBaseDir(*basedir)
 	if err != nil {
@@ -54,12 +56,30 @@ func cmdUnlock(args []string) int {
 	defer release()
 	lock, err := state.LoadLock(paths.LockFile)
 	removedLock := false
+	lockExists := err == nil
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			printErrorf("failed to read run lock: %v", err)
 			return 1
 		}
-	} else {
+	}
+	meta, err := state.LoadMeta(paths.MetaFile)
+	if err != nil {
+		printErrorf("failed to load metadata: %v", err)
+		return 1
+	}
+	if *runID == "" {
+		if lockExists {
+			*runID = lock.RunID
+		} else {
+			*runID = meta.LastRunID
+		}
+	}
+	if *runID == "" {
+		printError("no matching interrupted run exists")
+		return 1
+	}
+	if lockExists {
 		if lock.RunID != *runID {
 			printErrorf("run lock belongs to %q, not %q", lock.RunID, *runID)
 			return 1
@@ -69,11 +89,6 @@ func cmdUnlock(args []string) int {
 			return 1
 		}
 		removedLock = true
-	}
-	meta, err := state.LoadMeta(paths.MetaFile)
-	if err != nil {
-		printErrorf("failed to load metadata: %v", err)
-		return 1
 	}
 	if !removedLock && (meta.Phase != "running" && meta.Phase != "cancelling" || meta.LastRunID != *runID) {
 		printError("no matching interrupted run exists")

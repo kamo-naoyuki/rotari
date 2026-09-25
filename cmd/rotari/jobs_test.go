@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,6 +74,45 @@ func TestCollectJobsAcrossProjectsIncludesRecentFinishedJobs(t *testing.T) {
 			t.Fatalf("old job was included: %#v", row)
 		}
 	}
+}
+
+func TestCmdJobsAcceptsPositionalProjectName(t *testing.T) {
+	baseDir := t.TempDir()
+	now := time.Now()
+	writeTestJobsRun(t, baseDir, "train", "20260922-090000-00000001", "train-job", now.Add(-2*time.Minute), now.Add(-time.Minute), 0)
+	writeTestJobsRun(t, baseDir, "report", "20260922-080000-00000002", "report-job", now.Add(-2*time.Minute), now.Add(-time.Minute), 0)
+	t.Setenv(envProjectName, "report")
+
+	output, code := captureJobsStdout(t, []string{"--basedir", baseDir, "--since", "24h", "train"})
+	if code != 0 {
+		t.Fatalf("cmdJobs positional project exit code = %d, want 0", code)
+	}
+	if !strings.Contains(output, "train-job") || strings.Contains(output, "report-job") {
+		t.Fatalf("cmdJobs positional project output = %q", output)
+	}
+	if code := cmdJobs([]string{"--basedir", baseDir, "--project-name", "train", "report"}); code != 1 {
+		t.Fatalf("cmdJobs accepted positional project with --project-name: exit code = %d", code)
+	}
+}
+
+func captureJobsStdout(t *testing.T, args []string) (string, int) {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldStdout := os.Stdout
+	os.Stdout = writer
+	code := cmdJobs(args)
+	os.Stdout = oldStdout
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(output), code
 }
 
 func TestCollectRunJobsStopsAtOldCompletedRun(t *testing.T) {

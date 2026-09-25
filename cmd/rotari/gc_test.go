@@ -141,6 +141,26 @@ func TestCmdGCUsesExplicitMasterDirectory(t *testing.T) {
 	}
 }
 
+func TestCmdGCAcceptsPositionalMasterDirectory(t *testing.T) {
+	masterDir := t.TempDir()
+	t.Setenv(envMasterDir, t.TempDir())
+	if code := cmdGC([]string{masterDir}); code != 0 {
+		t.Fatalf("cmdGC positional master directory = %d, want 0", code)
+	}
+	if _, err := os.Stat(filepath.Join(masterDir, "gc.json")); err != nil {
+		t.Fatalf("GC plan was not written to positional master directory: %v", err)
+	}
+	if code := cmdGC([]string{"--apply", masterDir}); code != 0 {
+		t.Fatalf("cmdGC positional master directory apply = %d, want 0", code)
+	}
+	if _, err := os.Stat(filepath.Join(masterDir, "gc.json")); !os.IsNotExist(err) {
+		t.Fatalf("GC plan was not removed after positional apply: %v", err)
+	}
+	if code := cmdGC([]string{"--masterdir", masterDir, t.TempDir()}); code != 1 {
+		t.Fatalf("cmdGC accepted positional master directory with --masterdir: exit code = %d", code)
+	}
+}
+
 func TestRunRegistryGCSkipsAndReportsBrokenEntries(t *testing.T) {
 	masterDir := t.TempDir()
 	runsDir := filepath.Join(masterDir, "runs")

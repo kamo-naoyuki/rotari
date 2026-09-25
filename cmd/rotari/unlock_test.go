@@ -331,7 +331,7 @@ func TestCmdUnlockRecoversInterruptedRunWithoutLock(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", "run-1"})
+	code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo"})
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -365,7 +365,7 @@ func TestCmdUnlockRemovesMatchingRunLock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "run-1"}); code != 0 {
+	if code := cmdUnlock([]string{"--basedir", baseDir, "demo"}); code != 0 {
 		t.Fatalf("cmdUnlock exit code = %d, want 0", code)
 	}
 	if _, err := os.Stat(paths.LockFile); !os.IsNotExist(err) {
@@ -377,6 +377,24 @@ func TestCmdUnlockRemovesMatchingRunLock(t *testing.T) {
 	}
 	if meta.Phase != "collecting" {
 		t.Fatalf("metadata phase = %q, want collecting", meta.Phase)
+	}
+}
+
+func TestCmdUnlockAcceptsLegacyPositionalRunID(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.LockFile, LockInfo{RunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "run-1"}); code != 0 {
+		t.Fatalf("cmdUnlock legacy positional run ID exit code = %d, want 0", code)
 	}
 }
 

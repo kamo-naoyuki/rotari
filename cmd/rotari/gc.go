@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -24,9 +25,12 @@ func cmdGC(args []string) int {
 	fs.SetOutput(os.Stderr)
 	masterdir := cliString(fs, "masterdir", "")
 	apply := fs.Bool("apply", false, "remove the cached orphan entries")
-	if err := fs.Parse(args); err != nil || len(fs.Args()) != 0 {
+	if err := fs.Parse(args); err != nil || len(fs.Args()) > 1 || (len(fs.Args()) == 1 && cliOptionSet(fs, "masterdir")) {
 		printError("usage: " + cliUsage("gc"))
 		return 1
+	}
+	if len(fs.Args()) == 1 {
+		*masterdir = fs.Args()[0]
 	}
 
 	masterDir, err := resolveMasterDir(*masterdir)
@@ -68,7 +72,7 @@ func scanRunRegistryGC(masterDir string) int {
 		fmt.Println("Inspect these files and repair or remove them manually only after confirming their run data is safe.")
 	}
 	fmt.Printf("GC plan cached at %s (expires in %s)\n", cachePath, runRegistryGCCacheTTL)
-	fmt.Printf("review the plan, then run: rotari gc --apply\n")
+	fmt.Printf("review the plan, then run: rotari gc --apply --masterdir %s\n", executor.ShellQuote(masterDir))
 	return 0
 }
 

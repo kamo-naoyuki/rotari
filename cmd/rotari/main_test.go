@@ -452,8 +452,12 @@ func TestCLIUsageIncludesShortOptions(t *testing.T) {
 		positional string
 	}{
 		{name: "delete", positional: "[RUN_ID]"},
-		{name: "unlock", positional: "RUN_ID"},
+		{name: "unlock", positional: "[PROJECT]"},
 		{name: "copy", positional: "[RUN_ID]"},
+		{name: "gc", positional: "[MASTERDIR]"},
+		{name: "jobs", positional: "[PROJECT]"},
+		{name: "check", positional: "[PROJECT]"},
+		{name: "reset", positional: "[PROJECT]"},
 		{name: "remove", positional: "[JOB_ID ...]"},
 		{name: "diagnose", positional: "JOB_ID"},
 	} {
@@ -708,6 +712,31 @@ func TestCmdResetClearsQueueButKeepsDefaultsAndHistory(t *testing.T) {
 	}
 	if meta.Phase != "collecting" {
 		t.Fatalf("metadata phase = %q, want collecting", meta.Phase)
+	}
+}
+
+func TestCmdResetAcceptsPositionalProjectName(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "queued", Command: []string{"echo", "queued"}}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if code := cmdReset([]string{"--basedir", baseDir, "demo"}); code != 0 {
+		t.Fatalf("cmdReset positional project exit code = %d, want 0", code)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 0 {
+		t.Fatalf("queue commands after positional reset = %#v, want empty", queue.Commands)
+	}
+	if code := cmdReset([]string{"--basedir", baseDir, "--project-name", "demo", "other"}); code != 1 {
+		t.Fatalf("cmdReset accepted positional project with --project-name: exit code = %d", code)
 	}
 }
 

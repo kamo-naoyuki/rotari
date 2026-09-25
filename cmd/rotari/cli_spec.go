@@ -115,6 +115,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "deep", Description: "check local executables and working directories"},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
 		),
+		Positional: "[PROJECT]",
 	},
 	{
 		Name:        "reset",
@@ -123,6 +124,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "recover", Description: "confirm an interrupted run has stopped without prompting"},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
 		),
+		Positional: "[PROJECT]",
 	},
 	{
 		Name: "cancel",
@@ -161,12 +163,13 @@ var cliCommandSpecs = []cliCommandSpec{
 			{Name: "masterdir", Description: "master registry directory", ValueName: "DIR"},
 			{Name: "apply", Description: "remove the cached orphan entries"},
 		},
+		Positional: "[MASTERDIR]",
 	},
 	{
 		Name:        "unlock",
 		Description: "remove a confirmed stale run lock",
-		Flags:       append(commonCLIFlags(), cliFlagSpec{Name: "run-id", Description: "run ID recorded in the stale lock", ValueName: "ID"}),
-		Positional:  "RUN_ID",
+		Flags:       append(commonCLIFlags(), cliFlagSpec{Name: "run-id", Description: "verify the run ID recorded in the stale lock", ValueName: "ID"}),
+		Positional:  "[PROJECT]",
 	},
 	{
 		Name:        "change",
@@ -229,6 +232,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "format", Description: "output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time)", ValueName: "FORMAT"},
 			cliFlagSpec{Name: "since", Description: "include jobs finished within this duration; use 0 for running jobs only", ValueName: "DURATION"},
 		),
+		Positional: "[PROJECT]",
 	},
 	{
 		Name:        "diagnose",
@@ -496,6 +500,16 @@ func cliString(fs *flag.FlagSet, name, defaultValue string) *string {
 		fs.StringVar(target, short, defaultValue, description+" (shorthand)")
 	}
 	return target
+}
+
+func cliOptionSet(fs *flag.FlagSet, name string) bool {
+	set := false
+	fs.Visit(func(actual *flag.Flag) {
+		if actual.Name == name || actual.Name == cliShortFlagNames[name] {
+			set = true
+		}
+	})
+	return set
 }
 
 type cliChoiceValue struct {

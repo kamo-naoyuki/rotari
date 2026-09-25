@@ -636,13 +636,15 @@ To check whether a project can start its queued run without changing any
 state:
 
 ```sh
-rotari check -p build
+rotari check build
 ```
 
 `check` reports whether the project is ready to run, together with its project,
 queue, and lock state. It exits with status 0 when the queued run can start and
 status 1 otherwise. Pass `--json` for machine-readable output, or `--deep` to
-also check executables and local working directories on the current host.
+also check executables and local working directories on the current host. Both
+`check` and `reset` accept the project name as an optional positional argument;
+do not combine it with `--project-name`.
 
 The command is read-only and does not reserve the project or remove a stale
 lock. `run` and `reset` repeat the applicable checks before changing state, so

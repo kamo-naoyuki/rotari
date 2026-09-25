@@ -240,6 +240,40 @@ func TestCmdCheckExitCode(t *testing.T) {
 	}
 }
 
+func TestCmdCheckAcceptsPositionalProjectName(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if code := cmdCheck([]string{"--basedir", baseDir, "demo"}); code != 0 {
+		t.Fatalf("cmdCheck positional project exit code = %d, want 0", code)
+	}
+	if code := cmdCheck([]string{"--basedir", baseDir, "--project-name", "demo", "other"}); code != 1 {
+		t.Fatalf("cmdCheck accepted positional project with --project-name: exit code = %d", code)
+	}
+}
+
+func TestCmdCheckPositionalProjectOverridesEnvironmentDefault(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(envProjectName, "other")
+
+	if code := cmdCheck([]string{"--basedir", baseDir, "demo"}); code != 0 {
+		t.Fatalf("cmdCheck positional project exit code = %d, want 0", code)
+	}
+}
+
 func TestCmdCheckJSON(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "demo")

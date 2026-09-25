@@ -29,6 +29,14 @@ Without a run-location lookup, base directories resolve in this order:
   only project in the resolved base directory. With no projects the name is
   `default`; multiple projects require an explicit choice. The bare `show`
   command lists projects across known basedirs instead of resolving one.
+- `check` and `reset` accept one optional positional project name as an
+  alternative to `--project-name`; supplying both is a usage error.
+- `jobs` also accepts one optional positional project name to filter the
+  selected basedir's projects; it takes precedence over environment and config
+  defaults, and cannot be combined with an explicit `--project-name`.
+- `unlock` likewise accepts one optional positional project name. It derives
+  the run ID from that project's `running.lock`, or from interrupted metadata
+  when the lock is already absent; `--run-id` optionally verifies the result.
 - `show --basedirs` lists state directories known to the run and live-server
   registries under the resolved master directory; this discovery is not
   exhaustive.
@@ -176,8 +184,9 @@ order:
 - Deleting a run through CLI or web history controls removes its registry entry
   after the run files and metadata are updated.
 - Runs deleted outside rotari can leave orphaned registry entries. `rotari gc`
-  caches their plan for ten minutes; `rotari gc --apply` removes only unchanged
-  entries whose run directories are still absent.
+  caches their plan for ten minutes; its optional positional master directory
+  is an alternative to `--masterdir`; `rotari gc --apply [MASTERDIR]` removes
+  only unchanged entries whose run directories are still absent.
 - Automatic garbage collection is not performed. Malformed or invalid registry
   files are reported and left untouched for manual inspection.
 

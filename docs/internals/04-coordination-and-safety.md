@@ -115,8 +115,10 @@ Representative implementation and tests:
   `commands.json` snapshot. Active runs may temporarily lack `commands.json`
   while the worker starts. Stale locks are removed only after these checks
   succeed.
-- `unlock` with the exact run ID acknowledges recovery, keeps the retained queue,
-  and returns the phase to `collecting`.
+- `unlock` derives the run ID from the selected project's lock, or from
+  interrupted metadata when no lock remains. An optional `--run-id` verifies
+  the expected ID before recovery; it keeps the retained queue and returns the
+  phase to `collecting`.
 - `reset` discards the current queue while keeping defaults and history. It
   confirms that jobs stopped before recovering an interrupted run, unless
   `reset --recover` supplies that confirmation. It rejects an active run.
