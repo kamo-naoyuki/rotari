@@ -1477,13 +1477,6 @@ func TestReadJobTimestampRejectsUnsafePathElements(t *testing.T) {
 	}
 }
 
-func TestWebJobTimestampsRejectsUnsafeOriginRunID(t *testing.T) {
-	runDir := filepath.Join(t.TempDir(), "run-2")
-	if submittedAt, finishedAt := webJobTimestamps(runDir, "job-1", &JobOrigin{RunID: "../outside", JobID: "job-1"}); submittedAt != "" || finishedAt != "" {
-		t.Fatalf("unsafe origin timestamps = %q, %q, want empty", submittedAt, finishedAt)
-	}
-}
-
 func TestLoadWebStateIncludesRunContextAndTimeline(t *testing.T) {
 	t.Setenv("TZ", "Asia/Tokyo")
 	baseDir := t.TempDir()

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -39,10 +39,6 @@ type jobsColumn struct {
 	header string
 	code   byte
 	width  int
-}
-
-func loadTerminalJobStatus(jobDir string) (int, bool) {
-	return executor.ResolveTerminalExitCode(jsonStore(), jobDir)
 }
 
 // cmdJobs lists historical jobs across runs for the selected project, with
@@ -382,12 +378,9 @@ func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsR
 		if err != nil {
 			continue
 		}
-		status, statusOK := loadTerminalJobStatus(jobDir)
-		if !statusOK {
-			if result, ok := resultByID[job.ID]; ok {
-				status, statusOK = result.ExitCode, true
-			}
-		}
+		summaryResult, hasSummary := resultByID[job.ID]
+		resolved := jobstatus.ReadJob(jsonStore(), jobDir, summaryResult, hasSummary)
+		status, statusOK := resolved.ExitCode, resolved.Finished()
 		jobState := ""
 		if statusOK {
 			if status == 0 {
@@ -400,7 +393,7 @@ func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsR
 		} else {
 			continue
 		}
-		submittedText, finishedText := readShowJobTimestamps(runDir, job.ID, nil)
+		submittedText, finishedText := jobstatus.Timestamps(runDir, job.ID, nil)
 		startedAt, err := parseJobsTimestamp(submittedText)
 		if err != nil && summary.StartedAt != "" {
 			startedAt, err = parseJobsTimestamp(summary.StartedAt)

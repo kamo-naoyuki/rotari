@@ -3,6 +3,7 @@ package state
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -62,5 +63,28 @@ func TestLoadLocalJobResult(t *testing.T) {
 	result, ok := LoadLocalJobResult(jobDir, model.JobSpec{ID: "job-1", Command: []string{"echo", "failed"}})
 	if !ok || result.ID != "job-1" || result.ExitCode != 7 {
 		t.Fatalf("LoadLocalJobResult() = %#v, %v", result, ok)
+	}
+}
+
+func TestListAttemptIDsSortsByAttemptNumber(t *testing.T) {
+	runDir := t.TempDir()
+	jobID := "job-1"
+	attemptIDs := []string{
+		MakeAttemptID("20260922-000000-00000000", jobID, 2),
+		MakeAttemptID("20260922-000000-00000000", jobID, 0),
+		MakeAttemptID("20260922-000000-00000000", jobID, 1),
+	}
+	for _, attemptID := range attemptIDs {
+		if err := os.MkdirAll(filepath.Join(runDir, jobID, "attempts", attemptID), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := ListAttemptIDs(runDir, jobID)
+	want := []string{attemptIDs[1], attemptIDs[2], attemptIDs[0]}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("attempt IDs = %#v, want %#v", got, want)
+	}
+	if got := ListAttemptIDs(runDir, "../outside"); got != nil {
+		t.Fatalf("ListAttemptIDs() accepted unsafe job ID: %#v", got)
 	}
 }

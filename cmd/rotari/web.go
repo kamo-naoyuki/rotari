@@ -20,7 +20,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
 	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
@@ -1263,64 +1262,11 @@ func loadWebJobs(runDir string, summary RunSummary, attemptIDs ...string) ([]web
 	if err != nil {
 		return nil, err
 	}
-	jobs, err := webprojection.LoadJobs(model.Queue(commands), model.RunSummary(summary), attemptIDs, webprojection.JobLoader{
-		Origins: model.QueueOriginsByJobID(model.Queue(commands)),
-		LatestAttemptDir: func(jobID string) (string, error) {
-			return stateinternal.LatestAttemptJobDir(runDir, jobID)
-		},
-		SpecificAttemptDir: func(jobID, attemptID string) (string, error) {
-			return stateinternal.SpecificAttemptJobDir(runDir, jobID, attemptID)
-		},
-		ListAttemptIDs: func(jobID string) []string {
-			return listAttemptIDs(runDir, jobID)
-		},
-		ReadTimestamp:    stateinternal.ReadAttemptTimestamp,
-		ReadJobTimestamp: func(jobID, name string) string { return stateinternal.ReadJobTimestamp(runDir, jobID, name) },
-		LoadSchedulerState: func(jobDir string) string {
-			return executor.LoadSchedulerStatus(jsonStore(), jobDir)
-		},
-		LoadSchedulerResult: func(jobDir string, job model.JobSpec) (model.JobResult, bool) {
-			status, ok := loadSlurmStatus(filepath.Join(jobDir, stateFileStatusJSON))
-			if !ok || (status.FinishedAt == "" && !executor.SchedulerStateTerminal(status.Phase)) {
-				return model.JobResult{}, false
-			}
-			return model.JobResult{ID: job.ID, Command: job.Command, ExitCode: status.ExitCode, Error: status.Error, Hosts: status.Hosts}, true
-		},
-		SchedulerFinishedAt: func(jobDir string) string {
-			status, ok := loadSlurmStatus(filepath.Join(jobDir, stateFileStatusJSON))
-			if !ok {
-				return ""
-			}
-			return status.FinishedAt
-		},
-		LoadLocalResult: func(jobDir string, job model.JobSpec) (model.JobResult, bool) {
-			return stateinternal.LoadLocalJobResult(jobDir, job)
-		},
-		LoadTerminalState: loadTerminalSchedulerState,
-		ResolveTimestamps: func(jobID string, origin *model.JobOrigin) (string, string) {
-			return webJobTimestamps(runDir, jobID, (*JobOrigin)(origin))
-		},
-	})
-	return jobs, err
-}
-
-func webJobTimestamps(runDir, jobID string, origin *JobOrigin) (string, string) {
-	submittedAt := stateinternal.ReadJobTimestamp(runDir, jobID, "submitted_at")
-	finishedAt := stateinternal.ReadJobTimestamp(runDir, jobID, "finished_at")
-	if finishedAt == "" {
-		if jobDir, err := stateinternal.LatestAttemptJobDir(runDir, jobID); err == nil {
-			if status, ok := loadSlurmStatus(filepath.Join(jobDir, "status.json")); ok {
-				finishedAt = status.FinishedAt
-			}
-		}
+	selectedAttemptID := ""
+	if len(attemptIDs) > 0 {
+		selectedAttemptID = attemptIDs[0]
 	}
-	return webprojection.ResolveOriginTimestamps(submittedAt, finishedAt, origin, func(runID, sourceJobID string) (string, string) {
-		sourceRunDir, err := stateinternal.SafeJoin(filepath.Dir(runDir), runID)
-		if err != nil {
-			return "", ""
-		}
-		return stateinternal.ReadJobTimestamp(sourceRunDir, sourceJobID, "submitted_at"), stateinternal.ReadJobTimestamp(sourceRunDir, sourceJobID, "finished_at")
-	})
+	return webprojection.LoadJobs(jsonStore(), runDir, commands, summary, selectedAttemptID)
 }
 
 func validWebID(value string) bool {

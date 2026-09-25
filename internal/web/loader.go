@@ -4,24 +4,10 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
-
-type JobLoader struct {
-	Origins             map[string]*model.JobOrigin
-	LatestAttemptDir    func(jobID string) (string, error)
-	SpecificAttemptDir  func(jobID, attemptID string) (string, error)
-	ListAttemptIDs      func(jobID string) []string
-	ReadTimestamp       func(jobDir, name string) string
-	ReadJobTimestamp    func(jobID, name string) string
-	LoadSchedulerState  func(jobDir string) string
-	LoadSchedulerResult func(jobDir string, job model.JobSpec) (model.JobResult, bool)
-	SchedulerFinishedAt func(jobDir string) string
-	LoadLocalResult     func(jobDir string, job model.JobSpec) (model.JobResult, bool)
-	LoadTerminalState   func(jobDir string) (int, bool)
-	ResolveTimestamps   func(jobID string, origin *model.JobOrigin) (string, string)
-}
 
 type QueueLoader struct {
 	ProjectName string
@@ -75,59 +61,55 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 	return state, nil
 }
 
-func LoadJobs(commands model.Queue, summary model.RunSummary, attemptIDs []string, loader JobLoader) ([]Job, error) {
+// LoadJobs projects a run's jobs for the Web UI. Each job's result follows
+// the shared jobstatus fallback chain. A non-empty selectedAttemptID shows
+// that attempt, instead of the latest one, for its job.
+func LoadJobs(store state.Store, runDir string, commands model.Queue, summary model.RunSummary, selectedAttemptID string) ([]Job, error) {
 	results := model.ResultsByID(summary.Results)
+	origins := model.QueueOriginsByJobID(commands)
 	taskJobs := model.QueueToJobs(commands.Commands)
-	selectedAttemptID := ""
 	selectedJobID := ""
-	if len(attemptIDs) > 0 && attemptIDs[0] != "" {
-		selectedAttemptID = attemptIDs[0]
+	if selectedAttemptID != "" {
 		if payload, err := state.DecodeAttemptID(selectedAttemptID); err == nil {
 			selectedJobID = payload.JobID
 		}
 	}
 	jobs := make([]Job, 0, len(taskJobs))
 	for _, jobSpec := range taskJobs {
-		jobDir, pathErr := loader.LatestAttemptDir(jobSpec.ID)
-		if jobSpec.ID == selectedJobID {
-			jobDir, pathErr = loader.SpecificAttemptDir(jobSpec.ID, selectedAttemptID)
+		selected := jobSpec.ID == selectedJobID
+		jobDir, pathErr := state.LatestAttemptJobDir(runDir, jobSpec.ID)
+		if selected {
+			jobDir, pathErr = state.SpecificAttemptJobDir(runDir, jobSpec.ID, selectedAttemptID)
 		}
 		if pathErr != nil {
 			return nil, fmt.Errorf("invalid job ID %q: %w", jobSpec.ID, pathErr)
 		}
-		origin := loader.Origins[jobSpec.ID]
-		submittedAt, finishedAt := loader.ResolveTimestamps(jobSpec.ID, origin)
+		origin := origins[jobSpec.ID]
+		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobSpec.ID, origin)
+		summaryResult, hasSummary := results[jobSpec.ID]
 		attemptID := jobSpec.AttemptID
-		if attemptID == "" {
-			if result, ok := results[jobSpec.ID]; ok {
-				attemptID = result.AttemptID
-			}
+		if attemptID == "" && hasSummary {
+			attemptID = summaryResult.AttemptID
 		}
-		job := Job{ID: jobSpec.ID, AttemptID: attemptID, AttemptDir: jobDir, Name: jobSpec.Name, Stage: jobSpec.Stage, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, DependsOn: jobSpec.DependsOn, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SubmittedAt: submittedAt, FinishedAt: finishedAt, SchedulerState: loader.LoadSchedulerState(jobDir)}
-		if jobSpec.ID == selectedJobID {
+		attempt := jobstatus.ReadAttempt(store, jobDir)
+		job := Job{ID: jobSpec.ID, AttemptID: attemptID, AttemptDir: jobDir, Name: jobSpec.Name, Stage: jobSpec.Stage, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, DependsOn: jobSpec.DependsOn, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SubmittedAt: submittedAt, FinishedAt: finishedAt, SchedulerState: attempt.SchedulerState}
+		if selected {
+			// A selected attempt shows its own outcome; the summary result
+			// belongs to the latest attempt.
 			job.AttemptID = selectedAttemptID
+			job.SubmittedAt = state.ReadAttemptTimestamp(jobDir, "submitted_at")
+			job.FinishedAt = state.ReadAttemptTimestamp(jobDir, "finished_at")
 		}
-		if result, ok := results[jobSpec.ID]; ok {
+		if result, ok := attempt.Result(jobSpec); selected && ok {
+			result.AttemptID = selectedAttemptID
 			job.Result = &result
-		} else if result, ok := loader.LoadSchedulerResult(jobDir, jobSpec); ok {
-			job.Result = &result
-			if job.FinishedAt == "" {
-				job.FinishedAt = loader.SchedulerFinishedAt(jobDir)
-			}
-		} else if exitCode, ok := loader.LoadTerminalState(jobDir); ok {
-			job.Result = &model.JobResult{ID: jobSpec.ID, Command: jobSpec.Command, ExitCode: exitCode}
-		} else if result, ok := loader.LoadLocalResult(jobDir, jobSpec); ok {
+		} else if result, ok := jobstatus.ResolveJob(attempt, summaryResult, hasSummary).Result(jobSpec); ok {
 			job.Result = &result
 		}
-		if jobSpec.ID == selectedJobID {
-			if result, ok := loader.LoadLocalResult(jobDir, jobSpec); ok {
-				result.AttemptID = selectedAttemptID
-				job.Result = &result
-			}
-			job.SubmittedAt = loader.ReadTimestamp(jobDir, "submitted_at")
-			job.FinishedAt = loader.ReadTimestamp(jobDir, "finished_at")
+		if job.Result != nil && job.FinishedAt == "" && attempt.HasWrapper {
+			job.FinishedAt = attempt.Wrapper.FinishedAt
 		}
-		job.Attempts = loadAttempts(jobSpec, loader)
+		job.Attempts = loadAttempts(store, runDir, jobSpec)
 		jobs = append(jobs, job)
 		delete(results, jobSpec.ID)
 	}
@@ -136,35 +118,31 @@ func LoadJobs(commands model.Queue, summary model.RunSummary, attemptIDs []strin
 			continue
 		}
 		resultCopy := result
-		jobs = append(jobs, Job{ID: result.ID, Command: result.Command, Result: &resultCopy, SubmittedAt: loader.ReadJobTimestamp(result.ID, "submitted_at"), FinishedAt: loader.ReadJobTimestamp(result.ID, "finished_at")})
+		jobs = append(jobs, Job{ID: result.ID, Command: result.Command, Result: &resultCopy, SubmittedAt: state.ReadJobTimestamp(runDir, result.ID, "submitted_at"), FinishedAt: state.ReadJobTimestamp(runDir, result.ID, "finished_at")})
 	}
 	return jobs, nil
 }
 
-func loadAttempts(jobSpec model.JobSpec, loader JobLoader) []Attempt {
-	ids := loader.ListAttemptIDs(jobSpec.ID)
+func loadAttempts(store state.Store, runDir string, jobSpec model.JobSpec) []Attempt {
+	ids := state.ListAttemptIDs(runDir, jobSpec.ID)
 	if len(ids) == 0 {
 		return nil
 	}
 	attempts := make([]Attempt, 0, len(ids))
 	for index := len(ids) - 1; index >= 0; index-- {
 		attemptID := ids[index]
-		jobDir, err := loader.SpecificAttemptDir(jobSpec.ID, attemptID)
+		jobDir, err := state.SpecificAttemptJobDir(runDir, jobSpec.ID, attemptID)
 		if err != nil {
 			continue
 		}
-		attempt := Attempt{ID: attemptID, SubmittedAt: loader.ReadTimestamp(jobDir, "submitted_at"), FinishedAt: loader.ReadTimestamp(jobDir, "finished_at"), SchedulerState: loader.LoadSchedulerState(jobDir)}
-		if result, ok := loader.LoadLocalResult(jobDir, jobSpec); ok {
+		outcome := jobstatus.ReadAttempt(store, jobDir)
+		attempt := Attempt{ID: attemptID, SubmittedAt: state.ReadAttemptTimestamp(jobDir, "submitted_at"), FinishedAt: state.ReadAttemptTimestamp(jobDir, "finished_at"), SchedulerState: outcome.SchedulerState}
+		if result, ok := outcome.Result(jobSpec); ok {
 			result.AttemptID = attemptID
 			attempt.Result = &result
-		} else if result, ok := loader.LoadSchedulerResult(jobDir, jobSpec); ok {
-			result.AttemptID = attemptID
-			attempt.Result = &result
-			if attempt.FinishedAt == "" {
-				attempt.FinishedAt = loader.SchedulerFinishedAt(jobDir)
+			if attempt.FinishedAt == "" && outcome.HasWrapper {
+				attempt.FinishedAt = outcome.Wrapper.FinishedAt
 			}
-		} else if exitCode, ok := loader.LoadTerminalState(jobDir); ok {
-			attempt.Result = &model.JobResult{ID: jobSpec.ID, AttemptID: attemptID, Command: jobSpec.Command, ExitCode: exitCode}
 		}
 		attempts = append(attempts, attempt)
 	}

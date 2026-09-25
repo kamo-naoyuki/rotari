@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -124,6 +125,34 @@ func decodeAttemptIDForRun(attemptID, runID string) (AttemptIDPayload, error) {
 		return AttemptIDPayload{}, fmt.Errorf("invalid attempt ID %q", attemptID)
 	}
 	return AttemptIDPayload{RunID: runID, JobID: jobID, Number: number}, nil
+}
+
+// ListAttemptIDs lists a job's attempt IDs in the run, oldest first.
+func ListAttemptIDs(runDir, jobID string) []string {
+	jobDir, err := SafeJoin(runDir, jobID)
+	if err != nil {
+		return nil
+	}
+	// codeql[go/path-injection]: jobDir is validated and attempts is a fixed directory.
+	entries, err := os.ReadDir(filepath.Join(jobDir, "attempts"))
+	if err != nil {
+		return nil
+	}
+	attempts := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() && IsValidPathElement(entry.Name()) {
+			attempts = append(attempts, entry.Name())
+		}
+	}
+	sort.SliceStable(attempts, func(left, right int) bool {
+		leftPayload, leftErr := DecodeAttemptID(attempts[left])
+		rightPayload, rightErr := DecodeAttemptID(attempts[right])
+		if leftErr == nil && rightErr == nil && leftPayload.Number != rightPayload.Number {
+			return leftPayload.Number < rightPayload.Number
+		}
+		return attempts[left] < attempts[right]
+	})
+	return attempts
 }
 
 func SpecificAttemptJobDir(runDir, jobID, attemptID string) (string, error) {

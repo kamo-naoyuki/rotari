@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -191,10 +192,10 @@ func scanInterruptedRunJobStatus(runDir string) (interruptedRunJobStatus, error)
 	var status interruptedRunJobStatus
 	for _, jobDir := range jobDirs {
 		status.Total++
-		if _, ok := readJobStatus(filepath.Join(jobDir, "status")); ok {
+		if _, ok := jobstatus.ReadStatusFile(jobDir); ok {
 			continue
 		}
-		if slurm, ok := loadSlurmStatus(filepath.Join(jobDir, "status.json")); ok && jobStatusTerminal(slurm) {
+		if slurm, ok := loadSlurmStatus(filepath.Join(jobDir, "status.json")); ok && jobstatus.WrapperTerminal(slurm) {
 			continue
 		}
 		status.StillRunning++

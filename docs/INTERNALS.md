@@ -37,7 +37,8 @@ quickly.
   [`internal/state/store.go`](../internal/state/store.go), with coverage in
   [`internal/state/store_test.go`](../internal/state/store_test.go).
 - Preserve the same fallback and resolution contracts across CLI, server, and
-  web paths. Start with [`cmd/rotari/show.go`](../cmd/rotari/show.go),
+  web paths. Job result and timestamp resolution lives in
+  [`internal/jobstatus`](../internal/jobstatus/); the renderers start with [`cmd/rotari/show.go`](../cmd/rotari/show.go),
   [`cmd/rotari/report.go`](../cmd/rotari/report.go), and
   [`cmd/rotari/web.go`](../cmd/rotari/web.go); representative tests are in
   [`cmd/rotari/show_test.go`](../cmd/rotari/show_test.go) and

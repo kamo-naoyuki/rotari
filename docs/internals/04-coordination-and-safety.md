@@ -28,10 +28,16 @@ Representative implementation and tests:
   file-backed: the run lock records the supervisor PID and host, and readers
   inspect per-job status files and missing summaries to report an active or
   interrupted run. Recovery remains an explicit operator action.
-- The existing `show`/`web.go` fallback chain (`status` -> `status.json` ->
-  `summary.json`) consumes this state without reader changes. See
-  [`cmd/rotari/show.go`](../../cmd/rotari/show.go),
-  [`cmd/rotari/web.go`](../../cmd/rotari/web.go), and
+- Readers consume this state through one fallback chain: the attempt's
+  `status`, then a terminal `status.json`, then a terminal
+  `scheduler_status.json`, and finally the run's `summary.json` result. A
+  summary result still supplies acceptance, blocked state, hosts, and diagnoses
+  when an attempt file decides the exit code. `show`, `jobs`, `report`, and the
+  Web UI all use it, and a selected older attempt in the Web UI shows its own
+  outcome. See [`internal/jobstatus`](../../internal/jobstatus/),
+  [`internal/jobstatus/attempt_test.go`](../../internal/jobstatus/attempt_test.go),
+  [`internal/jobstatus/job_test.go`](../../internal/jobstatus/job_test.go), and
+  `TestShowAndWebShareStatusFallbackChain` in
   [`cmd/rotari/show_test.go`](../../cmd/rotari/show_test.go).
 - This does not kill or reconcile leftover jobs during recovery; `reset
   --recover` and `unlock` still require the operator to confirm that jobs have

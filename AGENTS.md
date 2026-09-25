@@ -59,7 +59,9 @@ These rules are important and must not be violated.
 
 ### Status / result resolution
 
-`showJob` / `showRun` and `loadWebJobs` use the same fallback chain.
+`showJob` / `showRun` and `loadWebJobs` use the same fallback chain, which is
+implemented once in `internal/jobstatus`. Change the chain there rather than in
+a caller.
 
 If the fallback behavior changes, inspect and update all relevant implementations.
 Do not change only one side.

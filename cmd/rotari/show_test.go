@@ -23,27 +23,6 @@ func TestFormatDisplayTimestampUsesJST(t *testing.T) {
 	}
 }
 
-func TestJobStatusTerminalUsesFinishedAtMarker(t *testing.T) {
-	if !jobStatusTerminal(slurmStatus{Phase: "running", FinishedAt: "2026-09-18T00:00:00Z"}) {
-		t.Fatal("status with finished_at was not treated as terminal")
-	}
-	if jobStatusTerminal(slurmStatus{Phase: "running"}) {
-		t.Fatal("running status without finished_at was treated as terminal")
-	}
-}
-
-func TestLoadTerminalSchedulerState(t *testing.T) {
-	jobDir := t.TempDir()
-	writeSchedulerStatus(jobDir, "COMPLETED")
-	if status, ok := loadTerminalSchedulerState(jobDir); !ok || status != 0 {
-		t.Fatalf("completed scheduler status = %d, %v", status, ok)
-	}
-	writeSchedulerStatus(jobDir, "RUNNING")
-	if _, ok := loadTerminalSchedulerState(jobDir); ok {
-		t.Fatal("running scheduler status was treated as terminal")
-	}
-}
-
 func TestCmdShowDisplaysFinishedArrayTaskFromStatusJSON(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "demo")
@@ -1410,4 +1389,88 @@ func TestCmdShowBaseDirsListsMasterRegistryEntries(t *testing.T) {
 			t.Fatalf("cmdShow --basedirs output does not contain %q:\n%s", want, output)
 		}
 	}
+}
+
+func TestShowAndWebShareStatusFallbackChain(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := makeRunID()
+	runDir := filepath.Join(paths.RunsDir, runID)
+	queue := Queue{Commands: []QueuedCommand{
+		{ID: "job-a", Command: []string{"true"}},
+		{ID: "job-b", Command: []string{"true"}, Executor: "slurm"},
+		{ID: "job-c", Command: []string{"true"}, DependsOn: []string{"job-a"}},
+	}}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
+		t.Fatal(err)
+	}
+	// job-a: the attempt's status file wins over a disagreeing summary result.
+	if err := os.MkdirAll(filepath.Join(runDir, "job-a"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "job-a", "status"), []byte("3\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// job-b: a still-running wrapper falls back to the terminal scheduler state.
+	if err := writeJSON(filepath.Join(runDir, "job-b", "status.json"), slurmStatus{Phase: "running"}); err != nil {
+		t.Fatal(err)
+	}
+	writeSchedulerStatus(filepath.Join(runDir, "job-b"), "FAILED")
+	// job-c: no attempt directory, so the summary result decides.
+	summary := RunSummary{RunID: runID, Status: "failed", ExitCode: 1, Results: []JobResult{
+		{ID: "job-a", ExitCode: 0},
+		{ID: "job-c", ExitCode: 1, Error: "blocked by failed dependency"},
+	}}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), summary); err != nil {
+		t.Fatal(err)
+	}
+
+	var runOutput bytes.Buffer
+	code := captureShowStdout(t, &runOutput, func() int { return showRun(paths, runID, false) })
+	if code != 0 || !strings.Contains(runOutput.String(), "Job status: success: 0, failed: 2, blocked: 1, running: 0, pending: 0") {
+		t.Fatalf("showRun code=%d output=%q", code, runOutput.String())
+	}
+	var jobOutput bytes.Buffer
+	if code := showJob(&jobOutput, paths, runID, "job-b"); code != 0 || !strings.Contains(jobOutput.String(), "failed (exit code 1)") {
+		t.Fatalf("showJob code=%d output=%q", code, jobOutput.String())
+	}
+
+	jobs, err := loadWebJobs(runDir, summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]int{"job-a": 3, "job-b": 1, "job-c": 1}
+	for _, job := range jobs {
+		if job.Result == nil || job.Result.ExitCode != want[job.ID] {
+			t.Fatalf("web job %s result = %#v, want exit code %d", job.ID, job.Result, want[job.ID])
+		}
+		if job.ID == "job-c" && !strings.HasPrefix(job.Result.Error, "blocked") {
+			t.Fatalf("web job-c result = %#v, want blocked summary result", job.Result)
+		}
+	}
+	if len(jobs) != len(want) {
+		t.Fatalf("web jobs = %#v, want %d jobs", jobs, len(want))
+	}
+}
+
+func captureShowStdout(t *testing.T, output *bytes.Buffer, show func() int) int {
+	t.Helper()
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code := show()
+	_ = writer.Close()
+	os.Stdout = oldStdout
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output.Write(data)
+	return code
 }

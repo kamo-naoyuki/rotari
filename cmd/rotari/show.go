@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -915,15 +916,9 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 		if dependsOn == "" {
 			dependsOn = "-"
 		}
-		status, statusOK := loadTerminalJobStatus(jobDir)
-		blocked := false
-		if !statusOK {
-			if result, ok := resultByID[jobSpec.ID]; ok {
-				status = result.ExitCode
-				statusOK = true
-				blocked = strings.HasPrefix(result.Error, "blocked")
-			}
-		}
+		summaryResult, hasSummary := resultByID[jobSpec.ID]
+		resolved := jobstatus.ReadJob(jsonStore(), jobDir, summaryResult, hasSummary)
+		status, statusOK, blocked := resolved.ExitCode, resolved.Finished(), resolved.Blocked()
 		if statusOK {
 			switch {
 			case blocked:
@@ -946,21 +941,19 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 			changeHints = append(changeHints, jobSpec)
 		}
 		hosts := "-"
-		if result, ok := resultByID[jobSpec.ID]; ok && len(result.Hosts) > 0 {
-			hosts = strings.Join(result.Hosts, ",")
-		} else if slurm, ok := loadSlurmStatus(filepath.Join(jobDir, statusJSONName)); ok && len(slurm.Hosts) > 0 {
-			hosts = strings.Join(slurm.Hosts, ",")
+		if resolvedHosts := resolved.Hosts(); len(resolvedHosts) > 0 {
+			hosts = strings.Join(resolvedHosts, ",")
 		}
 		command := readJSONCommand(filepath.Join(jobDir, commandJSONName))
 		if command == "" {
 			command = strings.Join(jobSpec.Command, " ")
 		}
-		submittedAt, finishedAt := readShowJobTimestamps(runDir, jobID, originByID[jobID])
+		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobID, originByID[jobID])
 		submittedAt = model.FormatDisplayTimestamp(submittedAt)
 		finishedAt = model.FormatDisplayTimestamp(finishedAt)
 		if statusOK {
 			statusText := green(strconv.Itoa(status))
-			if resultByID[jobSpec.ID].Accepted {
+			if resolved.Accepted() {
 				statusText = green("success (accepted)")
 			} else if blocked {
 				statusText = yellow("blocked")
@@ -1500,35 +1493,6 @@ func colorExecutor(executor string) string {
 	}
 }
 
-func jobStatusTerminal(status slurmStatus) bool {
-	return status.FinishedAt != "" || executor.SchedulerStateTerminal(status.Phase)
-}
-
-func loadTerminalSchedulerState(jobDir string) (int, bool) {
-	return executor.ResolveTerminalExitCode(jsonStore(), jobDir)
-}
-
-func readShowJobTimestamps(runDir, jobID string, origin *JobOrigin) (string, string) {
-	submittedAt := state.ReadJobTimestamp(runDir, jobID, "submitted_at")
-	finishedAt := state.ReadJobTimestamp(runDir, jobID, "finished_at")
-	if origin == nil {
-		return submittedAt, finishedAt
-	}
-	if submittedAt == "" {
-		submittedAt = origin.SubmittedAt
-		if submittedAt == "" && state.IsValidPathElement(origin.RunID) {
-			submittedAt = state.ReadJobTimestamp(filepath.Join(filepath.Dir(runDir), origin.RunID), origin.JobID, "submitted_at")
-		}
-	}
-	if finishedAt == "" {
-		finishedAt = origin.FinishedAt
-		if finishedAt == "" && state.IsValidPathElement(origin.RunID) {
-			finishedAt = state.ReadJobTimestamp(filepath.Join(filepath.Dir(runDir), origin.RunID), origin.JobID, "finished_at")
-		}
-	}
-	return submittedAt, finishedAt
-}
-
 func loadRunJobSpecs(runDir string) map[string]JobSpec {
 	specs := make(map[string]JobSpec)
 	data, err := os.ReadFile(filepath.Join(runDir, "commands.json"))
@@ -1587,33 +1551,6 @@ func showJob(writer io.Writer, paths pathSet, runID, jobID string) int {
 	return showJobAttempt(writer, paths, runID, jobID, "")
 }
 
-func listAttemptIDs(runDir, jobID string) []string {
-	jobDir, err := state.SafeJoin(runDir, jobID)
-	if err != nil {
-		return nil
-	}
-	// codeql[go/path-injection]: jobDir is validated and attempts is a fixed directory.
-	entries, err := os.ReadDir(filepath.Join(jobDir, "attempts"))
-	if err != nil {
-		return nil
-	}
-	attempts := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() && state.IsValidPathElement(entry.Name()) {
-			attempts = append(attempts, entry.Name())
-		}
-	}
-	sort.SliceStable(attempts, func(left, right int) bool {
-		leftPayload, leftErr := state.DecodeAttemptID(attempts[left])
-		rightPayload, rightErr := state.DecodeAttemptID(attempts[right])
-		if leftErr == nil && rightErr == nil && leftPayload.Number != rightPayload.Number {
-			return leftPayload.Number < rightPayload.Number
-		}
-		return attempts[left] < attempts[right]
-	})
-	return attempts
-}
-
 func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID string) int {
 	if !state.IsValidPathElement(runID) {
 		printErrorf(runNotFoundMessage, runID)
@@ -1657,7 +1594,7 @@ func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID str
 	if selectedAttemptID != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Attempt ID:"), selectedAttemptID)
 	}
-	if attempts := listAttemptIDs(runDir, jobID); len(attempts) > 0 {
+	if attempts := state.ListAttemptIDs(runDir, jobID); len(attempts) > 0 {
 		latestAttemptLabel, _ := state.LatestAttemptID(runDir, jobID)
 		fmt.Fprintln(writer, cyan("Attempts:"))
 		for _, listedAttemptID := range attempts {
@@ -1698,66 +1635,20 @@ func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID str
 	}
 	fmt.Fprintf(writer, "%s %s\n", cyan("Submitted:"), model.FormatDisplayTimestamp(state.ReadJobTimestamp(runDir, jobID, "submitted_at")))
 	fmt.Fprintf(writer, "%s %s\n", cyan("Finished:"), model.FormatDisplayTimestamp(state.ReadJobTimestamp(runDir, jobID, "finished_at")))
-	if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
-		for _, result := range summary.Results {
-			if result.ID == jobSpecs[jobID].ID {
-				hosts := strings.Join(result.Hosts, ",")
-				if hosts == "" {
-					hosts = "-"
-				}
-				fmt.Fprintf(writer, "%s %s\n", cyan("Hosts:"), hosts)
-				break
-			}
+	summaryResult, hasSummary := loadRunResult(runDir, jobSpecs[jobID].ID)
+	if hasSummary {
+		hosts := strings.Join(summaryResult.Hosts, ",")
+		if hosts == "" {
+			hosts = "-"
 		}
+		fmt.Fprintf(writer, "%s %s\n", cyan("Hosts:"), hosts)
 	}
-	if status, ok := readJobStatus(filepath.Join(jobDir, "status")); ok {
-		if status == 0 {
-			fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), green(strconv.Itoa(status)))
-		} else {
-			fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), red(strconv.Itoa(status)))
-		}
-	} else if slurm, ok := loadSlurmStatus(filepath.Join(jobDir, statusJSONName)); ok {
-		status := fmt.Sprintf("Status: %s (exit code %d)", slurm.Phase, slurm.ExitCode)
-		if slurm.Phase == "finished" && slurm.ExitCode == 0 {
-			fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), green(strings.TrimPrefix(status, "Status: ")))
-		} else if slurm.Phase == "finished" {
-			fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), red(strings.TrimPrefix(status, "Status: ")))
-		} else {
-			fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), yellow(strings.TrimPrefix(status, "Status: ")))
-		}
-	} else {
-		summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
-		if err == nil {
-			for _, result := range summary.Results {
-				if result.ID != jobSpecs[jobID].ID {
-					continue
-				}
-				switch {
-				case result.Accepted:
-					fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), green("success (accepted)"))
-				case strings.HasPrefix(result.Error, "blocked"):
-					fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), yellow("blocked (dependency failed)"))
-				case result.Error != "":
-					// No status/status.json file was ever written for this job (e.g. the
-					// scheduler and its accounting were both unreachable), so this is the
-					// only place the reason surfaces.
-					fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), red(fmt.Sprintf("%d (%s)", result.ExitCode, result.Error)))
-				case result.ExitCode == 0:
-					fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), green(strconv.Itoa(result.ExitCode)))
-				default:
-					fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), red(strconv.Itoa(result.ExitCode)))
-				}
-			}
-		}
+	if status, ok := jobAttemptStatusText(jobstatus.ReadJob(jsonStore(), jobDir, summaryResult, hasSummary)); ok {
+		fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), status)
 	}
 	command := readJSONCommand(filepath.Join(jobDir, commandJSONName))
-	if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
-		for _, result := range summary.Results {
-			if result.ID == jobSpecs[jobID].ID {
-				writeJobDiagnoses(writer, result.Diagnoses)
-				break
-			}
-		}
+	if hasSummary {
+		writeJobDiagnoses(writer, summaryResult.Diagnoses)
 	}
 	fmt.Fprintf(writer, "%s %s\n", cyan("Command:"), command)
 	fmt.Fprintf(writer, "%s %s\n\n", cyan("Output:"), filepath.Join(jobDir, "output"))
@@ -1768,6 +1659,52 @@ func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID str
 	return 0
 }
 
+// jobAttemptStatusText renders a resolved job's status for `show` of one job.
+func jobAttemptStatusText(resolved jobstatus.Job) (string, bool) {
+	switch resolved.Source {
+	case jobstatus.SourceStatus:
+		return exitCodeStatusText(resolved.ExitCode, strconv.Itoa(resolved.ExitCode)), true
+	case jobstatus.SourceScheduler:
+		return exitCodeStatusText(resolved.ExitCode, fmt.Sprintf("%s (exit code %d)", resolved.Attempt.SchedulerState, resolved.ExitCode)), true
+	case jobstatus.SourceSummary:
+		result := resolved.Summary
+		switch {
+		case result.Accepted:
+			return green("success (accepted)"), true
+		case resolved.Blocked():
+			return yellow("blocked (dependency failed)"), true
+		case result.Error != "":
+			// No terminal attempt state was ever recorded for this job (e.g. the
+			// scheduler and its accounting were both unreachable), so this is the
+			// only place the reason surfaces.
+			return red(fmt.Sprintf("%d (%s)", result.ExitCode, result.Error)), true
+		default:
+			return exitCodeStatusText(result.ExitCode, strconv.Itoa(result.ExitCode)), true
+		}
+	}
+	// A terminal wrapper, or a still-running one, shows its phase.
+	if !resolved.Attempt.HasWrapper {
+		return "", false
+	}
+	wrapper := resolved.Attempt.Wrapper
+	text := fmt.Sprintf("%s (exit code %d)", wrapper.Phase, wrapper.ExitCode)
+	switch {
+	case wrapper.Phase == "finished" && wrapper.ExitCode == 0:
+		return green(text), true
+	case wrapper.Phase == "finished":
+		return red(text), true
+	default:
+		return yellow(text), true
+	}
+}
+
+func exitCodeStatusText(exitCode int, text string) string {
+	if exitCode == 0 {
+		return green(text)
+	}
+	return red(text)
+}
+
 func writeJobDiagnoses(writer io.Writer, diagnoses []ruleDiagnosis) {
 	if len(diagnoses) == 0 {
 		return
@@ -1776,16 +1713,6 @@ func writeJobDiagnoses(writer io.Writer, diagnoses []ruleDiagnosis) {
 	for _, diagnosis := range diagnoses {
 		fmt.Fprintf(writer, "  %s\n    Evidence: %s\n    Next: %s\n", diagnosis.Name, diagnosis.Evidence, diagnosis.Suggestion)
 	}
-}
-
-func readJobStatus(path string) (int, bool) {
-	// codeql[go/path-injection]: callers pass paths built from validated run/job IDs.
-	data, err := os.ReadFile(path) // NOSONAR: callers pass paths built from validated run/job IDs.
-	if err != nil {
-		return 0, false
-	}
-	value, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	return value, err == nil
 }
 
 func readJSONCommand(path string) string {
@@ -1829,13 +1756,8 @@ func showRunLogs(writer io.Writer, paths pathSet, runID string, failedOnly bool)
 			continue
 		}
 
-		status, statusOK := readJobStatus(filepath.Join(jobDir, "status"))
-		if !statusOK {
-			if slurm, ok := loadSlurmStatus(filepath.Join(jobDir, statusJSONName)); ok && jobStatusTerminal(slurm) {
-				status = slurm.ExitCode
-				statusOK = true
-			}
-		}
+		attempt := jobstatus.ReadAttempt(jsonStore(), jobDir)
+		status, statusOK := attempt.ExitCode, attempt.Finished()
 
 		if failedOnly && (!statusOK || status == 0) {
 			continue
@@ -2015,18 +1937,7 @@ func followJobLog(writer io.Writer, paths pathSet, runID, jobID string) int {
 			}
 			offset = int64(len(data))
 		}
-		statusPath := filepath.Join(jobDir, "status")
-		status, statusOK := readJobStatus(statusPath)
-		if !statusOK {
-			if slurm, ok := loadSlurmStatus(filepath.Join(jobDir, statusJSONName)); ok && jobStatusTerminal(slurm) {
-				status = slurm.ExitCode
-				statusOK = true
-			}
-		}
-		if statusOK && status != 0 {
-			return 0
-		}
-		if statusOK && status == 0 {
+		if jobstatus.ReadAttempt(jsonStore(), jobDir).Finished() {
 			return 0
 		}
 		time.Sleep(250 * time.Millisecond)
@@ -2034,10 +1945,16 @@ func followJobLog(writer io.Writer, paths pathSet, runID, jobID string) int {
 }
 
 func runResultAccepted(runDir, jobID string) bool {
+	result, ok := loadRunResult(runDir, jobID)
+	return ok && result.Accepted
+}
+
+// loadRunResult returns the job's result from the run's summary.json.
+func loadRunResult(runDir, jobID string) (JobResult, bool) {
 	summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
 	if err != nil {
-		return false
+		return JobResult{}, false
 	}
 	result, ok := model.ResultsByID(summary.Results)[jobID]
-	return ok && result.Accepted
+	return result, ok
 }

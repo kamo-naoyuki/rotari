@@ -140,6 +140,7 @@ cmd/rotari
   ├── internal/model     # queue, job, run, array, selection, validation
   ├── internal/state     # paths, JSON persistence, locks, attempts
   ├── internal/executor  # executor contracts and local execution primitives
+  ├── internal/jobstatus # read-side job result and timestamp resolution
   ├── internal/diagnose  # rule-based log diagnosis
   └── internal/run       # run planning, worker lifecycle, lanes, orchestration
 ```
@@ -157,6 +158,11 @@ The three packages that most often look similar are split by responsibility:
   state to decide what should execute, what can be carried forward, how
   dependencies unblock work, when retries happen, and how workers and lanes
   advance a run.
+
+`internal/jobstatus` owns the read-side fallback chain that turns an attempt's
+state files and the run summary into a job's displayed outcome and timestamps.
+CLI and Web projections render its resolution instead of reading status files
+themselves, so `show`, `jobs`, `report`, and the Web UI cannot drift apart.
 
 A useful placement test is: if the code can be explained without mentioning
 paths, files, locks, or directories, it probably does not belong in

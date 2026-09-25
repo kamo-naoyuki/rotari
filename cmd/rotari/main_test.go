@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -1202,30 +1203,6 @@ func TestLatestAttemptIDIgnoresOtherRunsAndJobs(t *testing.T) {
 	want := attemptIDs[0]
 	if got != want {
 		t.Fatalf("latest attempt ID = %q, want %q", got, want)
-	}
-}
-
-func TestListAttemptIDsSortsByAttemptNumber(t *testing.T) {
-	runDir := t.TempDir()
-	jobID := "job-1"
-	rootDir, err := validatedJobDir(runDir, jobID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	attemptIDs := []string{
-		makeAttemptID("20260922-000000-00000000", jobID, 2),
-		makeAttemptID("20260922-000000-00000000", jobID, 0),
-		makeAttemptID("20260922-000000-00000000", jobID, 1),
-	}
-	for _, attemptID := range attemptIDs {
-		if err := os.MkdirAll(filepath.Join(rootDir, "attempts", attemptID), 0o700); err != nil {
-			t.Fatal(err)
-		}
-	}
-	got := listAttemptIDs(runDir, jobID)
-	want := []string{attemptIDs[1], attemptIDs[2], attemptIDs[0]}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("attempt IDs = %#v, want %#v", got, want)
 	}
 }
 
@@ -3248,12 +3225,12 @@ func TestLocalJobWrapperSelfReportsStatusEvenIfCoordinatorNeverWaits(t *testing.
 	var ok bool
 	for time.Now().Before(deadline) {
 		status, ok = loadSlurmStatus(filepath.Join(jobDir, "status.json"))
-		if ok && jobStatusTerminal(status) {
+		if ok && jobstatus.WrapperTerminal(status) {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if !ok || !jobStatusTerminal(status) {
+	if !ok || !jobstatus.WrapperTerminal(status) {
 		t.Fatalf("status.json was not self-reported by the orphaned job: %+v", status)
 	}
 	if status.ExitCode != 7 {

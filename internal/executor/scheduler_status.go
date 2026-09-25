@@ -1,8 +1,6 @@
 package executor
 
 import (
-	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -56,20 +54,4 @@ func SchedulerStateExitCode(value string) (int, bool) {
 	default:
 		return 0, false
 	}
-}
-
-func ResolveTerminalExitCode(store state.Store, jobDir string) (int, bool) {
-	if path, err := state.ValidatedStateFile(jobDir, "status"); err == nil {
-		if data, err := os.ReadFile(path); err == nil {
-			if exitCode, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
-				return exitCode, true
-			}
-		}
-	}
-	if path, err := state.ValidatedStateFile(jobDir, "status.json"); err == nil {
-		if status, ok := LoadWrapperStatus(store, path); ok && (status.FinishedAt != "" || SchedulerStateTerminal(status.Phase)) {
-			return status.ExitCode, true
-		}
-	}
-	return SchedulerStateExitCode(LoadSchedulerStatus(store, jobDir))
 }
