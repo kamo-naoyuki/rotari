@@ -353,6 +353,74 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "<command ...>",
         },
         {
+            "description": "export the current queue or saved runs as a workflow "
+            "manifest",
+            "flags": [
+                {
+                    "description": "state directory",
+                    "environment": "ROTARI_BASEDIR",
+                    "name": "basedir",
+                    "short": "b",
+                    "value_name": "DIR",
+                },
+                {
+                    "description": "project name",
+                    "environment": "ROTARI_PROJECT_NAME",
+                    "name": "project-name",
+                    "short": "p",
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "run ID to export; may be repeated",
+                    "environment": "ROTARI_RUN_ID",
+                    "name": "run-id",
+                    "repeated": True,
+                    "short": "r",
+                    "value_name": "ID",
+                },
+                {
+                    "description": "manifest format: yaml, toml, or json",
+                    "name": "format",
+                    "short": "o",
+                    "value_name": "FORMAT",
+                    "values": ["yaml", "toml", "json"],
+                },
+                {
+                    "description": "print a starter workflow manifest",
+                    "name": "template",
+                },
+            ],
+            "name": "export",
+        },
+        {
+            "description": "validate and replace a queue from a workflow manifest",
+            "flags": [
+                {
+                    "description": "state directory",
+                    "environment": "ROTARI_BASEDIR",
+                    "name": "basedir",
+                    "short": "b",
+                    "value_name": "DIR",
+                },
+                {
+                    "description": "project name",
+                    "environment": "ROTARI_PROJECT_NAME",
+                    "name": "project-name",
+                    "short": "p",
+                    "value_name": "NAME",
+                },
+                {"description": "replace a non-empty queue", "name": "overwrite"},
+                {
+                    "description": "validate and print the import plan without "
+                    "writing",
+                    "name": "dry-run",
+                },
+                {"description": "print the import plan as JSON", "name": "json"},
+            ],
+            "name": "import",
+            "positional": "FILE",
+        },
+        {
             "description": "remove jobs from the current or previous batch",
             "flags": [
                 {
@@ -719,7 +787,7 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "<command ...>",
         },
         {
-            "description": "copy jobs from a run into the queue",
+            "description": "copy the latest run's jobs into the queue",
             "flags": [
                 {
                     "description": "state directory",
@@ -736,7 +804,7 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "source run ID",
+                    "description": "source run ID; defaults to the latest run",
                     "environment": "ROTARI_RUN_ID",
                     "name": "run-id",
                     "short": "r",
