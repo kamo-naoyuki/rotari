@@ -487,3 +487,36 @@ section {
 .runs tr.matrix-focus td {
   background: rgba(184, 217, 242, 0.16);
 }
+.matrix-actions {
+  position: absolute;
+  z-index: 20;
+  min-width: 220px;
+  max-width: 420px;
+  padding: 10px 36px 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.matrix-actions-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 8px;
+}
+.matrix-actions-job + .matrix-actions-job {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.matrix-actions-heading {
+  margin-bottom: 6px;
+}
+.matrix-actions-heading span {
+  background: none;
+  font-size: 12px;
+}
+.matrix-actions-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

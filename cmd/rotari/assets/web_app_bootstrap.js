@@ -75,6 +75,7 @@ render = function () {
   addAIButtons();
   arrangeRunControls();
   orderJobActions();
+  restoreMatrixActions();
 };
 window.addEventListener("popstate", render);
 refresh();

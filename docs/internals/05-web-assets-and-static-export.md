@@ -158,9 +158,14 @@ secrets. The first dimension forms rows and the second columns; further
 dimensions split the group into one grid per remaining combination. A cell
 takes the worst state of its jobs (array tasks share a cell and show
 `succeeded/total`), classified from the same resolved `result` as the jobs
-table, and clicking it scrolls to and highlights the job's table row and
-presses that row's Output button, so carried and attempt-specific logs behave
-as in the table. Jobs whose matrix provenance was cleared by a partial copy or
+table. Clicking a cell opens a box, attached to `document.body` so the
+periodic re-render does not remove it, that lists each of the cell's jobs with
+a copy of its table row's action buttons plus `Show in table`. A copy presses
+the button at the same position in the current row, so every action, including
+ones added by later render steps, behaves exactly as in the table.
+`restoreMatrixActions` runs at the end of each render to move the box to the
+re-rendered cell, rebuild it when the cell's jobs changed, or close it when the
+cell is gone. Jobs whose matrix provenance was cleared by a partial copy or
 change appear only in the table. Covered by `TestWebRunViewDrawsMatrixGrid` in
 [cmd/rotari/web_test.go](../../cmd/rotari/web_test.go).
 

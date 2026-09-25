@@ -213,8 +213,8 @@ See the [web demo](https://kamo-naoyuki.github.io/rotari/) for a read-only UI
 using generated example data. For remote access, authentication, and read-only
 mode, see the [FAQ](docs/FAQ.md#web-ui) and [Security model](docs/OPERATIONS.md#security-model).
 A run page summarizes each `--matrix` group as a grid colored by status, so a
-failing parameter combination stands out; clicking a cell opens that job's
-output. The UI can also show browser desktop notifications when a run finishes or a job
+failing parameter combination stands out; clicking a cell offers that job's
+actions, such as its log, report, or cancel. The UI can also show browser desktop notifications when a run finishes or a job
 fails; see [Web browser notifications](docs/WEB_BROWSER_NOTIFICATIONS.md).
 
 ## Documentation

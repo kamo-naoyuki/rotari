@@ -2,7 +2,7 @@
 // table: the first dimension forms the rows, the second the columns, and any
 // further dimensions split the group into one grid per remaining combination.
 // A cell's color is the worst state of its jobs (several for array tasks), and
-// clicking it scrolls to the job's table row and opens its output.
+// clicking it opens a box with each job's table-row actions.
 
 const matrixStateOrder = ["failed", "blocked", "running", "pending", "success"];
 
@@ -32,7 +32,7 @@ function matrixCombinations(dimensions) {
   );
 }
 
-function renderMatrixCell(cellJobs, running) {
+function renderMatrixCell(groupID, key, cellJobs, running) {
   if (!cellJobs || cellJobs.length === 0) {
     return '<td class="matrix-cell matrix-missing">-</td>';
   }
@@ -53,20 +53,30 @@ function renderMatrixCell(cellJobs, running) {
   const title = cellJobs
     .map((job, index) => (job.name || job.id) + ": " + states[index])
     .join("\n");
+  const jobsByID = {};
+  cellJobs.forEach((job, index) => {
+    jobsByID[job.id] = {
+      id: job.id,
+      name: job.name || job.id,
+      state: states[index],
+    };
+  });
   return (
     '<td class="matrix-cell matrix-' +
     state +
-    '" data-job-ids="' +
-    esc(ordered.join(" ")) +
+    '" data-cell-key="' +
+    esc(groupID + "\u0001" + key) +
+    '" data-jobs="' +
+    esc(JSON.stringify(ordered.map((id) => jobsByID[id]))) +
     '" title="' +
     esc(title) +
-    '" onclick="focusMatrixCell(this)">' +
+    '" onclick="openMatrixCell(this)">' +
     esc(label) +
     "</td>"
   );
 }
 
-function renderMatrixGrid(dimensions, fixed, cells, running) {
+function renderMatrixGrid(groupID, dimensions, fixed, cells, running) {
   const rows = dimensions[0];
   const columns = dimensions.length > 1 ? dimensions[1] : null;
   const columnValues = columns ? columns.values : [null];
@@ -90,10 +100,8 @@ function renderMatrixGrid(dimensions, fixed, cells, running) {
           if (columnValue !== null) {
             values.push({ name: columns.name, value: columnValue });
           }
-          return renderMatrixCell(
-            cells[matrixKey(values.concat(fixed))],
-            running,
-          );
+          const key = matrixKey(values.concat(fixed));
+          return renderMatrixCell(groupID, key, cells[key], running);
         })
         .join("");
       return (
@@ -143,7 +151,15 @@ function renderMatrixPanels(jobs, running) {
       // Keys list dimensions in order, so the fixed values follow the
       // shown ones when looked up.
       const grids = matrixCombinations(rest)
-        .map((fixed) => renderMatrixGrid(shown, fixed, group.cells, running))
+        .map((fixed) =>
+          renderMatrixGrid(
+            group.matrix.group_id,
+            shown,
+            fixed,
+            group.cells,
+            running,
+          ),
+        )
         .join("");
       const title = group.matrix.base_name || group.matrix.group_id;
       return (
@@ -159,17 +175,142 @@ function renderMatrixPanels(jobs, running) {
     .join("");
 }
 
-// focusMatrixCell scrolls to the first listed job's table row, highlights it,
-// and opens its output through the row's own Output button.
-function focusMatrixCell(cell) {
-  const jobID = (cell.dataset.jobIds || "").split(" ")[0];
-  const row = Array.from(document.querySelectorAll("tr[data-job-id]")).find(
-    (candidate) => candidate.dataset.jobId === jobID,
+// The open action box lives outside #app, so the periodic re-render does not
+// remove it; restoreMatrixActions reattaches it to the re-rendered cell.
+let openMatrixCellKey = "";
+let openMatrixCellJobs = "";
+
+function matrixJobRow(jobID) {
+  return Array.from(document.querySelectorAll("tr[data-job-id]")).find(
+    (row) => row.dataset.jobId === jobID,
   );
+}
+
+function matrixRowActions(row) {
+  const table = row && row.closest("table");
+  if (!table) return [];
+  const headers = Array.from(table.querySelectorAll("thead th"));
+  const index = headers.findIndex(
+    (header) => header.textContent.trim() === "Actions",
+  );
+  const cell = index >= 0 ? row.children[index] : null;
+  return cell ? Array.from(cell.querySelectorAll("button")) : [];
+}
+
+// focusMatrixJob scrolls to a job's table row and highlights it briefly.
+function focusMatrixJob(jobID) {
+  const row = matrixJobRow(jobID);
   if (!row) return;
   if (row.scrollIntoView) row.scrollIntoView({ block: "center" });
   row.classList.add("matrix-focus");
   setTimeout(() => row.classList.remove("matrix-focus"), 2000);
-  const output = row.querySelector('button[onclick^="log("]');
-  if (output) output.click();
 }
+
+function closeMatrixActions() {
+  openMatrixCellKey = "";
+  openMatrixCellJobs = "";
+  const box = document.getElementById("matrix-actions");
+  if (box) box.remove();
+}
+
+function positionMatrixActions(box, cell) {
+  const rect = cell.getBoundingClientRect();
+  box.style.left = rect.left + window.scrollX + "px";
+  box.style.top = rect.bottom + window.scrollY + 4 + "px";
+}
+
+// openMatrixCell opens a box listing each of the cell's jobs with a copy of
+// its table row's action buttons. A copy presses the current row's button,
+// so it behaves exactly like the table, including buttons that later
+// render steps add.
+function openMatrixCell(cell) {
+  closeMatrixActions();
+  openMatrixCellKey = cell.dataset.cellKey || "";
+  openMatrixCellJobs = cell.dataset.jobs || "[]";
+  const box = document.createElement("div");
+  box.id = "matrix-actions";
+  box.className = "matrix-actions";
+  box.setAttribute("role", "dialog");
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "matrix-actions-close";
+  close.textContent = "×";
+  close.title = "Close";
+  close.setAttribute("aria-label", "Close");
+  close.onclick = closeMatrixActions;
+  box.append(close);
+  JSON.parse(openMatrixCellJobs).forEach((job) => {
+    const entry = document.createElement("div");
+    entry.className = "matrix-actions-job";
+    const heading = document.createElement("div");
+    heading.className = "matrix-actions-heading";
+    const name = document.createElement("strong");
+    name.textContent = job.name;
+    const state = document.createElement("span");
+    state.className = "matrix-" + job.state;
+    state.textContent = " " + job.state;
+    heading.append(name, state);
+    const buttons = document.createElement("div");
+    buttons.className = "matrix-actions-buttons";
+    matrixRowActions(matrixJobRow(job.id)).forEach((original, index) => {
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.innerHTML = original.innerHTML;
+      copy.title = original.title;
+      copy.disabled = original.disabled;
+      const label = original.getAttribute("aria-label");
+      if (label) copy.setAttribute("aria-label", label);
+      copy.onclick = () => {
+        const current = matrixRowActions(matrixJobRow(job.id))[index];
+        closeMatrixActions();
+        if (current) current.click();
+      };
+      buttons.append(copy, " ");
+    });
+    const show = document.createElement("button");
+    show.type = "button";
+    show.textContent = "Show in table";
+    show.onclick = () => {
+      closeMatrixActions();
+      focusMatrixJob(job.id);
+    };
+    buttons.append(show);
+    entry.append(heading, buttons);
+    box.append(entry);
+  });
+  document.body.append(box);
+  positionMatrixActions(box, cell);
+}
+
+// restoreMatrixActions runs after each render: it moves the open box to the
+// re-rendered cell, rebuilds it when the cell's jobs changed, and closes it
+// when the cell is gone.
+function restoreMatrixActions() {
+  if (!openMatrixCellKey) return;
+  const cell = Array.from(document.querySelectorAll("td.matrix-cell")).find(
+    (candidate) => candidate.dataset.cellKey === openMatrixCellKey,
+  );
+  const box = document.getElementById("matrix-actions");
+  if (!cell) {
+    closeMatrixActions();
+  } else if (!box || cell.dataset.jobs !== openMatrixCellJobs) {
+    openMatrixCell(cell);
+  } else {
+    positionMatrixActions(box, cell);
+  }
+}
+
+document.addEventListener("click", (event) => {
+  const target = event.target;
+  if (
+    openMatrixCellKey &&
+    target.closest &&
+    !target.closest("#matrix-actions") &&
+    !target.closest("td.matrix-cell")
+  ) {
+    closeMatrixActions();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeMatrixActions();
+});
