@@ -68,3 +68,20 @@ func TestCmdGuidePrintsGuideAndRejectsArguments(t *testing.T) {
 		t.Fatalf("guide with an argument exit code = %d, want 1", code)
 	}
 }
+
+func TestTopLevelUsagePointsAgentsToGuide(t *testing.T) {
+	for _, args := range [][]string{nil, {"--help"}, {"-h"}, {"help"}} {
+		wantCode := 0
+		if len(args) == 0 {
+			wantCode = 1
+		}
+		var output bytes.Buffer
+		code := captureShowStdout(t, &output, func() int { return run(args) })
+		if code != wantCode {
+			t.Fatalf("run(%q) exit code = %d, want %d", args, code, wantCode)
+		}
+		if !strings.Contains(output.String(), "run `rotari guide` first") || !strings.Contains(output.String(), "Usage:") {
+			t.Fatalf("run(%q) usage does not point to the guide:\n%s", args, output.String())
+		}
+	}
+}

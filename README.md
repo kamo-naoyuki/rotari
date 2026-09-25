@@ -108,7 +108,9 @@ for background execution.
 
 When a coding agent drives rotari, have it read `rotari guide` first. The guide
 explains the recommended workflow and includes a command reference generated
-from the installed binary's CLI metadata.
+from the installed binary's CLI metadata. `rotari --help` points agents to it,
+and a line such as "Run `rotari guide` before using rotari" in your project's
+`AGENTS.md` or `CLAUDE.md` makes an agent read it without being asked.
 
 Use `--depends-on NAME` to run a job only after a prerequisite job or stage
 succeeds:

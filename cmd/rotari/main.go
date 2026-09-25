@@ -94,6 +94,10 @@ func run(args []string) int {
 		printUsage()
 		return 1
 	}
+	if isHelpArgument(args[0]) || args[0] == "help" {
+		printUsage()
+		return 0
+	}
 	cliConfigCommand = args[0]
 	isConfigCommand := args[0] == "config" || (args[0] == "run" && len(args) > 1 && args[1] == "config")
 	if !isConfigCommand && args[0] != "schema" && args[0] != "guide" && args[0] != "--version" && args[0] != "version" {
@@ -180,6 +184,8 @@ func run(args []string) int {
 
 func printUsage() {
 	fmt.Println("rotari: lightweight local job queue")
+	fmt.Println("")
+	fmt.Println("Coding agents: run `rotari guide` first for the recommended workflow and a command reference.")
 	fmt.Println("")
 	fmt.Println("Usage:")
 	for _, command := range cliCommandSpecs {

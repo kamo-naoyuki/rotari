@@ -206,6 +206,9 @@ Without a run-location lookup, base directories resolve in this order:
   and update its examples when the commands they use change.
 - Like `schema`, `guide` skips config loading, so a broken config file does not
   hide it.
+- The top-level usage (bare `rotari`, `rotari --help`, `-h`, or `help`) starts
+  by pointing coding agents to `rotari guide`. The help forms exit 0; a bare
+  `rotari` still exits 1. Covered by `TestTopLevelUsagePointsAgentsToGuide`.
 
 ## Run registry
 
