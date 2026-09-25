@@ -362,7 +362,7 @@ flowchart LR
   class add,run command
 ```
 
-Each submitted command has a stable job ID. `run` saves the complete command
+Each added command has a stable job ID. `run` saves the complete command
 snapshot under `runs/<run-id>/`, together with a summary and each job's log.
 After it finishes, the queue is emptied, while the run can be inspected or used
 with selections such as `rotari retry`. The next `add` starts a new batch while

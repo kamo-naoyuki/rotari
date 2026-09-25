@@ -1302,7 +1302,7 @@ func TestEnqueueCommandPersistsStableJobID(t *testing.T) {
 		t.Fatalf("queue command ID = %q, want a persisted ID", queue.Commands[0].ID)
 	}
 	id := queue.Commands[0].ID
-	if !strings.Contains(message, "submitted project=default job_id="+id+" job_name=job command=[echo old]") {
+	if !strings.Contains(message, "added project=default job_id="+id+" job_name=job command=[echo old]") {
 		t.Fatalf("enqueue message = %q, want job metadata and command", message)
 	}
 	queue.Commands[0].Command = []string{"echo", "new"}

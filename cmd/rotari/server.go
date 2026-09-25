@@ -1456,9 +1456,9 @@ func enqueueCommandsWithStageAndWorkingDirectory(baseDir, queueName string, comm
 	if err := writeIdleQueue(paths, queue); err != nil {
 		return "", err
 	}
-	message := fmt.Sprintf("submitted project=%s jobs=%d", queueName, len(commands))
+	message := fmt.Sprintf("added project=%s jobs=%d", queueName, len(commands))
 	if len(commands) == 1 {
-		message = fmt.Sprintf("submitted project=%s job_id=%s", queueName, commands[0].ID)
+		message = fmt.Sprintf("added project=%s job_id=%s", queueName, commands[0].ID)
 		if commands[0].Name != "" {
 			message += fmt.Sprintf(" job_name=%s", commands[0].Name)
 		}

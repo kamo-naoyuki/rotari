@@ -245,7 +245,7 @@ func TestCmdAddEnqueuesJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 0 || !strings.Contains(string(output), "submitted project=demo") {
+	if code != 0 || !strings.Contains(string(output), "added project=demo") {
 		t.Fatalf("cmdAdd exit code = %d, stdout = %q", code, output)
 	}
 
