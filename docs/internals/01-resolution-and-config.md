@@ -34,6 +34,18 @@ Without a run-location lookup, base directories resolve in this order:
 - `jobs` also accepts one optional positional project name to filter the
   selected basedir's projects; it takes precedence over environment and config
   defaults, and cannot be combined with an explicit `--project-name`.
+- `export` and `import` accept positional selectors that name a project or a
+  saved run ID (`export [PROJECT|RUN_ID ...]`, `import FILE [PROJECT|RUN_ID]`).
+  A selector with the generated run ID shape is a run ID; anything else is a
+  project name, and at most one project may be named. A positional project
+  cannot be combined with `--project-name`. `export` merges positional run IDs
+  with repeated `--run-id`. `import` uses a run ID only to locate the
+  destination basedir and project through the run registry, and rejects a run
+  ID that does not exist. Classification lives in
+  `splitProjectOrRunSelectors` in
+  [cmd/rotari/run_registry.go](../../cmd/rotari/run_registry.go), covered by
+  [cmd/rotari/export_test.go](../../cmd/rotari/export_test.go) and
+  [cmd/rotari/import_test.go](../../cmd/rotari/import_test.go).
 - `unlock` likewise accepts one optional positional project name. It derives
   the run ID from that project's `running.lock`, or from interrupted metadata
   when the lock is already absent; `--run-id` optionally verifies the result.

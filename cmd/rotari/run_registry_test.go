@@ -166,3 +166,14 @@ func TestResolveJobSelectionTargetRejectsMixedRuns(t *testing.T) {
 		t.Fatalf("resolveJobSelectionTarget() error = %v, want mixed-run error", err)
 	}
 }
+
+func TestSplitProjectOrRunSelectors(t *testing.T) {
+	runID := "20260925-120000-12345678"
+	project, runIDs, err := splitProjectOrRunSelectors([]string{"demo", runID, "demo"})
+	if err != nil || project != "demo" || len(runIDs) != 1 || runIDs[0] != runID {
+		t.Fatalf("split = %q, %q, %v", project, runIDs, err)
+	}
+	if _, _, err := splitProjectOrRunSelectors([]string{"demo", "other"}); err == nil {
+		t.Fatal("two different projects were accepted")
+	}
+}

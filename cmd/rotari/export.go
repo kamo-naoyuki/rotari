@@ -61,10 +61,23 @@ func cmdExport(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if len(fs.Args()) != 0 || !validWorkflowFormat(*format) || (*template && (cliOptionSet(fs, "run-id") || cliOptionSet(fs, "basedir") || cliOptionSet(fs, "project-name"))) {
+	if !validWorkflowFormat(*format) || (*template && (len(fs.Args()) != 0 || cliOptionSet(fs, "run-id") || cliOptionSet(fs, "basedir") || cliOptionSet(fs, "project-name"))) {
 		printError("usage: " + cliUsage("export"))
 		return 1
 	}
+	selectedProject, selectedRunIDs, err := splitProjectOrRunSelectors(fs.Args())
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	if selectedProject != "" {
+		if cliOptionSet(fs, "project-name") {
+			printError("usage: " + cliUsage("export"))
+			return 1
+		}
+		*projectName = selectedProject
+	}
+	runIDs = append(runIDs, selectedRunIDs...)
 	if *template {
 		data, err := workflowTemplate(*format)
 		if err != nil {

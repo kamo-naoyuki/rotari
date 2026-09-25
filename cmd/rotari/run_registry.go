@@ -50,6 +50,25 @@ func resolveJobSelectionTarget(cliBaseDir, cliProjectName string, ids []string) 
 	return baseDir, queueName, jobIDs, nil
 }
 
+// splitProjectOrRunSelectors classifies positional selectors that name either a
+// project or a saved run ID. A selector with the generated run ID shape is a
+// run ID; anything else is a project name. At most one project may be named.
+func splitProjectOrRunSelectors(selectors []string) (string, []string, error) {
+	projectName := ""
+	runIDs := make([]string, 0, len(selectors))
+	for _, selector := range selectors {
+		if runIDPattern.MatchString(selector) {
+			runIDs = append(runIDs, selector)
+			continue
+		}
+		if projectName != "" && projectName != selector {
+			return "", nil, fmt.Errorf("selection names project %q and project %q", projectName, selector)
+		}
+		projectName = selector
+	}
+	return projectName, runIDs, nil
+}
+
 type runLocation struct {
 	BaseDir     string `json:"base_dir"`
 	ProjectName string `json:"project_name"`

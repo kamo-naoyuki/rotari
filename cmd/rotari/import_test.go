@@ -396,3 +396,53 @@ func TestCmdImportReconcilesArrayTasks(t *testing.T) {
 		t.Fatalf("array plan execute = %#v", plan.Execute)
 	}
 }
+
+func TestCmdImportResolvesPositionalProject(t *testing.T) {
+	baseDir := t.TempDir()
+	manifest := writeWorkflowFixture(t, "version: 1\njobs:\n  - command: [true]\n")
+	if code := cmdImport([]string{"--basedir", baseDir, manifest, "demo"}); code != 0 {
+		t.Fatalf("cmdImport exit code = %d, want 0", code)
+	}
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 1 {
+		t.Fatalf("queue = %#v", queue)
+	}
+	if code := cmdImport([]string{"--basedir", baseDir, "--project-name", "demo", manifest, "other"}); code == 0 {
+		t.Fatal("cmdImport with --project-name and PROJECT succeeded, want usage error")
+	}
+	if code := cmdImport([]string{"--basedir", baseDir, manifest, "demo", "extra"}); code == 0 {
+		t.Fatal("cmdImport with two selectors succeeded, want usage error")
+	}
+}
+
+func TestCmdImportResolvesPositionalRunIDToItsProject(t *testing.T) {
+	t.Setenv(envMasterDir, t.TempDir())
+	t.Setenv(envProjectName, "")
+	baseDir := t.TempDir()
+	paths, runID := writeWorkflowRunFixture(t, baseDir)
+	if err := registerRun(paths, runID); err != nil {
+		t.Fatal(err)
+	}
+	exported, err := exportWorkflow(baseDir, "demo", []string{runID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := workflow.Encode(exported, "yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := writeWorkflowFixture(t, string(data))
+	if code := cmdImport([]string{"--dry-run", manifest, runID}); code != 0 {
+		t.Fatalf("cmdImport RUN_ID exit code = %d, want 0", code)
+	}
+	if code := cmdImport([]string{"--basedir", baseDir, manifest, "20260925-120000-deadbeef"}); code == 0 {
+		t.Fatal("cmdImport with unknown run ID succeeded, want failure")
+	}
+}

@@ -444,10 +444,13 @@ rotari cancel JOB_ID OTHER_JOB_ID
 rotari cancel RUN_ID
 rotari suspend ATTEMPT_ID
 rotari resume ATTEMPT_ID
+rotari export RUN_ID
+rotari import FILE RUN_ID
 ```
 
 These positional forms cannot be combined with the corresponding `--run-id/-r`
-or `--job-id/-j` option. `delete` without an ID still removes all saved runs.
+or `--job-id/-j` option, except that `export` merges positional run IDs with
+repeated `--run-id/-r`. `delete` without an ID still removes all saved runs.
 For `cancel`, `suspend`, and `resume`, a positional `JOB_ID` or `ATTEMPT_ID`
 selects jobs the same way `--job-id/-j` does; a bare `RUN_ID` only locates the
 target run through the run registry and is not itself a job selector, so it
@@ -566,6 +569,15 @@ rotari export -p build -r RUN_ID > experiment.yaml
 # Edit commands, status, executor options, or dependencies.
 rotari import -p build experiment.yaml
 rotari run -p build
+```
+
+The project or run ID can also be passed positionally. `export` accepts
+`[PROJECT|RUN_ID ...]`, and `import` accepts an optional `PROJECT` or `RUN_ID`
+after the file; a run ID selects the project that owns that saved run:
+
+```sh
+rotari export RUN_ID > experiment.yaml
+rotari import experiment.yaml RUN_ID
 ```
 
 An unchanged successful job carries its result and output reference forward.

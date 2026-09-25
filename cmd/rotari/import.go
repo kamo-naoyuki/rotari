@@ -63,15 +63,26 @@ func cmdImport(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if manifestPath == "" && len(fs.Args()) == 1 {
-		manifestPath = fs.Args()[0]
-	} else if len(fs.Args()) != 0 {
+	positional := fs.Args()
+	if manifestPath == "" && len(positional) > 0 {
+		manifestPath = positional[0]
+		positional = positional[1:]
+	}
+	if manifestPath == "" || len(positional) > 1 {
 		printError("usage: " + cliUsage("import"))
 		return 1
 	}
-	if manifestPath == "" {
+	selectedProject, selectedRunIDs, err := splitProjectOrRunSelectors(positional)
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	if selectedProject != "" && cliOptionSet(fs, "project-name") {
 		printError("usage: " + cliUsage("import"))
 		return 1
+	}
+	if selectedProject != "" {
+		*projectName = selectedProject
 	}
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
@@ -88,12 +99,7 @@ func cmdImport(args []string) int {
 		printError(err)
 		return 1
 	}
-	baseDir, _, err := resolveBaseDir(*basedir)
-	if err != nil {
-		printError(err)
-		return 1
-	}
-	resolvedProject, err := resolveProjectName(baseDir, *projectName)
+	baseDir, resolvedProject, err := resolveImportDestination(*basedir, *projectName, selectedRunIDs)
 	if err != nil {
 		printError(err)
 		return 1
@@ -133,6 +139,31 @@ func cmdImport(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+// resolveImportDestination resolves the destination project. A positional run
+// ID selects the project that owns that saved run.
+func resolveImportDestination(cliBaseDir, cliProjectName string, runIDs []string) (string, string, error) {
+	if len(runIDs) == 0 {
+		baseDir, _, err := resolveBaseDir(cliBaseDir)
+		if err != nil {
+			return "", "", err
+		}
+		projectName, err := resolveProjectName(baseDir, cliProjectName)
+		return baseDir, projectName, err
+	}
+	baseDir, projectName, err := resolveExistingRunTarget(cliBaseDir, cliProjectName, runIDs[0])
+	if err != nil {
+		return "", "", err
+	}
+	paths, err := resolvePaths(baseDir, projectName)
+	if err != nil {
+		return "", "", err
+	}
+	if _, err := selectRunID(paths, runIDs[0]); err != nil {
+		return "", "", err
+	}
+	return baseDir, projectName, nil
 }
 
 func validateImportDestination(baseDir, projectName string, overwrite bool) error {

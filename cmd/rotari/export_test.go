@@ -125,3 +125,58 @@ func TestExportWorkflowRejectsDifferentJobIDsWithSameName(t *testing.T) {
 		t.Fatal("exportWorkflow accepted different job IDs with the same name")
 	}
 }
+
+func TestCmdExportResolvesPositionalRunIDAndProject(t *testing.T) {
+	t.Setenv(envMasterDir, t.TempDir())
+	t.Setenv(envProjectName, "")
+	baseDir := t.TempDir()
+	paths, runID := writeWorkflowRunFixture(t, baseDir)
+	if err := registerRun(paths, runID); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "queued-id", Name: "queued", Command: []string{"echo"}}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	code, output := captureWorkflowStdout(t, func() int { return cmdExport([]string{runID}) })
+	if code != 0 {
+		t.Fatalf("cmdExport RUN_ID exit code = %d", code)
+	}
+	manifest, err := workflow.Decode(strings.NewReader(string(output)), "yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Source == nil || manifest.Source.Project != "demo" || len(manifest.Source.RunIDs) != 1 || manifest.Source.RunIDs[0] != runID {
+		t.Fatalf("run export source = %#v", manifest.Source)
+	}
+
+	code, output = captureWorkflowStdout(t, func() int { return cmdExport([]string{"--basedir", baseDir, "demo"}) })
+	if code != 0 {
+		t.Fatalf("cmdExport PROJECT exit code = %d", code)
+	}
+	manifest, err = workflow.Decode(strings.NewReader(string(output)), "yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Source != nil || len(manifest.Jobs) != 1 || manifest.Jobs[0].Name != "queued" {
+		t.Fatalf("queue export = %#v", manifest)
+	}
+
+	code, output = captureWorkflowStdout(t, func() int { return cmdExport([]string{"--basedir", baseDir, "demo", runID}) })
+	if code != 0 || !strings.Contains(string(output), runID) {
+		t.Fatalf("cmdExport PROJECT RUN_ID code = %d, output = %q", code, output)
+	}
+}
+
+func TestCmdExportRejectsInvalidPositionalSelectors(t *testing.T) {
+	baseDir := t.TempDir()
+	for _, args := range [][]string{
+		{"--basedir", baseDir, "--project-name", "demo", "other"},
+		{"--basedir", baseDir, "demo", "other"},
+		{"--template", "demo"},
+	} {
+		if code, _ := captureWorkflowStdout(t, func() int { return cmdExport(args) }); code == 0 {
+			t.Fatalf("cmdExport(%q) exit code = 0, want failure", args)
+		}
+	}
+}
