@@ -55,10 +55,9 @@ the experiment. See "Runs as the history of the loop" in
 
 - Consider a run lineage listing: name, time, success and failure counts, jobs
   added/removed/changed since the previous run, and jobs carried forward.
-- Consider `rotari diff RUN_A RUN_B`: per-job changes in command, executor
-  options, and environment, with status changes such as failed to succeeded.
-- Consider a run summary: fixed, still failing, newly failing, and elapsed
-  time.
+- `rotari diff` exists and covers the run summary (fixed, still failing,
+  newly failing, elapsed time). Consider showing the same summary after
+  `run` and `wait` finish, and in the Web UI run page.
 - Run state versioning is in place: `queue.json`, `commands.json`, and
   `summary.json` record `state_version`, older files are read as version 1,
   and newer ones are rejected. See "State load and write contracts" in

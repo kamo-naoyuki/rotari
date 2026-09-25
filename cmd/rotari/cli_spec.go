@@ -253,6 +253,15 @@ var cliCommandSpecs = []cliCommandSpec{
 		Positional: "[SELECTOR]",
 	},
 	{
+		Name:        "diff",
+		Description: "compare job results and definitions between two runs",
+		Flags: append(commonCLIFlags(),
+			cliFlagSpec{Name: "json", Description: "print the comparison as JSON"},
+			cliFlagSpec{Name: "all", Description: "also list jobs whose result and definition did not change"},
+		),
+		Positional: "[[RUN_A] RUN_B]",
+	},
+	{
 		Name:        "jobs",
 		Description: "list running and recently finished jobs across projects",
 		Flags: append(commonCLIFlags(),

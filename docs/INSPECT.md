@@ -56,6 +56,25 @@ When output is a terminal, log views (including `--job-id/-j`) longer than 24
 lines open in `$PAGER` (or `less -R` by default). Use `--no-pager` to print
 directly; piped and redirected output is always printed directly.
 
+### Compare runs
+
+Use `diff` after a fix-and-rerun cycle to see what changed and whether it
+worked:
+
+```sh
+rotari diff -p sweep            # the latest run against the one before it
+rotari diff -p sweep RUN_ID     # RUN_ID against the run before it
+rotari diff RUN_A RUN_B         # two specific runs of one project
+rotari diff -p sweep --json     # machine-readable comparison
+```
+
+It summarizes jobs that were fixed, are still failing, or newly fail; jobs
+added or removed; jobs whose command, executor, executor options, environment,
+working directory, stage, or dependencies changed; and jobs whose result was
+carried forward instead of re-executed. Jobs are matched by name, or by job ID
+when they have none. Jobs whose result and definition did not change are
+hidden unless `--all` is given; `--json` always lists every job.
+
 ### Check run readiness
 
 To check whether a project can start its queued run without changing any

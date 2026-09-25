@@ -134,6 +134,7 @@ stages and multiple prerequisites.
 | `reset` | Discard the current queue. |
 | `show` | Show queue, run, job, or log details. |
 | `jobs` | List running and recently finished jobs across projects. |
+| `diff` | Compare two runs: fixed, still failing, and newly failing jobs, and changed definitions. |
 | `web` | Start the local web status UI. |
 | `retry` | Rerun failed or unfinished jobs. |
 | `cancel` | Cancel running jobs. |

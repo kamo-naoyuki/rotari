@@ -140,6 +140,8 @@ func run(args []string) int {
 		return cmdRemove(args[1:])
 	case "show":
 		return cmdShow(args[1:])
+	case "diff":
+		return cmdDiff(args[1:])
 	case "jobs":
 		return cmdJobs(args[1:])
 	case "diagnose":

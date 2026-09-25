@@ -146,6 +146,7 @@ cmd/rotari
   ├── internal/jobcontrol # cancel, suspend, and resume of running jobs
   ├── internal/queueedit # queue edits such as copying jobs from a run
   ├── internal/workflow  # workflow manifests, export merge, import reconcile
+  ├── internal/rundiff   # comparison of two loaded runs for `diff`
   └── internal/run       # run planning, worker lifecycle, lanes, orchestration
 ```
 
@@ -167,6 +168,17 @@ The three packages that most often look similar are split by responsibility:
 state files and the run summary into a job's displayed outcome and timestamps.
 CLI and Web projections render its resolution instead of reading status files
 themselves, so `show`, `jobs`, `report`, and the Web UI cannot drift apart.
+
+`internal/rundiff` compares two runs that `cmd/rotari/diff.go` has loaded, with
+each job's status already resolved through `internal/jobstatus`. It matches
+jobs by name, or by job ID for unnamed jobs, because a job changed through an
+imported manifest gets a new ID but keeps its name. It classifies result moves
+as fixed, still failing, or newly failing and lists changed definition fields;
+it never reads state files. `previousRunID` orders a project's runs by their
+first load sample, then by the summary's start time, then by run ID, because
+run IDs only have one-second resolution. Covered by
+[`internal/rundiff/rundiff_test.go`](../../internal/rundiff/rundiff_test.go)
+and [`cmd/rotari/diff_test.go`](../../cmd/rotari/diff_test.go).
 
 `internal/queueedit` and `internal/workflow` hold queue-shaping rules that
 `copy`, `retry`, `export`, and `import` share: which jobs a selection copies,

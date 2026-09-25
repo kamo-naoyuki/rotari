@@ -36,6 +36,8 @@ rotari show -p sweep --failed-logs --no-pager
 # Fix the cause, then rerun only failed and unfinished jobs:
 rotari retry -p sweep --async
 rotari wait sweep
+# Check what the retry fixed and what still fails:
+rotari diff -p sweep --json
 ```
 
 To edit many jobs at once, export a run as a manifest, edit it, preview the

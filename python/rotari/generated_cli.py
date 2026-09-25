@@ -565,6 +565,33 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "[SELECTOR]",
         },
         {
+            "description": "compare job results and definitions between two runs",
+            "flags": [
+                {
+                    "description": "state directory",
+                    "environment": "ROTARI_BASEDIR",
+                    "name": "basedir",
+                    "short": "b",
+                    "value_name": "DIR",
+                },
+                {
+                    "description": "project name",
+                    "environment": "ROTARI_PROJECT_NAME",
+                    "name": "project-name",
+                    "short": "p",
+                    "value_name": "NAME",
+                },
+                {"description": "print the comparison as JSON", "name": "json"},
+                {
+                    "description": "also list jobs whose result and definition "
+                    "did not change",
+                    "name": "all",
+                },
+            ],
+            "name": "diff",
+            "positional": "[[RUN_A] RUN_B]",
+        },
+        {
             "description": "list running and recently finished jobs across projects",
             "flags": [
                 {
