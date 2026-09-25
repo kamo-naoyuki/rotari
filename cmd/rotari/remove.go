@@ -118,17 +118,8 @@ func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []st
 	if err := model.ValidateQueueDependencies(queue.Commands); err != nil {
 		return "", fmt.Errorf("invalid dependencies: %w", err)
 	}
-	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
-		return "", fmt.Errorf("failed to save removed queue: %w", err)
-	}
-	meta, err := state.LoadMeta(paths.MetaFile)
-	if err != nil {
-		return "", fmt.Errorf("failed to load metadata: %w", err)
-	}
-	meta.Phase = "collecting"
-	meta.UpdatedAt = nowRFC3339()
-	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
-		return "", fmt.Errorf("failed to update metadata: %w", err)
+	if err := writeIdleQueue(paths, queue); err != nil {
+		return "", err
 	}
 	return fmt.Sprintf("removed %d job(s) from queue=%s", len(removed), queueName), nil
 }

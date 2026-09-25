@@ -157,21 +157,13 @@ func resetQueueCommands(paths pathSet) (int, error) {
 		return 0, fmt.Errorf("failed to load queue: %w", err)
 	}
 	cleared := len(queue.Commands)
-	if cleared > 0 {
-		queue.Commands = nil
-		queue.WorkflowImport = false
-		if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
-			return 0, fmt.Errorf("failed to reset queue: %w", err)
-		}
+	if cleared == 0 {
+		return 0, markProjectCollecting(paths)
 	}
-	meta, err := state.LoadMeta(paths.MetaFile)
-	if err != nil {
-		return 0, fmt.Errorf("failed to load metadata: %w", err)
-	}
-	meta.Phase = "collecting"
-	meta.UpdatedAt = nowRFC3339()
-	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
-		return 0, fmt.Errorf("failed to update metadata: %w", err)
+	queue.Commands = nil
+	queue.WorkflowImport = false
+	if err := writeIdleQueue(paths, queue); err != nil {
+		return 0, err
 	}
 	return cleared, nil
 }

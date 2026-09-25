@@ -157,6 +157,16 @@ run data:
 - `WriteJSON` and `Store.WriteJSON` create parent directories, write through a
   temporary file, apply the configured file mode, and publish with rename.
   Directory, encoding, permission, and rename failures are returned.
+- Each file is replaced atomically, but `queue.json` and `meta.json` are not
+  replaced together. Idle queue edits (`add`, `copy`, `change`, `remove`,
+  `reset`, `import`) go through `writeIdleQueue`, which writes the collecting
+  metadata first and the queue second: the metadata change is harmless for an
+  idle project, so a failed queue write leaves the previous queue in place.
+  Run finalization and interrupted-run recovery keep their own order (queue
+  first), so a failed metadata write leaves the project interrupted and
+  recoverable instead of idle with a stale queue. See
+  [`cmd/rotari/project_state.go`](../../cmd/rotari/project_state.go) and
+  [`cmd/rotari/idle_queue_write_test.go`](../../cmd/rotari/idle_queue_write_test.go).
 - `AppendLoadSample` creates the sample file as needed and appends one JSONL
   record. `ReadLoadSamples` ignores missing files, blank lines, and malformed
   records because load sampling is observational metadata, not run state.

@@ -314,14 +314,5 @@ func writeImportedQueue(baseDir, projectName string, queue Queue, overwrite bool
 	if len(existing.Commands) > 0 && !overwrite {
 		return fmt.Errorf("project %q has queued jobs; use --overwrite", projectName)
 	}
-	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
-		return fmt.Errorf("failed to write queue: %w", err)
-	}
-	meta, err := state.LoadMeta(paths.MetaFile)
-	if err != nil {
-		return err
-	}
-	meta.Phase = "collecting"
-	meta.UpdatedAt = nowRFC3339()
-	return state.WriteJSON(paths.MetaFile, meta)
+	return writeIdleQueue(paths, queue)
 }

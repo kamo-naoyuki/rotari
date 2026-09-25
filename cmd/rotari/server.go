@@ -1426,10 +1426,6 @@ func enqueueCommandsWithStageAndWorkingDirectory(baseDir, queueName string, comm
 	if err := ensureProjectIdleForPaths(paths, "add"); err != nil {
 		return "", err
 	}
-	meta, err := state.LoadMeta(paths.MetaFile)
-	if err != nil {
-		return "", err
-	}
 	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
 		return "", err
@@ -1457,12 +1453,7 @@ func enqueueCommandsWithStageAndWorkingDirectory(baseDir, queueName string, comm
 		}
 	}
 	queue.Commands = append(queue.Commands, commands...)
-	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
-		return "", err
-	}
-	meta.Phase = "collecting"
-	meta.UpdatedAt = nowRFC3339()
-	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
+	if err := writeIdleQueue(paths, queue); err != nil {
 		return "", err
 	}
 	message := fmt.Sprintf("submitted project=%s jobs=%d", queueName, len(commands))

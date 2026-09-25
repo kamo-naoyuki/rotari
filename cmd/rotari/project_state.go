@@ -87,6 +87,41 @@ func validateProjectStateConsistency(paths pathSet, inspection projectStateInspe
 	return nil
 }
 
+// writeIdleQueue saves a queue edited while the project is idle and marks the
+// project as collecting. The two files cannot be replaced atomically together,
+// so the metadata is written first: marking an idle project as collecting is
+// harmless on its own, and a failed queue write then leaves the previous queue
+// in place. Callers must hold the state lock and have checked that the project
+// is idle.
+func writeIdleQueue(paths pathSet, queue Queue) error {
+	return writeIdleQueueWith(state.WriteJSON, paths, &queue)
+}
+
+// markProjectCollecting updates only the metadata, for idle operations that
+// leave the queue file untouched.
+func markProjectCollecting(paths pathSet) error {
+	return writeIdleQueueWith(state.WriteJSON, paths, nil)
+}
+
+func writeIdleQueueWith(writeJSON func(string, any) error, paths pathSet, queue *Queue) error {
+	meta, err := state.LoadMeta(paths.MetaFile)
+	if err != nil {
+		return fmt.Errorf("failed to load metadata: %w", err)
+	}
+	meta.Phase = "collecting"
+	meta.UpdatedAt = nowRFC3339()
+	if err := writeJSON(paths.MetaFile, meta); err != nil {
+		return fmt.Errorf("failed to update metadata: %w", err)
+	}
+	if queue == nil {
+		return nil
+	}
+	if err := writeJSON(paths.QueueFile, *queue); err != nil {
+		return fmt.Errorf("failed to write queue: %w", err)
+	}
+	return nil
+}
+
 func ensureProjectIdleForPaths(paths pathSet, operation string) error {
 	inspection, err := inspectConsistentProjectState(paths, true)
 	if err != nil {
