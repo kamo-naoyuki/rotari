@@ -68,6 +68,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
             ],
             "name": "check",
+            "positional": "[PROJECT]",
         },
         {
             "description": "discard the current, not-yet-run queue",
@@ -99,6 +100,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
             ],
             "name": "reset",
+            "positional": "[PROJECT]",
         },
         {
             "flags": [
@@ -227,6 +229,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 {"description": "remove the cached orphan entries", "name": "apply"},
             ],
             "name": "gc",
+            "positional": "[MASTERDIR]",
         },
         {
             "description": "remove a confirmed stale run lock",
@@ -246,7 +249,7 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "run ID recorded in the stale lock",
+                    "description": "verify the run ID recorded in the stale lock",
                     "environment": "ROTARI_RUN_ID",
                     "name": "run-id",
                     "short": "r",
@@ -254,7 +257,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
             ],
             "name": "unlock",
-            "positional": "RUN_ID",
+            "positional": "[PROJECT]",
         },
         {
             "description": "change a job in the current or previous batch",
@@ -515,6 +518,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
             ],
             "name": "jobs",
+            "positional": "[PROJECT]",
         },
         {
             "description": "diagnose one job with an LLM or local error rules",
@@ -696,6 +700,14 @@ CLI_SCHEMA: dict[str, Any] = {
                     "environment": "ROTARI_ARRAY_RANGE",
                     "name": "array",
                     "value_name": "FIRST-LAST|TASK[,TASK...]",
+                },
+                {
+                    "description": "expand a command into jobs from "
+                    "KEY=VALUE[,VALUE...] dimensions; may be "
+                    "repeated",
+                    "name": "matrix",
+                    "repeated": True,
+                    "value_name": "KEY=VALUE[,VALUE...]",
                 },
                 {
                     "description": "suppress success output",
@@ -918,6 +930,19 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "OPTION",
                 },
                 {
+                    "description": "minimum Slurm submission interval",
+                    "environment": "ROTARI_RUN_SLURM_SUBMIT_INTERVAL",
+                    "name": "slurm-submit-interval",
+                    "value_name": "DURATION",
+                },
+                {
+                    "description": "maximum retries for transient Slurm "
+                    "submission failures",
+                    "environment": "ROTARI_RUN_SLURM_SUBMIT_RETRY_LIMIT",
+                    "name": "slurm-submit-retry-limit",
+                    "value_name": "N",
+                },
+                {
                     "description": "PBS executor concurrency",
                     "environment": "ROTARI_RUN_PBS_CONCURRENCY",
                     "name": "pbs-concurrency",
@@ -931,6 +956,19 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "OPTION",
                 },
                 {
+                    "description": "minimum PBS submission interval",
+                    "environment": "ROTARI_RUN_PBS_SUBMIT_INTERVAL",
+                    "name": "pbs-submit-interval",
+                    "value_name": "DURATION",
+                },
+                {
+                    "description": "maximum retries for transient PBS submission "
+                    "failures",
+                    "environment": "ROTARI_RUN_PBS_SUBMIT_RETRY_LIMIT",
+                    "name": "pbs-submit-retry-limit",
+                    "value_name": "N",
+                },
+                {
                     "description": "LSF executor concurrency",
                     "environment": "ROTARI_RUN_LSF_CONCURRENCY",
                     "name": "lsf-concurrency",
@@ -942,6 +980,19 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "lsf-options",
                     "repeated": True,
                     "value_name": "OPTION",
+                },
+                {
+                    "description": "minimum LSF submission interval",
+                    "environment": "ROTARI_RUN_LSF_SUBMIT_INTERVAL",
+                    "name": "lsf-submit-interval",
+                    "value_name": "DURATION",
+                },
+                {
+                    "description": "maximum retries for transient LSF submission "
+                    "failures",
+                    "environment": "ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT",
+                    "name": "lsf-submit-retry-limit",
+                    "value_name": "N",
                 },
             ],
             "name": "run",
@@ -1063,6 +1114,19 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "OPTION",
                 },
                 {
+                    "description": "minimum Slurm submission interval",
+                    "environment": "ROTARI_RUN_SLURM_SUBMIT_INTERVAL",
+                    "name": "slurm-submit-interval",
+                    "value_name": "DURATION",
+                },
+                {
+                    "description": "maximum retries for transient Slurm "
+                    "submission failures",
+                    "environment": "ROTARI_RUN_SLURM_SUBMIT_RETRY_LIMIT",
+                    "name": "slurm-submit-retry-limit",
+                    "value_name": "N",
+                },
+                {
                     "description": "PBS executor concurrency",
                     "environment": "ROTARI_RUN_PBS_CONCURRENCY",
                     "name": "pbs-concurrency",
@@ -1076,6 +1140,19 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "OPTION",
                 },
                 {
+                    "description": "minimum PBS submission interval",
+                    "environment": "ROTARI_RUN_PBS_SUBMIT_INTERVAL",
+                    "name": "pbs-submit-interval",
+                    "value_name": "DURATION",
+                },
+                {
+                    "description": "maximum retries for transient PBS submission "
+                    "failures",
+                    "environment": "ROTARI_RUN_PBS_SUBMIT_RETRY_LIMIT",
+                    "name": "pbs-submit-retry-limit",
+                    "value_name": "N",
+                },
+                {
                     "description": "LSF executor concurrency",
                     "environment": "ROTARI_RUN_LSF_CONCURRENCY",
                     "name": "lsf-concurrency",
@@ -1087,6 +1164,19 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "lsf-options",
                     "repeated": True,
                     "value_name": "OPTION",
+                },
+                {
+                    "description": "minimum LSF submission interval",
+                    "environment": "ROTARI_RUN_LSF_SUBMIT_INTERVAL",
+                    "name": "lsf-submit-interval",
+                    "value_name": "DURATION",
+                },
+                {
+                    "description": "maximum retries for transient LSF submission "
+                    "failures",
+                    "environment": "ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT",
+                    "name": "lsf-submit-retry-limit",
+                    "value_name": "N",
                 },
             ],
             "name": "retry",
