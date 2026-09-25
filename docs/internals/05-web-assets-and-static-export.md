@@ -176,9 +176,12 @@ partial copy or change appear only in the table. Covered by `TestWebRunViewDraws
 [cmd/rotari/web_test.go](../../cmd/rotari/web_test.go).
 
 Long values in the Command, Working directory, Dependencies, and Executor
-options columns of the job and queue tables start clamped to three lines with a
-More/Less toggle (`clampLongTableCells` in
-[web_app_tables.js](../../cmd/rotari/assets/web_app_tables.js)). A cell is
+options columns of the job and queue tables start clamped to three lines
+(`clampLongTableCells` in
+[web_app_tables.js](../../cmd/rotari/assets/web_app_tables.js)). Clicking the
+text, which highlights on hover, or the `▾ More` / `▴ Less` toggle placed
+before the cell's copy button expands or collapses it; a click that ends a text
+selection does not, so values can still be selected. A cell is
 considered once its text exceeds 60 characters, and the toggle is dropped when
 the browser measures that the text already fits. Buttons such as copy icons
 stay outside the clamped text, cells with editors are left alone, and expanded

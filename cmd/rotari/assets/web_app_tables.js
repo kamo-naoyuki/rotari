@@ -529,7 +529,9 @@ function mergeLogButtonIntoActions() {
   });
 }
 // Long values in these job and queue table columns start clamped to a few
-// lines with a More/Less toggle. Expanded cells stay open across re-renders.
+// lines. Clicking the text or its More/Less toggle expands or collapses it;
+// a click that ends a text selection does not. Expanded cells stay open across
+// re-renders.
 const clampedTableColumns = [
   "command",
   "working_directory",
@@ -568,16 +570,24 @@ function clampLongTableCells() {
         const apply = () => {
           const expanded = expandedTableCells.has(id);
           text.classList.toggle("collapsed", !expanded);
-          toggle.textContent = expanded ? "Less" : "More";
+          toggle.textContent = expanded ? "▴ Less" : "▾ More";
           toggle.setAttribute("aria-expanded", String(expanded));
+          text.title = expanded ? "Click to collapse" : "Click to expand";
         };
-        toggle.onclick = (event) => {
+        const flip = (event) => {
           event.stopPropagation();
           if (expandedTableCells.has(id)) expandedTableCells.delete(id);
           else expandedTableCells.add(id);
           apply();
         };
-        cell.append(toggle);
+        toggle.onclick = flip;
+        text.onclick = (event) => {
+          const selection = window.getSelection && window.getSelection();
+          if (selection && String(selection)) return;
+          flip(event);
+        };
+        // The toggle comes before the cell's own buttons, such as copy.
+        cell.insertBefore(toggle, cell.querySelector(":scope > button"));
         apply();
         // Drop the toggle when the text already fits in the clamped lines.
         if (
@@ -587,6 +597,8 @@ function clampLongTableCells() {
         ) {
           toggle.remove();
           text.classList.remove("collapsed");
+          text.onclick = null;
+          text.removeAttribute("title");
         }
       });
     });

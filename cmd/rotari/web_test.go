@@ -2078,13 +2078,18 @@ setTimeout(() => {
   let cell = commandCell();
   const clamp = cell.querySelector('.cell-clamp');
   const toggle = cell.querySelector('.cell-toggle');
-  if (!clamp || !clamp.classList.contains('collapsed') || !toggle || toggle.textContent !== 'More') { console.error(cell.innerHTML); process.exit(2); }
+  if (!clamp || !clamp.classList.contains('collapsed') || !toggle || !toggle.textContent.includes('More')) { console.error(cell.innerHTML); process.exit(2); }
   if (!cell.querySelector(':scope > button.identity-copy')) { console.error('copy button is not outside the clamp'); process.exit(3); }
+  if (toggle.nextElementSibling !== cell.querySelector(':scope > button.identity-copy')) { console.error('toggle is not before the copy button'); process.exit(7); }
+  clamp.click();
+  if (clamp.classList.contains('collapsed')) { console.error('clicking the text did not expand'); process.exit(8); }
+  clamp.click();
+  if (!clamp.classList.contains('collapsed')) { console.error('clicking the text did not collapse'); process.exit(9); }
   toggle.click();
-  if (clamp.classList.contains('collapsed') || toggle.textContent !== 'Less') { console.error('toggle did not expand'); process.exit(4); }
+  if (clamp.classList.contains('collapsed') || !toggle.textContent.includes('Less')) { console.error('toggle did not expand'); process.exit(4); }
   dom.window.render();
   cell = commandCell();
-  if (cell.querySelector('.cell-clamp').classList.contains('collapsed') || cell.querySelector('.cell-toggle').textContent !== 'Less') { console.error('expanded state was lost on re-render'); process.exit(5); }
+  if (cell.querySelector('.cell-clamp').classList.contains('collapsed') || !cell.querySelector('.cell-toggle').textContent.includes('Less')) { console.error('expanded state was lost on re-render'); process.exit(5); }
   if (errors.length) { console.error(errors.join('\n')); process.exit(6); }
   process.exit(0);
 }, 100);
