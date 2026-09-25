@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
@@ -451,5 +452,31 @@ func TestExportWorkflowRejectsPathLikeRunIDs(t *testing.T) {
 		if _, err := exportWorkflow(baseDir, "demo", []string{runID}); err == nil {
 			t.Fatalf("exportWorkflow accepted run ID %q", runID)
 		}
+	}
+}
+
+func TestExportWorkflowRejectsRegisteredRunsFromDifferentProjects(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	firstRun, secondRun := "20260925-120000-11111111", "20260925-130000-22222222"
+	for project, runID := range map[string]string{"first": firstRun, "second": secondRun} {
+		paths, err := resolvePaths(baseDir, project)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeWorkflowSourceRun(t, paths, runID, Queue{Commands: []QueuedCommand{{ID: project + "-job", Command: []string{"true"}}}}, nil)
+		if err := registerRun(paths, runID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Without --project-name, each run ID resolves to the project it is
+	// registered under, so the merge must reject the mixed projects.
+	manifest, err := exportWorkflow("", "", []string{firstRun})
+	if err != nil || manifest.Source.Project != "first" {
+		t.Fatalf("single registered run export = %#v, %v", manifest.Source, err)
+	}
+	_, err = exportWorkflow("", "", []string{firstRun, secondRun})
+	if err == nil || !strings.Contains(err.Error(), "same project") {
+		t.Fatalf("exportWorkflow error = %v, want same-project rejection", err)
 	}
 }

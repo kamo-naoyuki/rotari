@@ -151,3 +151,64 @@ func TestCmdImportResolvesNonLatestLocalAttempt(t *testing.T) {
 		t.Fatalf("imported command = %#v, origin = %#v", command, command.Origin)
 	}
 }
+
+func TestAcceptedArrayTaskDisplaysConsistentlyInShowAndWeb(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstTask := makeAttemptID(acceptedDisplaySourceRunID, "array-1", 0)
+	secondTask := makeAttemptID(acceptedDisplaySourceRunID, "array-2", 0)
+	writeWorkflowSourceRun(t, paths, acceptedDisplaySourceRunID, Queue{Commands: []QueuedCommand{{ID: "array", Name: "array", Command: []string{"work"}, Array: &ArraySpec{First: 1, Last: 2}}}},
+		[]JobResult{{ID: "array-1", AttemptID: firstTask, ExitCode: 0}, {ID: "array-2", AttemptID: secondTask, ExitCode: 4}})
+	writeLocalSourceAttempt(t, paths, "array-1", firstTask, "0")
+	writeLocalSourceAttempt(t, paths, "array-2", secondTask, "4")
+	manifest := mustExportWorkflow(t, baseDir, acceptedDisplaySourceRunID)
+	if len(manifest.Jobs[0].Instances) != 1 {
+		t.Fatalf("exported array job = %#v", manifest.Jobs[0])
+	}
+	manifest.Jobs[0].Instances[0].Status = "success"
+	if code := importEditedWorkflow(t, baseDir, manifest); code != 0 {
+		t.Fatalf("cmdImport exit code = %d", code)
+	}
+	if code := executeMixedRun(paths, "accepted-run", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
+		t.Fatalf("executeMixedRun exit code = %d", code)
+	}
+
+	var accepted bytes.Buffer
+	if code := showJob(&accepted, paths, "accepted-run", "array-2"); code != 0 {
+		t.Fatalf("showJob array-2 exit code = %d", code)
+	}
+	for _, want := range []string{"success (accepted)", "manually accepted from run " + acceptedDisplaySourceRunID + " attempt " + secondTask, "Status: 4"} {
+		if !strings.Contains(accepted.String(), want) {
+			t.Fatalf("accepted task output missing %q:\n%s", want, accepted.String())
+		}
+	}
+	var carried bytes.Buffer
+	if code := showJob(&carried, paths, "accepted-run", "array-1"); code != 0 {
+		t.Fatalf("showJob array-1 exit code = %d", code)
+	}
+	if text := carried.String(); !strings.Contains(text, "carried forward from run "+acceptedDisplaySourceRunID) || strings.Contains(text, "accepted") {
+		t.Fatalf("carried task output:\n%s", text)
+	}
+
+	summary, err := loadRunSummary(filepath.Join(paths.RunsDir, "accepted-run", "summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobs, err := loadWebJobs(filepath.Join(paths.RunsDir, "accepted-run"), summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := make(map[string]webJob, len(jobs))
+	for _, job := range jobs {
+		byID[job.ID] = job
+	}
+	if task := byID["array-2"]; task.Result == nil || !task.Result.Accepted || task.Origin == nil || task.Origin.Status != "failed" {
+		t.Fatalf("web accepted task = %#v", task)
+	}
+	if task := byID["array-1"]; task.Result == nil || task.Result.Accepted || task.Result.ExitCode != 0 {
+		t.Fatalf("web carried task = %#v", task)
+	}
+}
