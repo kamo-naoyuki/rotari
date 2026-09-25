@@ -6,30 +6,31 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-func defaultMeta() Meta {
-	return Meta(state.DefaultMeta())
+func defaultMeta() model.Meta {
+	return model.Meta(state.DefaultMeta())
 }
 
-func loadMeta(path string) (Meta, error) {
+func loadMeta(path string) (model.Meta, error) {
 	meta, err := state.LoadMeta(path)
-	return Meta(meta), err
+	return model.Meta(meta), err
 }
 
 func makeAttemptID(runID, jobID string, number int) string {
 	return state.MakeAttemptID(runID, jobID, number)
 }
 
-func loadRunSummary(path string) (RunSummary, error) {
+func loadRunSummary(path string) (model.RunSummary, error) {
 	summary, err := state.LoadRunSummary(path)
-	return RunSummary(summary), err
+	return model.RunSummary(summary), err
 }
 
-func loadQueue(path string) (Queue, error) {
+func loadQueue(path string) (model.Queue, error) {
 	queue, err := state.LoadQueue(path)
-	return Queue(queue), err
+	return model.Queue(queue), err
 }
 
 func writeJSON(path string, value any) error {
@@ -60,20 +61,20 @@ func validatedJobDir(runDir, jobID string) (string, error) {
 	return state.SafeJoin(runDir, jobID)
 }
 
-func validatedRunDir(paths pathSet, runID string) (string, error) {
+func validatedRunDir(paths state.ProjectPaths, runID string) (string, error) {
 	return state.SafeJoin(paths.RunsDir, runID)
 }
 
-func writeTestRunStateFiles(t *testing.T, paths pathSet, runID string) {
+func writeTestRunStateFiles(t *testing.T, paths state.ProjectPaths, runID string) {
 	t.Helper()
 	runDir, err := validatedRunDir(paths, runID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "context.json"), model.RunContext{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -99,7 +100,7 @@ func TestValidateProjectStateConsistencyRejectsCorruptState(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.MetaFile, Meta{Phase: "running"}); err != nil {
+		if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running"}); err != nil {
 			t.Fatal(err)
 		}
 		err = validateProjectStateConsistency(paths, projectStateInspection{State: projectIdle, Lock: projectLockNone})
@@ -135,7 +136,7 @@ func TestValidateProjectStateConsistencyRejectsCorruptState(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-2"}); err != nil {
+		if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-2"}); err != nil {
 			t.Fatal(err)
 		}
 		err = validateProjectStateConsistency(paths, projectStateInspection{State: projectRunning, RunID: "run-1", Lock: projectLockActive, LockRunID: "run-1"})
@@ -149,7 +150,7 @@ func TestValidateProjectStateConsistencyRejectsCorruptState(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 			t.Fatal(err)
 		}
 		err = validateProjectStateConsistency(paths, projectStateInspection{State: projectInterrupted, RunID: "run-1", Lock: projectLockNone})
@@ -163,7 +164,7 @@ func TestValidateProjectStateConsistencyRejectsCorruptState(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 			t.Fatal(err)
 		}
 		if err := os.MkdirAll(filepath.Join(paths.RunsDir, "run-1"), 0o755); err != nil {
@@ -180,11 +181,11 @@ func TestValidateProjectStateConsistencyRejectsCorruptState(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 			t.Fatal(err)
 		}
 		runDir := filepath.Join(paths.RunsDir, "run-1")
-		if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{}); err != nil {
+		if err := writeJSON(filepath.Join(runDir, "context.json"), model.RunContext{}); err != nil {
 			t.Fatal(err)
 		}
 		err = validateProjectStateConsistency(paths, projectStateInspection{State: projectInterrupted, RunID: "run-1", Lock: projectLockNone})
@@ -199,11 +200,11 @@ func TestValidateProjectStateConsistencyAllowsActiveRunBeforeCommandSnapshot(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 	runDir := filepath.Join(paths.RunsDir, "run-1")
-	if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "context.json"), model.RunContext{}); err != nil {
 		t.Fatal(err)
 	}
 	inspection := projectStateInspection{State: projectRunning, RunID: "run-1", Lock: projectLockActive, LockRunID: "run-1"}
@@ -221,10 +222,10 @@ func TestInspectConsistentProjectStateKeepsStaleLockWhenValidationFails(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-2"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-2"}); err != nil {
 		t.Fatal(err)
 	}
 

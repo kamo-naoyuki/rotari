@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -99,7 +100,7 @@ func listServers(masterDir string) ([]serverRecord, error) {
 			_ = os.Remove(path)
 			continue
 		}
-		response, err := sendServerRequest(record.BaseDir, serverRequest{Op: "ping"})
+		response, err := sendServerRequest(record.BaseDir, serverinternal.Request{Op: "ping"})
 		if err != nil || !response.OK || response.PID != record.PID {
 			_ = os.Remove(path)
 			continue

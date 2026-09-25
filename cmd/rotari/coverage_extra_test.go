@@ -11,6 +11,9 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
+	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
 
 func TestCLIFlagSpecTracksRepeatedMetadata(t *testing.T) {
@@ -160,15 +163,15 @@ func TestColorMessageCoversStatusAndFailureBranches(t *testing.T) {
 }
 
 func TestFormatRunAIReportIncludesFailedJobsOnly(t *testing.T) {
-	run := webRun{
-		RunSummary: RunSummary{RunID: "run-1", Status: "failed", ExitCode: 1, StartedAt: "start", FinishedAt: "finish"},
+	run := webprojection.Run{
+		RunSummary: model.RunSummary{RunID: "run-1", Status: "failed", ExitCode: 1, StartedAt: "start", FinishedAt: "finish"},
 		CWD:        "/work/project",
-		Jobs: []webJob{
-			{ID: "failed", Name: "failed-job", Result: &JobResult{ID: "failed", ExitCode: 1, Error: "boom"}},
-			{ID: "success", Name: "success-job", Result: &JobResult{ID: "success", ExitCode: 0}},
+		Jobs: []webprojection.Job{
+			{ID: "failed", Name: "failed-job", Result: &model.JobResult{ID: "failed", ExitCode: 1, Error: "boom"}},
+			{ID: "success", Name: "success-job", Result: &model.JobResult{ID: "success", ExitCode: 0}},
 		},
 	}
-	paths := pathSet{ProjectName: "demo"}
+	paths := state.ProjectPaths{ProjectName: "demo"}
 	report := formatRunAIReport(paths, run, true)
 	if !strings.Contains(report, "failed-job") || strings.Contains(report, "success-job") {
 		t.Fatalf("failed-only report = %s", report)
@@ -273,7 +276,7 @@ func TestDiagnosisFormattingAndLanguageValidation(t *testing.T) {
 	if got := formatRuleDiagnoses(nil); !strings.Contains(got, "No known rule-based diagnosis") {
 		t.Fatalf("empty diagnosis output = %q", got)
 	}
-	got := formatRuleDiagnoses([]ruleDiagnosis{{Name: "Rule", Evidence: "evidence", Suggestion: "next"}})
+	got := formatRuleDiagnoses([]model.RuleDiagnosis{{Name: "Rule", Evidence: "evidence", Suggestion: "next"}})
 	if !strings.Contains(got, "Rule\nEvidence: evidence\nNext: next") {
 		t.Fatalf("diagnosis output = %q", got)
 	}
@@ -290,22 +293,22 @@ func TestDiagnosisFormattingAndLanguageValidation(t *testing.T) {
 }
 
 func TestReportStatusAndValueHelpers(t *testing.T) {
-	if got := reportJobStatus(webJob{SchedulerState: "pending"}, false); got != "pending" {
+	if got := reportJobStatus(webprojection.Job{SchedulerState: "pending"}, false); got != "pending" {
 		t.Fatalf("scheduler status = %q", got)
 	}
-	if got := reportJobStatus(webJob{}, true); got != "running" {
+	if got := reportJobStatus(webprojection.Job{}, true); got != "running" {
 		t.Fatalf("running status = %q", got)
 	}
-	if got := reportJobStatus(webJob{}, false); got != "pending" {
+	if got := reportJobStatus(webprojection.Job{}, false); got != "pending" {
 		t.Fatalf("pending status = %q", got)
 	}
-	if got := reportJobStatus(webJob{Result: &JobResult{Error: "blocked by dependency"}}, false); got != "blocked" {
+	if got := reportJobStatus(webprojection.Job{Result: &model.JobResult{Error: "blocked by dependency"}}, false); got != "blocked" {
 		t.Fatalf("blocked status = %q", got)
 	}
-	if got := reportJobStatus(webJob{Result: &JobResult{ExitCode: 0}}, false); got != "success" {
+	if got := reportJobStatus(webprojection.Job{Result: &model.JobResult{ExitCode: 0}}, false); got != "success" {
 		t.Fatalf("success status = %q", got)
 	}
-	if got := reportJobStatus(webJob{Result: &JobResult{ExitCode: 1}}, false); got != "failed" {
+	if got := reportJobStatus(webprojection.Job{Result: &model.JobResult{ExitCode: 1}}, false); got != "failed" {
 		t.Fatalf("failed status = %q", got)
 	}
 	if reportValue("") != "-" || reportValue("value") != "value" || firstNonEmpty("", "value") != "value" || firstNonEmpty("", "") != "" {

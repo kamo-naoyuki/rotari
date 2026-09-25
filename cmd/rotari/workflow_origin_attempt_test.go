@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +13,7 @@ const originAttemptRunID = "20260925-210000-12345678"
 
 // writeOriginAttempt creates an attempt directory under the origin run with a
 // command snapshot and optional local status or wrapper status.
-func writeOriginAttempt(t *testing.T, paths pathSet, jobID, attemptID, localStatus string, wrapperStatus map[string]any) {
+func writeOriginAttempt(t *testing.T, paths state.ProjectPaths, jobID, attemptID, localStatus string, wrapperStatus map[string]any) {
 	t.Helper()
 	attemptDir, err := specificAttemptJobDir(filepath.Join(paths.RunsDir, originAttemptRunID), jobID, attemptID)
 	if err != nil {
@@ -20,7 +22,7 @@ func writeOriginAttempt(t *testing.T, paths pathSet, jobID, attemptID, localStat
 	if err := os.MkdirAll(attemptDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(attemptDir, commandJSONName), JobSpec{ID: jobID, Command: []string{"work"}}); err != nil {
+	if err := writeJSON(filepath.Join(attemptDir, commandJSONName), model.JobSpec{ID: jobID, Command: []string{"work"}}); err != nil {
 		t.Fatal(err)
 	}
 	if localStatus != "" {
@@ -40,22 +42,22 @@ func writeOriginAttempt(t *testing.T, paths pathSet, jobID, attemptID, localStat
 
 // writeOriginAttemptRun writes a run whose summary records attempt 1 of job
 // "source" as the latest result, so attempt 0 is only available on disk.
-func writeOriginAttemptRun(t *testing.T) pathSet {
+func writeOriginAttemptRun(t *testing.T) state.ProjectPaths {
 	t.Helper()
 	paths, err := resolvePaths(t.TempDir(), "default")
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeCarryStateRun(t, paths, originAttemptRunID, Queue{}, []JobResult{
+	writeCarryStateRun(t, paths, originAttemptRunID, model.Queue{}, []model.JobResult{
 		{ID: "source", AttemptID: makeAttemptID(originAttemptRunID, "source", 1), ExitCode: 1, Error: "latest failed"},
 	})
 	return paths
 }
 
-func importedOriginQueue(attemptID string, accepted bool) Queue {
-	return Queue{WorkflowImport: true, Commands: []QueuedCommand{{
+func importedOriginQueue(attemptID string, accepted bool) model.Queue {
+	return model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{
 		ID: "destination", Command: []string{"work"}, Accepted: accepted,
-		Origin: &JobOrigin{RunID: originAttemptRunID, JobID: "source", AttemptID: attemptID},
+		Origin: &model.JobOrigin{RunID: originAttemptRunID, JobID: "source", AttemptID: attemptID},
 	}}}
 }
 
@@ -104,10 +106,10 @@ func TestImportedWorkflowRejectsBrokenOriginState(t *testing.T) {
 	olderAttempt := makeAttemptID(originAttemptRunID, "source", 0)
 	tests := map[string]struct {
 		accepted bool
-		setup    func(*testing.T, pathSet)
+		setup    func(*testing.T, state.ProjectPaths)
 		want     string
 	}{
-		"missing attempt command": {setup: func(t *testing.T, paths pathSet) {
+		"missing attempt command": {setup: func(t *testing.T, paths state.ProjectPaths) {
 			attemptDir, err := specificAttemptJobDir(filepath.Join(paths.RunsDir, originAttemptRunID), "source", olderAttempt)
 			if err != nil {
 				t.Fatal(err)
@@ -116,12 +118,12 @@ func TestImportedWorkflowRejectsBrokenOriginState(t *testing.T) {
 				t.Fatal(err)
 			}
 		}, want: "command"},
-		"missing origin summary": {setup: func(t *testing.T, paths pathSet) {
+		"missing origin summary": {setup: func(t *testing.T, paths state.ProjectPaths) {
 			if err := os.Remove(filepath.Join(paths.RunsDir, originAttemptRunID, "summary.json")); err != nil {
 				t.Fatal(err)
 			}
 		}, want: "summary"},
-		"accepted attempt without result": {accepted: true, setup: func(t *testing.T, paths pathSet) {
+		"accepted attempt without result": {accepted: true, setup: func(t *testing.T, paths state.ProjectPaths) {
 			writeOriginAttempt(t, paths, "source", olderAttempt, "", nil)
 		}, want: "not found"},
 	}
@@ -137,7 +139,7 @@ func TestImportedWorkflowRejectsBrokenOriginState(t *testing.T) {
 	}
 }
 
-func writeWorkflowMatrixRetryRuns(t *testing.T, baseDir string) (pathSet, string, string) {
+func writeWorkflowMatrixRetryRuns(t *testing.T, baseDir string) (state.ProjectPaths, string, string) {
 	t.Helper()
 	paths, err := resolvePaths(baseDir, "demo")
 	if err != nil {
@@ -145,13 +147,13 @@ func writeWorkflowMatrixRetryRuns(t *testing.T, baseDir string) (pathSet, string
 	}
 	firstRun, retryRun := "20260925-120000-11111111", "20260925-130000-22222222"
 	firstAttempt := makeAttemptID(firstRun, "seed-1", 0)
-	writeWorkflowSourceRun(t, paths, firstRun, Queue{Commands: testMatrixQueueCommands("group")}, []JobResult{
+	writeWorkflowSourceRun(t, paths, firstRun, model.Queue{Commands: testMatrixQueueCommands("group")}, []model.JobResult{
 		{ID: "seed-1", AttemptID: firstAttempt, ExitCode: 0},
 		{ID: "seed-2", AttemptID: makeAttemptID(firstRun, "seed-2", 0), ExitCode: 1},
 	})
 	retried := testMatrixQueueCommands("group")
-	retried[0].Origin = &JobOrigin{RunID: firstRun, JobID: "seed-1", AttemptID: firstAttempt, Status: "success"}
-	writeWorkflowSourceRun(t, paths, retryRun, Queue{Commands: retried}, []JobResult{
+	retried[0].Origin = &model.JobOrigin{RunID: firstRun, JobID: "seed-1", AttemptID: firstAttempt, Status: "success"}
+	writeWorkflowSourceRun(t, paths, retryRun, model.Queue{Commands: retried}, []model.JobResult{
 		{ID: "seed-1", AttemptID: firstAttempt, ExitCode: 0},
 		{ID: "seed-2", AttemptID: makeAttemptID(retryRun, "seed-2", 0), ExitCode: 0},
 	})
@@ -165,7 +167,7 @@ func TestWorkflowUnchangedMatrixRunImportReusesEveryCombination(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := "20260925-170000-12345678"
-	writeWorkflowSourceRun(t, paths, runID, Queue{Commands: testMatrixQueueCommands("group")}, []JobResult{
+	writeWorkflowSourceRun(t, paths, runID, model.Queue{Commands: testMatrixQueueCommands("group")}, []model.JobResult{
 		{ID: "seed-1", AttemptID: makeAttemptID(runID, "seed-1", 0)},
 		{ID: "seed-2", AttemptID: makeAttemptID(runID, "seed-2", 0)},
 	})

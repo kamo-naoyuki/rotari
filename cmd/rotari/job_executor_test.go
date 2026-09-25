@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 func writeSchedulerStatus(jobDir, state string) {
@@ -19,7 +20,7 @@ func loadSchedulerStatus(jobDir string) string {
 }
 
 func TestExecutorRunSettingsOverrideDispatchDefaults(t *testing.T) {
-	settings := executorRunSettingsMap{
+	settings := executor.RunSettingsMap{
 		"ssh": {Concurrency: 3, Options: []string{"builder@worker-01", "-p", "2222"}},
 	}
 
@@ -40,32 +41,32 @@ func TestExecutorRunSettingsOverrideDispatchDefaults(t *testing.T) {
 func TestValidateQueueForRunRejectsInvalidExecutorConfiguration(t *testing.T) {
 	tests := []struct {
 		name  string
-		queue Queue
+		queue model.Queue
 		want  string
 	}{
 		{
 			name:  "unknown default executor",
-			queue: Queue{DefaultExecutor: "unknown", Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}},
+			queue: model.Queue{DefaultExecutor: "unknown", Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}},
 			want:  "unsupported executor: unknown",
 		},
 		{
 			name:  "unknown job executor",
-			queue: Queue{Commands: []QueuedCommand{{ID: "job-1", Executor: "unknown", Command: []string{"true"}}}},
+			queue: model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Executor: "unknown", Command: []string{"true"}}}},
 			want:  `job "job-1" uses unsupported executor: unknown`,
 		},
 		{
 			name:  "invalid scheduler option quoting",
-			queue: Queue{Commands: []QueuedCommand{{ID: "job-1", Executor: "slurm", ExecutorOptions: []string{`"unterminated`}, Command: []string{"true"}}}},
+			queue: model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Executor: "slurm", ExecutorOptions: []string{`"unterminated`}, Command: []string{"true"}}}},
 			want:  `job "job-1" executor options: invalid executor option`,
 		},
 		{
 			name:  "missing SSH target",
-			queue: Queue{Commands: []QueuedCommand{{ID: "job-1", Executor: "ssh", Command: []string{"true"}}}},
+			queue: model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Executor: "ssh", Command: []string{"true"}}}},
 			want:  `job "job-1" executor options: SSH executor requires its first executor option to be the target host`,
 		},
 		{
 			name:  "reserved Slurm array option",
-			queue: Queue{Commands: []QueuedCommand{{ID: "job-1", Executor: "slurm", ExecutorOptions: []string{"--array=1-2"}, Array: &ArraySpec{First: 1, Last: 2}, Command: []string{"true"}}}},
+			queue: model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Executor: "slurm", ExecutorOptions: []string{"--array=1-2"}, Array: &model.ArraySpec{First: 1, Last: 2}, Command: []string{"true"}}}},
 			want:  `job "job-1" executor options: executor options must not include --array`,
 		},
 	}
@@ -80,16 +81,16 @@ func TestValidateQueueForRunRejectsInvalidExecutorConfiguration(t *testing.T) {
 }
 
 func TestValidateQueueForRunUsesDispatchOptionPriority(t *testing.T) {
-	queue := Queue{
+	queue := model.Queue{
 		DefaultExecutorOptions: []string{"invalid-default"},
-		Commands: []QueuedCommand{{
+		Commands: []model.QueuedCommand{{
 			ID:              "job-1",
 			Executor:        "ssh",
 			ExecutorOptions: []string{"worker.example"},
 			Command:         []string{"true"},
 		}},
 	}
-	settings := executorRunSettingsMap{"ssh": {Options: []string{"invalid-setting"}}}
+	settings := executor.RunSettingsMap{"ssh": {Options: []string{"invalid-setting"}}}
 	if err := validateQueueForRun(queue, "", []string{"invalid-common"}, settings); err != nil {
 		t.Fatalf("validateQueueForRun rejected job-specific SSH target: %v", err)
 	}
@@ -104,7 +105,7 @@ func TestValidateLocalExecutionEnvironmentForLocalJob(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(binDir, "worker"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{{
+	queue := model.Queue{Commands: []model.QueuedCommand{{
 		ID:               "job-1",
 		Command:          []string{"worker"},
 		WorkingDirectory: workingDirectory,
@@ -123,7 +124,7 @@ func TestValidateLocalExecutionEnvironmentForLocalJob(t *testing.T) {
 func TestValidateLocalExecutionEnvironmentRequiresExecutorCommands(t *testing.T) {
 	t.Run("scheduler", func(t *testing.T) {
 		t.Setenv("PATH", t.TempDir())
-		queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Executor: "slurm", Command: []string{"true"}}}}
+		queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Executor: "slurm", Command: []string{"true"}}}}
 		if err := validateLocalExecutionEnvironment(queue); err == nil || !strings.Contains(err.Error(), `slurm executor command "sbatch" is not available`) {
 			t.Fatalf("missing scheduler command error = %v", err)
 		}
@@ -133,7 +134,7 @@ func TestValidateLocalExecutionEnvironmentRequiresExecutorCommands(t *testing.T)
 		oldSSHCommandPath := executor.SSHCommandPath
 		executor.SSHCommandPath = filepath.Join(t.TempDir(), "missing-ssh")
 		t.Cleanup(func() { executor.SSHCommandPath = oldSSHCommandPath })
-		queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Executor: "ssh", ExecutorOptions: []string{"worker.example"}, Command: []string{"true"}}}}
+		queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Executor: "ssh", ExecutorOptions: []string{"worker.example"}, Command: []string{"true"}}}}
 		if err := validateLocalExecutionEnvironment(queue); err == nil || !strings.Contains(err.Error(), "ssh executor command") {
 			t.Fatalf("missing SSH command error = %v", err)
 		}
@@ -146,7 +147,7 @@ func TestValidateLocalExecutionEnvironmentDoesNotStatRemoteWorkingDirectory(t *t
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", binDir)
-	queue := Queue{Commands: []QueuedCommand{{
+	queue := model.Queue{Commands: []model.QueuedCommand{{
 		ID:               "job-1",
 		Executor:         "slurm",
 		Command:          []string{"remote-command"},

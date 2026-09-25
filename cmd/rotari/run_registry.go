@@ -90,7 +90,7 @@ func resolveAttemptTarget(attemptID, cliBaseDir, cliProjectName, cliRunID string
 	return baseDir, projectName, payload.RunID, payload.JobID, nil
 }
 
-func registerRun(paths pathSet, runID string) error {
+func registerRun(paths state.ProjectPaths, runID string) error {
 	return registerRunLocation(runLocation{
 		BaseDir: paths.BaseDir, ProjectName: paths.ProjectName, RunID: runID,
 	})

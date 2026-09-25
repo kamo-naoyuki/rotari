@@ -146,7 +146,7 @@ func changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, request
 	return fmt.Sprintf("changed queue=%s job=%s", queueName, jobs[jobIndex].ID), nil
 }
 
-func selectChangeJob(jobs []JobSpec, requestedJobID, requestedJobName string) (int, error) {
+func selectChangeJob(jobs []model.JobSpec, requestedJobID, requestedJobName string) (int, error) {
 	jobIndex := -1
 	for index, job := range jobs {
 		if (requestedJobID == "" || job.ID != requestedJobID) &&
@@ -164,7 +164,7 @@ func selectChangeJob(jobs []JobSpec, requestedJobID, requestedJobName string) (i
 	return jobIndex, nil
 }
 
-func applyChangeMutation(queue Queue, jobIndex int, mutation changeMutation) error {
+func applyChangeMutation(queue model.Queue, jobIndex int, mutation changeMutation) error {
 	changed := &queue.Commands[jobIndex]
 	if queue.WorkflowImport {
 		changed.Force = true
@@ -198,7 +198,7 @@ func applyChangeMutation(queue Queue, jobIndex int, mutation changeMutation) err
 	return nil
 }
 
-func validateChangeRename(queue Queue, jobIndex int, newName string) error {
+func validateChangeRename(queue model.Queue, jobIndex int, newName string) error {
 	jobs := model.QueueToJobs(queue.Commands)
 	for index, job := range jobs {
 		if index != jobIndex && job.Name == newName {
@@ -219,26 +219,26 @@ func validateChangeRename(queue Queue, jobIndex int, newName string) error {
 	return nil
 }
 
-func loadChangeSnapshot(paths pathSet, requestedRunID string) (Queue, error) {
+func loadChangeSnapshot(paths state.ProjectPaths, requestedRunID string) (model.Queue, error) {
 	runID, err := selectRunID(paths, requestedRunID)
 	if err != nil {
-		return Queue{}, err
+		return model.Queue{}, err
 	}
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
-		return Queue{}, err
+		return model.Queue{}, err
 	}
 	// codeql[go/path-injection]: runDir is produced by validatedRunDir and commands.json is fixed.
 	data, err := os.ReadFile(filepath.Join(runDir, "commands.json")) // NOSONAR: runDir is produced by validatedRunDir.
 	if err != nil {
-		return Queue{}, fmt.Errorf("failed to load command snapshot: %w", err)
+		return model.Queue{}, fmt.Errorf("failed to load command snapshot: %w", err)
 	}
-	var queue Queue
+	var queue model.Queue
 	if err := json.Unmarshal(data, &queue); err != nil {
-		return Queue{}, fmt.Errorf("failed to parse command snapshot: %w", err)
+		return model.Queue{}, fmt.Errorf("failed to parse command snapshot: %w", err)
 	}
 	if len(queue.Commands) == 0 {
-		return Queue{}, errors.New("command snapshot has no jobs")
+		return model.Queue{}, errors.New("command snapshot has no jobs")
 	}
 	return queue, nil
 }

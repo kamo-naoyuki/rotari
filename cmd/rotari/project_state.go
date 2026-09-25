@@ -8,6 +8,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -21,7 +22,7 @@ const (
 
 // inspectProjectRunState classifies a project as idle, running, or interrupted
 // from its lock and meta files without mutating state.
-func inspectProjectRunState(paths pathSet) (projectRunState, string, error) {
+func inspectProjectRunState(paths state.ProjectPaths) (projectRunState, string, error) {
 	inspection, err := inspectProjectState(paths, true)
 	return inspection.State, inspection.RunID, err
 }
@@ -29,11 +30,11 @@ func inspectProjectRunState(paths pathSet) (projectRunState, string, error) {
 type projectStateInspection struct {
 	State     projectRunState
 	RunID     string
-	Lock      projectLockState
+	Lock      state.LockState
 	LockRunID string
 }
 
-func inspectProjectState(paths pathSet, cleanupStale bool) (projectStateInspection, error) {
+func inspectProjectState(paths state.ProjectPaths, cleanupStale bool) (projectStateInspection, error) {
 	lockState, lock, err := inspectRunLock(paths.LockFile, cleanupStale)
 	if err != nil {
 		return projectStateInspection{}, err
@@ -56,7 +57,7 @@ func inspectProjectState(paths pathSet, cleanupStale bool) (projectStateInspecti
 	return projectStateInspection{State: projectIdle, Lock: lockState, LockRunID: lock.RunID}, nil
 }
 
-func validateProjectStateConsistency(paths pathSet, inspection projectStateInspection) error {
+func validateProjectStateConsistency(paths state.ProjectPaths, inspection projectStateInspection) error {
 	if inspection.Lock != projectLockNone && !state.IsValidPathElement(inspection.LockRunID) {
 		return fmt.Errorf("invalid run ID %q in run lock", inspection.LockRunID)
 	}
@@ -94,17 +95,17 @@ func validateProjectStateConsistency(paths pathSet, inspection projectStateInspe
 // harmless on its own, and a failed queue write then leaves the previous queue
 // in place. Callers must hold the state lock and have checked that the project
 // is idle.
-func writeIdleQueue(paths pathSet, queue Queue) error {
+func writeIdleQueue(paths state.ProjectPaths, queue model.Queue) error {
 	return writeIdleQueueWith(state.WriteJSON, paths, &queue)
 }
 
 // markProjectCollecting updates only the metadata, for idle operations that
 // leave the queue file untouched.
-func markProjectCollecting(paths pathSet) error {
+func markProjectCollecting(paths state.ProjectPaths) error {
 	return writeIdleQueueWith(state.WriteJSON, paths, nil)
 }
 
-func writeIdleQueueWith(writeJSON func(string, any) error, paths pathSet, queue *Queue) error {
+func writeIdleQueueWith(writeJSON func(string, any) error, paths state.ProjectPaths, queue *model.Queue) error {
 	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		return fmt.Errorf("failed to load metadata: %w", err)
@@ -123,7 +124,7 @@ func writeIdleQueueWith(writeJSON func(string, any) error, paths pathSet, queue 
 	return nil
 }
 
-func ensureProjectIdleForPaths(paths pathSet, operation string) error {
+func ensureProjectIdleForPaths(paths state.ProjectPaths, operation string) error {
 	inspection, err := inspectConsistentProjectState(paths, true)
 	if err != nil {
 		return fmt.Errorf("failed to check project state: %w", err)
@@ -147,7 +148,7 @@ func ensureProjectIdleForPaths(paths pathSet, operation string) error {
 	}
 }
 
-func inspectConsistentProjectRunState(paths pathSet, cleanupStale bool) (projectRunState, string, error) {
+func inspectConsistentProjectRunState(paths state.ProjectPaths, cleanupStale bool) (projectRunState, string, error) {
 	inspection, err := inspectConsistentProjectState(paths, cleanupStale)
 	if err != nil {
 		return projectIdle, "", err
@@ -155,7 +156,7 @@ func inspectConsistentProjectRunState(paths pathSet, cleanupStale bool) (project
 	return inspection.State, inspection.RunID, nil
 }
 
-func inspectConsistentProjectState(paths pathSet, cleanupStale bool) (projectStateInspection, error) {
+func inspectConsistentProjectState(paths state.ProjectPaths, cleanupStale bool) (projectStateInspection, error) {
 	inspection, err := inspectProjectState(paths, false)
 	if err != nil {
 		return projectStateInspection{}, err
@@ -195,7 +196,7 @@ func scanInterruptedRunJobStatus(runDir string) (interruptedRunJobStatus, error)
 		if _, ok := jobstatus.ReadStatusFile(jobDir); ok {
 			continue
 		}
-		if slurm, ok := loadSlurmStatus(filepath.Join(jobDir, "status.json")); ok && jobstatus.WrapperTerminal(slurm) {
+		if slurm, ok := loadWrapperStatus(filepath.Join(jobDir, "status.json")); ok && jobstatus.WrapperTerminal(slurm) {
 			continue
 		}
 		status.StillRunning++
@@ -208,7 +209,7 @@ func scanInterruptedRunJobStatus(runDir string) (interruptedRunJobStatus, error)
 // The returned string is empty when the run has no recorded job directories
 // yet. stillRunning reports whether any job appears non-terminal, so callers
 // can add a stronger warning before offering to recover.
-func interruptedRunStatusDetail(paths pathSet, runID string) (detail string, stillRunning bool) {
+func interruptedRunStatusDetail(paths state.ProjectPaths, runID string) (detail string, stillRunning bool) {
 	status, err := scanInterruptedRunJobStatus(filepath.Join(paths.RunsDir, runID))
 	if err != nil || status.Total == 0 {
 		return "", false

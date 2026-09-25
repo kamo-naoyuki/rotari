@@ -41,7 +41,7 @@ func TestFilteredRunUsesCopiedJobOrigins(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := "source-run"
-	queue := Queue{Commands: []QueuedCommand{
+	queue := model.Queue{Commands: []model.QueuedCommand{
 		{ID: "success", Name: "success", Command: []string{"success"}},
 		{ID: "failed", Name: "failed", Command: []string{"failed"}},
 		{ID: "unfinished", Name: "unfinished", Command: []string{"unfinished"}},
@@ -50,7 +50,7 @@ func TestFilteredRunUsesCopiedJobOrigins(t *testing.T) {
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Results: []JobResult{
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Results: []model.JobResult{
 		{ID: "success", ExitCode: 0}, {ID: "failed", ExitCode: 1},
 	}}); err != nil {
 		t.Fatal(err)
@@ -68,7 +68,7 @@ func TestFilteredRunUsesCopiedJobOrigins(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.selection, func(t *testing.T) {
-			if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
+			if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := copyRunToQueue(baseDir, "default", runID, "all", nil, false); err != nil {
@@ -100,17 +100,17 @@ func TestFilteredRunUsesEachCopiedOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for runID, result := range map[string]JobResult{
+	for runID, result := range map[string]model.JobResult{
 		"old-run":    {ID: "old-job", ExitCode: 1},
 		"latest-run": {ID: "latest-job", ExitCode: 0},
 	} {
-		if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), RunSummary{RunID: runID, Results: []JobResult{result}}); err != nil {
+		if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), model.RunSummary{RunID: runID, Results: []model.JobResult{result}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	queue := Queue{Commands: []QueuedCommand{
-		{ID: "copied-old", Command: []string{"old"}, Origin: &JobOrigin{RunID: "old-run", JobID: "old-job"}},
-		{ID: "copied-latest", Command: []string{"latest"}, Origin: &JobOrigin{RunID: "latest-run", JobID: "latest-job"}},
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "copied-old", Command: []string{"old"}, Origin: &model.JobOrigin{RunID: "old-run", JobID: "old-job"}},
+		{ID: "copied-latest", Command: []string{"latest"}, Origin: &model.JobOrigin{RunID: "latest-run", JobID: "latest-job"}},
 	}}
 	plan, err := planRerunSelection(paths, queue, "failed", nil, "latest-run", true)
 	if err != nil {
@@ -128,15 +128,15 @@ func TestImportedWorkflowExecutesFailedJobAndDownstream(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := "source-run"
-	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), RunSummary{RunID: runID, Results: []JobResult{
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), model.RunSummary{RunID: runID, Results: []model.JobResult{
 		{ID: "source-failed", ExitCode: 1}, {ID: "source-downstream", ExitCode: 0}, {ID: "source-independent", ExitCode: 0},
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{WorkflowImport: true, Commands: []QueuedCommand{
-		{ID: "failed", Name: "failed", Command: []string{"false"}, Origin: &JobOrigin{RunID: runID, JobID: "source-failed"}},
-		{ID: "downstream", Name: "downstream", Command: []string{"true"}, DependsOn: []string{"failed"}, Origin: &JobOrigin{RunID: runID, JobID: "source-downstream"}},
-		{ID: "independent", Name: "independent", Command: []string{"true"}, Origin: &JobOrigin{RunID: runID, JobID: "source-independent"}},
+	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{
+		{ID: "failed", Name: "failed", Command: []string{"false"}, Origin: &model.JobOrigin{RunID: runID, JobID: "source-failed"}},
+		{ID: "downstream", Name: "downstream", Command: []string{"true"}, DependsOn: []string{"failed"}, Origin: &model.JobOrigin{RunID: runID, JobID: "source-downstream"}},
+		{ID: "independent", Name: "independent", Command: []string{"true"}, Origin: &model.JobOrigin{RunID: runID, JobID: "source-independent"}},
 	}}
 	plan, err := planRerunSelection(paths, queue, "", nil, "", true)
 	if err != nil {
@@ -154,12 +154,12 @@ func TestImportedWorkflowAcceptsFailedSourceResult(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := "source-run"
-	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), RunSummary{RunID: runID, Results: []JobResult{{ID: "source", AttemptID: "attempt", ExitCode: 7, Error: "source failed"}}}); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), model.RunSummary{RunID: runID, Results: []model.JobResult{{ID: "source", AttemptID: "attempt", ExitCode: 7, Error: "source failed"}}}); err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{WorkflowImport: true, Commands: []QueuedCommand{{
+	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{
 		ID: "destination", Command: []string{"false"}, Accepted: true,
-		Origin: &JobOrigin{RunID: runID, JobID: "source", AttemptID: "attempt", Status: "failed"},
+		Origin: &model.JobOrigin{RunID: runID, JobID: "source", AttemptID: "attempt", Status: "failed"},
 	}}}
 	plan, err := planRerunSelection(paths, queue, "", nil, "", true)
 	if err != nil {
@@ -172,17 +172,17 @@ func TestImportedWorkflowAcceptsFailedSourceResult(t *testing.T) {
 }
 
 func TestAggregatedJobResultForArray(t *testing.T) {
-	array := &ArraySpec{First: 1, Last: 3}
+	array := &model.ArraySpec{First: 1, Last: 3}
 
 	tests := []struct {
 		name     string
-		results  map[string]JobResult
+		results  map[string]model.JobResult
 		wantDone bool
 		wantExit int
 	}{
 		{
 			name: "unfinished until every task has a result",
-			results: map[string]JobResult{
+			results: map[string]model.JobResult{
 				"job-1": {ID: "job-1", ExitCode: 0},
 				"job-2": {ID: "job-2", ExitCode: 0},
 			},
@@ -190,7 +190,7 @@ func TestAggregatedJobResultForArray(t *testing.T) {
 		},
 		{
 			name: "failed when any task fails",
-			results: map[string]JobResult{
+			results: map[string]model.JobResult{
 				"job-1": {ID: "job-1", ExitCode: 0},
 				"job-2": {ID: "job-2", ExitCode: 7},
 				"job-3": {ID: "job-3", ExitCode: 0},

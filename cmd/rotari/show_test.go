@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -32,21 +33,21 @@ func TestCmdShowDisplaysFinishedArrayTaskFromStatusJSON(t *testing.T) {
 	}
 	runID := "array-run"
 	task := 1
-	queue := Queue{Commands: []QueuedCommand{{ID: "array", Command: []string{"true"}, Executor: "slurm", Array: &ArraySpec{First: 1, Last: 1}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "array", Command: []string{"true"}, Executor: "slurm", Array: &model.ArraySpec{First: 1, Last: 1}}}}
 	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), queue); err != nil {
 		t.Fatal(err)
 	}
 	jobDir := filepath.Join(paths.RunsDir, runID, "array-1")
-	if err := writeJSON(filepath.Join(jobDir, "command.json"), JobSpec{ID: "array-1", Command: []string{"true"}, Executor: "slurm", ArrayTaskID: &task, ArrayFirst: 1, ArrayLast: 1}); err != nil {
+	if err := writeJSON(filepath.Join(jobDir, "command.json"), model.JobSpec{ID: "array-1", Command: []string{"true"}, Executor: "slurm", ArrayTaskID: &task, ArrayFirst: 1, ArrayLast: 1}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(jobDir, "status.json"), slurmStatus{Phase: "running", ExitCode: 0, FinishedAt: "2026-09-18T00:00:00Z"}); err != nil {
+	if err := writeJSON(filepath.Join(jobDir, "status.json"), executor.WrapperStatus{Phase: "running", ExitCode: 0, FinishedAt: "2026-09-18T00:00:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(paths.MetaFile), Meta{Phase: "running", LastRunID: runID}); err != nil {
+	if err := writeJSON(filepath.Join(paths.MetaFile), model.Meta{Phase: "running", LastRunID: runID}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{RunID: runID, PID: os.Getpid()}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{RunID: runID, PID: os.Getpid()}); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Remove(paths.LockFile) })
@@ -82,13 +83,13 @@ func TestCmdShowResolvesProjectFromRunID(t *testing.T) {
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "analysis", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Name: "analysis", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Status: "finished", Results: []JobResult{{ID: "job-1", ExitCode: 0}}}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "finished", Results: []model.JobResult{{ID: "job-1", ExitCode: 0}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "job-1", "command.json"), JobSpec{ID: "job-1", Name: "analysis", Command: []string{"true"}}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "job-1", "command.json"), model.JobSpec{ID: "job-1", Name: "analysis", Command: []string{"true"}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := registerRun(paths, runID); err != nil {
@@ -150,7 +151,7 @@ func TestCmdShowResolvesProjectFromRunID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(attemptDir, "command.json"), JobSpec{ID: "job-1", Name: "analysis", Command: []string{"true"}}); err != nil {
+	if err := writeJSON(filepath.Join(attemptDir, "command.json"), model.JobSpec{ID: "job-1", Name: "analysis", Command: []string{"true"}}); err != nil {
 		t.Fatal(err)
 	}
 	reader, writer, err = os.Pipe()
@@ -227,10 +228,10 @@ func TestShowRunDisplaysAcceptedStatus(t *testing.T) {
 	}
 	runID := "accepted-run"
 	runDir := filepath.Join(paths.RunsDir, runID)
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Status: "finished", Results: []JobResult{{ID: "job-1", ExitCode: 0, Accepted: true}}}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "finished", Results: []model.JobResult{{ID: "job-1", ExitCode: 0, Accepted: true}}}); err != nil {
 		t.Fatal(err)
 	}
 	reader, writer, err := os.Pipe()
@@ -259,10 +260,10 @@ func TestCmdShowResolvesRunNameAcrossProjects(t *testing.T) {
 	}
 	runID := "named-run"
 	runDir := filepath.Join(paths.RunsDir, runID)
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, RunName: "nightly", Status: "finished"}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, RunName: "nightly", Status: "finished"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -290,10 +291,10 @@ func TestCmdShowJobSelectorsPreferCurrentQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "queued-job", Name: "queued", Command: []string{"echo", "queued"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "queued-job", Name: "queued", Command: []string{"echo", "queued"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(paths.RunsDir, "latest-run", "commands.json"), Queue{Commands: []QueuedCommand{{ID: "queued-job", Name: "queued", Command: []string{"echo", "latest"}}}}); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, "latest-run", "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "queued-job", Name: "queued", Command: []string{"echo", "latest"}}}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -426,7 +427,7 @@ func TestCmdShowDisplaysCurrentQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "greeting", Command: []string{"printf", "hello"}, Origin: &JobOrigin{RunID: "run-1", JobID: "job-old", Status: "success"}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Name: "greeting", Command: []string{"printf", "hello"}, Origin: &model.JobOrigin{RunID: "run-1", JobID: "job-old", Status: "success"}}}}
 	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
@@ -525,7 +526,7 @@ func TestCmdShowDisplaysResolvedConfigPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "greeting", Command: []string{"printf", "hello"}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Name: "greeting", Command: []string{"printf", "hello"}}}}
 	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
@@ -563,16 +564,16 @@ func TestCmdShowDisplaysActiveRunBeforeQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{{ID: "queued-job", Command: []string{"echo", "queued"}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "queued-job", Command: []string{"echo", "queued"}}}}
 	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
 	runID := "active-run"
-	runQueue := Queue{Commands: []QueuedCommand{{ID: "active-job", Command: []string{"echo", "active"}}}}
+	runQueue := model.Queue{Commands: []model.QueuedCommand{{ID: "active-job", Command: []string{"echo", "active"}}}}
 	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), runQueue); err != nil {
 		t.Fatal(err)
 	}
-	if err := state.AcquireRunLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: runID}); err != nil {
+	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: runID}); err != nil {
 		t.Fatal(err)
 	}
 	defer os.Remove(paths.LockFile)
@@ -632,21 +633,21 @@ func TestCmdShowDisplaysInterruptedRunBeforeQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "queued-job", Command: []string{"echo", "queued"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "queued-job", Command: []string{"echo", "queued"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	runID := "interrupted-run"
-	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "run-job", Command: []string{"echo", "from-run"}}}}); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "run-job", Command: []string{"echo", "from-run"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	host, err := os.Hostname()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: runID, Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: -1, RunID: runID, Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: runID}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: runID}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -687,7 +688,7 @@ func TestCmdShowRejectsLogsForCurrentQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -748,7 +749,7 @@ func TestCmdShowFailedLogsFiltersSuccessfulJobs(t *testing.T) {
 		{id: "bad-job", name: "failure", status: "3\n", output: "failed output\n", command: []string{"false"}},
 	} {
 		jobDir := filepath.Join(paths.RunsDir, runID, job.id)
-		if err := writeJSON(filepath.Join(jobDir, "command.json"), JobSpec{ID: job.id, Name: job.name, Command: job.command}); err != nil {
+		if err := writeJSON(filepath.Join(jobDir, "command.json"), model.JobSpec{ID: job.id, Name: job.name, Command: job.command}); err != nil {
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(filepath.Join(jobDir, "status"), []byte(job.status), 0o644); err != nil {
@@ -800,11 +801,11 @@ func TestShowJobDisplaysPersistedDetails(t *testing.T) {
 	runID, jobID := "run-1", "job-1"
 	runDir := filepath.Join(paths.RunsDir, runID)
 	jobDir := filepath.Join(runDir, jobID)
-	job := JobSpec{
+	job := model.JobSpec{
 		ID: jobID, Name: "analysis", Command: []string{"python", "work.py"},
 		Executor: "slurm", ExecutorOptions: []string{"--partition", "gpu"}, DependsOn: []string{"setup"},
 	}
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{
 		ID: job.ID, Name: job.Name, Command: job.Command, Executor: job.Executor,
 		ExecutorOptions: job.ExecutorOptions, DependsOn: job.DependsOn,
 	}}}); err != nil {
@@ -813,7 +814,7 @@ func TestShowJobDisplaysPersistedDetails(t *testing.T) {
 	if err := writeJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{Results: []JobResult{{ID: jobID, Hosts: []string{"node-a"}}}}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{Results: []model.JobResult{{ID: jobID, Hosts: []string{"node-a"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	for name, content := range map[string]string{
@@ -846,8 +847,8 @@ func TestShowJobSurfacesAccountingUnavailableFromSummary(t *testing.T) {
 	runID, jobID := "run-1", "job-1"
 	runDir := filepath.Join(paths.RunsDir, runID)
 	jobDir := filepath.Join(runDir, jobID)
-	job := JobSpec{ID: jobID, Command: []string{"python", "work.py"}, Executor: "slurm"}
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{
+	job := model.JobSpec{ID: jobID, Command: []string{"python", "work.py"}, Executor: "slurm"}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{
 		ID: job.ID, Command: job.Command, Executor: job.Executor,
 	}}}); err != nil {
 		t.Fatal(err)
@@ -857,7 +858,7 @@ func TestShowJobSurfacesAccountingUnavailableFromSummary(t *testing.T) {
 	}
 	// No "status" file and no "status.json" -- as when squeue and sacct were
 	// both unreachable -- leaves summary.json as the only source of the result.
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{Results: []JobResult{
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{Results: []model.JobResult{
 		{ID: jobID, ExitCode: 1, Error: "Slurm accounting result and wrapper status are unavailable"},
 	}}); err != nil {
 		t.Fatal(err)
@@ -880,14 +881,14 @@ func TestShowJobDisplaysDiagnoses(t *testing.T) {
 	runID, jobID := "run-1", "job-1"
 	runDir := filepath.Join(paths.RunsDir, runID)
 	jobDir := filepath.Join(runDir, jobID)
-	job := JobSpec{ID: jobID, Command: []string{"false"}}
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: jobID, Command: job.Command}}}); err != nil {
+	job := model.JobSpec{ID: jobID, Command: []string{"false"}}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: jobID, Command: job.Command}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{Results: []JobResult{{ID: jobID, ExitCode: 1, Diagnoses: []ruleDiagnosis{{Name: "CUDA/GPU memory exhausted", Evidence: "CUDA out of memory", Suggestion: "Reduce batch size"}}}}}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{Results: []model.JobResult{{ID: jobID, ExitCode: 1, Diagnoses: []model.RuleDiagnosis{{Name: "CUDA/GPU memory exhausted", Evidence: "CUDA out of memory", Suggestion: "Reduce batch size"}}}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(jobDir, "status"), []byte("1\n"), 0o644); err != nil {
@@ -937,17 +938,17 @@ func TestShowJobFollowsCarriedForwardOrigin(t *testing.T) {
 	}
 	jobID := "job-1"
 	currentRunDir := filepath.Join(paths.RunsDir, "run-2")
-	origin := &JobOrigin{RunID: "run-1", JobID: jobID, Status: "success"}
-	if err := writeJSON(filepath.Join(currentRunDir, "commands.json"), Queue{Commands: []QueuedCommand{{
+	origin := &model.JobOrigin{RunID: "run-1", JobID: jobID, Status: "success"}
+	if err := writeJSON(filepath.Join(currentRunDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{
 		ID: jobID, Name: "carried", Command: []string{"echo", "original"}, Origin: origin,
 	}}}); err != nil {
 		t.Fatal(err)
 	}
 	originJobDir := filepath.Join(paths.RunsDir, origin.RunID, origin.JobID)
-	if err := writeJSON(filepath.Join(originJobDir, "command.json"), JobSpec{ID: jobID, Name: "carried", Command: []string{"echo", "original"}}); err != nil {
+	if err := writeJSON(filepath.Join(originJobDir, "command.json"), model.JobSpec{ID: jobID, Name: "carried", Command: []string{"echo", "original"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(paths.RunsDir, origin.RunID, "commands.json"), Queue{Commands: []QueuedCommand{{
+	if err := writeJSON(filepath.Join(paths.RunsDir, origin.RunID, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{
 		ID: jobID, Name: "carried", Command: []string{"echo", "original"},
 	}}}); err != nil {
 		t.Fatal(err)
@@ -976,7 +977,7 @@ func TestShowQueueJobPrintsMatchingJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{
+	queue := model.Queue{Commands: []model.QueuedCommand{
 		{ID: "job-1", Name: "build", Stage: "compile", Command: []string{"echo", "build"}, DependsOn: []string{"prepare"}},
 	}}
 
@@ -1015,7 +1016,7 @@ func TestShowQueueJobColorsLabelsInTTYMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "build", Command: []string{"echo", "build"}, DependsOn: []string{"prepare"}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Name: "build", Command: []string{"echo", "build"}, DependsOn: []string{"prepare"}}}}
 
 	oldStdout := os.Stdout
 	reader, writer, err := os.Pipe()
@@ -1048,8 +1049,8 @@ func TestShowQueueDisplaysArrayTaskColumn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{
-		{ID: "train", Name: "train", Stage: "training", Command: []string{"echo", "train"}, Array: &ArraySpec{First: 1, Last: 2}},
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "train", Name: "train", Stage: "training", Command: []string{"echo", "train"}, Array: &model.ArraySpec{First: 1, Last: 2}},
 	}}
 
 	oldStdout := os.Stdout
@@ -1101,7 +1102,7 @@ func TestShowQueueJobReportsMissingJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"echo", "build"}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"echo", "build"}}}}
 
 	oldStderr := os.Stderr
 	reader, writer, err := os.Pipe()
@@ -1131,12 +1132,12 @@ func TestShowRunsListsRunsSortedByRecency(t *testing.T) {
 	}
 	olderRun := filepath.Join(paths.RunsDir, "run-old")
 	newerRun := filepath.Join(paths.RunsDir, "run-new")
-	if err := writeJSON(filepath.Join(olderRun, "summary.json"), RunSummary{
+	if err := writeJSON(filepath.Join(olderRun, "summary.json"), model.RunSummary{
 		RunID: "run-old", Status: "finished", ExitCode: 0, StartedAt: "2026-09-16T00:00:00Z", FinishedAt: "2026-09-16T00:00:01Z",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(newerRun, "summary.json"), RunSummary{
+	if err := writeJSON(filepath.Join(newerRun, "summary.json"), model.RunSummary{
 		RunID: "run-new", Status: "failed", ExitCode: 1, StartedAt: "2026-09-17T00:00:00Z", FinishedAt: "2026-09-17T00:00:01Z",
 	}); err != nil {
 		t.Fatal(err)
@@ -1221,16 +1222,16 @@ func TestCmdShowProjectsListsProjectSummaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(demo.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(demo.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(demo.MetaFile, Meta{Phase: "finished", LastRunID: "demo-run"}); err != nil {
+	if err := writeJSON(demo.MetaFile, model.Meta{Phase: "finished", LastRunID: "demo-run"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(filepath.Join(demo.RunsDir, "demo-run"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(example.LockFile, LockInfo{PID: os.Getpid(), RunID: "example-run"}); err != nil {
+	if err := writeJSON(example.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "example-run"}); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Remove(example.LockFile) })
@@ -1272,7 +1273,7 @@ func TestCmdShowFallsBackToProjectsWithWarningWhenProjectIsAmbiguous(t *testing.
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
+		if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1321,7 +1322,7 @@ func TestCmdShowListsProjectsAcrossKnownBaseDirs(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
+		if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
 			t.Fatal(err)
 		}
 		if err := os.MkdirAll(filepath.Join(paths.RunsDir, fmt.Sprintf("run-%d", index)), 0o755); err != nil {
@@ -1400,7 +1401,7 @@ func TestShowAndWebShareStatusFallbackChain(t *testing.T) {
 	}
 	runID := makeRunID()
 	runDir := filepath.Join(paths.RunsDir, runID)
-	queue := Queue{Commands: []QueuedCommand{
+	queue := model.Queue{Commands: []model.QueuedCommand{
 		{ID: "job-a", Command: []string{"true"}},
 		{ID: "job-b", Command: []string{"true"}, Executor: "slurm"},
 		{ID: "job-c", Command: []string{"true"}, DependsOn: []string{"job-a"}},
@@ -1416,12 +1417,12 @@ func TestShowAndWebShareStatusFallbackChain(t *testing.T) {
 		t.Fatal(err)
 	}
 	// job-b: a still-running wrapper falls back to the terminal scheduler state.
-	if err := writeJSON(filepath.Join(runDir, "job-b", "status.json"), slurmStatus{Phase: "running"}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "job-b", "status.json"), executor.WrapperStatus{Phase: "running"}); err != nil {
 		t.Fatal(err)
 	}
 	writeSchedulerStatus(filepath.Join(runDir, "job-b"), "FAILED")
 	// job-c: no attempt directory, so the summary result decides.
-	summary := RunSummary{RunID: runID, Status: "failed", ExitCode: 1, Results: []JobResult{
+	summary := model.RunSummary{RunID: runID, Status: "failed", ExitCode: 1, Results: []model.JobResult{
 		{ID: "job-a", ExitCode: 0},
 		{ID: "job-c", ExitCode: 1, Error: "blocked by failed dependency"},
 	}}

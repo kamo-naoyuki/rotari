@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"io"
 	"os"
 	"strings"
@@ -8,13 +9,13 @@ import (
 )
 
 // enqueueCommand appends one command to the project queue, as `add` does.
-func enqueueCommand(baseDir, queueName string, command []string, executor string, executorOptions, environment []string, jobName string, dependsOn []string, arrays ...*ArraySpec) (string, error) {
-	var array *ArraySpec
+func enqueueCommand(baseDir, queueName string, command []string, executor string, executorOptions, environment []string, jobName string, dependsOn []string, arrays ...*model.ArraySpec) (string, error) {
+	var array *model.ArraySpec
 	if len(arrays) > 0 {
 		array = arrays[0]
 	}
-	queued := QueuedCommand{Command: command, Executor: executor, ExecutorOptions: executorOptions, Environment: environment, Name: jobName, DependsOn: dependsOn}
-	return enqueueCommands(baseDir, queueName, []QueuedCommand{queued}, array)
+	queued := model.QueuedCommand{Command: command, Executor: executor, ExecutorOptions: executorOptions, Environment: environment, Name: jobName, DependsOn: dependsOn}
+	return enqueueCommands(baseDir, queueName, []model.QueuedCommand{queued}, array)
 }
 
 func TestEnqueueCommandRejectsInterruptedRunWithoutChangingQueue(t *testing.T) {
@@ -23,11 +24,11 @@ func TestEnqueueCommandRejectsInterruptedRunWithoutChangingQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}
+	original := model.Queue{Commands: []model.QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}
 	if err := writeJSON(paths.QueueFile, original); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "interrupted-run"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "interrupted-run"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "interrupted-run")

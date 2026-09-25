@@ -34,16 +34,6 @@ const (
 // notification toggle defaults to on or off; set once by cmdWeb.
 var webNotificationsDefault = true
 
-type webRun = webprojection.Run
-type webJob = webprojection.Job
-type webAttempt = webprojection.Attempt
-type webTimelinePoint = webprojection.TimelinePoint
-
-type webQueueState = webprojection.QueueState
-type webServerState = webprojection.ServerState
-type webConfigFile = webprojection.ConfigFile
-type webState = webprojection.State
-
 type webGenerateConfigRequest struct {
 	QueueName string `json:"project_name"`
 	Location  string `json:"location"`
@@ -723,7 +713,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 	return mux
 }
 
-func loadWebConfigFiles(baseDir, projectName, runID string) ([]webConfigFile, error) {
+func loadWebConfigFiles(baseDir, projectName, runID string) ([]webprojection.ConfigFile, error) {
 	var paths []string
 	if projectName == "" {
 		if runID != "" {
@@ -747,14 +737,14 @@ func loadWebConfigFiles(baseDir, projectName, runID string) ([]webConfigFile, er
 			return loadRunConfigFiles(baseDir, projectName, runID)
 		}
 	}
-	files := make([]webConfigFile, 0, len(paths))
+	files := make([]webprojection.ConfigFile, 0, len(paths))
 	for _, path := range paths {
 		// codeql[go/path-injection]: paths contain only resolved config files or validated run context entries.
 		data, err := os.ReadFile(path) // NOSONAR: paths contain only the resolved global/project config files or validated run context entries.
 		if err != nil {
 			return nil, err
 		}
-		files = append(files, webConfigFile{Path: path, Content: string(data)})
+		files = append(files, webprojection.ConfigFile{Path: path, Content: string(data)})
 	}
 	return files, nil
 }
@@ -777,7 +767,7 @@ func saveWebConfig(baseDir, projectName, content string) (string, error) {
 	return path, nil
 }
 
-func loadRunConfigFiles(baseDir, projectName, runID string) ([]webConfigFile, error) {
+func loadRunConfigFiles(baseDir, projectName, runID string) ([]webprojection.ConfigFile, error) {
 	paths, err := resolvePaths(baseDir, projectName)
 	if err != nil {
 		return nil, err
@@ -800,7 +790,7 @@ func loadRunConfigFiles(baseDir, projectName, runID string) ([]webConfigFile, er
 	if err != nil {
 		return nil, err
 	}
-	files := make([]webConfigFile, 0, len(context.ConfigSnapshotFiles))
+	files := make([]webprojection.ConfigFile, 0, len(context.ConfigSnapshotFiles))
 	for index, fileName := range context.ConfigSnapshotFiles {
 		snapshotPath, err := stateinternal.SafeJoin(snapshotDir, fileName)
 		if err != nil {
@@ -811,7 +801,7 @@ func loadRunConfigFiles(baseDir, projectName, runID string) ([]webConfigFile, er
 		if err != nil {
 			return nil, err
 		}
-		files = append(files, webConfigFile{Path: context.ConfigPaths[index], Content: string(data)})
+		files = append(files, webprojection.ConfigFile{Path: context.ConfigPaths[index], Content: string(data)})
 	}
 	return files, nil
 }
@@ -876,7 +866,7 @@ func generateWebConfig(baseDir, projectName, location string) (string, error) {
 	return target, nil
 }
 
-func loadLegacyRunConfigFiles(baseDir, projectName string, configPaths []string) ([]webConfigFile, error) {
+func loadLegacyRunConfigFiles(baseDir, projectName string, configPaths []string) ([]webprojection.ConfigFile, error) {
 	allowed := make(map[string]bool)
 	for _, path := range configPathsForRun(baseDir, projectName) {
 		allowed[filepath.Clean(path)] = true
@@ -896,13 +886,13 @@ func loadLegacyRunConfigFiles(baseDir, projectName string, configPaths []string)
 	if err != nil {
 		return nil, err
 	}
-	return []webConfigFile{{Path: path, Content: string(data)}}, nil
+	return []webprojection.ConfigFile{{Path: path, Content: string(data)}}, nil
 }
 
 // loadWebState projects persisted server and project state into the Web API
 // model consumed by the embedded and static Web UIs.
-func loadWebState(baseDir, queueFilter string) (webState, error) {
-	state := webState{BaseDir: baseDir, ConfigPath: effectiveConfigPath(baseDir, ""), Server: loadWebServerState(baseDir), Environments: environmentDefinitions(), UpdatedAt: nowRFC3339()}
+func loadWebState(baseDir, queueFilter string) (webprojection.State, error) {
+	state := webprojection.State{BaseDir: baseDir, ConfigPath: effectiveConfigPath(baseDir, ""), Server: loadWebServerState(baseDir), Environments: environmentDefinitions(), UpdatedAt: nowRFC3339()}
 	for index := range state.Environments {
 		// Only expose whether the variable is set, never its value: it may hold secrets (API keys, tokens).
 		_, state.Environments[index].Set = os.LookupEnv(state.Environments[index].Name)
@@ -913,7 +903,7 @@ func loadWebState(baseDir, queueFilter string) (webState, error) {
 	} else {
 		entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
 		if err != nil && !os.IsNotExist(err) {
-			return webState{}, err
+			return webprojection.State{}, err
 		}
 		for _, entry := range entries {
 			if entry.IsDir() {
@@ -925,11 +915,11 @@ func loadWebState(baseDir, queueFilter string) (webState, error) {
 	for _, queueName := range queueNames {
 		paths, err := resolvePaths(baseDir, queueName)
 		if err != nil {
-			return webState{}, err
+			return webprojection.State{}, err
 		}
 		queueState, err := loadWebQueueState(paths)
 		if err != nil {
-			return webState{}, err
+			return webprojection.State{}, err
 		}
 		queueState.ConfigPath = effectiveConfigPath(baseDir, queueName)
 		state.Queues = append(state.Queues, queueState)
@@ -938,8 +928,8 @@ func loadWebState(baseDir, queueFilter string) (webState, error) {
 	return state, nil
 }
 
-func loadWebServerState(baseDir string) webServerState {
-	state := webServerState{}
+func loadWebServerState(baseDir string) webprojection.ServerState {
+	state := webprojection.ServerState{}
 	if _, err := os.Stat(serverSocketPath(baseDir)); err == nil {
 		state.SocketExists = true
 	}
@@ -963,7 +953,7 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 	logs := map[string]string{}
 	reports := map[string]string{}
 	configTargets := map[string][]webConfigTarget{}
-	configs := map[string][]webConfigFile{}
+	configs := map[string][]webprojection.ConfigFile{}
 	allTargets, err := webConfigTargets(baseDir, "")
 	if err != nil {
 		return err
@@ -1208,7 +1198,7 @@ func writeStaticStylesheet(directory string) error {
 	return os.WriteFile(filepath.Join(directory, "web_styles.css"), []byte(webStylesCSS), 0o644)
 }
 
-func loadWebQueueState(paths pathSet) (webQueueState, error) {
+func loadWebQueueState(paths stateinternal.ProjectPaths) (webprojection.QueueState, error) {
 	state, err := webprojection.LoadQueueState(webprojection.QueueLoader{
 		ProjectName: paths.ProjectName,
 		Queue:       func() (model.Queue, error) { return stateinternal.LoadQueue(paths.QueueFile) },
@@ -1243,13 +1233,13 @@ func loadWebQueueState(paths pathSet) (webQueueState, error) {
 		},
 	})
 	if err != nil {
-		return webQueueState{}, err
+		return webprojection.QueueState{}, err
 	}
 	formatWebQueueDisplayTimes(&state)
 	return state, nil
 }
 
-func formatWebQueueDisplayTimes(state *webQueueState) {
+func formatWebQueueDisplayTimes(state *webprojection.QueueState) {
 	projection := webprojection.QueueState{QueueName: state.QueueName, Queue: state.Queue, Runs: state.Runs, RunnerStartedAt: state.RunnerStartedAt}
 	webprojection.FormatQueueDisplayTimes(&projection)
 	state.RunnerStartedAt = projection.RunnerStartedAt
@@ -1257,7 +1247,7 @@ func formatWebQueueDisplayTimes(state *webQueueState) {
 	state.Runs = projection.Runs
 }
 
-func loadWebJobs(runDir string, summary RunSummary, attemptIDs ...string) ([]webJob, error) {
+func loadWebJobs(runDir string, summary model.RunSummary, attemptIDs ...string) ([]webprojection.Job, error) {
 	commands, err := stateinternal.LoadQueue(filepath.Join(runDir, "commands.json"))
 	if err != nil {
 		return nil, err
@@ -1343,7 +1333,7 @@ func cliDocsHTML(homePath string) string {
 	return composeInfoHTML(cliDocsTemplateHTML, homePath, builder.String())
 }
 
-func environmentHTML(homePath string, environments []environmentDefinition) string {
+func environmentHTML(homePath string, environments []webprojection.EnvironmentDefinition) string {
 	var builder strings.Builder
 	builder.WriteString(`<section><table><thead><tr><th>Variable</th><th>Set</th><th>CLI</th><th>Job</th><th>Array</th><th>Description</th></tr></thead><tbody>`)
 	for _, environment := range environments {

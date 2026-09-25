@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
 )
 
@@ -16,7 +17,7 @@ func TestExportWorkflowCurrentQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{DefaultExecutor: "slurm", Commands: []QueuedCommand{{ID: "job-id", Name: "job", Command: []string{"echo", "hello"}, Array: &ArraySpec{First: 1, Last: 2}}}}
+	queue := model.Queue{DefaultExecutor: "slurm", Commands: []model.QueuedCommand{{ID: "job-id", Name: "job", Command: []string{"echo", "hello"}, Array: &model.ArraySpec{First: 1, Last: 2}}}}
 	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
@@ -37,12 +38,12 @@ func TestExportWorkflowRunIncludesStatusAndAttempt(t *testing.T) {
 	}
 	runID := "20260925-120000-12345678"
 	runDir := filepath.Join(paths.RunsDir, runID)
-	queue := Queue{Commands: []QueuedCommand{{ID: "job-id", Name: "job", Command: []string{"false"}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job-id", Name: "job", Command: []string{"false"}}}}
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		t.Fatal(err)
 	}
 	attemptID := makeAttemptID(runID, "job-id", 0)
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Results: []JobResult{{ID: "job-id", AttemptID: attemptID, ExitCode: 1}}}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Results: []model.JobResult{{ID: "job-id", AttemptID: attemptID, ExitCode: 1}}}); err != nil {
 		t.Fatal(err)
 	}
 	manifest, err := exportWorkflow(baseDir, "demo", []string{runID})
@@ -87,11 +88,11 @@ func TestExportWorkflowMergesSameJobIDUsingLatestRun(t *testing.T) {
 	runIDs := []string{"20260925-120000-11111111", "20260925-130000-22222222"}
 	for index, runID := range runIDs {
 		runDir := filepath.Join(paths.RunsDir, runID)
-		if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "same-job", Name: "job", Command: []string{"work"}}}}); err != nil {
+		if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "same-job", Name: "job", Command: []string{"work"}}}}); err != nil {
 			t.Fatal(err)
 		}
 		attemptID := makeAttemptID(runID, "same-job", 0)
-		if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, FinishedAt: runID, Results: []JobResult{{ID: "same-job", AttemptID: attemptID, ExitCode: index}}}); err != nil {
+		if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, FinishedAt: runID, Results: []model.JobResult{{ID: "same-job", AttemptID: attemptID, ExitCode: index}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -114,10 +115,10 @@ func TestExportWorkflowRejectsDifferentJobIDsWithSameName(t *testing.T) {
 	runIDs := []string{"20260925-120000-11111111", "20260925-130000-22222222"}
 	for index, runID := range runIDs {
 		jobID := []string{"first-job", "second-job"}[index]
-		if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), Queue{Commands: []QueuedCommand{{ID: jobID, Name: "same-name", Command: []string{"work"}}}}); err != nil {
+		if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: jobID, Name: "same-name", Command: []string{"work"}}}}); err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), RunSummary{RunID: runID}); err != nil {
+		if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), model.RunSummary{RunID: runID}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -134,7 +135,7 @@ func TestCmdExportResolvesPositionalRunIDAndProject(t *testing.T) {
 	if err := registerRun(paths, runID); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "queued-id", Name: "queued", Command: []string{"echo"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "queued-id", Name: "queued", Command: []string{"echo"}}}}); err != nil {
 		t.Fatal(err)
 	}
 

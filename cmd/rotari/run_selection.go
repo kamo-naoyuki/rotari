@@ -13,20 +13,15 @@ import (
 
 var errNoPreviousRun = errors.New("no previous run")
 
-// rerunPlan splits a queue's commands between jobs that must be executed and
-// jobs whose previous result should be carried forward into the new run
-// instead of being re-executed.
-type rerunPlan = runcontract.Plan
-
 // planRerunSelection decides which of the queue's jobs a run executes; see
 // runcontract.PlanRerun.
-func planRerunSelection(paths pathSet, queue Queue, selection string, jobIDs []string, referenceRunID string, partialArray bool) (rerunPlan, error) {
+func planRerunSelection(paths state.ProjectPaths, queue model.Queue, selection string, jobIDs []string, referenceRunID string, partialArray bool) (runcontract.Plan, error) {
 	return runcontract.PlanRerun(queue, selection, jobIDs, referenceRunID, partialArray, projectOriginResults{paths: paths})
 }
 
 // projectOriginResults reads origin results from a project's runs.
 type projectOriginResults struct {
-	paths pathSet
+	paths state.ProjectPaths
 }
 
 func (source projectOriginResults) LastRunID() (string, error) {
@@ -43,7 +38,7 @@ func (source projectOriginResults) LastRunID() (string, error) {
 	return meta.LastRunID, nil
 }
 
-func (source projectOriginResults) RunResults(runID string) (map[string]JobResult, error) {
+func (source projectOriginResults) RunResults(runID string) (map[string]model.JobResult, error) {
 	runDir, err := state.SafeJoin(source.paths.RunsDir, runID)
 	if err != nil {
 		return nil, err
@@ -55,11 +50,11 @@ func (source projectOriginResults) RunResults(runID string) (map[string]JobResul
 	return model.ResultsByID(summary.Results), nil
 }
 
-func (source projectOriginResults) AttemptResult(origin JobOrigin) (JobResult, bool, error) {
+func (source projectOriginResults) AttemptResult(origin model.JobOrigin) (model.JobResult, bool, error) {
 	return loadOriginAttemptResult(source.paths, &origin)
 }
 
-func (source projectOriginResults) Origin(runID, jobID string, result JobResult) *JobOrigin {
+func (source projectOriginResults) Origin(runID, jobID string, result model.JobResult) *model.JobOrigin {
 	runDir := filepath.Join(source.paths.RunsDir, runID)
 	cwd := ""
 	if context, err := state.LoadContext(jsonStore(), runDir); err == nil {
@@ -69,33 +64,33 @@ func (source projectOriginResults) Origin(runID, jobID string, result JobResult)
 	if result.ExitCode == 0 {
 		status = "success"
 	}
-	return &JobOrigin{
+	return &model.JobOrigin{
 		RunID: runID, JobID: jobID, AttemptID: result.AttemptID, Status: status, CWD: cwd,
 		SubmittedAt: state.ReadJobTimestamp(runDir, jobID, "submitted_at"),
 		FinishedAt:  state.ReadJobTimestamp(runDir, jobID, "finished_at"),
 	}
 }
 
-func loadOriginAttemptResult(paths pathSet, origin *JobOrigin) (JobResult, bool, error) {
+func loadOriginAttemptResult(paths state.ProjectPaths, origin *model.JobOrigin) (model.JobResult, bool, error) {
 	runDir, err := state.SafeJoin(paths.RunsDir, origin.RunID)
 	if err != nil {
-		return JobResult{}, false, err
+		return model.JobResult{}, false, err
 	}
 	attemptDir, err := state.SpecificAttemptJobDir(runDir, origin.JobID, origin.AttemptID)
 	if err != nil {
-		return JobResult{}, false, err
+		return model.JobResult{}, false, err
 	}
-	var job JobSpec
+	var job model.JobSpec
 	if err := jsonStore().ReadJSON(filepath.Join(attemptDir, commandJSONName), &job); err != nil {
-		return JobResult{}, false, fmt.Errorf("failed to load origin attempt %q command: %w", origin.AttemptID, err)
+		return model.JobResult{}, false, fmt.Errorf("failed to load origin attempt %q command: %w", origin.AttemptID, err)
 	}
 	if result, ok := state.LoadLocalJobResult(attemptDir, job); ok {
 		result.AttemptID = origin.AttemptID
 		return result, true, nil
 	}
-	if status, ok := loadSlurmStatus(filepath.Join(attemptDir, statusJSONName)); ok {
-		result := JobResult{ID: origin.JobID, AttemptID: origin.AttemptID, Command: job.Command, ExitCode: status.ExitCode, Error: status.Error, Hosts: status.Hosts}
+	if status, ok := loadWrapperStatus(filepath.Join(attemptDir, statusJSONName)); ok {
+		result := model.JobResult{ID: origin.JobID, AttemptID: origin.AttemptID, Command: job.Command, ExitCode: status.ExitCode, Error: status.Error, Hosts: status.Hosts}
 		return result, true, nil
 	}
-	return JobResult{}, false, nil
+	return model.JobResult{}, false, nil
 }

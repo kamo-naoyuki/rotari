@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,9 +17,9 @@ func TestCmdWaitReturnsCompletedRunExitCode(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := "run-1"
-	summary := RunSummary{
+	summary := model.RunSummary{
 		RunID: runID, RunName: "nightly", Status: "failed", ExitCode: 2,
-		Results: []JobResult{{ID: "job-1", ExitCode: 0}, {ID: "job-2", ExitCode: 2}},
+		Results: []model.JobResult{{ID: "job-1", ExitCode: 0}, {ID: "job-2", ExitCode: 2}},
 	}
 	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), summary); err != nil {
 		t.Fatal(err)
@@ -63,10 +64,10 @@ func TestCmdWaitAcceptsMultipleRunIDs(t *testing.T) {
 	}
 	runA := "run-a"
 	runB := "run-b"
-	if err := writeJSON(filepath.Join(pathsA.RunsDir, runA, "summary.json"), RunSummary{RunID: runA, Status: "success", Results: []JobResult{{ID: "job-a", ExitCode: 0}}}); err != nil {
+	if err := writeJSON(filepath.Join(pathsA.RunsDir, runA, "summary.json"), model.RunSummary{RunID: runA, Status: "success", Results: []model.JobResult{{ID: "job-a", ExitCode: 0}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(pathsB.RunsDir, runB, "summary.json"), RunSummary{RunID: runB, Status: "failed", ExitCode: 3, Results: []JobResult{{ID: "job-b", ExitCode: 3}}}); err != nil {
+	if err := writeJSON(filepath.Join(pathsB.RunsDir, runB, "summary.json"), model.RunSummary{RunID: runB, Status: "failed", ExitCode: 3, Results: []model.JobResult{{ID: "job-b", ExitCode: 3}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := registerRun(pathsA, runA); err != nil {
@@ -177,7 +178,7 @@ func TestResolveActiveRunTarget(t *testing.T) {
 	if err := writeJSON(paths.MetaFile, defaultMeta()); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -197,7 +198,7 @@ func TestResolveWaitTargetByProjectRunNameAndRunID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-id", RunName: "nightly"}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-id", RunName: "nightly"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := registerRun(paths, "run-id"); err != nil {
@@ -231,7 +232,7 @@ func TestResolveWaitTargetRejectsAmbiguousRunName(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: projectName + "-run", RunName: "nightly"}); err != nil {
+		if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: projectName + "-run", RunName: "nightly"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -247,7 +248,7 @@ func TestResolveActiveWaitTargetsFindsAllProjects(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: projectName + "-run"}); err != nil {
+		if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: projectName + "-run"}); err != nil {
 			t.Fatal(err)
 		}
 	}

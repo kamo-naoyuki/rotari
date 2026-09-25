@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -184,7 +185,7 @@ var webhookEncoders = map[string]webhookEncoder{
 
 // notifyRunWebhook sends a configured run-completion webhook after summary
 // state is available.
-func notifyRunWebhook(paths pathSet, runID string, exitCode int) {
+func notifyRunWebhook(paths state.ProjectPaths, runID string, exitCode int) {
 	config := webhookSettings(paths)
 	if config.URL == "" || !webhookShouldSend(exitCode, config.On) {
 		return
@@ -248,7 +249,7 @@ func notifyRunWebhook(paths pathSet, runID string, exitCode int) {
 	}
 }
 
-func webhookSettings(paths pathSet) webhookConfig {
+func webhookSettings(paths state.ProjectPaths) webhookConfig {
 	settings := map[string]any{}
 	if configPaths := configPathsForRun(paths.BaseDir, paths.ProjectName); len(configPaths) > 0 {
 		configPath := configPaths[0]
@@ -302,7 +303,7 @@ func webhookShouldSend(exitCode int, setting string) bool {
 	return false
 }
 
-func makeRunWebhookPayload(project, runID string, summary RunSummary) runWebhookPayload {
+func makeRunWebhookPayload(project, runID string, summary model.RunSummary) runWebhookPayload {
 	payload := runWebhookPayload{
 		Event: "run.finished", Project: project, Run: formatRunLabel(runID, summary.RunName),
 		Status: summary.Status, ExitCode: summary.ExitCode,

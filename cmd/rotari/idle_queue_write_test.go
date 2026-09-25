@@ -7,19 +7,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-func writeIdleQueueFixture(t *testing.T) pathSet {
+func writeIdleQueueFixture(t *testing.T) state.ProjectPaths {
 	t.Helper()
 	paths, err := resolvePaths(t.TempDir(), "default")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "previous", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "previous", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "finished", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "finished", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 	return paths
@@ -32,7 +33,7 @@ func TestWriteIdleQueueWritesMetadataBeforeQueue(t *testing.T) {
 		order = append(order, path)
 		return state.WriteJSON(path, value)
 	}
-	if err := writeIdleQueueWith(writer, paths, &Queue{Commands: []QueuedCommand{{ID: "next", Command: []string{"true"}}}}); err != nil {
+	if err := writeIdleQueueWith(writer, paths, &model.Queue{Commands: []model.QueuedCommand{{ID: "next", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(order, []string{paths.MetaFile, paths.QueueFile}) {
@@ -62,7 +63,7 @@ func TestWriteIdleQueueFailureKeepsPreviousQueue(t *testing.T) {
 		}
 		return state.WriteJSON(path, value)
 	}
-	err = writeIdleQueueWith(writer, paths, &Queue{Commands: []QueuedCommand{{ID: "next", Command: []string{"true"}}}})
+	err = writeIdleQueueWith(writer, paths, &model.Queue{Commands: []model.QueuedCommand{{ID: "next", Command: []string{"true"}}}})
 	if err == nil || !strings.Contains(err.Error(), "failed to write queue") {
 		t.Fatalf("writeIdleQueueWith error = %v", err)
 	}
@@ -82,7 +83,7 @@ func TestWriteIdleQueueMetadataFailureSkipsQueue(t *testing.T) {
 		wrote = append(wrote, path)
 		return errors.New("disk full")
 	}
-	err := writeIdleQueueWith(writer, paths, &Queue{})
+	err := writeIdleQueueWith(writer, paths, &model.Queue{})
 	if err == nil || !strings.Contains(err.Error(), "failed to update metadata") {
 		t.Fatalf("writeIdleQueueWith error = %v", err)
 	}
@@ -109,37 +110,37 @@ func TestMarkProjectCollectingLeavesQueueUntouched(t *testing.T) {
 }
 
 func TestIdleQueueCommandsMarkProjectCollecting(t *testing.T) {
-	tests := map[string]func(*testing.T, string, pathSet){
-		"add": func(t *testing.T, baseDir string, paths pathSet) {
+	tests := map[string]func(*testing.T, string, state.ProjectPaths){
+		"add": func(t *testing.T, baseDir string, paths state.ProjectPaths) {
 			if _, err := enqueueCommand(baseDir, "default", []string{"added"}, "", nil, nil, "", nil); err != nil {
 				t.Fatal(err)
 			}
 		},
-		"change": func(t *testing.T, baseDir string, paths pathSet) {
+		"change": func(t *testing.T, baseDir string, paths state.ProjectPaths) {
 			if _, err := changeBatch(baseDir, "default", "", "previous", "", "", nil, false, nil, false, "", nil, false, []string{"changed"}); err != nil {
 				t.Fatal(err)
 			}
 		},
-		"remove": func(t *testing.T, baseDir string, paths pathSet) {
-			if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "previous", Command: []string{"true"}}, {ID: "other", Command: []string{"true"}}}}); err != nil {
+		"remove": func(t *testing.T, baseDir string, paths state.ProjectPaths) {
+			if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "previous", Command: []string{"true"}}, {ID: "other", Command: []string{"true"}}}}); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := removeBatch(baseDir, "default", "", []string{"previous"}, ""); err != nil {
 				t.Fatal(err)
 			}
 		},
-		"reset": func(t *testing.T, baseDir string, paths pathSet) {
+		"reset": func(t *testing.T, baseDir string, paths state.ProjectPaths) {
 			if _, err := resetQueueCommands(paths); err != nil {
 				t.Fatal(err)
 			}
 		},
-		"copy": func(t *testing.T, baseDir string, paths pathSet) {
-			writeCarryStateRun(t, paths, "run-1", Queue{Commands: []QueuedCommand{{ID: "copied", Command: []string{"true"}}}}, []JobResult{{ID: "copied"}})
+		"copy": func(t *testing.T, baseDir string, paths state.ProjectPaths) {
+			writeCarryStateRun(t, paths, "run-1", model.Queue{Commands: []model.QueuedCommand{{ID: "copied", Command: []string{"true"}}}}, []model.JobResult{{ID: "copied"}})
 			if _, err := copyRunToQueue(baseDir, "default", "run-1", "all", nil, false, true); err != nil {
 				t.Fatal(err)
 			}
 		},
-		"import": func(t *testing.T, baseDir string, paths pathSet) {
+		"import": func(t *testing.T, baseDir string, paths state.ProjectPaths) {
 			manifest := writeWorkflowFixture(t, "version: 1\njobs:\n  - command: [imported]\n")
 			if code := cmdImport([]string{"--basedir", baseDir, "--project-name", "default", "--overwrite", manifest}); code != 0 {
 				t.Fatalf("cmdImport exit code = %d", code)

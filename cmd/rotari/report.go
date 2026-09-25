@@ -12,6 +12,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
+	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
 
 const (
@@ -27,7 +28,7 @@ var (
 )
 
 // buildAIReport formats run or job evidence for AI-assisted diagnosis.
-func buildAIReport(paths pathSet, runID, jobID string, failedOnly bool, attemptIDs ...string) (string, error) {
+func buildAIReport(paths state.ProjectPaths, runID, jobID string, failedOnly bool, attemptIDs ...string) (string, error) {
 	run, err := loadAIReportRun(paths, runID, attemptIDs...)
 	if err != nil {
 		return "", err
@@ -47,7 +48,7 @@ func buildAIReport(paths pathSet, runID, jobID string, failedOnly bool, attemptI
 }
 
 // buildAIReportForJobs formats evidence for a selected set of jobs in one run.
-func buildAIReportForJobs(paths pathSet, runID string, jobIDs []string) (string, error) {
+func buildAIReportForJobs(paths state.ProjectPaths, runID string, jobIDs []string) (string, error) {
 	run, err := loadAIReportRun(paths, runID)
 	if err != nil {
 		return "", err
@@ -74,21 +75,21 @@ func buildAIReportForJobs(paths pathSet, runID string, jobIDs []string) (string,
 	return redactAIReport(formatRunAIReportSelected(paths, run, selected, false), paths, run), nil
 }
 
-func loadAIReportRun(paths pathSet, runID string, attemptIDs ...string) (webRun, error) {
+func loadAIReportRun(paths state.ProjectPaths, runID string, attemptIDs ...string) (webprojection.Run, error) {
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
-		return webRun{}, fmt.Errorf(runNotFoundMessage, runID)
+		return webprojection.Run{}, fmt.Errorf(runNotFoundMessage, runID)
 	}
-	var summary RunSummary
+	var summary model.RunSummary
 	if path, err := state.ValidatedStateFile(runDir, stateFileSummaryJSON); err == nil {
 		summary, err = state.LoadRunSummary(path)
 		if err != nil && !os.IsNotExist(err) {
-			return webRun{}, fmt.Errorf("failed to read summary: %w", err)
+			return webprojection.Run{}, fmt.Errorf("failed to read summary: %w", err)
 		}
 	} else {
 		summary, err = state.LoadRunSummary(filepath.Join(runDir, stateFileSummaryJSON))
 		if err != nil && !os.IsNotExist(err) {
-			return webRun{}, fmt.Errorf("failed to read summary: %w", err)
+			return webprojection.Run{}, fmt.Errorf("failed to read summary: %w", err)
 		}
 	}
 	if summary.RunID == "" {
@@ -104,20 +105,20 @@ func loadAIReportRun(paths pathSet, runID string, attemptIDs ...string) (webRun,
 	}
 	jobs, err := loadWebJobs(runDir, summary, attemptIDs...)
 	if err != nil {
-		return webRun{}, err
+		return webprojection.Run{}, err
 	}
-	context := RunContext{}
+	context := model.RunContext{}
 	if loaded, err := state.LoadContext(jsonStore(), runDir); err == nil {
-		context = RunContext(loaded)
+		context = model.RunContext(loaded)
 	}
-	return webRun{RunSummary: summary, Jobs: jobs, CWD: context.CWD, Context: context, Running: running}, nil
+	return webprojection.Run{RunSummary: summary, Jobs: jobs, CWD: context.CWD, Context: context, Running: running}, nil
 }
 
-func formatRunAIReport(paths pathSet, run webRun, failedOnly bool) string {
+func formatRunAIReport(paths state.ProjectPaths, run webprojection.Run, failedOnly bool) string {
 	return formatRunAIReportSelected(paths, run, nil, failedOnly)
 }
 
-func formatRunAIReportSelected(paths pathSet, run webRun, selected map[string]bool, failedOnly bool) string {
+func formatRunAIReportSelected(paths state.ProjectPaths, run webprojection.Run, selected map[string]bool, failedOnly bool) string {
 	var builder strings.Builder
 	fmt.Fprintln(&builder, "# rotari run report")
 	fmt.Fprintf(&builder, "\n- Project: %s\n- Run ID: `%s`\n- Status: %s\n- Exit code: %d\n", paths.ProjectName, run.RunID, run.Status, run.ExitCode)
@@ -136,7 +137,7 @@ func formatRunAIReportSelected(paths pathSet, run webRun, selected map[string]bo
 	return builder.String()
 }
 
-func formatJobAIReport(paths pathSet, run webRun, job webJob) string {
+func formatJobAIReport(paths state.ProjectPaths, run webprojection.Run, job webprojection.Job) string {
 	var builder strings.Builder
 	fmt.Fprintln(&builder, "# rotari job report")
 	fmt.Fprintf(&builder, "\n- Project: %s\n- Run ID: `%s`\n- Run status: %s\n- Host: %s\n", paths.ProjectName, run.RunID, run.Status, reportValue(run.Context.Hostname))
@@ -144,7 +145,7 @@ func formatJobAIReport(paths pathSet, run webRun, job webJob) string {
 	return builder.String()
 }
 
-func redactAIReport(report string, paths pathSet, run webRun) string {
+func redactAIReport(report string, paths state.ProjectPaths, run webprojection.Run) string {
 	values := []string{paths.BaseDir, run.CWD, run.Context.Hostname}
 	for _, job := range run.Jobs {
 		values = append(values, job.WorkingDirectory)
@@ -180,7 +181,7 @@ func redactAIReport(report string, paths pathSet, run webRun) string {
 	return report + "\n> Paths and hostnames are redacted where detected. Review logs before sharing; complete redaction is not guaranteed.\n"
 }
 
-func writeJobAIReport(builder *strings.Builder, paths pathSet, run webRun, job webJob, status string, includeLog bool) {
+func writeJobAIReport(builder *strings.Builder, paths state.ProjectPaths, run webprojection.Run, job webprojection.Job, status string, includeLog bool) {
 	name := job.Name
 	if name == "" {
 		name = job.ID
@@ -218,7 +219,7 @@ func writeJobAIReport(builder *strings.Builder, paths pathSet, run webRun, job w
 	}
 }
 
-func reportJobStatus(job webJob, running bool) string {
+func reportJobStatus(job webprojection.Job, running bool) string {
 	if job.Result == nil {
 		if job.SchedulerState != "" {
 			return job.SchedulerState
@@ -237,7 +238,7 @@ func reportJobStatus(job webJob, running bool) string {
 	return "failed"
 }
 
-func readReportLog(paths pathSet, runID string, job webJob) string {
+func readReportLog(paths state.ProjectPaths, runID string, job webprojection.Job) string {
 	if job.AttemptDir != "" {
 		// NOSONAR: job.AttemptDir is created from validated path elements only.
 		path, err := state.ValidatedStateFile(job.AttemptDir, stateFileOutput)

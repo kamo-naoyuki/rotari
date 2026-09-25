@@ -103,11 +103,11 @@ func writeProjectCheck(writer io.Writer, projectName string, result projectCheck
 	return err
 }
 
-func checkProject(paths pathSet) (projectCheck, error) {
+func checkProject(paths state.ProjectPaths) (projectCheck, error) {
 	return checkProjectWithOptions(paths, false)
 }
 
-func checkProjectWithOptions(paths pathSet, deep bool) (projectCheck, error) {
+func checkProjectWithOptions(paths state.ProjectPaths, deep bool) (projectCheck, error) {
 	release, err := state.AcquireStateReadLock(paths.StateLockFile)
 	if err != nil {
 		return projectCheck{}, fmt.Errorf("lock project state: %w", err)

@@ -6,11 +6,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-func writeRunContext(paths pathSet, runID, cwd string) error {
+func writeRunContext(paths state.ProjectPaths, runID, cwd string) error {
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return err
@@ -26,7 +27,7 @@ func writeRunContext(paths pathSet, runID, cwd string) error {
 		context.ConfigSnapshotPaths = snapshotPaths
 	}
 	if context.StartedLoad != nil {
-		if err := state.AppendLoadSample(loadSamplesPath(paths, runID), LoadSample{At: nowRFC3339Nano(), LoadAverage: *context.StartedLoad}); err != nil {
+		if err := state.AppendLoadSample(loadSamplesPath(paths, runID), model.LoadSample{At: nowRFC3339Nano(), LoadAverage: *context.StartedLoad}); err != nil {
 			return err
 		}
 	}
@@ -62,32 +63,32 @@ func snapshotRunConfigs(runDir string, configPaths []string) ([]string, []string
 	return files, snapshotPaths, nil
 }
 
-func finishRunContext(paths pathSet, runID string) error {
+func finishRunContext(paths state.ProjectPaths, runID string) error {
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return err
 	}
-	context := RunContext{}
+	context := model.RunContext{}
 	if loaded, err := state.LoadContext(jsonStore(), runDir); err == nil {
 		context = loaded
 	}
 	context.FinishedLoad = runcontract.ReadLoadAverage()
 	if context.FinishedLoad != nil {
-		if err := state.AppendLoadSample(loadSamplesPath(paths, runID), LoadSample{At: nowRFC3339Nano(), LoadAverage: *context.FinishedLoad}); err != nil {
+		if err := state.AppendLoadSample(loadSamplesPath(paths, runID), model.LoadSample{At: nowRFC3339Nano(), LoadAverage: *context.FinishedLoad}); err != nil {
 			return err
 		}
 	}
 	return state.SaveContext(jsonStore(), runDir, context)
 }
 
-func captureRunContext(cwd string) RunContext {
+func captureRunContext(cwd string) model.RunContext {
 	hostname, _ := os.Hostname()
-	return RunContext{CWD: cwd, Hostname: hostname, StartedLoad: runcontract.ReadLoadAverage()}
+	return model.RunContext{CWD: cwd, Hostname: hostname, StartedLoad: runcontract.ReadLoadAverage()}
 }
 
 const loadSampleInterval = 10 * time.Second
 
-func startRunLoadSampling(paths pathSet, runID string) func() {
+func startRunLoadSampling(paths state.ProjectPaths, runID string) func() {
 	stop := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
@@ -109,7 +110,7 @@ func startRunLoadSampling(paths pathSet, runID string) func() {
 	}
 }
 
-func loadSamplesPath(paths pathSet, runID string) string {
+func loadSamplesPath(paths state.ProjectPaths, runID string) string {
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return ""
@@ -117,10 +118,10 @@ func loadSamplesPath(paths pathSet, runID string) string {
 	return filepath.Join(runDir, "load_samples.jsonl")
 }
 
-func appendRunLoadSample(paths pathSet, runID string) error {
+func appendRunLoadSample(paths state.ProjectPaths, runID string) error {
 	load := runcontract.ReadLoadAverage()
 	if load == nil {
 		return nil
 	}
-	return state.AppendLoadSample(loadSamplesPath(paths, runID), LoadSample{At: nowRFC3339Nano(), LoadAverage: *load})
+	return state.AppendLoadSample(loadSamplesPath(paths, runID), model.LoadSample{At: nowRFC3339Nano(), LoadAverage: *load})
 }

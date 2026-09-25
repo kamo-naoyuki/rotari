@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -167,12 +169,12 @@ func TestDiagnoseJobResultReadsOutputAndPreservesSavedDiagnoses(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(jobDir, "output"), []byte("CUDA out of memory\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	result := diagnoseJobResult(runDir, JobResult{ID: "job-1", ExitCode: 1})
+	result := diagnoseJobResult(runDir, model.JobResult{ID: "job-1", ExitCode: 1})
 	if len(result.Diagnoses) != 1 || result.Diagnoses[0].Name != "CUDA/GPU memory exhausted" {
 		t.Fatalf("diagnoseJobResult() = %#v", result.Diagnoses)
 	}
 
-	saved := JobResult{ID: "job-1", ExitCode: 1, Diagnoses: []ruleDiagnosis{{Name: "Saved diagnosis"}}}
+	saved := model.JobResult{ID: "job-1", ExitCode: 1, Diagnoses: []model.RuleDiagnosis{{Name: "Saved diagnosis"}}}
 	if got := diagnoseJobResult(runDir, saved); len(got.Diagnoses) != 1 || got.Diagnoses[0].Name != "Saved diagnosis" {
 		t.Fatalf("diagnoseJobResult() overwrote saved diagnoses: %#v", got.Diagnoses)
 	}
@@ -187,18 +189,18 @@ func TestDiagnoseJobResultPersistsNoMatch(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(jobDir, "output"), []byte("unrecognized failure\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	result := diagnoseJobResult(runDir, JobResult{ID: "job-1", ExitCode: 1})
+	result := diagnoseJobResult(runDir, model.JobResult{ID: "job-1", ExitCode: 1})
 	if len(result.Diagnoses) != 1 || result.Diagnoses[0].Name != noRuleDiagnosisName {
 		t.Fatalf("diagnoseJobResult() = %#v, want no-match diagnosis", result.Diagnoses)
 	}
 }
 
 func TestDiagnosisPromptIncludesRequestedLanguage(t *testing.T) {
-	prompt := diagnosisPrompt(diagnosisJob{}, "ja")
+	prompt := diagnosisPrompt(diagnose.Job{}, "ja")
 	if !strings.Contains(prompt, `BCP 47 tag "ja"`) {
 		t.Fatalf("diagnosisPrompt() = %q", prompt)
 	}
-	if strings.Contains(diagnosisPrompt(diagnosisJob{}, ""), "BCP 47 tag") {
+	if strings.Contains(diagnosisPrompt(diagnose.Job{}, ""), "BCP 47 tag") {
 		t.Fatal("diagnosisPrompt() included a language instruction without a requested language")
 	}
 }
@@ -230,7 +232,7 @@ func TestCmdDiagnoseRequiresAPIKeyBeforeLLMRequest(t *testing.T) {
 }
 
 func TestDiagnoseJobResultRejectsInvalidJobIDWithUnavailableDiagnosis(t *testing.T) {
-	result := diagnoseJobResult(t.TempDir(), JobResult{ID: "../outside", ExitCode: 1, Error: "bad input"})
+	result := diagnoseJobResult(t.TempDir(), model.JobResult{ID: "../outside", ExitCode: 1, Error: "bad input"})
 	if len(result.Diagnoses) != 1 || result.Diagnoses[0].Name != unavailableRuleDiagnosisName {
 		t.Fatalf("result.Diagnoses = %#v, want unavailable diagnosis for invalid job ID", result.Diagnoses)
 	}

@@ -124,7 +124,7 @@ func cmdReset(args []string) int {
 	return 0
 }
 
-func confirmResetOfInterruptedRun(input io.Reader, output io.Writer, paths pathSet, runID string) (bool, error) {
+func confirmResetOfInterruptedRun(input io.Reader, output io.Writer, paths state.ProjectPaths, runID string) (bool, error) {
 	detail, _ := interruptedRunStatusDetail(paths, runID)
 	fmt.Fprintf(output, "project %q has interrupted run %q%s.\nConfirm all jobs have stopped and reset the queue? [y/N] ", paths.ProjectName, runID, detail)
 	answer, err := bufio.NewReader(input).ReadString('\n')
@@ -136,7 +136,7 @@ func confirmResetOfInterruptedRun(input io.Reader, output io.Writer, paths pathS
 }
 
 // resetQueueCommands preserves queue defaults and run history.
-func resetQueueCommands(paths pathSet) (int, error) {
+func resetQueueCommands(paths state.ProjectPaths) (int, error) {
 	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
 		return 0, fmt.Errorf("failed to create project directory: %w", err)
 	}

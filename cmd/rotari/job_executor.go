@@ -28,26 +28,15 @@ func (flag *stringSliceFlag) Reset() {
 	*flag = nil
 }
 
-type JobHandle = executor.JobHandle
-type JobExecutor = executor.JobExecutor
-type ArraySubmitter = executor.ArraySubmitter
-type Suspender = executor.Suspender
-type Canceller = executor.Canceller
-
-// ExecutorRunSettings controls the dispatch defaults for one executor.
-// Job-specific options remain higher priority than these values.
-type ExecutorRunSettings = executor.RunSettings
-type executorRunSettingsMap = executor.RunSettingsMap
-
 var executorRunSettingNames = []string{"ssh", "slurm", "pbs", "lsf"}
 
-func cliExecutorRunSettings(fs *flag.FlagSet) executorRunSettingsMap {
-	settings := make(executorRunSettingsMap)
+func cliExecutorRunSettings(fs *flag.FlagSet) executor.RunSettingsMap {
+	settings := make(executor.RunSettingsMap)
 	for _, name := range executorRunSettingNames {
 		concurrency := cliInt(fs, name+"-concurrency", 0)
 		var options stringSliceFlag
 		cliValue(fs, &options, name+"-options")
-		settings[name] = ExecutorRunSettings{Concurrency: *concurrency, Options: options, SubmitInterval: executorSubmitInterval(fs, name), SubmitRetryLimit: executorSubmitRetryLimit(fs, name)}
+		settings[name] = executor.RunSettings{Concurrency: *concurrency, Options: options, SubmitInterval: executorSubmitInterval(fs, name), SubmitRetryLimit: executorSubmitRetryLimit(fs, name)}
 	}
 	return settings
 }
@@ -66,21 +55,21 @@ func executorSubmitRetryLimit(fs *flag.FlagSet, name string) int {
 	return *cliInt(fs, name+"-submit-retry-limit", 0)
 }
 
-func executorSettingsFor(settings executorRunSettingsMap, name string) ExecutorRunSettings {
+func executorSettingsFor(settings executor.RunSettingsMap, name string) executor.RunSettings {
 	if settings == nil {
-		return ExecutorRunSettings{}
+		return executor.RunSettings{}
 	}
 	return settings[name]
 }
 
-func effectiveExecutorConcurrency(settings executorRunSettingsMap, name string, fallback int) int {
+func effectiveExecutorConcurrency(settings executor.RunSettingsMap, name string, fallback int) int {
 	if concurrency := executorSettingsFor(settings, name).Concurrency; concurrency > 0 {
 		return concurrency
 	}
 	return fallback
 }
 
-func effectiveExecutorOptions(settings executorRunSettingsMap, name string, fallback []string) []string {
+func effectiveExecutorOptions(settings executor.RunSettingsMap, name string, fallback []string) []string {
 	if options := executorSettingsFor(settings, name).Options; len(options) > 0 {
 		return options
 	}
@@ -92,7 +81,7 @@ func effectiveExecutorOptions(settings executorRunSettingsMap, name string, fall
 // executorNames() during their own initialization.
 var executorRegistry = executor.NewRegistry(jsonStore(), jobLogf)
 
-func lookupExecutor(name string) (JobExecutor, bool) {
+func lookupExecutor(name string) (executor.JobExecutor, bool) {
 	return executorRegistry.Lookup(name)
 }
 
@@ -105,7 +94,7 @@ func executorNames() []string {
 	return executorRegistry.Names()
 }
 
-func validateQueueForRun(queue Queue, requestedExecutor string, executorOptions []string, settings executorRunSettingsMap) error {
+func validateQueueForRun(queue model.Queue, requestedExecutor string, executorOptions []string, settings executor.RunSettingsMap) error {
 	if err := validateQueueJobs(queue); err != nil {
 		return err
 	}
@@ -171,7 +160,7 @@ func validateExecutorOptions(executorName string, options []string, array bool) 
 	return err
 }
 
-func validateLocalExecutionEnvironment(queue Queue) error {
+func validateLocalExecutionEnvironment(queue model.Queue) error {
 	defaultExecutor := queue.DefaultExecutor
 	if defaultExecutor == "" {
 		defaultExecutor = "local"
@@ -214,7 +203,7 @@ func validateExecutorCommand(executorName string) error {
 	return nil
 }
 
-func validateLocalJobEnvironment(job QueuedCommand) error {
+func validateLocalJobEnvironment(job model.QueuedCommand) error {
 	if job.WorkingDirectory != "" {
 		info, err := os.Stat(job.WorkingDirectory)
 		if err != nil {

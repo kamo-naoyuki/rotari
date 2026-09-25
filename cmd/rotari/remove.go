@@ -80,7 +80,7 @@ func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []st
 		removeIDs[id] = true
 	}
 	foundIDs := make(map[string]bool, len(requestedJobIDs))
-	removed := make([]QueuedCommand, 0, len(queue.Commands))
+	removed := make([]model.QueuedCommand, 0, len(queue.Commands))
 	for _, job := range queue.Commands {
 		if removeIDs[job.ID] {
 			foundIDs[job.ID] = true
@@ -101,7 +101,7 @@ func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []st
 			removedNames[job.Name] = true
 		}
 	}
-	remaining := make([]QueuedCommand, 0, len(queue.Commands)-len(removed))
+	remaining := make([]model.QueuedCommand, 0, len(queue.Commands)-len(removed))
 	for _, job := range queue.Commands {
 		if removeIDs[job.ID] || (requestedJobName != "" && job.Name == requestedJobName) {
 			continue

@@ -274,7 +274,7 @@ func workflowFormatFromPath(path string) (string, error) {
 	}
 }
 
-func newImportPlan(project string, queue Queue, removed []workflow.RemovedJob) importPlan {
+func newImportPlan(project string, queue model.Queue, removed []workflow.RemovedJob) importPlan {
 	if removed == nil {
 		removed = []workflow.RemovedJob{}
 	}
@@ -300,7 +300,7 @@ func newImportPlan(project string, queue Queue, removed []workflow.RemovedJob) i
 	return plan
 }
 
-func importPlanTasks(command QueuedCommand) []importPlanTask {
+func importPlanTasks(command model.QueuedCommand) []importPlanTask {
 	tasks := make([]importPlanTask, 0, len(command.TaskOrigins))
 	for _, task := range model.ArrayTaskIDs(command.Array) {
 		taskID := fmt.Sprintf("%s-%d", command.ID, task)
@@ -318,14 +318,14 @@ func importPlanTasks(command QueuedCommand) []importPlanTask {
 	return tasks
 }
 
-func newImportPlanSource(origin *JobOrigin) *importPlanSource {
+func newImportPlanSource(origin *model.JobOrigin) *importPlanSource {
 	if origin == nil {
 		return nil
 	}
 	return &importPlanSource{RunID: origin.RunID, JobID: origin.JobID, AttemptID: origin.AttemptID, Status: origin.Status}
 }
 
-func writeImportedQueue(baseDir, projectName string, queue Queue, overwrite bool) error {
+func writeImportedQueue(baseDir, projectName string, queue model.Queue, overwrite bool) error {
 	paths, err := resolvePaths(baseDir, projectName)
 	if err != nil {
 		return err

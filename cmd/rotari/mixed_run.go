@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -12,8 +13,8 @@ import (
 
 // executeMixedRun snapshots a queue, plans selected work, runs local and batch
 // jobs through the shared run engine, and persists final run state.
-func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, batchMaxActive, retry int, requestedExecutor string, executorOptions []string, selection string, jobIDs []string, referenceRunID string, partialArray bool, progress func(JobResult, int, int, int, int), onStart func(JobSpec), settings ...executorRunSettingsMap) int {
-	var executorSettings executorRunSettingsMap
+func executeMixedRun(paths state.ProjectPaths, runID, runName string, localConcurrency, batchMaxActive, retry int, requestedExecutor string, executorOptions []string, selection string, jobIDs []string, referenceRunID string, partialArray bool, progress func(model.JobResult, int, int, int, int), onStart func(model.JobSpec), settings ...executor.RunSettingsMap) int {
+	var executorSettings executor.RunSettingsMap
 	if len(settings) > 0 {
 		executorSettings = settings[0]
 	}
@@ -71,18 +72,18 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 		return 1
 	}
 
-	finalResults := make(map[string]JobResult, len(jobs))
+	finalResults := make(map[string]model.JobResult, len(jobs))
 	for id, result := range plan.CarriedResults {
 		finalResults[id] = result
 	}
-	executable := make([]JobSpec, 0, len(jobs))
+	executable := make([]model.JobSpec, 0, len(jobs))
 	for _, job := range jobs {
 		if plan.Execute[job.ID] {
 			executable = append(executable, job)
 		}
 	}
-	pending := append([]JobSpec(nil), executable...)
-	jobsByName := make(map[string]JobSpec, len(jobs))
+	pending := append([]model.JobSpec(nil), executable...)
+	jobsByName := make(map[string]model.JobSpec, len(jobs))
 	for _, job := range jobs {
 		if job.Name != "" {
 			jobsByName[job.Name] = job
@@ -106,7 +107,7 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 	})
 	runcontract.FinalizePendingResults(pending, finalResults)
 
-	summary := runcontract.BuildRunSummary(runID, runName, nowRFC3339(), jobs, finalResults, func(result JobResult) JobResult {
+	summary := runcontract.BuildRunSummary(runID, runName, nowRFC3339(), jobs, finalResults, func(result model.JobResult) model.JobResult {
 		return diagnoseJobResult(runDir, result)
 	})
 	if err := state.WriteJSON(filepath.Join(runDir, "summary.json"), summary); err != nil {
@@ -115,7 +116,7 @@ func executeMixedRun(paths pathSet, runID, runName string, localConcurrency, bat
 	return summary.ExitCode
 }
 
-func jobWasExplicitlyCancelled(runDir, jobID string, result JobResult) bool {
+func jobWasExplicitlyCancelled(runDir, jobID string, result model.JobResult) bool {
 	jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 	if err != nil {
 		return false
@@ -123,7 +124,7 @@ func jobWasExplicitlyCancelled(runDir, jobID string, result JobResult) bool {
 	return runcontract.WasExplicitlyCancelled(result.Error,
 		func() bool { return jobCancellationRequested(jobDir) },
 		func() string {
-			if status, ok := loadSlurmStatus(filepath.Join(jobDir, "status.json")); ok {
+			if status, ok := loadWrapperStatus(filepath.Join(jobDir, "status.json")); ok {
 				return status.Phase
 			}
 			return ""
@@ -131,11 +132,11 @@ func jobWasExplicitlyCancelled(runDir, jobID string, result JobResult) bool {
 	)
 }
 
-func prepareJobEnvironments(paths pathSet, runID string, jobs []JobSpec, runName string, localConcurrency, batchConcurrency, retry int, executorOptions []string) {
+func prepareJobEnvironments(paths state.ProjectPaths, runID string, jobs []model.JobSpec, runName string, localConcurrency, batchConcurrency, retry int, executorOptions []string) {
 	runDir := filepath.Join(paths.RunsDir, runID)
 	cwd := ""
 	if data, err := os.ReadFile(filepath.Join(runDir, "context.json")); err == nil {
-		var context RunContext
+		var context model.RunContext
 		if json.Unmarshal(data, &context) == nil {
 			cwd = context.CWD
 		}
@@ -157,15 +158,15 @@ func prepareJobEnvironments(paths pathSet, runID string, jobs []JobSpec, runName
 		}, BaseDir: paths.BaseDir, ProjectName: paths.ProjectName, RunID: runID, RunDir: runDir,
 		RunName: runName, Bin: bin, CWD: cwd, LocalConcurrency: localConcurrency,
 		BatchConcurrency: batchConcurrency, Retry: retry, ExecutorOptions: executorOptions,
-		Inherited: inherited, JobDir: func(runDir string, job JobSpec) (string, error) {
+		Inherited: inherited, JobDir: func(runDir string, job model.JobSpec) (string, error) {
 			return state.SafeJoin(runDir, job.ID)
 		},
 	})
 }
 
-func assignAttemptIDs(jobs []JobSpec, runID string, attempt int) {
+func assignAttemptIDs(jobs []model.JobSpec, runID string, attempt int) {
 	runcontract.AssignAttemptIDs(jobs, runID, attempt, runcontract.AttemptIDCallbacks{
-		MakeAttemptID: state.MakeAttemptID, AttemptJobDir: func(runDir string, job JobSpec) (string, error) {
+		MakeAttemptID: state.MakeAttemptID, AttemptJobDir: func(runDir string, job model.JobSpec) (string, error) {
 			return state.AttemptJobDir(runDir, model.JobSpec(job))
 		},
 		AttemptIDName: envAttemptID, RunDirName: envRunDir, JobDirName: envJobDir,
@@ -176,7 +177,7 @@ func environmentEntry(environment []string, name string) (string, bool) {
 	return runcontract.EnvironmentEntry(environment, name)
 }
 
-func executeMixedAttempt(runDir string, queue Queue, jobs []JobSpec, localConcurrency, batchMaxActive int, requestedExecutor string, executorOptions []string, executorSettings executorRunSettingsMap, onStart func(JobSpec)) []JobResult {
+func executeMixedAttempt(runDir string, queue model.Queue, jobs []model.JobSpec, localConcurrency, batchMaxActive int, requestedExecutor string, executorOptions []string, executorSettings executor.RunSettingsMap, onStart func(model.JobSpec)) []model.JobResult {
 	return runcontract.RunAttempt(runDir, queue, jobs, runcontract.AttemptOptions{
 		LocalConcurrency: localConcurrency, BatchMaxActive: batchMaxActive,
 		RequestedExecutor: requestedExecutor, ExecutorOptions: executorOptions,

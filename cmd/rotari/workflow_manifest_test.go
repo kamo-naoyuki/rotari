@@ -38,13 +38,13 @@ func captureWorkflowStdout(t *testing.T, run func() int) (int, []byte) {
 
 // writeWorkflowSourceRun persists a run snapshot and creates an attempt
 // directory for every result that has an attempt ID.
-func writeWorkflowSourceRun(t *testing.T, paths pathSet, runID string, queue Queue, results []JobResult) {
+func writeWorkflowSourceRun(t *testing.T, paths state.ProjectPaths, runID string, queue model.Queue, results []model.JobResult) {
 	t.Helper()
 	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Status: "finished", Results: results}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "finished", Results: results}); err != nil {
 		t.Fatal(err)
 	}
 	for _, result := range results {
@@ -63,7 +63,7 @@ func writeWorkflowSourceRun(t *testing.T, paths pathSet, runID string, queue Que
 			t.Fatal(err)
 		}
 	}
-	if err := writeJSON(paths.MetaFile, Meta{LastRunID: runID, Phase: "collecting"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{LastRunID: runID, Phase: "collecting"}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -72,20 +72,20 @@ const workflowPipelineRunID = "20260925-150000-abcdef12"
 
 // writeWorkflowPipelineRun writes a successful run where train depends on
 // prepare and other is independent.
-func writeWorkflowPipelineRun(t *testing.T, baseDir string) pathSet {
+func writeWorkflowPipelineRun(t *testing.T, baseDir string) state.ProjectPaths {
 	t.Helper()
 	paths, err := resolvePaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{
+	queue := model.Queue{Commands: []model.QueuedCommand{
 		{ID: "prepare-id", Name: "prepare", Command: []string{"true"}},
 		{ID: "train-id", Name: "train", Command: []string{"true"}, DependsOn: []string{"prepare"}},
 		{ID: "other-id", Name: "other", Command: []string{"true"}},
 	}}
-	results := make([]JobResult, 0, len(queue.Commands))
+	results := make([]model.JobResult, 0, len(queue.Commands))
 	for _, command := range queue.Commands {
-		results = append(results, JobResult{ID: command.ID, AttemptID: makeAttemptID(workflowPipelineRunID, command.ID, 0), ExitCode: 0})
+		results = append(results, model.JobResult{ID: command.ID, AttemptID: makeAttemptID(workflowPipelineRunID, command.ID, 0), ExitCode: 0})
 	}
 	writeWorkflowSourceRun(t, paths, workflowPipelineRunID, queue, results)
 	return paths
@@ -122,7 +122,7 @@ func workflowJobByName(t *testing.T, manifest *workflow.Manifest, name string) *
 	return nil
 }
 
-func queuedCommandByName(t *testing.T, queue Queue, name string) QueuedCommand {
+func queuedCommandByName(t *testing.T, queue model.Queue, name string) model.QueuedCommand {
 	t.Helper()
 	for _, command := range queue.Commands {
 		if command.Name == name {
@@ -130,7 +130,7 @@ func queuedCommandByName(t *testing.T, queue Queue, name string) QueuedCommand {
 		}
 	}
 	t.Fatalf("queue has no job %q: %#v", name, queue.Commands)
-	return QueuedCommand{}
+	return model.QueuedCommand{}
 }
 
 func snapshotStateTree(t *testing.T, root string) map[string]string {
@@ -195,7 +195,7 @@ func TestCmdExportRejectsInvalidOptionCombinations(t *testing.T) {
 func TestCmdExportRunWritesManifestWithoutChangingState(t *testing.T) {
 	baseDir := t.TempDir()
 	paths := writeWorkflowPipelineRun(t, baseDir)
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "queued", Command: []string{"queued"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "queued", Command: []string{"queued"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	before := snapshotStateTree(t, baseDir)
@@ -240,7 +240,7 @@ func TestExportWorkflowFlattensQueueDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{DefaultExecutor: "local", DefaultExecutorOptions: []string{"--default"}, Commands: []QueuedCommand{
+	queue := model.Queue{DefaultExecutor: "local", DefaultExecutorOptions: []string{"--default"}, Commands: []model.QueuedCommand{
 		{ID: "inherits", Command: []string{"true"}},
 		{ID: "overrides", Command: []string{"true"}, ExecutorOptions: []string{"--own"}},
 	}}
@@ -263,10 +263,10 @@ func TestExportWorkflowIncludesDistinctJobIDsFromMultipleRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 	runA, runB := "20260925-120000-11111111", "20260925-130000-22222222"
-	writeWorkflowSourceRun(t, paths, runA, Queue{Commands: []QueuedCommand{{ID: "job-a", Name: "a", Command: []string{"same"}}}},
-		[]JobResult{{ID: "job-a", AttemptID: makeAttemptID(runA, "job-a", 0)}})
-	writeWorkflowSourceRun(t, paths, runB, Queue{Commands: []QueuedCommand{{ID: "job-b", Command: []string{"same"}}, {ID: "job-c", Command: []string{"same"}}}},
-		[]JobResult{{ID: "job-b", AttemptID: makeAttemptID(runB, "job-b", 0)}})
+	writeWorkflowSourceRun(t, paths, runA, model.Queue{Commands: []model.QueuedCommand{{ID: "job-a", Name: "a", Command: []string{"same"}}}},
+		[]model.JobResult{{ID: "job-a", AttemptID: makeAttemptID(runA, "job-a", 0)}})
+	writeWorkflowSourceRun(t, paths, runB, model.Queue{Commands: []model.QueuedCommand{{ID: "job-b", Command: []string{"same"}}, {ID: "job-c", Command: []string{"same"}}}},
+		[]model.JobResult{{ID: "job-b", AttemptID: makeAttemptID(runB, "job-b", 0)}})
 	manifest := mustExportWorkflow(t, baseDir, runA, runB)
 	if !reflect.DeepEqual(manifest.Source.RunIDs, []string{runA, runB}) || len(manifest.Jobs) != 3 {
 		t.Fatalf("manifest = %#v", manifest)
@@ -286,8 +286,8 @@ func TestExportWorkflowSelectsLatestAttemptByJobTimestamp(t *testing.T) {
 	finishedAt := map[string]string{older: "2026-09-25T14:00:00Z", newer: "2026-09-25T13:30:00Z"}
 	for _, runID := range []string{older, newer} {
 		attemptID := makeAttemptID(runID, "job", 0)
-		writeWorkflowSourceRun(t, paths, runID, Queue{Commands: []QueuedCommand{{ID: "job", Name: "job", Command: []string{"work"}}}},
-			[]JobResult{{ID: "job", AttemptID: attemptID}})
+		writeWorkflowSourceRun(t, paths, runID, model.Queue{Commands: []model.QueuedCommand{{ID: "job", Name: "job", Command: []string{"work"}}}},
+			[]model.JobResult{{ID: "job", AttemptID: attemptID}})
 		attemptDir, err := specificAttemptJobDir(filepath.Join(paths.RunsDir, runID), "job", attemptID)
 		if err != nil {
 			t.Fatal(err)
@@ -482,11 +482,11 @@ func TestCmdImportRejectsRunningProject(t *testing.T) {
 	if err := os.MkdirAll(paths.ProjectDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := state.AcquireRunLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
+	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
 	defer os.Remove(paths.LockFile)
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "active-run")
@@ -533,24 +533,24 @@ func TestCmdImportRejectsUnsupportedExtension(t *testing.T) {
 }
 
 func TestCmdImportRejectsInvalidSourceReferences(t *testing.T) {
-	tests := map[string]func(*testing.T, pathSet, *workflow.Manifest){
-		"unlisted source run": func(t *testing.T, paths pathSet, manifest *workflow.Manifest) {
+	tests := map[string]func(*testing.T, state.ProjectPaths, *workflow.Manifest){
+		"unlisted source run": func(t *testing.T, paths state.ProjectPaths, manifest *workflow.Manifest) {
 			otherRun := "20260925-160000-99999999"
 			attemptID := makeAttemptID(otherRun, "other-id", 0)
-			writeWorkflowSourceRun(t, paths, otherRun, Queue{Commands: []QueuedCommand{{ID: "other-id", Name: "other", Command: []string{"true"}}}},
-				[]JobResult{{ID: "other-id", AttemptID: attemptID}})
+			writeWorkflowSourceRun(t, paths, otherRun, model.Queue{Commands: []model.QueuedCommand{{ID: "other-id", Name: "other", Command: []string{"true"}}}},
+				[]model.JobResult{{ID: "other-id", AttemptID: attemptID}})
 			manifest.Jobs[2].AttemptID = attemptID
 		},
-		"missing attempt directory": func(t *testing.T, paths pathSet, manifest *workflow.Manifest) {
+		"missing attempt directory": func(t *testing.T, paths state.ProjectPaths, manifest *workflow.Manifest) {
 			manifest.Jobs[2].AttemptID = makeAttemptID(workflowPipelineRunID, "other-id", 5)
 		},
-		"missing source run": func(t *testing.T, paths pathSet, manifest *workflow.Manifest) {
+		"missing source run": func(t *testing.T, paths state.ProjectPaths, manifest *workflow.Manifest) {
 			manifest.Source.RunIDs = []string{"20260925-000000-00000000"}
 		},
-		"duplicate source run": func(t *testing.T, paths pathSet, manifest *workflow.Manifest) {
+		"duplicate source run": func(t *testing.T, paths state.ProjectPaths, manifest *workflow.Manifest) {
 			manifest.Source.RunIDs = []string{workflowPipelineRunID, workflowPipelineRunID}
 		},
-		"path-like source run": func(t *testing.T, paths pathSet, manifest *workflow.Manifest) {
+		"path-like source run": func(t *testing.T, paths state.ProjectPaths, manifest *workflow.Manifest) {
 			manifest.Source.RunIDs = []string{"../" + workflowPipelineRunID}
 		},
 	}
@@ -586,7 +586,7 @@ func TestCmdImportSwappedAttemptIDsDoNotReuseOtherJobResults(t *testing.T) {
 	}
 }
 
-func writeWorkflowMatrixRun(t *testing.T, baseDir string) (pathSet, string) {
+func writeWorkflowMatrixRun(t *testing.T, baseDir string) (state.ProjectPaths, string) {
 	t.Helper()
 	paths, err := resolvePaths(baseDir, "demo")
 	if err != nil {
@@ -594,11 +594,11 @@ func writeWorkflowMatrixRun(t *testing.T, baseDir string) (pathSet, string) {
 	}
 	runID := "20260925-170000-12345678"
 	commands := testMatrixQueueCommands("matrix-group")
-	results := []JobResult{
+	results := []model.JobResult{
 		{ID: "seed-1", AttemptID: makeAttemptID(runID, "seed-1", 0), ExitCode: 0},
 		{ID: "seed-2", AttemptID: makeAttemptID(runID, "seed-2", 0), ExitCode: 1},
 	}
-	writeWorkflowSourceRun(t, paths, runID, Queue{Commands: commands}, results)
+	writeWorkflowSourceRun(t, paths, runID, model.Queue{Commands: commands}, results)
 	return paths, runID
 }
 
@@ -662,12 +662,12 @@ func TestCmdImportInstanceSuccessAcceptsOnlyThatArrayTask(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := "20260925-180000-12345678"
-	var results []JobResult
+	var results []model.JobResult
 	for task, exitCode := range map[int]int{1: 0, 2: 1, 3: 1} {
 		jobID := "array-" + string(rune('0'+task))
-		results = append(results, JobResult{ID: jobID, AttemptID: makeAttemptID(runID, jobID, 0), ExitCode: exitCode})
+		results = append(results, model.JobResult{ID: jobID, AttemptID: makeAttemptID(runID, jobID, 0), ExitCode: exitCode})
 	}
-	writeWorkflowSourceRun(t, paths, runID, Queue{Commands: []QueuedCommand{{ID: "array", Name: "array", Command: []string{"work"}, Array: &ArraySpec{First: 1, Last: 3}}}}, results)
+	writeWorkflowSourceRun(t, paths, runID, model.Queue{Commands: []model.QueuedCommand{{ID: "array", Name: "array", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 3}}}}, results)
 	manifest := mustExportWorkflow(t, baseDir, runID)
 	job := &manifest.Jobs[0]
 	if job.Status != "failed" || len(job.Instances) != 2 {
@@ -695,10 +695,10 @@ func TestImportedWorkflowRunAcceptsFailureAndUnblocksDependent(t *testing.T) {
 	}
 	runID := "20260925-190000-12345678"
 	prepareAttempt := makeAttemptID(runID, "prepare-id", 0)
-	writeWorkflowSourceRun(t, paths, runID, Queue{Commands: []QueuedCommand{
+	writeWorkflowSourceRun(t, paths, runID, model.Queue{Commands: []model.QueuedCommand{
 		{ID: "prepare-id", Name: "prepare", Command: []string{"false"}},
 		{ID: "train-id", Name: "train", Command: []string{"true"}, DependsOn: []string{"prepare"}},
-	}}, []JobResult{
+	}}, []model.JobResult{
 		{ID: "prepare-id", AttemptID: prepareAttempt, ExitCode: 3, Error: "exit status 3"},
 		{ID: "train-id", ExitCode: 1, Error: "blocked by failed dependency"},
 	})
@@ -791,11 +791,11 @@ func TestWorkflowExportImportFollowsCarriedOrigin(t *testing.T) {
 	}
 	firstRun, secondRun := "20260925-120000-11111111", "20260925-130000-22222222"
 	firstAttempt := makeAttemptID(firstRun, "job", 0)
-	writeWorkflowSourceRun(t, paths, firstRun, Queue{Commands: []QueuedCommand{{ID: "job", Name: "job", Command: []string{"true"}}}},
-		[]JobResult{{ID: "job", AttemptID: firstAttempt, ExitCode: 0}})
-	writeWorkflowSourceRun(t, paths, secondRun, Queue{Commands: []QueuedCommand{{ID: "job", Name: "job", Command: []string{"true"},
-		Origin: &JobOrigin{RunID: firstRun, JobID: "job", AttemptID: firstAttempt, Status: "success"}}}},
-		[]JobResult{{ID: "job", AttemptID: firstAttempt, ExitCode: 0}})
+	writeWorkflowSourceRun(t, paths, firstRun, model.Queue{Commands: []model.QueuedCommand{{ID: "job", Name: "job", Command: []string{"true"}}}},
+		[]model.JobResult{{ID: "job", AttemptID: firstAttempt, ExitCode: 0}})
+	writeWorkflowSourceRun(t, paths, secondRun, model.Queue{Commands: []model.QueuedCommand{{ID: "job", Name: "job", Command: []string{"true"},
+		Origin: &model.JobOrigin{RunID: firstRun, JobID: "job", AttemptID: firstAttempt, Status: "success"}}}},
+		[]model.JobResult{{ID: "job", AttemptID: firstAttempt, ExitCode: 0}})
 	manifest := mustExportWorkflow(t, baseDir, secondRun)
 	if manifest.Jobs[0].AttemptID != firstAttempt || !reflect.DeepEqual(manifest.Source.RunIDs, []string{secondRun}) {
 		t.Fatalf("manifest = %#v", manifest)

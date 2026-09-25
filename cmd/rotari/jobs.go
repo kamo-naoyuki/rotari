@@ -354,7 +354,7 @@ func collectJobs(baseDir string, projects []string, now time.Time, window time.D
 	return rows, nil
 }
 
-func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsRow, bool, bool, error) {
+func collectRunJobs(paths state.ProjectPaths, runID string, now, cutoff time.Time) ([]jobsRow, bool, bool, error) {
 	runDir := filepath.Join(paths.RunsDir, runID)
 	summary, summaryErr := state.LoadRunSummary(filepath.Join(runDir, stateFileSummaryJSON))
 	active := runIsActive(paths, runID)
@@ -368,7 +368,7 @@ func collectRunJobs(paths pathSet, runID string, now, cutoff time.Time) ([]jobsR
 	if err != nil {
 		return nil, false, false, nil
 	}
-	resultByID := make(map[string]JobResult, len(summary.Results))
+	resultByID := make(map[string]model.JobResult, len(summary.Results))
 	for _, result := range summary.Results {
 		resultByID[result.ID] = result
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/kamo-naoyuki/rotari/internal/state"
 	"os"
 	"path/filepath"
 	"strings"
@@ -82,7 +83,7 @@ func TestValidRunRegistryLocationRejectsTraversalInputs(t *testing.T) {
 }
 
 func TestDeleteRunRejectsUnsafeRunIDs(t *testing.T) {
-	paths := pathSet{RunsDir: t.TempDir()}
+	paths := state.ProjectPaths{RunsDir: t.TempDir()}
 	for _, runID := range []string{"", "../run-1", "nested/run-1", "run/..", "run/."} {
 		if err := deleteRun(paths, runID); err == nil {
 			t.Fatalf("deleteRun accepted unsafe run ID %q", runID)

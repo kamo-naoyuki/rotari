@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
 )
 
@@ -151,11 +152,11 @@ func TestCmdImportPlanMatchesJobsWithoutAttempts(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := "20260925-230000-12345678"
-	writeWorkflowSourceRun(t, paths, runID, Queue{Commands: []QueuedCommand{
+	writeWorkflowSourceRun(t, paths, runID, model.Queue{Commands: []model.QueuedCommand{
 		{ID: "prepare-id", Name: "prepare", Command: []string{"false"}},
 		{ID: "blocked-id", Name: "blocked", Command: []string{"true"}, DependsOn: []string{"prepare"}},
 		{ID: "unnamed-id", Command: []string{"never", "ran"}},
-	}}, []JobResult{
+	}}, []model.JobResult{
 		{ID: "prepare-id", AttemptID: makeAttemptID(runID, "prepare-id", 0), ExitCode: 1},
 		{ID: "blocked-id", ExitCode: 1, Error: "blocked by failed dependency"},
 	})
@@ -199,7 +200,7 @@ func TestImportedWorkflowPlansNewJobsWithoutPreviousRunLookup(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(paths.RunsDir, "starting-run"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{LastRunID: "starting-run", Phase: "running"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{LastRunID: "starting-run", Phase: "running"}); err != nil {
 		t.Fatal(err)
 	}
 	queue := loadCarryStateQueue(t, paths)

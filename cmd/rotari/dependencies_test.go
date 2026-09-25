@@ -7,19 +7,19 @@ import (
 )
 
 func TestDependenciesReady(t *testing.T) {
-	dependency := JobSpec{ID: "dependency", Name: "build"}
-	job := JobSpec{ID: "test", Name: "test", DependsOn: []string{"build"}}
-	jobsByName := map[string]JobSpec{"build": dependency}
+	dependency := model.JobSpec{ID: "dependency", Name: "build"}
+	job := model.JobSpec{ID: "test", Name: "test", DependsOn: []string{"build"}}
+	jobsByName := map[string]model.JobSpec{"build": dependency}
 
 	tests := []struct {
 		name         string
-		results      map[string]JobResult
+		results      map[string]model.JobResult
 		wantReady    bool
 		wantFailedBy string
 	}{
-		{name: "dependency is unfinished", results: map[string]JobResult{}, wantReady: false},
-		{name: "dependency succeeds", results: map[string]JobResult{"dependency": {ID: "dependency", ExitCode: 0}}, wantReady: true},
-		{name: "dependency fails", results: map[string]JobResult{"dependency": {ID: "dependency", ExitCode: 1}}, wantReady: false, wantFailedBy: "build"},
+		{name: "dependency is unfinished", results: map[string]model.JobResult{}, wantReady: false},
+		{name: "dependency succeeds", results: map[string]model.JobResult{"dependency": {ID: "dependency", ExitCode: 0}}, wantReady: true},
+		{name: "dependency fails", results: map[string]model.JobResult{"dependency": {ID: "dependency", ExitCode: 1}}, wantReady: false, wantFailedBy: "build"},
 	}
 
 	for _, test := range tests {
@@ -33,12 +33,12 @@ func TestDependenciesReady(t *testing.T) {
 }
 
 func TestDependenciesReadyRequiresAllDependencies(t *testing.T) {
-	job := JobSpec{ID: "test", Name: "test", DependsOn: []string{"build", "lint"}}
-	jobsByName := map[string]JobSpec{
+	job := model.JobSpec{ID: "test", Name: "test", DependsOn: []string{"build", "lint"}}
+	jobsByName := map[string]model.JobSpec{
 		"build": {ID: "build", Name: "build"},
 		"lint":  {ID: "lint", Name: "lint"},
 	}
-	results := map[string]JobResult{
+	results := map[string]model.JobResult{
 		"build": {ID: "build", ExitCode: 0},
 	}
 

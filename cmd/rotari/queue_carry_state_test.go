@@ -7,14 +7,15 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-func testMatrixQueueCommands(groupID string) []QueuedCommand {
+func testMatrixQueueCommands(groupID string) []model.QueuedCommand {
 	dimensions := []model.MatrixDimension{{Name: "SEED", Values: []string{"1", "2"}}}
-	commands := make([]QueuedCommand, 0, 2)
+	commands := make([]model.QueuedCommand, 0, 2)
 	for _, value := range []string{"1", "2"} {
 		combination := []model.MatrixValue{{Name: "SEED", Value: value}}
-		commands = append(commands, QueuedCommand{
+		commands = append(commands, model.QueuedCommand{
 			ID: "seed-" + value, Name: model.MatrixJobName("train", combination), Command: []string{"train"},
 			Environment: model.MatrixEnvironment(nil, combination),
 			Matrix:      &model.MatrixSpec{GroupID: groupID, Dimensions: dimensions, Values: combination, BaseName: "train"},
@@ -23,18 +24,18 @@ func testMatrixQueueCommands(groupID string) []QueuedCommand {
 	return commands
 }
 
-func writeCarryStateRun(t *testing.T, paths pathSet, runID string, queue Queue, results []JobResult) {
+func writeCarryStateRun(t *testing.T, paths state.ProjectPaths, runID string, queue model.Queue, results []model.JobResult) {
 	t.Helper()
 	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Results: results}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Results: results}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func loadCarryStateQueue(t *testing.T, paths pathSet) Queue {
+func loadCarryStateQueue(t *testing.T, paths state.ProjectPaths) model.Queue {
 	t.Helper()
 	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
@@ -49,7 +50,7 @@ func TestCopyRunToQueueKeepsCompleteMatrixGroupUnderNewGroupID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeCarryStateRun(t, paths, "source-run", Queue{Commands: testMatrixQueueCommands("source-group")}, []JobResult{
+	writeCarryStateRun(t, paths, "source-run", model.Queue{Commands: testMatrixQueueCommands("source-group")}, []model.JobResult{
 		{ID: "seed-1", ExitCode: 0}, {ID: "seed-2", ExitCode: 0},
 	})
 	if _, err := copyRunToQueue(baseDir, "default", "source-run", "all", nil, false); err != nil {
@@ -71,7 +72,7 @@ func TestCopyRunToQueueClearsPartialMatrixGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeCarryStateRun(t, paths, "source-run", Queue{Commands: testMatrixQueueCommands("source-group")}, []JobResult{
+	writeCarryStateRun(t, paths, "source-run", model.Queue{Commands: testMatrixQueueCommands("source-group")}, []model.JobResult{
 		{ID: "seed-1", ExitCode: 0}, {ID: "seed-2", ExitCode: 1},
 	})
 	if _, err := copyRunToQueue(baseDir, "default", "source-run", "failed", nil, false); err != nil {
@@ -89,12 +90,12 @@ func TestCopyRunToQueueDropsImportCarryFlagsFromSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot := Queue{WorkflowImport: true, Commands: []QueuedCommand{
+	snapshot := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{
 		{ID: "scalar", Command: []string{"true"}, Accepted: true, Force: true},
-		{ID: "array", Command: []string{"true"}, Array: &ArraySpec{First: 1, Last: 2},
+		{ID: "array", Command: []string{"true"}, Array: &model.ArraySpec{First: 1, Last: 2},
 			TaskAccepted: map[string]bool{"array-1": true}, TaskForce: map[string]bool{"array-2": true}},
 	}}
-	writeCarryStateRun(t, paths, "imported-run", snapshot, []JobResult{
+	writeCarryStateRun(t, paths, "imported-run", snapshot, []model.JobResult{
 		{ID: "scalar", ExitCode: 0, Accepted: true}, {ID: "array-1", ExitCode: 0, Accepted: true}, {ID: "array-2", ExitCode: 0},
 	})
 	if _, err := copyRunToQueue(baseDir, "default", "imported-run", "all", nil, false); err != nil {
@@ -117,8 +118,8 @@ func TestCopyRunToQueueAppendToImportedQueueForcesCopiedJobs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeCarryStateRun(t, paths, "source-run", Queue{Commands: []QueuedCommand{{ID: "copied", Command: []string{"true"}}}}, []JobResult{{ID: "copied", ExitCode: 0}})
-	imported := Queue{WorkflowImport: true, Commands: []QueuedCommand{{ID: "imported", Command: []string{"true"}, Origin: &JobOrigin{RunID: "source-run", JobID: "copied"}}}}
+	writeCarryStateRun(t, paths, "source-run", model.Queue{Commands: []model.QueuedCommand{{ID: "copied", Command: []string{"true"}}}}, []model.JobResult{{ID: "copied", ExitCode: 0}})
+	imported := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{ID: "imported", Command: []string{"true"}, Origin: &model.JobOrigin{RunID: "source-run", JobID: "copied"}}}}
 	if err := writeJSON(paths.QueueFile, imported); err != nil {
 		t.Fatal(err)
 	}
@@ -143,8 +144,8 @@ func TestCopyRunToQueueOverwriteClearsWorkflowImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeCarryStateRun(t, paths, "source-run", Queue{Commands: []QueuedCommand{{ID: "copied", Command: []string{"true"}}}}, []JobResult{{ID: "copied", ExitCode: 0}})
-	if err := writeJSON(paths.QueueFile, Queue{WorkflowImport: true, Commands: []QueuedCommand{{ID: "imported", Command: []string{"true"}}}}); err != nil {
+	writeCarryStateRun(t, paths, "source-run", model.Queue{Commands: []model.QueuedCommand{{ID: "copied", Command: []string{"true"}}}}, []model.JobResult{{ID: "copied", ExitCode: 0}})
+	if err := writeJSON(paths.QueueFile, model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{ID: "imported", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := copyRunToQueue(baseDir, "default", "source-run", "all", nil, false, true); err != nil {
@@ -162,7 +163,7 @@ func TestRemoveBatchClearsRemainingMatrixProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: testMatrixQueueCommands("group")}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: testMatrixQueueCommands("group")}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := removeBatch(baseDir, "default", "", []string{"seed-2"}, ""); err != nil {
@@ -180,7 +181,7 @@ func TestChangeBatchClearsWholeMatrixGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: testMatrixQueueCommands("group")}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: testMatrixQueueCommands("group")}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := changeBatch(baseDir, "default", "", "seed-1", "", "", nil, false, nil, false, "", nil, false, []string{"changed"}); err != nil {
@@ -203,8 +204,8 @@ func TestChangeBatchForcesChangedJobInImportedQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	origin := &JobOrigin{RunID: "source-run", JobID: "source", Status: "failed"}
-	queue := Queue{WorkflowImport: true, Commands: []QueuedCommand{
+	origin := &model.JobOrigin{RunID: "source-run", JobID: "source", Status: "failed"}
+	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{
 		{ID: "accepted", Command: []string{"false"}, Accepted: true, Origin: origin},
 		{ID: "untouched", Command: []string{"false"}, Accepted: true, Origin: origin},
 	}}
@@ -232,7 +233,7 @@ func TestChangeBatchDoesNotForceJobInOrdinaryQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job", Command: []string{"false"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job", Command: []string{"false"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := changeBatch(baseDir, "default", "", "job", "", "", nil, false, nil, false, "", nil, false, []string{"true"}); err != nil {
@@ -250,7 +251,7 @@ func TestEnqueueCommandForcesOnlyInImportedQueue(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.QueueFile, Queue{WorkflowImport: imported, Commands: []QueuedCommand{{ID: "existing", Command: []string{"true"}}}}); err != nil {
+		if err := writeJSON(paths.QueueFile, model.Queue{WorkflowImport: imported, Commands: []model.QueuedCommand{{ID: "existing", Command: []string{"true"}}}}); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := enqueueCommand(baseDir, "default", []string{"added"}, "", nil, nil, "", nil); err != nil {
@@ -269,7 +270,7 @@ func TestResetQueueCommandsClearsWorkflowImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{WorkflowImport: true, Commands: []QueuedCommand{{ID: "job", Command: []string{"true"}, Force: true}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{ID: "job", Command: []string{"true"}, Force: true}}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := resetQueueCommands(paths); err != nil {
@@ -284,9 +285,9 @@ func TestResetQueueCommandsClearsWorkflowImport(t *testing.T) {
 	}
 }
 
-func writeImportedArraySource(t *testing.T, paths pathSet) {
+func writeImportedArraySource(t *testing.T, paths state.ProjectPaths) {
 	t.Helper()
-	writeCarryStateRun(t, paths, "source-run", Queue{Commands: []QueuedCommand{{ID: "source", Command: []string{"work"}, Array: &ArraySpec{First: 1, Last: 2}}}}, []JobResult{
+	writeCarryStateRun(t, paths, "source-run", model.Queue{Commands: []model.QueuedCommand{{ID: "source", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 2}}}}, []model.JobResult{
 		{ID: "source-1", AttemptID: "attempt-1", ExitCode: 0},
 		{ID: "source-2", AttemptID: "attempt-2", ExitCode: 3, Error: "task failed"},
 	})
@@ -299,9 +300,9 @@ func TestImportedWorkflowAcceptsFailedArrayTask(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeImportedArraySource(t, paths)
-	queue := Queue{WorkflowImport: true, Commands: []QueuedCommand{{
-		ID: "array", Command: []string{"work"}, Array: &ArraySpec{First: 1, Last: 2},
-		TaskOrigins: map[string]*JobOrigin{
+	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{
+		ID: "array", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 2},
+		TaskOrigins: map[string]*model.JobOrigin{
 			"array-1": {RunID: "source-run", JobID: "source-1", AttemptID: "attempt-1", Status: "success"},
 			"array-2": {RunID: "source-run", JobID: "source-2", AttemptID: "attempt-2", Status: "failed"},
 		},
@@ -330,9 +331,9 @@ func TestImportedWorkflowAcceptsArrayTaskThroughCommandOrigin(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeImportedArraySource(t, paths)
-	queue := Queue{WorkflowImport: true, Commands: []QueuedCommand{{
-		ID: "array", Command: []string{"work"}, Array: &ArraySpec{First: 1, Last: 2},
-		Origin:       &JobOrigin{RunID: "source-run", JobID: "source"},
+	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{
+		ID: "array", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 2},
+		Origin:       &model.JobOrigin{RunID: "source-run", JobID: "source"},
 		TaskAccepted: map[string]bool{"array-2": true},
 	}}}
 	plan, err := planRerunSelection(paths, queue, "", nil, "", true)
@@ -350,16 +351,16 @@ func TestImportedWorkflowForcedArrayTaskExecutesDownstream(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeCarryStateRun(t, paths, "source-run", Queue{}, []JobResult{
+	writeCarryStateRun(t, paths, "source-run", model.Queue{}, []model.JobResult{
 		{ID: "source-1", ExitCode: 0}, {ID: "source-2", ExitCode: 0}, {ID: "source-downstream", ExitCode: 0}, {ID: "source-independent", ExitCode: 0},
 	})
-	queue := Queue{WorkflowImport: true, Commands: []QueuedCommand{
-		{ID: "array", Name: "work", Stage: "compute", Command: []string{"work"}, Array: &ArraySpec{First: 1, Last: 2},
-			Origin: &JobOrigin{RunID: "source-run", JobID: "source"}, TaskForce: map[string]bool{"array-2": true}},
+	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{
+		{ID: "array", Name: "work", Stage: "compute", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 2},
+			Origin: &model.JobOrigin{RunID: "source-run", JobID: "source"}, TaskForce: map[string]bool{"array-2": true}},
 		{ID: "downstream", Name: "downstream", Command: []string{"true"}, DependsOn: []string{"compute"},
-			Origin: &JobOrigin{RunID: "source-run", JobID: "source-downstream"}},
+			Origin: &model.JobOrigin{RunID: "source-run", JobID: "source-downstream"}},
 		{ID: "independent", Name: "independent", Command: []string{"true"},
-			Origin: &JobOrigin{RunID: "source-run", JobID: "source-independent"}},
+			Origin: &model.JobOrigin{RunID: "source-run", JobID: "source-independent"}},
 	}}
 	plan, err := planRerunSelection(paths, queue, "", nil, "", true)
 	if err != nil {
@@ -379,10 +380,10 @@ func TestImportedWorkflowForceOverridesAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeCarryStateRun(t, paths, "source-run", Queue{}, []JobResult{{ID: "source", AttemptID: "attempt", ExitCode: 1}})
-	queue := Queue{WorkflowImport: true, Commands: []QueuedCommand{{
+	writeCarryStateRun(t, paths, "source-run", model.Queue{}, []model.JobResult{{ID: "source", AttemptID: "attempt", ExitCode: 1}})
+	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{
 		ID: "job", Command: []string{"true"}, Accepted: true, Force: true,
-		Origin: &JobOrigin{RunID: "source-run", JobID: "source", AttemptID: "attempt", Status: "failed"},
+		Origin: &model.JobOrigin{RunID: "source-run", JobID: "source", AttemptID: "attempt", Status: "failed"},
 	}}}
 	plan, err := planRerunSelection(paths, queue, "", nil, "", true)
 	if err != nil {
@@ -402,11 +403,11 @@ func TestImportedWorkflowAcceptRequiresOrigin(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Give the fallback lookup a previous run so planning reaches acceptance.
-	writeCarryStateRun(t, paths, "previous-run", Queue{}, []JobResult{{ID: "job", ExitCode: 1}})
-	if err := writeJSON(paths.MetaFile, Meta{LastRunID: "previous-run", Phase: "collecting"}); err != nil {
+	writeCarryStateRun(t, paths, "previous-run", model.Queue{}, []model.JobResult{{ID: "job", ExitCode: 1}})
+	if err := writeJSON(paths.MetaFile, model.Meta{LastRunID: "previous-run", Phase: "collecting"}); err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{WorkflowImport: true, Commands: []QueuedCommand{{ID: "job", Command: []string{"true"}, Accepted: true}}}
+	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{ID: "job", Command: []string{"true"}, Accepted: true}}}
 	_, err = planRerunSelection(paths, queue, "", nil, "", true)
 	if err == nil || !strings.Contains(err.Error(), "has no source origin") {
 		t.Fatalf("planRerunSelection error = %v, want missing source origin", err)
@@ -420,9 +421,9 @@ func TestExecuteMixedRunPersistsAcceptedArrayTask(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeImportedArraySource(t, paths)
-	queue := Queue{WorkflowImport: true, Commands: []QueuedCommand{{
-		ID: "array", Command: []string{"must-not-run"}, Array: &ArraySpec{First: 1, Last: 2},
-		TaskOrigins: map[string]*JobOrigin{
+	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{
+		ID: "array", Command: []string{"must-not-run"}, Array: &model.ArraySpec{First: 1, Last: 2},
+		TaskOrigins: map[string]*model.JobOrigin{
 			"array-1": {RunID: "source-run", JobID: "source-1", AttemptID: "attempt-1", Status: "success"},
 			"array-2": {RunID: "source-run", JobID: "source-2", AttemptID: "attempt-2", Status: "failed"},
 		},
@@ -450,10 +451,10 @@ func TestRecoverInterruptedProjectClearsWorkflowImportOnlyWhenDiscarding(t *test
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.QueueFile, Queue{WorkflowImport: true, Commands: []QueuedCommand{{ID: "job", Command: []string{"true"}, Force: true}}}); err != nil {
+		if err := writeJSON(paths.QueueFile, model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{ID: "job", Command: []string{"true"}, Force: true}}}); err != nil {
 			t.Fatal(err)
 		}
-		if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 			t.Fatal(err)
 		}
 		writeTestRunStateFiles(t, paths, "run-1")
@@ -470,8 +471,8 @@ func TestRecoverInterruptedProjectClearsWorkflowImportOnlyWhenDiscarding(t *test
 	}
 }
 
-func testMatrixQueueWithDependent(groupID string) []QueuedCommand {
-	return append(testMatrixQueueCommands(groupID), QueuedCommand{ID: "evaluate-id", Name: "evaluate", Command: []string{"evaluate"}, DependsOn: []string{"train"}})
+func testMatrixQueueWithDependent(groupID string) []model.QueuedCommand {
+	return append(testMatrixQueueCommands(groupID), model.QueuedCommand{ID: "evaluate-id", Name: "evaluate", Command: []string{"evaluate"}, DependsOn: []string{"train"}})
 }
 
 func TestChangeMatrixMemberRewritesBaseNameDependency(t *testing.T) {
@@ -480,7 +481,7 @@ func TestChangeMatrixMemberRewritesBaseNameDependency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: testMatrixQueueWithDependent("group")}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: testMatrixQueueWithDependent("group")}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := changeBatch(baseDir, "default", "", "seed-1", "", "", nil, false, []string{"X=1"}, false, "", nil, false, nil); err != nil {
@@ -498,7 +499,7 @@ func TestRemoveMatrixMemberRewritesBaseNameDependency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: testMatrixQueueWithDependent("group")}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: testMatrixQueueWithDependent("group")}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := removeBatch(baseDir, "default", "", []string{"seed-2"}, ""); err != nil {
@@ -511,7 +512,7 @@ func TestRemoveMatrixMemberRewritesBaseNameDependency(t *testing.T) {
 }
 
 func TestCopyRunToQueueHandlesMatrixBaseNameDependency(t *testing.T) {
-	results := []JobResult{{ID: "seed-1", ExitCode: 0}, {ID: "seed-2", ExitCode: 1}, {ID: "evaluate-id", ExitCode: 1, Error: "blocked by failed dependency"}}
+	results := []model.JobResult{{ID: "seed-1", ExitCode: 0}, {ID: "seed-2", ExitCode: 1}, {ID: "evaluate-id", ExitCode: 1, Error: "blocked by failed dependency"}}
 	tests := []struct {
 		selection string
 		jobIDs    []string
@@ -529,7 +530,7 @@ func TestCopyRunToQueueHandlesMatrixBaseNameDependency(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			writeCarryStateRun(t, paths, "source-run", Queue{Commands: testMatrixQueueWithDependent("group")}, results)
+			writeCarryStateRun(t, paths, "source-run", model.Queue{Commands: testMatrixQueueWithDependent("group")}, results)
 			if _, err := copyRunToQueue(baseDir, "default", "source-run", test.selection, test.jobIDs, false); err != nil {
 				t.Fatalf("copyRunToQueue: %v", err)
 			}
@@ -558,7 +559,7 @@ func TestCopyRunToQueueRejectsExcludedFailedMatrixMember(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeCarryStateRun(t, paths, "source-run", Queue{Commands: testMatrixQueueWithDependent("group")}, []JobResult{
+	writeCarryStateRun(t, paths, "source-run", model.Queue{Commands: testMatrixQueueWithDependent("group")}, []model.JobResult{
 		{ID: "seed-1", ExitCode: 0}, {ID: "seed-2", ExitCode: 1}, {ID: "evaluate-id", ExitCode: 0},
 	})
 	_, err = copyRunToQueue(baseDir, "default", "source-run", "job-id", []string{"evaluate-id"}, false)

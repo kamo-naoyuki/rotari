@@ -108,7 +108,7 @@ func runIDsInDirectory(runsDir string) []string {
 	return runIDs
 }
 
-func deleteRun(paths pathSet, runID string) error {
+func deleteRun(paths state.ProjectPaths, runID string) error {
 	if !state.IsValidPathElement(runID) {
 		return fmt.Errorf("run %q not found", runID)
 	}

@@ -39,7 +39,7 @@ func cmdAdd(args []string) int {
 		printError("usage: " + cliUsage("add"))
 		return 1
 	}
-	var array *ArraySpec
+	var array *model.ArraySpec
 	if *arrayRange != "" {
 		parsed, parseErr := model.ParseArrayRange(*arrayRange)
 		if parseErr != nil {
@@ -89,16 +89,16 @@ func cmdAdd(args []string) int {
 	return 0
 }
 
-func expandMatrixCommands(command []string, executor string, executorOptions, environment []string, workingDirectory, jobName, stage string, dependsOn []string, dimensions []model.MatrixDimension) []QueuedCommand {
+func expandMatrixCommands(command []string, executor string, executorOptions, environment []string, workingDirectory, jobName, stage string, dependsOn []string, dimensions []model.MatrixDimension) []model.QueuedCommand {
 	if len(dimensions) == 0 {
-		return []QueuedCommand{{Command: command, Executor: executor, ExecutorOptions: executorOptions, Environment: environment, WorkingDirectory: workingDirectory, Name: jobName, Stage: stage, DependsOn: dependsOn}}
+		return []model.QueuedCommand{{Command: command, Executor: executor, ExecutorOptions: executorOptions, Environment: environment, WorkingDirectory: workingDirectory, Name: jobName, Stage: stage, DependsOn: dependsOn}}
 	}
 	groupID := makeJobID()
-	commands := make([]QueuedCommand, 0)
+	commands := make([]model.QueuedCommand, 0)
 	for _, combination := range model.ExpandMatrix(dimensions) {
 		matrixEnvironment := model.MatrixEnvironment(environment, combination)
 		matrixName := model.MatrixJobName(jobName, combination)
-		commands = append(commands, QueuedCommand{
+		commands = append(commands, model.QueuedCommand{
 			Command: command, Executor: executor, ExecutorOptions: executorOptions, Environment: matrixEnvironment,
 			WorkingDirectory: workingDirectory, Name: matrixName, Stage: stage, DependsOn: dependsOn,
 			Matrix: &model.MatrixSpec{
@@ -124,7 +124,7 @@ func sanitizeMatrixName(value string) string {
 
 // enqueueCommands appends commands to the project queue. A non-nil array
 // makes every command an array job.
-func enqueueCommands(baseDir, queueName string, commands []QueuedCommand, array *ArraySpec) (string, error) {
+func enqueueCommands(baseDir, queueName string, commands []model.QueuedCommand, array *model.ArraySpec) (string, error) {
 	if queueName == "" || len(commands) == 0 {
 		return "", errors.New("project name and command are required")
 	}
@@ -164,7 +164,7 @@ func enqueueCommands(baseDir, queueName string, commands []QueuedCommand, array 
 			commands[index].Force = true
 		}
 	}
-	if err := validateQueueJobs(Queue{Commands: append(append([]QueuedCommand(nil), queue.Commands...), commands...)}); err != nil {
+	if err := validateQueueJobs(model.Queue{Commands: append(append([]model.QueuedCommand(nil), queue.Commands...), commands...)}); err != nil {
 		return "", err
 	}
 	// Dependencies may refer to jobs added later, so only duplicate names are checked here.

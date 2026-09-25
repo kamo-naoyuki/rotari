@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -31,9 +33,9 @@ func TestNotifyRunWebhookSendsSummaryAndMarksRun(t *testing.T) {
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{
 		RunID: runID, RunName: "nightly", Status: "failed", ExitCode: 1,
-		Results: []JobResult{{ID: "ok", ExitCode: 0}, {ID: "bad", ExitCode: 1, Error: "command exited with status 2"}},
+		Results: []model.JobResult{{ID: "ok", ExitCode: 0}, {ID: "bad", ExitCode: 1, Error: "command exited with status 2"}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -166,9 +168,9 @@ func TestNotifyRunWebhookSendsSlackPayload(t *testing.T) {
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{
 		RunID: runID, Status: "success", ExitCode: 0,
-		Results: []JobResult{{ID: "build", ExitCode: 0}},
+		Results: []model.JobResult{{ID: "build", ExitCode: 0}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -197,9 +199,9 @@ func TestNotifyRunWebhookSendsSlackFailureDetails(t *testing.T) {
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{
 		RunID: runID, Status: "failed", ExitCode: 1,
-		Results: []JobResult{{ID: "train", ExitCode: 1}},
+		Results: []model.JobResult{{ID: "train", ExitCode: 1}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -232,9 +234,9 @@ func TestNotifyRunWebhookSendsTeamsPayload(t *testing.T) {
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{
 		RunID: runID, Status: "success", ExitCode: 0,
-		Results: []JobResult{{ID: "build", ExitCode: 0}},
+		Results: []model.JobResult{{ID: "build", ExitCode: 0}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -263,9 +265,9 @@ func TestNotifyRunWebhookSendsDiscordPayload(t *testing.T) {
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{
 		RunID: runID, Status: "success", ExitCode: 0,
-		Results: []JobResult{{ID: "build", ExitCode: 0}},
+		Results: []model.JobResult{{ID: "build", ExitCode: 0}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -292,7 +294,7 @@ func TestNotifyRunWebhookRejectsUnsupportedFormat(t *testing.T) {
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Status: "success"}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "success"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -305,7 +307,7 @@ func TestNotifyRunWebhookRejectsUnsupportedFormat(t *testing.T) {
 	}
 }
 
-func testWebhookPaths(t *testing.T) pathSet {
+func testWebhookPaths(t *testing.T) state.ProjectPaths {
 	t.Helper()
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "demo")

@@ -29,23 +29,7 @@ const authBearerPrefix = "Bearer "
 const headerContentType = "Content-Type"
 const mimeApplicationJSON = "application/json"
 
-type Queue = model.Queue
-type QueuedCommand = model.QueuedCommand
-type ArraySpec = model.ArraySpec
-type JobOrigin = model.JobOrigin
-
-type Meta = model.Meta
-type LockInfo = model.LockInfo
-type JobSpec = model.JobSpec
-type JobResult = model.JobResult
-type RunSummary = model.RunSummary
-type RunContext = model.RunContext
-type LoadAverage = model.LoadAverage
-type LoadSample = model.LoadSample
-type ruleDiagnosis = model.RuleDiagnosis
-type runOptions = runcontract.Options
-
-func validateQueueJobs(queue Queue) error {
+func validateQueueJobs(queue model.Queue) error {
 	if err := model.ValidateMatrixGroups(queue.Commands); err != nil {
 		return err
 	}
@@ -201,7 +185,7 @@ func printUsage() {
 	}
 }
 
-func recoverInterruptedProject(paths pathSet, runID string, discardQueue bool) error {
+func recoverInterruptedProject(paths state.ProjectPaths, runID string, discardQueue bool) error {
 	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return fmt.Errorf("failed to lock queue: %w", err)
@@ -234,7 +218,7 @@ func recoverInterruptedProject(paths pathSet, runID string, discardQueue bool) e
 	return state.WriteJSON(paths.MetaFile, meta)
 }
 
-func formatProjectRunningError(paths pathSet, runID string) string {
+func formatProjectRunningError(paths state.ProjectPaths, runID string) string {
 	baseDir := paths.BaseDir
 	projectName := paths.ProjectName
 	return fmt.Sprintf("%s\n  Run: %s\n\nWait for completion:\n  rotari wait --basedir %s --project-name %s --run-id %s\n\nCancel run:\n  rotari cancel --basedir %s --project-name %s\n",
@@ -244,7 +228,7 @@ func formatProjectRunningError(paths pathSet, runID string) string {
 
 const cancellationWaitTimeout = 5 * time.Minute
 
-func waitForCancellation(paths pathSet, projectName string) bool {
+func waitForCancellation(paths state.ProjectPaths, projectName string) bool {
 	fmt.Println(yellow(fmt.Sprintf("project '%s' is cancelling", projectName)))
 	fmt.Println(yellow("Waiting for cancellation to finish..."))
 	deadline := time.Now().Add(cancellationWaitTimeout)
@@ -273,7 +257,7 @@ func waitForCancellation(paths pathSet, projectName string) bool {
 	}
 }
 
-func finalizeCompletedCancellation(paths pathSet) (bool, error) {
+func finalizeCompletedCancellation(paths state.ProjectPaths) (bool, error) {
 	lock, err := state.LoadLock(paths.LockFile)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -369,7 +353,7 @@ func cmdWorkerRun(args []string) int {
 	return exitCode
 }
 
-func finishRun(paths pathSet, runID string, exitCode int) error {
+func finishRun(paths state.ProjectPaths, runID string, exitCode int) error {
 	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return fmt.Errorf("failed to lock queue: %w", err)
@@ -406,8 +390,8 @@ func finishRun(paths pathSet, runID string, exitCode int) error {
 	return nil
 }
 
-func launchAsyncRun(paths pathSet, options runOptions) int {
-	if err := state.AcquireRunLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339()}); err != nil {
+func launchAsyncRun(paths state.ProjectPaths, options runcontract.Options) int {
+	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339()}); err != nil {
 		printErrorf("project '%s' is running; run is not allowed: %v", options.QueueName, err)
 		return 1
 	}
@@ -464,7 +448,7 @@ func launchAsyncRun(paths pathSet, options runOptions) int {
 		printErrorf("failed to determine lock host: %v", err)
 		return 1
 	}
-	if err := state.WriteJSON(paths.LockFile, LockInfo{PID: cmd.Process.Pid, RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339(), Host: host}); err != nil {
+	if err := state.WriteJSON(paths.LockFile, model.LockInfo{PID: cmd.Process.Pid, RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339(), Host: host}); err != nil {
 		_ = cmd.Process.Kill()
 		_ = os.Remove(paths.LockFile)
 		printErrorf("failed to update lock with child pid: %v", err)
@@ -485,13 +469,13 @@ func waitForAsyncRun(cmd *exec.Cmd, onDone func()) {
 	}()
 }
 
-func printFailedJobHints(runID string, results []JobResult) {
+func printFailedJobHints(runID string, results []model.JobResult) {
 	if hints := failedJobHints(runID, results); hints != "" {
 		fmt.Print(hints)
 	}
 }
 
-func failedJobHints(runID string, results []JobResult) string {
+func failedJobHints(runID string, results []model.JobResult) string {
 	var hints strings.Builder
 	seen := make(map[string]bool)
 	for _, result := range results {
@@ -516,7 +500,7 @@ func failedJobHints(runID string, results []JobResult) string {
 	return hints.String()
 }
 
-func runOneJob(runDir string, job JobSpec) JobResult {
+func runOneJob(runDir string, job model.JobSpec) model.JobResult {
 	return executor.RunLocalJob(runDir, model.JobSpec(job), jsonStore(), jobLogf)
 }
 
@@ -525,11 +509,9 @@ func jobCancellationRequested(jobDir string) bool {
 	return err == nil
 }
 
-func recordCancelledJob(jobDir string, job JobSpec) JobResult {
+func recordCancelledJob(jobDir string, job model.JobSpec) model.JobResult {
 	return executor.RecordCancelledJob(jobDir, model.JobSpec(job), jsonStore())
 }
-
-type pathSet = state.ProjectPaths
 
 const (
 	stateFileCommandsJSON  = "commands.json"
@@ -546,12 +528,12 @@ const (
 	stateFileName          = "name"
 )
 
-func resolvePaths(cliBaseDir, projectName string) (pathSet, error) {
+func resolvePaths(cliBaseDir, projectName string) (state.ProjectPaths, error) {
 	resolved, err := state.ResolveProjectPaths(cliBaseDir, projectName)
 	if err != nil {
-		return pathSet{}, err
+		return state.ProjectPaths{}, err
 	}
-	paths := pathSet{
+	paths := state.ProjectPaths{
 		BaseDir:         resolved.BaseDir,
 		BaseDirExplicit: resolved.BaseDirExplicit,
 		ProjectName:     resolved.ProjectName,
@@ -591,8 +573,6 @@ func isRunning(lockPath string) (bool, error) {
 	return state == projectLockActive || state == projectLockRemote, err
 }
 
-type projectLockState = state.LockState
-
 const (
 	projectLockNone   = state.LockNone
 	projectLockActive = state.LockActive
@@ -600,7 +580,7 @@ const (
 	projectLockRemote = state.LockRemote
 )
 
-func inspectRunLock(lockPath string, cleanupStale bool) (projectLockState, LockInfo, error) {
+func inspectRunLock(lockPath string, cleanupStale bool) (state.LockState, model.LockInfo, error) {
 	lockState, lock, err := state.InspectLock(lockPath, cleanupStale)
 	return lockState, lock, err
 }
@@ -634,22 +614,17 @@ func jsonStore() state.Store {
 	return state.NewStore(stateDirMode(), stateFileMode())
 }
 
-// slurmStatus is the status.json contents written by every executor's
-// wrapper script (not just Slurm's), kept under its historical name since it
-// is read from many cmd files (jobs.go, mixed_run.go, show.go, web.go).
-type slurmStatus = executor.WrapperStatus
-
-func loadSlurmStatus(path string) (slurmStatus, bool) {
+func loadWrapperStatus(path string) (executor.WrapperStatus, bool) {
 	return executor.LoadWrapperStatus(jsonStore(), path)
 }
 
-func loadRunQueue(paths pathSet, requestedExecutor string, executorOptions []string, settings executorRunSettingsMap) (Queue, error) {
+func loadRunQueue(paths state.ProjectPaths, requestedExecutor string, executorOptions []string, settings executor.RunSettingsMap) (model.Queue, error) {
 	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
-		return Queue{}, err
+		return model.Queue{}, err
 	}
 	if err := validateQueueForRun(queue, requestedExecutor, executorOptions, settings); err != nil {
-		return Queue{}, err
+		return model.Queue{}, err
 	}
 	return queue, nil
 }

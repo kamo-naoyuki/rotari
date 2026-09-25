@@ -145,15 +145,15 @@ func TestCollectRunJobsIncludesTerminalJobUsingStartedAtWhenFinishedAtMissing(t 
 	jobID := "failed-job"
 	attemptID := makeAttemptID(runID, jobID, 0)
 	runDir := filepath.Join(paths.RunsDir, runID)
-	queue := Queue{Commands: []QueuedCommand{{ID: jobID, Command: []string{"false"}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: jobID, Command: []string{"false"}}}}
 	if err := writeJSON(filepath.Join(runDir, stateFileCommandsJSON), queue); err != nil {
 		t.Fatal(err)
 	}
 	jobDir := filepath.Join(runDir, jobID, "attempts", attemptID)
-	if err := writeJSON(filepath.Join(jobDir, commandJSONName), JobSpec{ID: jobID, AttemptID: attemptID, Command: []string{"false"}}); err != nil {
+	if err := writeJSON(filepath.Join(jobDir, commandJSONName), model.JobSpec{ID: jobID, AttemptID: attemptID, Command: []string{"false"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, stateFileSummaryJSON), RunSummary{RunID: runID, Status: "failed", StartedAt: started.Format(time.RFC3339), Results: []JobResult{{ID: jobID, AttemptID: attemptID, ExitCode: 1}}}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, stateFileSummaryJSON), model.RunSummary{RunID: runID, Status: "failed", StartedAt: started.Format(time.RFC3339), Results: []model.JobResult{{ID: jobID, AttemptID: attemptID, ExitCode: 1}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeTestTimestamp(filepath.Join(jobDir, stateFileSubmittedAt), started); err != nil {
@@ -234,15 +234,15 @@ func writeTestJobsRun(t *testing.T, baseDir, project, runID, jobID string, start
 	}
 	attemptID := makeAttemptID(runID, jobID, 0)
 	runDir := filepath.Join(paths.RunsDir, runID)
-	queue := Queue{Commands: []QueuedCommand{{ID: jobID, Command: []string{"true"}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: jobID, Command: []string{"true"}}}}
 	if err := writeJSON(filepath.Join(runDir, stateFileCommandsJSON), queue); err != nil {
 		t.Fatal(err)
 	}
 	jobDir := filepath.Join(runDir, jobID, "attempts", attemptID)
-	if err := writeJSON(filepath.Join(jobDir, commandJSONName), JobSpec{ID: jobID, AttemptID: attemptID, Command: []string{"true"}}); err != nil {
+	if err := writeJSON(filepath.Join(jobDir, commandJSONName), model.JobSpec{ID: jobID, AttemptID: attemptID, Command: []string{"true"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, stateFileSummaryJSON), RunSummary{RunID: runID, Status: model.RunStatus(exitCode), StartedAt: started.Format(time.RFC3339), FinishedAt: finished.Format(time.RFC3339), Results: []JobResult{{ID: jobID, AttemptID: attemptID, ExitCode: exitCode}}}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, stateFileSummaryJSON), model.RunSummary{RunID: runID, Status: model.RunStatus(exitCode), StartedAt: started.Format(time.RFC3339), FinishedAt: finished.Format(time.RFC3339), Results: []model.JobResult{{ID: jobID, AttemptID: attemptID, ExitCode: exitCode}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeTestTimestamp(filepath.Join(jobDir, stateFileSubmittedAt), started); err != nil {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -59,13 +60,13 @@ func TestCmdResetNonInteractiveRejectionWarnsWhenJobsMayStillRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "retained", Command: []string{"retained"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "retained", Command: []string{"retained"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "run-1")
@@ -108,17 +109,17 @@ func TestCmdResetFinishesCompletedCancellationBeforeReset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "queued", Command: []string{"queued"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "queued", Command: []string{"queued"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "cancelling", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "cancelling", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "run-1")
-	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "summary.json"), RunSummary{RunID: "run-1", ExitCode: 130, FinishedAt: nowRFC3339()}); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "summary.json"), model.RunSummary{RunID: "run-1", ExitCode: 130, FinishedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
-	if err := state.AcquireRunLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Remove(paths.LockFile) })
@@ -166,16 +167,16 @@ func TestCmdResetRejectsProjectNameWithPathSeparator(t *testing.T) {
 	}
 }
 
-func writeInterruptedResetProject(t *testing.T, baseDir string) pathSet {
+func writeInterruptedResetProject(t *testing.T, baseDir string) state.ProjectPaths {
 	t.Helper()
 	paths, err := resolvePaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "retained", Command: []string{"retained"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "retained", Command: []string{"retained"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "run-1")

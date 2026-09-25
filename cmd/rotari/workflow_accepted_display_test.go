@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
+	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +14,7 @@ import (
 const acceptedDisplaySourceRunID = "20260925-220000-12345678"
 
 // writeLocalSourceAttempt records a finished local attempt with the given exit code.
-func writeLocalSourceAttempt(t *testing.T, paths pathSet, jobID, attemptID string, exitCode string) {
+func writeLocalSourceAttempt(t *testing.T, paths state.ProjectPaths, jobID, attemptID string, exitCode string) {
 	t.Helper()
 	attemptDir, err := specificAttemptJobDir(filepath.Join(paths.RunsDir, acceptedDisplaySourceRunID), jobID, attemptID)
 	if err != nil {
@@ -25,14 +28,14 @@ func writeLocalSourceAttempt(t *testing.T, paths pathSet, jobID, attemptID strin
 			t.Fatal(err)
 		}
 	}
-	if err := writeJSON(filepath.Join(attemptDir, commandJSONName), JobSpec{ID: jobID, Command: []string{"false"}}); err != nil {
+	if err := writeJSON(filepath.Join(attemptDir, commandJSONName), model.JobSpec{ID: jobID, Command: []string{"false"}}); err != nil {
 		t.Fatal(err)
 	}
 }
 
 // writeAcceptedDisplaySource writes a failed source job with two local
 // attempts: attempt 0 exited 3 and the latest attempt 1 exited 5.
-func writeAcceptedDisplaySource(t *testing.T, baseDir string) (pathSet, string, string) {
+func writeAcceptedDisplaySource(t *testing.T, baseDir string) (state.ProjectPaths, string, string) {
 	t.Helper()
 	paths, err := resolvePaths(baseDir, "demo")
 	if err != nil {
@@ -40,14 +43,14 @@ func writeAcceptedDisplaySource(t *testing.T, baseDir string) (pathSet, string, 
 	}
 	olderAttempt := makeAttemptID(acceptedDisplaySourceRunID, "prepare-id", 0)
 	latestAttempt := makeAttemptID(acceptedDisplaySourceRunID, "prepare-id", 1)
-	writeWorkflowSourceRun(t, paths, acceptedDisplaySourceRunID, Queue{Commands: []QueuedCommand{{ID: "prepare-id", Name: "prepare", Command: []string{"false"}}}},
-		[]JobResult{{ID: "prepare-id", AttemptID: latestAttempt, ExitCode: 5}})
+	writeWorkflowSourceRun(t, paths, acceptedDisplaySourceRunID, model.Queue{Commands: []model.QueuedCommand{{ID: "prepare-id", Name: "prepare", Command: []string{"false"}}}},
+		[]model.JobResult{{ID: "prepare-id", AttemptID: latestAttempt, ExitCode: 5}})
 	writeLocalSourceAttempt(t, paths, "prepare-id", olderAttempt, "3")
 	writeLocalSourceAttempt(t, paths, "prepare-id", latestAttempt, "5")
 	return paths, olderAttempt, latestAttempt
 }
 
-func runAcceptedImport(t *testing.T, baseDir string, paths pathSet, attemptID string) {
+func runAcceptedImport(t *testing.T, baseDir string, paths state.ProjectPaths, attemptID string) {
 	t.Helper()
 	manifest := mustExportWorkflow(t, baseDir, acceptedDisplaySourceRunID)
 	manifest.Jobs[0].AttemptID = attemptID
@@ -160,8 +163,8 @@ func TestAcceptedArrayTaskDisplaysConsistentlyInShowAndWeb(t *testing.T) {
 	}
 	firstTask := makeAttemptID(acceptedDisplaySourceRunID, "array-1", 0)
 	secondTask := makeAttemptID(acceptedDisplaySourceRunID, "array-2", 0)
-	writeWorkflowSourceRun(t, paths, acceptedDisplaySourceRunID, Queue{Commands: []QueuedCommand{{ID: "array", Name: "array", Command: []string{"work"}, Array: &ArraySpec{First: 1, Last: 2}}}},
-		[]JobResult{{ID: "array-1", AttemptID: firstTask, ExitCode: 0}, {ID: "array-2", AttemptID: secondTask, ExitCode: 4}})
+	writeWorkflowSourceRun(t, paths, acceptedDisplaySourceRunID, model.Queue{Commands: []model.QueuedCommand{{ID: "array", Name: "array", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 2}}}},
+		[]model.JobResult{{ID: "array-1", AttemptID: firstTask, ExitCode: 0}, {ID: "array-2", AttemptID: secondTask, ExitCode: 4}})
 	writeLocalSourceAttempt(t, paths, "array-1", firstTask, "0")
 	writeLocalSourceAttempt(t, paths, "array-2", secondTask, "4")
 	manifest := mustExportWorkflow(t, baseDir, acceptedDisplaySourceRunID)
@@ -201,7 +204,7 @@ func TestAcceptedArrayTaskDisplaysConsistentlyInShowAndWeb(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	byID := make(map[string]webJob, len(jobs))
+	byID := make(map[string]webprojection.Job, len(jobs))
 	for _, job := range jobs {
 		byID[job.ID] = job
 	}

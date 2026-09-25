@@ -83,10 +83,8 @@ var propagatedEnvironmentVariables = []string{
 	envRunRetry, envRunAsync, envQuiet, envRunQuiet, envArrayRange,
 }
 
-type environmentDefinition = webprojection.EnvironmentDefinition
-
-func environmentDefinitions() []environmentDefinition {
-	return []environmentDefinition{
+func environmentDefinitions() []webprojection.EnvironmentDefinition {
+	return []webprojection.EnvironmentDefinition{
 		{Name: envBaseDir, CLIDefault: true, Job: true, Array: true, Description: "State directory; --basedir default."},
 		{Name: envProjectName, CLIDefault: true, Job: true, Array: true, Description: "Project name; --project-name default."},
 		{Name: envMasterDir, CLIDefault: true, Description: "Server registry directory; --masterdir default."},

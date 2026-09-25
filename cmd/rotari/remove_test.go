@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -88,10 +89,10 @@ func TestCmdRemoveRejectsRunningProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := state.AcquireRunLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
+	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "active-run")

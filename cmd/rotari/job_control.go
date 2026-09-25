@@ -42,7 +42,7 @@ func cmdCancel(args []string) int {
 		printError(err)
 		return 1
 	}
-	response, err := sendServerRequest(baseDir, serverRequest{Op: serverinternal.OpCancel, QueueName: queueName, JobIDs: selection, Wait: *wait})
+	response, err := sendServerRequest(baseDir, serverinternal.Request{Op: serverinternal.OpCancel, QueueName: queueName, JobIDs: selection, Wait: *wait})
 	if err != nil {
 		printErrorf("failed to contact server: %v", err)
 		return 1
@@ -82,7 +82,7 @@ func cmdJobSignal(args []string, operation string) int {
 		printError(err)
 		return 1
 	}
-	response, err := sendServerRequest(baseDir, serverRequest{Op: operation, QueueName: queueName, JobIDs: selection})
+	response, err := sendServerRequest(baseDir, serverinternal.Request{Op: operation, QueueName: queueName, JobIDs: selection})
 	if err != nil {
 		printErrorf("failed to contact server: %v", err)
 		return 1

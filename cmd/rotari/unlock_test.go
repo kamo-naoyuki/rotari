@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -21,10 +22,10 @@ func TestEnsureProjectIdleRejectsInterruptedRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "run-1")
@@ -48,17 +49,17 @@ func TestEnsureProjectIdleReportsStillRunningJobsForInterruptedRun(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
 		t.Fatal(err)
 	}
 	runDir := filepath.Join(paths.RunsDir, "run-1")
-	if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "context.json"), model.RunContext{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
 	finishedDir := filepath.Join(runDir, "finished-job")
@@ -106,17 +107,17 @@ func TestEnsureProjectIdleReportsAllFinishedForInterruptedRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "cancelling", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "cancelling", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
 		t.Fatal(err)
 	}
 	runDir := filepath.Join(paths.RunsDir, "run-1")
-	if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "context.json"), model.RunContext{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"job-1", "job-2"} {
@@ -211,7 +212,7 @@ func TestConfirmResetOfInterruptedRunIncludesJobStatusDetail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
 		t.Fatal(err)
 	}
 	jobDir := filepath.Join(paths.RunsDir, "run-1", "job-1")
@@ -247,17 +248,17 @@ func TestCmdResetNonInteractiveRejectionIncludesJobStatusDetail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "cancelling", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "cancelling", LastRunID: "run-1", UpdatedAt: "2026-09-19T10:32:00Z"}); err != nil {
 		t.Fatal(err)
 	}
 	runDir := filepath.Join(paths.RunsDir, "run-1")
-	if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "context.json"), model.RunContext{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
 	jobDir := filepath.Join(paths.RunsDir, "run-1", "job-1")
@@ -321,7 +322,7 @@ func TestCmdUnlockRecoversInterruptedRunWithoutLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -358,10 +359,10 @@ func TestCmdUnlockRemovesMatchingRunLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{RunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{RunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -386,10 +387,10 @@ func TestCmdUnlockAcceptsLegacyPositionalRunID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{RunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{RunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -404,10 +405,10 @@ func TestCmdUnlockRejectsDifferentRunLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{RunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{RunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -425,7 +426,7 @@ func TestCmdUnlockRejectsDifferentRunLock(t *testing.T) {
 
 func TestIsRunningRetainsRemoteHostLock(t *testing.T) {
 	lockPath := t.TempDir() + "/running.lock"
-	if err := writeJSON(lockPath, LockInfo{PID: -1, RunID: "run-1", Host: "other-host"}); err != nil {
+	if err := writeJSON(lockPath, model.LockInfo{PID: -1, RunID: "run-1", Host: "other-host"}); err != nil {
 		t.Fatal(err)
 	}
 	running, err := isRunning(lockPath)
@@ -443,7 +444,7 @@ func TestIsRunningRemovesDeadLocalHostLock(t *testing.T) {
 		t.Fatal(err)
 	}
 	lockPath := t.TempDir() + "/running.lock"
-	if err := writeJSON(lockPath, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(lockPath, model.LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
 	running, err := isRunning(lockPath)
@@ -460,11 +461,11 @@ func TestIsRunningRemovesDeadLocalHostLock(t *testing.T) {
 
 func TestAcquireLockRejectsActiveLockWithoutReplacingIt(t *testing.T) {
 	lockPath := t.TempDir() + "/running.lock"
-	first := LockInfo{PID: os.Getpid(), RunID: "run-1"}
+	first := model.LockInfo{PID: os.Getpid(), RunID: "run-1"}
 	if err := state.AcquireRunLock(lockPath, first); err != nil {
 		t.Fatal(err)
 	}
-	if err := state.AcquireRunLock(lockPath, LockInfo{PID: os.Getpid(), RunID: "run-2"}); err == nil || !strings.Contains(err.Error(), "active lock exists") {
+	if err := state.AcquireRunLock(lockPath, model.LockInfo{PID: os.Getpid(), RunID: "run-2"}); err == nil || !strings.Contains(err.Error(), "active lock exists") {
 		t.Fatalf("second acquire error = %v, want active lock exists", err)
 	}
 	stored, err := state.LoadLock(lockPath)

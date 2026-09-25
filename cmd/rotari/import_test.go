@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
 )
 
@@ -18,7 +19,7 @@ func writeWorkflowFixture(t *testing.T, content string) string {
 	return path
 }
 
-func writeWorkflowRunFixture(t *testing.T, baseDir string) (pathSet, string) {
+func writeWorkflowRunFixture(t *testing.T, baseDir string) (state.ProjectPaths, string) {
 	t.Helper()
 	paths, err := resolvePaths(baseDir, "demo")
 	if err != nil {
@@ -26,21 +27,21 @@ func writeWorkflowRunFixture(t *testing.T, baseDir string) (pathSet, string) {
 	}
 	runID := "20260925-120000-12345678"
 	runDir := filepath.Join(paths.RunsDir, runID)
-	queue := Queue{Commands: []QueuedCommand{
+	queue := model.Queue{Commands: []model.QueuedCommand{
 		{ID: "success-id", Name: "prepare", Command: []string{"true"}},
 		{ID: "failed-id", Name: "train", Command: []string{"false"}, DependsOn: []string{"prepare"}},
 	}}
-	results := []JobResult{
+	results := []model.JobResult{
 		{ID: "success-id", AttemptID: makeAttemptID(runID, "success-id", 0), ExitCode: 0},
 		{ID: "failed-id", AttemptID: makeAttemptID(runID, "failed-id", 0), ExitCode: 1},
 	}
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Results: results}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Results: results}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{LastRunID: runID, Phase: "collecting"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{LastRunID: runID, Phase: "collecting"}); err != nil {
 		t.Fatal(err)
 	}
 	for _, result := range results {
@@ -290,21 +291,21 @@ func TestCmdImportReconcilesMatrixInstances(t *testing.T) {
 	runID := "20260925-130000-12345678"
 	runDir := filepath.Join(paths.RunsDir, runID)
 	dimensions := []model.MatrixDimension{{Name: "SEED", Values: []string{"1", "2"}}}
-	queue := Queue{Commands: []QueuedCommand{
+	queue := model.Queue{Commands: []model.QueuedCommand{
 		{ID: "seed-one", Name: "train-SEED1", Command: []string{"train"}, Environment: []string{"SEED=1"}, Matrix: &model.MatrixSpec{GroupID: "matrix-group", Dimensions: dimensions, Values: []model.MatrixValue{{Name: "SEED", Value: "1"}}, BaseName: "train"}},
 		{ID: "seed-two", Name: "train-SEED2", Command: []string{"train"}, Environment: []string{"SEED=2"}, Matrix: &model.MatrixSpec{GroupID: "matrix-group", Dimensions: dimensions, Values: []model.MatrixValue{{Name: "SEED", Value: "2"}}, BaseName: "train"}},
 	}}
-	results := []JobResult{
+	results := []model.JobResult{
 		{ID: "seed-one", AttemptID: makeAttemptID(runID, "seed-one", 0), ExitCode: 0},
 		{ID: "seed-two", AttemptID: makeAttemptID(runID, "seed-two", 0), ExitCode: 1},
 	}
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Results: results}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Results: results}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{LastRunID: runID, Phase: "collecting"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{LastRunID: runID, Phase: "collecting"}); err != nil {
 		t.Fatal(err)
 	}
 	for _, result := range results {
@@ -345,18 +346,18 @@ func TestCmdImportReconcilesArrayTasks(t *testing.T) {
 	}
 	runID := "20260925-140000-12345678"
 	runDir := filepath.Join(paths.RunsDir, runID)
-	queue := Queue{Commands: []QueuedCommand{{ID: "array", Name: "array", Command: []string{"work"}, Array: &ArraySpec{First: 1, Last: 2}}}}
-	results := []JobResult{
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "array", Name: "array", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 2}}}}
+	results := []model.JobResult{
 		{ID: "array-1", AttemptID: makeAttemptID(runID, "array-1", 0), ExitCode: 0},
 		{ID: "array-2", AttemptID: makeAttemptID(runID, "array-2", 0), ExitCode: 1},
 	}
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Results: results}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Results: results}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{LastRunID: runID, Phase: "collecting"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{LastRunID: runID, Phase: "collecting"}); err != nil {
 		t.Fatal(err)
 	}
 	for _, result := range results {

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -24,8 +25,6 @@ const (
 
 const noRuleDiagnosisName = "No known rule-based diagnosis matched"
 const unavailableRuleDiagnosisName = "Rule-based diagnosis unavailable"
-
-type diagnosisJob = diagnose.Job
 
 // cmdDiagnose builds a failure diagnosis prompt and optionally sends it to an
 // external provider.
@@ -143,14 +142,14 @@ func cmdDiagnose(args []string) int {
 	return 0
 }
 
-func loadDiagnosisJob(paths pathSet, runID, jobID string, attemptIDs ...string) (diagnosisJob, error) {
+func loadDiagnosisJob(paths state.ProjectPaths, runID, jobID string, attemptIDs ...string) (diagnose.Job, error) {
 	if !state.IsValidPathElement(runID) || !state.IsValidPathElement(jobID) {
-		return diagnosisJob{}, fmt.Errorf(jobNotFoundMessage, jobID, runID)
+		return diagnose.Job{}, fmt.Errorf(jobNotFoundMessage, jobID, runID)
 	}
 	for range 16 {
 		runDir, err := state.SafeJoin(paths.RunsDir, runID)
 		if err != nil {
-			return diagnosisJob{}, err
+			return diagnose.Job{}, err
 		}
 		jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 		attemptID := ""
@@ -161,29 +160,29 @@ func loadDiagnosisJob(paths pathSet, runID, jobID string, attemptIDs ...string) 
 			jobDir, err = state.SpecificAttemptJobDir(runDir, jobID, attemptID)
 		}
 		if err != nil {
-			return diagnosisJob{}, err
+			return diagnose.Job{}, err
 		}
 		info, err := os.Stat(jobDir)
 		if err != nil || !info.IsDir() {
 			if attemptID != "" {
-				return diagnosisJob{}, fmt.Errorf(jobNotFoundMessage, jobID, runID)
+				return diagnose.Job{}, fmt.Errorf(jobNotFoundMessage, jobID, runID)
 			}
 			origin := loadRunOrigin(runDir, jobID)
 			if origin == nil {
-				return diagnosisJob{}, fmt.Errorf(jobNotFoundMessage, jobID, runID)
+				return diagnose.Job{}, fmt.Errorf(jobNotFoundMessage, jobID, runID)
 			}
 			runID, jobID = origin.RunID, origin.JobID
 			continue
 		}
-		var spec JobSpec
+		var spec model.JobSpec
 		if err := jsonStore().ReadJSON(filepath.Join(jobDir, commandJSONName), &spec); err != nil {
-			return diagnosisJob{}, fmt.Errorf("read job command: %w", err)
+			return diagnose.Job{}, fmt.Errorf("read job command: %w", err)
 		}
 		log, err := os.ReadFile(filepath.Join(jobDir, "output"))
 		if err != nil && !os.IsNotExist(err) {
-			return diagnosisJob{}, fmt.Errorf("read job output: %w", err)
+			return diagnose.Job{}, fmt.Errorf("read job output: %w", err)
 		}
-		job := diagnosisJob{RunID: runID, JobID: jobID, Command: spec.Command, Log: tailString(string(log), diagnosisLogLimit)}
+		job := diagnose.Job{RunID: runID, JobID: jobID, Command: spec.Command, Log: tailString(string(log), diagnosisLogLimit)}
 		if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
 			for _, result := range summary.Results {
 				if result.ID == jobID {
@@ -195,18 +194,18 @@ func loadDiagnosisJob(paths pathSet, runID, jobID string, attemptIDs ...string) 
 		}
 		return job, nil
 	}
-	return diagnosisJob{}, fmt.Errorf("job %q has too many carried-forward origins", jobID)
+	return diagnose.Job{}, fmt.Errorf("job %q has too many carried-forward origins", jobID)
 }
 
 func tailString(value string, limit int) string {
 	return diagnose.TailLog(value, limit)
 }
 
-func diagnoseWithRules(job diagnosisJob) []ruleDiagnosis {
+func diagnoseWithRules(job diagnose.Job) []model.RuleDiagnosis {
 	return diagnose.DiagnoseDefault(job)
 }
 
-func diagnoseJobResult(runDir string, result JobResult) JobResult {
+func diagnoseJobResult(runDir string, result model.JobResult) model.JobResult {
 	if result.ExitCode == 0 || len(result.Diagnoses) > 0 {
 		return result
 	}
@@ -221,13 +220,13 @@ func diagnoseJobResult(runDir string, result JobResult) JobResult {
 	if err != nil && !os.IsNotExist(err) {
 		return unavailableRuleDiagnosis(result, "The job output could not be read: "+err.Error())
 	}
-	result.Diagnoses = diagnoseWithRules(diagnosisJob{
+	result.Diagnoses = diagnoseWithRules(diagnose.Job{
 		JobID: result.ID,
 		Error: result.Error,
 		Log:   tailString(string(data), diagnosisLogLimit),
 	})
 	if len(result.Diagnoses) == 0 {
-		result.Diagnoses = []ruleDiagnosis{{
+		result.Diagnoses = []model.RuleDiagnosis{{
 			Name:       noRuleDiagnosisName,
 			Evidence:   "No recognized signature in the recorded scheduler error or log.",
 			Suggestion: "Inspect the full job output and scheduler accounting for the failure details.",
@@ -236,8 +235,8 @@ func diagnoseJobResult(runDir string, result JobResult) JobResult {
 	return result
 }
 
-func unavailableRuleDiagnosis(result JobResult, evidence string) JobResult {
-	result.Diagnoses = []ruleDiagnosis{{
+func unavailableRuleDiagnosis(result model.JobResult, evidence string) model.JobResult {
+	result.Diagnoses = []model.RuleDiagnosis{{
 		Name:       unavailableRuleDiagnosisName,
 		Evidence:   evidence,
 		Suggestion: "Inspect the job directory and output file permissions, then run rotari diagnose --rules after resolving the read error.",
@@ -245,7 +244,7 @@ func unavailableRuleDiagnosis(result JobResult, evidence string) JobResult {
 	return result
 }
 
-func formatRuleDiagnoses(diagnoses []ruleDiagnosis) string {
+func formatRuleDiagnoses(diagnoses []model.RuleDiagnosis) string {
 	if len(diagnoses) == 0 {
 		return "No known rule-based diagnosis matched the recorded error or log. Inspect the full job output with rotari show --run-id RUN_ID --job-id JOB_ID.\n"
 	}
@@ -260,7 +259,7 @@ func isLanguageTag(value string) bool {
 	return diagnose.IsLanguageTag(value)
 }
 
-func diagnosisPrompt(job diagnosisJob, language string) string {
+func diagnosisPrompt(job diagnose.Job, language string) string {
 	return diagnose.BuildPrompt(job, language)
 }
 

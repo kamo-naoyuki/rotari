@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -65,13 +66,13 @@ func TestChangeDoesNotRestoreSnapshotIntoEmptyQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{LastRunID: "previous-run"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{LastRunID: "previous-run"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(paths.RunsDir, "previous-run", "commands.json"), Queue{Commands: []QueuedCommand{{ID: "job-id", Name: "job", Command: []string{"old"}}}}); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, "previous-run", "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job-id", Name: "job", Command: []string{"old"}}}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -96,10 +97,10 @@ func TestCmdChangeRejectsRunningProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := state.AcquireRunLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
+	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "active-run")

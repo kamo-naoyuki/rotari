@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -204,12 +205,12 @@ func cmdRun(args []string) int {
 		printErrorf("failed to determine working directory: %v", err)
 		return 1
 	}
-	request := serverRequest{
+	request := serverinternal.Request{
 		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings, Retry: *retry, Async: *async, Quiet: *quiet,
 		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, CWD: cwd,
 		Selection: selection, JobIDs: jobIDs, SourceRunID: sourceRunID, PartialArray: *partialArray,
 	}
-	var response serverResponse
+	var response serverinternal.Response
 	if *async {
 		response, err = sendServerRequest(baseDir, request)
 	} else {
@@ -235,7 +236,7 @@ func cmdRetry(args []string) int {
 	return cmdRun(append([]string{"--failed", "--unfinished"}, args...))
 }
 
-func sendRunRequest(baseDir string, request serverRequest) (serverResponse, error) {
+func sendRunRequest(baseDir string, request serverinternal.Request) (serverinternal.Response, error) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
 	defer signal.Stop(signals)
@@ -252,7 +253,7 @@ func sendRunRequest(baseDir string, request serverRequest) (serverResponse, erro
 	printer := runProgressPrinter{quiet: request.Quiet, lastCompleted: -1, lastSucceeded: -1, lastFailed: -1}
 	response, outcome, err := serverinternal.StreamRun(baseDir, request, detach, signals, printer.print)
 	if err != nil {
-		return serverResponse{}, err
+		return serverinternal.Response{}, err
 	}
 	switch outcome {
 	case serverinternal.RunDetached:
@@ -273,7 +274,7 @@ type runProgressPrinter struct {
 	lastCompleted, lastSucceeded, lastFailed int
 }
 
-func (printer *runProgressPrinter) print(response serverResponse) {
+func (printer *runProgressPrinter) print(response serverinternal.Response) {
 	if printer.quiet && !strings.HasPrefix(response.Message, "Job failed") {
 		return
 	}
@@ -333,7 +334,7 @@ func resolveQueueExecutor(baseDir, queueName, requested string) (string, error) 
 	return resolved, nil
 }
 
-func startServerRun(baseDir string, request serverRequest, onDone func()) (string, error) {
+func startServerRun(baseDir string, request serverinternal.Request, onDone func()) (string, error) {
 	_, err := resolveQueueExecutor(baseDir, request.QueueName, request.Executor)
 	if err != nil {
 		return "", err
@@ -364,7 +365,7 @@ func startServerRun(baseDir string, request serverRequest, onDone func()) (strin
 		return "", fmt.Errorf("queue %q has no queued commands", request.QueueName)
 	}
 	runID := makeRunID()
-	if err := launchAsyncRun(paths, runOptions{
+	if err := launchAsyncRun(paths, runcontract.Options{
 		QueueName: request.QueueName, RunID: runID, RunName: request.RunName,
 		LocalConcurrency: request.LocalConcurrency, BatchMaxActive: request.BatchMaxActive, Retry: request.Retry,
 		Executor: request.Executor, ExecutorOptions: request.ExecutorOptions, Selection: request.Selection,
@@ -381,7 +382,7 @@ func startServerRun(baseDir string, request serverRequest, onDone func()) (strin
 		request.QueueName, formatRunLabel(runID, request.RunName), runDir, runID, paths.BaseDir, request.QueueName), nil
 }
 
-func runServerSync(baseDir string, request serverRequest, progress func(serverResponse)) (string, int, error) {
+func runServerSync(baseDir string, request serverinternal.Request, progress func(serverinternal.Response)) (string, int, error) {
 	resolvedExecutor, err := resolveQueueExecutor(baseDir, request.QueueName, request.Executor)
 	if err != nil {
 		return "", 1, err
@@ -418,7 +419,7 @@ func runServerSync(baseDir string, request serverRequest, progress func(serverRe
 		release()
 		return "", 1, err
 	}
-	if err := state.AcquireRunLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: runID, RunName: request.RunName, StartedAt: nowRFC3339()}); err != nil {
+	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: runID, RunName: request.RunName, StartedAt: nowRFC3339()}); err != nil {
 		release()
 		return "", 1, fmt.Errorf("project %q is already running", request.QueueName)
 	}
@@ -454,11 +455,11 @@ func runServerSync(baseDir string, request serverRequest, progress func(serverRe
 	excluded := len(queue.Commands) - submitted
 	release()
 	if progress != nil {
-		progress(serverResponse{Progress: true, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", request.QueueName, runID, submitted, excluded, len(queue.Commands))})
+		progress(serverinternal.Response{Progress: true, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", request.QueueName, runID, submitted, excluded, len(queue.Commands))})
 	}
 
 	stopLoadSampling := startRunLoadSampling(paths, runID)
-	exitCode := executeMixedRun(paths, runID, request.RunName, request.LocalConcurrency, request.BatchMaxActive, request.Retry, resolvedExecutor, request.ExecutorOptions, request.Selection, request.JobIDs, request.SourceRunID, request.PartialArray, func(result JobResult, completed, total, succeeded, failed int) {
+	exitCode := executeMixedRun(paths, runID, request.RunName, request.LocalConcurrency, request.BatchMaxActive, request.Retry, resolvedExecutor, request.ExecutorOptions, request.Selection, request.JobIDs, request.SourceRunID, request.PartialArray, func(result model.JobResult, completed, total, succeeded, failed int) {
 		if progress != nil {
 			message := ""
 			if result.ExitCode != 0 && result.Error == "final-failure" {
@@ -476,9 +477,9 @@ func runServerSync(baseDir string, request serverRequest, progress func(serverRe
 			} else if strings.HasPrefix(result.Error, "retry:") {
 				message = fmt.Sprintf("Retrying job: attempt=%s job=%s command=%v", strings.TrimPrefix(result.Error, "retry:"), result.ID, result.Command)
 			}
-			progress(serverResponse{OK: true, Progress: true, Message: message, JobID: result.ID, Completed: completed, Total: total, Succeeded: succeeded, Failed: failed})
+			progress(serverinternal.Response{OK: true, Progress: true, Message: message, JobID: result.ID, Completed: completed, Total: total, Succeeded: succeeded, Failed: failed})
 		}
-	}, func(job JobSpec) {
+	}, func(job model.JobSpec) {
 		if progress == nil {
 			return
 		}
@@ -488,7 +489,7 @@ func runServerSync(baseDir string, request serverRequest, progress func(serverRe
 		}
 		message := fmt.Sprintf("Job running:\n  ID: %s\n  Attempt ID: %s\n  Name: %s\n  Show:\n    rotari show --run-id %s --job-id %s",
 			job.ID, job.AttemptID, name, runID, job.AttemptID)
-		progress(serverResponse{OK: true, Progress: true, Message: message, JobID: job.ID})
+		progress(serverinternal.Response{OK: true, Progress: true, Message: message, JobID: job.ID})
 	}, request.ExecutorSettings)
 	stopLoadSampling()
 	if err := finishRunContext(paths, runID); err != nil {
@@ -508,7 +509,7 @@ func runServerSync(baseDir string, request serverRequest, progress func(serverRe
 	}
 	data, err := os.ReadFile(filepath.Join(runDir, "summary.json"))
 	if err == nil {
-		var summary RunSummary
+		var summary model.RunSummary
 		if json.Unmarshal(data, &summary) == nil {
 			return formatRunCompletion(paths, runID, summary), exitCode, nil
 		}

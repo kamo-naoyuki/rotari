@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -37,16 +38,16 @@ func TestCmdRunWithRunIDRejectsRunningProjectBeforeQueueConfirmation(t *testing.
 		t.Fatal(err)
 	}
 	runID := "run-running-source"
-	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "source", Command: []string{"source"}}}}); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "source", Command: []string{"source"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := state.AcquireRunLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
+	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "active-run")
@@ -81,7 +82,7 @@ func TestCmdRunOverwriteSkipsQueueConfirmation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	runID := "source-run"
@@ -132,7 +133,7 @@ func TestSendRunRequestQuietSuppressesProgress(t *testing.T) {
 			return
 		}
 		defer conn.Close()
-		var request serverRequest
+		var request serverinternal.Request
 		if err := json.NewDecoder(conn).Decode(&request); err != nil {
 			serverDone <- err
 			return
@@ -141,11 +142,11 @@ func TestSendRunRequestQuietSuppressesProgress(t *testing.T) {
 			serverDone <- fmt.Errorf("request.Quiet = false, want true")
 			return
 		}
-		if err := json.NewEncoder(conn).Encode(serverResponse{Progress: true, Message: "=== Run started ===\n  Project: demo"}); err != nil {
+		if err := json.NewEncoder(conn).Encode(serverinternal.Response{Progress: true, Message: "=== Run started ===\n  Project: demo"}); err != nil {
 			serverDone <- err
 			return
 		}
-		if err := json.NewEncoder(conn).Encode(serverResponse{OK: true, Message: "=== Run finished ===\n  Project: demo\n  Exit code: 0", ExitCode: 0}); err != nil {
+		if err := json.NewEncoder(conn).Encode(serverinternal.Response{OK: true, Message: "=== Run finished ===\n  Project: demo\n  Exit code: 0", ExitCode: 0}); err != nil {
 			serverDone <- err
 			return
 		}
@@ -158,7 +159,7 @@ func TestSendRunRequestQuietSuppressesProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	response, err := sendRunRequest(baseDir, serverRequest{Op: serverinternal.OpRun, QueueName: "demo", Quiet: true})
+	response, err := sendRunRequest(baseDir, serverinternal.Request{Op: serverinternal.OpRun, QueueName: "demo", Quiet: true})
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -240,7 +241,7 @@ func TestCancelQueueJobsRejectsUnsafeRunIDFromLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{RunID: "../outside"}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{RunID: "../outside"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -255,7 +256,7 @@ func TestControlQueueJobsRejectsUnsafeRunIDFromLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{RunID: "nested/run"}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{RunID: "nested/run"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -406,14 +407,14 @@ func TestCancelQueueCancelsRunningSlurmJobMidRun(t *testing.T) {
 	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
 	runDir := filepath.Join(paths.RunsDir, "run-1")
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{
+	queue := model.Queue{Commands: []model.QueuedCommand{
 		{ID: "job-1", Command: []string{"echo", "hi"}},
 		{ID: "job-2", Command: []string{"echo", "hi"}},
 	}}
@@ -473,7 +474,7 @@ func TestControlQueueJobsControlsSelectedSlurmJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
 	jobDir := filepath.Join(paths.RunsDir, "run-1", "job-1")
@@ -512,7 +513,7 @@ func TestControlQueueJobsReportsMissingScontrolBinary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
 	jobDir := filepath.Join(paths.RunsDir, "run-1", "job-1")
@@ -549,7 +550,7 @@ func TestControlQueueJobsSurfacesScontrolRejectionForPendingJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
 	jobDir := filepath.Join(paths.RunsDir, "run-1", "job-1")
@@ -614,7 +615,7 @@ func TestCmdAddThenCmdRunExecutesLocalJobEndToEnd(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	var pingErr error
 	for time.Now().Before(deadline) {
-		response, err := sendServerRequest(baseDir, serverRequest{Op: "ping"})
+		response, err := sendServerRequest(baseDir, serverinternal.Request{Op: "ping"})
 		if err == nil && response.OK {
 			pingErr = nil
 			break
@@ -691,22 +692,22 @@ func TestCmdRunFailedRestoresEmptyQueue(t *testing.T) {
 	}
 	sourceRunID := makeRunID()
 	marker := filepath.Join(baseDir, "executed")
-	if err := writeJSON(filepath.Join(paths.RunsDir, sourceRunID, "commands.json"), Queue{Commands: []QueuedCommand{
+	if err := writeJSON(filepath.Join(paths.RunsDir, sourceRunID, "commands.json"), model.Queue{Commands: []model.QueuedCommand{
 		{ID: "success", Command: []string{"sh", "-c", fmt.Sprintf("printf success >> %q", marker)}},
 		{ID: "failed", Command: []string{"sh", "-c", fmt.Sprintf("printf failed >> %q", marker)}},
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(paths.RunsDir, sourceRunID, "summary.json"), RunSummary{RunID: sourceRunID, Results: []JobResult{
+	if err := writeJSON(filepath.Join(paths.RunsDir, sourceRunID, "summary.json"), model.RunSummary{RunID: sourceRunID, Results: []model.JobResult{
 		{ID: "success", ExitCode: 0},
 		{ID: "failed", ExitCode: 1},
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{LastRunID: sourceRunID}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{LastRunID: sourceRunID}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -721,7 +722,7 @@ func TestCmdRunFailedRestoresEmptyQueue(t *testing.T) {
 	})
 	deadline := time.Now().Add(3 * time.Second)
 	for {
-		response, err := sendServerRequest(baseDir, serverRequest{Op: "ping"})
+		response, err := sendServerRequest(baseDir, serverinternal.Request{Op: "ping"})
 		if err == nil && response.OK {
 			break
 		}
@@ -763,7 +764,7 @@ func testCmdWithAttemptID(t *testing.T, retry bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeJSON(paths.MetaFile, defaultMeta()); err != nil {
@@ -772,10 +773,10 @@ func testCmdWithAttemptID(t *testing.T, retry bool) {
 	sourceRunID := makeRunID()
 	attemptID := makeAttemptID(sourceRunID, "source", 0)
 	sourceRunDir := filepath.Join(paths.RunsDir, sourceRunID)
-	if err := writeJSON(filepath.Join(sourceRunDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "source", Command: []string{"printf", "attempt-source"}}}}); err != nil {
+	if err := writeJSON(filepath.Join(sourceRunDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "source", Command: []string{"printf", "attempt-source"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(sourceRunDir, "summary.json"), RunSummary{RunID: sourceRunID, Status: "failed", Results: []JobResult{{ID: "source", AttemptID: attemptID, ExitCode: 1}}}); err != nil {
+	if err := writeJSON(filepath.Join(sourceRunDir, "summary.json"), model.RunSummary{RunID: sourceRunID, Status: "failed", Results: []model.JobResult{{ID: "source", AttemptID: attemptID, ExitCode: 1}}}); err != nil {
 		t.Fatal(err)
 	}
 	attemptDir, err := specificAttemptJobDir(sourceRunDir, "source", attemptID)
@@ -793,7 +794,7 @@ func testCmdWithAttemptID(t *testing.T, retry bool) {
 	go func() { serverDone <- runServer(baseDir) }()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		if response, pingErr := sendServerRequest(baseDir, serverRequest{Op: "ping"}); pingErr == nil && response.OK {
+		if response, pingErr := sendServerRequest(baseDir, serverinternal.Request{Op: "ping"}); pingErr == nil && response.OK {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -838,10 +839,10 @@ func TestServerHandlePing(t *testing.T) {
 	server := newRotariServer(t.TempDir())
 	go server.Handle(serverConn)
 
-	if err := json.NewEncoder(client).Encode(serverRequest{Op: "ping"}); err != nil {
+	if err := json.NewEncoder(client).Encode(serverinternal.Request{Op: "ping"}); err != nil {
 		t.Fatal(err)
 	}
-	var response serverResponse
+	var response serverinternal.Response
 	if err := json.NewDecoder(client).Decode(&response); err != nil {
 		t.Fatal(err)
 	}
@@ -877,7 +878,7 @@ func TestServerHandleRejectsMalformedJSON(t *testing.T) {
 	if _, err := client.Write([]byte("{invalid}\n")); err != nil {
 		t.Fatal(err)
 	}
-	var response serverResponse
+	var response serverinternal.Response
 	if err := json.NewDecoder(client).Decode(&response); err != nil {
 		t.Fatal(err)
 	}
@@ -892,10 +893,10 @@ func TestServerHandleRejectsUnknownOperation(t *testing.T) {
 
 	server := newRotariServer(t.TempDir())
 	go server.Handle(serverConn)
-	if err := json.NewEncoder(client).Encode(serverRequest{Op: "unknown"}); err != nil {
+	if err := json.NewEncoder(client).Encode(serverinternal.Request{Op: "unknown"}); err != nil {
 		t.Fatal(err)
 	}
-	var response serverResponse
+	var response serverinternal.Response
 	if err := json.NewDecoder(client).Decode(&response); err != nil {
 		t.Fatal(err)
 	}
@@ -911,14 +912,14 @@ func TestServerHandleSubmitPersistsQueue(t *testing.T) {
 
 	server := newRotariServer(baseDir)
 	go server.Handle(serverConn)
-	request := serverRequest{
+	request := serverinternal.Request{
 		Op: "submit", QueueName: "demo", Command: []string{"printf", "hello"},
 		JobName: "greeting", DependsOn: []string{"setup"},
 	}
 	if err := json.NewEncoder(client).Encode(request); err != nil {
 		t.Fatal(err)
 	}
-	var response serverResponse
+	var response serverinternal.Response
 	if err := json.NewDecoder(client).Decode(&response); err != nil {
 		t.Fatal(err)
 	}
@@ -966,7 +967,7 @@ func TestSendServerRequestOverUnixSocket(t *testing.T) {
 		}
 	}()
 
-	response, err := sendServerRequest(baseDir, serverRequest{Op: "ping"})
+	response, err := sendServerRequest(baseDir, serverinternal.Request{Op: "ping"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1017,7 +1018,7 @@ func TestCmdCancelRejectsWholeRunFromWrongHostViaCLI(t *testing.T) {
 	// A PID that isn't this test process's own, recorded as owned by
 	// another host, mirrors a runner that is genuinely still active
 	// elsewhere over a shared base directory.
-	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid() + 1, RunID: "run-1", StartedAt: nowRFC3339(), Host: "other-host"}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid() + 1, RunID: "run-1", StartedAt: nowRFC3339(), Host: "other-host"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(filepath.Join(paths.RunsDir, "run-1"), 0o755); err != nil {
@@ -1077,14 +1078,14 @@ func TestCmdCancelAcceptsPositionalJobID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
 	runDir := filepath.Join(paths.RunsDir, "run-1")
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"echo", "hi"}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"echo", "hi"}}}}
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		t.Fatal(err)
 	}
@@ -1147,7 +1148,7 @@ func TestCmdCancelAcceptsPositionalRunID(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := "20260922-000000-00000000"
-	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid() + 1, RunID: runID, StartedAt: nowRFC3339(), Host: "other-host"}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid() + 1, RunID: runID, StartedAt: nowRFC3339(), Host: "other-host"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(filepath.Join(paths.RunsDir, runID), 0o755); err != nil {
@@ -1407,10 +1408,10 @@ func TestRunServerLifecycle(t *testing.T) {
 	}()
 
 	deadline := time.Now().Add(3 * time.Second)
-	var response serverResponse
+	var response serverinternal.Response
 	var err error
 	for time.Now().Before(deadline) {
-		response, err = sendServerRequest(baseDir, serverRequest{Op: "ping"})
+		response, err = sendServerRequest(baseDir, serverinternal.Request{Op: "ping"})
 		if err == nil && response.OK {
 			break
 		}
@@ -1423,7 +1424,7 @@ func TestRunServerLifecycle(t *testing.T) {
 		t.Fatalf("server registry record missing: %v", err)
 	}
 
-	response, err = sendServerRequest(baseDir, serverRequest{Op: "shutdown"})
+	response, err = sendServerRequest(baseDir, serverinternal.Request{Op: "shutdown"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1461,7 +1462,7 @@ func TestRunServerUsesOwnerOnlyPermissions(t *testing.T) {
 
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		_, err = sendServerRequest(baseDir, serverRequest{Op: "ping"})
+		_, err = sendServerRequest(baseDir, serverinternal.Request{Op: "ping"})
 		if err == nil {
 			break
 		}
@@ -1479,7 +1480,7 @@ func TestRunServerUsesOwnerOnlyPermissions(t *testing.T) {
 		t.Fatalf("server socket permissions = %o, want no group/other access", perm)
 	}
 
-	if _, err := sendServerRequest(baseDir, serverRequest{Op: "shutdown"}); err != nil {
+	if _, err := sendServerRequest(baseDir, serverinternal.Request{Op: "shutdown"}); err != nil {
 		t.Fatal(err)
 	}
 	select {

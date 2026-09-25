@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,12 +19,12 @@ func TestExecuteMixedRunPersistsAcceptedImportedResult(t *testing.T) {
 		t.Fatal(err)
 	}
 	sourceRunID := "source-run"
-	if err := writeJSON(filepath.Join(paths.RunsDir, sourceRunID, "summary.json"), RunSummary{RunID: sourceRunID, Results: []JobResult{{ID: "source", AttemptID: "source-attempt", ExitCode: 7, Error: "failed"}}}); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, sourceRunID, "summary.json"), model.RunSummary{RunID: sourceRunID, Results: []model.JobResult{{ID: "source", AttemptID: "source-attempt", ExitCode: 7, Error: "failed"}}}); err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{WorkflowImport: true, Commands: []QueuedCommand{{
+	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{
 		ID: "accepted", Command: []string{"must-not-run"}, Accepted: true,
-		Origin: &JobOrigin{RunID: sourceRunID, JobID: "source", AttemptID: "source-attempt", Status: "failed"},
+		Origin: &model.JobOrigin{RunID: sourceRunID, JobID: "source", AttemptID: "source-attempt", Status: "failed"},
 	}}}
 	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
@@ -49,7 +51,7 @@ func TestExecuteMixedRunRetriesFailedJob(t *testing.T) {
 		t.Fatal(err)
 	}
 	marker := filepath.Join(baseDir, "retry-marker")
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{
 		ID:      "retry",
 		Command: []string{"/bin/sh", "-c", fmt.Sprintf("if [ -f %q ]; then exit 0; else touch %q; exit 1; fi", marker, marker)},
 	}}}); err != nil {
@@ -68,7 +70,7 @@ func TestExecuteMixedRunRetriesFailedJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var summary RunSummary
+	var summary model.RunSummary
 	if err := json.Unmarshal(data, &summary); err != nil {
 		t.Fatal(err)
 	}
@@ -82,15 +84,15 @@ type recordingExecutor struct {
 	submitted []string
 }
 
-func (executor *recordingExecutor) Name() string { return executor.name }
+func (recorder *recordingExecutor) Name() string { return recorder.name }
 
-func (executor *recordingExecutor) Submit(_ string, job JobSpec, _ []string) (JobHandle, error) {
-	executor.submitted = append(executor.submitted, job.ID)
-	return JobHandle{Job: job}, nil
+func (recorder *recordingExecutor) Submit(_ string, job model.JobSpec, _ []string) (executor.JobHandle, error) {
+	recorder.submitted = append(recorder.submitted, job.ID)
+	return executor.JobHandle{Job: job}, nil
 }
 
-func (executor *recordingExecutor) Wait(_ string, handle JobHandle) JobResult {
-	return JobResult{ID: handle.Job.ID, Command: handle.Job.Command, ExitCode: 0}
+func (recorder *recordingExecutor) Wait(_ string, handle executor.JobHandle) model.JobResult {
+	return model.JobResult{ID: handle.Job.ID, Command: handle.Job.Command, ExitCode: 0}
 }
 
 func TestExecuteMixedRunKeepsPerJobExecutorOverrides(t *testing.T) {
@@ -112,7 +114,7 @@ func TestExecuteMixedRunKeepsPerJobExecutorOverrides(t *testing.T) {
 			delete(executorRegistry, "slurm")
 		}
 	})
-	queue := Queue{Commands: []QueuedCommand{
+	queue := model.Queue{Commands: []model.QueuedCommand{
 		{ID: "local-job", Command: []string{"sh", "-c", "exit 0"}},
 		{ID: "slurm-job", Command: []string{"echo", "scheduler"}, Executor: "slurm"},
 	}}
@@ -147,7 +149,7 @@ func TestExecuteMixedRunWaitsForEveryJobInDependentStage(t *testing.T) {
 	previous := executorRegistry["slurm"]
 	executorRegistry["slurm"] = scheduler
 	t.Cleanup(func() { executorRegistry["slurm"] = previous })
-	queue := Queue{Commands: []QueuedCommand{
+	queue := model.Queue{Commands: []model.QueuedCommand{
 		{ID: "prepare-a", Stage: "prepare", Executor: "slurm", Command: []string{"prepare-a"}},
 		{ID: "prepare-b", Stage: "prepare", Executor: "slurm", Command: []string{"prepare-b"}},
 		{ID: "train", Name: "train", DependsOn: []string{"prepare"}, Executor: "slurm", Command: []string{"train"}},
@@ -172,7 +174,7 @@ func TestExecuteMixedRunPersistsRuleDiagnoses(t *testing.T) {
 	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{
 		ID: "failed", Command: []string{"sh", "-c", "echo 'CUDA out of memory' >&2; exit 1"},
 	}}}); err != nil {
 		t.Fatal(err)
@@ -198,7 +200,7 @@ func TestExecuteMixedRunPersistsNoMatchDiagnosis(t *testing.T) {
 	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{
 		ID: "failed", Command: []string{"sh", "-c", "echo ordinary failure >&2; exit 1"},
 	}}}); err != nil {
 		t.Fatal(err)
@@ -224,8 +226,8 @@ func TestExecuteMixedRunExecutesAllArrayTasks(t *testing.T) {
 	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{
-		ID: "array", Command: []string{"sh", "-c", "exit 0"}, Array: &ArraySpec{First: 1, Last: 2},
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{
+		ID: "array", Command: []string{"sh", "-c", "exit 0"}, Array: &model.ArraySpec{First: 1, Last: 2},
 	}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -250,8 +252,8 @@ func TestExecuteMixedRunPartialArrayReexecutesOnlyFailedTask(t *testing.T) {
 	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{{
-		ID: "array", Command: []string{"sh", "-c", "exit 0"}, Array: &ArraySpec{First: 1, Last: 2},
+	queue := model.Queue{Commands: []model.QueuedCommand{{
+		ID: "array", Command: []string{"sh", "-c", "exit 0"}, Array: &model.ArraySpec{First: 1, Last: 2},
 	}}}
 	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
@@ -259,9 +261,9 @@ func TestExecuteMixedRunPartialArrayReexecutesOnlyFailedTask(t *testing.T) {
 	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "commands.json"), queue); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "summary.json"), RunSummary{
+	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "summary.json"), model.RunSummary{
 		RunID: "run-1",
-		Results: []JobResult{
+		Results: []model.JobResult{
 			{ID: "array-1", ExitCode: 1},
 			{ID: "array-2", ExitCode: 0},
 		},
@@ -282,7 +284,7 @@ func TestExecuteMixedRunPartialArrayReexecutesOnlyFailedTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results := make(map[string]JobResult, len(summary.Results))
+	results := make(map[string]model.JobResult, len(summary.Results))
 	for _, result := range summary.Results {
 		results[result.ID] = result
 	}
@@ -325,7 +327,7 @@ func TestExecuteMixedRunPersistsRunName(t *testing.T) {
 	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{
 		ID: "named-job", Command: []string{"sh", "-c", "exit 0"}, Name: "named-job",
 	}}}); err != nil {
 		t.Fatal(err)
@@ -351,9 +353,9 @@ func TestFormatRunCompletionIncludesRunNameAndFailedJobHint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	message := formatRunCompletion(paths, "run-1", RunSummary{
+	message := formatRunCompletion(paths, "run-1", model.RunSummary{
 		RunID: "run-1", RunName: "nightly", Status: "failed", ExitCode: 1,
-		Results: []JobResult{{ID: "job-1", ExitCode: 1, Hosts: []string{"compute-01"}}},
+		Results: []model.JobResult{{ID: "job-1", ExitCode: 1, Hosts: []string{"compute-01"}}},
 	})
 	for _, want := range []string{"nightly (run-1)", "Failed: 1", "Hosts: compute-01", "rotari show", "rotari retry"} {
 		if !strings.Contains(message, want) {

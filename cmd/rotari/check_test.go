@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"io"
 	"os"
 	"strings"
@@ -24,7 +25,7 @@ func TestCheckProjectReadyAndEmpty(t *testing.T) {
 		t.Fatalf("empty check = %#v", result)
 	}
 
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	result, err = checkProject(paths)
@@ -42,7 +43,7 @@ func TestCheckProjectValidatesQueueLikeRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Name: "train", DependsOn: []string{"prepare"}, Command: []string{"true"}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Name: "train", DependsOn: []string{"prepare"}, Command: []string{"true"}}}}
 	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +60,7 @@ func TestCheckProjectValidatesExecutorOptionsLikeRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Executor: "ssh", Command: []string{"true"}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Executor: "ssh", Command: []string{"true"}}}}
 	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +77,7 @@ func TestCheckProjectDeepValidatesLocalEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queue := Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"./missing-command"}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"./missing-command"}}}}
 	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
@@ -95,12 +96,12 @@ func TestCheckProjectReportsRunningAndRemoteLocks(t *testing.T) {
 	}
 	tests := []struct {
 		name      string
-		lock      LockInfo
+		lock      model.LockInfo
 		wantState string
 		wantLock  string
 	}{
-		{name: "local runner", lock: LockInfo{PID: os.Getpid(), RunID: "run-local", Host: host}, wantState: "running", wantLock: "active"},
-		{name: "remote lock", lock: LockInfo{PID: 1, RunID: "run-remote", Host: host + "-remote"}, wantState: "locked", wantLock: "remote"},
+		{name: "local runner", lock: model.LockInfo{PID: os.Getpid(), RunID: "run-local", Host: host}, wantState: "running", wantLock: "active"},
+		{name: "remote lock", lock: model.LockInfo{PID: 1, RunID: "run-remote", Host: host + "-remote"}, wantState: "locked", wantLock: "remote"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -112,11 +113,11 @@ func TestCheckProjectReportsRunningAndRemoteLocks(t *testing.T) {
 			if err := writeJSON(paths.LockFile, test.lock); err != nil {
 				t.Fatal(err)
 			}
-			if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: test.lock.RunID}); err != nil {
+			if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: test.lock.RunID}); err != nil {
 				t.Fatal(err)
 			}
 			writeTestRunStateFiles(t, paths, test.lock.RunID)
-			if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+			if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 				t.Fatal(err)
 			}
 			result, err := checkProject(paths)
@@ -140,13 +141,13 @@ func TestCheckProjectDoesNotRemoveStaleLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: -1, RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "run-1")
@@ -173,10 +174,10 @@ func TestCheckProjectKeepsRunningStateWhenQueueIsUnreadable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-1", Host: host}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "run-1")
@@ -203,10 +204,10 @@ func TestCheckProjectReportsReadyWithStaleLockOnIdleProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.LockFile, LockInfo{PID: -1, RunID: "old-run", Host: host}); err != nil {
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: -1, RunID: "old-run", Host: host}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -232,7 +233,7 @@ func TestCmdCheckExitCode(t *testing.T) {
 	if code := cmdCheck(args); code != 1 {
 		t.Fatalf("empty cmdCheck exit code = %d, want 1", code)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	if code := cmdCheck(args); code != 0 {
@@ -246,7 +247,7 @@ func TestCmdCheckAcceptsPositionalProjectName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -264,7 +265,7 @@ func TestCmdCheckPositionalProjectOverridesEnvironmentDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv(envProjectName, "other")
@@ -280,7 +281,7 @@ func TestCmdCheckJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -303,7 +304,7 @@ func TestCmdCheckDeepFlag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"./missing-command"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"./missing-command"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	if code := cmdCheck([]string{"--basedir", baseDir, "--project-name", "demo", "--deep"}); code != 1 {

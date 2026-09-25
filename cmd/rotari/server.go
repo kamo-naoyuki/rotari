@@ -9,11 +9,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 )
-
-type serverRequest = serverinternal.Request
-type serverResponse = serverinternal.Response
 
 const maxServerLogSize = 1 << 20
 
@@ -74,7 +72,7 @@ func cmdServerStatus(args []string) int {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
 	}
-	response, err := sendServerRequest(baseDir, serverRequest{Op: serverinternal.OpPing})
+	response, err := sendServerRequest(baseDir, serverinternal.Request{Op: serverinternal.OpPing})
 	if err != nil || !response.OK {
 		printError("server is not running")
 		return 1
@@ -118,7 +116,7 @@ func cmdServerRequest(args []string, op string) int {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
 	}
-	response, err := sendServerRequest(baseDir, serverRequest{Op: op})
+	response, err := sendServerRequest(baseDir, serverinternal.Request{Op: op})
 	if err != nil {
 		printErrorf("failed to contact server: %v", err)
 		return 1
@@ -205,34 +203,34 @@ type serverOperations struct {
 	baseDir string
 }
 
-func (ops serverOperations) Submit(request serverRequest) (string, error) {
-	command := QueuedCommand{
+func (ops serverOperations) Submit(request serverinternal.Request) (string, error) {
+	command := model.QueuedCommand{
 		Command: request.Command, Executor: request.Executor, ExecutorOptions: request.ExecutorOptions, Environment: request.Environment,
 		WorkingDirectory: request.WorkingDirectory, Name: request.JobName, Stage: request.Stage, DependsOn: request.DependsOn,
 	}
-	return enqueueCommands(ops.baseDir, request.QueueName, []QueuedCommand{command}, request.Array)
+	return enqueueCommands(ops.baseDir, request.QueueName, []model.QueuedCommand{command}, request.Array)
 }
 
-func (ops serverOperations) Cancel(request serverRequest) (string, error) {
+func (ops serverOperations) Cancel(request serverinternal.Request) (string, error) {
 	return cancelQueueJobs(ops.baseDir, request.QueueName, request.JobIDs, request.Wait)
 }
 
-func (ops serverOperations) Control(request serverRequest) (string, error) {
+func (ops serverOperations) Control(request serverinternal.Request) (string, error) {
 	return controlQueueJobs(ops.baseDir, request.QueueName, request.JobIDs, request.Op)
 }
 
-func (ops serverOperations) StartRun(request serverRequest, onDone func()) (string, error) {
+func (ops serverOperations) StartRun(request serverinternal.Request, onDone func()) (string, error) {
 	return startServerRun(ops.baseDir, request, onDone)
 }
 
-func (ops serverOperations) Run(request serverRequest, progress func(serverResponse)) (string, int, error) {
+func (ops serverOperations) Run(request serverinternal.Request, progress func(serverinternal.Response)) (string, int, error) {
 	return runServerSync(ops.baseDir, request, progress)
 }
 
-func (ops serverOperations) CancelRun(request serverRequest) {
+func (ops serverOperations) CancelRun(request serverinternal.Request) {
 	_, _ = cancelQueue(ops.baseDir, request.QueueName, false)
 }
 
-func sendServerRequest(baseDir string, request serverRequest) (serverResponse, error) {
+func sendServerRequest(baseDir string, request serverinternal.Request) (serverinternal.Response, error) {
 	return serverinternal.SendRequest(baseDir, request)
 }

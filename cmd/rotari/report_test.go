@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +13,7 @@ import (
 	"testing"
 )
 
-func createAIReportFixture(t *testing.T) (string, pathSet, string, string) {
+func createAIReportFixture(t *testing.T) (string, state.ProjectPaths, string, string) {
 	t.Helper()
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "demo")
@@ -21,17 +23,17 @@ func createAIReportFixture(t *testing.T) (string, pathSet, string, string) {
 	runID, jobID := "run-1", "job-1"
 	runDir := filepath.Join(paths.RunsDir, runID)
 	jobDir := filepath.Join(runDir, jobID)
-	command := QueuedCommand{ID: jobID, Name: "train", Command: []string{"python", "train.py"}, Executor: "slurm", DependsOn: []string{"prepare"}}
-	if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
+	command := model.QueuedCommand{ID: jobID, Name: "train", Command: []string{"python", "train.py"}, Executor: "slurm", DependsOn: []string{"prepare"}}
+	if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{command}}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{command}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Status: "failed", ExitCode: 1, Results: []JobResult{{ID: jobID, ExitCode: 1, Error: "exit status 1", Diagnoses: []ruleDiagnosis{{Name: "Python exception", Evidence: "ValueError: bad value", Suggestion: "Inspect the traceback"}}}}}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "failed", ExitCode: 1, Results: []model.JobResult{{ID: jobID, ExitCode: 1, Error: "exit status 1", Diagnoses: []model.RuleDiagnosis{{Name: "Python exception", Evidence: "ValueError: bad value", Suggestion: "Inspect the traceback"}}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "context.json"), RunContext{CWD: "/work/demo", Hostname: "worker-1"}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "context.json"), model.RunContext{CWD: "/work/demo", Hostname: "worker-1"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(jobDir, 0o755); err != nil {
@@ -136,7 +138,7 @@ func TestCmdShowReportRejectsCombinedFlags(t *testing.T) {
 
 func TestBuildJobAIReportIncludesSuccessfulJobLog(t *testing.T) {
 	_, paths, runID, jobID := createAIReportFixture(t)
-	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), RunSummary{RunID: runID, Status: "finished", Results: []JobResult{{ID: jobID, ExitCode: 0}}}); err != nil {
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), model.RunSummary{RunID: runID, Status: "finished", Results: []model.JobResult{{ID: jobID, ExitCode: 0}}}); err != nil {
 		t.Fatal(err)
 	}
 	report, err := buildAIReport(paths, runID, jobID, false)
@@ -211,7 +213,7 @@ func TestCmdShowReportSelectsAttemptID(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(oldAttemptDir, stateFileOutput), []byte("old-attempt-log\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Status: "finished", Results: []JobResult{{ID: jobID, AttemptID: latestAttemptID, ExitCode: 0}}}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "finished", Results: []model.JobResult{{ID: jobID, AttemptID: latestAttemptID, ExitCode: 0}}}); err != nil {
 		t.Fatal(err)
 	}
 

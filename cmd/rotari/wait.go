@@ -9,6 +9,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -328,7 +329,7 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 	}
 }
 
-func formatRunCompletion(paths pathSet, runID string, summary RunSummary) string {
+func formatRunCompletion(paths state.ProjectPaths, runID string, summary model.RunSummary) string {
 	successCount := 0
 	failedCount := 0
 	for _, result := range summary.Results {

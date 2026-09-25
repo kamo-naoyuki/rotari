@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"os"
 	"path/filepath"
 	"testing"
@@ -60,7 +61,7 @@ func TestClearRunHistoryRemovesRegistryEntry(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(paths.RunsDir, runID), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.MetaFile, Meta{Phase: "finished", LastRunID: runID}); err != nil {
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "finished", LastRunID: runID}); err != nil {
 		t.Fatal(err)
 	}
 	if err := registerRun(paths, runID); err != nil {
