@@ -83,3 +83,21 @@ func TestCompareMatchesUnnamedJobsByID(t *testing.T) {
 		t.Fatalf("jobs = %+v, want one fixed job matched by ID", result.Jobs)
 	}
 }
+
+func TestLineageCountsRunsAndChangesFromPrevious(t *testing.T) {
+	first := Run{ID: "run-1", Jobs: []Job{job("a", StatusFailed, "false"), job("b", StatusBlocked, "true")}}
+	second := Run{ID: "run-2", Jobs: []Job{job("a", StatusSuccess, "true"), job("b", StatusSuccess, "true"), job("c", StatusUnfinished, "true")}}
+	entries := Lineage([]Run{first, second})
+	if len(entries) != 2 || entries[0].Changes != nil {
+		t.Fatalf("entries = %+v, want no changes for the first run", entries)
+	}
+	if entries[0].Counts != (Counts{Jobs: 2, Failed: 1, Blocked: 1}) {
+		t.Fatalf("first counts = %+v", entries[0].Counts)
+	}
+	if entries[1].Counts != (Counts{Jobs: 3, Succeeded: 2, Unfinished: 1}) {
+		t.Fatalf("second counts = %+v", entries[1].Counts)
+	}
+	if changes := entries[1].Changes; changes == nil || changes.Fixed != 2 || changes.Added != 1 || changes.Changed != 1 {
+		t.Fatalf("second changes = %+v", changes)
+	}
+}

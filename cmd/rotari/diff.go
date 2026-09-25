@@ -89,30 +89,44 @@ func cmdDiff(args []string) int {
 }
 
 // previousRunID returns the run of the project that started just before
-// runID. Runs of one project never overlap, so start order is run order. Run
-// IDs only have one-second resolution, so runs are ordered by their first
-// load sample, which has nanoseconds, then by the summary's start time, then
-// by run ID.
+// runID.
 func previousRunID(paths state.ProjectPaths, runID string) (string, error) {
+	runIDs, err := projectRunsByStart(paths)
+	if err != nil {
+		return "", err
+	}
+	for index, candidate := range runIDs {
+		if candidate == runID {
+			if index == 0 {
+				return "", fmt.Errorf("run %s has no earlier run in project %q to compare with", runID, paths.ProjectName)
+			}
+			return runIDs[index-1], nil
+		}
+	}
+	return "", fmt.Errorf(runNotFoundMessage, runID)
+}
+
+// projectRunsByStart lists a project's run IDs oldest first. Runs of one
+// project never overlap, so start order is run order. Run IDs only have
+// one-second resolution, so runs are ordered by their first load sample,
+// which has nanoseconds, then by the summary's start time, then by run ID.
+func projectRunsByStart(paths state.ProjectPaths) ([]string, error) {
 	entries, err := os.ReadDir(paths.RunsDir)
 	if err != nil {
-		return "", fmt.Errorf("failed to read runs: %w", err)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read runs: %w", err)
 	}
 	type startedRun struct {
 		id      string
 		started time.Time
 	}
 	runs := make([]startedRun, 0, len(entries))
-	found := false
 	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
+		if entry.IsDir() {
+			runs = append(runs, startedRun{id: entry.Name(), started: runStartTime(paths, entry.Name())})
 		}
-		runs = append(runs, startedRun{id: entry.Name(), started: runStartTime(paths, entry.Name())})
-		found = found || entry.Name() == runID
-	}
-	if !found {
-		return "", fmt.Errorf(runNotFoundMessage, runID)
 	}
 	sort.Slice(runs, func(i, j int) bool {
 		if !runs[i].started.Equal(runs[j].started) {
@@ -120,15 +134,11 @@ func previousRunID(paths state.ProjectPaths, runID string) (string, error) {
 		}
 		return runs[i].id < runs[j].id
 	})
+	runIDs := make([]string, len(runs))
 	for index, run := range runs {
-		if run.id == runID {
-			if index == 0 {
-				return "", fmt.Errorf("run %s has no earlier run in project %q to compare with", runID, paths.ProjectName)
-			}
-			return runs[index-1].id, nil
-		}
+		runIDs[index] = run.id
 	}
-	return "", fmt.Errorf(runNotFoundMessage, runID)
+	return runIDs, nil
 }
 
 // runStartTime returns when a run started, or the zero time when unknown.
@@ -265,4 +275,67 @@ func colorTransition(text, transition string) string {
 		return yellow(text)
 	}
 	return text
+}
+
+// showLineage lists a project's runs oldest first, with each run's result
+// counts and what changed since the run before it.
+func showLineage(paths state.ProjectPaths, jsonOutput bool) int {
+	runIDs, err := projectRunsByStart(paths)
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	runs := make([]rundiff.Run, 0, len(runIDs))
+	for _, runID := range runIDs {
+		run, err := loadDiffRun(paths, runID)
+		if err != nil {
+			// An active run may not have written commands.json yet.
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			printError(err)
+			return 1
+		}
+		runs = append(runs, run)
+	}
+	entries := rundiff.Lineage(runs)
+	if jsonOutput {
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(entries); err != nil {
+			printErrorf("failed to encode lineage: %v", err)
+			return 1
+		}
+		return 0
+	}
+	writeShowTargetHeaderWithMode(os.Stdout, paths, "lineage")
+	fmt.Println("\n" + cyan("Runs (oldest first):"))
+	if len(entries) == 0 {
+		fmt.Println("No runs found.")
+		return 0
+	}
+	labels := make([]string, len(entries))
+	width := len("RUN")
+	for index, entry := range entries {
+		labels[index] = formatRunLabel(entry.Run.ID, entry.Run.Name)
+		width = max(width, len(labels[index]))
+	}
+	fmt.Println(cyan(fmt.Sprintf("%-*s  %5s  %5s  %6s  %7s  %5s  %8s  %5s  %7s  %7s  %7s  %s",
+		width, "RUN", "JOBS", "OK", "FAILED", "BLOCKED", "FIXED", "NEW FAIL", "ADDED", "REMOVED", "CHANGED", "CARRIED", "ELAPSED")))
+	for index, entry := range entries {
+		counts := entry.Counts
+		changeColumns := []string{"-", "-", "-", "-", "-", "-"}
+		if changes := entry.Changes; changes != nil {
+			changeColumns = []string{
+				fmt.Sprint(changes.Fixed), fmt.Sprint(changes.NewlyFailing), fmt.Sprint(changes.Added),
+				fmt.Sprint(changes.Removed), fmt.Sprint(changes.Changed), fmt.Sprint(changes.Carried),
+			}
+		}
+		fmt.Printf("%-*s  %5d  %5d  %6d  %7d  %5s  %8s  %5s  %7s  %7s  %7s  %s\n",
+			width, labels[index], counts.Jobs, counts.Succeeded, counts.Failed, counts.Blocked,
+			changeColumns[0], changeColumns[1], changeColumns[2], changeColumns[3], changeColumns[4], changeColumns[5],
+			firstNonEmpty(entry.Run.Elapsed, "-"))
+	}
+	fmt.Printf("\n%s\n  rotari diff -p %s RUN_ID\n", cyan("To compare a run with the one before it:"), paths.ProjectName)
+	return 0
 }

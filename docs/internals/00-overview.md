@@ -176,7 +176,9 @@ imported manifest gets a new ID but keeps its name. It classifies result moves
 as fixed, still failing, or newly failing and lists changed definition fields;
 it never reads state files. `previousRunID` orders a project's runs by their
 first load sample, then by the summary's start time, then by run ID, because
-run IDs only have one-second resolution. Covered by
+run IDs only have one-second resolution. `show --lineage` lists runs in the
+same order and uses `rundiff.Lineage` for each run's counts and its changes
+since the previous run. Covered by
 [`internal/rundiff/rundiff_test.go`](../../internal/rundiff/rundiff_test.go)
 and [`cmd/rotari/diff_test.go`](../../cmd/rotari/diff_test.go).
 

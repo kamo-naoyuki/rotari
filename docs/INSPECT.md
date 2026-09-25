@@ -68,7 +68,15 @@ rotari diff RUN_A RUN_B         # two specific runs of one project
 rotari diff -p sweep --json     # machine-readable comparison
 ```
 
-It summarizes jobs that were fixed, are still failing, or newly fail; jobs
+To see the whole sequence of runs of a project, oldest first, with each run's
+result counts and what changed since the run before it:
+
+```sh
+rotari show -p sweep --lineage
+rotari show -p sweep --lineage --json
+```
+
+`diff` summarizes jobs that were fixed, are still failing, or newly fail; jobs
 added or removed; jobs whose command, executor, executor options, environment,
 working directory, stage, or dependencies changed; and jobs whose result was
 carried forward instead of re-executed. Jobs are matched by name, or by job ID

@@ -257,6 +257,7 @@ func cmdShow(args []string) int {
 	jobNameOption := cliString(fs, "job-name", "")
 	failedOnly := cliBool(fs, "failed", false)
 	stageOption := cliString(fs, "stage", "")
+	lineage := cliBool(fs, "lineage", false)
 	showBaseDirsList := cliBool(fs, "basedirs", false)
 	masterdir := cliString(fs, "masterdir", "")
 	showLogs := cliBool(fs, "logs", false)
@@ -365,6 +366,24 @@ func cmdShow(args []string) int {
 			return 1
 		}
 		applyShowSelectorTarget(targets[0], basedir, queueNameOption, runIDOption, jobIDOption, showQueueOption)
+	}
+	if *lineage {
+		if selector != "" || *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || *failedOnly || *stageOption != "" ||
+			*showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *reportOutput {
+			printError("--lineage cannot be combined with run, job, queue, filter, list, log, follow, or report options")
+			return 1
+		}
+		baseDir, projectName, err := resolveExistingRunTarget(*basedir, *queueNameOption, "")
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		paths, err := state.ResolveProjectPaths(baseDir, projectName)
+		if err != nil {
+			printErrorf("failed to resolve paths: %v", err)
+			return 1
+		}
+		return showLineage(paths, *jsonOutput)
 	}
 	if *stageOption != "" && (*jobIDOption != "" || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
 		printError("--stage cannot be combined with job, list, log, follow, JSON, or report options")
@@ -812,6 +831,8 @@ func showViewLabel(mode string) string {
 		return "PROJECT / RUN / JOB"
 	case "project":
 		return "PROJECT"
+	case "lineage":
+		return "PROJECT / LINEAGE"
 	default:
 		return strings.ToUpper(mode)
 	}

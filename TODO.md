@@ -53,8 +53,9 @@ A run snapshots the edited queue, so the run sequence is the version history of
 the experiment. See "Runs as the history of the loop" in
 [docs/DAGU_COMPARISON.md](docs/DAGU_COMPARISON.md).
 
-- Consider a run lineage listing: name, time, success and failure counts, jobs
-  added/removed/changed since the previous run, and jobs carried forward.
+- `rotari show --lineage` lists a project's runs with counts and changes since
+  the previous run. Consider following copy and retry provenance instead of
+  start time when runs of one project explore separate branches.
 - `rotari diff` exists and covers the run summary (fixed, still failing,
   newly failing, elapsed time). Consider showing the same summary after
   `run` and `wait` finish, and in the Web UI run page.

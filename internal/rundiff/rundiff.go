@@ -257,3 +257,53 @@ func setDifference(left, right []string) []string {
 	sort.Strings(difference)
 	return difference
 }
+
+// Counts tallies a run's jobs by status.
+type Counts struct {
+	Jobs       int `json:"jobs"`
+	Succeeded  int `json:"succeeded"`
+	Failed     int `json:"failed"`
+	Blocked    int `json:"blocked"`
+	Unfinished int `json:"unfinished"`
+}
+
+// LineageEntry describes one run in a project's run sequence. Changes
+// compares it with the run before it and is nil for the first run.
+type LineageEntry struct {
+	Run     RunInfo  `json:"run"`
+	Counts  Counts   `json:"counts"`
+	Changes *Summary `json:"changes_from_previous,omitempty"`
+}
+
+// Lineage describes runs, given oldest first, as the version history of an
+// experiment: each run's result counts and what changed since the run
+// before it.
+func Lineage(runs []Run) []LineageEntry {
+	entries := make([]LineageEntry, 0, len(runs))
+	for index, run := range runs {
+		entry := LineageEntry{Run: runInfo(run), Counts: countJobs(run)}
+		if index > 0 {
+			summary := Compare(runs[index-1], run).Summary
+			entry.Changes = &summary
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func countJobs(run Run) Counts {
+	counts := Counts{Jobs: len(run.Jobs)}
+	for _, job := range run.Jobs {
+		switch job.Status {
+		case StatusSuccess:
+			counts.Succeeded++
+		case StatusFailed:
+			counts.Failed++
+		case StatusBlocked:
+			counts.Blocked++
+		default:
+			counts.Unfinished++
+		}
+	}
+	return counts
+}

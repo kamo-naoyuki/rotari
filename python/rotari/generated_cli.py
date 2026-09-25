@@ -537,6 +537,12 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "stage",
                     "value_name": "NAME",
                 },
+                {
+                    "description": "list the project's runs oldest first with "
+                    "result counts and changes since the previous "
+                    "run",
+                    "name": "lineage",
+                },
                 {"description": "print output logs for all jobs", "name": "logs"},
                 {
                     "description": "print output logs for failed jobs",

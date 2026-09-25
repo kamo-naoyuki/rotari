@@ -71,6 +71,27 @@ func TestCmdDiffComparesRunWithItsPredecessor(t *testing.T) {
 		t.Fatalf("diff JSON = %+v", result)
 	}
 
+	output.Reset()
+	if code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--lineage")) }); code != 0 {
+		t.Fatalf("show --lineage exit = %d", code)
+	}
+	lineage := output.String()
+	if firstAt, secondAt := strings.Index(lineage, first), strings.Index(lineage, second); firstAt < 0 || secondAt < firstAt {
+		t.Fatalf("lineage does not list runs oldest first:\n%s", lineage)
+	}
+	output.Reset()
+	if code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--lineage", "--json")) }); code != 0 {
+		t.Fatalf("show --lineage --json exit = %d", code)
+	}
+	var entries []rundiff.LineageEntry
+	if err := json.Unmarshal(output.Bytes(), &entries); err != nil {
+		t.Fatalf("lineage JSON: %v\n%s", err, output.String())
+	}
+	if len(entries) != 2 || entries[0].Changes != nil || entries[0].Counts.Failed != 1 ||
+		entries[1].Counts.Succeeded != 2 || entries[1].Changes == nil || entries[1].Changes.Fixed != 1 {
+		t.Fatalf("lineage entries = %+v", entries)
+	}
+
 	oldStderr := os.Stderr
 	reader, writer, err := os.Pipe()
 	if err != nil {

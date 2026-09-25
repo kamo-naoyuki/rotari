@@ -242,6 +242,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "job-name", Description: "job name", ValueName: "NAME"},
 			cliFlagSpec{Name: "failed", Description: "show failed jobs only"},
 			cliFlagSpec{Name: "stage", Description: "show jobs in this stage only", ValueName: "NAME"},
+			cliFlagSpec{Name: "lineage", Description: "list the project's runs oldest first with result counts and changes since the previous run"},
 			cliFlagSpec{Name: "logs", Description: "print output logs for all jobs"},
 			cliFlagSpec{Name: "failed-logs", Description: "print output logs for failed jobs"},
 			cliFlagSpec{Name: "follow", Description: "follow log output until the run completes"},
