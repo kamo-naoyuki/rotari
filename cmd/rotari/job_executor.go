@@ -30,29 +30,38 @@ func (flag *stringSliceFlag) Reset() {
 
 var executorRunSettingNames = []string{"ssh", "slurm", "pbs", "lsf"}
 
-func cliExecutorRunSettings(fs *flag.FlagSet) executor.RunSettingsMap {
-	settings := make(executor.RunSettingsMap)
+// cliExecutorRunSettings registers the per-executor run-setting flags on fs
+// and returns a function that builds the settings from their values. Call it
+// after fs.Parse so command-line values are included.
+func cliExecutorRunSettings(fs *flag.FlagSet) func() executor.RunSettingsMap {
+	type settingFlags struct {
+		concurrency      *int
+		options          *stringSliceFlag
+		submitInterval   *time.Duration
+		submitRetryLimit *int
+	}
+	registered := make(map[string]settingFlags, len(executorRunSettingNames))
 	for _, name := range executorRunSettingNames {
-		concurrency := cliInt(fs, name+"-concurrency", 0)
-		var options stringSliceFlag
-		cliValue(fs, &options, name+"-options")
-		settings[name] = executor.RunSettings{Concurrency: *concurrency, Options: options, SubmitInterval: executorSubmitInterval(fs, name), SubmitRetryLimit: executorSubmitRetryLimit(fs, name)}
+		flags := settingFlags{concurrency: cliInt(fs, name+"-concurrency", 0), options: new(stringSliceFlag)}
+		cliValue(fs, flags.options, name+"-options")
+		if name != "ssh" {
+			flags.submitInterval = cliDuration(fs, name+"-submit-interval", 0)
+			flags.submitRetryLimit = cliInt(fs, name+"-submit-retry-limit", 0)
+		}
+		registered[name] = flags
 	}
-	return settings
-}
-
-func executorSubmitInterval(fs *flag.FlagSet, name string) time.Duration {
-	if name == "ssh" {
-		return 0
+	return func() executor.RunSettingsMap {
+		settings := make(executor.RunSettingsMap, len(registered))
+		for name, flags := range registered {
+			setting := executor.RunSettings{Concurrency: *flags.concurrency, Options: *flags.options}
+			if flags.submitInterval != nil {
+				setting.SubmitInterval = *flags.submitInterval
+				setting.SubmitRetryLimit = *flags.submitRetryLimit
+			}
+			settings[name] = setting
+		}
+		return settings
 	}
-	return *cliDuration(fs, name+"-submit-interval", 0)
-}
-
-func executorSubmitRetryLimit(fs *flag.FlagSet, name string) int {
-	if name == "ssh" {
-		return 0
-	}
-	return *cliInt(fs, name+"-submit-retry-limit", 0)
 }
 
 func executorSettingsFor(settings executor.RunSettingsMap, name string) executor.RunSettings {

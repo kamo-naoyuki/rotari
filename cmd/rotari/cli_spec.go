@@ -15,6 +15,10 @@ type cliFlagSpec struct {
 	ValueName   string
 	Values      []string
 	Repeated    bool
+	// CommandLineOnly keeps config files and environment variables from
+	// supplying the flag, for values such as an output path. Only cliString
+	// honors it so far.
+	CommandLineOnly bool
 }
 
 type cliSubcommandSpec struct {
@@ -200,7 +204,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "run-id", Description: "run ID to export; may be repeated", ValueName: "ID", Repeated: true},
 			cliFlagSpec{Name: "format", Description: "manifest format: yaml, toml, or json", ValueName: "FORMAT", Values: []string{"yaml", "toml", "json"}},
 			cliFlagSpec{Name: "template", Description: "print a starter workflow manifest"},
-			cliFlagSpec{Name: "output", Description: "write the workflow manifest to a file", ValueName: "FILE"},
+			cliFlagSpec{Name: "output", Description: "write the workflow manifest to a file", ValueName: "FILE", CommandLineOnly: true},
 		),
 		Positional: "[TARGET] [FILE]",
 	},
@@ -519,6 +523,24 @@ func cliSubcommandNames(name string) []string {
 	return nil
 }
 
+// cliCommandFlag returns the metadata of flag name as defined by command, so
+// commands that share a flag name keep their own descriptions. Internal
+// commands without metadata fall back to cliFlag.
+func cliCommandFlag(command, name string) cliFlagSpec {
+	for _, commandSpec := range cliCommandSpecs {
+		if commandSpec.Name != command {
+			continue
+		}
+		for _, flagSpec := range commandSpec.Flags {
+			if flagSpec.Name == name {
+				return flagSpec
+			}
+		}
+	}
+	return cliFlag(name)
+}
+
+// cliFlag returns the first metadata defined for flag name by any command.
 func cliFlag(name string) cliFlagSpec {
 	for _, command := range cliCommandSpecs {
 		for _, flagSpec := range command.Flags {
@@ -531,11 +553,13 @@ func cliFlag(name string) cliFlagSpec {
 }
 
 func cliString(fs *flag.FlagSet, name, defaultValue string) *string {
-	spec := cliFlag(name)
-	defaultValue = configString(name, defaultValue)
-	if envName := cliEnvironmentVariable(name); envName != "" {
-		if value, ok := os.LookupEnv(envName); ok {
-			defaultValue = value
+	spec := cliCommandFlag(fs.Name(), name)
+	if !spec.CommandLineOnly {
+		defaultValue = configString(name, defaultValue)
+		if envName := cliEnvironmentVariable(name); envName != "" {
+			if value, ok := os.LookupEnv(envName); ok {
+				defaultValue = value
+			}
 		}
 	}
 	target := new(string)
@@ -607,7 +631,7 @@ func cliEnvironmentVariable(name string) string {
 }
 
 func cliStringVar(fs *flag.FlagSet, target *string, name, defaultValue string) {
-	spec := cliFlag(name)
+	spec := cliCommandFlag(fs.Name(), name)
 	description := cliFlagDescription(spec)
 	fs.StringVar(target, spec.Name, defaultValue, description)
 	if short := cliShortFlagNames[name]; short != "" {
@@ -616,7 +640,7 @@ func cliStringVar(fs *flag.FlagSet, target *string, name, defaultValue string) {
 }
 
 func cliBool(fs *flag.FlagSet, name string, defaultValue bool) *bool {
-	spec := cliFlag(name)
+	spec := cliCommandFlag(fs.Name(), name)
 	defaultValue = configBool(name, defaultValue)
 	environmentNames := []string{cliEnvironmentVariable(name)}
 	if name == "quiet" {
@@ -643,7 +667,7 @@ func commandQuietEnvironmentVariable(command string) string {
 }
 
 func cliInt(fs *flag.FlagSet, name string, defaultValue int) *int {
-	spec := cliFlag(name)
+	spec := cliCommandFlag(fs.Name(), name)
 	defaultValue = configInt(name, defaultValue)
 	if value, ok := os.LookupEnv(cliEnvironmentVariable(name)); ok {
 		if parsed, err := strconv.Atoi(value); err == nil {
@@ -660,7 +684,7 @@ func cliInt(fs *flag.FlagSet, name string, defaultValue int) *int {
 }
 
 func cliDuration(fs *flag.FlagSet, name string, defaultValue time.Duration) *time.Duration {
-	spec := cliFlag(name)
+	spec := cliCommandFlag(fs.Name(), name)
 	if value, ok := configValue(name); ok {
 		if parsed, err := time.ParseDuration(fmt.Sprint(value)); err == nil {
 			defaultValue = parsed
@@ -683,7 +707,7 @@ func cliDuration(fs *flag.FlagSet, name string, defaultValue time.Duration) *tim
 }
 
 func cliValue(fs *flag.FlagSet, target flag.Value, name string) {
-	spec := cliFlag(name)
+	spec := cliCommandFlag(fs.Name(), name)
 	for _, value := range configStrings(name) {
 		_ = target.Set(value)
 	}

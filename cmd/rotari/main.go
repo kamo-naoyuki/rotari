@@ -363,7 +363,7 @@ func parseWorkerRunArgs(args []string) (runcontract.Options, error) {
 		BaseDir: *basedir, QueueName: left[0], RunID: left[1], RunName: left[2],
 		LocalConcurrency: localConcurrency, BatchMaxActive: batchMaxActive, Retry: retry,
 		Executor: *executor, ExecutorOptions: executorOptions, Selection: *selection, JobIDs: jobIDs,
-		SourceRunID: *sourceRunID, PartialArray: *partialArray, CWD: left[6], ExecutorSettings: executorSettings,
+		SourceRunID: *sourceRunID, PartialArray: *partialArray, CWD: left[6], ExecutorSettings: executorSettings(),
 	}, nil
 }
 

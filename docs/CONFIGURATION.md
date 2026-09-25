@@ -34,6 +34,9 @@ global config path (e.g., ~/.config/rotari/config.yaml)
 built-in default
 ```
 
+Output paths such as `export --output` are read only from the command line;
+config files and environment variables do not set them.
+
 `rotari show` includes the highest-priority config path in its header when
 config files are present. The web UI uses the same project, basedir, then
 global priority and displays only that one path.

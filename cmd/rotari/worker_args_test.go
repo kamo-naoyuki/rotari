@@ -3,7 +3,9 @@ package main
 import (
 	"reflect"
 	"testing"
+	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 )
 
@@ -17,13 +19,21 @@ func TestWorkerArgsParseBackToOptions(t *testing.T) {
 			Executor: "slurm", ExecutorOptions: []string{"--partition=short"},
 			Selection: "failed", JobIDs: []string{"job-1", "job-2"}, SourceRunID: "run-0",
 			PartialArray: partialArray,
+			ExecutorSettings: map[string]executor.RunSettings{
+				"slurm": {Concurrency: 4, Options: []string{"--partition short"}, SubmitInterval: 250 * time.Millisecond, SubmitRetryLimit: 3},
+			},
 		}
 		args := runcontract.WorkerArgs(options, true, executorRunSettingNames)
 		parsed, err := parseWorkerRunArgs(args[1:])
 		if err != nil {
 			t.Fatalf("partialArray=%v: parseWorkerRunArgs(%q) returned error: %v", partialArray, args, err)
 		}
-		parsed.ExecutorSettings = nil
+		for name, setting := range parsed.ExecutorSettings {
+			if name != "slurm" && !reflect.DeepEqual(setting, executor.RunSettings{Options: stringSliceFlag(nil)}) {
+				t.Fatalf("partialArray=%v: unexpected %s settings %#v", partialArray, name, setting)
+			}
+		}
+		parsed.ExecutorSettings = map[string]executor.RunSettings{"slurm": parsed.ExecutorSettings["slurm"]}
 		if !reflect.DeepEqual(parsed, options) {
 			t.Fatalf("partialArray=%v: parsed options = %#v, want %#v", partialArray, parsed, options)
 		}

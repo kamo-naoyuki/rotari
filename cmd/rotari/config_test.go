@@ -451,7 +451,7 @@ func TestExecutorRunSettingsLoadFromRunConfig(t *testing.T) {
 		cliConfigCommand = oldCommand
 	})
 
-	settings := cliExecutorRunSettings(flag.NewFlagSet("run", flag.ContinueOnError))
+	settings := cliExecutorRunSettings(flag.NewFlagSet("run", flag.ContinueOnError))()
 	if settings["ssh"].Concurrency != 3 || len(settings["ssh"].Options) != 3 {
 		t.Fatalf("SSH settings = %#v", settings["ssh"])
 	}
@@ -473,7 +473,7 @@ func TestExecutorRunSettingsEnvironmentOverridesConfig(t *testing.T) {
 		cliConfigCommand = oldCommand
 	})
 
-	settings := cliExecutorRunSettings(flag.NewFlagSet("run", flag.ContinueOnError))
+	settings := cliExecutorRunSettings(flag.NewFlagSet("run", flag.ContinueOnError))()
 	if settings["ssh"].Concurrency != 5 || len(settings["ssh"].Options) != 1 || settings["ssh"].Options[0] != "env-host" {
 		t.Fatalf("SSH settings = %#v, want environment values", settings["ssh"])
 	}
@@ -513,4 +513,72 @@ func configIntFrom(config map[string]any, name string) int {
 	var result int
 	_, _ = fmt.Sscanf(value, "%d", &result)
 	return result
+}
+
+func TestExecutorRunSettingsIncludeCommandLineValues(t *testing.T) {
+	oldConfig, oldCommand := cliConfig, cliConfigCommand
+	cliConfig = map[string]any{"run": map[string]any{"slurm-concurrency": 3}}
+	cliConfigCommand = "run"
+	t.Cleanup(func() {
+		cliConfig = oldConfig
+		cliConfigCommand = oldCommand
+	})
+
+	fs := flag.NewFlagSet("run", flag.ContinueOnError)
+	settings := cliExecutorRunSettings(fs)
+	if err := fs.Parse([]string{"--slurm-concurrency", "7", "--slurm-options", "--partition=gpu", "--slurm-submit-interval", "2s", "--slurm-submit-retry-limit", "5", "--ssh-concurrency", "2"}); err != nil {
+		t.Fatal(err)
+	}
+	got := settings()
+	if got["slurm"].Concurrency != 7 || len(got["slurm"].Options) != 1 || got["slurm"].Options[0] != "--partition=gpu" || got["slurm"].SubmitInterval != 2*time.Second || got["slurm"].SubmitRetryLimit != 5 {
+		t.Fatalf("Slurm settings = %#v, want command-line values", got["slurm"])
+	}
+	if got["ssh"].Concurrency != 2 {
+		t.Fatalf("SSH settings = %#v, want command-line concurrency", got["ssh"])
+	}
+}
+
+func TestCommandLineOnlyFlagIgnoresConfigAndStaysOutOfTemplate(t *testing.T) {
+	oldConfig, oldCommand := cliConfig, cliConfigCommand
+	cliConfig = map[string]any{"output": "top.yaml", "export": map[string]any{"output": "section.yaml"}}
+	cliConfigCommand = "export"
+	t.Cleanup(func() {
+		cliConfig = oldConfig
+		cliConfigCommand = oldCommand
+	})
+
+	output := cliString(flag.NewFlagSet("export", flag.ContinueOnError), "output", "")
+	if *output != "" {
+		t.Fatalf("export --output default = %q, want no config value", *output)
+	}
+	sections, _ := configSections()
+	for _, name := range sections["export"] {
+		if name == "output" {
+			t.Fatalf("config template lists command-line-only export option %q", name)
+		}
+	}
+}
+
+func TestFlagHelpUsesTheParsingCommandsDescription(t *testing.T) {
+	fs := flag.NewFlagSet("export", flag.ContinueOnError)
+	cliString(fs, "format", "yaml")
+	var runIDs stringSliceFlag
+	cliValue(fs, &runIDs, "run-id")
+	if usage := fs.Lookup("format").Usage; !strings.Contains(usage, "manifest format") {
+		t.Fatalf("export --format usage = %q, want the export description", usage)
+	}
+	if usage := fs.Lookup("run-id").Usage; !strings.Contains(usage, "run ID to export") {
+		t.Fatalf("export --run-id usage = %q, want the export description", usage)
+	}
+	template, err := configTemplate("toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	exportSection := string(template)[strings.Index(string(template), "[export]"):]
+	if end := strings.Index(exportSection[1:], "\n["); end >= 0 {
+		exportSection = exportSection[:end+1]
+	}
+	if !strings.Contains(exportSection, "manifest format") || strings.Contains(exportSection, "config format") {
+		t.Fatalf("config template [export] section uses another command's description:\n%s", exportSection)
+	}
 }

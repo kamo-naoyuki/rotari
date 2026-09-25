@@ -312,7 +312,9 @@ func configOptionNames() []string {
 			continue
 		}
 		for _, flagSpec := range command.Flags {
-			names[flagSpec.Name] = true
+			if !flagSpec.CommandLineOnly {
+				names[flagSpec.Name] = true
+			}
 		}
 	}
 	result := make([]string, 0, len(names))
@@ -332,7 +334,7 @@ func configSections() (map[string][]string, []string) {
 			continue
 		}
 		for _, flagSpec := range command.Flags {
-			if commonSet[flagSpec.Name] {
+			if commonSet[flagSpec.Name] || flagSpec.CommandLineOnly {
 				continue
 			}
 			sections[command.Name] = append(sections[command.Name], flagSpec.Name)
@@ -349,7 +351,7 @@ func configTemplate(format string) ([]byte, error) {
 		root := yaml.Node{Kind: yaml.MappingNode}
 		for _, name := range common {
 			root.Content = append(root.Content,
-				&yaml.Node{Kind: yaml.ScalarNode, Value: name, HeadComment: configOptionDescription(name)},
+				&yaml.Node{Kind: yaml.ScalarNode, Value: name, HeadComment: configOptionDescription("", name)},
 				&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!null", Value: "null"},
 			)
 		}
@@ -362,7 +364,7 @@ func configTemplate(format string) ([]byte, error) {
 			mapping := &yaml.Node{Kind: yaml.MappingNode, HeadComment: "Options for " + sectionName + ""}
 			for _, name := range sections[sectionName] {
 				mapping.Content = append(mapping.Content,
-					&yaml.Node{Kind: yaml.ScalarNode, Value: name, HeadComment: configOptionDescription(name)},
+					&yaml.Node{Kind: yaml.ScalarNode, Value: name, HeadComment: configOptionDescription(sectionName, name)},
 					&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!null", Value: "null"},
 				)
 			}
@@ -385,7 +387,7 @@ func configTemplate(format string) ([]byte, error) {
 	case "toml":
 		var output strings.Builder
 		for _, name := range common {
-			fmt.Fprintf(&output, "# %s\n# %s = \"\"\n", configOptionDescription(name), name)
+			fmt.Fprintf(&output, "# %s\n# %s = \"\"\n", configOptionDescription("", name), name)
 		}
 		sectionNames := make([]string, 0, len(sections))
 		for name := range sections {
@@ -395,7 +397,7 @@ func configTemplate(format string) ([]byte, error) {
 		for _, sectionName := range sectionNames {
 			fmt.Fprintf(&output, "\n[%s]\n", sectionName)
 			for _, name := range sections[sectionName] {
-				fmt.Fprintf(&output, "# %s\n# %s = \"\"\n", configOptionDescription(name), name)
+				fmt.Fprintf(&output, "# %s\n# %s = \"\"\n", configOptionDescription(sectionName, name), name)
 			}
 		}
 		return []byte(output.String()), nil
@@ -404,8 +406,10 @@ func configTemplate(format string) ([]byte, error) {
 	}
 }
 
-func configOptionDescription(name string) string {
-	spec := cliFlag(name)
+// configOptionDescription describes option name as defined by command; pass
+// an empty command for top-level options shared by several commands.
+func configOptionDescription(command, name string) string {
+	spec := cliCommandFlag(command, name)
 	description := cliFlagDescription(spec)
 	if len(spec.Values) > 0 {
 		description += " (values: " + strings.Join(spec.Values, ", ") + ")"

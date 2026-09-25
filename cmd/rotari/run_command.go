@@ -206,7 +206,7 @@ func cmdRun(args []string) int {
 		return 1
 	}
 	request := serverinternal.Request{
-		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings, Retry: *retry, Async: *async, Quiet: *quiet,
+		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings(), Retry: *retry, Async: *async, Quiet: *quiet,
 		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, CWD: cwd,
 		Selection: selection, JobIDs: jobIDs, SourceRunID: sourceRunID, PartialArray: *partialArray,
 	}

@@ -116,6 +116,11 @@ Without a run-location lookup, base directories resolve in this order:
 - `rotari config` generates a template from the union of all CLI metadata
   options. YAML and JSON use `null` for unset values; TOML uses comments because
   it has no null value. Null values are ignored during resolution.
+- A flag whose metadata sets `CommandLineOnly` (for example, `export --output`)
+  ignores config and environment defaults and is left out of the template and
+  `configOptionNames`. Covered by
+  `TestCommandLineOnlyFlagIgnoresConfigAndStaysOutOfTemplate` in
+  [`cmd/rotari/config_test.go`](../../cmd/rotari/config_test.go).
 - `rotari config --list` is an inventory rather than a resolution operation. It
   lists every supported config found in the global and basedir scopes under
   `Common:`, then scans every `projects/<project>/` directory and lists paths
@@ -169,6 +174,15 @@ Without a run-location lookup, base directories resolve in this order:
   parse-time choice validation as well as completion and schema generation.
 - CLI environment defaults are declared in one flag-to-variable mapping, used
   for both default values and command-help descriptions.
+- Flag registration looks up metadata in the parsing command's spec
+  (`cliCommandFlag`, keyed by the FlagSet name), so commands that share a flag
+  name keep their own help text; internal commands without metadata fall back
+  to the first definition. The config template uses the same per-command
+  lookup. Covered by `TestFlagHelpUsesTheParsingCommandsDescription`.
+- Per-executor run settings (`--<executor>-concurrency`, `-options`,
+  `-submit-interval`, `-submit-retry-limit`) are read by the function that
+  `cliExecutorRunSettings` returns, which callers invoke after `fs.Parse`.
+  Covered by `TestExecutorRunSettingsIncludeCommandLineValues`.
 - It covers subcommands, options, executor values, run-selection values, and
   `server` subcommands.
 - Installation appends a marked rotari block only when it is absent, making
