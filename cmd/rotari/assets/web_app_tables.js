@@ -528,3 +528,67 @@ function mergeLogButtonIntoActions() {
     });
   });
 }
+// Long values in these job and queue table columns start clamped to a few
+// lines with a More/Less toggle. Expanded cells stay open across re-renders.
+const clampedTableColumns = [
+  "command",
+  "working_directory",
+  "depends",
+  "options",
+];
+const clampedCellMinLength = 60;
+const expandedTableCells = new Set();
+function clampLongTableCells() {
+  document.querySelectorAll("#app table.runs").forEach((table) => {
+    const columns = [...table.querySelectorAll("thead th")]
+      .map((header, index) => ({ index, key: header.dataset.sort }))
+      .filter((column) => clampedTableColumns.includes(column.key));
+    if (!columns.length) return;
+    table.querySelectorAll("tbody tr").forEach((row, rowIndex) => {
+      columns.forEach(({ index, key }) => {
+        const cell = row.children[index];
+        if (
+          !cell ||
+          cell.querySelector("input,select,textarea,.cell-clamp") ||
+          cell.textContent.trim().length <= clampedCellMinLength
+        )
+          return;
+        const id = (row.dataset.jobId || "row-" + rowIndex) + "\u0000" + key;
+        // Keep buttons such as the copy icon outside the clamped text so
+        // they stay visible.
+        const text = document.createElement("div");
+        text.className = "cell-clamp";
+        [...cell.childNodes]
+          .filter((node) => !(node.nodeType === 1 && node.matches("button")))
+          .forEach((node) => text.append(node));
+        cell.prepend(text);
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "cell-toggle";
+        const apply = () => {
+          const expanded = expandedTableCells.has(id);
+          text.classList.toggle("collapsed", !expanded);
+          toggle.textContent = expanded ? "Less" : "More";
+          toggle.setAttribute("aria-expanded", String(expanded));
+        };
+        toggle.onclick = (event) => {
+          event.stopPropagation();
+          if (expandedTableCells.has(id)) expandedTableCells.delete(id);
+          else expandedTableCells.add(id);
+          apply();
+        };
+        cell.append(toggle);
+        apply();
+        // Drop the toggle when the text already fits in the clamped lines.
+        if (
+          !expandedTableCells.has(id) &&
+          text.scrollHeight > 0 &&
+          text.scrollHeight <= text.clientHeight + 1
+        ) {
+          toggle.remove();
+          text.classList.remove("collapsed");
+        }
+      });
+    });
+  });
+}

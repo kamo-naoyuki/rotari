@@ -75,6 +75,7 @@ render = function () {
   addAIButtons();
   arrangeRunControls();
   orderJobActions();
+  clampLongTableCells();
   addMatrixPanels();
 };
 window.addEventListener("popstate", render);

@@ -2017,3 +2017,79 @@ setTimeout(() => {
 		t.Fatalf("jobs page copy check failed: %v\n%s", err, output)
 	}
 }
+
+func TestWebRunViewClampsLongCells(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	long := "echo " + strings.Repeat("very-long-argument ", 8)
+	if code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "default", "--quiet", "--job-name", "long", "--", "/bin/sh", "-c", long}); code != 0 {
+		t.Fatalf("cmdAdd exit = %d", code)
+	}
+	executeMixedRun(paths, "run-1", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil)
+	if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	state, err := loadWebState(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	htmlPath := filepath.Join(t.TempDir(), "index.html")
+	if err := os.WriteFile(statePath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(htmlPath, []byte(webHTML()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := `
+const fs = require('fs');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+const dom = new JSDOM(fs.readFileSync(process.argv[1], 'utf8'), {
+  runScripts: 'dangerously',
+  url: 'http://127.0.0.1/project/default/run/run-1',
+  virtualConsole,
+  beforeParse(window) {
+    window.fetch = async () => ({ok: true, json: async () => state, text: async () => ''});
+    window.setInterval = () => 1;
+  },
+});
+setTimeout(() => {
+  const document = dom.window.document;
+  const commandCell = () => {
+    const table = document.querySelector('#app table.runs');
+    const index = [...table.querySelectorAll('thead th')].findIndex(th => th.dataset.sort === 'command');
+    return table.querySelector('tbody tr').children[index];
+  };
+  let cell = commandCell();
+  const clamp = cell.querySelector('.cell-clamp');
+  const toggle = cell.querySelector('.cell-toggle');
+  if (!clamp || !clamp.classList.contains('collapsed') || !toggle || toggle.textContent !== 'More') { console.error(cell.innerHTML); process.exit(2); }
+  if (!cell.querySelector(':scope > button.identity-copy')) { console.error('copy button is not outside the clamp'); process.exit(3); }
+  toggle.click();
+  if (clamp.classList.contains('collapsed') || toggle.textContent !== 'Less') { console.error('toggle did not expand'); process.exit(4); }
+  dom.window.render();
+  cell = commandCell();
+  if (cell.querySelector('.cell-clamp').classList.contains('collapsed') || cell.querySelector('.cell-toggle').textContent !== 'Less') { console.error('expanded state was lost on re-render'); process.exit(5); }
+  if (errors.length) { console.error(errors.join('\n')); process.exit(6); }
+  process.exit(0);
+}, 100);
+`
+	if output, err := exec.Command("node", "-e", script, htmlPath, statePath).CombinedOutput(); err != nil {
+		t.Fatalf("long cell clamp check failed: %v\n%s", err, output)
+	}
+}

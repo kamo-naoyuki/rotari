@@ -175,6 +175,15 @@ the cell is gone or collapsed. Jobs whose matrix provenance was cleared by a
 partial copy or change appear only in the table. Covered by `TestWebRunViewDrawsMatrixGrid` in
 [cmd/rotari/web_test.go](../../cmd/rotari/web_test.go).
 
+Long values in the Command, Working directory, Dependencies, and Executor
+options columns of the job and queue tables start clamped to three lines with a
+More/Less toggle (`clampLongTableCells` in
+[web_app_tables.js](../../cmd/rotari/assets/web_app_tables.js)). A cell is
+considered once its text exceeds 60 characters, and the toggle is dropped when
+the browser measures that the text already fits. Buttons such as copy icons
+stay outside the clamped text, cells with editors are left alone, and expanded
+cells stay open across re-renders. Covered by `TestWebRunViewClampsLongCells`.
+
 Report generation redacts known hostnames and paths, then applies heuristic
 redaction to common absolute paths and FQDNs in log text. This is best-effort
 privacy protection, not complete secret detection; users must review reports

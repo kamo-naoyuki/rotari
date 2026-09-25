@@ -573,3 +573,14 @@ td.matrix-pending:hover {
   flex-wrap: wrap;
   gap: 6px;
 }
+.cell-clamp.collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cell-toggle {
+  margin-top: 4px;
+  padding: 1px 8px;
+  font-size: 11px;
+}
