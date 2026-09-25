@@ -146,6 +146,46 @@ func TestCmdAddCombinesMatrixWithArray(t *testing.T) {
 	}
 }
 
+func TestCmdAddCombinesMatrixWithSparseArray(t *testing.T) {
+	baseDir := t.TempDir()
+	if code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "--job-name", "train", "--array", "1,3,4", "--matrix", "python=3.10,3.11", "echo", "hello"}); code != 0 {
+		t.Fatalf("cmdAdd exit code = %d, want 0", code)
+	}
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 2 {
+		t.Fatalf("queue contains %d commands, want 2 matrix commands", len(queue.Commands))
+	}
+	for _, command := range queue.Commands {
+		if command.Array == nil || !reflect.DeepEqual(command.Array.Tasks, []int{1, 3, 4}) {
+			t.Fatalf("matrix command array = %#v, want sparse tasks 1,3,4", command.Array)
+		}
+	}
+	if jobs := model.QueueToJobs(queue.Commands); len(jobs) != 6 {
+		t.Fatalf("expanded jobs = %d, want 6 matrix-by-sparse-array jobs", len(jobs))
+	}
+}
+
+func TestSanitizeMatrixName(t *testing.T) {
+	for value, want := range map[string]string{
+		"3.10":       "3.10",
+		"cuda/12":    "cuda_12",
+		"a b+c":      "a_b_c",
+		"日本語":        "___",
+		"already_ok": "already_ok",
+	} {
+		if got := sanitizeMatrixName(value); got != want {
+			t.Errorf("sanitizeMatrixName(%q) = %q, want %q", value, got, want)
+		}
+	}
+}
+
 func TestCmdAddRejectsDuplicateMatrixKey(t *testing.T) {
 	baseDir := t.TempDir()
 	if code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "--matrix", "python=3.10", "--matrix", "python=3.11", "echo", "hello"}); code != 1 {
