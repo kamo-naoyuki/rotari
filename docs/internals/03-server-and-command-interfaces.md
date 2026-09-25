@@ -16,7 +16,8 @@ Representative implementation and tests:
   commands and the `Operations` that perform queue, cancel, and run work.
   The request handlers live in [cmd/rotari/add.go](../../cmd/rotari/add.go),
   [cmd/rotari/run_command.go](../../cmd/rotari/run_command.go), and
-  [cmd/rotari/job_control.go](../../cmd/rotari/job_control.go).
+  [cmd/rotari/job_control.go](../../cmd/rotari/job_control.go), which delegates
+  to [internal/jobcontrol](../../internal/jobcontrol/jobcontrol.go).
 - [cmd/rotari/show.go](../../cmd/rotari/show.go) and
   [cmd/rotari/show_test.go](../../cmd/rotari/show_test.go) for CLI projections.
 - [cmd/rotari/wait.go](../../cmd/rotari/wait.go) and

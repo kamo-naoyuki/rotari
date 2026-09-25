@@ -9,15 +9,18 @@ Representative implementation and tests:
 - [internal/state/store.go](../../internal/state/store.go) and
   [internal/state/store_test.go](../../internal/state/store_test.go) for
   persisted-state load and write contracts.
-- [cmd/rotari/job_executor.go](../../cmd/rotari/job_executor.go) and
-  [cmd/rotari/job_executor_test.go](../../cmd/rotari/job_executor_test.go) for
-  executor status and control integration.
+- [internal/executor/registry.go](../../internal/executor/registry.go) and
+  [internal/executor/registry_test.go](../../internal/executor/registry_test.go)
+  for the executor registry, job ownership, and local host checks.
+- [internal/jobcontrol/jobcontrol.go](../../internal/jobcontrol/jobcontrol.go)
+  and [internal/jobcontrol/jobcontrol_test.go](../../internal/jobcontrol/jobcontrol_test.go)
+  for cancel, suspend, and resume.
 
 ## Job execution durability
 
 - Every executor runs the command through a self-reporting wrapper that writes
   `<job-id>/status.json` with phase, exit code, and hosts. See
-  [`cmd/rotari/job_executor.go`](../../cmd/rotari/job_executor.go) and
+  [`internal/executor/wrapper.go`](../../internal/executor/wrapper.go) and
   [`cmd/rotari/job_executor_test.go`](../../cmd/rotari/job_executor_test.go).
 - The wrapper records status independently of the process that launched it, so
   scheduler accounting lag cannot hide the result.
@@ -51,7 +54,8 @@ Representative implementation and tests:
   [`internal/state/lock_test.go`](../../internal/state/lock_test.go).
 - The state lock serializes queue mutations and `running.lock` prevents a
   second runner from starting the same project. See
-  [`cmd/rotari/state_lock.go`](../../cmd/rotari/state_lock.go) and
+  `AcquireStateLock` and `AcquireRunLock` in
+  [`internal/state/lock.go`](../../internal/state/lock.go), and
   [`cmd/rotari/state_test.go`](../../cmd/rotari/state_test.go).
 - This is coordination, not distributed locking: it cannot fence a host after a
   network partition or determine whether a remote PID is alive. A remote run
@@ -60,10 +64,10 @@ Representative implementation and tests:
 - Project locks are scoped to project directories, so different projects largely
   isolate queue and run state. Server, registry, and filesystem state remain
   common base-level dependencies.
-- `controlQueueJobs` and `cancelJobs` signal local jobs by process group. The
+- `jobcontrol.Controller.Control` and `CancelJobs` signal local jobs by process group. The
   wrapper's PID is also its process-group ID via `Setpgid`, so a negative PID
   reaches both the wrapper and its command.
-- `localExecutorHostMismatch` compares the current host with `context.json`
+- `executor.LocalHostMismatch` compares the current host with `context.json`
   before signaling. A cross-host local control request gets an explicit host
   error instead of a misleading "job is not running" or a PID reuse hazard.
 - Scheduler executors and SSH are expected to work from any host with the
@@ -72,8 +76,8 @@ Representative implementation and tests:
 - `schedulerCommandHint` turns missing scheduler binaries into explicit errors
   and preserves scheduler stdout/stderr, including explanations for rejected
   operations on queued jobs.
-- Whole-run cancel has the same PID locality issue. `runningWorkerHostMismatch`
-  checks `running.lock`'s host before signaling; a cross-host request fails
+- Whole-run cancel has the same PID locality issue. `runnerHostMismatch`
+  in `internal/jobcontrol` checks `running.lock`'s host before signaling; a cross-host request fails
   instead of reporting success while leaving the real runner untouched.
 - Finalization rechecks that `running.lock` belongs to the finishing run while
   holding the state lock. New locks are written to a temporary file and

@@ -176,7 +176,7 @@ func validateImportDestination(baseDir, projectName string, overwrite bool) erro
 	} else if err != nil {
 		return err
 	}
-	release, err := acquireStateReadLock(paths.StateLockFile)
+	release, err := state.AcquireStateReadLock(paths.StateLockFile)
 	if err != nil {
 		return fmt.Errorf("failed to lock queue for reading: %w", err)
 	}
@@ -333,7 +333,7 @@ func writeImportedQueue(baseDir, projectName string, queue Queue, overwrite bool
 	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
 		return err
 	}
-	release, err := acquireStateLock(paths.StateLockFile)
+	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return fmt.Errorf("failed to lock queue: %w", err)
 	}

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
 )
 
@@ -481,7 +482,7 @@ func TestCmdImportRejectsRunningProject(t *testing.T) {
 	if err := os.MkdirAll(paths.ProjectDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := acquireLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
+	if err := state.AcquireRunLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "active-run"}); err != nil {
 		t.Fatal(err)
 	}
 	defer os.Remove(paths.LockFile)

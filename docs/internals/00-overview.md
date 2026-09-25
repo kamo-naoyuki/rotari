@@ -143,6 +143,7 @@ cmd/rotari
   ├── internal/jobstatus # read-side job result and timestamp resolution
   ├── internal/diagnose  # rule-based log diagnosis
   ├── internal/server    # server protocol, transport, and lifetime
+  ├── internal/jobcontrol # cancel, suspend, and resume of running jobs
   ├── internal/queueedit # queue edits such as copying jobs from a run
   ├── internal/workflow  # workflow manifests, export merge, import reconcile
   └── internal/run       # run planning, worker lifecycle, lanes, orchestration

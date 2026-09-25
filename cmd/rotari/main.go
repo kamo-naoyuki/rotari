@@ -202,7 +202,7 @@ func printUsage() {
 }
 
 func recoverInterruptedProject(paths pathSet, runID string, discardQueue bool) error {
-	release, err := acquireStateLock(paths.StateLockFile)
+	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return fmt.Errorf("failed to lock queue: %w", err)
 	}
@@ -370,7 +370,7 @@ func cmdWorkerRun(args []string) int {
 }
 
 func finishRun(paths pathSet, runID string, exitCode int) error {
-	release, err := acquireStateLock(paths.StateLockFile)
+	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return fmt.Errorf("failed to lock queue: %w", err)
 	}
@@ -407,7 +407,7 @@ func finishRun(paths pathSet, runID string, exitCode int) error {
 }
 
 func launchAsyncRun(paths pathSet, options runOptions) int {
-	if err := acquireLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339()}); err != nil {
+	if err := state.AcquireRunLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339()}); err != nil {
 		printErrorf("project '%s' is running; run is not allowed: %v", options.QueueName, err)
 		return 1
 	}

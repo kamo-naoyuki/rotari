@@ -787,7 +787,7 @@ func TestCmdResetRejectsRunningProject(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "run-1")
-	if err := acquireLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+	if err := state.AcquireRunLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1228,59 +1228,6 @@ func TestResolveAttemptTargetUsesRunRegistry(t *testing.T) {
 	}
 	if gotBaseDir != baseDir || gotProject != "demo" || gotRunID != runID || gotJobID != "job-1" {
 		t.Fatalf("resolved attempt = %q, %q, %q, %q", gotBaseDir, gotProject, gotRunID, gotJobID)
-	}
-}
-
-func TestNormalizeRunningAttemptIDsRequiresCurrentRunningAttempt(t *testing.T) {
-	runDir := t.TempDir()
-	runID := makeRunID()
-	jobID := "job-1"
-	oldAttempt := makeAttemptID(runID, jobID, 0)
-	currentAttempt := makeAttemptID(runID, jobID, 1)
-	oldDir, err := specificAttemptJobDir(runDir, jobID, oldAttempt)
-	if err != nil {
-		t.Fatal(err)
-	}
-	currentDir, err := specificAttemptJobDir(runDir, jobID, currentAttempt)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, dir := range []string{oldDir, currentDir} {
-		if err := os.MkdirAll(dir, 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if err := writeJSON(filepath.Join(dir, stateFileJobJSON), struct {
-			Executor string `json:"executor"`
-			JobID    string `json:"job_id"`
-		}{Executor: "slurm", JobID: jobID}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	got, err := normalizeRunningAttemptIDs(runDir, runID, []string{currentAttempt})
-	if err != nil || len(got) != 1 || got[0] != jobID {
-		t.Fatalf("current attempt normalization = %#v, %v", got, err)
-	}
-	if _, err := normalizeRunningAttemptIDs(runDir, runID, []string{oldAttempt}); err == nil {
-		t.Fatal("finished/non-current attempt was accepted")
-	} else if !strings.Contains(err.Error(), fmt.Sprintf("Latest attempt: %q (running)", currentAttempt)) {
-		t.Fatalf("stale attempt error = %q", err)
-	}
-	if err := os.WriteFile(filepath.Join(currentDir, stateFileFinishedAt), []byte(nowRFC3339()), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := normalizeRunningAttemptIDs(runDir, runID, []string{currentAttempt}); err == nil || !strings.Contains(err.Error(), "is finished") {
-		t.Fatalf("finished attempt error = %v", err)
-	}
-	pendingID := makeAttemptID(runID, "pending", 0)
-	pendingDir, err := specificAttemptJobDir(runDir, "pending", pendingID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(pendingDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := normalizeRunningAttemptIDs(runDir, runID, []string{pendingID}); err == nil || !strings.Contains(err.Error(), "is pending") {
-		t.Fatalf("pending attempt error = %v", err)
 	}
 }
 
@@ -2684,33 +2631,6 @@ func TestValidateDependencies(t *testing.T) {
 	}
 }
 
-func TestFinishCancelMessageWaitsUntilLockDisappears(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	lock := LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}
-	if err := writeJSON(paths.LockFile, lock); err != nil {
-		t.Fatal(err)
-	}
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		_ = os.Remove(paths.LockFile)
-	}()
-
-	message, err := finishCancelMessage("Cancel requested", paths, "default", "run-1", true)
-	if err != nil {
-		t.Fatalf("finishCancelMessage returned error: %v", err)
-	}
-	if !strings.Contains(message, "Cancellation complete") {
-		t.Fatalf("message = %q, want cancellation complete", message)
-	}
-}
-
 func TestFinalizeCompletedCancellationRemovesStaleServerLock(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "default")
@@ -2952,7 +2872,7 @@ func TestCancelJobsCancelsSelectedLocalJob(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message, err := cancelJobs(runDir, "default", "run-1", []string{"job-1"})
+	message, err := jobController().CancelJobs(runDir, "default", "run-1", []string{"job-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3044,7 +2964,7 @@ func TestControlQueueJobsReportsHostMismatchForLocalJob(t *testing.T) {
 	if !strings.Contains(err.Error(), "other-host") {
 		t.Fatalf("error = %q, want it to mention the recorded host", err)
 	}
-	if _, err := cancelJobs(runDir, "default", "run-1", []string{"job-1"}); err == nil {
+	if _, err := jobController().CancelJobs(runDir, "default", "run-1", []string{"job-1"}); err == nil {
 		t.Fatal("cancel across hosts unexpectedly succeeded")
 	} else if !strings.Contains(err.Error(), "other-host") {
 		t.Fatalf("error = %q, want it to mention the recorded host", err)
@@ -3276,28 +3196,6 @@ func TestJobWasExplicitlyCancelledUsesCancellationStateNotExitCode(t *testing.T)
 	}
 	if jobWasExplicitlyCancelled(runDir, "job-2", JobResult{ID: "job-2", ExitCode: 143}) {
 		t.Fatal("exit code 143 alone was treated as cancellation")
-	}
-}
-
-func TestFinishCancelMessageIncludesInspectHintWhenNotWaiting(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	message, err := finishCancelMessage("Cancel requested", paths, "default", "run-1", false)
-	if err != nil {
-		t.Fatalf("finishCancelMessage returned error: %v", err)
-	}
-	if !strings.Contains(message, "Inspect status") {
-		t.Fatalf("message = %q, want inspect status hint", message)
-	}
-	if !strings.Contains(message, "rotari show --run-id run-1") {
-		t.Fatalf("message = %q, want show command hint", message)
 	}
 }
 

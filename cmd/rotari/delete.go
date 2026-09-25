@@ -42,7 +42,7 @@ func cmdDelete(args []string) int {
 		printErrorf("failed to create queue directory: %v", err)
 		return 1
 	}
-	release, err := acquireStateLock(paths.StateLockFile)
+	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
 		printErrorf("failed to lock queue: %v", err)
 		return 1
@@ -166,7 +166,7 @@ func clearRunHistory(baseDir, queueName, runID string) error {
 	if err != nil {
 		return err
 	}
-	release, err := acquireStateLock(paths.StateLockFile)
+	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return fmt.Errorf("failed to lock queue: %w", err)
 	}

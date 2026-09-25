@@ -48,7 +48,7 @@ func cmdUnlock(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	release, err := acquireStateLock(paths.StateLockFile)
+	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
 		printErrorf("failed to lock queue: %v", err)
 		return 1

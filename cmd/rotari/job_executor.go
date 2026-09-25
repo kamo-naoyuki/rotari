@@ -5,14 +5,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 // stringSliceFlag collects repeated occurrences of a CLI flag (e.g. --executor-option).
@@ -90,100 +87,22 @@ func effectiveExecutorOptions(settings executorRunSettingsMap, name string, fall
 	return fallback
 }
 
-// jobOwnerExecutor determines which executor owns the job recorded in jobDir,
-// based on the metadata files each executor writes on submission. Every
-// scheduler-style executor writes job.json with its own "executor" name, so
-// that job.json alone (not its mere existence) tells us which one to use.
-func jobOwnerExecutor(jobDir string) (JobExecutor, error) {
-	if path, err := state.ValidatedStateFile(jobDir, stateFileJobJSON); err == nil { // NOSONAR: jobDir is restricted to validated job-path boundaries
-		var meta struct {
-			Executor string `json:"executor"`
-		}
-		if err := jsonStore().ReadJSON(path, &meta); err == nil {
-			if executor, ok := lookupExecutor(meta.Executor); ok {
-				return executor, nil
-			}
-		}
-	}
-	if path, err := state.ValidatedStateFile(jobDir, stateFilePID); err == nil {
-		// codeql[go/path-injection]: path is returned by ValidatedStateFile.
-		if _, err := os.Stat(path); err == nil {
-			executor, _ := lookupExecutor("local")
-			return executor, nil
-		}
-	}
-	return nil, fmt.Errorf("job is not running")
-}
-
-// localExecutorHostMismatch reports the run's recorded hostname when the
-// given job belongs to the "local" executor and this process is running on a
-// different host. The local executor signals jobs by PID, which is only
-// meaningful on the host that actually spawned the process; over a shared
-// base directory, "job is not running" from a failed PID check on the wrong
-// host is misleading, so callers should surface this instead before trying.
-func localExecutorHostMismatch(executor JobExecutor, runDir string) (recordedHost string, mismatch bool) {
-	if executor.Name() != "local" {
-		return "", false
-	}
-	safeRunDir := filepath.Join(filepath.Dir(runDir), filepath.Base(runDir))
-	context, err := state.LoadContext(jsonStore(), safeRunDir)
-	if err != nil || context.Hostname == "" {
-		return "", false
-	}
-	host, err := os.Hostname()
-	if err != nil || strings.EqualFold(host, context.Hostname) {
-		return "", false
-	}
-	return context.Hostname, true
-}
-
-// runningWorkerHostMismatch reports the recorded host when a run's
-// running.lock belongs to a different host than this process. Whole-run
-// cancel (no --job-id) signals the runner's process group by the PID stored
-// in that lock; on the wrong host that PID belongs to (at best) nothing, so
-// the signal harmlessly returns ESRCH and callers ignore it -- silently
-// reporting success without actually cancelling anything. This mirrors the
-// host check `isRunning` already applies before trusting a local PID.
-func runningWorkerHostMismatch(lock LockInfo) (recordedHost string, mismatch bool) {
-	if lock.Host == "" {
-		return "", false
-	}
-	host, err := os.Hostname()
-	if err != nil || strings.EqualFold(host, lock.Host) {
-		return "", false
-	}
-	return lock.Host, true
-}
-
 // executorRegistry is initialized eagerly (rather than in an init func) so
 // that other package-level vars, such as cliCommandSpecs, can depend on
 // executorNames() during their own initialization.
-var executorRegistry = map[string]JobExecutor{
-	"local": executor.NewLocal(jsonStore(), jobLogf),
-	"slurm": executor.NewSlurm(jsonStore(), jobLogf),
-	"pbs":   executor.NewPBS(jsonStore(), jobLogf),
-	"lsf":   executor.NewLSF(jsonStore(), jobLogf),
-	"ssh":   executor.NewSSH(jsonStore()),
-}
+var executorRegistry = executor.NewRegistry(jsonStore(), jobLogf)
 
 func lookupExecutor(name string) (JobExecutor, bool) {
-	b, ok := executorRegistry[name]
-	return b, ok
+	return executorRegistry.Lookup(name)
 }
 
 func isKnownExecutor(name string) bool {
-	_, ok := executorRegistry[name]
-	return ok
+	return executorRegistry.Known(name)
 }
 
 // executorNames returns the registered executor names, sorted for stable output.
 func executorNames() []string {
-	names := make([]string, 0, len(executorRegistry))
-	for name := range executorRegistry {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
+	return executorRegistry.Names()
 }
 
 func validateQueueForRun(queue Queue, requestedExecutor string, executorOptions []string, settings executorRunSettingsMap) error {

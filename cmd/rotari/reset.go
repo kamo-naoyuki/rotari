@@ -140,7 +140,7 @@ func resetQueueCommands(paths pathSet) (int, error) {
 	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
 		return 0, fmt.Errorf("failed to create project directory: %w", err)
 	}
-	release, err := acquireStateLock(paths.StateLockFile)
+	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return 0, fmt.Errorf("failed to lock queue: %w", err)
 	}

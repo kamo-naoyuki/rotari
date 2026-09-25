@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestFormatDisplayTimestampUsesJST(t *testing.T) {
@@ -571,7 +572,7 @@ func TestCmdShowDisplaysActiveRunBeforeQueue(t *testing.T) {
 	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), runQueue); err != nil {
 		t.Fatal(err)
 	}
-	if err := acquireLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: runID}); err != nil {
+	if err := state.AcquireRunLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: runID}); err != nil {
 		t.Fatal(err)
 	}
 	defer os.Remove(paths.LockFile)

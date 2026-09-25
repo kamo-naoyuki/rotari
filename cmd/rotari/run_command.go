@@ -348,7 +348,7 @@ func startServerRun(baseDir string, request serverRequest, onDone func()) (strin
 	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
 		return "", err
 	}
-	release, err := acquireStateLock(paths.StateLockFile)
+	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return "", err
 	}
@@ -396,7 +396,7 @@ func runServerSync(baseDir string, request serverRequest, progress func(serverRe
 	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
 		return "", 1, err
 	}
-	release, err := acquireStateLock(paths.StateLockFile)
+	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return "", 1, err
 	}
@@ -418,7 +418,7 @@ func runServerSync(baseDir string, request serverRequest, progress func(serverRe
 		release()
 		return "", 1, err
 	}
-	if err := acquireLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: runID, RunName: request.RunName, StartedAt: nowRFC3339()}); err != nil {
+	if err := state.AcquireRunLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: runID, RunName: request.RunName, StartedAt: nowRFC3339()}); err != nil {
 		release()
 		return "", 1, fmt.Errorf("project %q is already running", request.QueueName)
 	}

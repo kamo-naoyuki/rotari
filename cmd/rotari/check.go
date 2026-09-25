@@ -108,7 +108,7 @@ func checkProject(paths pathSet) (projectCheck, error) {
 }
 
 func checkProjectWithOptions(paths pathSet, deep bool) (projectCheck, error) {
-	release, err := acquireStateReadLock(paths.StateLockFile)
+	release, err := state.AcquireStateReadLock(paths.StateLockFile)
 	if err != nil {
 		return projectCheck{}, fmt.Errorf("lock project state: %w", err)
 	}

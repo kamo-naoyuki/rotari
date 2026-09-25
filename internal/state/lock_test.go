@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 func TestLoadLockPreservesMissingAndInvalidErrors(t *testing.T) {
@@ -73,5 +76,46 @@ func TestInspectLockClassifiesMissingRemoteAndStaleLocks(t *testing.T) {
 	}
 	if _, err := os.Stat(stalePath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("stale lock stat error = %v, want removed lock", err)
+	}
+}
+
+func TestAcquireRunLockRefusesActiveLock(t *testing.T) {
+	lockPath := filepath.Join(t.TempDir(), "running.lock")
+	if err := AcquireRunLock(lockPath, model.LockInfo{PID: os.Getpid(), RunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	lock, err := LoadLock(lockPath)
+	if err != nil || lock.RunID != "run-1" || lock.Host == "" {
+		t.Fatalf("lock = %#v, %v, want run-1 with host", lock, err)
+	}
+	if err := AcquireRunLock(lockPath, model.LockInfo{PID: os.Getpid(), RunID: "run-2"}); err == nil || err.Error() != "active lock exists" {
+		t.Fatalf("second lock error = %v", err)
+	}
+}
+
+func TestAcquireStateLockExcludesOtherHolders(t *testing.T) {
+	lockPath := filepath.Join(t.TempDir(), "state.lock")
+	release, err := AcquireStateLock(lockPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acquired := make(chan func(), 1)
+	go func() {
+		next, err := AcquireStateLock(lockPath)
+		if err == nil {
+			acquired <- next
+		}
+	}()
+	select {
+	case <-acquired:
+		t.Fatal("second holder acquired a held lock")
+	case <-time.After(200 * time.Millisecond):
+	}
+	release()
+	select {
+	case next := <-acquired:
+		next()
+	case <-time.After(2 * time.Second):
+		t.Fatal("lock was not handed over after release")
 	}
 }

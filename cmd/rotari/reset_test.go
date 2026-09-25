@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func captureResetStderr(t *testing.T, args []string) (int, string) {
@@ -116,7 +118,7 @@ func TestCmdResetFinishesCompletedCancellationBeforeReset(t *testing.T) {
 	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "summary.json"), RunSummary{RunID: "run-1", ExitCode: 130, FinishedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
-	if err := acquireLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
+	if err := state.AcquireRunLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Remove(paths.LockFile) })

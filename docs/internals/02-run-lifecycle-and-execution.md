@@ -215,7 +215,7 @@
   immutable executor instance for the run, so one server process cannot mutate
   the registered executor policy of another run.
 - Scheduler display names may offer inspection commands, but must not be the
-  only way to locate state. `controlQueueJobs` also writes
+  only way to locate state. `jobcontrol.Controller.Control` also writes
   `scheduler_status.json` immediately after successful suspend/resume calls,
   including for executors whose `Wait` loop does not poll that file.
 - Task wrappers normalize scheduler-specific task indexes into

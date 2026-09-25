@@ -191,7 +191,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	if err != nil {
 		return "", err
 	}
-	release, err := acquireStateLock(paths.StateLockFile)
+	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to lock queue: %w", err)
 	}

@@ -461,10 +461,10 @@ func TestIsRunningRemovesDeadLocalHostLock(t *testing.T) {
 func TestAcquireLockRejectsActiveLockWithoutReplacingIt(t *testing.T) {
 	lockPath := t.TempDir() + "/running.lock"
 	first := LockInfo{PID: os.Getpid(), RunID: "run-1"}
-	if err := acquireLock(lockPath, first); err != nil {
+	if err := state.AcquireRunLock(lockPath, first); err != nil {
 		t.Fatal(err)
 	}
-	if err := acquireLock(lockPath, LockInfo{PID: os.Getpid(), RunID: "run-2"}); err == nil || !strings.Contains(err.Error(), "active lock exists") {
+	if err := state.AcquireRunLock(lockPath, LockInfo{PID: os.Getpid(), RunID: "run-2"}); err == nil || !strings.Contains(err.Error(), "active lock exists") {
 		t.Fatalf("second acquire error = %v, want active lock exists", err)
 	}
 	stored, err := state.LoadLock(lockPath)

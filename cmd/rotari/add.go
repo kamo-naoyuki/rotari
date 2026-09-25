@@ -143,7 +143,7 @@ func enqueueCommands(baseDir, queueName string, commands []QueuedCommand, array 
 	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
 		return "", err
 	}
-	release, err := acquireStateLock(paths.StateLockFile)
+	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return "", err
 	}
