@@ -22,7 +22,11 @@ def _binary_on_path() -> str | None:
         if not directory:
             continue
         candidate = pathlib.Path(directory) / "rotari"
-        if candidate.is_file() and os.access(candidate, os.X_OK) and candidate.resolve() != self_path:
+        if (
+            candidate.is_file()
+            and os.access(candidate, os.X_OK)
+            and candidate.resolve() != self_path
+        ):
             return str(candidate)
     return None
 

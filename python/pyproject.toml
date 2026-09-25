@@ -24,3 +24,7 @@ packages = ["rotari"]
 
 [tool.setuptools.package-data]
 rotari = ["_bin/rotari"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"

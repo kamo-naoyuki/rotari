@@ -28,11 +28,15 @@ def build_command_arguments(
     positional: Sequence[str] = (),
 ) -> list[str]:
     """Build command argv from the generated CLI schema."""
-    command_spec = next((item for item in CLI_SCHEMA["commands"] if item["name"] == command), None)
+    command_spec = next(
+        (item for item in CLI_SCHEMA["commands"] if item["name"] == command), None
+    )
     if command_spec is None:
         raise ValueError(f"unknown CLI command: {command}")
     flags = {item["name"]: item for item in command_spec.get("flags", ())}
-    provided = {_cli_option_name(option): value for option, value in (options or {}).items()}
+    provided = {
+        _cli_option_name(option): value for option, value in (options or {}).items()
+    }
     arguments = [command]
     for name, flag in flags.items():
         value = provided.get(name)
@@ -41,7 +45,9 @@ def build_command_arguments(
         prefix = f"--{name}"
         values = (
             value
-            if flag.get("repeated") and isinstance(value, Sequence) and not isinstance(value, (str, bytes))
+            if flag.get("repeated")
+            and isinstance(value, Sequence)
+            and not isinstance(value, (str, bytes))
             else (value,)
         )
         for item in values:
@@ -70,11 +76,19 @@ def _install_cli_signatures() -> None:
         method = getattr(Rotari, command, None)
         if method is None:
             continue
-        parameters = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+        parameters = [
+            inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        ]
         if command == "add":
-            parameters.append(inspect.Parameter("command", inspect.Parameter.POSITIONAL_OR_KEYWORD))
+            parameters.append(
+                inspect.Parameter("command", inspect.Parameter.POSITIONAL_OR_KEYWORD)
+            )
         elif command == "wait":
-            parameters.append(inspect.Parameter("selector", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None))
+            parameters.append(
+                inspect.Parameter(
+                    "selector", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None
+                )
+            )
         for flag in command_spec.get("flags", ()):
             if flag["name"] in {"basedir", "project-name"}:
                 continue
@@ -85,7 +99,9 @@ def _install_cli_signatures() -> None:
                 default = None
             else:
                 default = False
-            parameters.append(inspect.Parameter(name, inspect.Parameter.KEYWORD_ONLY, default=default))
+            parameters.append(
+                inspect.Parameter(name, inspect.Parameter.KEYWORD_ONLY, default=default)
+            )
         method.__signature__ = inspect.Signature(parameters)
 
 
@@ -114,7 +130,9 @@ class RotariError(RuntimeError):
 
     def __init__(self, result: CommandResult):
         self.result = result
-        message = result.stderr.strip() or result.stdout.strip() or "rotari command failed"
+        message = (
+            result.stderr.strip() or result.stdout.strip() or "rotari command failed"
+        )
         super().__init__(f"{message} (exit code {result.returncode})")
 
 
@@ -199,7 +217,9 @@ class Rotari:
         if selector is not None and options.get("run_id") is not None:
             raise ValueError("selector and run_id cannot be used together")
         options = {**options, "json": True}
-        arguments = build_command_arguments("wait", options, [selector] if selector is not None else ())
+        arguments = build_command_arguments(
+            "wait", options, [selector] if selector is not None else ()
+        )
         result = self.command(*arguments, check=False)
         try:
             summary = result.json()
@@ -236,7 +256,9 @@ class Rotari:
             text=True,
             check=False,
         )
-        return CommandResult(tuple(argv), process.returncode, process.stdout, process.stderr)
+        return CommandResult(
+            tuple(argv), process.returncode, process.stdout, process.stderr
+        )
 
 
 _install_cli_signatures()
