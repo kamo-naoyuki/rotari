@@ -309,15 +309,16 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 			stageSizes[command.Stage]++
 		}
 	}
-	selectedStageSizes := make(map[string]int)
+	// A stage dependency stays as long as any stage member is copied: copied
+	// members keep their Stage, so the name resolves to them. Excluded members
+	// are checked below and must have succeeded.
+	selectedIDs := make(map[string]bool, len(selected))
+	keptStages := make(map[string]bool)
 	for _, command := range selected {
+		selectedIDs[command.ID] = true
 		if command.Stage != "" {
-			selectedStageSizes[command.Stage]++
+			keptStages[command.Stage] = true
 		}
-	}
-	selectedStages := make(map[string]bool)
-	for stage, size := range stageSizes {
-		selectedStages[stage] = selectedStageSizes[stage] == size
 	}
 	// A matrix base name resolves to all of its members. It stays a dependency
 	// target only when the whole group is copied; otherwise the excluded
@@ -339,7 +340,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	}
 	for _, command := range selected {
 		for _, dependency := range command.DependsOn {
-			if selectedNames[dependency] || selectedStages[dependency] || selectedMatrices[dependency] {
+			if selectedNames[dependency] || selectedMatrices[dependency] {
 				continue
 			}
 			if members, isMatrix := matrixMembers[dependency]; isMatrix {
@@ -354,19 +355,15 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 				}
 				continue
 			}
-			if stageSize, isStage := stageSizes[dependency]; isStage {
-				completed := 0
+			if _, isStage := stageSizes[dependency]; isStage {
 				for _, candidate := range snapshot.Commands {
-					if candidate.Stage != dependency {
+					if candidate.Stage != dependency || selectedIDs[candidate.ID] {
 						continue
 					}
 					result, finished := model.AggregatedJobResult(candidate.ID, candidate.Array, results)
-					if finished && result.ExitCode == 0 {
-						completed++
+					if !finished || result.ExitCode != 0 {
+						return "", fmt.Errorf("cannot copy job %q: excluded dependency %q (stage %q) did not succeed in run %s", command.Name, stageMemberLabel(candidate), dependency, runID)
 					}
-				}
-				if completed != stageSize {
-					return "", fmt.Errorf("cannot copy job %q: excluded dependency %q did not succeed in run %s", command.Name, dependency, runID)
 				}
 				continue
 			}
@@ -411,7 +408,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 		sourceJobID := selected[index].ID
 		dependencies := make([]string, 0, len(selected[index].DependsOn))
 		for _, dependency := range selected[index].DependsOn {
-			if selectedNames[dependency] || selectedStages[dependency] || selectedMatrices[dependency] {
+			if selectedNames[dependency] || keptStages[dependency] || selectedMatrices[dependency] {
 				dependencies = append(dependencies, dependency)
 			}
 		}
@@ -459,6 +456,13 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 		return "", err
 	}
 	return fmt.Sprintf("copied jobs=%d from run=%s to queue=%s", len(selected), runID, queueName), nil
+}
+
+func stageMemberLabel(command QueuedCommand) string {
+	if command.Name != "" {
+		return command.Name
+	}
+	return command.ID
 }
 
 func narrowArrayCommand(command *QueuedCommand, taskIDs map[string]bool) {

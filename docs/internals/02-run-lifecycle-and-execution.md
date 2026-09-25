@@ -67,8 +67,9 @@
   than presenting an incomplete group as the original matrix. A dependency on
   the group's base name resolves to every member only while provenance exists,
   so clearing it rewrites such dependencies to the member names that remain.
-  `copy` treats a base-name dependency like a stage: it is kept when the whole
-  group is copied, and otherwise every excluded member must have succeeded.
+  `copy` keeps a base-name dependency when the whole group is copied;
+  otherwise every excluded member must have succeeded, and the dependency is
+  rewritten to the copied members.
   Legacy snapshots
   without provenance export as independent jobs. See
   [matrix validation](../../internal/model/dependencies.go),
@@ -84,7 +85,12 @@
   whole.
 - When `copy` selects a job without one of its prerequisites, it removes that
   dependency. An omitted prerequisite without a successful source result
-  rejects the copy before the destination queue is written.
+  rejects the copy before the destination queue is written. For a stage
+  dependency, only the omitted stage members must have succeeded; the
+  dependency stays while any member is copied, because copied members keep
+  their stage and the name resolves to them. A retry that re-executes one
+  failed stage member therefore keeps its dependents waiting for it. See
+  [partial stage copy tests](../../cmd/rotari/copy_test.go).
 - `run`/`retry` default to `--partial-array=true`. For a filtered rerun,
   `planRerunSelection` evaluates each array task's own result against the
   selection (`planArrayTaskSelection`) instead of the aggregate, so only the

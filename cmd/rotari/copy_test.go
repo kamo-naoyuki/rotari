@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 func TestCmdCopyRejectsRunningProjectBeforeQueueConfirmation(t *testing.T) {
@@ -590,5 +592,93 @@ func TestConfirmQueueOverwriteRejectsNonEmptyQueueWithoutTerminal(t *testing.T) 
 	_, err = confirmQueueOverwrite(baseDir, "default", false, false)
 	if err == nil || !strings.Contains(err.Error(), "queue is not empty; use --append or --overwrite") {
 		t.Fatalf("confirmQueueOverwrite error = %v, want non-empty queue error", err)
+	}
+}
+
+func writePartialStageRun(t *testing.T, paths pathSet, results []JobResult) {
+	t.Helper()
+	runDir := filepath.Join(paths.RunsDir, "run-1")
+	snapshot := Queue{Commands: []QueuedCommand{
+		{ID: "a-id", Name: "a", Stage: "compute", Command: []string{"a"}},
+		{ID: "b-id", Name: "b", Stage: "compute", Command: []string{"b"}},
+		{ID: "evaluate-id", Name: "evaluate", DependsOn: []string{"compute"}, Command: []string{"evaluate"}},
+	}}
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{Results: results}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCopyRunToQueueRetriesFailedStageMemberWithDependent(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writePartialStageRun(t, paths, []JobResult{
+		{ID: "a-id", ExitCode: 0},
+		{ID: "b-id", ExitCode: 1},
+		{ID: "evaluate-id", ExitCode: 1, Error: "blocked by failed dependency"},
+	})
+	if _, err := copyRunToQueue(baseDir, "default", "run-1", "failed", nil, false); err != nil {
+		t.Fatalf("copy --failed of a partial stage: %v", err)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 2 || queue.Commands[0].ID != "b-id" || queue.Commands[1].ID != "evaluate-id" {
+		t.Fatalf("copied queue = %#v", queue.Commands)
+	}
+	if got := queue.Commands[1].DependsOn; len(got) != 1 || got[0] != "compute" {
+		t.Fatalf("copied dependencies = %v, want [compute]", got)
+	}
+	// The stage name now resolves to the copied member only, so evaluate
+	// waits for the re-executed b.
+	jobs := model.QueueToJobs(queue.Commands)
+	if got := jobs[1].DependsOn; len(got) != 1 || got[0] != "b" {
+		t.Fatalf("resolved dependencies = %v, want [b]", got)
+	}
+}
+
+func TestCopyRunToQueueRejectsFailedExcludedStageMember(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writePartialStageRun(t, paths, []JobResult{
+		{ID: "a-id", ExitCode: 1},
+		{ID: "b-id", ExitCode: 1},
+		{ID: "evaluate-id", ExitCode: 1, Error: "blocked by failed dependency"},
+	})
+	_, err = copyRunToQueue(baseDir, "default", "run-1", "job-id", []string{"b-id", "evaluate-id"}, false)
+	if err == nil || !strings.Contains(err.Error(), `excluded dependency "a" (stage "compute") did not succeed`) {
+		t.Fatalf("copy error = %v, want excluded failed stage member", err)
+	}
+}
+
+func TestCopyRunToQueueDropsFullyExcludedSuccessfulStage(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writePartialStageRun(t, paths, []JobResult{
+		{ID: "a-id", ExitCode: 0},
+		{ID: "b-id", ExitCode: 0},
+		{ID: "evaluate-id", ExitCode: 1},
+	})
+	if _, err := copyRunToQueue(baseDir, "default", "run-1", "failed", nil, false); err != nil {
+		t.Fatal(err)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 1 || len(queue.Commands[0].DependsOn) != 0 {
+		t.Fatalf("copied queue = %#v", queue.Commands)
 	}
 }
