@@ -1,9 +1,5 @@
 # TODO
 
-- Consider `rotari show --stage NAME` to filter the selected queue or run to
-  jobs in that stage. Use the stage name directly rather than introducing a
-  generated `--stage-id`.
-
 - Consider extending `cancel`/`suspend`/`resume` selectors to also accept a
   `run_name` and/or a bare `project_name`, alongside the existing job_id,
   `att_` attempt_id, and bare run_id support. Unlike run_id (fixed generated

@@ -20,6 +20,7 @@ rotari show # list projects across known basedirs
 rotari show --basedirs # print the resolved master directory and state directories
 rotari show -p sweep # list the project's runs and current queue, if non-empty
 rotari show -p sweep --failed # list failed jobs in the selected run
+rotari show -p sweep --stage train # list only the jobs in stage train of the selected run or queue
 rotari show ATTEMPT_ID # show one job attempt in detail: status, executor, command, and saved output path
 rotari show JOB_ID # show a job from the resolved run or queue
 rotari show JOB_NAME # show a job by name

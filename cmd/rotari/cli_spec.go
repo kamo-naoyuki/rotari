@@ -233,6 +233,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "job-id", Description: "job ID", ValueName: "ID"},
 			cliFlagSpec{Name: "job-name", Description: "job name", ValueName: "NAME"},
 			cliFlagSpec{Name: "failed", Description: "show failed jobs only"},
+			cliFlagSpec{Name: "stage", Description: "show jobs in this stage only", ValueName: "NAME"},
 			cliFlagSpec{Name: "logs", Description: "print output logs for all jobs"},
 			cliFlagSpec{Name: "failed-logs", Description: "print output logs for failed jobs"},
 			cliFlagSpec{Name: "follow", Description: "follow log output until the run completes"},

@@ -86,7 +86,7 @@ func TestAcceptedResultDisplaysConsistentlyInShowAndWeb(t *testing.T) {
 		t.Fatalf("showJob described an accepted result as an ordinary carry:\n%s", text)
 	}
 
-	code, runOutput := captureWorkflowStdout(t, func() int { return showRun(paths, "accepted-run", false) })
+	code, runOutput := captureWorkflowStdout(t, func() int { return showRun(paths, "accepted-run", showJobFilter{}) })
 	if code != 0 || !strings.Contains(string(runOutput), "success (accepted)") {
 		t.Fatalf("showRun code = %d, output:\n%s", code, runOutput)
 	}

@@ -256,6 +256,7 @@ func cmdShow(args []string) int {
 	jobIDOption := cliString(fs, "job-id", "")
 	jobNameOption := cliString(fs, "job-name", "")
 	failedOnly := cliBool(fs, "failed", false)
+	stageOption := cliString(fs, "stage", "")
 	showBaseDirsList := cliBool(fs, "basedirs", false)
 	masterdir := cliString(fs, "masterdir", "")
 	showLogs := cliBool(fs, "logs", false)
@@ -365,6 +366,10 @@ func cmdShow(args []string) int {
 		}
 		applyShowSelectorTarget(targets[0], basedir, queueNameOption, runIDOption, jobIDOption, showQueueOption)
 	}
+	if *stageOption != "" && (*jobIDOption != "" || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
+		printError("--stage cannot be combined with job, list, log, follow, JSON, or report options")
+		return 1
+	}
 	if *reportOutput && (*showQueueOption || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput) {
 		printError("--report cannot be combined with queue, list, log, follow, or JSON options")
 		return 1
@@ -385,7 +390,7 @@ func cmdShow(args []string) int {
 		}
 		return showBaseDirs(masterDir)
 	}
-	if *queueNameOption == "" && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" &&
+	if *queueNameOption == "" && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && *stageOption == "" &&
 		!(*showQueueOption || *showBaseDirsList || *failedOnly || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
 		return showAllProjects(*basedir, *masterdir)
 	}
@@ -399,7 +404,7 @@ func cmdShow(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	projectOverview := (*queueNameOption != "") && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && !*showQueueOption && !*showBaseDirsList && !*showLogs && !*showFailedLogs && !*followLogs && !*jsonOutput && !*reportOutput && !*failedOnly
+	projectOverview := (*queueNameOption != "") && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && *stageOption == "" && !*showQueueOption && !*showBaseDirsList && !*showLogs && !*showFailedLogs && !*followLogs && !*jsonOutput && !*reportOutput && !*failedOnly
 	if projectOverview {
 		return showProjectOverview(paths)
 	}
@@ -419,7 +424,7 @@ func cmdShow(args []string) int {
 		if *jsonOutput {
 			return showQueueJSON(paths, queue)
 		}
-		return showQueue(paths, queue)
+		return showQueue(paths, queue, *stageOption)
 	}
 	selectedRunID := *runIDOption
 	if selectedRunID == "" {
@@ -454,7 +459,7 @@ func cmdShow(args []string) int {
 				if *jsonOutput {
 					return showQueueJSON(paths, queue)
 				}
-				return showQueue(paths, queue)
+				return showQueue(paths, queue, *stageOption)
 			}
 			if countProjectRuns(paths.RunsDir) == 0 {
 				printErrorf("WARNING: project %q has no runs or queued jobs; nothing to show", paths.ProjectName)
@@ -520,7 +525,7 @@ func cmdShow(args []string) int {
 	if *jsonOutput {
 		return showRunJSON(paths, runID)
 	}
-	return showRun(paths, runID, *failedOnly)
+	return showRun(paths, runID, showJobFilter{failedOnly: *failedOnly, stage: *stageOption})
 }
 
 func hasMultipleProjects(baseDir string) (bool, error) {
@@ -555,6 +560,18 @@ type showJobCounts struct {
 	blocked int
 	running int
 	pending int
+}
+
+// showJobFilter selects the rows of a run job table.
+type showJobFilter struct {
+	failedOnly bool
+	stage      string
+}
+
+// stageNotFoundError reports a --stage value that no job in the selected
+// queue or run uses.
+func stageNotFoundError(stage, target string) error {
+	return fmt.Errorf("stage %q not found in %s", stage, target)
 }
 
 func showRunJSON(paths state.ProjectPaths, runID string) int {
@@ -820,7 +837,7 @@ func printInterruptedRunNotice(paths state.ProjectPaths, runID string) {
 		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
 }
 
-func showRun(paths state.ProjectPaths, runID string, failedOnly bool) int {
+func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		printErrorf(runNotFoundMessage, runID)
@@ -830,6 +847,11 @@ func showRun(paths state.ProjectPaths, runID string, failedOnly bool) int {
 	summaryOK := summaryErr == nil
 	if summaryErr != nil && !errors.Is(summaryErr, os.ErrNotExist) {
 		printErrorf("failed to read summary: %v", summaryErr)
+		return 1
+	}
+	jobSpecs := loadRunJobSpecs(runDir)
+	if filter.stage != "" && !jobSpecsHaveStage(jobSpecs, filter.stage) {
+		printError(stageNotFoundError(filter.stage, "run "+runID))
 		return 1
 	}
 
@@ -850,7 +872,6 @@ func showRun(paths state.ProjectPaths, runID string, failedOnly bool) int {
 			fmt.Printf("  Added: %d\n  Removed: %d\n  Changed: %d\n", diff.Added, diff.Removed, diff.Changed)
 		}
 	}
-	jobSpecs := loadRunJobSpecs(runDir)
 	runQueue, runQueueErr := state.LoadQueue(filepath.Join(runDir, "commands.json"))
 	runActive := runIsActive(paths, runID)
 	jobCounts := showJobCounts{}
@@ -888,6 +909,9 @@ func showRun(paths state.ProjectPaths, runID string, failedOnly bool) int {
 			continue
 		}
 		jobSpec := jobSpecs[jobID]
+		if filter.stage != "" && jobSpec.Stage != filter.stage {
+			continue
+		}
 		latestAttemptLabel := "-"
 		if value, readErr := state.LatestAttemptID(runDir, jobID); readErr == nil && value != "" {
 			latestAttemptLabel = value
@@ -936,7 +960,7 @@ func showRun(paths state.ProjectPaths, runID string, failedOnly bool) int {
 			jobCounts.pending++
 		}
 		executorText := queueExecutorText(runQueue, jobSpec)
-		if failedOnly && (!statusOK || status == 0) {
+		if filter.failedOnly && (!statusOK || status == 0) {
 			continue
 		}
 		if statusOK && status != 0 {
@@ -1042,14 +1066,41 @@ func printChangeHints(paths state.ProjectPaths, runID string, queue model.Queue,
 	fmt.Printf("    rotari retry --basedir %s --project-name %s\n", paths.BaseDir, paths.ProjectName)
 }
 
-func showQueue(paths state.ProjectPaths, queue model.Queue) int {
+func showQueue(paths state.ProjectPaths, queue model.Queue, stage string) int {
+	jobs := model.QueueToJobs(queue.Commands)
+	if stage != "" {
+		jobs = jobsInStage(jobs, stage)
+		if len(jobs) == 0 {
+			printError(stageNotFoundError(stage, "the current queue"))
+			return 1
+		}
+	}
 	writeShowTargetHeaderWithMode(os.Stdout, paths, "queue")
 	fmt.Println("\n" + cyan("Queue:"))
-	return showQueueContent(paths, queue)
+	return showQueueContent(paths, queue, jobs)
 }
 
-func showQueueContent(paths state.ProjectPaths, queue model.Queue) int {
-	jobs := model.QueueToJobs(queue.Commands)
+func jobsInStage(jobs []model.JobSpec, stage string) []model.JobSpec {
+	selected := make([]model.JobSpec, 0, len(jobs))
+	for _, job := range jobs {
+		if job.Stage == stage {
+			selected = append(selected, job)
+		}
+	}
+	return selected
+}
+
+func jobSpecsHaveStage(specs map[string]model.JobSpec, stage string) bool {
+	for _, job := range specs {
+		if job.Stage == stage {
+			return true
+		}
+	}
+	return false
+}
+
+// showQueueContent prints jobs, taken from queue, as a table.
+func showQueueContent(paths state.ProjectPaths, queue model.Queue, jobs []model.JobSpec) int {
 	originByID := model.QueueOriginsByJobID(model.Queue(queue))
 	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-6s %-15s %-15s %-20s %-30s %-24s %-12s %s", "JOB ID", "TASK", "NAME", "STAGE", "DEPENDS ON", "EXECUTOR", "SOURCE RUN", "SOURCE STATUS", "COMMAND")))
 	for _, job := range jobs {
@@ -1334,7 +1385,7 @@ func showProjectOverview(paths state.ProjectPaths) int {
 		return 0
 	}
 	fmt.Println("\n" + cyan("Queue:"))
-	return showQueueContent(paths, queue)
+	return showQueueContent(paths, queue, model.QueueToJobs(queue.Commands))
 }
 
 func showProjects(baseDir string) int {

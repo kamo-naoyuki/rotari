@@ -184,6 +184,9 @@ rotari run
 `--depends-on` accepts either a job name or a stage name. A job name and stage
 name cannot be the same within one queue.
 
+Use `rotari show --stage NAME` to list only the jobs in one stage of the
+selected run or queue.
+
 ## State and project resolution
 
 Rotari resolves the state directory before it resolves the project name. The

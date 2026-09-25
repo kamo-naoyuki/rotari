@@ -241,7 +241,7 @@ func TestShowRunDisplaysAcceptedStatus(t *testing.T) {
 	}
 	oldStdout := os.Stdout
 	os.Stdout = writer
-	code := showRun(paths, runID, false)
+	code := showRun(paths, runID, showJobFilter{})
 	_ = writer.Close()
 	os.Stdout = oldStdout
 	output, err := io.ReadAll(reader)
@@ -1134,7 +1134,7 @@ func TestShowQueueDisplaysArrayTaskColumn(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := showQueue(paths, queue)
+	code := showQueue(paths, queue, "")
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -1506,7 +1506,7 @@ func TestShowAndWebShareStatusFallbackChain(t *testing.T) {
 	}
 
 	var runOutput bytes.Buffer
-	code := captureShowStdout(t, &runOutput, func() int { return showRun(paths, runID, false) })
+	code := captureShowStdout(t, &runOutput, func() int { return showRun(paths, runID, showJobFilter{}) })
 	if code != 0 || !strings.Contains(runOutput.String(), "Job status: success: 0, failed: 2, blocked: 1, running: 0, pending: 0") {
 		t.Fatalf("showRun code=%d output=%q", code, runOutput.String())
 	}
@@ -1608,4 +1608,100 @@ func captureShowStdout(t *testing.T, output *bytes.Buffer, show func() int) int 
 	}
 	output.Write(data)
 	return code
+}
+
+func TestCmdShowStageFiltersRunJobs(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "run-1"
+	runDir := filepath.Join(paths.RunsDir, runID)
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{
+		{ID: "prep-job", Stage: "prep", Command: []string{"true"}},
+		{ID: "train-ok", Stage: "train", Command: []string{"true"}},
+		{ID: "train-bad", Stage: "train", Command: []string{"false"}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "finished", Results: []model.JobResult{
+		{ID: "prep-job", ExitCode: 0}, {ID: "train-ok", ExitCode: 0}, {ID: "train-bad", ExitCode: 2},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"--basedir", baseDir, "--project-name", "demo", "--run-id", runID}
+
+	var output bytes.Buffer
+	code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--stage", "train")) })
+	text := output.String()
+	if code != 0 {
+		t.Fatalf("cmdShow --stage exit code = %d, output:\n%s", code, text)
+	}
+	for _, want := range []string{"train-ok", "train-bad", "success: 1, failed: 1"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("stage output does not contain %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "prep-job") {
+		t.Fatalf("stage output unexpectedly contains another stage's job:\n%s", text)
+	}
+
+	output.Reset()
+	code = captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--stage", "train", "--failed")) })
+	text = output.String()
+	if code != 0 || !strings.Contains(text, "train-bad") || strings.Contains(text, "train-ok") || strings.Contains(text, "prep-job") {
+		t.Fatalf("cmdShow --stage --failed code=%d output:\n%s", code, text)
+	}
+
+	output.Reset()
+	if code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--stage", "missing")) }); code != 1 {
+		t.Fatalf("cmdShow with an unknown stage exit code = %d, want 1", code)
+	}
+	for _, conflict := range [][]string{{"--job-id", "train-ok"}, {"--logs"}, {"--json"}, {"--report"}} {
+		output.Reset()
+		if code := captureShowStdout(t, &output, func() int { return cmdShow(append(append(args, "--stage", "train"), conflict...)) }); code != 1 {
+			t.Fatalf("cmdShow --stage with %v exit code = %d, want 1", conflict, code)
+		}
+	}
+}
+
+func TestCmdShowStageFiltersQueueJobs(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "prep-job", Stage: "prep", Command: []string{"echo", "prep"}},
+		{ID: "train-job", Stage: "train", Command: []string{"echo", "train"}},
+	}}
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"--basedir", baseDir, "--project-name", "demo", "--queue"}
+
+	var output bytes.Buffer
+	code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--stage", "train")) })
+	text := output.String()
+	if code != 0 || !strings.Contains(text, "train-job") || strings.Contains(text, "prep-job") {
+		t.Fatalf("cmdShow --queue --stage code=%d output:\n%s", code, text)
+	}
+
+	output.Reset()
+	if code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--stage", "missing")) }); code != 1 {
+		t.Fatalf("cmdShow --queue with an unknown stage exit code = %d, want 1", code)
+	}
+
+	// Without --queue, an idle project with queued jobs shows the queue too.
+	output.Reset()
+	code = captureShowStdout(t, &output, func() int {
+		return cmdShow([]string{"--basedir", baseDir, "--project-name", "demo", "--stage", "prep"})
+	})
+	text = output.String()
+	if code != 0 || !strings.Contains(text, "prep-job") || strings.Contains(text, "train-job") {
+		t.Fatalf("cmdShow -p --stage code=%d output:\n%s", code, text)
+	}
 }

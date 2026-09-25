@@ -512,6 +512,11 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {"description": "show failed jobs only", "name": "failed"},
+                {
+                    "description": "show jobs in this stage only",
+                    "name": "stage",
+                    "value_name": "NAME",
+                },
                 {"description": "print output logs for all jobs", "name": "logs"},
                 {
                     "description": "print output logs for failed jobs",
