@@ -524,9 +524,9 @@ rotari add --job-name train \
 This registers the Cartesian product as four jobs named like
 `train-python3.10-cudacpu`. Each job receives its values as
 ordinary environment variables, such as `python=3.10` and `cuda=cpu`.
-Matrix jobs have independent job IDs and cannot be combined with `--array`.
-`include` and `exclude` customization is planned for a future workflow
-manifest.
+Matrix jobs have independent job IDs and can be combined with `--array`; the
+array is applied to each matrix combination. `include` and `exclude`
+customization is planned for a future workflow manifest.
 
 ## Async runs
 

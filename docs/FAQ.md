@@ -132,9 +132,9 @@ By default, only matching tasks rerun. Use `--partial-array=false` to rerun the 
 
 Yes. Repeat `--matrix KEY=VALUE[,VALUE...]` with `add`. Rotari registers each
 Cartesian-product combination as an independent job and exposes its values as
-ordinary `KEY=VALUE` environment variables. Matrix jobs cannot be combined
-with `--array`. `include` and `exclude` customization is planned for a future
-workflow manifest.
+ordinary `KEY=VALUE` environment variables. Matrix jobs can be combined with
+`--array`; the array is applied to each matrix combination. `include` and
+`exclude` customization is planned for a future workflow manifest.
 
 ### Why did `copy` reuse the same job ID instead of generating a new one?
 
