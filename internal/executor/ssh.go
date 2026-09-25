@@ -79,7 +79,7 @@ func (ssh SSH) Submit(runDir string, job model.JobSpec, options []string) (JobHa
 		return JobHandle{}, err
 	}
 	cmd := exec.Command(SSHCommandPath, append(sshOptions, "--", host, "sh", "-s")...)
-	cmd.Stdin = strings.NewReader(sshWrapperScript(job.Command, job.Environment, job.WorkingDirectory, remoteToken))
+	cmd.Stdin = strings.NewReader(sshWrapperScript(job.Command, job.Environment, job.WorkingDirectory, remoteToken, job.Timeout))
 	cmd.Stdout = output
 	cmd.Stderr = output
 	if err := cmd.Start(); err != nil {
@@ -129,6 +129,9 @@ func (ssh SSH) Wait(runDir string, handle JobHandle) model.JobResult {
 	status := WrapperStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339(), Hosts: []string{metadata.Host}}
 	if err != nil {
 		status.Error = err.Error()
+	}
+	if seconds := model.TimeoutSeconds(handle.Job.Timeout); seconds > 0 && exitCode == TimeoutExitCode {
+		status.Error = TimeoutMessage(seconds)
 	}
 	_ = state.WriteJSON(filepath.Join(jobDir, "status.json"), status)
 	return jobResultFromStatus(handle.Job.ID, handle.Job.Command, status)
@@ -214,7 +217,7 @@ func validSSHRemoteToken(token string) bool {
 	return err == nil
 }
 
-func sshWrapperScript(command []string, environment []string, workingDirectory, remoteToken string) string {
+func sshWrapperScript(command []string, environment []string, workingDirectory, remoteToken, timeout string) string {
 	exports := make([]string, 0, len(environment))
 	for _, entry := range environment {
 		parts := strings.SplitN(entry, "=", 2)
@@ -253,11 +256,29 @@ remote_pid=$!
 if remote_start=$(read_start_time "$remote_pid"); then
 	printf '%s %s\n' "$remote_pid" "$remote_start" > "$state_dir/process.tmp" && mv "$state_dir/process.tmp" "$state_dir/process"
 fi
-wait "$remote_pid"
+watchdog_pid=
+` + sshTimeoutWatchdog(model.TimeoutSeconds(timeout)) + `wait "$remote_pid"
 exit_code=$?
+[ -z "$watchdog_pid" ] || kill "$watchdog_pid" 2>/dev/null
+if [ -f "$state_dir/timed_out" ]; then
+	echo "rotari: job ` + TimeoutMessage(model.TimeoutSeconds(timeout)) + `" >&2
+	exit_code=` + fmt.Sprint(TimeoutExitCode) + `
+fi
 rm -rf "$state_dir"
 exit "$exit_code"
 `
+}
+
+// sshTimeoutWatchdog stops the remote command's process group, which setsid
+// gives its own ID, once it has run for seconds; it is empty without a
+// timeout.
+func sshTimeoutWatchdog(seconds int) string {
+	if seconds <= 0 {
+		return ""
+	}
+	return watchdogShell(seconds,
+		": > \"$state_dir/timed_out\"\n    kill -TERM \"-$remote_pid\" 2>/dev/null",
+		"kill -KILL \"-$remote_pid\" 2>/dev/null")
 }
 
 func sshCancelScript(remoteToken string) string {

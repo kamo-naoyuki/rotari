@@ -356,6 +356,12 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "clear-depends-on-finished",
                 },
                 {
+                    "description": "replace the job timeout, such as 90m or 2h",
+                    "name": "timeout",
+                    "value_name": "DURATION",
+                },
+                {"description": "remove the job timeout", "name": "clear-timeout"},
+                {
                     "description": "suppress success output",
                     "environment": "ROTARI_QUIET",
                     "name": "quiet",
@@ -822,6 +828,13 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "depends-on-finished",
                     "repeated": True,
                     "value_name": "NAME",
+                },
+                {
+                    "description": "stop the job this long after it starts, such "
+                    "as 90m or 2h; it then fails with exit code "
+                    "124",
+                    "name": "timeout",
+                    "value_name": "DURATION",
                 },
                 {
                     "description": "create an array job range or selected tasks",

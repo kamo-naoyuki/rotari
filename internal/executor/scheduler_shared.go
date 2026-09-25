@@ -268,17 +268,16 @@ func RejectArraySchedulerOptions(options []string, names ...string) error {
 }
 
 func schedulerArrayWrapperScript(jobs []model.JobSpec, taskVariable string) string {
-	quoted := make([]string, 0, len(jobs[0].Command))
-	for _, arg := range jobs[0].Command {
-		quoted = append(quoted, ShellQuote(arg))
-	}
 	caseLines := make([]string, 0, len(jobs))
 	for _, job := range jobs {
 		if caseLine, ok := schedulerArrayCaseLine(job); ok {
 			caseLines = append(caseLines, caseLine)
 		}
 	}
-	return "#!/bin/sh\nset +e\ncase \"$" + taskVariable + "\" in\n" + strings.Join(caseLines, "\n") + "\n    *) exit 1 ;;\nesac\nexec >\"$job_dir/output\" 2>&1\nstatus_path=\"$job_dir/status.json\"\nhostname=$(hostname 2>/dev/null || true)\nwrite_status() {\n    phase=$1\n    code=$2\n    tmp=\"${status_path}.tmp.$$\"\n    now=$(date -u +%Y-%m-%dT%H:%M:%SZ)\n    if [ \"$phase\" = \"running\" ]; then\n        printf '{\"phase\":\"running\",\"hosts\":[\"%s\"],\"started_at\":\"%s\"}\n' \"$hostname\" \"$now\" > \"$tmp\"\n    else\n        printf '{\"phase\":\"%s\",\"hosts\":[\"%s\"],\"exit_code\":%s,\"finished_at\":\"%s\"}\n' \"$phase\" \"$hostname\" \"$code\" \"$now\" > \"$tmp\"\n    fi\n    mv -f \"$tmp\" \"$status_path\"\n}\nwrite_status running 0\ntrap 'write_status cancelled 143; exit 143' TERM\ntrap 'write_status cancelled 130; exit 130' INT\n" + strings.Join(quoted, " ") + "\ncode=$?\nwrite_status finished \"$code\"\nexit \"$code\"\n"
+	// Tasks of one array share the command and its timeout.
+	seconds := model.TimeoutSeconds(jobs[0].Timeout)
+	return "#!/bin/sh\nset +e\n" + processGroupLeaderShell(seconds) + "case \"$" + taskVariable + "\" in\n" + strings.Join(caseLines, "\n") + "\n    *) exit 1 ;;\nesac\nexec >\"$job_dir/output\" 2>&1\nstatus_path=\"$job_dir/status.json\"\n" +
+		statusWrapperBody(shellCommandLine(jobs[0].Command), seconds)
 }
 
 func schedulerArrayCaseLine(job model.JobSpec) (string, bool) {

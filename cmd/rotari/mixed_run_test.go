@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestExecuteMixedRunPersistsAcceptedImportedResult(t *testing.T) {
@@ -418,5 +419,53 @@ func TestExecuteMixedRunStartsFinishedDependentAfterFailure(t *testing.T) {
 	}
 	if runs := strings.Count(string(data), "run"); runs != 2 {
 		t.Fatalf("collect ran %d times, want 2 (once per run)", runs)
+	}
+}
+
+func TestExecuteMixedRunRecordsJobTimeout(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := []string{"--basedir", baseDir, "--project-name", "default", "--quiet"}
+	if code := cmdAdd(append(base, "--timeout", "soon", "--", "true")); code != 1 {
+		t.Fatalf("cmdAdd with an invalid timeout exit = %d, want 1", code)
+	}
+	if code := cmdAdd(append(base, "--job-name", "hang", "--timeout", "1s", "--", "sleep", "30")); code != 0 {
+		t.Fatalf("cmdAdd exit = %d", code)
+	}
+	if code := cmdChange(append(base, "--job-name", "hang", "--timeout", "2s")); code != 0 {
+		t.Fatalf("cmdChange --timeout exit = %d", code)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil || queue.Commands[0].Timeout != "2s" {
+		t.Fatalf("queue = %#v, %v, want timeout 2s", queue.Commands, err)
+	}
+	started := time.Now()
+	if code := executeMixedRun(paths, "run-1", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code == 0 {
+		t.Fatal("executeMixedRun exit = 0, want the timed-out job to fail the run")
+	}
+	if elapsed := time.Since(started); elapsed > 15*time.Second {
+		t.Fatalf("run with a 2s timeout took %s", elapsed)
+	}
+	summary, err := state.LoadRunSummary(filepath.Join(paths.RunsDir, "run-1", "summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(summary.Results) != 1 || summary.Results[0].ExitCode != 124 || summary.Results[0].Error != "timed out after 2s" {
+		t.Fatalf("results = %#v, want a timeout", summary.Results)
+	}
+	var output bytes.Buffer
+	jobID := queue.Commands[0].ID
+	if code := captureShowStdout(t, &output, func() int { return showJob(&output, paths, "run-1", jobID) }); code != 0 || !strings.Contains(output.String(), "Timeout: 2s") {
+		t.Fatalf("showJob code=%d output:\n%s", code, output.String())
+	}
+	if code := cmdChange(append(base, "--run-id", "run-1", "--job-name", "hang", "--clear-timeout")); code != 0 {
+		t.Fatalf("cmdChange --clear-timeout exit = %d", code)
+	}
+	if queue, err = loadQueue(paths.QueueFile); err != nil || queue.Commands[0].Timeout != "" {
+		t.Fatalf("queue = %#v, %v, want the timeout cleared", queue.Commands, err)
 	}
 }

@@ -1182,6 +1182,9 @@ func showQueueJob(paths state.ProjectPaths, queue model.Queue, jobID string) int
 		if job.WorkingDirectory != "" {
 			fmt.Printf("%s %s\n", cyan("Working directory:"), job.WorkingDirectory)
 		}
+		if job.Timeout != "" {
+			fmt.Printf("%s %s\n", cyan("Timeout:"), job.Timeout)
+		}
 		fmt.Printf("%s %s\n", cyan("Command:"), strings.Join(job.Command, " "))
 		return 0
 	}
@@ -1703,6 +1706,9 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	}
 	if dependencies := model.FormatDependencies(jobSpecs[jobID].DependsOn, jobSpecs[jobID].DependsOnFinished, ", "); dependencies != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Depends on:"), dependencies)
+	}
+	if timeout := jobSpecs[jobID].Timeout; timeout != "" {
+		fmt.Fprintf(writer, "%s %s\n", cyan("Timeout:"), timeout)
 	}
 	submittedAt, finishedAt := state.ReadJobTimestamp(runDir, jobID, "submitted_at"), state.ReadJobTimestamp(runDir, jobID, "finished_at")
 	if !latest {

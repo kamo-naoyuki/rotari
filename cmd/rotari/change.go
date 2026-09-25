@@ -37,13 +37,15 @@ func cmdChange(args []string) int {
 	var dependsOnFinished stringSliceFlag
 	cliValue(fs, &dependsOnFinished, "depends-on-finished")
 	clearDependsOnFinished := cliBool(fs, "clear-depends-on-finished", false)
+	timeout := cliString(fs, "timeout", "")
+	clearTimeout := cliBool(fs, "clear-timeout", false)
 	quiet := cliBool(fs, "quiet", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 	if (*jobID == "" && *jobName == "") || (*jobID != "" && *jobName != "") ||
 		(len(fs.Args()) == 0 && *executor == "" && len(executorOptions) == 0 && !*clearExecutorOptions && *workingDirectory == "" && !*clearWorkingDirectory && len(environment) == 0 && !*clearEnvironment &&
-			*setJobName == "" && len(dependsOn) == 0 && !*clearDependsOn && len(dependsOnFinished) == 0 && !*clearDependsOnFinished) ||
+			*setJobName == "" && len(dependsOn) == 0 && !*clearDependsOn && len(dependsOnFinished) == 0 && !*clearDependsOnFinished && *timeout == "" && !*clearTimeout) ||
 		(*executor != "" && !executorRegistry.Known(*executor)) {
 		printError("usage: " + cliUsage("change"))
 		return 1
@@ -63,7 +65,8 @@ func cmdChange(args []string) int {
 		environment: environment, clearEnvironment: *clearEnvironment,
 		workingDirectory: *workingDirectory, clearWorkingDirectory: *clearWorkingDirectory, setJobName: *setJobName,
 		dependsOn: dependsOn, clearDependsOn: *clearDependsOn,
-		dependsOnFinished: dependsOnFinished, clearDependsOnFinished: *clearDependsOnFinished, command: fs.Args(),
+		dependsOnFinished: dependsOnFinished, clearDependsOnFinished: *clearDependsOnFinished,
+		timeout: *timeout, clearTimeout: *clearTimeout, command: fs.Args(),
 	})
 	if err != nil {
 		printError(err)
@@ -99,7 +102,10 @@ type changeMutation struct {
 	// dependsOnFinished replaces DependsOnFinished when non-empty.
 	dependsOnFinished      []string
 	clearDependsOnFinished bool
-	command                []string
+	// timeout replaces Timeout when non-empty.
+	timeout      string
+	clearTimeout bool
+	command      []string
 }
 
 // changeQueueJob applies mutation to one job of the current queue, or of the
@@ -206,6 +212,9 @@ func applyChangeMutation(queue model.Queue, jobIndex int, mutation changeMutatio
 	}
 	if len(mutation.dependsOnFinished) > 0 || mutation.clearDependsOnFinished {
 		changed.DependsOnFinished = append([]string(nil), mutation.dependsOnFinished...)
+	}
+	if mutation.timeout != "" || mutation.clearTimeout {
+		changed.Timeout = mutation.timeout
 	}
 	return nil
 }

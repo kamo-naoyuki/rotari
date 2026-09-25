@@ -53,6 +53,7 @@ type Request struct {
 	Stage             string                  `json:"stage,omitempty"`
 	DependsOn         []string                `json:"depends_on,omitempty"`
 	DependsOnFinished []string                `json:"depends_on_finished,omitempty"`
+	Timeout           string                  `json:"timeout,omitempty"`
 	Array             *model.ArraySpec        `json:"array,omitempty"`
 }
 

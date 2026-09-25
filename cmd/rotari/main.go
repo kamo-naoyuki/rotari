@@ -55,6 +55,11 @@ func validateQueueJobs(queue model.Queue) error {
 		if strings.ContainsRune(command.WorkingDirectory, '\x00') {
 			return fmt.Errorf("job %q working directory contains a NUL byte", command.ID)
 		}
+		if command.Timeout != "" {
+			if _, err := model.ParseTimeout(command.Timeout); err != nil {
+				return fmt.Errorf("job %q: %w", command.ID, err)
+			}
+		}
 		if command.Array != nil {
 			if err := model.ValidateArraySpec(command.Array); err != nil {
 				return fmt.Errorf("job %q has invalid array: %w", command.ID, err)

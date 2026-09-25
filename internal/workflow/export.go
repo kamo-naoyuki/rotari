@@ -21,7 +21,7 @@ func EquivalentCommand(left, right model.QueuedCommand) bool {
 		reflect.DeepEqual(left.Environment, right.Environment) &&
 		left.Name == right.Name && left.Stage == right.Stage &&
 		reflect.DeepEqual(left.DependsOn, right.DependsOn) &&
-		sameNames(left.DependsOnFinished, right.DependsOnFinished) &&
+		sameNames(left.DependsOnFinished, right.DependsOnFinished) && left.Timeout == right.Timeout &&
 		reflect.DeepEqual(left.Array, right.Array) && equivalentMatrix(left.Matrix, right.Matrix)
 }
 
@@ -98,6 +98,7 @@ func exportJob(command model.QueuedCommand, matrixBase bool) Job {
 	return Job{
 		Name: name, Command: append([]string(nil), command.Command...), Stage: command.Stage,
 		DependsOn: append([]string(nil), command.DependsOn...), DependsOnFinished: append([]string(nil), command.DependsOnFinished...),
+		Timeout:         command.Timeout,
 		Executor:        command.Executor,
 		ExecutorOptions: append([]string(nil), command.ExecutorOptions...), WorkingDirectory: command.WorkingDirectory,
 		Environment: append([]string(nil), environment...), Array: formatArray(command.Array),

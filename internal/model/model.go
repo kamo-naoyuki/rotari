@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // StateVersion is the format version of queue.json, commands.json, and
@@ -38,15 +39,18 @@ type QueuedCommand struct {
 	DependsOn        []string `json:"depends_on,omitempty"`
 	// DependsOnFinished names prerequisites that must finish, whatever their
 	// result, before the job starts (Slurm's afterany).
-	DependsOnFinished []string              `json:"depends_on_finished,omitempty"`
-	Origin            *JobOrigin            `json:"origin,omitempty"`
-	Array             *ArraySpec            `json:"array,omitempty"`
-	TaskOrigins       map[string]*JobOrigin `json:"task_origins,omitempty"`
-	Matrix            *MatrixSpec           `json:"matrix,omitempty"`
-	Accepted          bool                  `json:"accepted,omitempty"`
-	TaskAccepted      map[string]bool       `json:"task_accepted,omitempty"`
-	Force             bool                  `json:"force,omitempty"`
-	TaskForce         map[string]bool       `json:"task_force,omitempty"`
+	DependsOnFinished []string `json:"depends_on_finished,omitempty"`
+	// Timeout limits how long the job may run once it starts, as a Go
+	// duration such as "2h"; empty means no limit.
+	Timeout      string                `json:"timeout,omitempty"`
+	Origin       *JobOrigin            `json:"origin,omitempty"`
+	Array        *ArraySpec            `json:"array,omitempty"`
+	TaskOrigins  map[string]*JobOrigin `json:"task_origins,omitempty"`
+	Matrix       *MatrixSpec           `json:"matrix,omitempty"`
+	Accepted     bool                  `json:"accepted,omitempty"`
+	TaskAccepted map[string]bool       `json:"task_accepted,omitempty"`
+	Force        bool                  `json:"force,omitempty"`
+	TaskForce    map[string]bool       `json:"task_force,omitempty"`
 }
 
 type ArraySpec struct {
@@ -260,12 +264,14 @@ type JobSpec struct {
 	// DependsOnFinished names prerequisites that must finish, whatever their
 	// result, before the job starts.
 	DependsOnFinished []string `json:"depends_on_finished,omitempty"`
-	ArrayGroup        string   `json:"array_group,omitempty"`
-	ArrayTaskID       *int     `json:"array_task_id,omitempty"`
-	ArrayFirst        int      `json:"array_first,omitempty"`
-	ArrayLast         int      `json:"array_last,omitempty"`
-	ArraySize         int      `json:"array_size,omitempty"`
-	Environment       []string `json:"environment,omitempty"`
+	// Timeout limits how long the job may run once it starts.
+	Timeout     string   `json:"timeout,omitempty"`
+	ArrayGroup  string   `json:"array_group,omitempty"`
+	ArrayTaskID *int     `json:"array_task_id,omitempty"`
+	ArrayFirst  int      `json:"array_first,omitempty"`
+	ArrayLast   int      `json:"array_last,omitempty"`
+	ArraySize   int      `json:"array_size,omitempty"`
+	Environment []string `json:"environment,omitempty"`
 }
 
 type RuleDiagnosis struct {
@@ -425,7 +431,7 @@ func queueCommandJob(queued QueuedCommand, id, name string, taskID *int) JobSpec
 	job := JobSpec{
 		ID: id, Command: queued.Command, WorkingDirectory: queued.WorkingDirectory, Name: name,
 		Executor: queued.Executor, ExecutorOptions: queued.ExecutorOptions, Environment: queued.Environment, Stage: queued.Stage, DependsOn: queued.DependsOn,
-		DependsOnFinished: queued.DependsOnFinished,
+		DependsOnFinished: queued.DependsOnFinished, Timeout: queued.Timeout,
 	}
 	if taskID != nil {
 		job.ArrayGroup = queued.ID
@@ -456,6 +462,32 @@ func expandGroupNames(names []string, groups map[string][]string) []string {
 		}
 	}
 	return expanded
+}
+
+// ParseTimeout parses a job timeout, a Go duration such as "90m" or "2h".
+// It must be at least one second; the wrapper enforces whole seconds.
+func ParseTimeout(value string) (time.Duration, error) {
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("invalid timeout %q: want a duration such as 90m or 2h", value)
+	}
+	if duration < time.Second {
+		return 0, fmt.Errorf("invalid timeout %q: must be at least 1s", value)
+	}
+	return duration, nil
+}
+
+// TimeoutSeconds returns a job's timeout rounded up to whole seconds, or 0
+// when it has none or it is invalid.
+func TimeoutSeconds(value string) int {
+	if value == "" {
+		return 0
+	}
+	duration, err := ParseTimeout(value)
+	if err != nil {
+		return 0
+	}
+	return int((duration + time.Second - 1) / time.Second)
 }
 
 // FormatDependencies joins dependsOn and dependsOnFinished for display,

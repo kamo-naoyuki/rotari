@@ -195,6 +195,8 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "clear-depends-on", Description: "clear prerequisites"},
 			cliFlagSpec{Name: "depends-on-finished", Description: "replace prerequisites that only need to finish, whatever their result; may be repeated", ValueName: "NAME"},
 			cliFlagSpec{Name: "clear-depends-on-finished", Description: "clear prerequisites that only need to finish"},
+			cliFlagSpec{Name: "timeout", Description: "replace the job timeout, such as 90m or 2h", ValueName: "DURATION", CommandLineOnly: true},
+			cliFlagSpec{Name: "clear-timeout", Description: "remove the job timeout"},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
 		),
 		Positional: "<command ...>",
@@ -309,6 +311,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "stage", Description: "stage that contains the job", ValueName: "NAME"},
 			cliFlagSpec{Name: "depends-on", Description: "name of a prerequisite job or stage; may be repeated", ValueName: "NAME"},
 			cliFlagSpec{Name: "depends-on-finished", Description: "name of a prerequisite job or stage that must finish, whatever its result; may be repeated", ValueName: "NAME"},
+			cliFlagSpec{Name: "timeout", Description: "stop the job this long after it starts, such as 90m or 2h; it then fails with exit code 124", ValueName: "DURATION", CommandLineOnly: true},
 			cliFlagSpec{Name: "array", Description: "create an array job range or selected tasks", ValueName: "FIRST-LAST|TASK[,TASK...]"},
 			cliFlagSpec{Name: "matrix", Description: "expand a command into jobs from KEY=VALUE[,VALUE...] dimensions; may be repeated", ValueName: "KEY=VALUE[,VALUE...]"},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
@@ -630,7 +633,7 @@ func cliFlagDescription(spec cliFlagSpec) string {
 	if len(spec.Values) > 0 {
 		description += " (choices: " + strings.Join(spec.Values, ", ") + ")"
 	}
-	if envName := cliEnvironmentVariable(spec.Name); envName != "" {
+	if envName := cliEnvironmentVariable(spec.Name); envName != "" && !spec.CommandLineOnly {
 		description += " (env: " + envName + ")"
 		if spec.Name == "quiet" {
 			description += " (command env: ROTARI_<COMMAND>_QUIET)"

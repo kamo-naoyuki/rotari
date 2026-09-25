@@ -29,6 +29,7 @@ func cmdAdd(args []string) int {
 	cliValue(fs, &dependsOn, "depends-on")
 	var dependsOnFinished stringSliceFlag
 	cliValue(fs, &dependsOnFinished, "depends-on-finished")
+	timeout := cliString(fs, "timeout", "")
 	arrayRange := cliString(fs, "array", "")
 	var matrixValues stringSliceFlag
 	cliValue(fs, &matrixValues, "matrix")
@@ -79,9 +80,16 @@ func cmdAdd(args []string) int {
 		printErrorf("invalid --env: %v", err)
 		return 1
 	}
+	if *timeout != "" {
+		if _, err := model.ParseTimeout(*timeout); err != nil {
+			printErrorf("invalid --timeout: %v", err)
+			return 1
+		}
+	}
 	commands := expandMatrixCommands(left, *executor, executorOptions, environment, *workingDirectory, *jobName, *stage, dependsOn, dimensions)
 	for index := range commands {
 		commands[index].DependsOnFinished = dependsOnFinished
+		commands[index].Timeout = *timeout
 	}
 	message, err := enqueueCommands(baseDir, queueName, commands, array)
 	if err != nil {

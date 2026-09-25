@@ -48,7 +48,7 @@ func RunLocalJob(runDir string, job model.JobSpec, store state.Store, logf func(
 	}
 
 	wrapperPath := filepath.Join(jobDir, "local-wrapper.sh")
-	wrapper := StatusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory)
+	wrapper := StatusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory, job.Timeout)
 	if err := os.WriteFile(wrapperPath, []byte(wrapper), store.ScriptMode); err != nil {
 		return model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}
@@ -77,10 +77,17 @@ func RunLocalJob(runDir string, job model.JobSpec, store state.Store, logf func(
 			exitCode = 1
 		}
 	}
+	// The wrapper records a timeout itself unless the grace period ran out
+	// and the watchdog killed it; either way report the timeout.
+	errorMessage := ""
+	if _, err := os.Stat(filepath.Join(jobDir, "status.json.timed_out")); err == nil {
+		exitCode = TimeoutExitCode
+		errorMessage = TimeoutMessage(model.TimeoutSeconds(job.Timeout))
+	}
 	_ = os.WriteFile(filepath.Join(jobDir, "status"), []byte(strconv.Itoa(exitCode)+"\n"), store.FileMode)
 	_ = os.WriteFile(filepath.Join(jobDir, "finished_at"), []byte(nowRFC3339()+"\n"), store.FileMode)
 	logf("%s\n", formatJobResult(job.ID, job.Command, exitCode))
-	return model.JobResult{ID: job.ID, Command: job.Command, ExitCode: exitCode, Hosts: []string{hostname}}
+	return model.JobResult{ID: job.ID, Command: job.Command, ExitCode: exitCode, Error: errorMessage, Hosts: []string{hostname}}
 }
 
 func RecordCancelledJob(jobDir string, job model.JobSpec, store state.Store) model.JobResult {

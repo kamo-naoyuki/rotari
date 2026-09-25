@@ -36,6 +36,14 @@ replaces the job's saved environment; repeat it for multiple variables, or use
 `--clear-env` to remove them. Rotari's own `ROTARI_*` context variables take
 precedence over a same-named user value.
 
+### Job timeouts
+
+`add --timeout` is enforced by rotari's job wrapper on the node that runs the
+job, for local, SSH, Slurm, PBS, and LSF jobs alike, and counts only running
+time. On schedulers it does not set or replace walltime options such as Slurm
+`--time`, PBS `-l walltime`, or LSF `-W`; keep those when the scheduler needs
+them. See [Job timeouts](RUNNING.md#job-timeouts).
+
 ### SSH executor
 
 For `ssh`, the first `--executor-option` is the destination and subsequent

@@ -146,7 +146,7 @@ func TestSSHTargetRequiresHost(t *testing.T) {
 }
 
 func TestSSHWrapperScriptChangesWorkingDirectory(t *testing.T) {
-	script := sshWrapperScript([]string{"pwd"}, nil, "/remote/work", "0123456789abcdef")
+	script := sshWrapperScript([]string{"pwd"}, nil, "/remote/work", "0123456789abcdef", "")
 	if !strings.Contains(script, "cd '/remote/work' || exit 1") {
 		t.Fatalf("script = %q", script)
 	}

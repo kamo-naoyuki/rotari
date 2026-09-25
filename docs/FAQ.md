@@ -217,6 +217,10 @@ Yes, unless the omitted prerequisite has not succeeded. Copy the prerequisite as
 
 Dependent jobs become `blocked` and are not executed. They can run after the prerequisite succeeds in a later `run` or `retry`.
 
+### How do I stop jobs that hang?
+
+Add them with `--timeout DURATION`, for example `rotari add --timeout 2h -- python train.py`. rotari stops the job that long after it starts running, on any executor, and records it as failed with exit code 124. See [Job timeouts](RUNNING.md#job-timeouts).
+
 ### Can a job run after its prerequisites finish even if some failed?
 
 Yes. Use `--depends-on-finished NAME` instead of `--depends-on NAME`. The job starts once every listed job or stage member has a final result, including failed, blocked, or cancelled ones, which suits collecting partial sweep results or cleanup. A prerequisite that will still be retried by `run --retry` is not final yet. See [Dependencies and stages](CONCEPTS.md#dependencies-and-stages).

@@ -221,6 +221,7 @@ func specChanges(from, to model.JobSpec) []Change {
 	scalar("stage", from.Stage, to.Stage)
 	list("depends_on", from.DependsOn, to.DependsOn)
 	list("depends_on_finished", from.DependsOnFinished, to.DependsOnFinished)
+	scalar("timeout", from.Timeout, to.Timeout)
 	return changes
 }
 

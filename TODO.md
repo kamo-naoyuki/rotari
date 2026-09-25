@@ -22,9 +22,9 @@ another workflow engine has them.
 
 ### Orchestration
 
-- Consider a per-job timeout (`add --timeout 2h`). Local and SSH jobs that hang
-  are never stopped today; decide whether scheduler executors map it to
-  walltime or have rotari cancel the job.
+- Per-job timeouts (`add --timeout 2h`) are enforced by the job wrappers. The
+  grace period before SIGKILL is fixed at 30 seconds; consider making it
+  configurable together with the stop signal below.
 - Consider per-job automatic retry (`add --retry N`, optionally with backoff)
   for flaky jobs such as transient NFS or network failures. Only run-level
   `run --retry` exists today.

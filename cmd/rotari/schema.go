@@ -44,10 +44,14 @@ func cmdSchema(args []string) int {
 			Subcommands: command.Subcommands, Positional: command.Positional,
 		}
 		for _, flag := range command.Flags {
+			environment := cliEnvironmentVariables[flag.Name]
+			if flag.CommandLineOnly {
+				environment = ""
+			}
 			value.Flags = append(value.Flags, cliSchemaFlag{
 				Name: flag.Name, Description: flag.Description, ValueName: flag.ValueName,
 				Values: flag.Values, Short: cliShortFlagNames[flag.Name],
-				Environment: cliEnvironmentVariables[flag.Name],
+				Environment: environment,
 				Repeated:    flag.Repeated || strings.Contains(flag.Description, "may be repeated"),
 			})
 		}

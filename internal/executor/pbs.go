@@ -136,7 +136,7 @@ func submitPBSJobWithPolicies(store state.Store, logf func(string, ...any), runD
 		return pbsJobMetadata{}, err
 	}
 	wrapperPath := filepath.Join(jobDir, "pbs-wrapper.sh")
-	if err := os.WriteFile(wrapperPath, []byte(StatusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory)), store.ScriptMode); err != nil {
+	if err := os.WriteFile(wrapperPath, []byte(StatusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory, job.Timeout)), store.ScriptMode); err != nil {
 		return pbsJobMetadata{}, err
 	}
 	outputPath := filepath.Join(jobDir, "output")

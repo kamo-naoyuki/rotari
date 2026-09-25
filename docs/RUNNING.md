@@ -175,6 +175,27 @@ It replaces only the options specified, keeps the job ID, and edits the current
 batch. If the queue is empty, the latest run snapshot is restored first. Use
 `--run-id/-r` to select another run.
 
+### Job timeouts
+
+Stop a job that runs too long, for example one that hangs on a stalled file
+system or collective operation:
+
+```sh
+rotari add --timeout 2h -- python train.py
+rotari change -p sweep --job-name train --timeout 3h
+rotari change -p sweep --job-name train --clear-timeout
+```
+
+The limit counts from when the job starts running, not from submission, so
+time waiting in a scheduler queue is not included. When it runs out, rotari
+sends SIGTERM to the job, gives it 30 seconds to exit (for example, to save a
+checkpoint), then sends SIGKILL. The job fails with exit code 124 and the error
+`timed out after 2h0m0s`, and its log ends with a matching `rotari:` line. A
+timed-out job is an ordinary failure, so `run --retry`, `retry`, and
+`--depends-on` treat it like any other failed job. The timeout works the same
+way for every executor and is independent of scheduler walltime options such
+as Slurm `--time`, which still apply.
+
 ## Queue and job control
 
 Remove jobs from the current queue without affecting saved run history:

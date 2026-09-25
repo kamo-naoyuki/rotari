@@ -176,9 +176,27 @@
   because an `afterany` job may have succeeded on a failed prerequisite's
   output. `copy` requires an omitted `DependsOnFinished` prerequisite to have
   finished with any result, rather than to have succeeded.
-- The server protocol version is 3 since `depends_on_finished` was added, so
-  a client replaces an older server that would drop the field when it loads
-  the queue.
+- The server protocol version is 4 since `timeout` was added (3 added
+  `depends_on_finished`), so a client replaces an older server that would drop
+  new queue fields when it loads the queue.
+- A job `Timeout` is enforced inside the job wrappers, not by the supervisor,
+  so it counts running time on every executor.
+  [internal/executor/wrapper.go](../../internal/executor/wrapper.go) builds a
+  watchdog shared by the status wrapper (local, Slurm, PBS, LSF), the native
+  array wrapper, and the SSH wrapper. After the timeout it marks the attempt
+  timed out, sends SIGTERM to the job's process group, waits 30 seconds, and
+  sends SIGKILL if the job is still running. The wrapper records exit code 124
+  (`TimeoutExitCode`) with `timed out after ...` as the error; the local
+  executor and SSH `Wait` apply the same result when the wrapper itself was
+  killed or only the exit code is known. Because the watchdog signals process
+  group 0, a status wrapper with a timeout first makes itself a process group
+  leader: the local executor already starts it that way, and otherwise it
+  re-executes itself under `setsid`, which keeps its PID. If it still is not a
+  leader, it skips the watchdog and logs that the timeout is not enforced
+  rather than signal a group it does not own. The SSH wrapper signals the
+  command's own `setsid` group. Covered by
+  [internal/executor/timeout_test.go](../../internal/executor/timeout_test.go)
+  and `TestExecuteMixedRunRecordsJobTimeout`.
 
 ## Validation and readiness
 

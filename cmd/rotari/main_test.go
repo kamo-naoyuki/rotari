@@ -3127,7 +3127,7 @@ func TestRunOneJobSelfReportsStatusJSON(t *testing.T) {
 func TestLocalJobWrapperSelfReportsStatusEvenIfCoordinatorNeverWaits(t *testing.T) {
 	jobDir := t.TempDir()
 	wrapperPath := filepath.Join(jobDir, "local-wrapper.sh")
-	wrapper := executor.StatusWrapperScript([]string{"sh", "-c", "exit 7"}, jobDir, nil, "")
+	wrapper := executor.StatusWrapperScript([]string{"sh", "-c", "exit 7"}, jobDir, nil, "", "")
 	if err := os.WriteFile(wrapperPath, []byte(wrapper), 0o755); err != nil {
 		t.Fatal(err)
 	}

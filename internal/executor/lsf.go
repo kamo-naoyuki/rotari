@@ -137,7 +137,7 @@ func submitLSFJobWithPolicies(store state.Store, logf func(string, ...any), runD
 	}
 	outputPath := filepath.Join(jobDir, "output")
 	wrapperPath := filepath.Join(jobDir, "lsf-wrapper.sh")
-	wrapper := lsfWrapperScript(job.Command, jobDir, outputPath, job.Environment, job.WorkingDirectory)
+	wrapper := lsfWrapperScript(job.Command, jobDir, outputPath, job.Environment, job.WorkingDirectory, job.Timeout)
 	if err := os.WriteFile(wrapperPath, []byte(wrapper), store.ScriptMode); err != nil {
 		return lsfJobMetadata{}, err
 	}
@@ -231,8 +231,8 @@ func submitLSFArrayWithPolicies(store state.Store, logf func(string, ...any), ru
 	return handles, nil
 }
 
-func lsfWrapperScript(command []string, jobDir, outputPath string, environment []string, workingDirectory string) string {
-	return "#BSUB -o " + ShellQuote(outputPath) + "\n#BSUB -e " + ShellQuote(outputPath) + "\n" + StatusWrapperScript(command, jobDir, environment, workingDirectory)
+func lsfWrapperScript(command []string, jobDir, outputPath string, environment []string, workingDirectory, timeout string) string {
+	return "#BSUB -o " + ShellQuote(outputPath) + "\n#BSUB -e " + ShellQuote(outputPath) + "\n" + StatusWrapperScript(command, jobDir, environment, workingDirectory, timeout)
 }
 
 var lsfJobIDPattern = regexp.MustCompile(`<([0-9]+)>`)

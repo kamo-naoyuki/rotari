@@ -141,7 +141,7 @@ func submitSlurmJobWithPolicies(store state.Store, logf func(string, ...any), ru
 		return slurmJobMetadata{}, err
 	}
 	wrapperPath := filepath.Join(jobDir, "slurm-wrapper.sh")
-	if err := os.WriteFile(wrapperPath, []byte(StatusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory)), store.ScriptMode); err != nil {
+	if err := os.WriteFile(wrapperPath, []byte(StatusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory, job.Timeout)), store.ScriptMode); err != nil {
 		return slurmJobMetadata{}, err
 	}
 	outputPath := filepath.Join(jobDir, "output")

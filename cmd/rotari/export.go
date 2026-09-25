@@ -21,6 +21,8 @@ jobs:
     # depends_on: [other-job, prepare]
     # Start after these finish, whatever their result.
     # depends_on_finished: [sweep]
+    # Stop the job this long after it starts; it then fails with exit code 124.
+    # timeout: 2h
     # executor: slurm
     # executor_options: ["--partition=gpu", "--gres=gpu:1"]
     # working_directory: ./work
@@ -44,6 +46,8 @@ command = ["echo", "hello"]
 # depends_on = ["other-job", "prepare"]
 # Start after these finish, whatever their result.
 # depends_on_finished = ["sweep"]
+# Stop the job this long after it starts; it then fails with exit code 124.
+# timeout = "2h"
 # executor = "slurm"
 # executor_options = ["--partition=gpu", "--gres=gpu:1"]
 # working_directory = "./work"
