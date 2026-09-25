@@ -34,7 +34,7 @@ func TestResultSelectionMatches(t *testing.T) {
 	}
 }
 
-func TestFilteredRunMatchesCopySelection(t *testing.T) {
+func TestFilteredRunUsesCopiedJobOrigins(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "default")
 	if err != nil {
@@ -71,30 +71,53 @@ func TestFilteredRunMatchesCopySelection(t *testing.T) {
 			if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := copyRunToQueue(baseDir, "default", runID, test.selection, nil, false); err != nil {
+			if _, err := copyRunToQueue(baseDir, "default", runID, "all", nil, false); err != nil {
 				t.Fatal(err)
 			}
 			copied, err := loadQueue(paths.QueueFile)
 			if err != nil {
 				t.Fatal(err)
 			}
-			copiedIDs := make(map[string]bool, len(copied.Commands))
-			for _, command := range copied.Commands {
-				copiedIDs[command.ID] = true
-			}
-			plan, err := planRerunSelection(paths, queue, test.selection, nil, runID, true)
+			plan, err := planRerunSelection(paths, copied, test.selection, nil, "", true)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(copiedIDs) != len(test.want) || len(plan.Execute) != len(test.want) {
-				t.Fatalf("selection=%q copied=%#v execute=%#v want=%#v", test.selection, copiedIDs, plan.Execute, test.want)
+			if len(plan.Execute) != len(test.want) {
+				t.Fatalf("selection=%q execute=%#v want=%#v", test.selection, plan.Execute, test.want)
 			}
 			for jobID := range test.want {
-				if !copiedIDs[jobID] || !plan.Execute[jobID] {
-					t.Fatalf("selection=%q copied=%#v execute=%#v want job %q", test.selection, copiedIDs, plan.Execute, jobID)
+				if !plan.Execute[jobID] {
+					t.Fatalf("selection=%q execute=%#v want job %q", test.selection, plan.Execute, jobID)
 				}
 			}
 		})
+	}
+}
+
+func TestFilteredRunUsesEachCopiedOrigin(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for runID, result := range map[string]JobResult{
+		"old-run":    {ID: "old-job", ExitCode: 1},
+		"latest-run": {ID: "latest-job", ExitCode: 0},
+	} {
+		if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), RunSummary{RunID: runID, Results: []JobResult{result}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	queue := Queue{Commands: []QueuedCommand{
+		{ID: "copied-old", Command: []string{"old"}, Origin: &JobOrigin{RunID: "old-run", JobID: "old-job"}},
+		{ID: "copied-latest", Command: []string{"latest"}, Origin: &JobOrigin{RunID: "latest-run", JobID: "latest-job"}},
+	}}
+	plan, err := planRerunSelection(paths, queue, "failed", nil, "latest-run", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.Execute["copied-old"] || plan.Execute["copied-latest"] {
+		t.Fatalf("execute = %#v, want only the job copied from old-run", plan.Execute)
 	}
 }
 

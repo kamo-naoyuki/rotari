@@ -789,6 +789,71 @@ func TestCmdAddThenCmdRunExecutesLocalJobEndToEnd(t *testing.T) {
 	}
 }
 
+func TestCmdRunFailedRestoresEmptyQueue(t *testing.T) {
+	baseDir, err := os.MkdirTemp("", "rotari-failed-e2e-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(baseDir)
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceRunID := makeRunID()
+	marker := filepath.Join(baseDir, "executed")
+	if err := writeJSON(filepath.Join(paths.RunsDir, sourceRunID, "commands.json"), Queue{Commands: []QueuedCommand{
+		{ID: "success", Command: []string{"sh", "-c", fmt.Sprintf("printf success >> %q", marker)}},
+		{ID: "failed", Command: []string{"sh", "-c", fmt.Sprintf("printf failed >> %q", marker)}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(paths.RunsDir, sourceRunID, "summary.json"), RunSummary{RunID: sourceRunID, Results: []JobResult{
+		{ID: "success", ExitCode: 0},
+		{ID: "failed", ExitCode: 1},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.MetaFile, Meta{LastRunID: sourceRunID}); err != nil {
+		t.Fatal(err)
+	}
+
+	serverDone := make(chan int, 1)
+	go func() { serverDone <- runServer(baseDir) }()
+	t.Cleanup(func() {
+		select {
+		case <-serverDone:
+		case <-time.After(3 * time.Second):
+			t.Log("server did not stop after the run completed")
+		}
+	})
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		response, err := sendServerRequest(baseDir, serverRequest{Op: "ping"})
+		if err == nil && response.OK {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("server did not become ready: %v", err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if code := cmdRun([]string{"--basedir", baseDir, "--project-name", "demo", "--failed", "--quiet"}); code != 0 {
+		t.Fatalf("cmdRun --failed exit code = %d, want 0", code)
+	}
+	output, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(output) != "failed" {
+		t.Fatalf("executed jobs = %q, want only failed", output)
+	}
+}
+
 func TestCmdRunWithAttemptIDCopiesAndExecutesSourceAttempt(t *testing.T) {
 	testCmdWithAttemptID(t, false)
 }

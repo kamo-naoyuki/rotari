@@ -135,6 +135,46 @@ func TestCmdCopyJobIDUsesLatestRunWithoutRunID(t *testing.T) {
 	}
 }
 
+func TestCmdCopyDefaultsToLatestRun(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := makeRunID()
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), Queue{Commands: []QueuedCommand{
+		{ID: "success", Command: []string{"success"}},
+		{ID: "failed", Command: []string{"failed"}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), RunSummary{RunID: runID, Results: []JobResult{
+		{ID: "success", ExitCode: 0},
+		{ID: "failed", ExitCode: 1},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.MetaFile, Meta{LastRunID: runID}); err != nil {
+		t.Fatal(err)
+	}
+
+	if code := cmdCopy([]string{"--basedir", baseDir, "--project-name", "default", "--quiet"}); code != 0 {
+		t.Fatalf("cmdCopy exit code = %d, want 0", code)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 2 {
+		t.Fatalf("copied queue = %#v, want all jobs from the latest run", queue.Commands)
+	}
+	for _, command := range queue.Commands {
+		if command.Origin == nil || command.Origin.RunID != runID {
+			t.Fatalf("copied command origin = %#v, want source run %q", command.Origin, runID)
+		}
+	}
+}
+
 func TestCopyRunToQueuePreservesSourceJobIDs(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "default")

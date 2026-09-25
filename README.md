@@ -691,10 +691,10 @@ distributed-compute, Python, filesystem, network, and HTTP failures.
 
 `run` can select jobs from the latest run, or from a saved run given by
 `--run-id/-r`, and execute them as a new run while carrying forward everything
-else. Result filters select which jobs are copied into the new queue for
-execution; jobs with completed results that do not match are copied as
-carry-forward results. In other words, `run --failed`, `run --unfinished`, and
-similar commands copy the selected jobs and then run the resulting queue.
+else. Result filters select which jobs in the queue are re-executed; jobs with
+completed results that do not match are carried forward. To inspect or edit the
+whole previous queue before selecting work, copy it first and apply the filter
+when running.
 
 ```sh
 rotari run -p build --failed
@@ -759,13 +759,17 @@ when any task matches.
 Copy jobs from a previous run into the current queue without executing them:
 
 ```sh
-rotari copy -j ATTEMPT_ID
+rotari copy -p build
+rotari run -p build --failed
 ```
 
-This is the explicit form of what `run --failed --unfinished` does: copy the
-selected jobs into the current queue, then run that queue. The same applies to
-`run --failed`, `run --unfinished`, `run --success`, and other filter
-combinations.
+Without a selector, `copy` restores every job from the latest run. Then apply
+`--failed`, `--unfinished`, `--success`, or explicit job selectors to `run`.
+This keeps the full queue available for inspection and editing before choosing
+which jobs to execute. `copy --failed` and the other copy-side filters remain
+available when only a subset should be restored. When the queue is empty,
+`run --failed` restores the latest run automatically before selecting failed
+jobs.
 
 `copy` keeps the source job ID unless it would collide with the destination
 queue, and preserves dependencies between copied jobs. A non-empty queue
@@ -780,11 +784,11 @@ restores jobs into the current queue without executing them; then `change` can
 modify their commands or options while preserving the saved run history:
 
 ```sh
-rotari copy -j ATTEMPT_ID
+rotari copy
 rotari change --job-name train -e local
 rotari change --job-name train --executor-option="-p gpu"
 rotari change --job-name train --depends-on prepare -- ./train-v2.sh
-rotari run
+rotari run --failed
 ```
 
 `change` requires exactly one target selector: `--job-id/-j ID` or

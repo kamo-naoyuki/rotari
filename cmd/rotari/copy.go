@@ -119,15 +119,34 @@ func cmdCopy(args []string) int {
 		}
 		if *runID == "" {
 			if len(jobIDs) == 0 {
-				printError("copy requires --run-id/-r unless --job-id is specified")
-				return 1
+				baseDir, projectName, err := resolveExistingRunTarget(*basedir, *queueNameOption, "")
+				if err != nil {
+					printError(err)
+					return 1
+				}
+				paths, err := resolvePaths(baseDir, projectName)
+				if err != nil {
+					printError(err)
+					return 1
+				}
+				meta, err := state.LoadMeta(paths.MetaFile)
+				if err != nil {
+					printErrorf("failed to load metadata: %v", err)
+					return 1
+				}
+				if meta.LastRunID == "" {
+					printErrorf("project %q has no previous run", projectName)
+					return 1
+				}
+				*basedir, *queueNameOption, *runID = baseDir, projectName, meta.LastRunID
+			} else {
+				target, err := resolveLatestJobIDSelection(*basedir, *queueNameOption, jobIDs)
+				if err != nil {
+					printError(err)
+					return 1
+				}
+				*basedir, *queueNameOption, *runID = target.baseDir, target.projectName, target.runID
 			}
-			target, err := resolveLatestJobIDSelection(*basedir, *queueNameOption, jobIDs)
-			if err != nil {
-				printError(err)
-				return 1
-			}
-			*basedir, *queueNameOption, *runID = target.baseDir, target.projectName, target.runID
 		}
 	}
 

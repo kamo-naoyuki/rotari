@@ -478,8 +478,8 @@ func cmdRun(args []string) int {
 		}
 		copySelection := "all"
 		copyJobIDs := []string(nil)
-		if selection != "" {
-			copySelection = selection
+		if attemptSelection {
+			copySelection = "job-id"
 			copyJobIDs = jobIDs
 		}
 		message, copyErr := copyRunToQueue(baseDir, queueName, sourceRunID, copySelection, copyJobIDs, false, overwriteConfirmed)
@@ -489,7 +489,7 @@ func cmdRun(args []string) int {
 		}
 		fmt.Println(colorKeyValueMessage(message, green))
 	}
-	if selection != "" {
+	if attemptSelection {
 		selection = ""
 		jobIDs = nil
 	}

@@ -27,11 +27,14 @@
   output; jobs without a completed result remain unfinished. Carry-forward writes
   reused results only to the destination run and records the source run and job
   so output remains traceable.
-- A filtered `run` is contractually equivalent to copying the same filter from
-  its source run into the queue and then running that queue. This applies to
-  `--failed`, `--unfinished`, `--success`, their combinations, and explicit
-  `--job-id`/`--job-name` selections. The source is the selected `--run-id`, or
-  the current project's latest run when it is omitted.
+- `copy` without a selection restores every command from the current project's
+  latest run. Result filters belong on the following `run`, allowing the full
+  restored queue to be inspected or edited before execution. A filtered `run`
+  selects work from each queued command's origin result and carries forward
+  completed non-matching results. If the queue is empty, `run --failed` and
+  other result-filtered runs first restore the selected `--run-id`, or the
+  project's latest run when it is omitted. Copy-side result filters remain
+  available for intentionally restoring only a subset.
 - Dependencies use unique job names within a queue. Unknown names, duplicates,
   and cycles are rejected before execution. `add` also rejects a duplicate job
   name immediately, without writing the queue, so that mistake is never deferred

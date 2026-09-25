@@ -277,9 +277,9 @@ var cliCommandSpecs = []cliCommandSpec{
 	},
 	{
 		Name:        "copy",
-		Description: "copy jobs from a run into the queue",
+		Description: "copy the latest run's jobs into the queue",
 		Flags: append(commonCLIFlags(),
-			cliFlagSpec{Name: "run-id", Description: "source run ID", ValueName: "ID"},
+			cliFlagSpec{Name: "run-id", Description: "source run ID; defaults to the latest run", ValueName: "ID"},
 			cliFlagSpec{Name: "failed", Description: "include failed jobs; may be combined with result filters"},
 			cliFlagSpec{Name: "unfinished", Description: "include unfinished jobs; may be combined with result filters"},
 			cliFlagSpec{Name: "success", Description: "include successful jobs; may be combined with result filters"},
