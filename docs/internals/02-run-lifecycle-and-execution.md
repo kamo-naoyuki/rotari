@@ -9,8 +9,14 @@
   logs, and config copies remain immutable until the run is explicitly deleted.
 - Retries and filtered runs always create new history and never modify their
   source run. `--retry N` retries a failed job up to N additional times within
-  the same run. A failed job is one whose result has a non-zero exit code and is
-  not explicitly cancelled.
+  the same run. A job's own `Retry` (`add --retry`, manifest `retry`) replaces
+  that limit for the job (`JobSpec.RetryLimit`); `RetryPendingJobs` and the
+  `failureFinal` check in `ExecuteDependencyRetries` apply it per job, and the
+  attempt loop runs while any job is pending, stopping early when an attempt
+  neither ran nor resolved anything. A failed job is one whose result has a
+  non-zero exit code and is not explicitly cancelled. Covered by
+  `TestPerJobRetryOverridesRunRetry` and
+  `TestExecuteMixedRunHonorsPerJobRetry`.
 - An explicit cancellation is terminal for the current run. A job marked
   cancelled, or whose recorded execution state is `cancelled`, is not
   automatically retried by that run's `--retry` loop, even if its exit code is
@@ -176,9 +182,9 @@
   because an `afterany` job may have succeeded on a failed prerequisite's
   output. `copy` requires an omitted `DependsOnFinished` prerequisite to have
   finished with any result, rather than to have succeeded.
-- The server protocol version is 4 since `timeout` was added (3 added
-  `depends_on_finished`), so a client replaces an older server that would drop
-  new queue fields when it loads the queue.
+- The server protocol version is 5 since per-job `retry` was added (4 added
+  `timeout`, 3 `depends_on_finished`), so a client replaces an older server
+  that would drop new queue fields when it loads the queue.
 - A job `Timeout` is enforced inside the job wrappers, not by the supervisor,
   so it counts running time on every executor.
   [internal/executor/wrapper.go](../../internal/executor/wrapper.go) builds a

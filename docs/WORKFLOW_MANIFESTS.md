@@ -53,7 +53,8 @@ jobs:
 ```
 
 `depends_on` and `depends_on_finished` correspond to `add --depends-on` and
-`--depends-on-finished`, and `timeout` to `add --timeout`.
+`--depends-on-finished`, and `timeout` and `retry` to `add --timeout` and
+`add --retry`.
 
 Use `rotari import --dry-run FILE` to validate and preview `execute`, `reuse`,
 and `accept` decisions without changing the queue. Jobs with provenance also

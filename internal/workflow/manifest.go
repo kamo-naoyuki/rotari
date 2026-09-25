@@ -34,7 +34,9 @@ type Job struct {
 	// DependsOnFinished names prerequisites that only need to finish.
 	DependsOnFinished []string `json:"depends_on_finished,omitempty" yaml:"depends_on_finished,omitempty" toml:"depends_on_finished,omitempty"`
 	// Timeout matches add --timeout, such as "2h".
-	Timeout          string     `json:"timeout,omitempty" yaml:"timeout,omitempty" toml:"timeout,omitempty"`
+	Timeout string `json:"timeout,omitempty" yaml:"timeout,omitempty" toml:"timeout,omitempty"`
+	// Retry matches add --retry.
+	Retry            *int       `json:"retry,omitempty" yaml:"retry,omitempty" toml:"retry,omitempty"`
 	Executor         string     `json:"executor,omitempty" yaml:"executor,omitempty" toml:"executor,omitempty"`
 	ExecutorOptions  []string   `json:"executor_options,omitempty" yaml:"executor_options,omitempty" toml:"executor_options,omitempty"`
 	WorkingDirectory string     `json:"working_directory,omitempty" yaml:"working_directory,omitempty" toml:"working_directory,omitempty"`
@@ -240,7 +242,7 @@ func Compile(manifest Manifest, nextID func() string) (model.Queue, error) {
 			command := model.QueuedCommand{
 				ID: nextID(), Command: append([]string(nil), job.Command...), Name: name,
 				Stage: job.Stage, DependsOn: append([]string(nil), job.DependsOn...),
-				DependsOnFinished: append([]string(nil), job.DependsOnFinished...), Timeout: job.Timeout,
+				DependsOnFinished: append([]string(nil), job.DependsOnFinished...), Timeout: job.Timeout, Retry: cloneRetry(job.Retry),
 				Executor: job.Executor, ExecutorOptions: append([]string(nil), job.ExecutorOptions...),
 				WorkingDirectory: job.WorkingDirectory, Environment: environment, Array: cloneArray(array),
 			}
@@ -299,4 +301,12 @@ func cloneArray(array *model.ArraySpec) *model.ArraySpec {
 	cloned := *array
 	cloned.Tasks = append([]int(nil), array.Tasks...)
 	return &cloned
+}
+
+func cloneRetry(retry *int) *int {
+	if retry == nil {
+		return nil
+	}
+	value := *retry
+	return &value
 }

@@ -54,7 +54,9 @@ type Request struct {
 	DependsOn         []string                `json:"depends_on,omitempty"`
 	DependsOnFinished []string                `json:"depends_on_finished,omitempty"`
 	Timeout           string                  `json:"timeout,omitempty"`
-	Array             *model.ArraySpec        `json:"array,omitempty"`
+	// JobRetry is a submitted job's own retry limit; Retry is the run's.
+	JobRetry *int             `json:"job_retry,omitempty"`
+	Array    *model.ArraySpec `json:"array,omitempty"`
 }
 
 type Response struct {

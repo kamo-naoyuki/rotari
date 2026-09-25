@@ -217,6 +217,10 @@ Yes, unless the omitted prerequisite has not succeeded. Copy the prerequisite as
 
 Dependent jobs become `blocked` and are not executed. They can run after the prerequisite succeeds in a later `run` or `retry`.
 
+### Can only some jobs be retried automatically?
+
+Yes. `rotari add --retry N` gives a job its own retry limit, which replaces `run --retry` for that job; `--retry 0` keeps a job from being retried even when the run retries others. See [run and retry](RUNNING.md#run-and-retry).
+
 ### How do I stop jobs that hang?
 
 Add them with `--timeout DURATION`, for example `rotari add --timeout 2h -- python train.py`. rotari stops the job that long after it starts running, on any executor, and records it as failed with exit code 124. See [Job timeouts](RUNNING.md#job-timeouts).

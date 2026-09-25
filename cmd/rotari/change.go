@@ -39,13 +39,15 @@ func cmdChange(args []string) int {
 	clearDependsOnFinished := cliBool(fs, "clear-depends-on-finished", false)
 	timeout := cliString(fs, "timeout", "")
 	clearTimeout := cliBool(fs, "clear-timeout", false)
+	retry := cliInt(fs, "retry", 0)
+	clearRetry := cliBool(fs, "clear-retry", false)
 	quiet := cliBool(fs, "quiet", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 	if (*jobID == "" && *jobName == "") || (*jobID != "" && *jobName != "") ||
 		(len(fs.Args()) == 0 && *executor == "" && len(executorOptions) == 0 && !*clearExecutorOptions && *workingDirectory == "" && !*clearWorkingDirectory && len(environment) == 0 && !*clearEnvironment &&
-			*setJobName == "" && len(dependsOn) == 0 && !*clearDependsOn && len(dependsOnFinished) == 0 && !*clearDependsOnFinished && *timeout == "" && !*clearTimeout) ||
+			*setJobName == "" && len(dependsOn) == 0 && !*clearDependsOn && len(dependsOnFinished) == 0 && !*clearDependsOnFinished && *timeout == "" && !*clearTimeout && !cliOptionSet(fs, "retry") && !*clearRetry) ||
 		(*executor != "" && !executorRegistry.Known(*executor)) {
 		printError("usage: " + cliUsage("change"))
 		return 1
@@ -66,7 +68,8 @@ func cmdChange(args []string) int {
 		workingDirectory: *workingDirectory, clearWorkingDirectory: *clearWorkingDirectory, setJobName: *setJobName,
 		dependsOn: dependsOn, clearDependsOn: *clearDependsOn,
 		dependsOnFinished: dependsOnFinished, clearDependsOnFinished: *clearDependsOnFinished,
-		timeout: *timeout, clearTimeout: *clearTimeout, command: fs.Args(),
+		timeout: *timeout, clearTimeout: *clearTimeout, retry: optionalRetry(fs, *retry), clearRetry: *clearRetry,
+		command: fs.Args(),
 	})
 	if err != nil {
 		printError(err)
@@ -105,7 +108,18 @@ type changeMutation struct {
 	// timeout replaces Timeout when non-empty.
 	timeout      string
 	clearTimeout bool
-	command      []string
+	// retry replaces Retry when set.
+	retry      *int
+	clearRetry bool
+	command    []string
+}
+
+// optionalRetry returns the --retry value when it was given.
+func optionalRetry(fs *flag.FlagSet, value int) *int {
+	if !cliOptionSet(fs, "retry") {
+		return nil
+	}
+	return &value
 }
 
 // changeQueueJob applies mutation to one job of the current queue, or of the
@@ -215,6 +229,9 @@ func applyChangeMutation(queue model.Queue, jobIndex int, mutation changeMutatio
 	}
 	if mutation.timeout != "" || mutation.clearTimeout {
 		changed.Timeout = mutation.timeout
+	}
+	if mutation.retry != nil || mutation.clearRetry {
+		changed.Retry = mutation.retry
 	}
 	return nil
 }

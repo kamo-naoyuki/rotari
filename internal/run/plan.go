@@ -23,7 +23,7 @@ func RetryPendingJobs(jobs []model.JobSpec, results map[string]model.JobResult, 
 		if result.ExitCode == 0 {
 			continue
 		}
-		if retry >= 0 && attempt >= retry {
+		if limit := job.RetryLimit(retry); limit >= 0 && attempt >= limit {
 			continue
 		}
 		if shouldRetry != nil && !shouldRetry(job, result) {

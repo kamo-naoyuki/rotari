@@ -205,7 +205,7 @@ func (ops serverOperations) Submit(request serverinternal.Request) (string, erro
 	command := model.QueuedCommand{
 		Command: request.Command, Executor: request.Executor, ExecutorOptions: request.ExecutorOptions, Environment: request.Environment,
 		WorkingDirectory: request.WorkingDirectory, Name: request.JobName, Stage: request.Stage, DependsOn: request.DependsOn,
-		DependsOnFinished: request.DependsOnFinished, Timeout: request.Timeout,
+		DependsOnFinished: request.DependsOnFinished, Timeout: request.Timeout, Retry: request.JobRetry,
 	}
 	return enqueueCommands(ops.baseDir, request.QueueName, []model.QueuedCommand{command}, request.Array)
 }

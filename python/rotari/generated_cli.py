@@ -362,6 +362,15 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {"description": "remove the job timeout", "name": "clear-timeout"},
                 {
+                    "description": "replace the job's retry limit; 0 disables retries",
+                    "name": "retry",
+                    "value_name": "N",
+                },
+                {
+                    "description": "use the run's --retry limit for the job again",
+                    "name": "clear-retry",
+                },
+                {
                     "description": "suppress success output",
                     "environment": "ROTARI_QUIET",
                     "name": "quiet",
@@ -835,6 +844,13 @@ CLI_SCHEMA: dict[str, Any] = {
                     "124",
                     "name": "timeout",
                     "value_name": "DURATION",
+                },
+                {
+                    "description": "retry the job up to N times when it fails, "
+                    "instead of the run's --retry; 0 disables "
+                    "retries",
+                    "name": "retry",
+                    "value_name": "N",
                 },
                 {
                     "description": "create an array job range or selected tasks",

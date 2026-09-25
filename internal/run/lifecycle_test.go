@@ -128,3 +128,28 @@ func TestFinishedDependencyRunsAfterBlockedPrerequisite(t *testing.T) {
 		t.Fatalf("cleanup result=%#v order=%v, want cleanup to run after train was blocked", results["cleanup"], order)
 	}
 }
+
+func TestPerJobRetryOverridesRunRetry(t *testing.T) {
+	two, zero := 2, 0
+	jobs := []model.JobSpec{
+		{ID: "flaky", Name: "flaky", Retry: &two},
+		{ID: "strict", Name: "strict", Retry: &zero},
+		{ID: "default", Name: "default"},
+	}
+	results, order := runAttempts(t, jobs, 1, map[string][]int{
+		"flaky": {1, 1, 0}, "strict": {1, 0}, "default": {1, 1, 0},
+	})
+	runs := map[string]int{}
+	for _, id := range order {
+		runs[id]++
+	}
+	if runs["flaky"] != 3 || results["flaky"].ExitCode != 0 {
+		t.Fatalf("flaky ran %d times with %#v, want 3 runs ending in success", runs["flaky"], results["flaky"])
+	}
+	if runs["strict"] != 1 || results["strict"].ExitCode != 1 {
+		t.Fatalf("strict ran %d times, want no retry", runs["strict"])
+	}
+	if runs["default"] != 2 || results["default"].ExitCode != 1 {
+		t.Fatalf("default ran %d times, want the run's single retry", runs["default"])
+	}
+}

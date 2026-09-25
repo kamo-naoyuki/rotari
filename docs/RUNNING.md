@@ -102,6 +102,18 @@ rotari run --retry -1
 
 Without `--retry`, each failed job is attempted only once.
 
+To retry only jobs that fail for transient reasons, such as a flaky file
+system or network, give them their own limit when adding them. A job's
+`--retry` replaces the run's for that job; `0` turns retries off even when the
+run uses `--retry`:
+
+```sh
+rotari add --retry 3 -- ./download-data.sh
+rotari add --retry 0 -- python evaluate.py
+rotari change -p sweep --job-name download --retry 5
+rotari change -p sweep --job-name download --clear-retry   # use the run's limit again
+```
+
 The result filters select which jobs are actually re-executed:
 
 | Option | Executed jobs |

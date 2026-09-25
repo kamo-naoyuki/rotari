@@ -23,6 +23,8 @@ jobs:
     # depends_on_finished: [sweep]
     # Stop the job this long after it starts; it then fails with exit code 124.
     # timeout: 2h
+    # Retry this job up to N times when it fails, instead of run --retry.
+    # retry: 2
     # executor: slurm
     # executor_options: ["--partition=gpu", "--gres=gpu:1"]
     # working_directory: ./work
@@ -48,6 +50,8 @@ command = ["echo", "hello"]
 # depends_on_finished = ["sweep"]
 # Stop the job this long after it starts; it then fails with exit code 124.
 # timeout = "2h"
+# Retry this job up to N times when it fails, instead of run --retry.
+# retry = 2
 # executor = "slurm"
 # executor_options = ["--partition=gpu", "--gres=gpu:1"]
 # working_directory = "./work"

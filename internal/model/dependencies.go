@@ -133,7 +133,7 @@ func equalMatrixCommandBase(left, right QueuedCommand) bool {
 	return equalStrings(left.Command, right.Command) && left.WorkingDirectory == right.WorkingDirectory &&
 		left.Executor == right.Executor && equalStrings(left.ExecutorOptions, right.ExecutorOptions) &&
 		left.Stage == right.Stage && equalStrings(left.DependsOn, right.DependsOn) &&
-		equalStrings(left.DependsOnFinished, right.DependsOnFinished) && left.Timeout == right.Timeout && equalArraySpec(left.Array, right.Array)
+		equalStrings(left.DependsOnFinished, right.DependsOnFinished) && left.Timeout == right.Timeout && equalRetry(left.Retry, right.Retry) && equalArraySpec(left.Array, right.Array)
 }
 
 func equalArraySpec(left, right *ArraySpec) bool {
@@ -335,4 +335,11 @@ func DependenciesReady(job JobSpec, results map[string]JobResult, jobsByName map
 		}
 	}
 	return true, ""
+}
+
+func equalRetry(left, right *int) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
 }

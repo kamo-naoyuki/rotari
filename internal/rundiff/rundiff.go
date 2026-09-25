@@ -222,6 +222,7 @@ func specChanges(from, to model.JobSpec) []Change {
 	list("depends_on", from.DependsOn, to.DependsOn)
 	list("depends_on_finished", from.DependsOnFinished, to.DependsOnFinished)
 	scalar("timeout", from.Timeout, to.Timeout)
+	scalar("retry", model.FormatRetry(from.Retry), model.FormatRetry(to.Retry))
 	return changes
 }
 

@@ -42,7 +42,10 @@ type QueuedCommand struct {
 	DependsOnFinished []string `json:"depends_on_finished,omitempty"`
 	// Timeout limits how long the job may run once it starts, as a Go
 	// duration such as "2h"; empty means no limit.
-	Timeout      string                `json:"timeout,omitempty"`
+	Timeout string `json:"timeout,omitempty"`
+	// Retry overrides the run's --retry limit for this job when set; 0
+	// disables retries.
+	Retry        *int                  `json:"retry,omitempty"`
 	Origin       *JobOrigin            `json:"origin,omitempty"`
 	Array        *ArraySpec            `json:"array,omitempty"`
 	TaskOrigins  map[string]*JobOrigin `json:"task_origins,omitempty"`
@@ -265,7 +268,9 @@ type JobSpec struct {
 	// result, before the job starts.
 	DependsOnFinished []string `json:"depends_on_finished,omitempty"`
 	// Timeout limits how long the job may run once it starts.
-	Timeout     string   `json:"timeout,omitempty"`
+	Timeout string `json:"timeout,omitempty"`
+	// Retry overrides the run's --retry limit for this job when set.
+	Retry       *int     `json:"retry,omitempty"`
 	ArrayGroup  string   `json:"array_group,omitempty"`
 	ArrayTaskID *int     `json:"array_task_id,omitempty"`
 	ArrayFirst  int      `json:"array_first,omitempty"`
@@ -431,7 +436,7 @@ func queueCommandJob(queued QueuedCommand, id, name string, taskID *int) JobSpec
 	job := JobSpec{
 		ID: id, Command: queued.Command, WorkingDirectory: queued.WorkingDirectory, Name: name,
 		Executor: queued.Executor, ExecutorOptions: queued.ExecutorOptions, Environment: queued.Environment, Stage: queued.Stage, DependsOn: queued.DependsOn,
-		DependsOnFinished: queued.DependsOnFinished, Timeout: queued.Timeout,
+		DependsOnFinished: queued.DependsOnFinished, Timeout: queued.Timeout, Retry: queued.Retry,
 	}
 	if taskID != nil {
 		job.ArrayGroup = queued.ID
@@ -488,6 +493,23 @@ func TimeoutSeconds(value string) int {
 		return 0
 	}
 	return int((duration + time.Second - 1) / time.Second)
+}
+
+// RetryLimit returns how many times a failed job may be retried: its own
+// Retry when set, otherwise the run's limit, where -1 means no limit.
+func (job JobSpec) RetryLimit(runRetry int) int {
+	if job.Retry != nil {
+		return *job.Retry
+	}
+	return runRetry
+}
+
+// FormatRetry formats an optional per-job retry limit, or "" when unset.
+func FormatRetry(retry *int) string {
+	if retry == nil {
+		return ""
+	}
+	return strconv.Itoa(*retry)
 }
 
 // FormatDependencies joins dependsOn and dependsOnFinished for display,

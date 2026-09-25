@@ -469,3 +469,42 @@ func TestExecuteMixedRunRecordsJobTimeout(t *testing.T) {
 		t.Fatalf("queue = %#v, %v, want the timeout cleared", queue.Commands, err)
 	}
 }
+
+func TestExecuteMixedRunHonorsPerJobRetry(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	t.Setenv("ROTARI_RUN_RETRY", "5")
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	counter := filepath.Join(baseDir, "count")
+	flaky := fmt.Sprintf(`echo x >> %q; [ "$(wc -l < %q)" -ge 3 ]`, counter, counter)
+	base := []string{"--basedir", baseDir, "--project-name", "default", "--quiet"}
+	if code := cmdAdd(append(base, "--job-name", "flaky", "--retry", "-1", "--", "true")); code != 1 {
+		t.Fatalf("cmdAdd with a negative retry exit = %d, want 1", code)
+	}
+	if code := cmdAdd(append(base, "--job-name", "flaky", "--", "/bin/sh", "-c", flaky)); code != 0 {
+		t.Fatalf("cmdAdd exit = %d", code)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil || queue.Commands[0].Retry != nil {
+		t.Fatalf("queue = %#v, %v; ROTARI_RUN_RETRY must not set a job's retry", queue.Commands, err)
+	}
+	if code := cmdChange(append(base, "--job-name", "flaky", "--retry", "2")); code != 0 {
+		t.Fatalf("cmdChange --retry exit = %d", code)
+	}
+	if code := executeMixedRun(paths, "run-1", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
+		t.Fatalf("executeMixedRun exit = %d, want the job to pass on its second retry", code)
+	}
+	data, _ := os.ReadFile(counter)
+	if runs := strings.Count(string(data), "x"); runs != 3 {
+		t.Fatalf("flaky ran %d times, want 3", runs)
+	}
+	if code := cmdChange(append(base, "--run-id", "run-1", "--job-name", "flaky", "--clear-retry")); code != 0 {
+		t.Fatalf("cmdChange --clear-retry exit = %d", code)
+	}
+	if queue, err = loadQueue(paths.QueueFile); err != nil || queue.Commands[0].Retry != nil {
+		t.Fatalf("queue = %#v, %v, want the retry cleared", queue.Commands, err)
+	}
+}

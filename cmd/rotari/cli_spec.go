@@ -16,8 +16,9 @@ type cliFlagSpec struct {
 	Values      []string
 	Repeated    bool
 	// CommandLineOnly keeps config files and environment variables from
-	// supplying the flag, for values such as an output path. Only cliString
-	// honors it so far.
+	// supplying the flag, for values such as an output path or a per-job
+	// setting that shares a name with a run option. cliString and cliInt
+	// honor it.
 	CommandLineOnly bool
 }
 
@@ -197,6 +198,8 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "clear-depends-on-finished", Description: "clear prerequisites that only need to finish"},
 			cliFlagSpec{Name: "timeout", Description: "replace the job timeout, such as 90m or 2h", ValueName: "DURATION", CommandLineOnly: true},
 			cliFlagSpec{Name: "clear-timeout", Description: "remove the job timeout"},
+			cliFlagSpec{Name: "retry", Description: "replace the job's retry limit; 0 disables retries", ValueName: "N", CommandLineOnly: true},
+			cliFlagSpec{Name: "clear-retry", Description: "use the run's --retry limit for the job again"},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
 		),
 		Positional: "<command ...>",
@@ -312,6 +315,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "depends-on", Description: "name of a prerequisite job or stage; may be repeated", ValueName: "NAME"},
 			cliFlagSpec{Name: "depends-on-finished", Description: "name of a prerequisite job or stage that must finish, whatever its result; may be repeated", ValueName: "NAME"},
 			cliFlagSpec{Name: "timeout", Description: "stop the job this long after it starts, such as 90m or 2h; it then fails with exit code 124", ValueName: "DURATION", CommandLineOnly: true},
+			cliFlagSpec{Name: "retry", Description: "retry the job up to N times when it fails, instead of the run's --retry; 0 disables retries", ValueName: "N", CommandLineOnly: true},
 			cliFlagSpec{Name: "array", Description: "create an array job range or selected tasks", ValueName: "FIRST-LAST|TASK[,TASK...]"},
 			cliFlagSpec{Name: "matrix", Description: "expand a command into jobs from KEY=VALUE[,VALUE...] dimensions; may be repeated", ValueName: "KEY=VALUE[,VALUE...]"},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
@@ -684,10 +688,12 @@ func commandQuietEnvironmentVariable(command string) string {
 
 func cliInt(fs *flag.FlagSet, name string, defaultValue int) *int {
 	spec := cliCommandFlag(fs.Name(), name)
-	defaultValue = configInt(name, defaultValue)
-	if value, ok := os.LookupEnv(cliEnvironmentVariable(name)); ok {
-		if parsed, err := strconv.Atoi(value); err == nil {
-			defaultValue = parsed
+	if !spec.CommandLineOnly {
+		defaultValue = configInt(name, defaultValue)
+		if value, ok := os.LookupEnv(cliEnvironmentVariable(name)); ok {
+			if parsed, err := strconv.Atoi(value); err == nil {
+				defaultValue = parsed
+			}
 		}
 	}
 	target := new(int)

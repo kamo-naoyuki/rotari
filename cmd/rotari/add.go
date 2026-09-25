@@ -30,6 +30,7 @@ func cmdAdd(args []string) int {
 	var dependsOnFinished stringSliceFlag
 	cliValue(fs, &dependsOnFinished, "depends-on-finished")
 	timeout := cliString(fs, "timeout", "")
+	retry := cliInt(fs, "retry", 0)
 	arrayRange := cliString(fs, "array", "")
 	var matrixValues stringSliceFlag
 	cliValue(fs, &matrixValues, "matrix")
@@ -86,10 +87,19 @@ func cmdAdd(args []string) int {
 			return 1
 		}
 	}
+	var jobRetry *int
+	if cliOptionSet(fs, "retry") {
+		if *retry < 0 {
+			printError("invalid --retry: must be 0 or more")
+			return 1
+		}
+		jobRetry = retry
+	}
 	commands := expandMatrixCommands(left, *executor, executorOptions, environment, *workingDirectory, *jobName, *stage, dependsOn, dimensions)
 	for index := range commands {
 		commands[index].DependsOnFinished = dependsOnFinished
 		commands[index].Timeout = *timeout
+		commands[index].Retry = jobRetry
 	}
 	message, err := enqueueCommands(baseDir, queueName, commands, array)
 	if err != nil {
