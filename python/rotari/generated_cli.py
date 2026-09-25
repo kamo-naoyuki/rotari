@@ -391,6 +391,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
             ],
             "name": "export",
+            "positional": "[PROJECT|RUN_ID ...]",
         },
         {
             "description": "validate and replace a queue from a workflow manifest",
@@ -418,7 +419,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 {"description": "print the import plan as JSON", "name": "json"},
             ],
             "name": "import",
-            "positional": "FILE",
+            "positional": "FILE [PROJECT|RUN_ID]",
         },
         {
             "description": "remove jobs from the current or previous batch",
