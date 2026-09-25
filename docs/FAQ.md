@@ -140,6 +140,14 @@ tasks independently.
 
 Failed and unfinished jobs rerun, while successful jobs carry their results forward. Add `--success` to rerun successful jobs too.
 
+### How can I edit a previous queue before rerunning only failed jobs?
+
+Run `rotari copy` to restore every job from the latest run, edit the queue with
+`change` or `remove`, then run `rotari run --failed`. Use `copy --run-id ID` to
+restore a specific run. The result filter belongs on `run`, so the restored
+queue remains available for inspection and editing before execution. With an
+empty queue, `run --failed` restores the latest run automatically.
+
 ### Does retrying an array job rerun every task?
 
 By default, only matching tasks rerun. Use `--partial-array=false` to rerun the entire array.
@@ -151,6 +159,17 @@ Cartesian-product combination as an independent job and exposes its values as
 ordinary `KEY=VALUE` environment variables. Matrix jobs can be combined with
 `--array`; the array is applied to each matrix combination. `include` and
 `exclude` customization is planned for a future workflow manifest.
+
+### Can I reference a matrix value inside the command string, like `$KEY`?
+
+Not directly. Rotari never parses the command as a shell string, so each
+argument is passed through literally and `$KEY` is not expanded. Since the
+matrix value is exported as an ordinary environment variable, invoke a shell
+explicitly to expand it, for example:
+
+```sh
+rotari add --matrix VALUE=1,3 -- sh -c 'echo hello > $VALUE.log'
+```
 
 ### Why did `copy` reuse the same job ID instead of generating a new one?
 
