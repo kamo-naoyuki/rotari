@@ -72,17 +72,12 @@ func cmdImport(args []string) int {
 		printError("usage: " + cliUsage("import"))
 		return 1
 	}
-	selectedProject, selectedRunIDs, err := splitProjectOrRunSelectors(positional)
-	if err != nil {
-		printError(err)
-		return 1
-	}
-	if selectedProject != "" && cliOptionSet(fs, "project-name") {
+	if len(positional) == 1 && cliOptionSet(fs, "project-name") {
 		printError("usage: " + cliUsage("import"))
 		return 1
 	}
-	if selectedProject != "" {
-		*projectName = selectedProject
+	if len(positional) == 1 {
+		*projectName = positional[0]
 	}
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
@@ -99,7 +94,12 @@ func cmdImport(args []string) int {
 		printError(err)
 		return 1
 	}
-	baseDir, resolvedProject, err := resolveImportDestination(*basedir, *projectName, selectedRunIDs)
+	baseDir, _, err := state.ResolveBaseDir(*basedir)
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	resolvedProject, err := state.ResolveProjectName(baseDir, *projectName)
 	if err != nil {
 		printError(err)
 		return 1
@@ -139,31 +139,6 @@ func cmdImport(args []string) int {
 		return 1
 	}
 	return 0
-}
-
-// resolveImportDestination resolves the destination project. A positional run
-// ID selects the project that owns that saved run.
-func resolveImportDestination(cliBaseDir, cliProjectName string, runIDs []string) (string, string, error) {
-	if len(runIDs) == 0 {
-		baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
-		if err != nil {
-			return "", "", err
-		}
-		projectName, err := state.ResolveProjectName(baseDir, cliProjectName)
-		return baseDir, projectName, err
-	}
-	baseDir, projectName, err := resolveExistingRunTarget(cliBaseDir, cliProjectName, runIDs[0])
-	if err != nil {
-		return "", "", err
-	}
-	paths, err := state.ResolveProjectPaths(baseDir, projectName)
-	if err != nil {
-		return "", "", err
-	}
-	if _, err := selectRunID(paths, runIDs[0]); err != nil {
-		return "", "", err
-	}
-	return baseDir, projectName, nil
 }
 
 func validateImportDestination(baseDir, projectName string, overwrite bool) error {

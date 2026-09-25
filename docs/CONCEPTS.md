@@ -144,13 +144,14 @@ rotari cancel JOB_ID OTHER_JOB_ID
 rotari cancel RUN_ID
 rotari suspend ATTEMPT_ID
 rotari resume ATTEMPT_ID
-rotari export RUN_ID
-rotari import FILE RUN_ID
+rotari export TARGET [OUTPUT_FILE]
+rotari import FILE PROJECT
 ```
 
 These positional forms cannot be combined with the corresponding `--run-id/-r`
-or `--job-id/-j` option, except that `export` merges positional run IDs with
-repeated `--run-id/-r`. `delete` without an ID still removes all saved runs.
+or `--job-id/-j` option. For export, `TARGET` names a project or run; use
+`--project-name/-p` when explicitly combining a project and a run. `delete`
+without an ID still removes all saved runs.
 For `cancel`, `suspend`, and `resume`, a positional `JOB_ID` or `ATTEMPT_ID`
 selects jobs the same way `--job-id/-j` does; a bare `RUN_ID` only locates the
 target run through the run registry and is not itself a job selector, so it

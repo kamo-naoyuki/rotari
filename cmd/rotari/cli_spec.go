@@ -200,8 +200,9 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "run-id", Description: "run ID to export; may be repeated", ValueName: "ID", Repeated: true},
 			cliFlagSpec{Name: "format", Description: "manifest format: yaml, toml, or json", ValueName: "FORMAT", Values: []string{"yaml", "toml", "json"}},
 			cliFlagSpec{Name: "template", Description: "print a starter workflow manifest"},
+			cliFlagSpec{Name: "output", Description: "write the workflow manifest to a file", ValueName: "FILE"},
 		),
-		Positional: "[PROJECT|RUN_ID ...]",
+		Positional: "[TARGET] [FILE]",
 	},
 	{
 		Name:        "import",
@@ -211,7 +212,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "dry-run", Description: "validate and print the import plan without writing"},
 			cliFlagSpec{Name: "json", Description: "print the import plan as JSON"},
 		),
-		Positional: "FILE [PROJECT|RUN_ID]",
+		Positional: "FILE [PROJECT]",
 	},
 	{
 		Name:        "remove",

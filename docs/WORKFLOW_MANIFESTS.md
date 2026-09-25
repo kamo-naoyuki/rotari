@@ -12,13 +12,15 @@ rotari import -p sweep experiment.yaml
 rotari run -p sweep
 ```
 
-The project or run ID can also be passed positionally. `export` accepts
-`[PROJECT|RUN_ID ...]`, and `import` accepts an optional `PROJECT` or `RUN_ID`
-after the file; a run ID selects the project that owns that saved run:
+The copy target and output file can be passed positionally. The target is a
+project or run ID; when both a project and a run must be named explicitly, use
+`--project-name` for the project:
 
 ```sh
-rotari export RUN_ID > experiment.yaml
-rotari import experiment.yaml RUN_ID
+rotari export sweep experiment.yaml
+rotari export RUN_ID experiment.yaml
+rotari export --project-name sweep RUN_ID experiment.yaml
+rotari import experiment.yaml sweep
 ```
 
 An unchanged successful job carries its result and output reference forward.

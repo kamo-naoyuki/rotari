@@ -80,6 +80,42 @@ func TestCmdExportTemplateWritesCommentedYAML(t *testing.T) {
 	}
 }
 
+func TestCmdExportWritesOutputFileAndCreatesParentDirectory(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-id", Command: []string{"true"}}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	outputPaths := []string{
+		filepath.Join(t.TempDir(), "flag", "nested", "experiment.yaml"),
+		filepath.Join(t.TempDir(), "positional", "nested", "experiment.yaml"),
+	}
+	args := [][]string{
+		{"--basedir", baseDir, "--project-name", "demo", "--output", outputPaths[0]},
+		{"--basedir", baseDir, "demo", outputPaths[1]},
+	}
+	for index, exportArgs := range args {
+		if code := cmdExport(exportArgs); code != 0 {
+			t.Fatalf("cmdExport(%q) exit code = %d, want 0", exportArgs, code)
+		}
+		data, err := os.ReadFile(outputPaths[index])
+		if err != nil {
+			t.Fatal(err)
+		}
+		manifest, err := workflow.Decode(strings.NewReader(string(data)), "yaml")
+		if err != nil {
+			t.Fatalf("output %q is not a workflow manifest: %v", outputPaths[index], err)
+		}
+		if len(manifest.Jobs) != 1 || strings.Join(manifest.Jobs[0].Command, " ") != "true" {
+			t.Fatalf("manifest = %#v", manifest)
+		}
+	}
+}
+
 func TestExportWorkflowMergesSameJobIDUsingLatestRun(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
@@ -128,7 +164,7 @@ func TestExportWorkflowRejectsDifferentJobIDsWithSameName(t *testing.T) {
 	}
 }
 
-func TestCmdExportResolvesPositionalRunIDAndProject(t *testing.T) {
+func TestCmdExportResolvesPositionalTargetAndExplicitProject(t *testing.T) {
 	t.Setenv(envMasterDir, t.TempDir())
 	t.Setenv(envProjectName, "")
 	baseDir := t.TempDir()
@@ -164,9 +200,16 @@ func TestCmdExportResolvesPositionalRunIDAndProject(t *testing.T) {
 		t.Fatalf("queue export = %#v", manifest)
 	}
 
-	code, output = captureWorkflowStdout(t, func() int { return cmdExport([]string{"--basedir", baseDir, "demo", runID}) })
-	if code != 0 || !strings.Contains(string(output), runID) {
-		t.Fatalf("cmdExport PROJECT RUN_ID code = %d, output = %q", code, output)
+	outputPath := filepath.Join(t.TempDir(), "nested", "export.yaml")
+	if code := cmdExport([]string{"--basedir", baseDir, "--project-name", "demo", runID, outputPath}); code != 0 {
+		t.Fatalf("cmdExport explicit project and RUN_ID exit code = %d", code)
+	}
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), runID) {
+		t.Fatalf("explicit project export does not contain %q: %s", runID, data)
 	}
 }
 
@@ -174,7 +217,8 @@ func TestCmdExportRejectsInvalidPositionalSelectors(t *testing.T) {
 	baseDir := t.TempDir()
 	for _, args := range [][]string{
 		{"--basedir", baseDir, "--project-name", "demo", "other"},
-		{"--basedir", baseDir, "demo", "other"},
+		{"--basedir", baseDir, "demo", "other", "third"},
+		{"--basedir", baseDir, "demo", "--output", "flag.yaml", "positional.yaml"},
 		{"--template", "demo"},
 	} {
 		if code, _ := captureWorkflowStdout(t, func() int { return cmdExport(args) }); code == 0 {

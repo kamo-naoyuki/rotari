@@ -423,27 +423,18 @@ func TestCmdImportResolvesPositionalProject(t *testing.T) {
 	}
 }
 
-func TestCmdImportResolvesPositionalRunIDToItsProject(t *testing.T) {
-	t.Setenv(envMasterDir, t.TempDir())
-	t.Setenv(envProjectName, "")
+func TestCmdImportTreatsPositionalRunIDAsProjectName(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, runID := writeWorkflowRunFixture(t, baseDir)
-	if err := registerRun(paths, runID); err != nil {
-		t.Fatal(err)
+	manifest := writeWorkflowFixture(t, "version: 1\njobs:\n  - command: [true]\n")
+	projectName := "20260925-120000-deadbeef"
+	if code := cmdImport([]string{"--basedir", baseDir, manifest, projectName}); code != 0 {
+		t.Fatalf("cmdImport positional project exit code = %d, want 0", code)
 	}
-	exported, err := exportWorkflow(baseDir, "demo", []string{runID})
+	paths, err := state.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := workflow.Encode(exported, "yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	manifest := writeWorkflowFixture(t, string(data))
-	if code := cmdImport([]string{"--dry-run", manifest, runID}); code != 0 {
-		t.Fatalf("cmdImport RUN_ID exit code = %d, want 0", code)
-	}
-	if code := cmdImport([]string{"--basedir", baseDir, manifest, "20260925-120000-deadbeef"}); code == 0 {
-		t.Fatal("cmdImport with unknown run ID succeeded, want failure")
+	if _, err := os.Stat(paths.QueueFile); err != nil {
+		t.Fatalf("queue was not written to positional project: %v", err)
 	}
 }

@@ -55,26 +55,36 @@ func cmdExport(args []string) int {
 	projectName := cliString(fs, "project-name", "")
 	format := cliString(fs, "format", "yaml")
 	template := cliBool(fs, "template", false)
+	outputPath := cliString(fs, "output", "")
 	var runIDs stringSliceFlag
 	cliValue(fs, &runIDs, "run-id")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if !validWorkflowFormat(*format) || (*template && (len(fs.Args()) != 0 || cliOptionSet(fs, "run-id") || cliOptionSet(fs, "basedir") || cliOptionSet(fs, "project-name"))) {
+	positional := fs.Args()
+	if len(positional) > 2 {
 		printError("usage: " + cliUsage("export"))
 		return 1
 	}
-	selectedProject, selectedRunIDs, err := splitProjectOrRunSelectors(fs.Args())
-	if err != nil {
-		printError(err)
-		return 1
-	}
-	if selectedProject != "" {
-		if cliOptionSet(fs, "project-name") {
+	if len(positional) == 2 {
+		if cliOptionSet(fs, "output") {
 			printError("usage: " + cliUsage("export"))
 			return 1
 		}
-		*projectName = selectedProject
+		*outputPath = positional[1]
+		positional = positional[:1]
+	}
+	if !validWorkflowFormat(*format) || (*template && (len(positional) != 0 || cliOptionSet(fs, "run-id") || cliOptionSet(fs, "basedir") || cliOptionSet(fs, "project-name"))) {
+		printError("usage: " + cliUsage("export"))
+		return 1
+	}
+	selectedRunIDs := []string(nil)
+	if len(positional) == 1 {
+		if cliOptionSet(fs, "project-name") || runIDPattern.MatchString(positional[0]) {
+			selectedRunIDs = []string{positional[0]}
+		} else {
+			*projectName = positional[0]
+		}
 	}
 	runIDs = append(runIDs, selectedRunIDs...)
 	if *template {
@@ -83,9 +93,8 @@ func cmdExport(args []string) int {
 			printError(err)
 			return 1
 		}
-		_, err = os.Stdout.Write(data)
-		if err != nil {
-			printErrorf("failed to write workflow manifest: %v", err)
+		if err := writeWorkflowManifest(data, *outputPath); err != nil {
+			printError(err)
 			return 1
 		}
 		return 0
@@ -100,11 +109,27 @@ func cmdExport(args []string) int {
 		printErrorf("failed to encode workflow manifest: %v", err)
 		return 1
 	}
-	if _, err := os.Stdout.Write(data); err != nil {
-		printErrorf("failed to write workflow manifest: %v", err)
+	if err := writeWorkflowManifest(data, *outputPath); err != nil {
+		printError(err)
 		return 1
 	}
 	return 0
+}
+
+func writeWorkflowManifest(data []byte, outputPath string) error {
+	if outputPath == "" {
+		if _, err := os.Stdout.Write(data); err != nil {
+			return fmt.Errorf("failed to write workflow manifest: %w", err)
+		}
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+	if err := os.WriteFile(outputPath, data, 0o600); err != nil {
+		return fmt.Errorf("failed to write workflow manifest: %w", err)
+	}
+	return nil
 }
 
 func validWorkflowFormat(format string) bool {
