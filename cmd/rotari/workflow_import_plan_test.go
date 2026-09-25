@@ -229,7 +229,7 @@ func TestCmdImportPlanColorsLinesByAction(t *testing.T) {
 	_, output := captureWorkflowStdout(t, func() int { return importEditedWorkflow(t, baseDir, manifest, "--dry-run") })
 	text := string(output)
 	for _, want := range []string{
-		ansiGreen + "reuse " + ansiReset,
+		ansiCyan + "reuse " + ansiReset,
 		ansiYellow + "accept " + ansiReset,
 		ansiGreen + "execute " + ansiReset,
 		ansiGreen + "command" + ansiReset + ansiWhite + "=" + ansiReset + ansiWhite + "echo new job" + ansiReset,

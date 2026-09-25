@@ -193,12 +193,15 @@ func writeImportPlan(plan importPlan, jsonOutput bool) error {
 	return nil
 }
 
-// printImportPlanLine colors a plan line by its action. Queued work and
-// reused results are green like other successful queue changes such as add;
-// accepted failures and removals are yellow because they need attention.
+// printImportPlanLine colors a plan line by its action. Queued work is green
+// like other successful queue changes such as add; reused results are cyan
+// because they are informational and do not execute; accepted failures and
+// removals are yellow because they need attention.
 func printImportPlanLine(action string, fields []string) {
 	labelColor := green
 	switch action {
+	case "reuse":
+		labelColor = cyan
 	case "accept", "remove":
 		labelColor = yellow
 	}

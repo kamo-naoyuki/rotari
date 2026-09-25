@@ -124,9 +124,9 @@
   (per task for arrays; the human view shows only the attempt ID, which
   encodes the run and job IDs, and the status) and lists exported source jobs that the manifest no
   longer describes as `remove`; each job line ends with `command=`, whose value
-  runs to the end of the line. On a TTY, `execute` and `reuse` lines are green
-  like other successful queue changes such as `add`, and `accept` and `remove`
-  lines are yellow, following the CLI color rules in
+  runs to the end of the line. On a TTY, `execute` lines are green like other
+  successful queue changes such as `add`, `reuse` lines are cyan because they
+  only report a carried result, and `accept` and `remove` lines are yellow, following the CLI color rules in
   [03](03-server-and-command-interfaces.md#cli-presentation). A source job is kept when the manifest names
   one of its attempts, another member of its matrix group is kept, its name is
   still queued, or it is unnamed, has no attempts, and an identical definition
