@@ -1,0 +1,250 @@
+# Running and recovering
+
+Background runs, reruns and retries, and controlling queued and running jobs.
+
+## Async runs
+
+```sh
+rotari run -p build --async
+rotari wait build
+```
+
+To add a command and then start the queue asynchronously:
+
+```sh
+rotari add go test ./...
+rotari run -p build --async
+```
+
+The async start message prints commands for checking status and cancelling the
+run. `wait` returns the overall run exit code. Pass a project name, run name,
+or run ID as a positional selector. Rotari checks them in that order, so a
+project name wins over a run name and a run ID when the same string is used for
+more than one kind of identifier. Use `--run-id/-r` to select a run explicitly.
+Pass multiple selectors to wait for independent async runs together:
+
+```sh
+rotari run -p build --async
+rotari run -p test --async
+rotari wait build test
+```
+
+`--async` detaches the run so it survives terminal closure. Use `rotari wait`
+with a project, run name, or run ID from any terminal, and `rotari cancel` to
+stop it. Without a selector, `wait` uses the single active project or asks you
+to choose when several projects are running.
+
+During synchronous `rotari run`, Ctrl-C requests cancellation and returns exit
+code 130 while cleanup finishes. Ctrl-D detaches without cancelling; Ctrl-Z
+only suspends the client.
+
+If the supervisor crashes or is killed, `show` reports the interrupted run.
+After confirming jobs have stopped, use `unlock` to keep the queue or
+`reset --recover` to discard it.
+
+## Recover and rerun
+### run and retry
+
+`run` can select jobs from the latest run, or from a saved run given by
+`--run-id/-r`, and execute them as a new run while carrying forward everything
+else. Result filters select which jobs in the queue are re-executed; jobs with
+completed results that do not match are carried forward. To inspect or edit the
+whole previous queue before selecting work, copy it first and apply the filter
+when running.
+
+```sh
+rotari run -p build --failed
+rotari run -p build --unfinished
+rotari run -p build --success
+rotari run -p build --failed --unfinished
+rotari run -j ATTEMPT_ID
+```
+
+`retry` is shorthand for `run --failed --unfinished`. It selects failed and
+unfinished jobs from the reference run, copies them into the next run with
+successful results carried forward, and executes that run:
+
+```sh
+rotari retry -p build
+```
+
+`--retry N` is different: it retries failed jobs within the same run, up to N
+additional attempts. The default is `0`; use `--retry -1` to retry indefinitely.
+Jobs explicitly cancelled by the user are not retried by this option. For
+example, these commands allow two additional attempts or retry indefinitely:
+
+```sh
+# Run the queue; failed jobs may be attempted twice more.
+rotari run --retry 2
+
+# Keep retrying failed jobs until they succeed or are cancelled.
+rotari run --retry -1
+```
+
+Without `--retry`, each failed job is attempted only once.
+
+The result filters select which jobs are actually re-executed:
+
+| Option | Executed jobs |
+| --- | --- |
+| `--failed` | Finished jobs with a non-zero exit code. |
+| `--unfinished` | Jobs without a completed result. |
+| `--success` | Finished jobs with exit code zero. |
+| `--failed --unfinished` | Failed or unfinished jobs. |
+
+Result filters and repeated `--job-id/-j` select jobs to re-execute. Finished
+non-matching jobs carry forward their previous result and output; jobs without
+a result remain unfinished. Use `--failed --unfinished` to recover everything
+that did not complete successfully.
+
+`--run-id/-r ID` selects a saved run as both the queue snapshot and filter
+reference. A non-empty queue requires confirmation; add `--overwrite` to
+replace it without asking:
+
+```sh
+rotari run -p build -r RUN_ID --failed
+```
+
+For array jobs, filters select matching tasks by default
+(`--partial-array=true`); use `--partial-array=false` to re-execute every task
+when any task matches.
+
+
+### copy and change
+
+Copy jobs from a previous run into the current queue without executing them:
+
+```sh
+rotari copy -p build
+rotari run -p build --failed
+```
+
+Without a selector, `copy` restores every job from the latest run. Then apply
+`--failed`, `--unfinished`, `--success`, or explicit job selectors to `run`.
+This keeps the full queue available for inspection and editing before choosing
+which jobs to execute. `copy --failed` and the other copy-side filters remain
+available when only a subset should be restored. When the queue is empty,
+`run --failed` restores the latest run automatically before selecting failed
+jobs.
+
+`copy` keeps the source job ID unless it would collide with the destination
+queue, and preserves dependencies between copied jobs. A non-empty queue
+requires confirmation before replacement; use `--append` to add jobs or
+`--overwrite` to replace it without asking. Selection options include
+`--failed`, `--unfinished`, `--success`, and repeated `--job-id/-j`. Copied jobs
+remain pending, with source run, status, and working-directory metadata kept
+for later inspection.
+
+Use `copy` when a selected job needs to be edited before it is run again. It
+restores jobs into the current queue without executing them; then `change` can
+modify their commands or options while preserving the saved run history:
+
+```sh
+rotari copy
+rotari change --job-name train -e local
+rotari change --job-name train --executor-option="-p gpu"
+rotari change --job-name train --depends-on prepare -- ./train-v2.sh
+rotari run --failed
+```
+
+`change` requires exactly one target selector: `--job-id/-j ID` or
+`--job-name NAME`. It also requires at least one change, such as a new command,
+`--executor/-e`, `--executor-option`, `--set-job-name`, or `--depends-on`.
+It replaces only the options specified, keeps the job ID, and edits the current
+batch. If the queue is empty, the latest run snapshot is restored first. Use
+`--run-id/-r` to select another run.
+
+## Queue and job control
+
+Remove jobs from the current queue without affecting saved run history:
+
+```sh
+rotari remove -p build --job-name train
+rotari remove -p build -j JOB_ID -j OTHER_JOB_ID
+```
+
+If the queue is empty, `remove` restores the latest run snapshot first. Use
+`--run-id/-r` to select another run. Specify exactly one target selector:
+`--job-name NAME` or one or more `--job-id/-j ID` options. Removing a job that
+another queued job depends on is rejected.
+
+Stop running jobs without stopping the supervisor:
+
+```sh
+rotari cancel -p build
+rotari cancel -j ATTEMPT_ID
+rotari cancel ATTEMPT_ID
+rotari cancel RUN_ID
+```
+
+`--job-id/-j` is optional. Without it, all running jobs in the queue are
+cancelled. With it, only the specified running jobs are cancelled, and the
+option may be repeated. `--job-id/-j` cannot be used with `--wait`, nor combined
+with a positional `JOB_ID`/`ATTEMPT_ID`/`RUN_ID`.
+
+Whole-run cancel (no `--job-id/-j`) and, for `local`-executor jobs, `--job-id/-j`
+cancel/suspend/resume all signal the runner or job by PID, which only means
+something on the host that actually runs it; run these commands from that
+host if it differs from wherever `cancel`/`suspend`/`resume` is invoked. See
+the [FAQ](FAQ.md#client-control-and-job-cancellation) for what happens
+when you can't.
+
+Temporarily suspend and resume running jobs:
+
+```sh
+rotari suspend -p build
+rotari suspend -j ATTEMPT_ID
+rotari resume -j ATTEMPT_ID
+rotari suspend ATTEMPT_ID
+rotari resume RUN_ID
+```
+
+Without `--job-id/-j`, all currently running jobs are affected. Repeat `--job-id/-j`
+to control selected jobs. Local jobs use `SIGSTOP`/`SIGCONT`; Slurm jobs use
+`scontrol suspend`/`scontrol resume`.
+
+Delete saved run logs while keeping queued commands:
+
+```sh
+rotari delete -p build
+rotari delete -p build RUN_ID
+```
+
+`--run-id/-r` removes only the specified run. Without it, all saved run logs are removed.
+
+The commands affect the current queue and saved run history differently:
+
+```mermaid
+flowchart LR
+  add([rotari add]) --> queue[(queue.json)]
+  change([rotari change]) --> queue
+  remove([rotari remove]) -->|remove selected jobs| queue
+
+  queue --> run([rotari run])
+  run --> active((running jobs))
+  run --> history[(runs/<run-id>/)]
+  run -->|empty after start| queue
+  history --> copy([rotari copy])
+  copy -->|all jobs| queue
+  run -.->|--run-id/-r: copy, then select/carry forward| queue
+  cancel([rotari cancel]) -->|stop selected/all| active
+  suspend([rotari suspend]) -->|pause selected/all| active
+  resume([rotari resume]) -->|continue selected/all| active
+  delete([rotari delete]) -->|delete saved runs| history
+
+  classDef edit fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+  classDef control fill:#0f766e,stroke:#115e59,color:#ffffff
+  classDef destructive fill:#b91c1c,stroke:#7f1d1d,color:#ffffff
+  class add,change,run,copy edit
+  class suspend,resume control
+  class remove,cancel,delete destructive
+
+  subgraph legend[Legend]
+    legendEdit[edit queue or run jobs]
+    legendControl[pause or resume jobs]
+    legendDestructive[destructive action]
+  end
+  class legendEdit edit
+  class legendControl control
+  class legendDestructive destructive
+```

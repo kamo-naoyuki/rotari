@@ -89,6 +89,8 @@ Do not assume that fixing one interface fixes the others.
 A user-visible behavior change may require updates to:
 
 * `README.md`
+* the user guides linked from the README `Documentation` section, such as
+  `docs/CONCEPTS.md`, `docs/RUNNING.md`, or `docs/CONFIGURATION.md`
 * `docs/FAQ.md`
 * `docs/INTERNALS.md`
 
@@ -106,7 +108,7 @@ Examples include changes to:
 * path rules
 * web/API behavior
 
-When behavior changes, inspect all three documents and update every affected document. When the behavior is covered by `docs/INTERNALS.md` or `docs/internals/`, keep the relevant internal note current and add or update links to the representative implementation and tests in the same change.
+When behavior changes, inspect these documents and update every affected one. When the behavior is covered by `docs/INTERNALS.md` or `docs/internals/`, keep the relevant internal note current and add or update links to the representative implementation and tests in the same change.
 
 ## Testing
 

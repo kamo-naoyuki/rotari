@@ -1,7 +1,7 @@
 # Overview and system model
 
 This is the entry point for Rotari's internal design notes. User-facing behavior
-belongs in [README.md](../../README.md); local implementation details belong in
+belongs in [README.md](../../README.md) and the user guides it links to; local implementation details belong in
 code and tests. Update these notes when a cross-cutting contract changes, and replace
 obsolete rules rather than accumulating history.
 

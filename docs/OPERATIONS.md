@@ -1,0 +1,97 @@
+# Operations
+
+Server management, run registry maintenance, shared filesystems, and the security model.
+
+## Server management
+
+The supervisor starts automatically when a run needs it and stops after the
+run finishes. These commands are mainly useful for inspection and cleanup:
+
+```sh
+rotari server status
+rotari server list
+rotari server shutdown
+```
+
+## Run registry maintenance
+
+Run IDs do not contain the base directory or project name. Rotari therefore
+keeps a master **run registry**, a lookup table that maps each run ID back to
+the base directory and project that own it. This lets commands such as
+`show --run-id/-r`, `wait --run-id/-r`, and `copy --run-id/-r` work without repeating
+`--basedir/-b` and `--project-name/-p`.
+
+The run data itself remains under the project state directory:
+
+```text
+<basedir>/projects/<project>/runs/<run-id>/
+```
+
+The registry is stored separately, with one JSON file per run:
+
+```text
+<masterdir>/runs/<run-id>.json
+```
+
+`<masterdir>` is selected from `--masterdir`, `ROTARI_MASTERDIR`,
+`$XDG_STATE_HOME/rotari/master`, or `~/.local/state/rotari/master`, in that
+order. A registry file contains the run ID, base directory, and project name;
+it is only a lookup index, not the source of the run's logs or results.
+
+`gc` is separate from inspection and recovery: it maintains this master
+registry after run data was removed outside rotari. First scan for orphaned
+registry entries:
+
+```sh
+rotari gc
+```
+
+The candidates and their locations are printed and cached for ten minutes.
+The temporary GC plan is stored at `<masterdir>/gc.json`.
+Malformed or invalid registry files are listed and left untouched; inspect
+their run data and repair or remove them manually.
+After reviewing them, apply that exact plan:
+
+```sh
+rotari gc --apply
+```
+
+The apply step removes registry entries only. It skips candidates whose
+registry location changed or whose run directory reappeared, and never deletes
+run data.
+
+## Shared filesystem use
+
+Hosts sharing `--basedir/-b`/`ROTARI_BASEDIR` on NFS can share a queue. Updates
+are coordinated through the shared state directory. This requires a consistent
+shared filesystem; it cannot fence a host after a network partition or repair
+inconsistent mounts. Confirm that jobs on a failed host have stopped before
+recovering the project. Separate project names keep their queue and run history
+separate, but the base directory and filesystem remain shared.
+
+After confirming a failed host's run has stopped, unlock that exact run:
+
+```sh
+rotari show -p build
+rotari unlock -p build RUN_ID
+```
+
+`unlock` verifies the run ID, removes a matching lock, and returns the project
+to queue collection. Never use it while the run may still be executing, or a
+second run could start for the same queue.
+
+## Security model
+
+Rotari assumes a trusted single-user or HPC/lab environment. The Web UI token
+provides HTTP authentication, not encryption.
+
+- **State files:** `--basedir/-b`, `--masterdir`, and their contents default to
+  shared `0755`/`0644` permissions. Set `ROTARI_PRIVATE_STATE=true` for
+  owner-only `0700`/`0600`; this affects only newly created paths and applies
+  to the whole `--basedir/-b`.
+- **Web UI:** without `ROTARI_WEB_AUTH_TOKEN` or `--auth-token`, bind it to
+  `127.0.0.1`; with a token, use only a trusted network or HTTPS proxy.
+
+None of this defends against another user with access to your own UID
+(e.g. root, or anyone who can read your home directory), only against other
+unprivileged users on a shared machine.

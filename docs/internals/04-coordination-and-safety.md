@@ -178,6 +178,6 @@ run data:
   records because load sampling is observational metadata, not run state.
 
 When behavior crosses these boundaries, add a focused test at the public
-command or persisted-state boundary. Keep CLI metadata, completion, README
-usage, and this document synchronized only where their contracts actually
+command or persisted-state boundary. Keep CLI metadata, completion, user-facing
+usage docs, and this document synchronized only where their contracts actually
 change.

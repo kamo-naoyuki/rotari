@@ -5,7 +5,8 @@ implementation lives in the split pages under [docs/internals](internals/), and
 cross-cutting rules remain here as the high-level index.
 
 This is an architectural map, not a command reference. User-facing behavior
-belongs in [../README.md](../README.md); implementation and tests remain in
+belongs in [../README.md](../README.md) and the user guides it links to under
+`docs/`; implementation and tests remain in
 code.
 
 When a behavior contract changes, update the relevant internal note in the
@@ -46,6 +47,6 @@ quickly.
   [`internal/state/paths.go`](../internal/state/paths.go), with path safety
   checks in [`cmd/rotari/main_test.go`](../cmd/rotari/main_test.go).
 - Update user-facing docs and relevant tests whenever a behavior contract
-  changes. The user-facing entry points are [`README.md`](../README.md) and
-  [`docs/FAQ.md`](FAQ.md); keep the relevant package tests alongside the
+  changes. The user-facing entry points are [`README.md`](../README.md), the
+  user guides it links to under `docs/`, and [`docs/FAQ.md`](FAQ.md); keep the relevant package tests alongside the
   implementation change.

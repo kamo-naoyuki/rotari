@@ -2,7 +2,7 @@
 
 Rotari is a lightweight workflow runner for repeatedly executing shell commands while managing dependencies, parallelism, logs, and run history.
 
-This FAQ gives short answers about rotari's behavior. See [README.md](../README.md) for usage and [INTERNALS.md](INTERNALS.md) for detailed contracts.
+This FAQ gives short answers about rotari's behavior. See [README.md](../README.md) and the user guides it links to for usage and [INTERNALS.md](INTERNALS.md) for detailed contracts.
 
 ## Quick navigation
 
@@ -316,9 +316,15 @@ duration such as `6h` or `168h` in `Since` to change the completed-job window.
 
 ### Can I create a config file from the Web UI?
 
-Yes. `View config` and `Generate config` can save configuration. The format is validated first, and invalid edits leave the existing file unchanged.
-The read-only static demo presents the same flow but rejects the final file
-write with the standard read-only message.
+Yes. `Generate config` on the all-projects or project page offers the valid
+global, basedir, and project locations and writes `config.toml` at the selected
+location after confirmation. `View config` shows the highest-priority resolved
+config for the current page and, on those pages, lets you save edits. Content is
+validated as JSON, TOML, or YAML according to the file's extension; invalid
+edits leave the existing file unchanged. Historical run pages only display
+their recorded config copies. Read-only Web mode and the static demo present
+the same flow but reject the final file write with the standard read-only
+message.
 
 ### How do I view an older job attempt in the Web UI?
 
@@ -338,7 +344,11 @@ It shows the saved runner lock and local coordinator socket/PID records. It is n
 
 ### Is `rotari web` safe to expose beyond `127.0.0.1`?
 
-Set `ROTARI_WEB_AUTH_TOKEN` (or `--auth-token`) and use HTTPS or a trusted network. Use `--allow-control=false` for read-only access. Do not expose the UI without a token.
+Set `ROTARI_WEB_AUTH_TOKEN` (or `--auth-token`) and use HTTPS or a trusted network. Do not expose the UI without a token. API clients send `Authorization: Bearer TOKEN` or `X-Rotari-Token: TOKEN`; browsers use Basic auth with username `rotari` and the token as password. This is authentication, not encryption. Environment variable values are never exposed; the UI shows only whether each variable is set.
+
+### Can I run the Web UI read-only?
+
+Yes. `--allow-control=false` (or `ROTARI_WEB_ALLOW_CONTROL=false`) keeps state, logs, job activity, and docs pages available and returns `403 Forbidden` for control and file-write APIs.
 
 ## Background server (supervisor)
 

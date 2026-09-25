@@ -96,6 +96,29 @@ layout.
   never cross the HTTP boundary; `Value` is populated only by the local
   `rotari env` CLI command.
 
+## Config viewing and generation
+
+The toolbar keeps `View config` and `Generate config` separate.
+
+- `loadWebConfigFiles` returns the highest-priority resolved config for the
+  current page (`effectiveConfigPath`). Run pages instead return the run's
+  recorded snapshots via `loadRunConfigFiles`; they are display-only.
+- `saveWebConfig` writes only the resolved current config, validating content
+  with `parseConfigContent` according to the file extension. Invalid content
+  leaves the file unchanged; with no existing config there is nothing to edit.
+- `webConfigTargets` offers `global` and `basedir` locations, plus `project` on
+  a project page. `generateWebConfig` writes the `config.toml` template there
+  and refuses when another config file already exists in that directory.
+- Both write paths are control routes, so `--allow-control=false` and static
+  export reject them with the read-only `403` message after the same UI flow.
+
+Representative tests: `TestWebConfigAPIReadsResolvedFiles`,
+`TestWebConfigAPIReadsRunConfigSnapshots`,
+`TestWebSaveConfigWritesOnlyTheResolvedCurrentConfig`,
+`TestWebSaveConfigRejectsReadOnlyMode`, and
+`TestStaticWebUsesGenerateConfigReadOnlyFlow` in
+[cmd/rotari/web_test.go](../../cmd/rotari/web_test.go).
+
 ## Desktop notifications
 
 `cmd/rotari/assets/web_app_notifications.js` shows a browser `Notification`

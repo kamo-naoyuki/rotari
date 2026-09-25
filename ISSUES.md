@@ -10,6 +10,7 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 - **Rule-diagnosis status entries share the diagnosis list** (`cmd/rotari/diagnose.go`, `diagnoseJobResult`; `internal/model/model.go`, `JobResult.Diagnoses`): the no-match and analysis-unavailable results are stored as ordinary `RuleDiagnosis` entries, so CLI, report, Web, and API consumers can tell them apart from real diagnoses only by comparing names. That persistence policy also lives in `cmd/rotari` rather than `internal/diagnose`.
 - **Saved rule diagnoses are never refreshed** (`cmd/rotari/diagnose.go`, `diagnoseJobResult`): results in `summary.json` are kept once written, so rule improvements do not reach earlier runs, and `show` can disagree with `diagnose --rules` for the same attempt without saying which rule version produced the saved result.
+- **`rotari completion --help` fails instead of printing help** (`cmd/rotari`, `completion` command): `--help` and `-h` are parsed as a shell name and exit with `unsupported shell`, and `completion install --help` does the same, so the command's options and behavior are only documented in `docs/CONFIGURATION.md`.
 
 ## Resolved
 
