@@ -486,6 +486,36 @@ section {
 .matrix-cell {
   cursor: pointer;
   min-width: 56px;
+  transition:
+    background 0.12s,
+    box-shadow 0.12s;
+}
+.matrix-cell:not(.matrix-missing):hover {
+  position: relative;
+  z-index: 1;
+  color: #fff;
+}
+td.matrix-success:hover {
+  background: rgba(99, 210, 151, 0.55);
+  box-shadow:
+    0 0 0 1px var(--good),
+    0 0 18px 2px rgba(99, 210, 151, 0.85);
+}
+td.matrix-failed:hover {
+  background: rgba(255, 124, 124, 0.6);
+  box-shadow:
+    0 0 0 1px var(--bad),
+    0 0 18px 2px rgba(255, 124, 124, 0.85);
+}
+td.matrix-blocked:hover,
+td.matrix-running:hover {
+  background: rgba(243, 201, 105, 0.5);
+  box-shadow:
+    0 0 0 1px var(--warn),
+    0 0 18px 2px rgba(243, 201, 105, 0.85);
+}
+td.matrix-pending:hover {
+  box-shadow: 0 0 12px 1px rgba(148, 163, 179, 0.7);
 }
 .matrix-success {
   background: rgba(99, 210, 151, 0.22);
