@@ -203,6 +203,8 @@ rotari web
 See the [web demo](https://kamo-naoyuki.github.io/rotari/) for a read-only UI
 using generated example data. For remote access, authentication, and read-only
 mode, see the [FAQ](docs/FAQ.md#web-ui) and [Security model](docs/OPERATIONS.md#security-model).
+The UI can also show browser desktop notifications when a run finishes or a job
+fails; see [Web browser notifications](docs/WEB_BROWSER_NOTIFICATIONS.md).
 
 ## Documentation
 
@@ -224,7 +226,6 @@ mode, see the [FAQ](docs/FAQ.md#web-ui) and [Security model](docs/OPERATIONS.md#
 - [Python client](python/README.md): installation, usage, and API
   documentation for the Python interface.
 - Integrations: [webhook notifications](docs/WEBHOOK_NOTIFICATIONS.md),
-  [web browser notifications](docs/WEB_BROWSER_NOTIFICATIONS.md),
   [LLM diagnosis](docs/LLM_DIAGNOSIS.md), and
   [local diagnosis rules](docs/LOCAL_DIAGNOSIS.md).
 
