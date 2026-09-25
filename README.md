@@ -8,7 +8,11 @@
 
 [![web demo](https://img.shields.io/website?url=https%3A%2F%2Fkamo-naoyuki.github.io%2Frotari%2F&label=web%20demo&style=flat)](https://kamo-naoyuki.github.io/rotari/) [![Go API](https://img.shields.io/badge/Go%20API-go%20doc-00ADD8)](https://kamo-naoyuki.github.io/rotari/go-api/) [![Python API](https://img.shields.io/badge/Python%20API-Sphinx-3776AB)](https://kamo-naoyuki.github.io/rotari/python-api/) [![Go CI](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml/badge.svg)](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml) [![Slurm + PBS CI](https://img.shields.io/github/actions/workflow/status/kamo-naoyuki/rotari/scheduler-integration.yml?branch=main&label=Slurm%20%2B%20PBS%20CI)](https://github.com/kamo-naoyuki/rotari/actions/workflows/scheduler-integration.yml) [![codecov](https://codecov.io/gh/kamo-naoyuki/rotari/graph/badge.svg)](https://codecov.io/gh/kamo-naoyuki/rotari) [![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=kamo-naoyuki_rotari&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kamo-naoyuki_rotari)
 
-[[Documentation]](#documentation) · [[FAQ]](docs/FAQ.md) · [[Python README]](python/README.md) · [[Internal docs]](docs/INTERNALS.md)
+<div align="center">
+
+[[Documentation]](#documentation)
+
+</div>
 
 
 **Rotari turns trial-and-error into a repeatable loop**: build a batch of jobs from the CLI, see which failed, fix only their commands, and run it again — without losing the history of what already worked.
@@ -188,11 +192,6 @@ failed result in the exported file, and imports it again. The second run
 executes only the fixed job; the others are reused or recorded as
 `success (accepted)`. See [Workflow manifests](docs/WORKFLOW_MANIFESTS.md).
 
-## Python interface
-
-See the [Python client README](python/README.md) for installation, usage, and
-API documentation.
-
 ## Local web UI
 
 Start the local web status UI separately from the job runner:
@@ -222,6 +221,8 @@ mode, see the [FAQ](docs/FAQ.md#web-ui) and [Security model](docs/OPERATIONS.md#
 - [Operations](docs/OPERATIONS.md): server management, run registry
   maintenance, shared filesystems, and the security model.
 - [FAQ](docs/FAQ.md): short answers about rotari's behavior.
+- [Python client](python/README.md): installation, usage, and API
+  documentation for the Python interface.
 - Integrations: [webhook notifications](docs/WEBHOOK_NOTIFICATIONS.md),
   [web browser notifications](docs/WEB_BROWSER_NOTIFICATIONS.md),
   [LLM diagnosis](docs/LLM_DIAGNOSIS.md), and
