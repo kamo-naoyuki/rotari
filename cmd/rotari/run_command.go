@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -507,12 +506,8 @@ func runServerSync(baseDir string, request serverinternal.Request, progress func
 	if err != nil {
 		return "", 1, err
 	}
-	data, err := os.ReadFile(filepath.Join(runDir, "summary.json"))
-	if err == nil {
-		var summary model.RunSummary
-		if json.Unmarshal(data, &summary) == nil {
-			return formatRunCompletion(paths, runID, summary), exitCode, nil
-		}
+	if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
+		return formatRunCompletion(paths, runID, summary), exitCode, nil
 	}
 	return fmt.Sprintf("=== Run finished ===\n  Project: %s\n  Run: %s\n  Exit code: %d", request.QueueName, runID, exitCode), exitCode, nil
 }

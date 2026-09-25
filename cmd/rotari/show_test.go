@@ -1705,3 +1705,35 @@ func TestCmdShowStageFiltersQueueJobs(t *testing.T) {
 		t.Fatalf("cmdShow -p --stage code=%d output:\n%s", code, text)
 	}
 }
+
+func TestCmdShowRejectsRunFromNewerRotari(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(paths.RunsDir, "run-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "summary.json"), []byte(`{"state_version":99,"run_id":"run-1","status":"finished"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	oldStderr := os.Stderr
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = writer
+	var output bytes.Buffer
+	code := captureShowStdout(t, &output, func() int {
+		return cmdShow([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", "run-1"})
+	})
+	os.Stderr = oldStderr
+	_ = writer.Close()
+	stderr, _ := io.ReadAll(reader)
+	if code != 1 || !strings.Contains(string(stderr), "upgrade rotari") {
+		t.Fatalf("cmdShow exit code = %d, stderr = %q", code, stderr)
+	}
+}

@@ -9,7 +9,6 @@
 package jobcontrol
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -314,12 +313,9 @@ func (controller Controller) attemptState(jobDir string) string {
 }
 
 func loadCommandSnapshot(runDir string) (model.Queue, error) {
-	var snapshot model.Queue
-	// codeql[go/path-injection]: runDir is produced by validated run path helpers and commands.json is fixed.
-	if data, err := os.ReadFile(filepath.Join(runDir, "commands.json")); err == nil { // NOSONAR: runDir is produced by validated run path helpers.
-		if err := json.Unmarshal(data, &snapshot); err != nil {
-			return model.Queue{}, fmt.Errorf("invalid command snapshot: %w", err)
-		}
+	snapshot, err := state.LoadQueue(filepath.Join(runDir, "commands.json"))
+	if err != nil {
+		return model.Queue{}, fmt.Errorf("invalid command snapshot: %w", err)
 	}
 	return snapshot, nil
 }

@@ -9,7 +9,17 @@ import (
 	"strings"
 )
 
+// StateVersion is the format version of queue.json, commands.json, and
+// summary.json. Files written before versioning have no version (0) and are
+// read as version 1. Bump it only for a change that older readers would
+// misread, such as a renamed, removed, or reinterpreted field, and keep
+// decoding every older version; adding an optional field does not need a new
+// version.
+const StateVersion = 1
+
 type Queue struct {
+	// StateVersion is set by the state package when the queue is written.
+	StateVersion           int             `json:"state_version,omitempty"`
 	DefaultExecutor        string          `json:"default_executor,omitempty"`
 	DefaultExecutorOptions []string        `json:"default_executor_options,omitempty"`
 	Commands               []QueuedCommand `json:"commands"`
@@ -331,13 +341,15 @@ func (result *JobResult) UnmarshalJSON(data []byte) error {
 }
 
 type RunSummary struct {
-	RunID      string      `json:"run_id"`
-	RunName    string      `json:"run_name,omitempty"`
-	Status     string      `json:"status"`
-	StartedAt  string      `json:"started_at"`
-	FinishedAt string      `json:"finished_at"`
-	ExitCode   int         `json:"exit_code"`
-	Results    []JobResult `json:"results"`
+	// StateVersion is set by the state package when the summary is written.
+	StateVersion int         `json:"state_version,omitempty"`
+	RunID        string      `json:"run_id"`
+	RunName      string      `json:"run_name,omitempty"`
+	Status       string      `json:"status"`
+	StartedAt    string      `json:"started_at"`
+	FinishedAt   string      `json:"finished_at"`
+	ExitCode     int         `json:"exit_code"`
+	Results      []JobResult `json:"results"`
 }
 
 type RunContext struct {

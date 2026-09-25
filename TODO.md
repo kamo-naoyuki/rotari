@@ -59,13 +59,12 @@ the experiment. See "Runs as the history of the loop" in
   options, and environment, with status changes such as failed to succeeded.
 - Consider a run summary: fixed, still failing, newly failing, and elapsed
   time.
-- Prerequisite: version the run state files. `summary.json`, `commands.json`,
-  and `queue.json` carry no schema version today (only workflow manifests do),
-  and old formats are converted ad hoc on decode. If runs are the long-lived
-  history of an experiment, runs written months ago must stay readable after
-  upgrades. Add a version field and a migration policy before building lineage
-  and diff features. Dagu's `SCHEMA_MIGRATION.md` is an example of publishing
-  a field mapping for a format change.
+- Run state versioning is in place: `queue.json`, `commands.json`, and
+  `summary.json` record `state_version`, older files are read as version 1,
+  and newer ones are rejected. See "State load and write contracts" in
+  [docs/internals/04-coordination-and-safety.md](docs/internals/04-coordination-and-safety.md)
+  for the migration policy. `meta.json`, `context.json`, and per-job files
+  are not versioned yet.
 - Building blocks: `runs/<run-id>/commands.json`, `JobOrigin` in
   [internal/model/model.go](internal/model/model.go), and the queue-versus-run
   change count in `compareQueueWithRun` in

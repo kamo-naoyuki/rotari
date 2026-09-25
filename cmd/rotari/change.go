@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -241,14 +240,9 @@ func loadChangeSnapshot(paths state.ProjectPaths, requestedRunID string) (model.
 	if err != nil {
 		return model.Queue{}, err
 	}
-	// codeql[go/path-injection]: runDir is produced by validatedRunDir and commands.json is fixed.
-	data, err := os.ReadFile(filepath.Join(runDir, "commands.json")) // NOSONAR: runDir is produced by validatedRunDir.
+	queue, err := state.ReadQueueFile(filepath.Join(runDir, "commands.json"))
 	if err != nil {
 		return model.Queue{}, fmt.Errorf("failed to load command snapshot: %w", err)
-	}
-	var queue model.Queue
-	if err := json.Unmarshal(data, &queue); err != nil {
-		return model.Queue{}, fmt.Errorf("failed to parse command snapshot: %w", err)
 	}
 	if len(queue.Commands) == 0 {
 		return model.Queue{}, errors.New("command snapshot has no jobs")

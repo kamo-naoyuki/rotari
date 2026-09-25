@@ -228,3 +228,71 @@ func TestLoadQueueMissingReturnsEmptyQueue(t *testing.T) {
 		t.Fatalf("missing queue = %#v, %v", queue, err)
 	}
 }
+
+func TestWriteJSONStampsStateVersion(t *testing.T) {
+	dir := t.TempDir()
+	queuePath := filepath.Join(dir, "queue.json")
+	summaryPath := filepath.Join(dir, "summary.json")
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job", Command: []string{"true"}}}}
+	if err := WriteJSON(queuePath, &queue); err != nil {
+		t.Fatal(err)
+	}
+	if queue.StateVersion != 0 {
+		t.Fatalf("WriteJSON changed the caller's queue: %#v", queue)
+	}
+	if err := WriteJSON(summaryPath, model.RunSummary{RunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{queuePath, summaryPath} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), `"state_version": 1`) {
+			t.Fatalf("%s does not record the state version:\n%s", path, data)
+		}
+	}
+	loaded, err := LoadQueue(queuePath)
+	if err != nil || loaded.StateVersion != model.StateVersion || len(loaded.Commands) != 1 {
+		t.Fatalf("LoadQueue = %#v, %v", loaded, err)
+	}
+}
+
+func TestLoadStateAcceptsLegacyAndRejectsNewerVersions(t *testing.T) {
+	dir := t.TempDir()
+	legacyQueue := filepath.Join(dir, "legacy-queue.json")
+	legacySummary := filepath.Join(dir, "legacy-summary.json")
+	if err := os.WriteFile(legacyQueue, []byte(`{"commands":[{"id":"job","command":["true"]}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacySummary, []byte(`{"run_id":"run-1","status":"finished","results":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if queue, err := LoadQueue(legacyQueue); err != nil || len(queue.Commands) != 1 || queue.StateVersion != 0 {
+		t.Fatalf("legacy queue = %#v, %v", queue, err)
+	}
+	if summary, err := LoadRunSummary(legacySummary); err != nil || summary.RunID != "run-1" {
+		t.Fatalf("legacy summary = %#v, %v", summary, err)
+	}
+
+	newerQueue := filepath.Join(dir, "newer-queue.json")
+	newerSummary := filepath.Join(dir, "newer-summary.json")
+	if err := os.WriteFile(newerQueue, []byte(`{"state_version":99,"commands":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(newerSummary, []byte(`{"state_version":99,"run_id":"run-2"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadQueue(newerQueue); !errors.Is(err, ErrNewerStateVersion) || !strings.Contains(err.Error(), "upgrade rotari") {
+		t.Fatalf("LoadQueue(newer) error = %v, want ErrNewerStateVersion", err)
+	}
+	if _, err := ReadQueueFile(newerQueue); !errors.Is(err, ErrNewerStateVersion) {
+		t.Fatalf("ReadQueueFile(newer) error = %v, want ErrNewerStateVersion", err)
+	}
+	if _, err := LoadRunSummary(newerSummary); !errors.Is(err, ErrNewerStateVersion) {
+		t.Fatalf("LoadRunSummary(newer) error = %v, want ErrNewerStateVersion", err)
+	}
+	if _, err := ReadQueueFile(filepath.Join(dir, "missing.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("ReadQueueFile(missing) error = %v, want os.ErrNotExist", err)
+	}
+}

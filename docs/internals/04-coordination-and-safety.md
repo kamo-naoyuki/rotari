@@ -164,7 +164,25 @@ run data:
   empty phase or timestamp receives the same defaults. Other read errors,
   including invalid JSON, are returned to the caller.
 - `LoadQueue` treats a missing `queue.json` as an empty queue. Other read and
-  decode errors are returned.
+  decode errors are returned. `ReadQueueFile` reads the same files but returns
+  `os.ErrNotExist` for a missing one, for callers such as restoring a run's
+  `commands.json`, where a missing snapshot is an error.
+- `queue.json`, `commands.json`, and `summary.json` carry `state_version`
+  (`model.StateVersion`). `Store.WriteJSON` stamps the current version on every
+  `model.Queue` and `model.RunSummary` it writes, without changing the
+  caller's value. `LoadQueue`, `ReadQueueFile`, and `LoadRunSummary` read files
+  without the field as version 1 and reject a newer version with
+  `ErrNewerStateVersion`, telling the user to upgrade, instead of dropping
+  fields this binary does not know. Read these files only through those
+  loaders so the check applies. Covered by `TestWriteJSONStampsStateVersion`
+  and `TestLoadStateAcceptsLegacyAndRejectsNewerVersions` in
+  [`internal/state/store_test.go`](../../internal/state/store_test.go).
+- Version policy: an added optional field does not change the version.
+  Renaming, removing, or reinterpreting a field bumps `model.StateVersion`;
+  the loaders then convert every older version in memory after decoding, and
+  the conversion is recorded here with the old and new field mapping.
+  Historical run files are never rewritten just to upgrade them. `meta.json`,
+  `context.json`, and per-job files are not versioned yet.
 - `LoadRunSummary` and `LoadContext` do not invent missing state. A missing
   or invalid file is returned as an error so callers can distinguish a run in
   progress from a completed run.

@@ -1548,13 +1548,9 @@ func colorExecutor(executor string) string {
 
 func loadRunJobSpecs(runDir string) map[string]model.JobSpec {
 	specs := make(map[string]model.JobSpec)
-	data, err := os.ReadFile(filepath.Join(runDir, "commands.json"))
-	if err == nil {
-		var queue model.Queue
-		if json.Unmarshal(data, &queue) == nil {
-			for _, job := range model.QueueToJobs(queue.Commands) {
-				specs[job.ID] = job
-			}
+	if queue, err := state.LoadQueue(filepath.Join(runDir, "commands.json")); err == nil {
+		for _, job := range model.QueueToJobs(queue.Commands) {
+			specs[job.ID] = job
 		}
 	}
 	entries, err := os.ReadDir(runDir)

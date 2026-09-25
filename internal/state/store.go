@@ -15,6 +15,41 @@ import (
 
 var ErrInvalidJSON = errors.New("invalid JSON")
 
+// ErrNewerStateVersion reports a state file written by a newer rotari whose
+// format this binary cannot read safely.
+var ErrNewerStateVersion = errors.New("state file is from a newer rotari")
+
+// checkStateVersion rejects a file whose state version is newer than
+// model.StateVersion, rather than silently dropping fields it does not know.
+func checkStateVersion(path string, version int) error {
+	if version > model.StateVersion {
+		return fmt.Errorf("%w: %s has state version %d, but this rotari reads up to %d; upgrade rotari", ErrNewerStateVersion, path, version, model.StateVersion)
+	}
+	return nil
+}
+
+// stampStateVersion sets the current state version on versioned state
+// values, so every write records the format it uses.
+func stampStateVersion(value any) any {
+	switch typed := value.(type) {
+	case model.Queue:
+		typed.StateVersion = model.StateVersion
+		return typed
+	case *model.Queue:
+		stamped := *typed
+		stamped.StateVersion = model.StateVersion
+		return stamped
+	case model.RunSummary:
+		typed.StateVersion = model.StateVersion
+		return typed
+	case *model.RunSummary:
+		stamped := *typed
+		stamped.StateVersion = model.StateVersion
+		return stamped
+	}
+	return value
+}
+
 type Store struct {
 	DirectoryMode os.FileMode
 	FileMode      os.FileMode
@@ -48,7 +83,7 @@ func (s Store) WriteJSON(path string, value any) error {
 	if err := ValidateStatePath(path); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(value, "", "  ")
+	data, err := json.MarshalIndent(stampStateVersion(value), "", "  ")
 	if err != nil {
 		return err
 	}
@@ -100,13 +135,24 @@ func LoadMeta(path string) (model.Meta, error) {
 	return meta, nil
 }
 
+// LoadQueue reads a queue.json or commands.json file, treating a missing file
+// as an empty queue.
 func LoadQueue(path string) (model.Queue, error) {
+	queue, err := ReadQueueFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return model.Queue{}, nil
+	}
+	return queue, err
+}
+
+// ReadQueueFile reads a queue.json or commands.json file and returns an
+// os.ErrNotExist error when it is missing.
+func ReadQueueFile(path string) (model.Queue, error) {
 	var queue model.Queue
-	store := NewStore(DirectoryMode(), FileMode())
-	if err := store.ReadJSON(path, &queue); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return model.Queue{}, nil
-		}
+	if err := NewStore(DirectoryMode(), FileMode()).ReadJSON(path, &queue); err != nil {
+		return model.Queue{}, err
+	}
+	if err := checkStateVersion(path, queue.StateVersion); err != nil {
 		return model.Queue{}, err
 	}
 	return queue, nil

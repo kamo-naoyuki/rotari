@@ -25,5 +25,8 @@ func LoadRunSummary(path string) (model.RunSummary, error) {
 	if err := NewStore(0o700, 0o600).ReadJSON(path, &summary); err != nil {
 		return model.RunSummary{}, err
 	}
+	if err := checkStateVersion(path, summary.StateVersion); err != nil {
+		return model.RunSummary{}, err
+	}
 	return summary, nil
 }

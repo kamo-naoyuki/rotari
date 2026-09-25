@@ -28,6 +28,10 @@ It is short, easy to type, and suggests repeatable workflow execution.
 
 No. State, history, and locks are stored in the filesystem. Shared multi-host use requires a filesystem that correctly supports locking and atomic operations.
 
+### Can an older or newer rotari read my saved runs?
+
+A newer rotari reads runs and queues written by older versions. `queue.json`, a run's `commands.json`, and its `summary.json` record a `state_version`; if a file comes from a newer rotari with a format this binary does not know, commands stop with an error asking you to upgrade instead of misreading it. This matters when several hosts share a basedir with different rotari versions.
+
 ### Can rotari manage jobs for multiple users like Slurm?
 
 No. Rotari has no accounts, permissions, quotas, or fair-share scheduling. Use a separate `--basedir` per user and do not share writable state or Web UI tokens between untrusted users. Slurm, PBS, or LSF remains responsible for scheduler-side identity and resource policy.
