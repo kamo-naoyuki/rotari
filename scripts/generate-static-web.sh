@@ -48,14 +48,20 @@ if [[ "${run_count}" -lt 2 ]]; then
 fi
 "${binary}" copy --run-id "${first_run_id}" --failed --unfinished --overwrite
 
-# A parameter sweep for the run page's matrix grid: LR=0.001 fails for every
-# seed and LR=0.1 fails only for SEED=3. "collect" still runs because it only
-# needs the sweep to finish.
-"${binary}" add -p sweep --job-name train --matrix LR=0.1,0.01,0.001 --matrix SEED=1,2,3 \
-	sh -c 'echo "lr=$LR seed=$SEED"; [ "$LR" != 0.001 ] && [ "$LR/$SEED" != 0.1/3 ]'
+# A parameter sweep for the run page's matrix grid. With three dimensions the
+# page shows one LR x SEED grid per MODEL: LR=0.001 fails everywhere,
+# LR=0.1 fails for every seed of the large model, and one small-model seed
+# fails on its own. "collect" still runs because it only needs the sweep to
+# finish.
+"${binary}" add -p sweep --job-name train \
+	--matrix LR=0.1,0.01,0.001 --matrix SEED=1,2,3 --matrix MODEL=small,large \
+	sh -c 'echo "lr=$LR seed=$SEED model=$MODEL"
+		case "$MODEL/$LR/$SEED" in
+		*/0.001/* | large/0.1/* | small/0.1/3) exit 1 ;;
+		esac'
 "${binary}" add -p sweep --job-name collect --depends-on-finished train \
 	sh -c 'echo collected the finished sweep results'
-"${binary}" run -p sweep --run-name "LR sweep" || true
+"${binary}" run -p sweep --run-name "Hyperparameter sweep" || true
 
 echo "generating static pages in ${output_dir}..."
 # Export every project, not only the one ROTARI_PROJECT_NAME selects.
