@@ -34,6 +34,8 @@ terminal closure. Use `rotari wait` with a project, run name, or run ID from any
 terminal, and `rotari cancel` to stop it. Without a selector, `wait` scans the
 resolved basedir: it waits when exactly one project is running, and lists the
 running projects and run IDs and asks for a selector when several are running.
+If the run stops without finishing, for example because its supervisor was
+killed, `wait` reports the interrupted run and exits with status 1.
 
 Coding agents should use `--async` with `wait`. A synchronous `run` requests
 cancellation when its client disconnects, so an agent's command timeout that

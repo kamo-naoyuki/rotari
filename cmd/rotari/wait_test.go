@@ -261,3 +261,62 @@ func TestResolveActiveWaitTargetsFindsAllProjects(t *testing.T) {
 		t.Fatalf("active targets = %#v, want alpha then beta", got)
 	}
 }
+
+func TestCmdWaitReportsInterruptedRunWithoutSummary(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	paths := writeInterruptedResetProject(t, baseDir)
+
+	oldStderr := os.Stderr
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = writer
+	code := cmdWait([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", "run-1", "--timeout", "10s"})
+	os.Stderr = oldStderr
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 || !strings.Contains(string(output), "run run-1 was interrupted before it wrote a summary") || strings.Contains(string(output), "timed out") {
+		t.Fatalf("cmdWait exit code = %d, stderr = %q", code, output)
+	}
+	if !strings.Contains(string(output), "rotari unlock") {
+		t.Fatalf("cmdWait stderr does not suggest unlock: %q", output)
+	}
+	if _, err := os.Stat(paths.MetaFile); err != nil {
+		t.Fatalf("cmdWait must not change project state: %v", err)
+	}
+}
+
+func TestCmdWaitKeepsWaitingForActiveRunWithoutSummary(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	paths := writeInterruptedResetProject(t, baseDir)
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+
+	oldStderr := os.Stderr
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = writer
+	code := cmdWait([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", "run-1", "--timeout", "1ms"})
+	os.Stderr = oldStderr
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 || !strings.Contains(string(output), "timed out waiting for run run-1") {
+		t.Fatalf("cmdWait exit code = %d, stderr = %q", code, output)
+	}
+}

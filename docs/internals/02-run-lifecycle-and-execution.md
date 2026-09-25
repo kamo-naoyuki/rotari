@@ -183,6 +183,15 @@
   (`cmdWorkerRun`) drive it. It expands array plans, dispatches to executors,
   and writes the run summary. Commands are enqueued by `add` and started by
   `run`; `run --async` selects the async worker path.
+- The server launches the async worker as `__worker-run` with arguments built
+  by `WorkerArgs` in [internal/run/worker_args.go](../../internal/run/worker_args.go)
+  and parsed by `parseWorkerRunArgs` in [cmd/rotari/main.go](../../cmd/rotari/main.go).
+  Bool flags must be written as `--name=BOOL`, because a separate value is
+  parsed as the first positional argument. Worker-only flags such as
+  `--selection` have no CLI metadata and are registered directly on the
+  FlagSet. `TestWorkerArgsParseBackToOptions` in
+  [cmd/rotari/worker_args_test.go](../../cmd/rotari/worker_args_test.go)
+  round-trips the arguments through the worker's parser.
 - Per-executor full-run orchestrators must not be added outside this path.
   Extend `JobExecutor` methods or `executeMixedRun` instead.
 - Run dispatch has a local concurrency lane and one independent lane per

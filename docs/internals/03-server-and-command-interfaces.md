@@ -35,6 +35,11 @@ Representative implementation and tests:
   must not implement queue or execution semantics itself.
 - `wait --json` emits one `RunSummary` object per requested run, using NDJSON
   when multiple IDs are supplied.
+- `wait` polls for the run's `summary.json`. While it is missing, `wait` also
+  inspects the project state without removing a stale lock; when the run is no
+  longer active (for example, interrupted because its supervisor exited), it
+  prints how to inspect and recover the run and exits 1 instead of waiting
+  forever. A malformed summary is treated as still being written.
 - `show --json` emits one object with the resolved location, available run
   summary, and saved commands. JSON modes are additive; default CLI output
   remains human-facing.

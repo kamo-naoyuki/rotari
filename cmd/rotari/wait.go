@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -321,12 +323,38 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 			printErrorf("failed to inspect run directory %s: %v", runDir, statErr)
 			return waitResult{exitCode: 1}
 		}
+		if errors.Is(err, os.ErrNotExist) {
+			if message, ended := runEndedWithoutSummary(paths, runID, summaryPath); ended {
+				printError(message)
+				return waitResult{exitCode: 1}
+			}
+		}
 		if !deadline.IsZero() && time.Now().After(deadline) {
 			printErrorf("timed out waiting for run %s", runID)
 			return waitResult{exitCode: 1, timedOut: true}
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
+}
+
+// runEndedWithoutSummary reports whether runID is no longer active although it
+// never wrote summaryPath, for example because its supervisor exited early.
+// It leaves a stale run lock in place for show, unlock, and reset --recover.
+func runEndedWithoutSummary(paths state.ProjectPaths, runID, summaryPath string) (string, bool) {
+	inspection, err := inspectProjectState(paths, false)
+	if err != nil || (inspection.State == projectRunning && inspection.RunID == runID) {
+		return "", false
+	}
+	// The run may have finished between the summary read and the state check.
+	if _, err := os.Stat(summaryPath); !errors.Is(err, os.ErrNotExist) {
+		return "", false
+	}
+	target := fmt.Sprintf("--basedir %s --project-name %s --run-id %s",
+		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
+	if inspection.State == projectInterrupted && inspection.RunID == runID {
+		return fmt.Sprintf("run %s was interrupted before it wrote a summary; inspect it with 'rotari show %s', then recover with 'rotari unlock %s'", runID, target, target), true
+	}
+	return fmt.Sprintf("run %s is not active and has no summary; inspect it with 'rotari show %s'", runID, target), true
 }
 
 func formatRunCompletion(paths state.ProjectPaths, runID string, summary model.RunSummary) string {

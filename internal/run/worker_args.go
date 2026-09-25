@@ -39,7 +39,9 @@ func WorkerArgs(options Options, baseDirExplicit bool, settingNames []string) []
 	if options.SourceRunID != "" {
 		args = append(args, "--source-run-id", options.SourceRunID)
 	}
-	args = append(args, "--partial-array", strconv.FormatBool(options.PartialArray))
+	// partial-array is a bool flag, so its value must be attached with "=";
+	// a separate argument would be parsed as the first positional.
+	args = append(args, "--partial-array="+strconv.FormatBool(options.PartialArray))
 	args = append(args, options.QueueName, options.RunID, options.RunName, strconv.Itoa(options.LocalConcurrency), strconv.Itoa(options.BatchMaxActive), strconv.Itoa(options.Retry), options.CWD)
 	return args
 }
