@@ -13,6 +13,7 @@ type testExecutor struct {
 	name        string
 	submitError error
 	array       bool
+	arrayCalls  int
 	options     [][]string
 }
 
@@ -27,6 +28,7 @@ func (fake *testExecutor) Submit(_ string, job model.JobSpec, options []string) 
 }
 
 func (fake *testExecutor) SubmitArray(_ string, jobs []model.JobSpec, options []string) ([]executor.JobHandle, error) {
+	fake.arrayCalls++
 	fake.options = append(fake.options, append([]string(nil), options...))
 	if fake.submitError != nil {
 		return nil, fake.submitError
@@ -37,6 +39,8 @@ func (fake *testExecutor) SubmitArray(_ string, jobs []model.JobSpec, options []
 	}
 	return handles, nil
 }
+
+func (fake *testExecutor) SupportsSparseArray() bool { return fake.array }
 
 func (fake *testExecutor) Wait(_ string, handle executor.JobHandle) model.JobResult {
 	return model.JobResult{ID: handle.Job.ID, Command: handle.Job.Command, ExitCode: 0}
@@ -283,6 +287,30 @@ func TestRunBatchLaneHandlesSubmissionAndCancellation(t *testing.T) {
 	}
 	if byID["failed-submit"].Error != "submit failed" || byID["cancelled"].Error != "cancelled" {
 		t.Fatalf("results = %#v", byID)
+	}
+}
+
+func TestRunBatchLaneUsesSparseArraySupport(t *testing.T) {
+	arrayExecutor := &testExecutor{name: "slurm", array: true}
+	jobs := []model.JobSpec{
+		{ID: "array-1", Executor: "slurm", Command: []string{"run"}, ArrayGroup: "array", ArrayTaskID: intPointer(1), ArrayFirst: 1, ArrayLast: 4},
+		{ID: "array-3", Executor: "slurm", Command: []string{"run"}, ArrayGroup: "array", ArrayTaskID: intPointer(3), ArrayFirst: 1, ArrayLast: 4},
+		{ID: "array-4", Executor: "slurm", Command: []string{"run"}, ArrayGroup: "array", ArrayTaskID: intPointer(4), ArrayFirst: 1, ArrayLast: 4},
+	}
+	results := make(chan model.JobResult, len(jobs))
+	workers := new(sync.WaitGroup)
+	workers.Add(1)
+	go RunBatchLane(workers, "/runs/run-1", model.Queue{}, arrayExecutor, jobs, 1, nil, results, BatchLaneCallbacks{
+		ValidatedJobDir: func(string, string) (string, error) { return "/job", nil },
+		JobCancelled:    func(string) bool { return false },
+	}, nil)
+	workers.Wait()
+	close(results)
+	if arrayExecutor.arrayCalls != 1 {
+		t.Fatalf("array submissions = %d, want 1", arrayExecutor.arrayCalls)
+	}
+	if len(results) != len(jobs) {
+		t.Fatalf("results = %d, want %d", len(results), len(jobs))
 	}
 }
 

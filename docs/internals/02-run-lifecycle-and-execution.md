@@ -53,6 +53,12 @@
   independent processes. Slurm, PBS, and LSF may submit a complete contiguous
   range as one native array; sparse selections fall back to independent
   submissions so scheduler support for sparse native arrays is not required.
+- A matrix `add` expands its repeated `KEY=VALUE[,VALUE...]` dimensions before
+  persistence. Every Cartesian-product combination is stored as an independent
+  queue command with its own generated job ID, a derived job name when the
+  base command has one, and ordinary `KEY=VALUE` environment entries.
+  Matrix and array expansion are mutually exclusive. `include` and `exclude`
+  rules are reserved for a future workflow manifest.
 - Result-based selection (`--failed`/`--unfinished`/`--success` in `copy`, and
   in rerun when `--partial-array=false`) and copied-job origin status operate on
   the unexpanded `QueuedCommand`, but results are recorded per expanded task ID.
@@ -140,6 +146,10 @@
   `ROTARI_ARRAY_TASK_ID` and related `ROTARI_ARRAY_*` variables. Job wrappers
   expose stable run, project, job, directory, working-directory, and
   executable-path variables prefixed with `ROTARI_`.
+- Slurm supports native sparse arrays, so a selected task list such as
+  `1,3,4` is submitted as `sbatch --array=1,3,4`. Other scheduler executors
+  use native arrays only for complete ranges and submit sparse selections as
+  independent jobs.
 - `QueuedCommand.Environment` stores user-supplied `KEY=VALUE` entries from
   `--env`. Values are passed to every executor and copied into run snapshots.
   Generated `ROTARI_*` variables override user values, and invalid names are

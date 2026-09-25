@@ -42,6 +42,29 @@ func TestValidateEnvironmentAndNames(t *testing.T) {
 	}
 }
 
+func TestParseAndExpandMatrix(t *testing.T) {
+	first, err := ParseMatrixDimension("python=3.10,3.11")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := ParseMatrixDimension("cuda=cpu,cuda")
+	if err != nil {
+		t.Fatal(err)
+	}
+	combinations := ExpandMatrix([]MatrixDimension{first, second})
+	if len(combinations) != 4 || combinations[0][0].Value != "3.10" || combinations[0][1].Value != "cpu" || combinations[3][0].Value != "3.11" || combinations[3][1].Value != "cuda" {
+		t.Fatalf("ExpandMatrix = %#v, want four ordered combinations", combinations)
+	}
+}
+
+func TestParseMatrixDimensionRejectsInvalidValues(t *testing.T) {
+	for _, value := range []string{"", "=value", "bad-key=value", "key=", "key=a,,b", "key=a,a"} {
+		if _, err := ParseMatrixDimension(value); err == nil {
+			t.Errorf("ParseMatrixDimension(%q) returned nil error", value)
+		}
+	}
+}
+
 func TestDependenciesReady(t *testing.T) {
 	job := JobSpec{ID: "train", DependsOn: []string{"prepare"}}
 	jobs := map[string]JobSpec{"prepare": {ID: "prepare"}}

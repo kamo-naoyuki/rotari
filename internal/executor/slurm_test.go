@@ -100,6 +100,34 @@ printf '54321;fake-host\n'
 	}
 }
 
+func TestSubmitSlurmSparseArrayWithFakeSlurm(t *testing.T) {
+	binDir := t.TempDir()
+	argumentsPath := filepath.Join(t.TempDir(), "sbatch-sparse-array-args")
+	writeExecutable(t, binDir, "sbatch", fmt.Sprintf(`#!/bin/sh
+printf '%%s\n' "$@" > %q
+printf '54321;fake-host\n'
+`, argumentsPath))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	runDir := filepath.Join(t.TempDir(), "runs", "run-1")
+	taskOne, taskThree, taskFour := 1, 3, 4
+	jobs := []model.JobSpec{
+		{ID: "array-1", ArrayGroup: "array", ArrayTaskID: &taskOne, ArrayFirst: 1, ArrayLast: 4, Command: []string{"echo", "hello"}},
+		{ID: "array-3", ArrayGroup: "array", ArrayTaskID: &taskThree, ArrayFirst: 1, ArrayLast: 4, Command: []string{"echo", "hello"}},
+		{ID: "array-4", ArrayGroup: "array", ArrayTaskID: &taskFour, ArrayFirst: 1, ArrayLast: 4, Command: []string{"echo", "hello"}},
+	}
+	if _, err := submitSlurmArray(testStore(), runDir, jobs, nil); err != nil {
+		t.Fatal(err)
+	}
+	arguments, err := os.ReadFile(argumentsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(arguments), "--array=1,3,4\n") {
+		t.Fatalf("sbatch arguments = %q, want sparse native array", arguments)
+	}
+}
+
 func TestSlurmStatusCommandsWithFakeSlurm(t *testing.T) {
 	binDir := t.TempDir()
 	writeExecutable(t, binDir, "squeue", "#!/bin/sh\nprintf 'PENDING\\n'\n")

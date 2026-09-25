@@ -35,6 +35,56 @@ type ArraySpec struct {
 	Tasks []int `json:"tasks,omitempty"`
 }
 
+type MatrixDimension struct {
+	Name   string
+	Values []string
+}
+
+type MatrixValue struct {
+	Name  string
+	Value string
+}
+
+func ParseMatrixDimension(value string) (MatrixDimension, error) {
+	name, valuesText, ok := strings.Cut(value, "=")
+	if !ok || !ValidEnvironmentName(name) {
+		return MatrixDimension{}, fmt.Errorf("want KEY=VALUE[,VALUE...]")
+	}
+	parts := strings.Split(valuesText, ",")
+	values := make([]string, 0, len(parts))
+	seen := make(map[string]bool, len(parts))
+	for _, part := range parts {
+		if part == "" {
+			return MatrixDimension{}, fmt.Errorf("matrix %q has an empty value", name)
+		}
+		if seen[part] {
+			return MatrixDimension{}, fmt.Errorf("matrix %q has duplicate value %q", name, part)
+		}
+		seen[part] = true
+		values = append(values, part)
+	}
+	return MatrixDimension{Name: name, Values: values}, nil
+}
+
+func ExpandMatrix(dimensions []MatrixDimension) [][]MatrixValue {
+	if len(dimensions) == 0 {
+		return nil
+	}
+	combinations := [][]MatrixValue{{}}
+	for _, dimension := range dimensions {
+		next := make([][]MatrixValue, 0, len(combinations)*len(dimension.Values))
+		for _, combination := range combinations {
+			for _, value := range dimension.Values {
+				values := append([]MatrixValue(nil), combination...)
+				values = append(values, MatrixValue{Name: dimension.Name, Value: value})
+				next = append(next, values)
+			}
+		}
+		combinations = next
+	}
+	return combinations
+}
+
 func ParseArrayRange(value string) (ArraySpec, error) {
 	values := strings.Split(value, ",")
 	if len(values) == 1 && strings.TrimSpace(values[0]) == "" {

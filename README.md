@@ -246,6 +246,21 @@ To run the array job through Slurm instead, pass the optional flag. The local
 The first positional argument selects the project name, for example
 `./scripts/example.sh --slurm scheduler-demo`.
 
+To register a matrix as independent jobs, repeat `--matrix` on `add`:
+
+```sh
+rotari add --job-name train \
+  --matrix python=3.10,3.11 \
+  --matrix cuda=cpu,cuda \
+  -- ./train.sh
+```
+
+This registers the Cartesian product as four jobs named like
+`train-python3.10-cudacpu`. Each job receives its values as ordinary
+environment variables, such as `python=3.10` and `cuda=cpu`. Matrix jobs have
+independent job IDs and cannot be combined with `--array`. `include` and
+`exclude` customization is planned for a future workflow manifest.
+
 ## Python interface
 
 See the [Python client README](python/README.md) for installation, usage, and
@@ -493,10 +508,10 @@ rotari add --array 1,3,4 -e slurm ./train.sh
 ```
 
 Each task is tracked separately. Local execution starts one process per task;
-Slurm, PBS, and LSF submit native scheduler arrays when the complete range is
-selected. Sparse task lists are submitted as independent jobs so they work
-with scheduler versions that do not support sparse native arrays. For each
-array task, rotari exposes:
+Slurm submits native scheduler arrays for both complete ranges and sparse task
+lists. PBS and LSF submit native arrays when the complete range is selected;
+sparse task lists are submitted as independent jobs for those executors. For
+each array task, rotari exposes:
 
 - `ROTARI_ARRAY_TASK_ID`: current task number
 - `ROTARI_ARRAY_FIRST`: first task number in the array

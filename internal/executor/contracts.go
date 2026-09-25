@@ -21,6 +21,10 @@ type ArraySubmitter interface {
 	SubmitArray(runDir string, jobs []model.JobSpec, options []string) ([]JobHandle, error)
 }
 
+type SparseArraySupporter interface {
+	SupportsSparseArray() bool
+}
+
 type Suspender interface {
 	Suspend(jobDir string) error
 	Resume(jobDir string) error

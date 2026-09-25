@@ -80,6 +80,59 @@ func TestResolveProjectNamePriority(t *testing.T) {
 		t.Fatalf("ambiguous project error = %q, want state directory", err)
 	}
 }
+func TestCmdAddExpandsMatrixIntoIndependentJobs(t *testing.T) {
+	baseDir := t.TempDir()
+	code := cmdAdd([]string{
+		"--basedir", baseDir, "--project-name", "demo", "--job-name", "train",
+		"--matrix", "python=3.10,3.11", "--matrix", "cuda=cpu,cuda", "echo", "hello",
+	})
+	if code != 0 {
+		t.Fatalf("cmdAdd exit code = %d, want 0", code)
+	}
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 4 {
+		t.Fatalf("queue contains %d commands, want 4", len(queue.Commands))
+	}
+	if queue.Commands[0].Name != "train-python3.10-cudacpu" || queue.Commands[3].Name != "train-python3.11-cudacuda" {
+		t.Fatalf("matrix job names = %q, %q", queue.Commands[0].Name, queue.Commands[3].Name)
+	}
+	if queue.Commands[0].ID == queue.Commands[1].ID {
+		t.Fatal("matrix jobs have the same job ID")
+	}
+	if !hasEnvironmentEntry(queue.Commands[0].Environment, "python=3.10") || !hasEnvironmentEntry(queue.Commands[0].Environment, "cuda=cpu") {
+		t.Fatalf("matrix environment = %#v", queue.Commands[0].Environment)
+	}
+}
+
+func hasEnvironmentEntry(environment []string, want string) bool {
+	for _, entry := range environment {
+		if entry == want {
+			return true
+		}
+	}
+	return false
+}
+
+func TestCmdAddRejectsMatrixWithArray(t *testing.T) {
+	baseDir := t.TempDir()
+	if code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "--array", "1-2", "--matrix", "python=3.11", "echo", "hello"}); code != 1 {
+		t.Fatalf("cmdAdd exit code = %d, want 1", code)
+	}
+}
+
+func TestCmdAddRejectsDuplicateMatrixKey(t *testing.T) {
+	baseDir := t.TempDir()
+	if code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "--matrix", "python=3.10", "--matrix", "python=3.11", "echo", "hello"}); code != 1 {
+		t.Fatalf("cmdAdd exit code = %d, want 1", code)
+	}
+}
 
 func TestResolvePathsRejectsProjectTraversal(t *testing.T) {
 	for _, projectName := range []string{"../outside", ".", "..", "nested/project"} {

@@ -24,7 +24,12 @@ func RunBatchLane(workers *sync.WaitGroup, runDir string, queue model.Queue, job
 			for end < len(jobs) && jobs[end].ArrayGroup == jobs[start].ArrayGroup {
 				end++
 			}
-			if submitter, ok := jobExecutor.(executor.ArraySubmitter); ok && CompleteArrayGroup(jobs[start:end], jobs[start].ArrayFirst, jobs[start].ArrayLast) {
+			completeArray := CompleteArrayGroup(jobs[start:end], jobs[start].ArrayFirst, jobs[start].ArrayLast)
+			sparseArray := false
+			if supporter, ok := jobExecutor.(executor.SparseArraySupporter); ok {
+				sparseArray = supporter.SupportsSparseArray()
+			}
+			if submitter, ok := jobExecutor.(executor.ArraySubmitter); ok && (completeArray || sparseArray) {
 				options := jobs[start].ExecutorOptions
 				if len(options) == 0 {
 					options = executorOptions

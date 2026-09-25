@@ -260,6 +260,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "stage", Description: "stage that contains the job", ValueName: "NAME"},
 			cliFlagSpec{Name: "depends-on", Description: "name of a prerequisite job or stage; may be repeated", ValueName: "NAME"},
 			cliFlagSpec{Name: "array", Description: "create an array job range or selected tasks", ValueName: "FIRST-LAST|TASK[,TASK...]"},
+			cliFlagSpec{Name: "matrix", Description: "expand a command into jobs from KEY=VALUE[,VALUE...] dimensions; may be repeated", ValueName: "KEY=VALUE[,VALUE...]"},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
 		),
 		Positional: "<command ...>",

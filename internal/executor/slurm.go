@@ -55,6 +55,8 @@ func (slurm Slurm) SubmitArray(runDir string, jobs []model.JobSpec, options []st
 	return submitSlurmArray(slurm.Store, runDir, jobs, options)
 }
 
+func (Slurm) SupportsSparseArray() bool { return true }
+
 func (slurm Slurm) Wait(runDir string, handle JobHandle) model.JobResult {
 	metadata := slurmJobMetadata{
 		Executor:   "slurm",
@@ -189,7 +191,7 @@ func submitSlurmArray(store state.Store, runDir string, jobs []model.JobSpec, ex
 	}
 	args := []string{
 		"--parsable",
-		fmt.Sprintf("--array=%d-%d", first, last),
+		"--array=" + slurmArrayOption(jobs, first, last),
 		"--job-name=rotari-array",
 		"--output=/dev/null",
 		"--error=/dev/null",
@@ -219,6 +221,31 @@ func submitSlurmArray(store state.Store, runDir string, jobs []model.JobSpec, ex
 		handles = append(handles, JobHandle{Job: job, Native: nativeID})
 	}
 	return handles, nil
+}
+
+func slurmArrayOption(jobs []model.JobSpec, first, last int) string {
+	if completeTaskRange(jobs, first, last) {
+		return fmt.Sprintf("%d-%d", first, last)
+	}
+	tasks := make([]string, 0, len(jobs))
+	for _, job := range jobs {
+		tasks = append(tasks, strconv.Itoa(*job.ArrayTaskID))
+	}
+	return strings.Join(tasks, ",")
+}
+
+func completeTaskRange(jobs []model.JobSpec, first, last int) bool {
+	if len(jobs) != last-first+1 {
+		return false
+	}
+	seen := make(map[int]bool, len(jobs))
+	for _, job := range jobs {
+		if job.ArrayTaskID == nil || *job.ArrayTaskID < first || *job.ArrayTaskID > last || seen[*job.ArrayTaskID] {
+			return false
+		}
+		seen[*job.ArrayTaskID] = true
+	}
+	return len(seen) == len(jobs)
 }
 
 func waitSlurmJob(store state.Store, runDir string, job slurmJobMetadata) model.JobResult {

@@ -222,6 +222,8 @@ func cmdAdd(args []string) int {
 	var dependsOn stringSliceFlag
 	cliValue(fs, &dependsOn, "depends-on")
 	arrayRange := cliString(fs, "array", "")
+	var matrixValues stringSliceFlag
+	cliValue(fs, &matrixValues, "matrix")
 	quiet := cliBool(fs, "quiet", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
@@ -240,6 +242,25 @@ func cmdAdd(args []string) int {
 		}
 		array = &parsed
 	}
+	if len(matrixValues) > 0 && array != nil {
+		printError("--matrix cannot be combined with --array")
+		return 1
+	}
+	dimensions := make([]model.MatrixDimension, 0, len(matrixValues))
+	dimensionNames := make(map[string]bool, len(matrixValues))
+	for _, value := range matrixValues {
+		dimension, parseErr := model.ParseMatrixDimension(value)
+		if parseErr != nil {
+			printErrorf("invalid --matrix: %v", parseErr)
+			return 1
+		}
+		if dimensionNames[dimension.Name] {
+			printErrorf("invalid --matrix: duplicate key %q", dimension.Name)
+			return 1
+		}
+		dimensionNames[dimension.Name] = true
+		dimensions = append(dimensions, dimension)
+	}
 	baseDir, _, err := resolveBaseDir(*basedir)
 	if err != nil {
 		printErrorf("failed to resolve state directory: %v", err)
@@ -254,7 +275,8 @@ func cmdAdd(args []string) int {
 		printErrorf("invalid --env: %v", err)
 		return 1
 	}
-	message, err := enqueueCommandWithStageAndWorkingDirectory(baseDir, queueName, left, *executor, executorOptions, environment, *workingDirectory, *jobName, *stage, dependsOn, array)
+	commands := expandMatrixCommands(left, *executor, executorOptions, environment, *workingDirectory, *jobName, *stage, dependsOn, dimensions)
+	message, err := enqueueCommandsWithStageAndWorkingDirectory(baseDir, queueName, commands, array)
 	if err != nil {
 		printError(err)
 		return 1
@@ -263,6 +285,37 @@ func cmdAdd(args []string) int {
 		fmt.Println(colorKeyValueMessage(message, green))
 	}
 	return 0
+}
+
+func expandMatrixCommands(command []string, executor string, executorOptions, environment []string, workingDirectory, jobName, stage string, dependsOn []string, dimensions []model.MatrixDimension) []QueuedCommand {
+	if len(dimensions) == 0 {
+		return []QueuedCommand{{Command: command, Executor: executor, ExecutorOptions: executorOptions, Environment: environment, WorkingDirectory: workingDirectory, Name: jobName, Stage: stage, DependsOn: dependsOn}}
+	}
+	commands := make([]QueuedCommand, 0)
+	for _, combination := range model.ExpandMatrix(dimensions) {
+		matrixEnvironment := append([]string(nil), environment...)
+		matrixName := jobName
+		for _, item := range combination {
+			matrixEnvironment = append(matrixEnvironment, item.Name+"="+item.Value)
+			if matrixName != "" {
+				matrixName += "-" + item.Name + sanitizeMatrixName(item.Value)
+			}
+		}
+		commands = append(commands, QueuedCommand{Command: command, Executor: executor, ExecutorOptions: executorOptions, Environment: matrixEnvironment, WorkingDirectory: workingDirectory, Name: matrixName, Stage: stage, DependsOn: dependsOn})
+	}
+	return commands
+}
+
+func sanitizeMatrixName(value string) string {
+	var builder strings.Builder
+	for _, character := range value {
+		if (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || (character >= '0' && character <= '9') || character == '_' || character == '.' {
+			builder.WriteRune(character)
+		} else {
+			builder.WriteByte('_')
+		}
+	}
+	return builder.String()
 }
 
 // cmdRun starts a run, optionally repopulating the queue from historical run
@@ -1337,11 +1390,28 @@ func enqueueCommandWithWorkingDirectory(baseDir, queueName string, command []str
 }
 
 func enqueueCommandWithStageAndWorkingDirectory(baseDir, queueName string, command []string, executor string, executorOptions, environment []string, workingDirectory, jobName, stage string, dependsOn []string, arrays ...*ArraySpec) (string, error) {
-	if queueName == "" || len(command) == 0 {
+	commands := []QueuedCommand{{Command: command, Executor: executor, ExecutorOptions: executorOptions, Environment: environment, WorkingDirectory: workingDirectory, Name: jobName, Stage: stage, DependsOn: dependsOn}}
+	return enqueueCommandsWithStageAndWorkingDirectory(baseDir, queueName, commands, firstArray(arrays))
+}
+
+func firstArray(arrays []*ArraySpec) *ArraySpec {
+	if len(arrays) == 0 {
+		return nil
+	}
+	return arrays[0]
+}
+
+func enqueueCommandsWithStageAndWorkingDirectory(baseDir, queueName string, commands []QueuedCommand, array *ArraySpec) (string, error) {
+	if queueName == "" || len(commands) == 0 {
 		return "", errors.New("project name and command are required")
 	}
-	if err := model.ValidateEnvironment(environment); err != nil {
-		return "", fmt.Errorf("invalid environment: %w", err)
+	for index := range commands {
+		if array != nil {
+			commands[index].Array = array
+		}
+		if err := model.ValidateEnvironment(commands[index].Environment); err != nil {
+			return "", fmt.Errorf("invalid environment: %w", err)
+		}
 	}
 	paths, err := resolvePaths(baseDir, queueName)
 	if err != nil {
@@ -1366,28 +1436,26 @@ func enqueueCommandWithStageAndWorkingDirectory(baseDir, queueName string, comma
 	if err != nil {
 		return "", err
 	}
-	if executor != "" && !isKnownExecutor(executor) {
-		return "", fmt.Errorf("unsupported executor: %s", executor)
+	for index := range commands {
+		if commands[index].Executor != "" && !isKnownExecutor(commands[index].Executor) {
+			return "", fmt.Errorf("unsupported executor: %s", commands[index].Executor)
+		}
+		commands[index].ID = makeJobID()
 	}
-	var array *ArraySpec
-	if len(arrays) > 0 {
-		array = arrays[0]
-	}
-	job := QueuedCommand{
-		ID: makeJobID(), Command: command, WorkingDirectory: workingDirectory, Executor: executor, ExecutorOptions: executorOptions, Environment: environment, Name: jobName, Stage: stage, DependsOn: dependsOn, Array: array,
-	}
-	if err := validateQueueJobs(Queue{Commands: append(append([]QueuedCommand(nil), queue.Commands...), job)}); err != nil {
+	if err := validateQueueJobs(Queue{Commands: append(append([]QueuedCommand(nil), queue.Commands...), commands...)}); err != nil {
 		return "", err
 	}
 	// Dependencies may refer to jobs added later, so only duplicate names are checked here.
-	if job.Name != "" {
-		for _, existing := range queue.Commands {
-			if existing.Name == job.Name {
-				return "", fmt.Errorf("invalid dependencies: duplicate job name: %s", job.Name)
+	for _, command := range commands {
+		if command.Name != "" {
+			for _, existing := range queue.Commands {
+				if existing.Name == command.Name {
+					return "", fmt.Errorf("invalid dependencies: duplicate job name: %s", command.Name)
+				}
 			}
 		}
 	}
-	queue.Commands = append(queue.Commands, job)
+	queue.Commands = append(queue.Commands, commands...)
 	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
 		return "", err
 	}
@@ -1396,11 +1464,14 @@ func enqueueCommandWithStageAndWorkingDirectory(baseDir, queueName string, comma
 	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		return "", err
 	}
-	message := fmt.Sprintf("submitted project=%s job_id=%s", queueName, job.ID)
-	if job.Name != "" {
-		message += fmt.Sprintf(" job_name=%s", job.Name)
+	message := fmt.Sprintf("submitted project=%s jobs=%d", queueName, len(commands))
+	if len(commands) == 1 {
+		message = fmt.Sprintf("submitted project=%s job_id=%s", queueName, commands[0].ID)
+		if commands[0].Name != "" {
+			message += fmt.Sprintf(" job_name=%s", commands[0].Name)
+		}
 	}
-	return fmt.Sprintf("%s command=%s", message, joinCommand(command)), nil
+	return fmt.Sprintf("%s command=%s", message, joinCommand(commands[0].Command)), nil
 }
 
 func startServerRun(baseDir, queueName, runName string, localConcurrency, batchMaxActive, retry int, executor string, executorOptions []string, selection string, jobIDs []string, sourceRunID string, partialArray bool, onDone func(), cwd string, executorSettings executorRunSettingsMap) (string, error) {

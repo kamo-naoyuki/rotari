@@ -116,7 +116,9 @@ Synchronous runs return `0` if all jobs succeed and `1` if any job fails. `--asy
 
 ### Can an array run only selected task IDs?
 
-Yes. Use `--array 1,3,4`; ranges such as `1-10` are also supported.
+Yes. Use `--array 1,3,4`; ranges such as `1-10` are also supported. Slurm
+uses its native sparse array for selected task IDs; PBS and LSF submit those
+tasks independently.
 
 ### I ran `rotari retry` — which jobs actually rerun?
 
@@ -125,6 +127,14 @@ Failed and unfinished jobs rerun, while successful jobs carry their results forw
 ### Does retrying an array job rerun every task?
 
 By default, only matching tasks rerun. Use `--partial-array=false` to rerun the entire array.
+
+### Can I submit a matrix of jobs?
+
+Yes. Repeat `--matrix KEY=VALUE[,VALUE...]` with `add`. Rotari registers each
+Cartesian-product combination as an independent job and exposes its values as
+ordinary `KEY=VALUE` environment variables, just like `--env`. Matrix jobs cannot be combined with
+`--array`. `include` and `exclude` customization is planned for a future
+workflow manifest.
 
 ### Why did `copy` reuse the same job ID instead of generating a new one?
 
