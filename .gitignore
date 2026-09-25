@@ -37,6 +37,7 @@ slurm-*.out
 /.gomodcache/
 
 activate_python.sh
+dagu/
 
 # Local refactoring notes and unresolved issues
 /ISSUES.md
