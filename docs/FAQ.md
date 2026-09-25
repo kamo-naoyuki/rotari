@@ -58,6 +58,10 @@ Run `rotari show --basedirs`, then inspect one with `rotari show --basedir DIR`.
 
 Put `config.yaml`, `config.toml`, or `config.json` in `$XDG_CONFIG_HOME/rotari` (normally `~/.config/rotari`), the basedir, or `projects/<project>/`. Priority is project, basedir, then global; CLI options and environment variables override config files. If more than one config format exists in the same location, rotari reports an error rather than silently choosing one.
 
+### How do I find every config file below a basedir?
+
+Run `rotari config --list --basedir DIR`. It prints global and basedir paths, then each project file as `PROJECT: PATH`. Add `--project-name NAME` to limit project-specific entries to that project. This inventory includes files that are not selected by normal priority resolution.
+
 ### How do I see every configurable option?
 
 Run `rotari config`, or use `--output FILE` to save a template. Without `--output`, rotari can offer the applicable global, basedir, and project locations as well as stdout. The selected config is copied into each run directory so historical views retain the configuration used at that time, even after the original file changes.

@@ -246,10 +246,94 @@ func TestConfigListIncludesMixedFormatsAcrossScopes(t *testing.T) {
 		t.Fatalf("cmdConfig exit code = %d", code)
 	}
 	stdout := string(data)
+	if strings.Contains(stdout, "Common:\n") || strings.Contains(stdout, "Projects:\n") || !strings.Contains(stdout, "demo: "+filepath.Join(projectDir, "config.yaml")+"\n") {
+		t.Fatalf("config list has unexpected format:\n%s", stdout)
+	}
 	for _, path := range paths {
 		if !strings.Contains(stdout, path) {
 			t.Errorf("config list does not contain %q:\n%s", path, stdout)
 		}
+	}
+}
+
+func TestConfigListIncludesAllProjectConfigs(t *testing.T) {
+	baseDir := t.TempDir()
+	paths := map[string]string{}
+	for _, project := range []string{"alpha", "beta"} {
+		projectDir := filepath.Join(baseDir, "projects", project)
+		if err := os.MkdirAll(projectDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(projectDir, "config.yaml")
+		if err := os.WriteFile(path, []byte("{}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		paths[project] = path
+	}
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code := cmdConfig([]string{"--basedir", baseDir, "--list"})
+	os.Stdout = oldStdout
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 {
+		t.Fatalf("cmdConfig exit code = %d", code)
+	}
+	stdout := string(data)
+	for project, path := range paths {
+		if !strings.Contains(stdout, project+": "+path+"\n") {
+			t.Errorf("config list does not contain %s config %q:\n%s", project, path, stdout)
+		}
+	}
+}
+
+func TestConfigListLimitsProjectsToProjectName(t *testing.T) {
+	baseDir := t.TempDir()
+	paths := map[string]string{}
+	for _, project := range []string{"alpha", "beta"} {
+		projectDir := filepath.Join(baseDir, "projects", project)
+		if err := os.MkdirAll(projectDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(projectDir, "config.yaml")
+		if err := os.WriteFile(path, []byte("{}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		paths[project] = path
+	}
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code := cmdConfig([]string{"--basedir", baseDir, "--project-name", "alpha", "--list"})
+	os.Stdout = oldStdout
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 {
+		t.Fatalf("cmdConfig exit code = %d", code)
+	}
+	stdout := string(data)
+	if !strings.Contains(stdout, "alpha: "+paths["alpha"]+"\n") {
+		t.Errorf("config list does not contain alpha config %q:\n%s", paths["alpha"], stdout)
+	}
+	if strings.Contains(stdout, paths["beta"]) {
+		t.Errorf("config list includes beta config %q:\n%s", paths["beta"], stdout)
 	}
 }
 

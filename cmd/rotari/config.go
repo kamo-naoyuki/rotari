@@ -243,22 +243,43 @@ func configPathsForRun(baseDir, projectName string) []string {
 	return nil
 }
 
-// configListPaths returns every config file found across all scopes (global,
-// basedir, project), for `config --list`. Unlike configPathsForRun, it does
-// not stop at the first scope that has files: --list is meant to show the
-// user everything, not just the one scope that would take effect.
-func configListPaths(baseDir, projectName string) []string {
-	var paths []string
+// configListPaths returns every config file found across all scopes for
+// `config --list`. Unlike configPathsForRun, it does not stop at the first
+// scope that has files: --list is meant to show the user everything, not just
+// the one scope that would take effect.
+func configListPaths(baseDir, projectName string) (common []string, projects map[string][]string) {
+	projects = make(map[string][]string)
 	if configHome, err := configHomeDir(); err == nil {
-		paths = append(paths, configFilePaths(configHome)...)
+		common = append(common, configFilePaths(configHome)...)
 	}
-	paths = append(paths, configFilePaths(baseDir)...)
+	common = append(common, configFilePaths(baseDir)...)
 	if projectName != "" {
-		if projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), projectName); err == nil {
-			paths = append(paths, configFilePaths(projectDir)...)
+		projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), projectName)
+		if err != nil {
+			return common, projects
+		}
+		if paths := configFilePaths(projectDir); len(paths) > 0 {
+			projects[projectName] = paths
+		}
+		return common, projects
+	}
+	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
+	if err != nil {
+		return common, projects
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || !state.IsValidPathElement(entry.Name()) {
+			continue
+		}
+		projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), entry.Name())
+		if err != nil {
+			continue
+		}
+		if paths := configFilePaths(projectDir); len(paths) > 0 {
+			projects[entry.Name()] = paths
 		}
 	}
-	return paths
+	return common, projects
 }
 
 func configValue(name string) (any, bool) {
@@ -437,13 +458,25 @@ func cmdConfig(args []string) int {
 			printError("--list cannot be combined with --format or --output")
 			return 1
 		}
-		project, err := configProjectName(resolvedBaseDir, *projectName)
-		if err != nil {
-			printError(err.Error())
+		if *projectName != "" && !state.IsValidPathElement(*projectName) {
+			printErrorf("invalid project name %q", *projectName)
 			return 1
 		}
-		for _, path := range configListPaths(resolvedBaseDir, project) {
+		common, projects := configListPaths(resolvedBaseDir, *projectName)
+		for _, path := range common {
 			fmt.Println(path)
+		}
+		if len(projects) > 0 {
+			projectNames := make([]string, 0, len(projects))
+			for projectName := range projects {
+				projectNames = append(projectNames, projectName)
+			}
+			sort.Strings(projectNames)
+			for _, projectName := range projectNames {
+				for _, path := range projects[projectName] {
+					fmt.Printf("%s: %s\n", projectName, path)
+				}
+			}
 		}
 		return 0
 	}
