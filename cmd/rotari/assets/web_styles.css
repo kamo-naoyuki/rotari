@@ -573,11 +573,12 @@ td.matrix-pending:hover {
   flex-wrap: wrap;
   gap: 6px;
 }
-.cell-clamp {
+.cell-clamp-toggle {
   cursor: pointer;
   border-radius: 3px;
 }
-.cell-clamp:hover {
+.cell-clamp-toggle:hover,
+.cell-clamp-toggle:focus-visible {
   background: rgba(184, 217, 242, 0.08);
 }
 .cell-clamp.collapsed {
@@ -585,10 +586,4 @@ td.matrix-pending:hover {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-.cell-toggle {
-  margin: 4px 4px 0 0;
-  padding: 1px 8px;
-  font-size: 11px;
-  color: #b8d9f2;
 }

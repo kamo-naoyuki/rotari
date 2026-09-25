@@ -179,10 +179,10 @@ Long values in the Command, Working directory, Dependencies, and Executor
 options columns of the job and queue tables start clamped to three lines
 (`clampLongTableCells` in
 [web_app_tables.js](../../cmd/rotari/assets/web_app_tables.js)). Clicking the
-text, which highlights on hover, or the `▾ More` / `▴ Less` toggle placed
-before the cell's copy button expands or collapses it; a click that ends a text
-selection does not, so values can still be selected. A cell is
-considered once its text exceeds 60 characters, and the toggle is dropped when
+text, which highlights on hover, or pressing Enter or Space on it expands or
+collapses it; a click that ends a text selection does not, so values can still
+be selected. A cell is
+considered once its text exceeds 60 characters, and it is left unclamped when
 the browser measures that the text already fits. Buttons such as copy icons
 stay outside the clamped text, cells with editors are left alone, and expanded
 cells stay open across re-renders. Covered by `TestWebRunViewClampsLongCells`.

@@ -529,9 +529,9 @@ function mergeLogButtonIntoActions() {
   });
 }
 // Long values in these job and queue table columns start clamped to a few
-// lines. Clicking the text or its More/Less toggle expands or collapses it;
-// a click that ends a text selection does not. Expanded cells stay open across
-// re-renders.
+// lines. Clicking the text, or pressing Enter or Space on it, expands or
+// collapses it; a click that ends a text selection does not. Expanded cells
+// stay open across re-renders.
 const clampedTableColumns = [
   "command",
   "working_directory",
@@ -564,14 +564,10 @@ function clampLongTableCells() {
           .filter((node) => !(node.nodeType === 1 && node.matches("button")))
           .forEach((node) => text.append(node));
         cell.prepend(text);
-        const toggle = document.createElement("button");
-        toggle.type = "button";
-        toggle.className = "cell-toggle";
         const apply = () => {
           const expanded = expandedTableCells.has(id);
           text.classList.toggle("collapsed", !expanded);
-          toggle.textContent = expanded ? "▴ Less" : "▾ More";
-          toggle.setAttribute("aria-expanded", String(expanded));
+          text.setAttribute("aria-expanded", String(expanded));
           text.title = expanded ? "Click to collapse" : "Click to expand";
         };
         const flip = (event) => {
@@ -580,26 +576,35 @@ function clampLongTableCells() {
           else expandedTableCells.add(id);
           apply();
         };
-        toggle.onclick = flip;
         text.onclick = (event) => {
           const selection = window.getSelection && window.getSelection();
           if (selection && String(selection)) return;
           flip(event);
         };
-        // The toggle comes before the cell's own buttons, such as copy.
-        cell.insertBefore(toggle, cell.querySelector(":scope > button"));
+        text.onkeydown = (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          flip(event);
+        };
+        text.tabIndex = 0;
+        text.setAttribute("role", "button");
         apply();
-        // Drop the toggle when the text already fits in the clamped lines.
+        // Leave text that already fits in the clamped lines alone.
         if (
           !expandedTableCells.has(id) &&
           text.scrollHeight > 0 &&
           text.scrollHeight <= text.clientHeight + 1
         ) {
-          toggle.remove();
-          text.classList.remove("collapsed");
+          text.classList.remove("collapsed", "cell-clamp-toggle");
           text.onclick = null;
+          text.onkeydown = null;
+          text.removeAttribute("tabindex");
+          text.removeAttribute("role");
+          text.removeAttribute("aria-expanded");
           text.removeAttribute("title");
+          return;
         }
+        text.classList.add("cell-clamp-toggle");
       });
     });
   });
