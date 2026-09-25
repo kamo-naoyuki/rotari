@@ -30,10 +30,11 @@ type pbsJobMetadata struct {
 // PBS submits jobs to a PBS/Torque scheduler via qsub and tracks them
 // through qstat, mirroring the Slurm executor's submit/poll/accounting model.
 type PBS struct {
-	Store             state.Store
-	Logf              func(string, ...any)
-	SubmissionRetry   schedulerSubmissionRetryPolicy
-	SubmissionSpacing *schedulerSubmissionGate
+	Store              state.Store
+	Logf               func(string, ...any)
+	SubmissionRetry    schedulerSubmissionRetryPolicy
+	SubmissionSpacing  *schedulerSubmissionGate
+	SubmissionInterval time.Duration
 }
 
 func NewPBS(store state.Store, logf func(string, ...any)) PBS {
@@ -47,13 +48,13 @@ func (pbs PBS) WithRunSettings(settings RunSettings) JobExecutor {
 		pbs.SubmissionRetry.RetryLimit = settings.SubmitRetryLimit
 	}
 	if settings.SubmitInterval > 0 {
-		pbs.SubmissionSpacing = newSchedulerSubmissionGate(settings.SubmitInterval)
+		pbs.SubmissionInterval = settings.SubmitInterval
 	}
 	return pbs
 }
 
 func (pbs PBS) Submit(runDir string, job model.JobSpec, options []string) (JobHandle, error) {
-	metadata, err := submitPBSJobWithPolicies(pbs.Store, pbs.Logf, runDir, job, options, pbs.SubmissionRetry, pbs.SubmissionSpacing)
+	metadata, err := submitPBSJobWithPolicies(pbs.Store, pbs.Logf, runDir, job, options, pbs.SubmissionRetry, pbs.SubmissionSpacing, pbs.SubmissionInterval)
 	if err != nil {
 		return JobHandle{}, err
 	}
@@ -61,7 +62,7 @@ func (pbs PBS) Submit(runDir string, job model.JobSpec, options []string) (JobHa
 }
 
 func (pbs PBS) SubmitArray(runDir string, jobs []model.JobSpec, options []string) ([]JobHandle, error) {
-	return submitPBSArrayWithPolicies(pbs.Store, pbs.Logf, runDir, jobs, options, pbs.SubmissionRetry, pbs.SubmissionSpacing)
+	return submitPBSArrayWithPolicies(pbs.Store, pbs.Logf, runDir, jobs, options, pbs.SubmissionRetry, pbs.SubmissionSpacing, pbs.SubmissionInterval)
 }
 
 func (pbs PBS) Wait(runDir string, handle JobHandle) model.JobResult {
@@ -120,10 +121,10 @@ func readPBSMetadata(store state.Store, jobDir string) (pbsJobMetadata, error) {
 }
 
 func submitPBSJob(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, options []string) (pbsJobMetadata, error) {
-	return submitPBSJobWithPolicies(store, logf, runDir, job, options, schedulerSubmissionRetries, schedulerSubmissionSpacing)
+	return submitPBSJobWithPolicies(store, logf, runDir, job, options, schedulerSubmissionRetries, schedulerSubmissionSpacing, 0)
 }
 
-func submitPBSJobWithPolicies(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, options []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate) (pbsJobMetadata, error) {
+func submitPBSJobWithPolicies(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, options []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate, interval time.Duration) (pbsJobMetadata, error) {
 	jobDir, err := state.AttemptJobDir(runDir, job)
 	if err != nil {
 		return pbsJobMetadata{}, err
@@ -147,7 +148,7 @@ func submitPBSJobWithPolicies(store state.Store, logf func(string, ...any), runD
 	args = append(args, expandedOptions...)
 	args = append(args, wrapperPath)
 	output, err := retryPolicy.submit(logf, "pbs", func() ([]byte, error) {
-		spacing.wait("pbs")
+		spacing.wait("pbs", interval)
 		return runPBSCommand("qsub", args...)
 	})
 	if err != nil {
@@ -169,10 +170,10 @@ func submitPBSJobWithPolicies(store state.Store, logf func(string, ...any), runD
 }
 
 func submitPBSArray(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string) ([]JobHandle, error) {
-	return submitPBSArrayWithPolicies(store, logf, runDir, jobs, executorOptions, schedulerSubmissionRetries, schedulerSubmissionSpacing)
+	return submitPBSArrayWithPolicies(store, logf, runDir, jobs, executorOptions, schedulerSubmissionRetries, schedulerSubmissionSpacing, 0)
 }
 
-func submitPBSArrayWithPolicies(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate) ([]JobHandle, error) {
+func submitPBSArrayWithPolicies(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate, interval time.Duration) ([]JobHandle, error) {
 	if len(jobs) == 0 || jobs[0].ArrayTaskID == nil {
 		return nil, errors.New("empty PBS array")
 	}
@@ -208,7 +209,7 @@ func submitPBSArrayWithPolicies(store state.Store, logf func(string, ...any), ru
 	args = append(args, expandedOptions...)
 	args = append(args, wrapperPath)
 	output, err := retryPolicy.submit(logf, "pbs", func() ([]byte, error) {
-		spacing.wait("pbs")
+		spacing.wait("pbs", interval)
 		return runPBSCommand("qsub", args...)
 	})
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -15,6 +16,25 @@ type testExecutor struct {
 	array       bool
 	arrayCalls  int
 	options     [][]string
+}
+
+type settingsTestExecutor struct {
+	*testExecutor
+	configured *executor.RunSettings
+	observed   *executor.RunSettings
+}
+
+func (test *settingsTestExecutor) WithRunSettings(settings executor.RunSettings) executor.JobExecutor {
+	configured := *test
+	configured.configured = &settings
+	return &configured
+}
+
+func (test *settingsTestExecutor) Submit(runDir string, job model.JobSpec, options []string) (executor.JobHandle, error) {
+	if test.configured != nil {
+		*test.observed = *test.configured
+	}
+	return test.testExecutor.Submit(runDir, job, options)
 }
 
 func (fake *testExecutor) Name() string { return fake.name }
@@ -262,6 +282,26 @@ func TestRunAttemptRunsLocalBatchArrayAndUnsupportedJobs(t *testing.T) {
 	}
 	if len(batch.options) != 2 || len(batch.options[0]) != 1 || batch.options[0][0] != "--batch" || len(batch.options[1]) != 1 || batch.options[1][0] != "--batch" {
 		t.Fatalf("batch options = %#v", batch.options)
+	}
+}
+
+func TestRunAttemptConfiguresSchedulerExecutorPerRun(t *testing.T) {
+	base := &testExecutor{name: "slurm"}
+	var observed executor.RunSettings
+	scheduler := &settingsTestExecutor{testExecutor: base, observed: &observed}
+	jobs := []model.JobSpec{{ID: "job-1", Executor: "slurm", Command: []string{"run"}}}
+
+	results := RunAttempt("/runs/run-1", model.Queue{}, jobs, AttemptOptions{
+		BatchMaxActive: 1,
+		Settings: executor.RunSettingsMap{"slurm": {
+			SubmitInterval: 250 * time.Millisecond, SubmitRetryLimit: 4,
+		}},
+		ResolveExecutor: func(string) (executor.JobExecutor, bool) { return scheduler, true },
+		Callbacks:       BatchLaneCallbacks{ValidatedJobDir: func(string, string) (string, error) { return "/job", nil }, JobCancelled: func(string) bool { return false }},
+	}, nil)
+
+	if len(results) != 1 || results[0].ExitCode != 0 || observed.SubmitInterval != 250*time.Millisecond || observed.SubmitRetryLimit != 4 {
+		t.Fatalf("results/settings = %#v/%#v", results, observed)
 	}
 }
 

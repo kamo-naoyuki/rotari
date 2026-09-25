@@ -64,7 +64,7 @@ func TestSlurmWithRunSettingsCopiesSubmissionPolicy(t *testing.T) {
 	if !ok {
 		t.Fatalf("configured executor = %T, want Slurm", configured)
 	}
-	if configured.SubmissionRetry.RetryLimit != 4 || configured.SubmissionSpacing.interval != 250*time.Millisecond {
+	if configured.SubmissionRetry.RetryLimit != 4 || configured.SubmissionInterval != 250*time.Millisecond || configured.SubmissionSpacing != schedulerSubmissionSpacing {
 		t.Fatalf("configured Slurm = %#v", configured)
 	}
 	if base.SubmissionRetry.RetryLimit != schedulerSubmissionRetries.RetryLimit || base.SubmissionSpacing != schedulerSubmissionSpacing {

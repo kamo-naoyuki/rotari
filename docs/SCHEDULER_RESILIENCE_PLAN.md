@@ -44,7 +44,7 @@ inside each executor.
   shared by all scheduler executors or executor-specific.
 - [x] Expose finalized controls through configuration, environment variables,
   CLI flags, generated config/schema output, and Web UI where applicable.
-- [ ] Document the resulting user-facing contract in README, FAQ, and internals.
+- [x] Document the resulting user-facing contract in README, FAQ, and internals.
 - [ ] Run focused executor tests, `go test ./...`, and scheduler integration
   tests where a scheduler environment is available.
 

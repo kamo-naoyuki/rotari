@@ -31,10 +31,11 @@ type lsfJobMetadata struct {
 
 // LSF submits jobs to IBM LSF via bsub and tracks them with bjobs/bhist.
 type LSF struct {
-	Store             state.Store
-	Logf              func(string, ...any)
-	SubmissionRetry   schedulerSubmissionRetryPolicy
-	SubmissionSpacing *schedulerSubmissionGate
+	Store              state.Store
+	Logf               func(string, ...any)
+	SubmissionRetry    schedulerSubmissionRetryPolicy
+	SubmissionSpacing  *schedulerSubmissionGate
+	SubmissionInterval time.Duration
 }
 
 func NewLSF(store state.Store, logf func(string, ...any)) LSF {
@@ -48,13 +49,13 @@ func (lsf LSF) WithRunSettings(settings RunSettings) JobExecutor {
 		lsf.SubmissionRetry.RetryLimit = settings.SubmitRetryLimit
 	}
 	if settings.SubmitInterval > 0 {
-		lsf.SubmissionSpacing = newSchedulerSubmissionGate(settings.SubmitInterval)
+		lsf.SubmissionInterval = settings.SubmitInterval
 	}
 	return lsf
 }
 
 func (lsf LSF) Submit(runDir string, job model.JobSpec, options []string) (JobHandle, error) {
-	metadata, err := submitLSFJobWithPolicies(lsf.Store, lsf.Logf, runDir, job, options, lsf.SubmissionRetry, lsf.SubmissionSpacing)
+	metadata, err := submitLSFJobWithPolicies(lsf.Store, lsf.Logf, runDir, job, options, lsf.SubmissionRetry, lsf.SubmissionSpacing, lsf.SubmissionInterval)
 	if err != nil {
 		return JobHandle{}, err
 	}
@@ -62,7 +63,7 @@ func (lsf LSF) Submit(runDir string, job model.JobSpec, options []string) (JobHa
 }
 
 func (lsf LSF) SubmitArray(runDir string, jobs []model.JobSpec, options []string) ([]JobHandle, error) {
-	return submitLSFArrayWithPolicies(lsf.Store, lsf.Logf, runDir, jobs, options, lsf.SubmissionRetry, lsf.SubmissionSpacing)
+	return submitLSFArrayWithPolicies(lsf.Store, lsf.Logf, runDir, jobs, options, lsf.SubmissionRetry, lsf.SubmissionSpacing, lsf.SubmissionInterval)
 }
 
 func (lsf LSF) Wait(runDir string, handle JobHandle) model.JobResult {
@@ -120,10 +121,10 @@ func readLSFMetadata(store state.Store, jobDir string) (lsfJobMetadata, error) {
 }
 
 func submitLSFJob(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, options []string) (lsfJobMetadata, error) {
-	return submitLSFJobWithPolicies(store, logf, runDir, job, options, schedulerSubmissionRetries, schedulerSubmissionSpacing)
+	return submitLSFJobWithPolicies(store, logf, runDir, job, options, schedulerSubmissionRetries, schedulerSubmissionSpacing, 0)
 }
 
-func submitLSFJobWithPolicies(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, options []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate) (lsfJobMetadata, error) {
+func submitLSFJobWithPolicies(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, options []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate, interval time.Duration) (lsfJobMetadata, error) {
 	jobDir, err := state.AttemptJobDir(runDir, job)
 	if err != nil {
 		return lsfJobMetadata{}, err
@@ -146,7 +147,7 @@ func submitLSFJobWithPolicies(store state.Store, logf func(string, ...any), runD
 	}
 	args := append([]string{"bsub"}, expandedOptions...)
 	output, err := retryPolicy.submit(logf, "lsf", func() ([]byte, error) {
-		spacing.wait("lsf")
+		spacing.wait("lsf", interval)
 		return runLSFCommandWithInput(bytes.NewReader([]byte(wrapper)), args...)
 	})
 	if err != nil {
@@ -168,10 +169,10 @@ func submitLSFJobWithPolicies(store state.Store, logf func(string, ...any), runD
 }
 
 func submitLSFArray(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string) ([]JobHandle, error) {
-	return submitLSFArrayWithPolicies(store, logf, runDir, jobs, executorOptions, schedulerSubmissionRetries, schedulerSubmissionSpacing)
+	return submitLSFArrayWithPolicies(store, logf, runDir, jobs, executorOptions, schedulerSubmissionRetries, schedulerSubmissionSpacing, 0)
 }
 
-func submitLSFArrayWithPolicies(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate) ([]JobHandle, error) {
+func submitLSFArrayWithPolicies(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate, interval time.Duration) ([]JobHandle, error) {
 	if len(jobs) == 0 || jobs[0].ArrayTaskID == nil {
 		return nil, errors.New("empty LSF array")
 	}
@@ -203,7 +204,7 @@ func submitLSFArrayWithPolicies(store state.Store, logf func(string, ...any), ru
 	args := []string{"bsub", "-J", fmt.Sprintf("rotari[%d-%d]", first, last)}
 	args = append(args, expandedOptions...)
 	output, err := retryPolicy.submit(logf, "lsf", func() ([]byte, error) {
-		spacing.wait("lsf")
+		spacing.wait("lsf", interval)
 		return runLSFCommandWithInput(bytes.NewReader([]byte(wrapper)), args...)
 	})
 	if err != nil {

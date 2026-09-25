@@ -33,10 +33,11 @@ var slurmPollInterval = time.Second
 // Slurm submits jobs to Slurm via sbatch and tracks them through
 // squeue/sacct. See submitSlurmJob and waitSlurmJob for the details.
 type Slurm struct {
-	Store             state.Store
-	Logf              func(string, ...any)
-	SubmissionRetry   schedulerSubmissionRetryPolicy
-	SubmissionSpacing *schedulerSubmissionGate
+	Store              state.Store
+	Logf               func(string, ...any)
+	SubmissionRetry    schedulerSubmissionRetryPolicy
+	SubmissionSpacing  *schedulerSubmissionGate
+	SubmissionInterval time.Duration
 }
 
 func NewSlurm(store state.Store, logf func(string, ...any)) Slurm {
@@ -50,13 +51,13 @@ func (slurm Slurm) WithRunSettings(settings RunSettings) JobExecutor {
 		slurm.SubmissionRetry.RetryLimit = settings.SubmitRetryLimit
 	}
 	if settings.SubmitInterval > 0 {
-		slurm.SubmissionSpacing = newSchedulerSubmissionGate(settings.SubmitInterval)
+		slurm.SubmissionInterval = settings.SubmitInterval
 	}
 	return slurm
 }
 
 func (slurm Slurm) Submit(runDir string, job model.JobSpec, options []string) (JobHandle, error) {
-	metadata, err := submitSlurmJobWithPolicies(slurm.Store, slurm.Logf, runDir, job, options, slurm.SubmissionRetry, slurm.SubmissionSpacing)
+	metadata, err := submitSlurmJobWithPolicies(slurm.Store, slurm.Logf, runDir, job, options, slurm.SubmissionRetry, slurm.SubmissionSpacing, slurm.SubmissionInterval)
 	if err != nil {
 		return JobHandle{}, err
 	}
@@ -64,7 +65,7 @@ func (slurm Slurm) Submit(runDir string, job model.JobSpec, options []string) (J
 }
 
 func (slurm Slurm) SubmitArray(runDir string, jobs []model.JobSpec, options []string) ([]JobHandle, error) {
-	return submitSlurmArrayWithPolicies(slurm.Store, slurm.Logf, runDir, jobs, options, slurm.SubmissionRetry, slurm.SubmissionSpacing)
+	return submitSlurmArrayWithPolicies(slurm.Store, slurm.Logf, runDir, jobs, options, slurm.SubmissionRetry, slurm.SubmissionSpacing, slurm.SubmissionInterval)
 }
 
 func (Slurm) SupportsSparseArray() bool { return true }
@@ -125,10 +126,10 @@ func readSlurmMetadata(store state.Store, jobDir string) (slurmJobMetadata, erro
 }
 
 func submitSlurmJob(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, executorOptions []string) (slurmJobMetadata, error) {
-	return submitSlurmJobWithPolicies(store, logf, runDir, job, executorOptions, schedulerSubmissionRetries, schedulerSubmissionSpacing)
+	return submitSlurmJobWithPolicies(store, logf, runDir, job, executorOptions, schedulerSubmissionRetries, schedulerSubmissionSpacing, 0)
 }
 
-func submitSlurmJobWithPolicies(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, executorOptions []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate) (slurmJobMetadata, error) {
+func submitSlurmJobWithPolicies(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, executorOptions []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate, interval time.Duration) (slurmJobMetadata, error) {
 	jobDir, err := state.AttemptJobDir(runDir, job)
 	if err != nil {
 		return slurmJobMetadata{}, err
@@ -153,7 +154,7 @@ func submitSlurmJobWithPolicies(store state.Store, logf func(string, ...any), ru
 	args = append(args, expandedOptions...)
 	args = append(args, wrapperPath)
 	output, err := retryPolicy.submit(logf, "slurm", func() ([]byte, error) {
-		spacing.wait("slurm")
+		spacing.wait("slurm", interval)
 		return runSlurmCommand("sbatch", args...)
 	})
 	if err != nil {
@@ -175,10 +176,10 @@ func submitSlurmJobWithPolicies(store state.Store, logf func(string, ...any), ru
 }
 
 func submitSlurmArray(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string) ([]JobHandle, error) {
-	return submitSlurmArrayWithPolicies(store, logf, runDir, jobs, executorOptions, schedulerSubmissionRetries, schedulerSubmissionSpacing)
+	return submitSlurmArrayWithPolicies(store, logf, runDir, jobs, executorOptions, schedulerSubmissionRetries, schedulerSubmissionSpacing, 0)
 }
 
-func submitSlurmArrayWithPolicies(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate) ([]JobHandle, error) {
+func submitSlurmArrayWithPolicies(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate, interval time.Duration) ([]JobHandle, error) {
 	if len(jobs) == 0 || jobs[0].ArrayTaskID == nil {
 		return nil, errors.New("empty Slurm array")
 	}
@@ -222,7 +223,7 @@ func submitSlurmArrayWithPolicies(store state.Store, logf func(string, ...any), 
 	args = append(args, expandedOptions...)
 	args = append(args, wrapperPath)
 	output, err := retryPolicy.submit(logf, "slurm", func() ([]byte, error) {
-		spacing.wait("slurm")
+		spacing.wait("slurm", interval)
 		return runSlurmCommand("sbatch", args...)
 	})
 	if err != nil {

@@ -167,14 +167,34 @@ func TestSchedulerSubmissionGateSpacesPerScheduler(t *testing.T) {
 		},
 	}
 
-	gate.wait("slurm")
-	gate.wait("slurm")
-	gate.wait("pbs")
-	gate.wait("slurm")
+	gate.wait("slurm", 0)
+	gate.wait("slurm", 0)
+	gate.wait("pbs", 0)
+	gate.wait("slurm", 0)
 
 	want := []time.Duration{100 * time.Millisecond, 100 * time.Millisecond}
 	if !sameDurations(sleeps, want) {
 		t.Fatalf("submission spacing sleeps = %v, want %v", sleeps, want)
+	}
+}
+
+func TestSchedulerSubmissionGateSharesReservationsAcrossRunIntervals(t *testing.T) {
+	now := time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
+	var sleeps []time.Duration
+	gate := newSchedulerSubmissionGate(100 * time.Millisecond)
+	gate.timing = schedulerTiming{
+		Now: func() time.Time { return now },
+		Sleep: func(delay time.Duration) {
+			sleeps = append(sleeps, delay)
+			now = now.Add(delay)
+		},
+	}
+
+	gate.wait("slurm", time.Second)
+	gate.wait("slurm", 100*time.Millisecond)
+
+	if !sameDurations(sleeps, []time.Duration{time.Second}) {
+		t.Fatalf("shared run spacing sleeps = %v, want [1s]", sleeps)
 	}
 }
 

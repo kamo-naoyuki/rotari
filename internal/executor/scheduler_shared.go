@@ -183,8 +183,11 @@ func newSchedulerSubmissionGate(interval time.Duration) *schedulerSubmissionGate
 	return &schedulerSubmissionGate{interval: interval, next: make(map[string]time.Time)}
 }
 
-func (gate *schedulerSubmissionGate) wait(scheduler string) {
-	if gate.interval <= 0 {
+func (gate *schedulerSubmissionGate) wait(scheduler string, interval time.Duration) {
+	if interval <= 0 {
+		interval = gate.interval
+	}
+	if interval <= 0 {
 		return
 	}
 	timing := gate.timing.withDefaults()
@@ -194,7 +197,7 @@ func (gate *schedulerSubmissionGate) wait(scheduler string) {
 	if next := gate.next[scheduler]; next.After(scheduled) {
 		scheduled = next
 	}
-	gate.next[scheduler] = scheduled.Add(gate.interval)
+	gate.next[scheduler] = scheduled.Add(interval)
 	gate.mu.Unlock()
 	if delay := scheduled.Sub(now); delay > 0 {
 		timing.Sleep(delay)

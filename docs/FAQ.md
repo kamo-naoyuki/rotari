@@ -79,7 +79,7 @@ ID is treated as ambiguous and is not retried automatically, because the job
 may already have been accepted.
 Within one rotari process, submissions to each scheduler are also spaced by at
 least 100 milliseconds, including native array submissions and retry attempts.
-For a run, raise the interval with `--slurm-submit-interval`,
+For a run, set the interval with `--slurm-submit-interval`,
 `--pbs-submit-interval`, or `--lsf-submit-interval`; use the matching
 `--*-submit-retry-limit` option to change the retry limit. Environment and
 config equivalents use the same executor-specific names.
