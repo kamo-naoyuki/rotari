@@ -56,6 +56,8 @@ repos:
 
       - id: example-shellcheck
         name: bash syntax check
-        entry: bash -n
+        # pre-commit passes every matching file at once, and "bash -n a b"
+        # checks only "a", so check each file separately.
+        entry: sh -c 'for file in "$@"; do bash -n "$file" || exit 1; done' --
         language: system
-        files: ^example\.sh$
+        files: ^scripts/example.*\.sh$

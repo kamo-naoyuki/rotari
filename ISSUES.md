@@ -8,12 +8,14 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **The `example-shellcheck` pre-commit hook never runs** (`.pre-commit-config.yaml`): its `files: ^example\.sh$` pattern does not match `scripts/example.sh` or `scripts/example-workflow.sh`, so the example scripts are only syntax-checked in CI.
+- **Copying part of a stage rejects its dependents** (`cmd/rotari/copy.go`, `copyRunToQueue` excluded-dependency check): when a job depends on a stage and only some stage members are copied, the check requires every member of the stage to have succeeded in the source run, including the members being copied. So after one stage member fails, `copy --failed` (and therefore `retry` / `run --failed`) or `copy --job-id` of that member and its dependent fails with `excluded dependency "STAGE" did not succeed`. Only the excluded members should need to have succeeded, and the dependency should keep resolving to the copied members (their `Stage` is preserved). Matrix base names were fixed to behave this way; stages were not changed.
 
 ## Resolved
 
 <!-- Keep only short records of resolved items when they may help prevent recurrence. -->
 
+- **The `example-shellcheck` pre-commit hook never ran** (`.pre-commit-config.yaml`): its `files: ^example\.sh$` pattern did not match `scripts/example*.sh`, and `bash -n a b` checks only the first file. The hook now matches every example script and checks each one separately.
+- **Matrix base-name dependencies broke partial queue edits** (`internal/model/dependencies.go`, `ClearMatrixGroup`; `cmd/rotari/copy.go`): a dependency on a matrix base name stopped resolving once `change` or `remove` cleared the group's provenance, and `copy` (including `retry`) did not recognize base names at all. Clearing provenance now rewrites such dependencies to the remaining member names, and `copy` checks base names like stages.
 - **Running an imported queue with new jobs failed from the CLI** (`cmd/rotari/run_selection.go`, `planImportedWorkflow`): the run server records the new run as `LastRunID` before planning, and jobs without an origin fell back to that run's missing summary. Origin-less imported jobs are now planned as new work without a previous-run lookup.
 - **`show` job hid manual acceptance** (`cmd/rotari/show.go`, `showJobAttempt`): an accepted job printed only the ordinary carry note and the source attempt's failing exit code, while `show` run and the Web table showed `success (accepted)`. It now prints the accepted status and follows `Origin.AttemptID`.
 - **Workflow import ignored local results of non-latest attempts** (`cmd/rotari/workflow_reconcile.go`, `resolveAttempt`): only wrapper `status.json` was read, so a local-executor attempt that was not the summary's latest failed with "has no completed result". It now reads the local `status` result first, matching run planning.
