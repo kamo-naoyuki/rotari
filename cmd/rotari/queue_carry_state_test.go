@@ -2,6 +2,7 @@ package main
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -399,9 +400,15 @@ func TestImportedWorkflowAcceptRequiresOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Give the fallback lookup a previous run so planning reaches acceptance.
+	writeCarryStateRun(t, paths, "previous-run", Queue{}, []JobResult{{ID: "job", ExitCode: 1}})
+	if err := writeJSON(paths.MetaFile, Meta{LastRunID: "previous-run", Phase: "collecting"}); err != nil {
+		t.Fatal(err)
+	}
 	queue := Queue{WorkflowImport: true, Commands: []QueuedCommand{{ID: "job", Command: []string{"true"}, Accepted: true}}}
-	if _, err := planRerunSelection(paths, queue, "", nil, "", true); err == nil {
-		t.Fatal("planRerunSelection accepted a job without source origin")
+	_, err = planRerunSelection(paths, queue, "", nil, "", true)
+	if err == nil || !strings.Contains(err.Error(), "has no source origin") {
+		t.Fatalf("planRerunSelection error = %v, want missing source origin", err)
 	}
 }
 

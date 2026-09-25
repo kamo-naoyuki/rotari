@@ -346,7 +346,12 @@ func reconcileCommandLeaves(destination *QueuedCommand, source workflowSourceLea
 	destination.ID = source.command.ID
 	source = catalog.listedCommandRun(source)
 	if destination.Array == nil {
-		attemptID := manifestJob.AttemptID
+		// A matrix group has no single attempt; its job-level attempt only
+		// anchors the group, so members fall back to the listed source run.
+		attemptID := ""
+		if destination.Matrix == nil {
+			attemptID = manifestJob.AttemptID
+		}
 		if instance := workflowInstance(manifestJob, destination.Matrix, nil); instance != nil && instance.AttemptID != "" {
 			attemptID = instance.AttemptID
 		}
