@@ -43,6 +43,23 @@ func TestCmdSchemaValidAndInvalidArguments(t *testing.T) {
 	}
 }
 
+func TestRunDispatchesTopLevelCommands(t *testing.T) {
+	if code := run(nil); code != 1 {
+		t.Fatalf("run(nil) = %d, want 1", code)
+	}
+	for _, command := range []string{"version", "--version"} {
+		if code := run([]string{command}); code != 0 {
+			t.Fatalf("run(%q) = %d, want 0", command, code)
+		}
+	}
+	if code := run([]string{"schema", "--json"}); code != 0 {
+		t.Fatalf("run(schema --json) = %d, want 0", code)
+	}
+	if code := run([]string{"clear", "--basedir", t.TempDir()}); code != 1 {
+		t.Fatalf("run(unknown command) = %d, want 1", code)
+	}
+}
+
 func TestCmdCompletionValidatesArgumentsAndGeneratesScripts(t *testing.T) {
 	if code := cmdCompletion(nil); code != 1 {
 		t.Fatalf("cmdCompletion(nil) = %d, want 1", code)
