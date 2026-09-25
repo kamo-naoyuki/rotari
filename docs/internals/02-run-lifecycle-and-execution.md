@@ -57,9 +57,8 @@
   persistence. Every Cartesian-product combination is stored as an independent
   queue command with its own generated job ID, a derived job name when the
   base command has one, and ordinary `KEY=VALUE` environment entries.
-  Matrix and array expansion can be combined: each matrix command retains the
-  same array specification and expands independently at runtime. `include` and
-  `exclude` rules are reserved for a future workflow manifest.
+  Matrix and array expansion are mutually exclusive. `include` and `exclude`
+  rules are reserved for a future workflow manifest.
 - Result-based selection (`--failed`/`--unfinished`/`--success` in `copy`, and
   in rerun when `--partial-array=false`) and copied-job origin status operate on
   the unexpanded `QueuedCommand`, but results are recorded per expanded task ID.
@@ -139,6 +138,10 @@
 - Polling executors persist normalized scheduler state in
   `scheduler_status.json`. Read projections use it without querying schedulers
   directly.
+- Repeated scheduler queue or accounting query failures use a shared
+  per-process exponential polling backoff, capped at 30 seconds. A successful
+  query restores the normal polling interval; wrapper `status.json` remains an
+  independent terminal-result source throughout the backoff.
 - Scheduler display names may offer inspection commands, but must not be the
   only way to locate state. `controlQueueJobs` also writes
   `scheduler_status.json` immediately after successful suspend/resume calls,

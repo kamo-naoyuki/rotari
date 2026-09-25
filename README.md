@@ -36,7 +36,7 @@ If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https:/
 
 * [**Nextflow**](https://github.com/nextflow-io/nextflow) provides a DSL for describing processes, dataflow, and workflows. It is useful when you want to express a workflow explicitly, but it also introduces a dedicated language for doing so. **Rotari is for cases where the commands you already have are enough to describe the workflow, and learning another workflow language would be unnecessary overhead.**
 
-* [**Airflow**](https://github.com/apache/airflow), [**Prefect**](https://github.com/PrefectHQ/prefect), and [**Dagster**](https://github.com/dagster-io/dagster) provide programmatic ways to define and orchestrate workflows. They are a good fit when the workflow itself needs to be expressed and managed as a program. **Rotari is aimed at a narrower case: when the CLI commands you already have are enough to describe the workflow, you can keep them as they are and use Rotari to run and manage them.**
+* [**Airflow**](https://github.com/apache/airflow), [**Prefect**](https://github.com/PrefectHQ/prefect), and [**Dagster**](https://github.com/dagster-io/dagster) provide programmatic ways to define and orchestrate workflows. They are a good fit when the workflow itself needs to be expressed and managed as a program. **Rotari is aimed at a narrower case: when the CLI commands you already have are enough to describe the workflow, you can keep them as they are and use rotari to run and manage them.**
 
 The goal is not to replace shell scripts or compete with full-featured workflow systems. **It is to add just enough structure to the commands you already use, and let the commands remain the workflow.**
 
@@ -506,29 +506,27 @@ each array task, rotari exposes:
 Scheduler-backed arrays also map the native index variable into these values,
 for example `SLURM_ARRAY_TASK_ID`, `PBS_ARRAY_INDEX`, or `LSB_JOBINDEX`.
 
-Matrix jobs are a convenient way to register several array commands with
-different environment values. Repeat `--matrix KEY=VALUE[,VALUE...]` on `add`:
-
-```sh
-rotari add --job-name train \
-  --matrix python=3.10,3.11 \
-  --matrix cuda=cpu,cuda \
-  --array 1-3 \
-  -- ./train.sh
-```
-
-The matrix is expanded as a Cartesian product before the queue is saved. Each
-combination becomes an independent array command with its own job ID and a
-derived name such as `train-python3.10-cudacpu`. Its values are passed as
-ordinary environment variables, such as `python=3.10` and `cuda=cpu`. The
-example above creates two array commands and six runtime tasks. `include` and
-`exclude` customization is planned for a future workflow manifest.
-
 The Slurm and PBS executors are integration-tested in CI against a Slurm
 container and an OpenPBS container. These tests do not certify compatibility
 with every real cluster configuration. The LSF executor is covered by unit
 tests using fake scheduler commands, but has not yet been tested against a
 real LSF installation.
+
+To register a matrix as independent jobs, repeat `--matrix` on `add`:
+
+```sh
+rotari add --job-name train \
+  --matrix python=3.10,3.11 \
+  --matrix cuda=cpu,cuda \
+  -- ./train.sh
+```
+
+This registers the Cartesian product as four jobs named like
+`train-python3.10-cudacpu`. Each job receives its values as
+ordinary environment variables, such as `python=3.10` and `cuda=cpu`.
+Matrix jobs have independent job IDs and cannot be combined with `--array`.
+`include` and `exclude` customization is planned for a future workflow
+manifest.
 
 ## Async runs
 
