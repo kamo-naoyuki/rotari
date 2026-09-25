@@ -81,13 +81,29 @@ the experiment. See "Runs as the history of the loop" in
 
 ### Web UI
 
-- Polish the overall look; it is the first impression in demos.
-- Consider a matrix grid view: parameters on the axes and each cell colored by
-  status, so failures in, for example, `lr x seed` are visible at a glance.
+- Polish the overall look; it is the first impression in demos and still looks
+  plain next to Dagu's UI. Consider tabs for run page sections and a sidebar
+  for navigation between projects, runs, and the info pages.
+- The job table is far wider than the page and overflows to the right.
+  Reconsider which columns are shown by default, wrapping, and a horizontal
+  scroll container limited to the table.
+- Info pages such as CLI docs, Environment variables, and Job activity link
+  back only to the project list. Make it easy to return to the project or run
+  page the user came from.
+- The Load average section is the only run section without summary text on
+  the right of its header; show, for example, the peak or latest load there.
+- A report for several selected jobs repeats the redaction notice ("Paths and
+  hostnames are redacted where detected. ...") once per job. Show it once per
+  report.
+- Add an option to generate reports without redaction, for sharing within a
+  trusted team. Decide whether it is a CLI flag (`show --report`), a Web
+  toggle, or both, and keep redaction the default.
+- Matrix grid: consider clicking a row or column heading to filter the job
+  table to that parameter value.
 - Consider a per-job attempt history that shows how the command or executor
   options changed between attempts.
 - Consider grouping failed jobs by rule-based diagnosis result.
 - Consider a run timeline built on the run lineage above.
 
-Suggested first step: the matrix grid view. It serves experiment batches
-directly and depends little on executor differences.
+Suggested first steps: the report redaction notice and option, which are
+small, then the table width and navigation, which most affect everyday use.
