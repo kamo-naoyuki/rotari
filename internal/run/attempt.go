@@ -44,6 +44,7 @@ func RunAttempt(runDir string, queue model.Queue, jobs []model.JobSpec, options 
 			}
 			continue
 		}
+		jobExecutor = configuredExecutor(jobExecutor, options.Settings[name])
 		workers.Add(1)
 		if name == "local" {
 			go RunLocalLane(&workers, runDir, jobExecutor, executorJobs, effectiveConcurrency(options.Settings, name, options.LocalConcurrency), results, onStart)
@@ -58,6 +59,13 @@ func RunAttempt(runDir string, queue model.Queue, jobs []model.JobSpec, options 
 		collected = append(collected, result)
 	}
 	return collected
+}
+
+func configuredExecutor(jobExecutor executor.JobExecutor, settings executor.RunSettings) executor.JobExecutor {
+	if configurer, ok := jobExecutor.(executor.RunSettingsConfigurer); ok {
+		return configurer.WithRunSettings(settings)
+	}
+	return jobExecutor
 }
 
 func effectiveConcurrency(settings executor.RunSettingsMap, name string, fallback int) int {

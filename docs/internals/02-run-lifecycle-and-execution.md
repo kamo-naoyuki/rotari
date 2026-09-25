@@ -143,6 +143,18 @@
   per-process exponential polling backoff, capped at 30 seconds. A successful
   query restores the normal polling interval; wrapper `status.json` remains an
   independent terminal-result source throughout the backoff.
+- Scheduler submission uses the same per-process timing boundary. Explicit
+  controller or transport failures retry at most twice after 1 and 2 seconds;
+  permanent configuration or authorization errors do not retry. Timeouts and
+  submit responses without a usable native job ID are ambiguous and must not be
+  retried automatically because the scheduler may have accepted the job.
+- Each scheduler has an independent per-process submit gate with a 100ms
+  minimum interval. The gate applies to ordinary submissions, native arrays,
+  and retry attempts, but does not coordinate across rotari processes.
+- Per-run executor settings can raise the scheduler-specific submit interval
+  and change the transient-submit retry limit. Settings are copied into an
+  immutable executor instance for the run, so one server process cannot mutate
+  the registered executor policy of another run.
 - Scheduler display names may offer inspection commands, but must not be the
   only way to locate state. `controlQueueJobs` also writes
   `scheduler_status.json` immediately after successful suspend/resume calls,

@@ -31,18 +31,30 @@ type lsfJobMetadata struct {
 
 // LSF submits jobs to IBM LSF via bsub and tracks them with bjobs/bhist.
 type LSF struct {
-	Store state.Store
-	Logf  func(string, ...any)
+	Store             state.Store
+	Logf              func(string, ...any)
+	SubmissionRetry   schedulerSubmissionRetryPolicy
+	SubmissionSpacing *schedulerSubmissionGate
 }
 
 func NewLSF(store state.Store, logf func(string, ...any)) LSF {
-	return LSF{Store: store, Logf: logf}
+	return LSF{Store: store, Logf: logf, SubmissionRetry: schedulerSubmissionRetries, SubmissionSpacing: schedulerSubmissionSpacing}
 }
 
 func (LSF) Name() string { return "lsf" }
 
+func (lsf LSF) WithRunSettings(settings RunSettings) JobExecutor {
+	if settings.SubmitRetryLimit > 0 {
+		lsf.SubmissionRetry.RetryLimit = settings.SubmitRetryLimit
+	}
+	if settings.SubmitInterval > 0 {
+		lsf.SubmissionSpacing = newSchedulerSubmissionGate(settings.SubmitInterval)
+	}
+	return lsf
+}
+
 func (lsf LSF) Submit(runDir string, job model.JobSpec, options []string) (JobHandle, error) {
-	metadata, err := submitLSFJob(lsf.Store, lsf.Logf, runDir, job, options)
+	metadata, err := submitLSFJobWithPolicies(lsf.Store, lsf.Logf, runDir, job, options, lsf.SubmissionRetry, lsf.SubmissionSpacing)
 	if err != nil {
 		return JobHandle{}, err
 	}
@@ -50,7 +62,7 @@ func (lsf LSF) Submit(runDir string, job model.JobSpec, options []string) (JobHa
 }
 
 func (lsf LSF) SubmitArray(runDir string, jobs []model.JobSpec, options []string) ([]JobHandle, error) {
-	return submitLSFArray(lsf.Store, runDir, jobs, options)
+	return submitLSFArrayWithPolicies(lsf.Store, lsf.Logf, runDir, jobs, options, lsf.SubmissionRetry, lsf.SubmissionSpacing)
 }
 
 func (lsf LSF) Wait(runDir string, handle JobHandle) model.JobResult {
@@ -108,6 +120,10 @@ func readLSFMetadata(store state.Store, jobDir string) (lsfJobMetadata, error) {
 }
 
 func submitLSFJob(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, options []string) (lsfJobMetadata, error) {
+	return submitLSFJobWithPolicies(store, logf, runDir, job, options, schedulerSubmissionRetries, schedulerSubmissionSpacing)
+}
+
+func submitLSFJobWithPolicies(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, options []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate) (lsfJobMetadata, error) {
 	jobDir, err := state.AttemptJobDir(runDir, job)
 	if err != nil {
 		return lsfJobMetadata{}, err
@@ -129,7 +145,10 @@ func submitLSFJob(store state.Store, logf func(string, ...any), runDir string, j
 		return lsfJobMetadata{}, err
 	}
 	args := append([]string{"bsub"}, expandedOptions...)
-	output, err := runLSFCommandWithInput(bytes.NewReader([]byte(wrapper)), args...)
+	output, err := retryPolicy.submit(logf, "lsf", func() ([]byte, error) {
+		spacing.wait("lsf")
+		return runLSFCommandWithInput(bytes.NewReader([]byte(wrapper)), args...)
+	})
 	if err != nil {
 		return lsfJobMetadata{}, fmt.Errorf("bsub: %w: %s", err, strings.TrimSpace(string(output)))
 	}
@@ -148,7 +167,11 @@ func submitLSFJob(store state.Store, logf func(string, ...any), runDir string, j
 	return metadata, nil
 }
 
-func submitLSFArray(store state.Store, runDir string, jobs []model.JobSpec, executorOptions []string) ([]JobHandle, error) {
+func submitLSFArray(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string) ([]JobHandle, error) {
+	return submitLSFArrayWithPolicies(store, logf, runDir, jobs, executorOptions, schedulerSubmissionRetries, schedulerSubmissionSpacing)
+}
+
+func submitLSFArrayWithPolicies(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate) ([]JobHandle, error) {
 	if len(jobs) == 0 || jobs[0].ArrayTaskID == nil {
 		return nil, errors.New("empty LSF array")
 	}
@@ -179,7 +202,10 @@ func submitLSFArray(store state.Store, runDir string, jobs []model.JobSpec, exec
 	}
 	args := []string{"bsub", "-J", fmt.Sprintf("rotari[%d-%d]", first, last)}
 	args = append(args, expandedOptions...)
-	output, err := runLSFCommandWithInput(bytes.NewReader([]byte(wrapper)), args...)
+	output, err := retryPolicy.submit(logf, "lsf", func() ([]byte, error) {
+		spacing.wait("lsf")
+		return runLSFCommandWithInput(bytes.NewReader([]byte(wrapper)), args...)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("bsub array: %w: %s", err, strings.TrimSpace(string(output)))
 	}
@@ -223,40 +249,18 @@ func waitLSFJob(store state.Store, runDir string, job lsfJobMetadata) model.JobR
 	if err != nil {
 		return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}
-	statusPath := filepath.Join(jobDir, "status.json")
-	var accountingDeadline time.Time
-	for {
-		if status, ok := LoadWrapperStatus(store, statusPath); ok && status.Phase == "finished" {
-			return jobResultFromStatus(job.JobID, job.Command, status)
-		}
-		schedulerState, err := lsfJobState(job.LSFJobID)
-		if err != nil {
-			return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
-		}
-		if schedulerState != "" {
-			WriteSchedulerStatus(store, jobDir, schedulerState, time.Now())
-		}
-		if schedulerState == "" {
-			// A directory listing nudges NFS clients to drop stale attribute/dentry
-			// caches, the same way the Slurm wait loop does, before re-checking the
-			// wrapper's own status.json.
-			_, _ = os.ReadDir(jobDir)
-			if status, ok := LoadWrapperStatus(store, statusPath); ok && status.Phase == "finished" {
-				return jobResultFromStatus(job.JobID, job.Command, status)
-			}
-			if accountingDeadline.IsZero() {
-				accountingDeadline = time.Now().Add(lsfAccountingWait)
-			}
-			if exitCode, ok := lsfAccounting(job.LSFJobID); ok {
-				_ = state.WriteJSON(statusPath, WrapperStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339()})
-				return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: exitCode}
-			}
-			if time.Now().After(accountingDeadline) {
-				return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: "LSF accounting result and wrapper status are unavailable"}
-			}
-		}
-		time.Sleep(time.Second)
-	}
+	return waitForSchedulerResult(store, jobDir, job.JobID, job.Command, schedulerPollingPolicy{
+		AccountingWait: lsfAccountingWait, PollInterval: time.Second,
+		UnavailableError: "LSF accounting result and wrapper status are unavailable",
+		JobState: func() schedulerQuery {
+			state, err := lsfJobState(job.LSFJobID)
+			return schedulerQuery{State: state, Failed: err != nil}
+		},
+		Accounting: func() schedulerAccounting {
+			exitCode, ok, err := lsfAccounting(job.LSFJobID)
+			return schedulerAccounting{Status: WrapperStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339()}, Resolved: ok, Failed: err != nil}
+		},
+	})
 }
 
 func lsfJobActive(jobID string) (bool, error) {
@@ -267,7 +271,7 @@ func lsfJobActive(jobID string) (bool, error) {
 func lsfJobState(jobID string) (string, error) {
 	output, err := runLSFCommand("bjobs", "-noheader", "-o", "stat", jobID)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	switch strings.ToUpper(strings.TrimSpace(string(output))) {
 	case "PEND":
@@ -283,27 +287,27 @@ func lsfJobState(jobID string) (string, error) {
 	}
 }
 
-func lsfAccounting(jobID string) (int, bool) {
+func lsfAccounting(jobID string) (int, bool, error) {
 	output, err := runLSFCommand("bjobs", "-a", "-noheader", "-o", "stat exit_code", jobID)
 	if err != nil {
 		output, err = runLSFCommand("bhist", "-l", jobID)
 		if err != nil {
-			return 0, false
+			return 0, false, err
 		}
 	}
 	text := string(output)
 	if strings.Contains(text, "DONE") || strings.Contains(text, "Done successfully") {
-		return 0, true
+		return 0, true, nil
 	}
 	if match := regexp.MustCompile(`(?:EXIT|Exited)\s*\(?([0-9]+)\)?`).FindStringSubmatch(text); len(match) == 2 {
 		code, parseErr := strconv.Atoi(match[1])
-		return code, parseErr == nil
+		return code, parseErr == nil, parseErr
 	}
 	if match := regexp.MustCompile(`\s([0-9]+)\s*$`).FindStringSubmatch(strings.TrimSpace(text)); len(match) == 2 {
 		code, parseErr := strconv.Atoi(match[1])
-		return code, parseErr == nil
+		return code, parseErr == nil, parseErr
 	}
-	return 0, false
+	return 0, false, nil
 }
 
 func runLSFCommand(name string, args ...string) ([]byte, error) {

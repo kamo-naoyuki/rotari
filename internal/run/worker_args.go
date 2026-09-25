@@ -23,6 +23,12 @@ func WorkerArgs(options Options, baseDirExplicit bool, settingNames []string) []
 		for _, option := range setting.Options {
 			args = append(args, "--"+name+"-options", option)
 		}
+		if setting.SubmitInterval > 0 {
+			args = append(args, "--"+name+"-submit-interval", setting.SubmitInterval.String())
+		}
+		if setting.SubmitRetryLimit > 0 {
+			args = append(args, "--"+name+"-submit-retry-limit", strconv.Itoa(setting.SubmitRetryLimit))
+		}
 	}
 	if options.Selection != "" {
 		args = append(args, "--selection", options.Selection)

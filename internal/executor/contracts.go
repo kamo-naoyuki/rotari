@@ -2,6 +2,7 @@ package executor
 
 import (
 	"strings"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
@@ -15,6 +16,12 @@ type JobExecutor interface {
 	Name() string
 	Submit(runDir string, job model.JobSpec, options []string) (JobHandle, error)
 	Wait(runDir string, handle JobHandle) model.JobResult
+}
+
+// RunSettingsConfigurer returns an executor copy configured for one run.
+// Implementations must not mutate a shared registry instance.
+type RunSettingsConfigurer interface {
+	WithRunSettings(RunSettings) JobExecutor
 }
 
 type ArraySubmitter interface {
@@ -35,8 +42,10 @@ type Canceller interface {
 }
 
 type RunSettings struct {
-	Concurrency int      `json:"concurrency,omitempty"`
-	Options     []string `json:"options,omitempty"`
+	Concurrency      int           `json:"concurrency,omitempty"`
+	Options          []string      `json:"options,omitempty"`
+	SubmitInterval   time.Duration `json:"submit_interval,omitempty"`
+	SubmitRetryLimit int           `json:"submit_retry_limit,omitempty"`
 }
 
 type RunSettingsMap map[string]RunSettings

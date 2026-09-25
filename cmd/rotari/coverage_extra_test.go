@@ -38,7 +38,7 @@ func TestCmdSchemaValidAndInvalidArguments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 0 || !strings.Contains(string(data), `"commands"`) || !strings.Contains(string(data), `"project-name"`) {
+	if code != 0 || !strings.Contains(string(data), `"commands"`) || !strings.Contains(string(data), `"project-name"`) || !strings.Contains(string(data), `"slurm-submit-interval"`) {
 		t.Fatalf("cmdSchema(--json) = %d, output = %s", code, data)
 	}
 }

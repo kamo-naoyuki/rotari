@@ -41,6 +41,26 @@ printf 'Job <123> is submitted to default queue.\n'
 	}
 }
 
+func TestSubmitLSFJobFailureDoesNotRetryOrRecordJob(t *testing.T) {
+	binDir := t.TempDir()
+	callsPath := filepath.Join(t.TempDir(), "bsub-calls")
+	writeExecutable(t, binDir, "bsub", fmt.Sprintf("#!/bin/sh\nprintf x >> %q\ncat >/dev/null\nprintf 'invalid queue\\n' >&2\nexit 1\n", callsPath))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	runDir := t.TempDir()
+	job := model.JobSpec{ID: "job-1", Command: []string{"echo", "hello"}}
+	if _, err := submitLSFJob(testStore(), testLogf, runDir, job, nil); err == nil {
+		t.Fatal("submitLSFJob succeeded, want scheduler error")
+	}
+	calls, err := os.ReadFile(callsPath)
+	if err != nil || string(calls) != "x" {
+		t.Fatalf("bsub calls = %q, err=%v; want one call", calls, err)
+	}
+	if _, err := os.Stat(filepath.Join(runDir, job.ID, "job.json")); !os.IsNotExist(err) {
+		t.Fatalf("job metadata exists after failed submission: %v", err)
+	}
+}
+
 func TestSubmitLSFArrayWithFakeLSF(t *testing.T) {
 	binDir := t.TempDir()
 	argumentsPath := filepath.Join(t.TempDir(), "bsub-array-args")
@@ -57,7 +77,7 @@ printf '%%s\n' "$@" > %q
 		{ID: "array-1", ArrayGroup: "array", ArrayTaskID: &taskOne, ArrayFirst: 1, ArrayLast: 2, Command: []string{"echo", "hello"}, Environment: []string{"ROTARI_ARRAY_TASK_ID=1", "ROTARI_JOB_DIR=" + filepath.Join(runDir, "array-1")}},
 		{ID: "array-2", ArrayGroup: "array", ArrayTaskID: &taskTwo, ArrayFirst: 1, ArrayLast: 2, Command: []string{"echo", "hello"}, Environment: []string{"ROTARI_ARRAY_TASK_ID=2", "ROTARI_JOB_DIR=" + filepath.Join(runDir, "array-2")}},
 	}
-	handles, err := submitLSFArray(testStore(), runDir, jobs, nil)
+	handles, err := submitLSFArray(testStore(), testLogf, runDir, jobs, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,9 +124,9 @@ printf 'PEND\n'
 	if err != nil || state != "pending" {
 		t.Fatalf("lsfJobState = %q, %v; want pending, nil", state, err)
 	}
-	exitCode, ok := lsfAccounting("123")
-	if !ok || exitCode != 0 {
-		t.Fatalf("lsfAccounting = %d, %v; want 0, true", exitCode, ok)
+	exitCode, ok, err := lsfAccounting("123")
+	if err != nil || !ok || exitCode != 0 {
+		t.Fatalf("lsfAccounting = %d, %v, %v; want 0, true, nil", exitCode, ok, err)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -49,9 +50,23 @@ func cliExecutorRunSettings(fs *flag.FlagSet) executorRunSettingsMap {
 		concurrency := cliInt(fs, name+"-concurrency", 0)
 		var options stringSliceFlag
 		cliValue(fs, &options, name+"-options")
-		settings[name] = ExecutorRunSettings{Concurrency: *concurrency, Options: options}
+		settings[name] = ExecutorRunSettings{Concurrency: *concurrency, Options: options, SubmitInterval: executorSubmitInterval(fs, name), SubmitRetryLimit: executorSubmitRetryLimit(fs, name)}
 	}
 	return settings
+}
+
+func executorSubmitInterval(fs *flag.FlagSet, name string) time.Duration {
+	if name == "ssh" {
+		return 0
+	}
+	return *cliDuration(fs, name+"-submit-interval", 0)
+}
+
+func executorSubmitRetryLimit(fs *flag.FlagSet, name string) int {
+	if name == "ssh" {
+		return 0
+	}
+	return *cliInt(fs, name+"-submit-retry-limit", 0)
 }
 
 func executorSettingsFor(settings executorRunSettingsMap, name string) ExecutorRunSettings {

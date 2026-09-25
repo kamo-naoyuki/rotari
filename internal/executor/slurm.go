@@ -33,18 +33,30 @@ var slurmPollInterval = time.Second
 // Slurm submits jobs to Slurm via sbatch and tracks them through
 // squeue/sacct. See submitSlurmJob and waitSlurmJob for the details.
 type Slurm struct {
-	Store state.Store
-	Logf  func(string, ...any)
+	Store             state.Store
+	Logf              func(string, ...any)
+	SubmissionRetry   schedulerSubmissionRetryPolicy
+	SubmissionSpacing *schedulerSubmissionGate
 }
 
 func NewSlurm(store state.Store, logf func(string, ...any)) Slurm {
-	return Slurm{Store: store, Logf: logf}
+	return Slurm{Store: store, Logf: logf, SubmissionRetry: schedulerSubmissionRetries, SubmissionSpacing: schedulerSubmissionSpacing}
 }
 
 func (Slurm) Name() string { return "slurm" }
 
+func (slurm Slurm) WithRunSettings(settings RunSettings) JobExecutor {
+	if settings.SubmitRetryLimit > 0 {
+		slurm.SubmissionRetry.RetryLimit = settings.SubmitRetryLimit
+	}
+	if settings.SubmitInterval > 0 {
+		slurm.SubmissionSpacing = newSchedulerSubmissionGate(settings.SubmitInterval)
+	}
+	return slurm
+}
+
 func (slurm Slurm) Submit(runDir string, job model.JobSpec, options []string) (JobHandle, error) {
-	metadata, err := submitSlurmJob(slurm.Store, slurm.Logf, runDir, job, options)
+	metadata, err := submitSlurmJobWithPolicies(slurm.Store, slurm.Logf, runDir, job, options, slurm.SubmissionRetry, slurm.SubmissionSpacing)
 	if err != nil {
 		return JobHandle{}, err
 	}
@@ -52,7 +64,7 @@ func (slurm Slurm) Submit(runDir string, job model.JobSpec, options []string) (J
 }
 
 func (slurm Slurm) SubmitArray(runDir string, jobs []model.JobSpec, options []string) ([]JobHandle, error) {
-	return submitSlurmArray(slurm.Store, runDir, jobs, options)
+	return submitSlurmArrayWithPolicies(slurm.Store, slurm.Logf, runDir, jobs, options, slurm.SubmissionRetry, slurm.SubmissionSpacing)
 }
 
 func (Slurm) SupportsSparseArray() bool { return true }
@@ -113,6 +125,10 @@ func readSlurmMetadata(store state.Store, jobDir string) (slurmJobMetadata, erro
 }
 
 func submitSlurmJob(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, executorOptions []string) (slurmJobMetadata, error) {
+	return submitSlurmJobWithPolicies(store, logf, runDir, job, executorOptions, schedulerSubmissionRetries, schedulerSubmissionSpacing)
+}
+
+func submitSlurmJobWithPolicies(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, executorOptions []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate) (slurmJobMetadata, error) {
 	jobDir, err := state.AttemptJobDir(runDir, job)
 	if err != nil {
 		return slurmJobMetadata{}, err
@@ -136,7 +152,10 @@ func submitSlurmJob(store state.Store, logf func(string, ...any), runDir string,
 	}
 	args = append(args, expandedOptions...)
 	args = append(args, wrapperPath)
-	output, err := runSlurmCommand("sbatch", args...)
+	output, err := retryPolicy.submit(logf, "slurm", func() ([]byte, error) {
+		spacing.wait("slurm")
+		return runSlurmCommand("sbatch", args...)
+	})
 	if err != nil {
 		return slurmJobMetadata{}, fmt.Errorf("sbatch: %w: %s", err, strings.TrimSpace(string(output)))
 	}
@@ -155,7 +174,11 @@ func submitSlurmJob(store state.Store, logf func(string, ...any), runDir string,
 	return metadata, nil
 }
 
-func submitSlurmArray(store state.Store, runDir string, jobs []model.JobSpec, executorOptions []string) ([]JobHandle, error) {
+func submitSlurmArray(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string) ([]JobHandle, error) {
+	return submitSlurmArrayWithPolicies(store, logf, runDir, jobs, executorOptions, schedulerSubmissionRetries, schedulerSubmissionSpacing)
+}
+
+func submitSlurmArrayWithPolicies(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate) ([]JobHandle, error) {
 	if len(jobs) == 0 || jobs[0].ArrayTaskID == nil {
 		return nil, errors.New("empty Slurm array")
 	}
@@ -198,7 +221,10 @@ func submitSlurmArray(store state.Store, runDir string, jobs []model.JobSpec, ex
 	}
 	args = append(args, expandedOptions...)
 	args = append(args, wrapperPath)
-	output, err := runSlurmCommand("sbatch", args...)
+	output, err := retryPolicy.submit(logf, "slurm", func() ([]byte, error) {
+		spacing.wait("slurm")
+		return runSlurmCommand("sbatch", args...)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("sbatch array: %w: %s", err, strings.TrimSpace(string(output)))
 	}
@@ -253,39 +279,18 @@ func waitSlurmJob(store state.Store, runDir string, job slurmJobMetadata) model.
 	if err != nil {
 		return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}
-	statusPath := filepath.Join(jobDir, "status.json")
-	var accountingDeadline time.Time
-	for {
-		if status, ok := LoadWrapperStatus(store, statusPath); ok && status.Phase == "finished" {
-			return jobResultFromStatus(job.JobID, job.Command, status)
-		}
-		schedulerState, err := slurmJobState(job.SlurmJobID)
-		if err != nil {
-			return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
-		}
-		if schedulerState != "" {
-			WriteSchedulerStatus(store, jobDir, schedulerState, time.Now())
-		}
-		if schedulerState == "" {
-			// A directory listing nudges NFS clients to drop stale attribute/dentry
-			// caches before re-checking the wrapper's own status.json.
-			_, _ = os.ReadDir(jobDir)
-			if status, ok := LoadWrapperStatus(store, statusPath); ok && status.Phase == "finished" {
-				return jobResultFromStatus(job.JobID, job.Command, status)
-			}
-			if accountingDeadline.IsZero() {
-				accountingDeadline = time.Now().Add(slurmAccountingWait)
-			}
-			if exitCode, acctState, ok := slurmAccounting(job.SlurmJobID); ok {
-				_ = state.WriteJSON(statusPath, WrapperStatus{Phase: acctState, ExitCode: exitCode, FinishedAt: nowRFC3339()})
-				return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: exitCode, Error: acctState}
-			}
-			if time.Now().After(accountingDeadline) {
-				return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: "Slurm accounting result and wrapper status are unavailable"}
-			}
-		}
-		time.Sleep(slurmPollInterval)
-	}
+	return waitForSchedulerResult(store, jobDir, job.JobID, job.Command, schedulerPollingPolicy{
+		AccountingWait: slurmAccountingWait, PollInterval: slurmPollInterval,
+		UnavailableError: "Slurm accounting result and wrapper status are unavailable",
+		JobState: func() schedulerQuery {
+			state, err := slurmJobState(job.SlurmJobID)
+			return schedulerQuery{State: state, Failed: err != nil}
+		},
+		Accounting: func() schedulerAccounting {
+			exitCode, state, ok, err := slurmAccounting(job.SlurmJobID)
+			return schedulerAccounting{Status: WrapperStatus{Phase: state, ExitCode: exitCode, Error: state, FinishedAt: nowRFC3339()}, Resolved: ok, Failed: err != nil}
+		},
+	})
 }
 
 func slurmJobActive(jobID string) (bool, error) {
@@ -294,22 +299,17 @@ func slurmJobActive(jobID string) (bool, error) {
 }
 
 func slurmJobState(jobID string) (string, error) {
-	// A failing squeue (e.g. slurmctld briefly unreachable) is treated the same
-	// as the job having left the queue view, not a fatal error, so a transient
-	// controller outage doesn't get the still-running job reported as failed;
-	// the caller falls back to polling sacct within its accounting deadline,
-	// mirroring pbsJobState/lsfJobState.
 	output, err := runSlurmCommand("squeue", "--noheader", "--jobs", jobID, "--format=%T")
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	return strings.ToLower(strings.TrimSpace(string(output))), nil
 }
 
-func slurmAccounting(jobID string) (int, string, bool) {
+func slurmAccounting(jobID string) (int, string, bool, error) {
 	output, err := runSlurmCommand("sacct", "--noheader", "--parsable2", "--allocations", "--jobs", jobID, "--format=State,ExitCode")
 	if err != nil {
-		return 0, "", false
+		return 0, "", false, err
 	}
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
 	for scanner.Scan() {
@@ -322,9 +322,9 @@ func slurmAccounting(jobID string) (int, string, bool) {
 		if state == "COMPLETED" {
 			exitCode = 0
 		}
-		return exitCode, strings.ToLower(state), true
+		return exitCode, strings.ToLower(state), true, nil
 	}
-	return 0, "", false
+	return 0, "", false, nil
 }
 
 func runSlurmCommand(name string, args ...string) ([]byte, error) {

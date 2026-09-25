@@ -30,18 +30,30 @@ type pbsJobMetadata struct {
 // PBS submits jobs to a PBS/Torque scheduler via qsub and tracks them
 // through qstat, mirroring the Slurm executor's submit/poll/accounting model.
 type PBS struct {
-	Store state.Store
-	Logf  func(string, ...any)
+	Store             state.Store
+	Logf              func(string, ...any)
+	SubmissionRetry   schedulerSubmissionRetryPolicy
+	SubmissionSpacing *schedulerSubmissionGate
 }
 
 func NewPBS(store state.Store, logf func(string, ...any)) PBS {
-	return PBS{Store: store, Logf: logf}
+	return PBS{Store: store, Logf: logf, SubmissionRetry: schedulerSubmissionRetries, SubmissionSpacing: schedulerSubmissionSpacing}
 }
 
 func (PBS) Name() string { return "pbs" }
 
+func (pbs PBS) WithRunSettings(settings RunSettings) JobExecutor {
+	if settings.SubmitRetryLimit > 0 {
+		pbs.SubmissionRetry.RetryLimit = settings.SubmitRetryLimit
+	}
+	if settings.SubmitInterval > 0 {
+		pbs.SubmissionSpacing = newSchedulerSubmissionGate(settings.SubmitInterval)
+	}
+	return pbs
+}
+
 func (pbs PBS) Submit(runDir string, job model.JobSpec, options []string) (JobHandle, error) {
-	metadata, err := submitPBSJob(pbs.Store, pbs.Logf, runDir, job, options)
+	metadata, err := submitPBSJobWithPolicies(pbs.Store, pbs.Logf, runDir, job, options, pbs.SubmissionRetry, pbs.SubmissionSpacing)
 	if err != nil {
 		return JobHandle{}, err
 	}
@@ -49,7 +61,7 @@ func (pbs PBS) Submit(runDir string, job model.JobSpec, options []string) (JobHa
 }
 
 func (pbs PBS) SubmitArray(runDir string, jobs []model.JobSpec, options []string) ([]JobHandle, error) {
-	return submitPBSArray(pbs.Store, runDir, jobs, options)
+	return submitPBSArrayWithPolicies(pbs.Store, pbs.Logf, runDir, jobs, options, pbs.SubmissionRetry, pbs.SubmissionSpacing)
 }
 
 func (pbs PBS) Wait(runDir string, handle JobHandle) model.JobResult {
@@ -108,6 +120,10 @@ func readPBSMetadata(store state.Store, jobDir string) (pbsJobMetadata, error) {
 }
 
 func submitPBSJob(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, options []string) (pbsJobMetadata, error) {
+	return submitPBSJobWithPolicies(store, logf, runDir, job, options, schedulerSubmissionRetries, schedulerSubmissionSpacing)
+}
+
+func submitPBSJobWithPolicies(store state.Store, logf func(string, ...any), runDir string, job model.JobSpec, options []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate) (pbsJobMetadata, error) {
 	jobDir, err := state.AttemptJobDir(runDir, job)
 	if err != nil {
 		return pbsJobMetadata{}, err
@@ -130,7 +146,10 @@ func submitPBSJob(store state.Store, logf func(string, ...any), runDir string, j
 	}
 	args = append(args, expandedOptions...)
 	args = append(args, wrapperPath)
-	output, err := runPBSCommand("qsub", args...)
+	output, err := retryPolicy.submit(logf, "pbs", func() ([]byte, error) {
+		spacing.wait("pbs")
+		return runPBSCommand("qsub", args...)
+	})
 	if err != nil {
 		return pbsJobMetadata{}, fmt.Errorf("qsub: %w: %s", err, strings.TrimSpace(string(output)))
 	}
@@ -149,7 +168,11 @@ func submitPBSJob(store state.Store, logf func(string, ...any), runDir string, j
 	return metadata, nil
 }
 
-func submitPBSArray(store state.Store, runDir string, jobs []model.JobSpec, executorOptions []string) ([]JobHandle, error) {
+func submitPBSArray(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string) ([]JobHandle, error) {
+	return submitPBSArrayWithPolicies(store, logf, runDir, jobs, executorOptions, schedulerSubmissionRetries, schedulerSubmissionSpacing)
+}
+
+func submitPBSArrayWithPolicies(store state.Store, logf func(string, ...any), runDir string, jobs []model.JobSpec, executorOptions []string, retryPolicy schedulerSubmissionRetryPolicy, spacing *schedulerSubmissionGate) ([]JobHandle, error) {
 	if len(jobs) == 0 || jobs[0].ArrayTaskID == nil {
 		return nil, errors.New("empty PBS array")
 	}
@@ -184,7 +207,10 @@ func submitPBSArray(store state.Store, runDir string, jobs []model.JobSpec, exec
 	args := []string{"-j", "oe", "-o", "/dev/null", "-J", fmt.Sprintf("%d-%d", first, last)}
 	args = append(args, expandedOptions...)
 	args = append(args, wrapperPath)
-	output, err := runPBSCommand("qsub", args...)
+	output, err := retryPolicy.submit(logf, "pbs", func() ([]byte, error) {
+		spacing.wait("pbs")
+		return runPBSCommand("qsub", args...)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("qsub array: %w: %s", err, strings.TrimSpace(string(output)))
 	}
@@ -217,40 +243,18 @@ func waitPBSJob(store state.Store, runDir string, job pbsJobMetadata) model.JobR
 	if err != nil {
 		return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}
-	statusPath := filepath.Join(jobDir, "status.json")
-	var accountingDeadline time.Time
-	for {
-		if status, ok := LoadWrapperStatus(store, statusPath); ok && status.Phase == "finished" {
-			return jobResultFromStatus(job.JobID, job.Command, status)
-		}
-		schedulerState, err := pbsJobState(job.PBSJobID)
-		if err != nil {
-			return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: err.Error()}
-		}
-		if schedulerState != "" {
-			WriteSchedulerStatus(store, jobDir, schedulerState, time.Now())
-		}
-		if schedulerState == "" {
-			// A directory listing nudges NFS clients to drop stale attribute/dentry
-			// caches, the same way the Slurm wait loop does, before re-checking the
-			// wrapper's own status.json.
-			_, _ = os.ReadDir(jobDir)
-			if status, ok := LoadWrapperStatus(store, statusPath); ok && status.Phase == "finished" {
-				return jobResultFromStatus(job.JobID, job.Command, status)
-			}
-			if accountingDeadline.IsZero() {
-				accountingDeadline = time.Now().Add(pbsAccountingWait)
-			}
-			if exitCode, ok := pbsAccounting(job.PBSJobID); ok {
-				_ = state.WriteJSON(statusPath, WrapperStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339()})
-				return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: exitCode}
-			}
-			if time.Now().After(accountingDeadline) {
-				return model.JobResult{ID: job.JobID, Command: job.Command, ExitCode: 1, Error: "PBS accounting result and wrapper status are unavailable"}
-			}
-		}
-		time.Sleep(time.Second)
-	}
+	return waitForSchedulerResult(store, jobDir, job.JobID, job.Command, schedulerPollingPolicy{
+		AccountingWait: pbsAccountingWait, PollInterval: time.Second,
+		UnavailableError: "PBS accounting result and wrapper status are unavailable",
+		JobState: func() schedulerQuery {
+			state, err := pbsJobState(job.PBSJobID)
+			return schedulerQuery{State: state, Failed: err != nil}
+		},
+		Accounting: func() schedulerAccounting {
+			exitCode, ok, err := pbsAccounting(job.PBSJobID)
+			return schedulerAccounting{Status: WrapperStatus{Phase: "finished", ExitCode: exitCode, FinishedAt: nowRFC3339()}, Resolved: ok, Failed: err != nil}
+		},
+	})
 }
 
 // pbsJobActive reports whether the scheduler still tracks the job. qstat
@@ -263,7 +267,7 @@ func pbsJobActive(jobID string) (bool, error) {
 func pbsJobState(jobID string) (string, error) {
 	output, err := runPBSCommand("qstat", "-f", jobID)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	for _, line := range strings.Split(string(output), "\n") {
 		parts := strings.SplitN(strings.TrimSpace(line), "=", 2)
@@ -290,10 +294,10 @@ func pbsJobState(jobID string) (string, error) {
 
 // pbsAccounting parses "exit_status = N" out of qstat's full/history output,
 // PBS's equivalent of Slurm's sacct.
-func pbsAccounting(jobID string) (int, bool) {
+func pbsAccounting(jobID string) (int, bool, error) {
 	output, err := runPBSCommand("qstat", "-xf", jobID)
 	if err != nil {
-		return 0, false
+		return 0, false, err
 	}
 	for _, line := range strings.Split(string(output), "\n") {
 		line = strings.TrimSpace(line)
@@ -308,9 +312,9 @@ func pbsAccounting(jobID string) (int, bool) {
 		if err != nil {
 			continue
 		}
-		return code, true
+		return code, true, nil
 	}
-	return 0, false
+	return 0, false, nil
 }
 
 func runPBSCommand(name string, args ...string) ([]byte, error) {

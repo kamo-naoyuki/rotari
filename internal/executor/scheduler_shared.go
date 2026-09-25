@@ -3,8 +3,12 @@ package executor
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -118,6 +122,118 @@ func SchedulerCommandHint(binary string, output []byte, err error) error {
 	return err
 }
 
+type schedulerSubmissionFailureKind uint8
+
+const (
+	schedulerSubmissionPermanent schedulerSubmissionFailureKind = iota
+	schedulerSubmissionTransient
+	schedulerSubmissionAmbiguous
+)
+
+func classifySchedulerSubmissionFailure(err error, output []byte) schedulerSubmissionFailureKind {
+	if errors.Is(err, exec.ErrNotFound) {
+		return schedulerSubmissionPermanent
+	}
+	message := strings.ToLower(err.Error() + " " + string(output))
+	if strings.Contains(message, "timed out after") || strings.Contains(message, "returned an empty job id") || strings.Contains(message, "returned no job id") {
+		return schedulerSubmissionAmbiguous
+	}
+	for _, pattern := range []string{
+		"permission denied", "not authorized", "unauthorized", "access denied",
+		"invalid partition", "invalid queue", "invalid account", "invalid qos",
+		"invalid resource", "invalid option", "unrecognized option", "illegal option",
+	} {
+		if strings.Contains(message, pattern) {
+			return schedulerSubmissionPermanent
+		}
+	}
+	for _, pattern := range []string{
+		"controller unavailable", "unable to contact", "temporarily unavailable",
+		"try again", "connection refused", "connection reset", "broken pipe",
+		"service unavailable", "server unavailable", "not responding",
+	} {
+		if strings.Contains(message, pattern) {
+			return schedulerSubmissionTransient
+		}
+	}
+	return schedulerSubmissionPermanent
+}
+
+type schedulerSubmissionRetryPolicy struct {
+	RetryLimit   int
+	InitialDelay time.Duration
+	MaxDelay     time.Duration
+	Timing       schedulerTiming
+}
+
+var schedulerSubmissionRetries = schedulerSubmissionRetryPolicy{
+	RetryLimit: 2, InitialDelay: time.Second, MaxDelay: 30 * time.Second,
+}
+
+var schedulerSubmissionSpacing = newSchedulerSubmissionGate(100 * time.Millisecond)
+
+type schedulerSubmissionGate struct {
+	mu       sync.Mutex
+	interval time.Duration
+	timing   schedulerTiming
+	next     map[string]time.Time
+}
+
+func newSchedulerSubmissionGate(interval time.Duration) *schedulerSubmissionGate {
+	return &schedulerSubmissionGate{interval: interval, next: make(map[string]time.Time)}
+}
+
+func (gate *schedulerSubmissionGate) wait(scheduler string) {
+	if gate.interval <= 0 {
+		return
+	}
+	timing := gate.timing.withDefaults()
+	gate.mu.Lock()
+	now := timing.Now()
+	scheduled := now
+	if next := gate.next[scheduler]; next.After(scheduled) {
+		scheduled = next
+	}
+	gate.next[scheduler] = scheduled.Add(gate.interval)
+	gate.mu.Unlock()
+	if delay := scheduled.Sub(now); delay > 0 {
+		timing.Sleep(delay)
+	}
+}
+
+func (policy schedulerSubmissionRetryPolicy) submit(logf func(string, ...any), scheduler string, submit func() ([]byte, error)) ([]byte, error) {
+	timing := policy.Timing.withDefaults()
+	for retry := 0; ; retry++ {
+		output, err := submit()
+		if err == nil || classifySchedulerSubmissionFailure(err, output) != schedulerSubmissionTransient || retry >= policy.RetryLimit {
+			return output, err
+		}
+		delay := policy.retryDelay(retry, timing)
+		if logf != nil {
+			logf("retry scheduler=%s attempt=%d delay=%s\n", scheduler, retry+1, delay)
+		}
+		timing.Sleep(delay)
+	}
+}
+
+func (policy schedulerSubmissionRetryPolicy) retryDelay(retry int, timing schedulerTiming) time.Duration {
+	delay := policy.InitialDelay
+	for attempt := 0; attempt < retry && delay < policy.MaxDelay; attempt++ {
+		delay *= 2
+	}
+	if delay > policy.MaxDelay {
+		delay = policy.MaxDelay
+	}
+	delay = timing.Jitter(delay)
+	if delay < 0 {
+		return 0
+	}
+	if delay > policy.MaxDelay {
+		return policy.MaxDelay
+	}
+	return delay
+}
+
 func sameStrings(left, right []string) bool {
 	if len(left) != len(right) {
 		return false
@@ -187,4 +303,125 @@ func schedulerArrayCaseLine(job model.JobSpec) (string, bool) {
 		changeDirectory = "        cd " + ShellQuote(job.WorkingDirectory) + " || exit 1\n"
 	}
 	return fmt.Sprintf("    %d)\n        %s\n        job_dir=%s\n        export %s=%s\n        mkdir -p \"$job_dir\" || exit 1\n%s        ;;", *job.ArrayTaskID, strings.Join(exports, "\n        "), ShellQuote(jobDir), model.EnvJobDir, ShellQuote(jobDir), changeDirectory), true
+}
+
+type schedulerPollingPolicy struct {
+	AccountingWait   time.Duration
+	PollInterval     time.Duration
+	UnavailableError string
+	JobState         func() schedulerQuery
+	Accounting       func() schedulerAccounting
+	Timing           schedulerTiming
+}
+
+const schedulerPollingBackoffMax = 30 * time.Second
+
+type schedulerQuery struct {
+	State  string
+	Failed bool
+}
+
+type schedulerAccounting struct {
+	Status   WrapperStatus
+	Resolved bool
+	Failed   bool
+}
+
+type schedulerTiming struct {
+	Now    func() time.Time
+	Sleep  func(time.Duration)
+	Jitter func(time.Duration) time.Duration
+}
+
+func (timing schedulerTiming) withDefaults() schedulerTiming {
+	if timing.Now == nil {
+		timing.Now = time.Now
+	}
+	if timing.Sleep == nil {
+		timing.Sleep = time.Sleep
+	}
+	if timing.Jitter == nil {
+		timing.Jitter = func(delay time.Duration) time.Duration { return delay }
+	}
+	return timing
+}
+
+// waitForSchedulerResult implements the scheduler-independent polling contract.
+// Each scheduler supplies only its native queue and accounting queries.
+func waitForSchedulerResult(store state.Store, jobDir, jobID string, command []string, policy schedulerPollingPolicy) model.JobResult {
+	statusPath := filepath.Join(jobDir, "status.json")
+	timing := policy.Timing.withDefaults()
+	var accountingDeadline time.Time
+	failures := 0
+	for {
+		if result, finished := wrapperJobResult(store, statusPath, jobID, command); finished {
+			return result
+		}
+		query := policy.JobState()
+		if query.State != "" {
+			failures = 0
+			WriteSchedulerStatus(store, jobDir, query.State, timing.Now())
+		} else {
+			result, resolved, accountingFailed := policy.resolveMissingSchedulerState(store, jobDir, statusPath, jobID, command, timing, &accountingDeadline)
+			if resolved {
+				return result
+			}
+			failures = nextSchedulerPollingFailures(failures, query.Failed || accountingFailed)
+		}
+		timing.Sleep(policy.pollingDelay(failures, timing))
+	}
+}
+
+func nextSchedulerPollingFailures(failures int, failed bool) int {
+	if failed {
+		return failures + 1
+	}
+	return 0
+}
+
+func (policy schedulerPollingPolicy) pollingDelay(failures int, timing schedulerTiming) time.Duration {
+	delay := policy.PollInterval
+	for attempt := 1; attempt < failures && delay < schedulerPollingBackoffMax; attempt++ {
+		delay *= 2
+	}
+	if delay > schedulerPollingBackoffMax {
+		delay = schedulerPollingBackoffMax
+	}
+	delay = timing.Jitter(delay)
+	if delay < 0 {
+		return 0
+	}
+	if delay > schedulerPollingBackoffMax {
+		return schedulerPollingBackoffMax
+	}
+	return delay
+}
+
+func wrapperJobResult(store state.Store, statusPath, jobID string, command []string) (model.JobResult, bool) {
+	status, ok := LoadWrapperStatus(store, statusPath)
+	if !ok || status.Phase != "finished" {
+		return model.JobResult{}, false
+	}
+	return jobResultFromStatus(jobID, command, status), true
+}
+
+func (policy schedulerPollingPolicy) resolveMissingSchedulerState(store state.Store, jobDir, statusPath, jobID string, command []string, timing schedulerTiming, accountingDeadline *time.Time) (model.JobResult, bool, bool) {
+	// Nudge NFS clients to discard stale cache entries before reading the
+	// scheduler-independent wrapper result a second time.
+	_, _ = os.ReadDir(jobDir)
+	if result, finished := wrapperJobResult(store, statusPath, jobID, command); finished {
+		return result, true, false
+	}
+	if accountingDeadline.IsZero() {
+		*accountingDeadline = timing.Now().Add(policy.AccountingWait)
+	}
+	accounting := policy.Accounting()
+	if accounting.Resolved {
+		_ = state.WriteJSON(statusPath, accounting.Status)
+		return jobResultFromStatus(jobID, command, accounting.Status), true, accounting.Failed
+	}
+	if timing.Now().After(*accountingDeadline) {
+		return model.JobResult{ID: jobID, Command: command, ExitCode: 1, Error: policy.UnavailableError}, true, accounting.Failed
+	}
+	return model.JobResult{}, false, accounting.Failed
 }

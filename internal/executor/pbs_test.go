@@ -56,6 +56,26 @@ printf '123.headnode\n'
 	}
 }
 
+func TestSubmitPBSJobFailureDoesNotRetryOrRecordJob(t *testing.T) {
+	binDir := t.TempDir()
+	callsPath := filepath.Join(t.TempDir(), "qsub-calls")
+	writeExecutable(t, binDir, "qsub", fmt.Sprintf("#!/bin/sh\nprintf x >> %q\nprintf 'invalid queue\\n' >&2\nexit 1\n", callsPath))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	runDir := t.TempDir()
+	job := model.JobSpec{ID: "job-1", Command: []string{"echo", "hello"}}
+	if _, err := submitPBSJob(testStore(), testLogf, runDir, job, nil); err == nil {
+		t.Fatal("submitPBSJob succeeded, want scheduler error")
+	}
+	calls, err := os.ReadFile(callsPath)
+	if err != nil || string(calls) != "x" {
+		t.Fatalf("qsub calls = %q, err=%v; want one call", calls, err)
+	}
+	if _, err := os.Stat(filepath.Join(runDir, job.ID, "job.json")); !os.IsNotExist(err) {
+		t.Fatalf("job metadata exists after failed submission: %v", err)
+	}
+}
+
 func TestSubmitPBSArrayWithFakePBS(t *testing.T) {
 	binDir := t.TempDir()
 	argumentsPath := filepath.Join(t.TempDir(), "qsub-array-args")
@@ -70,7 +90,7 @@ printf '123[].server\n'
 		{ID: "array-1", ArrayGroup: "array", ArrayTaskID: &taskOne, ArrayFirst: 1, ArrayLast: 2, Command: []string{"echo", "hello"}, Environment: []string{"ROTARI_ARRAY_TASK_ID=1", "ROTARI_JOB_DIR=" + filepath.Join(runDir, "array-1")}},
 		{ID: "array-2", ArrayGroup: "array", ArrayTaskID: &taskTwo, ArrayFirst: 1, ArrayLast: 2, Command: []string{"echo", "hello"}, Environment: []string{"ROTARI_ARRAY_TASK_ID=2", "ROTARI_JOB_DIR=" + filepath.Join(runDir, "array-2")}},
 	}
-	handles, err := submitPBSArray(testStore(), runDir, jobs, nil)
+	handles, err := submitPBSArray(testStore(), testLogf, runDir, jobs, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,9 +141,9 @@ fi
 	if err != nil || state != "pending" {
 		t.Fatalf("pbsJobState = %q, %v; want pending, nil", state, err)
 	}
-	exitCode, ok := pbsAccounting("123.headnode")
-	if !ok || exitCode != 1 {
-		t.Fatalf("pbsAccounting = %d, %v; want 1, true", exitCode, ok)
+	exitCode, ok, err := pbsAccounting("123.headnode")
+	if err != nil || !ok || exitCode != 1 {
+		t.Fatalf("pbsAccounting = %d, %v, %v; want 1, true, nil", exitCode, ok, err)
 	}
 }
 

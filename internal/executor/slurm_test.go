@@ -58,6 +58,77 @@ printf '12345;fake-host\n'
 	}
 }
 
+func TestSlurmWithRunSettingsCopiesSubmissionPolicy(t *testing.T) {
+	base := NewSlurm(testStore(), testLogf)
+	configured, ok := base.WithRunSettings(RunSettings{SubmitInterval: 250 * time.Millisecond, SubmitRetryLimit: 4}).(Slurm)
+	if !ok {
+		t.Fatalf("configured executor = %T, want Slurm", configured)
+	}
+	if configured.SubmissionRetry.RetryLimit != 4 || configured.SubmissionSpacing.interval != 250*time.Millisecond {
+		t.Fatalf("configured Slurm = %#v", configured)
+	}
+	if base.SubmissionRetry.RetryLimit != schedulerSubmissionRetries.RetryLimit || base.SubmissionSpacing != schedulerSubmissionSpacing {
+		t.Fatalf("base Slurm was mutated: %#v", base)
+	}
+}
+
+func TestSubmitSlurmJobFailureDoesNotRetryOrRecordJob(t *testing.T) {
+	binDir := t.TempDir()
+	callsPath := filepath.Join(t.TempDir(), "sbatch-calls")
+	writeExecutable(t, binDir, "sbatch", fmt.Sprintf("#!/bin/sh\nprintf x >> %q\nprintf 'invalid partition\\n' >&2\nexit 1\n", callsPath))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	runDir := t.TempDir()
+	job := model.JobSpec{ID: "job-1", Command: []string{"echo", "hello"}}
+	if _, err := submitSlurmJob(testStore(), testLogf, runDir, job, nil); err == nil {
+		t.Fatal("submitSlurmJob succeeded, want scheduler error")
+	}
+	calls, err := os.ReadFile(callsPath)
+	if err != nil || string(calls) != "x" {
+		t.Fatalf("sbatch calls = %q, err=%v; want one call", calls, err)
+	}
+	if _, err := os.Stat(filepath.Join(runDir, job.ID, "job.json")); !os.IsNotExist(err) {
+		t.Fatalf("job metadata exists after failed submission: %v", err)
+	}
+}
+
+func TestSubmitSlurmJobRetriesTransientFailure(t *testing.T) {
+	oldRetryPolicy := schedulerSubmissionRetries
+	var sleeps []time.Duration
+	schedulerSubmissionRetries = schedulerSubmissionRetryPolicy{
+		RetryLimit: 2, InitialDelay: time.Second, MaxDelay: 30 * time.Second,
+		Timing: schedulerTiming{
+			Sleep:  func(delay time.Duration) { sleeps = append(sleeps, delay) },
+			Jitter: func(delay time.Duration) time.Duration { return delay },
+		},
+	}
+	t.Cleanup(func() { schedulerSubmissionRetries = oldRetryPolicy })
+
+	binDir := t.TempDir()
+	callsPath := filepath.Join(t.TempDir(), "sbatch-calls")
+	script := fmt.Sprintf("#!/bin/sh\nprintf x >> %q\nif [ \"$(wc -c < %q)\" -eq 1 ]; then\n    printf 'controller unavailable\\n' >&2\n    exit 1\nfi\nprintf '12345;fake-host\\n'\n", callsPath, callsPath)
+	writeExecutable(t, binDir, "sbatch", script)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	var logs []string
+	runDir := t.TempDir()
+	job := model.JobSpec{ID: "job-1", Command: []string{"echo", "hello"}}
+	metadata, err := submitSlurmJob(testStore(), func(format string, args ...any) { logs = append(logs, fmt.Sprintf(format, args...)) }, runDir, job, nil)
+	if err != nil || metadata.SlurmJobID != "12345" {
+		t.Fatalf("submitSlurmJob = %#v, %v; want job ID 12345", metadata, err)
+	}
+	calls, err := os.ReadFile(callsPath)
+	if err != nil || string(calls) != "xx" {
+		t.Fatalf("sbatch calls = %q, err=%v; want two calls", calls, err)
+	}
+	if !sameDurations(sleeps, []time.Duration{time.Second}) {
+		t.Fatalf("retry sleeps = %v, want [1s]", sleeps)
+	}
+	if len(logs) != 2 || !strings.Contains(logs[0], "retry scheduler=slurm attempt=1 delay=1s") {
+		t.Fatalf("submit logs = %q, want retry progress entry and submission entry", logs)
+	}
+}
+
 func TestSubmitSlurmArrayWithFakeSlurm(t *testing.T) {
 	binDir := t.TempDir()
 	argumentsPath := filepath.Join(t.TempDir(), "sbatch-array-args")
@@ -74,7 +145,7 @@ printf '54321;fake-host\n'
 		{ID: "array-1", ArrayGroup: "array", ArrayTaskID: &taskOne, ArrayFirst: 1, ArrayLast: 2, Command: []string{"echo", "hello"}, Environment: []string{"ROTARI_ARRAY_TASK_ID=1", "ROTARI_JOB_DIR=" + filepath.Join(runDir, "array-1")}},
 		{ID: "array-2", ArrayGroup: "array", ArrayTaskID: &taskTwo, ArrayFirst: 1, ArrayLast: 2, Command: []string{"echo", "hello"}, Environment: []string{"ROTARI_ARRAY_TASK_ID=2", "ROTARI_JOB_DIR=" + filepath.Join(runDir, "array-2")}},
 	}
-	handles, err := submitSlurmArray(testStore(), runDir, jobs, nil)
+	handles, err := submitSlurmArray(testStore(), testLogf, runDir, jobs, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +187,7 @@ printf '54321;fake-host\n'
 		{ID: "array-3", ArrayGroup: "array", ArrayTaskID: &taskThree, ArrayFirst: 1, ArrayLast: 4, Command: []string{"echo", "hello"}},
 		{ID: "array-4", ArrayGroup: "array", ArrayTaskID: &taskFour, ArrayFirst: 1, ArrayLast: 4, Command: []string{"echo", "hello"}},
 	}
-	if _, err := submitSlurmArray(testStore(), runDir, jobs, nil); err != nil {
+	if _, err := submitSlurmArray(testStore(), testLogf, runDir, jobs, nil); err != nil {
 		t.Fatal(err)
 	}
 	arguments, err := os.ReadFile(argumentsPath)
@@ -146,9 +217,9 @@ func TestSlurmStatusCommandsWithFakeSlurm(t *testing.T) {
 	if err != nil || state != "pending" {
 		t.Fatalf("slurmJobState = %q, %v; want pending, nil", state, err)
 	}
-	exitCode, state, ok := slurmAccounting("12345")
-	if !ok || exitCode != 1 || state != "failed" {
-		t.Fatalf("slurmAccounting = %d, %q, %v; want 1, failed, true", exitCode, state, ok)
+	exitCode, state, ok, err := slurmAccounting("12345")
+	if err != nil || !ok || exitCode != 1 || state != "failed" {
+		t.Fatalf("slurmAccounting = %d, %q, %v, %v; want 1, failed, true, nil", exitCode, state, ok, err)
 	}
 }
 

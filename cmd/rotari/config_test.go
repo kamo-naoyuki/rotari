@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -295,6 +296,10 @@ func TestConfigTemplateIncludesAllOptionsAsNull(t *testing.T) {
 			}
 		}
 	}
+	runSection, ok := values["run"].(map[string]any)
+	if !ok || runSection["slurm-submit-interval"] != nil || runSection["slurm-submit-retry-limit"] != nil {
+		t.Fatalf("run template scheduler submit settings = %#v, want null entries", runSection)
+	}
 	if !strings.Contains(string(data), "# state directory") || !strings.Contains(string(data), "# replace job executor") {
 		t.Fatalf("template is missing option descriptions:\n%s", data)
 	}
@@ -349,9 +354,11 @@ func TestExecutorRunSettingsLoadFromRunConfig(t *testing.T) {
 	oldConfig, oldCommand := cliConfig, cliConfigCommand
 	cliConfig = map[string]any{
 		"run": map[string]any{
-			"ssh-concurrency":   3,
-			"ssh-options":       []any{"builder@worker-01", "-p", "2222"},
-			"slurm-concurrency": 12,
+			"ssh-concurrency":          3,
+			"ssh-options":              []any{"builder@worker-01", "-p", "2222"},
+			"slurm-concurrency":        12,
+			"slurm-submit-interval":    "750ms",
+			"slurm-submit-retry-limit": 4,
 		},
 	}
 	cliConfigCommand = "run"
@@ -364,17 +371,19 @@ func TestExecutorRunSettingsLoadFromRunConfig(t *testing.T) {
 	if settings["ssh"].Concurrency != 3 || len(settings["ssh"].Options) != 3 {
 		t.Fatalf("SSH settings = %#v", settings["ssh"])
 	}
-	if settings["slurm"].Concurrency != 12 {
+	if settings["slurm"].Concurrency != 12 || settings["slurm"].SubmitInterval != 750*time.Millisecond || settings["slurm"].SubmitRetryLimit != 4 {
 		t.Fatalf("Slurm settings = %#v", settings["slurm"])
 	}
 }
 
 func TestExecutorRunSettingsEnvironmentOverridesConfig(t *testing.T) {
 	oldConfig, oldCommand := cliConfig, cliConfigCommand
-	cliConfig = map[string]any{"run": map[string]any{"ssh-concurrency": 3, "ssh-options": "config-host"}}
+	cliConfig = map[string]any{"run": map[string]any{"ssh-concurrency": 3, "ssh-options": "config-host", "slurm-submit-interval": "750ms", "slurm-submit-retry-limit": 4}}
 	cliConfigCommand = "run"
 	t.Setenv(envRunSSHConc, "5")
 	t.Setenv(envRunSSHOptions, "env-host")
+	t.Setenv(envRunSlurmSubmitInterval, "250ms")
+	t.Setenv(envRunSlurmSubmitRetryLimit, "1")
 	t.Cleanup(func() {
 		cliConfig = oldConfig
 		cliConfigCommand = oldCommand
@@ -383,6 +392,9 @@ func TestExecutorRunSettingsEnvironmentOverridesConfig(t *testing.T) {
 	settings := cliExecutorRunSettings(flag.NewFlagSet("run", flag.ContinueOnError))
 	if settings["ssh"].Concurrency != 5 || len(settings["ssh"].Options) != 1 || settings["ssh"].Options[0] != "env-host" {
 		t.Fatalf("SSH settings = %#v, want environment values", settings["ssh"])
+	}
+	if settings["slurm"].SubmitInterval != 250*time.Millisecond || settings["slurm"].SubmitRetryLimit != 1 {
+		t.Fatalf("Slurm settings = %#v, want environment values", settings["slurm"])
 	}
 }
 

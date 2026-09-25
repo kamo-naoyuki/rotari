@@ -450,6 +450,19 @@ backend-specific limits.
 concurrently. It does not change the scheduler's own queue priority or
 execution limits; after submission, the scheduler decides whether each job is
 `pending`, `running`, or in another state.
+For Slurm, PBS, and LSF, an explicit controller or transport-unavailable
+submission failure is retried at most twice after 1 and 2 seconds. Permission,
+account, partition or queue, resource, and option errors fail immediately. A
+submit timeout or a response without a usable job ID is not retried
+automatically, because the scheduler may already have accepted the job.
+Within one rotari process, submissions to each scheduler are spaced by at least
+100 milliseconds; this includes native array submissions and retry attempts.
+Use `--slurm-submit-interval`, `--pbs-submit-interval`, or
+`--lsf-submit-interval` to increase that interval for one run. Use the matching
+`--*-submit-retry-limit` option to change the transient-submit retry limit.
+These settings also accept `ROTARI_RUN_<SCHEDULER>_SUBMIT_INTERVAL` and
+`ROTARI_RUN_<SCHEDULER>_SUBMIT_RETRY_LIMIT`, or the corresponding `run` config
+keys.
 `--executor-option` is the common dispatch option list. Use `--ssh-options`,
 `--slurm-options`, `--pbs-options`, or `--lsf-options` for backend-specific
 options. Backend-specific settings take precedence over common dispatch
