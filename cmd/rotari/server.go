@@ -242,10 +242,6 @@ func cmdAdd(args []string) int {
 		}
 		array = &parsed
 	}
-	if len(matrixValues) > 0 && array != nil {
-		printError("--matrix cannot be combined with --array")
-		return 1
-	}
 	dimensions := make([]model.MatrixDimension, 0, len(matrixValues))
 	dimensionNames := make(map[string]bool, len(matrixValues))
 	for _, value := range matrixValues {

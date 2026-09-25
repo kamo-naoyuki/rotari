@@ -57,8 +57,9 @@
   persistence. Every Cartesian-product combination is stored as an independent
   queue command with its own generated job ID, a derived job name when the
   base command has one, and ordinary `KEY=VALUE` environment entries.
-  Matrix and array expansion are mutually exclusive. `include` and `exclude`
-  rules are reserved for a future workflow manifest.
+  Matrix and array expansion can be combined: each matrix command retains the
+  same array specification and expands independently at runtime. `include` and
+  `exclude` rules are reserved for a future workflow manifest.
 - Result-based selection (`--failed`/`--unfinished`/`--success` in `copy`, and
   in rerun when `--partial-array=false`) and copied-job origin status operate on
   the unexpanded `QueuedCommand`, but results are recorded per expanded task ID.

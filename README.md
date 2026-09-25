@@ -246,21 +246,6 @@ To run the array job through Slurm instead, pass the optional flag. The local
 The first positional argument selects the project name, for example
 `./scripts/example.sh --slurm scheduler-demo`.
 
-To register a matrix as independent jobs, repeat `--matrix` on `add`:
-
-```sh
-rotari add --job-name train \
-  --matrix python=3.10,3.11 \
-  --matrix cuda=cpu,cuda \
-  -- ./train.sh
-```
-
-This registers the Cartesian product as four jobs named like
-`train-python3.10-cudacpu`. Each job receives its values as ordinary
-environment variables, such as `python=3.10` and `cuda=cpu`. Matrix jobs have
-independent job IDs and cannot be combined with `--array`. `include` and
-`exclude` customization is planned for a future workflow manifest.
-
 ## Python interface
 
 See the [Python client README](python/README.md) for installation, usage, and
@@ -497,7 +482,7 @@ rotari add -p build \
 rotari run -p build
 ```
 
-### Array jobs
+### Array and matrix jobs
 
 Array jobs can be added with a numeric range or a comma-separated task list:
 
@@ -520,6 +505,24 @@ each array task, rotari exposes:
 
 Scheduler-backed arrays also map the native index variable into these values,
 for example `SLURM_ARRAY_TASK_ID`, `PBS_ARRAY_INDEX`, or `LSB_JOBINDEX`.
+
+Matrix jobs are a convenient way to register several array commands with
+different environment values. Repeat `--matrix KEY=VALUE[,VALUE...]` on `add`:
+
+```sh
+rotari add --job-name train \
+  --matrix python=3.10,3.11 \
+  --matrix cuda=cpu,cuda \
+  --array 1-3 \
+  -- ./train.sh
+```
+
+The matrix is expanded as a Cartesian product before the queue is saved. Each
+combination becomes an independent array command with its own job ID and a
+derived name such as `train-python3.10-cudacpu`. Its values are passed as
+ordinary environment variables, such as `python=3.10` and `cuda=cpu`. The
+example above creates two array commands and six runtime tasks. `include` and
+`exclude` customization is planned for a future workflow manifest.
 
 The Slurm and PBS executors are integration-tested in CI against a Slurm
 container and an OpenPBS container. These tests do not certify compatibility
