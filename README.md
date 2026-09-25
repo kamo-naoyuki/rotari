@@ -308,6 +308,17 @@ A project has one mutable queue of jobs ready to run and an immutable history
 of completed runs. The live queue is `queue.json`; each run snapshots it under
 `runs/<run-id>/`, so retries and filtered reruns leave earlier history unchanged.
 
+The queue has different roles depending on the project state:
+
+- While the project is `idle`, the queue is the current work target and the
+  default place to add or edit jobs.
+- While a project is `running`, the queue is treated as a preserved execution
+  snapshot for that run. It still exists on disk, but it is not the primary
+  user-facing work target.
+- While a project is `interrupted`, the run remains the primary recovery target
+  and the queue is the retained snapshot/backup that explains what was running
+  when the interruption happened.
+
 ```text
 <basedir>/projects/<project>/
 ├── queue.json                 # current queue
@@ -450,19 +461,6 @@ backend-specific limits.
 concurrently. It does not change the scheduler's own queue priority or
 execution limits; after submission, the scheduler decides whether each job is
 `pending`, `running`, or in another state.
-For Slurm, PBS, and LSF, an explicit controller or transport-unavailable
-submission failure is retried at most twice after 1 and 2 seconds. Permission,
-account, partition or queue, resource, and option errors fail immediately. A
-submit timeout or a response without a usable job ID is not retried
-automatically, because the scheduler may already have accepted the job.
-Within one rotari process, submissions to each scheduler are spaced by at least
-100 milliseconds; this includes native array submissions and retry attempts.
-Use `--slurm-submit-interval`, `--pbs-submit-interval`, or
-`--lsf-submit-interval` to increase that interval for one run. Use the matching
-`--*-submit-retry-limit` option to change the transient-submit retry limit.
-These settings also accept `ROTARI_RUN_<SCHEDULER>_SUBMIT_INTERVAL` and
-`ROTARI_RUN_<SCHEDULER>_SUBMIT_RETRY_LIMIT`, or the corresponding `run` config
-keys.
 `--executor-option` is the common dispatch option list. Use `--ssh-options`,
 `--slurm-options`, `--pbs-options`, or `--lsf-options` for backend-specific
 options. Backend-specific settings take precedence over common dispatch
@@ -922,13 +920,11 @@ there.
 rotari config
 ```
 
-Use `rotari config --list` to list every existing config file found in the
-global and basedir locations plus every project below the basedir. Common files
-are printed as paths and project files as `PROJECT: PATH`; this is an inventory,
-not the single config selected by priority. Supplying `--project-name` limits
-the project-specific entries to that project.
+Use `rotari config --list` to list the existing config files found in the
+global, basedir, and project locations.
 
 ```sh
+rotari config --list --basedir DIR --project-name NAME
 ```
 
 The resolution order is:

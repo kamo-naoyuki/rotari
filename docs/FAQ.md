@@ -26,7 +26,7 @@ It is short, easy to type, and suggests repeatable workflow execution.
 
 ### Do I need to install a database server?
 
-No. State, queue data, run history, and locks are stored in the filesystem, so no separate PostgreSQL or MySQL service is needed. The filesystem is the source of truth and file locks prevent two local processes from starting the same project at once. Shared multi-host use requires a filesystem that correctly supports locking and atomic operations.
+No. State, history, and locks are stored in the filesystem. Shared multi-host use requires a filesystem that correctly supports locking and atomic operations.
 
 ### Can rotari manage jobs for multiple users like Slurm?
 
@@ -40,11 +40,11 @@ It does not provide a workflow DSL, file freshness checks, artifact caching, sch
 
 ### What's the difference between a project, a queue, and a run?
 
-A project is a named container that holds one current queue and its saved run history. The queue (`queue.json`) contains waiting commands; a run is an immutable snapshot taken when execution starts, with its own logs and results. Later queue edits therefore do not change an existing run.
+A project groups the current queue and run history. The queue (`queue.json`) contains waiting commands; a run is an immutable snapshot taken when execution starts.
 
 ### I didn't pass `--project-name` — which project does rotari use?
 
-Selection uses `--project-name`, `ROTARI_PROJECT_NAME`, the only project in the resolved state directory, and then `default`. If multiple projects remain possible, commands require an explicit selection instead of guessing. A bare `rotari show` lists projects so you can choose one.
+Selection uses `--project-name`, `ROTARI_PROJECT_NAME`, the only project in the resolved state directory, and then `default`. Multiple candidates require an explicit selection. A bare `rotari show` lists projects.
 
 ### How do I list projects in a state directory?
 
@@ -56,7 +56,7 @@ Run `rotari show --basedirs`, then inspect one with `rotari show --basedir DIR`.
 
 ### Where can I put option defaults?
 
-Put `config.yaml`, `config.toml`, or `config.json` in `$XDG_CONFIG_HOME/rotari` (normally `~/.config/rotari`), the basedir, or `projects/<project>/`. Priority is project, basedir, then global; CLI options and environment variables override config files. If more than one config format exists in the same location, rotari reports an error rather than silently choosing one.
+Put `config.yaml`, `config.toml`, or `config.json` in `$XDG_CONFIG_HOME/rotari` (normally `~/.config/rotari`), the basedir, or `projects/<project>/`. Priority is project, basedir, then global; CLI options and environment variables override config files.
 
 ### How do I find every config file below a basedir?
 
@@ -64,29 +64,15 @@ Run `rotari config --list --basedir DIR`. It prints global and basedir paths, th
 
 ### How do I see every configurable option?
 
-Run `rotari config`, or use `--output FILE` to save a template. Without `--output`, rotari can offer the applicable global, basedir, and project locations as well as stdout. The selected config is copied into each run directory so historical views retain the configuration used at that time, even after the original file changes.
+Run `rotari config`, or use `--output FILE` to save a template. The selected config is copied into each run directory so historical views retain the configuration used at that time.
 
 ### How can I notify another service when a run finishes?
 
-Set `webhook.url` or `ROTARI_WEBHOOK_URL`. Use `webhook.on` with `success`, `failure`, or `always` (the default); multiple values may be comma-separated. The payload includes the project, run status, exit code, job counts, and failed job IDs. Delivery failures are warnings and do not change the run result, and a successful delivery is recorded so the same run is not sent twice. Slack, Teams, and Discord formats are supported; see [Webhook integrations](WEBHOOK_NOTIFICATIONS.md).
+Set `webhook.url` or `ROTARI_WEBHOOK_URL`. Use `webhook.on` with `success`, `failure`, or `always` (the default). Slack, Teams, and Discord formats are supported; see [Webhook integrations](WEBHOOK_NOTIFICATIONS.md).
 
 ### How are concurrency and executor options selected?
 
-`--local-concurrency` applies to local jobs; `--batch-concurrency` is the default for other executors. SSH, Slurm, PBS, and LSF also have executor-specific settings, which override common dispatch settings. Job-level settings take priority over both.
-
-### What happens when a scheduler controller is temporarily unavailable?
-
-For Slurm, PBS, and LSF, rotari retries an explicit controller or transport
-failure at most twice, waiting 1 then 2 seconds. It does not retry permission,
-account, queue/partition, resource, or option errors. A timeout or missing job
-ID is treated as ambiguous and is not retried automatically, because the job
-may already have been accepted.
-Within one rotari process, submissions to each scheduler are also spaced by at
-least 100 milliseconds, including native array submissions and retry attempts.
-For a run, set the interval with `--slurm-submit-interval`,
-`--pbs-submit-interval`, or `--lsf-submit-interval`; use the matching
-`--*-submit-retry-limit` option to change the retry limit. Environment and
-config equivalents use the same executor-specific names.
+`--local-concurrency` applies to local jobs; `--batch-concurrency` is the default for other executors. SSH, Slurm, PBS, and LSF also have executor-specific settings, with job-level settings taking priority.
 
 ### `rotari show` displayed my queue, not the run I expected — why?
 
@@ -222,7 +208,7 @@ A lock from another host cannot be cleared by checking its PID. Confirm that the
 
 ### Is it safe to Ctrl-C a synchronous `rotari run`?
 
-Yes. Ctrl-C returns code 130 immediately while the supervisor continues stopping jobs and finalizing the run. The prompt may return before cancellation and queue cleanup are complete, so operations on the same project may be rejected briefly during cleanup. A second run should wait until finalization finishes.
+Yes. Ctrl-C returns code 130 immediately while the supervisor continues stopping jobs and finalizing the run. Operations on the same project may be rejected briefly during cleanup.
 
 ### Can I detach a synchronous run without cancelling it?
 
@@ -270,7 +256,7 @@ No. The Web UI is a separate process and closing it does not affect runs.
 
 ### Can I start a run from the Web UI?
 
-No. The Web UI controls existing runs and edits queues; execution starts through `rotari run`. Even with control enabled, an HTTP request cannot itself launch commands on the host.
+No. The Web UI controls existing runs and edits queues; execution starts through `rotari run`.
 
 ### What does the Job activity link show?
 
@@ -285,7 +271,7 @@ duration such as `6h` or `168h` in `Since` to change the completed-job window.
 
 ### Can I create a config file from the Web UI?
 
-Yes. `View config` and `Generate config` can save configuration for the applicable global, basedir, or project location. The format is validated first, invalid edits leave the existing file unchanged, and historical run pages only show their recorded config copies. Read-only Web mode and the static demo reject file writes.
+Yes. `View config` and `Generate config` can save configuration. The format is validated first, and invalid edits leave the existing file unchanged.
 The read-only static demo presents the same flow but rejects the final file
 write with the standard read-only message.
 
@@ -307,7 +293,7 @@ It shows the saved runner lock and local coordinator socket/PID records. It is n
 
 ### Is `rotari web` safe to expose beyond `127.0.0.1`?
 
-Set `ROTARI_WEB_AUTH_TOKEN` (or `--auth-token`) and use HTTPS or a trusted network. The token authenticates requests but does not encrypt HTTP traffic. Use `--allow-control=false` for read-only access, and do not expose the UI without a token.
+Set `ROTARI_WEB_AUTH_TOKEN` (or `--auth-token`) and use HTTPS or a trusted network. Use `--allow-control=false` for read-only access. Do not expose the UI without a token.
 
 ## Background server (supervisor)
 
