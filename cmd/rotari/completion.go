@@ -16,6 +16,10 @@ func cmdCompletion(args []string) int {
 		printError("usage: rotari completion <bash|zsh|fish|install [bash|zsh|fish]>")
 		return 1
 	}
+	if isHelpArgument(args[0]) || (args[0] == "install" && len(args) == 2 && isHelpArgument(args[1])) {
+		printSubcommandHelp("completion")
+		return 1
+	}
 	if args[0] == "install" {
 		if len(args) > 2 {
 			printError("usage: rotari completion install [bash|zsh|fish]")

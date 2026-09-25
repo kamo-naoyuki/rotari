@@ -471,6 +471,33 @@ func cliUsage(name string) string {
 	return "rotari " + name
 }
 
+// isHelpArgument reports whether arg requests help, matching the flag package.
+func isHelpArgument(arg string) bool {
+	return arg == "-h" || arg == "--help" || arg == "-help"
+}
+
+// printSubcommandHelp writes usage and subcommand descriptions for commands
+// that dispatch on a subcommand instead of parsing a FlagSet. Like FlagSet
+// help, it writes to stderr and the caller returns exit status 1.
+func printSubcommandHelp(name string) {
+	var builder strings.Builder
+	fmt.Fprintf(&builder, "usage: %s\n", cliUsage(name))
+	for _, command := range cliCommandSpecs {
+		if command.Name != name || len(command.Subcommands) == 0 {
+			continue
+		}
+		width := 0
+		for _, subcommand := range command.Subcommands {
+			width = max(width, len(subcommand.Name))
+		}
+		builder.WriteString("\nSubcommands:\n")
+		for _, subcommand := range command.Subcommands {
+			fmt.Fprintf(&builder, "  %-*s  %s\n", width, subcommand.Name, subcommand.Description)
+		}
+	}
+	fmt.Fprint(os.Stderr, builder.String())
+}
+
 func cliSubcommandNames(name string) []string {
 	for _, command := range cliCommandSpecs {
 		if command.Name != name {

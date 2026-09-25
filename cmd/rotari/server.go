@@ -79,6 +79,10 @@ func cmdServer(args []string) int {
 		return 1
 	}
 
+	if isHelpArgument(args[0]) {
+		printSubcommandHelp("server")
+		return 1
+	}
 	switch args[0] {
 	case serverinternal.OpShutdown:
 		return cmdServerRequest(args[1:], "shutdown")

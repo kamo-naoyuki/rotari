@@ -10,12 +10,12 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 - **Rule-diagnosis status entries share the diagnosis list** (`cmd/rotari/diagnose.go`, `diagnoseJobResult`; `internal/model/model.go`, `JobResult.Diagnoses`): the no-match and analysis-unavailable results are stored as ordinary `RuleDiagnosis` entries, so CLI, report, Web, and API consumers can tell them apart from real diagnoses only by comparing names. That persistence policy also lives in `cmd/rotari` rather than `internal/diagnose`.
 - **Saved rule diagnoses are never refreshed** (`cmd/rotari/diagnose.go`, `diagnoseJobResult`): results in `summary.json` are kept once written, so rule improvements do not reach earlier runs, and `show` can disagree with `diagnose --rules` for the same attempt without saying which rule version produced the saved result.
-- **`rotari completion --help` fails instead of printing help** (`cmd/rotari`, `completion` command): `--help` and `-h` are parsed as a shell name and exit with `unsupported shell`, and `completion install --help` does the same, so the command's options and behavior are only documented in `docs/CONFIGURATION.md`.
 
 ## Resolved
 
 <!-- Keep only short records of resolved items when they may help prevent recurrence. -->
 
+- **`completion --help` and `server --help` treated the flag as a subcommand** (`cmd/rotari/completion.go`, `cmd/rotari/server.go`): commands that dispatch on a subcommand never reach a FlagSet, so `--help` failed with `unsupported shell` or `unknown server command`. Both now print shared subcommand help from the CLI metadata.
 - **`/dev/null` stdin was treated as a terminal** (`cmd/rotari/terminal.go`, `isTerminal`): only `os.ModeCharDevice` was checked, so `reset` and `copy` with stdin from `/dev/null` prompted and failed with `EOF` instead of printing the non-interactive guidance. It now queries termios settings.
 - **Copying part of a stage rejected its dependents** (`cmd/rotari/copy.go`, `copyRunToQueue`): the excluded-dependency check required every stage member to have succeeded, including the members being copied, so `retry` failed after any stage member failed. Only omitted members are checked now, and the stage dependency is kept while any member is copied.
 - **The `example-shellcheck` pre-commit hook never ran** (`.pre-commit-config.yaml`): its `files: ^example\.sh$` pattern did not match `scripts/example*.sh`, and `bash -n a b` checks only the first file. The hook now matches every example script and checks each one separately.

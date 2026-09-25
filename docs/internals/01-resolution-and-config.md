@@ -152,6 +152,13 @@ Without a run-location lookup, base directories resolve in this order:
 ## Shell completion
 
 - Completion is generated from the same CLI metadata as command help.
+- `completion` and `server` dispatch on a subcommand instead of parsing a
+  FlagSet, so they check `-h`/`--help` before dispatch and call
+  `printSubcommandHelp` in [`cmd/rotari/cli_spec.go`](../../cmd/rotari/cli_spec.go).
+  It prints the usage and subcommand descriptions from the same metadata to
+  stderr with exit status 1, matching FlagSet help. Covered by
+  `TestSubcommandCommandsPrintHelp` in
+  [`cmd/rotari/coverage_extra_test.go`](../../cmd/rotari/coverage_extra_test.go).
 - A string option whose CLI metadata declares `Values` uses those values for
   parse-time choice validation as well as completion and schema generation.
 - CLI environment defaults are declared in one flag-to-variable mapping, used

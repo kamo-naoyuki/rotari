@@ -81,6 +81,68 @@ func TestCmdCompletionValidatesArgumentsAndGeneratesScripts(t *testing.T) {
 	}
 }
 
+func captureStderr(t *testing.T, run func() int) (int, string) {
+	t.Helper()
+	oldStderr := os.Stderr
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = writer
+	code := run()
+	os.Stderr = oldStderr
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return code, string(output)
+}
+
+func TestSubcommandCommandsPrintHelp(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	cases := []struct {
+		name        string
+		run         func([]string) int
+		args        []string
+		subcommands []string
+	}{
+		{"completion --help", cmdCompletion, []string{"--help"}, []string{"bash", "zsh", "fish", "install"}},
+		{"completion -h", cmdCompletion, []string{"-h"}, []string{"bash", "install"}},
+		{"completion install --help", cmdCompletion, []string{"install", "--help"}, []string{"install"}},
+		{"server --help", cmdServer, []string{"--help"}, []string{"status", "list", "shutdown"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			code, text := captureStderr(t, func() int { return tc.run(tc.args) })
+			if code != 1 {
+				t.Fatalf("exit code = %d, want 1 like FlagSet help", code)
+			}
+			if strings.Contains(text, "unsupported shell") || strings.Contains(text, "unknown server command") {
+				t.Fatalf("help argument was treated as a subcommand:\n%s", text)
+			}
+			if !strings.Contains(text, "usage: rotari ") || !strings.Contains(text, "Subcommands:") {
+				t.Fatalf("help output missing usage or subcommands:\n%s", text)
+			}
+			for _, subcommand := range tc.subcommands {
+				if !strings.Contains(text, "  "+subcommand+" ") {
+					t.Fatalf("help output missing subcommand %q:\n%s", subcommand, text)
+				}
+			}
+		})
+	}
+	entries, err := os.ReadDir(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("help must not install completion; HOME contains %d entries", len(entries))
+	}
+}
+
 func TestColorMessageCoversStatusAndFailureBranches(t *testing.T) {
 	message := strings.Join([]string{
 		"Run failed: exit status 1",
