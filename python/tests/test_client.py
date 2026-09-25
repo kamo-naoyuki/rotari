@@ -83,9 +83,7 @@ def test_run_builds_options_from_schema():
 
 def test_wait_returns_failed_run_summary_instead_of_raising():
     payload = {"run_id": "run-1", "status": "failed", "exit_code": 2}
-    with patch(
-        "subprocess.run", return_value=completed(json.dumps(payload), returncode=2)
-    ):
+    with patch("subprocess.run", return_value=completed(json.dumps(payload), returncode=2)):
         result = Rotari().wait("nightly")
 
     assert result == payload
@@ -109,9 +107,7 @@ def test_wait_without_selector_lets_cli_find_the_active_run():
 
 
 def test_command_raises_for_cli_errors():
-    with patch(
-        "subprocess.run", return_value=completed(stderr="bad option", returncode=1)
-    ):
+    with patch("subprocess.run", return_value=completed(stderr="bad option", returncode=1)):
         try:
             Rotari().command("show")
         except RotariError as error:
