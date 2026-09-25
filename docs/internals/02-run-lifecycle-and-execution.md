@@ -257,7 +257,12 @@
 - `diagnose --rules` is a local, read-only alternative. It evaluates the same
   recorded scheduler error and output against a fixed set of documented
   signatures after case, ANSI-escape, and whitespace normalization. It makes no
-  network request and reports only matched signatures with their evidence. When
+  network request and reports only matched signatures, each citing its latest
+  matching line, ordered from the latest evidence to the earliest with the
+  scheduler error treated as later than the log; the generic Python-exception entry is
+  dropped when a specific rule explains the same line
+  ([rules.go](../../internal/diagnose/rules.go),
+  [rules_test.go](../../internal/diagnose/rules_test.go)). When
   a failed run is finalized, annotations are saved on its `summary.json` result
   as informational snapshots; they never affect run status, retry planning,
   dependency resolution, or scheduler control. Every finalized failed job

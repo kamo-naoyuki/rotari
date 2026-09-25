@@ -6,9 +6,18 @@ content over the network, does not need an API key or model, and never reruns
 the job.
 
 The matcher ignores letter case, ANSI terminal color escapes, and repeated
-whitespace. Each match includes the actual matching line as evidence. Rules
-are deliberately narrow: no match means rotari has no rule-based conclusion,
-not that the job has no diagnosable cause.
+whitespace. Error names, errno constants, and HTTP status codes must appear as
+whole words, and status codes only in an HTTP or status context such as
+`HTTP/1.1 503`, `HTTPError: 503`, or `status code 503`; numbers in URLs or file
+names do not match. Rules are deliberately narrow: no match means rotari has no
+rule-based conclusion, not that the job has no diagnosable cause.
+
+Each recognized diagnosis cites the latest line that matches it as evidence.
+Diagnoses are listed from the latest evidence to the earliest, so the first one
+is usually closest to the failure; earlier entries may come from warnings the
+job recovered from. The scheduler error is recorded after the job output and is
+therefore listed first. The generic `Python exception` diagnosis is added only
+when no more specific rule already matches the final exception line.
 
 This is a historical, informational snapshot; it does not affect job status,
 retries, dependencies, or scheduler control. Every finalized failed job records
@@ -38,12 +47,12 @@ future releases.
 | Scheduler cancelled job | Slurm `CANCELLED` state or `slurmstepd ... cancelled`, PBS job-deletion messages, LSF `TERM_OWNER`, `TERM_ADMIN`, `TERM_PREEMPT` | Inspect scheduler accounting for the cancellation reason and actor; resolve policy, preemption, dependency, or administrator-cancellation conditions before retrying. |
 | Host memory exhausted | `out of memory: kill process`, `oom-kill`, `memory cgroup out of memory`, `Killed process ... out of memory` | Request more host memory or reduce use; inspect scheduler memory limits and kernel OOM messages. |
 | Process killed | A log line consisting of `Killed` or `Killed PID` | Inspect scheduler accounting and host logs; SIGKILL can be OOM, a scheduler limit, or explicit cancellation. |
-| Kernel panic or kernel fault | `kernel panic`, `BUG: unable to handle kernel`, `Oops:`, `general protection fault`, watchdog hard/soft lockup, RCU stall | Treat the compute node as unhealthy: inspect kernel logs and scheduler node health, report it to the cluster administrator, and retry on another node if appropriate. |
+| Kernel panic or kernel fault | `kernel panic`, `BUG: unable to handle kernel`, `Oops: NNNN`, `general protection fault`, watchdog hard/soft lockup, RCU stall | Treat the compute node as unhealthy: inspect kernel logs and scheduler node health, report it to the cluster administrator, and retry on another node if appropriate. |
 | Application panic | A log line beginning `panic:` | Inspect the application stack trace and failing invariant; fix the application error before retrying. |
 | Segmentation fault | `segmentation fault`, `SIGSEGV`, `signal 11` | Inspect native extensions, shared-library and driver compatibility, and a core dump or debugger backtrace if available. |
 | NVIDIA GPU driver/device error | `NVRM: Xid`, `GPU has fallen off the bus` | Inspect GPU/node health and NVIDIA kernel logs; retry on another GPU/node if appropriate. |
 | CUDA device-side assert | `device-side assert triggered` | Check tensor shapes, labels, and index ranges passed to CUDA kernels; rerun with synchronous CUDA error reporting if needed. |
-| NCCL failure | `NCCL error`, `NCCL WARN`, `NCCL ... unhandled system error` | Check GPU/node connectivity, NCCL configuration, network-interface selection, and distributed-rank consistency. |
+| NCCL failure | `NCCL error`, `NCCL WARN` lines that report an error, failure, abort, or timeout, `NCCL ... unhandled system error` | Check GPU/node connectivity, NCCL configuration, network-interface selection, and distributed-rank consistency. |
 | MPI runtime failure | `MPI_ABORT`, PMI errors, `mpirun`/`mpiexec` fatal/error/abort messages | Check MPI/runtime compatibility, ranks, host allocation, and launcher configuration. |
 | Disk space or quota exhausted | `no space left on device`, `disk quota exceeded` | Free space or files, or use a filesystem with sufficient capacity and quota. |
 | Storage device I/O error | `input/output error`, `EIO`, `blk_update_request`, `Buffer I/O error`, `I/O error, dev` | Inspect kernel and storage-service logs, then check the affected disk or network filesystem with the storage administrator before retrying writes. |
@@ -61,7 +70,7 @@ future releases.
 | Python assertion failed | `AssertionError` | Inspect the failed assertion and the input or invariant it checks; preserve relevant values in the job log if needed. |
 | Python memory error | `MemoryError` | Reduce in-memory data or worker concurrency, stream or batch input, and confirm the scheduler memory limit is sufficient. |
 | Python recursion limit exceeded | `RecursionError`, `maximum recursion depth exceeded` | Check for unintended recursion or cycles; rewrite iteratively or adjust recursion depth only when safe. |
-| Python exception | A traceback followed by a final `...Error:` or `...Exception:` line | Save the final exception line as evidence; inspect the traceback for the failing call. |
+| Python exception | A traceback followed by a final `...Error:` or `...Exception:` line that no more specific rule matches | Save the final exception line as evidence; inspect the traceback for the failing call. |
 | File descriptor limit exceeded | `too many open files`, `EMFILE` | Check file descriptor limits and close leaked descriptors; inspect `ulimit -n`. |
 | Process or thread limit exceeded | `fork: retry`, `fork ... resource temporarily unavailable`, thread/process `EAGAIN` | Check process/thread limits, then reduce worker count or request a suitable scheduler limit. |
 | DNS lookup failed | `temporary failure in name resolution`, `could not resolve host`, `no such host` | Check the hostname, DNS resolver configuration, and compute-node DNS access. |

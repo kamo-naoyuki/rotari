@@ -69,22 +69,19 @@ func TestTailLog(t *testing.T) {
 	}
 }
 
-func TestDiagnoseDefaultMatchesRuleAndPythonException(t *testing.T) {
+func TestDiagnoseDefaultMatchesSchedulerErrorAndLog(t *testing.T) {
 	diagnoses := DiagnoseDefault(Job{
 		Error: "CUDA error: out of memory",
 		Log:   "Traceback (most recent call last):\nValueError: invalid batch size",
 	})
-	if len(diagnoses) != 3 {
+	if len(diagnoses) != 2 {
 		t.Fatalf("DiagnoseDefault() returned %d diagnoses: %#v", len(diagnoses), diagnoses)
 	}
 	if diagnoses[0].Name != "CUDA/GPU memory exhausted" {
 		t.Errorf("first diagnosis = %#v", diagnoses[0])
 	}
-	if diagnoses[1].Name != "Python type or value error" {
+	if diagnoses[1].Name != "Python type or value error" || diagnoses[1].Evidence != "ValueError: invalid batch size" {
 		t.Errorf("second diagnosis = %#v", diagnoses[1])
-	}
-	if diagnoses[2].Name != "Python exception" || diagnoses[2].Evidence != "ValueError: invalid batch size" {
-		t.Errorf("third diagnosis = %#v", diagnoses[2])
 	}
 }
 

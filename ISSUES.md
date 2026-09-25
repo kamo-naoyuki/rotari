@@ -8,6 +8,9 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **Rule-diagnosis status entries share the diagnosis list** (`cmd/rotari/diagnose.go`, `diagnoseJobResult`; `internal/model/model.go`, `JobResult.Diagnoses`): the no-match and analysis-unavailable results are stored as ordinary `RuleDiagnosis` entries, so CLI, report, Web, and API consumers can tell them apart from real diagnoses only by comparing names. That persistence policy also lives in `cmd/rotari` rather than `internal/diagnose`.
+- **Saved rule diagnoses are never refreshed** (`cmd/rotari/diagnose.go`, `diagnoseJobResult`): results in `summary.json` are kept once written, so rule improvements do not reach earlier runs, and `show` can disagree with `diagnose --rules` for the same attempt without saying which rule version produced the saved result.
+
 ## Resolved
 
 <!-- Keep only short records of resolved items when they may help prevent recurrence. -->
