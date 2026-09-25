@@ -106,6 +106,10 @@ project selection and state layout, [Inspect](docs/INSPECT.md#inspect) for statu
 [Recover and rerun](docs/RUNNING.md#recover-and-rerun) for retries, and [Async runs](docs/RUNNING.md#async-runs)
 for background execution.
 
+When a coding agent drives rotari, have it read `rotari guide` first. The guide
+explains the recommended workflow and includes a command reference generated
+from the installed binary's CLI metadata.
+
 Use `--depends-on NAME` to run a job only after a prerequisite job or stage
 succeeds:
 
@@ -146,6 +150,7 @@ stages and multiple prerequisites.
 | `unlock` | Recover a confirmed stale run lock. |
 | `server` | Inspect or control the project server. |
 | `schema` | Print the machine-readable CLI schema. |
+| `guide` | Print a usage guide for coding agents. |
 
 ## Common options
 

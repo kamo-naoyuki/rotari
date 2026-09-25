@@ -230,9 +230,9 @@ rotari without writing workflow files.
 - Give exit codes stable, documented meanings.
 - Make blocking and polling straightforward (`rotari wait`), so an agent does
   not need its own sleep loops.
-- Ship a short agent-facing usage guide (for example, an AGENTS.md snippet or
-  an agent skill) describing the safe workflow: add, run, wait, show, diagnose,
-  change, retry.
+- Ship a short agent-facing usage guide describing the safe workflow: add,
+  run, wait, show, diagnose, change, retry. `rotari guide` now prints one,
+  with a command reference generated from the CLI metadata.
 - Keep destructive operations explicit so an agent cannot silently discard
   history.
 - Work inside agent sandboxes. The run server's socket lives at
@@ -241,7 +241,8 @@ rotari without writing workflow files.
   where a sandbox blocks Unix sockets. `run` and job control need a path that
   works there.
 - Survive agent command timeouts. Synchronous `run` treats client disconnect
-  as cancellation, so the agent guide must use `run --async` and `wait`.
+  as cancellation, so `rotari guide` tells agents to use `run --async` and
+  `wait`.
 
 A representative demo: a coding agent submits a 100-job sweep to Slurm, waits,
 finds that 12 jobs ran out of memory, raises their memory request with one

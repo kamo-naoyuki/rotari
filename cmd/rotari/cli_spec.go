@@ -127,7 +127,8 @@ var cliCommandSpecs = []cliCommandSpec{
 		Positional: "[PROJECT]",
 	},
 	{
-		Name: "cancel",
+		Name:        "cancel",
+		Description: "cancel the active run or running jobs",
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "job-id", Description: "cancel a running job; may be repeated", ValueName: "ID"},
 			cliFlagSpec{Name: "wait", Description: "wait until cancellation is complete"},
@@ -418,6 +419,10 @@ var cliCommandSpecs = []cliCommandSpec{
 		Name:        "schema",
 		Description: "print the CLI schema as JSON",
 		Flags:       []cliFlagSpec{{Name: "json", Description: "print the schema as JSON"}},
+	},
+	{
+		Name:        "guide",
+		Description: "print a usage guide for coding agents",
 	},
 	{
 		Name:        "version",

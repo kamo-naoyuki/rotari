@@ -77,19 +77,6 @@ the experiment. See "Runs as the history of the loop" in
   change count in `compareQueueWithRun` in
   [cmd/rotari/show.go](cmd/rotari/show.go).
 
-### Agent-facing guide
-
-- Consider shipping an agent-facing usage guide inside the binary and
-  generating it from the CLI metadata in
-  [cmd/rotari/cli_spec.go](cmd/rotari/cli_spec.go) so it cannot drift from the
-  CLI. Dagu embeds `skills/dagu/SKILL.md` with Go `embed` and generates
-  `llms.txt` with `internal/tools/llmsgen`.
-- The guide should tell agents to use `run --async` with `wait` (synchronous
-  `run` is cancelled when the client is killed), to verify with `check` and
-  `import --dry-run` instead of guessing, and to use `--json` output. Dagu's
-  guide likewise tells agents to use `dagu schema` and `dagu validate` rather
-  than guess field names.
-
 ### Black-box conformance tests
 
 - Consider CLI-level black-box tests derived from the invariants in

@@ -35,6 +35,11 @@ terminal, and `rotari cancel` to stop it. Without a selector, `wait` scans the
 resolved basedir: it waits when exactly one project is running, and lists the
 running projects and run IDs and asks for a selector when several are running.
 
+Coding agents should use `--async` with `wait`. A synchronous `run` requests
+cancellation when its client disconnects, so an agent's command timeout that
+kills the client cancels the run. `rotari guide` prints this and other
+agent-facing rules.
+
 ### Interrupting a synchronous run
 
 During a synchronous `rotari run`, the terminal keys behave as follows:

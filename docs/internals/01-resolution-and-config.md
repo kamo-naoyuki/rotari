@@ -14,6 +14,9 @@ Representative implementation and tests:
 - [cmd/rotari/completion.go](../../cmd/rotari/completion.go) and
   [cmd/rotari/coverage_extra_test.go](../../cmd/rotari/coverage_extra_test.go)
   for shell completion.
+- [cmd/rotari/guide.go](../../cmd/rotari/guide.go) and
+  [cmd/rotari/guide_test.go](../../cmd/rotari/guide_test.go) for the agent
+  guide.
 
 ## Resolution rules
 
@@ -181,6 +184,19 @@ Without a run-location lookup, base directories resolve in this order:
   - `job-id` lists the current queue and saved runs, or only the selected run
     when `--run-id` is present. Run IDs found through the master registry are
     included in this selected-run lookup.
+
+## Agent guide
+
+- `rotari guide` prints the hand-written rules in
+  [`cmd/rotari/assets/agent_guide.md`](../../cmd/rotari/assets/agent_guide.md),
+  embedded with Go `embed`, followed by a command reference generated from
+  `cliCommandSpecs`. Flag lines use `cliFlagDescription`, so choices and
+  environment variables match `--help`.
+- `TestAgentGuideCoversEveryCommandAndFlag` fails when a command or flag is
+  missing from the reference. Keep the hand-written part free of flag lists
+  and update its examples when the commands they use change.
+- Like `schema`, `guide` skips config loading, so a broken config file does not
+  hide it.
 
 ## Run registry
 

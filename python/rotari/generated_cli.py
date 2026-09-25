@@ -102,6 +102,7 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "[PROJECT]",
         },
         {
+            "description": "cancel the active run or running jobs",
             "flags": [
                 {
                     "description": "state directory",
@@ -1317,6 +1318,7 @@ CLI_SCHEMA: dict[str, Any] = {
             "flags": [{"description": "print the schema as JSON", "name": "json"}],
             "name": "schema",
         },
+        {"description": "print a usage guide for coding agents", "name": "guide"},
         {"description": "print version", "name": "version"},
         {"description": "list ROTARI environment variables", "name": "env"},
     ],
