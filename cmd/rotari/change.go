@@ -42,7 +42,7 @@ func cmdChange(args []string) int {
 	if (*jobID == "" && *jobName == "") || (*jobID != "" && *jobName != "") ||
 		(len(fs.Args()) == 0 && *executor == "" && len(executorOptions) == 0 && !*clearExecutorOptions && *workingDirectory == "" && !*clearWorkingDirectory && len(environment) == 0 && !*clearEnvironment &&
 			*setJobName == "" && len(dependsOn) == 0 && !*clearDependsOn) ||
-		(*executor != "" && !isKnownExecutor(*executor)) {
+		(*executor != "" && !executorRegistry.Known(*executor)) {
 		printError("usage: " + cliUsage("change"))
 		return 1
 	}
@@ -95,7 +95,7 @@ func changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, request
 	if err := model.ValidateEnvironment(environment); err != nil {
 		return "", fmt.Errorf("invalid environment: %w", err)
 	}
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		return "", err
 	}

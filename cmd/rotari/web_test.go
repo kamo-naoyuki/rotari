@@ -16,6 +16,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
 	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
@@ -122,7 +123,7 @@ setTimeout(() => {
 		t.Fatal(err)
 	}
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,14 +152,14 @@ func TestStaticWebUsesGenerateConfigReadOnlyFlow(t *testing.T) {
 		t.Skip("node is not installed")
 	}
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(baseDir, "config.toml"), []byte("name = \"static demo\"\n"), stateFileMode()); err != nil {
+	if err := os.WriteFile(filepath.Join(baseDir, "config.toml"), []byte("name = \"static demo\"\n"), stateinternal.FileMode()); err != nil {
 		t.Fatal(err)
 	}
 	outputDir := filepath.Join(t.TempDir(), "web")
@@ -528,7 +529,7 @@ func TestWebHTMLIncludesConfigPaths(t *testing.T) {
 
 func TestWebCancelRunRejectsStaleRunID(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -550,7 +551,7 @@ func TestWebCancelRunRejectsStaleRunID(t *testing.T) {
 func TestLoadWebStateIncludesAllQueues(t *testing.T) {
 	baseDir := t.TempDir()
 	for _, queueName := range []string{"build", "test"} {
-		paths, err := resolvePaths(baseDir, queueName)
+		paths, err := stateinternal.ResolveProjectPaths(baseDir, queueName)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -608,7 +609,7 @@ func TestLoadWebStateIncludesConfigPaths(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(baseDir, "config.yaml"), []byte("run:\n  retry: 2\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -645,7 +646,7 @@ func TestWebConfigAPIReadsResolvedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -708,7 +709,7 @@ func TestWebConfigAPIReadsRunConfigSnapshots(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(baseDir, "config.yaml"), []byte("base: original\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -752,18 +753,18 @@ func TestWebConfigAPIReadsRunConfigSnapshots(t *testing.T) {
 func TestWebSaveConfigWritesOnlyTheResolvedCurrentConfig(t *testing.T) {
 	baseDir := t.TempDir()
 	basePath := filepath.Join(baseDir, "config.toml")
-	if err := os.WriteFile(basePath, []byte("base = true\n"), stateFileMode()); err != nil {
+	if err := os.WriteFile(basePath, []byte("base = true\n"), stateinternal.FileMode()); err != nil {
 		t.Fatal(err)
 	}
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, stateinternal.DirectoryMode()); err != nil {
 		t.Fatal(err)
 	}
 	projectPath := filepath.Join(paths.ProjectDir, "config.toml")
-	if err := os.WriteFile(projectPath, []byte("project = true\n"), stateFileMode()); err != nil {
+	if err := os.WriteFile(projectPath, []byte("project = true\n"), stateinternal.FileMode()); err != nil {
 		t.Fatal(err)
 	}
 	handler := newWebHandler(baseDir, "", true)
@@ -813,7 +814,7 @@ func TestWebSaveConfigRejectsInvalidFormatWithoutWriting(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			baseDir := t.TempDir()
 			path := filepath.Join(baseDir, "config"+test.extension)
-			if err := os.WriteFile(path, []byte(test.original), stateFileMode()); err != nil {
+			if err := os.WriteFile(path, []byte(test.original), stateinternal.FileMode()); err != nil {
 				t.Fatal(err)
 			}
 			request := httptest.NewRequest(http.MethodPost, "/api/save-config", strings.NewReader(`{"content":`+strconv.Quote(test.invalid)+`}`))
@@ -848,7 +849,7 @@ func TestWebGenerateConfigCreatesAndOverwritesTOMLAtSelectedLocation(t *testing.
 	if err != nil || !strings.Contains(string(data), "[run]") {
 		t.Fatalf("generated config = %q, err = %v", data, err)
 	}
-	if err := os.WriteFile(path, []byte("custom: true\n"), stateFileMode()); err != nil {
+	if err := os.WriteFile(path, []byte("custom: true\n"), stateinternal.FileMode()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -888,7 +889,7 @@ func TestWebConfigTargetsListResolvedTOMLLocations(t *testing.T) {
 	configHome := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -913,7 +914,7 @@ func TestWebConfigTargetsListResolvedTOMLLocations(t *testing.T) {
 
 func TestLoadWebStateIncludesRuntimeRecords(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -924,10 +925,10 @@ func TestLoadWebStateIncludesRuntimeRecords(t *testing.T) {
 	if err := writeJSON(paths.LockFile, lock); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(serverPIDPath(baseDir), []byte("5678\n"), 0o600); err != nil {
+	if err := os.WriteFile(serverinternal.PIDPath(baseDir), []byte("5678\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(serverSocketPath(baseDir), nil, 0o600); err != nil {
+	if err := os.WriteFile(serverinternal.SocketPath(baseDir), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -982,7 +983,7 @@ func TestEnvironmentPageUsesDefinitions(t *testing.T) {
 
 func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1323,7 +1324,7 @@ func TestFormatWebQueueDisplayTimesFormatsAttemptTimes(t *testing.T) {
 
 func TestWebLogReadsSelectedAttempt(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1481,7 +1482,7 @@ func TestReadJobTimestampRejectsUnsafePathElements(t *testing.T) {
 func TestLoadWebStateIncludesRunContextAndTimeline(t *testing.T) {
 	t.Setenv("TZ", "Asia/Tokyo")
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1566,7 +1567,7 @@ func TestWriteRunContext(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(baseDir, "config.yaml"), []byte("run:\n  retry: 1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1630,7 +1631,7 @@ func TestWebAllowControlDefaultsToTrue(t *testing.T) {
 
 func TestWebControlEndpointsRejectedWhenControlDisabled(t *testing.T) {
 	baseDir := t.TempDir()
-	if _, err := resolvePaths(baseDir, "default"); err != nil {
+	if _, err := stateinternal.ResolveProjectPaths(baseDir, "default"); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{"/api/copy", "/api/change", "/api/remove", "/api/clear-run", "/api/cancel-job", "/api/cancel-run"} {
@@ -1645,7 +1646,7 @@ func TestWebControlEndpointsRejectedWhenControlDisabled(t *testing.T) {
 
 func TestWebCopyEndpointCopiesWithoutRunner(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1670,14 +1671,14 @@ func TestWebCopyEndpointCopiesWithoutRunner(t *testing.T) {
 	if len(queue.Commands) != 1 || queue.Commands[0].ID != "job-1" {
 		t.Fatalf("queue = %#v, want one copied job with the source ID preserved", queue)
 	}
-	if _, err := os.Stat(serverSocketPath(baseDir)); !os.IsNotExist(err) {
+	if _, err := os.Stat(serverinternal.SocketPath(baseDir)); !os.IsNotExist(err) {
 		t.Fatalf("runner socket exists after web copy: %v", err)
 	}
 }
 
 func TestWebCopyEndpointQueuesOneJobWithoutRunner(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1709,7 +1710,7 @@ func TestWebCopyEndpointQueuesOneJobWithoutRunner(t *testing.T) {
 
 func TestWebChangeEndpointUpdatesQueueJob(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}

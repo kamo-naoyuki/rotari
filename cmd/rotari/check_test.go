@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 	"io"
 	"os"
 	"strings"
@@ -12,7 +13,7 @@ import (
 
 func TestCheckProjectReadyAndEmpty(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +40,7 @@ func TestCheckProjectReadyAndEmpty(t *testing.T) {
 
 func TestCheckProjectValidatesQueueLikeRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +57,7 @@ func TestCheckProjectValidatesQueueLikeRun(t *testing.T) {
 
 func TestCheckProjectValidatesExecutorOptionsLikeRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +74,7 @@ func TestCheckProjectValidatesExecutorOptionsLikeRun(t *testing.T) {
 
 func TestCheckProjectDeepValidatesLocalEnvironment(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +107,7 @@ func TestCheckProjectReportsRunningAndRemoteLocks(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			baseDir := t.TempDir()
-			paths, err := resolvePaths(baseDir, "demo")
+			paths, err := state.ResolveProjectPaths(baseDir, "demo")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -133,7 +134,7 @@ func TestCheckProjectReportsRunningAndRemoteLocks(t *testing.T) {
 
 func TestCheckProjectDoesNotRemoveStaleLock(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +167,7 @@ func TestCheckProjectDoesNotRemoveStaleLock(t *testing.T) {
 
 func TestCheckProjectKeepsRunningStateWhenQueueIsUnreadable(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +197,7 @@ func TestCheckProjectKeepsRunningStateWhenQueueIsUnreadable(t *testing.T) {
 
 func TestCheckProjectReportsReadyWithStaleLockOnIdleProject(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +226,7 @@ func TestCheckProjectReportsReadyWithStaleLockOnIdleProject(t *testing.T) {
 
 func TestCmdCheckExitCode(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,7 +244,7 @@ func TestCmdCheckExitCode(t *testing.T) {
 
 func TestCmdCheckAcceptsPositionalProjectName(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +262,7 @@ func TestCmdCheckAcceptsPositionalProjectName(t *testing.T) {
 
 func TestCmdCheckPositionalProjectOverridesEnvironmentDefault(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +278,7 @@ func TestCmdCheckPositionalProjectOverridesEnvironmentDefault(t *testing.T) {
 
 func TestCmdCheckJSON(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +301,7 @@ func TestCmdCheckJSON(t *testing.T) {
 
 func TestCmdCheckDeepFlag(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}

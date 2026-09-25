@@ -40,17 +40,17 @@ func cmdCheck(args []string) int {
 		*projectNameOption = fs.Args()[0]
 	}
 
-	baseDir, _, err := resolveBaseDir(*basedir)
+	baseDir, _, err := state.ResolveBaseDir(*basedir)
 	if err != nil {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
 	}
-	projectName, err := resolveProjectName(baseDir, *projectNameOption)
+	projectName, err := state.ResolveProjectName(baseDir, *projectNameOption)
 	if err != nil {
 		printError(err)
 		return 1
 	}
-	paths, err := resolvePaths(baseDir, projectName)
+	paths, err := state.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
@@ -121,7 +121,7 @@ func checkProjectWithOptions(paths state.ProjectPaths, deep bool) (projectCheck,
 	result := projectCheck{Lock: string(inspection.Lock), RunID: inspection.RunID}
 	switch inspection.State {
 	case projectRunning:
-		if inspection.Lock == projectLockRemote {
+		if inspection.Lock == state.LockRemote {
 			result.State = "locked"
 		} else {
 			result.State = "running"

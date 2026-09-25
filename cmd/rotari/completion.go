@@ -89,7 +89,7 @@ func cmdComplete(args []string) int {
 	if runID != "" {
 		baseDir, projectName, err = resolveExistingRunTarget(basedir, projectName, runID)
 	} else {
-		baseDir, _, err = resolveBaseDir(basedir)
+		baseDir, _, err = state.ResolveBaseDir(basedir)
 	}
 	if err != nil {
 		return 1
@@ -110,11 +110,11 @@ func cmdComplete(args []string) int {
 		}
 		return 0
 	}
-	projectName, err = resolveProjectName(baseDir, projectName)
+	projectName, err = state.ResolveProjectName(baseDir, projectName)
 	if err != nil {
 		return 1
 	}
-	paths, err := resolvePaths(baseDir, projectName)
+	paths, err := state.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
 		return 1
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 	"io"
 	"os"
 	"strings"
@@ -20,7 +21,7 @@ func enqueueCommand(baseDir, queueName string, command []string, executor string
 
 func TestEnqueueCommandRejectsInterruptedRunWithoutChangingQueue(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +72,7 @@ func TestCmdAddEnqueuesJob(t *testing.T) {
 		t.Fatalf("cmdAdd exit code = %d, stdout = %q", code, output)
 	}
 
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +118,7 @@ func TestCmdAddRejectsDuplicateJobNameWithoutWriting(t *testing.T) {
 		t.Fatal("cmdAdd accepted a duplicate job name")
 	}
 
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}

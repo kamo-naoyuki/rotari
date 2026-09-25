@@ -35,11 +35,11 @@ type projectStateInspection struct {
 }
 
 func inspectProjectState(paths state.ProjectPaths, cleanupStale bool) (projectStateInspection, error) {
-	lockState, lock, err := inspectRunLock(paths.LockFile, cleanupStale)
+	lockState, lock, err := state.InspectLock(paths.LockFile, cleanupStale)
 	if err != nil {
 		return projectStateInspection{}, err
 	}
-	if lockState == projectLockActive || lockState == projectLockRemote {
+	if lockState == state.LockActive || lockState == state.LockRemote {
 		return projectStateInspection{State: projectRunning, RunID: lock.RunID, Lock: lockState, LockRunID: lock.RunID}, nil
 	}
 	meta, err := state.LoadMeta(paths.MetaFile)
@@ -58,7 +58,7 @@ func inspectProjectState(paths state.ProjectPaths, cleanupStale bool) (projectSt
 }
 
 func validateProjectStateConsistency(paths state.ProjectPaths, inspection projectStateInspection) error {
-	if inspection.Lock != projectLockNone && !state.IsValidPathElement(inspection.LockRunID) {
+	if inspection.Lock != state.LockNone && !state.IsValidPathElement(inspection.LockRunID) {
 		return fmt.Errorf("invalid run ID %q in run lock", inspection.LockRunID)
 	}
 	meta, err := state.LoadMeta(paths.MetaFile)
@@ -80,7 +80,7 @@ func validateProjectStateConsistency(paths state.ProjectPaths, inspection projec
 	if meta.Phase != "running" && meta.Phase != "cancelling" && !(inspection.State == projectRunning && meta.Phase == "finished") {
 		return fmt.Errorf("run %q is active or interrupted but metadata phase is %q", inspection.RunID, meta.Phase)
 	}
-	if inspection.Lock == projectLockStale && inspection.LockRunID != "" && inspection.LockRunID != inspection.RunID {
+	if inspection.Lock == state.LockStale && inspection.LockRunID != "" && inspection.LockRunID != inspection.RunID {
 		return fmt.Errorf("run lock identifies %q but metadata identifies %q", inspection.LockRunID, inspection.RunID)
 	}
 	if _, err := state.ValidateRunDirectory(paths.RunsDir, inspection.RunID, inspection.State == projectInterrupted); err != nil {
@@ -164,7 +164,7 @@ func inspectConsistentProjectState(paths state.ProjectPaths, cleanupStale bool) 
 	if err := validateProjectStateConsistency(paths, inspection); err != nil {
 		return projectStateInspection{}, err
 	}
-	if cleanupStale && inspection.Lock == projectLockStale {
+	if cleanupStale && inspection.Lock == state.LockStale {
 		// codeql[go/path-injection]: LockFile is rooted in the resolved project directory.
 		if err := os.Remove(paths.LockFile); err != nil && !errors.Is(err, os.ErrNotExist) { // NOSONAR: lockFile is rooted in the resolved project directory.
 			return projectStateInspection{}, err
@@ -234,7 +234,7 @@ func interruptedRunStatusDetail(paths state.ProjectPaths, runID string) (detail 
 }
 
 func ensureProjectIdle(baseDir, queueName, operation string) error {
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		return err
 	}

@@ -145,18 +145,18 @@ func cmdImport(args []string) int {
 // ID selects the project that owns that saved run.
 func resolveImportDestination(cliBaseDir, cliProjectName string, runIDs []string) (string, string, error) {
 	if len(runIDs) == 0 {
-		baseDir, _, err := resolveBaseDir(cliBaseDir)
+		baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 		if err != nil {
 			return "", "", err
 		}
-		projectName, err := resolveProjectName(baseDir, cliProjectName)
+		projectName, err := state.ResolveProjectName(baseDir, cliProjectName)
 		return baseDir, projectName, err
 	}
 	baseDir, projectName, err := resolveExistingRunTarget(cliBaseDir, cliProjectName, runIDs[0])
 	if err != nil {
 		return "", "", err
 	}
-	paths, err := resolvePaths(baseDir, projectName)
+	paths, err := state.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
 		return "", "", err
 	}
@@ -167,7 +167,7 @@ func resolveImportDestination(cliBaseDir, cliProjectName string, runIDs []string
 }
 
 func validateImportDestination(baseDir, projectName string, overwrite bool) error {
-	paths, err := resolvePaths(baseDir, projectName)
+	paths, err := state.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
 		return err
 	}
@@ -326,11 +326,11 @@ func newImportPlanSource(origin *model.JobOrigin) *importPlanSource {
 }
 
 func writeImportedQueue(baseDir, projectName string, queue model.Queue, overwrite bool) error {
-	paths, err := resolvePaths(baseDir, projectName)
+	paths, err := state.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
 		return err
 	}
 	release, err := state.AcquireStateLock(paths.StateLockFile)

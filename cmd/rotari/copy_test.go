@@ -13,7 +13,7 @@ import (
 
 func TestCmdCopyRejectsRunningProjectBeforeQueueConfirmation(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestCmdCopyRejectsRunningProjectBeforeQueueConfirmation(t *testing.T) {
 
 func TestCmdCopyDerivesRunIDFromAttemptID(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestCmdCopyDerivesRunIDFromAttemptID(t *testing.T) {
 
 func TestCmdCopyJobIDUsesLatestRunWithoutRunID(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestCmdCopyJobIDUsesLatestRunWithoutRunID(t *testing.T) {
 
 func TestCmdCopyDefaultsToLatestRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestCmdCopyDefaultsToLatestRun(t *testing.T) {
 
 func TestCopyRunToQueuePreservesSourceJobIDs(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +225,7 @@ func TestCopyRunToQueuePreservesSourceJobIDs(t *testing.T) {
 
 func TestCopyRunToQueuePreservesCompleteStageDependency(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +252,7 @@ func TestCopyRunToQueuePreservesCompleteStageDependency(t *testing.T) {
 
 func TestCopyRunToQueueRejectsExcludedFailedDependency(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +279,7 @@ func TestCopyRunToQueueRejectsExcludedFailedDependency(t *testing.T) {
 
 func TestCopyRunToQueueRejectsExcludedUnfinishedDependency(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -303,7 +303,7 @@ func TestCopyRunToQueueRejectsExcludedUnfinishedDependency(t *testing.T) {
 
 func TestCopyRunToQueuePreservesExplicitAttemptID(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +338,7 @@ func TestCopyRunToQueuePreservesExplicitAttemptID(t *testing.T) {
 
 func TestCopyRunToQueueExplicitArrayAttemptSelectsOnlyTask(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -377,7 +377,7 @@ func TestCopyRunToQueueExplicitArrayAttemptSelectsOnlyTask(t *testing.T) {
 
 func TestCopyRunToQueueReassignsIDOnCollision(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -409,7 +409,7 @@ func TestCopyRunToQueueReassignsIDOnCollision(t *testing.T) {
 
 func TestCopyRunToQueueCombinesResultSelections(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -443,7 +443,7 @@ func TestCopyRunToQueueCombinesResultSelections(t *testing.T) {
 
 func TestCopyRunToQueueRequiresAppendForNonEmptyQueue(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -472,7 +472,7 @@ func TestCopyRunToQueueRequiresAppendForNonEmptyQueue(t *testing.T) {
 
 func TestCopyRunToQueueCanOverwriteNonEmptyQueue(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -505,7 +505,7 @@ func TestConfirmQueueOverwriteSkipsPromptWhenAppendRequested(t *testing.T) {
 
 func TestCopyRunToQueueAggregatesArrayTaskResults(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -573,7 +573,7 @@ func TestConfirmQueueOverwriteAllowsEmptyQueueWithoutPrompt(t *testing.T) {
 
 func TestConfirmQueueOverwriteRejectsNonEmptyQueueWithoutTerminal(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -614,7 +614,7 @@ func writePartialStageRun(t *testing.T, paths state.ProjectPaths, results []mode
 
 func TestCopyRunToQueueRetriesFailedStageMemberWithDependent(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -646,7 +646,7 @@ func TestCopyRunToQueueRetriesFailedStageMemberWithDependent(t *testing.T) {
 
 func TestCopyRunToQueueRejectsFailedExcludedStageMember(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -663,7 +663,7 @@ func TestCopyRunToQueueRejectsFailedExcludedStageMember(t *testing.T) {
 
 func TestCopyRunToQueueDropsFullyExcludedSuccessfulStage(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -724,7 +724,7 @@ func captureCopyStderr(t *testing.T, args []string) (int, string) {
 
 func TestCmdCopyJobNameWithRunIDSelectsJobFromThatRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -749,7 +749,7 @@ func TestCmdCopyJobNameRejectsMissingAndAmbiguousNames(t *testing.T) {
 	baseDir := t.TempDir()
 	projectPaths := make(map[string]state.ProjectPaths)
 	for _, projectName := range []string{"first", "second"} {
-		paths, err := resolvePaths(baseDir, projectName)
+		paths, err := state.ResolveProjectPaths(baseDir, projectName)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -782,7 +782,7 @@ func TestCmdCopyJobNameRejectsMissingAndAmbiguousNames(t *testing.T) {
 
 func TestCmdCopyRejectsInvalidOptionCombinations(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -817,7 +817,7 @@ func TestCmdCopyRejectsInvalidOptionCombinations(t *testing.T) {
 
 func TestCmdCopyRejectsProjectWithoutPreviousRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -845,7 +845,7 @@ func TestConfirmQueueOverwritePromptsOnTerminal(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			baseDir := t.TempDir()
-			paths, err := resolvePaths(baseDir, "default")
+			paths, err := state.ResolveProjectPaths(baseDir, "default")
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -11,19 +11,12 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 const maxServerLogSize = 1 << 20
 
 const serverIdleTimeout = time.Minute
-
-func serverSocketPath(baseDir string) string {
-	return serverinternal.SocketPath(baseDir)
-}
-
-func serverPIDPath(baseDir string) string {
-	return serverinternal.PIDPath(baseDir)
-}
 
 // cmdServer dispatches server lifecycle subcommands such as status, list, and
 // shutdown.
@@ -67,12 +60,12 @@ func cmdServerStatus(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	baseDir, _, err := resolveBaseDir(*basedir)
+	baseDir, _, err := state.ResolveBaseDir(*basedir)
 	if err != nil {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
 	}
-	response, err := sendServerRequest(baseDir, serverinternal.Request{Op: serverinternal.OpPing})
+	response, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: serverinternal.OpPing})
 	if err != nil || !response.OK {
 		printError("server is not running")
 		return 1
@@ -111,12 +104,12 @@ func cmdServerRequest(args []string, op string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	baseDir, _, err := resolveBaseDir(*basedir)
+	baseDir, _, err := state.ResolveBaseDir(*basedir)
 	if err != nil {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
 	}
-	response, err := sendServerRequest(baseDir, serverinternal.Request{Op: op})
+	response, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: op})
 	if err != nil {
 		printErrorf("failed to contact server: %v", err)
 		return 1
@@ -138,7 +131,7 @@ func cmdServerProcess(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	baseDir, _, err := resolveBaseDir(*basedir)
+	baseDir, _, err := state.ResolveBaseDir(*basedir)
 	if err != nil {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
@@ -147,11 +140,11 @@ func cmdServerProcess(args []string) int {
 }
 
 func runServer(baseDir string) int {
-	if err := os.MkdirAll(baseDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(baseDir, state.DirectoryMode()); err != nil {
 		printErrorf("failed to create state directory: %v", err)
 		return 1
 	}
-	listener, release, err := serverinternal.Listen(baseDir, stateFileMode())
+	listener, release, err := serverinternal.Listen(baseDir, state.FileMode())
 	if err != nil {
 		printError(err)
 		return 1
@@ -163,7 +156,7 @@ func runServer(baseDir string) int {
 		return 1
 	}
 	record := serverRecord{
-		BaseDir: baseDir, Socket: serverSocketPath(baseDir), PID: os.Getpid(),
+		BaseDir: baseDir, Socket: serverinternal.SocketPath(baseDir), PID: os.Getpid(),
 		StartedAt: nowRFC3339(), LastSeen: nowRFC3339(),
 	}
 	if err := registerServer(masterDir, record); err != nil {
@@ -189,7 +182,7 @@ func runServer(baseDir string) int {
 }
 
 func newServerLogger(baseDir string) *serverinternal.Logger {
-	return &serverinternal.Logger{Path: filepath.Join(baseDir, "server.log"), FileMode: stateFileMode(), MaxBytes: maxServerLogSize}
+	return &serverinternal.Logger{Path: filepath.Join(baseDir, "server.log"), FileMode: state.FileMode(), MaxBytes: maxServerLogSize}
 }
 
 // newRotariServer returns a server for baseDir that is served through Handle.
@@ -229,8 +222,4 @@ func (ops serverOperations) Run(request serverinternal.Request, progress func(se
 
 func (ops serverOperations) CancelRun(request serverinternal.Request) {
 	_, _ = cancelQueue(ops.baseDir, request.QueueName, false)
-}
-
-func sendServerRequest(baseDir string, request serverinternal.Request) (serverinternal.Response, error) {
-	return serverinternal.SendRequest(baseDir, request)
 }

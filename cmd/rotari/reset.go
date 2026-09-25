@@ -31,17 +31,17 @@ func cmdReset(args []string) int {
 	if len(fs.Args()) == 1 {
 		*queueNameOption = fs.Args()[0]
 	}
-	baseDir, _, err := resolveBaseDir(*basedir)
+	baseDir, _, err := state.ResolveBaseDir(*basedir)
 	if err != nil {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
 	}
-	queueName, err := resolveProjectName(baseDir, *queueNameOption)
+	queueName, err := state.ResolveProjectName(baseDir, *queueNameOption)
 	if err != nil {
 		printError(err)
 		return 1
 	}
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
@@ -137,7 +137,7 @@ func confirmResetOfInterruptedRun(input io.Reader, output io.Writer, paths state
 
 // resetQueueCommands preserves queue defaults and run history.
 func resetQueueCommands(paths state.ProjectPaths) (int, error) {
-	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
 		return 0, fmt.Errorf("failed to create project directory: %w", err)
 	}
 	release, err := state.AcquireStateLock(paths.StateLockFile)

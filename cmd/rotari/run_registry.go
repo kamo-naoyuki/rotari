@@ -108,7 +108,7 @@ func registerRunLocation(location runLocation) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(dir, state.DirectoryMode()); err != nil {
 		return err
 	}
 	path, err := runLocationPath(dir, location.RunID)
@@ -194,11 +194,11 @@ func resolveExistingRunTarget(cliBaseDir, cliProjectName, runID string) (string,
 			}
 		}
 	}
-	baseDir, _, err := resolveBaseDir(cliBaseDir)
+	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 	if err != nil {
 		return "", "", err
 	}
-	projectName, err := resolveProjectName(baseDir, cliProjectName)
+	projectName, err := state.ResolveProjectName(baseDir, cliProjectName)
 	if err != nil {
 		return "", "", err
 	}

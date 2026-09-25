@@ -318,7 +318,7 @@ func cmdWorkerRun(args []string) int {
 		return 1
 	}
 
-	paths, err := resolvePaths(*basedir, queueName)
+	paths, err := state.ResolveProjectPaths(*basedir, queueName)
 	if err != nil {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
@@ -528,61 +528,9 @@ const (
 	stateFileName          = "name"
 )
 
-func resolvePaths(cliBaseDir, projectName string) (state.ProjectPaths, error) {
-	resolved, err := state.ResolveProjectPaths(cliBaseDir, projectName)
-	if err != nil {
-		return state.ProjectPaths{}, err
-	}
-	paths := state.ProjectPaths{
-		BaseDir:         resolved.BaseDir,
-		BaseDirExplicit: resolved.BaseDirExplicit,
-		ProjectName:     resolved.ProjectName,
-		ProjectDir:      resolved.ProjectDir,
-		QueueFile:       resolved.QueueFile,
-		MetaFile:        resolved.MetaFile,
-		StateLockFile:   resolved.StateLockFile,
-		LockFile:        resolved.LockFile,
-		RunsDir:         resolved.RunsDir,
-	}
-	return paths, nil
-}
-
-func stateDirMode() os.FileMode {
-	return state.DirectoryMode()
-}
-
-func stateFileMode() os.FileMode {
-	return state.FileMode()
-}
-
-// stateScriptMode is for generated wrapper scripts, which must stay executable.
-func stateScriptMode() os.FileMode {
-	return state.ScriptMode()
-}
-
-func resolveBaseDir(cliBaseDir string) (string, bool, error) {
-	return state.ResolveBaseDir(cliBaseDir)
-}
-
-func resolveProjectName(baseDir string, cliProjectName string) (string, error) {
-	return state.ResolveProjectName(baseDir, cliProjectName)
-}
-
 func isRunning(lockPath string) (bool, error) {
-	state, _, err := inspectRunLock(lockPath, true)
-	return state == projectLockActive || state == projectLockRemote, err
-}
-
-const (
-	projectLockNone   = state.LockNone
-	projectLockActive = state.LockActive
-	projectLockStale  = state.LockStale
-	projectLockRemote = state.LockRemote
-)
-
-func inspectRunLock(lockPath string, cleanupStale bool) (state.LockState, model.LockInfo, error) {
-	lockState, lock, err := state.InspectLock(lockPath, cleanupStale)
-	return lockState, lock, err
+	lockState, _, err := state.InspectLock(lockPath, true)
+	return lockState == state.LockActive || lockState == state.LockRemote, err
 }
 
 func makeRunID() string {
@@ -611,7 +559,7 @@ func nowRFC3339Nano() string {
 }
 
 func jsonStore() state.Store {
-	return state.NewStore(stateDirMode(), stateFileMode())
+	return state.NewStore(state.DirectoryMode(), state.FileMode())
 }
 
 func loadWrapperStatus(path string) (executor.WrapperStatus, bool) {

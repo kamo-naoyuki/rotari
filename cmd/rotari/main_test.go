@@ -43,18 +43,18 @@ func TestResolveProjectNamePriority(t *testing.T) {
 	if err := os.Setenv(envName, "from-env"); err != nil {
 		t.Fatal(err)
 	}
-	got, err := resolveProjectName(baseDir, "from-option")
+	got, err := state.ResolveProjectName(baseDir, "from-option")
 	if err != nil || got != "from-option" {
 		t.Fatalf("option priority: got %q, err %v", got, err)
 	}
-	got, err = resolveProjectName(baseDir, "")
+	got, err = state.ResolveProjectName(baseDir, "")
 	if err != nil || got != "from-env" {
 		t.Fatalf("environment priority: got %q, err %v", got, err)
 	}
 	if err := os.Unsetenv(envName); err != nil {
 		t.Fatal(err)
 	}
-	got, err = resolveProjectName(baseDir, "")
+	got, err = state.ResolveProjectName(baseDir, "")
 	if err != nil || got != defaultProjectName {
 		t.Fatalf("default priority: got %q, want %q, err %v", got, defaultProjectName, err)
 	}
@@ -64,7 +64,7 @@ func TestResolveProjectNamePriority(t *testing.T) {
 	if err := os.MkdirAll(q1Dir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	got, err = resolveProjectName(baseDir, "")
+	got, err = state.ResolveProjectName(baseDir, "")
 	if err != nil || got != "q1" {
 		t.Fatalf("auto select single project: got %q, want q1, err %v", got, err)
 	}
@@ -74,7 +74,7 @@ func TestResolveProjectNamePriority(t *testing.T) {
 	if err := os.MkdirAll(q2Dir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	_, err = resolveProjectName(baseDir, "")
+	_, err = state.ResolveProjectName(baseDir, "")
 	if err == nil {
 		t.Fatal("expected error for multiple projects when project-name is empty, got nil")
 	}
@@ -91,7 +91,7 @@ func TestCmdAddExpandsMatrixIntoIndependentJobs(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cmdAdd exit code = %d, want 0", code)
 	}
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestCmdAddCombinesMatrixWithArray(t *testing.T) {
 	if code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "--job-name", "train", "--array", "1-3", "--matrix", "python=3.10,3.11", "echo", "hello"}); code != 0 {
 		t.Fatalf("cmdAdd exit code = %d, want 0", code)
 	}
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestCmdAddCombinesMatrixWithSparseArray(t *testing.T) {
 	if code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "--job-name", "train", "--array", "1,3,4", "--matrix", "python=3.10,3.11", "echo", "hello"}); code != 0 {
 		t.Fatalf("cmdAdd exit code = %d, want 0", code)
 	}
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,8 +188,8 @@ func TestSanitizeMatrixName(t *testing.T) {
 		"日本語":        "___",
 		"already_ok": "already_ok",
 	} {
-		if got := sanitizeMatrixName(value); got != want {
-			t.Errorf("sanitizeMatrixName(%q) = %q, want %q", value, got, want)
+		if got := model.SanitizeMatrixName(value); got != want {
+			t.Errorf("model.SanitizeMatrixName(%q) = %q, want %q", value, got, want)
 		}
 	}
 }
@@ -203,16 +203,16 @@ func TestCmdAddRejectsDuplicateMatrixKey(t *testing.T) {
 
 func TestResolvePathsRejectsProjectTraversal(t *testing.T) {
 	for _, projectName := range []string{"../outside", ".", "..", "nested/project"} {
-		if _, err := resolvePaths(t.TempDir(), projectName); err == nil {
-			t.Errorf("resolvePaths accepted unsafe project name %q", projectName)
+		if _, err := state.ResolveProjectPaths(t.TempDir(), projectName); err == nil {
+			t.Errorf("state.ResolveProjectPaths accepted unsafe project name %q", projectName)
 		}
 	}
 }
 
 func TestResolveProjectNameRejectsUnsafeProjectNames(t *testing.T) {
 	for _, projectName := range []string{"../outside", "/tmp/outside", ".", "..", "nested/project", "subdir/..", "job/with/slash"} {
-		if _, err := resolveProjectName(t.TempDir(), projectName); err == nil {
-			t.Errorf("resolveProjectName accepted unsafe project name %q", projectName)
+		if _, err := state.ResolveProjectName(t.TempDir(), projectName); err == nil {
+			t.Errorf("state.ResolveProjectName accepted unsafe project name %q", projectName)
 		}
 	}
 
@@ -228,32 +228,32 @@ func TestResolveProjectNameRejectsUnsafeProjectNames(t *testing.T) {
 	if err := os.Setenv(envName, "../outside"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := resolveProjectName(t.TempDir(), ""); err == nil {
-		t.Fatal("resolveProjectName accepted unsafe project name from environment")
+	if _, err := state.ResolveProjectName(t.TempDir(), ""); err == nil {
+		t.Fatal("state.ResolveProjectName accepted unsafe project name from environment")
 	}
 }
 
 func TestResolvePathsRejectsAbsoluteAndNestedPathVariants(t *testing.T) {
 	for _, projectName := range []string{"/tmp/outside", "///tmp/outside", "nested/../outside", "subdir/.", "subdir/..", "job/with/slash", "..\\outside", "nested\\project", "C:\\tmp\\outside"} {
-		if _, err := resolvePaths(t.TempDir(), projectName); err == nil {
-			t.Errorf("resolvePaths accepted unsafe project name %q", projectName)
+		if _, err := state.ResolveProjectPaths(t.TempDir(), projectName); err == nil {
+			t.Errorf("state.ResolveProjectPaths accepted unsafe project name %q", projectName)
 		}
 	}
 }
 
 func TestValidWebIDRejectsTraversalAndDotSegments(t *testing.T) {
 	for _, value := range []string{"..", ".", "../outside", "nested/project", "nested\\project", "/tmp/outside", "C:\\tmp\\outside"} {
-		if validWebID(value) {
-			t.Fatalf("validWebID accepted unsafe value %q", value)
+		if state.IsValidPathElement(value) {
+			t.Fatalf("state.IsValidPathElement accepted unsafe value %q", value)
 		}
 	}
-	if !validWebID("demo") || !validWebID("run-2026") || !validWebID("job-1") {
+	if !state.IsValidPathElement("demo") || !state.IsValidPathElement("run-2026") || !state.IsValidPathElement("job-1") {
 		t.Fatal("validWebID rejected a normal identifier")
 	}
 }
 
 func TestValidatedStateDirectoriesRejectTraversal(t *testing.T) {
-	paths, err := resolvePaths(t.TempDir(), "demo")
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +319,7 @@ func TestResolveBaseDirPriority(t *testing.T) {
 	})
 
 	// 1. Fallback to default (home directory, etc.) if .rotari-state does not exist in current dir
-	_, _, err = resolveBaseDir("")
+	_, _, err = state.ResolveBaseDir("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -330,7 +330,7 @@ func TestResolveBaseDirPriority(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, _, err := resolveBaseDir("")
+	got, _, err := state.ResolveBaseDir("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,7 +342,7 @@ func TestResolveBaseDirPriority(t *testing.T) {
 	if err := os.Setenv(envName, "/env/basedir"); err != nil {
 		t.Fatal(err)
 	}
-	got, _, err = resolveBaseDir("")
+	got, _, err = state.ResolveBaseDir("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -351,7 +351,7 @@ func TestResolveBaseDirPriority(t *testing.T) {
 	}
 
 	// 4. CLI option priority
-	got, _, err = resolveBaseDir("/cli/basedir")
+	got, _, err = state.ResolveBaseDir("/cli/basedir")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -362,24 +362,24 @@ func TestResolveBaseDirPriority(t *testing.T) {
 
 func TestStateModeDefaultsToSharedPermissions(t *testing.T) {
 	t.Setenv(envPrivateState, "")
-	if got := stateDirMode(); got != 0o755 {
+	if got := state.DirectoryMode(); got != 0o755 {
 		t.Fatalf("stateDirMode() = %o, want 0755 (shared by default)", got)
 	}
-	if got := stateFileMode(); got != 0o644 {
+	if got := state.FileMode(); got != 0o644 {
 		t.Fatalf("stateFileMode() = %o, want 0644 (shared by default)", got)
 	}
-	if got := stateScriptMode(); got != 0o755 {
+	if got := state.ScriptMode(); got != 0o755 {
 		t.Fatalf("stateScriptMode() = %o, want 0755 (shared by default)", got)
 	}
 
 	t.Setenv(envPrivateState, "true")
-	if got := stateDirMode(); got != 0o700 {
+	if got := state.DirectoryMode(); got != 0o700 {
 		t.Fatalf("stateDirMode() with %s=true = %o, want 0700", envPrivateState, got)
 	}
-	if got := stateFileMode(); got != 0o600 {
+	if got := state.FileMode(); got != 0o600 {
 		t.Fatalf("stateFileMode() with %s=true = %o, want 0600", envPrivateState, got)
 	}
-	if got := stateScriptMode(); got != 0o700 {
+	if got := state.ScriptMode(); got != 0o700 {
 		t.Fatalf("stateScriptMode() with %s=true = %o, want 0700", envPrivateState, got)
 	}
 }
@@ -532,7 +532,7 @@ func TestCmdAddRejectsExecutorOutsideChoicesBeforeWritingQueue(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("cmdAdd exit code = %d, want 1", code)
 	}
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -686,7 +686,7 @@ func TestFormatProjectRunningErrorIncludesWaitAndCancelHints(t *testing.T) {
 
 func TestCmdResetClearsQueueButKeepsDefaultsAndHistory(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -725,7 +725,7 @@ func TestCmdResetClearsQueueButKeepsDefaultsAndHistory(t *testing.T) {
 
 func TestCmdResetAcceptsPositionalProjectName(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -750,7 +750,7 @@ func TestCmdResetAcceptsPositionalProjectName(t *testing.T) {
 
 func TestCmdResetClearsInvalidDuplicateNameQueue(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -776,7 +776,7 @@ func TestCmdResetClearsInvalidDuplicateNameQueue(t *testing.T) {
 
 func TestCmdResetRejectsRunningProject(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -811,7 +811,7 @@ func TestCmdResetRejectsRunningProject(t *testing.T) {
 
 func TestCmdResetRecoversInterruptedRunWithoutPrompt(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -844,7 +844,7 @@ func TestCmdResetRecoversInterruptedRunWithoutPrompt(t *testing.T) {
 
 func TestCmdResetRequiresRecoverFlagForInterruptedRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -942,7 +942,7 @@ func TestCmdResetRejectsUnexpectedStateWithoutDiscardingQueue(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			baseDir := t.TempDir()
-			paths, err := resolvePaths(baseDir, "demo")
+			paths, err := state.ResolveProjectPaths(baseDir, "demo")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1098,7 +1098,7 @@ func TestMergeEnvironmentOverridesValues(t *testing.T) {
 
 func TestPrepareJobEnvironmentsIncludesRunOptions(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1131,7 +1131,7 @@ func TestAssignAttemptIDsAreUniquePerRunAttempt(t *testing.T) {
 		if job.AttemptID == "" {
 			t.Fatalf("job %d has no attempt ID", index)
 		}
-		if got, want := environmentEntry(job.Environment, envAttemptID); got != envAttemptID+"="+job.AttemptID || !want {
+		if got, want := runcontract.EnvironmentEntry(job.Environment, envAttemptID); got != envAttemptID+"="+job.AttemptID || !want {
 			t.Fatalf("job %d attempt environment = %q, want %q", index, got, envAttemptID+"="+job.AttemptID)
 		}
 		payload, err := decodeAttemptID(job.AttemptID)
@@ -1209,7 +1209,7 @@ func TestLatestAttemptIDIgnoresOtherRunsAndJobs(t *testing.T) {
 
 func TestResolveAttemptTargetUsesRunRegistry(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1237,7 +1237,7 @@ func TestEnqueueCommandPersistsStableJobID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1264,7 +1264,7 @@ func TestEnqueueCommandKeepsPerJobExecutorOutOfQueueDefault(t *testing.T) {
 	if _, err := enqueueCommand(baseDir, "default", []string{"echo", "job"}, "slurm", []string{"-p short"}, nil, "job", nil); err != nil {
 		t.Fatal(err)
 	}
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1282,7 +1282,7 @@ func TestEnqueueCommandPersistsEnvironment(t *testing.T) {
 	if _, err := enqueueCommand(baseDir, "default", []string{"echo", "job"}, "", nil, []string{"TOKEN=secret", "MODE=test"}, "job", nil); err != nil {
 		t.Fatal(err)
 	}
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1318,7 +1318,7 @@ func TestValidateEnvironment(t *testing.T) {
 
 func TestEnqueueCommandKeepsFinishedRunHistory(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1578,7 +1578,7 @@ func TestCompleteProjectNames(t *testing.T) {
 func TestCompleteJobIDsForRun(t *testing.T) {
 	baseDir := t.TempDir()
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1662,7 +1662,7 @@ func TestShowWithPagerDisabledWritesDirectly(t *testing.T) {
 
 func TestShowRunIncludesCarriedJobFromCommands(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1869,7 +1869,7 @@ func TestInstallCompletionForFish(t *testing.T) {
 
 func TestPlanRerunSelectionWithoutPreviousRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1884,7 +1884,7 @@ func TestPlanRerunSelectionWithoutPreviousRun(t *testing.T) {
 
 func TestPlanRerunSelectionCarriesForwardNonMatchingResults(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1950,7 +1950,7 @@ func TestPlanRerunSelectionCarriesForwardNonMatchingResults(t *testing.T) {
 
 func TestPlanRerunSelectionAggregatesArrayTaskResults(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2019,7 +2019,7 @@ func TestPlanRerunSelectionAggregatesArrayTaskResults(t *testing.T) {
 
 func TestPlanRerunSelectionPartialArrayReexecutesOnlyFailedTasks(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2073,7 +2073,7 @@ func TestPlanRerunSelectionPartialArrayReexecutesOnlyFailedTasks(t *testing.T) {
 func TestDeleteRemovesOnlySelectedRun(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2124,7 +2124,7 @@ func TestClearCommandIsRejected(t *testing.T) {
 
 func TestPlanRerunSelectionByJobID(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2246,7 +2246,7 @@ func TestCmdCancelRejectsWaitWithPositionalJobID(t *testing.T) {
 
 func TestFollowJobLogReadsAppendedOutputUntilFinished(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2276,7 +2276,7 @@ func TestFollowJobLogReadsAppendedOutputUntilFinished(t *testing.T) {
 
 func TestFinishRunClearsQueueAndKeepsRunHistory(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2325,7 +2325,7 @@ func TestFinishRunClearsQueueAndKeepsRunHistory(t *testing.T) {
 
 func TestFinishRunDoesNotFinalizeAnotherRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2362,7 +2362,7 @@ func TestFinishRunDoesNotFinalizeAnotherRun(t *testing.T) {
 
 func TestChangeBatchRestoresAndEditsPreviousRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2407,7 +2407,7 @@ func TestChangeBatchRestoresAndEditsPreviousRun(t *testing.T) {
 
 func TestRemoveBatchRemovesJobsAndRejectsDependencies(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2448,7 +2448,7 @@ func TestRemoveBatchRemovesJobsAndRejectsDependencies(t *testing.T) {
 
 func TestRemoveBatchRestoresPreviousRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2484,7 +2484,7 @@ func TestRemoveBatchRestoresPreviousRun(t *testing.T) {
 
 func TestExecuteMixedRunBlocksWhenDependencyFails(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2523,7 +2523,7 @@ func TestExecuteMixedRunBlocksWhenDependencyFails(t *testing.T) {
 
 func TestExecuteMixedRunCarriesForwardNonSelectedResults(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2633,7 +2633,7 @@ func TestValidateDependencies(t *testing.T) {
 
 func TestFinalizeCompletedCancellationRemovesStaleServerLock(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2701,7 +2701,7 @@ exit 1
 	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
 
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2735,7 +2735,7 @@ exit 1
 	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
 
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2766,7 +2766,7 @@ printf '999[].headnode\n'
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2813,7 +2813,7 @@ printf '54321;fake-host\n'
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2887,7 +2887,7 @@ func TestCancelJobsCancelsSelectedLocalJob(t *testing.T) {
 func TestControlQueueJobsSuspendsAndResumesSelectedLocalJob(t *testing.T) {
 	baseDir := t.TempDir()
 	outputPath := filepath.Join(baseDir, "progress")
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2939,7 +2939,7 @@ func TestControlQueueJobsSuspendsAndResumesSelectedLocalJob(t *testing.T) {
 
 func TestControlQueueJobsReportsHostMismatchForLocalJob(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2973,7 +2973,7 @@ func TestControlQueueJobsReportsHostMismatchForLocalJob(t *testing.T) {
 
 func TestCancelQueueRejectsWholeRunFromWrongHost(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3010,7 +3010,7 @@ func waitForFileSize(t *testing.T, path string, want int) {
 
 func TestControlQueueJobsControlsAllRunningJobsAndSkipsFinishedJobs(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3208,12 +3208,12 @@ func TestSendRunRequestReadsProgressThenFinalResponse(t *testing.T) {
 	if err := os.MkdirAll(baseDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	listener, err := net.Listen("unix", serverSocketPath(baseDir))
+	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer listener.Close()
-	defer os.Remove(serverSocketPath(baseDir))
+	defer os.Remove(serverinternal.SocketPath(baseDir))
 
 	go func() {
 		conn, err := listener.Accept()

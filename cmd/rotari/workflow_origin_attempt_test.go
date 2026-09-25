@@ -44,7 +44,7 @@ func writeOriginAttempt(t *testing.T, paths state.ProjectPaths, jobID, attemptID
 // "source" as the latest result, so attempt 0 is only available on disk.
 func writeOriginAttemptRun(t *testing.T) state.ProjectPaths {
 	t.Helper()
-	paths, err := resolvePaths(t.TempDir(), "default")
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestImportedWorkflowRejectsBrokenOriginState(t *testing.T) {
 
 func writeWorkflowMatrixRetryRuns(t *testing.T, baseDir string) (state.ProjectPaths, string, string) {
 	t.Helper()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func writeWorkflowMatrixRetryRuns(t *testing.T, baseDir string) (state.ProjectPa
 
 func TestWorkflowUnchangedMatrixRunImportReusesEveryCombination(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}

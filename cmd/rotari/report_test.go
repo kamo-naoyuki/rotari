@@ -16,7 +16,7 @@ import (
 func createAIReportFixture(t *testing.T) (string, state.ProjectPaths, string, string) {
 	t.Helper()
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -27,7 +27,7 @@ func TestFormatDisplayTimestampUsesJST(t *testing.T) {
 
 func TestCmdShowDisplaysFinishedArrayTaskFromStatusJSON(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestCmdShowResolvesProjectFromRunID(t *testing.T) {
 	masterDir := t.TempDir()
 	baseDir := t.TempDir()
 	t.Setenv(envMasterDir, masterDir)
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestCmdShowResolvesProjectFromRunID(t *testing.T) {
 
 func TestShowRunDisplaysAcceptedStatus(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +254,7 @@ func TestShowRunDisplaysAcceptedStatus(t *testing.T) {
 
 func TestCmdShowResolvesRunNameAcrossProjects(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +287,7 @@ func TestCmdShowResolvesRunNameAcrossProjects(t *testing.T) {
 
 func TestCmdShowJobSelectorsPreferCurrentQueue(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -322,7 +322,7 @@ func TestCmdShowJobSelectorsPreferCurrentQueue(t *testing.T) {
 }
 
 func TestSelectRunIDUsesValidMetaLastRun(t *testing.T) {
-	paths, err := resolvePaths(t.TempDir(), "demo")
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -348,7 +348,7 @@ func TestSelectRunIDUsesValidMetaLastRun(t *testing.T) {
 }
 
 func TestSelectRunIDFallsBackToNewestRun(t *testing.T) {
-	paths, err := resolvePaths(t.TempDir(), "demo")
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +384,7 @@ func TestSelectRunIDFallsBackToNewestRun(t *testing.T) {
 }
 
 func TestSelectRunIDDoesNotFallbackForMissingRequestedRun(t *testing.T) {
-	paths, err := resolvePaths(t.TempDir(), "demo")
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -399,7 +399,7 @@ func TestSelectRunIDDoesNotFallbackForMissingRequestedRun(t *testing.T) {
 }
 
 func TestSelectRunIDResolvesLatestAlias(t *testing.T) {
-	paths, err := resolvePaths(t.TempDir(), "demo")
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -423,7 +423,7 @@ func TestSelectRunIDResolvesLatestAlias(t *testing.T) {
 
 func TestCmdShowDisplaysCurrentQueue(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -462,7 +462,7 @@ func TestCmdShowDisplaysCurrentQueue(t *testing.T) {
 
 func TestCmdShowWarnsAndSucceedsWhenProjectHasNoRunsOrQueue(t *testing.T) {
 	baseDir := t.TempDir()
-	if _, err := resolvePaths(baseDir, "demo"); err != nil {
+	if _, err := state.ResolveProjectPaths(baseDir, "demo"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -522,7 +522,7 @@ func TestCmdShowDisplaysResolvedConfigPaths(t *testing.T) {
 	if err := os.WriteFile(projectConfig, []byte("local-concurrency: 4\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -560,7 +560,7 @@ func TestCmdShowDisplaysResolvedConfigPaths(t *testing.T) {
 
 func TestCmdShowDisplaysActiveRunBeforeQueue(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -629,7 +629,7 @@ func TestCmdShowDisplaysActiveRunBeforeQueue(t *testing.T) {
 
 func TestCmdShowDisplaysInterruptedRunBeforeQueue(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -684,7 +684,7 @@ func TestCmdShowDisplaysInterruptedRunBeforeQueue(t *testing.T) {
 
 func TestCmdShowRejectsLogsForCurrentQueue(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -736,7 +736,7 @@ func TestPagerWriterFallsBackWhenPagerCannotStart(t *testing.T) {
 func TestCmdShowFailedLogsFiltersSuccessfulJobs(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -794,7 +794,7 @@ func TestCmdShowFailedLogsFiltersSuccessfulJobs(t *testing.T) {
 }
 
 func TestShowJobDisplaysPersistedDetails(t *testing.T) {
-	paths, err := resolvePaths(t.TempDir(), "demo")
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -840,7 +840,7 @@ func TestShowJobDisplaysPersistedDetails(t *testing.T) {
 }
 
 func TestShowJobSurfacesAccountingUnavailableFromSummary(t *testing.T) {
-	paths, err := resolvePaths(t.TempDir(), "demo")
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -874,7 +874,7 @@ func TestShowJobSurfacesAccountingUnavailableFromSummary(t *testing.T) {
 }
 
 func TestShowJobDisplaysDiagnoses(t *testing.T) {
-	paths, err := resolvePaths(t.TempDir(), "demo")
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -907,7 +907,7 @@ func TestShowJobDisplaysDiagnoses(t *testing.T) {
 }
 
 func TestShowJobRejectsTraversalInRunAndJobIDs(t *testing.T) {
-	paths, err := resolvePaths(t.TempDir(), "demo")
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -932,7 +932,7 @@ func TestShowJobRejectsTraversalInRunAndJobIDs(t *testing.T) {
 }
 
 func TestShowJobFollowsCarriedForwardOrigin(t *testing.T) {
-	paths, err := resolvePaths(t.TempDir(), "demo")
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -973,7 +973,7 @@ func TestShowJobFollowsCarriedForwardOrigin(t *testing.T) {
 
 func TestShowQueueJobPrintsMatchingJob(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1012,7 +1012,7 @@ func TestShowQueueJobColorsLabelsInTTYMode(t *testing.T) {
 	defer func() { terminalCheck = oldCheck }()
 
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1045,7 +1045,7 @@ func TestShowQueueJobColorsLabelsInTTYMode(t *testing.T) {
 
 func TestShowQueueDisplaysArrayTaskColumn(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1098,7 +1098,7 @@ func TestShowQueueDisplaysArrayTaskColumn(t *testing.T) {
 
 func TestShowQueueJobReportsMissingJob(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1126,7 +1126,7 @@ func TestShowQueueJobReportsMissingJob(t *testing.T) {
 
 func TestShowRunsListsRunsSortedByRecency(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1187,7 +1187,7 @@ func TestShowRunsListsRunsSortedByRecency(t *testing.T) {
 
 func TestShowRunsReportsNoRunsWhenDirectoryMissing(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1214,11 +1214,11 @@ func TestShowRunsReportsNoRunsWhenDirectoryMissing(t *testing.T) {
 
 func TestCmdShowProjectsListsProjectSummaries(t *testing.T) {
 	baseDir := t.TempDir()
-	demo, err := resolvePaths(baseDir, "demo")
+	demo, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
-	example, err := resolvePaths(baseDir, "example")
+	example, err := state.ResolveProjectPaths(baseDir, "example")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1269,7 +1269,7 @@ func TestCmdShowProjectsListsProjectSummaries(t *testing.T) {
 func TestCmdShowFallsBackToProjectsWithWarningWhenProjectIsAmbiguous(t *testing.T) {
 	baseDir := t.TempDir()
 	for _, projectName := range []string{"demo", "example"} {
-		paths, err := resolvePaths(baseDir, projectName)
+		paths, err := state.ResolveProjectPaths(baseDir, projectName)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1318,7 +1318,7 @@ func TestCmdShowListsProjectsAcrossKnownBaseDirs(t *testing.T) {
 	t.Setenv(envMasterDir, masterDir)
 	baseDirs := []string{t.TempDir(), t.TempDir()}
 	for index, baseDir := range baseDirs {
-		paths, err := resolvePaths(baseDir, fmt.Sprintf("project-%d", index))
+		paths, err := state.ResolveProjectPaths(baseDir, fmt.Sprintf("project-%d", index))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1395,7 +1395,7 @@ func TestCmdShowBaseDirsListsMasterRegistryEntries(t *testing.T) {
 
 func TestShowAndWebShareStatusFallbackChain(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}

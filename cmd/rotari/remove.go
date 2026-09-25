@@ -51,7 +51,7 @@ func cmdRemove(args []string) int {
 }
 
 func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []string, requestedJobName string) (string, error) {
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		return "", err
 	}

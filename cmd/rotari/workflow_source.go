@@ -17,7 +17,7 @@ func reconcileWorkflowManifest(baseDir string, manifest workflow.Manifest, queue
 	if manifest.Source == nil {
 		return queue, nil, nil
 	}
-	paths, err := resolvePaths(baseDir, manifest.Source.Project)
+	paths, err := state.ResolveProjectPaths(baseDir, manifest.Source.Project)
 	if err != nil {
 		return model.Queue{}, nil, err
 	}

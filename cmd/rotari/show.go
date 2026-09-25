@@ -134,7 +134,7 @@ func resolveShowJobTargets(cliBaseDir, cliProjectName, runID, selector string, b
 		if err != nil {
 			return nil, err
 		}
-		paths, err := resolvePaths(baseDir, projectName)
+		paths, err := state.ResolveProjectPaths(baseDir, projectName)
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +148,7 @@ func resolveShowJobTargets(cliBaseDir, cliProjectName, runID, selector string, b
 }
 
 func resolveJobTargets(cliBaseDir, cliProjectName, selector string, byName, includeQueue bool) ([]showSelectorTarget, error) {
-	baseDir, _, err := resolveBaseDir(cliBaseDir)
+	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func resolveJobTargets(cliBaseDir, cliProjectName, selector string, byName, incl
 	}
 	targets := make([]showSelectorTarget, 0)
 	for _, projectName := range projects {
-		paths, err := resolvePaths(baseDir, projectName)
+		paths, err := state.ResolveProjectPaths(baseDir, projectName)
 		if err != nil {
 			return nil, err
 		}
@@ -393,7 +393,7 @@ func cmdShow(args []string) int {
 		printError(err)
 		return 1
 	}
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
@@ -765,7 +765,7 @@ func writeShowTargetHeaderWithMode(writer io.Writer, paths state.ProjectPaths, m
 	if state, _, err := inspectProjectRunState(paths); err == nil {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Project state:"), projectStateName(state))
 	}
-	if response, err := sendServerRequest(paths.BaseDir, serverinternal.Request{Op: "ping"}); err == nil && response.OK {
+	if response, err := serverinternal.SendRequest(paths.BaseDir, serverinternal.Request{Op: "ping"}); err == nil && response.OK {
 		fmt.Fprintf(writer, "%s running (pid=%d)\n", cyan("Runner server:"), response.PID)
 	} else {
 		fmt.Fprintf(writer, "%s stopped\n", cyan("Runner server:"))
@@ -1342,7 +1342,7 @@ func showProjects(baseDir string) int {
 
 func showAllProjects(cliBaseDir, cliMasterDir string) int {
 	if cliBaseDir != "" {
-		baseDir, _, err := resolveBaseDir(cliBaseDir)
+		baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 		if err != nil {
 			printErrorf("failed to resolve state directory: %v", err)
 			return 1
@@ -1370,7 +1370,7 @@ func showAllProjects(cliBaseDir, cliMasterDir string) int {
 		seen[item.BaseDir] = true
 		baseDirs = append(baseDirs, item.BaseDir)
 	}
-	if current, _, err := resolveBaseDir(""); err == nil && !seen[current] {
+	if current, _, err := state.ResolveBaseDir(""); err == nil && !seen[current] {
 		baseDirs = append(baseDirs, current)
 	}
 	sort.Strings(baseDirs)
@@ -1402,7 +1402,7 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 			if !entry.IsDir() || !state.IsValidPathElement(entry.Name()) {
 				continue
 			}
-			paths, err := resolvePaths(baseDir, entry.Name())
+			paths, err := state.ResolveProjectPaths(baseDir, entry.Name())
 			if err != nil {
 				printErrorf("failed to resolve project %q: %v", entry.Name(), err)
 				return 1

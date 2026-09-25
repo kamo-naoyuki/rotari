@@ -18,7 +18,7 @@ func TestCmdRemoveDeletesJobByID(t *testing.T) {
 	if _, err := enqueueCommand(baseDir, "default", []string{"echo", "b"}, "", nil, nil, "b", nil); err != nil {
 		t.Fatal(err)
 	}
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestCmdRemoveDeletesJobByName(t *testing.T) {
 		t.Fatalf("cmdRemove exit code = %d, want 0", code)
 	}
 
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestCmdRemoveRejectsRunningProject(t *testing.T) {
 	if _, err := enqueueCommand(baseDir, "default", []string{"echo", "job"}, "", nil, nil, "job", nil); err != nil {
 		t.Fatal(err)
 	}
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestCmdRemoveByIDsRejectsWhenOneIDIsMissing(t *testing.T) {
 	if _, err := enqueueCommand(baseDir, "default", []string{"echo", "a"}, "", nil, nil, "a", nil); err != nil {
 		t.Fatal(err)
 	}
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}

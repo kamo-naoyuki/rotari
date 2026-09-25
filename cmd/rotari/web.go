@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
 	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
@@ -122,7 +123,7 @@ func cmdWeb(args []string) int {
 	fs.Visit(func(flag *flag.Flag) {
 		portExplicit = portExplicit || flag.Name == "port"
 	})
-	baseDir, _, err := resolveBaseDir(*basedir)
+	baseDir, _, err := stateinternal.ResolveBaseDir(*basedir)
 	if err != nil {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
@@ -364,7 +365,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 		runID := request.URL.Query().Get("run_id")
 		jobID := request.URL.Query().Get("job_id")
 		jobIDs := request.URL.Query()["job_ids"]
-		if !validWebID(projectName) || !validWebID(runID) {
+		if !stateinternal.IsValidPathElement(projectName) || !stateinternal.IsValidPathElement(runID) {
 			writeWebError(writer, fmt.Errorf("project_name and run_id are required; job_id must be valid when supplied"))
 			return
 		}
@@ -376,12 +377,12 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			jobIDs = []string{jobID}
 		}
 		for _, jobID := range jobIDs {
-			if !validWebID(jobID) {
+			if !stateinternal.IsValidPathElement(jobID) {
 				writeWebError(writer, fmt.Errorf("project_name and run_id are required; job_id must be valid when supplied"))
 				return
 			}
 		}
-		paths, err := resolvePaths(baseDir, projectName)
+		paths, err := stateinternal.ResolveProjectPaths(baseDir, projectName)
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -415,7 +416,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 		}
 		queueName := request.URL.Query().Get("project_name")
 		runID, jobID := request.URL.Query().Get("run_id"), request.URL.Query().Get("job_id")
-		if !validWebID(queueName) || !validWebID(runID) || !validWebID(jobID) {
+		if !stateinternal.IsValidPathElement(queueName) || !stateinternal.IsValidPathElement(runID) || !stateinternal.IsValidPathElement(jobID) {
 			writeWebError(writer, fmt.Errorf("project_name, run_id and job_id are required"))
 			return
 		}
@@ -482,7 +483,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		if !validWebID(copyRequest.QueueName) || !validWebID(copyRequest.RunID) || (copyRequest.JobID != "" && !validWebID(copyRequest.JobID)) {
+		if !stateinternal.IsValidPathElement(copyRequest.QueueName) || !stateinternal.IsValidPathElement(copyRequest.RunID) || (copyRequest.JobID != "" && !stateinternal.IsValidPathElement(copyRequest.JobID)) {
 			writeWebError(writer, fmt.Errorf("project_name and run_id are required"))
 			return
 		}
@@ -490,7 +491,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			copyRequest.JobIDs = append(copyRequest.JobIDs, copyRequest.JobID)
 		}
 		for _, jobID := range copyRequest.JobIDs {
-			if !validWebID(jobID) {
+			if !stateinternal.IsValidPathElement(jobID) {
 				writeWebError(writer, fmt.Errorf("job_ids must contain valid job IDs"))
 				return
 			}
@@ -535,7 +536,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		if !validWebID(change.QueueName) || !validWebID(change.JobID) || len(change.Command) == 0 {
+		if !stateinternal.IsValidPathElement(change.QueueName) || !stateinternal.IsValidPathElement(change.JobID) || len(change.Command) == 0 {
 			writeWebError(writer, fmt.Errorf("project_name, job_id, and command are required"))
 			return
 		}
@@ -561,7 +562,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		if !validWebID(remove.QueueName) || !validWebID(remove.JobID) {
+		if !stateinternal.IsValidPathElement(remove.QueueName) || !stateinternal.IsValidPathElement(remove.JobID) {
 			writeWebError(writer, fmt.Errorf("project_name and job_id are required"))
 			return
 		}
@@ -586,7 +587,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		if !validWebID(clearRequest.QueueName) || !validWebID(clearRequest.RunID) {
+		if !stateinternal.IsValidPathElement(clearRequest.QueueName) || !stateinternal.IsValidPathElement(clearRequest.RunID) {
 			writeWebError(writer, fmt.Errorf("project_name and run_id are required"))
 			return
 		}
@@ -610,7 +611,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		if !validWebID(cancel.QueueName) || !validWebID(cancel.JobID) {
+		if !stateinternal.IsValidPathElement(cancel.QueueName) || !stateinternal.IsValidPathElement(cancel.JobID) {
 			writeWebError(writer, fmt.Errorf("project_name and job_id are required"))
 			return
 		}
@@ -635,7 +636,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		if !validWebID(control.QueueName) || !validWebID(control.JobID) {
+		if !stateinternal.IsValidPathElement(control.QueueName) || !stateinternal.IsValidPathElement(control.JobID) {
 			writeWebError(writer, fmt.Errorf("project_name and job_id are required"))
 			return
 		}
@@ -660,7 +661,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		if !validWebID(control.QueueName) || !validWebID(control.JobID) {
+		if !stateinternal.IsValidPathElement(control.QueueName) || !stateinternal.IsValidPathElement(control.JobID) {
 			writeWebError(writer, fmt.Errorf("project_name and job_id are required"))
 			return
 		}
@@ -685,11 +686,11 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		if !validWebID(cancel.QueueName) || !validWebID(cancel.RunID) {
+		if !stateinternal.IsValidPathElement(cancel.QueueName) || !stateinternal.IsValidPathElement(cancel.RunID) {
 			writeWebError(writer, fmt.Errorf("project_name and run_id are required"))
 			return
 		}
-		paths, err := resolvePaths(baseDir, cancel.QueueName)
+		paths, err := stateinternal.ResolveProjectPaths(baseDir, cancel.QueueName)
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -723,7 +724,7 @@ func loadWebConfigFiles(baseDir, projectName, runID string) ([]webprojection.Con
 			paths = []string{path}
 		}
 	} else {
-		if !validWebID(projectName) {
+		if !stateinternal.IsValidPathElement(projectName) {
 			return nil, fmt.Errorf("invalid project_name %q", projectName)
 		}
 		if runID == "" {
@@ -731,7 +732,7 @@ func loadWebConfigFiles(baseDir, projectName, runID string) ([]webprojection.Con
 				paths = []string{path}
 			}
 		} else {
-			if !validWebID(runID) {
+			if !stateinternal.IsValidPathElement(runID) {
 				return nil, fmt.Errorf("invalid run_id %q", runID)
 			}
 			return loadRunConfigFiles(baseDir, projectName, runID)
@@ -750,7 +751,7 @@ func loadWebConfigFiles(baseDir, projectName, runID string) ([]webprojection.Con
 }
 
 func saveWebConfig(baseDir, projectName, content string) (string, error) {
-	if projectName != "" && !validWebID(projectName) {
+	if projectName != "" && !stateinternal.IsValidPathElement(projectName) {
 		return "", fmt.Errorf("invalid project_name %q", projectName)
 	}
 	path := effectiveConfigPath(baseDir, projectName)
@@ -761,14 +762,14 @@ func saveWebConfig(baseDir, projectName, content string) (string, error) {
 		return "", fmt.Errorf("invalid %s config: %w", strings.TrimPrefix(filepath.Ext(path), "."), err)
 	}
 	// codeql[go/path-injection]: path is returned by the allow-listed config resolver.
-	if err := os.WriteFile(path, []byte(content), stateFileMode()); err != nil {
+	if err := os.WriteFile(path, []byte(content), stateinternal.FileMode()); err != nil {
 		return "", err
 	}
 	return path, nil
 }
 
 func loadRunConfigFiles(baseDir, projectName, runID string) ([]webprojection.ConfigFile, error) {
-	paths, err := resolvePaths(baseDir, projectName)
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
 		return nil, err
 	}
@@ -818,10 +819,10 @@ func webConfigTargets(baseDir, projectName string) ([]webConfigTarget, error) {
 	if projectName == "" {
 		return targets, nil
 	}
-	if !validWebID(projectName) {
+	if !stateinternal.IsValidPathElement(projectName) {
 		return nil, fmt.Errorf("invalid project_name %q", projectName)
 	}
-	paths, err := resolvePaths(baseDir, projectName)
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
 		return nil, err
 	}
@@ -856,11 +857,11 @@ func generateWebConfig(baseDir, projectName, location string) (string, error) {
 		return "", err
 	}
 	// codeql[go/path-injection]: directory is the resolved config directory.
-	if err := os.MkdirAll(directory, stateDirMode()); err != nil {
+	if err := os.MkdirAll(directory, stateinternal.DirectoryMode()); err != nil {
 		return "", err
 	}
 	// codeql[go/path-injection]: target is the resolved config file path.
-	if err := os.WriteFile(target, data, stateFileMode()); err != nil {
+	if err := os.WriteFile(target, data, stateinternal.FileMode()); err != nil {
 		return "", err
 	}
 	return target, nil
@@ -913,7 +914,7 @@ func loadWebState(baseDir, queueFilter string) (webprojection.State, error) {
 		sort.Strings(queueNames)
 	}
 	for _, queueName := range queueNames {
-		paths, err := resolvePaths(baseDir, queueName)
+		paths, err := stateinternal.ResolveProjectPaths(baseDir, queueName)
 		if err != nil {
 			return webprojection.State{}, err
 		}
@@ -930,10 +931,10 @@ func loadWebState(baseDir, queueFilter string) (webprojection.State, error) {
 
 func loadWebServerState(baseDir string) webprojection.ServerState {
 	state := webprojection.ServerState{}
-	if _, err := os.Stat(serverSocketPath(baseDir)); err == nil {
+	if _, err := os.Stat(serverinternal.SocketPath(baseDir)); err == nil {
 		state.SocketExists = true
 	}
-	data, err := os.ReadFile(serverPIDPath(baseDir))
+	data, err := os.ReadFile(serverinternal.PIDPath(baseDir))
 	if err != nil {
 		return state
 	}
@@ -971,7 +972,7 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 		if files, configErr := loadWebConfigFiles(baseDir, queue.QueueName, ""); configErr == nil {
 			configs[staticConfigKey(queue.QueueName, "")] = files
 		}
-		paths, pathErr := resolvePaths(baseDir, queue.QueueName)
+		paths, pathErr := stateinternal.ResolveProjectPaths(baseDir, queue.QueueName)
 		if pathErr != nil {
 			continue
 		}
@@ -1259,10 +1260,6 @@ func loadWebJobs(runDir string, summary model.RunSummary, attemptIDs ...string) 
 	return webprojection.LoadJobs(jsonStore(), runDir, commands, summary, selectedAttemptID)
 }
 
-func validWebID(value string) bool {
-	return stateinternal.IsValidPathElement(value)
-}
-
 func writeWebJSON(writer http.ResponseWriter, value any) {
 	writer.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(writer).Encode(value)
@@ -1277,7 +1274,7 @@ func webHTML() string {
 }
 
 func webHTMLWithStaticBootstrap(bootstrap string) string {
-	return composeWebHTML(executorNames(), bootstrap)
+	return composeWebHTML(executorRegistry.Names(), bootstrap)
 }
 
 func methodNotAllowed(writer http.ResponseWriter) {

@@ -281,12 +281,12 @@ func TestDiagnosisFormattingAndLanguageValidation(t *testing.T) {
 		t.Fatalf("diagnosis output = %q", got)
 	}
 	for _, tag := range []string{"en", "ja-JP", "zh-Hant"} {
-		if !isLanguageTag(tag) {
+		if !diagnose.IsLanguageTag(tag) {
 			t.Fatalf("language tag %q was rejected", tag)
 		}
 	}
 	for _, tag := range []string{"e", "en_", "en--US", "english"} {
-		if isLanguageTag(tag) {
+		if diagnose.IsLanguageTag(tag) {
 			t.Fatalf("invalid language tag %q was accepted", tag)
 		}
 	}

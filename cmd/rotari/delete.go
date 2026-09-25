@@ -33,12 +33,12 @@ func cmdDelete(args []string) int {
 		printError(err)
 		return 1
 	}
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
 		printErrorf("failed to create queue directory: %v", err)
 		return 1
 	}
@@ -162,7 +162,7 @@ func latestRunID(runsDir string) string {
 }
 
 func clearRunHistory(baseDir, queueName, runID string) error {
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		return err
 	}

@@ -17,7 +17,7 @@ import (
 func confirmQueueOverwrite(baseDir, queueName string, appendJobs, overwriteJobs bool) (bool, error) {
 	overwriteConfirmed := overwriteJobs
 	if !appendJobs && !overwriteJobs {
-		paths, pathErr := resolvePaths(baseDir, queueName)
+		paths, pathErr := state.ResolveProjectPaths(baseDir, queueName)
 		if pathErr != nil {
 			return false, pathErr
 		}
@@ -81,7 +81,7 @@ func cmdCopy(args []string) int {
 				printError(err)
 				return 1
 			}
-			paths, err := resolvePaths(baseDir, projectName)
+			paths, err := state.ResolveProjectPaths(baseDir, projectName)
 			if err != nil {
 				printError(err)
 				return 1
@@ -124,7 +124,7 @@ func cmdCopy(args []string) int {
 					printError(err)
 					return 1
 				}
-				paths, err := resolvePaths(baseDir, projectName)
+				paths, err := state.ResolveProjectPaths(baseDir, projectName)
 				if err != nil {
 					printError(err)
 					return 1
@@ -187,7 +187,7 @@ func cmdCopy(args []string) int {
 
 func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string, appendJobs bool, overwriteJobs ...bool) (string, error) {
 	overwrite := len(overwriteJobs) > 0 && overwriteJobs[0]
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		return "", err
 	}

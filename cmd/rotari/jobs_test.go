@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestPrintJobsTableAlignsMultipleRows(t *testing.T) {
@@ -118,7 +119,7 @@ func captureJobsStdout(t *testing.T, args []string) (string, int) {
 func TestCollectRunJobsStopsAtOldCompletedRun(t *testing.T) {
 	baseDir := t.TempDir()
 	now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +138,7 @@ func TestCollectRunJobsIncludesTerminalJobUsingStartedAtWhenFinishedAtMissing(t 
 	baseDir := t.TempDir()
 	now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
 	started := now.Add(-2 * time.Hour)
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +229,7 @@ func TestParseJobsFormat(t *testing.T) {
 
 func writeTestJobsRun(t *testing.T, baseDir, project, runID, jobID string, started, finished time.Time, exitCode int) {
 	t.Helper()
-	paths, err := resolvePaths(baseDir, project)
+	paths, err := state.ResolveProjectPaths(baseDir, project)
 	if err != nil {
 		t.Fatal(err)
 	}

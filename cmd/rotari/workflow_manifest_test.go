@@ -74,7 +74,7 @@ const workflowPipelineRunID = "20260925-150000-abcdef12"
 // prepare and other is independent.
 func writeWorkflowPipelineRun(t *testing.T, baseDir string) state.ProjectPaths {
 	t.Helper()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestExportWorkflowRejectsEmptyQueueAndDuplicateRunIDs(t *testing.T) {
 
 func TestExportWorkflowFlattensQueueDefaults(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,7 +258,7 @@ func TestExportWorkflowFlattensQueueDefaults(t *testing.T) {
 
 func TestExportWorkflowIncludesDistinctJobIDsFromMultipleRuns(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +278,7 @@ func TestExportWorkflowIncludesDistinctJobIDsFromMultipleRuns(t *testing.T) {
 
 func TestExportWorkflowSelectsLatestAttemptByJobTimestamp(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -475,7 +475,7 @@ func TestCmdImportFailureKeepsExistingQueueAndMeta(t *testing.T) {
 
 func TestCmdImportRejectsRunningProject(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -513,7 +513,7 @@ func TestCmdImportRejectsSourceProjectMismatch(t *testing.T) {
 	if code := cmdImport([]string{"--basedir", baseDir, "--project-name", "other", path}); code != 1 {
 		t.Fatalf("cmdImport exit code = %d, want 1", code)
 	}
-	otherPaths, err := resolvePaths(baseDir, "other")
+	otherPaths, err := state.ResolveProjectPaths(baseDir, "other")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -588,7 +588,7 @@ func TestCmdImportSwappedAttemptIDsDoNotReuseOtherJobResults(t *testing.T) {
 
 func writeWorkflowMatrixRun(t *testing.T, baseDir string) (state.ProjectPaths, string) {
 	t.Helper()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -657,7 +657,7 @@ func TestCmdImportGroupSuccessAcceptsEveryFailedInstance(t *testing.T) {
 
 func TestCmdImportInstanceSuccessAcceptsOnlyThatArrayTask(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -689,7 +689,7 @@ func TestCmdImportInstanceSuccessAcceptsOnlyThatArrayTask(t *testing.T) {
 
 func TestImportedWorkflowRunAcceptsFailureAndUnblocksDependent(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -761,7 +761,7 @@ func TestWorkflowQueueExportImportRoundTripIsFreshWork(t *testing.T) {
 	if code := cmdImport([]string{"--basedir", baseDir, "--project-name", "copy", path}); code != 0 {
 		t.Fatalf("cmdImport exit code = %d", code)
 	}
-	copyPaths, err := resolvePaths(baseDir, "copy")
+	copyPaths, err := state.ResolveProjectPaths(baseDir, "copy")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -785,7 +785,7 @@ func TestWorkflowQueueExportImportRoundTripIsFreshWork(t *testing.T) {
 
 func TestWorkflowExportImportFollowsCarriedOrigin(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}

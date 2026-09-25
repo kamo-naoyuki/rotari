@@ -80,7 +80,7 @@ func TestWebhookSettingsUseProjectConfigAndEnvironmentOverrides(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte("webhook:\n  url: https://project.example/hook\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +310,7 @@ func TestNotifyRunWebhookRejectsUnsupportedFormat(t *testing.T) {
 func testWebhookPaths(t *testing.T) state.ProjectPaths {
 	t.Helper()
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}

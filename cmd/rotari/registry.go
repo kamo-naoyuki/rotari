@@ -51,7 +51,7 @@ func serverRecordPath(masterDir, baseDir string) string {
 }
 
 func registerServer(masterDir string, record serverRecord) error {
-	if err := os.MkdirAll(masterDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(masterDir, state.DirectoryMode()); err != nil {
 		return err
 	}
 	return state.WriteJSON(serverRecordPath(masterDir, record.BaseDir), record)
@@ -100,7 +100,7 @@ func listServers(masterDir string) ([]serverRecord, error) {
 			_ = os.Remove(path)
 			continue
 		}
-		response, err := sendServerRequest(record.BaseDir, serverinternal.Request{Op: "ping"})
+		response, err := serverinternal.SendRequest(record.BaseDir, serverinternal.Request{Op: "ping"})
 		if err != nil || !response.OK || response.PID != record.PID {
 			_ = os.Remove(path)
 			continue

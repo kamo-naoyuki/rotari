@@ -87,7 +87,7 @@ type waitTarget struct {
 }
 
 func resolveRunNameTargets(cliBaseDir, cliProjectName, runName string, activeOnly bool) ([]waitTarget, error) {
-	baseDir, _, err := resolveBaseDir(cliBaseDir)
+	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func resolveRunNameTargets(cliBaseDir, cliProjectName, runName string, activeOnl
 	}
 	targets := make([]waitTarget, 0)
 	for _, projectName := range projectNames {
-		paths, pathErr := resolvePaths(baseDir, projectName)
+		paths, pathErr := state.ResolveProjectPaths(baseDir, projectName)
 		if pathErr != nil {
 			return nil, pathErr
 		}
@@ -143,7 +143,7 @@ func resolveRunNameTargets(cliBaseDir, cliProjectName, runName string, activeOnl
 
 func projectNamesForRunName(baseDir, cliProjectName string) ([]string, error) {
 	if cliProjectName != "" || os.Getenv(envProjectName) != "" {
-		projectName, err := resolveProjectName(baseDir, cliProjectName)
+		projectName, err := state.ResolveProjectName(baseDir, cliProjectName)
 		if err != nil {
 			return nil, err
 		}
@@ -167,7 +167,7 @@ func projectNamesForRunName(baseDir, cliProjectName string) ([]string, error) {
 }
 
 func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (waitTarget, error) {
-	baseDir, _, err := resolveBaseDir(cliBaseDir)
+	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 	if err != nil {
 		return waitTarget{}, err
 	}
@@ -208,17 +208,17 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]waitTarget, 
 		if err != nil {
 			return nil, err
 		}
-		baseDir, _, err := resolveBaseDir(cliBaseDir)
+		baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 		if err != nil {
 			return nil, err
 		}
-		projectName, err := resolveProjectName(baseDir, cliProjectName)
+		projectName, err := state.ResolveProjectName(baseDir, cliProjectName)
 		if err != nil {
 			return nil, err
 		}
 		return []waitTarget{{baseDir: baseDir, projectName: projectName, runID: runID}}, nil
 	}
-	baseDir, _, err := resolveBaseDir(cliBaseDir)
+	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +234,7 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]waitTarget, 
 		if !entry.IsDir() {
 			continue
 		}
-		paths, pathErr := resolvePaths(baseDir, entry.Name())
+		paths, pathErr := state.ResolveProjectPaths(baseDir, entry.Name())
 		if pathErr != nil {
 			return nil, pathErr
 		}
@@ -256,15 +256,15 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]waitTarget, 
 }
 
 func resolveActiveRunTarget(cliBaseDir, cliProjectName string) (string, error) {
-	baseDir, _, err := resolveBaseDir(cliBaseDir)
+	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 	if err != nil {
 		return "", err
 	}
-	queueName, err := resolveProjectName(baseDir, cliProjectName)
+	queueName, err := state.ResolveProjectName(baseDir, cliProjectName)
 	if err != nil {
 		return "", err
 	}
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		return "", err
 	}
@@ -289,7 +289,7 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 		printError(err)
 		return waitResult{exitCode: 1}
 	}
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		printErrorf("failed to resolve paths: %v", err)
 		return waitResult{exitCode: 1}

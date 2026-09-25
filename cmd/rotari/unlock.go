@@ -33,17 +33,17 @@ func cmdUnlock(args []string) int {
 			*queueNameOption = fs.Args()[0]
 		}
 	}
-	baseDir, _, err := resolveBaseDir(*basedir)
+	baseDir, _, err := state.ResolveBaseDir(*basedir)
 	if err != nil {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
 	}
-	queueName, err := resolveProjectName(baseDir, *queueNameOption)
+	queueName, err := state.ResolveProjectName(baseDir, *queueNameOption)
 	if err != nil {
 		printError(err)
 		return 1
 	}
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1

@@ -237,7 +237,7 @@ func formatJobsRow(values []string, widths []int) string {
 
 func jobsBaseDirs(requested, masterdir string, all bool) ([]string, error) {
 	if !all {
-		baseDir, _, err := resolveBaseDir(requested)
+		baseDir, _, err := state.ResolveBaseDir(requested)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve state directory: %w", err)
 		}
@@ -313,7 +313,7 @@ func collectJobs(baseDir string, projects []string, now time.Time, window time.D
 	cutoff := now.Add(-window)
 	rows := make([]jobsRow, 0)
 	for _, project := range projects {
-		paths, err := resolvePaths(baseDir, project)
+		paths, err := state.ResolveProjectPaths(baseDir, project)
 		if err != nil {
 			return nil, err
 		}

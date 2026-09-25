@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
 )
 
@@ -147,7 +148,7 @@ func TestCmdImportPlanKeepsMatrixGroupsAndReportsRemovedGroup(t *testing.T) {
 
 func TestCmdImportPlanMatchesJobsWithoutAttempts(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}

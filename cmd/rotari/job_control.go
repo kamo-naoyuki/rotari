@@ -7,6 +7,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 // cmdCancel cancels the active run or selected running jobs through the
@@ -42,7 +43,7 @@ func cmdCancel(args []string) int {
 		printError(err)
 		return 1
 	}
-	response, err := sendServerRequest(baseDir, serverinternal.Request{Op: serverinternal.OpCancel, QueueName: queueName, JobIDs: selection, Wait: *wait})
+	response, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: serverinternal.OpCancel, QueueName: queueName, JobIDs: selection, Wait: *wait})
 	if err != nil {
 		printErrorf("failed to contact server: %v", err)
 		return 1
@@ -82,7 +83,7 @@ func cmdJobSignal(args []string, operation string) int {
 		printError(err)
 		return 1
 	}
-	response, err := sendServerRequest(baseDir, serverinternal.Request{Op: operation, QueueName: queueName, JobIDs: selection})
+	response, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: operation, QueueName: queueName, JobIDs: selection})
 	if err != nil {
 		printErrorf("failed to contact server: %v", err)
 		return 1
@@ -104,7 +105,7 @@ func cancelQueue(baseDir, queueName string, wait bool) (string, error) {
 }
 
 func cancelQueueJobs(baseDir, queueName string, jobIDs []string, wait bool) (string, error) {
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		return "", err
 	}
@@ -112,7 +113,7 @@ func cancelQueueJobs(baseDir, queueName string, jobIDs []string, wait bool) (str
 }
 
 func controlQueueJobs(baseDir, queueName string, jobIDs []string, operation string) (string, error) {
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		return "", err
 	}

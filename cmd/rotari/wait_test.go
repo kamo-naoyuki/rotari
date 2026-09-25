@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,7 +13,7 @@ import (
 func TestCmdWaitReturnsCompletedRunExitCode(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,11 +55,11 @@ func TestCmdWaitAcceptsMultipleRunIDs(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 
 	baseDir := t.TempDir()
-	pathsA, err := resolvePaths(baseDir, "alpha")
+	pathsA, err := state.ResolveProjectPaths(baseDir, "alpha")
 	if err != nil {
 		t.Fatal(err)
 	}
-	pathsB, err := resolvePaths(baseDir, "beta")
+	pathsB, err := state.ResolveProjectPaths(baseDir, "beta")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +106,7 @@ func TestCmdWaitAcceptsMultipleRunIDs(t *testing.T) {
 func TestCmdWaitTimesOutForMalformedSummary(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +142,7 @@ func TestCmdWaitTimesOutForMalformedSummary(t *testing.T) {
 func TestCmdWaitRejectsMissingRegisteredRunDirectory(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +172,7 @@ func TestCmdWaitRejectsMissingRegisteredRunDirectory(t *testing.T) {
 
 func TestResolveActiveRunTarget(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +195,7 @@ func TestResolveActiveRunTarget(t *testing.T) {
 func TestResolveWaitTargetByProjectRunNameAndRunID(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "build")
+	paths, err := state.ResolveProjectPaths(baseDir, "build")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +229,7 @@ func TestResolveWaitTargetRejectsAmbiguousRunName(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := t.TempDir()
 	for _, projectName := range []string{"alpha", "beta"} {
-		paths, err := resolvePaths(baseDir, projectName)
+		paths, err := state.ResolveProjectPaths(baseDir, projectName)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -244,7 +245,7 @@ func TestResolveWaitTargetRejectsAmbiguousRunName(t *testing.T) {
 func TestResolveActiveWaitTargetsFindsAllProjects(t *testing.T) {
 	baseDir := t.TempDir()
 	for _, projectName := range []string{"beta", "alpha"} {
-		paths, err := resolvePaths(baseDir, projectName)
+		paths, err := state.ResolveProjectPaths(baseDir, projectName)
 		if err != nil {
 			t.Fatal(err)
 		}

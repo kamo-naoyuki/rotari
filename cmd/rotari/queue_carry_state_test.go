@@ -46,7 +46,7 @@ func loadCarryStateQueue(t *testing.T, paths state.ProjectPaths) model.Queue {
 
 func TestCopyRunToQueueKeepsCompleteMatrixGroupUnderNewGroupID(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestCopyRunToQueueKeepsCompleteMatrixGroupUnderNewGroupID(t *testing.T) {
 
 func TestCopyRunToQueueClearsPartialMatrixGroup(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestCopyRunToQueueClearsPartialMatrixGroup(t *testing.T) {
 
 func TestCopyRunToQueueDropsImportCarryFlagsFromSnapshot(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestCopyRunToQueueDropsImportCarryFlagsFromSnapshot(t *testing.T) {
 
 func TestCopyRunToQueueAppendToImportedQueueForcesCopiedJobs(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestCopyRunToQueueAppendToImportedQueueForcesCopiedJobs(t *testing.T) {
 
 func TestCopyRunToQueueOverwriteClearsWorkflowImport(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestCopyRunToQueueOverwriteClearsWorkflowImport(t *testing.T) {
 
 func TestRemoveBatchClearsRemainingMatrixProvenance(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +177,7 @@ func TestRemoveBatchClearsRemainingMatrixProvenance(t *testing.T) {
 
 func TestChangeBatchClearsWholeMatrixGroup(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestChangeBatchClearsWholeMatrixGroup(t *testing.T) {
 
 func TestChangeBatchForcesChangedJobInImportedQueue(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +229,7 @@ func TestChangeBatchForcesChangedJobInImportedQueue(t *testing.T) {
 
 func TestChangeBatchDoesNotForceJobInOrdinaryQueue(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func TestChangeBatchDoesNotForceJobInOrdinaryQueue(t *testing.T) {
 func TestEnqueueCommandForcesOnlyInImportedQueue(t *testing.T) {
 	for _, imported := range []bool{false, true} {
 		baseDir := t.TempDir()
-		paths, err := resolvePaths(baseDir, "default")
+		paths, err := state.ResolveProjectPaths(baseDir, "default")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -266,7 +266,7 @@ func TestEnqueueCommandForcesOnlyInImportedQueue(t *testing.T) {
 
 func TestResetQueueCommandsClearsWorkflowImport(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +295,7 @@ func writeImportedArraySource(t *testing.T, paths state.ProjectPaths) {
 
 func TestImportedWorkflowAcceptsFailedArrayTask(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,7 +326,7 @@ func TestImportedWorkflowAcceptsFailedArrayTask(t *testing.T) {
 
 func TestImportedWorkflowAcceptsArrayTaskThroughCommandOrigin(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -347,7 +347,7 @@ func TestImportedWorkflowAcceptsArrayTaskThroughCommandOrigin(t *testing.T) {
 
 func TestImportedWorkflowForcedArrayTaskExecutesDownstream(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,7 +376,7 @@ func TestImportedWorkflowForcedArrayTaskExecutesDownstream(t *testing.T) {
 
 func TestImportedWorkflowForceOverridesAcceptance(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +398,7 @@ func TestImportedWorkflowForceOverridesAcceptance(t *testing.T) {
 }
 
 func TestImportedWorkflowAcceptRequiresOrigin(t *testing.T) {
-	paths, err := resolvePaths(t.TempDir(), "default")
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -416,7 +416,7 @@ func TestImportedWorkflowAcceptRequiresOrigin(t *testing.T) {
 
 func TestExecuteMixedRunPersistsAcceptedArrayTask(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -447,7 +447,7 @@ func TestExecuteMixedRunPersistsAcceptedArrayTask(t *testing.T) {
 
 func TestRecoverInterruptedProjectClearsWorkflowImportOnlyWhenDiscarding(t *testing.T) {
 	for _, discard := range []bool{false, true} {
-		paths, err := resolvePaths(t.TempDir(), "default")
+		paths, err := state.ResolveProjectPaths(t.TempDir(), "default")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -477,7 +477,7 @@ func testMatrixQueueWithDependent(groupID string) []model.QueuedCommand {
 
 func TestChangeMatrixMemberRewritesBaseNameDependency(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -495,7 +495,7 @@ func TestChangeMatrixMemberRewritesBaseNameDependency(t *testing.T) {
 
 func TestRemoveMatrixMemberRewritesBaseNameDependency(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -526,7 +526,7 @@ func TestCopyRunToQueueHandlesMatrixBaseNameDependency(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.selection, func(t *testing.T) {
 			baseDir := t.TempDir()
-			paths, err := resolvePaths(baseDir, "default")
+			paths, err := state.ResolveProjectPaths(baseDir, "default")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -555,7 +555,7 @@ func TestCopyRunToQueueHandlesMatrixBaseNameDependency(t *testing.T) {
 
 func TestCopyRunToQueueRejectsExcludedFailedMatrixMember(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}

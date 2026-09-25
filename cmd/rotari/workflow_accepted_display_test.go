@@ -37,7 +37,7 @@ func writeLocalSourceAttempt(t *testing.T, paths state.ProjectPaths, jobID, atte
 // attempts: attempt 0 exited 3 and the latest attempt 1 exited 5.
 func writeAcceptedDisplaySource(t *testing.T, baseDir string) (state.ProjectPaths, string, string) {
 	t.Helper()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestCmdImportResolvesNonLatestLocalAttempt(t *testing.T) {
 
 func TestAcceptedArrayTaskDisplaysConsistentlyInShowAndWeb(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,7 +14,7 @@ import (
 
 func TestEnsureProjectIdleRejectsInterruptedRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestEnsureProjectIdleRejectsInterruptedRun(t *testing.T) {
 
 func TestEnsureProjectIdleReportsStillRunningJobsForInterruptedRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestEnsureProjectIdleReportsStillRunningJobsForInterruptedRun(t *testing.T)
 
 func TestEnsureProjectIdleReportsAllFinishedForInterruptedRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +208,7 @@ func TestScanInterruptedRunJobStatusTreatsNonTerminalStatusJSONAsRunning(t *test
 
 func TestConfirmResetOfInterruptedRunIncludesJobStatusDetail(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +240,7 @@ func TestConfirmResetOfInterruptedRunIncludesJobStatusDetail(t *testing.T) {
 
 func TestCmdResetNonInteractiveRejectionIncludesJobStatusDetail(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,7 +318,7 @@ func TestCmdResetNonInteractiveRejectionIncludesJobStatusDetail(t *testing.T) {
 
 func TestCmdUnlockRecoversInterruptedRunWithoutLock(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -355,7 +355,7 @@ func TestCmdUnlockRecoversInterruptedRunWithoutLock(t *testing.T) {
 
 func TestCmdUnlockRemovesMatchingRunLock(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,7 +383,7 @@ func TestCmdUnlockRemovesMatchingRunLock(t *testing.T) {
 
 func TestCmdUnlockAcceptsLegacyPositionalRunID(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -401,7 +401,7 @@ func TestCmdUnlockAcceptsLegacyPositionalRunID(t *testing.T) {
 
 func TestCmdUnlockRejectsDifferentRunLock(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}

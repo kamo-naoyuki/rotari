@@ -65,7 +65,7 @@ func executeMixedRun(paths state.ProjectPaths, runID, runName string, localConcu
 	runcontract.ApplyCarriedOrigins(queue.Commands, plan.CarriedOrigins)
 
 	runDir := filepath.Join(paths.RunsDir, runID)
-	if err := os.MkdirAll(runDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(runDir, state.DirectoryMode()); err != nil {
 		return 1
 	}
 	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
@@ -173,15 +173,11 @@ func assignAttemptIDs(jobs []model.JobSpec, runID string, attempt int) {
 	})
 }
 
-func environmentEntry(environment []string, name string) (string, bool) {
-	return runcontract.EnvironmentEntry(environment, name)
-}
-
 func executeMixedAttempt(runDir string, queue model.Queue, jobs []model.JobSpec, localConcurrency, batchMaxActive int, requestedExecutor string, executorOptions []string, executorSettings executor.RunSettingsMap, onStart func(model.JobSpec)) []model.JobResult {
 	return runcontract.RunAttempt(runDir, queue, jobs, runcontract.AttemptOptions{
 		LocalConcurrency: localConcurrency, BatchMaxActive: batchMaxActive,
 		RequestedExecutor: requestedExecutor, ExecutorOptions: executorOptions,
-		Settings: executorSettings, ResolveExecutor: lookupExecutor,
+		Settings: executorSettings, ResolveExecutor: executorRegistry.Lookup,
 		Callbacks: runcontract.BatchLaneCallbacks{
 			ValidatedJobDir: state.SafeJoin,
 			JobCancelled:    jobCancellationRequested,

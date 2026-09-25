@@ -16,7 +16,7 @@ func TestCmdChangeUpdatesExecutorEnvironmentAndCommandByJobID(t *testing.T) {
 	if _, err := enqueueCommand(baseDir, "default", []string{"echo", "old"}, "", nil, nil, "job", nil); err != nil {
 		t.Fatal(err)
 	}
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestCmdChangeUpdatesExecutorEnvironmentAndCommandByJobID(t *testing.T) {
 
 func TestChangeDoesNotRestoreSnapshotIntoEmptyQueue(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestCmdChangeRejectsRunningProject(t *testing.T) {
 	if _, err := enqueueCommand(baseDir, "default", []string{"echo", "job"}, "", nil, nil, "job", nil); err != nil {
 		t.Fatal(err)
 	}
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}

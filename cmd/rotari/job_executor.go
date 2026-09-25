@@ -78,21 +78,8 @@ func effectiveExecutorOptions(settings executor.RunSettingsMap, name string, fal
 
 // executorRegistry is initialized eagerly (rather than in an init func) so
 // that other package-level vars, such as cliCommandSpecs, can depend on
-// executorNames() during their own initialization.
+// executorRegistry.Names() during their own initialization.
 var executorRegistry = executor.NewRegistry(jsonStore(), jobLogf)
-
-func lookupExecutor(name string) (executor.JobExecutor, bool) {
-	return executorRegistry.Lookup(name)
-}
-
-func isKnownExecutor(name string) bool {
-	return executorRegistry.Known(name)
-}
-
-// executorNames returns the registered executor names, sorted for stable output.
-func executorNames() []string {
-	return executorRegistry.Names()
-}
 
 func validateQueueForRun(queue model.Queue, requestedExecutor string, executorOptions []string, settings executor.RunSettingsMap) error {
 	if err := validateQueueJobs(queue); err != nil {
@@ -108,7 +95,7 @@ func validateQueueForRun(queue model.Queue, requestedExecutor string, executorOp
 	if defaultExecutor == "" {
 		defaultExecutor = "local"
 	}
-	if !isKnownExecutor(defaultExecutor) {
+	if !executorRegistry.Known(defaultExecutor) {
 		return fmt.Errorf("unsupported executor: %s", defaultExecutor)
 	}
 
@@ -117,7 +104,7 @@ func validateQueueForRun(queue model.Queue, requestedExecutor string, executorOp
 		if executorName == "" {
 			executorName = defaultExecutor
 		}
-		if !isKnownExecutor(executorName) {
+		if !executorRegistry.Known(executorName) {
 			return fmt.Errorf("job %q uses unsupported executor: %s", queued.ID, executorName)
 		}
 		options := queued.ExecutorOptions

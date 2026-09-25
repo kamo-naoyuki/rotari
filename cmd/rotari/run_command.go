@@ -65,7 +65,7 @@ func cmdRun(args []string) int {
 				printError(err)
 				return 1
 			}
-			paths, err := resolvePaths(baseDir, projectName)
+			paths, err := state.ResolveProjectPaths(baseDir, projectName)
 			if err != nil {
 				printError(err)
 				return 1
@@ -145,7 +145,7 @@ func cmdRun(args []string) int {
 		forceCopy = true
 	}
 	if sourceRunID == "" && selection != "" {
-		paths, pathErr := resolvePaths(baseDir, queueName)
+		paths, pathErr := state.ResolveProjectPaths(baseDir, queueName)
 		if pathErr != nil {
 			printError(pathErr)
 			return 1
@@ -212,7 +212,7 @@ func cmdRun(args []string) int {
 	}
 	var response serverinternal.Response
 	if *async {
-		response, err = sendServerRequest(baseDir, request)
+		response, err = serverinternal.SendRequest(baseDir, request)
 	} else {
 		response, err = sendRunRequest(baseDir, request)
 	}
@@ -304,7 +304,7 @@ func (printer *runProgressPrinter) print(response serverinternal.Response) {
 }
 
 func resolveQueueExecutor(baseDir, queueName, requested string) (string, error) {
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		return "", err
 	}
@@ -318,7 +318,7 @@ func resolveQueueExecutor(baseDir, queueName, requested string) (string, error) 
 			requested = "local"
 		}
 	}
-	if !isKnownExecutor(requested) {
+	if !executorRegistry.Known(requested) {
 		return "", fmt.Errorf("unsupported executor: %s", requested)
 	}
 	resolved := requested
@@ -327,7 +327,7 @@ func resolveQueueExecutor(baseDir, queueName, requested string) (string, error) 
 		if executor == "" {
 			executor = requested
 		}
-		if !isKnownExecutor(executor) {
+		if !executorRegistry.Known(executor) {
 			return "", fmt.Errorf("unsupported executor: %s", executor)
 		}
 	}
@@ -342,11 +342,11 @@ func startServerRun(baseDir string, request serverinternal.Request, onDone func(
 	if request.LocalConcurrency < 1 {
 		return "", errors.New("local concurrency must be >= 1")
 	}
-	paths, err := resolvePaths(baseDir, request.QueueName)
+	paths, err := state.ResolveProjectPaths(baseDir, request.QueueName)
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
 		return "", err
 	}
 	release, err := state.AcquireStateLock(paths.StateLockFile)
@@ -390,11 +390,11 @@ func runServerSync(baseDir string, request serverinternal.Request, progress func
 	if request.LocalConcurrency < 1 {
 		return "", 1, errors.New("local concurrency must be >= 1")
 	}
-	paths, err := resolvePaths(baseDir, request.QueueName)
+	paths, err := state.ResolveProjectPaths(baseDir, request.QueueName)
 	if err != nil {
 		return "", 1, err
 	}
-	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
 		return "", 1, err
 	}
 	release, err := state.AcquireStateLock(paths.StateLockFile)

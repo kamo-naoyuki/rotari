@@ -133,15 +133,15 @@ func exportWorkflow(baseDir, projectName string, requestedRunIDs []string) (work
 }
 
 func exportCurrentQueue(baseDir, projectName string) (workflow.Manifest, error) {
-	resolvedBaseDir, _, err := resolveBaseDir(baseDir)
+	resolvedBaseDir, _, err := state.ResolveBaseDir(baseDir)
 	if err != nil {
 		return workflow.Manifest{}, err
 	}
-	resolvedProject, err := resolveProjectName(resolvedBaseDir, projectName)
+	resolvedProject, err := state.ResolveProjectName(resolvedBaseDir, projectName)
 	if err != nil {
 		return workflow.Manifest{}, err
 	}
-	paths, err := resolvePaths(resolvedBaseDir, resolvedProject)
+	paths, err := state.ResolveProjectPaths(resolvedBaseDir, resolvedProject)
 	if err != nil {
 		return workflow.Manifest{}, err
 	}
@@ -184,7 +184,7 @@ func loadExportRuns(baseDir, projectName string, requestedRunIDs []string) ([]wo
 }
 
 func loadExportRun(baseDir, projectName, requested string) (workflow.SourceRun, error) {
-	paths, err := resolvePaths(baseDir, projectName)
+	paths, err := state.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
 		return workflow.SourceRun{}, err
 	}

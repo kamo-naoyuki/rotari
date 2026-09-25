@@ -52,7 +52,7 @@ func useNonTerminalStdin(t *testing.T) {
 
 func TestCmdResetNonInteractiveRejectionWarnsWhenJobsMayStillRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestCmdResetNonInteractiveRejectionWarnsWhenJobsMayStillRun(t *testing.T) {
 
 func TestCmdResetFinishesCompletedCancellationBeforeReset(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestCmdResetRejectsProjectNameWithPathSeparator(t *testing.T) {
 
 func writeInterruptedResetProject(t *testing.T, baseDir string) state.ProjectPaths {
 	t.Helper()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -244,7 +244,7 @@ func notifyRunWebhook(paths state.ProjectPaths, runID string, exitCode int) {
 		printErrorf("WARNING: webhook notification returned HTTP %d", response.StatusCode)
 		return
 	}
-	if err := os.WriteFile(marker, []byte(nowRFC3339()+"\n"), stateFileMode()); err != nil {
+	if err := os.WriteFile(marker, []byte(nowRFC3339()+"\n"), state.FileMode()); err != nil {
 		printErrorf("WARNING: cannot record webhook notification: %v", err)
 	}
 }

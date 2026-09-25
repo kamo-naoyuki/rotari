@@ -52,7 +52,7 @@ func scanRunRegistryGC(masterDir string) int {
 	}
 	cache := runRegistryGCCache{CreatedAt: nowRFC3339(), Entries: entries}
 	cachePath := filepath.Join(masterDir, "gc.json")
-	if err := os.MkdirAll(masterDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(masterDir, state.DirectoryMode()); err != nil {
 		printErrorf("failed to create master directory: %v", err)
 		return 1
 	}

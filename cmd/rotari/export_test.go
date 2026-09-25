@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
 )
 
 func TestExportWorkflowCurrentQueue(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +33,7 @@ func TestExportWorkflowCurrentQueue(t *testing.T) {
 
 func TestExportWorkflowRunIncludesStatusAndAttempt(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +82,7 @@ func TestCmdExportTemplateWritesCommentedYAML(t *testing.T) {
 
 func TestExportWorkflowMergesSameJobIDUsingLatestRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +109,7 @@ func TestExportWorkflowMergesSameJobIDUsingLatestRun(t *testing.T) {
 
 func TestExportWorkflowRejectsDifferentJobIDsWithSameName(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}

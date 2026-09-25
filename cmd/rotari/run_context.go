@@ -39,7 +39,7 @@ func snapshotRunConfigs(runDir string, configPaths []string) ([]string, []string
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := os.MkdirAll(snapshotDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(snapshotDir, state.DirectoryMode()); err != nil {
 		return nil, nil, err
 	}
 	files := make([]string, 0, len(configPaths))
@@ -54,7 +54,7 @@ func snapshotRunConfigs(runDir string, configPaths []string) ([]string, []string
 		if err != nil {
 			return nil, nil, err
 		}
-		if err := os.WriteFile(snapshotPath, data, stateFileMode()); err != nil {
+		if err := os.WriteFile(snapshotPath, data, state.FileMode()); err != nil {
 			return nil, nil, err
 		}
 		files = append(files, fileName)

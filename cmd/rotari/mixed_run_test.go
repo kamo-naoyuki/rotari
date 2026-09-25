@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +15,7 @@ import (
 
 func TestExecuteMixedRunPersistsAcceptedImportedResult(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +44,7 @@ func TestExecuteMixedRunPersistsAcceptedImportedResult(t *testing.T) {
 
 func TestExecuteMixedRunRetriesFailedJob(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +98,7 @@ func (recorder *recordingExecutor) Wait(_ string, handle executor.JobHandle) mod
 
 func TestExecuteMixedRunKeepsPerJobExecutorOverrides(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +139,7 @@ func TestExecuteMixedRunKeepsPerJobExecutorOverrides(t *testing.T) {
 
 func TestExecuteMixedRunWaitsForEveryJobInDependentStage(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +168,7 @@ func TestExecuteMixedRunWaitsForEveryJobInDependentStage(t *testing.T) {
 
 func TestExecuteMixedRunPersistsRuleDiagnoses(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +194,7 @@ func TestExecuteMixedRunPersistsRuleDiagnoses(t *testing.T) {
 
 func TestExecuteMixedRunPersistsNoMatchDiagnosis(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +220,7 @@ func TestExecuteMixedRunPersistsNoMatchDiagnosis(t *testing.T) {
 
 func TestExecuteMixedRunExecutesAllArrayTasks(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +246,7 @@ func TestExecuteMixedRunExecutesAllArrayTasks(t *testing.T) {
 
 func TestExecuteMixedRunPartialArrayReexecutesOnlyFailedTask(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +321,7 @@ func TestExecuteMixedRunPartialArrayReexecutesOnlyFailedTask(t *testing.T) {
 
 func TestExecuteMixedRunPersistsRunName(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,7 +350,7 @@ func TestExecuteMixedRunPersistsRunName(t *testing.T) {
 }
 
 func TestFormatRunCompletionIncludesRunNameAndFailedJobHint(t *testing.T) {
-	paths, err := resolvePaths(t.TempDir(), "build")
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "build")
 	if err != nil {
 		t.Fatal(err)
 	}

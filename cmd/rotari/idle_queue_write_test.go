@@ -13,7 +13,7 @@ import (
 
 func writeIdleQueueFixture(t *testing.T) state.ProjectPaths {
 	t.Helper()
-	paths, err := resolvePaths(t.TempDir(), "default")
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "default")
 	if err != nil {
 		t.Fatal(err)
 	}

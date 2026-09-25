@@ -13,7 +13,7 @@ import (
 
 func TestCmdExportReportsExportErrors(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestExportWorkflowRejectsInvalidQueueState(t *testing.T) {
 	for name, setup := range tests {
 		t.Run(name, func(t *testing.T) {
 			baseDir := t.TempDir()
-			paths, err := resolvePaths(baseDir, "demo")
+			paths, err := state.ResolveProjectPaths(baseDir, "demo")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -133,7 +133,7 @@ func TestCmdImportReadsJSONManifest(t *testing.T) {
 	if code := cmdImport([]string{"--basedir", baseDir, "--project-name", "demo", path}); code != 0 {
 		t.Fatalf("cmdImport exit code = %d, want 0", code)
 	}
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestCmdImportReadsJSONManifest(t *testing.T) {
 func TestCmdImportRejectsInterruptedProject(t *testing.T) {
 	for _, extra := range [][]string{nil, {"--dry-run"}} {
 		baseDir := t.TempDir()
-		paths, err := resolvePaths(baseDir, "demo")
+		paths, err := state.ResolveProjectPaths(baseDir, "demo")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -176,7 +176,7 @@ func TestCmdImportRejectsCorruptDestinationState(t *testing.T) {
 		for _, extra := range [][]string{nil, {"--dry-run"}} {
 			t.Run(name, func(t *testing.T) {
 				baseDir := t.TempDir()
-				paths, err := resolvePaths(baseDir, "demo")
+				paths, err := state.ResolveProjectPaths(baseDir, "demo")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -272,7 +272,7 @@ func TestCmdImportUsesStatusOfNonLatestAttempt(t *testing.T) {
 
 func TestCmdImportRejectsAttemptForJobMissingFromSourceSnapshot(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +289,7 @@ func TestCmdImportRejectsAttemptForJobMissingFromSourceSnapshot(t *testing.T) {
 
 func TestCmdImportRejectsOriginToDeletedRun(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +315,7 @@ const workflowArrayRunID = "20260925-200000-12345678"
 // fails, task 3 is cancelled, and task 4 never finishes.
 func writeWorkflowArrayRun(t *testing.T, baseDir string) state.ProjectPaths {
 	t.Helper()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +395,7 @@ func TestCmdImportRejectsInvalidArrayInstances(t *testing.T) {
 
 func TestWorkflowExportImportOfFilteredArrayRetryReusesRetriedTask(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -462,7 +462,7 @@ func TestExportWorkflowRejectsRegisteredRunsFromDifferentProjects(t *testing.T) 
 	baseDir := t.TempDir()
 	firstRun, secondRun := "20260925-120000-11111111", "20260925-130000-22222222"
 	for project, runID := range map[string]string{"first": firstRun, "second": secondRun} {
-		paths, err := resolvePaths(baseDir, project)
+		paths, err := state.ResolveProjectPaths(baseDir, project)
 		if err != nil {
 			t.Fatal(err)
 		}

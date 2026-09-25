@@ -33,7 +33,7 @@ func TestWaitForAsyncRunCallsOnDone(t *testing.T) {
 
 func TestCmdRunWithRunIDRejectsRunningProjectBeforeQueueConfirmation(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestCmdRunWithRunIDRejectsRunningProjectBeforeQueueConfirmation(t *testing.
 
 func TestCmdRunOverwriteSkipsQueueConfirmation(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestSendRunRequestQuietSuppressesProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(baseDir)
-	listener, err := net.Listen("unix", serverSocketPath(baseDir))
+	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +237,7 @@ func TestCancelJobsRejectsAbsoluteAndNestedJobIDs(t *testing.T) {
 
 func TestCancelQueueJobsRejectsUnsafeRunIDFromLock(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +252,7 @@ func TestCancelQueueJobsRejectsUnsafeRunIDFromLock(t *testing.T) {
 
 func TestControlQueueJobsRejectsUnsafeRunIDFromLock(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -400,7 +400,7 @@ func TestCancelQueueCancelsRunningSlurmJobMidRun(t *testing.T) {
 	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
 
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,7 +470,7 @@ func TestControlQueueJobsControlsSelectedSlurmJob(t *testing.T) {
 	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
 
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -509,7 +509,7 @@ func TestControlQueueJobsReportsMissingScontrolBinary(t *testing.T) {
 	t.Setenv("PATH", emptyBinDir)
 
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -546,7 +546,7 @@ func TestControlQueueJobsSurfacesScontrolRejectionForPendingJob(t *testing.T) {
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -615,7 +615,7 @@ func TestCmdAddThenCmdRunExecutesLocalJobEndToEnd(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	var pingErr error
 	for time.Now().Before(deadline) {
-		response, err := sendServerRequest(baseDir, serverinternal.Request{Op: "ping"})
+		response, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "ping"})
 		if err == nil && response.OK {
 			pingErr = nil
 			break
@@ -659,7 +659,7 @@ func TestCmdAddThenCmdRunExecutesLocalJobEndToEnd(t *testing.T) {
 		t.Fatalf("cmdRun exit code = %d, stdout = %q", code, output)
 	}
 
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -686,7 +686,7 @@ func TestCmdRunFailedRestoresEmptyQueue(t *testing.T) {
 	}
 	defer os.RemoveAll(baseDir)
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -722,7 +722,7 @@ func TestCmdRunFailedRestoresEmptyQueue(t *testing.T) {
 	})
 	deadline := time.Now().Add(3 * time.Second)
 	for {
-		response, err := sendServerRequest(baseDir, serverinternal.Request{Op: "ping"})
+		response, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "ping"})
 		if err == nil && response.OK {
 			break
 		}
@@ -760,7 +760,7 @@ func testCmdWithAttemptID(t *testing.T, retry bool) {
 	defer os.RemoveAll(baseDir)
 	masterDir := t.TempDir()
 	t.Setenv("ROTARI_MASTERDIR", masterDir)
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -794,7 +794,7 @@ func testCmdWithAttemptID(t *testing.T, retry bool) {
 	go func() { serverDone <- runServer(baseDir) }()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		if response, pingErr := sendServerRequest(baseDir, serverinternal.Request{Op: "ping"}); pingErr == nil && response.OK {
+		if response, pingErr := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "ping"}); pingErr == nil && response.OK {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -807,7 +807,7 @@ func testCmdWithAttemptID(t *testing.T, retry bool) {
 	} else if code := cmdRun(args); code != 0 {
 		t.Fatalf("cmdRun exit code = %d", code)
 	}
-	paths, err = resolvePaths(baseDir, "demo")
+	paths, err = state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -927,7 +927,7 @@ func TestServerHandleSubmitPersistsQueue(t *testing.T) {
 		t.Fatalf("response = %+v, want successful submit", response)
 	}
 
-	paths, err := resolvePaths(baseDir, "demo")
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -954,7 +954,7 @@ func TestSendServerRequestOverUnixSocket(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(baseDir) })
 
-	listener, err := net.Listen("unix", serverSocketPath(baseDir))
+	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -967,7 +967,7 @@ func TestSendServerRequestOverUnixSocket(t *testing.T) {
 		}
 	}()
 
-	response, err := sendServerRequest(baseDir, serverinternal.Request{Op: "ping"})
+	response, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "ping"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -982,7 +982,7 @@ func TestEnsureServerReusesCompatibleServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(baseDir) })
-	listener, err := net.Listen("unix", serverSocketPath(baseDir))
+	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1011,7 +1011,7 @@ func TestCmdCancelRejectsWholeRunFromWrongHostViaCLI(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(baseDir) })
 
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1025,7 +1025,7 @@ func TestCmdCancelRejectsWholeRunFromWrongHostViaCLI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	listener, err := net.Listen("unix", serverSocketPath(baseDir))
+	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1074,7 +1074,7 @@ func TestCmdCancelAcceptsPositionalJobID(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(baseDir) })
 
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1090,7 +1090,7 @@ func TestCmdCancelAcceptsPositionalJobID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	listener, err := net.Listen("unix", serverSocketPath(baseDir))
+	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1143,7 +1143,7 @@ func TestCmdCancelAcceptsPositionalRunID(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(baseDir) })
 
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1158,7 +1158,7 @@ func TestCmdCancelAcceptsPositionalRunID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	listener, err := net.Listen("unix", serverSocketPath(baseDir))
+	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1203,7 +1203,7 @@ func TestCmdServerStatusReportsRunningServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(baseDir) })
-	listener, err := net.Listen("unix", serverSocketPath(baseDir))
+	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1270,7 +1270,7 @@ func TestCmdServerListReportsLiveServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(baseDir) })
-	listener, err := net.Listen("unix", serverSocketPath(baseDir))
+	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1318,7 +1318,7 @@ func TestListServersKeepsLiveAndRemovesInvalidRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(liveBaseDir) })
-	listener, err := net.Listen("unix", serverSocketPath(liveBaseDir))
+	listener, err := net.Listen("unix", serverinternal.SocketPath(liveBaseDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1411,7 +1411,7 @@ func TestRunServerLifecycle(t *testing.T) {
 	var response serverinternal.Response
 	var err error
 	for time.Now().Before(deadline) {
-		response, err = sendServerRequest(baseDir, serverinternal.Request{Op: "ping"})
+		response, err = serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "ping"})
 		if err == nil && response.OK {
 			break
 		}
@@ -1424,7 +1424,7 @@ func TestRunServerLifecycle(t *testing.T) {
 		t.Fatalf("server registry record missing: %v", err)
 	}
 
-	response, err = sendServerRequest(baseDir, serverinternal.Request{Op: "shutdown"})
+	response, err = serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "shutdown"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1440,7 +1440,7 @@ func TestRunServerLifecycle(t *testing.T) {
 		t.Fatal("server did not stop after shutdown")
 	}
 	for _, path := range []string{
-		serverSocketPath(baseDir), serverPIDPath(baseDir), serverRecordPath(masterDir, baseDir),
+		serverinternal.SocketPath(baseDir), serverinternal.PIDPath(baseDir), serverRecordPath(masterDir, baseDir),
 	} {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Fatalf("server artifact %q remains after shutdown: %v", path, err)
@@ -1462,7 +1462,7 @@ func TestRunServerUsesOwnerOnlyPermissions(t *testing.T) {
 
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		_, err = sendServerRequest(baseDir, serverinternal.Request{Op: "ping"})
+		_, err = serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "ping"})
 		if err == nil {
 			break
 		}
@@ -1472,7 +1472,7 @@ func TestRunServerUsesOwnerOnlyPermissions(t *testing.T) {
 		t.Fatalf("server did not become ready: %v", err)
 	}
 
-	info, statErr := os.Stat(serverSocketPath(baseDir))
+	info, statErr := os.Stat(serverinternal.SocketPath(baseDir))
 	if statErr != nil {
 		t.Fatal(statErr)
 	}
@@ -1480,7 +1480,7 @@ func TestRunServerUsesOwnerOnlyPermissions(t *testing.T) {
 		t.Fatalf("server socket permissions = %o, want no group/other access", perm)
 	}
 
-	if _, err := sendServerRequest(baseDir, serverinternal.Request{Op: "shutdown"}); err != nil {
+	if _, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "shutdown"}); err != nil {
 		t.Fatal(err)
 	}
 	select {

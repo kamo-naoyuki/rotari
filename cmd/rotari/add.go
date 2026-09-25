@@ -63,12 +63,12 @@ func cmdAdd(args []string) int {
 		dimensionNames[dimension.Name] = true
 		dimensions = append(dimensions, dimension)
 	}
-	baseDir, _, err := resolveBaseDir(*basedir)
+	baseDir, _, err := state.ResolveBaseDir(*basedir)
 	if err != nil {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
 	}
-	queueName, err := resolveProjectName(baseDir, *queueNameOption)
+	queueName, err := state.ResolveProjectName(baseDir, *queueNameOption)
 	if err != nil {
 		printError(err)
 		return 1
@@ -118,10 +118,6 @@ func cloneMatrixDimensions(dimensions []model.MatrixDimension) []model.MatrixDim
 	return cloned
 }
 
-func sanitizeMatrixName(value string) string {
-	return model.SanitizeMatrixName(value)
-}
-
 // enqueueCommands appends commands to the project queue. A non-nil array
 // makes every command an array job.
 func enqueueCommands(baseDir, queueName string, commands []model.QueuedCommand, array *model.ArraySpec) (string, error) {
@@ -136,11 +132,11 @@ func enqueueCommands(baseDir, queueName string, commands []model.QueuedCommand, 
 			return "", fmt.Errorf("invalid environment: %w", err)
 		}
 	}
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(paths.ProjectDir, stateDirMode()); err != nil {
+	if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
 		return "", err
 	}
 	release, err := state.AcquireStateLock(paths.StateLockFile)
@@ -156,7 +152,7 @@ func enqueueCommands(baseDir, queueName string, commands []model.QueuedCommand, 
 		return "", err
 	}
 	for index := range commands {
-		if commands[index].Executor != "" && !isKnownExecutor(commands[index].Executor) {
+		if commands[index].Executor != "" && !executorRegistry.Known(commands[index].Executor) {
 			return "", fmt.Errorf("unsupported executor: %s", commands[index].Executor)
 		}
 		commands[index].ID = makeJobID()

@@ -70,7 +70,7 @@ func cmdDiagnose(args []string) int {
 			printError(err)
 			return 1
 		}
-		paths, err := resolvePaths(baseDir, queueName)
+		paths, err := state.ResolveProjectPaths(baseDir, queueName)
 		if err != nil {
 			printErrorf("failed to resolve paths: %v", err)
 			return 1
@@ -104,7 +104,7 @@ func cmdDiagnose(args []string) int {
 	if *provider == "cohere" && *endpoint == defaultLLMEndpoint {
 		*endpoint = cohereLLMEndpoint
 	}
-	if *language != "" && !isLanguageTag(*language) {
+	if *language != "" && !diagnose.IsLanguageTag(*language) {
 		printErrorf("invalid language tag %q; use a BCP 47 tag such as ja or en-US", *language)
 		return 1
 	}
@@ -118,7 +118,7 @@ func cmdDiagnose(args []string) int {
 		printError(err)
 		return 1
 	}
-	paths, err := resolvePaths(baseDir, queueName)
+	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
@@ -182,7 +182,7 @@ func loadDiagnosisJob(paths state.ProjectPaths, runID, jobID string, attemptIDs 
 		if err != nil && !os.IsNotExist(err) {
 			return diagnose.Job{}, fmt.Errorf("read job output: %w", err)
 		}
-		job := diagnose.Job{RunID: runID, JobID: jobID, Command: spec.Command, Log: tailString(string(log), diagnosisLogLimit)}
+		job := diagnose.Job{RunID: runID, JobID: jobID, Command: spec.Command, Log: diagnose.TailLog(string(log), diagnosisLogLimit)}
 		if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
 			for _, result := range summary.Results {
 				if result.ID == jobID {
@@ -195,10 +195,6 @@ func loadDiagnosisJob(paths state.ProjectPaths, runID, jobID string, attemptIDs 
 		return job, nil
 	}
 	return diagnose.Job{}, fmt.Errorf("job %q has too many carried-forward origins", jobID)
-}
-
-func tailString(value string, limit int) string {
-	return diagnose.TailLog(value, limit)
 }
 
 func diagnoseWithRules(job diagnose.Job) []model.RuleDiagnosis {
@@ -223,7 +219,7 @@ func diagnoseJobResult(runDir string, result model.JobResult) model.JobResult {
 	result.Diagnoses = diagnoseWithRules(diagnose.Job{
 		JobID: result.ID,
 		Error: result.Error,
-		Log:   tailString(string(data), diagnosisLogLimit),
+		Log:   diagnose.TailLog(string(data), diagnosisLogLimit),
 	})
 	if len(result.Diagnoses) == 0 {
 		result.Diagnoses = []model.RuleDiagnosis{{
@@ -253,10 +249,6 @@ func formatRuleDiagnoses(diagnoses []model.RuleDiagnosis) string {
 		fmt.Fprintf(&output, "%s\nEvidence: %s\nNext: %s\n", diagnosis.Name, diagnosis.Evidence, diagnosis.Suggestion)
 	}
 	return output.String()
-}
-
-func isLanguageTag(value string) bool {
-	return diagnose.IsLanguageTag(value)
 }
 
 func diagnosisPrompt(job diagnose.Job, language string) string {

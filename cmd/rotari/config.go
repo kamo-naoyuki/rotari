@@ -41,7 +41,7 @@ func loadCLIConfig(args []string) error {
 			}
 		}
 	}
-	resolvedBaseDir, _, err := resolveBaseDir(baseDir)
+	resolvedBaseDir, _, err := state.ResolveBaseDir(baseDir)
 	if err != nil {
 		return err
 	}
@@ -448,7 +448,7 @@ func cmdConfig(args []string) int {
 	if selectedFormat == "" {
 		selectedFormat = configFormatFromOutput(*output)
 	}
-	resolvedBaseDir, _, err := resolveBaseDir(*basedir)
+	resolvedBaseDir, _, err := state.ResolveBaseDir(*basedir)
 	if err != nil {
 		printErrorf("failed to resolve basedir: %v", err)
 		return 1
@@ -508,11 +508,11 @@ func cmdConfig(args []string) int {
 		printErrorf("failed to inspect config file %s: %v", *output, err)
 		return 1
 	}
-	if err := os.MkdirAll(filepath.Dir(*output), stateDirMode()); err != nil {
+	if err := os.MkdirAll(filepath.Dir(*output), state.DirectoryMode()); err != nil {
 		printErrorf("failed to create config directory for %s: %v", *output, err)
 		return 1
 	}
-	if err := os.WriteFile(*output, data, stateFileMode()); err != nil {
+	if err := os.WriteFile(*output, data, state.FileMode()); err != nil {
 		printErrorf("failed to write config file %s: %v", *output, err)
 		return 1
 	}

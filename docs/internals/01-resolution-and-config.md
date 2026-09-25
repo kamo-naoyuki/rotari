@@ -55,7 +55,7 @@ Without a run-location lookup, base directories resolve in this order:
 - Project names and job IDs are single path elements, never relative or
   absolute paths.
 - Empty values, `.`, `..`, absolute paths, and values containing `/` or `\`
-  are rejected before filesystem access. This applies to `resolvePaths` and
+  are rejected before filesystem access. This applies to `state.ResolveProjectPaths` and
   `jobcontrol.Controller.CancelJobs`, including requests from remote callers.
 - Persisted timestamps use UTC RFC3339. Human-readable CLI and web views use the
   IANA timezone from `TZ` when valid, otherwise Go's local timezone.

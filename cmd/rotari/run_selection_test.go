@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestResultSelectionMatches(t *testing.T) {
@@ -36,7 +37,7 @@ func TestResultSelectionMatches(t *testing.T) {
 
 func TestFilteredRunUsesCopiedJobOrigins(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +97,7 @@ func TestFilteredRunUsesCopiedJobOrigins(t *testing.T) {
 
 func TestFilteredRunUsesEachCopiedOrigin(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +124,7 @@ func TestFilteredRunUsesEachCopiedOrigin(t *testing.T) {
 
 func TestImportedWorkflowExecutesFailedJobAndDownstream(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +150,7 @@ func TestImportedWorkflowExecutesFailedJobAndDownstream(t *testing.T) {
 
 func TestImportedWorkflowAcceptsFailedSourceResult(t *testing.T) {
 	baseDir := t.TempDir()
-	paths, err := resolvePaths(baseDir, "default")
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
