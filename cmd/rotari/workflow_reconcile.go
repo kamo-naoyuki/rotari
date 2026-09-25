@@ -344,6 +344,7 @@ func (catalog *workflowSourceCatalog) matchCommand(anchor workflowSourceLeaf, de
 
 func reconcileCommandLeaves(destination *QueuedCommand, source workflowSourceLeaf, manifestJob workflow.Job, catalog *workflowSourceCatalog) error {
 	destination.ID = source.command.ID
+	source = catalog.listedCommandRun(source)
 	if destination.Array == nil {
 		attemptID := manifestJob.AttemptID
 		if instance := workflowInstance(manifestJob, destination.Matrix, nil); instance != nil && instance.AttemptID != "" {
@@ -387,7 +388,42 @@ func sourceLeafForCommand(catalog *workflowSourceCatalog, source workflowSourceL
 		return leaf, nil
 	}
 	result, ok := source.run.results[jobID]
+	if ok && result.AttemptID != "" {
+		// A result carried into the listed run keeps the attempt ID of the run
+		// that produced it; resolve that run so Origin names the real attempt.
+		payload, err := state.DecodeAttemptID(result.AttemptID)
+		if err != nil {
+			return workflowSourceLeaf{}, fmt.Errorf("source result %q has invalid attempt: %w", jobID, err)
+		}
+		if payload.RunID != source.run.id {
+			return catalog.resolveAttempt(result.AttemptID)
+		}
+	}
 	return workflowSourceLeaf{run: source.run, command: source.command, jobID: jobID, result: result, finished: ok}, nil
+}
+
+// listedCommandRun selects the listed source run whose snapshot supplied the
+// command to export, using the same latest-run rule as export. Leaves without
+// an explicit manifest attempt are recovered from that run rather than from
+// the run that the job-level anchor attempt happens to point to.
+func (catalog *workflowSourceCatalog) listedCommandRun(source workflowSourceLeaf) workflowSourceLeaf {
+	selected := source
+	selectedTimestamp := ""
+	found := false
+	for _, run := range catalog.ordered {
+		for _, command := range run.queue.Commands {
+			if command.ID != source.command.ID {
+				continue
+			}
+			timestamp := exportCommandTimestamp(exportRun{ID: run.id, Dir: run.dir, Queue: run.queue, Summary: run.summary}, command)
+			if !found || timestamp > selectedTimestamp || timestamp == selectedTimestamp && run.id > selected.run.id {
+				selected = workflowSourceLeaf{run: run, command: command}
+				selectedTimestamp = timestamp
+				found = true
+			}
+		}
+	}
+	return selected
 }
 
 func workflowInstance(job workflow.Job, matrix *model.MatrixSpec, task *int) *workflow.Instance {

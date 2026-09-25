@@ -96,12 +96,17 @@
   and manual-acceptance dispositions into the queue, and leaves execution to
   the normal run path. Unchanged successes carry forward; failed, unfinished,
   changed, and downstream jobs execute. Matrix combinations and array tasks
-  retain independent dispositions. Manual acceptance creates a destination
+  retain independent dispositions. A leaf without its own manifest attempt is
+  recovered from the listed source run that supplied its command (the same
+  latest-run rule as export), and a result carried into that run resolves to
+  the attempt's original run, so a task re-executed by a filtered retry is
+  reused rather than replaced by its earlier failure. Manual acceptance creates a destination
   result with exit code zero and `accepted: true`, while `Origin` continues to
   reference the immutable failed source result and output. See
   [workflow reconciliation](../../cmd/rotari/workflow_reconcile.go),
   [run planning](../../cmd/rotari/run_selection.go), and
-  [workflow integration tests](../../cmd/rotari/import_test.go).
+  [workflow integration tests](../../cmd/rotari/import_test.go), and
+  [workflow reconciliation edge cases](../../cmd/rotari/workflow_manifest_errors_test.go).
 - An `ATTEMPT_ID` passed to `copy --job-id` identifies one exact execution
   attempt. A normal job ID selects the latest attempt. For an array task
   attempt, copy narrows the source command to a sparse array containing only
