@@ -39,9 +39,10 @@ type workflowSourceLeaf struct {
 
 // workflowRemovedJob is a source job that the manifest no longer describes.
 type workflowRemovedJob struct {
-	RunID string `json:"run_id"`
-	JobID string `json:"job_id"`
-	Name  string `json:"name,omitempty"`
+	RunID   string   `json:"run_id"`
+	JobID   string   `json:"job_id"`
+	Name    string   `json:"name,omitempty"`
+	Command []string `json:"command"`
 }
 
 func reconcileWorkflowManifest(baseDir string, manifest workflow.Manifest, queue Queue) (Queue, []workflowRemovedJob, error) {
@@ -110,7 +111,7 @@ func (catalog *workflowSourceCatalog) removedJobs(manifest workflow.Manifest, qu
 		case command.Name != "" && names[command.Name]:
 		case command.Name == "" && len(catalog.leafAttemptIDs(source)) == 0 && queueHasEquivalentCommand(queue, command):
 		default:
-			removed = append(removed, workflowRemovedJob{RunID: source.run.id, JobID: command.ID, Name: command.Name})
+			removed = append(removed, workflowRemovedJob{RunID: source.run.id, JobID: command.ID, Name: command.Name, Command: command.Command})
 		}
 	}
 	return removed

@@ -593,9 +593,10 @@ jobs:
 
 Use `rotari import --dry-run FILE` to validate and preview `execute`, `reuse`,
 and `accept` decisions without changing the queue. Jobs with provenance also
-show the source run, job, attempt, and status they refer to (per task for
-arrays), and source jobs no longer described by the manifest are listed as
-`remove`. `--json` reports the same plan. A non-empty destination
+show the source attempt and status they refer to (per task for arrays), and
+source jobs no longer described by the manifest are listed as `remove`. Each
+job line ends with its command. `--json` reports the same plan and also
+includes the source run and job IDs. A non-empty destination
 queue requires `--overwrite`. Queue export omits previous-run status and imports
 as fresh work. Run export includes source and attempt references for
 reconciliation. Repeat `--run-id` to combine saved runs by job ID; distinct job

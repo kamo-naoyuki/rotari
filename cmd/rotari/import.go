@@ -22,11 +22,12 @@ type importPlan struct {
 }
 
 type importPlanJob struct {
-	ID     string            `json:"id"`
-	Name   string            `json:"name,omitempty"`
-	Action string            `json:"action"`
-	Source *importPlanSource `json:"source,omitempty"`
-	Tasks  []importPlanTask  `json:"tasks,omitempty"`
+	ID      string            `json:"id"`
+	Name    string            `json:"name,omitempty"`
+	Action  string            `json:"action"`
+	Command []string          `json:"command"`
+	Source  *importPlanSource `json:"source,omitempty"`
+	Tasks   []importPlanTask  `json:"tasks,omitempty"`
 }
 
 // importPlanTask reports the disposition of one array task that has source
@@ -177,26 +178,46 @@ func writeImportPlan(plan importPlan, jsonOutput bool) error {
 	}
 	for _, job := range plan.Jobs {
 		fields := append([]string{job.Action, "job_id=" + job.ID}, optionalField("job_name", job.Name)...)
-		fmt.Println(strings.Join(append(fields, importSourceFields(job.Source)...), " "))
+		fields = append(fields, importSourceFields(job.Source)...)
+		printImportPlanLine(job.Action, append(fields, importCommandField(job.Command)))
 		for _, task := range job.Tasks {
 			fields := append([]string{" ", task.Action, "task_id=" + task.ID}, importSourceFields(task.Source)...)
-			fmt.Println(strings.Join(fields, " "))
+			printImportPlanLine(task.Action, fields)
 		}
 	}
 	for _, removed := range plan.Removed {
 		fields := append([]string{"remove", "job_id=" + removed.JobID}, optionalField("job_name", removed.Name)...)
-		fmt.Println(strings.Join(append(fields, "source_run_id="+removed.RunID), " "))
+		fields = append(fields, "source_run_id="+removed.RunID)
+		printImportPlanLine("remove", append(fields, importCommandField(removed.Command)))
 	}
 	return nil
+}
+
+// printImportPlanLine colors a plan line by its action. Queued work and
+// reused results are green like other successful queue changes such as add;
+// accepted failures and removals are yellow because they need attention.
+func printImportPlanLine(action string, fields []string) {
+	labelColor := green
+	switch action {
+	case "accept", "remove":
+		labelColor = yellow
+	}
+	fmt.Println(colorKeyValueMessage(strings.Join(fields, " "), labelColor))
+}
+
+// importCommandField must be the last field: its value runs to the end of the
+// line and may contain spaces.
+func importCommandField(command []string) string {
+	return "command=" + strings.Join(command, " ")
 }
 
 func importSourceFields(source *importPlanSource) []string {
 	if source == nil {
 		return nil
 	}
-	fields := []string{"source_run_id=" + source.RunID, "source_job_id=" + source.JobID}
-	fields = append(fields, optionalField("source_attempt_id", source.AttemptID)...)
-	return append(fields, "source_status="+source.Status)
+	// The attempt ID encodes the source run and job IDs, so the human view
+	// omits them; JSON output keeps every field.
+	return append(optionalField("source_attempt_id", source.AttemptID), "source_status="+source.Status)
 }
 
 func optionalField(key, value string) []string {
@@ -234,7 +255,7 @@ func newImportPlan(project string, queue Queue, removed []workflowRemovedJob) im
 		if command.Force || len(command.TaskForce) > 0 {
 			action = "execute"
 		}
-		job := importPlanJob{ID: command.ID, Name: command.Name, Action: action}
+		job := importPlanJob{ID: command.ID, Name: command.Name, Action: action, Command: command.Command}
 		if command.Array == nil {
 			job.Source = newImportPlanSource(command.Origin)
 		} else if len(command.TaskOrigins) > 0 {

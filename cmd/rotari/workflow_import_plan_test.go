@@ -45,13 +45,13 @@ func TestCmdImportPlanReportsSourcesAndRemovedJobs(t *testing.T) {
 	plan := importPlanFor(t, baseDir, manifest)
 	prepare := importPlanJobByName(t, plan, "prepare")
 	wantSource := &importPlanSource{RunID: workflowPipelineRunID, JobID: "prepare-id", AttemptID: makeAttemptID(workflowPipelineRunID, "prepare-id", 0), Status: "success"}
-	if prepare.Action != "reuse" || !reflect.DeepEqual(prepare.Source, wantSource) {
+	if prepare.Action != "reuse" || !reflect.DeepEqual(prepare.Source, wantSource) || !reflect.DeepEqual(prepare.Command, []string{"true"}) {
 		t.Fatalf("prepare plan = %#v, source = %#v", prepare, prepare.Source)
 	}
-	if train := importPlanJobByName(t, plan, "train"); train.Action != "execute" || train.Source != nil || train.ID == "train-id" {
+	if train := importPlanJobByName(t, plan, "train"); train.Action != "execute" || train.Source != nil || train.ID == "train-id" || !reflect.DeepEqual(train.Command, []string{"true", "changed"}) {
 		t.Fatalf("changed train plan = %#v", train)
 	}
-	wantRemoved := []workflowRemovedJob{{RunID: workflowPipelineRunID, JobID: "other-id", Name: "other"}}
+	wantRemoved := []workflowRemovedJob{{RunID: workflowPipelineRunID, JobID: "other-id", Name: "other", Command: []string{"true"}}}
 	if !reflect.DeepEqual(plan.Removed, wantRemoved) {
 		t.Fatalf("removed = %#v, want %#v", plan.Removed, wantRemoved)
 	}
@@ -59,8 +59,9 @@ func TestCmdImportPlanReportsSourcesAndRemovedJobs(t *testing.T) {
 	code, output := captureWorkflowStdout(t, func() int { return importEditedWorkflow(t, baseDir, manifest, "--dry-run") })
 	text := string(output)
 	wantLines := []string{
-		"reuse job_id=prepare-id job_name=prepare source_run_id=" + workflowPipelineRunID + " source_job_id=prepare-id source_attempt_id=" + wantSource.AttemptID + " source_status=success",
-		"remove job_id=other-id job_name=other source_run_id=" + workflowPipelineRunID,
+		"reuse job_id=prepare-id job_name=prepare source_attempt_id=" + wantSource.AttemptID + " source_status=success command=true",
+		"job_name=train command=true changed",
+		"remove job_id=other-id job_name=other source_run_id=" + workflowPipelineRunID + " command=true",
 	}
 	for _, want := range wantLines {
 		if code != 0 || !strings.Contains(text, want+"\n") {
@@ -115,8 +116,8 @@ func TestCmdImportPlanReportsArrayTasks(t *testing.T) {
 	}
 
 	_, output := captureWorkflowStdout(t, func() int { return importEditedWorkflow(t, baseDir, manifest, "--dry-run") })
-	wantLine := "  accept task_id=array-2 source_run_id=" + workflowArrayRunID + " source_job_id=array-2 source_attempt_id=" + want[1].attempt + " source_status=failed\n"
-	if !strings.Contains(string(output), "execute job_id=array job_name=array\n"+"  reuse task_id=array-1") || !strings.Contains(string(output), wantLine) {
+	wantLine := "  accept task_id=array-2 source_attempt_id=" + want[1].attempt + " source_status=failed\n"
+	if !strings.Contains(string(output), "execute job_id=array job_name=array command=work\n"+"  reuse task_id=array-1") || !strings.Contains(string(output), wantLine) {
 		t.Fatalf("human array plan:\n%s", output)
 	}
 }
@@ -135,8 +136,8 @@ func TestCmdImportPlanKeepsMatrixGroupsAndReportsRemovedGroup(t *testing.T) {
 	manifest.Jobs = manifest.Jobs[1:]
 	plan := importPlanFor(t, baseDir, manifest)
 	wantRemoved := []workflowRemovedJob{
-		{RunID: runID, JobID: "seed-1", Name: "train-SEED1"},
-		{RunID: runID, JobID: "seed-2", Name: "train-SEED2"},
+		{RunID: runID, JobID: "seed-1", Name: "train-SEED1", Command: []string{"train"}},
+		{RunID: runID, JobID: "seed-2", Name: "train-SEED2", Command: []string{"train"}},
 	}
 	if !reflect.DeepEqual(plan.Removed, wantRemoved) {
 		t.Fatalf("removed = %#v, want %#v", plan.Removed, wantRemoved)
@@ -164,7 +165,7 @@ func TestCmdImportPlanMatchesJobsWithoutAttempts(t *testing.T) {
 	}
 	manifest.Jobs = manifest.Jobs[:2]
 	plan := importPlanFor(t, baseDir, manifest)
-	wantRemoved := []workflowRemovedJob{{RunID: runID, JobID: "unnamed-id"}}
+	wantRemoved := []workflowRemovedJob{{RunID: runID, JobID: "unnamed-id", Command: []string{"never", "ran"}}}
 	if !reflect.DeepEqual(plan.Removed, wantRemoved) {
 		t.Fatalf("removed = %#v, want %#v", plan.Removed, wantRemoved)
 	}
@@ -213,5 +214,33 @@ func TestImportedWorkflowPlansNewJobsWithoutPreviousRunLookup(t *testing.T) {
 	}
 	if _, carried := plan.CarriedOrigins[other.ID]; carried {
 		t.Fatalf("new job has a carried origin: %#v", plan.CarriedOrigins[other.ID])
+	}
+}
+
+func TestCmdImportPlanColorsLinesByAction(t *testing.T) {
+	oldCheck := terminalCheck
+	terminalCheck = func(*os.File) bool { return true }
+	defer func() { terminalCheck = oldCheck }()
+	baseDir := t.TempDir()
+	_, runID := writeWorkflowRunFixture(t, baseDir)
+	manifest := mustExportWorkflow(t, baseDir, runID)
+	workflowJobByName(t, &manifest, "train").Status = "success"
+	manifest.Jobs = append(manifest.Jobs, workflow.Job{Name: "added", Command: []string{"echo", "new job"}})
+	_, output := captureWorkflowStdout(t, func() int { return importEditedWorkflow(t, baseDir, manifest, "--dry-run") })
+	text := string(output)
+	for _, want := range []string{
+		ansiGreen + "reuse " + ansiReset,
+		ansiYellow + "accept " + ansiReset,
+		ansiGreen + "execute " + ansiReset,
+		ansiGreen + "command" + ansiReset + ansiWhite + "=" + ansiReset + ansiWhite + "echo new job" + ansiReset,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("colored plan missing %q:\n%q", want, text)
+		}
+	}
+	manifest.Jobs = manifest.Jobs[:1]
+	_, output = captureWorkflowStdout(t, func() int { return importEditedWorkflow(t, baseDir, manifest, "--dry-run") })
+	if want := ansiYellow + "remove " + ansiReset; !strings.Contains(string(output), want) {
+		t.Fatalf("colored plan missing %q:\n%q", want, output)
 	}
 }
