@@ -17,9 +17,9 @@
 
 **Rotari turns trial-and-error into a repeatable loop**: build a batch of jobs from the CLI, see which failed, fix only their commands, and run it again — without losing the history of what already worked.
 
-Rotari is a lightweight, **serverless workflow engine** for experiments and builds that you run repeatedly. **Build workflows directly from the CLI, using commands and shell scripts as the building blocks.** Add simple dependencies between them, and run them locally, over SSH, or on Slurm, PBS, or LSF. There is no external database or server to set up; workflow state is kept in the filesystem.
+Rotari is an **execution manager for researchers who run batches of experiments**, with commands and shell scripts as the building blocks and simple dependencies between them. It is a single binary with no daemon, database, or server to set up; state is kept in the filesystem.
 
-**You don't need a separate workflow language.** If a shell script is enough to describe your workflow, you can keep using it as-is. Rotari provides the execution, parallelism, logs, status, and run history around it.
+**The same batch runs on your workstation, over SSH, or on a shared Slurm, PBS, or LSF cluster.** Rotari submits and tracks scheduler jobs itself, supports array and matrix jobs, and keeps logs and status consistent across backends, so you do not need to rebuild your environment as containers or a separate cluster service. If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the basic idea should feel familiar.
 
 
 ## How is rotari different?
@@ -29,20 +29,19 @@ Rotari is a lightweight, **serverless workflow engine** for experiments and buil
 | <img src="https://kamo-naoyuki.github.io/rotari/demo-shell.gif" alt="shell background jobs demo" width="400"> | <img src="https://kamo-naoyuki.github.io/rotari/demo-rotari.gif" alt="rotari demo" width="400"> |
 
 
-Rotari is intentionally lightweight. It is for experiments and builds where **ordinary shell scripts are already a natural way to describe what should run**, but running those commands repeatedly starts to become difficult to manage.
+Rotari deliberately stays out of the way. **You don't need a separate workflow language:** write the commands as you normally would in a shell script, and rotari provides the execution, parallelism, logs, status, and run history around them. When a queue needs to be reproduced or edited as a unit, rotari can also export and import a constrained YAML, TOML, or JSON manifest; commands remain argument arrays rather than a new scripting language.
 
-You do not need to turn a simple sequence of commands into a workflow definition just to run it. **Write the commands as you normally would in a shell script, and use rotari when you need execution, parallelism, logs, status, and run history.** When a queue needs to be reproduced or edited as a unit, rotari can also export and import a constrained YAML, TOML, or JSON manifest; commands remain argument arrays rather than a new scripting language.
+Workflow systems are usually a good fit once a pipeline has settled. Rotari is for the stage before that, while you are still finding out which commands and settings work.
 
-If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the basic idea should feel familiar: commands are dispatched locally or to a cluster, with logs and success/failure tracked consistently across backends.
+* [**Snakemake**](https://github.com/snakemake/snakemake) is built around rules, inputs, outputs, and dependencies. It fits when the structure of the pipeline is known and worth formalizing. **Rotari fits while that structure is still changing, and the shell script you already have is the workflow.**
 
-* [**Snakemake**](https://github.com/snakemake/snakemake) is built around rules, inputs, outputs, and dependencies. This is useful when the workflow itself is an important part of the problem. But for a small experiment where a shell script already expresses what you want to run, introducing a separate workflow definition can add concepts that are unnecessary for the task. **Rotari lets the shell script remain the workflow.**
+* [**Nextflow**](https://github.com/nextflow-io/nextflow) provides a DSL for describing processes, dataflow, and workflows. It fits pipelines that are shared, reproduced, and run at scale. **Rotari fits experiments you are still changing: failed commands are fixed and rerun directly, without first translating them into a dataflow language.**
 
+* [**Airflow**](https://github.com/apache/airflow), [**Prefect**](https://github.com/PrefectHQ/prefect), and [**Dagster**](https://github.com/dagster-io/dagster) orchestrate workflows expressed as programs, typically production pipelines that run on a schedule and need monitoring. **Rotari fits batches you start by hand, check, fix, and run again.**
 
-* [**Nextflow**](https://github.com/nextflow-io/nextflow) provides a DSL for describing processes, dataflow, and workflows. It is useful when you want to express a workflow explicitly, but it also introduces a dedicated language for doing so. **Rotari is for cases where the commands you already have are enough to describe the workflow, and learning another workflow language would be unnecessary overhead.**
+* [**Dagu**](https://dagu.sh/) is a single-binary workflow engine with file-based state, a Web UI, scheduling, and event triggers. It fits workflows you define once in YAML and then operate. **Rotari fits the stage before that: a batch you are still changing, where failed jobs are fixed one by one and rerun while the history of what already worked is kept.**
 
-* [**Airflow**](https://github.com/apache/airflow), [**Prefect**](https://github.com/PrefectHQ/prefect), and [**Dagster**](https://github.com/dagster-io/dagster) provide programmatic ways to define and orchestrate workflows. They are a good fit when the workflow itself needs to be expressed and managed as a program. **Rotari is aimed at a narrower case: when the CLI commands you already have are enough to describe the workflow, you can keep them as they are and use rotari to run and manage them.**
-
-The goal is not to replace shell scripts or compete with full-featured workflow systems. **It is to add just enough structure to the commands you already use, and let the commands remain the workflow.**
+The goal is not to replace shell scripts or these workflow systems. **It is to make the trial-and-error loop around the commands you already use manageable, and let the commands remain the workflow.**
 
 ## Installation
 
@@ -75,10 +74,11 @@ Run `rotari version` to check the installed version, and
 ```sh
 # Set the project once for the current shell. The default state directory is
 # ~/.local/state/rotari; set ROTARI_BASEDIR to use another location.
-export ROTARI_PROJECT_NAME=build
+export ROTARI_PROJECT_NAME=sweep
 # Add commands to the current project queue.
-rotari add make
-rotari add go test ./...
+rotari add -- python train.py --lr 0.1
+rotari add -- python train.py --lr 0.01
+rotari add -- python train.py --lr 0.001
 # Execute the queued commands and wait for the run to finish.
 rotari run
 # List job status across projects.
@@ -93,9 +93,9 @@ only failed or unfinished work:
 
 ```sh
 # Show logs for failed jobs in the selected project.
-rotari show -p build --failed-logs
+rotari show -p sweep --failed-logs
 # Start a new run for failed and unfinished jobs; successful jobs are reused.
-rotari retry -p build
+rotari retry -p sweep
 ```
 
 `jobs` gives a compact status overview across projects. `show` provides details
