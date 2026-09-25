@@ -13,17 +13,13 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
 
-  - repo: https://github.com/pycqa/isort
-    rev: 9.0.1
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.10
     hooks:
-      - id: isort
-        args: [--profile=black]
+      - id: ruff
+        args: [--select, I, --fix]
         files: ^python/
-
-  - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 26.5.1
-    hooks:
-      - id: black
+      - id: ruff-format
         files: ^python/
 
   - repo: https://github.com/pre-commit/mirrors-prettier
