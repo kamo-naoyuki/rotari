@@ -5,15 +5,15 @@ Background runs, reruns and retries, and controlling queued and running jobs.
 ## Async runs
 
 ```sh
-rotari run -p build --async
-rotari wait build
+rotari run -p sweep --async
+rotari wait sweep
 ```
 
 To add a command and then start the queue asynchronously:
 
 ```sh
-rotari add go test ./...
-rotari run -p build --async
+rotari add ./train.sh
+rotari run -p sweep --async
 ```
 
 The async start message prints commands for checking status and cancelling the
@@ -24,9 +24,9 @@ more than one kind of identifier. Use `--run-id/-r` to select a run explicitly.
 Pass multiple selectors to wait for independent async runs together:
 
 ```sh
-rotari run -p build --async
-rotari run -p test --async
-rotari wait build test
+rotari run -p sweep --async
+rotari run -p eval --async
+rotari wait sweep eval
 ```
 
 `--async` starts the run in a detached session (`setsid`), so it survives
@@ -65,10 +65,10 @@ whole previous queue before selecting work, copy it first and apply the filter
 when running.
 
 ```sh
-rotari run -p build --failed
-rotari run -p build --unfinished
-rotari run -p build --success
-rotari run -p build --failed --unfinished
+rotari run -p sweep --failed
+rotari run -p sweep --unfinished
+rotari run -p sweep --success
+rotari run -p sweep --failed --unfinished
 rotari run -j ATTEMPT_ID
 ```
 
@@ -77,7 +77,7 @@ unfinished jobs from the reference run, copies them into the next run with
 successful results carried forward, and executes that run:
 
 ```sh
-rotari retry -p build
+rotari retry -p sweep
 ```
 
 `--retry N` is different: it retries failed jobs within the same run, up to N
@@ -116,7 +116,7 @@ reference. A non-empty queue requires confirmation; add `--overwrite` to
 replace it without asking:
 
 ```sh
-rotari run -p build -r RUN_ID --failed
+rotari run -p sweep -r RUN_ID --failed
 ```
 
 For array jobs, filters select matching tasks by default
@@ -129,8 +129,8 @@ when any task matches.
 Copy jobs from a previous run into the current queue without executing them:
 
 ```sh
-rotari copy -p build
-rotari run -p build --failed
+rotari copy -p sweep
+rotari run -p sweep --failed
 ```
 
 Without a selector, `copy` restores every job from the latest run. Then apply
@@ -173,8 +173,8 @@ batch. If the queue is empty, the latest run snapshot is restored first. Use
 Remove jobs from the current queue without affecting saved run history:
 
 ```sh
-rotari remove -p build --job-name train
-rotari remove -p build -j JOB_ID -j OTHER_JOB_ID
+rotari remove -p sweep --job-name train
+rotari remove -p sweep -j JOB_ID -j OTHER_JOB_ID
 ```
 
 If the queue is empty, `remove` restores the latest run snapshot first. Use
@@ -185,7 +185,7 @@ another queued job depends on is rejected.
 Stop running jobs without stopping the supervisor:
 
 ```sh
-rotari cancel -p build
+rotari cancel -p sweep
 rotari cancel -j ATTEMPT_ID
 rotari cancel ATTEMPT_ID
 rotari cancel RUN_ID
@@ -206,7 +206,7 @@ when you can't.
 Temporarily suspend and resume running jobs:
 
 ```sh
-rotari suspend -p build
+rotari suspend -p sweep
 rotari suspend -j ATTEMPT_ID
 rotari resume -j ATTEMPT_ID
 rotari suspend ATTEMPT_ID
@@ -220,8 +220,8 @@ to control selected jobs. Local jobs use `SIGSTOP`/`SIGCONT`; Slurm jobs use
 Delete saved run logs while keeping queued commands:
 
 ```sh
-rotari delete -p build
-rotari delete -p build RUN_ID
+rotari delete -p sweep
+rotari delete -p sweep RUN_ID
 ```
 
 `--run-id/-r` removes only the specified run. Without it, all saved run logs are removed.

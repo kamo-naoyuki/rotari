@@ -18,13 +18,13 @@ Use `show` to inspect a project's runs and pending queue, or a specific run/job.
 ```sh
 rotari show # list projects across known basedirs
 rotari show --basedirs # print the resolved master directory and state directories
-rotari show -p build # list the project's runs and current queue, if non-empty
-rotari show -p build --failed # list failed jobs in the selected run
+rotari show -p sweep # list the project's runs and current queue, if non-empty
+rotari show -p sweep --failed # list failed jobs in the selected run
 rotari show ATTEMPT_ID # show one job attempt in detail: status, executor, command, and saved output path
 rotari show JOB_ID # show a job from the resolved run or queue
 rotari show JOB_NAME # show a job by name
-rotari show -p build --logs # print output logs for every job in the selected run
-rotari show -p build --failed-logs # print only the logs for failed jobs in the selected project/run
+rotari show -p sweep --logs # print output logs for every job in the selected run
+rotari show -p sweep --failed-logs # print only the logs for failed jobs in the selected project/run
 rotari show ATTEMPT_ID --report # print an AI-ready Markdown report for one attempt
 rotari show RUN_ID --report # describe the whole run and include recent logs
 ```
@@ -38,7 +38,7 @@ and blocks `add`, `copy`, and `run` until you acknowledge it. First confirm
 that all jobs have stopped:
 
 ```sh
-rotari show -p build
+rotari show -p sweep
 ```
 
 To keep the retained queue for the next run, execute the `rotari unlock`
@@ -61,7 +61,7 @@ To check whether a project can start its queued run without changing any
 state:
 
 ```sh
-rotari check build
+rotari check sweep
 ```
 
 `check` reports whether the project is ready to run, together with its project,

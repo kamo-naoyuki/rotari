@@ -6,10 +6,10 @@ Export a saved run, edit its failed jobs, import the result, and run the new
 queue:
 
 ```sh
-rotari export -p build -r RUN_ID > experiment.yaml
+rotari export -p sweep -r RUN_ID > experiment.yaml
 # Edit commands, status, executor options, or dependencies.
-rotari import -p build experiment.yaml
-rotari run -p build
+rotari import -p sweep experiment.yaml
+rotari run -p sweep
 ```
 
 The project or run ID can also be passed positionally. `export` accepts

@@ -7,12 +7,12 @@ Running jobs locally, over SSH, or on Slurm, PBS, or LSF, and defining array and
 Each job can choose its execution backend and backend-specific options:
 
 ```sh
-rotari add -p build make
-rotari add -p build \
+rotari add -p sweep ./prepare-data.sh
+rotari add -p sweep \
   -e slurm \
-  --executor-option="-p short --cpus-per-task=2" \
-  ./heavy-test.sh
-rotari run -p build --local-concurrency 4 --batch-concurrency 8
+  --executor-option="-p gpu --gres=gpu:1 --cpus-per-task=8" \
+  ./train.sh
+rotari run -p sweep --local-concurrency 4 --batch-concurrency 8
 ```
 
 Local jobs and scheduler-backed jobs may be mixed in the same queue. Use
@@ -47,15 +47,15 @@ cancellation reconnects over SSH and sends `SIGTERM` only when the recorded PID
 still has the same process start time, so a reused PID is never signalled.
 
 ```sh
-rotari add -p build \
+rotari add -p sweep \
   -e ssh \
-  --executor-option="builder@worker-01" \
+  --executor-option="user@gpu-01" \
   --executor-option="-p 2222" \
-  --working-directory=/work/build \
-  --env DATASET=nightly \
+  --working-directory=/work/sweep \
+  --env DATASET=dev \
   --env CUDA_VISIBLE_DEVICES=0 \
-  ./heavy-test.sh
-rotari run -p build
+  ./train.sh
+rotari run -p sweep
 ```
 
 ### Array and matrix jobs

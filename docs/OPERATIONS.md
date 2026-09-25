@@ -88,8 +88,8 @@ sharing one project.
 After confirming a failed host's run has stopped, unlock that exact run:
 
 ```sh
-rotari show -p build
-rotari unlock -p build RUN_ID
+rotari show -p sweep
+rotari unlock -p sweep RUN_ID
 ```
 
 `unlock` verifies the run ID, removes a matching lock, and returns the project

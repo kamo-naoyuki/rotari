@@ -108,6 +108,10 @@ C++ could work, but Go provides the preferred balance of iteration speed, mainta
 
 Rust is also a strong option, but Go is currently a better balance of safety, implementation speed, and maintenance for this project.
 
+### Does rotari run on Windows?
+
+No. Rotari supports Linux and macOS, and on Windows it runs inside [WSL](https://learn.microsoft.com/windows/wsl/). WSL2 also supports CUDA, so GPU experiments on a Windows machine can run there. Native Windows support is not planned: rotari relies on POSIX file locks, signals, sessions and process groups, and shell wrapper scripts, and Slurm, PBS, and LSF run on Linux.
+
 ## Retries, copying, arrays, and dependencies
 
 ### How do I add a command and run it asynchronously?
@@ -151,10 +155,10 @@ empty queue, `run --failed` restores the latest run automatically.
 For a reproducible, reviewable edit, export and import a workflow manifest:
 
 ```sh
-rotari export -p build -r RUN_ID > experiment.yaml
-rotari import -p build --dry-run experiment.yaml
-rotari import -p build experiment.yaml
-rotari run -p build
+rotari export -p sweep -r RUN_ID > experiment.yaml
+rotari import -p sweep --dry-run experiment.yaml
+rotari import -p sweep experiment.yaml
+rotari run -p sweep
 ```
 
 Successful unchanged jobs carry forward; failed or changed jobs and their
