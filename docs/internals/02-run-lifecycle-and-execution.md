@@ -80,7 +80,7 @@
   in rerun when `--partial-array=false`) and copied-job origin status operate on
   the unexpanded `QueuedCommand`, but results are recorded per expanded task ID.
   Matching an array command therefore aggregates its task results
-  (`aggregatedJobResult` in `run_selection.go`): it is "finished" only once
+  (`model.AggregatedJobResult`): it is "finished" only once
   every task has a result, and any non-zero task exit code marks it failed as a
   whole.
 - When `copy` selects a job without one of its prerequisites, it removes that
@@ -90,10 +90,12 @@
   dependency stays while any member is copied, because copied members keep
   their stage and the name resolves to them. A retry that re-executes one
   failed stage member therefore keeps its dependents waiting for it. See
+  [copy rules](../../internal/queueedit/copy.go),
+  [copy unit tests](../../internal/queueedit/copy_test.go), and
   [partial stage copy tests](../../cmd/rotari/copy_test.go).
 - `run`/`retry` default to `--partial-array=true`. For a filtered rerun,
-  `planRerunSelection` evaluates each array task's own result against the
-  selection (`planArrayTaskSelection`) instead of the aggregate, so only the
+  `run.PlanRerun` evaluates each array task's own result against the
+  selection instead of the aggregate, so only the
   matching tasks (for example, the failed ones) re-execute while the rest carry
   their own result forward into the new run's summary. Each carried task's
   `Origin` is recorded in `QueuedCommand.TaskOrigins`, keyed by task ID such as
@@ -131,8 +133,10 @@
   one of its attempts, another member of its matrix group is kept, its name is
   still queued, or it is unnamed, has no attempts, and an identical definition
   is still queued; this report never affects reconciliation. See
-  [workflow reconciliation](../../cmd/rotari/workflow_reconcile.go),
-  [run planning](../../cmd/rotari/run_selection.go),
+  [workflow reconciliation](../../internal/workflow/reconcile.go) and its
+  [unit tests](../../internal/workflow/reconcile_test.go),
+  [run planning](../../internal/run/rerun.go) and its
+  [unit tests](../../internal/run/plan_test.go),
   [workflow integration tests](../../cmd/rotari/import_test.go),
   [workflow reconciliation edge cases](../../cmd/rotari/workflow_manifest_errors_test.go),
   [accepted result display tests](../../cmd/rotari/workflow_accepted_display_test.go),

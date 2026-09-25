@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -215,315 +215,58 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	if summaryErr != nil && selection != "all" {
 		return "", fmt.Errorf("failed to load run summary: %w", summaryErr)
 	}
-	results := model.ResultsByID(summary.Results)
-	originCWD := ""
-	if context, contextErr := state.LoadContext(jsonStore(), sourceRunDir); contextErr == nil {
-		originCWD = context.CWD
+	source := queueedit.Run{
+		ID: runID, Snapshot: snapshot, Results: model.ResultsByID(summary.Results),
+		Timestamps: func(jobID string) (string, string) {
+			return state.ReadJobTimestamp(sourceRunDir, jobID, stateFileSubmittedAt), state.ReadJobTimestamp(sourceRunDir, jobID, stateFileFinishedAt)
+		},
 	}
-	requested := make(map[string]bool, len(jobIDs))
-	requestedAttempts := make(map[string]string, len(jobIDs))
-	requestedTasks := make(map[string]map[string]bool)
+	if context, contextErr := state.LoadContext(jsonStore(), sourceRunDir); contextErr == nil {
+		source.CWD = context.CWD
+	}
+	request := queueedit.CopyRequest{Selection: selection, Append: appendJobs, Overwrite: overwrite}
 	for _, jobID := range jobIDs {
-		if strings.HasPrefix(jobID, "att_") {
-			payload, decodeErr := state.DecodeAttemptID(jobID)
-			if decodeErr != nil {
-				return "", decodeErr
-			}
-			if payload.RunID != runID {
-				return "", fmt.Errorf("attempt %q belongs to run %q, not %q", jobID, payload.RunID, runID)
-			}
-			attemptDir, pathErr := state.SpecificAttemptJobDir(sourceRunDir, payload.JobID, jobID)
-			if pathErr != nil {
-				return "", pathErr
-			}
-			// codeql[go/path-injection]: attemptDir is produced by validated attempt path helpers.
-			if info, statErr := os.Stat(attemptDir); statErr != nil || !info.IsDir() {
-				return "", fmt.Errorf("attempt %q not found in run %s", jobID, runID)
-			}
-			found := false
-			for _, task := range model.QueueToJobs(snapshot.Commands) {
-				if task.ID == payload.JobID {
-					if task.ArrayGroup != "" {
-						requested[task.ArrayGroup] = true
-						requestedAttempts[task.ArrayGroup+"/"+task.ID] = jobID
-						if requestedTasks[task.ArrayGroup] == nil {
-							requestedTasks[task.ArrayGroup] = make(map[string]bool)
-						}
-						requestedTasks[task.ArrayGroup][task.ID] = true
-					} else {
-						requested[task.ID] = true
-						requestedAttempts[task.ID] = jobID
-					}
-					found = true
-					break
-				}
-			}
-			if !found {
-				return "", fmt.Errorf("attempt %q job %q not found in run %s", jobID, payload.JobID, runID)
-			}
+		if !strings.HasPrefix(jobID, "att_") {
+			request.JobIDs = append(request.JobIDs, jobID)
 			continue
 		}
-		requested[jobID] = true
-	}
-	selected := make([]QueuedCommand, 0, len(snapshot.Commands))
-	selectedNames := make(map[string]bool)
-	for _, command := range snapshot.Commands {
-		result, finished := model.AggregatedJobResult(command.ID, command.Array, results)
-		include := false
-		switch selection {
-		case "all":
-			include = true
-		case "job-id":
-			include = requested[command.ID]
-		default:
-			include = model.ResultSelectionMatches(selection, finished, result.ExitCode)
+		attempt, err := copyAttempt(sourceRunDir, runID, jobID)
+		if err != nil {
+			return "", err
 		}
-		if requested[command.ID] {
-			include = true
-			delete(requested, command.ID)
-		}
-		if include {
-			if taskIDs := requestedTasks[command.ID]; len(taskIDs) > 0 {
-				narrowArrayCommand(&command, taskIDs)
-			}
-			selectedNames[command.Name] = true
-			selected = append(selected, command)
-		}
-	}
-	if len(requested) > 0 {
-		missing := make([]string, 0, len(requested))
-		for jobID := range requested {
-			missing = append(missing, jobID)
-		}
-		sort.Strings(missing)
-		return "", fmt.Errorf("job IDs not found in run %s: %s", runID, strings.Join(missing, ", "))
-	}
-	if len(selected) == 0 {
-		return "", fmt.Errorf("run %s has no jobs matching selection", runID)
-	}
-	commandsByName := make(map[string]QueuedCommand, len(snapshot.Commands))
-	stageSizes := make(map[string]int)
-	for _, command := range snapshot.Commands {
-		commandsByName[command.Name] = command
-		if command.Stage != "" {
-			stageSizes[command.Stage]++
-		}
-	}
-	// A stage dependency stays as long as any stage member is copied: copied
-	// members keep their Stage, so the name resolves to them. Excluded members
-	// are checked below and must have succeeded.
-	selectedIDs := make(map[string]bool, len(selected))
-	keptStages := make(map[string]bool)
-	for _, command := range selected {
-		selectedIDs[command.ID] = true
-		if command.Stage != "" {
-			keptStages[command.Stage] = true
-		}
-	}
-	// A matrix base name resolves to all of its members. It stays a dependency
-	// target only when the whole group is copied; otherwise the excluded
-	// members must have succeeded, and ClearIncompleteMatrixGroups rewrites the
-	// dependency to the copied members.
-	matrixMembers := make(map[string][]QueuedCommand)
-	for _, command := range snapshot.Commands {
-		if command.Matrix != nil && command.Matrix.BaseName != "" {
-			matrixMembers[command.Matrix.BaseName] = append(matrixMembers[command.Matrix.BaseName], command)
-		}
-	}
-	selectedMatrices := make(map[string]bool)
-	for baseName, members := range matrixMembers {
-		complete := true
-		for _, member := range members {
-			complete = complete && selectedNames[member.Name]
-		}
-		selectedMatrices[baseName] = complete
-	}
-	for _, command := range selected {
-		for _, dependency := range command.DependsOn {
-			if selectedNames[dependency] || selectedMatrices[dependency] {
-				continue
-			}
-			if members, isMatrix := matrixMembers[dependency]; isMatrix {
-				for _, member := range members {
-					if selectedNames[member.Name] {
-						continue
-					}
-					result, finished := model.AggregatedJobResult(member.ID, member.Array, results)
-					if !finished || result.ExitCode != 0 {
-						return "", fmt.Errorf("cannot copy job %q: excluded dependency %q did not succeed in run %s", command.Name, member.Name, runID)
-					}
-				}
-				continue
-			}
-			if _, isStage := stageSizes[dependency]; isStage {
-				for _, candidate := range snapshot.Commands {
-					if candidate.Stage != dependency || selectedIDs[candidate.ID] {
-						continue
-					}
-					result, finished := model.AggregatedJobResult(candidate.ID, candidate.Array, results)
-					if !finished || result.ExitCode != 0 {
-						return "", fmt.Errorf("cannot copy job %q: excluded dependency %q (stage %q) did not succeed in run %s", command.Name, stageMemberLabel(candidate), dependency, runID)
-					}
-				}
-				continue
-			}
-			dependencyCommand := commandsByName[dependency]
-			result, finished := model.AggregatedJobResult(dependencyCommand.ID, dependencyCommand.Array, results)
-			if !finished || result.ExitCode != 0 {
-				return "", fmt.Errorf("cannot copy job %q: excluded dependency %q did not succeed in run %s", command.Name, dependency, runID)
-			}
-		}
+		request.Attempts = append(request.Attempts, attempt)
 	}
 
 	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to load queue: %w", err)
 	}
-	if len(queue.Commands) > 0 && !appendJobs && !overwrite {
-		return "", fmt.Errorf("project %q has queued jobs; use --append or --overwrite", queueName)
-	}
-	model.ClearIncompleteMatrixGroups(selected)
-	matrixGroupIDs := make(map[string]string)
-	for index := range selected {
-		if selected[index].Matrix == nil {
-			continue
-		}
-		oldGroupID := selected[index].Matrix.GroupID
-		newGroupID, ok := matrixGroupIDs[oldGroupID]
-		if !ok {
-			newGroupID = makeJobID()
-			matrixGroupIDs[oldGroupID] = newGroupID
-		}
-		matrix := *selected[index].Matrix
-		matrix.GroupID = newGroupID
-		selected[index].Matrix = &matrix
-	}
-	existingIDs := make(map[string]bool)
-	if appendJobs {
-		for _, command := range queue.Commands {
-			existingIDs[command.ID] = true
-		}
-	}
-	for index := range selected {
-		sourceJobID := selected[index].ID
-		dependencies := make([]string, 0, len(selected[index].DependsOn))
-		for _, dependency := range selected[index].DependsOn {
-			if selectedNames[dependency] || keptStages[dependency] || selectedMatrices[dependency] {
-				dependencies = append(dependencies, dependency)
-			}
-		}
-		// Keep the source job ID so the copied job can still be matched
-		// against the source run's results; only reassign on collision.
-		if existingIDs[sourceJobID] {
-			selected[index].ID = makeJobID()
-		}
-		existingIDs[selected[index].ID] = true
-		selected[index].DependsOn = dependencies
-		selected[index].Accepted = false
-		selected[index].TaskAccepted = nil
-		selected[index].TaskForce = nil
-		selected[index].Force = false
-		if appendJobs && queue.WorkflowImport {
-			selected[index].Force = true
-		}
-		originStatus := "unfinished"
-		originAttemptID := ""
-		if result, finished := model.AggregatedJobResult(sourceJobID, selected[index].Array, results); finished {
-			originAttemptID = result.AttemptID
-			originStatus = "failed"
-			if result.ExitCode == 0 {
-				originStatus = "success"
-			}
-		}
-		if explicitAttemptID, ok := requestedAttempts[sourceJobID]; ok {
-			originAttemptID = explicitAttemptID
-		}
-		submittedAt, finishedAt := originTimestamps(sourceRunDir, sourceJobID, selected[index].Array)
-		selected[index].Origin = &JobOrigin{RunID: runID, JobID: sourceJobID, AttemptID: originAttemptID, Status: originStatus, CWD: originCWD, SubmittedAt: submittedAt, FinishedAt: finishedAt}
-		if selected[index].Array != nil {
-			selected[index].TaskOrigins = copyArrayTaskOrigins(sourceRunDir, runID, sourceJobID, selected[index].Array, results, requestedAttempts, originCWD)
-		}
-	}
-	if !appendJobs {
-		queue.Commands = nil
-		queue.WorkflowImport = false
-	}
-	queue.Commands = append(queue.Commands, selected...)
-	if err := model.ValidateQueueDependencies(queue.Commands); err != nil {
-		return "", fmt.Errorf("invalid dependencies: %w", err)
+	queue, copied, err := queueedit.Copy(queue, queueName, source, request, makeJobID)
+	if err != nil {
+		return "", err
 	}
 	if err := writeIdleQueue(paths, queue); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("copied jobs=%d from run=%s to queue=%s", len(selected), runID, queueName), nil
+	return fmt.Sprintf("copied jobs=%d from run=%s to queue=%s", copied, runID, queueName), nil
 }
 
-func stageMemberLabel(command QueuedCommand) string {
-	if command.Name != "" {
-		return command.Name
+// copyAttempt checks that attemptID is an existing attempt of runID.
+func copyAttempt(runDir, runID, attemptID string) (queueedit.Attempt, error) {
+	payload, err := state.DecodeAttemptID(attemptID)
+	if err != nil {
+		return queueedit.Attempt{}, err
 	}
-	return command.ID
-}
-
-func narrowArrayCommand(command *QueuedCommand, taskIDs map[string]bool) {
-	if command.Array == nil {
-		return
+	if payload.RunID != runID {
+		return queueedit.Attempt{}, fmt.Errorf("attempt %q belongs to run %q, not %q", attemptID, payload.RunID, runID)
 	}
-	tasks := make([]int, 0, len(taskIDs))
-	for _, task := range model.ArrayTaskIDs(command.Array) {
-		if taskIDs[fmt.Sprintf("%s-%d", command.ID, task)] {
-			tasks = append(tasks, task)
-		}
+	attemptDir, err := state.SpecificAttemptJobDir(runDir, payload.JobID, attemptID)
+	if err != nil {
+		return queueedit.Attempt{}, err
 	}
-	if len(tasks) == 0 {
-		return
+	// codeql[go/path-injection]: attemptDir is produced by validated attempt path helpers.
+	if info, statErr := os.Stat(attemptDir); statErr != nil || !info.IsDir() {
+		return queueedit.Attempt{}, fmt.Errorf("attempt %q not found in run %s", attemptID, runID)
 	}
-	sort.Ints(tasks)
-	command.Array = &ArraySpec{First: tasks[0], Last: tasks[len(tasks)-1], Tasks: tasks}
-}
-
-func copyArrayTaskOrigins(runDir, runID, commandID string, array *ArraySpec, results map[string]JobResult, requestedAttempts map[string]string, cwd string) map[string]*JobOrigin {
-	origins := make(map[string]*JobOrigin)
-	for _, task := range model.ArrayTaskIDs(array) {
-		taskID := fmt.Sprintf("%s-%d", commandID, task)
-		result, finished := results[taskID]
-		if !finished {
-			continue
-		}
-		status := "failed"
-		if result.ExitCode == 0 {
-			status = "success"
-		}
-		attemptID := result.AttemptID
-		if explicitAttemptID, ok := requestedAttempts[commandID+"/"+taskID]; ok {
-			attemptID = explicitAttemptID
-		}
-		origins[taskID] = &JobOrigin{
-			RunID: runID, JobID: taskID, AttemptID: attemptID, Status: status, CWD: cwd,
-			SubmittedAt: state.ReadJobTimestamp(runDir, taskID, stateFileSubmittedAt),
-			FinishedAt:  state.ReadJobTimestamp(runDir, taskID, stateFileFinishedAt),
-		}
-	}
-	return origins
-}
-
-// originTimestamps returns the submitted/finished timestamps to record on a
-// copied job's Origin. Array jobs are stored per expanded task directory
-// (see queueToJobs), so it reports the earliest submission and latest
-// completion across all tasks instead of a non-existent "id" directory.
-func originTimestamps(runDir, id string, array *ArraySpec) (string, string) {
-	if array == nil {
-		return state.ReadJobTimestamp(runDir, id, "submitted_at"), state.ReadJobTimestamp(runDir, id, "finished_at")
-	}
-	var submittedAt, finishedAt string
-	for _, task := range model.ArrayTaskIDs(array) {
-		taskID := fmt.Sprintf("%s-%d", id, task)
-		if value := state.ReadJobTimestamp(runDir, taskID, "submitted_at"); value != "" && (submittedAt == "" || value < submittedAt) {
-			submittedAt = value
-		}
-		if value := state.ReadJobTimestamp(runDir, taskID, "finished_at"); value != "" && value > finishedAt {
-			finishedAt = value
-		}
-	}
-	return submittedAt, finishedAt
+	return queueedit.Attempt{ID: attemptID, JobID: payload.JobID}, nil
 }

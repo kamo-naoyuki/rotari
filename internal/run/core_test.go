@@ -175,27 +175,6 @@ func TestBuildRunSummary(t *testing.T) {
 	}
 }
 
-func TestPlanSelectionReportsUnknownJobIDs(t *testing.T) {
-	_, err := PlanSelection(model.Queue{Commands: []model.QueuedCommand{{ID: "known"}}}, "job-id", []string{"missing", "also-missing"}, false, Reference{})
-	if err == nil || err.Error() != "job IDs not found in queue: also-missing, missing" {
-		t.Fatalf("PlanSelection() error = %v", err)
-	}
-}
-
-func TestPlanSelectionRecordsOriginMetadata(t *testing.T) {
-	plan, err := PlanSelection(model.Queue{Commands: []model.QueuedCommand{{ID: "done", Command: []string{"true"}}}}, "failed", nil, false, Reference{
-		RunID: "run-1", CWD: "/work", Results: map[string]model.JobResult{"done": {ID: "done", AttemptID: "att-1", ExitCode: 0}},
-		SubmittedAt: func(string) string { return "submitted" }, FinishedAt: func(string) string { return "finished" },
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	origin := plan.CarriedOrigins["done"]
-	if origin == nil || origin.Status != "success" || origin.AttemptID != "att-1" || origin.CWD != "/work" || origin.SubmittedAt != "submitted" || origin.FinishedAt != "finished" {
-		t.Fatalf("origin = %#v", origin)
-	}
-}
-
 func TestAssignAttemptIDsUpdatesAttemptEnvironment(t *testing.T) {
 	jobs := []model.JobSpec{{ID: "job-1", Environment: []string{"ROTARI_RUN_DIR=/runs", "ROTARI_ATTEMPT_ID=old"}}}
 	AssignAttemptIDs(jobs, "run-1", 2, AttemptIDCallbacks{

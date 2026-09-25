@@ -120,8 +120,8 @@ the user-facing documentation, and the affected tests together.
   and [`cmd/rotari/state_test.go`](../../cmd/rotari/state_test.go).
 - Completed runs are immutable history. Retries, filtered runs, and
   carry-forward create or modify only a new destination run, never their source
-  run. See [`cmd/rotari/run_selection.go`](../../cmd/rotari/run_selection.go),
-  [`cmd/rotari/copy.go`](../../cmd/rotari/copy.go), and
+  run. See [`internal/run/rerun.go`](../../internal/run/rerun.go),
+  [`internal/queueedit/copy.go`](../../internal/queueedit/copy.go), and
   [`cmd/rotari/run_selection_test.go`](../../cmd/rotari/run_selection_test.go).
 - Executors implement job execution and scheduler integration, not run
   semantics. Run planning, dependency handling, carry-forward, and summary
@@ -143,6 +143,8 @@ cmd/rotari
   ├── internal/jobstatus # read-side job result and timestamp resolution
   ├── internal/diagnose  # rule-based log diagnosis
   ├── internal/server    # server protocol, transport, and lifetime
+  ├── internal/queueedit # queue edits such as copying jobs from a run
+  ├── internal/workflow  # workflow manifests, export merge, import reconcile
   └── internal/run       # run planning, worker lifecycle, lanes, orchestration
 ```
 
@@ -164,6 +166,13 @@ The three packages that most often look similar are split by responsibility:
 state files and the run summary into a job's displayed outcome and timestamps.
 CLI and Web projections render its resolution instead of reading status files
 themselves, so `show`, `jobs`, `report`, and the Web UI cannot drift apart.
+
+`internal/queueedit` and `internal/workflow` hold queue-shaping rules that
+`copy`, `retry`, `export`, and `import` share: which jobs a selection copies,
+which omitted prerequisites must have succeeded, which run snapshot describes a
+command, and which disposition an imported job gets. They read runs through
+small caller-provided interfaces, so `cmd/rotari` keeps only locking, file
+access, and output.
 
 A useful placement test is: if the code can be explained without mentioning
 paths, files, locks, or directories, it probably does not belong in

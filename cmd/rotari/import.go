@@ -15,10 +15,10 @@ import (
 )
 
 type importPlan struct {
-	Version int                  `json:"version"`
-	Project string               `json:"project"`
-	Jobs    []importPlanJob      `json:"jobs"`
-	Removed []workflowRemovedJob `json:"removed"`
+	Version int                   `json:"version"`
+	Project string                `json:"project"`
+	Jobs    []importPlanJob       `json:"jobs"`
+	Removed []workflow.RemovedJob `json:"removed"`
 }
 
 type importPlanJob struct {
@@ -274,9 +274,9 @@ func workflowFormatFromPath(path string) (string, error) {
 	}
 }
 
-func newImportPlan(project string, queue Queue, removed []workflowRemovedJob) importPlan {
+func newImportPlan(project string, queue Queue, removed []workflow.RemovedJob) importPlan {
 	if removed == nil {
-		removed = []workflowRemovedJob{}
+		removed = []workflow.RemovedJob{}
 	}
 	plan := importPlan{Version: 1, Project: project, Jobs: make([]importPlanJob, 0, len(queue.Commands)), Removed: removed}
 	for _, command := range queue.Commands {

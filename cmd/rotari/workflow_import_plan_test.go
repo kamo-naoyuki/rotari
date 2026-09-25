@@ -51,7 +51,7 @@ func TestCmdImportPlanReportsSourcesAndRemovedJobs(t *testing.T) {
 	if train := importPlanJobByName(t, plan, "train"); train.Action != "execute" || train.Source != nil || train.ID == "train-id" || !reflect.DeepEqual(train.Command, []string{"true", "changed"}) {
 		t.Fatalf("changed train plan = %#v", train)
 	}
-	wantRemoved := []workflowRemovedJob{{RunID: workflowPipelineRunID, JobID: "other-id", Name: "other", Command: []string{"true"}}}
+	wantRemoved := []workflow.RemovedJob{{RunID: workflowPipelineRunID, JobID: "other-id", Name: "other", Command: []string{"true"}}}
 	if !reflect.DeepEqual(plan.Removed, wantRemoved) {
 		t.Fatalf("removed = %#v, want %#v", plan.Removed, wantRemoved)
 	}
@@ -135,7 +135,7 @@ func TestCmdImportPlanKeepsMatrixGroupsAndReportsRemovedGroup(t *testing.T) {
 	manifest.Jobs = append(manifest.Jobs, workflow.Job{Name: "replacement", Command: []string{"true"}})
 	manifest.Jobs = manifest.Jobs[1:]
 	plan := importPlanFor(t, baseDir, manifest)
-	wantRemoved := []workflowRemovedJob{
+	wantRemoved := []workflow.RemovedJob{
 		{RunID: runID, JobID: "seed-1", Name: "train-SEED1", Command: []string{"train"}},
 		{RunID: runID, JobID: "seed-2", Name: "train-SEED2", Command: []string{"train"}},
 	}
@@ -165,7 +165,7 @@ func TestCmdImportPlanMatchesJobsWithoutAttempts(t *testing.T) {
 	}
 	manifest.Jobs = manifest.Jobs[:2]
 	plan := importPlanFor(t, baseDir, manifest)
-	wantRemoved := []workflowRemovedJob{{RunID: runID, JobID: "unnamed-id", Command: []string{"never", "ran"}}}
+	wantRemoved := []workflow.RemovedJob{{RunID: runID, JobID: "unnamed-id", Command: []string{"never", "ran"}}}
 	if !reflect.DeepEqual(plan.Removed, wantRemoved) {
 		t.Fatalf("removed = %#v, want %#v", plan.Removed, wantRemoved)
 	}

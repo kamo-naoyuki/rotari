@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
 )
@@ -130,7 +129,7 @@ func exportWorkflow(baseDir, projectName string, requestedRunIDs []string) (work
 	if err != nil {
 		return workflow.Manifest{}, err
 	}
-	return mergeExportRuns(selectedProject, runs)
+	return workflow.MergeRuns(selectedProject, runs)
 }
 
 func exportCurrentQueue(baseDir, projectName string) (workflow.Manifest, error) {
@@ -150,17 +149,17 @@ func exportCurrentQueue(baseDir, projectName string) (workflow.Manifest, error) 
 	if err != nil {
 		return workflow.Manifest{}, fmt.Errorf("failed to load queue: %w", err)
 	}
-	queue = flattenQueueDefaults(queue)
+	queue = workflow.FlattenQueueDefaults(queue)
 	if err := validateQueueForRun(queue, "", nil, nil); err != nil {
 		return workflow.Manifest{}, fmt.Errorf("invalid queue: %w", err)
 	}
 	return workflow.FromQueue(queue)
 }
 
-func loadExportRuns(baseDir, projectName string, requestedRunIDs []string) ([]exportRun, string, error) {
+func loadExportRuns(baseDir, projectName string, requestedRunIDs []string) ([]workflow.SourceRun, string, error) {
 	seen := make(map[string]bool, len(requestedRunIDs))
 	var selectedBaseDir, selectedProject string
-	runs := make([]exportRun, 0, len(requestedRunIDs))
+	runs := make([]workflow.SourceRun, 0, len(requestedRunIDs))
 	for _, requested := range requestedRunIDs {
 		if seen[requested] {
 			return nil, "", fmt.Errorf("duplicate run ID %q", requested)
@@ -184,143 +183,27 @@ func loadExportRuns(baseDir, projectName string, requestedRunIDs []string) ([]ex
 	return runs, selectedProject, nil
 }
 
-func loadExportRun(baseDir, projectName, requested string) (exportRun, error) {
+func loadExportRun(baseDir, projectName, requested string) (workflow.SourceRun, error) {
 	paths, err := resolvePaths(baseDir, projectName)
 	if err != nil {
-		return exportRun{}, err
+		return workflow.SourceRun{}, err
 	}
 	runID, err := selectRunID(paths, requested)
 	if err != nil {
-		return exportRun{}, err
+		return workflow.SourceRun{}, err
 	}
 	runDir := filepath.Join(paths.RunsDir, runID)
 	queue, err := state.LoadQueue(filepath.Join(runDir, "commands.json"))
 	if err != nil {
-		return exportRun{}, fmt.Errorf("failed to load run %s commands: %w", runID, err)
+		return workflow.SourceRun{}, fmt.Errorf("failed to load run %s commands: %w", runID, err)
 	}
 	summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
 	if err != nil {
-		return exportRun{}, fmt.Errorf("failed to load run %s summary: %w", runID, err)
+		return workflow.SourceRun{}, fmt.Errorf("failed to load run %s summary: %w", runID, err)
 	}
-	queue = flattenQueueDefaults(queue)
+	queue = workflow.FlattenQueueDefaults(queue)
 	if err := validateQueueForRun(queue, "", nil, nil); err != nil {
-		return exportRun{}, fmt.Errorf("invalid run %s commands: %w", runID, err)
+		return workflow.SourceRun{}, fmt.Errorf("invalid run %s commands: %w", runID, err)
 	}
-	return exportRun{ID: runID, Dir: runDir, Queue: queue, Summary: summary}, nil
-}
-
-type exportRun struct {
-	ID      string
-	Dir     string
-	Queue   Queue
-	Summary RunSummary
-}
-
-type exportCandidate struct {
-	command   QueuedCommand
-	results   []JobResult
-	timestamp string
-	runID     string
-}
-
-func mergeExportRuns(project string, runs []exportRun) (workflow.Manifest, error) {
-	candidates := make(map[string]exportCandidate)
-	order := make([]string, 0)
-	for _, run := range runs {
-		for _, candidate := range exportRunCandidates(run) {
-			command := candidate.command
-			previous, exists := candidates[command.ID]
-			if !exists {
-				order = append(order, command.ID)
-			}
-			if !exists || candidate.timestamp > previous.timestamp || candidate.timestamp == previous.timestamp && candidate.runID > previous.runID {
-				candidates[command.ID] = candidate
-			}
-		}
-	}
-	queue := Queue{}
-	summary := RunSummary{}
-	for _, id := range order {
-		candidate := candidates[id]
-		queue.Commands = append(queue.Commands, candidate.command)
-		summary.Results = append(summary.Results, candidate.results...)
-	}
-	if err := model.ValidateQueueDependencies(queue.Commands); err != nil {
-		return workflow.Manifest{}, fmt.Errorf("cannot merge runs: %w", err)
-	}
-	runIDs := make([]string, len(runs))
-	for index, run := range runs {
-		runIDs[index] = run.ID
-	}
-	manifest, err := workflow.FromRun(queue, summary, workflow.Source{Project: project, RunIDs: runIDs})
-	if err != nil {
-		return workflow.Manifest{}, err
-	}
-	return manifest, nil
-}
-
-func exportRunCandidates(run exportRun) []exportCandidate {
-	results := model.ResultsByID(run.Summary.Results)
-	candidates := make([]exportCandidate, 0, len(run.Queue.Commands))
-	for _, command := range run.Queue.Commands {
-		candidates = append(candidates, exportCandidate{
-			command: command, results: exportCommandResults(command, results),
-			timestamp: exportCommandTimestamp(run, command), runID: run.ID,
-		})
-	}
-	return candidates
-}
-
-func exportCommandResults(command QueuedCommand, results map[string]JobResult) []JobResult {
-	if command.Array == nil {
-		if result, ok := results[command.ID]; ok {
-			return []JobResult{result}
-		}
-		return nil
-	}
-	selected := make([]JobResult, 0, len(model.ArrayTaskIDs(command.Array)))
-	for _, task := range model.ArrayTaskIDs(command.Array) {
-		if result, ok := results[fmt.Sprintf("%s-%d", command.ID, task)]; ok {
-			selected = append(selected, result)
-		}
-	}
-	return selected
-}
-
-func exportCommandTimestamp(run exportRun, command QueuedCommand) string {
-	jobIDs := []string{command.ID}
-	if command.Array != nil {
-		jobIDs = jobIDs[:0]
-		for _, task := range model.ArrayTaskIDs(command.Array) {
-			jobIDs = append(jobIDs, fmt.Sprintf("%s-%d", command.ID, task))
-		}
-	}
-	latest := ""
-	for _, jobID := range jobIDs {
-		timestamp := state.ReadJobTimestamp(run.Dir, jobID, stateFileFinishedAt)
-		if timestamp == "" {
-			timestamp = state.ReadJobTimestamp(run.Dir, jobID, stateFileSubmittedAt)
-		}
-		if timestamp > latest {
-			latest = timestamp
-		}
-	}
-	if latest == "" {
-		latest = run.Summary.FinishedAt
-	}
-	return latest
-}
-
-func flattenQueueDefaults(queue Queue) Queue {
-	for index := range queue.Commands {
-		if queue.Commands[index].Executor == "" {
-			queue.Commands[index].Executor = queue.DefaultExecutor
-		}
-		if len(queue.Commands[index].ExecutorOptions) == 0 {
-			queue.Commands[index].ExecutorOptions = append([]string(nil), queue.DefaultExecutorOptions...)
-		}
-	}
-	queue.DefaultExecutor = ""
-	queue.DefaultExecutorOptions = nil
-	return queue
+	return workflowSourceRun(runID, runDir, queue, summary), nil
 }
