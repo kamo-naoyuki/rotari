@@ -965,7 +965,9 @@ func showRun(paths pathSet, runID string, failedOnly bool) int {
 		finishedAt = model.FormatDisplayTimestamp(finishedAt)
 		if statusOK {
 			statusText := green(strconv.Itoa(status))
-			if blocked {
+			if resultByID[jobSpec.ID].Accepted {
+				statusText = green("success (accepted)")
+			} else if blocked {
 				statusText = yellow("blocked")
 			} else if status != 0 {
 				statusText = red(strconv.Itoa(status))
@@ -1729,6 +1731,8 @@ func showJobAttempt(writer io.Writer, paths pathSet, runID, jobID, attemptID str
 					continue
 				}
 				switch {
+				case result.Accepted:
+					fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), green("success (accepted)"))
 				case strings.HasPrefix(result.Error, "blocked"):
 					fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), yellow("blocked (dependency failed)"))
 				case result.Error != "":

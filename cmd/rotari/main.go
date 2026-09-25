@@ -46,6 +46,9 @@ type ruleDiagnosis = model.RuleDiagnosis
 type runOptions = runcontract.Options
 
 func validateQueueJobs(queue Queue) error {
+	if err := model.ValidateMatrixGroups(queue.Commands); err != nil {
+		return err
+	}
 	if err := model.ValidateStageNames(queue.Commands); err != nil {
 		return err
 	}
@@ -141,6 +144,10 @@ func run(args []string) int {
 		return cmdUnlock(args[1:])
 	case "change":
 		return cmdChange(args[1:])
+	case "export":
+		return cmdExport(args[1:])
+	case "import":
+		return cmdImport(args[1:])
 	case "remove":
 		return cmdRemove(args[1:])
 	case "show":
@@ -213,6 +220,7 @@ func recoverInterruptedProject(paths pathSet, runID string, discardQueue bool) e
 			return err
 		}
 		queue.Commands = nil
+		queue.WorkflowImport = false
 		if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
 			return err
 		}

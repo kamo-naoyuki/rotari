@@ -65,6 +65,29 @@ func TestParseMatrixDimensionRejectsInvalidValues(t *testing.T) {
 	}
 }
 
+func TestClearIncompleteMatrixGroups(t *testing.T) {
+	dimensions := []MatrixDimension{{Name: "SEED", Values: []string{"1", "2"}}}
+	commands := []QueuedCommand{
+		{ID: "one", Matrix: &MatrixSpec{GroupID: "group", Dimensions: dimensions, Values: []MatrixValue{{Name: "SEED", Value: "1"}}}},
+		{ID: "other", Command: []string{"true"}},
+	}
+	ClearIncompleteMatrixGroups(commands)
+	if commands[0].Matrix != nil {
+		t.Fatalf("incomplete matrix provenance was not cleared: %#v", commands[0].Matrix)
+	}
+}
+
+func TestValidateMatrixGroupsRejectsInconsistentExpandedJob(t *testing.T) {
+	dimensions := []MatrixDimension{{Name: "SEED", Values: []string{"1", "2"}}}
+	commands := []QueuedCommand{
+		{ID: "one", Name: "train-SEED1", Command: []string{"train"}, Environment: []string{"SEED=1"}, Matrix: &MatrixSpec{GroupID: "group", Dimensions: dimensions, Values: []MatrixValue{{Name: "SEED", Value: "1"}}, BaseName: "train"}},
+		{ID: "two", Name: "train-SEED2", Command: []string{"different"}, Environment: []string{"SEED=2"}, Matrix: &MatrixSpec{GroupID: "group", Dimensions: dimensions, Values: []MatrixValue{{Name: "SEED", Value: "2"}}, BaseName: "train"}},
+	}
+	if err := ValidateMatrixGroups(commands); err == nil {
+		t.Fatal("ValidateMatrixGroups accepted inconsistent commands")
+	}
+}
+
 func TestDependenciesReady(t *testing.T) {
 	job := JobSpec{ID: "train", DependsOn: []string{"prepare"}}
 	jobs := map[string]JobSpec{"prepare": {ID: "prepare"}}

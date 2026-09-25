@@ -355,6 +355,22 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	if len(queue.Commands) > 0 && !appendJobs && !overwrite {
 		return "", fmt.Errorf("project %q has queued jobs; use --append or --overwrite", queueName)
 	}
+	model.ClearIncompleteMatrixGroups(selected)
+	matrixGroupIDs := make(map[string]string)
+	for index := range selected {
+		if selected[index].Matrix == nil {
+			continue
+		}
+		oldGroupID := selected[index].Matrix.GroupID
+		newGroupID, ok := matrixGroupIDs[oldGroupID]
+		if !ok {
+			newGroupID = makeJobID()
+			matrixGroupIDs[oldGroupID] = newGroupID
+		}
+		matrix := *selected[index].Matrix
+		matrix.GroupID = newGroupID
+		selected[index].Matrix = &matrix
+	}
 	existingIDs := make(map[string]bool)
 	if appendJobs {
 		for _, command := range queue.Commands {
@@ -376,6 +392,13 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 		}
 		existingIDs[selected[index].ID] = true
 		selected[index].DependsOn = dependencies
+		selected[index].Accepted = false
+		selected[index].TaskAccepted = nil
+		selected[index].TaskForce = nil
+		selected[index].Force = false
+		if appendJobs && queue.WorkflowImport {
+			selected[index].Force = true
+		}
 		originStatus := "unfinished"
 		originAttemptID := ""
 		if result, finished := model.AggregatedJobResult(sourceJobID, selected[index].Array, results); finished {
@@ -396,6 +419,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	}
 	if !appendJobs {
 		queue.Commands = nil
+		queue.WorkflowImport = false
 	}
 	queue.Commands = append(queue.Commands, selected...)
 	if err := model.ValidateQueueDependencies(queue.Commands); err != nil {

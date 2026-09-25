@@ -106,6 +106,12 @@ func TestCmdAddExpandsMatrixIntoIndependentJobs(t *testing.T) {
 	if queue.Commands[0].ID == queue.Commands[1].ID {
 		t.Fatal("matrix jobs have the same job ID")
 	}
+	if queue.Commands[0].Matrix == nil || queue.Commands[0].Matrix.GroupID == "" || queue.Commands[0].Matrix.GroupID != queue.Commands[3].Matrix.GroupID {
+		t.Fatalf("matrix provenance = %#v, %#v", queue.Commands[0].Matrix, queue.Commands[3].Matrix)
+	}
+	if !reflect.DeepEqual(queue.Commands[0].Matrix.Values, []model.MatrixValue{{Name: "python", Value: "3.10"}, {Name: "cuda", Value: "cpu"}}) {
+		t.Fatalf("matrix values = %#v", queue.Commands[0].Matrix.Values)
+	}
 	if !hasEnvironmentEntry(queue.Commands[0].Environment, "python=3.10") || !hasEnvironmentEntry(queue.Commands[0].Environment, "cuda=cpu") {
 		t.Fatalf("matrix environment = %#v", queue.Commands[0].Environment)
 	}

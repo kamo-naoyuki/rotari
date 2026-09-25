@@ -159,6 +159,7 @@ func resetQueueCommands(paths pathSet) (int, error) {
 	cleared := len(queue.Commands)
 	if cleared > 0 {
 		queue.Commands = nil
+		queue.WorkflowImport = false
 		if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
 			return 0, fmt.Errorf("failed to reset queue: %w", err)
 		}

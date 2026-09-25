@@ -287,31 +287,33 @@ func expandMatrixCommands(command []string, executor string, executorOptions, en
 	if len(dimensions) == 0 {
 		return []QueuedCommand{{Command: command, Executor: executor, ExecutorOptions: executorOptions, Environment: environment, WorkingDirectory: workingDirectory, Name: jobName, Stage: stage, DependsOn: dependsOn}}
 	}
+	groupID := makeJobID()
 	commands := make([]QueuedCommand, 0)
 	for _, combination := range model.ExpandMatrix(dimensions) {
-		matrixEnvironment := append([]string(nil), environment...)
-		matrixName := jobName
-		for _, item := range combination {
-			matrixEnvironment = append(matrixEnvironment, item.Name+"="+item.Value)
-			if matrixName != "" {
-				matrixName += "-" + item.Name + sanitizeMatrixName(item.Value)
-			}
-		}
-		commands = append(commands, QueuedCommand{Command: command, Executor: executor, ExecutorOptions: executorOptions, Environment: matrixEnvironment, WorkingDirectory: workingDirectory, Name: matrixName, Stage: stage, DependsOn: dependsOn})
+		matrixEnvironment := model.MatrixEnvironment(environment, combination)
+		matrixName := model.MatrixJobName(jobName, combination)
+		commands = append(commands, QueuedCommand{
+			Command: command, Executor: executor, ExecutorOptions: executorOptions, Environment: matrixEnvironment,
+			WorkingDirectory: workingDirectory, Name: matrixName, Stage: stage, DependsOn: dependsOn,
+			Matrix: &model.MatrixSpec{
+				GroupID: groupID, Dimensions: cloneMatrixDimensions(dimensions), Values: append([]model.MatrixValue(nil), combination...),
+				BaseName: jobName, BaseEnvironment: append([]string(nil), environment...),
+			},
+		})
 	}
 	return commands
 }
 
-func sanitizeMatrixName(value string) string {
-	var builder strings.Builder
-	for _, character := range value {
-		if (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || (character >= '0' && character <= '9') || character == '_' || character == '.' {
-			builder.WriteRune(character)
-		} else {
-			builder.WriteByte('_')
-		}
+func cloneMatrixDimensions(dimensions []model.MatrixDimension) []model.MatrixDimension {
+	cloned := make([]model.MatrixDimension, len(dimensions))
+	for index, dimension := range dimensions {
+		cloned[index] = model.MatrixDimension{Name: dimension.Name, Values: append([]string(nil), dimension.Values...)}
 	}
-	return builder.String()
+	return cloned
+}
+
+func sanitizeMatrixName(value string) string {
+	return model.SanitizeMatrixName(value)
 }
 
 // cmdRun starts a run, optionally repopulating the queue from historical run
@@ -1437,6 +1439,9 @@ func enqueueCommandsWithStageAndWorkingDirectory(baseDir, queueName string, comm
 			return "", fmt.Errorf("unsupported executor: %s", commands[index].Executor)
 		}
 		commands[index].ID = makeJobID()
+		if queue.WorkflowImport {
+			commands[index].Force = true
+		}
 	}
 	if err := validateQueueJobs(Queue{Commands: append(append([]QueuedCommand(nil), queue.Commands...), commands...)}); err != nil {
 		return "", err

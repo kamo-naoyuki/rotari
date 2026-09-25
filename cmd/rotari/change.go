@@ -124,6 +124,9 @@ func changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, request
 	if err != nil {
 		return "", err
 	}
+	if matrix := queue.Commands[jobIndex].Matrix; matrix != nil {
+		model.ClearMatrixGroup(queue.Commands, matrix.GroupID)
+	}
 	mutation := changeMutation{executor: executor, executorOptions: executorOptions, clearExecutorOptions: clearExecutorOptions,
 		environment: environment, clearEnvironment: clearEnvironment, workingDirectory: workingDirectory,
 		clearWorkingDirectory: clearWorkingDirectory, setJobName: setJobName, dependsOn: dependsOn,
@@ -172,6 +175,11 @@ func selectChangeJob(jobs []JobSpec, requestedJobID, requestedJobName string) (i
 
 func applyChangeMutation(queue Queue, jobIndex int, mutation changeMutation) error {
 	changed := &queue.Commands[jobIndex]
+	if queue.WorkflowImport {
+		changed.Force = true
+		changed.Accepted = false
+		changed.TaskAccepted = nil
+	}
 	if mutation.executor != "" {
 		changed.Executor = mutation.executor
 	}

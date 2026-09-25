@@ -121,6 +121,56 @@ func TestFilteredRunUsesEachCopiedOrigin(t *testing.T) {
 	}
 }
 
+func TestImportedWorkflowExecutesFailedJobAndDownstream(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "source-run"
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), RunSummary{RunID: runID, Results: []JobResult{
+		{ID: "source-failed", ExitCode: 1}, {ID: "source-downstream", ExitCode: 0}, {ID: "source-independent", ExitCode: 0},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	queue := Queue{WorkflowImport: true, Commands: []QueuedCommand{
+		{ID: "failed", Name: "failed", Command: []string{"false"}, Origin: &JobOrigin{RunID: runID, JobID: "source-failed"}},
+		{ID: "downstream", Name: "downstream", Command: []string{"true"}, DependsOn: []string{"failed"}, Origin: &JobOrigin{RunID: runID, JobID: "source-downstream"}},
+		{ID: "independent", Name: "independent", Command: []string{"true"}, Origin: &JobOrigin{RunID: runID, JobID: "source-independent"}},
+	}}
+	plan, err := planRerunSelection(paths, queue, "", nil, "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.Execute["failed"] || !plan.Execute["downstream"] || plan.Execute["independent"] {
+		t.Fatalf("execute = %#v", plan.Execute)
+	}
+}
+
+func TestImportedWorkflowAcceptsFailedSourceResult(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "source-run"
+	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), RunSummary{RunID: runID, Results: []JobResult{{ID: "source", AttemptID: "attempt", ExitCode: 7, Error: "source failed"}}}); err != nil {
+		t.Fatal(err)
+	}
+	queue := Queue{WorkflowImport: true, Commands: []QueuedCommand{{
+		ID: "destination", Command: []string{"false"}, Accepted: true,
+		Origin: &JobOrigin{RunID: runID, JobID: "source", AttemptID: "attempt", Status: "failed"},
+	}}}
+	plan, err := planRerunSelection(paths, queue, "", nil, "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := plan.CarriedResults["destination"]
+	if plan.Execute["destination"] || result.ExitCode != 0 || !result.Accepted || result.Error != "" || plan.CarriedOrigins["destination"].Status != "failed" {
+		t.Fatalf("plan = %#v", plan)
+	}
+}
+
 func TestAggregatedJobResultForArray(t *testing.T) {
 	array := &ArraySpec{First: 1, Last: 3}
 

@@ -239,6 +239,38 @@ func TestCmdShowResolvesProjectFromRunID(t *testing.T) {
 	}
 }
 
+func TestShowRunDisplaysAcceptedStatus(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "accepted-run"
+	runDir := filepath.Join(paths.RunsDir, runID)
+	if err := writeJSON(filepath.Join(runDir, "commands.json"), Queue{Commands: []QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(runDir, "summary.json"), RunSummary{RunID: runID, Status: "finished", Results: []JobResult{{ID: "job-1", ExitCode: 0, Accepted: true}}}); err != nil {
+		t.Fatal(err)
+	}
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldStdout := os.Stdout
+	os.Stdout = writer
+	code := showRun(paths, runID, false)
+	_ = writer.Close()
+	os.Stdout = oldStdout
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 || !strings.Contains(string(output), "success (accepted)") {
+		t.Fatalf("showRun code=%d output=%q", code, output)
+	}
+}
+
 func TestCmdShowResolvesRunNameAcrossProjects(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "demo")

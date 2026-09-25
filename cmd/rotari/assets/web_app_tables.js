@@ -263,6 +263,7 @@ function jobDisplayStatus(job, run) {
   const result = job.result;
   if (!result)
     return job.scheduler_state || (run.running ? "running" : "pending");
+  if (result.accepted) return "success (accepted)";
   if (result.error === "blocked by failed dependency") return "blocked";
   return result.exit_code === 0 ? "success" : "failed";
 }

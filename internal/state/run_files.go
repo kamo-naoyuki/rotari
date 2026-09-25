@@ -12,6 +12,7 @@ func FinalizeRun(queue model.Queue, meta model.Meta, runID string, exitCode int,
 		return model.Queue{}, model.Meta{}, fmt.Errorf("run ID must not be empty")
 	}
 	queue.Commands = nil
+	queue.WorkflowImport = false
 	meta.Phase = "finished"
 	meta.LastRunID = runID
 	meta.LastRunExitCode = exitCode

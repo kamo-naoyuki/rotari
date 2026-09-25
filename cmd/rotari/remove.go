@@ -114,6 +114,7 @@ func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []st
 		remaining = append(remaining, job)
 	}
 	queue.Commands = remaining
+	model.ClearIncompleteMatrixGroups(queue.Commands)
 	if err := model.ValidateQueueDependencies(queue.Commands); err != nil {
 		return "", fmt.Errorf("invalid dependencies: %w", err)
 	}

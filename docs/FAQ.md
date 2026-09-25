@@ -34,9 +34,9 @@ No. Rotari has no accounts, permissions, quotas, or fair-share scheduling. Use a
 
 ### Which workflow-orchestrator features does rotari provide?
 
-Rotari provides dependencies, parallel execution, retries, logs, history, array jobs, local/SSH/Slurm/PBS/LSF execution, a Web UI, and completion webhooks.
+Rotari provides dependencies, parallel execution, retries, logs, history, array jobs, local/SSH/Slurm/PBS/LSF execution, a Web UI, completion webhooks, and an optional declarative workflow manifest.
 
-It does not provide a workflow DSL, file freshness checks, artifact caching, scheduled or event triggers, data lineage, RBAC, or quotas. Use tools such as Snakemake, `make`, or Airflow when those features are needed.
+The manifest is a constrained representation of the existing queue, not a programming language: commands remain argument arrays. Rotari does not provide file freshness checks, artifact caching, scheduled or event triggers, data lineage, RBAC, or quotas. Use tools such as Snakemake, `make`, or Airflow when those features are needed.
 
 ### What's the difference between a project, a queue, and a run?
 
@@ -148,6 +148,29 @@ restore a specific run. The result filter belongs on `run`, so the restored
 queue remains available for inspection and editing before execution. With an
 empty queue, `run --failed` restores the latest run automatically.
 
+For a reproducible, reviewable edit, export and import a workflow manifest:
+
+```sh
+rotari export -p build -r RUN_ID > experiment.yaml
+rotari import -p build --dry-run experiment.yaml
+rotari import -p build experiment.yaml
+rotari run -p build
+```
+
+Successful unchanged jobs carry forward; failed or changed jobs and their
+downstream dependents execute.
+
+### Can I mark a failed job as successful after reviewing its log?
+
+Yes. In a run-exported manifest, change that unchanged job or instance from
+`status: failed` to `status: success`. The next run records it as
+`success (accepted)` and follows the original attempt for logs. The source run
+and its non-zero exit code remain unchanged.
+
+`attempt_id` is provenance and should normally not be edited. Import validates
+its embedded run and job IDs against the source state. A malformed, missing, or
+unreachable attempt rejects the import before the queue is written.
+
 ### Does retrying an array job rerun every task?
 
 By default, only matching tasks rerun. Use `--partial-array=false` to rerun the entire array.
@@ -158,7 +181,7 @@ Yes. Repeat `--matrix KEY=VALUE[,VALUE...]` with `add`. Rotari registers each
 Cartesian-product combination as an independent job and exposes its values as
 ordinary `KEY=VALUE` environment variables. Matrix jobs can be combined with
 `--array`; the array is applied to each matrix combination. `include` and
-`exclude` customization is planned for a future workflow manifest.
+`exclude` customization is not supported by the version 1 workflow manifest.
 
 ### Can I reference a matrix value inside the command string, like `$KEY`?
 

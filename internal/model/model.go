@@ -12,6 +12,7 @@ type Queue struct {
 	DefaultExecutor        string          `json:"default_executor,omitempty"`
 	DefaultExecutorOptions []string        `json:"default_executor_options,omitempty"`
 	Commands               []QueuedCommand `json:"commands"`
+	WorkflowImport         bool            `json:"workflow_import,omitempty"`
 }
 
 type QueuedCommand struct {
@@ -27,6 +28,11 @@ type QueuedCommand struct {
 	Origin           *JobOrigin            `json:"origin,omitempty"`
 	Array            *ArraySpec            `json:"array,omitempty"`
 	TaskOrigins      map[string]*JobOrigin `json:"task_origins,omitempty"`
+	Matrix           *MatrixSpec           `json:"matrix,omitempty"`
+	Accepted         bool                  `json:"accepted,omitempty"`
+	TaskAccepted     map[string]bool       `json:"task_accepted,omitempty"`
+	Force            bool                  `json:"force,omitempty"`
+	TaskForce        map[string]bool       `json:"task_force,omitempty"`
 }
 
 type ArraySpec struct {
@@ -36,13 +42,21 @@ type ArraySpec struct {
 }
 
 type MatrixDimension struct {
-	Name   string
-	Values []string
+	Name   string   `json:"name"`
+	Values []string `json:"values"`
 }
 
 type MatrixValue struct {
-	Name  string
-	Value string
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+type MatrixSpec struct {
+	GroupID         string            `json:"group_id"`
+	Dimensions      []MatrixDimension `json:"dimensions"`
+	Values          []MatrixValue     `json:"values"`
+	BaseName        string            `json:"base_name,omitempty"`
+	BaseEnvironment []string          `json:"base_environment,omitempty"`
 }
 
 func ParseMatrixDimension(value string) (MatrixDimension, error) {
@@ -83,6 +97,36 @@ func ExpandMatrix(dimensions []MatrixDimension) [][]MatrixValue {
 		combinations = next
 	}
 	return combinations
+}
+
+func MatrixJobName(baseName string, values []MatrixValue) string {
+	name := baseName
+	for _, value := range values {
+		if name != "" {
+			name += "-" + value.Name + SanitizeMatrixName(value.Value)
+		}
+	}
+	return name
+}
+
+func MatrixEnvironment(base []string, values []MatrixValue) []string {
+	environment := append([]string(nil), base...)
+	for _, value := range values {
+		environment = append(environment, value.Name+"="+value.Value)
+	}
+	return environment
+}
+
+func SanitizeMatrixName(value string) string {
+	var builder strings.Builder
+	for _, character := range value {
+		if character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character >= '0' && character <= '9' || character == '_' || character == '.' {
+			builder.WriteRune(character)
+		} else {
+			builder.WriteByte('_')
+		}
+	}
+	return builder.String()
 }
 
 func ParseArrayRange(value string) (ArraySpec, error) {
@@ -217,6 +261,7 @@ type JobResult struct {
 	ID        string          `json:"id"`
 	AttemptID string          `json:"attempt_id,omitempty"`
 	ExitCode  int             `json:"exit_code"`
+	Accepted  bool            `json:"accepted,omitempty"`
 	Error     string          `json:"error,omitempty"`
 	Command   []string        `json:"command,omitempty"`
 	Hosts     []string        `json:"hosts,omitempty"`
@@ -258,6 +303,7 @@ type LoadSample struct {
 func QueueToJobs(commands []QueuedCommand) []JobSpec {
 	jobs := make([]JobSpec, 0, len(commands))
 	stageJobs := make(map[string][]string)
+	matrixJobs := make(map[string][]string)
 	for _, queued := range commands {
 		commandJobs := queueCommandToJobs(queued)
 		jobs = append(jobs, commandJobs...)
@@ -266,8 +312,14 @@ func QueueToJobs(commands []QueuedCommand) []JobSpec {
 				stageJobs[queued.Stage] = append(stageJobs[queued.Stage], job.Name)
 			}
 		}
+		if queued.Matrix != nil && queued.Matrix.BaseName != "" {
+			for _, job := range commandJobs {
+				matrixJobs[queued.Matrix.BaseName] = append(matrixJobs[queued.Matrix.BaseName], job.Name)
+			}
+		}
 	}
 	expandStageDependencies(jobs, stageJobs)
+	expandStageDependencies(jobs, matrixJobs)
 	return jobs
 }
 

@@ -1,10 +1,16 @@
 package model
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // ValidateQueueDependencies checks queue-level names before validating the
 // expanded job dependency graph used by the runner.
 func ValidateQueueDependencies(commands []QueuedCommand) error {
+	if err := ValidateMatrixGroups(commands); err != nil {
+		return err
+	}
 	if err := ValidateStageNames(commands); err != nil {
 		return err
 	}
@@ -12,18 +18,195 @@ func ValidateQueueDependencies(commands []QueuedCommand) error {
 }
 
 func ValidateStageNames(commands []QueuedCommand) error {
+	stages, matrixGroups := queueNamespaces(commands)
+	for _, command := range commands {
+		if err := validateCommandNamespace(command, stages, matrixGroups); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func queueNamespaces(commands []QueuedCommand) (map[string]bool, map[string]bool) {
 	stages := make(map[string]bool)
+	matrixGroups := make(map[string]bool)
 	for _, command := range commands {
 		if command.Stage != "" {
 			stages[command.Stage] = true
 		}
+		if command.Matrix != nil && command.Matrix.BaseName != "" {
+			matrixGroups[command.Matrix.BaseName] = true
+		}
 	}
+	return stages, matrixGroups
+}
+
+func validateCommandNamespace(command QueuedCommand, stages, matrixGroups map[string]bool) error {
+	if command.Name != "" && stages[command.Name] {
+		return fmt.Errorf("job name conflicts with stage name: %s", command.Name)
+	}
+	if command.Name != "" && matrixGroups[command.Name] && (command.Matrix == nil || command.Name != command.Matrix.BaseName) {
+		return fmt.Errorf("job name conflicts with matrix name: %s", command.Name)
+	}
+	if command.Stage != "" && matrixGroups[command.Stage] {
+		return fmt.Errorf("stage name conflicts with matrix name: %s", command.Stage)
+	}
+	return nil
+}
+
+func ValidateMatrixGroups(commands []QueuedCommand) error {
+	groups := make(map[string][]QueuedCommand)
+	baseNames := make(map[string]string)
 	for _, command := range commands {
-		if command.Name != "" && stages[command.Name] {
-			return fmt.Errorf("job name conflicts with stage name: %s", command.Name)
+		if command.Matrix == nil {
+			continue
+		}
+		if command.Matrix.GroupID == "" || len(command.Matrix.Dimensions) == 0 {
+			return fmt.Errorf("job %q has invalid matrix provenance", command.ID)
+		}
+		if command.Matrix.BaseName != "" {
+			if otherGroup, exists := baseNames[command.Matrix.BaseName]; exists && otherGroup != command.Matrix.GroupID {
+				return fmt.Errorf("duplicate matrix name: %s", command.Matrix.BaseName)
+			}
+			baseNames[command.Matrix.BaseName] = command.Matrix.GroupID
+		}
+		groups[command.Matrix.GroupID] = append(groups[command.Matrix.GroupID], command)
+	}
+	for groupID, members := range groups {
+		if err := validateMatrixGroup(groupID, members); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func validateMatrixGroup(groupID string, members []QueuedCommand) error {
+	first := members[0].Matrix
+	expected := ExpandMatrix(first.Dimensions)
+	if len(members) != len(expected) {
+		return fmt.Errorf("matrix group %q is incomplete: got %d combinations, want %d", groupID, len(members), len(expected))
+	}
+	seen := make(map[string]bool, len(members))
+	for _, member := range members {
+		if err := validateMatrixMember(groupID, member, members[0]); err != nil {
+			return err
+		}
+		key := matrixValuesKey(member.Matrix.Values)
+		if seen[key] {
+			return fmt.Errorf("matrix group %q has duplicate combination", groupID)
+		}
+		seen[key] = true
+	}
+	for _, combination := range expected {
+		if !seen[matrixValuesKey(combination)] {
+			return fmt.Errorf("matrix group %q is missing a combination", groupID)
+		}
+	}
+	return nil
+}
+
+func validateMatrixMember(groupID string, member, base QueuedCommand) error {
+	matrix := member.Matrix
+	first := base.Matrix
+	if !equalMatrixDimensions(matrix.Dimensions, first.Dimensions) || matrix.BaseName != first.BaseName || !equalStrings(matrix.BaseEnvironment, first.BaseEnvironment) || !equalMatrixCommandBase(member, base) {
+		return fmt.Errorf("matrix group %q has inconsistent provenance", groupID)
+	}
+	if member.Name != MatrixJobName(matrix.BaseName, matrix.Values) || !equalStrings(member.Environment, MatrixEnvironment(matrix.BaseEnvironment, matrix.Values)) {
+		return fmt.Errorf("matrix group %q has an inconsistent expanded job %q", groupID, member.ID)
+	}
+	return nil
+}
+
+func equalMatrixCommandBase(left, right QueuedCommand) bool {
+	return equalStrings(left.Command, right.Command) && left.WorkingDirectory == right.WorkingDirectory &&
+		left.Executor == right.Executor && equalStrings(left.ExecutorOptions, right.ExecutorOptions) &&
+		left.Stage == right.Stage && equalStrings(left.DependsOn, right.DependsOn) && equalArraySpec(left.Array, right.Array)
+}
+
+func equalArraySpec(left, right *ArraySpec) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return left.First == right.First && left.Last == right.Last && equalInts(left.Tasks, right.Tasks)
+}
+
+func equalInts(left, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func ClearMatrixGroup(commands []QueuedCommand, groupID string) {
+	if groupID == "" {
+		return
+	}
+	for index := range commands {
+		if commands[index].Matrix != nil && commands[index].Matrix.GroupID == groupID {
+			commands[index].Matrix = nil
+		}
+	}
+}
+
+func ClearIncompleteMatrixGroups(commands []QueuedCommand) {
+	counts := make(map[string]int)
+	wants := make(map[string]int)
+	for _, command := range commands {
+		if command.Matrix == nil || command.Matrix.GroupID == "" {
+			continue
+		}
+		counts[command.Matrix.GroupID]++
+		want := 1
+		for _, dimension := range command.Matrix.Dimensions {
+			want *= len(dimension.Values)
+		}
+		wants[command.Matrix.GroupID] = want
+	}
+	for groupID, count := range counts {
+		if count != wants[groupID] {
+			ClearMatrixGroup(commands, groupID)
+		}
+	}
+}
+
+func matrixValuesKey(values []MatrixValue) string {
+	var builder strings.Builder
+	for _, value := range values {
+		builder.WriteString(value.Name)
+		builder.WriteByte('=')
+		builder.WriteString(value.Value)
+		builder.WriteByte(0)
+	}
+	return builder.String()
+}
+
+func equalMatrixDimensions(left, right []MatrixDimension) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index].Name != right[index].Name || !equalStrings(left[index].Values, right[index].Values) {
+			return false
+		}
+	}
+	return true
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func ValidateDependencies(jobs []JobSpec) error {

@@ -18,6 +18,9 @@ func TestComposeWebHTMLAssemblesAssetBoundaries(t *testing.T) {
 	if !strings.Contains(html, "Lost connection to the Rotari Web server.") {
 		t.Fatal("disconnect banner does not identify the Web server")
 	}
+	if !strings.Contains(webAppTablesJS, "success (accepted)") {
+		t.Fatal("Web job status does not distinguish manually accepted results")
+	}
 }
 
 func TestComposeStaticBootstrapInjectsData(t *testing.T) {

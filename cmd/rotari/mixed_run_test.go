@@ -10,6 +10,35 @@ import (
 	"testing"
 )
 
+func TestExecuteMixedRunPersistsAcceptedImportedResult(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceRunID := "source-run"
+	if err := writeJSON(filepath.Join(paths.RunsDir, sourceRunID, "summary.json"), RunSummary{RunID: sourceRunID, Results: []JobResult{{ID: "source", AttemptID: "source-attempt", ExitCode: 7, Error: "failed"}}}); err != nil {
+		t.Fatal(err)
+	}
+	queue := Queue{WorkflowImport: true, Commands: []QueuedCommand{{
+		ID: "accepted", Command: []string{"must-not-run"}, Accepted: true,
+		Origin: &JobOrigin{RunID: sourceRunID, JobID: "source", AttemptID: "source-attempt", Status: "failed"},
+	}}}
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+	if code := executeMixedRun(paths, "accepted-run", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
+		t.Fatalf("executeMixedRun exit code = %d, want 0", code)
+	}
+	summary, err := loadRunSummary(filepath.Join(paths.RunsDir, "accepted-run", "summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(summary.Results) != 1 || !summary.Results[0].Accepted || summary.Results[0].ExitCode != 0 || summary.Results[0].Error != "" {
+		t.Fatalf("summary = %#v", summary)
+	}
+}
+
 func TestExecuteMixedRunRetriesFailedJob(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "default")

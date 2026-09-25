@@ -61,8 +61,14 @@
   queue command with its own generated job ID, a derived job name when the
   base command has one, and ordinary `KEY=VALUE` environment entries.
   Matrix and array expansion can be combined; the array is applied to each
-  matrix combination. `include` and `exclude` rules are reserved for a future
-  workflow manifest.
+  matrix combination. Expanded commands also store matrix group provenance so
+  queue and run export can reconstruct the compact declaration. Partial
+  `copy`, `remove`, or `change` clears provenance for the affected group rather
+  than presenting an incomplete group as the original matrix. Legacy snapshots
+  without provenance export as independent jobs. See
+  [matrix validation](../../internal/model/dependencies.go),
+  [manifest compilation](../../internal/workflow/manifest.go), and
+  [matrix export tests](../../internal/workflow/export_test.go).
 - Result-based selection (`--failed`/`--unfinished`/`--success` in `copy`, and
   in rerun when `--partial-array=false`) and copied-job origin status operate on
   the unexpanded `QueuedCommand`, but results are recorded per expanded task ID.
@@ -85,6 +91,17 @@
   `TaskOrigins` when resolving where a job's output lives. `--partial-array=false`
   restores the older whole-array behavior: any match re-executes every task,
   using only the whole-command `Origin`.
+- A run-exported workflow manifest records compact status and attempt
+  provenance. Import validates source attempts, writes explicit carry, force,
+  and manual-acceptance dispositions into the queue, and leaves execution to
+  the normal run path. Unchanged successes carry forward; failed, unfinished,
+  changed, and downstream jobs execute. Matrix combinations and array tasks
+  retain independent dispositions. Manual acceptance creates a destination
+  result with exit code zero and `accepted: true`, while `Origin` continues to
+  reference the immutable failed source result and output. See
+  [workflow reconciliation](../../cmd/rotari/workflow_reconcile.go),
+  [run planning](../../cmd/rotari/run_selection.go), and
+  [workflow integration tests](../../cmd/rotari/import_test.go).
 - An `ATTEMPT_ID` passed to `copy --job-id` identifies one exact execution
   attempt. A normal job ID selects the latest attempt. For an array task
   attempt, copy narrows the source command to a sparse array containing only
