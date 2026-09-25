@@ -90,8 +90,10 @@ jobs:
           name: go-api
           path: ${{ runner.temp }}/go-api
 
-      - name: Check example script
-        run: bash -n scripts/example.sh
+      - name: Check example scripts
+        run: |
+          bash -n scripts/example.sh
+          bash -n scripts/example-workflow.sh
 
       - name: Check generated Python CLI metadata
         run: |

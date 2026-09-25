@@ -45,9 +45,30 @@ func planRerunSelection(paths pathSet, queue Queue, selection string, jobIDs []s
 }
 
 func planImportedWorkflow(paths pathSet, queue Queue) (rerunPlan, error) {
-	plan, err := planQueuedSelectionByOrigin(paths, queue, "failed,unfinished", nil, "", true)
+	// Imported jobs without an origin are new work. They must not fall back to
+	// the project's last run, which the run server has already replaced with
+	// the run being planned.
+	withOrigin := Queue{Commands: make([]QueuedCommand, 0, len(queue.Commands))}
+	var fresh []QueuedCommand
+	for _, command := range queue.Commands {
+		if command.Origin == nil && len(command.TaskOrigins) == 0 {
+			fresh = append(fresh, command)
+		} else {
+			withOrigin.Commands = append(withOrigin.Commands, command)
+		}
+	}
+	plan, err := planQueuedSelectionByOrigin(paths, withOrigin, "failed,unfinished", nil, "", true)
 	if err != nil {
 		return rerunPlan{}, err
+	}
+	for _, command := range fresh {
+		if command.Array == nil {
+			plan.Execute[command.ID] = true
+			continue
+		}
+		for _, task := range model.ArrayTaskIDs(command.Array) {
+			plan.Execute[fmt.Sprintf("%s-%d", command.ID, task)] = true
+		}
 	}
 	for _, command := range queue.Commands {
 		if err := applyImportedCommandPlan(paths, command, &plan); err != nil {

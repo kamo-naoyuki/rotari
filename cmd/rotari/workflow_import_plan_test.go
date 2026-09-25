@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -179,5 +181,37 @@ func TestCmdImportPlanForFreshManifestHasNoSourceFields(t *testing.T) {
 	})
 	if text := string(output); !strings.HasPrefix(text, "execute job_id=") || strings.Contains(text, "source_") || strings.Contains(text, "job_name=") {
 		t.Fatalf("fresh human plan = %q", text)
+	}
+}
+
+func TestImportedWorkflowPlansNewJobsWithoutPreviousRunLookup(t *testing.T) {
+	baseDir := t.TempDir()
+	paths := writeWorkflowPipelineRun(t, baseDir)
+	manifest := mustExportWorkflow(t, baseDir, workflowPipelineRunID)
+	workflowJobByName(t, &manifest, "other").Command = []string{"true", "changed"}
+	manifest.Jobs = append(manifest.Jobs, workflow.Job{Name: "added", Command: []string{"true"}, Array: "1-2"})
+	if code := importEditedWorkflow(t, baseDir, manifest); code != 0 {
+		t.Fatalf("cmdImport exit code = %d", code)
+	}
+	// The run server registers the new run as LastRunID before planning, while
+	// that run has no summary yet.
+	if err := os.MkdirAll(filepath.Join(paths.RunsDir, "starting-run"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.MetaFile, Meta{LastRunID: "starting-run", Phase: "running"}); err != nil {
+		t.Fatal(err)
+	}
+	queue := loadCarryStateQueue(t, paths)
+	plan, err := planRerunSelection(paths, queue, "", nil, "", true)
+	if err != nil {
+		t.Fatalf("planRerunSelection: %v", err)
+	}
+	other := queuedCommandByName(t, queue, "other")
+	added := queuedCommandByName(t, queue, "added")
+	if !plan.Execute[other.ID] || !plan.Execute[added.ID+"-1"] || !plan.Execute[added.ID+"-2"] || plan.Execute["prepare-id"] {
+		t.Fatalf("execute = %#v", plan.Execute)
+	}
+	if _, carried := plan.CarriedOrigins[other.ID]; carried {
+		t.Fatalf("new job has a carried origin: %#v", plan.CarriedOrigins[other.ID])
 	}
 }

@@ -3,6 +3,9 @@
 /.rotari-state/
 /.example-state*/
 /.preview-state*/
+# Manifests written by scripts/example-workflow.sh under ROTARI_BASEDIR
+example-workflow.yaml
+example-workflow-rerun.yaml
 /*.test
 /coverage.out
 /coverage.html

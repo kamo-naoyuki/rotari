@@ -95,7 +95,9 @@
   provenance. Import validates source attempts, writes explicit carry, force,
   and manual-acceptance dispositions into the queue, and leaves execution to
   the normal run path. Unchanged successes carry forward; failed, unfinished,
-  changed, and downstream jobs execute. Matrix combinations and array tasks
+  changed, and downstream jobs execute. Imported jobs without an origin are
+  planned as new work and never consult the project's last run, which the run
+  server has already replaced with the run being planned. Matrix combinations and array tasks
   retain independent dispositions. A leaf without its own manifest attempt is
   recovered from the listed source run that supplied its command (the same
   latest-run rule as export), and a result carried into that run resolves to

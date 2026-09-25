@@ -248,6 +248,18 @@ To run the array job through Slurm instead, pass the optional flag. The local
 The first positional argument selects the project name, for example
 `./scripts/example.sh --slurm scheduler-demo`.
 
+For the workflow manifest flow, run:
+
+```sh
+./scripts/example-workflow.sh
+```
+
+It imports a small manifest with a stage, a matrix, and two failing jobs, then
+exports the finished run, fixes one job's command and accepts the other's
+failed result in the exported file, and imports it again. The second run
+executes only the fixed job; the others are reused or recorded as
+`success (accepted)`. See [Workflow manifests](#workflow-manifests).
+
 ## Python interface
 
 See the [Python client README](python/README.md) for installation, usage, and
