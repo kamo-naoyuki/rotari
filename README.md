@@ -22,7 +22,7 @@ Rotari is a lightweight, **serverless workflow engine** for experiments and buil
 
 | Plain shell (background jobs) | rotari |
 | --- | --- |
-| ![shell background jobs demo](https://kamo-naoyuki.github.io/rotari/demo-shell.gif) | ![rotari demo](https://kamo-naoyuki.github.io/rotari/demo-rotari.gif) |
+| <img src="https://kamo-naoyuki.github.io/rotari/demo-shell.gif" alt="shell background jobs demo" width="400"> | <img src="https://kamo-naoyuki.github.io/rotari/demo-rotari.gif" alt="rotari demo" width="400"> |
 
 
 Rotari is intentionally lightweight. It is for experiments and builds where **ordinary shell scripts are already a natural way to describe what should run**, but running those commands repeatedly starts to become difficult to manage.
