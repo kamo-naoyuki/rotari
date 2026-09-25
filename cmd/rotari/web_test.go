@@ -1943,27 +1943,41 @@ setTimeout(() => {
   const document = dom.window.document;
   if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
   const panels = document.querySelectorAll('.matrix-panel');
-  if (panels.length !== 1 || !panels[0].textContent.includes('Matrix: train')) { console.error(document.getElementById('app').innerHTML); process.exit(2); }
-  const cells = Array.from(panels[0].querySelectorAll('td.matrix-cell'));
-  const classes = cells.map(cell => cell.className.replace('matrix-cell ', ''));
-  if (JSON.stringify(classes) !== JSON.stringify(['matrix-success', 'matrix-success', 'matrix-success', 'matrix-failed'])) { console.error(classes); process.exit(3); }
-  const headers = Array.from(panels[0].querySelectorAll('th')).map(th => th.textContent);
-  if (!headers.includes('LR=b') || !headers.includes('SEED=2')) { console.error(headers); process.exit(4); }
-  const failedID = JSON.parse(cells[3].dataset.jobs)[0].id;
-  cells[3].click();
+  if (panels.length !== 1 || !panels[0].textContent.includes('Matrix: train') || !panels[0].textContent.includes('3/4 success, 1 failed')) { console.error(document.getElementById('app').innerHTML); process.exit(2); }
+  const panel = panels[0];
+  const controls = document.querySelector('.web-copy-controls');
+  if (!controls || !(panel.compareDocumentPosition(controls) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING)) { console.error('panel is not above the table controls'); process.exit(3); }
+  const content = panel.querySelector('.matrix-content');
+  if (!content.hidden) { console.error('panel is not collapsed by default'); process.exit(4); }
+  panel.querySelector('.matrix-toggle').click();
+  if (content.hidden) { console.error('toggle did not expand'); process.exit(5); }
+  const classes = () => Array.from(panel.querySelectorAll('td.matrix-cell')).map(cell => cell.className.replace('matrix-cell ', ''));
+  const rowHeaders = () => Array.from(panel.querySelectorAll('tbody th, tr > th:first-child')).map(th => th.textContent);
+  if (JSON.stringify(classes()) !== JSON.stringify(['matrix-success', 'matrix-success', 'matrix-success', 'matrix-failed'])) { console.error(classes()); process.exit(6); }
+  if (!rowHeaders().includes('LR=b')) { console.error(rowHeaders()); process.exit(7); }
+  const rows = panel.querySelector('select[data-axis="rows"]');
+  rows.value = 'SEED';
+  rows.dispatchEvent(new dom.window.Event('change'));
+  if (!rowHeaders().includes('SEED=2') || panel.querySelector('select[data-axis="columns"]').value !== 'LR') { console.error('axis swap failed', rowHeaders()); process.exit(8); }
+  const cells = Array.from(panel.querySelectorAll('td.matrix-cell'));
+  const failedCell = cells.find(cell => cell.classList.contains('matrix-failed'));
+  const failedID = JSON.parse(failedCell.dataset.jobs)[0].id;
+  failedCell.click();
   const box = document.getElementById('matrix-actions');
-  if (!box || !box.textContent.includes('failed')) { console.error('action box missing'); process.exit(5); }
+  if (!box || !box.textContent.includes('failed')) { console.error('action box missing'); process.exit(9); }
+  const nameCopy = box.querySelector('.matrix-actions-heading button.identity-copy');
+  if (!nameCopy || !nameCopy.dataset.copyValue.startsWith('train-')) { console.error('job name copy button missing'); process.exit(10); }
   const row = Array.from(document.querySelectorAll('tr[data-job-id]')).find(r => r.dataset.jobId === failedID);
   const tableHeaders = Array.from(row.closest('table').querySelectorAll('thead th')).map(th => th.textContent.trim());
   const rowButtons = row.children[tableHeaders.indexOf('Actions')].querySelectorAll('button').length;
   const boxButtons = Array.from(box.querySelectorAll('.matrix-actions-buttons button'));
-  if (rowButtons === 0 || boxButtons.length !== rowButtons + 1) { console.error('buttons', rowButtons, boxButtons.map(b => b.textContent)); process.exit(6); }
+  if (rowButtons === 0 || boxButtons.length !== rowButtons + 1) { console.error('buttons', rowButtons, boxButtons.map(b => b.textContent)); process.exit(11); }
   boxButtons[boxButtons.length - 1].click();
-  if (document.getElementById('matrix-actions') || !row.classList.contains('matrix-focus')) { console.error('show in table failed'); process.exit(7); }
-  cells[3].click();
-  dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape'}));
-  if (document.getElementById('matrix-actions')) { console.error('escape did not close'); process.exit(8); }
-  if (errors.length) { console.error(errors.join('\n')); process.exit(9); }
+  if (document.getElementById('matrix-actions') || !row.classList.contains('matrix-focus')) { console.error('show in table failed'); process.exit(12); }
+  failedCell.click();
+  document.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Escape'}));
+  if (document.getElementById('matrix-actions')) { console.error('escape did not close'); process.exit(13); }
+  if (errors.length) { console.error(errors.join('\n')); process.exit(14); }
   process.exit(0);
 }, 100);
 `

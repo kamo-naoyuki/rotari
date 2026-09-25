@@ -439,11 +439,34 @@ section {
   }
 }
 .matrix-panel {
-  margin: 12px 0 18px;
+  background: linear-gradient(
+    135deg,
+    rgba(29, 39, 49, 0.95),
+    rgba(20, 29, 38, 0.92)
+  );
+  border: 1px solid #385160;
+  padding: 18px;
+  margin: 16px 0 20px;
 }
-.matrix-panel h3 {
-  margin: 0 0 6px;
-  font-size: 14px;
+.matrix-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.matrix-heading h2 {
+  margin: 0;
+}
+.matrix-summary {
+  margin-left: auto;
+}
+.matrix-content {
+  margin-top: 12px;
+}
+.matrix-axes {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+  color: var(--muted);
 }
 .matrix-grid {
   border-collapse: collapse;

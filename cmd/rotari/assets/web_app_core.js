@@ -601,7 +601,6 @@ function renderRun(q, runID) {
     '</p><pre class="log">Retry from a terminal:\n' +
     esc(copy) +
     "</pre>" +
-    renderMatrixPanels(run.jobs || [], !!run.running) +
     (jobs
       ? '<table class="runs"><thead><tr><th data-sort="name"><input id="select-all-jobs" type="checkbox" aria-label="Select all jobs"> job_name / job_id / attempt_id</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="exit">Exit / error</th><th data-sort="output"></th></tr></thead><tbody>' +
         jobs +

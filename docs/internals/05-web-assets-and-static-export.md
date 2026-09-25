@@ -150,23 +150,29 @@ independently display a prior attempt's result, timestamps, and log. The log
 endpoint validates that an optional attempt ID belongs to its requested run and
 job before reading that attempt directory.
 
-A run page draws one grid per matrix group above the jobs table
-([web_app_matrix.js](../../cmd/rotari/assets/web_app_matrix.js)). `LoadJobs`
-attaches each member's group ID, base name, dimensions, and values from the
-run's command snapshot; it leaves out the base environment, which may hold
-secrets. The first dimension forms rows and the second columns; further
-dimensions split the group into one grid per remaining combination. A cell
-takes the worst state of its jobs (array tasks share a cell and show
-`succeeded/total`), classified from the same resolved `result` as the jobs
-table. Clicking a cell opens a box, attached to `document.body` so the
-periodic re-render does not remove it, that lists each of the cell's jobs with
-a copy of its table row's action buttons plus `Show in table`. A copy presses
-the button at the same position in the current row, so every action, including
-ones added by later render steps, behaves exactly as in the table.
-`restoreMatrixActions` runs at the end of each render to move the box to the
-re-rendered cell, rebuild it when the cell's jobs changed, or close it when the
-cell is gone. Jobs whose matrix provenance was cleared by a partial copy or
-change appear only in the table. Covered by `TestWebRunViewDrawsMatrixGrid` in
+A run page adds one collapsible section per matrix group, collapsed by default,
+between the run graphics and the job table controls
+([web_app_matrix.js](../../cmd/rotari/assets/web_app_matrix.js)).
+`addMatrixPanels` runs at the end of each render, like the other run
+sections, and its header shows the group's success and failure counts.
+`LoadJobs` attaches each member's group ID, base name, dimensions, and values
+from the run's command snapshot; it leaves out the base environment, which may
+hold secrets. Rows and columns default to the first two dimensions and can be
+switched with the section's selectors (choosing the other axis's dimension
+swaps them); remaining dimensions split the group into one grid per
+combination. Cells are keyed by values in dimension order, so any axis choice
+finds the same jobs. Expansion and axis choices are kept per group while the
+page is open. A cell takes the worst state of its jobs (array tasks share a
+cell and show `succeeded/total`), classified from the same resolved `result`
+as the jobs table. Clicking a cell opens a box, attached to `document.body` so
+the periodic re-render does not remove it, that lists each of the cell's jobs
+with a job-name copy button and a copy of its table row's action buttons plus
+`Show in table`. A copy presses the button at the same position in the current
+row, so every action, including ones added by later render steps, behaves
+exactly as in the table. `restoreMatrixActions` moves the box to the
+re-rendered cell, rebuilds it when the cell's jobs changed, or closes it when
+the cell is gone or collapsed. Jobs whose matrix provenance was cleared by a
+partial copy or change appear only in the table. Covered by `TestWebRunViewDrawsMatrixGrid` in
 [cmd/rotari/web_test.go](../../cmd/rotari/web_test.go).
 
 Report generation redacts known hostnames and paths, then applies heuristic

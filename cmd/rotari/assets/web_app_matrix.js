@@ -1,10 +1,14 @@
-// Matrix panels summarize each matrix group of a run as a grid above the job
-// table: the first dimension forms the rows, the second the columns, and any
-// further dimensions split the group into one grid per remaining combination.
-// A cell's color is the worst state of its jobs (several for array tasks), and
-// clicking it opens a box with each job's table-row actions.
+// Matrix panels summarize each matrix group of a run as a collapsible grid
+// section between the run graphics and the job table controls. Two chosen
+// dimensions form the rows and columns, and any further dimensions split the
+// group into one grid per remaining combination. A cell's color is the worst
+// state of its jobs (several for array tasks), and clicking it opens a box
+// with each job's table-row actions.
 
 const matrixStateOrder = ["failed", "blocked", "running", "pending", "success"];
+// Per matrix group: whether its section is expanded, and the chosen axes.
+const expandedMatrixGroups = {};
+const matrixAxes = {};
 
 // matrixJobState classifies a job like the job table: a result decides
 // success, blocked, or failed; a job without one is running while the run is.
@@ -16,8 +20,14 @@ function matrixJobState(job, running) {
   return "failed";
 }
 
-function matrixKey(values) {
-  return values.map((value) => value.name + "=" + value.value).join("\u0000");
+// matrixKey identifies a combination by its values in the group's dimension
+// order, whatever order the values are given in.
+function matrixKey(dimensions, values) {
+  const byName = {};
+  values.forEach((value) => (byName[value.name] = value.value));
+  return dimensions
+    .map((dimension) => dimension.name + "=" + byName[dimension.name])
+    .join("\u0000");
 }
 
 function matrixCombinations(dimensions) {
@@ -42,32 +52,28 @@ function renderMatrixCell(groupID, key, cellJobs, running) {
   );
   const succeeded = states.filter((value) => value === "success").length;
   const label = cellJobs.length > 1 ? succeeded + "/" + cellJobs.length : state;
-  // List the jobs worth opening first, so a click shows a failure if any.
-  const ordered = cellJobs
+  // List the jobs worth opening first, so a failure comes first in the box.
+  const entries = cellJobs
     .map((job, index) => ({
-      job,
-      rank: matrixStateOrder.indexOf(states[index]),
-    }))
-    .sort((left, right) => left.rank - right.rank)
-    .map((entry) => entry.job.id);
-  const title = cellJobs
-    .map((job, index) => (job.name || job.id) + ": " + states[index])
-    .join("\n");
-  const jobsByID = {};
-  cellJobs.forEach((job, index) => {
-    jobsByID[job.id] = {
       id: job.id,
       name: job.name || job.id,
       state: states[index],
-    };
-  });
+    }))
+    .sort(
+      (left, right) =>
+        matrixStateOrder.indexOf(left.state) -
+        matrixStateOrder.indexOf(right.state),
+    );
+  const title = entries
+    .map((entry) => entry.name + ": " + entry.state)
+    .join("\n");
   return (
     '<td class="matrix-cell matrix-' +
     state +
     '" data-cell-key="' +
     esc(groupID + "\u0001" + key) +
     '" data-jobs="' +
-    esc(JSON.stringify(ordered.map((id) => jobsByID[id]))) +
+    esc(JSON.stringify(entries)) +
     '" title="' +
     esc(title) +
     '" onclick="openMatrixCell(this)">' +
@@ -76,9 +82,8 @@ function renderMatrixCell(groupID, key, cellJobs, running) {
   );
 }
 
-function renderMatrixGrid(groupID, dimensions, fixed, cells, running) {
-  const rows = dimensions[0];
-  const columns = dimensions.length > 1 ? dimensions[1] : null;
+function renderMatrixGrid(group, rows, columns, fixed, running) {
+  const dimensions = group.matrix.dimensions;
   const columnValues = columns ? columns.values : [null];
   const header =
     "<tr><th>" +
@@ -96,12 +101,17 @@ function renderMatrixGrid(groupID, dimensions, fixed, cells, running) {
     .map((rowValue) => {
       const cellsHTML = columnValues
         .map((columnValue) => {
-          const values = [{ name: rows.name, value: rowValue }];
+          const values = fixed.concat([{ name: rows.name, value: rowValue }]);
           if (columnValue !== null) {
             values.push({ name: columns.name, value: columnValue });
           }
-          const key = matrixKey(values.concat(fixed));
-          return renderMatrixCell(groupID, key, cells[key], running);
+          const key = matrixKey(dimensions, values);
+          return renderMatrixCell(
+            group.matrix.group_id,
+            key,
+            group.cells[key],
+            running,
+          );
         })
         .join("");
       return (
@@ -121,9 +131,67 @@ function renderMatrixGrid(groupID, dimensions, fixed, cells, running) {
   return caption + '<table class="matrix-grid">' + header + body + "</table>";
 }
 
-// renderMatrixPanels returns the grids for every matrix group among jobs, or
-// an empty string when the run has none.
-function renderMatrixPanels(jobs, running) {
+// matrixGroupAxes returns the group's row and column dimensions, defaulting
+// to its first two.
+function matrixGroupAxes(group) {
+  const dimensions = group.matrix.dimensions;
+  const names = dimensions.map((dimension) => dimension.name);
+  const chosen = matrixAxes[group.matrix.group_id] || {};
+  const rows = names.includes(chosen.rows) ? chosen.rows : names[0];
+  let columns = names.includes(chosen.columns) ? chosen.columns : names[1];
+  if (columns === rows) columns = names.find((name) => name !== rows);
+  const find = (name) =>
+    dimensions.find((dimension) => dimension.name === name);
+  return { rows: find(rows), columns: columns ? find(columns) : null };
+}
+
+function renderMatrixGroupContent(group, running) {
+  const dimensions = group.matrix.dimensions;
+  const axes = matrixGroupAxes(group);
+  const shown = [axes.rows.name, axes.columns && axes.columns.name];
+  const rest = dimensions.filter(
+    (dimension) => !shown.includes(dimension.name),
+  );
+  const select = (axis, selected) =>
+    "<label>" +
+    (axis === "rows" ? "Rows" : "Columns") +
+    ' <select class="matrix-axis" data-axis="' +
+    axis +
+    '" data-group-id="' +
+    esc(group.matrix.group_id) +
+    '" onchange="setMatrixAxis(this)">' +
+    dimensions
+      .map(
+        (dimension) =>
+          '<option value="' +
+          esc(dimension.name) +
+          '"' +
+          (dimension.name === selected ? " selected" : "") +
+          ">" +
+          esc(dimension.name) +
+          "</option>",
+      )
+      .join("") +
+    "</select></label>";
+  const controls =
+    dimensions.length > 1
+      ? '<div class="matrix-axes">' +
+        select("rows", axes.rows.name) +
+        select("columns", axes.columns.name) +
+        "</div>"
+      : "";
+  return (
+    controls +
+    matrixCombinations(rest)
+      .map((fixed) =>
+        renderMatrixGrid(group, axes.rows, axes.columns, fixed, running),
+      )
+      .join("")
+  );
+}
+
+// matrixGroups collects the run's matrix members by group, in job order.
+function matrixGroups(jobs) {
   const groups = [];
   const byGroup = {};
   jobs.forEach((job) => {
@@ -131,48 +199,119 @@ function renderMatrixPanels(jobs, running) {
     if (!matrix || !matrix.group_id || !(matrix.dimensions || []).length)
       return;
     if (!byGroup[matrix.group_id]) {
-      byGroup[matrix.group_id] = { matrix: matrix, cells: {} };
+      byGroup[matrix.group_id] = { matrix: matrix, cells: {}, jobs: [] };
       groups.push(byGroup[matrix.group_id]);
     }
-    // Order values by dimension so keys match the grid's lookups.
-    const values = matrix.dimensions.map((dimension) =>
-      (matrix.values || []).find((value) => value.name === dimension.name),
-    );
-    if (values.some((value) => !value)) return;
-    const key = matrixKey(values);
-    (byGroup[matrix.group_id].cells[key] =
-      byGroup[matrix.group_id].cells[key] || []).push(job);
+    const group = byGroup[matrix.group_id];
+    group.jobs.push(job);
+    const values = matrix.values || [];
+    if (
+      matrix.dimensions.some(
+        (dimension) => !values.some((value) => value.name === dimension.name),
+      )
+    )
+      return;
+    const key = matrixKey(matrix.dimensions, values);
+    (group.cells[key] = group.cells[key] || []).push(job);
   });
-  return groups
-    .map((group) => {
-      const dimensions = group.matrix.dimensions;
-      const shown = dimensions.slice(0, 2);
-      const rest = dimensions.slice(2);
-      // Keys list dimensions in order, so the fixed values follow the
-      // shown ones when looked up.
-      const grids = matrixCombinations(rest)
-        .map((fixed) =>
-          renderMatrixGrid(
-            group.matrix.group_id,
-            shown,
-            fixed,
-            group.cells,
-            running,
-          ),
-        )
-        .join("");
-      const title = group.matrix.base_name || group.matrix.group_id;
-      return (
-        '<section class="matrix-panel"><h3>Matrix: ' +
-        esc(title) +
-        ' <span class="meta">(' +
-        esc(dimensions.map((dimension) => dimension.name).join(" × ")) +
-        ")</span></h3>" +
-        grids +
-        "</section>"
-      );
-    })
-    .join("");
+  return groups;
+}
+
+function currentMatrixRun() {
+  const parts = pageParts();
+  if (parts[0] !== "project" || parts[2] !== "run") return null;
+  const queue = state.projects.find(
+    (item) => item.project_name === decodeURIComponent(parts[1]),
+  );
+  return (
+    (queue &&
+      queue.runs.find(
+        (item) => item.run_id === decodeURIComponent(parts[3]),
+      )) ||
+    null
+  );
+}
+
+function applyMatrixExpanded(section, groupID) {
+  const expanded = !!expandedMatrixGroups[groupID];
+  const button = section.querySelector(".matrix-toggle");
+  button.textContent = expanded ? "-" : "+";
+  button.setAttribute("aria-expanded", String(expanded));
+  section.querySelector(".matrix-content").hidden = !expanded;
+}
+
+// addMatrixPanels runs after each render. It adds one section per matrix
+// group, collapsed unless opened, just above the job table controls, then
+// restores an open action box.
+function addMatrixPanels() {
+  const run = currentMatrixRun();
+  const app = document.getElementById("app");
+  if (!run || !app) return;
+  app.querySelectorAll(".matrix-panel").forEach((panel) => panel.remove());
+  const anchor =
+    app.querySelector(".web-copy-controls") || app.querySelector("table.runs");
+  matrixGroups(run.jobs || []).forEach((group) => {
+    const groupID = group.matrix.group_id;
+    const states = group.jobs.map((job) => matrixJobState(job, !!run.running));
+    const count = (value) => states.filter((item) => item === value).length;
+    const section = document.createElement("section");
+    section.className = "matrix-panel";
+    section.dataset.groupId = groupID;
+    section.innerHTML =
+      '<div class="matrix-heading"><button type="button" class="matrix-toggle"></button><h2>Matrix: ' +
+      esc(group.matrix.base_name || groupID) +
+      '</h2><span class="meta">' +
+      esc(
+        group.matrix.dimensions.map((dimension) => dimension.name).join(" × "),
+      ) +
+      '</span><span class="meta matrix-summary">' +
+      esc(
+        count("success") +
+          "/" +
+          states.length +
+          " success" +
+          (count("failed") ? ", " + count("failed") + " failed" : ""),
+      ) +
+      '</span></div><div class="matrix-content">' +
+      renderMatrixGroupContent(group, !!run.running) +
+      "</div>";
+    section.querySelector(".matrix-toggle").onclick = () => {
+      expandedMatrixGroups[groupID] = !expandedMatrixGroups[groupID];
+      applyMatrixExpanded(section, groupID);
+      restoreMatrixActions();
+    };
+    applyMatrixExpanded(section, groupID);
+    if (anchor) anchor.before(section);
+    else app.append(section);
+  });
+  restoreMatrixActions();
+}
+
+// setMatrixAxis sets a group's row or column dimension; choosing the one the
+// other axis uses swaps them.
+function setMatrixAxis(select) {
+  const groupID = select.dataset.groupId;
+  const run = currentMatrixRun();
+  const group =
+    run &&
+    matrixGroups(run.jobs || []).find(
+      (item) => item.matrix.group_id === groupID,
+    );
+  if (!group) return;
+  const axes = matrixGroupAxes(group);
+  const next = { rows: axes.rows.name, columns: axes.columns.name };
+  const other = select.dataset.axis === "rows" ? "columns" : "rows";
+  if (next[other] === select.value) next[other] = next[select.dataset.axis];
+  next[select.dataset.axis] = select.value;
+  matrixAxes[groupID] = next;
+  const section = Array.from(document.querySelectorAll(".matrix-panel")).find(
+    (panel) => panel.dataset.groupId === groupID,
+  );
+  if (section) {
+    section.querySelector(".matrix-content").innerHTML =
+      renderMatrixGroupContent(group, !!run.running);
+  }
+  closeMatrixActions();
 }
 
 // The open action box lives outside #app, so the periodic re-render does not
@@ -244,12 +383,16 @@ function openMatrixCell(cell) {
     entry.className = "matrix-actions-job";
     const heading = document.createElement("div");
     heading.className = "matrix-actions-heading";
-    const name = document.createElement("strong");
-    name.textContent = job.name;
-    const state = document.createElement("span");
-    state.className = "matrix-" + job.state;
-    state.textContent = " " + job.state;
-    heading.append(name, state);
+    heading.innerHTML =
+      "<strong>" +
+      esc(job.name) +
+      "</strong>" +
+      copyIconForValue(job.name, "job name") +
+      ' <span class="matrix-' +
+      esc(job.state) +
+      '">' +
+      esc(job.state) +
+      "</span>";
     const buttons = document.createElement("div");
     buttons.className = "matrix-actions-buttons";
     matrixRowActions(matrixJobRow(job.id)).forEach((original, index) => {
@@ -265,7 +408,7 @@ function openMatrixCell(cell) {
         closeMatrixActions();
         if (current) current.click();
       };
-      buttons.append(copy, " ");
+      buttons.append(copy);
     });
     const show = document.createElement("button");
     show.type = "button";
@@ -282,13 +425,15 @@ function openMatrixCell(cell) {
   positionMatrixActions(box, cell);
 }
 
-// restoreMatrixActions runs after each render: it moves the open box to the
-// re-rendered cell, rebuilds it when the cell's jobs changed, and closes it
-// when the cell is gone.
+// restoreMatrixActions moves the open box to the re-rendered cell, rebuilds
+// it when the cell's jobs changed, and closes it when the cell is gone or
+// hidden.
 function restoreMatrixActions() {
   if (!openMatrixCellKey) return;
   const cell = Array.from(document.querySelectorAll("td.matrix-cell")).find(
-    (candidate) => candidate.dataset.cellKey === openMatrixCellKey,
+    (candidate) =>
+      candidate.dataset.cellKey === openMatrixCellKey &&
+      !candidate.closest(".matrix-content[hidden]"),
   );
   const box = document.getElementById("matrix-actions");
   if (!cell) {
