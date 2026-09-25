@@ -118,3 +118,29 @@ func TestCompileRejectsInvalidManifestValues(t *testing.T) {
 		})
 	}
 }
+
+func TestManifestRoundTripsFinishedDependencies(t *testing.T) {
+	for format, input := range map[string]string{
+		"yaml": "version: 1\njobs:\n  - name: sweep\n    command: [train]\n  - name: collect\n    command: [collect]\n    depends_on_finished: [sweep]\n",
+		"toml": "version = 1\n[[jobs]]\nname = \"sweep\"\ncommand = [\"train\"]\n[[jobs]]\nname = \"collect\"\ncommand = [\"collect\"]\ndepends_on_finished = [\"sweep\"]\n",
+	} {
+		queue := compileFormatFixture(t, format, input)
+		if got := queue.Commands[1].DependsOnFinished; !reflect.DeepEqual(got, []string{"sweep"}) {
+			t.Fatalf("Compile(%s) depends_on_finished = %v, want [sweep]", format, got)
+		}
+		manifest, err := FromQueue(queue)
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoded, err := Encode(manifest, format)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(encoded), "depends_on_finished") {
+			t.Fatalf("Encode(%s) dropped depends_on_finished:\n%s", format, encoded)
+		}
+		if again := compileFormatFixture(t, format, string(encoded)); !EquivalentCommand(again.Commands[1], queue.Commands[1]) {
+			t.Fatalf("round trip changed collect: %#v, want %#v", again.Commands[1], queue.Commands[1])
+		}
+	}
+}

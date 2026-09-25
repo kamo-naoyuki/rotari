@@ -938,7 +938,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		if jobSpec.ArrayTaskID != nil {
 			taskText = strconv.Itoa(*jobSpec.ArrayTaskID)
 		}
-		dependsOn := strings.Join(jobSpec.DependsOn, ",")
+		dependsOn := model.FormatDependencies(jobSpec.DependsOn, jobSpec.DependsOnFinished, ",")
 		if dependsOn == "" {
 			dependsOn = "-"
 		}
@@ -1112,7 +1112,7 @@ func showQueueContent(paths state.ProjectPaths, queue model.Queue, jobs []model.
 		if stage == "" {
 			stage = "-"
 		}
-		dependsOn := strings.Join(job.DependsOn, ",")
+		dependsOn := model.FormatDependencies(job.DependsOn, job.DependsOnFinished, ",")
 		if dependsOn == "" {
 			dependsOn = "-"
 		}
@@ -1155,8 +1155,8 @@ func showQueueJob(paths state.ProjectPaths, queue model.Queue, jobID string) int
 			fmt.Printf("%s %d (range %d-%d)\n", cyan("Array task:"), *job.ArrayTaskID, job.ArrayFirst, job.ArrayLast)
 		}
 		fmt.Printf("%s %s\n", cyan("Executor:"), queueExecutorText(queue, job))
-		if len(job.DependsOn) > 0 {
-			fmt.Printf("%s %s\n", cyan("Depends on:"), strings.Join(job.DependsOn, ", "))
+		if dependencies := model.FormatDependencies(job.DependsOn, job.DependsOnFinished, ", "); dependencies != "" {
+			fmt.Printf("%s %s\n", cyan("Depends on:"), dependencies)
 		}
 		if job.WorkingDirectory != "" {
 			fmt.Printf("%s %s\n", cyan("Working directory:"), job.WorkingDirectory)
@@ -1241,7 +1241,7 @@ func sameJobSpec(left, right model.JobSpec) bool {
 	if (left.ArrayTaskID == nil) != (right.ArrayTaskID == nil) || (left.ArrayTaskID != nil && *left.ArrayTaskID != *right.ArrayTaskID) {
 		return false
 	}
-	if !slicesEqual(left.Command, right.Command) || !slicesEqual(left.ExecutorOptions, right.ExecutorOptions) || !slicesEqual(left.DependsOn, right.DependsOn) {
+	if !slicesEqual(left.Command, right.Command) || !slicesEqual(left.ExecutorOptions, right.ExecutorOptions) || !slicesEqual(left.DependsOn, right.DependsOn) || !slicesEqual(left.DependsOnFinished, right.DependsOnFinished) {
 		return false
 	}
 	return true
@@ -1684,8 +1684,8 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	if len(options) > 0 {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Executor options:"), strings.Join(options, " "))
 	}
-	if dependencies := jobSpecs[jobID].DependsOn; len(dependencies) > 0 {
-		fmt.Fprintf(writer, "%s %s\n", cyan("Depends on:"), strings.Join(dependencies, ", "))
+	if dependencies := model.FormatDependencies(jobSpecs[jobID].DependsOn, jobSpecs[jobID].DependsOnFinished, ", "); dependencies != "" {
+		fmt.Fprintf(writer, "%s %s\n", cyan("Depends on:"), dependencies)
 	}
 	submittedAt, finishedAt := state.ReadJobTimestamp(runDir, jobID, "submitted_at"), state.ReadJobTimestamp(runDir, jobID, "finished_at")
 	if !latest {

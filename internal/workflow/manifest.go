@@ -27,19 +27,21 @@ type Source struct {
 }
 
 type Job struct {
-	Name             string     `json:"name,omitempty" yaml:"name,omitempty" toml:"name,omitempty"`
-	Command          []string   `json:"command" yaml:"command" toml:"command"`
-	Stage            string     `json:"stage,omitempty" yaml:"stage,omitempty" toml:"stage,omitempty"`
-	DependsOn        []string   `json:"depends_on,omitempty" yaml:"depends_on,omitempty" toml:"depends_on,omitempty"`
-	Executor         string     `json:"executor,omitempty" yaml:"executor,omitempty" toml:"executor,omitempty"`
-	ExecutorOptions  []string   `json:"executor_options,omitempty" yaml:"executor_options,omitempty" toml:"executor_options,omitempty"`
-	WorkingDirectory string     `json:"working_directory,omitempty" yaml:"working_directory,omitempty" toml:"working_directory,omitempty"`
-	Environment      []string   `json:"environment,omitempty" yaml:"environment,omitempty" toml:"environment,omitempty"`
-	Array            string     `json:"array,omitempty" yaml:"array,omitempty" toml:"array,omitempty"`
-	Matrix           []string   `json:"matrix,omitempty" yaml:"matrix,omitempty" toml:"matrix,omitempty"`
-	Status           string     `json:"status,omitempty" yaml:"status,omitempty" toml:"status,omitempty"`
-	AttemptID        string     `json:"attempt_id,omitempty" yaml:"attempt_id,omitempty" toml:"attempt_id,omitempty"`
-	Instances        []Instance `json:"instances,omitempty" yaml:"instances,omitempty" toml:"instances,omitempty"`
+	Name      string   `json:"name,omitempty" yaml:"name,omitempty" toml:"name,omitempty"`
+	Command   []string `json:"command" yaml:"command" toml:"command"`
+	Stage     string   `json:"stage,omitempty" yaml:"stage,omitempty" toml:"stage,omitempty"`
+	DependsOn []string `json:"depends_on,omitempty" yaml:"depends_on,omitempty" toml:"depends_on,omitempty"`
+	// DependsOnFinished names prerequisites that only need to finish.
+	DependsOnFinished []string   `json:"depends_on_finished,omitempty" yaml:"depends_on_finished,omitempty" toml:"depends_on_finished,omitempty"`
+	Executor          string     `json:"executor,omitempty" yaml:"executor,omitempty" toml:"executor,omitempty"`
+	ExecutorOptions   []string   `json:"executor_options,omitempty" yaml:"executor_options,omitempty" toml:"executor_options,omitempty"`
+	WorkingDirectory  string     `json:"working_directory,omitempty" yaml:"working_directory,omitempty" toml:"working_directory,omitempty"`
+	Environment       []string   `json:"environment,omitempty" yaml:"environment,omitempty" toml:"environment,omitempty"`
+	Array             string     `json:"array,omitempty" yaml:"array,omitempty" toml:"array,omitempty"`
+	Matrix            []string   `json:"matrix,omitempty" yaml:"matrix,omitempty" toml:"matrix,omitempty"`
+	Status            string     `json:"status,omitempty" yaml:"status,omitempty" toml:"status,omitempty"`
+	AttemptID         string     `json:"attempt_id,omitempty" yaml:"attempt_id,omitempty" toml:"attempt_id,omitempty"`
+	Instances         []Instance `json:"instances,omitempty" yaml:"instances,omitempty" toml:"instances,omitempty"`
 }
 
 type Instance struct {
@@ -236,7 +238,8 @@ func Compile(manifest Manifest, nextID func() string) (model.Queue, error) {
 			command := model.QueuedCommand{
 				ID: nextID(), Command: append([]string(nil), job.Command...), Name: name,
 				Stage: job.Stage, DependsOn: append([]string(nil), job.DependsOn...),
-				Executor: job.Executor, ExecutorOptions: append([]string(nil), job.ExecutorOptions...),
+				DependsOnFinished: append([]string(nil), job.DependsOnFinished...),
+				Executor:          job.Executor, ExecutorOptions: append([]string(nil), job.ExecutorOptions...),
 				WorkingDirectory: job.WorkingDirectory, Environment: environment, Array: cloneArray(array),
 			}
 			if matrixGroupID != "" {

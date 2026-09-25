@@ -364,3 +364,59 @@ func TestFormatRunCompletionIncludesRunNameAndFailedJobHint(t *testing.T) {
 		}
 	}
 }
+
+func TestExecuteMixedRunStartsFinishedDependentAfterFailure(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(baseDir, "collected")
+	for _, args := range [][]string{
+		{"--job-name", "sweep", "--", "/bin/sh", "-c", "exit 3"},
+		{"--job-name", "strict", "--depends-on", "sweep", "--", "true"},
+		{"--job-name", "collect", "--depends-on-finished", "sweep", "--", "/bin/sh", "-c", "echo run >> " + marker},
+	} {
+		if code := cmdAdd(append([]string{"--basedir", baseDir, "--project-name", "default", "--quiet"}, args...)); code != 0 {
+			t.Fatalf("cmdAdd(%v) exit = %d", args, code)
+		}
+	}
+	if code := executeMixedRun(paths, "run-1", "", 2, 1, 0, "", nil, "", nil, "", true, nil, nil); code == 0 {
+		t.Fatal("executeMixedRun exit = 0, want failure from sweep")
+	}
+	summary, err := state.LoadRunSummary(filepath.Join(paths.RunsDir, "run-1", "summary.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	results := model.ResultsByID(summary.Results)
+	commands, err := state.LoadQueue(filepath.Join(paths.RunsDir, "run-1", "commands.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := make(map[string]string)
+	for _, command := range commands.Commands {
+		ids[command.Name] = command.ID
+	}
+	if results[ids["collect"]].ExitCode != 0 || results[ids["strict"]].Error != "blocked by failed dependency" {
+		t.Fatalf("results = %#v, want collect to succeed and strict to be blocked", results)
+	}
+
+	var output bytes.Buffer
+	if code := captureShowStdout(t, &output, func() int { return showRun(paths, "run-1", showJobFilter{}) }); code != 0 || !strings.Contains(output.String(), "finished:sweep") {
+		t.Fatalf("showRun code=%d output does not mark the finished dependency:\n%s", code, output.String())
+	}
+
+	// A failed-only rerun re-executes sweep, so collect runs again too.
+	if err := writeJSON(paths.QueueFile, commands); err != nil {
+		t.Fatal(err)
+	}
+	executeMixedRun(paths, "run-2", "", 2, 1, 0, "", nil, "failed", nil, "run-1", true, nil, nil)
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runs := strings.Count(string(data), "run"); runs != 2 {
+		t.Fatalf("collect ran %d times, want 2 (once per run)", runs)
+	}
+}

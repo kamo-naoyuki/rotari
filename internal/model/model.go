@@ -17,23 +17,26 @@ type Queue struct {
 }
 
 type QueuedCommand struct {
-	ID               string                `json:"id"`
-	Command          []string              `json:"command"`
-	WorkingDirectory string                `json:"working_directory,omitempty"`
-	Executor         string                `json:"executor,omitempty"`
-	ExecutorOptions  []string              `json:"executor_options,omitempty"`
-	Environment      []string              `json:"environment,omitempty"`
-	Name             string                `json:"name,omitempty"`
-	Stage            string                `json:"stage,omitempty"`
-	DependsOn        []string              `json:"depends_on,omitempty"`
-	Origin           *JobOrigin            `json:"origin,omitempty"`
-	Array            *ArraySpec            `json:"array,omitempty"`
-	TaskOrigins      map[string]*JobOrigin `json:"task_origins,omitempty"`
-	Matrix           *MatrixSpec           `json:"matrix,omitempty"`
-	Accepted         bool                  `json:"accepted,omitempty"`
-	TaskAccepted     map[string]bool       `json:"task_accepted,omitempty"`
-	Force            bool                  `json:"force,omitempty"`
-	TaskForce        map[string]bool       `json:"task_force,omitempty"`
+	ID               string   `json:"id"`
+	Command          []string `json:"command"`
+	WorkingDirectory string   `json:"working_directory,omitempty"`
+	Executor         string   `json:"executor,omitempty"`
+	ExecutorOptions  []string `json:"executor_options,omitempty"`
+	Environment      []string `json:"environment,omitempty"`
+	Name             string   `json:"name,omitempty"`
+	Stage            string   `json:"stage,omitempty"`
+	DependsOn        []string `json:"depends_on,omitempty"`
+	// DependsOnFinished names prerequisites that must finish, whatever their
+	// result, before the job starts (Slurm's afterany).
+	DependsOnFinished []string              `json:"depends_on_finished,omitempty"`
+	Origin            *JobOrigin            `json:"origin,omitempty"`
+	Array             *ArraySpec            `json:"array,omitempty"`
+	TaskOrigins       map[string]*JobOrigin `json:"task_origins,omitempty"`
+	Matrix            *MatrixSpec           `json:"matrix,omitempty"`
+	Accepted          bool                  `json:"accepted,omitempty"`
+	TaskAccepted      map[string]bool       `json:"task_accepted,omitempty"`
+	Force             bool                  `json:"force,omitempty"`
+	TaskForce         map[string]bool       `json:"task_force,omitempty"`
 }
 
 type ArraySpec struct {
@@ -244,12 +247,15 @@ type JobSpec struct {
 	Name             string   `json:"name,omitempty"`
 	Stage            string   `json:"stage,omitempty"`
 	DependsOn        []string `json:"depends_on,omitempty"`
-	ArrayGroup       string   `json:"array_group,omitempty"`
-	ArrayTaskID      *int     `json:"array_task_id,omitempty"`
-	ArrayFirst       int      `json:"array_first,omitempty"`
-	ArrayLast        int      `json:"array_last,omitempty"`
-	ArraySize        int      `json:"array_size,omitempty"`
-	Environment      []string `json:"environment,omitempty"`
+	// DependsOnFinished names prerequisites that must finish, whatever their
+	// result, before the job starts.
+	DependsOnFinished []string `json:"depends_on_finished,omitempty"`
+	ArrayGroup        string   `json:"array_group,omitempty"`
+	ArrayTaskID       *int     `json:"array_task_id,omitempty"`
+	ArrayFirst        int      `json:"array_first,omitempty"`
+	ArrayLast         int      `json:"array_last,omitempty"`
+	ArraySize         int      `json:"array_size,omitempty"`
+	Environment       []string `json:"environment,omitempty"`
 }
 
 type RuleDiagnosis struct {
@@ -407,6 +413,7 @@ func queueCommandJob(queued QueuedCommand, id, name string, taskID *int) JobSpec
 	job := JobSpec{
 		ID: id, Command: queued.Command, WorkingDirectory: queued.WorkingDirectory, Name: name,
 		Executor: queued.Executor, ExecutorOptions: queued.ExecutorOptions, Environment: queued.Environment, Stage: queued.Stage, DependsOn: queued.DependsOn,
+		DependsOnFinished: queued.DependsOnFinished,
 	}
 	if taskID != nil {
 		job.ArrayGroup = queued.ID
@@ -420,16 +427,52 @@ func queueCommandJob(queued QueuedCommand, id, name string, taskID *int) JobSpec
 
 func expandStageDependencies(jobs []JobSpec, stageJobs map[string][]string) {
 	for index := range jobs {
-		dependencies := make([]string, 0, len(jobs[index].DependsOn))
-		for _, dependency := range jobs[index].DependsOn {
-			if stageMembers, ok := stageJobs[dependency]; ok {
-				dependencies = append(dependencies, stageMembers...)
-			} else {
-				dependencies = append(dependencies, dependency)
-			}
+		jobs[index].DependsOn = expandGroupNames(jobs[index].DependsOn, stageJobs)
+		if jobs[index].DependsOnFinished != nil {
+			jobs[index].DependsOnFinished = expandGroupNames(jobs[index].DependsOnFinished, stageJobs)
 		}
-		jobs[index].DependsOn = dependencies
 	}
+}
+
+func expandGroupNames(names []string, groups map[string][]string) []string {
+	expanded := make([]string, 0, len(names))
+	for _, name := range names {
+		if members, ok := groups[name]; ok {
+			expanded = append(expanded, members...)
+		} else {
+			expanded = append(expanded, name)
+		}
+	}
+	return expanded
+}
+
+// FormatDependencies joins dependsOn and dependsOnFinished for display,
+// marking each name that only needs to finish with a "finished:" prefix.
+func FormatDependencies(dependsOn, dependsOnFinished []string, separator string) string {
+	names := append([]string(nil), dependsOn...)
+	for _, name := range dependsOnFinished {
+		names = append(names, "finished:"+name)
+	}
+	return strings.Join(names, separator)
+}
+
+// AllDependencies returns the names in DependsOn followed by those in
+// DependsOnFinished.
+func (command QueuedCommand) AllDependencies() []string {
+	return concatNames(command.DependsOn, command.DependsOnFinished)
+}
+
+// AllDependencies returns the names in DependsOn followed by those in
+// DependsOnFinished.
+func (job JobSpec) AllDependencies() []string {
+	return concatNames(job.DependsOn, job.DependsOnFinished)
+}
+
+func concatNames(left, right []string) []string {
+	if len(right) == 0 {
+		return left
+	}
+	return append(append(make([]string, 0, len(left)+len(right)), left...), right...)
 }
 
 func ArrayTaskIDs(array *ArraySpec) []int {

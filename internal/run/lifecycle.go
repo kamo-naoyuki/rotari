@@ -22,13 +22,26 @@ func ExecuteDependencyRetries(pending []model.JobSpec, jobsByName map[string]mod
 		}
 		unresolved := pending
 		var attemptResults []model.JobResult
+		lastAttempt := retry >= 0 && attempt >= retry
+		failureFinal := func(job model.JobSpec, result model.JobResult) bool {
+			if !pendingByID[job.ID] || lastAttempt {
+				return true
+			}
+			return callbacks.ShouldRetry != nil && !callbacks.ShouldRetry(job, result)
+		}
 		for {
-			ready, blocked, stillUnresolved := ResolveDependencyWave(unresolved, jobsByName, results, pendingByID)
+			ready, blocked, stillUnresolved := ResolveDependencyWave(unresolved, jobsByName, results, pendingByID, failureFinal)
 			for _, job := range blocked {
 				results[job.ID] = model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: "blocked by failed dependency"}
 			}
 			if len(ready) == 0 {
-				break
+				// A blocked job has a final result now, which may let a
+				// DependsOnFinished dependent start.
+				if len(blocked) == 0 {
+					break
+				}
+				unresolved = stillUnresolved
+				continue
 			}
 			if callbacks.AssignAttemptIDs != nil {
 				callbacks.AssignAttemptIDs(ready, attempt)

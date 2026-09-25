@@ -185,6 +185,24 @@ rotari run
 `--depends-on` accepts either a job name or a stage name. A job name and stage
 name cannot be the same within one queue.
 
+Use `--depends-on-finished NAME` for a job that should run once its
+prerequisites finish, whatever their result, like Slurm's `afterany`. It suits
+aggregation and cleanup jobs that must still run when part of a sweep fails:
+
+```sh
+rotari add --stage sweep --matrix LR=0.1,0.01 -- python train.py
+rotari add --job-name collect --depends-on-finished sweep -- python collect.py
+rotari run
+```
+
+`collect` waits while a failed prerequisite still has `run --retry` attempts
+left, and it also runs after a prerequisite is blocked or cancelled. A later
+`run --failed` or `retry` that re-executes a prerequisite re-executes such
+dependents too, so their output reflects the new results. A name cannot be
+listed in both `--depends-on` and `--depends-on-finished` of one job. `show`
+lists these prerequisites as `finished:NAME`. Use `change
+--depends-on-finished` or `--clear-depends-on-finished` to edit them.
+
 Use `rotari show --stage NAME` to list only the jobs in one stage of the
 selected run or queue.
 

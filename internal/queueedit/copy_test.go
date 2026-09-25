@@ -162,3 +162,32 @@ func TestCopyDestinationRules(t *testing.T) {
 		}
 	}
 }
+
+func TestCopyAllowsOmittedFailedFinishedPrerequisite(t *testing.T) {
+	source := testRun([]model.QueuedCommand{
+		{ID: "sweep", Name: "sweep", Command: []string{"false"}},
+		{ID: "collect", Name: "collect", Command: []string{"true"}, DependsOnFinished: []string{"sweep"}},
+	}, model.JobResult{ID: "sweep", ExitCode: 1}, model.JobResult{ID: "collect", ExitCode: 0})
+	queue, _, err := Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "job-id", JobIDs: []string{"collect"}}, sequentialIDs())
+	if err != nil {
+		t.Fatalf("copying a job whose finished prerequisite failed returned error: %v", err)
+	}
+	if len(queue.Commands) != 1 || len(queue.Commands[0].DependsOnFinished) != 0 {
+		t.Fatalf("queue = %#v, want collect without its omitted prerequisite", queue.Commands)
+	}
+	queue, _, err = Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "all"}, sequentialIDs())
+	if err != nil || !reflect.DeepEqual(queue.Commands[1].DependsOnFinished, []string{"sweep"}) {
+		t.Fatalf("full copy = %#v, %v, want the finished dependency kept", queue.Commands, err)
+	}
+}
+
+func TestCopyRejectsOmittedUnfinishedFinishedPrerequisite(t *testing.T) {
+	source := testRun([]model.QueuedCommand{
+		{ID: "sweep", Name: "sweep", Command: []string{"sleep", "1"}},
+		{ID: "collect", Name: "collect", Command: []string{"true"}, DependsOnFinished: []string{"sweep"}},
+	}, model.JobResult{ID: "collect", ExitCode: 0})
+	_, _, err := Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "job-id", JobIDs: []string{"collect"}}, sequentialIDs())
+	if err == nil || !strings.Contains(err.Error(), `excluded dependency "sweep" did not finish`) {
+		t.Fatalf("Copy error = %v, want an unfinished finished-prerequisite refusal", err)
+	}
+}

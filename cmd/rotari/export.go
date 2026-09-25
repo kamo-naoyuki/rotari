@@ -19,6 +19,8 @@ jobs:
 
     # stage: prepare
     # depends_on: [other-job, prepare]
+    # Start after these finish, whatever their result.
+    # depends_on_finished: [sweep]
     # executor: slurm
     # executor_options: ["--partition=gpu", "--gres=gpu:1"]
     # working_directory: ./work
@@ -40,6 +42,8 @@ command = ["echo", "hello"]
 
 # stage = "prepare"
 # depends_on = ["other-job", "prepare"]
+# Start after these finish, whatever their result.
+# depends_on_finished = ["sweep"]
 # executor = "slurm"
 # executor_options = ["--partition=gpu", "--gres=gpu:1"]
 # working_directory = "./work"

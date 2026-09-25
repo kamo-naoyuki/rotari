@@ -1,6 +1,9 @@
 package model
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseAndValidateArrayRange(t *testing.T) {
 	array, err := ParseArrayRange("1-3,7")
@@ -126,5 +129,55 @@ func TestFormatDisplayTimestamp(t *testing.T) {
 		if got := FormatDisplayTimestamp(value); got != value {
 			t.Errorf("FormatDisplayTimestamp(%q) = %q", value, got)
 		}
+	}
+}
+
+func TestFinishedDependenciesExpandAndValidate(t *testing.T) {
+	commands := []QueuedCommand{
+		{ID: "a", Name: "a", Stage: "sweep", Command: []string{"true"}},
+		{ID: "b", Name: "b", Stage: "sweep", Command: []string{"true"}},
+		{ID: "collect", Name: "collect", Command: []string{"true"}, DependsOnFinished: []string{"sweep"}},
+	}
+	if err := ValidateQueueDependencies(commands); err != nil {
+		t.Fatalf("valid finished dependency rejected: %v", err)
+	}
+	jobs := QueueToJobs(commands)
+	if got := jobs[2].DependsOnFinished; len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Fatalf("expanded finished dependencies = %v, want stage members", got)
+	}
+	if got := FormatDependencies([]string{"x"}, []string{"y"}, ","); got != "x,finished:y" {
+		t.Fatalf("FormatDependencies = %q", got)
+	}
+
+	unknown := append([]QueuedCommand(nil), commands...)
+	unknown[2].DependsOnFinished = []string{"missing"}
+	if err := ValidateQueueDependencies(unknown); err == nil || !strings.Contains(err.Error(), "unknown job") {
+		t.Fatalf("unknown finished dependency error = %v", err)
+	}
+	cycle := []QueuedCommand{
+		{ID: "x", Name: "x", Command: []string{"true"}, DependsOn: []string{"y"}},
+		{ID: "y", Name: "y", Command: []string{"true"}, DependsOnFinished: []string{"x"}},
+	}
+	if err := ValidateQueueDependencies(cycle); err == nil || !strings.Contains(err.Error(), "cycle") {
+		t.Fatalf("mixed-kind cycle error = %v", err)
+	}
+	both := []QueuedCommand{
+		{ID: "x", Name: "x", Command: []string{"true"}},
+		{ID: "y", Name: "y", Command: []string{"true"}, DependsOn: []string{"x"}, DependsOnFinished: []string{"x"}},
+	}
+	if err := ValidateQueueDependencies(both); err == nil || !strings.Contains(err.Error(), "both depends_on and depends_on_finished") {
+		t.Fatalf("duplicate dependency kind error = %v", err)
+	}
+}
+
+func TestClearMatrixGroupRewritesFinishedDependencies(t *testing.T) {
+	commands := []QueuedCommand{
+		{ID: "m1", Name: "train-1", Command: []string{"true"}, Matrix: &MatrixSpec{GroupID: "g", BaseName: "train"}},
+		{ID: "m2", Name: "train-2", Command: []string{"true"}, Matrix: &MatrixSpec{GroupID: "g", BaseName: "train"}},
+		{ID: "collect", Name: "collect", Command: []string{"true"}, DependsOnFinished: []string{"train"}},
+	}
+	ClearMatrixGroup(commands, "g")
+	if got := commands[2].DependsOnFinished; len(got) != 2 || got[0] != "train-1" || got[1] != "train-2" {
+		t.Fatalf("rewritten finished dependencies = %v, want matrix members", got)
 	}
 }

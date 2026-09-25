@@ -27,6 +27,8 @@ func cmdAdd(args []string) int {
 	stage := cliString(fs, "stage", "")
 	var dependsOn stringSliceFlag
 	cliValue(fs, &dependsOn, "depends-on")
+	var dependsOnFinished stringSliceFlag
+	cliValue(fs, &dependsOnFinished, "depends-on-finished")
 	arrayRange := cliString(fs, "array", "")
 	var matrixValues stringSliceFlag
 	cliValue(fs, &matrixValues, "matrix")
@@ -78,6 +80,9 @@ func cmdAdd(args []string) int {
 		return 1
 	}
 	commands := expandMatrixCommands(left, *executor, executorOptions, environment, *workingDirectory, *jobName, *stage, dependsOn, dimensions)
+	for index := range commands {
+		commands[index].DependsOnFinished = dependsOnFinished
+	}
 	message, err := enqueueCommands(baseDir, queueName, commands, array)
 	if err != nil {
 		printError(err)

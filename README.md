@@ -120,7 +120,9 @@ rotari add --job-name prepare -- ./prepare.sh
 rotari add --job-name train --depends-on prepare -- ./train.sh
 ```
 
-See [Dependencies and stages](docs/CONCEPTS.md#dependencies-and-stages) for
+Use `--depends-on-finished NAME` instead for aggregation or cleanup jobs that
+should run once the prerequisite finishes, whatever its result. See
+[Dependencies and stages](docs/CONCEPTS.md#dependencies-and-stages) for
 stages and multiple prerequisites.
 
 ## Commands at a glance

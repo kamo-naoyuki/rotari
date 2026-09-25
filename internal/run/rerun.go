@@ -47,7 +47,12 @@ func PlanRerun(queue model.Queue, selection string, jobIDs []string, referenceRu
 		}
 		return plan, nil
 	}
-	return planByOrigin(queue, selection, jobIDs, referenceRunID, partialArray, source)
+	plan, err := planByOrigin(queue, selection, jobIDs, referenceRunID, partialArray, source)
+	if err != nil {
+		return Plan{}, err
+	}
+	expandFinishedDownstream(queue, &plan)
+	return plan, nil
 }
 
 func planImportedWorkflow(queue model.Queue, source OriginResults) (Plan, error) {
@@ -146,6 +151,36 @@ func acceptImportedResult(destinationID string, origin *model.JobOrigin, plan *P
 	return nil
 }
 
+// expandFinishedDownstream executes every job whose DependsOnFinished names an
+// executing job, directly or through other such jobs. Such a job may have
+// succeeded after its prerequisite failed, so a result filter alone would
+// carry forward output computed from the failed prerequisite.
+func expandFinishedDownstream(queue model.Queue, plan *Plan) {
+	jobs := model.QueueToJobs(queue.Commands)
+	executing := func(job model.JobSpec) bool {
+		return plan.Execute[job.ID] || (job.ArrayGroup != "" && plan.Execute[job.ArrayGroup])
+	}
+	executingNames := make(map[string]bool)
+	for _, job := range jobs {
+		if executing(job) && job.Name != "" {
+			executingNames[job.Name] = true
+		}
+	}
+	for changed := true; changed; {
+		changed = false
+		for _, job := range jobs {
+			if executing(job) || !anyName(job.DependsOnFinished, executingNames) {
+				continue
+			}
+			forceExecution(job.ID, plan)
+			if job.Name != "" {
+				executingNames[job.Name] = true
+			}
+			changed = true
+		}
+	}
+}
+
 // expandImportedDownstream executes every job that depends, directly or
 // transitively, on an executing job.
 func expandImportedDownstream(queue model.Queue, plan *Plan) {
@@ -172,8 +207,12 @@ func expandImportedDownstream(queue model.Queue, plan *Plan) {
 }
 
 func dependsOnAny(job model.JobSpec, names map[string]bool) bool {
-	for _, dependency := range job.DependsOn {
-		if names[dependency] {
+	return anyName(job.AllDependencies(), names)
+}
+
+func anyName(candidates []string, names map[string]bool) bool {
+	for _, candidate := range candidates {
+		if names[candidate] {
 			return true
 		}
 	}

@@ -21,7 +21,13 @@ func EquivalentCommand(left, right model.QueuedCommand) bool {
 		reflect.DeepEqual(left.Environment, right.Environment) &&
 		left.Name == right.Name && left.Stage == right.Stage &&
 		reflect.DeepEqual(left.DependsOn, right.DependsOn) &&
+		sameNames(left.DependsOnFinished, right.DependsOnFinished) &&
 		reflect.DeepEqual(left.Array, right.Array) && equivalentMatrix(left.Matrix, right.Matrix)
+}
+
+// sameNames compares name lists, treating nil and empty as equal.
+func sameNames(left, right []string) bool {
+	return len(left) == len(right) && (len(left) == 0 || reflect.DeepEqual(left, right))
 }
 
 func equivalentMatrix(left, right *model.MatrixSpec) bool {
@@ -91,7 +97,8 @@ func exportJob(command model.QueuedCommand, matrixBase bool) Job {
 	}
 	return Job{
 		Name: name, Command: append([]string(nil), command.Command...), Stage: command.Stage,
-		DependsOn: append([]string(nil), command.DependsOn...), Executor: command.Executor,
+		DependsOn: append([]string(nil), command.DependsOn...), DependsOnFinished: append([]string(nil), command.DependsOnFinished...),
+		Executor:        command.Executor,
 		ExecutorOptions: append([]string(nil), command.ExecutorOptions...), WorkingDirectory: command.WorkingDirectory,
 		Environment: append([]string(nil), environment...), Array: formatArray(command.Array),
 	}

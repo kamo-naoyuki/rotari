@@ -35,13 +35,16 @@ func cmdChange(args []string) int {
 	var dependsOn stringSliceFlag
 	cliValue(fs, &dependsOn, "depends-on")
 	clearDependsOn := cliBool(fs, "clear-depends-on", false)
+	var dependsOnFinished stringSliceFlag
+	cliValue(fs, &dependsOnFinished, "depends-on-finished")
+	clearDependsOnFinished := cliBool(fs, "clear-depends-on-finished", false)
 	quiet := cliBool(fs, "quiet", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 	if (*jobID == "" && *jobName == "") || (*jobID != "" && *jobName != "") ||
 		(len(fs.Args()) == 0 && *executor == "" && len(executorOptions) == 0 && !*clearExecutorOptions && *workingDirectory == "" && !*clearWorkingDirectory && len(environment) == 0 && !*clearEnvironment &&
-			*setJobName == "" && len(dependsOn) == 0 && !*clearDependsOn) ||
+			*setJobName == "" && len(dependsOn) == 0 && !*clearDependsOn && len(dependsOnFinished) == 0 && !*clearDependsOnFinished) ||
 		(*executor != "" && !executorRegistry.Known(*executor)) {
 		printError("usage: " + cliUsage("change"))
 		return 1
@@ -56,8 +59,13 @@ func cmdChange(args []string) int {
 		printError(err)
 		return 1
 	}
-	message, err := changeBatchWithWorkingDirectory(baseDir, queueName, *runID, *jobID, *jobName, *executor,
-		executorOptions, *clearExecutorOptions, environment, *clearEnvironment, *workingDirectory, *clearWorkingDirectory, *setJobName, dependsOn, *clearDependsOn, fs.Args())
+	message, err := changeQueueJob(baseDir, queueName, *runID, *jobID, *jobName, changeMutation{
+		executor: *executor, executorOptions: executorOptions, clearExecutorOptions: *clearExecutorOptions,
+		environment: environment, clearEnvironment: *clearEnvironment,
+		workingDirectory: *workingDirectory, clearWorkingDirectory: *clearWorkingDirectory, setJobName: *setJobName,
+		dependsOn: dependsOn, clearDependsOn: *clearDependsOn,
+		dependsOnFinished: dependsOnFinished, clearDependsOnFinished: *clearDependsOnFinished, command: fs.Args(),
+	})
 	if err != nil {
 		printError(err)
 		return 1
@@ -71,8 +79,11 @@ func cmdChange(args []string) int {
 func changeBatch(baseDir, queueName, requestedRunID, requestedJobID, requestedJobName, executor string,
 	executorOptions []string, clearExecutorOptions bool, environment []string, clearEnvironment bool, setJobName string, dependsOn []string,
 	clearDependsOn bool, command []string) (string, error) {
-	return changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, requestedJobID, requestedJobName, executor,
-		executorOptions, clearExecutorOptions, environment, clearEnvironment, "", false, setJobName, dependsOn, clearDependsOn, command)
+	return changeQueueJob(baseDir, queueName, requestedRunID, requestedJobID, requestedJobName, changeMutation{
+		executor: executor, executorOptions: executorOptions, clearExecutorOptions: clearExecutorOptions,
+		environment: environment, clearEnvironment: clearEnvironment, setJobName: setJobName,
+		dependsOn: dependsOn, clearDependsOn: clearDependsOn, command: command,
+	})
 }
 
 type changeMutation struct {
@@ -86,13 +97,16 @@ type changeMutation struct {
 	setJobName            string
 	dependsOn             []string
 	clearDependsOn        bool
-	command               []string
+	// dependsOnFinished replaces DependsOnFinished when non-empty.
+	dependsOnFinished      []string
+	clearDependsOnFinished bool
+	command                []string
 }
 
-func changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, requestedJobID, requestedJobName, executor string,
-	executorOptions []string, clearExecutorOptions bool, environment []string, clearEnvironment bool, workingDirectory string, clearWorkingDirectory bool, setJobName string, dependsOn []string,
-	clearDependsOn bool, command []string) (string, error) {
-	if err := model.ValidateEnvironment(environment); err != nil {
+// changeQueueJob applies mutation to one job of the current queue, or of the
+// batch restored from requestedRunID.
+func changeQueueJob(baseDir, queueName, requestedRunID, requestedJobID, requestedJobName string, mutation changeMutation) (string, error) {
+	if err := model.ValidateEnvironment(mutation.environment); err != nil {
 		return "", fmt.Errorf("invalid environment: %w", err)
 	}
 	paths, err := state.ResolveProjectPaths(baseDir, queueName)
@@ -127,10 +141,6 @@ func changeBatchWithWorkingDirectory(baseDir, queueName, requestedRunID, request
 	if matrix := queue.Commands[jobIndex].Matrix; matrix != nil {
 		model.ClearMatrixGroup(queue.Commands, matrix.GroupID)
 	}
-	mutation := changeMutation{executor: executor, executorOptions: executorOptions, clearExecutorOptions: clearExecutorOptions,
-		environment: environment, clearEnvironment: clearEnvironment, workingDirectory: workingDirectory,
-		clearWorkingDirectory: clearWorkingDirectory, setJobName: setJobName, dependsOn: dependsOn,
-		clearDependsOn: clearDependsOn, command: command}
 	if err := applyChangeMutation(queue, jobIndex, mutation); err != nil {
 		return "", err
 	}
@@ -195,6 +205,9 @@ func applyChangeMutation(queue model.Queue, jobIndex int, mutation changeMutatio
 	if len(mutation.dependsOn) > 0 || mutation.clearDependsOn {
 		changed.DependsOn = append([]string(nil), mutation.dependsOn...)
 	}
+	if len(mutation.dependsOnFinished) > 0 || mutation.clearDependsOnFinished {
+		changed.DependsOnFinished = append([]string(nil), mutation.dependsOnFinished...)
+	}
 	return nil
 }
 
@@ -210,7 +223,7 @@ func validateChangeRename(queue model.Queue, jobIndex int, newName string) error
 		if index == jobIndex {
 			continue
 		}
-		for _, dependency := range command.DependsOn {
+		for _, dependency := range command.AllDependencies() {
 			if dependency == oldName {
 				return fmt.Errorf("job %q is referenced by dependency; rename is not allowed", oldName)
 			}

@@ -187,3 +187,35 @@ func TestPlanRerunImportedWorkflowDispositions(t *testing.T) {
 		t.Fatal("downstream job kept its carried result")
 	}
 }
+
+func TestPlanRerunExecutesFinishedDependentsOfExecutingJobs(t *testing.T) {
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "sweep", Name: "sweep", Command: []string{"false"}},
+		{ID: "collect", Name: "collect", Command: []string{"true"}, DependsOnFinished: []string{"sweep"}},
+		{ID: "report", Name: "report", Command: []string{"true"}, DependsOnFinished: []string{"collect"}},
+		{ID: "strict", Name: "strict", Command: []string{"true"}, DependsOn: []string{"other"}},
+		{ID: "other", Name: "other", Command: []string{"true"}},
+	}}
+	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"run-1": {
+		"sweep":   {ID: "sweep", ExitCode: 1},
+		"collect": {ID: "collect", ExitCode: 0},
+		"report":  {ID: "report", ExitCode: 0},
+		"strict":  {ID: "strict", ExitCode: 0},
+		"other":   {ID: "other", ExitCode: 0},
+	}}}
+	plan, err := PlanRerun(queue, "failed", nil, "run-1", true, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"sweep", "collect", "report"} {
+		if !plan.Execute[id] {
+			t.Fatalf("execute = %#v, want %s to execute", plan.Execute, id)
+		}
+		if _, carried := plan.CarriedResults[id]; carried && id != "sweep" {
+			t.Fatalf("%s is both executed and carried: %#v", id, plan.CarriedResults)
+		}
+	}
+	if plan.Execute["strict"] || plan.Execute["other"] {
+		t.Fatalf("execute = %#v, want jobs outside the finished chain carried", plan.Execute)
+	}
+}

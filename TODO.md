@@ -28,10 +28,6 @@ another workflow engine has them.
 - Consider per-job automatic retry (`add --retry N`, optionally with backoff)
   for flaky jobs such as transient NFS or network failures. Only run-level
   `run --retry` exists today.
-- Consider a dependency that fires when the prerequisite finishes regardless of
-  its result (for example `--depends-on-finished NAME`), so aggregation and
-  cleanup jobs still run when part of a sweep fails. `--depends-on` requires
-  success.
 - Consider concurrency limits for a named group of jobs (for example "at most
   four GPU jobs at once"). Limits are per executor today.
 
@@ -42,9 +38,7 @@ another workflow engine has them.
 For field design, Dagu's step options are a useful reference
 (`dagu/internal/spec/step.go`): `retry_policy` has `limit`, `interval_sec`,
 `backoff`, `max_interval_sec`, and `exit_code` (retry only on listed exit
-codes), plus `timeout_sec`, `signal_on_stop`, and `continue_on`. Dagu puts
-`continue_on` on the upstream step; decide whether rotari attaches the
-"finished regardless of result" rule to the prerequisite or to the dependent.
+codes), plus `timeout_sec` and `signal_on_stop`.
 
 Each of these must define its behavior for every executor (local, SSH, Slurm,
 PBS, LSF) and be tested per executor. Add them one at a time.
@@ -95,6 +89,5 @@ the experiment. See "Runs as the history of the loop" in
 - Consider grouping failed jobs by rule-based diagnosis result.
 - Consider a run timeline built on the run lineage above.
 
-Suggested first steps: the matrix grid view and the
-finished-regardless-of-result dependency. Both serve experiment batches
-directly and depend little on executor differences.
+Suggested first step: the matrix grid view. It serves experiment batches
+directly and depends little on executor differences.

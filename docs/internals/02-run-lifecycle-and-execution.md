@@ -154,6 +154,31 @@
   the same run. Jobs in a ready wave may run concurrently. A failed prerequisite
   prevents its dependents from executing; each is persisted with a non-zero
   result and `blocked by failed dependency` error.
+- `DependsOnFinished` (`--depends-on-finished`, manifest `depends_on_finished`)
+  is Slurm's `afterany`: the dependent starts once each prerequisite succeeded
+  or has a final failure. `ResolveDependencyWave` in
+  [internal/run/plan.go](../../internal/run/plan.go) takes a `failureFinal`
+  callback from `ExecuteDependencyRetries`: a failure is final on the last
+  `--retry` attempt, when the job will not be retried (for example, it was
+  explicitly cancelled), or when the result was carried from an earlier run.
+  A failed `DependsOn` prerequisite whose failure is final blocks its
+  dependents within the same attempt, and a wave that only blocks jobs is
+  followed by another resolution pass, so `afterany` dependents of blocked
+  jobs still start. Both lists share validation (unknown names, cycles across
+  kinds, and stage and matrix expansion); a name listed in both on one command
+  is rejected. Covered by the `TestFinishedDependency*` tests in
+  [internal/run/lifecycle_test.go](../../internal/run/lifecycle_test.go) and
+  `TestExecuteMixedRunStartsFinishedDependentAfterFailure` in
+  [cmd/rotari/mixed_run_test.go](../../cmd/rotari/mixed_run_test.go).
+- A result-filtered rerun also executes every job whose `DependsOnFinished`
+  names an executing job, transitively through such edges
+  (`expandFinishedDownstream` in [internal/run/rerun.go](../../internal/run/rerun.go)),
+  because an `afterany` job may have succeeded on a failed prerequisite's
+  output. `copy` requires an omitted `DependsOnFinished` prerequisite to have
+  finished with any result, rather than to have succeeded.
+- The server protocol version is 3 since `depends_on_finished` was added, so
+  a client replaces an older server that would drop the field when it loads
+  the queue.
 
 ## Validation and readiness
 

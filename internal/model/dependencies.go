@@ -51,7 +51,19 @@ func validateCommandNamespace(command QueuedCommand, stages, matrixGroups map[st
 	if command.Stage != "" && matrixGroups[command.Stage] {
 		return fmt.Errorf("stage name conflicts with matrix name: %s", command.Stage)
 	}
+	for _, name := range command.DependsOnFinished {
+		if containsString(command.DependsOn, name) {
+			return fmt.Errorf("job %q lists %q in both depends_on and depends_on_finished", commandLabel(command), name)
+		}
+	}
 	return nil
+}
+
+func commandLabel(command QueuedCommand) string {
+	if command.Name != "" {
+		return command.Name
+	}
+	return command.ID
 }
 
 func ValidateMatrixGroups(commands []QueuedCommand) error {
@@ -120,7 +132,8 @@ func validateMatrixMember(groupID string, member, base QueuedCommand) error {
 func equalMatrixCommandBase(left, right QueuedCommand) bool {
 	return equalStrings(left.Command, right.Command) && left.WorkingDirectory == right.WorkingDirectory &&
 		left.Executor == right.Executor && equalStrings(left.ExecutorOptions, right.ExecutorOptions) &&
-		left.Stage == right.Stage && equalStrings(left.DependsOn, right.DependsOn) && equalArraySpec(left.Array, right.Array)
+		left.Stage == right.Stage && equalStrings(left.DependsOn, right.DependsOn) &&
+		equalStrings(left.DependsOnFinished, right.DependsOnFinished) && equalArraySpec(left.Array, right.Array)
 }
 
 func equalArraySpec(left, right *ArraySpec) bool {
@@ -167,22 +180,26 @@ func ClearMatrixGroup(commands []QueuedCommand, groupID string) {
 
 func replaceDependency(commands []QueuedCommand, target string, replacements []string) {
 	for index := range commands {
-		dependsOn := commands[index].DependsOn
-		if !containsString(dependsOn, target) {
+		commands[index].DependsOn = replaceName(commands[index].DependsOn, target, replacements)
+		commands[index].DependsOnFinished = replaceName(commands[index].DependsOnFinished, target, replacements)
+	}
+}
+
+func replaceName(names []string, target string, replacements []string) []string {
+	if !containsString(names, target) {
+		return names
+	}
+	rewritten := make([]string, 0, len(names)+len(replacements))
+	for _, name := range names {
+		if name != target {
+			rewritten = appendUnique(rewritten, name)
 			continue
 		}
-		rewritten := make([]string, 0, len(dependsOn)+len(replacements))
-		for _, dependency := range dependsOn {
-			if dependency != target {
-				rewritten = appendUnique(rewritten, dependency)
-				continue
-			}
-			for _, replacement := range replacements {
-				rewritten = appendUnique(rewritten, replacement)
-			}
+		for _, replacement := range replacements {
+			rewritten = appendUnique(rewritten, replacement)
 		}
-		commands[index].DependsOn = rewritten
 	}
+	return rewritten
 }
 
 func appendUnique(values []string, value string) []string {
@@ -269,7 +286,7 @@ func ValidateDependencies(jobs []JobSpec) error {
 		byName[job.Name] = job
 	}
 	for _, job := range jobs {
-		for _, dependency := range job.DependsOn {
+		for _, dependency := range job.AllDependencies() {
 			if _, exists := byName[dependency]; !exists {
 				return fmt.Errorf("job %q depends on unknown job %q", job.Name, dependency)
 			}
@@ -289,7 +306,7 @@ func ValidateDependencies(jobs []JobSpec) error {
 			return nil
 		}
 		visiting[name] = true
-		for _, dependency := range byName[name].DependsOn {
+		for _, dependency := range byName[name].AllDependencies() {
 			if err := visit(dependency); err != nil {
 				return err
 			}

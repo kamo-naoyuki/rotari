@@ -196,7 +196,7 @@ func writeJobAIReport(builder *strings.Builder, paths state.ProjectPaths, run we
 	if job.AttemptID != "" {
 		fmt.Fprintf(builder, "- Attempt ID: `%s`\n", job.AttemptID)
 	}
-	fmt.Fprintf(builder, "- Dependencies: %s\n- Working directory: `%s`\n- Started: %s\n- Finished: %s\n", reportValue(strings.Join(job.DependsOn, ", ")), reportValue(firstNonEmpty(job.WorkingDirectory, run.CWD)), reportValue(model.FormatDisplayTimestamp(job.SubmittedAt)), reportValue(model.FormatDisplayTimestamp(job.FinishedAt)))
+	fmt.Fprintf(builder, "- Dependencies: %s\n- Working directory: `%s`\n- Started: %s\n- Finished: %s\n", reportValue(model.FormatDependencies(job.DependsOn, job.DependsOnFinished, ", ")), reportValue(firstNonEmpty(job.WorkingDirectory, run.CWD)), reportValue(model.FormatDisplayTimestamp(job.SubmittedAt)), reportValue(model.FormatDisplayTimestamp(job.FinishedAt)))
 	if result == nil {
 		fmt.Fprintln(builder, "- Exit code: -")
 	} else {

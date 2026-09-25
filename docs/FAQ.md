@@ -213,6 +213,10 @@ Yes, unless the omitted prerequisite has not succeeded. Copy the prerequisite as
 
 Dependent jobs become `blocked` and are not executed. They can run after the prerequisite succeeds in a later `run` or `retry`.
 
+### Can a job run after its prerequisites finish even if some failed?
+
+Yes. Use `--depends-on-finished NAME` instead of `--depends-on NAME`. The job starts once every listed job or stage member has a final result, including failed, blocked, or cancelled ones, which suits collecting partial sweep results or cleanup. A prerequisite that will still be retried by `run --retry` is not final yet. See [Dependencies and stages](CONCEPTS.md#dependencies-and-stages).
+
 ### Can jobs wait for a whole stage instead of listing every prerequisite?
 
 Yes. Give related jobs the same `--stage NAME`, then use `--depends-on NAME`. Stage jobs run in parallel and dependents wait for all of them to succeed. Stage and job names cannot overlap.

@@ -188,3 +188,38 @@ func TestCmdChangeRejectsRenameReferencedByDependency(t *testing.T) {
 		t.Fatalf("cmdChange exit code = %d, stderr = %q", code, output)
 	}
 }
+
+func TestCmdChangeSetsAndClearsFinishedDependencies(t *testing.T) {
+	baseDir := t.TempDir()
+	for _, args := range [][]string{
+		{"--job-name", "sweep", "--", "echo", "a"},
+		{"--job-name", "collect", "--", "echo", "b"},
+	} {
+		if code := cmdAdd(append([]string{"--basedir", baseDir, "--project-name", "default", "--quiet"}, args...)); code != 0 {
+			t.Fatalf("cmdAdd(%v) exit = %d", args, code)
+		}
+	}
+	change := func(args ...string) model.QueuedCommand {
+		t.Helper()
+		if code := cmdChange(append([]string{"--basedir", baseDir, "--project-name", "default", "--job-name", "collect", "--quiet"}, args...)); code != 0 {
+			t.Fatalf("cmdChange(%v) exit = %d", args, code)
+		}
+		queue, err := loadQueue(filepath.Join(baseDir, "projects", "default", "queue.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return queue.Commands[1]
+	}
+	if got := change("--depends-on-finished", "sweep"); len(got.DependsOnFinished) != 1 || got.DependsOnFinished[0] != "sweep" {
+		t.Fatalf("collect after --depends-on-finished = %#v", got)
+	}
+	if code := cmdChange([]string{"--basedir", baseDir, "--project-name", "default", "--job-name", "sweep", "--set-job-name", "renamed"}); code != 1 {
+		t.Fatalf("renaming a finished prerequisite exit = %d, want 1", code)
+	}
+	if code := cmdRemove([]string{"--basedir", baseDir, "--project-name", "default", "--job-name", "sweep"}); code != 1 {
+		t.Fatalf("removing a finished prerequisite exit = %d, want 1", code)
+	}
+	if got := change("--clear-depends-on-finished"); len(got.DependsOnFinished) != 0 {
+		t.Fatalf("collect after --clear-depends-on-finished = %#v", got)
+	}
+}

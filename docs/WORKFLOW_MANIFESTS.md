@@ -47,7 +47,13 @@ jobs:
     environment: ["EPOCHS=20"]
     array: "1-3"
     matrix: ["SEED=1,2", "MODEL=small,large"]
+  - name: collect
+    command: [python, collect.py]
+    depends_on_finished: [train]
 ```
+
+`depends_on` and `depends_on_finished` correspond to `add --depends-on` and
+`--depends-on-finished`.
 
 Use `rotari import --dry-run FILE` to validate and preview `execute`, `reuse`,
 and `accept` decisions without changing the queue. Jobs with provenance also

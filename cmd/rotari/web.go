@@ -74,6 +74,10 @@ type webChangeRequest struct {
 	ClearEnvironment      bool     `json:"clear_environment"`
 	DependsOn             []string `json:"depends_on,omitempty"`
 	ClearDependsOn        bool     `json:"clear_depends_on"`
+	// DependsOnFinished and ClearDependsOnFinished mirror change
+	// --depends-on-finished and --clear-depends-on-finished.
+	DependsOnFinished      []string `json:"depends_on_finished,omitempty"`
+	ClearDependsOnFinished bool     `json:"clear_depends_on_finished"`
 }
 
 type webRemoveRequest struct {
@@ -540,8 +544,13 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("project_name, job_id, and command are required"))
 			return
 		}
-		message, err := changeBatchWithWorkingDirectory(baseDir, change.QueueName, "", change.JobID, "", change.Executor,
-			change.ExecutorOptions, change.ClearExecutorOptions, change.Environment, change.ClearEnvironment, change.WorkingDirectory, change.ClearWorkingDirectory, change.SetJobName, change.DependsOn, change.ClearDependsOn, change.Command)
+		message, err := changeQueueJob(baseDir, change.QueueName, "", change.JobID, "", changeMutation{
+			executor: change.Executor, executorOptions: change.ExecutorOptions, clearExecutorOptions: change.ClearExecutorOptions,
+			environment: change.Environment, clearEnvironment: change.ClearEnvironment,
+			workingDirectory: change.WorkingDirectory, clearWorkingDirectory: change.ClearWorkingDirectory, setJobName: change.SetJobName,
+			dependsOn: change.DependsOn, clearDependsOn: change.ClearDependsOn,
+			dependsOnFinished: change.DependsOnFinished, clearDependsOnFinished: change.ClearDependsOnFinished, command: change.Command,
+		})
 		if err != nil {
 			writeWebError(writer, err)
 			return

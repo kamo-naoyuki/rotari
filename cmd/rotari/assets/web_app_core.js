@@ -433,7 +433,7 @@ function renderRun(q, runID) {
     .map((j) => {
       const result = j.result;
       const options = (j.executor_options || []).join(" ");
-      const dependencies = (j.depends_on || []).join(", ");
+      const dependencies = formatDependencies(j);
       const stage = j.stage || "-";
       const exit = result ? esc(result.exit_code) : "-";
       const error =
@@ -749,7 +749,7 @@ function enhancePage() {
               esc(j.stage || "-") +
               (j.stage ? copyIconForValue(j.stage, "stage name") : "") +
               "</td><td>" +
-              esc((j.depends_on || []).join(", ") || "-") +
+              esc(formatDependencies(j) || "-") +
               '</td><td class="command">' +
               esc((j.command || []).join(" ")) +
               "</td></tr>",
@@ -759,4 +759,11 @@ function enhancePage() {
       : '<div class="empty">Queue is empty.</div>');
   document.getElementById("app").prepend(section);
   fixQueueSourceColumns(commands);
+}
+// formatDependencies lists a job's prerequisites, marking those that only
+// need to finish (depends_on_finished) with a "finished:" prefix, like the CLI.
+function formatDependencies(job) {
+  return (job.depends_on || [])
+    .concat((job.depends_on_finished || []).map((name) => "finished:" + name))
+    .join(", ");
 }

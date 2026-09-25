@@ -98,12 +98,8 @@ func Copy(destination model.Queue, project string, source Run, request CopyReque
 	for index := range selected {
 		command := &selected[index]
 		sourceJobID := command.ID
-		dependencies := make([]string, 0, len(command.DependsOn))
-		for _, dependency := range command.DependsOn {
-			if keep(dependency) {
-				dependencies = append(dependencies, dependency)
-			}
-		}
+		dependencies := keptNames(command.DependsOn, keep)
+		finishedDependencies := keptNames(command.DependsOnFinished, keep)
 		// Keep the source job ID so the copied job can still be matched
 		// against the source run's results; only reassign on collision.
 		if existingIDs[sourceJobID] {
@@ -111,6 +107,7 @@ func Copy(destination model.Queue, project string, source Run, request CopyReque
 		}
 		existingIDs[command.ID] = true
 		command.DependsOn = dependencies
+		command.DependsOnFinished = finishedDependencies
 		command.Accepted = false
 		command.TaskAccepted = nil
 		command.TaskForce = nil
@@ -171,8 +168,23 @@ func selectCommands(source Run, selection string, requested map[string]bool, req
 	return selected, selectedNames, nil
 }
 
-// checkOmittedDependencies requires every omitted prerequisite of a copied
-// job to have succeeded, and returns which dependency names copied jobs keep.
+func keptNames(names []string, keep func(string) bool) []string {
+	if names == nil {
+		return nil
+	}
+	kept := make([]string, 0, len(names))
+	for _, name := range names {
+		if keep(name) {
+			kept = append(kept, name)
+		}
+	}
+	return kept
+}
+
+// checkOmittedDependencies requires every omitted DependsOn prerequisite of a
+// copied job to have succeeded, and every omitted DependsOnFinished
+// prerequisite to have finished with any result. It returns which dependency
+// names copied jobs keep.
 //
 // A stage dependency stays as long as any stage member is copied: copied
 // members keep their Stage, so the name resolves to them, and only the
@@ -213,30 +225,45 @@ func checkOmittedDependencies(source Run, selected []model.QueuedCommand, select
 		result, finished := model.AggregatedJobResult(command.ID, command.Array, source.Results)
 		return finished && result.ExitCode == 0
 	}
-	for _, command := range selected {
-		for _, dependency := range command.DependsOn {
+	finished := func(command model.QueuedCommand) bool {
+		_, finished := model.AggregatedJobResult(command.ID, command.Array, source.Results)
+		return finished
+	}
+	// check requires each omitted prerequisite in dependencies to satisfy
+	// ready, whose failure is described by outcome.
+	check := func(command model.QueuedCommand, dependencies []string, ready func(model.QueuedCommand) bool, outcome string) error {
+		for _, dependency := range dependencies {
 			if selectedNames[dependency] || completeMatrices[dependency] {
 				continue
 			}
 			if members, isMatrix := matrixMembers[dependency]; isMatrix {
 				for _, member := range members {
-					if !selectedNames[member.Name] && !succeeded(member) {
-						return nil, fmt.Errorf("cannot copy job %q: excluded dependency %q did not succeed in run %s", command.Name, member.Name, source.ID)
+					if !selectedNames[member.Name] && !ready(member) {
+						return fmt.Errorf("cannot copy job %q: excluded dependency %q did not %s in run %s", command.Name, member.Name, outcome, source.ID)
 					}
 				}
 				continue
 			}
 			if stages[dependency] {
 				for _, candidate := range source.Snapshot.Commands {
-					if candidate.Stage == dependency && !selectedIDs[candidate.ID] && !succeeded(candidate) {
-						return nil, fmt.Errorf("cannot copy job %q: excluded dependency %q (stage %q) did not succeed in run %s", command.Name, stageMemberLabel(candidate), dependency, source.ID)
+					if candidate.Stage == dependency && !selectedIDs[candidate.ID] && !ready(candidate) {
+						return fmt.Errorf("cannot copy job %q: excluded dependency %q (stage %q) did not %s in run %s", command.Name, stageMemberLabel(candidate), dependency, outcome, source.ID)
 					}
 				}
 				continue
 			}
-			if !succeeded(commandsByName[dependency]) {
-				return nil, fmt.Errorf("cannot copy job %q: excluded dependency %q did not succeed in run %s", command.Name, dependency, source.ID)
+			if !ready(commandsByName[dependency]) {
+				return fmt.Errorf("cannot copy job %q: excluded dependency %q did not %s in run %s", command.Name, dependency, outcome, source.ID)
 			}
+		}
+		return nil
+	}
+	for _, command := range selected {
+		if err := check(command, command.DependsOn, succeeded, "succeed"); err != nil {
+			return nil, err
+		}
+		if err := check(command, command.DependsOnFinished, finished, "finish"); err != nil {
+			return nil, err
 		}
 	}
 	keep := func(dependency string) bool {

@@ -106,7 +106,7 @@ func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []st
 		if removeIDs[job.ID] || (requestedJobName != "" && job.Name == requestedJobName) {
 			continue
 		}
-		for _, dependency := range job.DependsOn {
+		for _, dependency := range job.AllDependencies() {
 			if removedNames[dependency] {
 				return "", fmt.Errorf("job %q is referenced by dependency; remove is not allowed", dependency)
 			}

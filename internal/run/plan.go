@@ -34,7 +34,11 @@ func RetryPendingJobs(jobs []model.JobSpec, results map[string]model.JobResult, 
 	return remaining
 }
 
-func ResolveDependencyWave(unresolved []model.JobSpec, jobsByName map[string]model.JobSpec, finalResults map[string]model.JobResult, pendingByID map[string]bool) (ready, blocked, stillUnresolved []model.JobSpec) {
+// ResolveDependencyWave splits unresolved jobs into those ready to run, those
+// blocked by a failed DependsOn prerequisite, and those still waiting. A
+// DependsOnFinished prerequisite is satisfied once it succeeds or its failure
+// is final; failureFinal reports whether a failed result will not be retried.
+func ResolveDependencyWave(unresolved []model.JobSpec, jobsByName map[string]model.JobSpec, finalResults map[string]model.JobResult, pendingByID map[string]bool, failureFinal func(model.JobSpec, model.JobResult) bool) (ready, blocked, stillUnresolved []model.JobSpec) {
 	blocked = make([]model.JobSpec, 0)
 	ready = make([]model.JobSpec, 0, len(unresolved))
 	stillUnresolved = make([]model.JobSpec, 0, len(unresolved))
@@ -44,13 +48,23 @@ func ResolveDependencyWave(unresolved []model.JobSpec, jobsByName map[string]mod
 		for _, dependency := range job.DependsOn {
 			dependencyJob := jobsByName[dependency]
 			result, done := finalResults[dependencyJob.ID]
-			if !done || (result.ExitCode != 0 && pendingByID[dependencyJob.ID]) {
+			if !done || (result.ExitCode != 0 && pendingByID[dependencyJob.ID] && !failureFinal(dependencyJob, result)) {
 				readyForRun = false
 				continue
 			}
 			if result.ExitCode != 0 {
 				blockedBy = dependency
 				break
+			}
+		}
+		if blockedBy == "" && readyForRun {
+			for _, dependency := range job.DependsOnFinished {
+				dependencyJob := jobsByName[dependency]
+				result, done := finalResults[dependencyJob.ID]
+				if !done || (result.ExitCode != 0 && !failureFinal(dependencyJob, result)) {
+					readyForRun = false
+					break
+				}
 			}
 		}
 		if blockedBy != "" {

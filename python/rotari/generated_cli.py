@@ -344,6 +344,18 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {"description": "clear prerequisites", "name": "clear-depends-on"},
                 {
+                    "description": "replace prerequisites that only need to "
+                    "finish, whatever their result; may be "
+                    "repeated",
+                    "name": "depends-on-finished",
+                    "repeated": True,
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "clear prerequisites that only need to finish",
+                    "name": "clear-depends-on-finished",
+                },
+                {
                     "description": "suppress success output",
                     "environment": "ROTARI_QUIET",
                     "name": "quiet",
@@ -767,6 +779,14 @@ CLI_SCHEMA: dict[str, Any] = {
                     "description": "name of a prerequisite job or stage; may be "
                     "repeated",
                     "name": "depends-on",
+                    "repeated": True,
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "name of a prerequisite job or stage that "
+                    "must finish, whatever its result; may be "
+                    "repeated",
+                    "name": "depends-on-finished",
                     "repeated": True,
                     "value_name": "NAME",
                 },
