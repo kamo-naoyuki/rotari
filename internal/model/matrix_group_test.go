@@ -180,3 +180,37 @@ func TestValidateQueueDependenciesRejectsMatrixNamespaceConflicts(t *testing.T) 
 		})
 	}
 }
+
+func TestClearMatrixGroupRewritesBaseNameDependencies(t *testing.T) {
+	commands := append(testMatrixGroup("group", "train", "1", "2"),
+		QueuedCommand{ID: "evaluate", Name: "evaluate", Command: []string{"evaluate"}, DependsOn: []string{"prepare", "train", "train-SEED2"}},
+		QueuedCommand{ID: "prepare", Name: "prepare", Command: []string{"prepare"}})
+	ClearMatrixGroup(commands, "group")
+	if got := commands[2].DependsOn; !reflect.DeepEqual(got, []string{"prepare", "train-SEED1", "train-SEED2"}) {
+		t.Fatalf("rewritten dependencies = %#v", got)
+	}
+	if err := ValidateQueueDependencies(commands); err != nil {
+		t.Fatalf("ValidateQueueDependencies after clearing: %v", err)
+	}
+}
+
+func TestClearIncompleteMatrixGroupsRewritesToRemainingMembers(t *testing.T) {
+	commands := append(testMatrixGroup("group", "train", "1", "2", "3")[:2],
+		QueuedCommand{ID: "evaluate", Name: "evaluate", Command: []string{"evaluate"}, DependsOn: []string{"train"}})
+	ClearIncompleteMatrixGroups(commands)
+	if got := commands[2].DependsOn; !reflect.DeepEqual(got, []string{"train-SEED1", "train-SEED2"}) {
+		t.Fatalf("rewritten dependencies = %#v", got)
+	}
+	if err := ValidateQueueDependencies(commands); err != nil {
+		t.Fatalf("ValidateQueueDependencies after clearing: %v", err)
+	}
+}
+
+func TestClearMatrixGroupKeepsUnnamedGroupDependencies(t *testing.T) {
+	commands := append(testMatrixGroup("group", "", "1", "2"),
+		QueuedCommand{ID: "evaluate", Name: "evaluate", Command: []string{"evaluate"}, DependsOn: []string{"prepare"}})
+	ClearMatrixGroup(commands, "group")
+	if got := commands[2].DependsOn; !reflect.DeepEqual(got, []string{"prepare"}) {
+		t.Fatalf("dependencies = %#v", got)
+	}
+}

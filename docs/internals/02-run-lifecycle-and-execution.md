@@ -64,9 +64,15 @@
   matrix combination. Expanded commands also store matrix group provenance so
   queue and run export can reconstruct the compact declaration. Partial
   `copy`, `remove`, or `change` clears provenance for the affected group rather
-  than presenting an incomplete group as the original matrix. Legacy snapshots
+  than presenting an incomplete group as the original matrix. A dependency on
+  the group's base name resolves to every member only while provenance exists,
+  so clearing it rewrites such dependencies to the member names that remain.
+  `copy` treats a base-name dependency like a stage: it is kept when the whole
+  group is copied, and otherwise every excluded member must have succeeded.
+  Legacy snapshots
   without provenance export as independent jobs. See
   [matrix validation](../../internal/model/dependencies.go),
+  [matrix queue mutation tests](../../cmd/rotari/queue_carry_state_test.go),
   [manifest compilation](../../internal/workflow/manifest.go), and
   [matrix export tests](../../internal/workflow/export_test.go).
 - Result-based selection (`--failed`/`--unfinished`/`--success` in `copy`, and

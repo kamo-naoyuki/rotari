@@ -142,15 +142,63 @@ func equalInts(left, right []int) bool {
 	return true
 }
 
+// ClearMatrixGroup drops matrix provenance from every member of a group. The
+// group's base name stops resolving as a dependency target once provenance is
+// gone, so dependencies on it are rewritten to the members' own names.
 func ClearMatrixGroup(commands []QueuedCommand, groupID string) {
 	if groupID == "" {
 		return
 	}
+	baseName := ""
+	var memberNames []string
 	for index := range commands {
 		if commands[index].Matrix != nil && commands[index].Matrix.GroupID == groupID {
+			baseName = commands[index].Matrix.BaseName
+			if commands[index].Name != "" {
+				memberNames = append(memberNames, commands[index].Name)
+			}
 			commands[index].Matrix = nil
 		}
 	}
+	if baseName != "" {
+		replaceDependency(commands, baseName, memberNames)
+	}
+}
+
+func replaceDependency(commands []QueuedCommand, target string, replacements []string) {
+	for index := range commands {
+		dependsOn := commands[index].DependsOn
+		if !containsString(dependsOn, target) {
+			continue
+		}
+		rewritten := make([]string, 0, len(dependsOn)+len(replacements))
+		for _, dependency := range dependsOn {
+			if dependency != target {
+				rewritten = appendUnique(rewritten, dependency)
+				continue
+			}
+			for _, replacement := range replacements {
+				rewritten = appendUnique(rewritten, replacement)
+			}
+		}
+		commands[index].DependsOn = rewritten
+	}
+}
+
+func appendUnique(values []string, value string) []string {
+	if containsString(values, value) {
+		return values
+	}
+	return append(values, value)
+}
+
+func containsString(values []string, value string) bool {
+	for _, candidate := range values {
+		if candidate == value {
+			return true
+		}
+	}
+	return false
 }
 
 func ClearIncompleteMatrixGroups(commands []QueuedCommand) {

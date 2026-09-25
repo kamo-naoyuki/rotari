@@ -2,6 +2,7 @@ package main
 
 import (
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -466,5 +467,102 @@ func TestRecoverInterruptedProjectClearsWorkflowImportOnlyWhenDiscarding(t *test
 		if !discard && (!queue.WorkflowImport || len(queue.Commands) != 1 || !queue.Commands[0].Force) {
 			t.Fatalf("retained queue = %#v", queue)
 		}
+	}
+}
+
+func testMatrixQueueWithDependent(groupID string) []QueuedCommand {
+	return append(testMatrixQueueCommands(groupID), QueuedCommand{ID: "evaluate-id", Name: "evaluate", Command: []string{"evaluate"}, DependsOn: []string{"train"}})
+}
+
+func TestChangeMatrixMemberRewritesBaseNameDependency(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, Queue{Commands: testMatrixQueueWithDependent("group")}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := changeBatch(baseDir, "default", "", "seed-1", "", "", nil, false, []string{"X=1"}, false, "", nil, false, nil); err != nil {
+		t.Fatalf("changeBatch: %v", err)
+	}
+	queue := loadCarryStateQueue(t, paths)
+	if got := queuedCommandByName(t, queue, "evaluate").DependsOn; !reflect.DeepEqual(got, []string{"train-SEED1", "train-SEED2"}) {
+		t.Fatalf("evaluate dependencies = %#v", got)
+	}
+}
+
+func TestRemoveMatrixMemberRewritesBaseNameDependency(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, Queue{Commands: testMatrixQueueWithDependent("group")}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := removeBatch(baseDir, "default", "", []string{"seed-2"}, ""); err != nil {
+		t.Fatalf("removeBatch: %v", err)
+	}
+	queue := loadCarryStateQueue(t, paths)
+	if got := queuedCommandByName(t, queue, "evaluate").DependsOn; !reflect.DeepEqual(got, []string{"train-SEED1"}) {
+		t.Fatalf("evaluate dependencies = %#v", got)
+	}
+}
+
+func TestCopyRunToQueueHandlesMatrixBaseNameDependency(t *testing.T) {
+	results := []JobResult{{ID: "seed-1", ExitCode: 0}, {ID: "seed-2", ExitCode: 1}, {ID: "evaluate-id", ExitCode: 1, Error: "blocked by failed dependency"}}
+	tests := []struct {
+		selection string
+		jobIDs    []string
+		wantIDs   []string
+		wantDeps  []string
+		wantGroup bool
+	}{
+		{selection: "all", wantIDs: []string{"seed-1", "seed-2", "evaluate-id"}, wantDeps: []string{"train"}, wantGroup: true},
+		{selection: "failed", wantIDs: []string{"seed-2", "evaluate-id"}, wantDeps: []string{"train-SEED2"}},
+	}
+	for _, test := range tests {
+		t.Run(test.selection, func(t *testing.T) {
+			baseDir := t.TempDir()
+			paths, err := resolvePaths(baseDir, "default")
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeCarryStateRun(t, paths, "source-run", Queue{Commands: testMatrixQueueWithDependent("group")}, results)
+			if _, err := copyRunToQueue(baseDir, "default", "source-run", test.selection, test.jobIDs, false); err != nil {
+				t.Fatalf("copyRunToQueue: %v", err)
+			}
+			queue := loadCarryStateQueue(t, paths)
+			var ids []string
+			for _, command := range queue.Commands {
+				ids = append(ids, command.ID)
+			}
+			if !reflect.DeepEqual(ids, test.wantIDs) {
+				t.Fatalf("copied IDs = %#v, want %#v", ids, test.wantIDs)
+			}
+			evaluate := queuedCommandByName(t, queue, "evaluate")
+			if !reflect.DeepEqual(evaluate.DependsOn, test.wantDeps) {
+				t.Fatalf("evaluate dependencies = %#v, want %#v", evaluate.DependsOn, test.wantDeps)
+			}
+			if hasGroup := queue.Commands[0].Matrix != nil; hasGroup != test.wantGroup {
+				t.Fatalf("matrix provenance kept = %v, want %v", hasGroup, test.wantGroup)
+			}
+		})
+	}
+}
+
+func TestCopyRunToQueueRejectsExcludedFailedMatrixMember(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := resolvePaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeCarryStateRun(t, paths, "source-run", Queue{Commands: testMatrixQueueWithDependent("group")}, []JobResult{
+		{ID: "seed-1", ExitCode: 0}, {ID: "seed-2", ExitCode: 1}, {ID: "evaluate-id", ExitCode: 0},
+	})
+	_, err = copyRunToQueue(baseDir, "default", "source-run", "job-id", []string{"evaluate-id"}, false)
+	if err == nil || !strings.Contains(err.Error(), `excluded dependency "train-SEED2" did not succeed`) {
+		t.Fatalf("copyRunToQueue error = %v", err)
 	}
 }

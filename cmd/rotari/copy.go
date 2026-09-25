@@ -319,9 +319,39 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	for stage, size := range stageSizes {
 		selectedStages[stage] = selectedStageSizes[stage] == size
 	}
+	// A matrix base name resolves to all of its members. It stays a dependency
+	// target only when the whole group is copied; otherwise the excluded
+	// members must have succeeded, and ClearIncompleteMatrixGroups rewrites the
+	// dependency to the copied members.
+	matrixMembers := make(map[string][]QueuedCommand)
+	for _, command := range snapshot.Commands {
+		if command.Matrix != nil && command.Matrix.BaseName != "" {
+			matrixMembers[command.Matrix.BaseName] = append(matrixMembers[command.Matrix.BaseName], command)
+		}
+	}
+	selectedMatrices := make(map[string]bool)
+	for baseName, members := range matrixMembers {
+		complete := true
+		for _, member := range members {
+			complete = complete && selectedNames[member.Name]
+		}
+		selectedMatrices[baseName] = complete
+	}
 	for _, command := range selected {
 		for _, dependency := range command.DependsOn {
-			if selectedNames[dependency] || selectedStages[dependency] {
+			if selectedNames[dependency] || selectedStages[dependency] || selectedMatrices[dependency] {
+				continue
+			}
+			if members, isMatrix := matrixMembers[dependency]; isMatrix {
+				for _, member := range members {
+					if selectedNames[member.Name] {
+						continue
+					}
+					result, finished := model.AggregatedJobResult(member.ID, member.Array, results)
+					if !finished || result.ExitCode != 0 {
+						return "", fmt.Errorf("cannot copy job %q: excluded dependency %q did not succeed in run %s", command.Name, member.Name, runID)
+					}
+				}
 				continue
 			}
 			if stageSize, isStage := stageSizes[dependency]; isStage {
@@ -381,7 +411,7 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 		sourceJobID := selected[index].ID
 		dependencies := make([]string, 0, len(selected[index].DependsOn))
 		for _, dependency := range selected[index].DependsOn {
-			if selectedNames[dependency] || selectedStages[dependency] {
+			if selectedNames[dependency] || selectedStages[dependency] || selectedMatrices[dependency] {
 				dependencies = append(dependencies, dependency)
 			}
 		}
