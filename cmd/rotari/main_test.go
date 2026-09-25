@@ -778,15 +778,32 @@ func TestCmdResetRejectsRunningProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "retained", Command: []string{"retained"}}}}); err != nil {
 		t.Fatal(err)
 	}
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	writeTestRunStateFiles(t, paths, "run-1")
 	if err := acquireLock(paths.LockFile, LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
 
-	if code := cmdReset([]string{"--basedir", baseDir, "--project-name", "demo"}); code == 0 {
+	code, output := captureResetStderr(t, []string{"--basedir", baseDir, "--project-name", "demo"})
+	if code == 0 {
 		t.Fatal("cmdReset accepted a running project")
+	}
+	for _, want := range []string{"project 'demo' is running", "rotari wait", "rotari cancel"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stderr = %q, want it to contain %q", output, want)
+		}
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 1 {
+		t.Fatalf("queue commands = %#v, want unchanged", queue.Commands)
 	}
 }
 
@@ -836,9 +853,14 @@ func TestCmdResetRequiresRecoverFlagForInterruptedRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "run-1")
+	useNonTerminalStdin(t)
 
-	if code := cmdReset([]string{"--basedir", baseDir, "--project-name", "demo"}); code == 0 {
+	code, output := captureResetStderr(t, []string{"--basedir", baseDir, "--project-name", "demo"})
+	if code == 0 {
 		t.Fatal("cmdReset recovered an interrupted run without confirmation")
+	}
+	if !strings.Contains(output, "reset requires confirmation") {
+		t.Fatalf("stderr = %q, want non-interactive confirmation error", output)
 	}
 	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
