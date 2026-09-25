@@ -101,11 +101,19 @@ the user-facing documentation, and the affected tests together.
   for project or run state. See [`cmd/rotari/server.go`](../../cmd/rotari/server.go)
   and [`cmd/rotari/server_test.go`](../../cmd/rotari/server_test.go).
 - Each project owns one mutable current queue as the staging area for the next
-  run. Queue edits change that queue; starting a run snapshots it, and normal
-  completion clears the consumed queue. An interrupted run retains the queue
-  until it is recovered or reset. See [`cmd/rotari/mixed_run.go`](../../cmd/rotari/mixed_run.go),
+  run. Queue edits change that queue only while the project is idle. A run that
+  starts snapshots the queue; the queue remains on disk as a preserved snapshot
+  while the run is active, and it stays as the retained recovery snapshot after
+  an interruption. Normal completion clears the consumed queue, at which point a
+  new batch can be prepared again. See [`cmd/rotari/mixed_run.go`](../../cmd/rotari/mixed_run.go),
   [`cmd/rotari/reset.go`](../../cmd/rotari/reset.go), and
   [`cmd/rotari/state_test.go`](../../cmd/rotari/state_test.go).
+- The primary user-facing target depends on project state: `idle` projects show
+  the queue as the active work target, while a `running` or `interrupted` project
+  treats the associated run as the primary subject and the queue as the retained
+  snapshot or recovery context. In other words, the contract is: `idle` =
+  queue-first, `running`/`interrupted` = run-first. This keeps run state and
+  queue semantics consistent across CLI, Web, and recovery flows.
 - A project has at most one active run and runner at a time. That runner may
   execute multiple jobs concurrently, while different projects can run
   independently. See [`cmd/rotari/project_state.go`](../../cmd/rotari/project_state.go)

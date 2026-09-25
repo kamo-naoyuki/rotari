@@ -88,6 +88,18 @@ config equivalents use the same executor-specific names.
 
 Without a project selector, `show` lists projects. Use `--project-name/-p` for a project, `--run-id` for a run, and `--run-id latest` for the latest run.
 
+### Why does `show` prefer a run over the queue when a project is running or interrupted?
+
+Because the queue is only the active work target while the project is `idle`.
+When a run starts, rotari snapshots the queue so the run has an immutable
+record of what it was supposed to execute. During `running` and `interrupted`
+states, the current subject is the run itself, while the queue remains a
+retained snapshot or recovery context.
+
+In short: `idle` means queue-first, while `running` and `interrupted` mean
+run-first. This is why `show` often resolves the active run before the queued
+commands after a start or crash.
+
 ### How do I clean up run registry entries left by manual deletion?
 
 Run `rotari gc` to review candidates, then `rotari gc --apply` to remove them. Rotari checks the candidate again before deletion, so entries that reappeared or changed are skipped rather than removed blindly.
