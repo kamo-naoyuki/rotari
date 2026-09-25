@@ -71,7 +71,7 @@ func cmdReset(args []string) int {
 	if projectState == projectInterrupted {
 		confirmed := *recoverOption
 		if !confirmed {
-			if !isTerminal(os.Stdin) {
+			if !stdinIsTerminal() {
 				detail, stillRunning := interruptedRunStatusDetail(paths, runID)
 				message := fmt.Sprintf("project %q has interrupted run %q%s; reset requires confirmation\nInspect before deciding: rotari show --basedir %s --project-name %s --run-id %s\n",
 					queueName, runID, detail, executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))

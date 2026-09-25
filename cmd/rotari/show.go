@@ -694,11 +694,6 @@ func (writer *pagerWriter) startPager() error {
 	return nil
 }
 
-func isTerminal(file *os.File) bool {
-	info, err := file.Stat()
-	return err == nil && info.Mode()&os.ModeCharDevice != 0
-}
-
 func selectRunID(paths pathSet, requested string) (string, error) {
 	if requested == "latest" {
 		requested = ""

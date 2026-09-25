@@ -828,3 +828,41 @@ func TestCmdCopyRejectsProjectWithoutPreviousRun(t *testing.T) {
 		t.Fatalf("cmdCopy exit code = %d, stderr = %q", code, output)
 	}
 }
+
+func TestConfirmQueueOverwritePromptsOnTerminal(t *testing.T) {
+	tests := map[string]struct {
+		input   string
+		want    bool
+		wantErr string
+	}{
+		"yes":   {"yes\n", true, ""},
+		"y":     {"Y\n", true, ""},
+		"no":    {"n\n", false, "copy cancelled"},
+		"empty": {"\n", false, "copy cancelled"},
+		"eof":   {"", false, "EOF"},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			baseDir := t.TempDir()
+			paths, err := resolvePaths(baseDir, "default")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "existing", Command: []string{"existing"}}}}); err != nil {
+				t.Fatal(err)
+			}
+			usePromptStdin(t, test.input)
+
+			confirmed, err := confirmQueueOverwrite(baseDir, "default", false, false)
+			if test.wantErr == "" {
+				if err != nil || confirmed != test.want {
+					t.Fatalf("confirmQueueOverwrite = %v, %v, want %v, nil", confirmed, err, test.want)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("confirmQueueOverwrite error = %v, want %q", err, test.wantErr)
+			}
+		})
+	}
+}

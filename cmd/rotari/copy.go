@@ -26,7 +26,7 @@ func confirmQueueOverwrite(baseDir, queueName string, appendJobs, overwriteJobs 
 			return false, loadErr
 		}
 		if len(queue.Commands) > 0 {
-			if !isTerminal(os.Stdin) {
+			if !stdinIsTerminal() {
 				return false, errors.New("queue is not empty; use --append or --overwrite")
 			}
 			fmt.Fprintf(os.Stderr, "project %q has %d queued jobs; overwrite them? [y/N] ", queueName, len(queue.Commands))

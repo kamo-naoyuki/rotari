@@ -29,7 +29,7 @@ func captureResetStderr(t *testing.T, args []string) (int, string) {
 }
 
 // useNonTerminalStdin replaces stdin with a pipe, whose read end is never a
-// char device, so isTerminal(os.Stdin) reports false.
+// terminal, so isTerminal(os.Stdin) reports false.
 func useNonTerminalStdin(t *testing.T) {
 	t.Helper()
 	oldStdin := os.Stdin
@@ -161,5 +161,70 @@ func TestCmdResetRejectsProjectNameWithPathSeparator(t *testing.T) {
 				t.Fatalf("rejected reset created state: %v", entries)
 			}
 		})
+	}
+}
+
+func writeInterruptedResetProject(t *testing.T, baseDir string) pathSet {
+	t.Helper()
+	paths, err := resolvePaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, Queue{Commands: []QueuedCommand{{ID: "retained", Command: []string{"retained"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.MetaFile, Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	writeTestRunStateFiles(t, paths, "run-1")
+	return paths
+}
+
+func TestCmdResetInteractiveDeclineKeepsInterruptedRun(t *testing.T) {
+	baseDir := t.TempDir()
+	paths := writeInterruptedResetProject(t, baseDir)
+	usePromptStdin(t, "n\n")
+
+	code, output := captureResetStderr(t, []string{"--basedir", baseDir, "--project-name", "demo"})
+	if code != 1 || !strings.Contains(output, "reset cancelled") {
+		t.Fatalf("cmdReset exit code = %d, stderr = %q, want reset cancelled", code, output)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 1 {
+		t.Fatalf("queue commands = %#v, want unchanged", queue.Commands)
+	}
+	meta, err := loadMeta(paths.MetaFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.Phase != "running" {
+		t.Fatalf("metadata phase = %q, want running", meta.Phase)
+	}
+}
+
+func TestCmdResetInteractiveConfirmationRecoversInterruptedRun(t *testing.T) {
+	baseDir := t.TempDir()
+	paths := writeInterruptedResetProject(t, baseDir)
+	usePromptStdin(t, "yes\n")
+
+	if code := cmdReset([]string{"--basedir", baseDir, "--project-name", "demo", "--quiet"}); code != 0 {
+		t.Fatalf("cmdReset exit code = %d, want 0", code)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 0 {
+		t.Fatalf("queue commands = %#v, want empty", queue.Commands)
+	}
+	meta, err := loadMeta(paths.MetaFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.Phase != "collecting" {
+		t.Fatalf("metadata phase = %q, want collecting", meta.Phase)
 	}
 }

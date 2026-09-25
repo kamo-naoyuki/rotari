@@ -122,6 +122,12 @@ Representative implementation and tests:
 - `reset` discards the current queue while keeping defaults and history. It
   confirms that jobs stopped before recovering an interrupted run, unless
   `reset --recover` supplies that confirmation. It rejects an active run.
+- `reset` of an interrupted run and `copy` into a non-empty queue prompt only
+  when stdin is a real terminal. `isTerminal` asks for termios settings, so
+  `/dev/null`, pipes, and files get the non-interactive error naming
+  `--recover` or `--append`/`--overwrite` instead of a prompt. See
+  [`cmd/rotari/terminal.go`](../../cmd/rotari/terminal.go) and
+  [`cmd/rotari/terminal_test.go`](../../cmd/rotari/terminal_test.go).
 - Server management is separate (`server status`, `server shutdown`); project
   commands do not stop or query the server as a side effect.
 - Never silently remove a possibly active remote lock. Destructive commands

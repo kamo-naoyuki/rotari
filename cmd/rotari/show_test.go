@@ -990,17 +990,6 @@ func TestShowJobFollowsCarriedForwardOrigin(t *testing.T) {
 	}
 }
 
-func TestIsTerminalRejectsRegularFile(t *testing.T) {
-	regular, err := os.CreateTemp(t.TempDir(), "not-a-tty")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer regular.Close()
-	if isTerminal(regular) {
-		t.Fatal("regular file was treated as a terminal")
-	}
-}
-
 func TestShowQueueJobPrintsMatchingJob(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := resolvePaths(baseDir, "default")

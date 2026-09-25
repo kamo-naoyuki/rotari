@@ -8,12 +8,11 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **`/dev/null` stdin is treated as a terminal** (`cmd/rotari/show.go`, `isTerminal`; callers in `reset.go`, `copy.go`, `server.go`): `isTerminal` only checks `os.ModeCharDevice`, which `/dev/null` also has. With stdin redirected from `/dev/null` (cron, `nohup`, `go test`), `reset` of an interrupted run and `copy` into a non-empty queue prompt and fail with `EOF` instead of printing the non-interactive guidance (`--recover`, `--append`/`--overwrite`). It still fails safely; a real TTY check (for example an `ioctl` terminal query) would restore the guidance.
-
 ## Resolved
 
 <!-- Keep only short records of resolved items when they may help prevent recurrence. -->
 
+- **`/dev/null` stdin was treated as a terminal** (`cmd/rotari/terminal.go`, `isTerminal`): only `os.ModeCharDevice` was checked, so `reset` and `copy` with stdin from `/dev/null` prompted and failed with `EOF` instead of printing the non-interactive guidance. It now queries termios settings.
 - **Copying part of a stage rejected its dependents** (`cmd/rotari/copy.go`, `copyRunToQueue`): the excluded-dependency check required every stage member to have succeeded, including the members being copied, so `retry` failed after any stage member failed. Only omitted members are checked now, and the stage dependency is kept while any member is copied.
 - **The `example-shellcheck` pre-commit hook never ran** (`.pre-commit-config.yaml`): its `files: ^example\.sh$` pattern did not match `scripts/example*.sh`, and `bash -n a b` checks only the first file. The hook now matches every example script and checks each one separately.
 - **Matrix base-name dependencies broke partial queue edits** (`internal/model/dependencies.go`, `ClearMatrixGroup`; `cmd/rotari/copy.go`): a dependency on a matrix base name stopped resolving once `change` or `remove` cleared the group's provenance, and `copy` (including `retry`) did not recognize base names at all. Clearing provenance now rewrites such dependencies to the remaining member names, and `copy` checks base names like stages.

@@ -271,7 +271,7 @@ func TestCmdResetNonInteractiveRejectionIncludesJobStatusDetail(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A pipe's read end is never a char device, so isTerminal(os.Stdin)
+	// A pipe's read end is never a terminal, so isTerminal(os.Stdin)
 	// reliably reports false regardless of the test process's real stdin.
 	oldStdin := os.Stdin
 	stdinReader, stdinWriter, err := os.Pipe()
