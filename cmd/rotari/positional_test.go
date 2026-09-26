@@ -155,6 +155,24 @@ var positionalCases = []positionalCase{
 	{name: "reserved run name", args: "run -b {B} -p sweep --run-name latest", fail: true, want: `run name "latest" is reserved`},
 	{name: "reserved rename", args: "change -b {B} -p sweep --job-name prep --set-job-name latest", setup: setupQueued, fail: true, want: `job name "latest" is reserved`},
 
+	// A run ID or attempt ID alone resolves the base directory, project, and
+	// run. The fixture's base directories are not the default one, so each
+	// row shows, by the project and run in its output, that the command
+	// found them through the registry; what the command then does is its own.
+	{name: "complete run ID", args: "show {run:remote-run}", want: "Run: remote ({run:remote-run})"},
+	{name: "complete attempt ID", args: "show {att:train-SEED2/0}", want: "Attempt ID: {att:train-SEED2/0}"},
+	{name: "complete run ID", args: "copy {run:remote-run}", want: "copied jobs=1 from run={run:remote-run} to queue=remote"},
+	{name: "complete attempt ID", args: "copy -j {att:train-SEED2/0}", want: "copied jobs=1 from run={run:sweep-first} to queue=sweep"},
+	{name: "complete run ID", args: "change --run-id {run:remote-run} --all --timeout 1m", want: "changed queue=remote"},
+	{name: "complete run ID", args: "remove --run-id {run:remote-run} --all", want: "removed 1 job(s) from queue=remote"},
+	{name: "complete run ID", args: "delete {run:remote-run}", want: "cleared logs project=remote run={run:remote-run}"},
+	{name: "complete run ID", args: "diff {run:sweep-second}", want: "first ({run:sweep-first}) -> second ({run:sweep-second})"},
+	{name: "complete run ID", args: "diagnose --rules --run-id {run:sweep-first} --job-name train-SEED2", want: "No known rule-based diagnosis"},
+	{name: "complete attempt ID", args: "diagnose --rules {att:train-SEED2/0}", want: "No known rule-based diagnosis"},
+	{name: "complete run ID", args: "export {run:remote-run}", want: "- {run:remote-run}"},
+	{name: "complete run ID", args: "wait {run:remote-run}", want: "Run: remote ({run:remote-run})"},
+	{name: "complete run ID", args: "unlock --run-id {run:live}", setup: setupInterrupted, want: "recovered queue project=sweep run_id={run:live}"},
+
 	// A project that does not exist, for commands that read or edit one.
 	{name: "project that does not exist", args: "show -b {B} -p nope", fail: true, want: `project "nope" does not exist`},
 	{name: "project that does not exist", args: "check -b {B} nope", fail: true, want: `project "nope" does not exist`},

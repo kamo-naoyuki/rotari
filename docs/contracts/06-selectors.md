@@ -21,6 +21,19 @@ Representative implementation and tests:
   (see [Fixture](#fixture)). A row marked with a known deviation must fail
   until the deviation is fixed.
 
+## Complete IDs
+
+A run ID or an attempt ID alone resolves the base directory, the project,
+and the run (and, for an attempt, the job), through the run registry
+(`resolve.ExistingRun` and `resolve.Attempt`). Wherever a command takes one,
+as an option or positionally, it resolves them this way, so no base
+directory or project option is needed to locate it; an explicit one that
+disagrees with the registry is an error. Whether the command then succeeds
+depends on the command, such as `unlock`, which also requires the run to be
+the locked one. Every other selector (job IDs, names, stages, run names)
+depends on the resolved base directory and project, and may not be unique.
+Covered by the "complete" rows of `TestPositionalArguments`.
+
 ## Selector forms
 
 | Form | Example | Names |

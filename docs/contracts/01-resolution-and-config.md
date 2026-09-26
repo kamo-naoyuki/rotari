@@ -79,6 +79,9 @@ Without a run-location lookup, base directories resolve in this order:
   matrix named `latest` (`model.ValidateReservedName`); existing ones keep
   working through options. Existing-run commands use the master registry for
   its base directory and project.
+- A run ID or attempt ID alone resolves the base directory, project, and run
+  in every command that takes one; see "Complete IDs" in
+  [06-selectors.md](06-selectors.md).
 - Explicit location options take priority, but conflicts with the registry fail.
   An unregistered run uses normal resolution for compatibility, while a missing
   explicit run is an error with no latest fallback.

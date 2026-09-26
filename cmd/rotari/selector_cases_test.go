@@ -97,6 +97,7 @@ var selectorCases = []selectorCase{
 	{name: "job ID in addition to failed", cmd: "run", args: "-b {B} -p sweep --failed --job-id {job:report}", jobs: []string{"eval-2", "report", "train-SEED2"}},
 	{name: "given run", cmd: "run", args: "-b {B} -p sweep --run-id {run:sweep-first} --failed", jobs: []string{"eval-2", "train-SEED2"}},
 	{name: "run ID positional", cmd: "retry", args: "{run:sweep-first}", jobs: []string{"eval-2", "train-SEED2"}},
+	{name: "complete attempt ID", cmd: "run", args: "--job-id {att:train-SEED2/0}", jobs: []string{"train-SEED2"}},
 	{name: "latest run", cmd: "run", args: "-b {B} -p sweep --run-id latest --stage training", jobs: []string{"train-SEED1", "train-SEED2"}},
 	{name: "stage", cmd: "run", args: "-b {B} -p sweep --stage evaluation", jobs: []string{"eval-1", "eval-2", "eval-3"}},
 	{name: "matrix", cmd: "run", args: "-b {B} -p sweep --matrix train", jobs: []string{"train-SEED1", "train-SEED2"}},

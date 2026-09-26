@@ -33,17 +33,10 @@ func cmdUnlock(args []string) int {
 	if len(fs.Args()) == 1 {
 		*queueNameOption = fs.Args()[0]
 	}
-	baseDir, _, err := state.ResolveBaseDir(*basedir)
+	// A run ID locates its base directory and project through the run
+	// registry, as in every command that takes one.
+	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runID)
 	if err != nil {
-		printErrorf("failed to resolve state directory: %v", err)
-		return 1
-	}
-	queueName, err := state.ResolveProjectName(baseDir, *queueNameOption)
-	if err != nil {
-		printError(err)
-		return 1
-	}
-	if err := resolve.RequireProject(baseDir, queueName); err != nil {
 		printError(err)
 		return 1
 	}
