@@ -12,6 +12,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
+	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
@@ -237,7 +238,7 @@ func runJobs(args []string, defaultSelection string) int {
 			copySelection = "job-id"
 			copyJobIDs = jobIDs
 		}
-		message, copyErr := copyRunToQueue(baseDir, queueName, sourceRunID, copySelection, copyJobIDs, false, overwriteConfirmed)
+		message, copyErr := queueEditor().Copy(baseDir, queueName, sourceRunID, queueedit.CopyRequest{Selection: copySelection, JobIDs: copyJobIDs, Overwrite: overwriteConfirmed})
 		if copyErr != nil {
 			printError(copyErr)
 			return 1

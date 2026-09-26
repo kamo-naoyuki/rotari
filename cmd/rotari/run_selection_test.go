@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -72,7 +73,7 @@ func TestFilteredRunUsesCopiedJobOrigins(t *testing.T) {
 			if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := copyRunToQueue(baseDir, "default", runID, "all", nil, false); err != nil {
+			if _, err := queueEditor().Copy(baseDir, "default", runID, queueedit.CopyRequest{Selection: "all"}); err != nil {
 				t.Fatal(err)
 			}
 			copied, err := loadQueue(paths.QueueFile)

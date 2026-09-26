@@ -10,6 +10,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/queueops"
 )
 
 // stringSliceFlag collects repeated occurrences of a CLI flag (e.g. --executor-option).
@@ -91,7 +92,7 @@ func effectiveExecutorOptions(settings executor.RunSettingsMap, name string, fal
 var executorRegistry = executor.NewRegistry(jsonStore(), jobLogf)
 
 func validateQueueForRun(queue model.Queue, requestedExecutor string, executorOptions []string, settings executor.RunSettingsMap) error {
-	if err := validateQueueJobs(queue); err != nil {
+	if err := queueops.ValidateJobs(queue); err != nil {
 		return err
 	}
 	if err := model.ValidateQueueDependencies(queue.Commands); err != nil {

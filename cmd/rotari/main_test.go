@@ -22,6 +22,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/queueops"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -938,73 +939,6 @@ func TestParseArrayRange(t *testing.T) {
 		if _, err := model.ParseArrayRange(value); err == nil {
 			t.Errorf("parseArrayRange(%q) returned nil error", value)
 		}
-	}
-}
-
-func TestValidateQueueJobsRejectsInvalidArrayDefinitions(t *testing.T) {
-	tests := []struct {
-		name  string
-		array model.ArraySpec
-		want  string
-	}{
-		{name: "negative", array: model.ArraySpec{First: -1, Last: 1}, want: "task indexes must not be negative"},
-		{name: "reversed", array: model.ArraySpec{First: 4, Last: 2}, want: "first index must not be greater than last index"},
-		{name: "bounds mismatch", array: model.ArraySpec{First: 1, Last: 4, Tasks: []int{1, 3}}, want: "first and last indexes must match"},
-		{name: "out of range", array: model.ArraySpec{First: 1, Last: 4, Tasks: []int{1, 5, 4}}, want: "task index 5 is outside 1-4"},
-		{name: "duplicate", array: model.ArraySpec{First: 1, Last: 4, Tasks: []int{1, 3, 3, 4}}, want: "task indexes must be strictly increasing"},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			queue := model.Queue{Commands: []model.QueuedCommand{{ID: "array", Command: []string{"true"}, Array: &test.array}}}
-			err := validateQueueJobs(queue)
-			if err == nil || !strings.Contains(err.Error(), test.want) {
-				t.Fatalf("validateQueueJobs error = %v, want %q", err, test.want)
-			}
-		})
-	}
-}
-
-func TestValidateQueueJobsRejectsExpandedJobIDCollision(t *testing.T) {
-	queue := model.Queue{Commands: []model.QueuedCommand{
-		{ID: "array", Command: []string{"true"}, Array: &model.ArraySpec{First: 1, Last: 2}},
-		{ID: "array-1", Command: []string{"true"}},
-	}}
-	if err := validateQueueJobs(queue); err == nil || !strings.Contains(err.Error(), `duplicate job ID "array-1"`) {
-		t.Fatalf("validateQueueJobs error = %v", err)
-	}
-}
-
-func TestValidateQueueJobsRejectsInvalidJobFields(t *testing.T) {
-	tests := []struct {
-		name string
-		job  model.QueuedCommand
-		want string
-	}{
-		{name: "empty command", job: model.QueuedCommand{ID: "job-1"}, want: `job "job-1" has an empty command`},
-		{name: "empty executable", job: model.QueuedCommand{ID: "job-1", Command: []string{""}}, want: `job "job-1" has an empty command`},
-		{name: "invalid ID", job: model.QueuedCommand{ID: "../job-1", Command: []string{"true"}}, want: `invalid job ID "../job-1"`},
-		{name: "invalid environment name", job: model.QueuedCommand{ID: "job-1", Command: []string{"true"}, Environment: []string{"BAD-NAME=value"}}, want: `job "job-1" has invalid environment`},
-		{name: "NUL environment value", job: model.QueuedCommand{ID: "job-1", Command: []string{"true"}, Environment: []string{"KEY=value\x00tail"}}, want: `job "job-1" has invalid environment`},
-		{name: "NUL working directory", job: model.QueuedCommand{ID: "job-1", Command: []string{"true"}, WorkingDirectory: "work\x00dir"}, want: `job "job-1" working directory contains a NUL byte`},
-		{name: "NUL command argument", job: model.QueuedCommand{ID: "job-1", Command: []string{"printf", "value\x00tail"}}, want: `job "job-1" command contains a NUL byte`},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			err := validateQueueJobs(model.Queue{Commands: []model.QueuedCommand{test.job}})
-			if err == nil || !strings.Contains(err.Error(), test.want) {
-				t.Fatalf("validateQueueJobs error = %v, want %q", err, test.want)
-			}
-		})
-	}
-}
-
-func TestValidateQueueJobsRejectsDuplicateJobID(t *testing.T) {
-	queue := model.Queue{Commands: []model.QueuedCommand{
-		{ID: "job-1", Command: []string{"true"}},
-		{ID: "job-1", Command: []string{"true"}},
-	}}
-	if err := validateQueueJobs(queue); err == nil || !strings.Contains(err.Error(), `duplicate job ID "job-1"`) {
-		t.Fatalf("validateQueueJobs error = %v", err)
 	}
 }
 
@@ -2299,8 +2233,7 @@ func TestChangeBatchRestoresAndEditsPreviousRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message, err := changeBatch(baseDir, "default", "run-1", "train-id", "", "slurm",
-		[]string{"-p gpu"}, false, nil, false, "", []string{"prepare"}, false, []string{"./train-v2"})
+	message, err := queueEditor().Change(baseDir, "default", "run-1", model.CommandSelector{IDs: []string{"train-id"}}, queueops.Mutation{Executor: "slurm", ExecutorOptions: []string{"-p gpu"}, DependsOn: []string{"prepare"}, Command: []string{"./train-v2"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2342,7 +2275,7 @@ func TestRemoveBatchRemovesJobsAndRejectsDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := removeBatch(baseDir, "default", "", []string{"other-id"}, ""); err != nil {
+	if _, err := queueEditor().Remove(baseDir, "default", "", model.CommandSelector{IDs: []string{"other-id"}}); err != nil {
 		t.Fatal(err)
 	}
 	remaining, err := loadQueue(paths.QueueFile)
@@ -2353,7 +2286,7 @@ func TestRemoveBatchRemovesJobsAndRejectsDependencies(t *testing.T) {
 		t.Fatalf("remaining queue = %#v", remaining.Commands)
 	}
 
-	if _, err := removeBatch(baseDir, "default", "", nil, "prepare"); err == nil {
+	if _, err := queueEditor().Remove(baseDir, "default", "", model.CommandSelector{Name: "prepare"}); err == nil {
 		t.Fatal("removing a job referenced by a dependency succeeded")
 	}
 	remaining, err = loadQueue(paths.QueueFile)
@@ -2385,14 +2318,14 @@ func TestRemoveBatchRestoresOnlyAnExplicitRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := removeBatch(baseDir, "default", "", []string{"one-id"}, ""); err == nil || !strings.Contains(err.Error(), "no queued jobs") {
+	if _, err := queueEditor().Remove(baseDir, "default", "", model.CommandSelector{IDs: []string{"one-id"}}); err == nil || !strings.Contains(err.Error(), "no queued jobs") {
 		t.Fatalf("remove from an empty queue error = %v, want no queued jobs", err)
 	}
 	if queue, err := loadQueue(paths.QueueFile); err != nil || len(queue.Commands) != 0 {
 		t.Fatalf("remove from an empty queue restored %#v (err %v)", queue.Commands, err)
 	}
 
-	message, err := removeBatch(baseDir, "default", "latest", []string{"one-id"}, "")
+	message, err := queueEditor().Remove(baseDir, "default", "latest", model.CommandSelector{IDs: []string{"one-id"}})
 	if err != nil {
 		t.Fatal(err)
 	}

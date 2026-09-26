@@ -99,6 +99,7 @@ flowchart TB
   projectrun["projectrun<br/>run lifecycle"]
   project["project<br/>state machine, idle edits"]
   resolve["resolve<br/>selectors to run and job"]
+  queueops["queueops<br/>queue and history edits"]
   subgraph l2["orchestration and projections"]
     server
     run
@@ -120,6 +121,12 @@ flowchart TB
   cmd --> projectrun
   cmd --> project
   cmd --> resolve
+  cmd --> queueops
+  queueops --> project
+  queueops --> resolve
+  queueops --> queueedit
+  queueops --> executor
+  queueops --> state
   resolve --> project
   resolve --> runregistry
   resolve --> state
@@ -166,6 +173,7 @@ the current graph if this list drifts.
 | [internal/server](../internal/server/) | Supervisor transport: request/response types, socket, lease, peer checks, idle shutdown, attached-run streaming. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go` |
 | [internal/jobcontrol](../internal/jobcontrol/) | Cancel, suspend, resume of running jobs through executors. | `jobcontrol.go` |
 | [internal/web](../internal/web/) | JSON projections of runs, jobs, attempts, and timelines for the Web UI. | `loader.go` |
+| [internal/queueops](../internal/queueops/) | Queue and run-history edits shared by the CLI, the Web UI, and the supervisor: add, change, remove, copy, and deleting runs. Loads and saves the files around `internal/queueedit` through the `internal/project` idle-edit sequence, and owns `ValidateJobs`. | `editor.go` (`Editor`), `change.go`, `copy.go` |
 | [internal/queueedit](../internal/queueedit/) | Pure queue edits, such as building a queue from an earlier run (`copy`, `retry`). | `copy.go` |
 | [internal/workflow](../internal/workflow/) | Workflow manifests: `export` merge and `import` reconciliation. | `manifest.go`, `export.go`, `reconcile.go` |
 | [internal/rundiff](../internal/rundiff/) | Comparison of two loaded runs for `diff` and `show --lineage`. | `rundiff.go` |
@@ -186,6 +194,9 @@ internal package.
 - Does it start, record, or finish a project's run on disk? `internal/projectrun`.
 - Does it decide whether a project may be edited, or save an idle edit?
   `internal/project`.
+- Does it edit a project's queue or run history on disk for more than one
+  interface (CLI, Web, supervisor)? `internal/queueops`, with the pure queue
+  transformation in `internal/queueedit`.
 - Does it talk to a process or scheduler? `internal/executor`.
 - Does it decide what status a job shows? `internal/jobstatus`.
 - Does it decide which base directory, project, run, or job a selector
@@ -201,7 +212,7 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 | --- | --- |
 | Entry, dispatch, async worker launch, `__worker-run` | `main.go` |
 | Flag metadata, help, config defaults, completion | `cli_spec.go`, `config.go`, `completion.go`, `schema.go`, `guide.go`, `environment.go` |
-| Queue editing (direct file access) | `add.go`, `change.go`, `copy.go`, `remove.go`, `reset.go`, `delete.go`, `gc.go`, `unlock.go` |
+| Queue editing (flags and output; `add`, `change`, `copy`, `remove`, and `delete` call `internal/queueops`) | `add.go`, `change.go`, `copy.go`, `remove.go`, `reset.go`, `delete.go`, `gc.go`, `unlock.go` |
 | Starting a run (client and supervisor side) | `run_command.go`, `job_executor.go` |
 | Default run registry wiring (`registerRun`, `resolveRunLocation`) | `run_registry.go` |
 | Wiring the run lifecycle (`projectRunner`) | `project_run.go` |
@@ -218,14 +229,16 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 
 1. `cmdAdd` ([add.go](../cmd/rotari/add.go)) parses flags into
    `model.QueuedCommand` values.
-2. `enqueueCommands` resolves `state.ProjectPaths` and calls
-   `project.EditQueue` ([internal/project/edit.go](../internal/project/edit.go)),
+2. `queueops.Editor.Add` ([internal/queueops/add.go](../internal/queueops/add.go))
+   resolves `state.ProjectPaths` and calls `project.EditQueue` ([internal/project/edit.go](../internal/project/edit.go)),
    which takes the state lock, checks the project is idle, loads
    `queue.json`, runs the callback that appends the new commands, and writes
    `meta.json` and then `queue.json`.
 
-`change`, `copy`, `remove`, and `import` follow the same path with their own
-callbacks; `delete` uses `project.Edit` for the lock and idle check alone.
+`change`, `copy`, and `remove` follow the same path through their
+`queueops.Editor` methods, and `import` through its own callback; `delete`
+uses `project.Edit` for the lock and idle check alone. The Web UI and the
+supervisor call the same `queueops.Editor` methods.
 
 No supervisor is involved.
 
@@ -235,7 +248,7 @@ Client side, in [run_command.go](../cmd/rotari/run_command.go):
 
 1. `cmdRun` resolves the target project and, for `--run-id`, `--failed`, or
    `--job-id`, first repopulates the queue from an earlier run
-   (`copyRunToQueue`, backed by `internal/queueedit`).
+   (`queueops.Editor.Copy`, backed by `internal/queueedit`).
 2. `ensureServer` starts the supervisor if needed.
 3. It sends a `server.Request{Op: OpRun}`. Synchronous runs use
    `sendRunRequest`, which streams progress and handles Ctrl-C (cancel) and

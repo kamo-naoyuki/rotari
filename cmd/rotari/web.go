@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/queueedit"
+	"github.com/kamo-naoyuki/rotari/internal/queueops"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
 	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
@@ -521,7 +523,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("unsupported copy selection %q", copyRequest.Selection))
 			return
 		}
-		message, err := copyRunToQueue(baseDir, copyRequest.QueueName, copyRequest.RunID, copyRequest.Selection, copyRequest.JobIDs, copyRequest.Append, copyRequest.Overwrite)
+		message, err := queueEditor().Copy(baseDir, copyRequest.QueueName, copyRequest.RunID, queueedit.CopyRequest{Selection: copyRequest.Selection, JobIDs: copyRequest.JobIDs, Append: copyRequest.Append, Overwrite: copyRequest.Overwrite})
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -546,12 +548,12 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("project_name, job_id, and command are required"))
 			return
 		}
-		message, err := changeQueueJobs(baseDir, change.QueueName, "", model.CommandSelector{IDs: []string{change.JobID}}, changeMutation{
-			executor: change.Executor, executorOptions: change.ExecutorOptions, clearExecutorOptions: change.ClearExecutorOptions,
-			environment: change.Environment, clearEnvironment: change.ClearEnvironment,
-			workingDirectory: change.WorkingDirectory, clearWorkingDirectory: change.ClearWorkingDirectory, setJobName: change.SetJobName,
-			dependsOn: change.DependsOn, clearDependsOn: change.ClearDependsOn,
-			dependsOnFinished: change.DependsOnFinished, clearDependsOnFinished: change.ClearDependsOnFinished, command: change.Command,
+		message, err := queueEditor().Change(baseDir, change.QueueName, "", model.CommandSelector{IDs: []string{change.JobID}}, queueops.Mutation{
+			Executor: change.Executor, ExecutorOptions: change.ExecutorOptions, ClearExecutorOptions: change.ClearExecutorOptions,
+			Environment: change.Environment, ClearEnvironment: change.ClearEnvironment,
+			WorkingDirectory: change.WorkingDirectory, ClearWorkingDirectory: change.ClearWorkingDirectory, SetJobName: change.SetJobName,
+			DependsOn: change.DependsOn, ClearDependsOn: change.ClearDependsOn,
+			DependsOnFinished: change.DependsOnFinished, ClearDependsOnFinished: change.ClearDependsOnFinished, Command: change.Command,
 		})
 		if err != nil {
 			writeWebError(writer, err)
@@ -577,7 +579,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("project_name and job_id are required"))
 			return
 		}
-		message, err := removeBatch(baseDir, remove.QueueName, "", []string{remove.JobID}, "")
+		message, err := queueEditor().Remove(baseDir, remove.QueueName, "", model.CommandSelector{IDs: []string{remove.JobID}})
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -602,7 +604,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("project_name and run_id are required"))
 			return
 		}
-		if err := clearRunHistory(baseDir, clearRequest.QueueName, clearRequest.RunID); err != nil {
+		if err := queueEditor().DeleteRun(baseDir, clearRequest.QueueName, clearRequest.RunID); err != nil {
 			writeWebError(writer, err)
 			return
 		}

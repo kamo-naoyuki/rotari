@@ -7,6 +7,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/queueops"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
 )
@@ -25,7 +26,7 @@ func reconcileWorkflowManifest(baseDir string, manifest workflow.Manifest, queue
 	if err != nil {
 		return model.Queue{}, nil, err
 	}
-	if err := validateQueueJobs(queue); err != nil {
+	if err := queueops.ValidateJobs(queue); err != nil {
 		return model.Queue{}, nil, err
 	}
 	return queue, removed, nil

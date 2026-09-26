@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/queueedit"
+	"github.com/kamo-naoyuki/rotari/internal/queueops"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -30,7 +32,7 @@ func TestIdleQueueCommandsMarkProjectCollecting(t *testing.T) {
 			}
 		},
 		"change": func(t *testing.T, baseDir string, paths state.ProjectPaths) {
-			if _, err := changeBatch(baseDir, "default", "", "previous", "", "", nil, false, nil, false, "", nil, false, []string{"changed"}); err != nil {
+			if _, err := queueEditor().Change(baseDir, "default", "", model.CommandSelector{IDs: []string{"previous"}}, queueops.Mutation{Command: []string{"changed"}}); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -38,7 +40,7 @@ func TestIdleQueueCommandsMarkProjectCollecting(t *testing.T) {
 			if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "previous", Command: []string{"true"}}, {ID: "other", Command: []string{"true"}}}}); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := removeBatch(baseDir, "default", "", []string{"previous"}, ""); err != nil {
+			if _, err := queueEditor().Remove(baseDir, "default", "", model.CommandSelector{IDs: []string{"previous"}}); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -49,7 +51,7 @@ func TestIdleQueueCommandsMarkProjectCollecting(t *testing.T) {
 		},
 		"copy": func(t *testing.T, baseDir string, paths state.ProjectPaths) {
 			writeCarryStateRun(t, paths, "run-1", model.Queue{Commands: []model.QueuedCommand{{ID: "copied", Command: []string{"true"}}}}, []model.JobResult{{ID: "copied"}})
-			if _, err := copyRunToQueue(baseDir, "default", "run-1", "all", nil, false, true); err != nil {
+			if _, err := queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "all", Overwrite: true}); err != nil {
 				t.Fatal(err)
 			}
 		},

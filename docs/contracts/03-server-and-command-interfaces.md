@@ -14,7 +14,8 @@ Representative implementation and tests:
 - [cmd/rotari/server.go](../../cmd/rotari/server.go) and
   [cmd/rotari/server_test.go](../../cmd/rotari/server_test.go) for server
   commands and the `Operations` that perform queue, cancel, and run work.
-  The request handlers live in [cmd/rotari/add.go](../../cmd/rotari/add.go),
+  The request handlers live in
+  [internal/queueops/add.go](../../internal/queueops/add.go),
   [cmd/rotari/run_command.go](../../cmd/rotari/run_command.go), and
   [cmd/rotari/job_control.go](../../cmd/rotari/job_control.go), which delegates
   to [internal/jobcontrol](../../internal/jobcontrol/jobcontrol.go).

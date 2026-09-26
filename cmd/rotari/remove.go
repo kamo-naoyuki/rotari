@@ -6,9 +6,7 @@ import (
 	"os"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 // cmdRemove removes jobs from the current queue or prepares a filtered
@@ -53,7 +51,7 @@ func cmdRemove(args []string) int {
 		printError(err)
 		return 1
 	}
-	message, err := removeCommands(baseDir, queueName, *runID, selector)
+	message, err := queueEditor().Remove(baseDir, queueName, *runID, selector)
 	if err != nil {
 		printError(err)
 		return 1
@@ -62,70 +60,4 @@ func cmdRemove(args []string) int {
 		fmt.Println(colorKeyValueMessage(message, green))
 	}
 	return 0
-}
-
-func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []string, requestedJobName string) (string, error) {
-	return removeCommands(baseDir, queueName, requestedRunID, model.CommandSelector{IDs: requestedJobIDs, Name: requestedJobName})
-}
-
-// removeCommands removes the selected jobs from the current queue, or from
-// the batch restored from requestedRunID.
-func removeCommands(baseDir, queueName, requestedRunID string, selector model.CommandSelector) (string, error) {
-	paths, err := state.ResolveProjectPaths(baseDir, queueName)
-	if err != nil {
-		return "", err
-	}
-	var removed []model.QueuedCommand
-	err = project.EditQueue(paths, "remove", func(queue *model.Queue) error {
-		if requestedRunID != "" {
-			snapshot, err := loadChangeSnapshot(paths, requestedRunID)
-			if err != nil {
-				return err
-			}
-			*queue = snapshot
-		}
-		if len(queue.Commands) == 0 {
-			return emptyQueueError(queueName)
-		}
-		if err := rejectAttemptIDs(selector.IDs); err != nil {
-			return err
-		}
-
-		indexes, err := model.SelectCommands(queue.Commands, selector)
-		if err != nil {
-			return err
-		}
-		removed = make([]model.QueuedCommand, 0, len(indexes))
-		for _, index := range indexes {
-			removed = append(removed, queue.Commands[index])
-		}
-		removedNames := make(map[string]bool, len(removed))
-		for _, job := range removed {
-			if job.Name != "" {
-				removedNames[job.Name] = true
-			}
-		}
-		remaining := make([]model.QueuedCommand, 0, len(queue.Commands)-len(removed))
-		for _, job := range queue.Commands {
-			if selector.Matches(job) {
-				continue
-			}
-			for _, dependency := range job.AllDependencies() {
-				if removedNames[dependency] {
-					return fmt.Errorf("job %q is referenced by dependency; remove is not allowed", dependency)
-				}
-			}
-			remaining = append(remaining, job)
-		}
-		queue.Commands = remaining
-		model.ClearIncompleteMatrixGroups(queue.Commands)
-		if err := model.ValidateQueueDependencies(queue.Commands); err != nil {
-			return fmt.Errorf("invalid dependencies: %w", err)
-		}
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("removed %d job(s) from queue=%s", len(removed), queueName), nil
 }

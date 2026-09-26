@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
+	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/runregistry"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -160,7 +161,7 @@ func (fixture selectorFixture) run(t *testing.T, baseDir, project, runName, sele
 // before planning a filtered run.
 func (fixture selectorFixture) restore(t *testing.T, baseDir, project, runID string) {
 	t.Helper()
-	if _, err := copyRunToQueue(baseDir, project, runID, "all", nil, false, true); err != nil {
+	if _, err := queueEditor().Copy(baseDir, project, runID, queueedit.CopyRequest{Selection: "all", Overwrite: true}); err != nil {
 		t.Fatal(err)
 	}
 }

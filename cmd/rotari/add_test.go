@@ -16,7 +16,7 @@ func enqueueCommand(baseDir, queueName string, command []string, executor string
 		array = arrays[0]
 	}
 	queued := model.QueuedCommand{Command: command, Executor: executor, ExecutorOptions: executorOptions, Environment: environment, Name: jobName, DependsOn: dependsOn}
-	return enqueueCommands(baseDir, queueName, []model.QueuedCommand{queued}, array)
+	return queueEditor().Add(baseDir, queueName, []model.QueuedCommand{queued}, array)
 }
 
 func TestEnqueueCommandRejectsInterruptedRunWithoutChangingQueue(t *testing.T) {

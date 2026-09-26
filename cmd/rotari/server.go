@@ -208,7 +208,7 @@ func (ops serverOperations) Submit(request serverinternal.Request) (string, erro
 		DependsOnFinished: request.DependsOnFinished, Timeout: request.Timeout, Retry: request.JobRetry,
 		RetryDelay: request.RetryDelay, RetryBackoff: request.RetryBackoff, RetryMaxDelay: request.RetryMaxDelay,
 	}
-	return enqueueCommands(ops.baseDir, request.QueueName, []model.QueuedCommand{command}, request.Array)
+	return queueEditor().Add(ops.baseDir, request.QueueName, []model.QueuedCommand{command}, request.Array)
 }
 
 func (ops serverOperations) Cancel(request serverinternal.Request) (string, error) {

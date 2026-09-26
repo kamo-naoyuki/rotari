@@ -75,8 +75,8 @@ func TestClearRunHistoryRemovesRegistryEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := clearRunHistory(baseDir, "demo", runID); err != nil {
-		t.Fatalf("clearRunHistory() error = %v", err)
+	if err := queueEditor().DeleteRun(baseDir, "demo", runID); err != nil {
+		t.Fatalf("DeleteRun() error = %v", err)
 	}
 	if _, found, err := resolveRunLocation(runID); err != nil || found {
 		t.Fatalf("registry entry: found=%v, err=%v; want removed", found, err)

@@ -1,14 +1,12 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"strconv"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -124,7 +122,7 @@ func cmdAdd(args []string) int {
 		commands[index].RetryBackoff = retryBackoff
 		commands[index].RetryMaxDelay = *retryMaxDelay
 	}
-	message, err := enqueueCommands(baseDir, queueName, commands, array)
+	message, err := queueEditor().Add(baseDir, queueName, commands, array)
 	if err != nil {
 		printError(err)
 		return 1
@@ -162,73 +160,6 @@ func cloneMatrixDimensions(dimensions []model.MatrixDimension) []model.MatrixDim
 		cloned[index] = model.MatrixDimension{Name: dimension.Name, Values: append([]string(nil), dimension.Values...)}
 	}
 	return cloned
-}
-
-// enqueueCommands appends commands to the project queue. A non-nil array
-// makes every command an array job.
-func enqueueCommands(baseDir, queueName string, commands []model.QueuedCommand, array *model.ArraySpec) (string, error) {
-	if queueName == "" || len(commands) == 0 {
-		return "", errors.New("project name and command are required")
-	}
-	for index := range commands {
-		if array != nil {
-			commands[index].Array = array
-		}
-		if err := model.ValidateEnvironment(commands[index].Environment); err != nil {
-			return "", fmt.Errorf("invalid environment: %w", err)
-		}
-	}
-	paths, err := state.ResolveProjectPaths(baseDir, queueName)
-	if err != nil {
-		return "", err
-	}
-	if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
-		return "", err
-	}
-	err = project.EditQueue(paths, "add", func(queue *model.Queue) error {
-		for index := range commands {
-			if commands[index].Executor != "" && !executorRegistry.Known(commands[index].Executor) {
-				return fmt.Errorf("unsupported executor: %s", commands[index].Executor)
-			}
-			commands[index].ID = makeJobID()
-			if queue.WorkflowImport {
-				commands[index].Force = true
-			}
-		}
-		if err := model.ValidateReservedNames(commands); err != nil {
-			return err
-		}
-		if err := validateQueueJobs(model.Queue{Commands: append(append([]model.QueuedCommand(nil), queue.Commands...), commands...)}); err != nil {
-			return err
-		}
-		// Dependencies may refer to jobs added later, so only duplicate names are checked here.
-		for _, command := range commands {
-			if command.Name != "" {
-				for _, existing := range queue.Commands {
-					if existing.Name == command.Name {
-						return fmt.Errorf("invalid dependencies: duplicate job name: %s", command.Name)
-					}
-				}
-			}
-		}
-		queue.Commands = append(queue.Commands, commands...)
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	message := fmt.Sprintf("added project=%s jobs=%d", queueName, len(commands))
-	if len(commands) == 1 {
-		message = fmt.Sprintf("added project=%s job_id=%s", queueName, commands[0].ID)
-		if commands[0].Name != "" {
-			message += fmt.Sprintf(" job_name=%s", commands[0].Name)
-		}
-	}
-	return fmt.Sprintf("%s command=%s", message, joinCommand(commands[0].Command)), nil
-}
-
-func joinCommand(command []string) string {
-	return fmt.Sprintf("%v", command)
 }
 
 // parseRetryBackoff parses --retry-backoff; empty means no backoff factor.

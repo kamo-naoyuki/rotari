@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/queueedit"
+	"github.com/kamo-naoyuki/rotari/internal/queueops"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -53,7 +55,7 @@ func TestCopyRunToQueueKeepsCompleteMatrixGroupUnderNewGroupID(t *testing.T) {
 	writeCarryStateRun(t, paths, "source-run", model.Queue{Commands: testMatrixQueueCommands("source-group")}, []model.JobResult{
 		{ID: "seed-1", ExitCode: 0}, {ID: "seed-2", ExitCode: 0},
 	})
-	if _, err := copyRunToQueue(baseDir, "default", "source-run", "all", nil, false); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", "source-run", queueedit.CopyRequest{Selection: "all"}); err != nil {
 		t.Fatal(err)
 	}
 	queue := loadCarryStateQueue(t, paths)
@@ -75,7 +77,7 @@ func TestCopyRunToQueueClearsPartialMatrixGroup(t *testing.T) {
 	writeCarryStateRun(t, paths, "source-run", model.Queue{Commands: testMatrixQueueCommands("source-group")}, []model.JobResult{
 		{ID: "seed-1", ExitCode: 0}, {ID: "seed-2", ExitCode: 1},
 	})
-	if _, err := copyRunToQueue(baseDir, "default", "source-run", "failed", nil, false); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", "source-run", queueedit.CopyRequest{Selection: "failed"}); err != nil {
 		t.Fatal(err)
 	}
 	queue := loadCarryStateQueue(t, paths)
@@ -98,7 +100,7 @@ func TestCopyRunToQueueDropsImportCarryFlagsFromSnapshot(t *testing.T) {
 	writeCarryStateRun(t, paths, "imported-run", snapshot, []model.JobResult{
 		{ID: "scalar", ExitCode: 0, Accepted: true}, {ID: "array-1", ExitCode: 0, Accepted: true}, {ID: "array-2", ExitCode: 0},
 	})
-	if _, err := copyRunToQueue(baseDir, "default", "imported-run", "all", nil, false); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", "imported-run", queueedit.CopyRequest{Selection: "all"}); err != nil {
 		t.Fatal(err)
 	}
 	queue := loadCarryStateQueue(t, paths)
@@ -123,7 +125,7 @@ func TestCopyRunToQueueAppendToImportedQueueForcesCopiedJobs(t *testing.T) {
 	if err := writeJSON(paths.QueueFile, imported); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := copyRunToQueue(baseDir, "default", "source-run", "all", nil, true); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", "source-run", queueedit.CopyRequest{Selection: "all", Append: true}); err != nil {
 		t.Fatal(err)
 	}
 	queue := loadCarryStateQueue(t, paths)
@@ -148,7 +150,7 @@ func TestCopyRunToQueueOverwriteClearsWorkflowImport(t *testing.T) {
 	if err := writeJSON(paths.QueueFile, model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{ID: "imported", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := copyRunToQueue(baseDir, "default", "source-run", "all", nil, false, true); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", "source-run", queueedit.CopyRequest{Selection: "all", Overwrite: true}); err != nil {
 		t.Fatal(err)
 	}
 	queue := loadCarryStateQueue(t, paths)
@@ -166,7 +168,7 @@ func TestRemoveBatchClearsRemainingMatrixProvenance(t *testing.T) {
 	if err := writeJSON(paths.QueueFile, model.Queue{Commands: testMatrixQueueCommands("group")}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := removeBatch(baseDir, "default", "", []string{"seed-2"}, ""); err != nil {
+	if _, err := queueEditor().Remove(baseDir, "default", "", model.CommandSelector{IDs: []string{"seed-2"}}); err != nil {
 		t.Fatal(err)
 	}
 	queue := loadCarryStateQueue(t, paths)
@@ -184,7 +186,7 @@ func TestChangeBatchClearsWholeMatrixGroup(t *testing.T) {
 	if err := writeJSON(paths.QueueFile, model.Queue{Commands: testMatrixQueueCommands("group")}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := changeBatch(baseDir, "default", "", "seed-1", "", "", nil, false, nil, false, "", nil, false, []string{"changed"}); err != nil {
+	if _, err := queueEditor().Change(baseDir, "default", "", model.CommandSelector{IDs: []string{"seed-1"}}, queueops.Mutation{Command: []string{"changed"}}); err != nil {
 		t.Fatal(err)
 	}
 	queue := loadCarryStateQueue(t, paths)
@@ -212,7 +214,7 @@ func TestChangeBatchForcesChangedJobInImportedQueue(t *testing.T) {
 	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := changeBatch(baseDir, "default", "", "accepted", "", "", nil, false, nil, false, "", nil, false, []string{"true"}); err != nil {
+	if _, err := queueEditor().Change(baseDir, "default", "", model.CommandSelector{IDs: []string{"accepted"}}, queueops.Mutation{Command: []string{"true"}}); err != nil {
 		t.Fatal(err)
 	}
 	changed := loadCarryStateQueue(t, paths)
@@ -241,10 +243,10 @@ func TestChangeBatchForcesChangedCommandInOrdinaryQueue(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := changeBatch(baseDir, "default", "", "job", "", "", nil, false, nil, false, "", nil, false, []string{"true"}); err != nil {
+	if _, err := queueEditor().Change(baseDir, "default", "", model.CommandSelector{IDs: []string{"job"}}, queueops.Mutation{Command: []string{"true"}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := changeBatch(baseDir, "default", "", "other", "", "", nil, false, nil, false, "renamed", nil, false, nil); err != nil {
+	if _, err := queueEditor().Change(baseDir, "default", "", model.CommandSelector{IDs: []string{"other"}}, queueops.Mutation{SetJobName: "renamed"}); err != nil {
 		t.Fatal(err)
 	}
 	commands := loadCarryStateQueue(t, paths).Commands
@@ -470,8 +472,8 @@ func TestChangeMatrixMemberRewritesBaseNameDependency(t *testing.T) {
 	if err := writeJSON(paths.QueueFile, model.Queue{Commands: testMatrixQueueWithDependent("group")}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := changeBatch(baseDir, "default", "", "seed-1", "", "", nil, false, []string{"X=1"}, false, "", nil, false, nil); err != nil {
-		t.Fatalf("changeBatch: %v", err)
+	if _, err := queueEditor().Change(baseDir, "default", "", model.CommandSelector{IDs: []string{"seed-1"}}, queueops.Mutation{Environment: []string{"X=1"}}); err != nil {
+		t.Fatalf("Change: %v", err)
 	}
 	queue := loadCarryStateQueue(t, paths)
 	if got := queuedCommandByName(t, queue, "evaluate").DependsOn; !reflect.DeepEqual(got, []string{"train-SEED1", "train-SEED2"}) {
@@ -488,8 +490,8 @@ func TestRemoveMatrixMemberRewritesBaseNameDependency(t *testing.T) {
 	if err := writeJSON(paths.QueueFile, model.Queue{Commands: testMatrixQueueWithDependent("group")}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := removeBatch(baseDir, "default", "", []string{"seed-2"}, ""); err != nil {
-		t.Fatalf("removeBatch: %v", err)
+	if _, err := queueEditor().Remove(baseDir, "default", "", model.CommandSelector{IDs: []string{"seed-2"}}); err != nil {
+		t.Fatalf("Remove: %v", err)
 	}
 	queue := loadCarryStateQueue(t, paths)
 	if got := queuedCommandByName(t, queue, "evaluate").DependsOn; !reflect.DeepEqual(got, []string{"train-SEED1"}) {
@@ -517,8 +519,8 @@ func TestCopyRunToQueueHandlesMatrixBaseNameDependency(t *testing.T) {
 				t.Fatal(err)
 			}
 			writeCarryStateRun(t, paths, "source-run", model.Queue{Commands: testMatrixQueueWithDependent("group")}, results)
-			if _, err := copyRunToQueue(baseDir, "default", "source-run", test.selection, test.jobIDs, false); err != nil {
-				t.Fatalf("copyRunToQueue: %v", err)
+			if _, err := queueEditor().Copy(baseDir, "default", "source-run", queueedit.CopyRequest{Selection: test.selection, JobIDs: test.jobIDs}); err != nil {
+				t.Fatalf("Copy: %v", err)
 			}
 			queue := loadCarryStateQueue(t, paths)
 			var ids []string
@@ -548,8 +550,8 @@ func TestCopyRunToQueueRejectsExcludedFailedMatrixMember(t *testing.T) {
 	writeCarryStateRun(t, paths, "source-run", model.Queue{Commands: testMatrixQueueWithDependent("group")}, []model.JobResult{
 		{ID: "seed-1", ExitCode: 0}, {ID: "seed-2", ExitCode: 1}, {ID: "evaluate-id", ExitCode: 0},
 	})
-	_, err = copyRunToQueue(baseDir, "default", "source-run", "job-id", []string{"evaluate-id"}, false)
+	_, err = queueEditor().Copy(baseDir, "default", "source-run", queueedit.CopyRequest{Selection: "job-id", JobIDs: []string{"evaluate-id"}})
 	if err == nil || !strings.Contains(err.Error(), `excluded dependency "train-SEED2" did not succeed`) {
-		t.Fatalf("copyRunToQueue error = %v", err)
+		t.Fatalf("Copy error = %v", err)
 	}
 }

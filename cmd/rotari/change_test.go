@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/queueops"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -76,7 +77,7 @@ func TestChangeDoesNotRestoreSnapshotIntoEmptyQueue(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := changeBatch(baseDir, "default", "", "", "job", "", nil, false, nil, false, "", nil, false, []string{"new"}); err == nil {
+	if _, err := queueEditor().Change(baseDir, "default", "", model.CommandSelector{Name: "job"}, queueops.Mutation{Command: []string{"new"}}); err == nil {
 		t.Fatal("change restored a job from the previous run into an empty queue")
 	}
 	queue, err := loadQueue(paths.QueueFile)
@@ -345,7 +346,7 @@ func TestCmdChangeSelectsQueueCommandsAfterArrayJob(t *testing.T) {
 	if queue.Commands[0].Timeout != "1h" || queue.Commands[1].Timeout != "" || queue.Commands[2].Timeout != "1h" {
 		t.Fatalf("timeouts = %q, %q, %q; want 1h, none, 1h", queue.Commands[0].Timeout, queue.Commands[1].Timeout, queue.Commands[2].Timeout)
 	}
-	if _, err := changeQueueJobs(baseDir, "default", "", model.CommandSelector{IDs: []string{"prep-2"}}, changeMutation{timeout: "2h"}); err == nil || !strings.Contains(err.Error(), "array job prep") {
+	if _, err := queueEditor().Change(baseDir, "default", "", model.CommandSelector{IDs: []string{"prep-2"}}, queueops.Mutation{Timeout: "2h"}); err == nil || !strings.Contains(err.Error(), "array job prep") {
 		t.Fatalf("change of one array task error = %v, want array job hint", err)
 	}
 }

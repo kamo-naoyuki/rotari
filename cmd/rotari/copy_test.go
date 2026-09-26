@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -200,7 +201,7 @@ func TestCopyRunToQueuePreservesSourceJobIDs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message, err := copyRunToQueue(baseDir, "default", "run-1", "failed", nil, false)
+	message, err := queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "failed"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +239,7 @@ func TestCopyRunToQueuePreservesCompleteStageDependency(t *testing.T) {
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := copyRunToQueue(baseDir, "default", "run-1", "all", nil, false); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "all"}); err != nil {
 		t.Fatal(err)
 	}
 	queue, err := loadQueue(paths.QueueFile)
@@ -271,7 +272,7 @@ func TestCopyRunToQueueRejectsExcludedFailedDependency(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = copyRunToQueue(baseDir, "default", "run-1", "job-id", []string{"train-id"}, false)
+	_, err = queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "job-id", JobIDs: []string{"train-id"}})
 	if err == nil || !strings.Contains(err.Error(), `excluded dependency "prepare" did not succeed`) {
 		t.Fatalf("copy error = %v, want excluded failed dependency error", err)
 	}
@@ -295,7 +296,7 @@ func TestCopyRunToQueueRejectsExcludedUnfinishedDependency(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = copyRunToQueue(baseDir, "default", "run-1", "job-id", []string{"train-id"}, false)
+	_, err = queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "job-id", JobIDs: []string{"train-id"}})
 	if err == nil || !strings.Contains(err.Error(), `excluded dependency "prepare" did not succeed`) {
 		t.Fatalf("copy error = %v, want excluded unfinished dependency error", err)
 	}
@@ -324,7 +325,7 @@ func TestCopyRunToQueuePreservesExplicitAttemptID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := copyRunToQueue(baseDir, "default", runID, "job-id", []string{attemptID}, false); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", runID, queueedit.CopyRequest{Selection: "job-id", JobIDs: []string{attemptID}}); err != nil {
 		t.Fatal(err)
 	}
 	queue, err := loadQueue(paths.QueueFile)
@@ -360,7 +361,7 @@ func TestCopyRunToQueueExplicitArrayAttemptSelectsOnlyTask(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := copyRunToQueue(baseDir, "default", runID, "job-id", []string{attemptID}, false); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", runID, queueedit.CopyRequest{Selection: "job-id", JobIDs: []string{attemptID}}); err != nil {
 		t.Fatal(err)
 	}
 	queue, err := loadQueue(paths.QueueFile)
@@ -392,7 +393,7 @@ func TestCopyRunToQueueReassignsIDOnCollision(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := copyRunToQueue(baseDir, "default", "run-1", "all", nil, true); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "all", Append: true}); err != nil {
 		t.Fatal(err)
 	}
 	queue, err := loadQueue(paths.QueueFile)
@@ -429,7 +430,7 @@ func TestCopyRunToQueueCombinesResultSelections(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := copyRunToQueue(baseDir, "default", "run-1", "failed,unfinished", nil, false); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "failed,unfinished"}); err != nil {
 		t.Fatal(err)
 	}
 	queue, err := loadQueue(paths.QueueFile)
@@ -440,7 +441,7 @@ func TestCopyRunToQueueCombinesResultSelections(t *testing.T) {
 		t.Fatalf("combined selection = %#v, want failed or unfinished jobs", queue.Commands)
 	}
 	// A job named directly is not combined with a result filter.
-	if _, err := copyRunToQueue(baseDir, "default", "run-1", "failed,unfinished", []string{"success-id"}, false, true); err == nil || !strings.Contains(err.Error(), "job IDs cannot be combined") {
+	if _, err := queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "failed,unfinished", JobIDs: []string{"success-id"}, Overwrite: true}); err == nil || !strings.Contains(err.Error(), "job IDs cannot be combined") {
 		t.Fatalf("copy with a filter and a job ID error = %v, want a rejection", err)
 	}
 }
@@ -459,10 +460,10 @@ func TestCopyRunToQueueRequiresAppendForNonEmptyQueue(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := copyRunToQueue(baseDir, "default", "run-1", "all", nil, false); err == nil {
+	if _, err := queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "all"}); err == nil {
 		t.Fatal("copy succeeded without --append")
 	}
-	if _, err := copyRunToQueue(baseDir, "default", "run-1", "all", nil, true); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "all", Append: true}); err != nil {
 		t.Fatal(err)
 	}
 	queue, err := loadQueue(paths.QueueFile)
@@ -488,7 +489,7 @@ func TestCopyRunToQueueCanOverwriteNonEmptyQueue(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := copyRunToQueue(baseDir, "default", "run-1", "all", nil, false, true); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "all", Overwrite: true}); err != nil {
 		t.Fatal(err)
 	}
 	queue, err := loadQueue(paths.QueueFile)
@@ -530,7 +531,7 @@ func TestCopyRunToQueueAggregatesArrayTaskResults(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := copyRunToQueue(baseDir, "default", "run-1", "failed", nil, false); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "failed"}); err != nil {
 		t.Fatal(err)
 	}
 	queue, err := loadQueue(paths.QueueFile)
@@ -547,7 +548,7 @@ func TestCopyRunToQueueAggregatesArrayTaskResults(t *testing.T) {
 		t.Fatalf("failed-array task origin has no attempt ID")
 	}
 
-	if _, err := copyRunToQueue(baseDir, "default", "run-1", "success", nil, false, true); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "success", Overwrite: true}); err != nil {
 		t.Fatal(err)
 	}
 	queue, err = loadQueue(paths.QueueFile)
@@ -627,7 +628,7 @@ func TestCopyRunToQueueRetriesFailedStageMemberWithDependent(t *testing.T) {
 		{ID: "b-id", ExitCode: 1},
 		{ID: "evaluate-id", ExitCode: 1, Error: "blocked by failed dependency"},
 	})
-	if _, err := copyRunToQueue(baseDir, "default", "run-1", "failed", nil, false); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "failed"}); err != nil {
 		t.Fatalf("copy --failed of a partial stage: %v", err)
 	}
 	queue, err := loadQueue(paths.QueueFile)
@@ -659,7 +660,7 @@ func TestCopyRunToQueueRejectsFailedExcludedStageMember(t *testing.T) {
 		{ID: "b-id", ExitCode: 1},
 		{ID: "evaluate-id", ExitCode: 1, Error: "blocked by failed dependency"},
 	})
-	_, err = copyRunToQueue(baseDir, "default", "run-1", "job-id", []string{"b-id", "evaluate-id"}, false)
+	_, err = queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "job-id", JobIDs: []string{"b-id", "evaluate-id"}})
 	if err == nil || !strings.Contains(err.Error(), `excluded dependency "a" (stage "compute") did not succeed`) {
 		t.Fatalf("copy error = %v, want excluded failed stage member", err)
 	}
@@ -676,7 +677,7 @@ func TestCopyRunToQueueDropsFullyExcludedSuccessfulStage(t *testing.T) {
 		{ID: "b-id", ExitCode: 0},
 		{ID: "evaluate-id", ExitCode: 1},
 	})
-	if _, err := copyRunToQueue(baseDir, "default", "run-1", "failed", nil, false); err != nil {
+	if _, err := queueEditor().Copy(baseDir, "default", "run-1", queueedit.CopyRequest{Selection: "failed"}); err != nil {
 		t.Fatal(err)
 	}
 	queue, err := loadQueue(paths.QueueFile)

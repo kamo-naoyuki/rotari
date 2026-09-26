@@ -40,7 +40,7 @@
   `--success`, and never carries that result. Other edits, such as the
   timeout, retry settings, dependencies, or name, keep the result. A
   workflow-import queue forces a job on any edit. Implemented by
-  `applyChangeMutation` in [cmd/rotari/change.go](../../cmd/rotari/change.go)
+  `applyMutation` in [internal/queueops/change.go](../../internal/queueops/change.go)
   and `jobResult` in [internal/run/rerun.go](../../internal/run/rerun.go);
   covered by the "changed" rows of `TestSelectorTable` and
   `TestPlanRerunForcedJobsHaveNoResult`.
