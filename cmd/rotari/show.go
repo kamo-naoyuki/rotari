@@ -20,6 +20,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/report"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -377,7 +378,7 @@ func cmdShow(args []string) int {
 	}
 	if *jobIDOption != "" {
 		if *reportOutput {
-			report, err := buildAIReport(paths, runID, *jobIDOption, false, attemptID)
+			report, err := report.Build(jsonStore(), paths, runID, *jobIDOption, false, attemptID)
 			if err != nil {
 				printError(err)
 				return 1
@@ -415,7 +416,7 @@ func cmdShow(args []string) int {
 		})
 	}
 	if *reportOutput {
-		report, err := buildAIReport(paths, runID, "", *failedOnly)
+		report, err := report.Build(jsonStore(), paths, runID, "", *failedOnly, "")
 		if err != nil {
 			printError(err)
 			return 1
@@ -758,7 +759,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 	}
 	runQueue, runQueueErr := state.LoadQueue(filepath.Join(runDir, "commands.json"))
-	runActive := runIsActive(paths, runID)
+	runActive := project.RunActive(paths, runID)
 	jobCounts := showJobCounts{}
 	resultByID := model.ResultsByID(summary.Results)
 	jobIDs := make([]string, 0, len(runQueue.Commands))
@@ -881,15 +882,6 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	printFailedLogHints(runID, changeHints, resultByID)
 	fmt.Printf("\n%s\n  rotari delete --run-id %s\n", cyan("To delete this run's saved logs:"), runID)
 	return 0
-}
-
-func runIsActive(paths state.ProjectPaths, runID string) bool {
-	running, err := isRunning(paths.LockFile)
-	if err != nil || !running {
-		return false
-	}
-	lock, err := state.LoadLock(paths.LockFile)
-	return err == nil && lock.RunID == runID
 }
 
 func printFailedLogHints(runID string, failedJobs []model.JobSpec, results map[string]model.JobResult) {
@@ -1643,9 +1635,9 @@ func exitCodeStatusText(exitCode int, text string) string {
 func writeJobDiagnoses(writer io.Writer, result model.JobResult) {
 	switch {
 	case result.DiagnosisStatus == model.DiagnosisNoMatch:
-		fmt.Fprintf(writer, "%s no known rule matched\n  Next: %s\n", cyan("Diagnosis:"), noMatchDiagnosisNext)
+		fmt.Fprintf(writer, "%s no known rule matched\n  Next: %s\n", cyan("Diagnosis:"), diagnose.NoMatchNext)
 	case result.DiagnosisStatus == model.DiagnosisUnavailable:
-		fmt.Fprintf(writer, "%s unavailable: %s\n  Next: %s\n", cyan("Diagnosis:"), result.DiagnosisNote, unavailableDiagnosisNext)
+		fmt.Fprintf(writer, "%s unavailable: %s\n  Next: %s\n", cyan("Diagnosis:"), result.DiagnosisNote, diagnose.UnavailableNext)
 	case len(result.Diagnoses) > 0:
 		fmt.Fprintf(writer, "%s\n", cyan("Diagnosis:"))
 		for _, diagnosis := range result.Diagnoses {
@@ -1655,7 +1647,7 @@ func writeJobDiagnoses(writer io.Writer, result model.JobResult) {
 		return
 	}
 	if diagnose.Outdated(result) {
-		fmt.Fprintf(writer, "  Note: %s\n", outdatedDiagnosisNote)
+		fmt.Fprintf(writer, "  Note: %s\n", diagnose.OutdatedNote)
 	}
 }
 

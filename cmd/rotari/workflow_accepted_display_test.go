@@ -95,7 +95,7 @@ func TestAcceptedResultDisplaysConsistentlyInShowAndWeb(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	jobs, err := loadWebJobs(filepath.Join(paths.RunsDir, "accepted-run"), summary)
+	jobs, err := webprojection.LoadRunJobs(jsonStore(), filepath.Join(paths.RunsDir, "accepted-run"), summary, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestAcceptedArrayTaskDisplaysConsistentlyInShowAndWeb(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	jobs, err := loadWebJobs(filepath.Join(paths.RunsDir, "accepted-run"), summary)
+	jobs, err := webprojection.LoadRunJobs(jsonStore(), filepath.Join(paths.RunsDir, "accepted-run"), summary, "")
 	if err != nil {
 		t.Fatal(err)
 	}

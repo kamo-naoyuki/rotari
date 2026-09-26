@@ -23,6 +23,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/queueops"
+	"github.com/kamo-naoyuki/rotari/internal/report"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
 	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
@@ -396,7 +397,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			return
 		}
 		if request.URL.Query().Get("job_ids") != "" {
-			report, err := buildAIReportForJobs(paths, runID, jobIDs)
+			report, err := report.BuildForJobs(jsonStore(), paths, runID, jobIDs)
 			if err != nil {
 				writeWebError(writer, err)
 				return
@@ -409,7 +410,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 		if request.URL.Query().Get("job_id") != "" {
 			singleJobID = jobIDs[0]
 		}
-		report, err := buildAIReport(paths, runID, singleJobID, false)
+		report, err := report.Build(jsonStore(), paths, runID, singleJobID, false, "")
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -979,7 +980,7 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 			if files, configErr := loadWebConfigFiles(baseDir, queue.QueueName, run.RunID); configErr == nil {
 				configs[staticConfigKey(queue.QueueName, run.RunID)] = files
 			}
-			if report, reportErr := buildAIReport(paths, run.RunID, "", false); reportErr == nil {
+			if report, reportErr := report.Build(jsonStore(), paths, run.RunID, "", false, ""); reportErr == nil {
 				reports[staticReportKey(queue.QueueName, run.RunID, "")] = report
 			}
 			for _, job := range run.Jobs {
@@ -1009,7 +1010,7 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 						logs[staticLogKey(queue.QueueName, run.RunID, job.ID, attempt.ID)] = string(attemptData)
 					}
 				}
-				if report, reportErr := buildAIReport(paths, run.RunID, job.ID, false); reportErr == nil {
+				if report, reportErr := report.Build(jsonStore(), paths, run.RunID, job.ID, false, ""); reportErr == nil {
 					reports[staticReportKey(queue.QueueName, run.RunID, job.ID)] = report
 				}
 			}
@@ -1223,7 +1224,7 @@ func loadWebQueueState(paths stateinternal.ProjectPaths) (webprojection.QueueSta
 			return stateinternal.LoadRunSummary(filepath.Join(paths.RunsDir, runID, "summary.json"))
 		},
 		Jobs: func(runID string, summary model.RunSummary) ([]webprojection.Job, error) {
-			return loadWebJobs(filepath.Join(paths.RunsDir, runID), summary)
+			return webprojection.LoadRunJobs(jsonStore(), filepath.Join(paths.RunsDir, runID), summary, "")
 		},
 		Context: func(runID string) (model.RunContext, error) {
 			return stateinternal.LoadContext(jsonStore(), filepath.Join(paths.RunsDir, runID))
@@ -1245,18 +1246,6 @@ func formatWebQueueDisplayTimes(state *webprojection.QueueState) {
 	state.RunnerStartedAt = projection.RunnerStartedAt
 	state.Queue = projection.Queue
 	state.Runs = projection.Runs
-}
-
-func loadWebJobs(runDir string, summary model.RunSummary, attemptIDs ...string) ([]webprojection.Job, error) {
-	commands, err := stateinternal.LoadQueue(filepath.Join(runDir, "commands.json"))
-	if err != nil {
-		return nil, err
-	}
-	selectedAttemptID := ""
-	if len(attemptIDs) > 0 {
-		selectedAttemptID = attemptIDs[0]
-	}
-	return webprojection.LoadJobs(jsonStore(), runDir, commands, summary, selectedAttemptID)
 }
 
 func writeWebJSON(writer http.ResponseWriter, value any) {

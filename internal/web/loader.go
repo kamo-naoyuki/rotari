@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
@@ -60,6 +61,16 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 	}
 	sort.Slice(state.Runs, func(i, j int) bool { return state.Runs[i].RunID > state.Runs[j].RunID })
 	return state, nil
+}
+
+// LoadRunJobs reads runDir's command snapshot and projects its jobs with
+// LoadJobs.
+func LoadRunJobs(store state.Store, runDir string, summary model.RunSummary, selectedAttemptID string) ([]Job, error) {
+	commands, err := state.LoadQueue(filepath.Join(runDir, "commands.json"))
+	if err != nil {
+		return nil, err
+	}
+	return LoadJobs(store, runDir, commands, summary, selectedAttemptID)
 }
 
 // LoadJobs projects a run's jobs for the Web UI. Each job's result follows

@@ -1,4 +1,4 @@
-package main
+package report
 
 import (
 	"encoding/json"
@@ -12,11 +12,14 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
 
 const (
+	jobNotFoundMessage      = "job %q not found in run %q"
+	runNotFoundMessage      = "run %q not found"
 	reportLogLines          = 100
 	reportLogChars          = 12000
 	redactedPathPlaceholder = "[REDACTED_PATH]"
@@ -28,9 +31,12 @@ var (
 	reportFQDNPattern        = regexp.MustCompile(`\b[A-Za-z0-9][A-Za-z0-9.-]*\.(?:com|org|net|edu|gov|io|jp|local)\b`)
 )
 
-// buildAIReport formats run or job evidence for AI-assisted diagnosis.
-func buildAIReport(paths state.ProjectPaths, runID, jobID string, failedOnly bool, attemptIDs ...string) (string, error) {
-	run, err := loadAIReportRun(paths, runID, attemptIDs...)
+// Build formats the evidence of runID, or of its job jobID, for AI-assisted
+// diagnosis, with paths and hostnames redacted. failedOnly limits a run report
+// to failed and blocked jobs. A non-empty attemptID shows that attempt instead
+// of its job's latest.
+func Build(store state.Store, paths state.ProjectPaths, runID, jobID string, failedOnly bool, attemptID string) (string, error) {
+	run, err := loadRun(store, paths, runID, attemptID)
 	if err != nil {
 		return "", err
 	}
@@ -48,9 +54,10 @@ func buildAIReport(paths state.ProjectPaths, runID, jobID string, failedOnly boo
 	return redactAIReport(formatRunAIReport(paths, run, failedOnly), paths, run), nil
 }
 
-// buildAIReportForJobs formats evidence for a selected set of jobs in one run.
-func buildAIReportForJobs(paths state.ProjectPaths, runID string, jobIDs []string) (string, error) {
-	run, err := loadAIReportRun(paths, runID)
+// BuildForJobs formats the evidence of the selected jobs of runID as a run
+// report.
+func BuildForJobs(store state.Store, paths state.ProjectPaths, runID string, jobIDs []string) (string, error) {
+	run, err := loadRun(store, paths, runID, "")
 	if err != nil {
 		return "", err
 	}
@@ -76,19 +83,19 @@ func buildAIReportForJobs(paths state.ProjectPaths, runID string, jobIDs []strin
 	return redactAIReport(formatRunAIReportSelected(paths, run, selected, false), paths, run), nil
 }
 
-func loadAIReportRun(paths state.ProjectPaths, runID string, attemptIDs ...string) (webprojection.Run, error) {
+func loadRun(store state.Store, paths state.ProjectPaths, runID, attemptID string) (webprojection.Run, error) {
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return webprojection.Run{}, fmt.Errorf(runNotFoundMessage, runID)
 	}
 	var summary model.RunSummary
-	if path, err := state.ValidatedStateFile(runDir, stateFileSummaryJSON); err == nil {
+	if path, err := state.ValidatedStateFile(runDir, "summary.json"); err == nil {
 		summary, err = state.LoadRunSummary(path)
 		if err != nil && !os.IsNotExist(err) {
 			return webprojection.Run{}, fmt.Errorf("failed to read summary: %w", err)
 		}
 	} else {
-		summary, err = state.LoadRunSummary(filepath.Join(runDir, stateFileSummaryJSON))
+		summary, err = state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
 		if err != nil && !os.IsNotExist(err) {
 			return webprojection.Run{}, fmt.Errorf("failed to read summary: %w", err)
 		}
@@ -96,7 +103,7 @@ func loadAIReportRun(paths state.ProjectPaths, runID string, attemptIDs ...strin
 	if summary.RunID == "" {
 		summary.RunID = runID
 	}
-	running := runIsActive(paths, runID)
+	running := project.RunActive(paths, runID)
 	if summary.Status == "" {
 		if running {
 			summary.Status = "running"
@@ -104,12 +111,12 @@ func loadAIReportRun(paths state.ProjectPaths, runID string, attemptIDs ...strin
 			summary.Status = "unknown"
 		}
 	}
-	jobs, err := loadWebJobs(runDir, summary, attemptIDs...)
+	jobs, err := webprojection.LoadRunJobs(store, runDir, summary, attemptID)
 	if err != nil {
 		return webprojection.Run{}, err
 	}
 	context := model.RunContext{}
-	if loaded, err := state.LoadContext(jsonStore(), runDir); err == nil {
+	if loaded, err := state.LoadContext(store, runDir); err == nil {
 		context = model.RunContext(loaded)
 	}
 	return webprojection.Run{RunSummary: summary, Jobs: jobs, CWD: context.CWD, Context: context, Running: running}, nil
@@ -239,7 +246,7 @@ func reportJobStatus(job webprojection.Job, running bool) string {
 func readReportLog(paths state.ProjectPaths, runID string, job webprojection.Job) string {
 	if job.AttemptDir != "" {
 		// NOSONAR: job.AttemptDir is created from validated path elements only.
-		path, err := state.ValidatedStateFile(job.AttemptDir, stateFileOutput)
+		path, err := state.ValidatedStateFile(job.AttemptDir, "output")
 		if err != nil {
 			return ""
 		}
@@ -305,9 +312,9 @@ func firstNonEmpty(values ...string) string {
 func writeReportDiagnoses(builder *strings.Builder, result model.JobResult) {
 	switch {
 	case result.DiagnosisStatus == model.DiagnosisNoMatch:
-		fmt.Fprintf(builder, "\n### Diagnosis\n- No known rule matched.\n  Next: %s\n", noMatchDiagnosisNext)
+		fmt.Fprintf(builder, "\n### Diagnosis\n- No known rule matched.\n  Next: %s\n", diagnose.NoMatchNext)
 	case result.DiagnosisStatus == model.DiagnosisUnavailable:
-		fmt.Fprintf(builder, "\n### Diagnosis\n- Unavailable: %s\n  Next: %s\n", result.DiagnosisNote, unavailableDiagnosisNext)
+		fmt.Fprintf(builder, "\n### Diagnosis\n- Unavailable: %s\n  Next: %s\n", result.DiagnosisNote, diagnose.UnavailableNext)
 	case len(result.Diagnoses) > 0:
 		fmt.Fprintln(builder, "\n### Diagnosis")
 		for _, diagnosis := range result.Diagnoses {
@@ -317,6 +324,6 @@ func writeReportDiagnoses(builder *strings.Builder, result model.JobResult) {
 		return
 	}
 	if diagnose.Outdated(result) {
-		fmt.Fprintf(builder, "\nNote: %s\n", outdatedDiagnosisNote)
+		fmt.Fprintf(builder, "\nNote: %s\n", diagnose.OutdatedNote)
 	}
 }

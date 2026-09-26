@@ -9,6 +9,16 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
+// Guidance shown with a saved rule diagnosis by show and reports.
+const (
+	// NoMatchNext follows a failure that no rule matched.
+	NoMatchNext = "Inspect the full job output and scheduler accounting for the failure details."
+	// UnavailableNext follows a diagnosis that could not read the output.
+	UnavailableNext = "Resolve the read error, then run rotari diagnose --rules."
+	// OutdatedNote marks a diagnosis saved under earlier rules; see Outdated.
+	OutdatedNote = "Saved with earlier diagnosis rules; rotari diagnose --rules shows the result under the current rules."
+)
+
 // matcherRevision is part of RulesVersion. Bump it when Diagnose changes how
 // rules match or rank lines without changing any rule definition.
 const matcherRevision = 1

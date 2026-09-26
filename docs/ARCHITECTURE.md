@@ -100,6 +100,7 @@ flowchart TB
   project["project<br/>state machine, idle edits"]
   resolve["resolve<br/>selectors to run and job"]
   queueops["queueops<br/>queue and history edits"]
+  report["report<br/>diagnosis evidence"]
   subgraph l2["orchestration and projections"]
     server
     run
@@ -127,6 +128,10 @@ flowchart TB
   queueops --> queueedit
   queueops --> executor
   queueops --> state
+  cmd --> report
+  report --> web
+  report --> project
+  report --> diagnose
   resolve --> project
   resolve --> runregistry
   resolve --> state
@@ -176,6 +181,7 @@ the current graph if this list drifts.
 | [internal/queueops](../internal/queueops/) | Queue and run-history edits shared by the CLI, the Web UI, and the supervisor: add, change, remove, copy, and deleting runs. Loads and saves the files around `internal/queueedit` through the `internal/project` idle-edit sequence, and owns `ValidateJobs`. | `editor.go` (`Editor`), `change.go`, `copy.go` |
 | [internal/queueedit](../internal/queueedit/) | Pure queue edits, such as building a queue from an earlier run (`copy`, `retry`). | `copy.go` |
 | [internal/workflow](../internal/workflow/) | Workflow manifests: `export` merge and `import` reconciliation. | `manifest.go`, `export.go`, `reconcile.go` |
+| [internal/report](../internal/report/) | The redacted evidence report for AI-assisted diagnosis, shared by `show --report` and the Web UI. Reads jobs through `internal/web`'s projection. | `report.go` (`Build`) |
 | [internal/rundiff](../internal/rundiff/) | Comparison of two loaded runs for `diff` and `show --lineage`. | `rundiff.go` |
 | [internal/diagnose](../internal/diagnose/) | Rule-based and provider-backed failure diagnosis. | `analysis.go` |
 
@@ -218,7 +224,7 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 | Wiring the run lifecycle (`projectRunner`) | `project_run.go` |
 | Supervisor, its server registry, and `show --basedirs` discovery | `server.go`, `registry.go` |
 | Job control | `job_control.go`, `wait.go` |
-| Reading results | `show.go`, `jobs.go`, `diff.go`, `report.go`, `diagnose.go`, `check.go` |
+| Reading results | `show.go`, `jobs.go`, `diff.go`, `diagnose.go`, `check.go` |
 | Workflow manifests | `export.go`, `import.go`, `workflow_source.go` |
 | Web server and assets | `web.go`, `web_assets.go`, `assets/` |
 | Notifications and terminal output | `webhook.go`, `color.go`, `terminal*.go` |

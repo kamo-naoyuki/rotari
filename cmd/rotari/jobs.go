@@ -12,6 +12,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -368,7 +369,7 @@ func collectJobs(baseDir string, projects []string, now time.Time, window time.D
 func collectRunJobs(paths state.ProjectPaths, runID string, now, cutoff time.Time) ([]jobsRow, bool, bool, error) {
 	runDir := filepath.Join(paths.RunsDir, runID)
 	summary, summaryErr := state.LoadRunSummary(filepath.Join(runDir, stateFileSummaryJSON))
-	active := runIsActive(paths, runID)
+	active := project.RunActive(paths, runID)
 	if summaryErr == nil && !active {
 		finishedAt, err := parseJobsTimestamp(summary.FinishedAt)
 		if err == nil && finishedAt.Before(cutoff) {

@@ -43,9 +43,10 @@ quickly.
 - Preserve the same fallback and resolution contracts across CLI, server, and
   web paths. Job result and timestamp resolution lives in
   [`internal/jobstatus`](../internal/jobstatus/); the renderers start with [`cmd/rotari/show.go`](../cmd/rotari/show.go),
-  [`cmd/rotari/report.go`](../cmd/rotari/report.go), and
+  [`internal/report/report.go`](../internal/report/report.go), and
   [`cmd/rotari/web.go`](../cmd/rotari/web.go); representative tests are in
-  [`cmd/rotari/show_test.go`](../cmd/rotari/show_test.go) and
+  [`cmd/rotari/show_test.go`](../cmd/rotari/show_test.go),
+  [`internal/report/report_test.go`](../internal/report/report_test.go), and
   [`cmd/rotari/web_test.go`](../cmd/rotari/web_test.go).
 - Treat path elements as arbitrary strings and reject unsafe separators before
   filesystem access. The shared boundary is

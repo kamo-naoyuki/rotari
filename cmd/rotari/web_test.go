@@ -1343,7 +1343,7 @@ func TestLoadWebJobsIncludesCommandMetadata(t *testing.T) {
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		t.Fatal(err)
 	}
-	jobs, err := loadWebJobs(runDir, model.RunSummary{Results: []model.JobResult{{ID: "job-1", ExitCode: 0}}})
+	jobs, err := webprojection.LoadRunJobs(jsonStore(), runDir, model.RunSummary{Results: []model.JobResult{{ID: "job-1", ExitCode: 0}}}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1377,7 +1377,7 @@ func TestLoadWebJobsIncludesAttemptsNewestFirst(t *testing.T) {
 		}
 	}
 
-	jobs, err := loadWebJobs(runDir, model.RunSummary{})
+	jobs, err := webprojection.LoadRunJobs(jsonStore(), runDir, model.RunSummary{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1455,8 +1455,8 @@ func TestLoadWebJobsRejectsUnsafeJobID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := loadWebJobs(runDir, model.RunSummary{}); err == nil {
-		t.Fatal("loadWebJobs accepted an unsafe job ID")
+	if _, err := webprojection.LoadRunJobs(jsonStore(), runDir, model.RunSummary{}, ""); err == nil {
+		t.Fatal("LoadRunJobs accepted an unsafe job ID")
 	}
 }
 
@@ -1468,7 +1468,7 @@ func TestLoadWebJobsIncludesSchedulerState(t *testing.T) {
 	}
 	writeSchedulerStatus(filepath.Join(runDir, "job-1"), "PENDING")
 
-	jobs, err := loadWebJobs(runDir, model.RunSummary{})
+	jobs, err := webprojection.LoadRunJobs(jsonStore(), runDir, model.RunSummary{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1493,7 +1493,7 @@ func TestLoadWebJobsIncludesFinishedLocalJobBeforeRunSummary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	jobs, err := loadWebJobs(runDir, model.RunSummary{RunID: "run-1", Status: "running"})
+	jobs, err := webprojection.LoadRunJobs(jsonStore(), runDir, model.RunSummary{RunID: "run-1", Status: "running"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1511,7 +1511,7 @@ func TestLoadWebJobsProjectsFinishedSchedulerStatus(t *testing.T) {
 	if err := writeJSON(filepath.Join(runDir, "array-1", "status.json"), executor.WrapperStatus{Phase: "running", ExitCode: 0, FinishedAt: "2026-09-18T00:00:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	jobs, err := loadWebJobs(runDir, model.RunSummary{})
+	jobs, err := webprojection.LoadRunJobs(jsonStore(), runDir, model.RunSummary{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1542,7 +1542,7 @@ func TestLoadWebJobsUsesCarriedOriginTimestamps(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	jobs, err := loadWebJobs(currentRunDir, model.RunSummary{Results: []model.JobResult{{ID: "job-1", ExitCode: 0}}})
+	jobs, err := webprojection.LoadRunJobs(jsonStore(), currentRunDir, model.RunSummary{Results: []model.JobResult{{ID: "job-1", ExitCode: 0}}}, "")
 	if err != nil {
 		t.Fatal(err)
 	}

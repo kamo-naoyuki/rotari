@@ -349,3 +349,12 @@ func showLineage(paths state.ProjectPaths, jsonOutput bool) int {
 	fmt.Printf("\n%s\n  rotari diff -p %s RUN_ID\n", cyan("To compare a run with the one before it:"), paths.ProjectName)
 	return 0
 }
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}

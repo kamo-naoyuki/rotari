@@ -59,6 +59,13 @@ func Inspect(paths state.ProjectPaths, cleanupStale bool) (Inspection, error) {
 	return Inspection{State: Idle, Lock: lockState, LockRunID: lock.RunID}, nil
 }
 
+// RunActive reports whether runID holds the project's run lock. A stale local
+// lock is removed while checking.
+func RunActive(paths state.ProjectPaths, runID string) bool {
+	lockState, lock, err := state.InspectLock(paths.LockFile, true)
+	return err == nil && (lockState == state.LockActive || lockState == state.LockRemote) && lock.RunID == runID
+}
+
 // InspectConsistent inspects a project and rejects lock, metadata, and run
 // directory combinations that disagree. A stale lock is removed only after
 // the check passes.

@@ -12,8 +12,6 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
-	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
 
 func TestCLIFlagSpecTracksRepeatedMetadata(t *testing.T) {
@@ -162,22 +160,6 @@ func TestColorMessageCoversStatusAndFailureBranches(t *testing.T) {
 	}
 }
 
-func TestFormatRunAIReportIncludesFailedJobsOnly(t *testing.T) {
-	run := webprojection.Run{
-		RunSummary: model.RunSummary{RunID: "run-1", Status: "failed", ExitCode: 1, StartedAt: "start", FinishedAt: "finish"},
-		CWD:        "/work/project",
-		Jobs: []webprojection.Job{
-			{ID: "failed", Name: "failed-job", Result: &model.JobResult{ID: "failed", ExitCode: 1, Error: "boom"}},
-			{ID: "success", Name: "success-job", Result: &model.JobResult{ID: "success", ExitCode: 0}},
-		},
-	}
-	paths := state.ProjectPaths{ProjectName: "demo"}
-	report := formatRunAIReport(paths, run, true)
-	if !strings.Contains(report, "failed-job") || strings.Contains(report, "success-job") {
-		t.Fatalf("failed-only report = %s", report)
-	}
-}
-
 func TestConfigOptionNamesExcludesConfigOnlyOptions(t *testing.T) {
 	names := configOptionNames()
 	if !sort.StringsAreSorted(names) {
@@ -285,30 +267,6 @@ func TestDiagnosisFormattingAndLanguageValidation(t *testing.T) {
 		if diagnose.IsLanguageTag(tag) {
 			t.Fatalf("invalid language tag %q was accepted", tag)
 		}
-	}
-}
-
-func TestReportStatusAndValueHelpers(t *testing.T) {
-	if got := reportJobStatus(webprojection.Job{SchedulerState: "pending"}, false); got != "pending" {
-		t.Fatalf("scheduler status = %q", got)
-	}
-	if got := reportJobStatus(webprojection.Job{}, true); got != "running" {
-		t.Fatalf("running status = %q", got)
-	}
-	if got := reportJobStatus(webprojection.Job{}, false); got != "pending" {
-		t.Fatalf("pending status = %q", got)
-	}
-	if got := reportJobStatus(webprojection.Job{Result: &model.JobResult{Error: "blocked by dependency"}}, false); got != "blocked" {
-		t.Fatalf("blocked status = %q", got)
-	}
-	if got := reportJobStatus(webprojection.Job{Result: &model.JobResult{ExitCode: 0}}, false); got != "success" {
-		t.Fatalf("success status = %q", got)
-	}
-	if got := reportJobStatus(webprojection.Job{Result: &model.JobResult{ExitCode: 1}}, false); got != "failed" {
-		t.Fatalf("failed status = %q", got)
-	}
-	if reportValue("") != "-" || reportValue("value") != "value" || firstNonEmpty("", "value") != "value" || firstNonEmpty("", "") != "" {
-		t.Fatal("report value helpers returned unexpected results")
 	}
 }
 

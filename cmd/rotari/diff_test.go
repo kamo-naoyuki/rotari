@@ -106,3 +106,9 @@ func TestCmdDiffComparesRunWithItsPredecessor(t *testing.T) {
 		t.Fatalf("diff of the first run exit = %d, stderr = %q", code, stderr)
 	}
 }
+
+func TestFirstNonEmpty(t *testing.T) {
+	if firstNonEmpty("", "value") != "value" || firstNonEmpty("", "") != "" {
+		t.Fatal("firstNonEmpty returned unexpected results")
+	}
+}

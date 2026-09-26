@@ -14,6 +14,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
+	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
 
 func TestFormatDisplayTimestampUsesJST(t *testing.T) {
@@ -827,12 +828,12 @@ func TestShowJobDisplaysDiagnosisStatusAndOutdatedRules(t *testing.T) {
 		{
 			name:   "outdated no match",
 			result: model.JobResult{DiagnosisStatus: model.DiagnosisNoMatch, DiagnosisRules: "old"},
-			wanted: []string{"Diagnosis: no known rule matched", noMatchDiagnosisNext, "Note: " + outdatedDiagnosisNote},
+			wanted: []string{"Diagnosis: no known rule matched", diagnose.NoMatchNext, "Note: " + diagnose.OutdatedNote},
 		},
 		{
 			name:     "unavailable",
 			result:   model.JobResult{DiagnosisStatus: model.DiagnosisUnavailable, DiagnosisNote: "the job output could not be read"},
-			wanted:   []string{"Diagnosis: unavailable: the job output could not be read", unavailableDiagnosisNext},
+			wanted:   []string{"Diagnosis: unavailable: the job output could not be read", diagnose.UnavailableNext},
 			unwanted: []string{"earlier diagnosis rules"},
 		},
 	}
@@ -880,7 +881,7 @@ func TestShowJobConvertsLegacyNoMatchDiagnosis(t *testing.T) {
 		t.Fatalf("showJob exit code = %d, want 0", code)
 	}
 	text := output.String()
-	if !strings.Contains(text, "Diagnosis: no known rule matched") || !strings.Contains(text, outdatedDiagnosisNote) || strings.Contains(text, "No recognized signature.") {
+	if !strings.Contains(text, "Diagnosis: no known rule matched") || !strings.Contains(text, diagnose.OutdatedNote) || strings.Contains(text, "No recognized signature.") {
 		t.Fatalf("showJob output = %q, want legacy no-match converted and marked outdated", text)
 	}
 }
@@ -1419,7 +1420,7 @@ func TestShowAndWebShareStatusFallbackChain(t *testing.T) {
 		t.Fatalf("showJob code=%d output=%q", code, jobOutput.String())
 	}
 
-	jobs, err := loadWebJobs(runDir, summary)
+	jobs, err := webprojection.LoadRunJobs(jsonStore(), runDir, summary, "")
 	if err != nil {
 		t.Fatal(err)
 	}

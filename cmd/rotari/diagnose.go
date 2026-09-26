@@ -25,12 +25,6 @@ const (
 	diagnosisLogLimit    = 12000
 )
 
-const (
-	noMatchDiagnosisNext     = "Inspect the full job output and scheduler accounting for the failure details."
-	unavailableDiagnosisNext = "Resolve the read error, then run rotari diagnose --rules."
-	outdatedDiagnosisNote    = "Saved with earlier diagnosis rules; rotari diagnose --rules shows the result under the current rules."
-)
-
 // cmdDiagnose builds a failure diagnosis prompt and optionally sends it to an
 // external provider.
 // diagnoseJobByName resolves a job name to its job ID, as show does: in the

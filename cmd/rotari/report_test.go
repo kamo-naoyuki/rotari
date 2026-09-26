@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/report"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func createAIReportFixture(t *testing.T) (string, state.ProjectPaths, string, string) {
@@ -49,70 +51,6 @@ func createAIReportFixture(t *testing.T) (string, state.ProjectPaths, string, st
 	return baseDir, paths, runID, jobID
 }
 
-func TestBuildAIReportIncludesDiagnosisAndBoundedLog(t *testing.T) {
-	_, paths, runID, jobID := createAIReportFixture(t)
-	report, err := buildAIReport(paths, runID, jobID, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, want := range []string{"# rotari job report", "Python exception", "Evidence: ValueError: bad value", "Next: Inspect the traceback", outdatedDiagnosisNote, "log-line-021", "log-line-120"} {
-		if !strings.Contains(report, want) {
-			t.Fatalf("report does not contain %q:\n%s", want, report)
-		}
-	}
-	if strings.Contains(report, "log-line-020") {
-		t.Fatalf("report contains log content before the final %d lines", reportLogLines)
-	}
-}
-
-func TestBuildAIReportRedactsKnownAndTypicalSensitiveValues(t *testing.T) {
-	_, paths, runID, jobID := createAIReportFixture(t)
-	runDir := filepath.Join(paths.RunsDir, runID)
-	if err := os.WriteFile(filepath.Join(runDir, "context.json"), []byte(`{"cwd":"/work/demo","hostname":"worker-1"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(paths.RunsDir, runID, jobID, "output"), []byte("failed at /home/alice/private.txt on node-1.example.com\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	report, err := buildAIReport(paths, runID, jobID, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, unwanted := range []string{"/work/demo", "worker-1", "/home/alice/private.txt", "node-1.example.com"} {
-		if strings.Contains(report, unwanted) {
-			t.Fatalf("report contains unredacted value %q:\n%s", unwanted, report)
-		}
-	}
-	for _, want := range []string{"[REDACTED_PATH]", "[REDACTED_HOST]", "complete redaction is not guaranteed"} {
-		if !strings.Contains(report, want) {
-			t.Fatalf("report does not contain %q:\n%s", want, report)
-		}
-	}
-}
-
-func TestBuildAIReportRedactsMultipleSecretsAndKeepsTheFirstVisibleMarker(t *testing.T) {
-	_, paths, runID, jobID := createAIReportFixture(t)
-	runDir := filepath.Join(paths.RunsDir, runID)
-	if err := os.WriteFile(filepath.Join(runDir, "context.json"), []byte(`{"cwd":"/tmp/build-logs/run-42","hostname":"cluster-gpu-01.example.com"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(runDir, jobID, "output"), []byte("error: /home/alice/project/data/checkpoint.bin on cluster-gpu-01.example.com\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	report, err := buildAIReport(paths, runID, jobID, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, unwanted := range []string{"/tmp/build-logs/run-42", "cluster-gpu-01.example.com", "/home/alice/project/data/checkpoint.bin"} {
-		if strings.Contains(report, unwanted) {
-			t.Fatalf("report contains unredacted value %q:\n%s", unwanted, report)
-		}
-	}
-	if !strings.Contains(report, "[REDACTED_PATH]") || !strings.Contains(report, "[REDACTED_HOST]") {
-		t.Fatalf("report should redact both paths and hostnames:\n%s", report)
-	}
-}
-
 func TestCmdShowReportRejectsCombinedFlags(t *testing.T) {
 	baseDir := t.TempDir()
 	oldStderr := os.Stderr
@@ -136,23 +74,9 @@ func TestCmdShowReportRejectsCombinedFlags(t *testing.T) {
 	}
 }
 
-func TestBuildJobAIReportIncludesSuccessfulJobLog(t *testing.T) {
-	_, paths, runID, jobID := createAIReportFixture(t)
-	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), model.RunSummary{RunID: runID, Status: "finished", Results: []model.JobResult{{ID: jobID, ExitCode: 0}}}); err != nil {
-		t.Fatal(err)
-	}
-	report, err := buildAIReport(paths, runID, jobID, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(report, "- Status: success") || !strings.Contains(report, "log-line-120") {
-		t.Fatalf("successful job report does not contain its status and log:\n%s", report)
-	}
-}
-
 func TestShowReportAndWebAPIUseCommonReport(t *testing.T) {
 	baseDir, paths, runID, jobID := createAIReportFixture(t)
-	want, err := buildAIReport(paths, runID, jobID, false)
+	want, err := report.Build(jsonStore(), paths, runID, jobID, false, "")
 	if err != nil {
 		t.Fatal(err)
 	}
