@@ -238,7 +238,7 @@ func TestResolveWaitTargetRejectsAmbiguousRunName(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := resolveWaitTarget(baseDir, "", "nightly"); err == nil || !strings.Contains(err.Error(), "ambiguous") {
+	if _, err := resolveWaitTarget(baseDir, "", "nightly"); err == nil || !strings.Contains(err.Error(), "matches more than one target") {
 		t.Fatalf("resolveWaitTarget() error = %v, want ambiguity error", err)
 	}
 }

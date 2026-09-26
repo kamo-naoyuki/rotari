@@ -194,7 +194,7 @@ type Run struct {
 }
 
 // RunsByName finds runs named runName in the selected projects: the active
-// run of each project when activeOnly, otherwise every saved run.
+// run of each project, and unless activeOnly every saved run as well.
 func RunsByName(cliBaseDir, cliProjectName, runName string, activeOnly bool) ([]Run, error) {
 	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 	if err != nil {
@@ -210,24 +210,14 @@ func RunsByName(cliBaseDir, cliProjectName, runName string, activeOnly bool) ([]
 		if pathErr != nil {
 			return nil, pathErr
 		}
+		activeRunID, err := activeRunNamed(paths, runName)
+		if err != nil {
+			return nil, err
+		}
+		if activeRunID != "" {
+			targets = append(targets, Run{BaseDir: baseDir, ProjectName: projectName, RunID: activeRunID})
+		}
 		if activeOnly {
-			running, runningErr := isRunning(paths.LockFile)
-			if runningErr != nil {
-				if os.IsNotExist(runningErr) {
-					continue
-				}
-				return nil, runningErr
-			}
-			if !running {
-				continue
-			}
-			lock, lockErr := state.LoadLock(paths.LockFile)
-			if lockErr != nil {
-				return nil, lockErr
-			}
-			if lock.RunName == runName {
-				targets = append(targets, Run{BaseDir: baseDir, ProjectName: projectName, RunID: lock.RunID})
-			}
 			continue
 		}
 		entries, readErr := os.ReadDir(paths.RunsDir)
@@ -241,6 +231,9 @@ func RunsByName(cliBaseDir, cliProjectName, runName string, activeOnly bool) ([]
 			if !entry.IsDir() {
 				continue
 			}
+			if entry.Name() == activeRunID {
+				continue
+			}
 			summary, summaryErr := state.LoadRunSummary(filepath.Join(paths.RunsDir, entry.Name(), "summary.json"))
 			if summaryErr == nil && summary.RunName == runName {
 				targets = append(targets, Run{BaseDir: baseDir, ProjectName: projectName, RunID: entry.Name()})
@@ -248,6 +241,29 @@ func RunsByName(cliBaseDir, cliProjectName, runName string, activeOnly bool) ([]
 		}
 	}
 	return targets, nil
+}
+
+// activeRunNamed returns the ID of the project's active run when it is named
+// runName, and "" otherwise.
+func activeRunNamed(paths state.ProjectPaths, runName string) (string, error) {
+	running, err := isRunning(paths.LockFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	if !running {
+		return "", nil
+	}
+	lock, err := state.LoadLock(paths.LockFile)
+	if err != nil {
+		return "", err
+	}
+	if lock.RunName != runName {
+		return "", nil
+	}
+	return lock.RunID, nil
 }
 
 // ProjectExists reports whether name is an existing project of baseDir, as

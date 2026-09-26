@@ -71,6 +71,7 @@ var positionalCases = []positionalCase{
 	// show: a project, then run and job selectors.
 	{name: "project", args: "show -b {B} sweep", want: "Project: sweep"},
 	{name: "project name with project option", args: "show -b {B} -p other sweep", fail: true, want: `selector "sweep" not found`},
+	{name: "active run name", args: "show -b {B} live", setup: setupActive, want: "Run: live ({run:live})"},
 	{name: "selector and job option", args: "show -b {B} -p sweep prep --job-id {job:prep}", fail: true, want: "cannot be combined"},
 
 	// wait: a project, an active run name, or a run ID.
@@ -79,7 +80,11 @@ var positionalCases = []positionalCase{
 	{name: "run ID through registry", args: "wait --timeout 50ms {run:live}", setup: setupActive, fail: true, want: "timed out waiting for run {run:live}"},
 	{name: "finished run ID", args: "wait {run:sweep-first}", fail: true, want: "Run: first ({run:sweep-first})"},
 	{name: "several run IDs", args: "wait {run:other-first} {run:remote-run}", want: "Run: remote ({run:remote-run})"},
-	{name: "unknown selector", args: "wait -b {B} nothing", fail: true, want: `no project, active run name, or run ID matches "nothing"`},
+	{name: "unknown selector", args: "wait -b {B} nothing", fail: true, want: `no project, run name, or run ID matches "nothing"`},
+	{name: "project without an active run", args: "wait -b {B} sweep", fail: true, want: "Run: second ({run:sweep-second})"},
+	{name: "finished run name", args: "wait -b {B} second", fail: true, want: "Run: second ({run:sweep-second})"},
+	{name: "finished run name in two projects", args: "wait -b {B} first", fail: true, want: "project=sweep run={run:sweep-first}"},
+	{name: "finished run name in a project", args: "wait -b {B} -p other first", want: "Run: first ({run:other-first})"},
 
 	// A run.
 	{name: "run ID through registry", args: "delete {run:sweep-first}", want: "cleared logs project=sweep run={run:sweep-first}"},

@@ -723,6 +723,12 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		return 1
 	}
 
+	if summary.RunName == "" {
+		// An active run has no summary yet; its lock records the name.
+		if lock, err := state.LoadLock(paths.LockFile); err == nil && lock.RunID == runID {
+			summary.RunName = lock.RunName
+		}
+	}
 	writeShowTargetHeaderWithMode(os.Stdout, paths, "run")
 	fmt.Printf("%s %s\n", cyan("Run:"), formatRunLabel(runID, summary.RunName))
 	if summary.RunName != "" {

@@ -96,10 +96,17 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 	if err != nil {
 		return resolve.Run{}, err
 	}
+	// A project or run name waits for its active run, or else returns the
+	// latest matching run's result, so a run that ends before wait is called
+	// is not an error.
 	if resolve.ProjectExists(baseDir, selector) {
 		runID, err := resolveActiveRunTarget(baseDir, selector)
 		if err != nil {
-			return resolve.Run{}, err
+			baseDir, projectName, latestRunID, latestErr := resolve.ExistingRunID(baseDir, selector, model.Latest)
+			if latestErr != nil {
+				return resolve.Run{}, latestErr
+			}
+			return resolve.Run{BaseDir: baseDir, ProjectName: projectName, RunID: latestRunID}, nil
 		}
 		return resolve.Run{BaseDir: baseDir, ProjectName: selector, RunID: runID}, nil
 	}
@@ -108,18 +115,51 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 	if err != nil {
 		return resolve.Run{}, err
 	}
+	if len(activeTargets) == 0 {
+		named, err := resolve.RunsByName(baseDir, cliProjectName, selector, false)
+		if err != nil {
+			return resolve.Run{}, err
+		}
+		activeTargets = latestRunPerProject(named)
+	}
 	if len(activeTargets) == 1 {
 		return activeTargets[0], nil
 	}
 	if len(activeTargets) > 1 {
-		return resolve.Run{}, fmt.Errorf("run name %q is ambiguous across active projects", selector)
+		candidates := make([]resolve.Job, 0, len(activeTargets))
+		for _, target := range activeTargets {
+			candidates = append(candidates, resolve.Job{Run: target})
+		}
+		return resolve.Run{}, resolve.AmbiguousError(fmt.Sprintf("run name %q", selector), candidates)
 	}
 	if location, found, registryErr := resolveRunLocation(selector); registryErr != nil {
 		return resolve.Run{}, registryErr
 	} else if found {
 		return resolve.Run{BaseDir: location.BaseDir, ProjectName: location.ProjectName, RunID: location.RunID}, nil
 	}
-	return resolve.Run{}, fmt.Errorf("no project, active run name, or run ID matches %q", selector)
+	return resolve.Run{}, fmt.Errorf("no project, run name, or run ID matches %q", selector)
+}
+
+// latestRunPerProject keeps the newest of runs in each project. Run IDs
+// start with their creation time, so the greatest ID is the newest.
+func latestRunPerProject(runs []resolve.Run) []resolve.Run {
+	latest := make(map[string]resolve.Run)
+	var order []string
+	for _, run := range runs {
+		key := run.BaseDir + "\x00" + run.ProjectName
+		current, seen := latest[key]
+		if !seen {
+			order = append(order, key)
+		}
+		if !seen || run.RunID > current.RunID {
+			latest[key] = run
+		}
+	}
+	result := make([]resolve.Run, 0, len(order))
+	for _, key := range order {
+		result = append(result, latest[key])
+	}
+	return result
 }
 
 func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]resolve.Run, error) {

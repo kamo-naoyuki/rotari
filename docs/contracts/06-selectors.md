@@ -118,8 +118,8 @@ General rules:
 | `check`, `reset` | `[PROJECT]` | the project | `--project-name` |
 | `jobs` | `[PROJECT]` | the project to list; overrides environment and config defaults | `--project-name` |
 | `unlock` | `[PROJECT]` | the project; the run ID to verify is always `--run-id` | `--project-name` |
-| `show` | `[SELECTOR]` | an attempt ID, then a registered run ID, then a project (unless `--project-name` is given); otherwise a saved run name, job ID, or job name, where more than one match is ambiguous | run, job, queue, log, JSON, and report options |
-| `wait` | `[SELECTOR ...]` | each: a project (its active run), then an active run name, then a registered run ID | – (added to `--run-id`) |
+| `show` | `[SELECTOR]` | an attempt ID, then a registered run ID or `latest`, then a project (unless `--project-name` is given); otherwise a run name (active or saved), job ID, or job name, where more than one match is ambiguous | run, job, queue, log, JSON, and report options |
+| `wait` | `[SELECTOR ...]` | each: `latest`, then a project, then a run name, then a registered run ID; a project or run name means its active run, or else its latest run | – (added to `--run-id`) |
 | `cancel`, `suspend`, `resume` | `[ID ...]` | job IDs, attempt IDs, and a bare run ID that only locates the run | `--job-id` |
 | `remove` | `[JOB_ID ...]` | job IDs | `--job-id` |
 | `copy` | `[RUN_ID]` | the run | `--run-id` |
