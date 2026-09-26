@@ -178,6 +178,9 @@ func changeQueueJobs(baseDir, queueName, requestedRunID string, selector model.C
 			}
 			*queue = snapshot
 		}
+		if len(queue.Commands) == 0 {
+			return emptyQueueError(queueName)
+		}
 		indexes, err := model.SelectCommands(queue.Commands, selector)
 		if err != nil {
 			return err
@@ -294,6 +297,12 @@ func validateChangeRename(queue model.Queue, jobIndex int, newName string) error
 		}
 	}
 	return nil
+}
+
+// emptyQueueError reports a queue edit on an empty queue. Queue edits never
+// restore a run on their own; copy or --run-id restores one explicitly.
+func emptyQueueError(project string) error {
+	return fmt.Errorf("project %q has no queued jobs; restore a run with 'rotari copy' or pass --run-id", project)
 }
 
 func loadChangeSnapshot(paths state.ProjectPaths, requestedRunID string) (model.Queue, error) {

@@ -2365,7 +2365,7 @@ func TestRemoveBatchRemovesJobsAndRejectsDependencies(t *testing.T) {
 	}
 }
 
-func TestRemoveBatchRestoresPreviousRun(t *testing.T) {
+func TestRemoveBatchRestoresOnlyAnExplicitRun(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
@@ -2385,7 +2385,14 @@ func TestRemoveBatchRestoresPreviousRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message, err := removeBatch(baseDir, "default", "", []string{"one-id"}, "")
+	if _, err := removeBatch(baseDir, "default", "", []string{"one-id"}, ""); err == nil || !strings.Contains(err.Error(), "no queued jobs") {
+		t.Fatalf("remove from an empty queue error = %v, want no queued jobs", err)
+	}
+	if queue, err := loadQueue(paths.QueueFile); err != nil || len(queue.Commands) != 0 {
+		t.Fatalf("remove from an empty queue restored %#v (err %v)", queue.Commands, err)
+	}
+
+	message, err := removeBatch(baseDir, "default", "latest", []string{"one-id"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}

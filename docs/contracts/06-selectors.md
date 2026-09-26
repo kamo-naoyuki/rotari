@@ -44,8 +44,7 @@ output (`show`, `copy`, `run`, `retry`) may also select one task.
 | `show` | The active run, then an interrupted run, then a non-empty queue, then the latest run. A job selector without a project searches every project the same way and fails when it is ambiguous. | That run. |
 | `copy` | Source: the run named by attempt IDs, else the latest run that holds every `--job-id` (searching every project without `-p`), else the project's latest run. Destination: the current queue. | Source: that run (also as positional `RUN_ID`). |
 | `run`, `retry` | The current queue. A job selector, result filter, or group first restores the queue from the reference run when it is empty; a job selector always does. The reference run is found like `copy`'s source. | The queue is replaced by that run's snapshot (after confirmation), which is also the reference. |
-| `change` | The current queue. An empty queue is not restored. | That run's snapshot replaces the queue first. |
-| `remove` | The current queue, or the latest run's snapshot when the queue is empty. | That run's snapshot replaces the queue first. |
+| `change`, `remove` | The current queue. An empty queue is not restored; the command fails and points to `copy` and `--run-id`. | That run's snapshot replaces the queue first. |
 
 ## Job selectors by command
 

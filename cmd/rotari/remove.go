@@ -69,12 +69,15 @@ func removeCommands(baseDir, queueName, requestedRunID string, selector model.Co
 	}
 	var removed []model.QueuedCommand
 	err = project.EditQueue(paths, "remove", func(queue *model.Queue) error {
-		if len(queue.Commands) == 0 || requestedRunID != "" {
+		if requestedRunID != "" {
 			snapshot, err := loadChangeSnapshot(paths, requestedRunID)
 			if err != nil {
 				return err
 			}
 			*queue = snapshot
+		}
+		if len(queue.Commands) == 0 {
+			return emptyQueueError(queueName)
 		}
 
 		indexes, err := model.SelectCommands(queue.Commands, selector)

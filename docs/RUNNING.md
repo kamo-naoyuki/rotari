@@ -222,8 +222,10 @@ requires at least one change, such as a new command, `--executor/-e`,
 `--executor-option`, `--set-job-name`, or `--depends-on`. A new command and
 `--set-job-name` need a single job. An array job is changed as a whole; its
 tasks cannot be changed one by one. It replaces only the options specified,
-keeps the job IDs, and edits the current batch. If the queue is empty, the
-latest run snapshot is restored first. Use `--run-id/-r` to select another run.
+keeps the job IDs, and edits the current queue. A run leaves the queue empty,
+and `change` does not restore it on its own: restore a run with `copy` first, or
+pass `--run-id/-r ID` (or `latest`) to replace the queue with that run's jobs
+before the change.
 
 ### Job timeouts
 
@@ -256,8 +258,9 @@ rotari remove -p sweep -j JOB_ID -j OTHER_JOB_ID
 rotari remove -p sweep --stage eval
 ```
 
-If the queue is empty, `remove` restores the latest run snapshot first. Use
-`--run-id/-r` to select another run. Specify exactly one target selector:
+Like `change`, `remove` edits the current queue and does not restore an empty
+one; restore a run with `copy`, or pass `--run-id/-r ID` (or `latest`) to replace
+the queue with that run's jobs first. Specify exactly one target selector:
 `--job-name NAME`, one or more `--job-id/-j ID` options, `--stage STAGE`,
 `--matrix NAME`, or `--all`, as for `change`. Removing a job that another queued
 job depends on is rejected.
