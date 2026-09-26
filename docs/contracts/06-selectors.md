@@ -109,9 +109,16 @@ options of one kind widen the match and options of different kinds narrow it
 (`--grep A --grep B` against `--author X --grep Y`). Direct selectors are the
 exception: naming a job already says what to execute, so a result filter or a
 scope on top of it could only drop the job again, and combining them is an
-error rather than an intersection. `retry` is `run` with the result filter
-`--failed --unfinished` as its default, used only when neither a result filter
-nor a direct selector is given, so `retry -j ID` runs only that job.
+error rather than an intersection.
+
+`retry` is therefore not an alias of `run --failed --unfinished`. As an alias,
+`retry -j ID` would expand to a direct selector with a result filter and be
+rejected. Instead `--failed --unfinished` is `retry`'s default, used only when
+neither a result filter nor a direct selector is given: `retry -j ID` runs only
+that job, exactly as `run -j ID` does, and `retry --success` runs successful
+jobs. Implemented by `runJobs` in
+[cmd/rotari/run_command.go](../../cmd/rotari/run_command.go); covered by the
+`retry` rows of `TestSelectorTable`.
 
 A job whose command, environment, or working directory changed since its
 recorded result has no result until it runs again (see

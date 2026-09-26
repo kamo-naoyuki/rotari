@@ -79,7 +79,8 @@ rotari run -p sweep --failed --unfinished
 rotari run -j ATTEMPT_ID
 ```
 
-`retry` is `run --failed --unfinished` by default. It selects failed and
+`retry` is `run --failed --unfinished` by default, but not an alias of it:
+`--failed --unfinished` applies only when no result filter or job is given. It selects failed and
 unfinished jobs from the reference run, copies them into the next run with
 successful results carried forward, and executes that run. Given `--job-id/-j`,
 it runs only those jobs instead:

@@ -28,7 +28,9 @@
   decision to execute the job again.
 - `retry` is `run` with `--failed --unfinished` as its default selection,
   used only when neither a result filter nor a job selector is given; with
-  `--job-id` it runs those jobs, like `run`. It does not have a
+  `--job-id` it runs those jobs, like `run`. It is not an alias of
+  `run --failed --unfinished`, which would reject `--job-id` (see "Selector
+  combinations" in [06-selectors.md](06-selectors.md)). It does not have a
   separate `ROTARI_RETRY_*` environment-variable namespace. It shares the
   corresponding `ROTARI_RUN_*` defaults, including `ROTARI_RUN_RETRY`,
   `ROTARI_RUN_ASYNC`, and `ROTARI_RUN_QUIET`.
