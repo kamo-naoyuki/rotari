@@ -3,8 +3,6 @@ package server
 import (
 	"encoding/json"
 	"testing"
-
-	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
 func TestRequestJSONRoundTrip(t *testing.T) {
@@ -12,7 +10,6 @@ func TestRequestJSONRoundTrip(t *testing.T) {
 		Op: "run", QueueName: "demo", RunName: "nightly", LocalConcurrency: 2,
 		Executor: "slurm", ExecutorOptions: []string{"--partition short"},
 		JobIDs: []string{"job-1"}, SourceRunID: "run-0", PartialArray: true,
-		Array: &model.ArraySpec{First: 1, Last: 3},
 	}
 	data, err := json.Marshal(original)
 	if err != nil {
@@ -22,7 +19,7 @@ func TestRequestJSONRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if decoded.Op != original.Op || decoded.QueueName != original.QueueName || decoded.RunName != original.RunName || decoded.Executor != original.Executor || decoded.Array == nil || decoded.Array.First != 1 {
+	if decoded.Op != original.Op || decoded.QueueName != original.QueueName || decoded.RunName != original.RunName || decoded.Executor != original.Executor || !decoded.PartialArray {
 		t.Fatalf("decoded request = %#v", decoded)
 	}
 }

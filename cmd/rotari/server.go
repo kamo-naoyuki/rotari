@@ -199,7 +199,7 @@ func newRotariServer(baseDir string) *serverinternal.Server {
 // requests for baseDir.
 func supervisorOperations(baseDir string) supervisor.Operations {
 	return supervisor.Operations{
-		BaseDir: baseDir, Editor: queueEditor(), Controller: jobController(), Runner: projectRunner(),
+		BaseDir: baseDir, Controller: jobController(), Runner: projectRunner(),
 		NewRunID: makeRunID, Printf: func(format string, args ...any) { fmt.Printf(format, args...) },
 	}
 }

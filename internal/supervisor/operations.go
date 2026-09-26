@@ -2,16 +2,13 @@ package supervisor
 
 import (
 	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
-	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
-	"github.com/kamo-naoyuki/rotari/internal/queueops"
 	"github.com/kamo-naoyuki/rotari/internal/server"
 )
 
 // Operations performs the requests of the background server for BaseDir.
 type Operations struct {
 	BaseDir    string
-	Editor     queueops.Editor
 	Controller jobcontrol.Controller
 	Runner     projectrun.Runner
 	// NewRunID returns a fresh run ID.
@@ -24,17 +21,6 @@ type Operations struct {
 }
 
 var _ server.Operations = Operations{}
-
-// Submit adds the request's command to its project's queue.
-func (ops Operations) Submit(request server.Request) (string, error) {
-	command := model.QueuedCommand{
-		Command: request.Command, Executor: request.Executor, ExecutorOptions: request.ExecutorOptions, Environment: request.Environment,
-		WorkingDirectory: request.WorkingDirectory, Name: request.JobName, Stage: request.Stage, DependsOn: request.DependsOn,
-		DependsOnFinished: request.DependsOnFinished, Timeout: request.Timeout, Retry: request.JobRetry,
-		RetryDelay: request.RetryDelay, RetryBackoff: request.RetryBackoff, RetryMaxDelay: request.RetryMaxDelay,
-	}
-	return ops.Editor.Add(ops.BaseDir, request.QueueName, []model.QueuedCommand{command}, request.Array)
-}
 
 // Cancel cancels the requested jobs, or the whole active run.
 func (ops Operations) Cancel(request server.Request) (string, error) {

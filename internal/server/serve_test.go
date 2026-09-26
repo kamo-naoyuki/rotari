@@ -13,18 +13,10 @@ import (
 
 type fakeOperations struct {
 	mu        sync.Mutex
-	submitted []Request
 	cancelled []Request
 	runStart  chan struct{}
 	runFinish chan struct{}
 	startErr  error
-}
-
-func (ops *fakeOperations) Submit(request Request) (string, error) {
-	ops.mu.Lock()
-	defer ops.mu.Unlock()
-	ops.submitted = append(ops.submitted, request)
-	return "added", nil
 }
 
 func (ops *fakeOperations) Cancel(Request) (string, error) { return "", errors.New("not running") }
@@ -83,9 +75,6 @@ func TestHandleDispatchesOperations(t *testing.T) {
 	if response := roundTrip(t, server, Request{Op: OpPing}); !response.OK || response.Protocol != ProtocolVersion || response.PID != os.Getpid() {
 		t.Fatalf("ping = %#v", response)
 	}
-	if response := roundTrip(t, server, Request{Op: OpSubmit, QueueName: "demo"}); !response.OK || response.Message != "added" || len(ops.submitted) != 1 {
-		t.Fatalf("submit = %#v, submitted = %#v", response, ops.submitted)
-	}
 	if response := roundTrip(t, server, Request{Op: OpCancel}); response.OK || response.Message != "not running" {
 		t.Fatalf("cancel = %#v, want operation error", response)
 	}
@@ -95,8 +84,8 @@ func TestHandleDispatchesOperations(t *testing.T) {
 	if response := roundTrip(t, server, Request{Op: "unknown"}); response.OK || response.Message != "unknown server operation: unknown" {
 		t.Fatalf("unknown = %#v", response)
 	}
-	if response := roundTrip(t, server, Request{Op: OpCopy}); response.OK || response.Message != "unsupported server operation: copy" {
-		t.Fatalf("copy = %#v", response)
+	if response := roundTrip(t, server, Request{Op: "submit"}); response.OK || response.Message != "unknown server operation: submit" {
+		t.Fatalf("submit = %#v, want unknown operation", response)
 	}
 	if server.Stopped() {
 		t.Fatal("server stopped without a run or shutdown")

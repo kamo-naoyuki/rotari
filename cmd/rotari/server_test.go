@@ -890,48 +890,6 @@ func TestServerHandleRejectsUnknownOperation(t *testing.T) {
 	}
 }
 
-func TestServerHandleSubmitPersistsQueue(t *testing.T) {
-	baseDir := t.TempDir()
-	client, serverConn := net.Pipe()
-	defer client.Close()
-
-	server := newRotariServer(baseDir)
-	go server.Handle(serverConn)
-	request := serverinternal.Request{
-		Op: "submit", QueueName: "demo", Command: []string{"printf", "hello"},
-		JobName: "greeting", DependsOn: []string{"setup"},
-	}
-	if err := json.NewEncoder(client).Encode(request); err != nil {
-		t.Fatal(err)
-	}
-	var response serverinternal.Response
-	if err := json.NewDecoder(client).Decode(&response); err != nil {
-		t.Fatal(err)
-	}
-	if !response.OK {
-		t.Fatalf("response = %+v, want successful submit", response)
-	}
-
-	paths, err := state.ResolveProjectPaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	queue, err := loadQueue(paths.QueueFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(queue.Commands) != 1 || queue.Commands[0].Name != "greeting" || queue.Commands[0].ID == "" {
-		t.Fatalf("queue = %+v, want one persisted named command with an ID", queue)
-	}
-	meta, err := loadMeta(paths.MetaFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if meta.Phase != "collecting" {
-		t.Fatalf("meta phase = %q, want collecting", meta.Phase)
-	}
-}
-
 func TestSendServerRequestOverUnixSocket(t *testing.T) {
 	baseDir, err := os.MkdirTemp("", "rotari-server-test-")
 	if err != nil {

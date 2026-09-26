@@ -13,9 +13,9 @@ Representative implementation and tests:
   disconnect protocol.
 - [cmd/rotari/server.go](../../cmd/rotari/server.go) and
   [cmd/rotari/server_test.go](../../cmd/rotari/server_test.go) for server
-  commands and the `Operations` that perform queue, cancel, and run work.
-  The request handlers live in
-  [internal/queueops/add.go](../../internal/queueops/add.go),
+  commands and the `Operations` that perform cancel, suspend, resume, and run
+  work. The request handlers live in
+  [internal/supervisor](../../internal/supervisor/operations.go),
   [cmd/rotari/run_command.go](../../cmd/rotari/run_command.go), and
   [internal/jobcontrol](../../internal/jobcontrol/jobcontrol.go).
 - [cmd/rotari/show.go](../../cmd/rotari/show.go) and

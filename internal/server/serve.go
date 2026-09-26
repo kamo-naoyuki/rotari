@@ -31,7 +31,6 @@ var ErrAlreadyRunning = errors.New("server is already running")
 // Operations performs the project work behind server requests. The server
 // owns the transport, active-run bookkeeping, and its own lifetime.
 type Operations interface {
-	Submit(request Request) (string, error)
 	Cancel(request Request) (string, error)
 	// Control suspends or resumes jobs, as named by request.Op.
 	Control(request Request) (string, error)
@@ -218,8 +217,6 @@ func (server *Server) Handle(conn net.Conn) {
 	switch request.Op {
 	case OpPing:
 		response = Response{OK: true, PID: os.Getpid(), Protocol: ProtocolVersion}
-	case OpSubmit:
-		response = messageResponse(server.ops.Submit(request))
 	case OpCancel:
 		response = messageResponse(server.ops.Cancel(request))
 	case OpSuspend, OpResume:
