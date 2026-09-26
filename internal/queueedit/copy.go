@@ -31,6 +31,8 @@ type CopyRequest struct {
 	Selection string
 	// JobIDs are copied in addition to the selection.
 	JobIDs []string
+	// Scope, when set, narrows Selection to one stage or matrix.
+	Scope model.CommandSelector
 	// Attempts are copied in addition to the selection. Selecting an attempt
 	// of an array task narrows the copied array to the selected tasks.
 	Attempts []Attempt
@@ -75,7 +77,14 @@ func Copy(destination model.Queue, project string, source Run, request CopyReque
 		requested[jobID] = true
 	}
 
-	selected, selectedNames, err := selectCommands(source, request.Selection, requested, requestedTasks)
+	inScope := func(model.QueuedCommand) bool { return true }
+	if request.Scope.Kinds() > 0 {
+		if _, err := model.SelectCommands(source.Snapshot.Commands, request.Scope); err != nil {
+			return model.Queue{}, 0, fmt.Errorf("run %s: %w", source.ID, err)
+		}
+		inScope = request.Scope.Matches
+	}
+	selected, selectedNames, err := selectCommands(source, request.Selection, inScope, requested, requestedTasks)
 	if err != nil {
 		return model.Queue{}, 0, err
 	}
@@ -128,7 +137,7 @@ func Copy(destination model.Queue, project string, source Run, request CopyReque
 	return destination, len(selected), nil
 }
 
-func selectCommands(source Run, selection string, requested map[string]bool, requestedTasks map[string]map[string]bool) ([]model.QueuedCommand, map[string]bool, error) {
+func selectCommands(source Run, selection string, inScope func(model.QueuedCommand) bool, requested map[string]bool, requestedTasks map[string]map[string]bool) ([]model.QueuedCommand, map[string]bool, error) {
 	selected := make([]model.QueuedCommand, 0, len(source.Snapshot.Commands))
 	selectedNames := make(map[string]bool)
 	for _, command := range source.Snapshot.Commands {
@@ -142,6 +151,7 @@ func selectCommands(source Run, selection string, requested map[string]bool, req
 		default:
 			include = model.ResultSelectionMatches(selection, finished, result.ExitCode)
 		}
+		include = include && inScope(command)
 		if requested[command.ID] {
 			include = true
 			delete(requested, command.ID)

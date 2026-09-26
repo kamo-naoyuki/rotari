@@ -521,6 +521,18 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
+                    "description": "remove every job in a stage",
+                    "name": "stage",
+                    "value_name": "STAGE",
+                },
+                {
+                    "description": "remove every job of a matrix, named by its "
+                    "base job name",
+                    "name": "matrix",
+                    "value_name": "NAME",
+                },
+                {"description": "remove every job", "name": "all"},
+                {
                     "description": "suppress success output",
                     "environment": "ROTARI_QUIET",
                     "name": "quiet",
@@ -976,6 +988,18 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "job-name",
                     "value_name": "NAME",
                 },
+                {
+                    "description": "only copy jobs in this stage, narrowed by "
+                    "any result filter",
+                    "name": "stage",
+                    "value_name": "STAGE",
+                },
+                {
+                    "description": "only copy jobs of this matrix, named by its "
+                    "base job name, narrowed by any result filter",
+                    "name": "matrix",
+                    "value_name": "NAME",
+                },
                 {"description": "append to a non-empty queue", "name": "append"},
                 {"description": "replace a non-empty queue", "name": "overwrite"},
                 {
@@ -1072,6 +1096,21 @@ CLI_SCHEMA: dict[str, Any] = {
                     "description": "only execute this job by name",
                     "environment": "ROTARI_JOB_NAME",
                     "name": "job-name",
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "only execute jobs in this stage, narrowed by "
+                    "any result filter; others carry forward "
+                    "their previous result",
+                    "name": "stage",
+                    "value_name": "STAGE",
+                },
+                {
+                    "description": "only execute jobs of this matrix, named by "
+                    "its base job name, narrowed by any result "
+                    "filter; others carry forward their previous "
+                    "result",
+                    "name": "matrix",
                     "value_name": "NAME",
                 },
                 {
@@ -1263,6 +1302,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "repeated": True,
                     "short": "j",
                     "value_name": "ID",
+                },
+                {
+                    "description": "only retry jobs in this stage",
+                    "name": "stage",
+                    "value_name": "STAGE",
+                },
+                {
+                    "description": "only retry jobs of this matrix, named by its "
+                    "base job name",
+                    "name": "matrix",
+                    "value_name": "NAME",
                 },
                 {
                     "description": "return after starting the run",

@@ -298,7 +298,7 @@ func projectRunOptions(options runcontract.Options) projectrun.Options {
 		RunID: options.RunID, RunName: options.RunName,
 		LocalConcurrency: options.LocalConcurrency, BatchMaxActive: options.BatchMaxActive, Retry: options.Retry,
 		Executor: options.Executor, ExecutorOptions: options.ExecutorOptions, Settings: options.ExecutorSettings,
-		Selection: options.Selection, JobIDs: options.JobIDs, SourceRunID: options.SourceRunID, PartialArray: options.PartialArray,
+		Selection: options.Selection, JobIDs: options.JobIDs, Scope: options.Scope, SourceRunID: options.SourceRunID, PartialArray: options.PartialArray,
 	}
 }
 
@@ -312,9 +312,12 @@ func parseWorkerRunArgs(args []string) (runcontract.Options, error) {
 	var executorOptions stringSliceFlag
 	cliValue(fs, &executorOptions, "executor-option")
 	executorSettings := cliExecutorRunSettings(fs)
-	// selection and source-run-id exist only on this internal command, so they
-	// have no CLI metadata, environment, or config defaults.
+	// selection, scope-stage, scope-matrix, and source-run-id exist only on
+	// this internal command, so they have no CLI metadata, environment, or
+	// config defaults.
 	selection := fs.String("selection", "", "")
+	scopeStage := fs.String("scope-stage", "", "")
+	scopeMatrix := fs.String("scope-matrix", "", "")
 	var jobIDs stringSliceFlag
 	cliValue(fs, &jobIDs, "job-id")
 	sourceRunID := fs.String("source-run-id", "", "")
@@ -336,6 +339,7 @@ func parseWorkerRunArgs(args []string) (runcontract.Options, error) {
 		BaseDir: *basedir, QueueName: left[0], RunID: left[1], RunName: left[2],
 		LocalConcurrency: localConcurrency, BatchMaxActive: batchMaxActive, Retry: retry,
 		Executor: *executor, ExecutorOptions: executorOptions, Selection: *selection, JobIDs: jobIDs,
+		Scope:       model.CommandSelector{Stage: *scopeStage, Matrix: *scopeMatrix},
 		SourceRunID: *sourceRunID, PartialArray: *partialArray, CWD: left[6], ExecutorSettings: executorSettings(),
 	}, nil
 }

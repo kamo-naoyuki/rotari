@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 )
 
@@ -18,6 +19,7 @@ func TestWorkerArgsParseBackToOptions(t *testing.T) {
 			LocalConcurrency: 2, BatchMaxActive: 3, Retry: 1, CWD: "/work",
 			Executor: "slurm", ExecutorOptions: []string{"--partition=short"},
 			Selection: "failed", JobIDs: []string{"job-1", "job-2"}, SourceRunID: "run-0",
+			Scope:        model.CommandSelector{Stage: "train", Matrix: "sweep"},
 			PartialArray: partialArray,
 			ExecutorSettings: map[string]executor.RunSettings{
 				"slurm": {Concurrency: 4, Options: []string{"--partition short"}, SubmitInterval: 250 * time.Millisecond, SubmitRetryLimit: 3},

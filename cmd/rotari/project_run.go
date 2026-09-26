@@ -40,7 +40,7 @@ func projectRunner() projectrun.Runner {
 // planRerunSelection decides which of the queue's jobs a run executes; see
 // projectrun.Runner.PlanSelection.
 func planRerunSelection(paths state.ProjectPaths, queue model.Queue, selection string, jobIDs []string, referenceRunID string, partialArray bool) (runcontract.Plan, error) {
-	return projectRunner().PlanSelection(paths, queue, selection, jobIDs, referenceRunID, partialArray)
+	return projectRunner().PlanSelection(paths, queue, selection, jobIDs, model.CommandSelector{}, referenceRunID, partialArray)
 }
 
 // finishRun finalizes a run whose jobs have ended; see

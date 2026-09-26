@@ -38,6 +38,8 @@ func cmdRun(args []string) int {
 	success := cliBool(fs, "success", false)
 	var jobIDs stringSliceFlag
 	cliValue(fs, &jobIDs, "job-id")
+	stage := cliString(fs, "stage", "")
+	matrixName := cliString(fs, "matrix", "")
 	partialArray := cliBool(fs, "partial-array", true)
 	async := cliBool(fs, "async", false)
 	quiet := cliBool(fs, "quiet", false)
@@ -59,6 +61,15 @@ func cmdRun(args []string) int {
 	if *jobNameOption != "" && len(jobIDs) > 0 {
 		printError("--job-name cannot be combined with --job-id")
 		return 1
+	}
+	scope := model.CommandSelector{Stage: *stage, Matrix: *matrixName}
+	if scope.Kinds() > 1 || (scope.Kinds() > 0 && (*jobNameOption != "" || len(jobIDs) > 0)) {
+		printError("--stage, --matrix, and --job-id or --job-name cannot be combined")
+		return 1
+	}
+	if scope.Kinds() > 0 && selection == "" {
+		// A scope alone re-executes every job in it, whatever its result.
+		selection = model.ResultSelection(true, true, true)
 	}
 	if *jobNameOption != "" {
 		if *runIDOption != "" {
@@ -210,7 +221,7 @@ func cmdRun(args []string) int {
 	request := serverinternal.Request{
 		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings(), Retry: *retry, Async: *async, Quiet: *quiet,
 		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, CWD: cwd,
-		Selection: selection, JobIDs: jobIDs, SourceRunID: sourceRunID, PartialArray: *partialArray,
+		Selection: selection, JobIDs: jobIDs, ScopeStage: scope.Stage, ScopeMatrix: scope.Matrix, SourceRunID: sourceRunID, PartialArray: *partialArray,
 	}
 	var response serverinternal.Response
 	if *async {
@@ -379,7 +390,21 @@ func prepareServerRun(baseDir string, request serverinternal.Request) (preparedR
 		release()
 		return preparedRun{}, fmt.Errorf("queue %q has no queued commands", request.QueueName)
 	}
+	// Check the scope before the run is created; planning happens after, and
+	// its errors leave the new run behind.
+	if scope := requestScope(request); scope.Kinds() > 0 {
+		if _, err := model.SelectCommands(queue.Commands, scope); err != nil {
+			release()
+			return preparedRun{}, err
+		}
+	}
 	return preparedRun{paths: paths, queue: queue, executor: resolvedExecutor, release: release}, nil
+}
+
+// requestScope returns the stage or matrix that narrows a run request's
+// selection.
+func requestScope(request serverinternal.Request) model.CommandSelector {
+	return model.CommandSelector{Stage: request.ScopeStage, Matrix: request.ScopeMatrix}
 }
 
 // runRequestOptions converts a run request into worker options for runID.
@@ -388,6 +413,7 @@ func runRequestOptions(request serverinternal.Request, runID string) runcontract
 		QueueName: request.QueueName, RunID: runID, RunName: request.RunName,
 		LocalConcurrency: request.LocalConcurrency, BatchMaxActive: request.BatchMaxActive, Retry: request.Retry,
 		Executor: request.Executor, ExecutorOptions: request.ExecutorOptions, Selection: request.Selection,
+		Scope:  requestScope(request),
 		JobIDs: request.JobIDs, SourceRunID: request.SourceRunID, PartialArray: request.PartialArray,
 		CWD: request.CWD, ExecutorSettings: request.ExecutorSettings,
 	}
@@ -429,7 +455,7 @@ func runServerSync(baseDir string, request serverinternal.Request, progress func
 		prepared.release()
 		return "", 1, err
 	}
-	plan, err := runner.PlanSelection(paths, queue, request.Selection, request.JobIDs, request.SourceRunID, request.PartialArray)
+	plan, err := runner.PlanSelection(paths, queue, request.Selection, request.JobIDs, requestScope(request), request.SourceRunID, request.PartialArray)
 	if err != nil {
 		_ = os.Remove(paths.LockFile)
 		prepared.release()

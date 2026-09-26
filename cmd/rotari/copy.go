@@ -59,6 +59,8 @@ func cmdCopy(args []string) int {
 	success := cliBool(fs, "success", false)
 	var jobIDs stringSliceFlag
 	cliValue(fs, &jobIDs, "job-id")
+	stage := cliString(fs, "stage", "")
+	matrixName := cliString(fs, "matrix", "")
 	appendJobs := cliBool(fs, "append", false)
 	overwriteJobs := cliBool(fs, "overwrite", false)
 	quiet := cliBool(fs, "quiet", false)
@@ -74,6 +76,11 @@ func cmdCopy(args []string) int {
 	}
 	if *jobName != "" && len(jobIDs) > 0 {
 		printError("--job-name cannot be combined with --job-id")
+		return 1
+	}
+	scope := model.CommandSelector{Stage: *stage, Matrix: *matrixName}
+	if scope.Kinds() > 1 || (scope.Kinds() > 0 && (*jobName != "" || len(jobIDs) > 0)) {
+		printError("--stage, --matrix, and --job-id or --job-name cannot be combined")
 		return 1
 	}
 	if *jobName != "" {
@@ -176,7 +183,9 @@ func cmdCopy(args []string) int {
 		printError(err)
 		return 1
 	}
-	message, err := copyRunToQueue(baseDir, queueName, *runID, selection, jobIDs, *appendJobs, overwriteConfirmed)
+	message, err := copyRunJobs(baseDir, queueName, *runID, queueedit.CopyRequest{
+		Selection: selection, JobIDs: jobIDs, Scope: scope, Append: *appendJobs, Overwrite: overwriteConfirmed,
+	})
 	if err != nil {
 		printError(err)
 		return 1
@@ -189,6 +198,13 @@ func cmdCopy(args []string) int {
 
 func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string, appendJobs bool, overwriteJobs ...bool) (string, error) {
 	overwrite := len(overwriteJobs) > 0 && overwriteJobs[0]
+	return copyRunJobs(baseDir, queueName, runID, queueedit.CopyRequest{Selection: selection, JobIDs: jobIDs, Append: appendJobs, Overwrite: overwrite})
+}
+
+// copyRunJobs copies the jobs that request selects from runID into the
+// queue. Attempt IDs in request.JobIDs select those attempts.
+func copyRunJobs(baseDir, queueName, runID string, request queueedit.CopyRequest) (string, error) {
+	selection := request.Selection
 	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		return "", err
@@ -219,19 +235,20 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 		if context, contextErr := state.LoadContext(jsonStore(), sourceRunDir); contextErr == nil {
 			source.CWD = context.CWD
 		}
-		request := queueedit.CopyRequest{Selection: selection, Append: appendJobs, Overwrite: overwrite}
-		for _, jobID := range jobIDs {
+		sourceRequest := request
+		sourceRequest.JobIDs = nil
+		for _, jobID := range request.JobIDs {
 			if !strings.HasPrefix(jobID, "att_") {
-				request.JobIDs = append(request.JobIDs, jobID)
+				sourceRequest.JobIDs = append(sourceRequest.JobIDs, jobID)
 				continue
 			}
 			attempt, err := copyAttempt(sourceRunDir, runID, jobID)
 			if err != nil {
 				return err
 			}
-			request.Attempts = append(request.Attempts, attempt)
+			sourceRequest.Attempts = append(sourceRequest.Attempts, attempt)
 		}
-		edited, count, err := queueedit.Copy(*queue, queueName, source, request, makeJobID)
+		edited, count, err := queueedit.Copy(*queue, queueName, source, sourceRequest, makeJobID)
 		if err != nil {
 			return err
 		}

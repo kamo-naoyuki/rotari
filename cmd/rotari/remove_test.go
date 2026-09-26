@@ -229,3 +229,21 @@ func TestCmdRemoveRejectsInvalidUsage(t *testing.T) {
 		}
 	}
 }
+
+func TestCmdRemoveStageRemovesEveryJobInStage(t *testing.T) {
+	baseDir, paths := writeChangeTestQueue(t, []model.QueuedCommand{
+		{ID: "a", Command: []string{"a"}, Stage: "sweep"},
+		{ID: "b", Command: []string{"b"}, Stage: "sweep"},
+		{ID: "c", Name: "other", Command: []string{"c"}},
+	})
+	if code := cmdRemove([]string{"--basedir", baseDir, "--project-name", "default", "--stage", "sweep", "--quiet"}); code != 0 {
+		t.Fatalf("cmdRemove exit code = %d, want 0", code)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 1 || queue.Commands[0].ID != "c" {
+		t.Fatalf("queue = %#v, want only the job outside the stage", queue.Commands)
+	}
+}

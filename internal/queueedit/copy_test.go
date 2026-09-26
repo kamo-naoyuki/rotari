@@ -191,3 +191,28 @@ func TestCopyRejectsOmittedUnfinishedFinishedPrerequisite(t *testing.T) {
 		t.Fatalf("Copy error = %v, want an unfinished finished-prerequisite refusal", err)
 	}
 }
+
+func TestCopyScopeNarrowsSelection(t *testing.T) {
+	source := testRun([]model.QueuedCommand{
+		{ID: "a", Command: []string{"false"}, Stage: "train"},
+		{ID: "b", Command: []string{"false"}, Stage: "eval"},
+		{ID: "c", Command: []string{"true"}, Stage: "train"},
+	}, model.JobResult{ID: "a", ExitCode: 1}, model.JobResult{ID: "b", ExitCode: 1}, model.JobResult{ID: "c", ExitCode: 0})
+	queue, _, err := Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "failed", Scope: model.CommandSelector{Stage: "train"}}, sequentialIDs())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(commandIDs(queue), []string{"a"}) {
+		t.Fatalf("copied = %v, want the failed job in stage train", commandIDs(queue))
+	}
+	queue, _, err = Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "all", Scope: model.CommandSelector{Stage: "train"}}, sequentialIDs())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(commandIDs(queue), []string{"a", "c"}) {
+		t.Fatalf("copied = %v, want every job in stage train", commandIDs(queue))
+	}
+	if _, _, err := Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "all", Scope: model.CommandSelector{Matrix: "train"}}, sequentialIDs()); err == nil || !strings.Contains(err.Error(), "no matrix") {
+		t.Fatalf("copy of a missing matrix error = %v", err)
+	}
+}

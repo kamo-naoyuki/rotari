@@ -18,8 +18,8 @@ var ErrNoPreviousRun = errors.New("no previous run")
 
 // PlanSelection decides which of the queue's jobs a run executes, reading
 // earlier results from the project's runs; see run.PlanRerun.
-func (runner Runner) PlanSelection(paths state.ProjectPaths, queue model.Queue, selection string, jobIDs []string, referenceRunID string, partialArray bool) (run.Plan, error) {
-	return run.PlanRerun(queue, selection, jobIDs, referenceRunID, partialArray, originResults{paths: paths, store: runner.Store})
+func (runner Runner) PlanSelection(paths state.ProjectPaths, queue model.Queue, selection string, jobIDs []string, scope model.CommandSelector, referenceRunID string, partialArray bool) (run.Plan, error) {
+	return run.PlanRerun(queue, selection, jobIDs, scope, referenceRunID, partialArray, originResults{paths: paths, store: runner.Store})
 }
 
 // originResults reads origin results from a project's runs.

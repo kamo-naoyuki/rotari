@@ -192,10 +192,22 @@
   because an `afterany` job may have succeeded on a failed prerequisite's
   output. `copy` requires an omitted `DependsOnFinished` prerequisite to have
   finished with any result, rather than to have succeeded.
-- The server protocol version is 6 since the retry delay fields were added (5
-  added per-job `retry`, 4 `timeout`, 3 `depends_on_finished`), so a client
-  replaces an older server that would drop new queue fields when it loads the
-  queue.
+- The server protocol version is 7 since run requests carry a stage or matrix
+  scope (6 added the retry delay fields, 5 per-job `retry`, 4 `timeout`, 3
+  `depends_on_finished`), so a client replaces an older server that would drop
+  new request or queue fields.
+- `change`, `remove`, and the `--stage`/`--matrix` scope of `run`, `retry`, and
+  `copy` select queue commands through one rule, `model.SelectCommands` in
+  [internal/model/command_selector.go](../../internal/model/command_selector.go):
+  by job IDs, a job name, a stage, a matrix base name, or all. An array command
+  is selected as a whole, and naming one of its tasks is an error that points
+  to the array job. A scope narrows a result filter; jobs outside it carry
+  their results forward (`PlanRerun` in
+  [internal/run/rerun.go](../../internal/run/rerun.go), `Copy` in
+  [internal/queueedit/copy.go](../../internal/queueedit/copy.go)). The server
+  checks the scope before it creates the run. See
+  [selector tests](../../internal/model/command_selector_test.go) and
+  [scoped plan tests](../../internal/run/plan_test.go).
 - A job `Timeout` is enforced inside the job wrappers, not by the supervisor,
   so it counts running time on every executor.
   [internal/executor/wrapper.go](../../internal/executor/wrapper.go) builds a

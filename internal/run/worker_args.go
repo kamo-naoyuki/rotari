@@ -36,6 +36,12 @@ func WorkerArgs(options Options, baseDirExplicit bool, settingNames []string) []
 	for _, jobID := range options.JobIDs {
 		args = append(args, "--job-id", jobID)
 	}
+	if options.Scope.Stage != "" {
+		args = append(args, "--scope-stage", options.Scope.Stage)
+	}
+	if options.Scope.Matrix != "" {
+		args = append(args, "--scope-matrix", options.Scope.Matrix)
+	}
 	if options.SourceRunID != "" {
 		args = append(args, "--source-run-id", options.SourceRunID)
 	}

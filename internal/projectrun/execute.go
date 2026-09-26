@@ -22,10 +22,11 @@ type Options struct {
 	Executor        string
 	ExecutorOptions []string
 	Settings        executor.RunSettingsMap
-	// Selection, JobIDs, SourceRunID, and PartialArray choose which jobs
-	// execute and which carry a result forward; see run.PlanRerun.
+	// Selection, JobIDs, Scope, SourceRunID, and PartialArray choose which
+	// jobs execute and which carry a result forward; see run.PlanRerun.
 	Selection    string
 	JobIDs       []string
+	Scope        model.CommandSelector
 	SourceRunID  string
 	PartialArray bool
 }
@@ -77,7 +78,7 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 	}
 	runner.PrepareJobEnvironments(paths, options, jobs)
 
-	plan, err := runner.PlanSelection(paths, queue, options.Selection, options.JobIDs, options.SourceRunID, options.PartialArray)
+	plan, err := runner.PlanSelection(paths, queue, options.Selection, options.JobIDs, options.Scope, options.SourceRunID, options.PartialArray)
 	if err != nil {
 		return 1, fmt.Errorf("failed to prepare job selection: %w", err)
 	}

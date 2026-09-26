@@ -544,7 +544,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("project_name, job_id, and command are required"))
 			return
 		}
-		message, err := changeQueueJobs(baseDir, change.QueueName, "", changeSelector{jobID: change.JobID}, changeMutation{
+		message, err := changeQueueJobs(baseDir, change.QueueName, "", model.CommandSelector{IDs: []string{change.JobID}}, changeMutation{
 			executor: change.Executor, executorOptions: change.ExecutorOptions, clearExecutorOptions: change.ClearExecutorOptions,
 			environment: change.Environment, clearEnvironment: change.ClearEnvironment,
 			workingDirectory: change.WorkingDirectory, clearWorkingDirectory: change.ClearWorkingDirectory, setJobName: change.SetJobName,

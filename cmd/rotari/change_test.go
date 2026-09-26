@@ -345,7 +345,7 @@ func TestCmdChangeSelectsQueueCommandsAfterArrayJob(t *testing.T) {
 	if queue.Commands[0].Timeout != "1h" || queue.Commands[1].Timeout != "" || queue.Commands[2].Timeout != "1h" {
 		t.Fatalf("timeouts = %q, %q, %q; want 1h, none, 1h", queue.Commands[0].Timeout, queue.Commands[1].Timeout, queue.Commands[2].Timeout)
 	}
-	if _, err := changeQueueJobs(baseDir, "default", "", changeSelector{jobID: "prep-2"}, changeMutation{timeout: "2h"}); err == nil || !strings.Contains(err.Error(), "array job prep") {
+	if _, err := changeQueueJobs(baseDir, "default", "", model.CommandSelector{IDs: []string{"prep-2"}}, changeMutation{timeout: "2h"}); err == nil || !strings.Contains(err.Error(), "array job prep") {
 		t.Fatalf("change of one array task error = %v, want array job hint", err)
 	}
 }

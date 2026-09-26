@@ -41,7 +41,7 @@ func (source *fakeOriginResults) Origin(runID, jobID string, result model.JobRes
 
 func TestPlanRerunWithoutSelectionExecutesEveryCommand(t *testing.T) {
 	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "a"}, {ID: "b", Array: &model.ArraySpec{First: 1, Last: 2}}}}
-	plan, err := PlanRerun(queue, "", nil, "", true, &fakeOriginResults{})
+	plan, err := PlanRerun(queue, "", nil, model.CommandSelector{}, "", true, &fakeOriginResults{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestPlanRerunCarriesFinishedResultsFromReferenceRun(t *testing.T) {
 		"ok":     {ID: "ok", ExitCode: 0, AttemptID: "att-ok"},
 		"failed": {ID: "failed", ExitCode: 1, AttemptID: "att-failed"},
 	}}}
-	plan, err := PlanRerun(queue, "failed", nil, "run-1", true, source)
+	plan, err := PlanRerun(queue, "failed", nil, model.CommandSelector{}, "run-1", true, source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,14 +84,14 @@ func TestPlanRerunCarriesFinishedResultsFromReferenceRun(t *testing.T) {
 func TestPlanRerunFallsBackToLastRun(t *testing.T) {
 	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "done"}}}
 	source := &fakeOriginResults{lastRunID: "latest", runs: map[string]map[string]model.JobResult{"latest": {"done": {ID: "done", ExitCode: 0}}}}
-	plan, err := PlanRerun(queue, "failed", nil, "", true, source)
+	plan, err := PlanRerun(queue, "failed", nil, model.CommandSelector{}, "", true, source)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if plan.CarriedOrigins["done"].RunID != "latest" {
 		t.Fatalf("origin = %#v, want latest run", plan.CarriedOrigins["done"])
 	}
-	if _, err := PlanRerun(queue, "failed", nil, "", true, &fakeOriginResults{}); err == nil || err.Error() != "no previous run" {
+	if _, err := PlanRerun(queue, "failed", nil, model.CommandSelector{}, "", true, &fakeOriginResults{}); err == nil || err.Error() != "no previous run" {
 		t.Fatalf("error = %v, want LastRunID error", err)
 	}
 }
@@ -105,7 +105,7 @@ func TestPlanRerunUsesOriginAndAttempt(t *testing.T) {
 		runs:     map[string]map[string]model.JobResult{"source": {"orig": {ID: "orig", ExitCode: 0}, "other": {ID: "other", ExitCode: 0, AttemptID: "att-new"}}},
 		attempts: map[string]model.JobResult{"att-old": {ID: "other", ExitCode: 1, AttemptID: "att-old"}},
 	}
-	plan, err := PlanRerun(queue, "failed", nil, "", true, source)
+	plan, err := PlanRerun(queue, "failed", nil, model.CommandSelector{}, "", true, source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestPlanRerunSelectsArrayTasksIndividually(t *testing.T) {
 		"array-1": {ID: "array-1", ExitCode: 0},
 		"array-2": {ID: "array-2", ExitCode: 1},
 	}}}
-	plan, err := PlanRerun(queue, "failed", nil, "run-1", true, source)
+	plan, err := PlanRerun(queue, "failed", nil, model.CommandSelector{}, "run-1", true, source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestPlanRerunSelectsArrayTasksIndividually(t *testing.T) {
 		t.Fatalf("carried = %#v / %#v", plan.CarriedResults, plan.CarriedOrigins)
 	}
 
-	plan, err = PlanRerun(queue, "failed", nil, "run-1", false, source)
+	plan, err = PlanRerun(queue, "failed", nil, model.CommandSelector{}, "run-1", false, source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestPlanRerunSelectsArrayTasksIndividually(t *testing.T) {
 func TestPlanRerunReportsUnknownJobIDs(t *testing.T) {
 	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "known"}}}
 	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"run-1": {}}}
-	_, err := PlanRerun(queue, "job-id", []string{"missing", "also-missing"}, "run-1", false, source)
+	_, err := PlanRerun(queue, "job-id", []string{"missing", "also-missing"}, model.CommandSelector{}, "run-1", false, source)
 	if err == nil || err.Error() != "job IDs not found in queue: also-missing, missing" {
 		t.Fatalf("PlanRerun() error = %v", err)
 	}
@@ -171,7 +171,7 @@ func TestPlanRerunImportedWorkflowDispositions(t *testing.T) {
 		"forced":     {ID: "forced", ExitCode: 0},
 		"downstream": {ID: "downstream", ExitCode: 0},
 	}}}
-	plan, err := PlanRerun(queue, "", nil, "", true, source)
+	plan, err := PlanRerun(queue, "", nil, model.CommandSelector{}, "", true, source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestPlanRerunExecutesFinishedDependentsOfExecutingJobs(t *testing.T) {
 		"strict":  {ID: "strict", ExitCode: 0},
 		"other":   {ID: "other", ExitCode: 0},
 	}}}
-	plan, err := PlanRerun(queue, "failed", nil, "run-1", true, source)
+	plan, err := PlanRerun(queue, "failed", nil, model.CommandSelector{}, "run-1", true, source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,5 +217,43 @@ func TestPlanRerunExecutesFinishedDependentsOfExecutingJobs(t *testing.T) {
 	}
 	if plan.Execute["strict"] || plan.Execute["other"] {
 		t.Fatalf("execute = %#v, want jobs outside the finished chain carried", plan.Execute)
+	}
+}
+
+func TestPlanRerunScopeNarrowsSelection(t *testing.T) {
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "prep", Command: []string{"prep"}, Stage: "setup"},
+		{ID: "train", Command: []string{"train"}, Stage: "train"},
+		{ID: "sweep", Command: []string{"sweep"}, Stage: "setup", Array: &model.ArraySpec{First: 1, Last: 2}},
+	}}
+	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"run-1": {
+		"prep":    {ID: "prep", ExitCode: 1},
+		"train":   {ID: "train", ExitCode: 1},
+		"sweep-1": {ID: "sweep-1", ExitCode: 0},
+		"sweep-2": {ID: "sweep-2", ExitCode: 1},
+	}}}
+	plan, err := PlanRerun(queue, "failed", nil, model.CommandSelector{Stage: "train"}, "run-1", true, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Execute) != 1 || !plan.Execute["train"] {
+		t.Fatalf("execute = %#v, want only the failed job in stage train", plan.Execute)
+	}
+	for _, id := range []string{"prep", "sweep-1", "sweep-2"} {
+		if _, carried := plan.CarriedResults[id]; !carried {
+			t.Fatalf("carried = %#v, want %s carried", plan.CarriedResults, id)
+		}
+	}
+
+	plan, err = PlanRerun(queue, "failed", nil, model.CommandSelector{Stage: "setup"}, "run-1", true, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Execute) != 2 || !plan.Execute["prep"] || !plan.Execute["sweep-2"] {
+		t.Fatalf("execute = %#v, want prep and the failed array task", plan.Execute)
+	}
+
+	if _, err := PlanRerun(queue, "failed", nil, model.CommandSelector{Stage: "missing"}, "run-1", true, source); err == nil {
+		t.Fatal("PlanRerun accepted a stage without jobs")
 	}
 }

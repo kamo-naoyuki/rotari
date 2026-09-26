@@ -54,8 +54,11 @@ func cmdChange(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	selector := changeSelector{jobID: *jobID, jobName: *jobName, stage: *stage, matrix: *matrixName, all: *allJobs}
-	if selector.count() != 1 ||
+	selector := model.CommandSelector{Name: *jobName, Stage: *stage, Matrix: *matrixName, All: *allJobs}
+	if *jobID != "" {
+		selector.IDs = []string{*jobID}
+	}
+	if selector.Kinds() != 1 ||
 		(len(fs.Args()) == 0 && *executor == "" && len(executorOptions) == 0 && !*clearExecutorOptions && *workingDirectory == "" && !*clearWorkingDirectory && len(environment) == 0 && !*clearEnvironment &&
 			*setJobName == "" && len(dependsOn) == 0 && !*clearDependsOn && len(dependsOnFinished) == 0 && !*clearDependsOnFinished && *timeout == "" && !*clearTimeout && !cliOptionSet(fs, "retry") && !*clearRetry &&
 			*retryDelay == "" && *retryBackoffText == "" && *retryMaxDelay == "") ||
@@ -63,7 +66,7 @@ func cmdChange(args []string) int {
 		printError("usage: " + cliUsage("change"))
 		return 1
 	}
-	if selector.multiple() && (len(fs.Args()) > 0 || *setJobName != "") {
+	if selector.Group() && (len(fs.Args()) > 0 || *setJobName != "") {
 		printError("a new command or --set-job-name needs a single job selected with --job-id or --job-name")
 		return 1
 	}
@@ -108,7 +111,11 @@ func cmdChange(args []string) int {
 func changeBatch(baseDir, queueName, requestedRunID, requestedJobID, requestedJobName, executor string,
 	executorOptions []string, clearExecutorOptions bool, environment []string, clearEnvironment bool, setJobName string, dependsOn []string,
 	clearDependsOn bool, command []string) (string, error) {
-	return changeQueueJobs(baseDir, queueName, requestedRunID, changeSelector{jobID: requestedJobID, jobName: requestedJobName}, changeMutation{
+	selector := model.CommandSelector{Name: requestedJobName}
+	if requestedJobID != "" {
+		selector.IDs = []string{requestedJobID}
+	}
+	return changeQueueJobs(baseDir, queueName, requestedRunID, selector, changeMutation{
 		executor: executor, executorOptions: executorOptions, clearExecutorOptions: clearExecutorOptions,
 		environment: environment, clearEnvironment: clearEnvironment, setJobName: setJobName,
 		dependsOn: dependsOn, clearDependsOn: clearDependsOn, command: command,
@@ -151,36 +158,10 @@ func optionalRetry(fs *flag.FlagSet, value int) *int {
 	return &value
 }
 
-// changeSelector names the jobs a change applies to. Exactly one field is
-// set: a job ID or name selects one job; a stage, a matrix base name, or all
-// selects every matching job.
-type changeSelector struct {
-	jobID   string
-	jobName string
-	stage   string
-	matrix  string
-	all     bool
-}
-
-func (selector changeSelector) count() int {
-	count := 0
-	for _, set := range []bool{selector.jobID != "", selector.jobName != "", selector.stage != "", selector.matrix != "", selector.all} {
-		if set {
-			count++
-		}
-	}
-	return count
-}
-
-// multiple reports whether the selector may match more than one job.
-func (selector changeSelector) multiple() bool {
-	return selector.stage != "" || selector.matrix != "" || selector.all
-}
-
 // changeQueueJobs applies mutation to the selected jobs of the current queue,
 // or of the batch restored from requestedRunID. It returns one line per
 // changed job.
-func changeQueueJobs(baseDir, queueName, requestedRunID string, selector changeSelector, mutation changeMutation) (string, error) {
+func changeQueueJobs(baseDir, queueName, requestedRunID string, selector model.CommandSelector, mutation changeMutation) (string, error) {
 	if err := model.ValidateEnvironment(mutation.environment); err != nil {
 		return "", fmt.Errorf("invalid environment: %w", err)
 	}
@@ -197,7 +178,7 @@ func changeQueueJobs(baseDir, queueName, requestedRunID string, selector changeS
 			}
 			*queue = snapshot
 		}
-		indexes, err := selectChangeJobs(*queue, selector)
+		indexes, err := model.SelectCommands(queue.Commands, selector)
 		if err != nil {
 			return err
 		}
@@ -233,64 +214,6 @@ func changeQueueJobs(baseDir, queueName, requestedRunID string, selector changeS
 		lines[index] = fmt.Sprintf("changed queue=%s job=%s", queueName, id)
 	}
 	return strings.Join(lines, "\n"), nil
-}
-
-// selectChangeJobs returns the indexes of the selected queue commands. An
-// array command is changed as a whole.
-func selectChangeJobs(queue model.Queue, selector changeSelector) ([]int, error) {
-	if !selector.multiple() {
-		jobIndex, err := selectChangeJob(queue.Commands, selector.jobID, selector.jobName)
-		if err != nil {
-			return nil, err
-		}
-		return []int{jobIndex}, nil
-	}
-	var indexes []int
-	for index, command := range queue.Commands {
-		matrix := command.Matrix
-		if selector.all || (selector.stage != "" && command.Stage == selector.stage) ||
-			(selector.matrix != "" && matrix != nil && matrix.BaseName == selector.matrix) {
-			indexes = append(indexes, index)
-		}
-	}
-	if len(indexes) > 0 {
-		return indexes, nil
-	}
-	switch {
-	case selector.stage != "":
-		return nil, fmt.Errorf("no jobs in stage %q", selector.stage)
-	case selector.matrix != "":
-		return nil, fmt.Errorf("no matrix named %q", selector.matrix)
-	default:
-		return nil, errors.New("no jobs to change")
-	}
-}
-
-func selectChangeJob(commands []model.QueuedCommand, requestedJobID, requestedJobName string) (int, error) {
-	jobIndex := -1
-	for index, command := range commands {
-		if (requestedJobID == "" || command.ID != requestedJobID) &&
-			(requestedJobName == "" || command.Name != requestedJobName) {
-			continue
-		}
-		if jobIndex != -1 {
-			return -1, fmt.Errorf("job selector matches multiple jobs")
-		}
-		jobIndex = index
-	}
-	if jobIndex != -1 {
-		return jobIndex, nil
-	}
-	// Array tasks share their command's settings, so one task cannot be
-	// changed alone.
-	for _, command := range commands {
-		for _, task := range model.QueueToJobs([]model.QueuedCommand{command}) {
-			if command.Array != nil && ((requestedJobID != "" && task.ID == requestedJobID) || (requestedJobName != "" && task.Name == requestedJobName)) {
-				return -1, fmt.Errorf("%s is a task of array job %s; change the array job instead", task.ID, command.ID)
-			}
-		}
-	}
-	return -1, fmt.Errorf("job not found")
 }
 
 func applyChangeMutation(queue model.Queue, jobIndex int, mutation changeMutation) error {

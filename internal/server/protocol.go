@@ -29,31 +29,34 @@ func IsKnownOperation(op string) bool {
 }
 
 type Request struct {
-	Op                string                  `json:"op"`
-	QueueName         string                  `json:"project_name,omitempty"`
-	Command           []string                `json:"command,omitempty"`
-	LocalConcurrency  int                     `json:"local_concurrency,omitempty"`
-	BatchMaxActive    int                     `json:"batch_max_active,omitempty"`
-	ExecutorSettings  executor.RunSettingsMap `json:"executor_settings,omitempty"`
-	Retry             int                     `json:"retry,omitempty"`
-	RunName           string                  `json:"run_name,omitempty"`
-	CWD               string                  `json:"cwd,omitempty"`
-	Wait              bool                    `json:"wait,omitempty"`
-	Async             bool                    `json:"async,omitempty"`
-	Quiet             bool                    `json:"quiet,omitempty"`
-	Executor          string                  `json:"executor,omitempty"`
-	ExecutorOptions   []string                `json:"executor_options,omitempty"`
-	WorkingDirectory  string                  `json:"working_directory,omitempty"`
-	Environment       []string                `json:"environment,omitempty"`
-	JobIDs            []string                `json:"job_ids,omitempty"`
-	Selection         string                  `json:"selection,omitempty"`
-	SourceRunID       string                  `json:"source_run_id,omitempty"`
-	PartialArray      bool                    `json:"partial_array,omitempty"`
-	JobName           string                  `json:"job_name,omitempty"`
-	Stage             string                  `json:"stage,omitempty"`
-	DependsOn         []string                `json:"depends_on,omitempty"`
-	DependsOnFinished []string                `json:"depends_on_finished,omitempty"`
-	Timeout           string                  `json:"timeout,omitempty"`
+	Op               string                  `json:"op"`
+	QueueName        string                  `json:"project_name,omitempty"`
+	Command          []string                `json:"command,omitempty"`
+	LocalConcurrency int                     `json:"local_concurrency,omitempty"`
+	BatchMaxActive   int                     `json:"batch_max_active,omitempty"`
+	ExecutorSettings executor.RunSettingsMap `json:"executor_settings,omitempty"`
+	Retry            int                     `json:"retry,omitempty"`
+	RunName          string                  `json:"run_name,omitempty"`
+	CWD              string                  `json:"cwd,omitempty"`
+	Wait             bool                    `json:"wait,omitempty"`
+	Async            bool                    `json:"async,omitempty"`
+	Quiet            bool                    `json:"quiet,omitempty"`
+	Executor         string                  `json:"executor,omitempty"`
+	ExecutorOptions  []string                `json:"executor_options,omitempty"`
+	WorkingDirectory string                  `json:"working_directory,omitempty"`
+	Environment      []string                `json:"environment,omitempty"`
+	JobIDs           []string                `json:"job_ids,omitempty"`
+	Selection        string                  `json:"selection,omitempty"`
+	// ScopeStage and ScopeMatrix narrow Selection to one stage or matrix.
+	ScopeStage        string   `json:"scope_stage,omitempty"`
+	ScopeMatrix       string   `json:"scope_matrix,omitempty"`
+	SourceRunID       string   `json:"source_run_id,omitempty"`
+	PartialArray      bool     `json:"partial_array,omitempty"`
+	JobName           string   `json:"job_name,omitempty"`
+	Stage             string   `json:"stage,omitempty"`
+	DependsOn         []string `json:"depends_on,omitempty"`
+	DependsOnFinished []string `json:"depends_on_finished,omitempty"`
+	Timeout           string   `json:"timeout,omitempty"`
 	// JobRetry is a submitted job's own retry limit; Retry is the run's.
 	JobRetry *int `json:"job_retry,omitempty"`
 	// RetryDelay, RetryBackoff, and RetryMaxDelay space out the job's

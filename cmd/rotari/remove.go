@@ -22,18 +22,22 @@ func cmdRemove(args []string) int {
 	jobName := cliString(fs, "job-name", "")
 	var jobIDs stringSliceFlag
 	cliValue(fs, &jobIDs, "job-id")
+	stage := cliString(fs, "stage", "")
+	matrixName := cliString(fs, "matrix", "")
+	allJobs := cliBool(fs, "all", false)
 	quiet := cliBool(fs, "quiet", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if (len(fs.Args()) > 0 && (*jobName != "" || len(jobIDs) > 0)) ||
-		(*jobName == "" && len(jobIDs) == 0 && len(fs.Args()) == 0) ||
-		(*jobName != "" && len(jobIDs) > 0) {
+	if len(fs.Args()) > 0 && len(jobIDs) > 0 {
 		printError("usage: " + cliUsage("remove"))
 		return 1
 	}
-	if len(fs.Args()) > 0 {
-		jobIDs = append(jobIDs, fs.Args()...)
+	jobIDs = append(jobIDs, fs.Args()...)
+	selector := model.CommandSelector{IDs: jobIDs, Name: *jobName, Stage: *stage, Matrix: *matrixName, All: *allJobs}
+	if selector.Kinds() != 1 {
+		printError("usage: " + cliUsage("remove"))
+		return 1
 	}
 
 	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runID)
@@ -41,7 +45,7 @@ func cmdRemove(args []string) int {
 		printError(err)
 		return 1
 	}
-	message, err := removeBatch(baseDir, queueName, *runID, jobIDs, *jobName)
+	message, err := removeCommands(baseDir, queueName, *runID, selector)
 	if err != nil {
 		printError(err)
 		return 1
@@ -53,6 +57,12 @@ func cmdRemove(args []string) int {
 }
 
 func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []string, requestedJobName string) (string, error) {
+	return removeCommands(baseDir, queueName, requestedRunID, model.CommandSelector{IDs: requestedJobIDs, Name: requestedJobName})
+}
+
+// removeCommands removes the selected jobs from the current queue, or from
+// the batch restored from requestedRunID.
+func removeCommands(baseDir, queueName, requestedRunID string, selector model.CommandSelector) (string, error) {
 	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		return "", err
@@ -67,25 +77,13 @@ func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []st
 			*queue = snapshot
 		}
 
-		removeIDs := make(map[string]bool, len(requestedJobIDs))
-		for _, id := range requestedJobIDs {
-			removeIDs[id] = true
+		indexes, err := model.SelectCommands(queue.Commands, selector)
+		if err != nil {
+			return err
 		}
-		foundIDs := make(map[string]bool, len(requestedJobIDs))
-		removed = make([]model.QueuedCommand, 0, len(queue.Commands))
-		for _, job := range queue.Commands {
-			if removeIDs[job.ID] {
-				foundIDs[job.ID] = true
-				removed = append(removed, job)
-			} else if requestedJobName != "" && job.Name == requestedJobName {
-				removed = append(removed, job)
-			}
-		}
-		if len(removed) == 0 {
-			return fmt.Errorf("job not found")
-		}
-		if len(requestedJobIDs) > 0 && len(foundIDs) != len(removeIDs) {
-			return fmt.Errorf("one or more jobs not found")
+		removed = make([]model.QueuedCommand, 0, len(indexes))
+		for _, index := range indexes {
+			removed = append(removed, queue.Commands[index])
 		}
 		removedNames := make(map[string]bool, len(removed))
 		for _, job := range removed {
@@ -95,7 +93,7 @@ func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []st
 		}
 		remaining := make([]model.QueuedCommand, 0, len(queue.Commands)-len(removed))
 		for _, job := range queue.Commands {
-			if removeIDs[job.ID] || (requestedJobName != "" && job.Name == requestedJobName) {
+			if selector.Matches(job) {
 				continue
 			}
 			for _, dependency := range job.AllDependencies() {

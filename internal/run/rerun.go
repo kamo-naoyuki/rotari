@@ -36,7 +36,10 @@ type OriginResults interface {
 // When partialArray is true, array jobs are evaluated per task, so only
 // matching tasks execute and the rest carry their own results. When false,
 // the whole array executes if its aggregate result matches.
-func PlanRerun(queue model.Queue, selection string, jobIDs []string, referenceRunID string, partialArray bool, source OriginResults) (Plan, error) {
+//
+// A scope, when set, narrows a result selection to one stage or matrix: jobs
+// outside it do not execute and carry their results like non-matching jobs.
+func PlanRerun(queue model.Queue, selection string, jobIDs []string, scope model.CommandSelector, referenceRunID string, partialArray bool, source OriginResults) (Plan, error) {
 	if selection == "" && queue.WorkflowImport {
 		return planImportedWorkflow(queue, source)
 	}
@@ -47,7 +50,14 @@ func PlanRerun(queue model.Queue, selection string, jobIDs []string, referenceRu
 		}
 		return plan, nil
 	}
-	plan, err := planByOrigin(queue, selection, jobIDs, referenceRunID, partialArray, source)
+	inScope := func(model.QueuedCommand) bool { return true }
+	if scope.Kinds() > 0 {
+		if _, err := model.SelectCommands(queue.Commands, scope); err != nil {
+			return Plan{}, err
+		}
+		inScope = scope.Matches
+	}
+	plan, err := planByOrigin(queue, selection, jobIDs, inScope, referenceRunID, partialArray, source)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -68,7 +78,7 @@ func planImportedWorkflow(queue model.Queue, source OriginResults) (Plan, error)
 			withOrigin.Commands = append(withOrigin.Commands, command)
 		}
 	}
-	plan, err := planByOrigin(withOrigin, "failed,unfinished", nil, "", true, source)
+	plan, err := planByOrigin(withOrigin, "failed,unfinished", nil, func(model.QueuedCommand) bool { return true }, "", true, source)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -279,8 +289,8 @@ func (resolver *originResolver) commandResult(command model.QueuedCommand) (mode
 
 // planByOrigin applies a selection to the result recorded by each command's
 // origin. Commands added directly to the queue have no origin and fall back
-// to the reference run.
-func planByOrigin(queue model.Queue, selection string, jobIDs []string, referenceRunID string, partialArray bool, source OriginResults) (Plan, error) {
+// to the reference run. Commands outside inScope never match the selection.
+func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope func(model.QueuedCommand) bool, referenceRunID string, partialArray bool, source OriginResults) (Plan, error) {
 	requested := make(map[string]bool, len(jobIDs))
 	for _, jobID := range jobIDs {
 		requested[jobID] = true
@@ -292,6 +302,7 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, referenc
 	}
 	resolver := &originResolver{source: source, fallbackRunID: referenceRunID, resultsByRun: make(map[string]map[string]model.JobResult)}
 	for _, command := range queue.Commands {
+		scoped := inScope(command)
 		if command.Array != nil && partialArray && selection != "job-id" {
 			for _, task := range model.ArrayTaskIDs(command.Array) {
 				id := taskID(command.ID, task)
@@ -300,7 +311,7 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, referenc
 				if err != nil {
 					return Plan{}, err
 				}
-				if model.ResultSelectionMatches(selection, finished, result.ExitCode) {
+				if scoped && model.ResultSelectionMatches(selection, finished, result.ExitCode) {
 					plan.Execute[id] = true
 					continue
 				}
@@ -321,7 +332,7 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, referenc
 		}
 		include := requested[command.ID]
 		if selection != "job-id" {
-			include = model.ResultSelectionMatches(selection, finished, result.ExitCode)
+			include = scoped && model.ResultSelectionMatches(selection, finished, result.ExitCode)
 		}
 		delete(requested, command.ID)
 		if include {
