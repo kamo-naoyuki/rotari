@@ -53,12 +53,45 @@ A run snapshots the edited queue, so the run sequence is the version history of
 the experiment. See "Runs as the history of the loop" in
 [docs/DAGU_COMPARISON.md](docs/DAGU_COMPARISON.md).
 
-- Consider building `show --lineage` from copy and retry provenance instead
-  of start time, so runs of one project that explore separate branches are
-  not listed as one sequence.
-- Consider showing the `rotari diff` summary (fixed, still failing, newly
-  failing, elapsed time) after `run` and `wait` finish, and in the Web UI run
-  page.
+What is missing today: `show RUN` describes a run on its own, so whether the
+last fix worked needs a separate `diff`; rule-based diagnoses are per attempt,
+so the causes of a run's failures cannot be seen together; one job cannot be
+followed across runs; and runs are listed twice, by `show -p` (status and
+times) and by `show --lineage` (counts and changes). The first two matter
+most.
+
+- Consider one command for runs as generations, replacing `show --lineage`
+  and absorbing `diff`, which share `internal/rundiff`: with a project it
+  lists the generations, one summary line per run; with one run it prints
+  that run's summary; with two runs it compares them as `diff` does. `show`
+  stays the view of current state. Avoid the name `log`, which clashes with
+  `show --logs`.
+- The run summary should answer "did this generation improve on the last?"
+  and "why did the remaining jobs fail?" together: result counts with their
+  change, fixed / still failing / newly failing / changed / carried forward,
+  elapsed time, and failures grouped by diagnosis rule and crossed with that
+  classification (for example "OOM 8: still 6, new 2"), with no-match and
+  unavailable as their own rows. Show the short form after `run` and `wait`
+  finish, and the same summary on the Web UI run page. Job lists stay in
+  `show RUN --failed` and the comparison view.
+- A run has no unique parent. `JobOrigin` is per job and is set by `copy` and
+  `retry`, not `add`; `copy --append` from two runs mixes origins, and
+  `SourceRunID` is not saved. `diff` and `show --lineage` compare with the run
+  that started just before, matching jobs by name. Prefer comparing each job
+  with its origin job and treating jobs without one as new, so the summary is
+  consistent without a run-level parent; show the origin breakdown (`from r4:
+  180, r3: 20, new: 12`) and print `parent: RUN` only when it is unique.
+  Decide separately whether the generation list is a provenance tree or one
+  time-ordered sequence, so runs exploring separate branches are not listed
+  as one sequence.
+- Consider comparing three or more runs as a job-by-run grid of results,
+  marking where a job's definition changed. It separates flaky jobs from
+  persistently failing ones, which two runs cannot, and shows where each job
+  broke. The generation list is the same data aggregated per run instead of
+  per job. Decide whether marks are relative to the previous column or to a
+  fixed baseline, how runs are chosen (a list, a range, the last N, or N
+  generations up the origin chain), and how many columns the CLI shows before
+  leaving the rest to the Web UI.
 - Consider recording `state_version` in `meta.json`, `context.json`, and
   per-job files, as `queue.json`, `commands.json`, and `summary.json` already
   do. See "State load and write contracts" in
