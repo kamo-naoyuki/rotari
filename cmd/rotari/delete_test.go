@@ -31,7 +31,13 @@ func TestDeleteAllRunsResetsMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if code := cmdDelete([]string{"--basedir", baseDir, "--project-name", "demo"}); code != 0 {
+	if code := cmdDelete([]string{"--basedir", baseDir, "--project-name", "demo"}); code == 0 {
+		t.Fatal("cmdDelete without a run or --all succeeded")
+	}
+	if _, err := os.Stat(paths.RunsDir); err != nil {
+		t.Fatalf("cmdDelete without a run or --all removed history: %v", err)
+	}
+	if code := cmdDelete([]string{"--basedir", baseDir, "--project-name", "demo", "--all"}); code != 0 {
 		t.Fatalf("cmdDelete exit code = %d, want 0", code)
 	}
 	if _, err := os.Stat(paths.RunsDir); !os.IsNotExist(err) {
@@ -80,7 +86,7 @@ func TestClearRunHistoryRemovesRegistryEntry(t *testing.T) {
 func TestCmdDeleteRejectsUnsafeProjectAndRunIDsAtCLI(t *testing.T) {
 	baseDir := t.TempDir()
 	for _, args := range [][]string{
-		{"--basedir", baseDir, "--project-name", "../outside"},
+		{"--basedir", baseDir, "--project-name", "../outside", "--all"},
 		{"--basedir", baseDir, "--project-name", "demo", "--run-id", "../outside"},
 		{"--basedir", baseDir, "--project-name", "demo", "--run-id", "nested/run-1"},
 	} {

@@ -305,11 +305,13 @@ to control selected jobs. Local jobs use `SIGSTOP`/`SIGCONT`; Slurm jobs use
 Delete saved run logs while keeping queued commands:
 
 ```sh
-rotari delete -p sweep
 rotari delete -p sweep RUN_ID
+rotari delete -p sweep --all
 ```
 
-`--run-id/-r` removes only the specified run. Without it, all saved run logs are removed.
+`delete` removes the run given as `RUN_ID` or `--run-id/-r`. Removing every
+saved run of the project needs `--all`; without a run or `--all`, nothing is
+deleted.
 
 The commands affect the current queue and saved run history differently:
 

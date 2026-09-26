@@ -582,3 +582,18 @@ func TestFlagHelpUsesTheParsingCommandsDescription(t *testing.T) {
 		t.Fatalf("config template [export] section uses another command's description:\n%s", exportSection)
 	}
 }
+
+// TestCommandLineOnlyBoolIgnoresConfig checks that a config file cannot make
+// delete remove every run.
+func TestCommandLineOnlyBoolIgnoresConfig(t *testing.T) {
+	oldConfig, oldCommand := cliConfig, cliConfigCommand
+	cliConfig = map[string]any{"all": true, "delete": map[string]any{"all": true}}
+	cliConfigCommand = "delete"
+	t.Cleanup(func() {
+		cliConfig = oldConfig
+		cliConfigCommand = oldCommand
+	})
+	if all := cliBool(flag.NewFlagSet("delete", flag.ContinueOnError), "all", false); *all {
+		t.Fatal("delete --all was set from config")
+	}
+}

@@ -114,7 +114,8 @@ General rules:
 | `wait` | `[SELECTOR ...]` | each: a project (its active run), then an active run name, then a registered run ID | – (added to `--run-id`) |
 | `cancel`, `suspend`, `resume` | `[ID ...]` | job IDs, attempt IDs, and a bare run ID that only locates the run | `--job-id` |
 | `remove` | `[JOB_ID ...]` | job IDs | `--job-id` |
-| `copy`, `delete` | `[RUN_ID]` | the run | `--run-id` |
+| `copy` | `[RUN_ID]` | the run | `--run-id` |
+| `delete` | `[RUN_ID]` | the run to delete; without one, `--all` must be given to delete every run | `--run-id`, `--all` |
 | `diff` | `[[RUN_A] RUN_B]` | none: the latest run against the run before it; one: that run against the run before it; two: the runs, which must belong to one project | – |
 | `export` | `[TARGET] [FILE]` | `TARGET` is a run when it has a run ID's shape or is `latest`, otherwise a project, whose queue is exported; `FILE` is the output | a project `TARGET` excludes `--project-name`; `FILE` excludes `--output` |
 | `import` | `FILE [PROJECT]` | the manifest, and the destination project; a run-exported manifest must come from that project | `PROJECT` excludes `--project-name` |

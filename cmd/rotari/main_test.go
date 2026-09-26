@@ -406,11 +406,11 @@ func TestCLICommandSpecificEnvironmentDefaults(t *testing.T) {
 	t.Setenv("ROTARI_WEB_PORT", "9000")
 	t.Setenv(envWebAuthToken, "token-from-env")
 	t.Setenv("ROTARI_WAIT_TIMEOUT", "2s")
-	fs := flag.NewFlagSet("test", flag.ContinueOnError)
-	host := cliString(fs, "host", "127.0.0.1")
-	port := cliInt(fs, "port", 8787)
-	authToken := cliString(fs, "auth-token", "")
-	timeout := cliDuration(fs, "timeout", 0)
+	web := flag.NewFlagSet("web", flag.ContinueOnError)
+	host := cliString(web, "host", "127.0.0.1")
+	port := cliInt(web, "port", 8787)
+	authToken := cliString(web, "auth-token", "")
+	timeout := cliDuration(flag.NewFlagSet("wait", flag.ContinueOnError), "timeout", 0)
 	if *host != "127.0.0.2" || *port != 9000 || *authToken != "token-from-env" || *timeout != 2*time.Second {
 		t.Fatalf("defaults = %q, %d, %q, %s", *host, *port, *authToken, *timeout)
 	}

@@ -19,6 +19,7 @@ func cmdDelete(args []string) int {
 	basedir := cliString(fs, "basedir", "")
 	queueNameOption := cliString(fs, "project-name", "")
 	runIDOption := cliString(fs, "run-id", "")
+	allRuns := cliBool(fs, "all", false)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -28,6 +29,11 @@ func cmdDelete(args []string) int {
 	}
 	if len(fs.Args()) == 1 {
 		*runIDOption = fs.Args()[0]
+	}
+	// Deleting every run is never the default.
+	if (*runIDOption == "") == !*allRuns {
+		printError("pass a run ID to delete one run, or --all to delete every run of the project")
+		return 1
 	}
 
 	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runIDOption)

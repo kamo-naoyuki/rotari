@@ -159,8 +159,11 @@ var cliCommandSpecs = []cliCommandSpec{
 	{
 		Name:        "delete",
 		Description: "delete saved run history",
-		Flags:       append(commonCLIFlags(), cliFlagSpec{Name: "run-id", Description: "delete only the specified run", ValueName: "ID"}),
-		Positional:  "[RUN_ID]",
+		Flags: append(commonCLIFlags(),
+			cliFlagSpec{Name: "run-id", Description: "run to delete", ValueName: "ID"},
+			cliFlagSpec{Name: "all", Description: "delete every run of the project", CommandLineOnly: true},
+		),
+		Positional: "[RUN_ID]",
 	},
 	{
 		Name:        "gc",
@@ -186,7 +189,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "job-name", Description: "target job name", ValueName: "NAME"},
 			cliFlagSpec{Name: "stage", Description: "change every job in a stage", ValueName: "STAGE"},
 			cliFlagSpec{Name: "matrix", Description: "change every job of a matrix, named by its base job name", ValueName: "NAME"},
-			cliFlagSpec{Name: "all", Description: "change every job"},
+			cliFlagSpec{Name: "all", Description: "change every job", CommandLineOnly: true},
 			cliFlagSpec{Name: "executor", Description: "replace job executor", ValueName: "EXECUTOR", Values: executorRegistry.Names()},
 			cliFlagSpec{Name: "executor-option", Description: "replace executor options", ValueName: "OPTION"},
 			cliFlagSpec{Name: "clear-executor-options", Description: "clear executor options"},
@@ -240,7 +243,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "job-name", Description: "remove a job by name", ValueName: "NAME"},
 			cliFlagSpec{Name: "stage", Description: "remove every job in a stage", ValueName: "STAGE"},
 			cliFlagSpec{Name: "matrix", Description: "remove every job of a matrix, named by its base job name", ValueName: "NAME"},
-			cliFlagSpec{Name: "all", Description: "remove every job"},
+			cliFlagSpec{Name: "all", Description: "remove every job", CommandLineOnly: true},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
 		),
 		Positional: "[JOB_ID ...]",
@@ -704,10 +707,14 @@ func cliStringVar(fs *flag.FlagSet, target *string, name, defaultValue string) {
 
 func cliBool(fs *flag.FlagSet, name string, defaultValue bool) *bool {
 	spec := cliCommandFlag(fs.Name(), name)
-	defaultValue = configBool(name, defaultValue)
 	environmentNames := []string{cliEnvironmentVariable(name)}
 	if name == "quiet" {
 		environmentNames = []string{envQuiet, commandQuietEnvironmentVariable(fs.Name())}
+	}
+	if spec.CommandLineOnly {
+		environmentNames = nil
+	} else {
+		defaultValue = configBool(name, defaultValue)
 	}
 	for _, environmentName := range environmentNames {
 		if value, ok := os.LookupEnv(environmentName); ok {
@@ -750,6 +757,11 @@ func cliInt(fs *flag.FlagSet, name string, defaultValue int) *int {
 
 func cliDuration(fs *flag.FlagSet, name string, defaultValue time.Duration) *time.Duration {
 	spec := cliCommandFlag(fs.Name(), name)
+	if spec.CommandLineOnly {
+		target := new(time.Duration)
+		fs.DurationVar(target, spec.Name, defaultValue, cliFlagDescription(spec))
+		return target
+	}
 	if value, ok := configValue(name); ok {
 		if parsed, err := time.ParseDuration(fmt.Sprint(value)); err == nil {
 			defaultValue = parsed
@@ -773,10 +785,12 @@ func cliDuration(fs *flag.FlagSet, name string, defaultValue time.Duration) *tim
 
 func cliValue(fs *flag.FlagSet, target flag.Value, name string) {
 	spec := cliCommandFlag(fs.Name(), name)
-	for _, value := range configStrings(name) {
-		_ = target.Set(value)
+	if !spec.CommandLineOnly {
+		for _, value := range configStrings(name) {
+			_ = target.Set(value)
+		}
 	}
-	if envName := cliEnvironmentVariable(name); envName != "" {
+	if envName := cliEnvironmentVariable(name); envName != "" && !spec.CommandLineOnly {
 		value, exists := os.LookupEnv(envName)
 		if exists && value != "" {
 			if resettable, ok := target.(interface{ Reset() }); ok {

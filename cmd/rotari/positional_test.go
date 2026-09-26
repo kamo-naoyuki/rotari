@@ -82,6 +82,9 @@ var positionalCases = []positionalCase{
 	// A run.
 	{name: "run ID through registry", args: "delete {run:sweep-first}", want: "cleared logs project=sweep run={run:sweep-first}"},
 	{name: "run ID and option", args: "delete -b {B} -p sweep --run-id {run:sweep-first} {run:sweep-first}", fail: true, want: "usage"},
+	{name: "no run", args: "delete -b {B} -p other", fail: true, want: "or --all to delete every run"},
+	{name: "every run", args: "delete -b {B} -p other --all", want: "cleared logs project=other"},
+	{name: "run ID and every run", args: "delete -b {B} -p sweep --all {run:sweep-first}", fail: true, want: "or --all to delete every run"},
 	{name: "run ID and option", args: "copy -b {B} -p sweep --run-id {run:sweep-first} {run:sweep-first}", fail: true, want: "usage"},
 
 	// diff: none, one, or two runs.
