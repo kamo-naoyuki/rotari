@@ -14,23 +14,27 @@ The image contains Rotari, Bash, and the OpenSSH client. It does not bundle job
 language runtimes or Slurm, PBS, or LSF clients. Use a custom image when jobs
 need additional software or scheduler commands.
 
-## Try it in the current directory
+## Start an interactive container
 
-Create a local state directory and define a shell function so each invocation
-shares the workspace and persistent state:
+Mount your working directory and a persistent state directory, then open a
+shell in the container. Rotari and the commands you add run inside this
+container, where you can use Rotari normally:
 
 ```sh
 mkdir -p .rotari-state
-rotari() {
-  docker run --rm --user "$(id -u):$(id -g)" \
-    -v "$PWD:/workspace" \
-    -v "$PWD/.rotari-state:/state" \
-    -w /workspace \
-    -e ROTARI_BASEDIR=/state \
-    -e ROTARI_MASTERDIR=/state/master \
-    kamonaoyuki/rotari:latest "$@"
-}
+docker run --rm -it --user "$(id -u):$(id -g)" \
+  -v "$PWD:/workspace" \
+  -v "$PWD/.rotari-state:/state" \
+  -w /workspace \
+  -e ROTARI_BASEDIR=/state \
+  -e ROTARI_MASTERDIR=/state/master \
+  --entrypoint /bin/bash \
+  kamonaoyuki/rotari:latest
+```
 
+Inside the container, run Rotari commands as usual:
+
+```sh
 rotari add -- sh -c 'echo hello from rotari'
 rotari run
 rotari show
@@ -38,15 +42,15 @@ rotari show
 
 The `.rotari-state` directory holds the queue, run history, and registry. The
 image defaults to a non-root user. The example maps the host UID/GID so Rotari
-can write to bind-mounted directories.
+can write to bind-mounted directories. The state and working files remain on
+the host after the container exits.
 
 ## Runtime considerations
 
 - Jobs run inside this container. Mount input/output files and install any
   additional language runtimes needed by your commands.
-- `rotari run --async` is not suitable for the one-command-per-container
-  pattern above: Docker stops the detached worker when the container exits.
-  Keep a container running for asynchronous jobs.
+- Keep the container running while an asynchronous run is active. Exiting the
+  shell stops the container, which also stops its worker processes.
 - Scheduler executables and SSH credentials are environment-specific and are
   not included. Provide them in a custom image and configure their access
   separately.
