@@ -80,6 +80,47 @@ Selector combinations:
 - `change` and `remove` edit commands, so a new command or `--set-job-name`
   needs a single job.
 
+## Positional arguments
+
+General rules:
+
+- Options come before positional arguments. Parsing stops at the first
+  positional argument or at `--`, and every later argument is positional even
+  when it looks like an option. This is how `add` and `change` keep a job
+  command's own options; in other commands an option after a positional
+  argument is a usage error (`copy RUN_ID --overwrite`).
+- A positional argument that stands for an option cannot be combined with
+  that option: supplying both is a usage error, not a precedence rule.
+- A command without positional arguments rejects any with a usage error.
+- Project, run, and job values are path elements, never paths (see
+  [01-resolution-and-config.md](01-resolution-and-config.md)); only `FILE` of
+  `export` and `import` and `MASTERDIR` of `gc` are filesystem paths.
+
+| Command | Positional | Meaning | Excludes |
+| --- | --- | --- | --- |
+| `add`, `change` | `<command ...>` | the job command: every argument from the first positional on | – |
+| `check`, `reset` | `[PROJECT]` | the project | `--project-name` |
+| `jobs` | `[PROJECT]` | the project to list; overrides environment and config defaults | `--project-name` |
+| `unlock` | `[PROJECT]` | the project; with `--project-name`, the run ID to verify instead | `--project-name` together with `--run-id` |
+| `show` | `[SELECTOR]` | an attempt ID, then a registered run ID; otherwise a saved run name, job ID, or job name, where more than one match is ambiguous. Not a project name. | run, job, queue, log, JSON, and report options |
+| `wait` | `[SELECTOR ...]` | each: a project (its active run), then an active run name, then a registered run ID | – (added to `--run-id`) |
+| `cancel`, `suspend`, `resume` | `[ID ...]` | job IDs, attempt IDs, and a bare run ID that only locates the run | `--job-id` |
+| `remove` | `[JOB_ID ...]` | job IDs | `--job-id` |
+| `copy`, `delete` | `[RUN_ID]` | the run | `--run-id` |
+| `diff` | `[[RUN_A] RUN_B]` | none: the latest run against the run before it; one: that run against the run before it; two: the runs, of one project | – |
+| `export` | `[TARGET] [FILE]` | `TARGET` is a run ID when it has a run ID's shape or `--project-name` is given, otherwise a project, whose queue is exported; `FILE` is the output | `FILE` excludes `--output` |
+| `import` | `FILE [PROJECT]` | the manifest, and the destination project; a run-exported manifest must come from that project | `PROJECT` excludes `--project-name` |
+| `diagnose` | `JOB_ID` | a job ID or attempt ID | `--job-id` |
+| `gc` | `[MASTERDIR]` | the master directory | `--masterdir` |
+| `run` | `config` | an undocumented alias of `rotari config` | – |
+| others | none | – | – |
+
+`TestPositionalArguments` in
+[cmd/rotari/positional_test.go](../../cmd/rotari/positional_test.go) covers
+each row against the fixture, except `cancel`, `suspend`, and `resume`,
+whose selector resolution is covered by `resolve.JobSelection` tests in
+[internal/resolve/resolve_test.go](../../internal/resolve/resolve_test.go).
+
 ## Known deviations
 
 Each is also recorded in [ISSUES.md](../../ISSUES.md) until it is resolved.
