@@ -326,3 +326,26 @@ func TestCmdChangeRejectsInvalidBulkChanges(t *testing.T) {
 		})
 	}
 }
+
+func TestCmdChangeSelectsQueueCommandsAfterArrayJob(t *testing.T) {
+	baseDir, paths := writeChangeTestQueue(t, []model.QueuedCommand{
+		{ID: "prep", Name: "prep", Command: []string{"prep"}, Array: &model.ArraySpec{First: 1, Last: 3}},
+		{ID: "b", Name: "b", Command: []string{"b"}},
+		{ID: "c", Name: "c", Command: []string{"c"}},
+	})
+	for _, name := range []string{"prep", "c"} {
+		if code := cmdChange([]string{"--basedir", baseDir, "--project-name", "default", "--job-name", name, "--timeout", "1h", "--quiet"}); code != 0 {
+			t.Fatalf("change --job-name %s exit code = %d, want 0", name, code)
+		}
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if queue.Commands[0].Timeout != "1h" || queue.Commands[1].Timeout != "" || queue.Commands[2].Timeout != "1h" {
+		t.Fatalf("timeouts = %q, %q, %q; want 1h, none, 1h", queue.Commands[0].Timeout, queue.Commands[1].Timeout, queue.Commands[2].Timeout)
+	}
+	if _, err := changeQueueJobs(baseDir, "default", "", changeSelector{jobID: "prep-2"}, changeMutation{timeout: "2h"}); err == nil || !strings.Contains(err.Error(), "array job prep") {
+		t.Fatalf("change of one array task error = %v, want array job hint", err)
+	}
+}

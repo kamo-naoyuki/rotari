@@ -208,7 +208,8 @@ rotari run --failed
 name given to `add --matrix`), or `--all` for every matching job. It also
 requires at least one change, such as a new command, `--executor/-e`,
 `--executor-option`, `--set-job-name`, or `--depends-on`. A new command and
-`--set-job-name` need a single job. It replaces only the options specified,
+`--set-job-name` need a single job. An array job is changed as a whole; its
+tasks cannot be changed one by one. It replaces only the options specified,
 keeps the job IDs, and edits the current batch. If the queue is empty, the
 latest run snapshot is restored first. Use `--run-id/-r` to select another run.
 

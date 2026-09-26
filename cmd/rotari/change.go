@@ -197,8 +197,7 @@ func changeQueueJobs(baseDir, queueName, requestedRunID string, selector changeS
 			}
 			*queue = snapshot
 		}
-		jobs := model.QueueToJobs(queue.Commands)
-		indexes, err := selectChangeJobs(*queue, jobs, selector)
+		indexes, err := selectChangeJobs(*queue, selector)
 		if err != nil {
 			return err
 		}
@@ -222,7 +221,7 @@ func changeQueueJobs(baseDir, queueName, requestedRunID string, selector changeS
 		}
 		changedIDs = changedIDs[:0]
 		for _, jobIndex := range indexes {
-			changedIDs = append(changedIDs, jobs[jobIndex].ID)
+			changedIDs = append(changedIDs, queue.Commands[jobIndex].ID)
 		}
 		return nil
 	})
@@ -236,9 +235,11 @@ func changeQueueJobs(baseDir, queueName, requestedRunID string, selector changeS
 	return strings.Join(lines, "\n"), nil
 }
 
-func selectChangeJobs(queue model.Queue, jobs []model.JobSpec, selector changeSelector) ([]int, error) {
+// selectChangeJobs returns the indexes of the selected queue commands. An
+// array command is changed as a whole.
+func selectChangeJobs(queue model.Queue, selector changeSelector) ([]int, error) {
 	if !selector.multiple() {
-		jobIndex, err := selectChangeJob(jobs, selector.jobID, selector.jobName)
+		jobIndex, err := selectChangeJob(queue.Commands, selector.jobID, selector.jobName)
 		if err != nil {
 			return nil, err
 		}
@@ -265,11 +266,11 @@ func selectChangeJobs(queue model.Queue, jobs []model.JobSpec, selector changeSe
 	}
 }
 
-func selectChangeJob(jobs []model.JobSpec, requestedJobID, requestedJobName string) (int, error) {
+func selectChangeJob(commands []model.QueuedCommand, requestedJobID, requestedJobName string) (int, error) {
 	jobIndex := -1
-	for index, job := range jobs {
-		if (requestedJobID == "" || job.ID != requestedJobID) &&
-			(requestedJobName == "" || job.Name != requestedJobName) {
+	for index, command := range commands {
+		if (requestedJobID == "" || command.ID != requestedJobID) &&
+			(requestedJobName == "" || command.Name != requestedJobName) {
 			continue
 		}
 		if jobIndex != -1 {
@@ -277,10 +278,19 @@ func selectChangeJob(jobs []model.JobSpec, requestedJobID, requestedJobName stri
 		}
 		jobIndex = index
 	}
-	if jobIndex == -1 {
-		return -1, fmt.Errorf("job not found")
+	if jobIndex != -1 {
+		return jobIndex, nil
 	}
-	return jobIndex, nil
+	// Array tasks share their command's settings, so one task cannot be
+	// changed alone.
+	for _, command := range commands {
+		for _, task := range model.QueueToJobs([]model.QueuedCommand{command}) {
+			if command.Array != nil && ((requestedJobID != "" && task.ID == requestedJobID) || (requestedJobName != "" && task.Name == requestedJobName)) {
+				return -1, fmt.Errorf("%s is a task of array job %s; change the array job instead", task.ID, command.ID)
+			}
+		}
+	}
+	return -1, fmt.Errorf("job not found")
 }
 
 func applyChangeMutation(queue model.Queue, jobIndex int, mutation changeMutation) error {
@@ -339,13 +349,17 @@ func applyChangeMutation(queue model.Queue, jobIndex int, mutation changeMutatio
 }
 
 func validateChangeRename(queue model.Queue, jobIndex int, newName string) error {
-	jobs := model.QueueToJobs(queue.Commands)
-	for index, job := range jobs {
-		if index != jobIndex && job.Name == newName {
-			return fmt.Errorf("job name %q is already in use", newName)
+	for index, command := range queue.Commands {
+		if index == jobIndex {
+			continue
+		}
+		for _, job := range model.QueueToJobs([]model.QueuedCommand{command}) {
+			if job.Name == newName {
+				return fmt.Errorf("job name %q is already in use", newName)
+			}
 		}
 	}
-	oldName := jobs[jobIndex].Name
+	oldName := queue.Commands[jobIndex].Name
 	for index, command := range queue.Commands {
 		if index == jobIndex {
 			continue
