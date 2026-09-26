@@ -33,13 +33,10 @@ another workflow engine has them.
   precedence over the stored job settings for that run without writing them
   back to the queue.
 
-- Per-job timeouts (`add --timeout 2h`) are enforced by the job wrappers. The
-  grace period before SIGKILL is fixed at 30 seconds; consider making it
-  configurable together with the stop signal below.
-- Per-job retry limits and delays exist (`add --retry N --retry-delay 30s
-  --retry-backoff 2 --retry-max-delay 5m`), and failed jobs are retried
-  immediately rather than after the whole run's attempt. Consider run-level
-  delay defaults.
+- Consider making the grace period between a timeout's SIGTERM and SIGKILL
+  configurable (fixed at 30 seconds), together with the stop signal below.
+- Consider run-level retry delay defaults (`run --retry-delay` and friends)
+  for jobs without their own, like `run --retry` for the limit.
 - Consider deciding retries from the rule-based diagnosis of a failure rather
   than its exit code, which rarely tells causes apart (most Python errors
   exit with 1). A user-written rule would map a diagnosis to an action:
@@ -58,9 +55,7 @@ another workflow engine has them.
   Slurm has a matching `--signal` option.
 
 For field design, Dagu's step options are a useful reference
-(`dagu/internal/spec/step.go`): `retry_policy` has `limit`, `interval_sec`,
-`backoff`, `max_interval_sec`, and `exit_code` (retry only on listed exit
-codes), plus `timeout_sec` and `signal_on_stop`.
+(`dagu/internal/spec/step.go`), for example `signal_on_stop`.
 
 Each of these must define its behavior for every executor (local, SSH, Slurm,
 PBS, LSF) and be tested per executor. Add them one at a time.
@@ -75,19 +70,17 @@ A run snapshots the edited queue, so the run sequence is the version history of
 the experiment. See "Runs as the history of the loop" in
 [docs/DAGU_COMPARISON.md](docs/DAGU_COMPARISON.md).
 
-- `rotari show --lineage` lists a project's runs with counts and changes since
-  the previous run. Consider following copy and retry provenance instead of
-  start time when runs of one project explore separate branches.
-- `rotari diff` exists and covers the run summary (fixed, still failing,
-  newly failing, elapsed time). Consider showing the same summary after
-  `run` and `wait` finish, and in the Web UI run page.
-- Run state versioning is in place: `queue.json`, `commands.json`, and
-  `summary.json` record `state_version`, older files are read as version 1,
-  and newer ones are rejected. See "State load and write contracts" in
-  [docs/contracts/04-coordination-and-safety.md](docs/contracts/04-coordination-and-safety.md)
-  for the migration policy. `meta.json`, `context.json`, and per-job files
-  are not versioned yet.
-- Building blocks: `runs/<run-id>/commands.json`, `JobOrigin` in
+- Consider building `show --lineage` from copy and retry provenance instead
+  of start time, so runs of one project that explore separate branches are
+  not listed as one sequence.
+- Consider showing the `rotari diff` summary (fixed, still failing, newly
+  failing, elapsed time) after `run` and `wait` finish, and in the Web UI run
+  page.
+- Consider recording `state_version` in `meta.json`, `context.json`, and
+  per-job files, as `queue.json`, `commands.json`, and `summary.json` already
+  do. See "State load and write contracts" in
+  [docs/contracts/04-coordination-and-safety.md](docs/contracts/04-coordination-and-safety.md).
+- Building blocks for the above: `runs/<run-id>/commands.json`, `JobOrigin` in
   [internal/model/model.go](internal/model/model.go), and the queue-versus-run
   change count in `compareQueueWithRun` in
   [cmd/rotari/show.go](cmd/rotari/show.go).
