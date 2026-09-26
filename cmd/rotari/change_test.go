@@ -61,34 +61,6 @@ func TestCmdChangeUpdatesExecutorEnvironmentAndCommandByJobID(t *testing.T) {
 	}
 }
 
-func TestChangeDoesNotRestoreSnapshotIntoEmptyQueue(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(paths.MetaFile, model.Meta{LastRunID: "previous-run"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(filepath.Join(paths.RunsDir, "previous-run", "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job-id", Name: "job", Command: []string{"old"}}}}); err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := queueEditor().Change(baseDir, "default", "", model.CommandSelector{Name: "job"}, queueops.Mutation{Command: []string{"new"}}); err == nil {
-		t.Fatal("change restored a job from the previous run into an empty queue")
-	}
-	queue, err := loadQueue(paths.QueueFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(queue.Commands) != 0 {
-		t.Fatalf("queue commands = %#v, want empty queue", queue.Commands)
-	}
-}
-
 func TestCmdChangeRejectsRunningProject(t *testing.T) {
 	baseDir := t.TempDir()
 	if _, err := enqueueCommand(baseDir, "default", []string{"echo", "job"}, "", nil, nil, "job", nil); err != nil {

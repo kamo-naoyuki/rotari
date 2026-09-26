@@ -71,7 +71,7 @@
   a runtime-only name derived from their job ID when they are stage members.
   See [stage expansion](../../internal/model/model.go), [queue dependency
   validation](../../internal/model/dependencies.go), [stage barrier test](../../cmd/rotari/mixed_run_test.go),
-  and [copy preservation test](../../cmd/rotari/copy_test.go).
+  and [copy preservation test](../../internal/queueops/copy_test.go).
 - An array queue command has an inclusive `first-last` range or an explicit
   comma-separated task list. Runtime expansion creates one `JobSpec` and
   persisted job directory per selected task. Local executors run those tasks as
@@ -98,7 +98,7 @@
   Legacy snapshots
   without provenance export as independent jobs. See
   [matrix validation](../../internal/model/dependencies.go),
-  [matrix queue mutation tests](../../cmd/rotari/queue_carry_state_test.go),
+  [matrix queue mutation tests](../../internal/queueops/carry_state_test.go),
   [manifest compilation](../../internal/workflow/manifest.go), and
   [matrix export tests](../../internal/workflow/export_test.go).
 - Result-based selection (`--failed`/`--unfinished`/`--success` in `copy`, and
@@ -117,7 +117,7 @@
   failed stage member therefore keeps its dependents waiting for it. See
   [copy rules](../../internal/queueedit/copy.go),
   [copy unit tests](../../internal/queueedit/copy_test.go), and
-  [partial stage copy tests](../../cmd/rotari/copy_test.go).
+  [partial stage copy tests](../../internal/queueops/copy_test.go).
 - `run`/`retry` default to `--partial-array=true`. For a filtered rerun,
   `run.PlanRerun` evaluates each array task's own result against the
   selection instead of the aggregate, so only the
