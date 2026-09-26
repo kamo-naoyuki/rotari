@@ -165,3 +165,26 @@ func TestChangeDoesNotRestoreSnapshotIntoEmptyQueue(t *testing.T) {
 		t.Fatalf("queue commands = %#v, want empty queue", queue.Commands)
 	}
 }
+
+func TestChangeRejectsUnknownExecutor(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-id", Name: "job", Command: []string{"old"}}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = testEditor().Change(baseDir, "default", "", model.CommandSelector{IDs: []string{"job-id"}}, Mutation{Executor: "nosuch"})
+	if err == nil || !strings.Contains(err.Error(), "unsupported executor: nosuch") {
+		t.Fatalf("change error = %v, want unsupported executor", err)
+	}
+	queue, err := state.LoadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if queue.Commands[0].Executor != "" {
+		t.Fatalf("executor = %q, want unchanged", queue.Commands[0].Executor)
+	}
+}

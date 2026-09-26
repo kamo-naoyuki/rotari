@@ -1832,6 +1832,30 @@ func TestWebChangeEndpointUpdatesQueueJob(t *testing.T) {
 	}
 }
 
+func TestWebChangeEndpointRejectsUnknownExecutor(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stateinternal.WriteJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"old"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/change", strings.NewReader(`{"project_name":"default","job_id":"job-1","command":["old"],"executor":"nosuch"}`))
+	recorder := httptest.NewRecorder()
+	Handler(testOptions(baseDir, "", true)).ServeHTTP(recorder, request)
+	if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), "unsupported executor") {
+		t.Fatalf("status = %d, body = %s, want unsupported executor error", recorder.Code, recorder.Body.String())
+	}
+	queue, err := stateinternal.LoadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if queue.Commands[0].Executor != "" {
+		t.Fatalf("executor = %q, want unchanged", queue.Commands[0].Executor)
+	}
+}
+
 func TestMethodNotAllowedRejectsNonGetOnAPIState(t *testing.T) {
 	baseDir := t.TempDir()
 	request := httptest.NewRequest(http.MethodPost, "/api/state", nil)

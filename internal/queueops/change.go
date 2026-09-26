@@ -47,7 +47,10 @@ type Mutation struct {
 // Change applies mutation to the selected jobs of the current queue, or of
 // the batch restored from requestedRunID. It returns one line per changed
 // job.
-func (Editor) Change(baseDir, projectName, requestedRunID string, selector model.CommandSelector, mutation Mutation) (string, error) {
+func (editor Editor) Change(baseDir, projectName, requestedRunID string, selector model.CommandSelector, mutation Mutation) (string, error) {
+	if mutation.Executor != "" && !editor.Executors.Known(mutation.Executor) {
+		return "", fmt.Errorf("unsupported executor: %s", mutation.Executor)
+	}
 	if err := model.ValidateEnvironment(mutation.Environment); err != nil {
 		return "", fmt.Errorf("invalid environment: %w", err)
 	}

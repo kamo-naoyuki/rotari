@@ -9,7 +9,8 @@ import (
 // process-wide settings the operations need.
 type Editor struct {
 	Store state.Store
-	// Executors decides which executor names a new job may use.
+	// Executors decides which executor names an added or changed job may
+	// use.
 	Executors executor.Registry
 	// NewJobID returns a fresh job or matrix group ID.
 	NewJobID func() string
