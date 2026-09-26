@@ -53,16 +53,21 @@ type lane struct {
 	capacity int
 	active   int
 	queue    []laneTask
+	// lastSubmitted closes once the most recently started job has been
+	// submitted; the next job waits for it, so submissions keep queue order.
+	lastSubmitted chan struct{}
 }
 
 // laneTask runs one queued job and returns its result; done reports it.
+// run submits the job, calls submitted once it has been submitted (or has
+// ended without a submission), and waits for its result.
 type laneTask struct {
-	run  func() model.JobResult
+	run  func(submitted func()) model.JobResult
 	done func(model.JobResult)
 }
 
 // enqueue queues a job; it starts once a slot is free, in queue order.
-func (selected *lane) enqueue(run func() model.JobResult, done func(model.JobResult)) {
+func (selected *lane) enqueue(run func(submitted func()) model.JobResult, done func(model.JobResult)) {
 	selected.mu.Lock()
 	selected.queue = append(selected.queue, laneTask{run: run, done: done})
 	selected.startQueued()
@@ -75,8 +80,21 @@ func (selected *lane) startQueued() {
 		task := selected.queue[0]
 		selected.queue = selected.queue[1:]
 		selected.active++
+		previous := selected.lastSubmitted
+		submitted := make(chan struct{})
+		selected.lastSubmitted = submitted
 		go func() {
-			result := task.run()
+			// Jobs that start together would otherwise race to the scheduler;
+			// submitting after the previous job keeps the scheduler's
+			// submission order, which it uses for priority, equal to queue
+			// order. Waiting for results still happens in parallel.
+			if previous != nil {
+				<-previous
+			}
+			var once sync.Once
+			markSubmitted := func() { once.Do(func() { close(submitted) }) }
+			result := task.run(markSubmitted)
+			markSubmitted()
 			// Free the slot before reporting, so the next queued job starts
 			// while the result is being handled.
 			selected.mu.Lock()
@@ -155,7 +173,7 @@ func (dispatcher *Dispatcher) Start(jobs []model.JobSpec, done func(model.JobRes
 		if selected.local {
 			for _, job := range executorJobs {
 				job := job
-				selected.enqueue(func() model.JobResult { return dispatcher.runLocal(selected, job) }, done)
+				selected.enqueue(func(submitted func()) model.JobResult { return dispatcher.runLocal(selected, job, submitted) }, done)
 			}
 			continue
 		}
@@ -163,9 +181,10 @@ func (dispatcher *Dispatcher) Start(jobs []model.JobSpec, done func(model.JobRes
 	}
 }
 
-func (dispatcher *Dispatcher) runLocal(selected *lane, job model.JobSpec) model.JobResult {
+func (dispatcher *Dispatcher) runLocal(selected *lane, job model.JobSpec, submitted func()) model.JobResult {
 	var result model.JobResult
 	handle, err := selected.executor.Submit(dispatcher.runDir, job, nil)
+	submitted()
 	if err != nil {
 		result = model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	} else {
@@ -192,7 +211,7 @@ func (dispatcher *Dispatcher) startBatch(selected *lane, jobs []model.JobSpec, d
 			}
 		}
 		job := jobs[start]
-		selected.enqueue(func() model.JobResult { return dispatcher.runBatchJob(selected, job) }, done)
+		selected.enqueue(func(submitted func()) model.JobResult { return dispatcher.runBatchJob(selected, job, submitted) }, done)
 		start++
 	}
 }
@@ -248,14 +267,14 @@ func (dispatcher *Dispatcher) runArray(selected *lane, tasks []model.JobSpec, do
 	waiters.Wait()
 }
 
-func (dispatcher *Dispatcher) runBatchJob(selected *lane, job model.JobSpec) model.JobResult {
-	result := dispatcher.submitAndWait(selected, job)
+func (dispatcher *Dispatcher) runBatchJob(selected *lane, job model.JobSpec, submitted func()) model.JobResult {
+	result := dispatcher.submitAndWait(selected, job, submitted)
 	result.AttemptID = job.AttemptID
 	dispatcher.logFailure(result)
 	return result
 }
 
-func (dispatcher *Dispatcher) submitAndWait(selected *lane, job model.JobSpec) model.JobResult {
+func (dispatcher *Dispatcher) submitAndWait(selected *lane, job model.JobSpec, submitted func()) model.JobResult {
 	callbacks := dispatcher.options.Callbacks
 	jobDir, err := callbacks.ValidatedJobDir(dispatcher.runDir, job.ID)
 	if err != nil {
@@ -265,6 +284,7 @@ func (dispatcher *Dispatcher) submitAndWait(selected *lane, job model.JobSpec) m
 		return callbacks.RecordCancelled(jobDir, job)
 	}
 	handle, err := selected.executor.Submit(dispatcher.runDir, job, dispatcher.jobOptions(selected, job))
+	submitted()
 	if err != nil {
 		return model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
 	}

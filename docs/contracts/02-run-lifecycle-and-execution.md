@@ -276,10 +276,13 @@
   start in the order they became ready, which is queue order for jobs ready
   together, and a job holds a slot only while it is submitted or running, so
   a finished job's slot goes to the next queued job at once instead of after a
-  whole batch. Covered by `TestDispatcherStartsQueuedJobsInOrder`. Array tasks that become
+  whole batch. Jobs that start together still submit one after another in
+  queue order, because schedulers such as Slurm order pending jobs by
+  submission; only waiting for results runs in parallel. Covered by
+  `TestDispatcherStartsQueuedJobsInOrder`. Array tasks that become
   ready together are still submitted as one native array without taking
   slots; retried tasks are submitted individually or as a sparse array. Jobs
-  on a scheduler lane are submitted and waited on concurrently, so
+  on a scheduler lane are waited on concurrently, so
   `schedulerQueryGate` in
   [internal/executor/scheduler_shared.go](../../internal/executor/scheduler_shared.go)
   spaces scheduler state and accounting queries 200ms apart per process;

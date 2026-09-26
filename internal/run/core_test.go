@@ -382,26 +382,30 @@ func TestDispatcherRefillsSchedulerSlotsAsJobsFinish(t *testing.T) {
 func intPointer(value int) *int { return &value }
 
 func TestDispatcherStartsQueuedJobsInOrder(t *testing.T) {
-	first := make(chan struct{})
-	blocking := &blockingExecutor{testExecutor: testExecutor{name: "slurm"}, release: map[string]chan struct{}{"job-0": first}}
-	dispatcher := NewDispatcher("/runs/run-1", model.Queue{}, DispatchOptions{
-		BatchMaxActive: 1, ResolveExecutor: func(string) (executor.JobExecutor, bool) { return blocking, true }, Callbacks: testCallbacks(),
-	}, nil)
-	jobs := make([]model.JobSpec, 0, 6)
-	for index := range 6 {
-		jobs = append(jobs, model.JobSpec{ID: fmt.Sprintf("job-%d", index), Executor: "slurm"})
-	}
-	results := make(chan model.JobResult, len(jobs))
-	dispatcher.Start(jobs, func(result model.JobResult) { results <- result })
-	close(first)
-	for range jobs {
-		<-results
-	}
-	blocking.mu.Lock()
-	defer blocking.mu.Unlock()
-	for index, id := range blocking.submitted {
-		if id != jobs[index].ID {
-			t.Fatalf("submission order = %v, want queue order", blocking.submitted)
+	// With one slot, jobs wait for each other; with six, they start together
+	// and must still reach the scheduler in queue order.
+	for _, capacity := range []int{1, 6} {
+		first := make(chan struct{})
+		blocking := &blockingExecutor{testExecutor: testExecutor{name: "slurm"}, release: map[string]chan struct{}{"job-0": first}}
+		dispatcher := NewDispatcher("/runs/run-1", model.Queue{}, DispatchOptions{
+			BatchMaxActive: capacity, ResolveExecutor: func(string) (executor.JobExecutor, bool) { return blocking, true }, Callbacks: testCallbacks(),
+		}, nil)
+		jobs := make([]model.JobSpec, 0, 6)
+		for index := range 6 {
+			jobs = append(jobs, model.JobSpec{ID: fmt.Sprintf("job-%d", index), Executor: "slurm"})
 		}
+		results := make(chan model.JobResult, len(jobs))
+		dispatcher.Start(jobs, func(result model.JobResult) { results <- result })
+		close(first)
+		for range jobs {
+			<-results
+		}
+		blocking.mu.Lock()
+		for index, id := range blocking.submitted {
+			if id != jobs[index].ID {
+				t.Fatalf("capacity %d: submission order = %v, want queue order", capacity, blocking.submitted)
+			}
+		}
+		blocking.mu.Unlock()
 	}
 }

@@ -102,3 +102,17 @@ func TestSchedulerArrayWrapperEnforcesTimeout(t *testing.T) {
 		t.Fatalf("status.json = %s", status)
 	}
 }
+
+func TestLocalJobTimeoutWorksWithoutUsablePs(t *testing.T) {
+	// BusyBox ps, as in some scheduler images, rejects -p; the wrapper must
+	// still recognize that it leads its process group.
+	fakeBin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(fakeBin, "ps"), []byte("#!/bin/sh\necho 'ps: unrecognized option: p' >&2\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	result, output, elapsed := runLocalWithTimeout(t, []string{"sleep", "30"}, "1s")
+	if result.ExitCode != TimeoutExitCode || elapsed > 10*time.Second {
+		t.Fatalf("result = %+v after %s, output = %q; want the timeout enforced", result, elapsed, output)
+	}
+}
