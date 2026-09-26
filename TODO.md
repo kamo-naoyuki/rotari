@@ -7,19 +7,6 @@ The selector contract is in
 changing a selector, update the contract and add or change a test row in the
 same commit.
 
-- Consider extending `cancel`/`suspend`/`resume` selectors to also accept a
-  `run_name` and/or a bare `project_name`, alongside the existing job_id,
-  `att_` attempt_id, and bare run_id support. Unlike run_id (fixed generated
-  format) and attempt_id (`att_` prefix), `run_name` is a free-form label with
-  no reserved shape, so mixing it into the positional/`--job-id` list risks
-  colliding with a real job_id. `project_name` is safer to detect (an existing
-  `projects/<name>` directory), but still not fully unambiguous. If this is
-  implemented, prefer resolving `run_name` only through a dedicated
-  `--run-name` flag (mirroring `run --run-name`) rather than the mixed
-  positional list, and reuse `wait`'s active-run lookup
-  (`resolve.RunsByName` in [internal/resolve/resolve.go](internal/resolve/resolve.go))
-  for lookup semantics and ambiguity errors.
-
 ## Near-term candidates
 
 These are smaller steps that can come before the AI roadmap in

@@ -166,7 +166,10 @@ open on a finished run cannot act on the same job ID in the active run
 | Job ID in no active run | error, when no project is given | same |
 | `latest` | a job ID like any other; not a run | same |
 
-`cancel --wait` takes no job selection. Covered by `TestJobControlSelectors`
+`cancel --wait` takes no job selection. Unlike `show` and `wait`, these
+commands take no run name or positional project: they act on running jobs, so
+they name them only by IDs and `--project-name`, and a free-form run name could
+not be told apart from a job ID in the same list. Covered by `TestJobControlSelectors`
 in [cmd/rotari/job_control_selector_test.go](../../cmd/rotari/job_control_selector_test.go),
 against the fixture with run `live` of project `sweep` active, and by the
 `JobSelection` tests in
