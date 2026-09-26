@@ -50,12 +50,12 @@ func TestExportWorkflowRejectsInvalidQueueState(t *testing.T) {
 				t.Fatal(err)
 			}
 			setup(t, paths)
-			if _, err := exportWorkflow(baseDir, "demo", nil); err == nil {
+			if _, _, err := exportWorkflow(baseDir, "demo", nil); err == nil {
 				t.Fatal("exportWorkflow accepted invalid queue state")
 			}
 		})
 	}
-	if _, err := exportWorkflow(t.TempDir(), "bad/name", nil); err == nil {
+	if _, _, err := exportWorkflow(t.TempDir(), "bad/name", nil); err == nil {
 		t.Fatal("exportWorkflow accepted a project name with a path separator")
 	}
 }
@@ -83,7 +83,7 @@ func TestExportWorkflowRejectsInvalidRunSnapshots(t *testing.T) {
 			baseDir := t.TempDir()
 			paths := writeWorkflowPipelineRun(t, baseDir)
 			corrupt(t, filepath.Join(paths.RunsDir, workflowPipelineRunID))
-			if _, err := exportWorkflow(baseDir, "demo", []string{workflowPipelineRunID}); err == nil {
+			if _, _, err := exportWorkflow(baseDir, "demo", []string{workflowPipelineRunID}); err == nil {
 				t.Fatal("exportWorkflow accepted an invalid run snapshot")
 			}
 		})
@@ -451,7 +451,7 @@ func TestExportWorkflowRejectsPathLikeRunIDs(t *testing.T) {
 	baseDir := t.TempDir()
 	writeWorkflowPipelineRun(t, baseDir)
 	for _, runID := range []string{"../" + workflowPipelineRunID, `bad\run`, "bad/run"} {
-		if _, err := exportWorkflow(baseDir, "demo", []string{runID}); err == nil {
+		if _, _, err := exportWorkflow(baseDir, "demo", []string{runID}); err == nil {
 			t.Fatalf("exportWorkflow accepted run ID %q", runID)
 		}
 	}
@@ -473,11 +473,11 @@ func TestExportWorkflowRejectsRegisteredRunsFromDifferentProjects(t *testing.T) 
 	}
 	// Without --project-name, each run ID resolves to the project it is
 	// registered under, so the merge must reject the mixed projects.
-	manifest, err := exportWorkflow("", "", []string{firstRun})
+	manifest, _, err := exportWorkflow("", "", []string{firstRun})
 	if err != nil || manifest.Source.Project != "first" {
 		t.Fatalf("single registered run export = %#v, %v", manifest.Source, err)
 	}
-	_, err = exportWorkflow("", "", []string{firstRun, secondRun})
+	_, _, err = exportWorkflow("", "", []string{firstRun, secondRun})
 	if err == nil || !strings.Contains(err.Error(), "same project") {
 		t.Fatalf("exportWorkflow error = %v, want same-project rejection", err)
 	}

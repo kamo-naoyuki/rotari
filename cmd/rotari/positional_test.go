@@ -72,6 +72,15 @@ var positionalCases = []positionalCase{
 	{name: "project", args: "show -b {B} sweep", want: "Project: sweep"},
 	{name: "project name with project option", args: "show -b {B} -p other sweep", fail: true, want: `selector "sweep" not found`},
 	{name: "active run name", args: "show -b {B} live", setup: setupActive, want: "Run: live ({run:live})"},
+	{name: "run-only option with a queue", args: "show -b {B} -p sweep --failed", setup: setupQueued, want: "Run: second ({run:sweep-second})"},
+	{name: "view with a queue", args: "show -b {B} -p sweep --stage training", setup: setupQueued, want: "SHOW MODE: PROJECT / QUEUE"},
+
+	// export: a queue, else the latest run; never an unsettled run.
+	{name: "project with an empty queue", args: "export -b {B} other", want: "exported run {run:other-first} (project other has no queued jobs)"},
+	{name: "project with a queue", args: "export -b {B} sweep", setup: setupQueued, want: "name: prep"},
+	{name: "project with an active run", args: "export -b {B} sweep", setup: setupActive, fail: true, want: "is still running; wait for it with 'rotari wait sweep'"},
+	{name: "active run", args: "export {run:live}", setup: setupActive, fail: true, want: "is still running"},
+	{name: "project with an interrupted run", args: "export -b {B} sweep", setup: setupInterrupted, fail: true, want: "was interrupted; recover it with 'rotari unlock sweep' first"},
 	{name: "selector and job option", args: "show -b {B} -p sweep prep --job-id {job:prep}", fail: true, want: "cannot be combined"},
 
 	// wait: a project, an active run name, or a run ID.
@@ -104,7 +113,6 @@ var positionalCases = []positionalCase{
 
 	// export: a run or a project, and a file.
 	{name: "run ID", args: "export {run:sweep-first}", want: "- {run:sweep-first}"},
-	{name: "project exports its queue", args: "export -b {B} sweep", fail: true, want: "queue has no jobs"},
 	{name: "project and option", args: "export -b {B} -p sweep other", fail: true, want: "cannot be combined with --project-name"},
 	{name: "latest run", args: "export -b {B} -p sweep latest", want: "- {run:sweep-second}"},
 	{name: "run ID and file", args: "export -b {B} -p sweep {run:sweep-first} {T}/out.yaml", check: fileExists("out.yaml")},

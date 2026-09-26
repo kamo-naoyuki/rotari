@@ -587,7 +587,7 @@ func TestCmdShowDisplaysInterruptedRunBeforeQueue(t *testing.T) {
 	}
 }
 
-func TestCmdShowRejectsLogsForCurrentQueue(t *testing.T) {
+func TestCmdShowLogsWithQueueNeedsARun(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
@@ -612,7 +612,7 @@ func TestCmdShowRejectsLogsForCurrentQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 1 || !strings.Contains(string(output), "logs and failed filters require --run-id") {
+	if code != 1 || !strings.Contains(string(output), `project "demo" has no runs`) {
 		t.Fatalf("cmdShow exit code = %d, stderr = %q", code, output)
 	}
 }

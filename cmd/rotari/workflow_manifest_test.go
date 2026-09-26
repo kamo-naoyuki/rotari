@@ -104,7 +104,7 @@ func importEditedWorkflow(t *testing.T, baseDir string, manifest workflow.Manife
 
 func mustExportWorkflow(t *testing.T, baseDir string, runIDs ...string) workflow.Manifest {
 	t.Helper()
-	manifest, err := exportWorkflow(baseDir, "demo", runIDs)
+	manifest, _, err := exportWorkflow(baseDir, "demo", runIDs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,16 +220,27 @@ func TestCmdExportRunWritesManifestWithoutChangingState(t *testing.T) {
 	}
 }
 
-func TestExportWorkflowRejectsEmptyQueueAndDuplicateRunIDs(t *testing.T) {
+func TestExportWorkflowEmptyQueueUsesLatestRunAndRejectsDuplicateRunIDs(t *testing.T) {
 	baseDir := t.TempDir()
 	writeWorkflowPipelineRun(t, baseDir)
-	if _, err := exportWorkflow(baseDir, "demo", nil); err == nil {
-		t.Fatal("exportWorkflow accepted an empty queue")
+	manifest, notice, err := exportWorkflow(baseDir, "demo", nil)
+	if err != nil || manifest.Source == nil || len(manifest.Source.RunIDs) != 1 || manifest.Source.RunIDs[0] != workflowPipelineRunID {
+		t.Fatalf("export of an empty queue = %#v, %v; want the latest run", manifest.Source, err)
 	}
-	if _, err := exportWorkflow(baseDir, "demo", []string{workflowPipelineRunID, workflowPipelineRunID}); err == nil {
+	if !strings.Contains(notice, "exported run "+workflowPipelineRunID) {
+		t.Fatalf("notice = %q, want it to name the exported run", notice)
+	}
+	empty := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(empty, "projects", "demo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := exportWorkflow(empty, "demo", nil); err == nil || !strings.Contains(err.Error(), "no queued jobs or runs") {
+		t.Fatalf("export of a project without jobs or runs error = %v", err)
+	}
+	if _, _, err := exportWorkflow(baseDir, "demo", []string{workflowPipelineRunID, workflowPipelineRunID}); err == nil {
 		t.Fatal("exportWorkflow accepted duplicate run IDs")
 	}
-	if _, err := exportWorkflow(baseDir, "demo", []string{"20260925-000000-00000000"}); err == nil {
+	if _, _, err := exportWorkflow(baseDir, "demo", []string{"20260925-000000-00000000"}); err == nil {
 		t.Fatal("exportWorkflow accepted a missing run")
 	}
 }
@@ -774,7 +785,7 @@ func TestWorkflowQueueExportImportRoundTripIsFreshWork(t *testing.T) {
 			t.Fatalf("fresh import carried state: %#v", command)
 		}
 	}
-	reexported, err := exportWorkflow(baseDir, "copy", nil)
+	reexported, _, err := exportWorkflow(baseDir, "copy", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

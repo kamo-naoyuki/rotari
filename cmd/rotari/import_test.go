@@ -101,7 +101,7 @@ func TestCmdImportDryRunDoesNotWrite(t *testing.T) {
 func TestCmdImportRejectsInvalidSourceAttemptWithoutWriting(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, runID := writeWorkflowRunFixture(t, baseDir)
-	manifest, err := exportWorkflow(baseDir, "demo", []string{runID})
+	manifest, _, err := exportWorkflow(baseDir, "demo", []string{runID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestCmdImportRejectsInvalidSourceAttemptWithoutWriting(t *testing.T) {
 func TestCmdImportRejectsInvalidInstanceAttemptAfterDefinitionChange(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, runID := writeWorkflowRunFixture(t, baseDir)
-	manifest, err := exportWorkflow(baseDir, "demo", []string{runID})
+	manifest, _, err := exportWorkflow(baseDir, "demo", []string{runID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestCmdImportDryRunChecksOverwriteWithoutWriting(t *testing.T) {
 func TestCmdImportReusesSuccessAndExecutesChangedFailure(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, runID := writeWorkflowRunFixture(t, baseDir)
-	manifest, err := exportWorkflow(baseDir, "demo", []string{runID})
+	manifest, _, err := exportWorkflow(baseDir, "demo", []string{runID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +228,7 @@ func TestCmdImportReusesSuccessAndExecutesChangedFailure(t *testing.T) {
 func TestImportedWorkflowRunCarriesSuccessAndExecutesChangedJob(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, runID := writeWorkflowRunFixture(t, baseDir)
-	manifest, err := exportWorkflow(baseDir, "demo", []string{runID})
+	manifest, _, err := exportWorkflow(baseDir, "demo", []string{runID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,7 +260,7 @@ func TestImportedWorkflowRunCarriesSuccessAndExecutesChangedJob(t *testing.T) {
 func TestCmdImportAcceptsFailedJobAsSuccess(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, runID := writeWorkflowRunFixture(t, baseDir)
-	manifest, err := exportWorkflow(baseDir, "demo", []string{runID})
+	manifest, _, err := exportWorkflow(baseDir, "demo", []string{runID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -317,7 +317,7 @@ func TestCmdImportReconcilesMatrixInstances(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	manifest, err := exportWorkflow(baseDir, "demo", []string{runID})
+	manifest, _, err := exportWorkflow(baseDir, "demo", []string{runID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -369,7 +369,7 @@ func TestCmdImportReconcilesArrayTasks(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	manifest, err := exportWorkflow(baseDir, "demo", []string{runID})
+	manifest, _, err := exportWorkflow(baseDir, "demo", []string{runID})
 	if err != nil {
 		t.Fatal(err)
 	}

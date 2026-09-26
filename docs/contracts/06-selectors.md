@@ -53,7 +53,8 @@ lists each candidate's project, run or queue, and job. A group selector
 
 | Command | Without `--run-id` | With `--run-id` |
 | --- | --- | --- |
-| `show` | The active run, then an interrupted run, then a non-empty queue, then the latest run. A job selector without a project searches every project the same way and fails when it is ambiguous. | That run. |
+| `show` | The active run, then an interrupted run, then a non-empty queue, then the latest run. Options that only apply to runs (`--failed`, `--logs`, `--failed-logs`, `--follow`, `--report`) skip the queue. A job selector without a project searches every project the same way and fails when it is ambiguous. | That run. |
+| `export` | A non-empty queue, else the latest run, named on stderr. An active or interrupted run is refused, pointing to `wait` or `unlock`. | That run, refused the same way when it is active or interrupted. |
 | `copy` | Source: the run named by attempt IDs, else the latest run that holds every `--job-id` (searching every project without `-p`), else the project's latest run. Destination: the current queue. | Source: that run (also as positional `RUN_ID`). |
 | `run`, `retry` | The current queue. A job selector, result filter, or group first restores the queue from the reference run when it is empty. A job selector looks for the job in a non-empty queue first, as `show` does, and otherwise in the latest run, which then replaces the queue (after confirmation). The reference run is found like `copy`'s source. | The queue is replaced by that run's snapshot (after confirmation), which is also the reference. |
 | `change`, `remove` | The current queue; a job ID or name without a project is looked for in every project's queue. An empty queue is not restored; the command fails and points to `copy` and `--run-id`. | That run's snapshot replaces the queue first. |
@@ -125,7 +126,7 @@ General rules:
 | `copy` | `[RUN_ID]` | the run | `--run-id` |
 | `delete` | `[RUN_ID]` | the run to delete; without one, `--all` must be given to delete every run | `--run-id`, `--all` |
 | `diff` | `[[RUN_A] RUN_B]` | none: the latest run against the run before it; one: that run against the run before it; two: the runs, which must belong to one project | – |
-| `export` | `[TARGET] [FILE]` | `TARGET` is a run when it has a run ID's shape or is `latest`, otherwise a project, whose queue is exported; `FILE` is the output | a project `TARGET` excludes `--project-name`; `FILE` excludes `--output` |
+| `export` | `[TARGET] [FILE]` | `TARGET` is a run when it has a run ID's shape or is `latest`, otherwise a project (see What each command reads); `FILE` is the output | a project `TARGET` excludes `--project-name`; `FILE` excludes `--output` |
 | `import` | `FILE [PROJECT]` | the manifest, and the destination project; a run-exported manifest must come from that project | `PROJECT` excludes `--project-name` |
 | `diagnose` | `JOB_ID` | a job ID or attempt ID | `--job-id` |
 | `gc` | `[MASTERDIR]` | the master directory | `--masterdir` |

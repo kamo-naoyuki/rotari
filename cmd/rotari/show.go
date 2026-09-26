@@ -328,15 +328,10 @@ func cmdShow(args []string) int {
 				printErrorf("failed to load queue: %v", err)
 				return 1
 			}
-			if len(queue.Commands) > 0 {
-				if *showLogs || *showFailedLogs || *failedOnly {
-					printError("logs and failed filters require --run-id")
-					return 1
-				}
-				if *reportOutput {
-					printError("--report requires --run-id when the current queue is not empty")
-					return 1
-				}
+			// Options that only apply to runs look past a non-empty queue to
+			// the latest run; other views show the queue.
+			runOnly := *showLogs || *showFailedLogs || *followLogs || *failedOnly || *reportOutput
+			if len(queue.Commands) > 0 && !runOnly {
 				if arrayScope, ok := arrayCommandScope(queue.Commands, *jobIDOption); ok {
 					return showQueue(paths, queue, arrayScope)
 				}
@@ -347,6 +342,10 @@ func cmdShow(args []string) int {
 					return showQueueJSON(paths, queue)
 				}
 				return showQueue(paths, queue, scope)
+			}
+			if countProjectRuns(paths.RunsDir) == 0 && runOnly {
+				printErrorf("project %q has no runs; logs, failed filters, and reports need one", paths.ProjectName)
+				return 1
 			}
 			if countProjectRuns(paths.RunsDir) == 0 {
 				printErrorf("WARNING: project %q has no runs or queued jobs; nothing to show", paths.ProjectName)

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
@@ -126,10 +127,13 @@ func cmdExport(args []string) int {
 		}
 		return 0
 	}
-	manifest, err := exportWorkflow(*basedir, *projectName, runIDs)
+	manifest, notice, err := exportWorkflow(*basedir, *projectName, runIDs)
 	if err != nil {
 		printError(err)
 		return 1
+	}
+	if notice != "" {
+		fmt.Fprintln(os.Stderr, notice)
 	}
 	data, err := workflow.Encode(manifest, *format)
 	if err != nil {
@@ -173,42 +177,85 @@ func workflowTemplate(format string) ([]byte, error) {
 	return workflow.Encode(workflow.Manifest{Version: workflow.Version, Jobs: []workflow.Job{{Name: "example", Command: []string{"echo", "hello"}}}}, format)
 }
 
-func exportWorkflow(baseDir, projectName string, requestedRunIDs []string) (workflow.Manifest, error) {
+// exportWorkflow exports the requested runs, or without any the project,
+// and returns a notice naming the source when the project's queue was empty
+// and its latest run was exported instead.
+func exportWorkflow(baseDir, projectName string, requestedRunIDs []string) (workflow.Manifest, string, error) {
 	if len(requestedRunIDs) == 0 {
-		return exportCurrentQueue(baseDir, projectName)
+		return exportProject(baseDir, projectName)
 	}
 	runs, selectedProject, err := loadExportRuns(baseDir, projectName, requestedRunIDs)
 	if err != nil {
-		return workflow.Manifest{}, err
+		return workflow.Manifest{}, "", err
 	}
-	return workflow.MergeRuns(selectedProject, runs)
+	manifest, err := workflow.MergeRuns(selectedProject, runs)
+	return manifest, "", err
 }
 
-func exportCurrentQueue(baseDir, projectName string) (workflow.Manifest, error) {
+// exportProject picks a project's source as show does: a non-empty queue,
+// else the latest run. An active or interrupted run is not settled, so it is
+// refused rather than exported.
+func exportProject(baseDir, projectName string) (workflow.Manifest, string, error) {
 	resolvedBaseDir, _, err := state.ResolveBaseDir(baseDir)
 	if err != nil {
-		return workflow.Manifest{}, err
+		return workflow.Manifest{}, "", err
 	}
 	resolvedProject, err := state.ResolveProjectName(resolvedBaseDir, projectName)
 	if err != nil {
-		return workflow.Manifest{}, err
+		return workflow.Manifest{}, "", err
 	}
 	if err := resolve.RequireProject(resolvedBaseDir, resolvedProject); err != nil {
-		return workflow.Manifest{}, err
+		return workflow.Manifest{}, "", err
 	}
 	paths, err := state.ResolveProjectPaths(resolvedBaseDir, resolvedProject)
 	if err != nil {
-		return workflow.Manifest{}, err
+		return workflow.Manifest{}, "", err
+	}
+	if err := requireSettledRun(paths, ""); err != nil {
+		return workflow.Manifest{}, "", err
 	}
 	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
-		return workflow.Manifest{}, fmt.Errorf("failed to load queue: %w", err)
+		return workflow.Manifest{}, "", fmt.Errorf("failed to load queue: %w", err)
+	}
+	if len(queue.Commands) == 0 {
+		runID, err := resolve.RunID(paths, "")
+		if err != nil {
+			return workflow.Manifest{}, "", fmt.Errorf("project %q has no queued jobs or runs to export", resolvedProject)
+		}
+		run, err := loadExportRun(resolvedBaseDir, resolvedProject, runID)
+		if err != nil {
+			return workflow.Manifest{}, "", err
+		}
+		manifest, err := workflow.MergeRuns(resolvedProject, []workflow.SourceRun{run})
+		return manifest, fmt.Sprintf("exported run %s (project %s has no queued jobs)", runID, resolvedProject), err
 	}
 	queue = workflow.FlattenQueueDefaults(queue)
 	if err := validateQueueForRun(queue, "", nil, nil); err != nil {
-		return workflow.Manifest{}, fmt.Errorf("invalid queue: %w", err)
+		return workflow.Manifest{}, "", fmt.Errorf("invalid queue: %w", err)
 	}
-	return workflow.FromQueue(queue)
+	manifest, err := workflow.FromQueue(queue)
+	return manifest, "", err
+}
+
+// requireSettledRun refuses an active or interrupted run of the project:
+// runID, or any when runID is empty. Their results are not final, so a
+// manifest of them would re-execute jobs that may yet succeed.
+func requireSettledRun(paths state.ProjectPaths, runID string) error {
+	inspection, err := project.Inspect(paths, true)
+	if err != nil {
+		return fmt.Errorf("failed to check project state: %w", err)
+	}
+	if runID != "" && inspection.RunID != runID {
+		return nil
+	}
+	switch inspection.State {
+	case project.Running:
+		return fmt.Errorf("run %s of project %s is still running; wait for it with 'rotari wait %s', then export", inspection.RunID, paths.ProjectName, paths.ProjectName)
+	case project.Interrupted:
+		return fmt.Errorf("run %s of project %s was interrupted; recover it with 'rotari unlock %s' first", inspection.RunID, paths.ProjectName, paths.ProjectName)
+	}
+	return nil
 }
 
 func loadExportRuns(baseDir, projectName string, requestedRunIDs []string) ([]workflow.SourceRun, string, error) {
@@ -245,6 +292,9 @@ func loadExportRun(baseDir, projectName, requested string) (workflow.SourceRun, 
 	}
 	runID, err := resolve.RunID(paths, requested)
 	if err != nil {
+		return workflow.SourceRun{}, err
+	}
+	if err := requireSettledRun(paths, runID); err != nil {
 		return workflow.SourceRun{}, err
 	}
 	runDir := filepath.Join(paths.RunsDir, runID)

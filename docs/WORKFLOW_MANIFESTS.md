@@ -23,6 +23,11 @@ rotari export --project-name sweep RUN_ID experiment.yaml
 rotari import experiment.yaml sweep
 ```
 
+A project exports its queue when it has queued jobs, and otherwise its latest
+run, which `export` names on stderr. A run that is still running or was
+interrupted cannot be exported: wait for it with `rotari wait`, or recover it
+with `rotari unlock`, first.
+
 An unchanged successful job carries its result and output reference forward.
 Failed, cancelled, unfinished, new, and changed jobs execute. Their downstream
 dependents execute as well. Changing an unchanged failed job's `status` to

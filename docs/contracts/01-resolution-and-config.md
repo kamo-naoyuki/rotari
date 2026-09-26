@@ -84,7 +84,9 @@ Without a run-location lookup, base directories resolve in this order:
   explicit run is an error with no latest fallback.
 - Without `--run-id`, history consumers use `meta.json` `last_run_id`, then the
   newest run directory where supported. `show` may prefer an active run,
-  an interrupted run, or a non-empty idle queue before history.
+  an interrupted run, or a non-empty idle queue before history, and `export`
+  picks a non-empty queue before the latest run; see
+  [06-selectors.md](06-selectors.md) for the options that skip the queue.
 - `wait` without a selector scans the resolved basedir's projects and waits
   when exactly one active `running.lock` exists; multiple active projects are
   listed for explicit selection, and no active project is an error. A positional

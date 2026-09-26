@@ -22,7 +22,7 @@ func TestExportWorkflowCurrentQueue(t *testing.T) {
 	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
-	manifest, err := exportWorkflow(baseDir, "demo", nil)
+	manifest, _, err := exportWorkflow(baseDir, "demo", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestExportWorkflowRunIncludesStatusAndAttempt(t *testing.T) {
 	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Results: []model.JobResult{{ID: "job-id", AttemptID: attemptID, ExitCode: 1}}}); err != nil {
 		t.Fatal(err)
 	}
-	manifest, err := exportWorkflow(baseDir, "demo", []string{runID})
+	manifest, _, err := exportWorkflow(baseDir, "demo", []string{runID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestExportWorkflowMergesSameJobIDUsingLatestRun(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	manifest, err := exportWorkflow(baseDir, "demo", runIDs)
+	manifest, _, err := exportWorkflow(baseDir, "demo", runIDs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestExportWorkflowRejectsDifferentJobIDsWithSameName(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := exportWorkflow(baseDir, "demo", runIDs); err == nil {
+	if _, _, err := exportWorkflow(baseDir, "demo", runIDs); err == nil {
 		t.Fatal("exportWorkflow accepted different job IDs with the same name")
 	}
 }
