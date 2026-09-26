@@ -1034,7 +1034,7 @@ func TestShowQueueDisplaysArrayTaskColumn(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := showQueue(paths, queue, "")
+	code := showQueue(paths, queue, model.CommandSelector{})
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -1635,5 +1635,40 @@ func TestCmdShowRejectsRunFromNewerRotari(t *testing.T) {
 	stderr, _ := io.ReadAll(reader)
 	if code != 1 || !strings.Contains(string(stderr), "upgrade rotari") {
 		t.Fatalf("cmdShow exit code = %d, stderr = %q", code, stderr)
+	}
+}
+
+func TestCmdShowMatrixAndStageFilterQueueJobs(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue := model.Queue{Commands: append(testMatrixQueueCommands("group"),
+		model.QueuedCommand{ID: "prep-job", Stage: "prep", Command: []string{"echo", "prep"}, Array: &model.ArraySpec{First: 1, Last: 2}},
+	)}
+	if err := writeJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"--basedir", baseDir, "--project-name", "demo", "--queue"}
+
+	var output bytes.Buffer
+	code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--matrix", "train")) })
+	text := output.String()
+	if code != 0 || !strings.Contains(text, "seed-1") || !strings.Contains(text, "seed-2") || strings.Contains(text, "prep-job") {
+		t.Fatalf("cmdShow --queue --matrix code=%d output:\n%s", code, text)
+	}
+
+	output.Reset()
+	code = captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--stage", "prep")) })
+	text = output.String()
+	if code != 0 || !strings.Contains(text, "prep-job-1") || !strings.Contains(text, "prep-job-2") || strings.Contains(text, "seed-1") {
+		t.Fatalf("cmdShow --queue --stage with an array code=%d output:\n%s", code, text)
+	}
+
+	output.Reset()
+	if code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--stage", "prep", "--matrix", "train")) }); code != 1 {
+		t.Fatalf("cmdShow with --stage and --matrix exit code = %d, want 1", code)
 	}
 }

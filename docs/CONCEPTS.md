@@ -204,7 +204,9 @@ lists these prerequisites as `finished:NAME`. Use `change
 --depends-on-finished` or `--clear-depends-on-finished` to edit them.
 
 Use `rotari show --stage NAME` to list only the jobs in one stage of the
-selected run or queue.
+selected run or queue, and `rotari show --matrix NAME` for the jobs of one
+matrix. The same `--stage` and `--matrix` select jobs for `change`, `remove`,
+`copy`, `run`, and `retry`.
 
 ## State and project resolution
 

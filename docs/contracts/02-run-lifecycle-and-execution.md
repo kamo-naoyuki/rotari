@@ -196,8 +196,8 @@
   scope (6 added the retry delay fields, 5 per-job `retry`, 4 `timeout`, 3
   `depends_on_finished`), so a client replaces an older server that would drop
   new request or queue fields.
-- `change`, `remove`, and the `--stage`/`--matrix` scope of `run`, `retry`, and
-  `copy` select queue commands through one rule, `model.SelectCommands` in
+- `change`, `remove`, and the `--stage`/`--matrix` scope of `run`, `retry`,
+  `copy`, and `show` select queue commands through one rule, `model.SelectCommands` in
   [internal/model/command_selector.go](../../internal/model/command_selector.go):
   by job IDs, a job name, a stage, a matrix base name, or all. An array command
   is selected as a whole, and naming one of its tasks is an error that points

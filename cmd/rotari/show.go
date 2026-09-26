@@ -96,6 +96,7 @@ func cmdShow(args []string) int {
 	jobNameOption := cliString(fs, "job-name", "")
 	failedOnly := cliBool(fs, "failed", false)
 	stageOption := cliString(fs, "stage", "")
+	matrixOption := cliString(fs, "matrix", "")
 	lineage := cliBool(fs, "lineage", false)
 	showBaseDirsList := cliBool(fs, "basedirs", false)
 	masterdir := cliString(fs, "masterdir", "")
@@ -106,6 +107,11 @@ func cmdShow(args []string) int {
 	jsonOutput := cliBool(fs, "json", false)
 	reportOutput := cliBool(fs, "report", false)
 	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	scope := model.CommandSelector{Stage: *stageOption, Matrix: *matrixOption}
+	if scope.Kinds() > 1 {
+		printError("--stage cannot be combined with --matrix")
 		return 1
 	}
 	if len(fs.Args()) > 1 {
@@ -207,7 +213,7 @@ func cmdShow(args []string) int {
 		applyShowSelectorTarget(targets[0], basedir, queueNameOption, runIDOption, jobIDOption, showQueueOption)
 	}
 	if *lineage {
-		if selector != "" || *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || *failedOnly || *stageOption != "" ||
+		if selector != "" || *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || *failedOnly || scope.Kinds() > 0 ||
 			*showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *reportOutput {
 			printError("--lineage cannot be combined with run, job, queue, filter, list, log, follow, or report options")
 			return 1
@@ -224,8 +230,8 @@ func cmdShow(args []string) int {
 		}
 		return showLineage(paths, *jsonOutput)
 	}
-	if *stageOption != "" && (*jobIDOption != "" || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
-		printError("--stage cannot be combined with job, list, log, follow, JSON, or report options")
+	if scope.Kinds() > 0 && (*jobIDOption != "" || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
+		printError("--stage and --matrix cannot be combined with job, list, log, follow, JSON, or report options")
 		return 1
 	}
 	if *reportOutput && (*showQueueOption || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput) {
@@ -248,7 +254,7 @@ func cmdShow(args []string) int {
 		}
 		return showBaseDirs(masterDir)
 	}
-	if *queueNameOption == "" && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && *stageOption == "" &&
+	if *queueNameOption == "" && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && scope.Kinds() == 0 &&
 		!(*showQueueOption || *showBaseDirsList || *failedOnly || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
 		return showAllProjects(*basedir, *masterdir)
 	}
@@ -262,7 +268,7 @@ func cmdShow(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	projectOverview := (*queueNameOption != "") && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && *stageOption == "" && !*showQueueOption && !*showBaseDirsList && !*showLogs && !*showFailedLogs && !*followLogs && !*jsonOutput && !*reportOutput && !*failedOnly
+	projectOverview := (*queueNameOption != "") && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && scope.Kinds() == 0 && !*showQueueOption && !*showBaseDirsList && !*showLogs && !*showFailedLogs && !*followLogs && !*jsonOutput && !*reportOutput && !*failedOnly
 	if projectOverview {
 		return showProjectOverview(paths)
 	}
@@ -282,7 +288,7 @@ func cmdShow(args []string) int {
 		if *jsonOutput {
 			return showQueueJSON(paths, queue)
 		}
-		return showQueue(paths, queue, *stageOption)
+		return showQueue(paths, queue, scope)
 	}
 	selectedRunID := *runIDOption
 	if selectedRunID == "" {
@@ -318,7 +324,7 @@ func cmdShow(args []string) int {
 				if *jsonOutput {
 					return showQueueJSON(paths, queue)
 				}
-				return showQueue(paths, queue, *stageOption)
+				return showQueue(paths, queue, scope)
 			}
 			if countProjectRuns(paths.RunsDir) == 0 {
 				printErrorf("WARNING: project %q has no runs or queued jobs; nothing to show", paths.ProjectName)
@@ -384,7 +390,7 @@ func cmdShow(args []string) int {
 	if *jsonOutput {
 		return showRunJSON(paths, runID)
 	}
-	return showRun(paths, runID, showJobFilter{failedOnly: *failedOnly, stage: *stageOption})
+	return showRun(paths, runID, showJobFilter{failedOnly: *failedOnly, scope: scope})
 }
 
 func hasMultipleProjects(baseDir string) (bool, error) {
@@ -424,13 +430,27 @@ type showJobCounts struct {
 // showJobFilter selects the rows of a run job table.
 type showJobFilter struct {
 	failedOnly bool
-	stage      string
+	// scope, when set, keeps only the jobs of one stage or matrix.
+	scope model.CommandSelector
 }
 
-// stageNotFoundError reports a --stage value that no job in the selected
-// queue or run uses.
-func stageNotFoundError(stage, target string) error {
-	return fmt.Errorf("stage %q not found in %s", stage, target)
+// scopedJobIDs returns the IDs of the jobs, array tasks included, of the
+// commands that scope selects, or nil when scope is not set.
+func scopedJobIDs(commands []model.QueuedCommand, scope model.CommandSelector) (map[string]bool, error) {
+	if scope.Kinds() == 0 {
+		return nil, nil
+	}
+	indexes, err := model.SelectCommands(commands, scope)
+	if err != nil {
+		return nil, err
+	}
+	ids := make(map[string]bool)
+	for _, index := range indexes {
+		for _, job := range model.QueueToJobs(commands[index : index+1]) {
+			ids[job.ID] = true
+		}
+	}
+	return ids, nil
 }
 
 func showRunJSON(paths state.ProjectPaths, runID string) int {
@@ -659,8 +679,9 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		return 1
 	}
 	jobSpecs := loadRunJobSpecs(runDir)
-	if filter.stage != "" && !jobSpecsHaveStage(jobSpecs, filter.stage) {
-		printError(stageNotFoundError(filter.stage, "run "+runID))
+	scoped, err := scopedJobIDs(runScopeCommands(runDir, jobSpecs), filter.scope)
+	if err != nil {
+		printErrorf("run %s: %v", runID, err)
 		return 1
 	}
 
@@ -718,7 +739,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 			continue
 		}
 		jobSpec := jobSpecs[jobID]
-		if filter.stage != "" && jobSpec.Stage != filter.stage {
+		if scoped != nil && !scoped[jobID] {
 			continue
 		}
 		latestAttemptLabel := "-"
@@ -875,37 +896,38 @@ func printChangeHints(paths state.ProjectPaths, runID string, queue model.Queue,
 	fmt.Printf("    rotari retry --basedir %s --project-name %s\n", paths.BaseDir, paths.ProjectName)
 }
 
-func showQueue(paths state.ProjectPaths, queue model.Queue, stage string) int {
+func showQueue(paths state.ProjectPaths, queue model.Queue, scope model.CommandSelector) int {
 	jobs := model.QueueToJobs(queue.Commands)
-	if stage != "" {
-		jobs = jobsInStage(jobs, stage)
-		if len(jobs) == 0 {
-			printError(stageNotFoundError(stage, "the current queue"))
-			return 1
+	scoped, err := scopedJobIDs(queue.Commands, scope)
+	if err != nil {
+		printErrorf("current queue: %v", err)
+		return 1
+	}
+	if scoped != nil {
+		selected := make([]model.JobSpec, 0, len(scoped))
+		for _, job := range jobs {
+			if scoped[job.ID] {
+				selected = append(selected, job)
+			}
 		}
+		jobs = selected
 	}
 	writeShowTargetHeaderWithMode(os.Stdout, paths, "queue")
 	fmt.Println("\n" + cyan("Queue:"))
 	return showQueueContent(paths, queue, jobs)
 }
 
-func jobsInStage(jobs []model.JobSpec, stage string) []model.JobSpec {
-	selected := make([]model.JobSpec, 0, len(jobs))
-	for _, job := range jobs {
-		if job.Stage == stage {
-			selected = append(selected, job)
-		}
+// runScopeCommands returns a run's command snapshot. A run saved without
+// one is described by its per-job specs, which carry stages but no matrix.
+func runScopeCommands(runDir string, jobSpecs map[string]model.JobSpec) []model.QueuedCommand {
+	if queue, err := state.LoadQueue(filepath.Join(runDir, "commands.json")); err == nil {
+		return queue.Commands
 	}
-	return selected
-}
-
-func jobSpecsHaveStage(specs map[string]model.JobSpec, stage string) bool {
-	for _, job := range specs {
-		if job.Stage == stage {
-			return true
-		}
+	commands := make([]model.QueuedCommand, 0, len(jobSpecs))
+	for id, spec := range jobSpecs {
+		commands = append(commands, model.QueuedCommand{ID: id, Name: spec.Name, Stage: spec.Stage, Command: spec.Command})
 	}
-	return false
+	return commands
 }
 
 // showQueueContent prints jobs, taken from queue, as a table.

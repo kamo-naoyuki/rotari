@@ -595,6 +595,12 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
+                    "description": "show jobs of this matrix only, named by its "
+                    "base job name",
+                    "name": "matrix",
+                    "value_name": "NAME",
+                },
+                {
                     "description": "list the project's runs oldest first with "
                     "result counts and changes since the previous "
                     "run",
