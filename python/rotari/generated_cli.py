@@ -1111,9 +1111,9 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "success",
                 },
                 {
-                    "description": "execute this job, in addition to any result "
-                    "filter's matches; may be repeated; others "
-                    "carry forward their previous result",
+                    "description": "only execute this job; may be repeated; not "
+                    "with a result filter; others carry forward "
+                    "their previous result",
                     "environment": "ROTARI_JOB_ID",
                     "name": "job-id",
                     "repeated": True,
@@ -1270,7 +1270,8 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "[RUN_ID]",
         },
         {
-            "description": "alias for run --failed --unfinished",
+            "description": "run failed and unfinished jobs; with --job-id, run "
+            "those jobs",
             "flags": [
                 {
                     "description": "state directory",
@@ -1325,7 +1326,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "N",
                 },
                 {
-                    "description": "also execute this job; may be repeated",
+                    "description": "only execute this job instead of failed and "
+                    "unfinished jobs; may be repeated",
                     "environment": "ROTARI_JOB_ID",
                     "name": "job-id",
                     "repeated": True,
