@@ -1345,7 +1345,7 @@ func TestCompletionScriptsContainCommandOptions(t *testing.T) {
 	if !strings.Contains(generateZshCompletion(), "_rotari_project_names") {
 		t.Error("Zsh completion does not dynamically complete project names")
 	}
-	if !strings.Contains(generateFishCompletion(), "__complete project-name") {
+	if !strings.Contains(generateFishCompletion(), "__rotari_complete project-name") {
 		t.Error("Fish completion does not dynamically complete project names")
 	}
 }

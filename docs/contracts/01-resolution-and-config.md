@@ -16,7 +16,10 @@ Representative implementation and tests:
   for run-location indexing and stale-entry garbage collection.
 - [cmd/rotari/completion.go](../../cmd/rotari/completion.go) and
   [cmd/rotari/coverage_extra_test.go](../../cmd/rotari/coverage_extra_test.go)
-  for shell completion.
+  for shell completion; `TestShellCompletionCandidates` in
+  [cmd/rotari/completion_shell_test.go](../../cmd/rotari/completion_shell_test.go)
+  drives the generated scripts in Bash, Zsh, and Fish for every command,
+  subcommand, option, and option value in the CLI metadata.
 - [cmd/rotari/guide.go](../../cmd/rotari/guide.go) and
   [cmd/rotari/guide_test.go](../../cmd/rotari/guide_test.go) for the agent
   guide.
@@ -192,7 +195,13 @@ Without a run-location lookup, base directories resolve in this order:
 
 ## Shell completion
 
-- Completion is generated from the same CLI metadata as command help.
+- Completion is generated from the same CLI metadata as command help. Each
+  shell offers a command's own options only, completes values for options
+  with fixed `Values` and for `--project-name`, `--run-id`, and `--job-id`,
+  and completes on the first TAB after Zsh autoloads the script from `fpath`.
+  Job ID candidates skip a run's config snapshot directory. Covered by
+  `TestShellCompletionCandidates` in
+  [`cmd/rotari/completion_shell_test.go`](../../cmd/rotari/completion_shell_test.go).
 - `completion` and `server` dispatch on a subcommand instead of parsing a
   FlagSet, so they check `-h`/`--help` before dispatch and call
   `printSubcommandHelp` in [`cmd/rotari/cli_spec.go`](../../cmd/rotari/cli_spec.go).

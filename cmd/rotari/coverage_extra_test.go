@@ -262,13 +262,9 @@ func TestPagerLineLimitAndLoopbackHostDecisions(t *testing.T) {
 	}
 }
 
-func TestZshCompletionEscapingAndOptions(t *testing.T) {
+func TestZshCompletionEscaping(t *testing.T) {
 	if got := zshEscapeSpec("a:b[c]"); !strings.Contains(got, `\:`) || !strings.Contains(got, `\[`) {
 		t.Fatalf("escaped zsh spec = %q", got)
-	}
-	options := zshOptionNames([]cliFlagSpec{{Name: "project-name"}, {Name: "run-id"}})
-	if options != "--project-name -p --run-id -r" {
-		t.Fatalf("zsh option names = %q", options)
 	}
 }
 

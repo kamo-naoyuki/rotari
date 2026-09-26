@@ -133,15 +133,7 @@ func cmdComplete(args []string) int {
 			}
 		}
 	} else if runID != "" {
-		entries, err := os.ReadDir(filepath.Join(paths.RunsDir, runID))
-		if err != nil {
-			return 0
-		}
-		for _, job := range entries {
-			if job.IsDir() {
-				values[job.Name()] = struct{}{}
-			}
-		}
+		addRunJobIDs(values, filepath.Join(paths.RunsDir, runID))
 	} else {
 		queue, err := state.LoadQueue(paths.QueueFile)
 		if err == nil {
@@ -154,17 +146,8 @@ func cmdComplete(args []string) int {
 		entries, err := os.ReadDir(paths.RunsDir)
 		if err == nil {
 			for _, run := range entries {
-				if !run.IsDir() {
-					continue
-				}
-				jobs, err := os.ReadDir(filepath.Join(paths.RunsDir, run.Name()))
-				if err != nil {
-					continue
-				}
-				for _, job := range jobs {
-					if job.IsDir() {
-						values[job.Name()] = struct{}{}
-					}
+				if run.IsDir() {
+					addRunJobIDs(values, filepath.Join(paths.RunsDir, run.Name()))
 				}
 			}
 		}
@@ -179,6 +162,20 @@ func cmdComplete(args []string) int {
 		fmt.Println(strings.Join(result, "\n"))
 	}
 	return 0
+}
+
+// addRunJobIDs adds the job directories of a run, skipping the run's config
+// snapshot directory.
+func addRunJobIDs(values map[string]struct{}, runDir string) {
+	entries, err := os.ReadDir(runDir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() && entry.Name() != "configs" {
+			values[entry.Name()] = struct{}{}
+		}
+	}
 }
 
 func installCompletion(shell string) error {
@@ -357,35 +354,83 @@ func shellOptionPattern(name string) string {
 	return "--" + name
 }
 
+// dynamicCompletionFlags name the options whose values come from
+// `rotari __complete`.
+var dynamicCompletionFlags = map[string]bool{"project-name": true, "run-id": true, "job-id": true}
+
 func generateFishCompletion() string {
 	var builder strings.Builder
-	builder.WriteString("# rotari completion (fish)\n")
-	builder.WriteString("complete -c rotari -f\n")
-	builder.WriteString("complete -c rotari -n \"__fish_use_subcommand\" -a \"" + strings.Join(cliCommandNames(), " ") + "\"\n")
+	builder.WriteString(fishCompletionHeader)
 	for _, command := range cliCommandSpecs {
-		if len(command.Subcommands) > 0 {
-			values := make([]string, 0, len(command.Subcommands))
-			for _, subcommand := range command.Subcommands {
-				values = append(values, subcommand.Name)
-			}
-			fmt.Fprintf(&builder, "complete -c rotari -n \"__fish_seen_subcommand_from %s\" -a \"%s\"\n", command.Name, strings.Join(values, " "))
+		fmt.Fprintf(&builder, "complete -c rotari -n '__rotari_needs_command' -a %s -d %s\n", fishQuote(command.Name), fishQuote(command.Description))
+	}
+	for _, command := range cliCommandSpecs {
+		for _, subcommand := range command.Subcommands {
+			fmt.Fprintf(&builder, "complete -c rotari -n %s -a %s -d %s\n", fishQuote("__rotari_needs_subcommand "+command.Name), fishQuote(subcommand.Name), fishQuote(subcommand.Description))
 		}
 		for _, flag := range command.Flags {
-			builder.WriteString("complete -c rotari ")
+			fmt.Fprintf(&builder, "complete -c rotari -n %s ", fishQuote("__rotari_using_command "+command.Name))
 			if short := cliShortFlagNames[flag.Name]; short != "" {
 				fmt.Fprintf(&builder, "-s %s ", short)
 			}
 			fmt.Fprintf(&builder, "-l %s ", flag.Name)
-			if len(flag.Values) > 0 {
-				fmt.Fprintf(&builder, "-a \"%s\" ", strings.Join(flag.Values, " "))
-			} else if flag.Name == "project-name" || flag.Name == "run-id" || flag.Name == "job-id" {
-				fmt.Fprintf(&builder, "-a \"(rotari __complete %s 2>/dev/null)\" ", flag.Name)
+			switch {
+			case len(flag.Values) > 0:
+				fmt.Fprintf(&builder, "-x -a %s ", fishQuote(strings.Join(flag.Values, " ")))
+			case dynamicCompletionFlags[flag.Name]:
+				fmt.Fprintf(&builder, "-x -a %s ", fishQuote("(__rotari_complete "+flag.Name+")"))
+			case flag.ValueName != "":
+				builder.WriteString("-r ")
 			}
-			fmt.Fprintf(&builder, "-d \"%s\"\n", strings.ReplaceAll(flag.Description, "\"", "\\\""))
+			fmt.Fprintf(&builder, "-d %s\n", fishQuote(flag.Description))
 		}
 	}
-	builder.WriteString("complete -c rotari -n \"__fish_seen_subcommand_from completion\" -a \"bash zsh fish install\"\n")
 	return builder.String()
+}
+
+// fishCompletionHeader scopes candidates by the command in the second word,
+// like the Bash and Zsh scripts. __rotari_complete passes the location
+// options already on the command line to `rotari __complete`; job IDs also
+// follow --run-id/-r.
+const fishCompletionHeader = `# rotari completion (fish)
+function __rotari_needs_command
+    test (count (commandline -opc)) -eq 1
+end
+function __rotari_needs_subcommand
+    set -l tokens (commandline -opc)
+    test (count $tokens) -eq 2; and test "$tokens[2]" = "$argv[1]"
+end
+function __rotari_using_command
+    set -l tokens (commandline -opc)
+    test (count $tokens) -ge 2; and test "$tokens[2]" = "$argv[1]"
+end
+function __rotari_complete
+    set -l tokens (commandline -opc)
+    set -l args
+    set -l i 3
+    while test $i -lt (count $tokens)
+        set -l next (math $i + 1)
+        switch $tokens[$i]
+            case --basedir -b --project-name -p
+                set -a args $tokens[$i] $tokens[$next]
+                set i $next
+            case --run-id -r
+                if test "$argv[1]" = job-id
+                    set -a args $tokens[$i] $tokens[$next]
+                end
+                set i $next
+        end
+        set i (math $i + 1)
+    end
+    rotari __complete $argv[1] $args 2>/dev/null
+end
+complete -c rotari -f
+`
+
+// fishQuote single-quotes s for fish, which escapes only backslash and
+// single quote inside single quotes.
+func fishQuote(s string) string {
+	return "'" + strings.NewReplacer(`\`, `\\`, `'`, `\'`).Replace(s) + "'"
 }
 
 func generateZshCompletion() string {
@@ -397,13 +442,45 @@ func generateZshCompletion() string {
 	return builder.String()
 }
 
-const zshCompletionHeader = "#compdef rotari\n\n_rotari_run_ids() {\n    local -a args\n    args=(\"${words[@]:3}\")\n    reply=(\"${(@f)$(rotari __complete run-id \"${args[@]}\" 2>/dev/null)}\")\n}\n_rotari_job_ids() {\n    local -a args\n    args=(\"${words[@]:3}\")\n    reply=(\"${(@f)$(rotari __complete job-id \"${args[@]}\" 2>/dev/null)}\")\n}\n\n_rotari() {\n    local -a commands\n    commands=(\n"
+// zshCompletionHeader defines the dynamic value actions.
+// _rotari_complete_values passes the location options already on the command
+// line to `rotari __complete`; job IDs also follow --run-id/-r.
+const zshCompletionHeader = `#compdef rotari
+
+_rotari_complete_values() {
+    local -a args values
+    local i
+    for (( i = 1; i + 1 < CURRENT; i++ )); do
+        case $words[i] in
+            --basedir|-b|--project-name|-p)
+                args+=("$words[i]" "$words[i+1]")
+                (( i++ ))
+                ;;
+            --run-id|-r)
+                [[ $1 == job-id ]] && args+=("$words[i]" "$words[i+1]")
+                (( i++ ))
+                ;;
+        esac
+    done
+    values=("${(@f)$(rotari __complete "$1" "${args[@]}" 2>/dev/null)}")
+    compadd -- "${(@)values:#}"
+}
+_rotari_project_names() { _rotari_complete_values project-name }
+_rotari_run_ids() { _rotari_complete_values run-id }
+_rotari_job_ids() { _rotari_complete_values job-id }
+
+_rotari() {
+    local -a commands
+    commands=(
+`
 
 func writeZshCommandDescriptions(builder *strings.Builder) {
 	for _, command := range cliCommandSpecs {
 		fmt.Fprintf(builder, "        '%s:%s'\n", zshQuote(command.Name), zshQuote(command.Description))
 	}
-	builder.WriteString("    )\n\n    if (( CURRENT == 2 )); then\n        _describe 'command' commands\n        return\n    fi\n\n    case $words[2] in\n")
+	// Dropping the program name lets _arguments see the command as its
+	// words[1], as it expects.
+	builder.WriteString("    )\n\n    if (( CURRENT == 2 )); then\n        _describe 'command' commands\n        return\n    fi\n    local command=$words[2]\n    shift words\n    (( CURRENT-- ))\n\n    case $command in\n")
 }
 
 func writeZshCommandCases(builder *strings.Builder) {
@@ -430,25 +507,32 @@ func writeZshSubcommandCase(builder *strings.Builder, command cliCommandSpec, su
 	for _, subcommand := range command.Subcommands {
 		fmt.Fprintf(builder, "                '%s:%s'\n", zshQuote(subcommand.Name), zshQuote(subcommand.Description))
 	}
-	fmt.Fprintf(builder, "            )\n            if (( CURRENT == 3 )); then\n                _describe 'subcommand' %s\n            else\n", arrayName)
+	fmt.Fprintf(builder, "            )\n            if (( CURRENT == 2 )); then\n                _describe 'subcommand' %s\n                return\n            fi\n", arrayName)
 	if len(command.Flags) > 0 {
-		fmt.Fprintf(builder, "                _arguments %s\n", zshArguments(command.Flags))
+		fmt.Fprintf(builder, "            shift words\n            (( CURRENT-- ))\n            _arguments %s\n", zshArguments(command.Flags))
 	}
-	builder.WriteString("            fi\n")
 }
 
 func writeZshFlagCase(builder *strings.Builder, command cliCommandSpec) {
-	if len(command.Flags) > 0 {
-		fmt.Fprintf(builder, "            case $words[CURRENT-1] in\n                --run-id|-r)\n                    _rotari_run_ids\n                    compadd -- $reply\n                    return\n                    ;;\n                --job-id|-j)\n                    _rotari_job_ids\n                    compadd -- $reply\n                    return\n                    ;;\n            esac\n            if [[ $words[CURRENT] == -* ]]; then\n                compadd -- %s\n                return\n            fi\n", zshOptionNames(command.Flags))
-	}
 	arguments := zshArguments(command.Flags)
-	if command.Positional != "" {
+	if strings.HasPrefix(command.Positional, "<command") {
 		arguments += " '*:command:_command_names'"
+	} else if command.Positional != "" {
+		arguments += " '*:" + zshEscapeSpec(command.Positional) + ":'"
 	}
 	fmt.Fprintf(builder, "            _arguments %s\n", arguments)
 }
 
-const zshCompletionFooter = "\n_rotari_completion_context() {\n    local -a args\n    local i\n    for (( i = 3; i <= ${#words[@]}; i++ )); do\n        case $words[i] in\n            --basedir|-b|--project-name|-p)\n                if (( i + 1 <= ${#words[@]} )); then\n                    args+=(\"$words[i]\" \"$words[i+1]\")\n                    (( i++ ))\n                fi\n                ;;\n        esac\n    done\n    reply=(\"${(@f)$(rotari __complete \"$1\" \"${args[@]}\" 2>/dev/null)}\")\n}\n_rotari_run_ids() { _rotari_completion_context run-id }\n_rotari_job_ids() { _rotari_completion_context job-id }\n\nif (( $+functions[compdef] )); then\n    compdef _rotari rotari\nfi\n\n_rotari_job_ids() {\n    local -a args\n    local i\n    for (( i = 3; i <= ${#words[@]}; i++ )); do\n        case $words[i] in\n            --basedir|-b|--project-name|-p|--run-id|-r)\n                if (( i + 1 <= ${#words[@]} )); then\n                    args+=(\"$words[i]\" \"$words[i+1]\")\n                    (( i++ ))\n                fi\n                ;;\n        esac\n    done\n    reply=(\"${(@f)$(rotari __complete job-id \"${args[@]}\" 2>/dev/null)}\")\n}\n_rotari_project_names() { _rotari_completion_context project-name }\n"
+// zshCompletionFooter completes on the first call when compinit autoloads
+// this file as the body of _rotari, and registers _rotari when the file is
+// sourced instead.
+const zshCompletionFooter = `
+if [[ $zsh_eval_context[-1] == loadautofunc ]]; then
+    _rotari "$@"
+elif (( $+functions[compdef] )); then
+    compdef _rotari rotari
+fi
+`
 
 func zshArguments(flags []cliFlagSpec) string {
 	arguments := make([]string, 0, len(flags))
@@ -457,11 +541,15 @@ func zshArguments(flags []cliFlagSpec) string {
 		if short := cliShortFlagNames[flag.Name]; short != "" {
 			option = "{-" + short + ",--" + flag.Name + "}'"
 		}
+		if flag.Repeated {
+			// A repeatable option stays offered after its first use.
+			option = "'*'" + strings.TrimPrefix(option, "'")
+		}
 		valueName := zshEscapeSpec(flag.ValueName)
 		argument := fmt.Sprintf("%s[%s]", option, zshEscapeSpec(flag.Description))
 		if len(flag.Values) > 0 {
 			argument += ":" + valueName + ":(" + strings.Join(flag.Values, " ") + ")"
-		} else if flag.Name == "project-name" || flag.Name == "run-id" || flag.Name == "job-id" {
+		} else if dynamicCompletionFlags[flag.Name] {
 			action := "_rotari_" + strings.ReplaceAll(flag.Name, "-", "_") + "s"
 			argument += ":" + valueName + ":" + action
 		} else if flag.ValueName != "" {
@@ -490,15 +578,4 @@ func zshEscapeSpec(s string) string {
 // single-quoted string, using the standard close-escape-reopen technique.
 func zshQuote(s string) string {
 	return strings.ReplaceAll(s, "'", `'\''`)
-}
-
-func zshOptionNames(flags []cliFlagSpec) string {
-	options := make([]string, 0, len(flags))
-	for _, flag := range flags {
-		options = append(options, "--"+flag.Name)
-		if short := cliShortFlagNames[flag.Name]; short != "" {
-			options = append(options, "-"+short)
-		}
-	}
-	return strings.Join(options, " ")
 }
