@@ -19,7 +19,7 @@
 
 Rotari is an **execution manager for researchers who run batches of experiments**, with commands and shell scripts as the building blocks and simple dependencies between them. It is a single binary with no daemon, database, or server to set up; state is kept in the filesystem.
 
-**The same batch runs on your workstation, over SSH, or on a shared Slurm, PBS, or LSF cluster.** Rotari submits and tracks scheduler jobs itself, supports array and matrix jobs, and keeps logs and status consistent across backends, so you do not need to rebuild your environment as containers or a separate cluster service. If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the basic idea should feel familiar.
+**The same batch runs on your workstation, over SSH, or on a shared Slurm, PBS, or LSF cluster.** Rotari submits and tracks scheduler jobs itself, supports array and matrix jobs, and keeps logs and status consistent across backends, so you do not need to containerize workloads or set up a separate cluster service just to use it. An optional Docker image is available for trying Rotari locally. If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the basic idea should feel familiar.
 
 
 ## How is rotari different?
@@ -72,6 +72,11 @@ go install github.com/kamo-naoyuki/rotari/cmd/rotari@latest  # from source
 Run `rotari version` to check the installed version, and
 `rotari completion install` to set up shell completion for Bash, Zsh, or Fish
 (see [Shell completion](docs/CONFIGURATION.md#shell-completion)).
+
+### Docker
+
+For the published image, persistent state, and runtime requirements, see the
+[Docker guide](docs/DOCKER.md).
 
 ## Quick start
 

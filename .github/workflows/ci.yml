@@ -106,6 +106,18 @@ jobs:
           ruff format "$tmpdir/generated_cli.py"
           diff -u python/rotari/generated_cli.py "$tmpdir/generated_cli.py"
 
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build container image
+        run: docker build --tag rotari:ci --build-arg VERSION=ci .
+
+      - name: Smoke test container image
+        run: test "$(docker run --rm rotari:ci version)" = "rotari ci"
+
   python:
     runs-on: ubuntu-latest
     steps:
