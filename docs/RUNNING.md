@@ -115,6 +115,15 @@ rotari change -p sweep --job-name download --retry 5
 rotari change -p sweep --job-name download --clear-retry   # use the run's limit again
 ```
 
+To change a setting for many jobs at once, select them by stage, by matrix, or
+all together:
+
+```sh
+rotari change -p sweep --stage train --retry 0
+rotari change -p sweep --matrix train --executor-option="-p gpu"
+rotari change -p sweep --all --timeout 3h
+```
+
 To give a transient problem time to clear, or to keep many failed jobs from
 retrying against a shared service at once, space the retries out. The first
 retry waits `--retry-delay`, each further retry multiplies the wait by
@@ -195,11 +204,13 @@ rotari run --failed
 ```
 
 `change` requires exactly one target selector: `--job-id/-j ID` or
-`--job-name NAME`. It also requires at least one change, such as a new command,
-`--executor/-e`, `--executor-option`, `--set-job-name`, or `--depends-on`.
-It replaces only the options specified, keeps the job ID, and edits the current
-batch. If the queue is empty, the latest run snapshot is restored first. Use
-`--run-id/-r` to select another run.
+`--job-name NAME` for one job, or `--stage STAGE`, `--matrix NAME` (the base job
+name given to `add --matrix`), or `--all` for every matching job. It also
+requires at least one change, such as a new command, `--executor/-e`,
+`--executor-option`, `--set-job-name`, or `--depends-on`. A new command and
+`--set-job-name` need a single job. It replaces only the options specified,
+keeps the job IDs, and edits the current batch. If the queue is empty, the
+latest run snapshot is restored first. Use `--run-id/-r` to select another run.
 
 ### Job timeouts
 

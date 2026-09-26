@@ -261,7 +261,7 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "[PROJECT]",
         },
         {
-            "description": "change a job in the current or previous batch",
+            "description": "change jobs in the current or previous batch",
             "flags": [
                 {
                     "description": "state directory",
@@ -297,6 +297,18 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "job-name",
                     "value_name": "NAME",
                 },
+                {
+                    "description": "change every job in a stage",
+                    "name": "stage",
+                    "value_name": "STAGE",
+                },
+                {
+                    "description": "change every job of a matrix, named by its "
+                    "base job name",
+                    "name": "matrix",
+                    "value_name": "NAME",
+                },
+                {"description": "change every job", "name": "all"},
                 {
                     "description": "replace job executor",
                     "environment": "ROTARI_EXECUTOR",

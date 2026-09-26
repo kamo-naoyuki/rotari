@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
@@ -23,6 +24,9 @@ func cmdChange(args []string) int {
 	runID := cliString(fs, "run-id", "")
 	jobID := cliString(fs, "job-id", "")
 	jobName := cliString(fs, "job-name", "")
+	stage := cliString(fs, "stage", "")
+	matrixName := cliString(fs, "matrix", "")
+	allJobs := cliBool(fs, "all", false)
 	executor := cliString(fs, "executor", "")
 	workingDirectory := cliString(fs, "working-directory", "")
 	clearWorkingDirectory := cliBool(fs, "clear-working-directory", false)
@@ -50,12 +54,17 @@ func cmdChange(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if (*jobID == "" && *jobName == "") || (*jobID != "" && *jobName != "") ||
+	selector := changeSelector{jobID: *jobID, jobName: *jobName, stage: *stage, matrix: *matrixName, all: *allJobs}
+	if selector.count() != 1 ||
 		(len(fs.Args()) == 0 && *executor == "" && len(executorOptions) == 0 && !*clearExecutorOptions && *workingDirectory == "" && !*clearWorkingDirectory && len(environment) == 0 && !*clearEnvironment &&
 			*setJobName == "" && len(dependsOn) == 0 && !*clearDependsOn && len(dependsOnFinished) == 0 && !*clearDependsOnFinished && *timeout == "" && !*clearTimeout && !cliOptionSet(fs, "retry") && !*clearRetry &&
 			*retryDelay == "" && *retryBackoffText == "" && *retryMaxDelay == "") ||
 		(*executor != "" && !executorRegistry.Known(*executor)) {
 		printError("usage: " + cliUsage("change"))
+		return 1
+	}
+	if selector.multiple() && (len(fs.Args()) > 0 || *setJobName != "") {
+		printError("a new command or --set-job-name needs a single job selected with --job-id or --job-name")
 		return 1
 	}
 	if err := model.ValidateEnvironment(environment); err != nil {
@@ -76,7 +85,7 @@ func cmdChange(args []string) int {
 		printError(err)
 		return 1
 	}
-	message, err := changeQueueJob(baseDir, queueName, *runID, *jobID, *jobName, changeMutation{
+	message, err := changeQueueJobs(baseDir, queueName, *runID, selector, changeMutation{
 		executor: *executor, executorOptions: executorOptions, clearExecutorOptions: *clearExecutorOptions,
 		environment: environment, clearEnvironment: *clearEnvironment,
 		workingDirectory: *workingDirectory, clearWorkingDirectory: *clearWorkingDirectory, setJobName: *setJobName,
@@ -99,7 +108,7 @@ func cmdChange(args []string) int {
 func changeBatch(baseDir, queueName, requestedRunID, requestedJobID, requestedJobName, executor string,
 	executorOptions []string, clearExecutorOptions bool, environment []string, clearEnvironment bool, setJobName string, dependsOn []string,
 	clearDependsOn bool, command []string) (string, error) {
-	return changeQueueJob(baseDir, queueName, requestedRunID, requestedJobID, requestedJobName, changeMutation{
+	return changeQueueJobs(baseDir, queueName, requestedRunID, changeSelector{jobID: requestedJobID, jobName: requestedJobName}, changeMutation{
 		executor: executor, executorOptions: executorOptions, clearExecutorOptions: clearExecutorOptions,
 		environment: environment, clearEnvironment: clearEnvironment, setJobName: setJobName,
 		dependsOn: dependsOn, clearDependsOn: clearDependsOn, command: command,
@@ -142,9 +151,36 @@ func optionalRetry(fs *flag.FlagSet, value int) *int {
 	return &value
 }
 
-// changeQueueJob applies mutation to one job of the current queue, or of the
-// batch restored from requestedRunID.
-func changeQueueJob(baseDir, queueName, requestedRunID, requestedJobID, requestedJobName string, mutation changeMutation) (string, error) {
+// changeSelector names the jobs a change applies to. Exactly one field is
+// set: a job ID or name selects one job; a stage, a matrix base name, or all
+// selects every matching job.
+type changeSelector struct {
+	jobID   string
+	jobName string
+	stage   string
+	matrix  string
+	all     bool
+}
+
+func (selector changeSelector) count() int {
+	count := 0
+	for _, set := range []bool{selector.jobID != "", selector.jobName != "", selector.stage != "", selector.matrix != "", selector.all} {
+		if set {
+			count++
+		}
+	}
+	return count
+}
+
+// multiple reports whether the selector may match more than one job.
+func (selector changeSelector) multiple() bool {
+	return selector.stage != "" || selector.matrix != "" || selector.all
+}
+
+// changeQueueJobs applies mutation to the selected jobs of the current queue,
+// or of the batch restored from requestedRunID. It returns one line per
+// changed job.
+func changeQueueJobs(baseDir, queueName, requestedRunID string, selector changeSelector, mutation changeMutation) (string, error) {
 	if err := model.ValidateEnvironment(mutation.environment); err != nil {
 		return "", fmt.Errorf("invalid environment: %w", err)
 	}
@@ -152,7 +188,7 @@ func changeQueueJob(baseDir, queueName, requestedRunID, requestedJobID, requeste
 	if err != nil {
 		return "", err
 	}
-	var changedID string
+	var changedIDs []string
 	err = project.EditQueue(paths, "change", func(queue *model.Queue) error {
 		if requestedRunID != "" {
 			snapshot, err := loadChangeSnapshot(paths, requestedRunID)
@@ -162,29 +198,71 @@ func changeQueueJob(baseDir, queueName, requestedRunID, requestedJobID, requeste
 			*queue = snapshot
 		}
 		jobs := model.QueueToJobs(queue.Commands)
-		jobIndex, err := selectChangeJob(jobs, requestedJobID, requestedJobName)
+		indexes, err := selectChangeJobs(*queue, jobs, selector)
 		if err != nil {
 			return err
 		}
-		if matrix := queue.Commands[jobIndex].Matrix; matrix != nil {
-			model.ClearMatrixGroup(queue.Commands, matrix.GroupID)
+		var groupIDs []string
+		for _, jobIndex := range indexes {
+			if matrix := queue.Commands[jobIndex].Matrix; matrix != nil {
+				groupIDs = append(groupIDs, matrix.GroupID)
+			}
+			if err := applyChangeMutation(*queue, jobIndex, mutation); err != nil {
+				return err
+			}
 		}
-		if err := applyChangeMutation(*queue, jobIndex, mutation); err != nil {
-			return err
-		}
+		// A group changed the same way throughout still matches its
+		// provenance; a partly changed one no longer does.
+		model.ClearInconsistentMatrixGroups(queue.Commands, groupIDs)
 		if err := validateQueueJobs(*queue); err != nil {
 			return err
 		}
 		if err := model.ValidateQueueDependencies(queue.Commands); err != nil {
 			return fmt.Errorf("invalid dependencies: %w", err)
 		}
-		changedID = jobs[jobIndex].ID
+		changedIDs = changedIDs[:0]
+		for _, jobIndex := range indexes {
+			changedIDs = append(changedIDs, jobs[jobIndex].ID)
+		}
 		return nil
 	})
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("changed queue=%s job=%s", queueName, changedID), nil
+	lines := make([]string, len(changedIDs))
+	for index, id := range changedIDs {
+		lines[index] = fmt.Sprintf("changed queue=%s job=%s", queueName, id)
+	}
+	return strings.Join(lines, "\n"), nil
+}
+
+func selectChangeJobs(queue model.Queue, jobs []model.JobSpec, selector changeSelector) ([]int, error) {
+	if !selector.multiple() {
+		jobIndex, err := selectChangeJob(jobs, selector.jobID, selector.jobName)
+		if err != nil {
+			return nil, err
+		}
+		return []int{jobIndex}, nil
+	}
+	var indexes []int
+	for index, command := range queue.Commands {
+		matrix := command.Matrix
+		if selector.all || (selector.stage != "" && command.Stage == selector.stage) ||
+			(selector.matrix != "" && matrix != nil && matrix.BaseName == selector.matrix) {
+			indexes = append(indexes, index)
+		}
+	}
+	if len(indexes) > 0 {
+		return indexes, nil
+	}
+	switch {
+	case selector.stage != "":
+		return nil, fmt.Errorf("no jobs in stage %q", selector.stage)
+	case selector.matrix != "":
+		return nil, fmt.Errorf("no matrix named %q", selector.matrix)
+	default:
+		return nil, errors.New("no jobs to change")
+	}
 }
 
 func selectChangeJob(jobs []model.JobSpec, requestedJobID, requestedJobName string) (int, error) {

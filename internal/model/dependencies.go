@@ -219,6 +219,23 @@ func containsString(values []string, value string) bool {
 	return false
 }
 
+// ClearInconsistentMatrixGroups drops provenance from each listed group whose
+// members no longer match it, for example after an edit changed only some of
+// them. A group edited the same way throughout keeps its provenance.
+func ClearInconsistentMatrixGroups(commands []QueuedCommand, groupIDs []string) {
+	for _, groupID := range groupIDs {
+		var members []QueuedCommand
+		for _, command := range commands {
+			if command.Matrix != nil && command.Matrix.GroupID == groupID {
+				members = append(members, command)
+			}
+		}
+		if len(members) > 0 && validateMatrixGroup(groupID, members) != nil {
+			ClearMatrixGroup(commands, groupID)
+		}
+	}
+}
+
 func ClearIncompleteMatrixGroups(commands []QueuedCommand) {
 	counts := make(map[string]int)
 	wants := make(map[string]int)

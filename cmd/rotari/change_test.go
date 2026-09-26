@@ -223,3 +223,106 @@ func TestCmdChangeSetsAndClearsFinishedDependencies(t *testing.T) {
 		t.Fatalf("collect after --clear-depends-on-finished = %#v", got)
 	}
 }
+
+func writeChangeTestQueue(t *testing.T, commands []model.QueuedCommand) (string, state.ProjectPaths) {
+	t.Helper()
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: commands}); err != nil {
+		t.Fatal(err)
+	}
+	return baseDir, paths
+}
+
+func TestCmdChangeStageChangesEveryJobInStage(t *testing.T) {
+	baseDir, paths := writeChangeTestQueue(t, []model.QueuedCommand{
+		{ID: "a", Command: []string{"a"}, Stage: "sweep"},
+		{ID: "b", Command: []string{"b"}, Stage: "sweep"},
+		{ID: "c", Name: "evaluate", Command: []string{"c"}, DependsOn: []string{"sweep"}},
+	})
+	if code := cmdChange([]string{"--basedir", baseDir, "--project-name", "default", "--stage", "sweep", "--retry", "0", "--timeout", "1h", "--quiet"}); code != 0 {
+		t.Fatalf("cmdChange exit code = %d, want 0", code)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range queue.Commands[:2] {
+		if command.Retry == nil || *command.Retry != 0 || command.Timeout != "1h" {
+			t.Fatalf("stage job %q = %#v, want retry 0 and timeout 1h", command.ID, command)
+		}
+	}
+	if evaluate := queue.Commands[2]; evaluate.Retry != nil || evaluate.Timeout != "" {
+		t.Fatalf("job outside the stage changed: %#v", evaluate)
+	}
+}
+
+func TestCmdChangeMatrixKeepsProvenanceWhenAllMembersChange(t *testing.T) {
+	baseDir, paths := writeChangeTestQueue(t, testMatrixQueueWithDependent("group"))
+	if code := cmdChange([]string{"--basedir", baseDir, "--project-name", "default", "--matrix", "train", "--executor-option=-p gpu", "--quiet"}); code != 0 {
+		t.Fatalf("cmdChange exit code = %d, want 0", code)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range queue.Commands[:2] {
+		if command.Matrix == nil || strings.Join(command.ExecutorOptions, " ") != "-p gpu" {
+			t.Fatalf("matrix member %q = %#v, want new options with provenance", command.ID, command)
+		}
+	}
+	if evaluate := queue.Commands[2]; len(evaluate.ExecutorOptions) != 0 || strings.Join(evaluate.DependsOn, ",") != "train" {
+		t.Fatalf("dependent = %#v, want unchanged options and base-name dependency", evaluate)
+	}
+}
+
+func TestCmdChangeAllChangesEveryJob(t *testing.T) {
+	baseDir, paths := writeChangeTestQueue(t, []model.QueuedCommand{
+		{ID: "a", Command: []string{"a"}},
+		{ID: "b", Command: []string{"b"}, Timeout: "5m"},
+	})
+	if code := cmdChange([]string{"--basedir", baseDir, "--project-name", "default", "--all", "--clear-timeout", "--env", "X=1", "--quiet"}); code != 0 {
+		t.Fatalf("cmdChange exit code = %d, want 0", code)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range queue.Commands {
+		if command.Timeout != "" || strings.Join(command.Environment, ",") != "X=1" {
+			t.Fatalf("job %q = %#v, want no timeout and X=1", command.ID, command)
+		}
+	}
+}
+
+func TestCmdChangeRejectsInvalidBulkChanges(t *testing.T) {
+	commands := []model.QueuedCommand{{ID: "a", Command: []string{"a"}, Stage: "sweep"}}
+	for _, test := range []struct {
+		name string
+		args []string
+	}{
+		{"command", []string{"--stage", "sweep", "--", "new"}},
+		{"rename", []string{"--all", "--set-job-name", "x"}},
+		{"two selectors", []string{"--all", "--stage", "sweep", "--retry", "1"}},
+		{"unknown stage", []string{"--stage", "other", "--retry", "1"}},
+		{"unknown matrix", []string{"--matrix", "sweep", "--retry", "1"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			baseDir, paths := writeChangeTestQueue(t, commands)
+			args := append([]string{"--basedir", baseDir, "--project-name", "default"}, test.args...)
+			if code := cmdChange(args); code == 0 {
+				t.Fatalf("cmdChange(%v) succeeded, want an error", test.args)
+			}
+			queue, err := loadQueue(paths.QueueFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if queue.Commands[0].Retry != nil || queue.Commands[0].Name != "" || strings.Join(queue.Commands[0].Command, " ") != "a" {
+				t.Fatalf("rejected change modified the queue: %#v", queue.Commands[0])
+			}
+		})
+	}
+}

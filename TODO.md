@@ -22,17 +22,11 @@ another workflow engine has them.
 
 ### Orchestration
 
-- Job settings stored on queued commands (`--retry` and its delays,
-  `--timeout`, `--executor-option` such as Slurm options, `--env`) are copied
-  into later runs by `copy` and `retry`, but changing them afterwards means
-  one `change` per job. Run-level options such as `run --retry` and
-  `--slurm-options` only act as defaults for jobs without their own value.
-  Consider an easier way to change them for many jobs or for one run, for
-  example `change` selecting a stage, matrix group, or every job
-  (`change --stage sweep --retry 0`), or run-only overrides that take
-  precedence over the stored job settings for that run without writing them
-  back to the queue.
-
+- Consider run-only overrides of stored job settings (`--retry` and its
+  delays, `--timeout`, `--executor-option`, `--env`) that take precedence for
+  one run without writing them back to the queue. Run-level options such as
+  `run --retry` only act as defaults for jobs without their own value, and
+  `change --stage/--matrix/--all` writes the queue.
 - Consider making the grace period between a timeout's SIGTERM and SIGKILL
   configurable (fixed at 30 seconds), together with the stop signal below.
 - Consider run-level retry delay defaults (`run --retry-delay` and friends)

@@ -71,8 +71,11 @@
   Matrix and array expansion can be combined; the array is applied to each
   matrix combination. Expanded commands also store matrix group provenance so
   queue and run export can reconstruct the compact declaration. Partial
-  `copy`, `remove`, or `change` clears provenance for the affected group rather
-  than presenting an incomplete group as the original matrix. A dependency on
+  `copy` or `remove`, and a `change` that leaves the group's members
+  inconsistent with it, clear provenance for the affected group rather
+  than presenting an incomplete group as the original matrix. A `change
+  --matrix`, `--stage`, or `--all` that changes every member the same way
+  keeps it ([bulk change tests](../../cmd/rotari/change_test.go)). A dependency on
   the group's base name resolves to every member only while provenance exists,
   so clearing it rewrites such dependencies to the member names that remain.
   `copy` keeps a base-name dependency when the whole group is copied;
