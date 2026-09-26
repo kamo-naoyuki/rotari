@@ -263,6 +263,17 @@
   spaces scheduler state and accounting queries 200ms apart per process;
   reading a job's wrapper `status.json` is not gated. Covered by
   `TestDispatcherRefillsSchedulerSlotsAsJobsFinish`.
+- Against real schedulers, the `TestSchedulerContainer*` tests in
+  [cmd/rotari/scheduler_container_run_test.go](../../cmd/rotari/scheduler_container_run_test.go)
+  build rotari into the state directory mounted at `/state` and run it inside
+  the Slurm or PBS container of the scheduler integration workflow: an
+  immediate retry, refilled concurrency slots, a timeout, `--depends-on` and
+  `--depends-on-finished` after a failure, and a retry of one array task.
+  They skip unless `ROTARI_SCHEDULER_CONTAINER_TEST=1`; running them also
+  needs `ROTARI_SCHEDULER_EXECUTOR`, `SCHEDULER_CONTAINER`, `SCHEDULER_USER`,
+  and `SCHEDULER_STATE_DIR` (the host directory mounted at `/state`), which
+  [.github/workflows/scheduler-integration.yml](../../.github/workflows/scheduler-integration.yml)
+  sets.
 - `local-concurrency` and `batch-concurrency` are common
   defaults used when no executor-specific setting is supplied; executor
   settings override those defaults, and job-specific executor options remain

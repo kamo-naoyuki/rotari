@@ -76,6 +76,7 @@ jobs:
 
           echo "SCHEDULER_CONTAINER=$container" >> "$GITHUB_ENV"
           echo "SCHEDULER_USER=$scheduler_user" >> "$GITHUB_ENV"
+          echo "SCHEDULER_STATE_DIR=$state_dir" >> "$GITHUB_ENV"
 
       - name: Wait for scheduler
         shell: bash
