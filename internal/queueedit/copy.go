@@ -73,8 +73,30 @@ func Copy(destination model.Queue, project string, source Run, request CopyReque
 			return model.Queue{}, 0, fmt.Errorf("attempt %q job %q not found in run %s", attempt.ID, attempt.JobID, source.ID)
 		}
 	}
+	// A task ID narrows its array to the requested tasks, as an attempt
+	// does; the array's own ID copies it whole.
+	tasks := make(map[string]model.JobSpec)
+	for _, task := range model.QueueToJobs(source.Snapshot.Commands) {
+		if task.ArrayGroup != "" {
+			tasks[task.ID] = task
+		}
+	}
+	whole := make(map[string]bool, len(request.JobIDs))
 	for _, jobID := range request.JobIDs {
-		requested[jobID] = true
+		task, isTask := tasks[jobID]
+		if !isTask {
+			requested[jobID] = true
+			whole[jobID] = true
+			continue
+		}
+		requested[task.ArrayGroup] = true
+		if requestedTasks[task.ArrayGroup] == nil {
+			requestedTasks[task.ArrayGroup] = make(map[string]bool)
+		}
+		requestedTasks[task.ArrayGroup][task.ID] = true
+	}
+	for commandID := range whole {
+		delete(requestedTasks, commandID)
 	}
 
 	inScope := func(model.QueuedCommand) bool { return true }

@@ -7,8 +7,6 @@ Decided on 2026-09-26 after reviewing
 contract and `TestSelectorTable` / `TestPositionalArguments` with each item,
 and remove the item here once it is done.
 
-- An array command's job ID or name selects the whole array in `show`,
-  `copy`, `run`, and `retry`; a task ID or name selects that task.
 - `change` and `remove` say that attempt IDs are not accepted.
 - `latest` is accepted wherever a run can be given, and is a reserved word:
   project, run, job, stage, and matrix names cannot be `latest`.

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/runregistry"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -269,5 +270,25 @@ func TestRunIDResolvesLatestAlias(t *testing.T) {
 	}
 	if runID != "latest-run" {
 		t.Fatalf("run ID = %q, want latest-run", runID)
+	}
+}
+
+func TestJobInQueueMatchesArrayCommandBeforeItsTasks(t *testing.T) {
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "eval", Name: "eval", Command: []string{"true"}, Array: &model.ArraySpec{First: 1, Last: 2}},
+	}}
+	for _, test := range []struct {
+		selector string
+		byName   bool
+		want     string
+	}{
+		{"eval", false, "eval"},
+		{"eval", true, "eval"},
+		{"eval-2", false, "eval-2"},
+		{"eval[2]", true, "eval-2"},
+	} {
+		if got, found := JobInQueue(queue, test.selector, test.byName); !found || got != test.want {
+			t.Fatalf("JobInQueue(%q, byName=%v) = %q, %v; want %q", test.selector, test.byName, got, found, test.want)
+		}
 	}
 }

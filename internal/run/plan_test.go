@@ -275,3 +275,22 @@ func TestPlanRerunJobIDsAddToResultSelection(t *testing.T) {
 		t.Fatalf("execute = %#v, want the failed job plus ok and the whole sweep array", plan.Execute)
 	}
 }
+
+func TestPlanRerunRequestedArrayTaskExecutesAlone(t *testing.T) {
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "eval", Command: []string{"true"}, Array: &model.ArraySpec{First: 1, Last: 3}},
+	}}
+	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"run-1": {
+		"eval-1": {ID: "eval-1"}, "eval-2": {ID: "eval-2", ExitCode: 1}, "eval-3": {ID: "eval-3"},
+	}}}
+	plan, err := PlanRerun(queue, "job-id", []string{"eval-3"}, model.CommandSelector{}, "run-1", true, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Execute) != 1 || !plan.Execute["eval-3"] {
+		t.Fatalf("execute = %#v, want only task 3", plan.Execute)
+	}
+	if _, carried := plan.CarriedResults["eval-2"]; !carried {
+		t.Fatalf("carried = %#v, want the other tasks carried", plan.CarriedResults)
+	}
+}

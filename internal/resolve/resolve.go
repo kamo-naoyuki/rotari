@@ -351,8 +351,16 @@ func highestPriority(targets []Job) []Job {
 	return best
 }
 
-// JobInQueue finds a job by ID, or by name when byName, in queue.
+// JobInQueue finds a job by ID, or by name when byName, in queue. A command's
+// own ID or name wins, so an array job's ID or name returns the array's
+// command ID; a task ID or name, such as "ID-2" or "NAME[2]", returns that
+// task's ID.
 func JobInQueue(queue model.Queue, selector string, byName bool) (string, bool) {
+	for _, command := range queue.Commands {
+		if (byName && command.Name != "" && command.Name == selector) || (!byName && command.ID == selector) {
+			return command.ID, true
+		}
+	}
 	for _, job := range model.QueueToJobs(queue.Commands) {
 		if (byName && job.Name == selector) || (!byName && job.ID == selector) {
 			return job.ID, true

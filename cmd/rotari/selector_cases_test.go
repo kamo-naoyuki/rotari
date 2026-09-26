@@ -2,7 +2,6 @@ package main
 
 // Known deviations, named as in ISSUES.md.
 const (
-	knownArrayLookup  = "Array jobs are looked up per task"
 	knownAttemptEdits = "Queue edits report an attempt ID as \"job not found\""
 )
 
@@ -16,8 +15,9 @@ var selectorCases = []selectorCase{
 	{name: "job name", cmd: "show", args: "-b {B} -p sweep --job-name prep", jobs: []string{"prep"}},
 	{name: "job name shared by projects", cmd: "show", args: "-b {B} --job-name prep", err: "ambiguous"},
 	{name: "job ID and name", cmd: "show", args: "-b {B} -p sweep --job-id {job:prep} --job-name prep", err: "cannot be combined"},
-	{name: "array command ID", cmd: "show", args: "-b {B} -p sweep --job-id {job:eval}", jobs: []string{"eval-1", "eval-2", "eval-3"}, known: knownArrayLookup},
-	{name: "array job name", cmd: "show", args: "-b {B} -p sweep --job-name eval", jobs: []string{"eval-1", "eval-2", "eval-3"}, known: knownArrayLookup},
+	{name: "array command ID", cmd: "show", args: "-b {B} -p sweep --job-id {job:eval}", table: true, jobs: []string{"eval-1", "eval-2", "eval-3"}},
+	{name: "array job name", cmd: "show", args: "-b {B} -p sweep --job-name eval", table: true, jobs: []string{"eval-1", "eval-2", "eval-3"}},
+	{name: "array job name in the queue", cmd: "show", args: "-b {B} -p sweep --job-name eval", queued: true, table: true, jobs: []string{"eval-1", "eval-2", "eval-3"}},
 	{name: "array task ID", cmd: "show", args: "-b {B} -p sweep --job-id {job:eval}-2", jobs: []string{"eval-2"}},
 	{name: "array task name", cmd: "show", args: "-b {B} -p sweep --job-name eval[2]", jobs: []string{"eval-2"}},
 	{name: "attempt ID", cmd: "show", args: "-b {B} --job-id {att:train-SEED2/0}", jobs: []string{"train-SEED2"}, run: "sweep-first"},
@@ -46,10 +46,10 @@ var selectorCases = []selectorCase{
 	{name: "job ID in any project", cmd: "copy", args: "-b {B} --job-id {job:other-prep}", jobs: []string{"other:other-prep"}},
 	{name: "job name", cmd: "copy", args: "-b {B} -p sweep --job-name prep", jobs: []string{"prep"}},
 	{name: "job name shared by projects", cmd: "copy", args: "-b {B} --job-name prep", err: "ambiguous"},
-	{name: "array command ID", cmd: "copy", args: "-b {B} -p sweep --job-id {job:eval}", jobs: []string{"eval"}, known: knownArrayLookup},
-	{name: "array job name", cmd: "copy", args: "-b {B} -p sweep --job-name eval", jobs: []string{"eval"}, known: knownArrayLookup},
-	{name: "array task ID", cmd: "copy", args: "-b {B} -p sweep --job-id {job:eval}-2", jobs: []string{"eval-2"}, known: knownArrayLookup},
-	{name: "array task name", cmd: "copy", args: "-b {B} -p sweep --job-name eval[2]", jobs: []string{"eval-2"}, known: knownArrayLookup},
+	{name: "array command ID", cmd: "copy", args: "-b {B} -p sweep --job-id {job:eval}", jobs: []string{"eval"}},
+	{name: "array job name", cmd: "copy", args: "-b {B} -p sweep --job-name eval", jobs: []string{"eval"}},
+	{name: "array task ID", cmd: "copy", args: "-b {B} -p sweep --job-id {job:eval}-2", jobs: []string{"eval-2"}},
+	{name: "array task name", cmd: "copy", args: "-b {B} -p sweep --job-name eval[2]", jobs: []string{"eval-2"}},
 	{name: "attempt ID", cmd: "copy", args: "-b {B} --job-id {att:train-SEED2/0}", jobs: []string{"train-SEED2"}, run: "sweep-first"},
 	{name: "attempt ID of another run", cmd: "copy", args: "-b {B} -p sweep --run-id {run:sweep-first} --job-id {att:train-SEED2/second}", err: "belongs to run"},
 	{name: "stage", cmd: "copy", args: "-b {B} -p sweep --stage evaluation", jobs: []string{"eval"}},
@@ -105,8 +105,10 @@ var selectorCases = []selectorCase{
 	{name: "job name from the queue", cmd: "run", args: "-b {B} --job-name prep", queued: true, jobs: []string{"prep"}},
 	{name: "job name shared by projects", cmd: "run", args: "-b {B} --job-name prep", err: "ambiguous"},
 	{name: "attempt ID", cmd: "run", args: "-b {B} --job-id {att:train-SEED2/0}", jobs: []string{"train-SEED2"}},
-	{name: "array command ID", cmd: "run", args: "-b {B} -p sweep --job-id {job:eval}", jobs: []string{"eval-1", "eval-2", "eval-3"}, known: knownArrayLookup},
-	{name: "array task ID", cmd: "run", args: "-b {B} -p sweep --job-id {job:eval}-2", jobs: []string{"eval-2"}, known: knownArrayLookup},
+	{name: "array command ID", cmd: "run", args: "-b {B} -p sweep --job-id {job:eval}", jobs: []string{"eval-1", "eval-2", "eval-3"}},
+	{name: "array job name", cmd: "run", args: "-b {B} -p sweep --job-name eval", jobs: []string{"eval-1", "eval-2", "eval-3"}},
+	{name: "array task ID", cmd: "run", args: "-b {B} -p sweep --job-id {job:eval}-2", jobs: []string{"eval-2"}},
+	{name: "array task name", cmd: "run", args: "-b {B} -p sweep --job-name eval[3]", jobs: []string{"eval-3"}},
 	{name: "unknown stage", cmd: "run", args: "-b {B} -p sweep --stage nope", err: `no jobs in stage "nope"`},
 	{name: "stage and job ID", cmd: "run", args: "-b {B} -p sweep --stage training --job-id {job:prep}", err: "cannot be combined"},
 }

@@ -30,6 +30,9 @@ type selectorCase struct {
 	// queued restores project sweep's latest run into its queue first, for
 	// queue edits.
 	queued bool
+	// table reads show's jobs from the rows of a job table instead of a
+	// single job's details.
+	table bool
 	// jobs are the jobs the command acted on: the job shown, the commands
 	// copied, changed, or removed, or the jobs a run executed.
 	jobs []string
@@ -138,7 +141,7 @@ func (fixture selectorFixture) runSelectorCase(t *testing.T, tc selectorCase) se
 	var result selectorResult
 	switch tc.cmd {
 	case "show":
-		result = fixture.observeShow(output)
+		result = fixture.observeShow(output, tc.table)
 	case "copy":
 		result = fixture.observeQueue(t, sweep, tc.args, func(model.QueuedCommand) bool { return true })
 	case "change":
@@ -214,11 +217,25 @@ var (
 	showAttemptLine = regexp.MustCompile(`(?m)^Attempt ID: (att_\S+)`)
 )
 
-// observeShow reads the run and job that a show view displays.
-func (fixture selectorFixture) observeShow(output string) selectorResult {
+// observeShow reads the run and job that a show view displays, or with
+// table the jobs of its job table.
+func (fixture selectorFixture) observeShow(output string, table bool) selectorResult {
 	var result selectorResult
 	if match := showRunLine.FindStringSubmatch(output); match != nil {
 		result.run = fixture.runKey(match[1])
+	}
+	if table {
+		for _, line := range strings.Split(output, "\n") {
+			fields := strings.Fields(line)
+			if len(fields) == 0 {
+				continue
+			}
+			if key := fixture.jobKey(fields[0]); !strings.HasPrefix(key, "?") {
+				result.jobs = append(result.jobs, key)
+			}
+		}
+		sort.Strings(result.jobs)
+		return result
 	}
 	if match := showAttemptLine.FindStringSubmatch(output); match != nil {
 		if payload, err := state.DecodeAttemptID(match[1]); err == nil {

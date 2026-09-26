@@ -306,8 +306,15 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 	for _, command := range queue.Commands {
 		scoped := inScope(command)
 		// A requested job executes whole, in addition to the jobs the result
-		// filter matches.
-		if command.Array != nil && partialArray && selection != "job-id" && !requested[command.ID] {
+		// filter matches; a requested task of an array executes alone.
+		requestedTask := false
+		if command.Array != nil {
+			for _, task := range model.ArrayTaskIDs(command.Array) {
+				requestedTask = requestedTask || requested[taskID(command.ID, task)]
+			}
+		}
+		matchTasks := partialArray && selection != "job-id"
+		if command.Array != nil && (matchTasks || requestedTask) && !requested[command.ID] {
 			for _, task := range model.ArrayTaskIDs(command.Array) {
 				id := taskID(command.ID, task)
 				origin := TaskOrigin(command, task)
@@ -315,7 +322,12 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 				if err != nil {
 					return Plan{}, err
 				}
-				if scoped && model.ResultSelectionMatches(selection, finished, result.ExitCode) {
+				if requested[id] {
+					delete(requested, id)
+					plan.Execute[id] = true
+					continue
+				}
+				if matchTasks && scoped && model.ResultSelectionMatches(selection, finished, result.ExitCode) {
 					plan.Execute[id] = true
 					continue
 				}

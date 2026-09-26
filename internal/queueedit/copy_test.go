@@ -216,3 +216,23 @@ func TestCopyScopeNarrowsSelection(t *testing.T) {
 		t.Fatalf("copy of a missing matrix error = %v", err)
 	}
 }
+
+func TestCopyTaskIDNarrowsArray(t *testing.T) {
+	source := testRun([]model.QueuedCommand{
+		{ID: "eval", Command: []string{"true"}, Array: &model.ArraySpec{First: 1, Last: 3}},
+	}, model.JobResult{ID: "eval-1"}, model.JobResult{ID: "eval-2", ExitCode: 1}, model.JobResult{ID: "eval-3"})
+	queue, _, err := Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "job-id", JobIDs: []string{"eval-2"}}, sequentialIDs())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 1 || !reflect.DeepEqual(model.ArrayTaskIDs(queue.Commands[0].Array), []int{2}) {
+		t.Fatalf("copied = %#v, want the array narrowed to task 2", queue.Commands)
+	}
+	queue, _, err = Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "job-id", JobIDs: []string{"eval-2", "eval"}}, sequentialIDs())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(model.ArrayTaskIDs(queue.Commands[0].Array)) != 3 {
+		t.Fatalf("copied = %#v, want the whole array when its own ID is also given", queue.Commands)
+	}
+}

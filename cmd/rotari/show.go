@@ -291,6 +291,9 @@ func cmdShow(args []string) int {
 			printErrorf("failed to load queue: %v", err)
 			return 1
 		}
+		if arrayScope, ok := arrayCommandScope(queue.Commands, *jobIDOption); ok {
+			return showQueue(paths, queue, arrayScope)
+		}
 		if *jobIDOption != "" {
 			if *jsonOutput {
 				printError("--json cannot be combined with --job-id")
@@ -331,6 +334,9 @@ func cmdShow(args []string) int {
 					printError("--report requires --run-id when the current queue is not empty")
 					return 1
 				}
+				if arrayScope, ok := arrayCommandScope(queue.Commands, *jobIDOption); ok {
+					return showQueue(paths, queue, arrayScope)
+				}
 				if *jobIDOption != "" {
 					return showQueueJob(paths, queue, *jobIDOption)
 				}
@@ -351,6 +357,11 @@ func cmdShow(args []string) int {
 	if err != nil {
 		printError(err)
 		return 1
+	}
+	if runQueue, err := state.LoadQueue(filepath.Join(paths.RunsDir, runID, "commands.json")); err == nil && !*reportOutput {
+		if arrayScope, ok := arrayCommandScope(runQueue.Commands, *jobIDOption); ok {
+			return showRun(paths, runID, showJobFilter{failedOnly: *failedOnly, scope: arrayScope})
+		}
 	}
 	if *jobIDOption != "" {
 		if *reportOutput {
@@ -445,6 +456,17 @@ type showJobFilter struct {
 	failedOnly bool
 	// scope, when set, keeps only the jobs of one stage or matrix.
 	scope model.CommandSelector
+}
+
+// arrayCommandScope reports whether jobID names an array command, whose
+// tasks show lists as a table instead of one job's details.
+func arrayCommandScope(commands []model.QueuedCommand, jobID string) (model.CommandSelector, bool) {
+	for _, command := range commands {
+		if jobID != "" && command.ID == jobID && command.Array != nil {
+			return model.CommandSelector{IDs: []string{jobID}}, true
+		}
+	}
+	return model.CommandSelector{}, false
 }
 
 // scopedJobIDs returns the IDs of the jobs, array tasks included, of the

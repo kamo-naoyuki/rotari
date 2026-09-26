@@ -40,6 +40,7 @@ Representative implementation and tests:
 A command, not a task, is the unit of queue edits: an array command is
 selected as a whole by its job ID or name. Commands that act on results or
 output (`show`, `copy`, `run`, `retry`) may also select one task.
+`resolve.JobInQueue` matches a command's own ID or name before its tasks'.
 
 ## What each command reads
 
@@ -59,12 +60,12 @@ see [Known deviations](#known-deviations).
 | Form | `show` | `copy` | `run`, `retry` | `change` | `remove` |
 | --- | --- | --- | --- | --- | --- |
 | Job ID | that job | that job; with a result filter, in addition to the matching jobs | only that job executes; with a result filter (always in `retry`), in addition to the matching jobs | that command | that command; repeatable, or positional |
-| Array command ID | the array's tasks † | the whole array † | the whole array † | the whole array | the whole array |
-| Array task ID | that task | that task, narrowing the array † | that task † | error with the array job's ID | error with the array job's ID |
+| Array command ID | a table of the array's tasks | the whole array | the whole array | the whole array | the whole array |
+| Array task ID | that task | that task, narrowing the array | that task; the array's other tasks carry forward | error with the array job's ID | error with the array job's ID |
 | Attempt ID | that attempt (also positional) | that attempt, narrowing an array to its task | copies that attempt, then runs it | error † | error † |
 | Job name | that job; ambiguous across projects without `-p` | same as `show` | same as `show` | that command | that command |
-| Array job name | the array's tasks † | the whole array † | the whole array † | the whole array | the whole array |
-| Array task name | that task | that task † | that task † | error with the array job's ID | error with the array job's ID |
+| Array job name | a table of the array's tasks | the whole array | the whole array | the whole array | the whole array |
+| Array task name | that task | that task, narrowing the array | that task; the array's other tasks carry forward | error with the array job's ID | error with the array job's ID |
 | `--stage`, `--matrix` | filter the job table | narrow the selection | narrow the selection | every matching command | every matching command |
 | `--all` | – | default without a selector | default without a selector | every command | every command |
 | Result filter | `--failed` only | select by result | select by result | – | – |
@@ -133,10 +134,6 @@ whose selector resolution is covered by `resolve.JobSelection` tests in
 
 Each is also recorded in [ISSUES.md](../../ISSUES.md) until it is resolved.
 
-- `show`, `copy`, `run`, and `retry` look jobs up among expanded tasks
-  (`resolve.JobInQueue` and `resolve.JobInRun`), so an array command's own ID
-  or name is "not found", and a task found this way is then not found by
-  `copy` and the rerun plan, which select commands.
 - `change` and `remove` report an attempt ID as "job not found" instead of
   saying that attempt IDs are not accepted.
 
