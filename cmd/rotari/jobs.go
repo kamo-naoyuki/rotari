@@ -5,37 +5,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-const (
-	defaultJobsSince     = 24 * time.Hour
-	defaultJobsSinceText = "24h"
-)
 const defaultJobsFormat = "%s %p %a %n %c %f %e"
-
-type jobsRow struct {
-	state       string
-	baseDir     string
-	project     string
-	runID       string
-	attemptID   string
-	jobName     string
-	command     string
-	fullCommand string
-	startedAt   time.Time
-	finishedAt  time.Time
-	elapsed     time.Duration
-}
 
 type jobsColumn struct {
 	header string
@@ -53,7 +31,7 @@ func cmdJobs(args []string) int {
 	masterdir := cliString(fs, "masterdir", "")
 	allBaseDirs := cliBool(fs, "all-basedirs", false)
 	format := cliString(fs, "format", defaultJobsFormat)
-	since := cliString(fs, "since", defaultJobsSinceText)
+	since := cliString(fs, "since", joblist.DefaultSinceText)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -69,7 +47,7 @@ func cmdJobs(args []string) int {
 		printErrorf("invalid --format: %v", err)
 		return 1
 	}
-	window, err := parseJobsSince(*since)
+	window, err := joblist.ParseSince(*since)
 	if err != nil {
 		printErrorf("invalid --since duration %q", *since)
 		return 1
@@ -98,37 +76,13 @@ func cmdJobs(args []string) int {
 		fmt.Println("No running or recently finished jobs found.")
 		return 0
 	}
-	sortJobsRows(rows)
+	joblist.Sort(rows)
 
 	printJobsTableFormat(rows, columns)
 	return 0
 }
 
-func parseJobsSince(value string) (time.Duration, error) {
-	if value == "" {
-		return defaultJobsSince, nil
-	}
-	window, err := time.ParseDuration(value)
-	if err != nil || window < 0 {
-		return 0, fmt.Errorf("invalid duration")
-	}
-	return window, nil
-}
-
-func jobsRowSortTime(row jobsRow) time.Time {
-	if !row.finishedAt.IsZero() {
-		return row.finishedAt
-	}
-	return row.startedAt
-}
-
-func sortJobsRows(rows []jobsRow) {
-	sort.SliceStable(rows, func(left, right int) bool {
-		return jobsRowSortTime(rows[left]).After(jobsRowSortTime(rows[right]))
-	})
-}
-
-func printJobsTable(rows []jobsRow, showBaseDir bool) {
+func printJobsTable(rows []joblist.Row, showBaseDir bool) {
 	format := defaultJobsFormat
 	if showBaseDir {
 		format = "%s %b %p %a %n %c %f %e"
@@ -137,7 +91,7 @@ func printJobsTable(rows []jobsRow, showBaseDir bool) {
 	printJobsTableFormat(rows, columns)
 }
 
-func printJobsTableFormat(rows []jobsRow, formatColumns []jobsColumn) {
+func printJobsTableFormat(rows []joblist.Row, formatColumns []jobsColumn) {
 	columns := make([][]string, len(formatColumns))
 	for index, column := range formatColumns {
 		columns[index] = []string{column.header}
@@ -146,7 +100,7 @@ func printJobsTableFormat(rows []jobsRow, formatColumns []jobsColumn) {
 		for index, column := range formatColumns {
 			value := jobsColumnValue(column.code, row)
 			if column.width > 0 {
-				value = shortenJobsText(value, column.width)
+				value = joblist.ShortenText(value, column.width)
 			}
 			columns[index] = append(columns[index], value)
 		}
@@ -205,29 +159,29 @@ func parseJobsFormat(format string) ([]jobsColumn, error) {
 	return columns, nil
 }
 
-func jobsColumnValue(code byte, row jobsRow) string {
+func jobsColumnValue(code byte, row joblist.Row) string {
 	switch code {
 	case 's':
-		return row.state
+		return row.State
 	case 'b':
-		return shortenJobsPath(row.baseDir)
+		return shortenJobsPath(row.BaseDir)
 	case 'p':
-		return row.project
+		return row.Project
 	case 'a':
-		return row.attemptID
+		return row.AttemptID
 	case 'n':
-		return row.jobName
+		return row.JobName
 	case 'c':
-		return row.command
+		return row.Command
 	case 't':
-		return formatJobsTimestamp(row.startedAt)
+		return joblist.FormatTimestamp(row.StartedAt)
 	case 'f':
-		if row.finishedAt.IsZero() {
+		if row.FinishedAt.IsZero() {
 			return "-"
 		}
-		return formatJobsTimestamp(row.finishedAt)
+		return joblist.FormatTimestamp(row.FinishedAt)
 	case 'e':
-		return formatJobElapsed(row.elapsed)
+		return joblist.FormatElapsed(row.Elapsed)
 	default:
 		return ""
 	}
@@ -281,213 +235,20 @@ func jobsBaseDirs(requested, masterdir string, all bool) ([]string, error) {
 	return baseDirs, nil
 }
 
-func collectJobsAcrossBaseDirs(baseDirs []string, project string, now time.Time, window time.Duration) ([]jobsRow, error) {
-	rows := make([]jobsRow, 0)
+func collectJobsAcrossBaseDirs(baseDirs []string, project string, now time.Time, window time.Duration) ([]joblist.Row, error) {
+	rows := make([]joblist.Row, 0)
 	for _, baseDir := range baseDirs {
-		projects, err := jobsProjects(baseDir, project)
+		projects, err := joblist.Projects(baseDir, project)
 		if err != nil {
 			return nil, err
 		}
-		baseRows, err := collectJobs(baseDir, projects, now, window)
+		baseRows, err := joblist.Collect(jsonStore(), baseDir, projects, now, window)
 		if err != nil {
 			return nil, err
 		}
 		rows = append(rows, baseRows...)
 	}
 	return rows, nil
-}
-
-func jobsProjects(baseDir, requested string) ([]string, error) {
-	if requested != "" {
-		if !state.IsValidPathElement(requested) {
-			return nil, fmt.Errorf("invalid project name %q", requested)
-		}
-		return []string{requested}, nil
-	}
-	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []string{defaultProjectName}, nil
-		}
-		return nil, fmt.Errorf("failed to read projects: %w", err)
-	}
-	projects := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() && state.IsValidPathElement(entry.Name()) {
-			projects = append(projects, entry.Name())
-		}
-	}
-	sort.Strings(projects)
-	return projects, nil
-}
-
-func collectJobs(baseDir string, projects []string, now time.Time, window time.Duration) ([]jobsRow, error) {
-	cutoff := now.Add(-window)
-	rows := make([]jobsRow, 0)
-	for _, project := range projects {
-		paths, err := state.ResolveProjectPaths(baseDir, project)
-		if err != nil {
-			return nil, err
-		}
-		runEntries, err := os.ReadDir(paths.RunsDir)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return nil, fmt.Errorf("failed to read runs for project %q: %w", project, err)
-		}
-		runs := make([]os.DirEntry, 0, len(runEntries))
-		for _, entry := range runEntries {
-			if entry.IsDir() && state.IsValidPathElement(entry.Name()) {
-				runs = append(runs, entry)
-			}
-		}
-		sort.SliceStable(runs, func(left, right int) bool { return runs[left].Name() > runs[right].Name() })
-		for _, run := range runs {
-			runRows, include, stop, err := collectRunJobs(paths, run.Name(), now, cutoff)
-			if err != nil {
-				return nil, err
-			}
-			if include {
-				rows = append(rows, runRows...)
-			}
-			// Run IDs are generated from UTC timestamps, and a project cannot
-			// start its next run until the previous run has finished. Therefore,
-			// after an ordinary completed run is older than the cutoff, every
-			// remaining run in this order is also outside the search window.
-			// This does not apply to active/interrupted runs or runs with missing
-			// or invalid summaries: those cases are deliberately not a signal to
-			// stop, because their completion order is unknown.
-			if stop {
-				break
-			}
-		}
-	}
-	return rows, nil
-}
-
-func collectRunJobs(paths state.ProjectPaths, runID string, now, cutoff time.Time) ([]jobsRow, bool, bool, error) {
-	runDir := filepath.Join(paths.RunsDir, runID)
-	summary, summaryErr := state.LoadRunSummary(filepath.Join(runDir, stateFileSummaryJSON))
-	active := project.RunActive(paths, runID)
-	if summaryErr == nil && !active {
-		finishedAt, err := parseJobsTimestamp(summary.FinishedAt)
-		if err == nil && finishedAt.Before(cutoff) {
-			return nil, false, true, nil
-		}
-	}
-	runQueue, err := state.LoadQueue(filepath.Join(runDir, stateFileCommandsJSON))
-	if err != nil {
-		return nil, false, false, nil
-	}
-	resultByID := make(map[string]model.JobResult, len(summary.Results))
-	for _, result := range summary.Results {
-		resultByID[result.ID] = result
-	}
-	rows := make([]jobsRow, 0)
-	for _, job := range model.QueueToJobs(runQueue.Commands) {
-		jobDir, err := state.LatestAttemptJobDir(runDir, job.ID)
-		if err != nil {
-			continue
-		}
-		summaryResult, hasSummary := resultByID[job.ID]
-		resolved := jobstatus.ReadJob(jsonStore(), jobDir, summaryResult, hasSummary)
-		status, statusOK := resolved.ExitCode, resolved.Finished()
-		jobState := ""
-		if statusOK {
-			if status == 0 {
-				jobState = "success"
-			} else {
-				jobState = "failed"
-			}
-		} else if active {
-			jobState = "running"
-		} else {
-			continue
-		}
-		submittedText, finishedText := jobstatus.Timestamps(runDir, job.ID, nil)
-		startedAt, err := parseJobsTimestamp(submittedText)
-		if err != nil && summary.StartedAt != "" {
-			startedAt, err = parseJobsTimestamp(summary.StartedAt)
-		}
-		if err != nil {
-			continue
-		}
-		finishedAt, finishedErr := parseJobsTimestamp(finishedText)
-		if finishedErr != nil && summary.FinishedAt != "" && statusOK {
-			finishedAt, finishedErr = parseJobsTimestamp(summary.FinishedAt)
-		}
-		if jobState != "running" {
-			if finishedErr == nil {
-				if finishedAt.Before(cutoff) {
-					continue
-				}
-			} else if startedAt.Before(cutoff) {
-				continue
-			}
-		}
-		attemptID, _ := state.LatestAttemptID(runDir, job.ID)
-		if attemptID == "" {
-			if result, ok := resultByID[job.ID]; ok {
-				attemptID = result.AttemptID
-			}
-		}
-		if attemptID == "" {
-			continue
-		}
-		jobName := readJobName(jobDir)
-		if jobName == "" {
-			jobName = job.Name
-		}
-		if jobName == "" {
-			jobName = "-"
-		}
-		fullCommand := strings.Join(job.Command, " ")
-		command := shortenJobsText(fullCommand, 40)
-		end := now
-		if jobState != "running" {
-			end = finishedAt
-		}
-		if jobState != "running" && finishedErr != nil {
-			end = time.Time{}
-		}
-		rows = append(rows, jobsRow{state: jobState, baseDir: paths.BaseDir, project: paths.ProjectName, runID: runID, attemptID: attemptID, jobName: jobName, command: command, fullCommand: fullCommand, startedAt: startedAt, finishedAt: finishedAt, elapsed: end.Sub(startedAt)})
-	}
-	return rows, true, false, nil
-}
-
-func shortenJobsText(value string, maxLength int) string {
-	if len(value) <= maxLength {
-		return value
-	}
-	if maxLength <= 3 {
-		return value[:maxLength]
-	}
-	return value[:maxLength-3] + "..."
-}
-
-func parseJobsTimestamp(value string) (time.Time, error) {
-	return time.Parse(time.RFC3339Nano, strings.TrimSpace(value))
-}
-
-func formatJobsTimestamp(value time.Time) string {
-	return value.In(time.FixedZone("JST", 9*60*60)).Format("2006-01-02 15:04")
-}
-
-func formatJobElapsed(value time.Duration) string {
-	if value < 0 {
-		return "-"
-	}
-	seconds := int64(value / time.Second)
-	if seconds < 60 {
-		return strconv.FormatInt(seconds, 10) + "s"
-	}
-	minutes := seconds / 60
-	if minutes < 60 {
-		return fmt.Sprintf("%dm %02ds", minutes, seconds%60)
-	}
-	hours := minutes / 60
-	return fmt.Sprintf("%dh %02dm", hours, minutes%60)
 }
 
 func shortenJobsPath(path string) string {

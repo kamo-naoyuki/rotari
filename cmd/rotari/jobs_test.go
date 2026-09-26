@@ -9,14 +9,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestPrintJobsTableAlignsMultipleRows(t *testing.T) {
-	rows := []jobsRow{
-		{state: "success", project: "demo", attemptID: "att_20260922-103800-afc43f9f-6aa4af5d9-1-0", startedAt: time.Date(2026, 9, 22, 10, 38, 0, 0, time.UTC), elapsed: 2 * time.Second},
-		{state: "failed", project: "demo", attemptID: "att_20260922-103755-cf6e9512-6aa4af5d9-2-0", startedAt: time.Date(2026, 9, 22, 10, 37, 55, 0, time.UTC), elapsed: 2 * time.Second},
+	rows := []joblist.Row{
+		{State: "success", Project: "demo", AttemptID: "att_20260922-103800-afc43f9f-6aa4af5d9-1-0", StartedAt: time.Date(2026, 9, 22, 10, 38, 0, 0, time.UTC), Elapsed: 2 * time.Second},
+		{State: "failed", Project: "demo", AttemptID: "att_20260922-103755-cf6e9512-6aa4af5d9-2-0", StartedAt: time.Date(2026, 9, 22, 10, 37, 55, 0, time.UTC), Elapsed: 2 * time.Second},
 	}
 	var output bytes.Buffer
 	oldStdout := os.Stdout
@@ -35,45 +36,8 @@ func TestPrintJobsTableAlignsMultipleRows(t *testing.T) {
 	if len(lines) != 3 {
 		t.Fatalf("printJobsTable() wrote %d lines, want 3: %q", len(lines), output.String())
 	}
-	if !strings.HasPrefix(lines[0], "STATE") || !strings.Contains(lines[1], rows[0].attemptID) || !strings.Contains(lines[2], rows[1].attemptID) {
+	if !strings.HasPrefix(lines[0], "STATE") || !strings.Contains(lines[1], rows[0].AttemptID) || !strings.Contains(lines[2], rows[1].AttemptID) {
 		t.Fatalf("unexpected jobs table output: %q", output.String())
-	}
-}
-
-func TestCollectJobsAcrossProjectsIncludesRecentFinishedJobs(t *testing.T) {
-	baseDir := t.TempDir()
-	now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
-	longRunningStarted := now.Add(-48 * time.Hour)
-	recentFinished := now.Add(-2 * time.Hour)
-	oldFinished := now.Add(-48 * time.Hour)
-
-	writeTestJobsRun(t, baseDir, "train", "20260922-090000-00000001", "train-job", longRunningStarted, recentFinished, 1)
-	writeTestJobsRun(t, baseDir, "report", "20260922-080000-00000002", "report-job", longRunningStarted.Add(time.Hour), recentFinished.Add(time.Hour), 0)
-	writeTestJobsRun(t, baseDir, "train", "20260920-090000-00000003", "old-job", oldFinished.Add(-time.Minute), oldFinished, 1)
-
-	rows, err := collectJobs(baseDir, []string{"report", "train"}, now, 24*time.Hour)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(rows) != 2 {
-		t.Fatalf("collectJobs() returned %d rows, want 2: %#v", len(rows), rows)
-	}
-	if rows[0].project != "report" || rows[0].state != "success" {
-		t.Fatalf("first row = %#v, want recent report success", rows[0])
-	}
-	if rows[0].elapsed != 46*time.Hour {
-		t.Fatalf("success elapsed = %s, want 46h", rows[0].elapsed)
-	}
-	if rows[1].project != "train" || rows[1].state != "failed" {
-		t.Fatalf("second row = %#v, want recent train failure", rows[1])
-	}
-	if rows[1].elapsed != 46*time.Hour {
-		t.Fatalf("failure elapsed = %s, want 46h", rows[1].elapsed)
-	}
-	for _, row := range rows {
-		if strings.Contains(row.attemptID, "old-job") {
-			t.Fatalf("old job was included: %#v", row)
-		}
 	}
 }
 
@@ -114,102 +78,6 @@ func captureJobsStdout(t *testing.T, args []string) (string, int) {
 		t.Fatal(err)
 	}
 	return string(output), code
-}
-
-func TestCollectRunJobsStopsAtOldCompletedRun(t *testing.T) {
-	baseDir := t.TempDir()
-	now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
-	paths, err := state.ResolveProjectPaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	writeTestJobsRun(t, baseDir, "demo", "20260920-090000-00000001", "old-job", now.Add(-48*time.Hour), now.Add(-25*time.Hour), 0)
-
-	rows, include, stop, err := collectRunJobs(paths, "20260920-090000-00000001", now, now.Add(-24*time.Hour))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if include || len(rows) != 0 || !stop {
-		t.Fatalf("collectRunJobs() = rows %d, include %v, stop %v; want no rows, no include, and stop", len(rows), include, stop)
-	}
-}
-
-func TestCollectRunJobsIncludesTerminalJobUsingStartedAtWhenFinishedAtMissing(t *testing.T) {
-	baseDir := t.TempDir()
-	now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
-	started := now.Add(-2 * time.Hour)
-	paths, err := state.ResolveProjectPaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	runID := "20260922-090000-00000001"
-	jobID := "failed-job"
-	attemptID := makeAttemptID(runID, jobID, 0)
-	runDir := filepath.Join(paths.RunsDir, runID)
-	queue := model.Queue{Commands: []model.QueuedCommand{{ID: jobID, Command: []string{"false"}}}}
-	if err := writeJSON(filepath.Join(runDir, stateFileCommandsJSON), queue); err != nil {
-		t.Fatal(err)
-	}
-	jobDir := filepath.Join(runDir, jobID, "attempts", attemptID)
-	if err := writeJSON(filepath.Join(jobDir, commandJSONName), model.JobSpec{ID: jobID, AttemptID: attemptID, Command: []string{"false"}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(filepath.Join(runDir, stateFileSummaryJSON), model.RunSummary{RunID: runID, Status: "failed", StartedAt: started.Format(time.RFC3339), Results: []model.JobResult{{ID: jobID, AttemptID: attemptID, ExitCode: 1}}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeTestTimestamp(filepath.Join(jobDir, stateFileSubmittedAt), started); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeTestFile(filepath.Join(jobDir, stateFileStatus), []byte("1\n")); err != nil {
-		t.Fatal(err)
-	}
-
-	rows, include, stop, err := collectRunJobs(paths, runID, now, now.Add(-24*time.Hour))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !include || stop || len(rows) != 1 {
-		t.Fatalf("collectRunJobs() = rows %d, include %v, stop %v; want one row, include, and no stop", len(rows), include, stop)
-	}
-	if rows[0].state != "failed" || !rows[0].finishedAt.IsZero() || rows[0].elapsed >= 0 {
-		t.Fatalf("row = %#v, want failed with unknown finish and elapsed", rows[0])
-	}
-}
-
-func TestFormatJobElapsed(t *testing.T) {
-	cases := map[time.Duration]string{
-		0:                             "0s",
-		59 * time.Second:              "59s",
-		3*time.Minute + 2*time.Second: "3m 02s",
-		2*time.Hour + 4*time.Minute:   "2h 04m",
-	}
-	for input, want := range cases {
-		if got := formatJobElapsed(input); got != want {
-			t.Errorf("formatJobElapsed(%s) = %q, want %q", input, got, want)
-		}
-	}
-}
-
-func TestParseJobsSince(t *testing.T) {
-	for _, test := range []struct {
-		value string
-		want  time.Duration
-	}{
-		{value: "", want: defaultJobsSince},
-		{value: "30m", want: 30 * time.Minute},
-		{value: "0s", want: 0},
-	} {
-		got, err := parseJobsSince(test.value)
-		if err != nil || got != test.want {
-			t.Errorf("parseJobsSince(%q) = (%s, %v), want (%s, nil)", test.value, got, err, test.want)
-		}
-	}
-
-	for _, value := range []string{"invalid", "-1m", "-1s"} {
-		if _, err := parseJobsSince(value); err == nil {
-			t.Errorf("parseJobsSince(%q) succeeded, want error", value)
-		}
-	}
 }
 
 func TestParseJobsFormat(t *testing.T) {

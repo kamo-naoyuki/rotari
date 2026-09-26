@@ -7,10 +7,11 @@ import (
 	"sort"
 )
 
-const (
-	projectNameEnv     = "ROTARI_PROJECT_NAME"
-	defaultProjectName = "default"
-)
+const projectNameEnv = "ROTARI_PROJECT_NAME"
+
+// DefaultProjectName is the project used when none is given and the base
+// directory does not have exactly one.
+const DefaultProjectName = "default"
 
 // ProjectNameGiven reports whether a project was chosen explicitly, by
 // cliProjectName or ROTARI_PROJECT_NAME, rather than inferred from the base
@@ -53,7 +54,7 @@ func ResolveProjectName(baseDir, cliProjectName string) (string, error) {
 			return "", fmt.Errorf("multiple projects exist in state directory %q; please specify one with --project-name or ROTARI_PROJECT_NAME:\n%s", baseDir, joinLines(list))
 		}
 	}
-	return defaultProjectName, nil
+	return DefaultProjectName, nil
 }
 
 func joinLines(lines []string) string {

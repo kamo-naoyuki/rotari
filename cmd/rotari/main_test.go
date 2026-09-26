@@ -56,8 +56,8 @@ func TestResolveProjectNamePriority(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err = state.ResolveProjectName(baseDir, "")
-	if err != nil || got != defaultProjectName {
-		t.Fatalf("default priority: got %q, want %q, err %v", got, defaultProjectName, err)
+	if err != nil || got != state.DefaultProjectName {
+		t.Fatalf("default priority: got %q, want %q, err %v", got, state.DefaultProjectName, err)
 	}
 
 	// Test automatically selecting a single queue if only one exists

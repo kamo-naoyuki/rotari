@@ -166,6 +166,16 @@ func SpecificAttemptJobDir(runDir, jobID, attemptID string) (string, error) {
 	return filepath.Join(jobDir, "attempts", attemptID), nil
 }
 
+// ReadJobName returns the job name recorded in jobDir, or "" when there is
+// none.
+func ReadJobName(jobDir string) string {
+	data, err := os.ReadFile(filepath.Join(jobDir, "name"))
+	if err == nil {
+		return strings.TrimSpace(string(data))
+	}
+	return ""
+}
+
 func ReadJobTimestamp(runDir, jobID, name string) string {
 	if name != "submitted_at" && name != "finished_at" {
 		return ""

@@ -809,7 +809,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 				latestAttemptLabel = result.AttemptID
 			}
 		}
-		name := readJobName(jobDir)
+		name := state.ReadJobName(jobDir)
 		if name == "" {
 			name = jobSpec.Name
 		}
@@ -1528,7 +1528,7 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 			}
 		}
 	}
-	name := readJobName(jobDir)
+	name := state.ReadJobName(jobDir)
 	if name == "" {
 		name = jobSpecs[jobID].Name
 	}
@@ -1663,14 +1663,6 @@ func readJSONCommand(path string) string {
 	return strings.Join(job.Command, " ")
 }
 
-func readJobName(jobDir string) string {
-	data, err := os.ReadFile(filepath.Join(jobDir, "name"))
-	if err == nil {
-		return strings.TrimSpace(string(data))
-	}
-	return ""
-}
-
 func showRunLogs(writer io.Writer, paths state.ProjectPaths, runID string, failedOnly bool) int {
 	runDir := filepath.Join(paths.RunsDir, runID)
 	entries, err := os.ReadDir(runDir)
@@ -1699,7 +1691,7 @@ func showRunLogs(writer io.Writer, paths state.ProjectPaths, runID string, faile
 			continue
 		}
 
-		name := readJobName(jobDir)
+		name := state.ReadJobName(jobDir)
 		if name == "" {
 			name = jobSpecs[jobID].Name
 		}

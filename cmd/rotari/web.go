@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/queueops"
@@ -250,25 +251,25 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 	})
 	mux.HandleFunc("/jobs/", func(writer http.ResponseWriter, request *http.Request) {
 		sinceText := request.URL.Query().Get("since")
-		window, err := parseJobsSince(sinceText)
+		window, err := joblist.ParseSince(sinceText)
 		if err != nil {
 			writeWebError(writer, fmt.Errorf("invalid since duration %q", sinceText))
 			return
 		}
 		if sinceText == "" {
-			sinceText = defaultJobsSinceText
+			sinceText = joblist.DefaultSinceText
 		}
-		projects, err := jobsProjects(baseDir, queueFilter)
+		projects, err := joblist.Projects(baseDir, queueFilter)
 		if err != nil {
 			writeWebError(writer, err)
 			return
 		}
-		rows, err := collectJobs(baseDir, projects, time.Now(), window)
+		rows, err := joblist.Collect(jsonStore(), baseDir, projects, time.Now(), window)
 		if err != nil {
 			writeWebError(writer, err)
 			return
 		}
-		sortJobsRows(rows)
+		joblist.Sort(rows)
 		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
 		_, _ = writer.Write([]byte(jobsHTML("/", rows, sinceText, true)))
 	})
@@ -1069,16 +1070,16 @@ func generateStaticWeb(outputDir, baseDir, queueFilter string) error {
 	if err := writeStaticStylesheet(filepath.Join(outputDir, "docs")); err != nil {
 		return err
 	}
-	projects, err := jobsProjects(baseDir, queueFilter)
+	projects, err := joblist.Projects(baseDir, queueFilter)
 	if err != nil {
 		return err
 	}
-	jobs, err := collectJobs(baseDir, projects, time.Now(), defaultJobsSince)
+	jobs, err := joblist.Collect(jsonStore(), baseDir, projects, time.Now(), joblist.DefaultSince)
 	if err != nil {
 		return err
 	}
-	sortJobsRows(jobs)
-	if err := writeStaticWebPage(filepath.Join(outputDir, "jobs", "index.html"), jobsHTML("../", jobs, defaultJobsSinceText, false)); err != nil {
+	joblist.Sort(jobs)
+	if err := writeStaticWebPage(filepath.Join(outputDir, "jobs", "index.html"), jobsHTML("../", jobs, joblist.DefaultSinceText, false)); err != nil {
 		return err
 	}
 	if err := writeStaticStylesheet(filepath.Join(outputDir, "jobs")); err != nil {

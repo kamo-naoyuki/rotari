@@ -101,6 +101,7 @@ flowchart TB
   resolve["resolve<br/>selectors to run and job"]
   queueops["queueops<br/>queue and history edits"]
   report["report<br/>diagnosis evidence"]
+  joblist["joblist<br/>recent jobs"]
   subgraph l2["orchestration and projections"]
     server
     run
@@ -132,6 +133,9 @@ flowchart TB
   report --> web
   report --> project
   report --> diagnose
+  cmd --> joblist
+  joblist --> jobstatus
+  joblist --> project
   resolve --> project
   resolve --> runregistry
   resolve --> state
@@ -181,6 +185,7 @@ the current graph if this list drifts.
 | [internal/queueops](../internal/queueops/) | Queue and run-history edits shared by the CLI, the Web UI, and the supervisor: add, change, remove, copy, and deleting runs. Loads and saves the files around `internal/queueedit` through the `internal/project` idle-edit sequence, and owns `ValidateJobs`. | `editor.go` (`Editor`), `change.go`, `copy.go` |
 | [internal/queueedit](../internal/queueedit/) | Pure queue edits, such as building a queue from an earlier run (`copy`, `retry`). | `copy.go` |
 | [internal/workflow](../internal/workflow/) | Workflow manifests: `export` merge and `import` reconciliation. | `manifest.go`, `export.go`, `reconcile.go` |
+| [internal/joblist](../internal/joblist/) | Recent job attempts across a base directory's projects for `rotari jobs` and the Web UI's jobs page: which attempts are listed, their order, and how their times read. | `joblist.go` (`Collect`) |
 | [internal/report](../internal/report/) | The redacted evidence report for AI-assisted diagnosis, shared by `show --report` and the Web UI. Reads jobs through `internal/web`'s projection. | `report.go` (`Build`) |
 | [internal/rundiff](../internal/rundiff/) | Comparison of two loaded runs for `diff` and `show --lineage`. | `rundiff.go` |
 | [internal/diagnose](../internal/diagnose/) | Rule-based and provider-backed failure diagnosis. | `analysis.go` |

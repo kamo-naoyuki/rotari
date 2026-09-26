@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
@@ -1206,7 +1207,7 @@ func TestWebJobsPageRejectsInvalidSince(t *testing.T) {
 }
 
 func TestJobsHTMLStylesStates(t *testing.T) {
-	html := jobsHTML("/", []jobsRow{{state: "success"}, {state: "failed"}, {state: "running"}}, defaultJobsSinceText, true)
+	html := jobsHTML("/", []joblist.Row{{State: "success"}, {State: "failed"}, {State: "running"}}, joblist.DefaultSinceText, true)
 	for _, want := range []string{
 		`class="jobs-state jobs-state-success"`,
 		`class="jobs-state jobs-state-failed"`,
@@ -2021,7 +2022,7 @@ func TestJobsPageCopyButtonShowsFeedback(t *testing.T) {
 		t.Skip("node is not installed")
 	}
 	htmlPath := filepath.Join(t.TempDir(), "jobs.html")
-	page := jobsHTML("/", []jobsRow{{state: "success", project: "p", runID: "r", jobName: "j", command: "echo hi", fullCommand: "echo hi", attemptID: "att_1"}}, defaultJobsSinceText, false)
+	page := jobsHTML("/", []joblist.Row{{State: "success", Project: "p", RunID: "r", JobName: "j", Command: "echo hi", FullCommand: "echo hi", AttemptID: "att_1"}}, joblist.DefaultSinceText, false)
 	if err := os.WriteFile(htmlPath, []byte(page), 0o600); err != nil {
 		t.Fatal(err)
 	}

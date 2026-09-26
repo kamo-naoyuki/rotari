@@ -63,10 +63,11 @@ because it provides the static fetch and routing adapters used only by
 generated pages. It is formatted as ordinary JavaScript, then receives the
 generated state, logs, and reports during export.
 
-`/jobs/` is server-rendered from the same `collectJobs` path as `rotari jobs`:
+`/jobs/` is server-rendered from the same `joblist.Collect` path
+([internal/joblist](../../internal/joblist/joblist.go)) as `rotari jobs`:
 it includes running jobs and jobs completed within the preceding 24 hours by
 default. The dynamic page accepts `?since=DURATION`, validated by the shared
-`parseJobsSince` helper. Its static equivalent is `jobs/index.html` and remains
+`joblist.ParseSince` helper. Its static equivalent is `jobs/index.html` and remains
 fixed at the default window; preserve that page whenever changing the Web export
 layout.
 

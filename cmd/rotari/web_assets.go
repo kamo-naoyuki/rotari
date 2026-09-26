@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/kamo-naoyuki/rotari/internal/joblist"
 )
 
 //go:embed assets/web_template.html
@@ -85,7 +87,7 @@ func composeInfoHTML(template, homePath, content string) string {
 	return template
 }
 
-func jobsHTML(homePath string, rows []jobsRow, since string, canFilter bool) string {
+func jobsHTML(homePath string, rows []joblist.Row, since string, canFilter bool) string {
 	var builder strings.Builder
 	if canFilter {
 		builder.WriteString(`<form class="jobs-filter" method="get"><label for="jobs-since">Since</label><input id="jobs-since" name="since" value="`)
@@ -99,42 +101,42 @@ func jobsHTML(homePath string, rows []jobsRow, since string, canFilter bool) str
 	builder.WriteString(`<section><table><thead><tr><th>State</th><th>Project</th><th>Job</th><th>Command</th><th>Attempt</th><th>Started</th><th>Finished</th><th>Elapsed</th></tr></thead><tbody>`)
 	for _, row := range rows {
 		builder.WriteString(`<tr><td class="jobs-state jobs-state-`)
-		builder.WriteString(jobsStateClass(row.state))
+		builder.WriteString(jobsStateClass(row.State))
 		builder.WriteString(`">`)
-		builder.WriteString(html.EscapeString(row.state))
+		builder.WriteString(html.EscapeString(row.State))
 		builder.WriteString(`</td><td><a href="`)
 		builder.WriteString(html.EscapeString(homePath))
 		builder.WriteString(`project/`)
-		builder.WriteString(url.PathEscape(row.project))
+		builder.WriteString(url.PathEscape(row.Project))
 		builder.WriteString(`">`)
-		builder.WriteString(html.EscapeString(row.project))
+		builder.WriteString(html.EscapeString(row.Project))
 		builder.WriteString(`</a>`)
 		builder.WriteString(`</td><td><a href="`)
 		builder.WriteString(html.EscapeString(homePath))
 		builder.WriteString(`project/`)
-		builder.WriteString(url.PathEscape(row.project))
+		builder.WriteString(url.PathEscape(row.Project))
 		builder.WriteString(`/run/`)
-		builder.WriteString(url.PathEscape(row.runID))
+		builder.WriteString(url.PathEscape(row.RunID))
 		builder.WriteString(`">`)
-		builder.WriteString(html.EscapeString(row.jobName))
+		builder.WriteString(html.EscapeString(row.JobName))
 		builder.WriteString(`</a></td><td><code>`)
-		builder.WriteString(html.EscapeString(row.command))
+		builder.WriteString(html.EscapeString(row.Command))
 		builder.WriteString(`</code>`)
-		writeJobsCopyButton(&builder, row.fullCommand, "command")
+		writeJobsCopyButton(&builder, row.FullCommand, "command")
 		builder.WriteString(`</td><td><code>`)
-		builder.WriteString(html.EscapeString(row.attemptID))
+		builder.WriteString(html.EscapeString(row.AttemptID))
 		builder.WriteString(`</code>`)
-		writeJobsCopyButton(&builder, row.attemptID, "attempt ID")
+		writeJobsCopyButton(&builder, row.AttemptID, "attempt ID")
 		builder.WriteString(`</td><td>`)
-		builder.WriteString(html.EscapeString(formatJobsTimestamp(row.startedAt)))
+		builder.WriteString(html.EscapeString(joblist.FormatTimestamp(row.StartedAt)))
 		builder.WriteString(`</td><td>`)
-		if row.state == "running" {
+		if row.State == "running" {
 			builder.WriteString(`-`)
 		} else {
-			builder.WriteString(html.EscapeString(formatJobsTimestamp(row.finishedAt)))
+			builder.WriteString(html.EscapeString(joblist.FormatTimestamp(row.FinishedAt)))
 		}
 		builder.WriteString(`</td><td>`)
-		builder.WriteString(html.EscapeString(formatJobElapsed(row.elapsed)))
+		builder.WriteString(html.EscapeString(joblist.FormatElapsed(row.Elapsed)))
 		builder.WriteString(`</td></tr>`)
 	}
 	builder.WriteString(`</tbody></table></section>`)
