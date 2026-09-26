@@ -72,7 +72,7 @@ calls it.
 | Client | Stays attached and streams progress | Returns after "Run started" |
 | Process that executes the jobs | The supervisor | A worker the supervisor spawns |
 | PID in `running.lock` | The supervisor | The worker (rewritten after spawning) |
-| Entry point | `runServerSync` ([run_command.go](../cmd/rotari/run_command.go)) | `startServerRun` → `launchAsyncRun` → `cmdWorkerRun` ([main.go](../cmd/rotari/main.go)) |
+| Entry point | `supervisor.Operations.Run` ([internal/supervisor/run.go](../internal/supervisor/run.go)) | `supervisor.Operations.StartRun` → `launchWorker` ([internal/supervisor/worker.go](../internal/supervisor/worker.go)) → `cmdWorkerRun` ([main.go](../cmd/rotari/main.go)) |
 
 ```text
 sync:   client ──▶ supervisor: Begin → Run (Execute → Finish) ──▶ result to client
@@ -95,13 +95,14 @@ no `internal` package imports `cmd/rotari`.
 
 ```mermaid
 flowchart TB
-  cmd["cmd/rotari<br/>CLI flags, supervisor operations,<br/>Web handlers, wiring, output"]
+  cmd["cmd/rotari<br/>CLI flags, Web handlers,<br/>wiring, output"]
   projectrun["projectrun<br/>run lifecycle"]
   project["project<br/>state machine, idle edits"]
   resolve["resolve<br/>selectors to run and job"]
   queueops["queueops<br/>queue and history edits"]
   report["report<br/>diagnosis evidence"]
   joblist["joblist<br/>recent jobs"]
+  supervisor["supervisor<br/>server request work"]
   subgraph l2["orchestration and projections"]
     server
     run
@@ -136,6 +137,11 @@ flowchart TB
   cmd --> joblist
   joblist --> jobstatus
   joblist --> project
+  cmd --> supervisor
+  supervisor --> server
+  supervisor --> queueops
+  supervisor --> projectrun
+  supervisor --> jobcontrol
   resolve --> project
   resolve --> runregistry
   resolve --> state
@@ -179,6 +185,7 @@ the current graph if this list drifts.
 | [internal/projectrun](../internal/projectrun/) | One project's run against its files: `Begin` (context, run lock, registry, running metadata), `Execute` (snapshot, plan, dispatch, summary), and `Finish` (final context, queue and metadata finalization, lock removal). Shared by the sync run, the async worker, and cancellation. Also checks that a queue can run with the known executors (`ValidateQueue`). | `lifecycle.go`, `execute.go`, `validate.go` |
 | [internal/run](../internal/run/) | Run rules without file access: which jobs execute or are carried forward, dependency unblocking, retries, per-executor lanes and concurrency, the summary contents. | `rerun.go` (`PlanRerun`), `engine.go` (`ExecuteJobs`), `dispatch.go` (`Dispatcher`) |
 | [internal/jobstatus](../internal/jobstatus/) | Read side: turns attempt files and the summary into one displayed result and timestamps. Shared by CLI and Web. | `job.go`, `attempt.go`, `times.go` |
+| [internal/supervisor](../internal/supervisor/) | The work behind supervisor requests: add, cancel, suspend and resume, and sync and async runs, including spawning the async worker. Implements `server.Operations` and returns plain-text messages. | `run.go` (`Operations.Run`, `StartRun`), `worker.go` |
 | [internal/server](../internal/server/) | Supervisor transport: request/response types, socket, lease, peer checks, idle shutdown, attached-run streaming. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go` |
 | [internal/jobcontrol](../internal/jobcontrol/) | Cancel, suspend, resume of running jobs through executors. | `jobcontrol.go` |
 | [internal/web](../internal/web/) | JSON projections of runs, jobs, attempts, and timelines for the Web UI. | `loader.go` |
@@ -224,10 +231,10 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 | Entry, dispatch, async worker launch, `__worker-run` | `main.go` |
 | Flag metadata, help, config defaults, completion | `cli_spec.go`, `config.go`, `completion.go`, `schema.go`, `guide.go`, `environment.go` |
 | Queue editing (flags and output; `add`, `change`, `copy`, `remove`, and `delete` call `internal/queueops`) | `add.go`, `change.go`, `copy.go`, `remove.go`, `reset.go`, `delete.go`, `gc.go`, `unlock.go` |
-| Starting a run (client and supervisor side) | `run_command.go`, `job_executor.go` |
+| Starting a run (client side; the supervisor side is `internal/supervisor`) | `run_command.go`, `job_executor.go` |
 | Default run registry wiring (`registerRun`, `resolveRunLocation`) | `run_registry.go` |
 | Wiring the run lifecycle (`projectRunner`) | `project_run.go` |
-| Supervisor, its server registry, and `show --basedirs` discovery | `server.go`, `registry.go` |
+| Supervisor process wiring, its server registry, and `show --basedirs` discovery | `server.go`, `registry.go` |
 | Job control | `job_control.go`, `wait.go` |
 | Reading results | `show.go`, `jobs.go`, `diff.go`, `diagnose.go`, `check.go` |
 | Workflow manifests | `export.go`, `import.go`, `workflow_source.go` |
@@ -268,16 +275,17 @@ Client side, in [run_command.go](../cmd/rotari/run_command.go):
 Supervisor side:
 
 1. `server.Server.Handle` ([internal/server/serve.go](../internal/server/serve.go))
-   dispatches `OpRun` to `serverOperations.Run` (sync) or `StartRun` (async)
-   in [server.go](../cmd/rotari/server.go).
-2. `runServerSync` / `startServerRun` share `prepareServerRun`: take the
+   dispatches `OpRun` to `supervisor.Operations.Run` (sync) or `StartRun`
+   (async) in [internal/supervisor/run.go](../internal/supervisor/run.go);
+   [server.go](../cmd/rotari/server.go) only builds the `Operations`.
+2. `Run` / `StartRun` share `prepareRun`: take the
    state lock, check the project is idle, and validate the queue. Then
    `projectrun.Runner.Begin`
    ([internal/projectrun/lifecycle.go](../internal/projectrun/lifecycle.go))
    writes `context.json`, takes the run lock (`running.lock`), registers the
    run, and marks `meta.json` as running.
 3. A synchronous run continues with `Runner.Run` in the supervisor. An async
-   run goes through `launchAsyncRun` ([main.go](../cmd/rotari/main.go)), which
+   run goes through `launchWorker` ([internal/supervisor/worker.go](../internal/supervisor/worker.go)), which
    spawns `__worker-run`, hands it the run lock, and returns; `cmdWorkerRun`
    calls `Runner.Run` in the worker.
 
@@ -326,7 +334,7 @@ CLI and Web UI agree.
 1. `cmdCancel` ([job_control.go](../cmd/rotari/job_control.go)) resolves the
    project, the run a run or attempt ID names, and the job IDs with
    `resolve.JobSelection`, and sends `OpCancel` to the supervisor.
-2. The supervisor's `serverOperations.Cancel` calls `jobcontrol.Controller.Cancel`
+2. `supervisor.Operations.Cancel` calls `jobcontrol.Controller.Cancel`
    ([internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go)),
    which finds the running run through its run lock, rejects a named run that
    is not the active one, expands array job IDs to tasks, marks `meta.json` as

@@ -31,6 +31,16 @@ type Options struct {
 	PartialArray bool
 }
 
+// OptionsFrom selects the execution options of a run request.
+func OptionsFrom(options run.Options) Options {
+	return Options{
+		RunID: options.RunID, RunName: options.RunName,
+		LocalConcurrency: options.LocalConcurrency, BatchMaxActive: options.BatchMaxActive, Retry: options.Retry,
+		Executor: options.Executor, ExecutorOptions: options.ExecutorOptions, Settings: options.ExecutorSettings,
+		Selection: options.Selection, JobIDs: options.JobIDs, Scope: options.Scope, SourceRunID: options.SourceRunID, PartialArray: options.PartialArray,
+	}
+}
+
 // Observer receives run progress. Both fields are optional.
 type Observer struct {
 	// Progress is called for every job result, including retries.

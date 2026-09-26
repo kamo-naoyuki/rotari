@@ -305,7 +305,7 @@ func webhookShouldSend(exitCode int, setting string) bool {
 
 func makeRunWebhookPayload(project, runID string, summary model.RunSummary) runWebhookPayload {
 	payload := runWebhookPayload{
-		Event: "run.finished", Project: project, Run: formatRunLabel(runID, summary.RunName),
+		Event: "run.finished", Project: project, Run: model.RunLabel(runID, summary.RunName),
 		Status: summary.Status, ExitCode: summary.ExitCode,
 	}
 	for _, result := range summary.Results {

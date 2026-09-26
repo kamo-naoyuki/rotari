@@ -742,7 +742,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 	}
 	writeShowTargetHeaderWithMode(os.Stdout, paths, "run")
-	fmt.Printf("%s %s\n", cyan("Run:"), formatRunLabel(runID, summary.RunName))
+	fmt.Printf("%s %s\n", cyan("Run:"), model.RunLabel(runID, summary.RunName))
 	if summary.RunName != "" {
 		fmt.Printf("%s %s\n", cyan("Run name:"), summary.RunName)
 	}

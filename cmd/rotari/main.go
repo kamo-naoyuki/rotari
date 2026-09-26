@@ -8,11 +8,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
-	"syscall"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
@@ -30,13 +27,6 @@ const commandJSONName = "command.json"
 const authBearerPrefix = "Bearer "
 const headerContentType = "Content-Type"
 const mimeApplicationJSON = "application/json"
-
-func formatRunLabel(runID, runName string) string {
-	if runName == "" {
-		return runID
-	}
-	return fmt.Sprintf("%s (%s)", runName, runID)
-}
 
 func main() {
 	code := run(os.Args[1:])
@@ -222,22 +212,12 @@ func cmdWorkerRun(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	exitCode, err := projectRunner().Run(paths, projectRunOptions(options), projectrun.Observer{})
+	exitCode, err := projectRunner().Run(paths, projectrun.OptionsFrom(options), projectrun.Observer{})
 	if err != nil {
 		printErrorf("worker run failed: %v", err)
 		return 1
 	}
 	return exitCode
-}
-
-// projectRunOptions selects the execution options of a run request.
-func projectRunOptions(options runcontract.Options) projectrun.Options {
-	return projectrun.Options{
-		RunID: options.RunID, RunName: options.RunName,
-		LocalConcurrency: options.LocalConcurrency, BatchMaxActive: options.BatchMaxActive, Retry: options.Retry,
-		Executor: options.Executor, ExecutorOptions: options.ExecutorOptions, Settings: options.ExecutorSettings,
-		Selection: options.Selection, JobIDs: options.JobIDs, Scope: options.Scope, SourceRunID: options.SourceRunID, PartialArray: options.PartialArray,
-	}
 }
 
 // parseWorkerRunArgs parses the arguments that runcontract.WorkerArgs builds
@@ -280,87 +260,6 @@ func parseWorkerRunArgs(args []string) (runcontract.Options, error) {
 		Scope:       model.CommandSelector{Stage: *scopeStage, Matrix: *scopeMatrix},
 		SourceRunID: *sourceRunID, PartialArray: *partialArray, CWD: left[6], ExecutorSettings: executorSettings(),
 	}, nil
-}
-
-// launchAsyncRun records a new run and starts a detached worker that executes
-// it. The caller holds the state lock and has checked that the project is
-// idle.
-func launchAsyncRun(paths state.ProjectPaths, options runcontract.Options) error {
-	if err := projectRunner().Begin(paths, projectrun.Start{RunID: options.RunID, RunName: options.RunName, CWD: options.CWD}); err != nil {
-		return err
-	}
-	// A worker that never starts leaves the project interrupted, not running.
-	abandon := func(format string, err error) error {
-		_ = os.Remove(paths.LockFile)
-		return fmt.Errorf(format, err)
-	}
-	exe, err := os.Executable()
-	if err != nil {
-		return abandon("failed to detect executable path: %w", err)
-	}
-	childOptions := options
-	childOptions.BaseDir = paths.BaseDir
-	cmd := exec.Command(exe, runcontract.WorkerArgs(childOptions, paths.BaseDirExplicit, executor.RunSettingNames)...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = nil
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if err := cmd.Start(); err != nil {
-		return abandon("failed to launch async runner: %w", err)
-	}
-	host, err := os.Hostname()
-	if err != nil {
-		_ = cmd.Process.Kill()
-		return abandon("failed to determine lock host: %w", err)
-	}
-	if err := state.WriteJSON(paths.LockFile, model.LockInfo{PID: cmd.Process.Pid, RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339(), Host: host}); err != nil {
-		_ = cmd.Process.Kill()
-		return abandon("failed to update lock with child pid: %w", err)
-	}
-	waitForAsyncRun(cmd, options.OnDone)
-
-	fmt.Printf("submitted project=%s run_id=%s pid=%d\n", options.QueueName, options.RunID, cmd.Process.Pid)
-	return nil
-}
-
-func waitForAsyncRun(cmd *exec.Cmd, onDone func()) {
-	go func() {
-		_ = cmd.Wait()
-		if onDone != nil {
-			onDone()
-		}
-	}()
-}
-
-func printFailedJobHints(runID string, results []model.JobResult) {
-	if hints := failedJobHints(runID, results); hints != "" {
-		fmt.Print(hints)
-	}
-}
-
-func failedJobHints(runID string, results []model.JobResult) string {
-	var hints strings.Builder
-	seen := make(map[string]bool)
-	for _, result := range results {
-		if result.ExitCode == 0 || seen[result.ID] {
-			continue
-		}
-		seen[result.ID] = true
-		hosts := strings.Join(result.Hosts, ",")
-		if hosts == "" {
-			hosts = "-"
-		}
-		if hints.Len() > 0 {
-			hints.WriteString("  ----\n")
-		}
-		attemptID := result.AttemptID
-		if attemptID == "" {
-			attemptID = result.ID
-		}
-		fmt.Fprintf(&hints, "  Job: %s\n  Attempt ID: %s\n  Hosts: %s\n  Command: %s\n  Show output:\n    rotari show --run-id %s --job-id %s\n",
-			result.ID, result.AttemptID, hosts, strings.Join(result.Command, " "), runID, attemptID)
-	}
-	return hints.String()
 }
 
 func runOneJob(runDir string, job model.JobSpec) model.JobResult {

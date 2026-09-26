@@ -2041,32 +2041,6 @@ func TestCompareQueueWithRun(t *testing.T) {
 	}
 }
 
-func TestResolveQueueExecutorUsesDefaultExecutor(t *testing.T) {
-	baseDir := t.TempDir()
-	queueDir := filepath.Join(baseDir, "projects", "default")
-	if err := os.MkdirAll(queueDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(filepath.Join(queueDir, "queue.json"), model.Queue{
-		DefaultExecutor: "slurm",
-		Commands:        []model.QueuedCommand{{ID: "hello", Command: []string{"echo", "hello"}}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	got, err := resolveQueueExecutor(baseDir, "default", "")
-	if err != nil {
-		t.Fatalf("resolveQueueExecutor returned error: %v", err)
-	}
-	if got != "slurm" {
-		t.Fatalf("resolved executor = %q, want slurm", got)
-	}
-
-	if _, err := resolveQueueExecutor(baseDir, "default", "invalid"); err == nil {
-		t.Fatal("resolveQueueExecutor accepted unsupported executor")
-	}
-}
-
 func TestCmdWaitRejectsNegativeTimeout(t *testing.T) {
 	if code := cmdWait([]string{"--run-id", "run-1", "--timeout", "-1s"}); code != 1 {
 		t.Fatalf("cmdWait exit = %d, want 1", code)

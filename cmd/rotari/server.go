@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/kamo-naoyuki/rotari/internal/supervisor"
 )
 
 const maxServerLogSize = 1 << 20
@@ -171,7 +171,7 @@ func runServer(baseDir string) int {
 	}
 	defer unregisterServer(masterDir, baseDir)
 
-	server := serverinternal.New(listener, serverOperations{baseDir: baseDir}, logger)
+	server := serverinternal.New(listener, supervisorOperations(baseDir), logger)
 	logger.Writef("started pid=%d", os.Getpid())
 	defer logger.Writef("stopped")
 	signals := make(chan os.Signal, 1)
@@ -192,41 +192,14 @@ func newServerLogger(baseDir string) *serverinternal.Logger {
 
 // newRotariServer returns a server for baseDir that is served through Handle.
 func newRotariServer(baseDir string) *serverinternal.Server {
-	return serverinternal.New(nil, serverOperations{baseDir: baseDir}, newServerLogger(baseDir))
+	return serverinternal.New(nil, supervisorOperations(baseDir), newServerLogger(baseDir))
 }
 
-// serverOperations performs the project work behind background server
-// requests for one base directory.
-type serverOperations struct {
-	baseDir string
-}
-
-func (ops serverOperations) Submit(request serverinternal.Request) (string, error) {
-	command := model.QueuedCommand{
-		Command: request.Command, Executor: request.Executor, ExecutorOptions: request.ExecutorOptions, Environment: request.Environment,
-		WorkingDirectory: request.WorkingDirectory, Name: request.JobName, Stage: request.Stage, DependsOn: request.DependsOn,
-		DependsOnFinished: request.DependsOnFinished, Timeout: request.Timeout, Retry: request.JobRetry,
-		RetryDelay: request.RetryDelay, RetryBackoff: request.RetryBackoff, RetryMaxDelay: request.RetryMaxDelay,
+// supervisorOperations performs the project work behind background server
+// requests for baseDir.
+func supervisorOperations(baseDir string) supervisor.Operations {
+	return supervisor.Operations{
+		BaseDir: baseDir, Editor: queueEditor(), Controller: jobController(), Runner: projectRunner(),
+		NewRunID: makeRunID, Printf: func(format string, args ...any) { fmt.Printf(format, args...) },
 	}
-	return queueEditor().Add(ops.baseDir, request.QueueName, []model.QueuedCommand{command}, request.Array)
-}
-
-func (ops serverOperations) Cancel(request serverinternal.Request) (string, error) {
-	return jobController().Cancel(ops.baseDir, request.QueueName, request.RunID, request.JobIDs, request.Wait)
-}
-
-func (ops serverOperations) Control(request serverinternal.Request) (string, error) {
-	return jobController().Control(ops.baseDir, request.QueueName, request.RunID, request.JobIDs, request.Op)
-}
-
-func (ops serverOperations) StartRun(request serverinternal.Request, onDone func()) (string, error) {
-	return startServerRun(ops.baseDir, request, onDone)
-}
-
-func (ops serverOperations) Run(request serverinternal.Request, progress func(serverinternal.Response)) (string, int, error) {
-	return runServerSync(ops.baseDir, request, progress)
-}
-
-func (ops serverOperations) CancelRun(request serverinternal.Request) {
-	_, _ = jobController().Cancel(ops.baseDir, request.QueueName, "", nil, false)
 }

@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,20 +15,6 @@ import (
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
-
-func TestWaitForAsyncRunCallsOnDone(t *testing.T) {
-	command := exec.Command("sh", "-c", "exit 0")
-	if err := command.Start(); err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan struct{})
-	waitForAsyncRun(command, func() { close(done) })
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("async run completion callback was not called")
-	}
-}
 
 func TestCmdRunWithRunIDRejectsRunningProjectBeforeQueueConfirmation(t *testing.T) {
 	baseDir := t.TempDir()

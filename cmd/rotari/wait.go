@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
@@ -15,6 +16,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/kamo-naoyuki/rotari/internal/supervisor"
 )
 
 // cmdWait waits for selected runs to finish and returns the final run exit code
@@ -323,27 +325,11 @@ func runEndedWithoutSummary(paths state.ProjectPaths, runID, summaryPath string)
 }
 
 func formatRunCompletion(paths state.ProjectPaths, runID string, summary model.RunSummary) string {
-	successCount := 0
-	failedCount := 0
-	for _, result := range summary.Results {
-		if result.ExitCode == 0 {
-			successCount++
-		} else {
-			failedCount++
-		}
-	}
-	runDir := filepath.Join(paths.RunsDir, runID)
-	title := "=== Run finished ==="
+	title, details, _ := strings.Cut(supervisor.CompletionMessage(paths, runID, summary), "\n")
 	if summary.ExitCode != 0 {
-		title = red("=== Run failed ===")
+		title = red(title)
 	} else {
 		title = green(title)
 	}
-	message := title + "\n" + colorLabeledDetails(fmt.Sprintf("  Project: %s\n  Run: %s\n  Status: %s\n  Exit code: %d\n  Success: %d\n  Failed: %d\n  Directory: %s\n",
-		paths.ProjectName, formatRunLabel(runID, summary.RunName), summary.Status, summary.ExitCode, successCount, failedCount, runDir), summary.ExitCode != 0)
-	if failedCount > 0 {
-		message += colorLabeledDetails(fmt.Sprintf("\nInspect run:\n  rotari show --run-id %s\n\nSee failed job output below.\n\nFailed job output:\n%s\nRerun failed jobs:\n  rotari retry --basedir %s --project-name %s\n",
-			runID, failedJobHints(runID, summary.Results), paths.BaseDir, paths.ProjectName), summary.ExitCode != 0)
-	}
-	return message
+	return title + "\n" + colorLabeledDetails(details, summary.ExitCode != 0)
 }

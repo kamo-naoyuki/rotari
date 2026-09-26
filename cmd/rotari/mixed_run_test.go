@@ -349,7 +349,7 @@ func TestExecuteMixedRunPersistsRunName(t *testing.T) {
 	if summary.RunName != "nightly-build" {
 		t.Fatalf("summary run name = %q, want nightly-build", summary.RunName)
 	}
-	if got := formatRunLabel(summary.RunID, summary.RunName); got != "nightly-build (named-run)" {
+	if got := model.RunLabel(summary.RunID, summary.RunName); got != "nightly-build (named-run)" {
 		t.Fatalf("run label = %q, want named-run with display name", got)
 	}
 }

@@ -210,7 +210,7 @@ func loadDiffRun(paths state.ProjectPaths, runID string) (rundiff.Run, error) {
 }
 
 func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result rundiff.Result, showAll bool) {
-	label := func(info rundiff.RunInfo) string { return formatRunLabel(info.ID, info.Name) }
+	label := func(info rundiff.RunInfo) string { return model.RunLabel(info.ID, info.Name) }
 	fmt.Fprintf(writer, "%s %s\n", cyan("Project:"), paths.ProjectName)
 	fmt.Fprintf(writer, "%s %s -> %s\n", cyan("Runs:"), label(result.From), label(result.To))
 	if result.From.Elapsed != "" || result.To.Elapsed != "" {
@@ -327,7 +327,7 @@ func showLineage(paths state.ProjectPaths, jsonOutput bool) int {
 	labels := make([]string, len(entries))
 	width := len("RUN")
 	for index, entry := range entries {
-		labels[index] = formatRunLabel(entry.Run.ID, entry.Run.Name)
+		labels[index] = model.RunLabel(entry.Run.ID, entry.Run.Name)
 		width = max(width, len(labels[index]))
 	}
 	fmt.Println(cyan(fmt.Sprintf("%-*s  %5s  %5s  %6s  %7s  %5s  %8s  %5s  %7s  %7s  %7s  %s",

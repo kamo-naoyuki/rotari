@@ -268,9 +268,9 @@
 
 - `projectrun.Runner` ([internal/projectrun](../../internal/projectrun/)) is
   the single run lifecycle for every run, regardless of executor mix. The
-  synchronous path (`runServerSync` in
-  [cmd/rotari/run_command.go](../../cmd/rotari/run_command.go)) and the async
-  path (`startServerRun`, then the `__worker-run` worker in `cmdWorkerRun`)
+  synchronous path (`Operations.Run` in
+  [internal/supervisor/run.go](../../internal/supervisor/run.go)) and the async
+  path (`Operations.StartRun`, then the `__worker-run` worker in `cmdWorkerRun`)
   both call it:
   - `Begin`, under the state lock of an idle project, writes `context.json`
     first, then takes `running.lock`, registers the run, and marks

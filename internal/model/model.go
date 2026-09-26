@@ -649,3 +649,12 @@ func ArrayTaskIDs(array *ArraySpec) []int {
 	}
 	return tasks
 }
+
+// RunLabel names a run for display: its name with the ID in parentheses, or
+// the ID alone when the run has no name.
+func RunLabel(runID, runName string) string {
+	if runName == "" {
+		return runID
+	}
+	return fmt.Sprintf("%s (%s)", runName, runID)
+}
