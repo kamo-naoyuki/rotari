@@ -46,7 +46,7 @@ func cmdRun(args []string) int {
 	executor := cliString(fs, "executor", "")
 	var executorOptions stringSliceFlag
 	cliValue(fs, &executorOptions, "executor-option")
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	left := fs.Args()

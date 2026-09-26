@@ -116,7 +116,7 @@ func cmdWeb(args []string) int {
 	allowControl := cliBool(fs, "allow-control", true)
 	authToken := cliString(fs, "auth-token", "")
 	notifications := cliBool(fs, "notifications", true)
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	if len(fs.Args()) != 0 || *port < 0 || *port > 65535 {

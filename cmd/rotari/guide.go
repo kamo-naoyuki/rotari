@@ -20,7 +20,7 @@ func cmdGuide(args []string) int {
 	fs := flag.NewFlagSet("guide", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	fs.Usage = func() { fmt.Fprintln(os.Stderr, "usage: "+cliUsage("guide")) }
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	if len(fs.Args()) != 0 {

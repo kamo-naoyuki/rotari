@@ -30,7 +30,7 @@ func cmdCheck(args []string) int {
 	jsonOutput := cliBool(fs, "json", false)
 	deep := cliBool(fs, "deep", false)
 	quiet := cliBool(fs, "quiet", false)
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	if len(fs.Args()) > 1 || (len(fs.Args()) == 1 && cliOptionSet(fs, "project-name")) {

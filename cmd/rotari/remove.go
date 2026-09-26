@@ -26,7 +26,7 @@ func cmdRemove(args []string) int {
 	matrixName := cliString(fs, "matrix", "")
 	allJobs := cliBool(fs, "all", false)
 	quiet := cliBool(fs, "quiet", false)
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	if len(fs.Args()) > 0 && len(jobIDs) > 0 {

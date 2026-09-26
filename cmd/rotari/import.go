@@ -61,7 +61,7 @@ func cmdImport(args []string) int {
 	overwrite := cliBool(fs, "overwrite", false)
 	dryRun := cliBool(fs, "dry-run", false)
 	jsonOutput := cliBool(fs, "json", false)
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	positional := fs.Args()

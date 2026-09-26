@@ -79,7 +79,7 @@ func cmdExport(args []string) int {
 	outputPath := cliString(fs, "output", "")
 	var runIDs stringSliceFlag
 	cliValue(fs, &runIDs, "run-id")
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	positional := fs.Args()

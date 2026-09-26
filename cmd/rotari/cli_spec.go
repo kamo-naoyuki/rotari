@@ -619,6 +619,30 @@ func cliString(fs *flag.FlagSet, name, defaultValue string) *string {
 	return target
 }
 
+// cliParse parses args with options allowed before, between, and after
+// positional arguments; "--" ends the options, and every later argument is
+// positional. add and change call fs.Parse instead: their positional
+// arguments are a job command, whose own options must reach the job.
+func cliParse(fs *flag.FlagSet, args []string) error {
+	var positional []string
+	for {
+		if err := fs.Parse(args); err != nil {
+			return err
+		}
+		rest := fs.Args()
+		if consumed := len(args) - len(rest); consumed > 0 && args[consumed-1] == "--" {
+			positional = append(positional, rest...)
+			break
+		}
+		if len(rest) == 0 {
+			break
+		}
+		positional = append(positional, rest[0])
+		args = rest[1:]
+	}
+	return fs.Parse(append([]string{"--"}, positional...))
+}
+
 func cliOptionSet(fs *flag.FlagSet, name string) bool {
 	set := false
 	fs.Visit(func(actual *flag.Flag) {

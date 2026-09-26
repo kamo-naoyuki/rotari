@@ -52,7 +52,7 @@ func cmdJobs(args []string) int {
 	allBaseDirs := cliBool(fs, "all", false)
 	format := cliString(fs, "format", defaultJobsFormat)
 	since := cliString(fs, "since", defaultJobsSinceText)
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	if len(fs.Args()) > 1 || (len(fs.Args()) == 1 && cliOptionSet(fs, "project-name")) {

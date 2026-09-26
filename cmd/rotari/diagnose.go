@@ -46,7 +46,7 @@ func cmdDiagnose(args []string) int {
 	model := cliString(fs, "model", "")
 	language := cliString(fs, "language", "")
 	rules := cliBool(fs, "rules", false)
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	if len(fs.Args()) > 1 || (len(fs.Args()) == 1 && *jobID != "") {

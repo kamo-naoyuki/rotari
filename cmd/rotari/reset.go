@@ -22,7 +22,7 @@ func cmdReset(args []string) int {
 	queueNameOption := cliString(fs, "project-name", "")
 	recoverOption := cliBool(fs, "recover", false)
 	quiet := cliBool(fs, "quiet", false)
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	if len(fs.Args()) > 1 || (len(fs.Args()) == 1 && cliOptionSet(fs, "project-name")) {

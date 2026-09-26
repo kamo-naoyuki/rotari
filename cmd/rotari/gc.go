@@ -26,7 +26,7 @@ func cmdGC(args []string) int {
 	fs.SetOutput(os.Stderr)
 	masterdir := cliString(fs, "masterdir", "")
 	apply := fs.Bool("apply", false, "remove the cached orphan entries")
-	if err := fs.Parse(args); err != nil || len(fs.Args()) > 1 || (len(fs.Args()) == 1 && cliOptionSet(fs, "masterdir")) {
+	if err := cliParse(fs, args); err != nil || len(fs.Args()) > 1 || (len(fs.Args()) == 1 && cliOptionSet(fs, "masterdir")) {
 		printError("usage: " + cliUsage("gc"))
 		return 1
 	}

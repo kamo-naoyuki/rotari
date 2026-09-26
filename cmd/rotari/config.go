@@ -442,7 +442,7 @@ func cmdConfig(args []string) int {
 	list := cliBool(fs, "list", false)
 	format := cliString(fs, "format", "")
 	output := cliString(fs, "output", "")
-	if err := fs.Parse(args); err != nil || len(fs.Args()) != 0 {
+	if err := cliParse(fs, args); err != nil || len(fs.Args()) != 0 {
 		printError("usage: " + cliUsage("config"))
 		return 1
 	}

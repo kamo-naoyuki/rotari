@@ -106,7 +106,7 @@ func cmdShow(args []string) int {
 	noPager := cliBool(fs, "no-pager", false)
 	jsonOutput := cliBool(fs, "json", false)
 	reportOutput := cliBool(fs, "report", false)
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	scope := model.CommandSelector{Stage: *stageOption, Matrix: *matrixOption}

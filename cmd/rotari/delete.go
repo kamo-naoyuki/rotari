@@ -19,7 +19,7 @@ func cmdDelete(args []string) int {
 	basedir := cliString(fs, "basedir", "")
 	queueNameOption := cliString(fs, "project-name", "")
 	runIDOption := cliString(fs, "run-id", "")
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	if len(fs.Args()) > 1 || (len(fs.Args()) == 1 && *runIDOption != "") {

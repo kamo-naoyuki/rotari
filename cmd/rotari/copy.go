@@ -64,7 +64,7 @@ func cmdCopy(args []string) int {
 	appendJobs := cliBool(fs, "append", false)
 	overwriteJobs := cliBool(fs, "overwrite", false)
 	quiet := cliBool(fs, "quiet", false)
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	if len(fs.Args()) > 1 || (len(fs.Args()) == 1 && *runID != "") || (*appendJobs && *overwriteJobs) {

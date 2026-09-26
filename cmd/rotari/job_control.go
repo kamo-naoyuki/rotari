@@ -21,7 +21,7 @@ func cmdCancel(args []string) int {
 	var jobIDs stringSliceFlag
 	cliValue(fs, &jobIDs, "job-id")
 	wait := cliBool(fs, "wait", false)
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	if len(fs.Args()) > 0 && len(jobIDs) > 0 {
@@ -65,7 +65,7 @@ func cmdJobSignal(args []string, operation string) int {
 	queueNameOption := cliString(fs, "project-name", "")
 	var jobIDs stringSliceFlag
 	cliValue(fs, &jobIDs, "job-id")
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	if len(fs.Args()) > 0 && len(jobIDs) > 0 {

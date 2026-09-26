@@ -23,6 +23,10 @@ successful results are carried forward.
 - Pass `--project-name/-p` (or set `ROTARI_PROJECT_NAME`) so each command
   targets the intended project.
 - Use `--no-pager` with log views such as `show --logs`.
+- In `add` and `change`, put rotari options before the job command and
+  separate them with `--`: every argument after the command's first word goes
+  to the job, so `add python train.py --timeout 30` passes `--timeout 30` to
+  the script. Other commands accept options anywhere.
 
 ## Typical loop
 

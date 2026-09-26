@@ -40,7 +40,10 @@ const (
 
 var positionalCases = []positionalCase{
 	// General rules.
-	{name: "option after a positional", args: "copy {run:remote-run} --overwrite", fail: true, want: "usage"},
+	{name: "option after a positional", args: "copy {run:remote-run} --overwrite", want: "copied jobs=1 from run={run:remote-run} to queue=remote"},
+	{name: "option between positionals", args: "diff {run:sweep-first} --all {run:sweep-second}", want: "train-SEED1"},
+	{name: "positional after --", args: "show -b {B} -p sweep -- --job-id", fail: true, want: `selector "--job-id" not found`},
+	{name: "job command after its first word", args: "add -b {B} -p other echo --retry 3", check: queuedCommand("other", "echo --retry 3")},
 	{name: "command without positionals", args: "run -b {B} -p sweep extra", fail: true, want: "usage"},
 	{name: "command without positionals", args: "retry -b {B} -p sweep extra", fail: true, want: "usage"},
 	{name: "command without positionals", args: "web -b {B} extra", fail: true, want: "usage"},
@@ -64,8 +67,7 @@ var positionalCases = []positionalCase{
 
 	// show: a selector, but not a project.
 	{name: "project is not a selector", args: "show -b {B} sweep", fail: true, want: `selector "sweep" not found`},
-	{name: "selector and job option", args: "show -b {B} -p sweep prep --job-id {job:prep}", fail: true, want: "usage"},
-	{name: "selector before job option", args: "show -b {B} -p sweep --job-id {job:prep} prep", fail: true, want: "cannot be combined"},
+	{name: "selector and job option", args: "show -b {B} -p sweep prep --job-id {job:prep}", fail: true, want: "cannot be combined"},
 
 	// wait: a project, an active run name, or a run ID.
 	{name: "project", args: "wait -b {B} --timeout 50ms sweep", setup: setupActive, fail: true, want: "timed out waiting for run {run:live}"},
@@ -92,8 +94,7 @@ var positionalCases = []positionalCase{
 	{name: "project exports its queue", args: "export -b {B} sweep", fail: true, want: "queue has no jobs"},
 	{name: "run ID after project option", args: "export -b {B} -p sweep other", fail: true, want: `run "other" not found`},
 	{name: "run ID and file", args: "export -b {B} -p sweep {run:sweep-first} {T}/out.yaml", check: fileExists("out.yaml")},
-	{name: "file and option", args: "export {run:sweep-first} {T}/out.yaml --output {T}/other.yaml", fail: true, want: "usage"},
-	{name: "file and output option", args: "export --output {T}/other.yaml {run:sweep-first} {T}/out.yaml", fail: true, want: "usage"},
+	{name: "file and output option", args: "export {run:sweep-first} {T}/out.yaml --output {T}/other.yaml", fail: true, want: "usage"},
 
 	// import: a file and a project.
 	{name: "file and project", args: "import -b {B} {T}/m.yaml sweep", setup: setupManifest, check: queueLength("sweep", 5)},

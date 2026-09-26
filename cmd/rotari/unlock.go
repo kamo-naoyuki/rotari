@@ -17,7 +17,7 @@ func cmdUnlock(args []string) int {
 	basedir := cliString(fs, "basedir", "")
 	queueNameOption := cliString(fs, "project-name", "")
 	runID := cliString(fs, "run-id", "")
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	projectNameSet := cliOptionSet(fs, "project-name")

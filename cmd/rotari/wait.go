@@ -28,7 +28,7 @@ func cmdWait(args []string) int {
 	cliValue(fs, &explicitRunIDs, "run-id")
 	timeout := cliDuration(fs, "timeout", 0)
 	jsonOutput := cliBool(fs, "json", false)
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	selectors := fs.Args()

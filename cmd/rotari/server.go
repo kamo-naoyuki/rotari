@@ -58,7 +58,7 @@ func cmdServerStatus(args []string) int {
 	fs := flag.NewFlagSet("server status", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	basedir := cliString(fs, "basedir", "")
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	baseDir, _, err := state.ResolveBaseDir(*basedir)
@@ -80,7 +80,7 @@ func cmdServerList(args []string) int {
 	fs := flag.NewFlagSet("server list", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	masterdir := cliString(fs, "masterdir", "")
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	masterDir, err := state.ResolveMasterDir(*masterdir)
@@ -102,7 +102,7 @@ func cmdServerRequest(args []string, op string) int {
 	fs := flag.NewFlagSet("server request", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	basedir := cliString(fs, "basedir", "")
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	baseDir, _, err := state.ResolveBaseDir(*basedir)
@@ -129,7 +129,7 @@ func cmdServerProcess(args []string) int {
 	fs := flag.NewFlagSet("__server", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	basedir := cliString(fs, "basedir", "")
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	baseDir, _, err := state.ResolveBaseDir(*basedir)

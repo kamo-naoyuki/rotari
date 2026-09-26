@@ -28,7 +28,7 @@ func cmdDiff(args []string) int {
 	projectName := cliString(fs, "project-name", "")
 	jsonOutput := cliBool(fs, "json", false)
 	showAll := cliBool(fs, "all", false)
-	if err := fs.Parse(args); err != nil {
+	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	if len(fs.Args()) > 2 {

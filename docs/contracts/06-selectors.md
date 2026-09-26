@@ -84,11 +84,15 @@ Selector combinations:
 
 General rules:
 
-- Options come before positional arguments. Parsing stops at the first
-  positional argument or at `--`, and every later argument is positional even
-  when it looks like an option. This is how `add` and `change` keep a job
-  command's own options; in other commands an option after a positional
-  argument is a usage error (`copy RUN_ID --overwrite`).
+- Options may come before, between, or after positional arguments
+  (`copy RUN_ID --overwrite`), except in `add` and `change`. `--` ends the
+  options: every later argument is positional, which is how a positional that
+  starts with `-` is passed. Implemented by `cliParse` in
+  [cmd/rotari/cli_spec.go](../../cmd/rotari/cli_spec.go).
+- In `add` and `change`, options must come before the job command: parsing
+  stops at the first positional argument, and every later argument belongs to
+  the job command even when it looks like a rotari option, so
+  `add python train.py --timeout 30` passes `--timeout 30` to the script.
 - A positional argument that stands for an option cannot be combined with
   that option: supplying both is a usage error, not a precedence rule.
 - A command without positional arguments rejects any with a usage error.
