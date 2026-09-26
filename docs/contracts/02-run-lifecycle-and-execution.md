@@ -204,12 +204,15 @@
   killed or only the exit code is known. Because the watchdog signals process
   group 0, a status wrapper with a timeout first makes itself a process group
   leader: the local executor already starts it that way, and otherwise it
-  re-executes itself under `setsid`, which keeps its PID. If it still is not a
+  re-executes itself under `setsid`, which keeps its PID. It reads its process
+  group from `/proc/$$/stat`, falling back to `ps -o pgid= -p`, because
+  BusyBox `ps` (as on the OpenPBS test image) rejects `-p`. If it still is not a
   leader, it skips the watchdog and logs that the timeout is not enforced
   rather than signal a group it does not own. The SSH wrapper signals the
   command's own `setsid` group. Covered by
   [internal/executor/timeout_test.go](../../internal/executor/timeout_test.go)
-  and `TestExecuteMixedRunRecordsJobTimeout`.
+  and `TestExecuteMixedRunRecordsJobTimeout`, and against real schedulers by
+  `TestSchedulerContainerStopsTimedOutJob`.
 
 ## Validation and readiness
 

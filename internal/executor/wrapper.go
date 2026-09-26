@@ -48,18 +48,25 @@ func StatusWrapperScript(command []string, jobDir string, environment []string, 
 // own process group, so the watchdog's "kill 0" reaches only the wrapper and
 // the job. The local executor already starts wrappers that way, and
 // schedulers normally do; otherwise the wrapper re-executes itself under
-// setsid, which keeps its PID. It sets group_leader when that holds.
+// setsid, which keeps its PID. It sets group_leader when that holds. The
+// process group is read from /proc, because some ps implementations, such as
+// BusyBox's, do not accept -p; ps is the fallback without /proc.
 func processGroupLeaderShell(timeoutSeconds int) string {
 	if timeoutSeconds <= 0 {
 		return ""
 	}
-	return `wrapper_pgid=$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')
-if [ "$wrapper_pgid" != "$$" ] && [ -z "${ROTARI_WRAPPER_SETSID:-}" ] && [ -f "$0" ] && command -v setsid >/dev/null 2>&1; then
+	return `wrapper_pgid() {
+    pgid=
+    [ -r /proc/$$/stat ] && pgid=$(sed 's/.*) //' /proc/$$/stat 2>/dev/null | awk '{print $3}')
+    [ -n "$pgid" ] || pgid=$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')
+    echo "$pgid"
+}
+if [ "$(wrapper_pgid)" != "$$" ] && [ -z "${ROTARI_WRAPPER_SETSID:-}" ] && [ -f "$0" ] && command -v setsid >/dev/null 2>&1; then
     ROTARI_WRAPPER_SETSID=1 exec setsid /bin/sh "$0" "$@"
 fi
 unset ROTARI_WRAPPER_SETSID
 group_leader=
-[ "$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')" = "$$" ] && group_leader=1
+[ "$(wrapper_pgid)" = "$$" ] && group_leader=1
 `
 }
 
