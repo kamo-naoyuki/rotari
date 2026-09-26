@@ -30,6 +30,9 @@ type selectorCase struct {
 	// queued restores project sweep's latest run into its queue first, for
 	// queue edits.
 	queued bool
+	// change, when set, are the arguments of a change run on the restored
+	// queue before the command, to edit a job first.
+	change string
 	// table reads show's jobs from the rows of a job table instead of a
 	// single job's details.
 	table bool
@@ -103,6 +106,11 @@ func (fixture selectorFixture) runSelectorCase(t *testing.T, tc selectorCase) se
 	sweep := fixture.paths(t, fixture.BaseDir, "sweep")
 	if tc.queued {
 		fixture.restore(t, fixture.BaseDir, "sweep", fixture.Runs["sweep-second"])
+	}
+	if tc.change != "" {
+		if code, output := captureSelectorOutput(func() int { return cmdChange(append(fixture.expand(tc.change), "--quiet")) }); code != 0 {
+			t.Fatalf("rotari change %s failed:\n%s", tc.change, output)
+		}
 	}
 	before, err := state.LoadQueue(sweep.QueueFile)
 	if err != nil {

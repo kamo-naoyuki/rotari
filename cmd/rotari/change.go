@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -239,11 +240,22 @@ func changeQueueJobs(baseDir, queueName, requestedRunID string, selector model.C
 
 func applyChangeMutation(queue model.Queue, jobIndex int, mutation changeMutation) error {
 	changed := &queue.Commands[jobIndex]
+	before := *changed
 	if queue.WorkflowImport {
 		changed.Force = true
 		changed.Accepted = false
 		changed.TaskAccepted = nil
 	}
+	defer func() {
+		// A job computes something else once its command, environment, or
+		// working directory changes, so its recorded result no longer
+		// applies. Scheduling settings such as the timeout keep it.
+		if !slices.Equal(before.Command, changed.Command) || !slices.Equal(before.Environment, changed.Environment) || before.WorkingDirectory != changed.WorkingDirectory {
+			changed.Force = true
+			changed.Accepted = false
+			changed.TaskAccepted = nil
+		}
+	}()
 	if mutation.executor != "" {
 		changed.Executor = mutation.executor
 	}

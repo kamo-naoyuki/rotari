@@ -39,9 +39,12 @@ type OriginResults interface {
 //
 // A scope, when set, narrows a result selection to one stage or matrix: jobs
 // outside it do not execute and carry their results like non-matching jobs.
-// jobIDs are the whole selection when selection is "job-id"; with a result
-// selection they execute in addition to the matching jobs.
+// jobIDs are the whole selection, and only with selection "job-id": jobs
+// named directly are not combined with a result selection.
 func PlanRerun(queue model.Queue, selection string, jobIDs []string, scope model.CommandSelector, referenceRunID string, partialArray bool, source OriginResults) (Plan, error) {
+	if len(jobIDs) > 0 && selection != "job-id" {
+		return Plan{}, fmt.Errorf("job IDs cannot be combined with result selection %q", selection)
+	}
 	if selection == "" && queue.WorkflowImport {
 		return planImportedWorkflow(queue, source)
 	}
@@ -270,14 +273,24 @@ func (resolver *originResolver) fallbackOrigin(jobID string, result model.JobRes
 	return resolver.source.Origin(resolver.fallbackRunID, jobID, result)
 }
 
+// jobResult returns the result recorded for a job or task of command, or
+// none when it is forced: it changed since that result, which therefore no
+// longer applies and is neither matched nor carried.
+func (resolver *originResolver) jobResult(command model.QueuedCommand, origin *model.JobOrigin, id string) (model.JobResult, bool, error) {
+	if command.Force || command.TaskForce[id] {
+		return model.JobResult{}, false, nil
+	}
+	return resolver.result(origin, id)
+}
+
 func (resolver *originResolver) commandResult(command model.QueuedCommand) (model.JobResult, bool, error) {
 	if command.Array == nil {
-		return resolver.result(command.Origin, command.ID)
+		return resolver.jobResult(command, command.Origin, command.ID)
 	}
 	results := make(map[string]model.JobResult)
 	for _, task := range model.ArrayTaskIDs(command.Array) {
 		id := taskID(command.ID, task)
-		result, finished, err := resolver.result(TaskOrigin(command, task), id)
+		result, finished, err := resolver.jobResult(command, TaskOrigin(command, task), id)
 		if err != nil {
 			return model.JobResult{}, false, err
 		}
@@ -305,8 +318,8 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 	resolver := &originResolver{source: source, fallbackRunID: referenceRunID, resultsByRun: make(map[string]map[string]model.JobResult)}
 	for _, command := range queue.Commands {
 		scoped := inScope(command)
-		// A requested job executes whole, in addition to the jobs the result
-		// filter matches; a requested task of an array executes alone.
+		// A requested job executes whole; a requested task of an array
+		// executes alone.
 		requestedTask := false
 		if command.Array != nil {
 			for _, task := range model.ArrayTaskIDs(command.Array) {
@@ -318,7 +331,7 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 			for _, task := range model.ArrayTaskIDs(command.Array) {
 				id := taskID(command.ID, task)
 				origin := TaskOrigin(command, task)
-				result, finished, err := resolver.result(origin, id)
+				result, finished, err := resolver.jobResult(command, origin, id)
 				if err != nil {
 					return Plan{}, err
 				}
@@ -369,7 +382,7 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 		for _, task := range model.ArrayTaskIDs(command.Array) {
 			id := taskID(command.ID, task)
 			origin := TaskOrigin(command, task)
-			taskResult, taskFinished, err := resolver.result(origin, id)
+			taskResult, taskFinished, err := resolver.jobResult(command, origin, id)
 			if err != nil {
 				return Plan{}, err
 			}

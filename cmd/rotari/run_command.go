@@ -21,6 +21,16 @@ import (
 // cmdRun starts a run, optionally repopulating the queue from historical run
 // results or selected attempts before submitting work to the background server.
 func cmdRun(args []string) int {
+	return runJobs(args, "")
+}
+
+// errJobsWithResultFilter rejects a job named directly together with a result
+// filter: naming the job already says what to execute.
+const errJobsWithResultFilter = "--job-id or --job-name cannot be combined with --failed, --unfinished, or --success"
+
+// runJobs is run, and retry with defaultSelection: the result selection used
+// when neither a result filter nor a job is given.
+func runJobs(args []string, defaultSelection string) int {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	basedir := cliString(fs, "basedir", "")
@@ -70,6 +80,14 @@ func cmdRun(args []string) int {
 	if scope.Kinds() > 1 || (scope.Kinds() > 0 && (*jobNameOption != "" || len(jobIDs) > 0)) {
 		printError("--stage, --matrix, and --job-id or --job-name cannot be combined")
 		return 1
+	}
+	directJobs := *jobNameOption != "" || len(jobIDs) > 0
+	if selection != "" && directJobs {
+		printError(errJobsWithResultFilter)
+		return 1
+	}
+	if selection == "" && !directJobs {
+		selection = defaultSelection
 	}
 	if scope.Kinds() > 0 && selection == "" {
 		// A scope alone re-executes every job in it, whatever its result.
@@ -265,10 +283,10 @@ func cmdRun(args []string) int {
 	return response.ExitCode
 }
 
-// cmdRetry reruns failed and unfinished jobs by delegating to cmdRun with the
-// retry selection flags.
+// cmdRetry reruns failed and unfinished jobs, or, given a result filter or a
+// job, what they select, as run does.
 func cmdRetry(args []string) int {
-	return cmdRun(append([]string{"--failed", "--unfinished"}, args...))
+	return runJobs(args, model.ResultSelection(true, true, false))
 }
 
 func sendRunRequest(baseDir string, request serverinternal.Request) (serverinternal.Response, error) {

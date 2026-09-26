@@ -429,15 +429,19 @@ func TestCopyRunToQueueCombinesResultSelections(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := copyRunToQueue(baseDir, "default", "run-1", "failed,unfinished", []string{"success-id"}, false); err != nil {
+	if _, err := copyRunToQueue(baseDir, "default", "run-1", "failed,unfinished", nil, false); err != nil {
 		t.Fatal(err)
 	}
 	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(queue.Commands) != 3 || queue.Commands[0].Name != "success" || queue.Commands[1].Name != "failed" || queue.Commands[2].Name != "unfinished" {
-		t.Fatalf("combined selection = %#v, want selected filters plus job ID", queue.Commands)
+	if len(queue.Commands) != 2 || queue.Commands[0].Name != "failed" || queue.Commands[1].Name != "unfinished" {
+		t.Fatalf("combined selection = %#v, want failed or unfinished jobs", queue.Commands)
+	}
+	// A job named directly is not combined with a result filter.
+	if _, err := copyRunToQueue(baseDir, "default", "run-1", "failed,unfinished", []string{"success-id"}, false, true); err == nil || !strings.Contains(err.Error(), "job IDs cannot be combined") {
+		t.Fatalf("copy with a filter and a job ID error = %v, want a rejection", err)
 	}
 }
 

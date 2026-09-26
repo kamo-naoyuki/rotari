@@ -83,6 +83,11 @@ func cmdCopy(args []string) int {
 		printError("--stage, --matrix, and --job-id or --job-name cannot be combined")
 		return 1
 	}
+	selection := model.ResultSelection(*failed, *unfinished, *success)
+	if selection != "" && (*jobName != "" || len(jobIDs) > 0) {
+		printError(errJobsWithResultFilter)
+		return 1
+	}
 	if *jobName != "" {
 		if *runID != "" {
 			baseDir, projectName, resolvedRunID, err := resolve.ExistingRunID(*basedir, *queueNameOption, *runID)
@@ -164,11 +169,8 @@ func cmdCopy(args []string) int {
 		}
 	}
 
-	selection := model.ResultSelection(*failed, *unfinished, *success)
 	if len(jobIDs) > 0 {
-		if selection == "" {
-			selection = "job-id"
-		}
+		selection = "job-id"
 	}
 	if selection == "" {
 		selection = "all"

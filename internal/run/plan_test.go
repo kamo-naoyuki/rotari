@@ -258,21 +258,48 @@ func TestPlanRerunScopeNarrowsSelection(t *testing.T) {
 	}
 }
 
-func TestPlanRerunJobIDsAddToResultSelection(t *testing.T) {
+func TestPlanRerunRejectsJobIDsWithResultSelection(t *testing.T) {
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "ok", Command: []string{"true"}}}}
+	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"run-1": {"ok": {ID: "ok"}}}}
+	if _, err := PlanRerun(queue, "failed", []string{"ok"}, model.CommandSelector{}, "run-1", true, source); err == nil ||
+		err.Error() != `job IDs cannot be combined with result selection "failed"` {
+		t.Fatalf("error = %v, want job IDs rejected with a result selection", err)
+	}
+}
+
+// TestPlanRerunForcedJobsHaveNoResult checks that a changed job's recorded
+// result no longer applies: it is unfinished, so it is neither matched by
+// --failed nor carried, and --unfinished selects it.
+func TestPlanRerunForcedJobsHaveNoResult(t *testing.T) {
 	queue := model.Queue{Commands: []model.QueuedCommand{
-		{ID: "ok", Command: []string{"true"}},
+		{ID: "edited", Command: []string{"true"}, Force: true},
 		{ID: "bad", Command: []string{"false"}},
-		{ID: "sweep", Command: []string{"true"}, Array: &model.ArraySpec{First: 1, Last: 2}},
+		{ID: "sweep", Command: []string{"true"}, Array: &model.ArraySpec{First: 1, Last: 2}, TaskForce: map[string]bool{"sweep-2": true}},
 	}}
 	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"run-1": {
-		"ok": {ID: "ok"}, "bad": {ID: "bad", ExitCode: 1}, "sweep-1": {ID: "sweep-1"}, "sweep-2": {ID: "sweep-2"},
+		"edited": {ID: "edited"}, "bad": {ID: "bad", ExitCode: 1}, "sweep-1": {ID: "sweep-1"}, "sweep-2": {ID: "sweep-2"},
 	}}}
-	plan, err := PlanRerun(queue, "failed", []string{"ok", "sweep"}, model.CommandSelector{}, "run-1", true, source)
+	plan, err := PlanRerun(queue, "failed", nil, model.CommandSelector{}, "run-1", true, source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Execute) != 3 || !plan.Execute["bad"] || !plan.Execute["ok"] || !plan.Execute["sweep"] {
-		t.Fatalf("execute = %#v, want the failed job plus ok and the whole sweep array", plan.Execute)
+	if len(plan.Execute) != 1 || !plan.Execute["bad"] {
+		t.Fatalf("execute = %#v, want only the failed job", plan.Execute)
+	}
+	for _, id := range []string{"edited", "sweep-2"} {
+		if _, carried := plan.CarriedResults[id]; carried {
+			t.Fatalf("carried = %#v, want %s's stale result dropped", plan.CarriedResults, id)
+		}
+	}
+	if _, carried := plan.CarriedResults["sweep-1"]; !carried {
+		t.Fatalf("carried = %#v, want the unchanged task carried", plan.CarriedResults)
+	}
+	plan, err = PlanRerun(queue, "unfinished", nil, model.CommandSelector{}, "run-1", true, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Execute) != 2 || !plan.Execute["edited"] || !plan.Execute["sweep-2"] {
+		t.Fatalf("execute = %#v, want the changed job and task", plan.Execute)
 	}
 }
 

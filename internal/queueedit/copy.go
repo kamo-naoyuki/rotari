@@ -29,12 +29,12 @@ type Attempt struct {
 type CopyRequest struct {
 	// Selection is "all", "job-id", or a result selection such as "failed".
 	Selection string
-	// JobIDs are copied in addition to the selection.
+	// JobIDs are the jobs to copy, with Selection "job-id".
 	JobIDs []string
 	// Scope, when set, narrows Selection to one stage or matrix.
 	Scope model.CommandSelector
-	// Attempts are copied in addition to the selection. Selecting an attempt
-	// of an array task narrows the copied array to the selected tasks.
+	// Attempts are attempts to copy, with Selection "job-id". Selecting an
+	// attempt of an array task narrows the copied array to the selected tasks.
 	Attempts []Attempt
 	// Append keeps the destination queue's jobs; Overwrite replaces them.
 	// With neither, a non-empty destination queue is an error.
@@ -46,6 +46,9 @@ type CopyRequest struct {
 // number of jobs copied. project names the destination in error messages and
 // newID generates IDs for colliding jobs and copied matrix groups.
 func Copy(destination model.Queue, project string, source Run, request CopyRequest, newID func() string) (model.Queue, int, error) {
+	if len(request.JobIDs)+len(request.Attempts) > 0 && request.Selection != "job-id" {
+		return model.Queue{}, 0, fmt.Errorf("job IDs cannot be combined with selection %q", request.Selection)
+	}
 	requested := make(map[string]bool, len(request.JobIDs)+len(request.Attempts))
 	requestedAttempts := make(map[string]string, len(request.Attempts))
 	requestedTasks := make(map[string]map[string]bool)

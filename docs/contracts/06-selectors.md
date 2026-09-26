@@ -81,7 +81,7 @@ see [Known deviations](#known-deviations).
 
 | Form | `show` | `copy` | `run`, `retry` | `change` | `remove` |
 | --- | --- | --- | --- | --- | --- |
-| Job ID | that job | that job; with a result filter, in addition to the matching jobs | only that job executes; with a result filter (always in `retry`), in addition to the matching jobs | that command | that command; repeatable, or positional |
+| Job ID | that job | that job | only that job executes; in `retry`, instead of failed and unfinished jobs | that command | that command; repeatable, or positional |
 | Array command ID | a table of the array's tasks | the whole array | the whole array | the whole array | the whole array |
 | Array task ID | that task | that task, narrowing the array | that task; the array's other tasks carry forward | error with the array job's ID | error with the array job's ID |
 | Attempt ID | that attempt (also positional) | that attempt, narrowing an array to its task | copies that attempt, then runs it | error naming the attempt's job ID | error naming the attempt's job ID |
@@ -95,6 +95,29 @@ see [Known deviations](#known-deviations).
 
 Selector combinations:
 
+Options that choose jobs are of three kinds, and the kind decides how they
+combine:
+
+| Kind | Options | Combination |
+| --- | --- | --- |
+| Direct | `--job-id` (job, task, or attempt ID), `--job-name`, positional job IDs | the named jobs, and nothing else |
+| Result filter | `--failed`, `--unfinished`, `--success` | with each other: any of them (OR) |
+| Scope | `--stage`, `--matrix` | narrows a result filter (AND); alone, every job in it |
+
+This follows the usual command-line convention, as in `git log`, that repeated
+options of one kind widen the match and options of different kinds narrow it
+(`--grep A --grep B` against `--author X --grep Y`). Direct selectors are the
+exception: naming a job already says what to execute, so a result filter or a
+scope on top of it could only drop the job again, and combining them is an
+error rather than an intersection. `retry` is `run` with the result filter
+`--failed --unfinished` as its default, used only when neither a result filter
+nor a direct selector is given, so `retry -j ID` runs only that job.
+
+A job whose command, environment, or working directory changed since its
+recorded result has no result until it runs again (see
+[02-run-lifecycle-and-execution.md](02-run-lifecycle-and-execution.md)), so
+`retry` runs failed jobs and edited jobs together without naming them.
+
 - `--job-id` and `--job-name` exclude each other in every command.
 - `--all` means "every job" (`change`, `remove`) or "every run" (`delete`)
   and nothing else; the options that widen a listing are named for what they
@@ -103,6 +126,9 @@ Selector combinations:
 - `--stage`, `--matrix`, and `--all` exclude each other and the job
   selectors in `change` and `remove`; `--stage` and `--matrix` exclude job
   selectors in `copy`, `run`, and `retry`, and combine with a result filter.
+- Job selectors exclude result filters in `copy`, `run`, and `retry`, and
+  `run.PlanRerun` and `queueedit.Copy` reject the combination from any caller.
+  The Web UI's copy endpoint rejects `job_id` with a `selection` the same way.
 - An attempt ID fixes the run; a `--run-id` naming another run is an error.
 - `change` and `remove` edit commands, so a new command or `--set-job-name`
   needs a single job.

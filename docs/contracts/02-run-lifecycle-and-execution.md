@@ -26,10 +26,22 @@
 - A later explicit `rotari retry` may select a cancelled job through the normal
   `failed`/`unfinished` result filters. This is a new run, so it is a new user
   decision to execute the job again.
-- `retry` is a shorthand for `run --failed --unfinished` and does not have a
+- `retry` is `run` with `--failed --unfinished` as its default selection,
+  used only when neither a result filter nor a job selector is given; with
+  `--job-id` it runs those jobs, like `run`. It does not have a
   separate `ROTARI_RETRY_*` environment-variable namespace. It shares the
   corresponding `ROTARI_RUN_*` defaults, including `ROTARI_RUN_RETRY`,
   `ROTARI_RUN_ASYNC`, and `ROTARI_RUN_QUIET`.
+- A queued job whose command, environment, or working directory `change`
+  edits is marked `Force`: its recorded result no longer describes it, so a
+  rerun treats it as unfinished, never matches it by `--failed` or
+  `--success`, and never carries that result. Other edits, such as the
+  timeout, retry settings, dependencies, or name, keep the result. A
+  workflow-import queue forces a job on any edit. Implemented by
+  `applyChangeMutation` in [cmd/rotari/change.go](../../cmd/rotari/change.go)
+  and `jobResult` in [internal/run/rerun.go](../../internal/run/rerun.go);
+  covered by the "changed" rows of `TestSelectorTable` and
+  `TestPlanRerunForcedJobsHaveNoResult`.
 - In a filtered run, selected jobs execute. Completed jobs outside the
   selection carry forward their result and an origin pointing to the original
   output; jobs without a completed result remain unfinished. Carry-forward writes

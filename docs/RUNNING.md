@@ -79,12 +79,14 @@ rotari run -p sweep --failed --unfinished
 rotari run -j ATTEMPT_ID
 ```
 
-`retry` is shorthand for `run --failed --unfinished`. It selects failed and
+`retry` is `run --failed --unfinished` by default. It selects failed and
 unfinished jobs from the reference run, copies them into the next run with
-successful results carried forward, and executes that run:
+successful results carried forward, and executes that run. Given `--job-id/-j`,
+it runs only those jobs instead:
 
 ```sh
 rotari retry -p sweep
+rotari retry -p sweep -j JOB_ID
 ```
 
 `--retry N` is different: it retries failed jobs within the same run, up to N
@@ -146,7 +148,9 @@ The result filters select which jobs are actually re-executed:
 | `--success` | Finished jobs with exit code zero. |
 | `--failed --unfinished` | Failed or unfinished jobs. |
 
-Result filters and repeated `--job-id/-j` select jobs to re-execute. Finished
+Result filters or repeated `--job-id/-j` select jobs to re-execute; a job
+named with `--job-id/-j` or `--job-name` runs whatever its result, so the two
+cannot be combined. Finished
 non-matching jobs carry forward their previous result and output; jobs without
 a result remain unfinished. Carried-forward jobs are not re-executed, but they
 appear on the new run with a link to their original output, so the whole run
@@ -201,7 +205,8 @@ queue, and preserves dependencies between copied jobs. A non-empty queue
 requires confirmation before replacement; use `--append` to add jobs or
 `--overwrite` to replace it without asking. Selection options include
 `--failed`, `--unfinished`, `--success`, `--stage`, `--matrix`, and repeated
-`--job-id/-j`. Copied jobs
+`--job-id/-j`; a job ID or `--job-name` is not combined with a result filter.
+Copied jobs
 remain pending, with source run, status, and working-directory metadata kept
 for later inspection.
 
@@ -214,8 +219,14 @@ rotari copy
 rotari change --job-name train -e local
 rotari change --job-name train --executor-option="-p gpu"
 rotari change --job-name train --depends-on prepare -- ./train-v2.sh
-rotari run --failed
+rotari retry
 ```
+
+A job whose command, environment (`--env`), or working directory changes loses
+its previous result: it counts as unfinished until it runs again, so `retry`
+runs it together with the failed jobs, and a successful result of the old
+command is never carried forward. Other changes, such as the executor, timeout,
+or name, keep the result.
 
 `change` requires exactly one target selector: `--job-id/-j ID` or
 `--job-name NAME` for one job, or `--stage STAGE`, `--matrix NAME` (the base job

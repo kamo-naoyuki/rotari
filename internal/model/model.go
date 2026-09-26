@@ -72,8 +72,11 @@ type QueuedCommand struct {
 	Matrix        *MatrixSpec           `json:"matrix,omitempty"`
 	Accepted      bool                  `json:"accepted,omitempty"`
 	TaskAccepted  map[string]bool       `json:"task_accepted,omitempty"`
-	Force         bool                  `json:"force,omitempty"`
-	TaskForce     map[string]bool       `json:"task_force,omitempty"`
+	// Force and TaskForce mark a command, or tasks of it, whose recorded
+	// result no longer applies because the job changed since it ran: a rerun
+	// treats them as unfinished and never carries that result.
+	Force     bool            `json:"force,omitempty"`
+	TaskForce map[string]bool `json:"task_force,omitempty"`
 }
 
 type ArraySpec struct {

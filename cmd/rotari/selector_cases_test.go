@@ -55,6 +55,9 @@ var selectorCases = []selectorCase{
 	{name: "unknown stage", cmd: "copy", args: "-b {B} -p sweep --stage nope", err: `no jobs in stage "nope"`},
 	{name: "stage without project", cmd: "copy", args: "-b {B} --stage training", err: "multiple projects"},
 	{name: "stage and job ID", cmd: "copy", args: "-b {B} -p sweep --stage training --job-id {job:prep}", err: "cannot be combined"},
+	{name: "job ID and failed", cmd: "copy", args: "-b {B} -p sweep --failed --job-id {job:prep}", err: "--job-id or --job-name cannot be combined with --failed, --unfinished, or --success"},
+	{name: "job name and success", cmd: "copy", args: "-b {B} -p sweep --success --job-name prep", err: "cannot be combined with --failed, --unfinished, or --success"},
+	{name: "failed and success", cmd: "copy", args: "-b {B} -p sweep --failed --success", jobs: []string{"eval", "prep", "report", "train-SEED1", "train-SEED2"}},
 
 	// change: which commands get the new setting.
 	{name: "empty queue", cmd: "change", args: "-b {B} -p sweep --job-name prep", err: "no queued jobs"},
@@ -93,8 +96,14 @@ var selectorCases = []selectorCase{
 	// run and retry: which jobs the new run executes.
 	{name: "failed and unfinished", cmd: "retry", args: "-b {B} -p sweep", jobs: []string{"eval-2", "train-SEED2"}},
 	{name: "stage", cmd: "retry", args: "-b {B} -p sweep --stage training", jobs: []string{"train-SEED2"}},
-	{name: "job ID in addition", cmd: "retry", args: "-b {B} -p sweep --job-id {job:prep}", jobs: []string{"eval-2", "prep", "train-SEED2"}},
-	{name: "job ID in addition to failed", cmd: "run", args: "-b {B} -p sweep --failed --job-id {job:report}", jobs: []string{"eval-2", "report", "train-SEED2"}},
+	{name: "job ID instead of failed and unfinished", cmd: "retry", args: "-b {B} -p sweep --job-id {job:prep}", jobs: []string{"prep"}},
+	{name: "array command ID", cmd: "retry", args: "-b {B} -p sweep --job-id {job:eval}", jobs: []string{"eval-1", "eval-2", "eval-3"}},
+	{name: "array task ID", cmd: "retry", args: "-b {B} -p sweep --job-id {job:eval}-2", jobs: []string{"eval-2"}},
+	{name: "attempt ID", cmd: "retry", args: "--job-id {att:train-SEED2/0}", jobs: []string{"train-SEED2"}},
+	{name: "result filter instead of failed and unfinished", cmd: "retry", args: "-b {B} -p sweep --success --stage setup", jobs: []string{"prep"}},
+	{name: "job ID and failed", cmd: "run", args: "-b {B} -p sweep --failed --job-id {job:report}", err: "--job-id or --job-name cannot be combined with --failed, --unfinished, or --success"},
+	{name: "job name and unfinished", cmd: "run", args: "-b {B} -p sweep --unfinished --job-name prep", err: "cannot be combined with --failed, --unfinished, or --success"},
+	{name: "failed and success", cmd: "run", args: "-b {B} -p sweep --failed --success --stage evaluation", jobs: []string{"eval-1", "eval-2", "eval-3"}},
 	{name: "given run", cmd: "run", args: "-b {B} -p sweep --run-id {run:sweep-first} --failed", jobs: []string{"eval-2", "train-SEED2"}},
 	{name: "run ID positional", cmd: "retry", args: "{run:sweep-first}", jobs: []string{"eval-2", "train-SEED2"}},
 	{name: "complete attempt ID", cmd: "run", args: "--job-id {att:train-SEED2/0}", jobs: []string{"train-SEED2"}},
@@ -114,4 +123,11 @@ var selectorCases = []selectorCase{
 	{name: "array task name", cmd: "run", args: "-b {B} -p sweep --job-name eval[3]", jobs: []string{"eval-3"}},
 	{name: "unknown stage", cmd: "run", args: "-b {B} -p sweep --stage nope", err: `no jobs in stage "nope"`},
 	{name: "stage and job ID", cmd: "run", args: "-b {B} -p sweep --stage training --job-id {job:prep}", err: "cannot be combined"},
+
+	// A changed command has no result until it runs again.
+	{name: "changed command", cmd: "retry", args: "-b {B} -p sweep", queued: true, change: "-b {B} -p sweep --job-name prep echo edited", jobs: []string{"eval-2", "prep", "train-SEED2"}},
+	{name: "changed environment", cmd: "retry", args: "-b {B} -p sweep", queued: true, change: "-b {B} -p sweep --job-name prep --env MODE=fast", jobs: []string{"eval-2", "prep", "train-SEED2"}},
+	{name: "changed timeout", cmd: "retry", args: "-b {B} -p sweep", queued: true, change: "-b {B} -p sweep --job-name prep --timeout 5m", jobs: []string{"eval-2", "train-SEED2"}},
+	{name: "changed command and failed", cmd: "run", args: "-b {B} -p sweep --failed", queued: true, change: "-b {B} -p sweep --job-name prep echo edited", jobs: []string{"eval-2", "train-SEED2"}},
+	{name: "changed command and unfinished", cmd: "run", args: "-b {B} -p sweep --unfinished", queued: true, change: "-b {B} -p sweep --job-name prep echo edited", jobs: []string{"prep"}},
 }

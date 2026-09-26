@@ -227,20 +227,32 @@ func TestChangeBatchForcesChangedJobInImportedQueue(t *testing.T) {
 	}
 }
 
-func TestChangeBatchDoesNotForceJobInOrdinaryQueue(t *testing.T) {
+// TestChangeBatchForcesChangedCommandInOrdinaryQueue checks that a changed
+// command drops the job's recorded result, and that a rename keeps it.
+func TestChangeBatchForcesChangedCommandInOrdinaryQueue(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job", Command: []string{"false"}}}}); err != nil {
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{
+		{ID: "job", Name: "job", Command: []string{"false"}},
+		{ID: "other", Name: "other", Command: []string{"true"}},
+	}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := changeBatch(baseDir, "default", "", "job", "", "", nil, false, nil, false, "", nil, false, []string{"true"}); err != nil {
 		t.Fatal(err)
 	}
-	if command := loadCarryStateQueue(t, paths).Commands[0]; command.Force {
-		t.Fatalf("change forced a job in an ordinary queue: %#v", command)
+	if _, err := changeBatch(baseDir, "default", "", "other", "", "", nil, false, nil, false, "renamed", nil, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	commands := loadCarryStateQueue(t, paths).Commands
+	if !commands[0].Force {
+		t.Fatalf("changed command was not forced: %#v", commands[0])
+	}
+	if commands[1].Force {
+		t.Fatalf("rename forced the job: %#v", commands[1])
 	}
 }
 

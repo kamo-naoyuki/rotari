@@ -236,3 +236,15 @@ func TestCopyTaskIDNarrowsArray(t *testing.T) {
 		t.Fatalf("copied = %#v, want the whole array when its own ID is also given", queue.Commands)
 	}
 }
+
+func TestCopyRejectsJobIDsWithResultSelection(t *testing.T) {
+	source := testRun([]model.QueuedCommand{{ID: "work", Name: "work", Command: []string{"true"}}}, model.JobResult{ID: "work", ExitCode: 1})
+	for _, request := range []CopyRequest{
+		{Selection: "failed", JobIDs: []string{"work"}},
+		{Selection: "all", Attempts: []Attempt{{ID: "att-work", JobID: "work"}}},
+	} {
+		if _, _, err := Copy(model.Queue{}, "demo", source, request, sequentialIDs()); err == nil || !strings.Contains(err.Error(), "job IDs cannot be combined with selection") {
+			t.Fatalf("Copy(%+v) error = %v, want job IDs rejected with a selection", request, err)
+		}
+	}
+}
