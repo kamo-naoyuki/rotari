@@ -2,6 +2,7 @@ package run
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -379,3 +380,28 @@ func TestDispatcherRefillsSchedulerSlotsAsJobsFinish(t *testing.T) {
 }
 
 func intPointer(value int) *int { return &value }
+
+func TestDispatcherStartsQueuedJobsInOrder(t *testing.T) {
+	first := make(chan struct{})
+	blocking := &blockingExecutor{testExecutor: testExecutor{name: "slurm"}, release: map[string]chan struct{}{"job-0": first}}
+	dispatcher := NewDispatcher("/runs/run-1", model.Queue{}, DispatchOptions{
+		BatchMaxActive: 1, ResolveExecutor: func(string) (executor.JobExecutor, bool) { return blocking, true }, Callbacks: testCallbacks(),
+	}, nil)
+	jobs := make([]model.JobSpec, 0, 6)
+	for index := range 6 {
+		jobs = append(jobs, model.JobSpec{ID: fmt.Sprintf("job-%d", index), Executor: "slurm"})
+	}
+	results := make(chan model.JobResult, len(jobs))
+	dispatcher.Start(jobs, func(result model.JobResult) { results <- result })
+	close(first)
+	for range jobs {
+		<-results
+	}
+	blocking.mu.Lock()
+	defer blocking.mu.Unlock()
+	for index, id := range blocking.submitted {
+		if id != jobs[index].ID {
+			t.Fatalf("submission order = %v, want queue order", blocking.submitted)
+		}
+	}
+}

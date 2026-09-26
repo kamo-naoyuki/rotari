@@ -31,8 +31,8 @@ type BatchLaneCallbacks struct {
 }
 
 // Dispatcher runs jobs on one lane per executor for the whole run. Each lane
-// holds a concurrency slot only while a job is submitted or running, so a
-// finished job frees its slot for the next one at once.
+// starts queued jobs in the order they became ready, up to its concurrency,
+// and a finished job frees its slot for the next queued job at once.
 type Dispatcher struct {
 	runDir          string
 	queue           model.Queue
@@ -47,8 +47,45 @@ type Dispatcher struct {
 type lane struct {
 	executor executor.JobExecutor
 	local    bool
-	slots    chan struct{}
 	options  []string
+
+	mu       sync.Mutex
+	capacity int
+	active   int
+	queue    []laneTask
+}
+
+// laneTask runs one queued job and returns its result; done reports it.
+type laneTask struct {
+	run  func() model.JobResult
+	done func(model.JobResult)
+}
+
+// enqueue queues a job; it starts once a slot is free, in queue order.
+func (selected *lane) enqueue(run func() model.JobResult, done func(model.JobResult)) {
+	selected.mu.Lock()
+	selected.queue = append(selected.queue, laneTask{run: run, done: done})
+	selected.startQueued()
+	selected.mu.Unlock()
+}
+
+// startQueued starts queued jobs while slots are free. The caller holds mu.
+func (selected *lane) startQueued() {
+	for selected.active < selected.capacity && len(selected.queue) > 0 {
+		task := selected.queue[0]
+		selected.queue = selected.queue[1:]
+		selected.active++
+		go func() {
+			result := task.run()
+			// Free the slot before reporting, so the next queued job starts
+			// while the result is being handled.
+			selected.mu.Lock()
+			selected.active--
+			selected.startQueued()
+			selected.mu.Unlock()
+			task.done(result)
+		}()
+	}
 }
 
 // NewDispatcher returns a Dispatcher for a run. onStart, when set, is called
@@ -84,7 +121,7 @@ func (dispatcher *Dispatcher) lane(name string) (*lane, bool) {
 	if concurrency < 1 {
 		concurrency = 1
 	}
-	created.slots = make(chan struct{}, concurrency)
+	created.capacity = concurrency
 	dispatcher.lanes[name] = created
 	return created, true
 }
@@ -117,7 +154,8 @@ func (dispatcher *Dispatcher) Start(jobs []model.JobSpec, done func(model.JobRes
 		}
 		if selected.local {
 			for _, job := range executorJobs {
-				go dispatcher.runLocal(selected, job, done)
+				job := job
+				selected.enqueue(func() model.JobResult { return dispatcher.runLocal(selected, job) }, done)
 			}
 			continue
 		}
@@ -125,8 +163,7 @@ func (dispatcher *Dispatcher) Start(jobs []model.JobSpec, done func(model.JobRes
 	}
 }
 
-func (dispatcher *Dispatcher) runLocal(selected *lane, job model.JobSpec, done func(model.JobResult)) {
-	selected.slots <- struct{}{}
+func (dispatcher *Dispatcher) runLocal(selected *lane, job model.JobSpec) model.JobResult {
 	var result model.JobResult
 	handle, err := selected.executor.Submit(dispatcher.runDir, job, nil)
 	if err != nil {
@@ -137,9 +174,8 @@ func (dispatcher *Dispatcher) runLocal(selected *lane, job model.JobSpec, done f
 		}
 		result = selected.executor.Wait(dispatcher.runDir, handle)
 	}
-	<-selected.slots
 	result.AttemptID = job.AttemptID
-	done(result)
+	return result
 }
 
 func (dispatcher *Dispatcher) startBatch(selected *lane, jobs []model.JobSpec, done func(model.JobResult)) {
@@ -155,7 +191,8 @@ func (dispatcher *Dispatcher) startBatch(selected *lane, jobs []model.JobSpec, d
 				continue
 			}
 		}
-		go dispatcher.runBatchJob(selected, jobs[start], done)
+		job := jobs[start]
+		selected.enqueue(func() model.JobResult { return dispatcher.runBatchJob(selected, job) }, done)
 		start++
 	}
 }
@@ -211,13 +248,11 @@ func (dispatcher *Dispatcher) runArray(selected *lane, tasks []model.JobSpec, do
 	waiters.Wait()
 }
 
-func (dispatcher *Dispatcher) runBatchJob(selected *lane, job model.JobSpec, done func(model.JobResult)) {
-	selected.slots <- struct{}{}
+func (dispatcher *Dispatcher) runBatchJob(selected *lane, job model.JobSpec) model.JobResult {
 	result := dispatcher.submitAndWait(selected, job)
-	<-selected.slots
 	result.AttemptID = job.AttemptID
 	dispatcher.logFailure(result)
-	done(result)
+	return result
 }
 
 func (dispatcher *Dispatcher) submitAndWait(selected *lane, job model.JobSpec) model.JobResult {

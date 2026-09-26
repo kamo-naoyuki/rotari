@@ -252,9 +252,11 @@
   Extend `JobExecutor` methods or `executeMixedRun` instead.
 - Run dispatch (`Dispatcher` in [internal/run/dispatch.go](../../internal/run/dispatch.go))
   keeps one lane per executor for the whole run: a local concurrency lane and
-  one independent lane per non-local executor. A job holds a lane slot only
-  while it is submitted or running, so a finished job's slot goes to the next
-  ready job at once instead of after a whole batch. Array tasks that become
+  one independent lane per non-local executor. Each lane is a FIFO queue: jobs
+  start in the order they became ready, which is queue order for jobs ready
+  together, and a job holds a slot only while it is submitted or running, so
+  a finished job's slot goes to the next queued job at once instead of after a
+  whole batch. Covered by `TestDispatcherStartsQueuedJobsInOrder`. Array tasks that become
   ready together are still submitted as one native array without taking
   slots; retried tasks are submitted individually or as a sparse array. Jobs
   on a scheduler lane are submitted and waited on concurrently, so
