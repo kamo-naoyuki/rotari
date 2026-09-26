@@ -14,8 +14,12 @@ Representative implementation and tests:
 - [internal/model/command_selector.go](../../internal/model/command_selector.go)
   and [its tests](../../internal/model/command_selector_test.go): selecting
   queue commands by job ID, name, stage, matrix, or all.
-- [cmd/rotari/selector_fixture_test.go](../../cmd/rotari/selector_fixture_test.go):
-  the shared fixture for command-level selector tests (see [Fixture](#fixture)).
+- [cmd/rotari/selector_cases_test.go](../../cmd/rotari/selector_cases_test.go):
+  the tables below as test cases, run by `TestSelectorTable` in
+  [selector_test.go](../../cmd/rotari/selector_test.go) against the shared
+  fixture in [selector_fixture_test.go](../../cmd/rotari/selector_fixture_test.go)
+  (see [Fixture](#fixture)). A row marked with a known deviation must fail
+  until the deviation is fixed.
 
 ## Selector forms
 
@@ -57,7 +61,7 @@ see [Known deviations](#known-deviations).
 | Job ID | that job | that job | only that job executes (`retry`: in addition to failed and unfinished jobs †) | that command | that command; repeatable, or positional |
 | Array command ID | the array's tasks † | the whole array † | the whole array † | the whole array | the whole array |
 | Array task ID | that task | that task, narrowing the array † | that task † | error with the array job's ID | error with the array job's ID |
-| Attempt ID | that attempt (also positional) | that attempt, narrowing an array to its task | copies that attempt, then runs it | error | error † |
+| Attempt ID | that attempt (also positional) | that attempt, narrowing an array to its task | copies that attempt, then runs it | error † | error † |
 | Job name | that job; ambiguous across projects without `-p` | same as `show` | same as `show` | that command | that command |
 | Array job name | the array's tasks † | the whole array † | the whole array † | the whole array | the whole array |
 | Array task name | that task | that task † | that task † | error with the array job's ID | error with the array job's ID |
@@ -87,8 +91,8 @@ Each is also recorded in [ISSUES.md](../../ISSUES.md) until it is resolved.
 - `retry --job-id` (and `run --failed --job-id`) ignores the job IDs: with a
   result filter, `planByOrigin` in
   [internal/run/rerun.go](../../internal/run/rerun.go) drops them.
-- `remove --job-id ATTEMPT_ID` reports "job not found" instead of saying that
-  attempt IDs are not accepted.
+- `change` and `remove` report an attempt ID as "job not found" instead of
+  saying that attempt IDs are not accepted.
 
 ## Fixture
 

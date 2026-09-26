@@ -51,9 +51,6 @@ func cmdRun(args []string) int {
 	}
 	left := fs.Args()
 	selection := model.ResultSelection(*failed, *unfinished, *success)
-	if len(jobIDs) > 0 && selection == "" {
-		selection = "job-id"
-	}
 	if len(left) != 0 || *localConcurrency < 1 || *batchConcurrency < 1 || *retry < -1 {
 		printError("usage: " + cliUsage("run"))
 		return 1
@@ -102,6 +99,10 @@ func cmdRun(args []string) int {
 			*basedir, *queueNameOption, *runIDOption = targets[0].BaseDir, targets[0].ProjectName, targets[0].RunID
 			jobIDs = stringSliceFlag{targets[0].JobID}
 		}
+	}
+	// Set after --job-name has been resolved to a job ID.
+	if len(jobIDs) > 0 && selection == "" {
+		selection = "job-id"
 	}
 	attemptSelection := false
 	for _, jobID := range jobIDs {
