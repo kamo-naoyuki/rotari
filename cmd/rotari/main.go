@@ -17,6 +17,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -303,49 +304,35 @@ func finalizeCompletedCancellation(paths state.ProjectPaths) (bool, error) {
 	return true, nil
 }
 
-// cmdWorkerRun executes a single scheduler-dispatched job attempt inside an
-// existing run directory.
+// cmdWorkerRun executes an async run that the supervisor recorded with
+// projectrun.Runner.Begin, then finishes it.
 func cmdWorkerRun(args []string) int {
 	options, err := parseWorkerRunArgs(args)
 	if err != nil {
 		printError(err)
 		return 1
 	}
-	queueName, runID, runName, cwd := options.QueueName, options.RunID, options.RunName, options.CWD
-
-	paths, err := state.ResolveProjectPaths(options.BaseDir, queueName)
+	paths, err := state.ResolveProjectPaths(options.BaseDir, options.QueueName)
 	if err != nil {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	exitCode, workerErr := runcontract.RunWorker(runcontract.WorkerCallbacks{
-		WriteContext: func() error { return writeRunContext(paths, runID, cwd) },
-		MarkRunning: func() error {
-			meta, _ := state.LoadMeta(paths.MetaFile)
-			meta.Phase = "running"
-			meta.LastRunID = runID
-			meta.UpdatedAt = nowRFC3339()
-			return state.WriteJSON(paths.MetaFile, meta)
-		},
-		StartSampling: func() func() { return startRunLoadSampling(paths, runID) },
-		Execute: func() int {
-			return executeMixedRun(paths, runID, runName, options.LocalConcurrency, options.BatchMaxActive, options.Retry, options.Executor, options.ExecutorOptions, options.Selection, options.JobIDs, options.SourceRunID, options.PartialArray, nil, nil, options.ExecutorSettings)
-		},
-		FinishContext: func() error { return finishRunContext(paths, runID) },
-		Finalize:      func(exitCode int) error { return finishRun(paths, runID, exitCode) },
-		RemoveLock: func() error {
-			err := os.Remove(paths.LockFile)
-			if errors.Is(err, os.ErrNotExist) {
-				return nil
-			}
-			return err
-		},
-	})
-	if workerErr != nil {
-		printErrorf("worker run failed: %v", workerErr)
+	exitCode, err := projectRunner().Run(paths, projectRunOptions(options), projectrun.Observer{})
+	if err != nil {
+		printErrorf("worker run failed: %v", err)
 		return 1
 	}
 	return exitCode
+}
+
+// projectRunOptions selects the execution options of a run request.
+func projectRunOptions(options runcontract.Options) projectrun.Options {
+	return projectrun.Options{
+		RunID: options.RunID, RunName: options.RunName,
+		LocalConcurrency: options.LocalConcurrency, BatchMaxActive: options.BatchMaxActive, Retry: options.Retry,
+		Executor: options.Executor, ExecutorOptions: options.ExecutorOptions, Settings: options.ExecutorSettings,
+		Selection: options.Selection, JobIDs: options.JobIDs, SourceRunID: options.SourceRunID, PartialArray: options.PartialArray,
+	}
 }
 
 // parseWorkerRunArgs parses the arguments that runcontract.WorkerArgs builds
@@ -386,111 +373,45 @@ func parseWorkerRunArgs(args []string) (runcontract.Options, error) {
 	}, nil
 }
 
-func finishRun(paths state.ProjectPaths, runID string, exitCode int) error {
-	release, err := state.AcquireStateLock(paths.StateLockFile)
-	if err != nil {
-		return fmt.Errorf("failed to lock queue: %w", err)
-	}
-	defer release()
-
-	lock, err := state.LoadLock(paths.LockFile)
-	if err != nil {
-		return fmt.Errorf("failed to verify run lock: %w", err)
-	}
-	if lock.RunID != runID {
-		return fmt.Errorf("run lock belongs to %q, not %q", lock.RunID, runID)
-	}
-
-	queue, err := state.LoadQueue(paths.QueueFile)
-	if err != nil {
-		return fmt.Errorf("failed to load queue: %w", err)
-	}
-	meta, err := state.LoadMeta(paths.MetaFile)
-	if err != nil {
-		return fmt.Errorf("failed to load metadata: %w", err)
-	}
-	queue, meta, err = state.FinalizeRun(queue, meta, runID, exitCode, time.Now())
-	if err != nil {
+// launchAsyncRun records a new run and starts a detached worker that executes
+// it. The caller holds the state lock and has checked that the project is
+// idle.
+func launchAsyncRun(paths state.ProjectPaths, options runcontract.Options) error {
+	if err := projectRunner().Begin(paths, projectrun.Start{RunID: options.RunID, RunName: options.RunName, CWD: options.CWD}); err != nil {
 		return err
 	}
-	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
-		return fmt.Errorf("failed to clear queue: %w", err)
-	}
-	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
-		return fmt.Errorf("failed to finalize metadata: %w", err)
-	}
-	notifyRunWebhook(paths, runID, exitCode)
-	return nil
-}
-
-func launchAsyncRun(paths state.ProjectPaths, options runcontract.Options) int {
-	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339()}); err != nil {
-		printErrorf("project '%s' is running; run is not allowed: %v", options.QueueName, err)
-		return 1
-	}
-
-	meta, _ := state.LoadMeta(paths.MetaFile)
-	meta.Phase = "running"
-	meta.LastRunID = options.RunID
-	meta.UpdatedAt = nowRFC3339()
-	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
+	// A worker that never starts leaves the project interrupted, not running.
+	abandon := func(format string, err error) error {
 		_ = os.Remove(paths.LockFile)
-		printErrorf("failed to update metadata: %v", err)
-		return 1
+		return fmt.Errorf(format, err)
 	}
-	if err := writeRunContext(paths, options.RunID, options.CWD); err != nil {
-		_ = os.Remove(paths.LockFile)
-		printErrorf("failed to save run context: %v", err)
-		return 1
-	}
-	if err := registerRun(paths, options.RunID); err != nil {
-		_ = os.Remove(paths.LockFile)
-		if runDir, pathErr := state.SafeJoin(paths.RunsDir, options.RunID); pathErr == nil {
-			_ = os.RemoveAll(runDir)
-		}
-		printErrorf("failed to register run: %v", err)
-		return 1
-	}
-
 	exe, err := os.Executable()
 	if err != nil {
-		_ = os.Remove(paths.LockFile)
-		printErrorf("failed to detect executable path: %v", err)
-		return 1
+		return abandon("failed to detect executable path: %w", err)
 	}
-
 	childOptions := options
 	childOptions.BaseDir = paths.BaseDir
-	childArgs := runcontract.WorkerArgs(childOptions, paths.BaseDirExplicit, executorRunSettingNames)
-
-	cmd := exec.Command(exe, childArgs...)
+	cmd := exec.Command(exe, runcontract.WorkerArgs(childOptions, paths.BaseDirExplicit, executorRunSettingNames)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = nil
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
-		_ = os.Remove(paths.LockFile)
-		printErrorf("failed to launch async runner: %v", err)
-		return 1
+		return abandon("failed to launch async runner: %w", err)
 	}
-
 	host, err := os.Hostname()
 	if err != nil {
 		_ = cmd.Process.Kill()
-		_ = os.Remove(paths.LockFile)
-		printErrorf("failed to determine lock host: %v", err)
-		return 1
+		return abandon("failed to determine lock host: %w", err)
 	}
 	if err := state.WriteJSON(paths.LockFile, model.LockInfo{PID: cmd.Process.Pid, RunID: options.RunID, RunName: options.RunName, StartedAt: nowRFC3339(), Host: host}); err != nil {
 		_ = cmd.Process.Kill()
-		_ = os.Remove(paths.LockFile)
-		printErrorf("failed to update lock with child pid: %v", err)
-		return 1
+		return abandon("failed to update lock with child pid: %w", err)
 	}
 	waitForAsyncRun(cmd, options.OnDone)
 
 	fmt.Printf("submitted project=%s run_id=%s pid=%d\n", options.QueueName, options.RunID, cmd.Process.Pid)
-	return 0
+	return nil
 }
 
 func waitForAsyncRun(cmd *exec.Cmd, onDone func()) {
@@ -535,15 +456,6 @@ func failedJobHints(runID string, results []model.JobResult) string {
 
 func runOneJob(runDir string, job model.JobSpec) model.JobResult {
 	return executor.RunLocalJob(runDir, model.JobSpec(job), jsonStore(), jobLogf)
-}
-
-func jobCancellationRequested(jobDir string) bool {
-	_, err := os.Stat(filepath.Join(jobDir, stateFileCancelled))
-	return err == nil
-}
-
-func recordCancelledJob(jobDir string, job model.JobSpec) model.JobResult {
-	return executor.RecordCancelledJob(jobDir, model.JobSpec(job), jsonStore())
 }
 
 const (

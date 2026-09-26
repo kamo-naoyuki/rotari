@@ -50,10 +50,8 @@ flowchart LR
   idle minute. The source still calls it the *server*. It serializes run
   starts and job control for one base directory. It is not an authority for
   state: everything it knows is also on disk.
-- **Run worker.** For a synchronous `run`, the jobs are executed inside the
-  supervisor while the client streams progress. For `run --async`, the
-  supervisor spawns `rotari __worker-run` as a detached child and returns; the
-  worker executes the same code path (`executeMixedRun`).
+- **Run execution.** A run executes either inside the supervisor or in a
+  separate worker process; see [Sync and async runs](#sync-and-async-runs).
 - **Web server.** `rotari web` ([cmd/rotari/web.go](../cmd/rotari/web.go)).
   It reads project files to build JSON for the browser UI, and its control
   endpoints (`/api/copy`, `/api/cancel-job`, ...) call the same `cmd/rotari`
@@ -61,6 +59,30 @@ flowchart LR
 - **Jobs and wrappers.** Local jobs are child processes of the run worker.
   Scheduler jobs run elsewhere through a generated wrapper script that writes
   the attempt's `status.json`, which the run worker polls.
+
+### Sync and async runs
+
+`rotari run --async` is the user-facing mode; the *worker* (`rotari
+__worker-run`) is the process that executes an async run. Both modes run the
+same lifecycle, `projectrun.Runner.Run`; they differ only in which process
+calls it.
+
+| | Sync run (`rotari run`) | Async run (`rotari run --async`) |
+| --- | --- | --- |
+| Client | Stays attached and streams progress | Returns after "Run started" |
+| Process that executes the jobs | The supervisor | A worker the supervisor spawns |
+| PID in `running.lock` | The supervisor | The worker (rewritten after spawning) |
+| Entry point | `runServerSync` ([run_command.go](../cmd/rotari/run_command.go)) | `startServerRun` → `launchAsyncRun` → `cmdWorkerRun` ([main.go](../cmd/rotari/main.go)) |
+
+```text
+sync:   client ──▶ supervisor: Begin → Run (Execute → Finish) ──▶ result to client
+async:  client ──▶ supervisor: Begin → spawn worker → return at once
+                                         └─ worker: Run (Execute → Finish)
+```
+
+The worker is started with `setsid`, detached from the supervisor, so an
+async run keeps going when the supervisor shuts down or dies: with no client
+attached, the run is not tied to the supervisor's lifetime.
 
 Because the filesystem is the shared medium, any process can die and the next
 one can reconstruct what happened from the files. That is why so much code
@@ -74,6 +96,7 @@ no `internal` package imports `cmd/rotari`.
 ```mermaid
 flowchart TB
   cmd["cmd/rotari<br/>CLI flags, supervisor operations,<br/>Web handlers, wiring, output"]
+  projectrun["projectrun<br/>run lifecycle"]
   subgraph l2["orchestration and projections"]
     server
     run
@@ -91,7 +114,11 @@ flowchart TB
   end
   model["model<br/>(imports nothing from rotari)"]
 
+  cmd --> projectrun
   cmd --> l2
+  projectrun --> run
+  projectrun --> executor
+  projectrun --> state
   server --> executor
   run --> executor
   jobcontrol --> executor
@@ -118,7 +145,8 @@ the current graph if this list drifts.
 | [internal/model](../internal/model/) | Domain types and pure rules: queue, queued command, job spec, result, summary, selections, dependencies, arrays. No I/O. | `model.go`, `selection.go`, `dependencies.go` |
 | [internal/state](../internal/state/) | The filesystem: path resolution and validation, JSON load/write, locks, run and attempt directory listing. No execution policy. | `paths.go`, `project_paths.go`, `store.go`, `lock.go` |
 | [internal/executor](../internal/executor/) | How one job attempt is started, waited for, cancelled, and suspended: local processes, Slurm, PBS, LSF, SSH, wrapper scripts. No run semantics. | `contracts.go` (`JobExecutor`), `local.go`, `slurm.go` |
-| [internal/run](../internal/run/) | Run orchestration: which jobs execute or are carried forward, dependency unblocking, retries, per-executor lanes and concurrency, the final summary. | `rerun.go` (`PlanRerun`), `engine.go` (`ExecuteJobs`), `dispatch.go` (`Dispatcher`) |
+| [internal/projectrun](../internal/projectrun/) | One project's run against its files: `Begin` (context, run lock, registry, running metadata), `Execute` (snapshot, plan, dispatch, summary), and `Finish` (final context, queue and metadata finalization, lock removal). Shared by the sync run, the async worker, and cancellation. | `lifecycle.go`, `execute.go` |
+| [internal/run](../internal/run/) | Run rules without file access: which jobs execute or are carried forward, dependency unblocking, retries, per-executor lanes and concurrency, the summary contents. | `rerun.go` (`PlanRerun`), `engine.go` (`ExecuteJobs`), `dispatch.go` (`Dispatcher`) |
 | [internal/jobstatus](../internal/jobstatus/) | Read side: turns attempt files and the summary into one displayed result and timestamps. Shared by CLI and Web. | `job.go`, `attempt.go`, `times.go` |
 | [internal/server](../internal/server/) | Supervisor transport: request/response types, socket, lease, peer checks, idle shutdown, attached-run streaming. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go` |
 | [internal/jobcontrol](../internal/jobcontrol/) | Cancel, suspend, resume of running jobs through executors. | `jobcontrol.go` |
@@ -128,8 +156,8 @@ the current graph if this list drifts.
 | [internal/rundiff](../internal/rundiff/) | Comparison of two loaded runs for `diff` and `show --lineage`. | `rundiff.go` |
 | [internal/diagnose](../internal/diagnose/) | Rule-based and provider-backed failure diagnosis. | `analysis.go` |
 
-Many `internal` functions take callbacks (`run.WorkerCallbacks`,
-`run.BatchLaneCallbacks`, `run.OriginResults`, `server.Operations`). This is
+Many `internal` functions take callbacks or hook fields
+(`projectrun.Runner`, `run.BatchLaneCallbacks`, `run.OriginResults`, `server.Operations`). This is
 how `cmd/rotari` supplies file access and output without the internal package
 importing it. When a callback's body is long, the logic probably belongs in an
 internal package.
@@ -140,6 +168,7 @@ internal package.
   or validate rotari concepts? `internal/model`.
 - Does it read or write a file or directory layout? `internal/state`.
 - Does it decide the next execution step of a run? `internal/run`.
+- Does it start, record, or finish a project's run on disk? `internal/projectrun`.
 - Does it talk to a process or scheduler? `internal/executor`.
 - Does it decide what status a job shows? `internal/jobstatus`.
 - Is it flag parsing, message wording, or colors? `cmd/rotari`.
@@ -151,11 +180,11 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 
 | Role | Files |
 | --- | --- |
-| Entry, dispatch, run finalization, async launch | `main.go` |
+| Entry, dispatch, async worker launch, `__worker-run` | `main.go` |
 | Flag metadata, help, config defaults, completion | `cli_spec.go`, `config.go`, `completion.go`, `schema.go`, `guide.go`, `environment.go` |
 | Queue editing (direct file access) | `add.go`, `change.go`, `copy.go`, `remove.go`, `reset.go`, `delete.go`, `gc.go`, `unlock.go` |
-| Starting a run (client and supervisor side) | `run_command.go`, `run_selection.go`, `run_context.go`, `run_registry.go`, `job_executor.go` |
-| Executing a run | `mixed_run.go` (`executeMixedRun`) |
+| Starting a run (client and supervisor side) | `run_command.go`, `run_registry.go`, `job_executor.go` |
+| Wiring the run lifecycle (`projectRunner`) | `project_run.go` |
 | Project state checks (idle / running / interrupted) | `project_state.go` |
 | Supervisor and its registry | `server.go`, `registry.go` |
 | Job control | `job_control.go`, `wait.go` |
@@ -192,34 +221,43 @@ Supervisor side:
 1. `server.Server.Handle` ([internal/server/serve.go](../internal/server/serve.go))
    dispatches `OpRun` to `serverOperations.Run` (sync) or `StartRun` (async)
    in [server.go](../cmd/rotari/server.go).
-2. `runServerSync` / `startServerRun` take the state lock, check the project is
-   idle, create the run ID, take the run lock (`running.lock`), write run
-   context, and mark `meta.json` as running. `startServerRun` then calls
-   `launchAsyncRun` ([main.go](../cmd/rotari/main.go)), which spawns
-   `__worker-run`; `cmdWorkerRun` wraps the same steps in `run.RunWorker`.
+2. `runServerSync` / `startServerRun` share `prepareServerRun`: take the
+   state lock, check the project is idle, and validate the queue. Then
+   `projectrun.Runner.Begin`
+   ([internal/projectrun/lifecycle.go](../internal/projectrun/lifecycle.go))
+   writes `context.json`, takes the run lock (`running.lock`), registers the
+   run, and marks `meta.json` as running.
+3. A synchronous run continues with `Runner.Run` in the supervisor. An async
+   run goes through `launchAsyncRun` ([main.go](../cmd/rotari/main.go)), which
+   spawns `__worker-run`, hands it the run lock, and returns; `cmdWorkerRun`
+   calls `Runner.Run` in the worker.
 
-Execution, in `executeMixedRun` ([mixed_run.go](../cmd/rotari/mixed_run.go)):
+Execution, in `Runner.Execute`
+([internal/projectrun/execute.go](../internal/projectrun/execute.go)):
 
 1. Load the queue, convert it to `model.JobSpec`s, and validate IDs and
    dependencies.
-2. `planRerunSelection` → `run.PlanRerun`: decide which jobs execute and which
-   results are carried from an earlier run.
+2. `Runner.PlanSelection` → `run.PlanRerun`: decide which jobs execute and
+   which results are carried from an earlier run.
 3. Write `runs/<run-id>/commands.json`.
 4. `run.NewDispatcher` builds one lane per executor with its own concurrency.
    `run.ExecuteJobs` ([internal/run/engine.go](../internal/run/engine.go)) is
    the loop: start jobs whose dependencies are satisfied, collect results,
    retry, and stop if the project is being cancelled.
 5. Each lane calls the executor's `Submit` and `Wait`
-    ([internal/executor/contracts.go](../internal/executor/contracts.go)).
-    The executor writes attempt files under
-    `runs/<run-id>/<job-id>/attempts/<attempt-id>/`.
-6. `run.BuildRunSummary` writes `summary.json`, with diagnoses attached.
+   ([internal/executor/contracts.go](../internal/executor/contracts.go)).
+   The executor writes attempt files under
+   `runs/<run-id>/<job-id>/attempts/<attempt-id>/`.
+6. `run.BuildRunSummary` builds the summary, with diagnoses attached, and it
+   is written to `summary.json`.
 
-Finish:
+Finish, in `Runner.Finish`:
 
-1. `finishRun` ([main.go](../cmd/rotari/main.go)) clears the consumed queue
-    and finalizes `meta.json` (`state.FinalizeRun`), sends the webhook, and the
-    run lock is removed.
+1. Record the final load in `context.json`.
+2. `Finalize` clears the consumed queue and finalizes `meta.json`
+   (`state.FinalizeRun`) after checking that the run lock is still this run's,
+   then calls the webhook hook.
+3. Remove the run lock.
 
 ### `rotari show` and the Web UI
 

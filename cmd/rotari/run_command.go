@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -333,45 +334,76 @@ func resolveQueueExecutor(baseDir, queueName, requested string) (string, error) 
 	return resolved, nil
 }
 
-func startServerRun(baseDir string, request serverinternal.Request, onDone func()) (string, error) {
-	_, err := resolveQueueExecutor(baseDir, request.QueueName, request.Executor)
+// preparedRun is a run request that passed validation while its caller holds
+// the project's state lock.
+type preparedRun struct {
+	paths    state.ProjectPaths
+	queue    model.Queue
+	executor string
+	release  func()
+}
+
+// prepareServerRun validates a run request and takes the project's state
+// lock. On success the caller must call release.
+func prepareServerRun(baseDir string, request serverinternal.Request) (preparedRun, error) {
+	resolvedExecutor, err := resolveQueueExecutor(baseDir, request.QueueName, request.Executor)
 	if err != nil {
-		return "", err
+		return preparedRun{}, err
 	}
 	if request.LocalConcurrency < 1 {
-		return "", errors.New("local concurrency must be >= 1")
+		return preparedRun{}, errors.New("local concurrency must be >= 1")
 	}
 	paths, err := state.ResolveProjectPaths(baseDir, request.QueueName)
 	if err != nil {
-		return "", err
+		return preparedRun{}, err
 	}
 	if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
-		return "", err
+		return preparedRun{}, err
 	}
 	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
-		return "", err
+		return preparedRun{}, err
 	}
-	defer release()
 	if err := ensureProjectIdleForPaths(paths, "run"); err != nil {
-		return "", err
+		release()
+		return preparedRun{}, err
 	}
 	queue, err := loadRunQueue(paths, request.Executor, request.ExecutorOptions, request.ExecutorSettings)
 	if err != nil {
-		return "", err
+		release()
+		return preparedRun{}, err
 	}
 	if len(queue.Commands) == 0 {
-		return "", fmt.Errorf("queue %q has no queued commands", request.QueueName)
+		release()
+		return preparedRun{}, fmt.Errorf("queue %q has no queued commands", request.QueueName)
 	}
-	runID := makeRunID()
-	if err := launchAsyncRun(paths, runcontract.Options{
+	return preparedRun{paths: paths, queue: queue, executor: resolvedExecutor, release: release}, nil
+}
+
+// runRequestOptions converts a run request into worker options for runID.
+func runRequestOptions(request serverinternal.Request, runID string) runcontract.Options {
+	return runcontract.Options{
 		QueueName: request.QueueName, RunID: runID, RunName: request.RunName,
 		LocalConcurrency: request.LocalConcurrency, BatchMaxActive: request.BatchMaxActive, Retry: request.Retry,
 		Executor: request.Executor, ExecutorOptions: request.ExecutorOptions, Selection: request.Selection,
 		JobIDs: request.JobIDs, SourceRunID: request.SourceRunID, PartialArray: request.PartialArray,
-		CWD: request.CWD, OnDone: onDone, ExecutorSettings: request.ExecutorSettings,
-	}); err != 0 {
-		return "", errors.New("queue is already running")
+		CWD: request.CWD, ExecutorSettings: request.ExecutorSettings,
+	}
+}
+
+// startServerRun starts an async run in a detached worker and returns at once.
+func startServerRun(baseDir string, request serverinternal.Request, onDone func()) (string, error) {
+	prepared, err := prepareServerRun(baseDir, request)
+	if err != nil {
+		return "", err
+	}
+	defer prepared.release()
+	paths := prepared.paths
+	runID := makeRunID()
+	options := runRequestOptions(request, runID)
+	options.OnDone = onDone
+	if err := launchAsyncRun(paths, options); err != nil {
+		return "", err
 	}
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
@@ -381,85 +413,57 @@ func startServerRun(baseDir string, request serverinternal.Request, onDone func(
 		request.QueueName, formatRunLabel(runID, request.RunName), runDir, runID, paths.BaseDir, request.QueueName), nil
 }
 
+// runServerSync executes a run inside the supervisor, streaming progress to
+// the attached client, and returns once it has finished.
 func runServerSync(baseDir string, request serverinternal.Request, progress func(serverinternal.Response)) (string, int, error) {
-	resolvedExecutor, err := resolveQueueExecutor(baseDir, request.QueueName, request.Executor)
+	prepared, err := prepareServerRun(baseDir, request)
 	if err != nil {
 		return "", 1, err
 	}
-	if request.LocalConcurrency < 1 {
-		return "", 1, errors.New("local concurrency must be >= 1")
-	}
-	paths, err := state.ResolveProjectPaths(baseDir, request.QueueName)
-	if err != nil {
-		return "", 1, err
-	}
-	if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
-		return "", 1, err
-	}
-	release, err := state.AcquireStateLock(paths.StateLockFile)
-	if err != nil {
-		return "", 1, err
-	}
-	if err := ensureProjectIdleForPaths(paths, "run"); err != nil {
-		release()
-		return "", 1, err
-	}
-	queue, err := loadRunQueue(paths, request.Executor, request.ExecutorOptions, request.ExecutorSettings)
-	if err != nil {
-		release()
-		return "", 1, err
-	}
-	if len(queue.Commands) == 0 {
-		release()
-		return "", 1, fmt.Errorf("queue %q has no queued commands", request.QueueName)
-	}
+	paths, queue := prepared.paths, prepared.queue
+	runner := projectRunner()
 	runID := makeRunID()
-	if err := writeRunContext(paths, runID, request.CWD); err != nil {
-		release()
+	if err := runner.Begin(paths, projectrun.Start{RunID: runID, RunName: request.RunName, CWD: request.CWD}); err != nil {
+		prepared.release()
 		return "", 1, err
 	}
-	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: runID, RunName: request.RunName, StartedAt: nowRFC3339()}); err != nil {
-		release()
-		return "", 1, fmt.Errorf("project %q is already running", request.QueueName)
-	}
-	if err := registerRun(paths, runID); err != nil {
-		_ = os.Remove(paths.LockFile)
-		if runDir, pathErr := state.SafeJoin(paths.RunsDir, runID); pathErr == nil {
-			_ = os.RemoveAll(runDir)
-		}
-		release()
-		return "", 1, fmt.Errorf("failed to register run: %w", err)
-	}
-	meta, err := state.LoadMeta(paths.MetaFile)
+	plan, err := runner.PlanSelection(paths, queue, request.Selection, request.JobIDs, request.SourceRunID, request.PartialArray)
 	if err != nil {
 		_ = os.Remove(paths.LockFile)
-		release()
-		return "", 1, err
-	}
-	meta.Phase = "running"
-	meta.LastRunID = runID
-	meta.UpdatedAt = nowRFC3339()
-	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
-		_ = os.Remove(paths.LockFile)
-		release()
-		return "", 1, err
-	}
-	plan, err := planRerunSelection(paths, queue, request.Selection, request.JobIDs, request.SourceRunID, request.PartialArray)
-	if err != nil {
-		_ = os.Remove(paths.LockFile)
-		release()
+		prepared.release()
 		return "", 1, err
 	}
 	submitted := len(plan.Execute)
 	excluded := len(queue.Commands) - submitted
-	release()
+	prepared.release()
 	if progress != nil {
 		progress(serverinternal.Response{Progress: true, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", request.QueueName, runID, submitted, excluded, len(queue.Commands))})
 	}
 
-	stopLoadSampling := startRunLoadSampling(paths, runID)
-	exitCode := executeMixedRun(paths, runID, request.RunName, request.LocalConcurrency, request.BatchMaxActive, request.Retry, resolvedExecutor, request.ExecutorOptions, request.Selection, request.JobIDs, request.SourceRunID, request.PartialArray, func(result model.JobResult, completed, total, succeeded, failed int) {
-		if progress != nil {
+	options := projectRunOptions(runRequestOptions(request, runID))
+	options.Executor = prepared.executor
+	exitCode, err := runner.Run(paths, options, syncRunObserver(request, runID, progress))
+	if err != nil {
+		return "", 1, err
+	}
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
+	if err != nil {
+		return "", 1, err
+	}
+	if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
+		return formatRunCompletion(paths, runID, summary), exitCode, nil
+	}
+	return fmt.Sprintf("=== Run finished ===\n  Project: %s\n  Run: %s\n  Exit code: %d", request.QueueName, runID, exitCode), exitCode, nil
+}
+
+// syncRunObserver turns job starts and results into progress responses for
+// an attached client.
+func syncRunObserver(request serverinternal.Request, runID string, progress func(serverinternal.Response)) projectrun.Observer {
+	if progress == nil {
+		return projectrun.Observer{}
+	}
+	return projectrun.Observer{
+		Progress: func(result model.JobResult, completed, total, succeeded, failed int) {
 			message := ""
 			if result.ExitCode != 0 && result.Error == "final-failure" {
 				failureTitle := "Job failed:"
@@ -477,37 +481,15 @@ func runServerSync(baseDir string, request serverinternal.Request, progress func
 				message = fmt.Sprintf("Retrying job: attempt=%s job=%s command=%v", strings.TrimPrefix(result.Error, "retry:"), result.ID, result.Command)
 			}
 			progress(serverinternal.Response{OK: true, Progress: true, Message: message, JobID: result.ID, Completed: completed, Total: total, Succeeded: succeeded, Failed: failed})
-		}
-	}, func(job model.JobSpec) {
-		if progress == nil {
-			return
-		}
-		name := job.Name
-		if name == "" {
-			name = "-"
-		}
-		message := fmt.Sprintf("Job running:\n  ID: %s\n  Attempt ID: %s\n  Name: %s\n  Show:\n    rotari show --run-id %s --job-id %s",
-			job.ID, job.AttemptID, name, runID, job.AttemptID)
-		progress(serverinternal.Response{OK: true, Progress: true, Message: message, JobID: job.ID})
-	}, request.ExecutorSettings)
-	stopLoadSampling()
-	if err := finishRunContext(paths, runID); err != nil {
-		_ = os.Remove(paths.LockFile)
-		return "", 1, err
+		},
+		Started: func(job model.JobSpec) {
+			name := job.Name
+			if name == "" {
+				name = "-"
+			}
+			message := fmt.Sprintf("Job running:\n  ID: %s\n  Attempt ID: %s\n  Name: %s\n  Show:\n    rotari show --run-id %s --job-id %s",
+				job.ID, job.AttemptID, name, runID, job.AttemptID)
+			progress(serverinternal.Response{OK: true, Progress: true, Message: message, JobID: job.ID})
+		},
 	}
-	if err := finishRun(paths, runID, exitCode); err != nil {
-		_ = os.Remove(paths.LockFile)
-		return "", 1, err
-	}
-	if err := os.Remove(paths.LockFile); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", 1, err
-	}
-	runDir, err := state.SafeJoin(paths.RunsDir, runID)
-	if err != nil {
-		return "", 1, err
-	}
-	if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
-		return formatRunCompletion(paths, runID, summary), exitCode, nil
-	}
-	return fmt.Sprintf("=== Run finished ===\n  Project: %s\n  Run: %s\n  Exit code: %d", request.QueueName, runID, exitCode), exitCode, nil
 }

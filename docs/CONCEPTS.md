@@ -236,7 +236,7 @@ runner fit together during a run.
 ```mermaid
 flowchart LR
     Client["run client\nrotari run"] -->|start request| Server["server\nowns project state and lock"]
-    Server -->|begin active run| Runner["runner\nexecuteMixedRun"]
+    Server -->|begin active run| Runner["runner\nshared run lifecycle"]
     Runner -->|dispatch jobs| Local["local jobs"]
     Runner -->|dispatch jobs| SSH["SSH jobs"]
     Runner -->|dispatch jobs| Scheduler["Slurm / PBS / LSF jobs"]

@@ -233,12 +233,29 @@
 
 ## Run orchestration and executor responsibilities
 
-- `executeMixedRun` (`mixed_run.go`) is the single execution engine for every
-  run, regardless of executor mix.
-- Both the synchronous path (`runServerSync`) and async worker path
-  (`cmdWorkerRun`) drive it. It expands array plans, dispatches to executors,
-  and writes the run summary. Commands are enqueued by `add` and started by
-  `run`; `run --async` selects the async worker path.
+- `projectrun.Runner` ([internal/projectrun](../../internal/projectrun/)) is
+  the single run lifecycle for every run, regardless of executor mix. The
+  synchronous path (`runServerSync` in
+  [cmd/rotari/run_command.go](../../cmd/rotari/run_command.go)) and the async
+  path (`startServerRun`, then the `__worker-run` worker in `cmdWorkerRun`)
+  both call it:
+  - `Begin`, under the state lock of an idle project, writes `context.json`
+    first, then takes `running.lock`, registers the run, and marks
+    `meta.json` running, so a project that looks running always has its run
+    context. A failure after the lock is taken removes the lock; a failed
+    registration also removes the new run directory. The async path then
+    rewrites the lock with the worker's PID.
+  - `Execute` snapshots the queue to `commands.json`, plans the selection,
+    expands array plans, dispatches to executors, and writes the run summary.
+  - `Finish` records the final load, finalizes the queue and metadata
+    (`Finalize`, which checks that the run lock still belongs to the run), and
+    removes the run lock unless it belongs to another run. The lock is removed
+    even when finalization fails, so the project reads as interrupted rather
+    than running.
+  Covered by [internal/projectrun/lifecycle_test.go](../../internal/projectrun/lifecycle_test.go)
+  and [cmd/rotari/mixed_run_test.go](../../cmd/rotari/mixed_run_test.go).
+  Commands are enqueued by `add` and started by `run`; `run --async` selects
+  the async worker path.
 - The server launches the async worker as `__worker-run` with arguments built
   by `WorkerArgs` in [internal/run/worker_args.go](../../internal/run/worker_args.go)
   and parsed by `parseWorkerRunArgs` in [cmd/rotari/main.go](../../cmd/rotari/main.go).
@@ -249,7 +266,7 @@
   [cmd/rotari/worker_args_test.go](../../cmd/rotari/worker_args_test.go)
   round-trips the arguments through the worker's parser.
 - Per-executor full-run orchestrators must not be added outside this path.
-  Extend `JobExecutor` methods or `executeMixedRun` instead.
+  Extend `JobExecutor` methods or `projectrun.Runner.Execute` instead.
 - Run dispatch (`Dispatcher` in [internal/run/dispatch.go](../../internal/run/dispatch.go))
   keeps one lane per executor for the whole run: a local concurrency lane and
   one independent lane per non-local executor. Each lane is a FIFO queue: jobs
@@ -281,7 +298,7 @@
   settings override those defaults, and job-specific executor options remain
   highest priority.
 - The former Slurm-only orchestration path was removed because it duplicated this
-  responsibility and became dead after `executeMixedRun` replaced it.
+  responsibility and became dead after the shared execution path replaced it.
 - `JobExecutor` is the scheduler boundary. Implementations share lifecycle and
   result semantics where supported; scheduler metadata belongs in the job's run
   directory.

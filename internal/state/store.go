@@ -162,6 +162,9 @@ func WriteJSON(path string, value any) error {
 	return NewStore(DirectoryMode(), FileMode()).WriteJSON(path, value)
 }
 
+// LoadSamplesFileName is the run-directory file that holds a run's load samples.
+const LoadSamplesFileName = "load_samples.jsonl"
+
 func AppendLoadSample(path string, sample model.LoadSample) error {
 	if err := ValidateStatePath(path); err != nil {
 		return err

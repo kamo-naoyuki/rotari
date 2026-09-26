@@ -105,7 +105,7 @@ the user-facing documentation, and the affected tests together.
   starts snapshots the queue; the queue remains on disk as a preserved snapshot
   while the run is active, and it stays as the retained recovery snapshot after
   an interruption. Normal completion clears the consumed queue, at which point a
-  new batch can be prepared again. See [`cmd/rotari/mixed_run.go`](../../cmd/rotari/mixed_run.go),
+  new batch can be prepared again. See [`internal/projectrun/lifecycle.go`](../../internal/projectrun/lifecycle.go),
   [`cmd/rotari/reset.go`](../../cmd/rotari/reset.go), and
   [`cmd/rotari/state_test.go`](../../cmd/rotari/state_test.go).
 - The primary user-facing target depends on project state: `idle` projects show
@@ -126,7 +126,7 @@ the user-facing documentation, and the affected tests together.
 - Executors implement job execution and scheduler integration, not run
   semantics. Run planning, dependency handling, carry-forward, and summary
   finalization belong to rotari's shared execution path. See
-  [`cmd/rotari/mixed_run.go`](../../cmd/rotari/mixed_run.go),
+  [`internal/projectrun/execute.go`](../../internal/projectrun/execute.go),
   [`internal/executor/contracts.go`](../../internal/executor/contracts.go), and
   [`cmd/rotari/mixed_run_test.go`](../../cmd/rotari/mixed_run_test.go).
 
@@ -139,12 +139,14 @@ The package map, process roles, and per-command walkthroughs are in
   downward through explicit data and callback contracts instead.
 - `internal/model` has no I/O. `internal/state` owns every file and directory
   layout decision and makes no execution-policy decisions. `internal/run` owns
-  run orchestration. Executors implement job execution only.
+  run rules without file access, and `internal/projectrun` owns the one
+  lifecycle that starts, executes, and finishes a project's run on disk.
+  Executors implement job execution only.
 - Renderers do not read status files themselves: `show`, `jobs`, `report`,
   and the Web UI resolve outcomes through `internal/jobstatus` so they cannot
   drift apart.
-- New run behavior goes in `internal/run`, not in a CLI or Web path, so no
-  interface silently reimplements run semantics.
+- New run behavior goes in `internal/run` or `internal/projectrun`, not in a
+  CLI or Web path, so no interface silently reimplements run semantics.
 
 `internal/rundiff` compares two runs that `cmd/rotari/diff.go` has loaded, with
 each job's status already resolved through `internal/jobstatus`. It matches
