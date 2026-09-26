@@ -9,6 +9,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -81,6 +82,12 @@ func cmdAdd(args []string) int {
 	if err != nil {
 		printError(err)
 		return 1
+	}
+	if !resolve.ProjectExists(baseDir, queueName) {
+		if err := model.ValidateReservedName("project", queueName); err != nil {
+			printError(err)
+			return 1
+		}
 	}
 	if err := model.ValidateEnvironment(environment); err != nil {
 		printErrorf("invalid --env: %v", err)
@@ -187,6 +194,9 @@ func enqueueCommands(baseDir, queueName string, commands []model.QueuedCommand, 
 			if queue.WorkflowImport {
 				commands[index].Force = true
 			}
+		}
+		if err := model.ValidateReservedNames(commands); err != nil {
+			return err
 		}
 		if err := validateQueueJobs(model.Queue{Commands: append(append([]model.QueuedCommand(nil), queue.Commands...), commands...)}); err != nil {
 			return err

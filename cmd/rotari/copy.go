@@ -85,11 +85,12 @@ func cmdCopy(args []string) int {
 	}
 	if *jobName != "" {
 		if *runID != "" {
-			baseDir, projectName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runID)
+			baseDir, projectName, resolvedRunID, err := resolve.ExistingRunID(*basedir, *queueNameOption, *runID)
 			if err != nil {
 				printError(err)
 				return 1
 			}
+			*runID = resolvedRunID
 			paths, err := state.ResolveProjectPaths(baseDir, projectName)
 			if err != nil {
 				printError(err)
@@ -169,11 +170,12 @@ func cmdCopy(args []string) int {
 		selection = "all"
 	}
 
-	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runID)
+	baseDir, queueName, resolvedRunID, err := resolve.ExistingRunID(*basedir, *queueNameOption, *runID)
 	if err != nil {
 		printError(err)
 		return 1
 	}
+	*runID = resolvedRunID
 	if err := ensureProjectIdle(baseDir, queueName, "copy"); err != nil {
 		printError(err)
 		return 1

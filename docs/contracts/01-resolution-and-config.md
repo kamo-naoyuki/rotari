@@ -66,8 +66,14 @@ Without a run-location lookup, base directories resolve in this order:
   IANA timezone from `TZ` when valid, otherwise Go's local timezone.
 - A supplied `--run-id` is exact, except that the reserved value `latest`
   selects the latest saved run using the normal metadata/newest-directory
-  fallback. Existing-run commands use the master registry for its base directory
-  and project.
+  fallback, through `resolve.ExistingRunID`. `latest` is accepted wherever a
+  run is given, as `--run-id` or positionally; the exceptions are `unlock`,
+  whose `--run-id` confirms the locked run, and `cancel`, `suspend`, and
+  `resume`, which act on running jobs. It is reserved: `add`, `change`,
+  `import`, and `run --run-name` reject a new project, run, job, stage, or
+  matrix named `latest` (`model.ValidateReservedName`); existing ones keep
+  working through options. Existing-run commands use the master registry for
+  its base directory and project.
 - Explicit location options take priority, but conflicts with the registry fail.
   An unregistered run uses normal resolution for compatibility, while a missing
   explicit run is an error with no latest fallback.

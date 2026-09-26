@@ -36,11 +36,12 @@ func cmdDelete(args []string) int {
 		return 1
 	}
 
-	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runIDOption)
+	baseDir, queueName, resolvedRunID, err := resolve.ExistingRunID(*basedir, *queueNameOption, *runIDOption)
 	if err != nil {
 		printError(err)
 		return 1
 	}
+	*runIDOption = resolvedRunID
 	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		printErrorf("failed to resolve paths: %v", err)

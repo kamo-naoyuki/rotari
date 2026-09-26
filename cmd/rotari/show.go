@@ -155,6 +155,9 @@ func cmdShow(args []string) int {
 			selector = ""
 		}
 	}
+	if selector == model.Latest {
+		*runIDOption, selector = model.Latest, ""
+	}
 	if selector != "" && !cliOptionSet(fs, "project-name") {
 		// A project name comes next, as in wait: "show sweep" is
 		// "show -p sweep".

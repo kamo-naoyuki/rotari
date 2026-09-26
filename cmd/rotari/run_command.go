@@ -59,6 +59,10 @@ func cmdRun(args []string) int {
 		printError("--job-name cannot be combined with --job-id")
 		return 1
 	}
+	if err := model.ValidateReservedName("run name", *runName); err != nil {
+		printError(err)
+		return 1
+	}
 	scope := model.CommandSelector{Stage: *stage, Matrix: *matrixName}
 	if scope.Kinds() > 1 || (scope.Kinds() > 0 && (*jobNameOption != "" || len(jobIDs) > 0)) {
 		printError("--stage, --matrix, and --job-id or --job-name cannot be combined")
@@ -70,11 +74,12 @@ func cmdRun(args []string) int {
 	}
 	if *jobNameOption != "" {
 		if *runIDOption != "" {
-			baseDir, projectName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runIDOption)
+			baseDir, projectName, resolvedRunID, err := resolve.ExistingRunID(*basedir, *queueNameOption, *runIDOption)
 			if err != nil {
 				printError(err)
 				return 1
 			}
+			*runIDOption = resolvedRunID
 			paths, err := state.ResolveProjectPaths(baseDir, projectName)
 			if err != nil {
 				printError(err)
@@ -144,11 +149,12 @@ func cmdRun(args []string) int {
 		printError("usage: " + cliUsage("run"))
 		return 1
 	}
-	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runIDOption)
+	baseDir, queueName, resolvedRunID, err := resolve.ExistingRunID(*basedir, *queueNameOption, *runIDOption)
 	if err != nil {
 		printError(err)
 		return 1
 	}
+	*runIDOption = resolvedRunID
 	if err := ensureProjectIdle(baseDir, queueName, "run"); err != nil {
 		printError(err)
 		return 1

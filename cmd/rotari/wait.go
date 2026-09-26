@@ -85,6 +85,13 @@ func cmdWait(args []string) int {
 }
 
 func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run, error) {
+	if selector == model.Latest {
+		baseDir, projectName, runID, err := resolve.ExistingRunID(cliBaseDir, cliProjectName, selector)
+		if err != nil {
+			return resolve.Run{}, err
+		}
+		return resolve.Run{BaseDir: baseDir, ProjectName: projectName, RunID: runID}, nil
+	}
 	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 	if err != nil {
 		return resolve.Run{}, err
@@ -198,7 +205,7 @@ type waitResult struct {
 }
 
 func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, jsonOutput bool) waitResult {
-	baseDir, queueName, err := resolve.ExistingRun(basedir, queueNameOption, runID)
+	baseDir, queueName, runID, err := resolve.ExistingRunID(basedir, queueNameOption, runID)
 	if err != nil {
 		printError(err)
 		return waitResult{exitCode: 1}

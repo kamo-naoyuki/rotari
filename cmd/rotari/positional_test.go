@@ -117,6 +117,20 @@ var positionalCases = []positionalCase{
 	{name: "master directory", args: "gc {M}", want: "found 0 orphan run registry entries"},
 	{name: "master directory and option", args: "gc --masterdir {M} {M}", fail: true, want: "usage"},
 
+	// latest: the latest run wherever a run can be given, and a reserved name.
+	{name: "latest run", args: "copy -b {B} -p sweep latest", want: "copied jobs=5 from run={run:sweep-second}"},
+	{name: "latest run", args: "delete -b {B} -p sweep latest", want: "cleared logs project=sweep run={run:sweep-second}"},
+	{name: "latest run", args: "wait -b {B} -p sweep latest", fail: true, want: "Run: second ({run:sweep-second})"},
+	{name: "latest run option", args: "wait -b {B} -p sweep --run-id latest", fail: true, want: "Run: second ({run:sweep-second})"},
+	{name: "latest run", args: "show -b {B} -p sweep latest", want: "Run: second ({run:sweep-second})"},
+	{name: "latest run", args: "diff -b {B} -p sweep latest", want: "first ({run:sweep-first}) -> second ({run:sweep-second})"},
+	{name: "reserved job name", args: "add -b {B} -p other --job-name latest true", fail: true, want: `job name "latest" is reserved`},
+	{name: "reserved stage", args: "add -b {B} -p other --stage latest true", fail: true, want: `stage "latest" is reserved`},
+	{name: "reserved matrix name", args: "add -b {B} -p other --job-name latest --matrix X=1,2 true", fail: true, want: `"latest" is reserved`},
+	{name: "reserved project", args: "add -b {B} -p latest true", fail: true, want: `project "latest" is reserved`},
+	{name: "reserved run name", args: "run -b {B} -p sweep --run-name latest", fail: true, want: `run name "latest" is reserved`},
+	{name: "reserved rename", args: "change -b {B} -p sweep --job-name prep --set-job-name latest", setup: setupQueued, fail: true, want: `job name "latest" is reserved`},
+
 	// run takes no positionals, not even config.
 	{name: "no config alias", args: "run config", fail: true, want: "usage"},
 }

@@ -163,6 +163,25 @@ func ExistingRun(cliBaseDir, cliProjectName, runID string) (string, string, erro
 	return baseDir, projectName, nil
 }
 
+// ExistingRunID is ExistingRun that also resolves runID to a saved run of the
+// project: "latest" becomes the latest run, and any other ID must exist. An
+// empty runID stays empty.
+func ExistingRunID(cliBaseDir, cliProjectName, runID string) (string, string, string, error) {
+	baseDir, projectName, err := ExistingRun(cliBaseDir, cliProjectName, runID)
+	if err != nil || runID == "" {
+		return baseDir, projectName, runID, err
+	}
+	paths, err := state.ResolveProjectPaths(baseDir, projectName)
+	if err != nil {
+		return "", "", "", err
+	}
+	resolved, err := RunID(paths, runID)
+	if err != nil {
+		return "", "", "", err
+	}
+	return baseDir, projectName, resolved, nil
+}
+
 // Run names a run's location.
 type Run struct {
 	BaseDir     string
@@ -474,7 +493,7 @@ func jobIDsTarget(cliBaseDir, cliProjectName string, jobIDs []string, includeQue
 // must exist; empty or "latest" selects meta.json's last run, then the newest
 // run directory.
 func RunID(paths state.ProjectPaths, requested string) (string, error) {
-	if requested == "latest" {
+	if requested == model.Latest {
 		requested = ""
 	}
 	if requested != "" {

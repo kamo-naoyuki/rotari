@@ -7,8 +7,6 @@ Decided on 2026-09-26 after reviewing
 contract and `TestSelectorTable` / `TestPositionalArguments` with each item,
 and remove the item here once it is done.
 
-- `latest` is accepted wherever a run can be given, and is a reserved word:
-  project, run, job, stage, and matrix names cannot be `latest`.
 - Reading and editing commands report a project that does not exist as
   `project "x" does not exist`; commands that create projects are unchanged.
 - Without `--project-name`, a job selector searches every project in every

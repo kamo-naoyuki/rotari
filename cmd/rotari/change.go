@@ -197,6 +197,13 @@ func changeQueueJobs(baseDir, queueName, requestedRunID string, selector model.C
 				return err
 			}
 		}
+		changed := make([]model.QueuedCommand, 0, len(indexes))
+		for _, jobIndex := range indexes {
+			changed = append(changed, queue.Commands[jobIndex])
+		}
+		if err := model.ValidateReservedNames(changed); err != nil {
+			return err
+		}
 		// A group changed the same way throughout still matches its
 		// provenance; a partly changed one no longer does.
 		model.ClearInconsistentMatrixGroups(queue.Commands, groupIDs)

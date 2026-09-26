@@ -7,6 +7,38 @@ import (
 	"strings"
 )
 
+// Latest selects a project's latest run wherever a run can be given. It is
+// reserved: new projects, runs, jobs, stages, and matrices cannot be named
+// after it, so a positional "latest" is never ambiguous.
+const Latest = "latest"
+
+// ValidateReservedName rejects a new name of kind, such as "project" or "run
+// name", that is reserved.
+func ValidateReservedName(kind, name string) error {
+	if name == Latest {
+		return fmt.Errorf("%s %q is reserved for the latest run", kind, name)
+	}
+	return nil
+}
+
+// ValidateReservedNames rejects job, stage, and matrix names of commands
+// that are reserved.
+func ValidateReservedNames(commands []QueuedCommand) error {
+	for _, command := range commands {
+		for kind, name := range map[string]string{"job name": command.Name, "stage": command.Stage} {
+			if err := ValidateReservedName(kind, name); err != nil {
+				return err
+			}
+		}
+		if command.Matrix != nil {
+			if err := ValidateReservedName("matrix name", command.Matrix.BaseName); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // CommandSelector selects queue commands. Callers set one kind of selector:
 // job IDs, a job name, a stage, a matrix base name, or all. An array command
 // is selected as a whole; its task IDs and names do not select it.

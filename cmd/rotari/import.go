@@ -11,6 +11,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
 )
@@ -105,6 +106,12 @@ func cmdImport(args []string) int {
 		printError(err)
 		return 1
 	}
+	if !resolve.ProjectExists(baseDir, resolvedProject) {
+		if err := model.ValidateReservedName("project", resolvedProject); err != nil {
+			printError(err)
+			return 1
+		}
+	}
 	if manifest.Source != nil && manifest.Source.Project != resolvedProject {
 		printErrorf("workflow source project %q does not match destination project %q", manifest.Source.Project, resolvedProject)
 		return 1
@@ -116,6 +123,10 @@ func cmdImport(args []string) int {
 	}
 	queue, removed, err := reconcileWorkflowManifest(baseDir, manifest, queue)
 	if err != nil {
+		printError(err)
+		return 1
+	}
+	if err := model.ValidateReservedNames(queue.Commands); err != nil {
 		printError(err)
 		return 1
 	}
