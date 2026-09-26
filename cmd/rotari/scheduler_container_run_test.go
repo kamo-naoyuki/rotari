@@ -175,26 +175,61 @@ func TestSchedulerContainerRetriesFailedJobImmediately(t *testing.T) {
 	}
 }
 
+// jobIDs returns the latest run's job IDs by job name.
+func (project containerProject) jobIDs() map[string]string {
+	project.t.Helper()
+	output, code := project.rotariCommand(30*time.Second, "show", "-p", "p", "-r", "latest", "--json")
+	if code != 0 {
+		project.t.Fatalf("rotari show exit = %d\n%s", code, output)
+	}
+	var shown showJSON
+	if err := json.Unmarshal([]byte(output), &shown); err != nil {
+		project.t.Fatalf("show --json = %v\n%s", err, output)
+	}
+	ids := make(map[string]string)
+	for _, job := range model.QueueToJobs(shown.Commands.Commands) {
+		ids[job.Name] = job.ID
+	}
+	return ids
+}
+
+// attemptTimestamp reads a timestamp field from a JSON file of a job's
+// attempt, such as submitted_at from job.json or finished_at from
+// status.json. The files belong to the container user, so they are read
+// inside the container.
+func (project containerProject) attemptTimestamp(jobID, file, field string) string {
+	project.t.Helper()
+	output, _ := project.shell(30*time.Second, fmt.Sprintf("cat %s/projects/p/runs/*/%s/attempts/*/%s", project.baseDir, jobID, file))
+	var values map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &values); err != nil {
+		project.t.Fatalf("%s of %s: %v\n%s", file, jobID, err, output)
+	}
+	value, _ := values[field].(string)
+	if value == "" {
+		project.t.Fatalf("%s of %s has no %s:\n%s", file, jobID, field, output)
+	}
+	return value
+}
+
 func TestSchedulerContainerRefillsConcurrencySlots(t *testing.T) {
 	project := newContainerProject(t)
-	order := project.file("order.log")
-	record := func(name string, seconds int) []string {
-		return []string{"--job-name", name, "--", "sh", "-c", fmt.Sprintf("sleep %d; echo %s >> %s", seconds, name, executor.ShellQuote(order))}
-	}
-	project.add(record("slow", 25)...)
+	project.add("--job-name", "slow", "--", "sleep", "25")
 	for _, name := range []string{"quick-1", "quick-2", "quick-3"} {
-		project.add(record(name, 1)...)
+		project.add("--job-name", name, "--", "sleep", "1")
 	}
-	// With two slots, the quick jobs take turns in the second slot while
-	// "slow" runs, so "slow" finishes last. Waiting for whole batches would
-	// hold quick-2 and quick-3 until "slow" finished.
 	if code := project.run("--batch-concurrency", "2"); code != 0 {
 		t.Fatalf("run exit = %d", code)
 	}
-	output, _ := project.shell(30*time.Second, "cat "+executor.ShellQuote(order))
-	lines := strings.Fields(output)
-	if len(lines) != 4 || lines[3] != "slow" {
-		t.Fatalf("finish order = %v, want the quick jobs to finish while slow runs", lines)
+	// rotari keeps two jobs submitted. When quick-1 finishes, quick-2 takes
+	// its slot while slow still runs; waiting for whole batches would submit
+	// quick-2 only after slow finished. The check uses rotari's submission
+	// time, not execution order, because the test scheduler may run only one
+	// job at a time.
+	ids := project.jobIDs()
+	submitted := project.attemptTimestamp(ids["quick-2"], "job.json", "submitted_at")
+	slowFinished := project.attemptTimestamp(ids["slow"], "status.json", "finished_at")
+	if submitted >= slowFinished {
+		t.Fatalf("quick-2 was submitted at %s, not before slow finished at %s", submitted, slowFinished)
 	}
 }
 
