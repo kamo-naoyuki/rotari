@@ -1,33 +1,11 @@
 # TODO
 
-## Status of the selector work (2026-09-26)
+## Selectors
 
-Done: the selector and positional contracts in
-[docs/contracts/06-selectors.md](docs/contracts/06-selectors.md) (Complete
-IDs, per-command tables, job control, positional arguments), all decided
-changes to them, and the tests that pin them: `TestSelectorTable`
-([cmd/rotari/selector_cases_test.go](cmd/rotari/selector_cases_test.go)),
-`TestPositionalArguments`
-([cmd/rotari/positional_test.go](cmd/rotari/positional_test.go)), and
-`TestJobControlSelectors`
-([cmd/rotari/job_control_selector_test.go](cmd/rotari/job_control_selector_test.go)),
-all on the fixture in [cmd/rotari/selector_fixture_test.go](cmd/rotari/selector_fixture_test.go).
-The tables list no known deviations. When changing a selector, update the
-contract and add or change a row in the same commit.
-
-Decided to keep as they are:
-
-- `import` writes to the project given (or resolved); it does not locate a
-  destination from the manifest's run IDs, and a run-exported manifest must
-  come from that project.
-- `unlock` and `reset --recover` take a project; `unlock --run-id` only
-  resolves and checks the locked run.
-- Job IDs are not in the run registry, so they resolve only within the
-  resolved base directory; run and attempt IDs are the complete ones.
-
-Open follow-ups found during the work are in [ISSUES.md](ISSUES.md): run
-progress counting carried results, a planning error after `Begin` leaving a
-run without `commands.json`, and flaky timing-dependent server tests.
+The selector contract is in
+[docs/contracts/06-selectors.md](docs/contracts/06-selectors.md). When
+changing a selector, update the contract and add or change a test row in the
+same commit.
 
 - Consider extending `cancel`/`suspend`/`resume` selectors to also accept a
   `run_name` and/or a bare `project_name`, alongside the existing job_id,
@@ -38,9 +16,9 @@ run without `commands.json`, and flaky timing-dependent server tests.
   `projects/<name>` directory), but still not fully unambiguous. If this is
   implemented, prefer resolving `run_name` only through a dedicated
   `--run-name` flag (mirroring `run --run-name`) rather than the mixed
-  positional list, and reuse `wait`'s active-run scanning
-  (`resolveRunNameTargets` in [cmd/rotari/wait.go](cmd/rotari/wait.go)) for
-  lookup semantics and ambiguity errors.
+  positional list, and reuse `wait`'s active-run lookup
+  (`resolve.RunsByName` in [internal/resolve/resolve.go](internal/resolve/resolve.go))
+  for lookup semantics and ambiguity errors.
 
 ## Near-term candidates
 
