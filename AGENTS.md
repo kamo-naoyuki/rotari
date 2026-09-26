@@ -38,9 +38,11 @@ problem is package-level coupling.
 
 ## Before changing code
 
-Read the relevant implementation and tests first.
+Read the relevant implementation and tests first. To find them, use
+`docs/ARCHITECTURE.md`, which maps processes, packages, `cmd/rotari` files,
+and the path each main command takes through the code.
 
-If the change affects any of the following, also read `docs/INTERNALS.md`:
+If the change affects any of the following, also read `docs/CONTRACTS.md`:
 
 * job state
 * scheduling
@@ -51,7 +53,7 @@ If the change affects any of the following, also read `docs/INTERNALS.md`:
 * CLI behavior
 * web/API behavior
 
-When unsure whether a change affects these areas, read `docs/INTERNALS.md`.
+When unsure whether a change affects these areas, read `docs/CONTRACTS.md`.
 
 ## Project invariants
 
@@ -94,7 +96,9 @@ A user-visible behavior change may require updates to:
 * the user guides linked from the README `Documentation` section, such as
   `docs/CONCEPTS.md`, `docs/RUNNING.md`, or `docs/CONFIGURATION.md`
 * `docs/FAQ.md`
-* `docs/INTERNALS.md`
+* `docs/CONTRACTS.md`
+* `docs/ARCHITECTURE.md`, when a package, process role, or command flow it
+  describes changes
 
 When an unrelated bug, design concern, or technical debt is discovered during
 work, record it in `ISSUES.md`. Remove the item when it is resolved, or move it
@@ -110,7 +114,7 @@ Examples include changes to:
 * path rules
 * web/API behavior
 
-When behavior changes, inspect these documents and update every affected one. When the behavior is covered by `docs/INTERNALS.md` or `docs/internals/`, keep the relevant internal note current and add or update links to the representative implementation and tests in the same change.
+When behavior changes, inspect these documents and update every affected one. When the behavior is covered by `docs/CONTRACTS.md` or `docs/contracts/`, keep the relevant contract note current and add or update links to the representative implementation and tests in the same change.
 
 ## Testing
 

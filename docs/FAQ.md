@@ -2,7 +2,7 @@
 
 Rotari is a lightweight workflow runner for repeatedly executing shell commands while managing dependencies, parallelism, logs, and run history.
 
-This FAQ gives short answers about rotari's behavior. See [README.md](../README.md) and the user guides it links to for usage and [INTERNALS.md](INTERNALS.md) for detailed contracts.
+This FAQ gives short answers about rotari's behavior. See [README.md](../README.md) and the user guides it links to for usage and [CONTRACTS.md](CONTRACTS.md) for detailed contracts.
 
 ## Quick navigation
 

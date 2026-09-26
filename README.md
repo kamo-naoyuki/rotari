@@ -246,5 +246,7 @@ fails; see [Web browser notifications](docs/WEB_BROWSER_NOTIFICATIONS.md).
 
 ## Development
 
-See [rotari internals](docs/INTERNALS.md) for the architecture, persistent-state
-contracts, resolution rules, and code ownership used by maintainers and coding agents.
+See [code architecture](docs/ARCHITECTURE.md) for how the processes and
+packages fit together, and [design contracts](docs/CONTRACTS.md) for the
+persistent-state, resolution, and safety rules that maintainers and coding
+agents must preserve.

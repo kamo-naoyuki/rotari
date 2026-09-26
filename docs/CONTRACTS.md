@@ -1,33 +1,34 @@
-# Rotari internals
+# Rotari design contracts
 
-This file is the entry point for Rotari's internal design notes. The detailed
-implementation lives in the split pages under [docs/internals](internals/), and
+This file is the entry point for the behavior rotari must keep: the state
+layout, resolution and fallback rules, run semantics, locking, and path rules.
+The details live in the split pages under [docs/contracts](contracts/), and
 cross-cutting rules remain here as the high-level index.
 
-This is an architectural map, not a command reference. User-facing behavior
-belongs in [../README.md](../README.md) and the user guides it links to under
-`docs/`; implementation and tests remain in
-code.
+These are contracts, not a tour of the code. For which process and package
+does what, and how a command flows through the code, read
+[ARCHITECTURE.md](ARCHITECTURE.md) first. User-facing behavior belongs in
+[../README.md](../README.md) and the user guides it links to under `docs/`.
 
-When a behavior contract changes, update the relevant internal note in the
+When a behavior contract changes, update the relevant contract note in the
 same change. Include links to the representative implementation and tests so
 future contributors and coding agents can move from the contract to the code
 quickly.
 
 ## Split notes
 
-- [internals/00-overview.md](internals/00-overview.md): overview, system model,
+- [contracts/00-overview.md](contracts/00-overview.md): overview, system model,
   and core contracts.
-- [internals/01-resolution-and-config.md](internals/01-resolution-and-config.md):
+- [contracts/01-resolution-and-config.md](contracts/01-resolution-and-config.md):
   path resolution, config precedence, shell completion, and registry behavior.
-- [internals/02-run-lifecycle-and-execution.md](internals/02-run-lifecycle-and-execution.md):
+- [contracts/02-run-lifecycle-and-execution.md](contracts/02-run-lifecycle-and-execution.md):
   run creation, retries, filtered reruns, executor orchestration, and
   external integrations.
-- [internals/03-server-and-command-interfaces.md](internals/03-server-and-command-interfaces.md):
+- [contracts/03-server-and-command-interfaces.md](contracts/03-server-and-command-interfaces.md):
   server projections, command interfaces, and client lifecycle.
-- [internals/04-coordination-and-safety.md](internals/04-coordination-and-safety.md):
+- [contracts/04-coordination-and-safety.md](contracts/04-coordination-and-safety.md):
   locks, durability, recovery, and shared-state safety rules.
-- [internals/05-web-assets-and-static-export.md](internals/05-web-assets-and-static-export.md):
+- [contracts/05-web-assets-and-static-export.md](contracts/05-web-assets-and-static-export.md):
   Web UI assets, static export, and embedded app boundaries.
 
 ## Cross-cutting rules to keep in sync

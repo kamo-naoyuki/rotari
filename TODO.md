@@ -84,7 +84,7 @@ the experiment. See "Runs as the history of the loop" in
 - Run state versioning is in place: `queue.json`, `commands.json`, and
   `summary.json` record `state_version`, older files are read as version 1,
   and newer ones are rejected. See "State load and write contracts" in
-  [docs/internals/04-coordination-and-safety.md](docs/internals/04-coordination-and-safety.md)
+  [docs/contracts/04-coordination-and-safety.md](docs/contracts/04-coordination-and-safety.md)
   for the migration policy. `meta.json`, `context.json`, and per-job files
   are not versioned yet.
 - Building blocks: `runs/<run-id>/commands.json`, `JobOrigin` in
@@ -95,7 +95,7 @@ the experiment. See "Runs as the history of the loop" in
 ### Black-box conformance tests
 
 - Consider CLI-level black-box tests derived from the invariants in
-  [docs/INTERNALS.md](docs/INTERNALS.md), independent of package structure, so
+  [docs/CONTRACTS.md](docs/CONTRACTS.md), independent of package structure, so
   behavior is protected during package-level refactoring. Dagu keeps
   normative specs in `specs/` with an implementation-status table and tests
   them from `conformance/`.

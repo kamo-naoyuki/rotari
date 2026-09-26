@@ -1,6 +1,6 @@
 # Overview and system model
 
-This is the entry point for Rotari's internal design notes. User-facing behavior
+This page holds the shared model and core contracts. User-facing behavior
 belongs in [README.md](../../README.md) and the user guides it links to; local implementation details belong in
 code and tests. Update these notes when a cross-cutting contract changes, and replace
 obsolete rules rather than accumulating history.
@@ -132,42 +132,19 @@ the user-facing documentation, and the affected tests together.
 
 ## Go package boundaries
 
-The Go implementation is layered so command adapters do not own domain
-semantics:
+The package map, process roles, and per-command walkthroughs are in
+[../ARCHITECTURE.md](../ARCHITECTURE.md). The boundary rules that must hold:
 
-```text
-cmd/rotari
-  ├── internal/model     # queue, job, run, array, selection, validation
-  ├── internal/state     # paths, JSON persistence, locks, attempts
-  ├── internal/executor  # executor contracts and local execution primitives
-  ├── internal/jobstatus # read-side job result and timestamp resolution
-  ├── internal/diagnose  # rule-based log diagnosis
-  ├── internal/server    # server protocol, transport, and lifetime
-  ├── internal/jobcontrol # cancel, suspend, and resume of running jobs
-  ├── internal/queueedit # queue edits such as copying jobs from a run
-  ├── internal/workflow  # workflow manifests, export merge, import reconcile
-  ├── internal/rundiff   # comparison of two loaded runs for `diff`
-  └── internal/run       # run planning, worker lifecycle, lanes, orchestration
-```
-
-The three packages that most often look similar are split by responsibility:
-
-- `internal/model` owns Rotari's domain data and pure domain rules. It defines
-  what a queue, queued command, job, run summary, job result, selection, and
-  array job mean without knowing where they are stored or how they are run.
-- `internal/state` owns the filesystem boundary. It turns model values into
-  durable JSON files, validates path elements, lists run and attempt
-  directories, and manages locks and persistence details. It should not decide
-  execution policy.
-- `internal/run` owns run orchestration. It uses model values and caller-provided
-  state to decide what should execute, what can be carried forward, how
-  dependencies unblock work, when retries happen, and how workers and lanes
-  advance a run.
-
-`internal/jobstatus` owns the read-side fallback chain that turns an attempt's
-state files and the run summary into a job's displayed outcome and timestamps.
-CLI and Web projections render its resolution instead of reading status files
-themselves, so `show`, `jobs`, `report`, and the Web UI cannot drift apart.
+- Internal packages must not import `cmd/rotari`. Shared behavior moves
+  downward through explicit data and callback contracts instead.
+- `internal/model` has no I/O. `internal/state` owns every file and directory
+  layout decision and makes no execution-policy decisions. `internal/run` owns
+  run orchestration. Executors implement job execution only.
+- Renderers do not read status files themselves: `show`, `jobs`, `report`,
+  and the Web UI resolve outcomes through `internal/jobstatus` so they cannot
+  drift apart.
+- New run behavior goes in `internal/run`, not in a CLI or Web path, so no
+  interface silently reimplements run semantics.
 
 `internal/rundiff` compares two runs that `cmd/rotari/diff.go` has loaded, with
 each job's status already resolved through `internal/jobstatus`. It matches
@@ -181,35 +158,3 @@ same order and uses `rundiff.Lineage` for each run's counts and its changes
 since the previous run. Covered by
 [`internal/rundiff/rundiff_test.go`](../../internal/rundiff/rundiff_test.go)
 and [`cmd/rotari/diff_test.go`](../../cmd/rotari/diff_test.go).
-
-`internal/queueedit` and `internal/workflow` hold queue-shaping rules that
-`copy`, `retry`, `export`, and `import` share: which jobs a selection copies,
-which omitted prerequisites must have succeeded, which run snapshot describes a
-command, and which disposition an imported job gets. They read runs through
-small caller-provided interfaces, so `cmd/rotari` keeps only locking, file
-access, and output.
-
-A useful placement test is: if the code can be explained without mentioning
-paths, files, locks, or directories, it probably does not belong in
-`internal/state`; if it decides the next execution step for a run, it belongs in
-`internal/run`; if it only defines or validates Rotari concepts, it belongs in
-`internal/model`.
-
-`cmd/rotari` remains the CLI, server, Web, and filesystem adapter layer. It
-parses flags, resolves concrete state paths, connects callbacks, and formats
-user-facing output. The internal packages must not import `cmd/rotari`; shared
-behavior moves downward through explicit data and callback contracts instead.
-
-When adding run behavior, prefer `internal/run` for orchestration, keeping
-filesystem access in `internal/state` and scheduler/process details in
-`internal/executor`. This prevents a new CLI or Web path from silently
-reimplementing run semantics.
-
-Representative implementation and tests:
-
-- [internal/model/model.go](../../internal/model/model.go) and
-  [internal/model/queue_test.go](../../internal/model/queue_test.go) for queue
-  and job modeling.
-- [internal/run/plan.go](../../internal/run/plan.go) for run planning.
-- [internal/executor/contracts.go](../../internal/executor/contracts.go) for
-  the executor boundary.

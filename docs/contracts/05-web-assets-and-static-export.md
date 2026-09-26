@@ -1,8 +1,8 @@
 # Web UI and static export
 
 This document describes the Web UI, static export, and embedded asset
-boundaries. Read it for Web/API/static-site changes in addition to the main
-internal notes.
+boundaries. Read it for Web/API/static-site changes in addition to
+[00-overview.md](00-overview.md).
 
 Representative implementation and tests:
 
