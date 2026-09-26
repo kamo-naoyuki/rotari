@@ -58,7 +58,7 @@ see [Known deviations](#known-deviations).
 
 | Form | `show` | `copy` | `run`, `retry` | `change` | `remove` |
 | --- | --- | --- | --- | --- | --- |
-| Job ID | that job | that job | only that job executes (`retry`: in addition to failed and unfinished jobs †) | that command | that command; repeatable, or positional |
+| Job ID | that job | that job; with a result filter, in addition to the matching jobs | only that job executes; with a result filter (always in `retry`), in addition to the matching jobs | that command | that command; repeatable, or positional |
 | Array command ID | the array's tasks † | the whole array † | the whole array † | the whole array | the whole array |
 | Array task ID | that task | that task, narrowing the array † | that task † | error with the array job's ID | error with the array job's ID |
 | Attempt ID | that attempt (also positional) | that attempt, narrowing an array to its task | copies that attempt, then runs it | error † | error † |
@@ -136,9 +136,6 @@ Each is also recorded in [ISSUES.md](../../ISSUES.md) until it is resolved.
   (`resolve.JobInQueue` and `resolve.JobInRun`), so an array command's own ID
   or name is "not found", and a task found this way is then not found by
   `copy` and the rerun plan, which select commands.
-- `retry --job-id` (and `run --failed --job-id`) ignores the job IDs: with a
-  result filter, `planByOrigin` in
-  [internal/run/rerun.go](../../internal/run/rerun.go) drops them.
 - `change` and `remove` report an attempt ID as "job not found" instead of
   saying that attempt IDs are not accepted.
 

@@ -1090,8 +1090,9 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "success",
                 },
                 {
-                    "description": "only execute this job; may be repeated; "
-                    "others carry forward their previous result",
+                    "description": "execute this job, in addition to any result "
+                    "filter's matches; may be repeated; others "
+                    "carry forward their previous result",
                     "environment": "ROTARI_JOB_ID",
                     "name": "job-id",
                     "repeated": True,

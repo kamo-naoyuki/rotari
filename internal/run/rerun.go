@@ -39,6 +39,8 @@ type OriginResults interface {
 //
 // A scope, when set, narrows a result selection to one stage or matrix: jobs
 // outside it do not execute and carry their results like non-matching jobs.
+// jobIDs are the whole selection when selection is "job-id"; with a result
+// selection they execute in addition to the matching jobs.
 func PlanRerun(queue model.Queue, selection string, jobIDs []string, scope model.CommandSelector, referenceRunID string, partialArray bool, source OriginResults) (Plan, error) {
 	if selection == "" && queue.WorkflowImport {
 		return planImportedWorkflow(queue, source)
@@ -303,7 +305,9 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 	resolver := &originResolver{source: source, fallbackRunID: referenceRunID, resultsByRun: make(map[string]map[string]model.JobResult)}
 	for _, command := range queue.Commands {
 		scoped := inScope(command)
-		if command.Array != nil && partialArray && selection != "job-id" {
+		// A requested job executes whole, in addition to the jobs the result
+		// filter matches.
+		if command.Array != nil && partialArray && selection != "job-id" && !requested[command.ID] {
 			for _, task := range model.ArrayTaskIDs(command.Array) {
 				id := taskID(command.ID, task)
 				origin := TaskOrigin(command, task)
@@ -332,7 +336,7 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 		}
 		include := requested[command.ID]
 		if selection != "job-id" {
-			include = scoped && model.ResultSelectionMatches(selection, finished, result.ExitCode)
+			include = include || (scoped && model.ResultSelectionMatches(selection, finished, result.ExitCode))
 		}
 		delete(requested, command.ID)
 		if include {

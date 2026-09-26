@@ -257,3 +257,21 @@ func TestPlanRerunScopeNarrowsSelection(t *testing.T) {
 		t.Fatal("PlanRerun accepted a stage without jobs")
 	}
 }
+
+func TestPlanRerunJobIDsAddToResultSelection(t *testing.T) {
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "ok", Command: []string{"true"}},
+		{ID: "bad", Command: []string{"false"}},
+		{ID: "sweep", Command: []string{"true"}, Array: &model.ArraySpec{First: 1, Last: 2}},
+	}}
+	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"run-1": {
+		"ok": {ID: "ok"}, "bad": {ID: "bad", ExitCode: 1}, "sweep-1": {ID: "sweep-1"}, "sweep-2": {ID: "sweep-2"},
+	}}}
+	plan, err := PlanRerun(queue, "failed", []string{"ok", "sweep"}, model.CommandSelector{}, "run-1", true, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Execute) != 3 || !plan.Execute["bad"] || !plan.Execute["ok"] || !plan.Execute["sweep"] {
+		t.Fatalf("execute = %#v, want the failed job plus ok and the whole sweep array", plan.Execute)
+	}
+}

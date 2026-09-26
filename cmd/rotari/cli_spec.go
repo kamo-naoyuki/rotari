@@ -366,7 +366,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "failed", Description: "only execute failed jobs; others carry forward their previous result"},
 			cliFlagSpec{Name: "unfinished", Description: "only execute unfinished jobs; others carry forward their previous result"},
 			cliFlagSpec{Name: "success", Description: "only execute successful jobs; others carry forward their previous result"},
-			cliFlagSpec{Name: "job-id", Description: "only execute this job; may be repeated; others carry forward their previous result", ValueName: "ID"},
+			cliFlagSpec{Name: "job-id", Description: "execute this job, in addition to any result filter's matches; may be repeated; others carry forward their previous result", ValueName: "ID"},
 			cliFlagSpec{Name: "job-name", Description: "only execute this job by name", ValueName: "NAME"},
 			cliFlagSpec{Name: "stage", Description: "only execute jobs in this stage, narrowed by any result filter; others carry forward their previous result", ValueName: "STAGE"},
 			cliFlagSpec{Name: "matrix", Description: "only execute jobs of this matrix, named by its base job name, narrowed by any result filter; others carry forward their previous result", ValueName: "NAME"},

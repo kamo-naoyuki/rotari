@@ -3,7 +3,6 @@ package main
 // Known deviations, named as in ISSUES.md.
 const (
 	knownArrayLookup  = "Array jobs are looked up per task"
-	knownRetryJobID   = "retry --job-id does not also execute the named job"
 	knownAttemptEdits = "Queue edits report an attempt ID as \"job not found\""
 )
 
@@ -94,7 +93,8 @@ var selectorCases = []selectorCase{
 	// run and retry: which jobs the new run executes.
 	{name: "failed and unfinished", cmd: "retry", args: "-b {B} -p sweep", jobs: []string{"eval-2", "train-SEED2"}},
 	{name: "stage", cmd: "retry", args: "-b {B} -p sweep --stage training", jobs: []string{"train-SEED2"}},
-	{name: "job ID in addition", cmd: "retry", args: "-b {B} -p sweep --job-id {job:prep}", jobs: []string{"eval-2", "prep", "train-SEED2"}, known: knownRetryJobID},
+	{name: "job ID in addition", cmd: "retry", args: "-b {B} -p sweep --job-id {job:prep}", jobs: []string{"eval-2", "prep", "train-SEED2"}},
+	{name: "job ID in addition to failed", cmd: "run", args: "-b {B} -p sweep --failed --job-id {job:report}", jobs: []string{"eval-2", "report", "train-SEED2"}},
 	{name: "given run", cmd: "run", args: "-b {B} -p sweep --run-id {run:sweep-first} --failed", jobs: []string{"eval-2", "train-SEED2"}},
 	{name: "stage", cmd: "run", args: "-b {B} -p sweep --stage evaluation", jobs: []string{"eval-1", "eval-2", "eval-3"}},
 	{name: "matrix", cmd: "run", args: "-b {B} -p sweep --matrix train", jobs: []string{"train-SEED1", "train-SEED2"}},

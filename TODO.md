@@ -7,8 +7,6 @@ Decided on 2026-09-26 after reviewing
 contract and `TestSelectorTable` / `TestPositionalArguments` with each item,
 and remove the item here once it is done.
 
-- A job ID given with a result filter adds to the selection in `run` and
-  `retry`, as in `copy` (fixes `retry --job-id`).
 - `run --job-id` selects from a non-empty queue instead of replacing it with
   the latest run, as `run --failed` does.
 - `delete` without a run deletes nothing; deleting every run needs `--all`.
