@@ -13,6 +13,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/report"
 	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/kamo-naoyuki/rotari/internal/webui"
 )
 
 func createAIReportFixture(t *testing.T) (string, state.ProjectPaths, string, string) {
@@ -100,7 +101,7 @@ func TestShowReportAndWebAPIUseCommonReport(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/api/report?project_name=demo&run_id="+runID+"&job_id="+jobID, nil)
 	recorder := httptest.NewRecorder()
-	newWebHandler(baseDir, "", false).ServeHTTP(recorder, request)
+	webui.Handler(webOptions(baseDir, "", false, true)).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK || recorder.Body.String() != want {
 		t.Fatalf("report API status=%d body=%q, want %q", recorder.Code, recorder.Body.String(), want)
 	}
@@ -168,7 +169,7 @@ func TestWebAPISelectedJobsUsesRunReport(t *testing.T) {
 	baseDir, _, runID, jobID := createAIReportFixture(t)
 	request := httptest.NewRequest(http.MethodGet, "/api/report?project_name=demo&run_id="+runID+"&job_ids="+jobID, nil)
 	recorder := httptest.NewRecorder()
-	newWebHandler(baseDir, "", false).ServeHTTP(recorder, request)
+	webui.Handler(webOptions(baseDir, "", false, true)).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("selected report API status=%d body=%q", recorder.Code, recorder.Body.String())
 	}

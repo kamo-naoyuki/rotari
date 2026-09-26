@@ -155,7 +155,7 @@ shared with the Web UI's cancel, suspend, and resume endpoints. Those
 endpoints require the `run_id` of the run the page shows, so a page left
 open on a finished run cannot act on the same job ID in the active run
 (`TestWebJobControlRejectsStaleRunID` in
-[cmd/rotari/web_test.go](../../cmd/rotari/web_test.go)).
+[internal/webui/webui_test.go](../../internal/webui/webui_test.go)).
 
 | Form | `cancel` | `suspend`, `resume` |
 | --- | --- | --- |

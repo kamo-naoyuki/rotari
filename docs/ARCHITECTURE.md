@@ -52,7 +52,7 @@ flowchart LR
   state: everything it knows is also on disk.
 - **Run execution.** A run executes either inside the supervisor or in a
   separate worker process; see [Sync and async runs](#sync-and-async-runs).
-- **Web server.** `rotari web` ([cmd/rotari/web.go](../cmd/rotari/web.go)).
+- **Web server.** `rotari web` ([cmd/rotari/web.go](../cmd/rotari/web.go) parses flags; [internal/webui](../internal/webui/) serves).
   It reads project files to build JSON for the browser UI, and its control
   endpoints (`/api/copy`, `/api/cancel-job`, ...) call the same `cmd/rotari`
   functions the CLI uses.
@@ -95,7 +95,7 @@ no `internal` package imports `cmd/rotari`.
 
 ```mermaid
 flowchart TB
-  cmd["cmd/rotari<br/>CLI flags, Web handlers,<br/>wiring, output"]
+  cmd["cmd/rotari<br/>CLI flags, wiring, output"]
   projectrun["projectrun<br/>run lifecycle"]
   project["project<br/>state machine, idle edits"]
   resolve["resolve<br/>selectors to run and job"]
@@ -103,6 +103,7 @@ flowchart TB
   report["report<br/>diagnosis evidence"]
   joblist["joblist<br/>recent jobs"]
   supervisor["supervisor<br/>server request work"]
+  webui["webui<br/>Web handlers and assets"]
   subgraph l2["orchestration and projections"]
     server
     run
@@ -143,6 +144,13 @@ flowchart TB
   supervisor --> queueops
   supervisor --> projectrun
   supervisor --> jobcontrol
+  cmd --> webui
+  webui --> web
+  webui --> queueops
+  webui --> jobcontrol
+  webui --> report
+  webui --> joblist
+  config --> state
   resolve --> project
   resolve --> runregistry
   resolve --> state
@@ -190,6 +198,7 @@ the current graph if this list drifts.
 | [internal/supervisor](../internal/supervisor/) | The work behind supervisor requests: add, cancel, suspend and resume, and sync and async runs, including spawning the async worker. Implements `server.Operations` and returns plain-text messages. | `run.go` (`Operations.Run`, `StartRun`), `worker.go` |
 | [internal/server](../internal/server/) | Supervisor transport: request/response types, socket, lease, peer checks, idle shutdown, attached-run streaming. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go` |
 | [internal/jobcontrol](../internal/jobcontrol/) | Cancel, suspend, resume of running jobs through executors. | `jobcontrol.go` |
+| [internal/webui](../internal/webui/) | The Web UI: HTTP handlers and JSON API, static export, embedded assets, and the auth wrapper. CLI metadata, environment definitions, and the config template come in through `Options`. | `webui.go` (`handler`), `options.go`, `assets/` |
 | [internal/web](../internal/web/) | JSON projections of runs, jobs, attempts, and timelines for the Web UI. | `loader.go` |
 | [internal/queueops](../internal/queueops/) | Queue and run-history edits shared by the CLI, the Web UI, and the supervisor: add, change, remove, copy, and deleting runs. Loads and saves the files around `internal/queueedit` through the `internal/project` idle-edit sequence, and owns `ValidateJobs`. | `editor.go` (`Editor`), `change.go`, `copy.go` |
 | [internal/queueedit](../internal/queueedit/) | Pure queue edits, such as building a queue from an earlier run (`copy`, `retry`). | `copy.go` |
@@ -221,6 +230,7 @@ internal package.
 - Does it decide what status a job shows? `internal/jobstatus`.
 - Does it decide which base directory, project, run, or job a selector
   names? `internal/resolve`.
+- Is it a Web handler, the static export, or a Web asset? `internal/webui`.
 - Is it flag parsing, message wording, or colors? `cmd/rotari`.
 
 ## Files in cmd/rotari
@@ -240,7 +250,7 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 | Job control | `job_control.go`, `wait.go` |
 | Reading results | `show.go`, `jobs.go`, `diff.go`, `diagnose.go`, `check.go` |
 | Workflow manifests | `export.go`, `import.go`, `workflow_source.go` |
-| Web server and assets | `web.go`, `web_assets.go`, `assets/` |
+| `web` command and the Web UI's CLI metadata (`webOptions`) | `web.go` |
 | Notifications and terminal output | `webhook.go`, `color.go`, `terminal*.go` |
 
 ## Walkthroughs
@@ -320,7 +330,8 @@ Finish, in `Runner.Finish`:
 
 ### `rotari show` and the Web UI
 
-1. `cmdShow` ([show.go](../cmd/rotari/show.go)) or a Web handler resolves the
+1. `cmdShow` ([show.go](../cmd/rotari/show.go)) or a Web handler
+   ([internal/webui](../internal/webui/webui.go)) resolves the
    run and job directories through `internal/state`.
 2. Each job's outcome comes from `internal/jobstatus` (`ReadJob`,
    `ResolveAttempt`, `Timestamps`), which falls back from the attempt's

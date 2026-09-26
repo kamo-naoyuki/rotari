@@ -1,4 +1,4 @@
-package main
+package webui
 
 import (
 	"strings"
@@ -6,7 +6,7 @@ import (
 )
 
 func TestComposeWebHTMLAssemblesAssetBoundaries(t *testing.T) {
-	html := composeWebHTML([]string{"local", "slurm"}, "window.__BOOTSTRAP__ = true;")
+	html := composeWebHTML([]string{"local", "slurm"}, true, "window.__BOOTSTRAP__ = true;")
 	for _, marker := range []string{"local", "slurm", "window.__BOOTSTRAP__", "__ROTARI_WEB_APP__"} {
 		if strings.Contains(html, marker) && marker == "__ROTARI_WEB_APP__" {
 			t.Fatalf("template placeholder %q was not replaced", marker)

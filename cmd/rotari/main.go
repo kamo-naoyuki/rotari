@@ -24,8 +24,6 @@ import (
 const jobIDLen = 9
 const runIDLen = len("20060102-150405-00000000")
 const commandJSONName = "command.json"
-const authBearerPrefix = "Bearer "
-const headerContentType = "Content-Type"
 const mimeApplicationJSON = "application/json"
 
 func main() {

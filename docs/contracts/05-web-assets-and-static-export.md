@@ -6,21 +6,24 @@ boundaries. Read it for Web/API/static-site changes in addition to
 
 Representative implementation and tests:
 
-- [cmd/rotari/web_assets.go](../../cmd/rotari/web_assets.go) for embedded asset
+- [internal/webui/assets.go](../../internal/webui/assets.go) for embedded asset
   declarations.
-- [cmd/rotari/web.go](../../cmd/rotari/web.go) and
-  [cmd/rotari/web_test.go](../../cmd/rotari/web_test.go) for Web handlers and
-  static export.
-- [cmd/rotari/assets/web_app_core.js](../../cmd/rotari/assets/web_app_core.js)
-  and [cmd/rotari/assets/web_template.html](../../cmd/rotari/assets/web_template.html)
+- [internal/webui/webui.go](../../internal/webui/webui.go) and
+  [internal/webui/webui_test.go](../../internal/webui/webui_test.go) for Web
+  handlers and static export, and
+  [cmd/rotari/web.go](../../cmd/rotari/web.go) for the `web` command, which
+  supplies the CLI metadata, environment definitions, and config template
+  through `webui.Options`.
+- [internal/webui/assets/web_app_core.js](../../internal/webui/assets/web_app_core.js)
+  and [internal/webui/assets/web_template.html](../../internal/webui/assets/web_template.html)
   for the browser application and page shell.
 
 ## Asset layout
 
-Web assets live under `cmd/rotari/assets/`:
+Web assets live under `internal/webui/assets/`:
 
 ```text
-cmd/rotari/assets/
+internal/webui/assets/
 ├── web_template.html
 ├── web_styles.css
 ├── web_app_core.js
@@ -40,7 +43,7 @@ cmd/rotari/assets/
 └── favicon-light.svg
 ```
 
-`web.go` embeds these files. The JavaScript files are concatenated in this
+`assets.go` embeds these files. The JavaScript files are concatenated in this
 order and delivered as one script; they intentionally share the global scope:
 
 1. `web_app_core.js`
@@ -82,7 +85,7 @@ layout.
   `Authorization: Bearer TOKEN`, `X-Rotari-Token: TOKEN`, or Basic
   authentication with username `rotari` and the token as the password; this is
   authentication only and does not encrypt HTTP traffic.
-- `loadWebState` exposes persisted runtime metadata: `running.lock` fields and
+- `loadWebState` ([internal/webui/webui.go](../../internal/webui/webui.go)) exposes persisted runtime metadata: `running.lock` fields and
   the presence of the server socket (`SocketPath`) and `server.pid`. The panel does not query process
   liveness or infer that `state.lock` is held from the file's existence.
 - The Unix-socket control surface is separate from `ROTARI_PRIVATE_STATE`:
@@ -106,7 +109,7 @@ rest of config handling in
 
 ## Desktop notifications
 
-`cmd/rotari/assets/web_app_notifications.js` shows a browser `Notification`
+`internal/webui/assets/web_app_notifications.js` shows a browser `Notification`
 when a run finishes or a job fails. It is entirely client-side: no server
 route, socket, or webhook exists for this. `runServer` (the job-execution
 daemon) and `rotari web` are separate processes that never talk to each other
@@ -132,8 +135,8 @@ The permission itself (`Notification.permission`) cannot be revoked from
 JavaScript once granted, so the toolbar's on/off toggle is a separate
 `localStorage` flag (`rotari-notifications-enabled`) checked before showing
 each notification; it does not touch the browser's actual permission grant.
-`--notifications`/`ROTARI_WEB_NOTIFICATIONS` (`webNotificationsDefault` in
-`web.go`, injected into the bundle as `__ROTARI_NOTIFICATION_DEFAULT__`) only
+`--notifications`/`ROTARI_WEB_NOTIFICATIONS` (`webui.Options.Notifications`,
+injected into the bundle as `__ROTARI_NOTIFICATION_DEFAULT__`) only
 seeds the toggle's starting value for an origin that has never set the
 `localStorage` flag; an explicit prior toggle click always wins.
 
@@ -153,7 +156,7 @@ job before reading that attempt directory.
 
 A run page adds one collapsible section per matrix group, collapsed by default,
 between the run graphics and the job table controls
-([web_app_matrix.js](../../cmd/rotari/assets/web_app_matrix.js)).
+([web_app_matrix.js](../../internal/webui/assets/web_app_matrix.js)).
 `addMatrixPanels` runs at the end of each render, like the other run
 sections, and its header shows the group's success and failure counts.
 `LoadJobs` attaches each member's group ID, base name, dimensions, and values
@@ -179,7 +182,7 @@ partial copy or change appear only in the table. Covered by `TestWebRunViewDraws
 Long values in the Command, Working directory, Dependencies, and Executor
 options columns of the job and queue tables start clamped to three lines
 (`clampLongTableCells` in
-[web_app_tables.js](../../cmd/rotari/assets/web_app_tables.js)). Clicking the
+[web_app_tables.js](../../internal/webui/assets/web_app_tables.js)). Clicking the
 text, which highlights on hover, or pressing Enter or Space on it expands or
 collapses it; a click that ends a text selection does not, so values can still
 be selected. A cell is
@@ -218,11 +221,11 @@ and briefly render that HTML as application text.
 
 Static pages receive a copy of `web_styles.css` beside every generated
 `index.html`. If a new asset or static API endpoint is added, update both the
-normal Web handler and `generateStaticWeb`/its bootstrap.
+normal Web handler and `webui.GenerateStatic`/its bootstrap.
 
 ## Editing rules
 
-- Edit HTML, CSS, and JavaScript in `cmd/rotari/assets/`, not in `web.go`.
+- Edit HTML, CSS, and JavaScript in `internal/webui/assets/`, not in `webui.go`.
 - Keep JavaScript additions in the responsibility file that owns the behavior.
 - Prefer stable semantic classes and data attributes for UI behavior and tests;
   do not identify controls by their visible labels when a class or attribute can
@@ -236,5 +239,6 @@ normal Web handler and `generateStaticWeb`/its bootstrap.
 ## Generated Web pages
 
 `cliDocsHTML` and `environmentHTML` are still generated by Go because they
-iterate over Go metadata and escape dynamic values. They are separate from the
+iterate over Go metadata and escape dynamic values. The metadata comes from
+the CLI through `webui.Options` (`Commands`, `Environments`). They are separate from the
 main interactive Web assets and should not be folded into the JavaScript app.

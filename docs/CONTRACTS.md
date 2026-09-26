@@ -44,10 +44,10 @@ quickly.
   web paths. Job result and timestamp resolution lives in
   [`internal/jobstatus`](../internal/jobstatus/); the renderers start with [`cmd/rotari/show.go`](../cmd/rotari/show.go),
   [`internal/report/report.go`](../internal/report/report.go), and
-  [`cmd/rotari/web.go`](../cmd/rotari/web.go); representative tests are in
+  [`internal/webui/webui.go`](../internal/webui/webui.go); representative tests are in
   [`cmd/rotari/show_test.go`](../cmd/rotari/show_test.go),
   [`internal/report/report_test.go`](../internal/report/report_test.go), and
-  [`cmd/rotari/web_test.go`](../cmd/rotari/web_test.go).
+  [`internal/webui/webui_test.go`](../internal/webui/webui_test.go).
 - Treat path elements as arbitrary strings and reject unsafe separators before
   filesystem access. The shared boundary is
   [`internal/state/paths.go`](../internal/state/paths.go), with path safety

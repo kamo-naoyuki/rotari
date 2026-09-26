@@ -189,12 +189,12 @@ Without a run-location lookup, base directories resolve in this order:
   so an invalid edit cannot replace the valid config.
 - The Web side is implemented by `loadWebConfigFiles`, `loadRunConfigFiles`,
   `saveWebConfig`, `webConfigTargets`, and `generateWebConfig` in
-  [`cmd/rotari/web.go`](../../cmd/rotari/web.go). Representative tests are
+  [`internal/webui/webui.go`](../../internal/webui/webui.go). Representative tests are
   `TestWebConfigAPIReadsResolvedFiles`, `TestWebConfigAPIReadsRunConfigSnapshots`,
   `TestWebSaveConfigWritesOnlyTheResolvedCurrentConfig`,
   `TestWebSaveConfigRejectsReadOnlyMode`, and
   `TestStaticWebUsesGenerateConfigReadOnlyFlow` in
-  [`cmd/rotari/web_test.go`](../../cmd/rotari/web_test.go).
+  [`internal/webui/webui_test.go`](../../internal/webui/webui_test.go).
 
 ## Shell completion
 

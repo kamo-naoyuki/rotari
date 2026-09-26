@@ -1,4 +1,4 @@
-package main
+package webui
 
 import (
 	_ "embed"
@@ -57,13 +57,13 @@ var webInfoStylesCSS string
 //go:embed assets/web_styles.css
 var webStylesCSS string
 
-func composeWebHTML(executors []string, bootstrap string) string {
+func composeWebHTML(executors []string, notifications bool, bootstrap string) string {
 	executorJSON, _ := json.Marshal(executors)
 	webAppJS := strings.Join([]string{webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppTablesJS, webAppChartsJS, webAppMatrixJS, webAppNotificationsJS, webAppBootstrapJS}, "\n")
 	template := strings.Replace(webTemplateHTML, "__ROTARI_WEB_APP__", webAppJS, 1)
 	template = strings.Replace(template, "__ROTARI_EXECUTORS__", string(executorJSON), 1)
 	template = strings.Replace(template, "__ROTARI_NOTIFICATION_ICON__", faviconDataURL(webFaviconDarkSVG), 1)
-	template = strings.Replace(template, "__ROTARI_NOTIFICATION_DEFAULT__", strconv.FormatBool(webNotificationsDefault), 1)
+	template = strings.Replace(template, "__ROTARI_NOTIFICATION_DEFAULT__", strconv.FormatBool(notifications), 1)
 	template = strings.Replace(template, "__ROTARI_STATIC_BOOTSTRAP__", bootstrap, 1)
 	return template
 }

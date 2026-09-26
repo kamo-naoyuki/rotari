@@ -94,7 +94,7 @@ Representative implementation and tests:
   owner-only `0700`/`0600`/`0700`.
 - Permission settings apply only to newly created paths. Existing paths are not
   rechmoded, so changing the setting can produce mixed permissions.
-- `generateStaticWeb` is the intentional exception and always emits
+- `webui.GenerateStatic` is the intentional exception and always emits
   publishable `0755`/`0644` output.
 
 ## Concurrency and safety

@@ -27,7 +27,7 @@ repos:
     hooks:
       - id: prettier
         language_version: "22.23.2"
-        files: ^cmd/rotari/assets/.*\.(html|js|css)$
+        files: ^internal/webui/assets/.*\.(html|js|css)$
 
   - repo: local
     hooks:

@@ -12,6 +12,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/webui"
 )
 
 func TestCLIFlagSpecTracksRepeatedMetadata(t *testing.T) {
@@ -235,11 +236,11 @@ func TestPagerLineLimitAndLoopbackHostDecisions(t *testing.T) {
 		t.Fatal("completed line at the limit was incorrectly exceeded")
 	}
 	for _, host := range []string{"", "localhost", "127.0.0.1", "::1"} {
-		if !isLoopbackWebHost(host) {
+		if !webui.IsLoopbackHost(host) {
 			t.Fatalf("host %q was not recognized as loopback", host)
 		}
 	}
-	if isLoopbackWebHost("example.com") {
+	if webui.IsLoopbackHost("example.com") {
 		t.Fatal("non-loopback host was accepted")
 	}
 }
