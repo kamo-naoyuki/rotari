@@ -1,5 +1,37 @@
 # TODO
 
+## Selector and positional contract changes (decided, in progress)
+
+Decided on 2026-09-26 after reviewing
+[docs/contracts/06-selectors.md](docs/contracts/06-selectors.md). Update the
+contract and `TestSelectorTable` / `TestPositionalArguments` with each item,
+and remove the item here once it is done.
+
+- A job ID given with a result filter adds to the selection in `run` and
+  `retry`, as in `copy` (fixes `retry --job-id`).
+- `run --job-id` selects from a non-empty queue instead of replacing it with
+  the latest run, as `run --failed` does.
+- `delete` without a run deletes nothing; deleting every run needs `--all`.
+- An array command's job ID or name selects the whole array in `show`,
+  `copy`, `run`, and `retry`; a task ID or name selects that task.
+- `change` and `remove` say that attempt IDs are not accepted.
+- `latest` is accepted wherever a run can be given, and is a reserved word:
+  project, run, job, stage, and matrix names cannot be `latest`.
+- Reading and editing commands report a project that does not exist as
+  `project "x" does not exist`; commands that create projects are unchanged.
+- Without `--project-name`, a job selector searches every project in every
+  command, `diagnose` included; an ambiguous match lists the candidates.
+- `show NAME` also finds active runs; `wait NAME` and `wait PROJECT` wait for
+  the active run, or else return the latest matching run's result.
+- Without a run: options that only apply to runs (`--failed`, `--logs`,
+  `--report`, ...) use the active, interrupted, or latest run; other views use
+  a non-empty queue, else the latest run, and say which. `export` picks its
+  source the same way but refuses an active run (pointing to `wait`) and an
+  interrupted run (pointing to `unlock`), and reports which source it wrote.
+- Rename `diff --all` to `--unchanged` and `jobs --all` to `--all-basedirs`.
+- `show` gains `--unfinished` and `--success`; `diagnose` gains `--job-name`;
+  `run` and `retry` accept a positional `RUN_ID`.
+
 - Consider extending `cancel`/`suspend`/`resume` selectors to also accept a
   `run_name` and/or a bare `project_name`, alongside the existing job_id,
   `att_` attempt_id, and bare run_id support. Unlike run_id (fixed generated
