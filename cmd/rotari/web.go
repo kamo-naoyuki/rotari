@@ -87,11 +87,13 @@ type webRemoveRequest struct {
 
 type webCancelRequest struct {
 	QueueName string `json:"project_name"`
+	RunID     string `json:"run_id"`
 	JobID     string `json:"job_id"`
 }
 
 type webJobControlRequest struct {
 	QueueName string `json:"project_name"`
+	RunID     string `json:"run_id"`
 	JobID     string `json:"job_id"`
 }
 
@@ -620,11 +622,11 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		if !stateinternal.IsValidPathElement(cancel.QueueName) || !stateinternal.IsValidPathElement(cancel.JobID) {
-			writeWebError(writer, fmt.Errorf("project_name and job_id are required"))
+		if !stateinternal.IsValidPathElement(cancel.QueueName) || !stateinternal.IsValidPathElement(cancel.RunID) || !stateinternal.IsValidPathElement(cancel.JobID) {
+			writeWebError(writer, fmt.Errorf("project_name, run_id and job_id are required"))
 			return
 		}
-		message, err := cancelQueueJobs(baseDir, cancel.QueueName, "", []string{cancel.JobID}, false)
+		message, err := cancelQueueJobs(baseDir, cancel.QueueName, cancel.RunID, []string{cancel.JobID}, false)
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -645,11 +647,11 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		if !stateinternal.IsValidPathElement(control.QueueName) || !stateinternal.IsValidPathElement(control.JobID) {
-			writeWebError(writer, fmt.Errorf("project_name and job_id are required"))
+		if !stateinternal.IsValidPathElement(control.QueueName) || !stateinternal.IsValidPathElement(control.RunID) || !stateinternal.IsValidPathElement(control.JobID) {
+			writeWebError(writer, fmt.Errorf("project_name, run_id and job_id are required"))
 			return
 		}
-		message, err := controlQueueJobs(baseDir, control.QueueName, "", []string{control.JobID}, "suspend")
+		message, err := controlQueueJobs(baseDir, control.QueueName, control.RunID, []string{control.JobID}, "suspend")
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -670,11 +672,11 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, err)
 			return
 		}
-		if !stateinternal.IsValidPathElement(control.QueueName) || !stateinternal.IsValidPathElement(control.JobID) {
-			writeWebError(writer, fmt.Errorf("project_name and job_id are required"))
+		if !stateinternal.IsValidPathElement(control.QueueName) || !stateinternal.IsValidPathElement(control.RunID) || !stateinternal.IsValidPathElement(control.JobID) {
+			writeWebError(writer, fmt.Errorf("project_name, run_id and job_id are required"))
 			return
 		}
-		message, err := controlQueueJobs(baseDir, control.QueueName, "", []string{control.JobID}, "resume")
+		message, err := controlQueueJobs(baseDir, control.QueueName, control.RunID, []string{control.JobID}, "resume")
 		if err != nil {
 			writeWebError(writer, err)
 			return

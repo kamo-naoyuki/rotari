@@ -115,7 +115,11 @@ active run. They take job IDs and attempt IDs, positionally or as repeated
 `resolve.JobSelection`; the running-run check and the signalling are
 `jobcontrol.Controller` in
 [internal/jobcontrol/jobcontrol.go](../../internal/jobcontrol/jobcontrol.go),
-shared with the Web UI's cancel, suspend, and resume endpoints.
+shared with the Web UI's cancel, suspend, and resume endpoints. Those
+endpoints require the `run_id` of the run the page shows, so a page left
+open on a finished run cannot act on the same job ID in the active run
+(`TestWebJobControlRejectsStaleRunID` in
+[cmd/rotari/web_test.go](../../cmd/rotari/web_test.go)).
 
 | Form | `cancel` | `suspend`, `resume` |
 | --- | --- | --- |

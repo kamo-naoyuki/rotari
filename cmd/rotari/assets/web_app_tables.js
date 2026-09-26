@@ -348,7 +348,7 @@ function addRunningCancelButtons() {
     cancelButton.disabled = !controllable;
     cancelButton.title = controllable ? "" : "Job is not running";
     cancelButton.onclick = () =>
-      cancelJob(queue.project_name, job.id, job.name || job.id);
+      cancelJob(queue.project_name, run.run_id, job.id, job.name || job.id);
     const suspendButton = document.createElement("button");
     suspendButton.className = suspended ? "suspend-job dirty" : "suspend-job";
     suspendButton.textContent = suspended ? "Resume" : "Suspend";
@@ -357,6 +357,7 @@ function addRunningCancelButtons() {
     suspendButton.onclick = () =>
       suspendOrResumeJob(
         queue.project_name,
+        run.run_id,
         job.id,
         job.name || job.id,
         suspended,
@@ -364,12 +365,12 @@ function addRunningCancelButtons() {
     actions.append(" ", cancelButton, " ", suspendButton);
   });
 }
-async function suspendOrResumeJob(queue, jobID, label, resume) {
+async function suspendOrResumeJob(queue, run, jobID, label, resume) {
   const endpoint = resume ? "/api/resume-job" : "/api/suspend-job";
   const response = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ project_name: queue, job_id: jobID }),
+    body: JSON.stringify({ project_name: queue, run_id: run, job_id: jobID }),
   });
   const text = await response.text();
   if (!response.ok) {
@@ -378,12 +379,12 @@ async function suspendOrResumeJob(queue, jobID, label, resume) {
   }
   await refresh();
 }
-async function cancelJob(queue, jobID, label) {
+async function cancelJob(queue, run, jobID, label) {
   if (!confirm("Cancel " + label + "?")) return;
   const response = await fetch("/api/cancel-job", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ project_name: queue, job_id: jobID }),
+    body: JSON.stringify({ project_name: queue, run_id: run, job_id: jobID }),
   });
   const text = await response.text();
   if (!response.ok) {

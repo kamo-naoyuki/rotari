@@ -527,7 +527,7 @@ func TestWebReadOnlyControlEndpointsRejectMutations(t *testing.T) {
 		body string
 		path string
 	}{
-		{name: "cancel-job", path: "/api/cancel-job", body: `{"project_name":"demo","job_id":"job-1"}`},
+		{name: "cancel-job", path: "/api/cancel-job", body: `{"project_name":"demo","run_id":"run-1","job_id":"job-1"}`},
 		{name: "remove", path: "/api/remove", body: `{"project_name":"demo","job_id":"job-1"}`},
 		{name: "clear-run", path: "/api/clear-run", body: `{"project_name":"demo","run_id":"run-1"}`},
 	} {
@@ -597,6 +597,36 @@ func TestWebCancelRunRejectsStaleRunID(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `run "run-old" is not running; the active run of project "default" is "run-current"`) {
 		t.Fatalf("body = %q, want stale run error", recorder.Body.String())
+	}
+}
+
+// TestWebJobControlRejectsStaleRunID checks that job actions from a page
+// showing a finished run do not reach the same job in the active run.
+func TestWebJobControlRejectsStaleRunID(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.LockFile, model.LockInfo{RunID: "run-current", PID: os.Getpid()}); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/api/cancel-job", "/api/suspend-job", "/api/resume-job"} {
+		t.Run(path, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"project_name":"default","run_id":"run-old","job_id":"job-1"}`))
+			recorder := httptest.NewRecorder()
+			newWebHandler(baseDir, "", true).ServeHTTP(recorder, request)
+			if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), `run "run-old" is not running; the active run of project "default" is "run-current"`) {
+				t.Fatalf("status = %d, body = %q; want stale run rejection", recorder.Code, recorder.Body.String())
+			}
+
+			request = httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"project_name":"default","job_id":"job-1"}`))
+			recorder = httptest.NewRecorder()
+			newWebHandler(baseDir, "", true).ServeHTTP(recorder, request)
+			if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), "run_id") {
+				t.Fatalf("status = %d, body = %q; want run_id to be required", recorder.Code, recorder.Body.String())
+			}
+		})
 	}
 }
 
