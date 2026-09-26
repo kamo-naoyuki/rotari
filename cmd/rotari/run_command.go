@@ -98,8 +98,12 @@ func cmdRun(args []string) int {
 				printError(err)
 				return 1
 			}
-			if len(targets) != 1 {
-				printErrorf("job name %q is %s", *jobNameOption, map[bool]string{true: "ambiguous across projects", false: "not found"}[len(targets) > 1])
+			if len(targets) == 0 {
+				printErrorf("job name %q not found", *jobNameOption)
+				return 1
+			}
+			if len(targets) > 1 {
+				printError(resolve.AmbiguousError(fmt.Sprintf("job name %q", *jobNameOption), targets))
 				return 1
 			}
 			*basedir, *queueNameOption = targets[0].BaseDir, targets[0].ProjectName

@@ -69,6 +69,22 @@ func cmdDiagnose(args []string) int {
 		}
 		*basedir, *projectName, *runIDOption, *jobID = baseDir, resolvedProjectName, resolvedRunID, resolvedJobID
 	}
+	if attemptID == "" && *projectName == "" && *runIDOption == "" {
+		// Without a project, look in every project's latest run, as show and
+		// copy do.
+		targets, err := resolve.Jobs(*basedir, "", *jobID, false, false)
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		if len(targets) > 1 {
+			printError(resolve.AmbiguousError(fmt.Sprintf("job %q", *jobID), targets))
+			return 1
+		}
+		if len(targets) == 1 {
+			*basedir, *projectName, *runIDOption = targets[0].BaseDir, targets[0].ProjectName, targets[0].RunID
+		}
+	}
 	if *rules {
 		baseDir, queueName, err := resolve.ExistingRun(*basedir, *projectName, *runIDOption)
 		if err != nil {

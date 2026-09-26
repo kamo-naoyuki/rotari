@@ -7,8 +7,6 @@ Decided on 2026-09-26 after reviewing
 contract and `TestSelectorTable` / `TestPositionalArguments` with each item,
 and remove the item here once it is done.
 
-- Without `--project-name`, a job selector searches every project in every
-  command, `diagnose` included; an ambiguous match lists the candidates.
 - `show NAME` also finds active runs; `wait NAME` and `wait PROJECT` wait for
   the active run, or else return the latest matching run's result.
 - Without a run: options that only apply to runs (`--failed`, `--logs`,

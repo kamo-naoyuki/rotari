@@ -108,8 +108,12 @@ func cmdCopy(args []string) int {
 				printError(err)
 				return 1
 			}
-			if len(targets) != 1 {
-				printErrorf("job name %q is %s", *jobName, map[bool]string{true: "ambiguous across latest runs", false: "not found"}[len(targets) > 1])
+			if len(targets) == 0 {
+				printErrorf("job name %q not found", *jobName)
+				return 1
+			}
+			if len(targets) > 1 {
+				printError(resolve.AmbiguousError(fmt.Sprintf("job name %q", *jobName), targets))
 				return 1
 			}
 			*basedir, *queueNameOption, *runID = targets[0].BaseDir, targets[0].ProjectName, targets[0].RunID

@@ -40,6 +40,14 @@ func cmdRemove(args []string) int {
 		return 1
 	}
 
+	if *queueNameOption == "" && *runID == "" {
+		project, err := locateQueuedJobs(*basedir, selector)
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		*queueNameOption = project
+	}
 	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runID)
 	if err != nil {
 		printError(err)

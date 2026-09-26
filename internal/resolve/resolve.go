@@ -9,6 +9,7 @@
 package resolve
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -302,6 +303,27 @@ func ProjectNames(baseDir, cliProjectName string) ([]string, error) {
 	return projects, nil
 }
 
+// AmbiguousError reports that selector, described by what (such as "job
+// name \"prep\""), matches several targets, and lists them so the caller
+// can pick one with --project-name or --run-id.
+func AmbiguousError(what string, targets []Job) error {
+	var message strings.Builder
+	fmt.Fprintf(&message, "%s matches more than one target; pass --project-name or --run-id:", what)
+	for _, target := range targets {
+		fmt.Fprintf(&message, "\n  project=%s", target.ProjectName)
+		switch {
+		case target.FromQueue:
+			message.WriteString(" queue")
+		case target.RunID != "":
+			fmt.Fprintf(&message, " run=%s", target.RunID)
+		}
+		if target.JobID != "" {
+			fmt.Fprintf(&message, " job=%s", target.JobID)
+		}
+	}
+	return errors.New(message.String())
+}
+
 // Candidate priorities for Jobs, best first.
 const (
 	priorityActive = iota
@@ -493,7 +515,7 @@ func jobIDsTarget(cliBaseDir, cliProjectName string, jobIDs []string, includeQue
 			return Job{}, fmt.Errorf("job %q not found in %s", jobID, where)
 		}
 		if len(targets) > 1 {
-			return Job{}, fmt.Errorf("job %q is ambiguous across %s", jobID, where)
+			return Job{}, AmbiguousError(fmt.Sprintf("job %q", jobID), targets)
 		}
 		if index == 0 {
 			target = targets[0]

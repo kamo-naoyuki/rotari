@@ -36,6 +36,8 @@ const (
 	setupManifest = "manifest"
 	// setupQueued restores project sweep's latest run into its queue.
 	setupQueued = "queued"
+	// setupQueuedAll restores the latest run of both sweep and other.
+	setupQueuedAll = "queued-all"
 )
 
 var positionalCases = []positionalCase{
@@ -110,6 +112,7 @@ var positionalCases = []positionalCase{
 
 	// diagnose: a job or attempt.
 	{name: "job ID", args: "diagnose -b {B} -p sweep --rules {job:train-SEED2}", want: "No known rule-based diagnosis"},
+	{name: "job ID in any project", args: "diagnose -b {B} --rules {job:train-SEED2}", want: "No known rule-based diagnosis"},
 	{name: "attempt ID through registry", args: "diagnose --rules {att:train-SEED2/0}", want: "No known rule-based diagnosis"},
 	{name: "job ID and option", args: "diagnose -b {B} -p sweep --rules --job-id {job:train-SEED2} {job:train-SEED2}", fail: true, want: "usage"},
 
@@ -147,6 +150,9 @@ var positionalCases = []positionalCase{
 	{name: "project that does not exist", args: "show -b {B} -p nope --job-name prep", fail: true, want: `project "nope" does not exist`},
 	{name: "project that does not exist", args: "jobs -b {B} nope", fail: true, want: `project "nope" does not exist`},
 	{name: "new project", args: "add -b {B} -p fresh true", check: queueLength("fresh", 1)},
+
+	// A job name queued in two projects is ambiguous for queue edits.
+	{name: "job name queued in two projects", args: "change -b {B} --job-name prep --timeout 1m", setup: setupQueuedAll, fail: true, want: "project=other queue job={job:other-prep}"},
 
 	// run takes no positionals, not even config.
 	{name: "no config alias", args: "run config", fail: true, want: "usage"},
@@ -188,6 +194,9 @@ func (fixture selectorFixture) setUp(t *testing.T, setup, tmp string) {
 	case "":
 	case setupQueued:
 		fixture.restore(t, fixture.BaseDir, "sweep", fixture.Runs["sweep-second"])
+	case setupQueuedAll:
+		fixture.restore(t, fixture.BaseDir, "sweep", fixture.Runs["sweep-second"])
+		fixture.restore(t, fixture.BaseDir, "other", fixture.Runs["other-first"])
 	case setupManifest:
 		if code, output := captureSelectorOutput(func() int {
 			return cmdExport([]string{fixture.Runs["sweep-first"], filepath.Join(tmp, "m.yaml")})

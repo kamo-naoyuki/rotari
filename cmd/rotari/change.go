@@ -83,6 +83,14 @@ func cmdChange(args []string) int {
 		return 1
 	}
 
+	if *queueNameOption == "" && *runID == "" {
+		project, err := locateQueuedJobs(*basedir, selector)
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		*queueNameOption = project
+	}
 	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runID)
 	if err != nil {
 		printError(err)
@@ -307,6 +315,49 @@ func validateChangeRename(queue model.Queue, jobIndex int, newName string) error
 		}
 	}
 	return nil
+}
+
+// locateQueuedJobs finds the project whose queue holds the jobs a job ID or
+// name selector names, for queue edits without a project, as other commands
+// search every project. It returns "" when selector names a group or no
+// queue holds the jobs, leaving the normal project resolution to report it.
+func locateQueuedJobs(cliBaseDir string, selector model.CommandSelector) (string, error) {
+	if len(selector.IDs) == 0 && selector.Name == "" {
+		return "", nil
+	}
+	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
+	if err != nil {
+		return "", err
+	}
+	projects, err := resolve.ProjectNames(baseDir, "")
+	if err != nil {
+		return "", err
+	}
+	var targets []resolve.Job
+	for _, project := range projects {
+		paths, err := state.ResolveProjectPaths(baseDir, project)
+		if err != nil {
+			return "", err
+		}
+		queue, err := state.LoadQueue(paths.QueueFile)
+		if err != nil || len(queue.Commands) == 0 {
+			continue
+		}
+		if indexes, err := model.SelectCommands(queue.Commands, selector); err == nil {
+			targets = append(targets, resolve.Job{Run: resolve.Run{BaseDir: baseDir, ProjectName: project}, JobID: queue.Commands[indexes[0]].ID, FromQueue: true})
+		}
+	}
+	switch len(targets) {
+	case 0:
+		return "", nil
+	case 1:
+		return targets[0].ProjectName, nil
+	}
+	what := fmt.Sprintf("job %q", strings.Join(selector.IDs, ","))
+	if selector.Name != "" {
+		what = fmt.Sprintf("job name %q", selector.Name)
+	}
+	return "", resolve.AmbiguousError(what, targets)
 }
 
 // rejectAttemptIDs reports an attempt ID given to a queue edit, which acts

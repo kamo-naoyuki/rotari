@@ -191,7 +191,7 @@ func cmdShow(args []string) int {
 			return 1
 		}
 		if len(targets) > 1 {
-			printErrorf("job %q is ambiguous", *jobIDOption)
+			printError(resolve.AmbiguousError(fmt.Sprintf("job %q", *jobIDOption), targets))
 			return 1
 		}
 		applyShowSelectorTarget(targets[0], basedir, queueNameOption, runIDOption, jobIDOption, showQueueOption)
@@ -207,7 +207,7 @@ func cmdShow(args []string) int {
 			return 1
 		}
 		if len(targets) > 1 {
-			printErrorf("selector %q is ambiguous", selector)
+			printError(resolve.AmbiguousError(fmt.Sprintf("selector %q", selector), targets))
 			return 1
 		}
 		applyShowSelectorTarget(targets[0], basedir, queueNameOption, runIDOption, jobIDOption, showQueueOption)
@@ -223,7 +223,7 @@ func cmdShow(args []string) int {
 			return 1
 		}
 		if len(targets) > 1 {
-			printErrorf("job name %q is ambiguous", *jobNameOption)
+			printError(resolve.AmbiguousError(fmt.Sprintf("job name %q", *jobNameOption), targets))
 			return 1
 		}
 		applyShowSelectorTarget(targets[0], basedir, queueNameOption, runIDOption, jobIDOption, showQueueOption)

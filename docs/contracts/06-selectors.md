@@ -42,6 +42,13 @@ selected as a whole by its job ID or name. Commands that act on results or
 output (`show`, `copy`, `run`, `retry`) may also select one task.
 `resolve.JobInQueue` matches a command's own ID or name before its tasks'.
 
+Without `--project-name` (or its environment and config defaults), a job ID
+or job name searches every project of the base directory in every command:
+the places each command reads, below, in each project. A selector that
+matches in more than one place fails with `resolve.AmbiguousError`, which
+lists each candidate's project, run or queue, and job. A group selector
+(`--stage`, `--matrix`, `--all`) still needs a single project.
+
 ## What each command reads
 
 | Command | Without `--run-id` | With `--run-id` |
@@ -49,7 +56,7 @@ output (`show`, `copy`, `run`, `retry`) may also select one task.
 | `show` | The active run, then an interrupted run, then a non-empty queue, then the latest run. A job selector without a project searches every project the same way and fails when it is ambiguous. | That run. |
 | `copy` | Source: the run named by attempt IDs, else the latest run that holds every `--job-id` (searching every project without `-p`), else the project's latest run. Destination: the current queue. | Source: that run (also as positional `RUN_ID`). |
 | `run`, `retry` | The current queue. A job selector, result filter, or group first restores the queue from the reference run when it is empty. A job selector looks for the job in a non-empty queue first, as `show` does, and otherwise in the latest run, which then replaces the queue (after confirmation). The reference run is found like `copy`'s source. | The queue is replaced by that run's snapshot (after confirmation), which is also the reference. |
-| `change`, `remove` | The current queue. An empty queue is not restored; the command fails and points to `copy` and `--run-id`. | That run's snapshot replaces the queue first. |
+| `change`, `remove` | The current queue; a job ID or name without a project is looked for in every project's queue. An empty queue is not restored; the command fails and points to `copy` and `--run-id`. | That run's snapshot replaces the queue first. |
 
 ## Job selectors by command
 
