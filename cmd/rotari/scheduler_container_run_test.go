@@ -213,18 +213,20 @@ func (project containerProject) attemptTimestamp(jobID, file, field string) stri
 
 func TestSchedulerContainerRefillsConcurrencySlots(t *testing.T) {
 	project := newContainerProject(t)
+	project.add("--job-name", "quick-1", "--", "sleep", "1")
 	project.add("--job-name", "slow", "--", "sleep", "25")
-	for _, name := range []string{"quick-1", "quick-2", "quick-3"} {
+	for _, name := range []string{"quick-2", "quick-3"} {
 		project.add("--job-name", name, "--", "sleep", "1")
 	}
 	if code := project.run("--batch-concurrency", "2"); code != 0 {
 		t.Fatalf("run exit = %d", code)
 	}
-	// rotari keeps two jobs submitted. When quick-1 finishes, quick-2 takes
-	// its slot while slow still runs; waiting for whole batches would submit
-	// quick-2 only after slow finished. The check uses rotari's submission
-	// time, not execution order, because the test scheduler may run only one
-	// job at a time.
+	// rotari keeps two jobs submitted: quick-1 and slow, in queue order. When
+	// quick-1 finishes, quick-2 takes its slot while slow still runs; waiting
+	// for whole batches would submit quick-2 only after slow finished. The
+	// check uses rotari's submission time, not execution order, and quick-1
+	// is queued first, because the test scheduler may run only one job at a
+	// time and then starts jobs in submission order.
 	ids := project.jobIDs()
 	submitted := project.attemptTimestamp(ids["quick-2"], "job.json", "submitted_at")
 	slowFinished := project.attemptTimestamp(ids["slow"], "status.json", "finished_at")
