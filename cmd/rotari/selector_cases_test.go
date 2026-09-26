@@ -31,6 +31,8 @@ var selectorCases = []selectorCase{
 	{name: "run name in a project", cmd: "show", args: "-b {B} -p sweep first", run: "sweep-first"},
 	{name: "job name positional", cmd: "show", args: "-b {B} -p sweep prep", jobs: []string{"prep"}},
 	{name: "job ID positional", cmd: "show", args: "-b {B} {job:prep}", jobs: []string{"prep"}},
+	{name: "failed filter", cmd: "show", args: "-b {B} -p sweep --failed", table: true, jobs: []string{"eval-2", "train-SEED2"}},
+	{name: "success filter", cmd: "show", args: "-b {B} -p sweep --success", table: true, jobs: []string{"eval-1", "eval-3", "prep", "report", "train-SEED1"}},
 
 	// copy: which commands are restored, and from which run.
 	{name: "latest run", cmd: "copy", args: "-b {B} -p sweep", jobs: []string{"eval", "prep", "report", "train-SEED1", "train-SEED2"}},
@@ -94,6 +96,7 @@ var selectorCases = []selectorCase{
 	{name: "job ID in addition", cmd: "retry", args: "-b {B} -p sweep --job-id {job:prep}", jobs: []string{"eval-2", "prep", "train-SEED2"}},
 	{name: "job ID in addition to failed", cmd: "run", args: "-b {B} -p sweep --failed --job-id {job:report}", jobs: []string{"eval-2", "report", "train-SEED2"}},
 	{name: "given run", cmd: "run", args: "-b {B} -p sweep --run-id {run:sweep-first} --failed", jobs: []string{"eval-2", "train-SEED2"}},
+	{name: "run ID positional", cmd: "retry", args: "{run:sweep-first}", jobs: []string{"eval-2", "train-SEED2"}},
 	{name: "latest run", cmd: "run", args: "-b {B} -p sweep --run-id latest --stage training", jobs: []string{"train-SEED1", "train-SEED2"}},
 	{name: "stage", cmd: "run", args: "-b {B} -p sweep --stage evaluation", jobs: []string{"eval-1", "eval-2", "eval-3"}},
 	{name: "matrix", cmd: "run", args: "-b {B} -p sweep --matrix train", jobs: []string{"train-SEED1", "train-SEED2"}},

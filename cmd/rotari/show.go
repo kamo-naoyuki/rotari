@@ -95,6 +95,8 @@ func cmdShow(args []string) int {
 	jobIDOption := cliString(fs, "job-id", "")
 	jobNameOption := cliString(fs, "job-name", "")
 	failedOnly := cliBool(fs, "failed", false)
+	unfinishedOnly := cliBool(fs, "unfinished", false)
+	successOnly := cliBool(fs, "success", false)
 	stageOption := cliString(fs, "stage", "")
 	matrixOption := cliString(fs, "matrix", "")
 	lineage := cliBool(fs, "lineage", false)
@@ -110,6 +112,14 @@ func cmdShow(args []string) int {
 		return 1
 	}
 	scope := model.CommandSelector{Stage: *stageOption, Matrix: *matrixOption}
+	// resultSelection filters the job table by result, like copy and run;
+	// logs and reports only know --failed.
+	resultSelection := model.ResultSelection(*failedOnly, *unfinishedOnly, *successOnly)
+	resultFilter := resultSelection != ""
+	if (*unfinishedOnly || *successOnly) && (*showLogs || *showFailedLogs || *followLogs || *reportOutput || *jsonOutput) {
+		printError("--unfinished and --success filter the job table; logs, reports, and JSON take --failed only")
+		return 1
+	}
 	if scope.Kinds() > 1 {
 		printError("--stage cannot be combined with --matrix")
 		return 1
@@ -229,7 +239,7 @@ func cmdShow(args []string) int {
 		applyShowSelectorTarget(targets[0], basedir, queueNameOption, runIDOption, jobIDOption, showQueueOption)
 	}
 	if *lineage {
-		if selector != "" || *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || *failedOnly || scope.Kinds() > 0 ||
+		if selector != "" || *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || resultFilter || scope.Kinds() > 0 ||
 			*showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *reportOutput {
 			printError("--lineage cannot be combined with run, job, queue, filter, list, log, follow, or report options")
 			return 1
@@ -254,12 +264,12 @@ func cmdShow(args []string) int {
 		printError("--report cannot be combined with queue, list, log, follow, or JSON options")
 		return 1
 	}
-	if *showQueueOption && (*runIDOption != "" || *failedOnly || *showLogs || *showFailedLogs || *followLogs) {
+	if *showQueueOption && (*runIDOption != "" || resultFilter || *showLogs || *showFailedLogs || *followLogs) {
 		printError("--queue cannot be combined with run, log, or filter options")
 		return 1
 	}
 	if *showBaseDirsList {
-		if *runIDOption != "" || *jobIDOption != "" || *failedOnly || *showLogs || *showFailedLogs || *followLogs || *jsonOutput {
+		if *runIDOption != "" || *jobIDOption != "" || resultFilter || *showLogs || *showFailedLogs || *followLogs || *jsonOutput {
 			printError("--basedirs cannot be combined with project, run, job, log, filter, or JSON options")
 			return 1
 		}
@@ -271,7 +281,7 @@ func cmdShow(args []string) int {
 		return showBaseDirs(masterDir)
 	}
 	if *queueNameOption == "" && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && scope.Kinds() == 0 &&
-		!(*showQueueOption || *showBaseDirsList || *failedOnly || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
+		!(*showQueueOption || *showBaseDirsList || resultFilter || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
 		return showAllProjects(*basedir, *masterdir)
 	}
 	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runIDOption)
@@ -284,7 +294,7 @@ func cmdShow(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	projectOverview := (*queueNameOption != "") && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && scope.Kinds() == 0 && !*showQueueOption && !*showBaseDirsList && !*showLogs && !*showFailedLogs && !*followLogs && !*jsonOutput && !*reportOutput && !*failedOnly
+	projectOverview := (*queueNameOption != "") && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && scope.Kinds() == 0 && !*showQueueOption && !*showBaseDirsList && !*showLogs && !*showFailedLogs && !*followLogs && !*jsonOutput && !*reportOutput && !resultFilter
 	if projectOverview {
 		return showProjectOverview(paths)
 	}
@@ -330,7 +340,7 @@ func cmdShow(args []string) int {
 			}
 			// Options that only apply to runs look past a non-empty queue to
 			// the latest run; other views show the queue.
-			runOnly := *showLogs || *showFailedLogs || *followLogs || *failedOnly || *reportOutput
+			runOnly := *showLogs || *showFailedLogs || *followLogs || resultFilter || *reportOutput
 			if len(queue.Commands) > 0 && !runOnly {
 				if arrayScope, ok := arrayCommandScope(queue.Commands, *jobIDOption); ok {
 					return showQueue(paths, queue, arrayScope)
@@ -362,7 +372,7 @@ func cmdShow(args []string) int {
 	}
 	if runQueue, err := state.LoadQueue(filepath.Join(paths.RunsDir, runID, "commands.json")); err == nil && !*reportOutput {
 		if arrayScope, ok := arrayCommandScope(runQueue.Commands, *jobIDOption); ok {
-			return showRun(paths, runID, showJobFilter{failedOnly: *failedOnly, scope: arrayScope})
+			return showRun(paths, runID, showJobFilter{selection: resultSelection, scope: arrayScope})
 		}
 	}
 	if *jobIDOption != "" {
@@ -416,7 +426,7 @@ func cmdShow(args []string) int {
 	if *jsonOutput {
 		return showRunJSON(paths, runID)
 	}
-	return showRun(paths, runID, showJobFilter{failedOnly: *failedOnly, scope: scope})
+	return showRun(paths, runID, showJobFilter{selection: resultSelection, scope: scope})
 }
 
 func hasMultipleProjects(baseDir string) (bool, error) {
@@ -455,7 +465,9 @@ type showJobCounts struct {
 
 // showJobFilter selects the rows of a run job table.
 type showJobFilter struct {
-	failedOnly bool
+	// selection, when set, keeps the jobs whose result matches it, such as
+	// "failed" or "failed,unfinished"; see model.ResultSelection.
+	selection string
 	// scope, when set, keeps only the jobs of one stage or matrix.
 	scope model.CommandSelector
 }
@@ -833,7 +845,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 			jobCounts.pending++
 		}
 		executorText := queueExecutorText(runQueue, jobSpec)
-		if filter.failedOnly && (!statusOK || status == 0) {
+		if filter.selection != "" && !model.ResultSelectionMatches(filter.selection, statusOK, status) {
 			continue
 		}
 		if statusOK && status != 0 {

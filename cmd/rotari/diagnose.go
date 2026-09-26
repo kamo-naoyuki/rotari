@@ -33,6 +33,43 @@ const (
 
 // cmdDiagnose builds a failure diagnosis prompt and optionally sends it to an
 // external provider.
+// diagnoseJobByName resolves a job name to its job ID, as show does: in the
+// given run, or in the latest run of the given project or of every project.
+// It fixes the base directory, project, and run for the rest of diagnose.
+func diagnoseJobByName(basedir, projectName, runID *string, name string) (string, error) {
+	if *runID != "" {
+		baseDir, project, resolvedRunID, err := resolve.ExistingRunID(*basedir, *projectName, *runID)
+		if err != nil {
+			return "", err
+		}
+		paths, err := state.ResolveProjectPaths(baseDir, project)
+		if err != nil {
+			return "", err
+		}
+		target, found, err := resolve.JobInRun(paths, resolvedRunID, name, true)
+		if err != nil {
+			return "", err
+		}
+		if !found {
+			return "", fmt.Errorf("job name %q not found in run %q", name, resolvedRunID)
+		}
+		*basedir, *projectName, *runID = baseDir, project, resolvedRunID
+		return target.JobID, nil
+	}
+	targets, err := resolve.Jobs(*basedir, *projectName, name, true, false)
+	if err != nil {
+		return "", err
+	}
+	if len(targets) == 0 {
+		return "", fmt.Errorf("job name %q not found", name)
+	}
+	if len(targets) > 1 {
+		return "", resolve.AmbiguousError(fmt.Sprintf("job name %q", name), targets)
+	}
+	*basedir, *projectName, *runID = targets[0].BaseDir, targets[0].ProjectName, targets[0].RunID
+	return targets[0].JobID, nil
+}
+
 func cmdDiagnose(args []string) int {
 	fs := flag.NewFlagSet("diagnose", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -40,6 +77,7 @@ func cmdDiagnose(args []string) int {
 	projectName := cliString(fs, "project-name", "")
 	runIDOption := cliString(fs, "run-id", "")
 	jobID := cliString(fs, "job-id", "")
+	jobName := cliString(fs, "job-name", "")
 	attemptID := ""
 	provider := cliString(fs, "provider", defaultLLMProvider)
 	endpoint := cliString(fs, "endpoint", defaultLLMEndpoint)
@@ -56,8 +94,20 @@ func cmdDiagnose(args []string) int {
 	if len(fs.Args()) == 1 {
 		*jobID = fs.Args()[0]
 	}
+	if *jobName != "" {
+		if *jobID != "" {
+			printError("--job-name cannot be combined with a job ID")
+			return 1
+		}
+		resolved, err := diagnoseJobByName(basedir, projectName, runIDOption, *jobName)
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		*jobID = resolved
+	}
 	if *jobID == "" || (!*rules && *model == "") {
-		printError("usage: " + cliUsage("diagnose") + " (requires a job ID and --model unless --rules is set)")
+		printError("usage: " + cliUsage("diagnose") + " (requires a job ID or --job-name, and --model unless --rules is set)")
 		return 1
 	}
 	if strings.HasPrefix(*jobID, "att_") {

@@ -589,7 +589,21 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "job-name",
                     "value_name": "NAME",
                 },
-                {"description": "show failed jobs only", "name": "failed"},
+                {
+                    "description": "show failed jobs; may be combined with the "
+                    "other result filters",
+                    "name": "failed",
+                },
+                {
+                    "description": "show unfinished jobs; may be combined with "
+                    "the other result filters",
+                    "name": "unfinished",
+                },
+                {
+                    "description": "show successful jobs; may be combined with "
+                    "the other result filters",
+                    "name": "success",
+                },
                 {
                     "description": "show jobs in this stage only",
                     "name": "stage",
@@ -737,6 +751,12 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "ID",
                 },
                 {
+                    "description": "failed job name",
+                    "environment": "ROTARI_JOB_NAME",
+                    "name": "job-name",
+                    "value_name": "NAME",
+                },
+                {
                     "description": "use local rule-based diagnosis without "
                     "calling an LLM",
                     "name": "rules",
@@ -775,7 +795,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
             ],
             "name": "diagnose",
-            "positional": "JOB_ID",
+            "positional": "[JOB_ID]",
         },
         {
             "description": "wait for an asynchronous run by project, run name, or "
@@ -1247,6 +1267,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
             ],
             "name": "run",
+            "positional": "[RUN_ID]",
         },
         {
             "description": "alias for run --failed --unfinished",
@@ -1441,6 +1462,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
             ],
             "name": "retry",
+            "positional": "[RUN_ID]",
         },
         {
             "description": "manage the background server",

@@ -46,8 +46,8 @@ var positionalCases = []positionalCase{
 	{name: "option between positionals", args: "diff {run:sweep-first} --unchanged {run:sweep-second}", want: "train-SEED1"},
 	{name: "positional after --", args: "show -b {B} -p sweep -- --job-id", fail: true, want: `selector "--job-id" not found`},
 	{name: "job command after its first word", args: "add -b {B} -p other echo --retry 3", check: queuedCommand("other", "echo --retry 3")},
-	{name: "command without positionals", args: "run -b {B} -p sweep extra", fail: true, want: "usage"},
-	{name: "command without positionals", args: "retry -b {B} -p sweep extra", fail: true, want: "usage"},
+	{name: "two runs", args: "run -b {B} -p sweep {run:sweep-first} {run:sweep-second}", fail: true, want: "usage"},
+	{name: "run ID and option", args: "retry -b {B} -p sweep --run-id {run:sweep-first} {run:sweep-first}", fail: true, want: "usage"},
 	{name: "command without positionals", args: "web -b {B} extra", fail: true, want: "usage"},
 	{name: "command without positionals", args: "config extra", fail: true, want: "usage"},
 	{name: "command without positionals", args: "env extra", fail: true},
@@ -73,6 +73,8 @@ var positionalCases = []positionalCase{
 	{name: "project name with project option", args: "show -b {B} -p other sweep", fail: true, want: `selector "sweep" not found`},
 	{name: "active run name", args: "show -b {B} live", setup: setupActive, want: "Run: live ({run:live})"},
 	{name: "run-only option with a queue", args: "show -b {B} -p sweep --failed", setup: setupQueued, want: "Run: second ({run:sweep-second})"},
+	{name: "success filter", args: "show -b {B} -p sweep --success", want: "{job:prep}"},
+	{name: "success filter with a report", args: "show -b {B} -p sweep --success --report", fail: true, want: "take --failed only"},
 	{name: "view with a queue", args: "show -b {B} -p sweep --stage training", setup: setupQueued, want: "SHOW MODE: PROJECT / QUEUE"},
 
 	// export: a queue, else the latest run; never an unsettled run.
@@ -128,6 +130,10 @@ var positionalCases = []positionalCase{
 	// diagnose: a job or attempt.
 	{name: "job ID", args: "diagnose -b {B} -p sweep --rules {job:train-SEED2}", want: "No known rule-based diagnosis"},
 	{name: "job ID in any project", args: "diagnose -b {B} --rules {job:train-SEED2}", want: "No known rule-based diagnosis"},
+	{name: "job name", args: "diagnose -b {B} --rules --job-name train-SEED2", want: "No known rule-based diagnosis"},
+	{name: "job name in a given run", args: "diagnose -b {B} -p sweep --run-id {run:sweep-first} --rules --job-name train-SEED2", want: "No known rule-based diagnosis"},
+	{name: "job name shared by projects", args: "diagnose -b {B} --rules --job-name prep", fail: true, want: "project=other run={run:other-first}"},
+	{name: "job name and ID", args: "diagnose -b {B} --rules --job-name prep {job:prep}", fail: true, want: "cannot be combined"},
 	{name: "attempt ID through registry", args: "diagnose --rules {att:train-SEED2/0}", want: "No known rule-based diagnosis"},
 	{name: "job ID and option", args: "diagnose -b {B} -p sweep --rules --job-id {job:train-SEED2} {job:train-SEED2}", fail: true, want: "usage"},
 
@@ -169,8 +175,8 @@ var positionalCases = []positionalCase{
 	// A job name queued in two projects is ambiguous for queue edits.
 	{name: "job name queued in two projects", args: "change -b {B} --job-name prep --timeout 1m", setup: setupQueuedAll, fail: true, want: "project=other queue job={job:other-prep}"},
 
-	// run takes no positionals, not even config.
-	{name: "no config alias", args: "run config", fail: true, want: "usage"},
+	// run's positional is a run ID, not the old config alias.
+	{name: "no config alias", args: "run -b {B} -p sweep config", fail: true, want: `run "config" not found`},
 }
 
 func TestPositionalArguments(t *testing.T) {

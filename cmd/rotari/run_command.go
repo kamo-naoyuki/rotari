@@ -51,9 +51,12 @@ func cmdRun(args []string) int {
 	}
 	left := fs.Args()
 	selection := model.ResultSelection(*failed, *unfinished, *success)
-	if len(left) != 0 || *localConcurrency < 1 || *batchConcurrency < 1 || *retry < -1 {
+	if len(left) > 1 || (len(left) == 1 && *runIDOption != "") || *localConcurrency < 1 || *batchConcurrency < 1 || *retry < -1 {
 		printError("usage: " + cliUsage("run"))
 		return 1
+	}
+	if len(left) == 1 {
+		*runIDOption = left[0]
 	}
 	if *jobNameOption != "" && len(jobIDs) > 0 {
 		printError("--job-name cannot be combined with --job-id")

@@ -1,15 +1,5 @@
 # TODO
 
-## Selector and positional contract changes (decided, in progress)
-
-Decided on 2026-09-26 after reviewing
-[docs/contracts/06-selectors.md](docs/contracts/06-selectors.md). Update the
-contract and `TestSelectorTable` / `TestPositionalArguments` with each item,
-and remove the item here once it is done.
-
-- `show` gains `--unfinished` and `--success`; `diagnose` gains `--job-name`;
-  `run` and `retry` accept a positional `RUN_ID`.
-
 - Consider extending `cancel`/`suspend`/`resume` selectors to also accept a
   `run_name` and/or a bare `project_name`, alongside the existing job_id,
   `att_` attempt_id, and bare run_id support. Unlike run_id (fixed generated
