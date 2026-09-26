@@ -55,8 +55,13 @@ type Request struct {
 	DependsOnFinished []string                `json:"depends_on_finished,omitempty"`
 	Timeout           string                  `json:"timeout,omitempty"`
 	// JobRetry is a submitted job's own retry limit; Retry is the run's.
-	JobRetry *int             `json:"job_retry,omitempty"`
-	Array    *model.ArraySpec `json:"array,omitempty"`
+	JobRetry *int `json:"job_retry,omitempty"`
+	// RetryDelay, RetryBackoff, and RetryMaxDelay space out the job's
+	// retries.
+	RetryDelay    string           `json:"retry_delay,omitempty"`
+	RetryBackoff  float64          `json:"retry_backoff,omitempty"`
+	RetryMaxDelay string           `json:"retry_max_delay,omitempty"`
+	Array         *model.ArraySpec `json:"array,omitempty"`
 }
 
 type Response struct {

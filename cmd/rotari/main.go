@@ -63,6 +63,9 @@ func validateQueueJobs(queue model.Queue) error {
 		if command.Retry != nil && *command.Retry < 0 {
 			return fmt.Errorf("job %q has a negative retry limit", command.ID)
 		}
+		if err := model.ValidateRetryBackoff(command.RetryDelay, command.RetryBackoff, command.RetryMaxDelay); err != nil {
+			return fmt.Errorf("job %q: %w", command.ID, err)
+		}
 		if command.Array != nil {
 			if err := model.ValidateArraySpec(command.Array); err != nil {
 				return fmt.Errorf("job %q has invalid array: %w", command.ID, err)

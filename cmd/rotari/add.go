@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -31,6 +32,9 @@ func cmdAdd(args []string) int {
 	cliValue(fs, &dependsOnFinished, "depends-on-finished")
 	timeout := cliString(fs, "timeout", "")
 	retry := cliInt(fs, "retry", 0)
+	retryDelay := cliString(fs, "retry-delay", "")
+	retryBackoffText := cliString(fs, "retry-backoff", "")
+	retryMaxDelay := cliString(fs, "retry-max-delay", "")
 	arrayRange := cliString(fs, "array", "")
 	var matrixValues stringSliceFlag
 	cliValue(fs, &matrixValues, "matrix")
@@ -95,11 +99,22 @@ func cmdAdd(args []string) int {
 		}
 		jobRetry = retry
 	}
+	retryBackoff, err := parseRetryBackoff(*retryBackoffText)
+	if err == nil {
+		err = model.ValidateRetryBackoff(*retryDelay, retryBackoff, *retryMaxDelay)
+	}
+	if err != nil {
+		printError(err)
+		return 1
+	}
 	commands := expandMatrixCommands(left, *executor, executorOptions, environment, *workingDirectory, *jobName, *stage, dependsOn, dimensions)
 	for index := range commands {
 		commands[index].DependsOnFinished = dependsOnFinished
 		commands[index].Timeout = *timeout
 		commands[index].Retry = jobRetry
+		commands[index].RetryDelay = *retryDelay
+		commands[index].RetryBackoff = retryBackoff
+		commands[index].RetryMaxDelay = *retryMaxDelay
 	}
 	message, err := enqueueCommands(baseDir, queueName, commands, array)
 	if err != nil {
@@ -212,4 +227,16 @@ func enqueueCommands(baseDir, queueName string, commands []model.QueuedCommand, 
 
 func joinCommand(command []string) string {
 	return fmt.Sprintf("%v", command)
+}
+
+// parseRetryBackoff parses --retry-backoff; empty means no backoff factor.
+func parseRetryBackoff(value string) (float64, error) {
+	if value == "" {
+		return 0, nil
+	}
+	factor, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid --retry-backoff %q: want a number such as 2", value)
+	}
+	return factor, nil
 }

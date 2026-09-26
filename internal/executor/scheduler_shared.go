@@ -179,6 +179,12 @@ type schedulerSubmissionGate struct {
 	next     map[string]time.Time
 }
 
+// schedulerQueryGate spaces out scheduler state and accounting queries
+// (squeue, qstat, bjobs, sacct, ...) across every job this process waits
+// for, so waiting on many jobs at once does not flood the scheduler. Reading
+// a job's wrapper status.json is not gated.
+var schedulerQueryGate = newSchedulerSubmissionGate(200 * time.Millisecond)
+
 func newSchedulerSubmissionGate(interval time.Duration) *schedulerSubmissionGate {
 	return &schedulerSubmissionGate{interval: interval, next: make(map[string]time.Time)}
 }
@@ -359,6 +365,7 @@ func waitForSchedulerResult(store state.Store, jobDir, jobID string, command []s
 		if result, finished := wrapperJobResult(store, statusPath, jobID, command); finished {
 			return result
 		}
+		schedulerQueryGate.wait("query", 0)
 		query := policy.JobState()
 		if query.State != "" {
 			failures = 0
@@ -417,6 +424,7 @@ func (policy schedulerPollingPolicy) resolveMissingSchedulerState(store state.St
 	if accountingDeadline.IsZero() {
 		*accountingDeadline = timing.Now().Add(policy.AccountingWait)
 	}
+	schedulerQueryGate.wait("query", 0)
 	accounting := policy.Accounting()
 	if accounting.Resolved {
 		_ = state.WriteJSON(statusPath, accounting.Status)

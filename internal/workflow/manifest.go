@@ -36,7 +36,12 @@ type Job struct {
 	// Timeout matches add --timeout, such as "2h".
 	Timeout string `json:"timeout,omitempty" yaml:"timeout,omitempty" toml:"timeout,omitempty"`
 	// Retry matches add --retry.
-	Retry            *int       `json:"retry,omitempty" yaml:"retry,omitempty" toml:"retry,omitempty"`
+	Retry *int `json:"retry,omitempty" yaml:"retry,omitempty" toml:"retry,omitempty"`
+	// RetryDelay, RetryBackoff, and RetryMaxDelay match add --retry-delay,
+	// --retry-backoff, and --retry-max-delay.
+	RetryDelay       string     `json:"retry_delay,omitempty" yaml:"retry_delay,omitempty" toml:"retry_delay,omitempty"`
+	RetryBackoff     float64    `json:"retry_backoff,omitempty" yaml:"retry_backoff,omitempty" toml:"retry_backoff,omitempty"`
+	RetryMaxDelay    string     `json:"retry_max_delay,omitempty" yaml:"retry_max_delay,omitempty" toml:"retry_max_delay,omitempty"`
 	Executor         string     `json:"executor,omitempty" yaml:"executor,omitempty" toml:"executor,omitempty"`
 	ExecutorOptions  []string   `json:"executor_options,omitempty" yaml:"executor_options,omitempty" toml:"executor_options,omitempty"`
 	WorkingDirectory string     `json:"working_directory,omitempty" yaml:"working_directory,omitempty" toml:"working_directory,omitempty"`
@@ -243,6 +248,7 @@ func Compile(manifest Manifest, nextID func() string) (model.Queue, error) {
 				ID: nextID(), Command: append([]string(nil), job.Command...), Name: name,
 				Stage: job.Stage, DependsOn: append([]string(nil), job.DependsOn...),
 				DependsOnFinished: append([]string(nil), job.DependsOnFinished...), Timeout: job.Timeout, Retry: cloneRetry(job.Retry),
+				RetryDelay: job.RetryDelay, RetryBackoff: job.RetryBackoff, RetryMaxDelay: job.RetryMaxDelay,
 				Executor: job.Executor, ExecutorOptions: append([]string(nil), job.ExecutorOptions...),
 				WorkingDirectory: job.WorkingDirectory, Environment: environment, Array: cloneArray(array),
 			}

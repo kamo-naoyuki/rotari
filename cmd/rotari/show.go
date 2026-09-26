@@ -1185,7 +1185,7 @@ func showQueueJob(paths state.ProjectPaths, queue model.Queue, jobID string) int
 		if job.Timeout != "" {
 			fmt.Printf("%s %s\n", cyan("Timeout:"), job.Timeout)
 		}
-		if retry := model.FormatRetry(job.Retry); retry != "" {
+		if retry := model.FormatRetryPolicy(job); retry != "" {
 			fmt.Printf("%s %s\n", cyan("Retry:"), retry)
 		}
 		fmt.Printf("%s %s\n", cyan("Command:"), strings.Join(job.Command, " "))
@@ -1713,7 +1713,7 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	if timeout := jobSpecs[jobID].Timeout; timeout != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Timeout:"), timeout)
 	}
-	if retry := model.FormatRetry(jobSpecs[jobID].Retry); retry != "" {
+	if retry := model.FormatRetryPolicy(jobSpecs[jobID]); retry != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Retry:"), retry)
 	}
 	submittedAt, finishedAt := state.ReadJobTimestamp(runDir, jobID, "submitted_at"), state.ReadJobTimestamp(runDir, jobID, "finished_at")

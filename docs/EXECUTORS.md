@@ -36,6 +36,14 @@ replaces the job's saved environment; repeat it for multiple variables, or use
 `--clear-env` to remove them. Rotari's own `ROTARI_*` context variables take
 precedence over a same-named user value.
 
+### Concurrency and scheduler load
+
+`--batch-concurrency` (or `--<executor>-concurrency`) limits how many jobs
+rotari keeps submitted to a scheduler at once. When one finishes, the next
+ready job is submitted immediately. rotari checks each job's own status file
+and spaces its `squeue`, `qstat`, `bjobs`, and accounting queries at least
+200ms apart, so waiting on many jobs does not flood the scheduler.
+
 ### Job timeouts
 
 `add --timeout` is enforced by rotari's job wrapper on the node that runs the

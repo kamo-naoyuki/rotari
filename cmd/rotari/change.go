@@ -41,19 +41,31 @@ func cmdChange(args []string) int {
 	clearTimeout := cliBool(fs, "clear-timeout", false)
 	retry := cliInt(fs, "retry", 0)
 	clearRetry := cliBool(fs, "clear-retry", false)
+	retryDelay := cliString(fs, "retry-delay", "")
+	retryBackoffText := cliString(fs, "retry-backoff", "")
+	retryMaxDelay := cliString(fs, "retry-max-delay", "")
 	quiet := cliBool(fs, "quiet", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 	if (*jobID == "" && *jobName == "") || (*jobID != "" && *jobName != "") ||
 		(len(fs.Args()) == 0 && *executor == "" && len(executorOptions) == 0 && !*clearExecutorOptions && *workingDirectory == "" && !*clearWorkingDirectory && len(environment) == 0 && !*clearEnvironment &&
-			*setJobName == "" && len(dependsOn) == 0 && !*clearDependsOn && len(dependsOnFinished) == 0 && !*clearDependsOnFinished && *timeout == "" && !*clearTimeout && !cliOptionSet(fs, "retry") && !*clearRetry) ||
+			*setJobName == "" && len(dependsOn) == 0 && !*clearDependsOn && len(dependsOnFinished) == 0 && !*clearDependsOnFinished && *timeout == "" && !*clearTimeout && !cliOptionSet(fs, "retry") && !*clearRetry &&
+			*retryDelay == "" && *retryBackoffText == "" && *retryMaxDelay == "") ||
 		(*executor != "" && !executorRegistry.Known(*executor)) {
 		printError("usage: " + cliUsage("change"))
 		return 1
 	}
 	if err := model.ValidateEnvironment(environment); err != nil {
 		printErrorf("invalid --env: %v", err)
+		return 1
+	}
+	retryBackoff, err := parseRetryBackoff(*retryBackoffText)
+	if err == nil {
+		err = model.ValidateRetryBackoff(*retryDelay, retryBackoff, *retryMaxDelay)
+	}
+	if err != nil {
+		printError(err)
 		return 1
 	}
 
@@ -69,6 +81,7 @@ func cmdChange(args []string) int {
 		dependsOn: dependsOn, clearDependsOn: *clearDependsOn,
 		dependsOnFinished: dependsOnFinished, clearDependsOnFinished: *clearDependsOnFinished,
 		timeout: *timeout, clearTimeout: *clearTimeout, retry: optionalRetry(fs, *retry), clearRetry: *clearRetry,
+		retryDelay: *retryDelay, retryBackoff: retryBackoff, retryMaxDelay: *retryMaxDelay,
 		command: fs.Args(),
 	})
 	if err != nil {
@@ -108,10 +121,15 @@ type changeMutation struct {
 	// timeout replaces Timeout when non-empty.
 	timeout      string
 	clearTimeout bool
-	// retry replaces Retry when set.
+	// retry replaces Retry when set; clearRetry also clears the delay settings.
 	retry      *int
 	clearRetry bool
-	command    []string
+	// retryDelay, retryBackoff, and retryMaxDelay replace their fields when
+	// set.
+	retryDelay    string
+	retryBackoff  float64
+	retryMaxDelay string
+	command       []string
 }
 
 // optionalRetry returns the --retry value when it was given.
@@ -232,6 +250,18 @@ func applyChangeMutation(queue model.Queue, jobIndex int, mutation changeMutatio
 	}
 	if mutation.retry != nil || mutation.clearRetry {
 		changed.Retry = mutation.retry
+	}
+	if mutation.clearRetry {
+		changed.RetryDelay, changed.RetryBackoff, changed.RetryMaxDelay = "", 0, ""
+	}
+	if mutation.retryDelay != "" {
+		changed.RetryDelay = mutation.retryDelay
+	}
+	if mutation.retryBackoff != 0 {
+		changed.RetryBackoff = mutation.retryBackoff
+	}
+	if mutation.retryMaxDelay != "" {
+		changed.RetryMaxDelay = mutation.retryMaxDelay
 	}
 	return nil
 }

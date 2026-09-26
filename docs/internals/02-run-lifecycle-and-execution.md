@@ -10,12 +10,14 @@
 - Retries and filtered runs always create new history and never modify their
   source run. `--retry N` retries a failed job up to N additional times within
   the same run. A job's own `Retry` (`add --retry`, manifest `retry`) replaces
-  that limit for the job (`JobSpec.RetryLimit`); `RetryPendingJobs` and the
-  `failureFinal` check in `ExecuteDependencyRetries` apply it per job, and the
-  attempt loop runs while any job is pending, stopping early when an attempt
-  neither ran nor resolved anything. A failed job is one whose result has a
-  non-zero exit code and is not explicitly cancelled. Covered by
-  `TestPerJobRetryOverridesRunRetry` and
+  that limit for the job (`JobSpec.RetryLimit`). A failed job with retries
+  left is started again as soon as its result arrives, or after
+  `JobSpec.RetryDelayFor` when it has `retry_delay` (multiplied by
+  `retry_backoff` per further retry and capped by `retry_max_delay`); other
+  jobs never hold it back. Attempt numbers count per job. A failed job is one
+  whose result has a non-zero exit code and is not explicitly cancelled.
+  Covered by `TestPerJobRetryOverridesRunRetry`,
+  `TestExecuteJobsSpacesRetriesWithBackoff`, and
   `TestExecuteMixedRunHonorsPerJobRetry`.
 - An explicit cancellation is terminal for the current run. A job marked
   cancelled, or whose recorded execution state is `cancelled`, is not
@@ -153,24 +155,28 @@
   that task; multiple task attempt IDs are grouped into one sparse command
   where possible. `run --job-id ATTEMPT_ID` and
   `retry --job-id ATTEMPT_ID` use the same copy-then-execute path.
-- `--depends-on` ordering is resolved entirely by rotari itself, wave by wave,
-  inside `executeMixedRun`; it never relies on scheduler-native dependency
-  features such as Slurm's `--dependency`. This keeps dependency semantics
-  identical across every executor, including mixes of local and remote ones in
-  the same run. Jobs in a ready wave may run concurrently. A failed prerequisite
-  prevents its dependents from executing; each is persisted with a non-zero
-  result and `blocked by failed dependency` error.
+- Jobs run event by event: `ExecuteJobs` in
+  [internal/run/engine.go](../../internal/run/engine.go) re-checks the waiting
+  jobs whenever a result arrives or a retry delay passes, and starts each job
+  as soon as its prerequisites allow, without waiting for unrelated jobs. It
+  never relies on scheduler-native dependency features such as Slurm's
+  `--dependency`, which keeps dependency semantics identical across every
+  executor, including mixes of local and remote ones in the same run. A
+  prerequisite whose failure is final prevents its `--depends-on` dependents
+  from executing; each is persisted with a non-zero result and `blocked by
+  failed dependency` error. When `run cancel` marks the project `cancelling`,
+  the engine starts no more retries and records jobs that never started as
+  `cancelled before start`. Covered by
+  `TestExecuteJobsRetriesAndUnblocksWithoutWaitingForOtherJobs` and
+  `TestExecuteJobsStopsRetryingWhenStopped` in
+  [internal/run/lifecycle_test.go](../../internal/run/lifecycle_test.go).
 - `DependsOnFinished` (`--depends-on-finished`, manifest `depends_on_finished`)
   is Slurm's `afterany`: the dependent starts once each prerequisite succeeded
-  or has a final failure. `ResolveDependencyWave` in
-  [internal/run/plan.go](../../internal/run/plan.go) takes a `failureFinal`
-  callback from `ExecuteDependencyRetries`: a failure is final on the last
-  `--retry` attempt, when the job will not be retried (for example, it was
-  explicitly cancelled), or when the result was carried from an earlier run.
-  A failed `DependsOn` prerequisite whose failure is final blocks its
-  dependents within the same attempt, and a wave that only blocks jobs is
-  followed by another resolution pass, so `afterany` dependents of blocked
-  jobs still start. Both lists share validation (unknown names, cycles across
+  or has a final failure. A result is final when the job will not run again:
+  a success, a failure without retries left or that `ShouldRetry` rejects
+  (for example, an explicit cancellation), or a result carried from an
+  earlier run. Blocking a job settles its result, so the engine re-checks the
+  waiting jobs and `afterany` dependents of blocked jobs still start. Both lists share validation (unknown names, cycles across
   kinds, and stage and matrix expansion); a name listed in both on one command
   is rejected. Covered by the `TestFinishedDependency*` tests in
   [internal/run/lifecycle_test.go](../../internal/run/lifecycle_test.go) and
@@ -182,9 +188,10 @@
   because an `afterany` job may have succeeded on a failed prerequisite's
   output. `copy` requires an omitted `DependsOnFinished` prerequisite to have
   finished with any result, rather than to have succeeded.
-- The server protocol version is 5 since per-job `retry` was added (4 added
-  `timeout`, 3 `depends_on_finished`), so a client replaces an older server
-  that would drop new queue fields when it loads the queue.
+- The server protocol version is 6 since the retry delay fields were added (5
+  added per-job `retry`, 4 `timeout`, 3 `depends_on_finished`), so a client
+  replaces an older server that would drop new queue fields when it loads the
+  queue.
 - A job `Timeout` is enforced inside the job wrappers, not by the supervisor,
   so it counts running time on every executor.
   [internal/executor/wrapper.go](../../internal/executor/wrapper.go) builds a
@@ -243,8 +250,20 @@
   round-trips the arguments through the worker's parser.
 - Per-executor full-run orchestrators must not be added outside this path.
   Extend `JobExecutor` methods or `executeMixedRun` instead.
-- Run dispatch has a local concurrency lane and one independent lane per
-  non-local executor. `local-concurrency` and `batch-concurrency` are common
+- Run dispatch (`Dispatcher` in [internal/run/dispatch.go](../../internal/run/dispatch.go))
+  keeps one lane per executor for the whole run: a local concurrency lane and
+  one independent lane per non-local executor. A job holds a lane slot only
+  while it is submitted or running, so a finished job's slot goes to the next
+  ready job at once instead of after a whole batch. Array tasks that become
+  ready together are still submitted as one native array without taking
+  slots; retried tasks are submitted individually or as a sparse array. Jobs
+  on a scheduler lane are submitted and waited on concurrently, so
+  `schedulerQueryGate` in
+  [internal/executor/scheduler_shared.go](../../internal/executor/scheduler_shared.go)
+  spaces scheduler state and accounting queries 200ms apart per process;
+  reading a job's wrapper `status.json` is not gated. Covered by
+  `TestDispatcherRefillsSchedulerSlotsAsJobsFinish`.
+- `local-concurrency` and `batch-concurrency` are common
   defaults used when no executor-specific setting is supplied; executor
   settings override those defaults, and job-specific executor options remain
   highest priority.

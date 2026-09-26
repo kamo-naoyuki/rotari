@@ -121,8 +121,8 @@ func TestCompileRejectsInvalidManifestValues(t *testing.T) {
 
 func TestManifestRoundTripsFinishedDependencies(t *testing.T) {
 	for format, input := range map[string]string{
-		"yaml": "version: 1\njobs:\n  - name: sweep\n    command: [train]\n  - name: collect\n    command: [collect]\n    depends_on_finished: [sweep]\n    timeout: 90m\n    retry: 2\n",
-		"toml": "version = 1\n[[jobs]]\nname = \"sweep\"\ncommand = [\"train\"]\n[[jobs]]\nname = \"collect\"\ncommand = [\"collect\"]\ndepends_on_finished = [\"sweep\"]\ntimeout = \"90m\"\nretry = 2\n",
+		"yaml": "version: 1\njobs:\n  - name: sweep\n    command: [train]\n  - name: collect\n    command: [collect]\n    depends_on_finished: [sweep]\n    timeout: 90m\n    retry: 2\n    retry_delay: 30s\n",
+		"toml": "version = 1\n[[jobs]]\nname = \"sweep\"\ncommand = [\"train\"]\n[[jobs]]\nname = \"collect\"\ncommand = [\"collect\"]\ndepends_on_finished = [\"sweep\"]\ntimeout = \"90m\"\nretry = 2\nretry_delay = \"30s\"\n",
 	} {
 		queue := compileFormatFixture(t, format, input)
 		if got := queue.Commands[1].DependsOnFinished; !reflect.DeepEqual(got, []string{"sweep"}) {
@@ -136,7 +136,7 @@ func TestManifestRoundTripsFinishedDependencies(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if queue.Commands[1].Retry == nil || *queue.Commands[1].Retry != 2 || !strings.Contains(string(encoded), "retry") {
+		if queue.Commands[1].Retry == nil || *queue.Commands[1].Retry != 2 || queue.Commands[1].RetryDelay != "30s" || !strings.Contains(string(encoded), "retry_delay") {
 			t.Fatalf("%s retry = %v, encoded:\n%s", format, queue.Commands[1].Retry, encoded)
 		}
 		if queue.Commands[1].Timeout != "90m" || !strings.Contains(string(encoded), "timeout") {

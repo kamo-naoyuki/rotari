@@ -20,25 +20,6 @@ func CompleteArrayGroup(jobs []model.JobSpec, first, last int) bool {
 	return len(seen) == len(jobs)
 }
 
-func JobIsPending(jobs []model.JobSpec, jobID string) bool {
-	for _, job := range jobs {
-		if job.ID == jobID {
-			return true
-		}
-	}
-	return false
-}
-
-func RemoveFinishedJobs(jobs []model.JobSpec, results map[string]model.JobResult) []model.JobSpec {
-	remaining := make([]model.JobSpec, 0, len(jobs))
-	for _, job := range jobs {
-		if _, done := results[job.ID]; !done {
-			remaining = append(remaining, job)
-		}
-	}
-	return remaining
-}
-
 func SummarizeResults(results map[string]model.JobResult) (completed, succeeded, failed int) {
 	for _, result := range results {
 		completed++

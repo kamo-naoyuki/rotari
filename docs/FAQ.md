@@ -219,7 +219,7 @@ Dependent jobs become `blocked` and are not executed. They can run after the pre
 
 ### Can only some jobs be retried automatically?
 
-Yes. `rotari add --retry N` gives a job its own retry limit, which replaces `run --retry` for that job; `--retry 0` keeps a job from being retried even when the run retries others. See [run and retry](RUNNING.md#run-and-retry).
+Yes. `rotari add --retry N` gives a job its own retry limit, which replaces `run --retry` for that job; `--retry 0` keeps a job from being retried even when the run retries others. Retries start as soon as the job fails, or after `--retry-delay` with optional `--retry-backoff` and `--retry-max-delay`. See [run and retry](RUNNING.md#run-and-retry).
 
 ### How do I stop jobs that hang?
 

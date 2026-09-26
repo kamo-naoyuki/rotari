@@ -440,3 +440,16 @@ func TestSlurmArrayWrapperWritesFinishedTaskStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestSchedulerQueryGateSpacesQueries(t *testing.T) {
+	gate := newSchedulerSubmissionGate(200 * time.Millisecond)
+	var slept []time.Duration
+	now := time.Unix(0, 0)
+	gate.timing = schedulerTiming{Now: func() time.Time { return now }, Sleep: func(delay time.Duration) { slept = append(slept, delay) }}
+	for range 3 {
+		gate.wait("query", 0)
+	}
+	if len(slept) != 2 || slept[0] != 200*time.Millisecond || slept[1] != 400*time.Millisecond {
+		t.Fatalf("sleeps = %v, want queries spaced 200ms apart", slept)
+	}
+}

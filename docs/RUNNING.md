@@ -102,8 +102,9 @@ rotari run --retry -1
 
 Without `--retry`, each failed job is attempted only once.
 
-To retry only jobs that fail for transient reasons, such as a flaky file
-system or network, give them their own limit when adding them. A job's
+A failed job is retried as soon as it fails; it does not wait for the other
+jobs of the run. To retry only jobs that fail for transient reasons, such as a
+flaky file system or network, give them their own limit when adding them. A job's
 `--retry` replaces the run's for that job; `0` turns retries off even when the
 run uses `--retry`:
 
@@ -113,6 +114,19 @@ rotari add --retry 0 -- python evaluate.py
 rotari change -p sweep --job-name download --retry 5
 rotari change -p sweep --job-name download --clear-retry   # use the run's limit again
 ```
+
+To give a transient problem time to clear, or to keep many failed jobs from
+retrying against a shared service at once, space the retries out. The first
+retry waits `--retry-delay`, each further retry multiplies the wait by
+`--retry-backoff`, and `--retry-max-delay` caps it:
+
+```sh
+# Wait 30s, 1m, 2m, then 5m between attempts.
+rotari add --retry 4 --retry-delay 30s --retry-backoff 2 --retry-max-delay 5m -- ./download-data.sh
+```
+
+The delay settings apply to retries from `run --retry` as well as the job's
+own `--retry`. Cancelling the run stops pending retries.
 
 The result filters select which jobs are actually re-executed:
 

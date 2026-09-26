@@ -25,6 +25,10 @@ jobs:
     # timeout: 2h
     # Retry this job up to N times when it fails, instead of run --retry.
     # retry: 2
+    # Wait before retrying, multiplying the wait for each further retry.
+    # retry_delay: 30s
+    # retry_backoff: 2
+    # retry_max_delay: 5m
     # executor: slurm
     # executor_options: ["--partition=gpu", "--gres=gpu:1"]
     # working_directory: ./work
@@ -52,6 +56,10 @@ command = ["echo", "hello"]
 # timeout = "2h"
 # Retry this job up to N times when it fails, instead of run --retry.
 # retry = 2
+# Wait before retrying, multiplying the wait for each further retry.
+# retry_delay = "30s"
+# retry_backoff = 2
+# retry_max_delay = "5m"
 # executor = "slurm"
 # executor_options = ["--partition=gpu", "--gres=gpu:1"]
 # working_directory = "./work"

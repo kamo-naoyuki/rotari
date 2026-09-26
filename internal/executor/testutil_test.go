@@ -21,3 +21,9 @@ func writeExecutable(t *testing.T, dir, name, content string) {
 		t.Fatal(err)
 	}
 }
+
+func init() {
+	// Tests drive scheduler polling with fake queries; spacing them out would
+	// only slow the suite down. TestSchedulerQueryGateSpacesQueries covers it.
+	schedulerQueryGate = newSchedulerSubmissionGate(0)
+}

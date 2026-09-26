@@ -3,6 +3,7 @@ package model
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseAndValidateArrayRange(t *testing.T) {
@@ -179,5 +180,30 @@ func TestClearMatrixGroupRewritesFinishedDependencies(t *testing.T) {
 	ClearMatrixGroup(commands, "g")
 	if got := commands[2].DependsOnFinished; len(got) != 2 || got[0] != "train-1" || got[1] != "train-2" {
 		t.Fatalf("rewritten finished dependencies = %v, want matrix members", got)
+	}
+}
+
+func TestRetryDelayForAppliesBackoffAndCap(t *testing.T) {
+	job := JobSpec{RetryDelay: "10s", RetryBackoff: 3, RetryMaxDelay: "1m"}
+	want := []time.Duration{10 * time.Second, 30 * time.Second, time.Minute, time.Minute}
+	for index, expected := range want {
+		if got := job.RetryDelayFor(index + 1); got != expected {
+			t.Fatalf("RetryDelayFor(%d) = %s, want %s", index+1, got, expected)
+		}
+	}
+	if got := (JobSpec{}).RetryDelayFor(3); got != 0 {
+		t.Fatalf("RetryDelayFor without a delay = %s, want immediate", got)
+	}
+	if got := (JobSpec{RetryDelay: "5s"}).RetryDelayFor(4); got != 5*time.Second {
+		t.Fatalf("RetryDelayFor without backoff = %s, want a constant delay", got)
+	}
+	three := 3
+	if got := FormatRetryPolicy(JobSpec{Retry: &three, RetryDelay: "10s", RetryBackoff: 2, RetryMaxDelay: "1m"}); got != "3 (delay 10s, backoff x2, max 1m)" {
+		t.Fatalf("FormatRetryPolicy = %q", got)
+	}
+	for _, invalid := range [][]any{{"soon", 0.0, ""}, {"", 0.5, ""}, {"", 0.0, "-1s"}} {
+		if err := ValidateRetryBackoff(invalid[0].(string), invalid[1].(float64), invalid[2].(string)); err == nil {
+			t.Fatalf("ValidateRetryBackoff(%v) accepted an invalid value", invalid)
+		}
 	}
 }

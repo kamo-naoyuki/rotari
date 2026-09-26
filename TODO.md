@@ -25,9 +25,11 @@ another workflow engine has them.
 - Per-job timeouts (`add --timeout 2h`) are enforced by the job wrappers. The
   grace period before SIGKILL is fixed at 30 seconds; consider making it
   configurable together with the stop signal below.
-- Per-job retry limits (`add --retry N`) exist. Consider a backoff between
-  attempts and retrying only on listed exit codes, as Dagu's `retry_policy`
-  does with `interval_sec`, `backoff`, and `exit_code`.
+- Per-job retry limits and delays exist (`add --retry N --retry-delay 30s
+  --retry-backoff 2 --retry-max-delay 5m`), and failed jobs are retried
+  immediately rather than after the whole run's attempt. Consider retrying
+  only on listed exit codes, as Dagu's `retry_policy.exit_code` does, so
+  deterministic failures are not retried, and run-level delay defaults.
 - Consider concurrency limits for a named group of jobs (for example "at most
   four GPU jobs at once"). Limits are per executor today.
 

@@ -206,6 +206,7 @@ func (ops serverOperations) Submit(request serverinternal.Request) (string, erro
 		Command: request.Command, Executor: request.Executor, ExecutorOptions: request.ExecutorOptions, Environment: request.Environment,
 		WorkingDirectory: request.WorkingDirectory, Name: request.JobName, Stage: request.Stage, DependsOn: request.DependsOn,
 		DependsOnFinished: request.DependsOnFinished, Timeout: request.Timeout, Retry: request.JobRetry,
+		RetryDelay: request.RetryDelay, RetryBackoff: request.RetryBackoff, RetryMaxDelay: request.RetryMaxDelay,
 	}
 	return enqueueCommands(ops.baseDir, request.QueueName, []model.QueuedCommand{command}, request.Array)
 }

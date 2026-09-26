@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -83,13 +84,16 @@ func TestExecuteMixedRunRetriesFailedJob(t *testing.T) {
 
 type recordingExecutor struct {
 	name      string
+	mu        sync.Mutex
 	submitted []string
 }
 
 func (recorder *recordingExecutor) Name() string { return recorder.name }
 
 func (recorder *recordingExecutor) Submit(_ string, job model.JobSpec, _ []string) (executor.JobHandle, error) {
+	recorder.mu.Lock()
 	recorder.submitted = append(recorder.submitted, job.ID)
+	recorder.mu.Unlock()
 	return executor.JobHandle{Job: job}, nil
 }
 
@@ -491,11 +495,26 @@ func TestExecuteMixedRunHonorsPerJobRetry(t *testing.T) {
 	if err != nil || queue.Commands[0].Retry != nil {
 		t.Fatalf("queue = %#v, %v; ROTARI_RUN_RETRY must not set a job's retry", queue.Commands, err)
 	}
-	if code := cmdChange(append(base, "--job-name", "flaky", "--retry", "2")); code != 0 {
+	if code := cmdChange(append(base, "--job-name", "flaky", "--retry-backoff", "0.5")); code != 1 {
+		t.Fatalf("cmdChange with a backoff below 1 exit = %d, want 1", code)
+	}
+	if code := cmdChange(append(base, "--job-name", "flaky", "--retry", "2", "--retry-delay", "100ms", "--retry-backoff", "2")); code != 0 {
 		t.Fatalf("cmdChange --retry exit = %d", code)
 	}
+	started := time.Now()
 	if code := executeMixedRun(paths, "run-1", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
 		t.Fatalf("executeMixedRun exit = %d, want the job to pass on its second retry", code)
+	}
+	if elapsed := time.Since(started); elapsed < 300*time.Millisecond {
+		t.Fatalf("run took %s, want at least the 100ms and 200ms retry delays", elapsed)
+	}
+	var output bytes.Buffer
+	jobID := func() string {
+		queue, _ := state.LoadQueue(filepath.Join(paths.RunsDir, "run-1", "commands.json"))
+		return queue.Commands[0].ID
+	}()
+	if code := captureShowStdout(t, &output, func() int { return showJob(&output, paths, "run-1", jobID) }); code != 0 || !strings.Contains(output.String(), "Retry: 2 (delay 100ms, backoff x2)") {
+		t.Fatalf("showJob code=%d output:\n%s", code, output.String())
 	}
 	data, _ := os.ReadFile(counter)
 	if runs := strings.Count(string(data), "x"); runs != 3 {
@@ -504,7 +523,7 @@ func TestExecuteMixedRunHonorsPerJobRetry(t *testing.T) {
 	if code := cmdChange(append(base, "--run-id", "run-1", "--job-name", "flaky", "--clear-retry")); code != 0 {
 		t.Fatalf("cmdChange --clear-retry exit = %d", code)
 	}
-	if queue, err = loadQueue(paths.QueueFile); err != nil || queue.Commands[0].Retry != nil {
-		t.Fatalf("queue = %#v, %v, want the retry cleared", queue.Commands, err)
+	if queue, err = loadQueue(paths.QueueFile); err != nil || queue.Commands[0].Retry != nil || queue.Commands[0].RetryDelay != "" || queue.Commands[0].RetryBackoff != 0 {
+		t.Fatalf("queue = %#v, %v, want the retry settings cleared", queue.Commands, err)
 	}
 }

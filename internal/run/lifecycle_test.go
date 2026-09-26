@@ -1,54 +1,16 @@
 package run
 
 import (
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
-func TestExecuteDependencyRetriesRunsWavesAndRetries(t *testing.T) {
-	jobs := []model.JobSpec{{ID: "first"}, {ID: "second", DependsOn: []string{"first"}}}
-	results := make(map[string]model.JobResult)
-	calls := 0
-	pending := ExecuteDependencyRetries(jobs, map[string]model.JobSpec{"first": jobs[0], "second": jobs[1]}, results, 0, AttemptCallbacks{
-		Execute: func(_ int, ready []model.JobSpec) []model.JobResult {
-			calls++
-			result := make([]model.JobResult, 0, len(ready))
-			for _, job := range ready {
-				result = append(result, model.JobResult{ID: job.ID, Command: job.Command})
-			}
-			return result
-		},
-	})
-	if len(pending) != 0 || calls != 2 || len(results) != 2 {
-		t.Fatalf("pending=%#v calls=%d results=%#v, want two waves and no pending", pending, calls, results)
-	}
-}
-
-func TestExecuteDependencyRetriesReportsRetryAndFinalFailure(t *testing.T) {
-	job := model.JobSpec{ID: "job-1"}
-	results := make(map[string]model.JobResult)
-	var progress []model.JobResult
-	attempt := 0
-	ExecuteDependencyRetries([]model.JobSpec{job}, map[string]model.JobSpec{}, results, 1, AttemptCallbacks{
-		Execute: func(_ int, jobs []model.JobSpec) []model.JobResult {
-			attempt++
-			return []model.JobResult{{ID: jobs[0].ID, ExitCode: 1}}
-		},
-		Progress: func(result model.JobResult, _, _, _, _ int) {
-			progress = append(progress, result)
-		},
-	})
-	if attempt != 2 || len(progress) != 3 {
-		t.Fatalf("attempts=%d progress=%#v, want two attempts and retry/final events", attempt, progress)
-	}
-	if progress[0].Error != "retry:1" || progress[len(progress)-1].Error != "final-failure" {
-		t.Fatalf("progress=%#v, want retry:1 then final-failure", progress)
-	}
-}
-
 // runAttempts executes jobs with results decided by exitCodes (job ID to exit
 // code per attempt; missing means success) and records the order jobs ran in.
+// Retries are immediate.
 func runAttempts(t *testing.T, jobs []model.JobSpec, retry int, exitCodes map[string][]int) (map[string]model.JobResult, []string) {
 	t.Helper()
 	byName := make(map[string]model.JobSpec, len(jobs))
@@ -58,23 +20,187 @@ func runAttempts(t *testing.T, jobs []model.JobSpec, retry int, exitCodes map[st
 	results := make(map[string]model.JobResult)
 	runs := make(map[string]int)
 	var order []string
-	pending := ExecuteDependencyRetries(jobs, byName, results, retry, AttemptCallbacks{
-		Execute: func(_ int, ready []model.JobSpec) []model.JobResult {
-			waveResults := make([]model.JobResult, 0, len(ready))
-			for _, job := range ready {
-				exitCode := 0
-				if codes := exitCodes[job.ID]; runs[job.ID] < len(codes) {
-					exitCode = codes[runs[job.ID]]
+	var mu sync.Mutex
+	pending := ExecuteJobs(jobs, byName, results, EngineOptions{
+		RunRetry: retry,
+		Start: func(ready []model.JobSpec, done func(model.JobResult)) {
+			go func() {
+				for _, job := range ready {
+					mu.Lock()
+					exitCode := 0
+					if codes := exitCodes[job.ID]; runs[job.ID] < len(codes) {
+						exitCode = codes[runs[job.ID]]
+					}
+					runs[job.ID]++
+					order = append(order, job.ID)
+					mu.Unlock()
+					done(model.JobResult{ID: job.ID, AttemptID: job.AttemptID, ExitCode: exitCode})
 				}
-				runs[job.ID]++
-				order = append(order, job.ID)
-				waveResults = append(waveResults, model.JobResult{ID: job.ID, ExitCode: exitCode})
-			}
-			return waveResults
+			}()
 		},
 	})
 	FinalizePendingResults(pending, results)
 	return results, order
+}
+
+func TestExecuteJobsRunsDependenciesAndReportsRetries(t *testing.T) {
+	jobs := []model.JobSpec{{ID: "first", Name: "first"}, {ID: "second", Name: "second", DependsOn: []string{"first"}}}
+	var progress []string
+	var mu sync.Mutex
+	results := make(map[string]model.JobResult)
+	ExecuteJobs(jobs, map[string]model.JobSpec{"first": jobs[0], "second": jobs[1]}, results, EngineOptions{
+		RunRetry: 1,
+		Start: func(ready []model.JobSpec, done func(model.JobResult)) {
+			for _, job := range ready {
+				exitCode := 0
+				if job.ID == "first" {
+					exitCode = 1
+				}
+				go done(model.JobResult{ID: job.ID, ExitCode: exitCode})
+			}
+		},
+		Progress: func(result model.JobResult, _, _, _, _ int) {
+			mu.Lock()
+			progress = append(progress, result.ID+":"+result.Error)
+			mu.Unlock()
+		},
+	})
+	want := []string{"first:retry:1", "first:", "first:final-failure"}
+	if len(progress) != len(want) || progress[0] != want[0] || progress[2] != want[2] {
+		t.Fatalf("progress = %v, want %v", progress, want)
+	}
+	if results["second"].Error != "blocked by failed dependency" {
+		t.Fatalf("second = %#v, want blocked after first failed for good", results["second"])
+	}
+}
+
+// gatedStart runs jobs on goroutines; a job listed in hold keeps running
+// until its channel is closed, and every job fails on its first attempt when
+// listed in failOnce.
+type gatedStart struct {
+	mu       sync.Mutex
+	hold     map[string]chan struct{}
+	failOnce map[string]bool
+	started  []string
+}
+
+func (gate *gatedStart) start(ready []model.JobSpec, done func(model.JobResult)) {
+	for _, job := range ready {
+		gate.mu.Lock()
+		gate.started = append(gate.started, job.ID)
+		release := gate.hold[job.ID]
+		exitCode := 0
+		if gate.failOnce[job.ID] {
+			exitCode = 1
+			delete(gate.failOnce, job.ID)
+		}
+		gate.mu.Unlock()
+		go func(id string) {
+			if release != nil {
+				<-release
+			}
+			done(model.JobResult{ID: id, ExitCode: exitCode})
+		}(job.ID)
+	}
+}
+
+func (gate *gatedStart) startedJobs() []string {
+	gate.mu.Lock()
+	defer gate.mu.Unlock()
+	return append([]string(nil), gate.started...)
+}
+
+func waitFor(t *testing.T, condition func() bool, message string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !condition() {
+		if time.Now().After(deadline) {
+			t.Fatal(message)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func count(values []string, value string) int {
+	total := 0
+	for _, candidate := range values {
+		if candidate == value {
+			total++
+		}
+	}
+	return total
+}
+
+func TestExecuteJobsRetriesAndUnblocksWithoutWaitingForOtherJobs(t *testing.T) {
+	gate := &gatedStart{hold: map[string]chan struct{}{"slow": make(chan struct{})}, failOnce: map[string]bool{"flaky": true}}
+	jobs := []model.JobSpec{
+		{ID: "slow", Name: "slow"},
+		{ID: "flaky", Name: "flaky"},
+		{ID: "next", Name: "next", DependsOn: []string{"flaky"}},
+	}
+	byName := map[string]model.JobSpec{"slow": jobs[0], "flaky": jobs[1], "next": jobs[2]}
+	finished := make(chan map[string]model.JobResult)
+	go func() {
+		results := make(map[string]model.JobResult)
+		ExecuteJobs(jobs, byName, results, EngineOptions{RunRetry: 1, Start: gate.start})
+		finished <- results
+	}()
+	// While "slow" is still running, "flaky" is retried and "next" starts.
+	waitFor(t, func() bool {
+		started := gate.startedJobs()
+		return count(started, "flaky") == 2 && count(started, "next") == 1
+	}, "flaky was not retried and next did not start while slow was running")
+	close(gate.hold["slow"])
+	results := <-finished
+	if results["flaky"].ExitCode != 0 || results["next"].ExitCode != 0 || results["slow"].ExitCode != 0 {
+		t.Fatalf("results = %#v", results)
+	}
+}
+
+func TestExecuteJobsSpacesRetriesWithBackoff(t *testing.T) {
+	retries := 3
+	job := model.JobSpec{ID: "job", Name: "job", Retry: &retries, RetryDelay: "10s", RetryBackoff: 2, RetryMaxDelay: "30s"}
+	var delays []time.Duration
+	var attemptIDs []string
+	results := make(map[string]model.JobResult)
+	ExecuteJobs([]model.JobSpec{job}, map[string]model.JobSpec{"job": job}, results, EngineOptions{
+		Start: func(ready []model.JobSpec, done func(model.JobResult)) {
+			attemptIDs = append(attemptIDs, ready[0].AttemptID)
+			go done(model.JobResult{ID: "job", ExitCode: 1})
+		},
+		AssignAttemptID: func(job *model.JobSpec, attempt int) { job.AttemptID = string(rune('a' + attempt)) },
+		After: func(delay time.Duration, f func()) {
+			delays = append(delays, delay)
+			go f()
+		},
+	})
+	want := []time.Duration{10 * time.Second, 20 * time.Second, 30 * time.Second}
+	if len(delays) != len(want) || delays[0] != want[0] || delays[1] != want[1] || delays[2] != want[2] {
+		t.Fatalf("retry delays = %v, want %v", delays, want)
+	}
+	if len(attemptIDs) != 4 || attemptIDs[0] != "a" || attemptIDs[3] != "d" {
+		t.Fatalf("attempt IDs = %v, want one per attempt numbered per job", attemptIDs)
+	}
+}
+
+func TestExecuteJobsStopsRetryingWhenStopped(t *testing.T) {
+	jobs := []model.JobSpec{{ID: "failing", Name: "failing"}, {ID: "later", Name: "later", DependsOnFinished: []string{"failing"}}}
+	stopped := false
+	results := make(map[string]model.JobResult)
+	pending := ExecuteJobs(jobs, map[string]model.JobSpec{"failing": jobs[0], "later": jobs[1]}, results, EngineOptions{
+		RunRetry: 5,
+		Start: func(ready []model.JobSpec, done func(model.JobResult)) {
+			stopped = true
+			go done(model.JobResult{ID: ready[0].ID, ExitCode: 1})
+		},
+		Stopped: func() bool { return stopped },
+	})
+	if len(pending) != 0 || results["failing"].ExitCode != 1 {
+		t.Fatalf("pending=%v results=%#v, want no retry after the run stopped", pending, results)
+	}
+	if results["later"].Error != cancelledBeforeStart {
+		t.Fatalf("later = %#v, want it cancelled before start", results["later"])
+	}
 }
 
 func TestFinishedDependencyRunsAfterPrerequisiteFails(t *testing.T) {

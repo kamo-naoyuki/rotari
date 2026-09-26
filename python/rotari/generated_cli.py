@@ -367,8 +367,26 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "N",
                 },
                 {
-                    "description": "use the run's --retry limit for the job again",
+                    "description": "use the run's --retry limit for the job "
+                    "again and remove its retry delay settings",
                     "name": "clear-retry",
+                },
+                {
+                    "description": "replace the wait before the job's first "
+                    "retry, such as 30s",
+                    "name": "retry-delay",
+                    "value_name": "DURATION",
+                },
+                {
+                    "description": "replace the factor applied to the retry "
+                    "delay for each further retry",
+                    "name": "retry-backoff",
+                    "value_name": "FACTOR",
+                },
+                {
+                    "description": "replace the upper limit of the retry delay",
+                    "name": "retry-max-delay",
+                    "value_name": "DURATION",
                 },
                 {
                     "description": "suppress success output",
@@ -851,6 +869,24 @@ CLI_SCHEMA: dict[str, Any] = {
                     "retries",
                     "name": "retry",
                     "value_name": "N",
+                },
+                {
+                    "description": "wait this long before the job's first retry, "
+                    "such as 30s; retries are immediate by "
+                    "default",
+                    "name": "retry-delay",
+                    "value_name": "DURATION",
+                },
+                {
+                    "description": "multiply the retry delay by this factor for "
+                    "each further retry, such as 2",
+                    "name": "retry-backoff",
+                    "value_name": "FACTOR",
+                },
+                {
+                    "description": "upper limit of the retry delay, such as 10m",
+                    "name": "retry-max-delay",
+                    "value_name": "DURATION",
                 },
                 {
                     "description": "create an array job range or selected tasks",

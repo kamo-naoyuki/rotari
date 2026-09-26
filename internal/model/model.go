@@ -45,15 +45,20 @@ type QueuedCommand struct {
 	Timeout string `json:"timeout,omitempty"`
 	// Retry overrides the run's --retry limit for this job when set; 0
 	// disables retries.
-	Retry        *int                  `json:"retry,omitempty"`
-	Origin       *JobOrigin            `json:"origin,omitempty"`
-	Array        *ArraySpec            `json:"array,omitempty"`
-	TaskOrigins  map[string]*JobOrigin `json:"task_origins,omitempty"`
-	Matrix       *MatrixSpec           `json:"matrix,omitempty"`
-	Accepted     bool                  `json:"accepted,omitempty"`
-	TaskAccepted map[string]bool       `json:"task_accepted,omitempty"`
-	Force        bool                  `json:"force,omitempty"`
-	TaskForce    map[string]bool       `json:"task_force,omitempty"`
+	Retry *int `json:"retry,omitempty"`
+	// RetryDelay, RetryBackoff, and RetryMaxDelay space out the job's retries;
+	// see JobSpec.RetryDelayFor.
+	RetryDelay    string                `json:"retry_delay,omitempty"`
+	RetryBackoff  float64               `json:"retry_backoff,omitempty"`
+	RetryMaxDelay string                `json:"retry_max_delay,omitempty"`
+	Origin        *JobOrigin            `json:"origin,omitempty"`
+	Array         *ArraySpec            `json:"array,omitempty"`
+	TaskOrigins   map[string]*JobOrigin `json:"task_origins,omitempty"`
+	Matrix        *MatrixSpec           `json:"matrix,omitempty"`
+	Accepted      bool                  `json:"accepted,omitempty"`
+	TaskAccepted  map[string]bool       `json:"task_accepted,omitempty"`
+	Force         bool                  `json:"force,omitempty"`
+	TaskForce     map[string]bool       `json:"task_force,omitempty"`
 }
 
 type ArraySpec struct {
@@ -270,13 +275,17 @@ type JobSpec struct {
 	// Timeout limits how long the job may run once it starts.
 	Timeout string `json:"timeout,omitempty"`
 	// Retry overrides the run's --retry limit for this job when set.
-	Retry       *int     `json:"retry,omitempty"`
-	ArrayGroup  string   `json:"array_group,omitempty"`
-	ArrayTaskID *int     `json:"array_task_id,omitempty"`
-	ArrayFirst  int      `json:"array_first,omitempty"`
-	ArrayLast   int      `json:"array_last,omitempty"`
-	ArraySize   int      `json:"array_size,omitempty"`
-	Environment []string `json:"environment,omitempty"`
+	Retry *int `json:"retry,omitempty"`
+	// RetryDelay, RetryBackoff, and RetryMaxDelay space out the job's retries.
+	RetryDelay    string   `json:"retry_delay,omitempty"`
+	RetryBackoff  float64  `json:"retry_backoff,omitempty"`
+	RetryMaxDelay string   `json:"retry_max_delay,omitempty"`
+	ArrayGroup    string   `json:"array_group,omitempty"`
+	ArrayTaskID   *int     `json:"array_task_id,omitempty"`
+	ArrayFirst    int      `json:"array_first,omitempty"`
+	ArrayLast     int      `json:"array_last,omitempty"`
+	ArraySize     int      `json:"array_size,omitempty"`
+	Environment   []string `json:"environment,omitempty"`
 }
 
 type RuleDiagnosis struct {
@@ -437,6 +446,7 @@ func queueCommandJob(queued QueuedCommand, id, name string, taskID *int) JobSpec
 		ID: id, Command: queued.Command, WorkingDirectory: queued.WorkingDirectory, Name: name,
 		Executor: queued.Executor, ExecutorOptions: queued.ExecutorOptions, Environment: queued.Environment, Stage: queued.Stage, DependsOn: queued.DependsOn,
 		DependsOnFinished: queued.DependsOnFinished, Timeout: queued.Timeout, Retry: queued.Retry,
+		RetryDelay: queued.RetryDelay, RetryBackoff: queued.RetryBackoff, RetryMaxDelay: queued.RetryMaxDelay,
 	}
 	if taskID != nil {
 		job.ArrayGroup = queued.ID
@@ -502,6 +512,73 @@ func (job JobSpec) RetryLimit(runRetry int) int {
 		return *job.Retry
 	}
 	return runRetry
+}
+
+// ValidateRetryBackoff checks a job's retry spacing: delays are Go durations
+// of zero or more, and the backoff factor is at least 1 when set.
+func ValidateRetryBackoff(delay string, backoff float64, maxDelay string) error {
+	for _, field := range []struct{ name, value string }{{"retry delay", delay}, {"retry max delay", maxDelay}} {
+		if field.value == "" {
+			continue
+		}
+		if duration, err := time.ParseDuration(field.value); err != nil || duration < 0 {
+			return fmt.Errorf("invalid %s %q: want a duration such as 30s or 5m", field.name, field.value)
+		}
+	}
+	if backoff != 0 && backoff < 1 {
+		return fmt.Errorf("invalid retry backoff %v: must be 1 or more", backoff)
+	}
+	return nil
+}
+
+// RetryDelayFor returns how long to wait before the job's retryNumber-th
+// retry (1 for the first): RetryDelay multiplied by RetryBackoff for each
+// earlier retry, capped at RetryMaxDelay. Without RetryDelay the job is
+// retried at once.
+func (job JobSpec) RetryDelayFor(retryNumber int) time.Duration {
+	delay, err := time.ParseDuration(job.RetryDelay)
+	if err != nil || delay <= 0 {
+		return 0
+	}
+	maxDelay, maxErr := time.ParseDuration(job.RetryMaxDelay)
+	capped := maxErr == nil && maxDelay > 0
+	factor := job.RetryBackoff
+	if factor < 1 {
+		factor = 1
+	}
+	for retry := 1; retry < retryNumber; retry++ {
+		delay = time.Duration(float64(delay) * factor)
+		if capped && delay >= maxDelay {
+			break
+		}
+	}
+	if capped && delay > maxDelay {
+		delay = maxDelay
+	}
+	return delay
+}
+
+// FormatRetryPolicy describes a job's own retry settings, such as
+// "3 (delay 30s, backoff x2, max 10m)", or "" when it has none.
+func FormatRetryPolicy(job JobSpec) string {
+	parts := make([]string, 0, 3)
+	if job.RetryDelay != "" {
+		parts = append(parts, "delay "+job.RetryDelay)
+	}
+	if job.RetryBackoff != 0 {
+		parts = append(parts, "backoff x"+strconv.FormatFloat(job.RetryBackoff, 'g', -1, 64))
+	}
+	if job.RetryMaxDelay != "" {
+		parts = append(parts, "max "+job.RetryMaxDelay)
+	}
+	limit := FormatRetry(job.Retry)
+	if len(parts) == 0 {
+		return limit
+	}
+	if limit == "" {
+		limit = "run limit"
+	}
+	return limit + " (" + strings.Join(parts, ", ") + ")"
 }
 
 // FormatRetry formats an optional per-job retry limit, or "" when unset.

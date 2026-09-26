@@ -15,7 +15,7 @@ import (
 
 // ProtocolVersion is reported by ping. A client replaces a running server
 // that reports a different version.
-const ProtocolVersion = 5
+const ProtocolVersion = 6
 
 // DetachControl is the byte a synchronous run client sends before
 // disconnecting to leave the run going in the background.

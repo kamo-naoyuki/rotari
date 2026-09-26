@@ -89,15 +89,33 @@ func executeMixedRun(paths state.ProjectPaths, runID, runName string, localConcu
 			jobsByName[job.Name] = job
 		}
 	}
-	pending = runcontract.ExecuteDependencyRetries(pending, jobsByName, finalResults, retry, runcontract.AttemptCallbacks{
-		Execute: func(_ int, ready []model.JobSpec) []model.JobResult {
-			return executeMixedAttempt(runDir, queue, ready, localConcurrency, batchMaxActive, requestedExecutor, executorOptions, executorSettings, onStart)
+	dispatcher := runcontract.NewDispatcher(runDir, queue, runcontract.DispatchOptions{
+		LocalConcurrency: localConcurrency, BatchMaxActive: batchMaxActive,
+		RequestedExecutor: requestedExecutor, ExecutorOptions: executorOptions,
+		Settings: executorSettings, ResolveExecutor: executorRegistry.Lookup,
+		Callbacks: runcontract.BatchLaneCallbacks{
+			ValidatedJobDir: state.SafeJoin,
+			JobCancelled:    jobCancellationRequested,
+			RecordCancelled: recordCancelledJob,
+			Logf:            jobLogf,
 		},
-		AssignAttemptIDs: func(ready []model.JobSpec, attempt int) {
-			assignAttemptIDs(ready, runID, attempt)
+	}, onStart)
+	pending = runcontract.ExecuteJobs(pending, jobsByName, finalResults, runcontract.EngineOptions{
+		RunRetry: retry,
+		Start:    dispatcher.Start,
+		AssignAttemptID: func(job *model.JobSpec, attempt int) {
+			attempts := []model.JobSpec{*job}
+			assignAttemptIDs(attempts, runID, attempt)
+			*job = attempts[0]
 		},
 		ShouldRetry: func(job model.JobSpec, result model.JobResult) bool {
 			return !jobWasExplicitlyCancelled(runDir, job.ID, result)
+		},
+		// run cancel marks the project cancelling; stop retrying and starting
+		// jobs then, since jobs not yet started have no attempt to cancel.
+		Stopped: func() bool {
+			meta, err := state.LoadMeta(paths.MetaFile)
+			return err == nil && meta.Phase == "cancelling"
 		},
 		Progress: func(result model.JobResult, completed, total, succeeded, failed int) {
 			if progress != nil {
@@ -171,18 +189,4 @@ func assignAttemptIDs(jobs []model.JobSpec, runID string, attempt int) {
 		},
 		AttemptIDName: envAttemptID, RunDirName: envRunDir, JobDirName: envJobDir,
 	})
-}
-
-func executeMixedAttempt(runDir string, queue model.Queue, jobs []model.JobSpec, localConcurrency, batchMaxActive int, requestedExecutor string, executorOptions []string, executorSettings executor.RunSettingsMap, onStart func(model.JobSpec)) []model.JobResult {
-	return runcontract.RunAttempt(runDir, queue, jobs, runcontract.AttemptOptions{
-		LocalConcurrency: localConcurrency, BatchMaxActive: batchMaxActive,
-		RequestedExecutor: requestedExecutor, ExecutorOptions: executorOptions,
-		Settings: executorSettings, ResolveExecutor: executorRegistry.Lookup,
-		Callbacks: runcontract.BatchLaneCallbacks{
-			ValidatedJobDir: state.SafeJoin,
-			JobCancelled:    jobCancellationRequested,
-			RecordCancelled: recordCancelledJob,
-			Logf:            jobLogf,
-		},
-	}, onStart)
 }

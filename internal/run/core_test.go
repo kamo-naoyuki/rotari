@@ -11,6 +11,7 @@ import (
 )
 
 type testExecutor struct {
+	mu          sync.Mutex
 	name        string
 	submitError error
 	array       bool
@@ -40,6 +41,8 @@ func (test *settingsTestExecutor) Submit(runDir string, job model.JobSpec, optio
 func (fake *testExecutor) Name() string { return fake.name }
 
 func (fake *testExecutor) Submit(_ string, job model.JobSpec, options []string) (executor.JobHandle, error) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
 	fake.options = append(fake.options, append([]string(nil), options...))
 	if fake.submitError != nil {
 		return executor.JobHandle{}, fake.submitError
@@ -48,6 +51,8 @@ func (fake *testExecutor) Submit(_ string, job model.JobSpec, options []string) 
 }
 
 func (fake *testExecutor) SubmitArray(_ string, jobs []model.JobSpec, options []string) ([]executor.JobHandle, error) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
 	fake.arrayCalls++
 	fake.options = append(fake.options, append([]string(nil), options...))
 	if fake.submitError != nil {
@@ -87,14 +92,10 @@ func TestCompleteArrayGroup(t *testing.T) {
 	}
 }
 
-func TestRemoveAndFinalizeResults(t *testing.T) {
+func TestFinalizePendingResults(t *testing.T) {
 	jobs := []model.JobSpec{{ID: "done", Command: []string{"true"}}, {ID: "blocked", Command: []string{"run"}}}
 	results := map[string]model.JobResult{"done": {ID: "done", ExitCode: 0}}
-	remaining := RemoveFinishedJobs(jobs, results)
-	if len(remaining) != 1 || remaining[0].ID != "blocked" {
-		t.Fatalf("RemoveFinishedJobs() = %#v", remaining)
-	}
-	FinalizePendingResults(remaining, results)
+	FinalizePendingResults(jobs[1:], results)
 	result := results["blocked"]
 	if result.ExitCode != 1 || result.Error != "blocked by failed dependency" || result.Command[0] != "run" {
 		t.Fatalf("finalized result = %#v", result)
@@ -213,7 +214,28 @@ func TestWasExplicitlyCancelled(t *testing.T) {
 	}
 }
 
-func TestRunAttemptRunsLocalBatchArrayAndUnsupportedJobs(t *testing.T) {
+// dispatchAll starts jobs on dispatcher and collects one result per job.
+func dispatchAll(t *testing.T, dispatcher *Dispatcher, jobs []model.JobSpec) map[string]model.JobResult {
+	t.Helper()
+	results := make(chan model.JobResult, len(jobs))
+	dispatcher.Start(jobs, func(result model.JobResult) { results <- result })
+	byID := make(map[string]model.JobResult, len(jobs))
+	for range jobs {
+		select {
+		case result := <-results:
+			byID[result.ID] = result
+		case <-time.After(5 * time.Second):
+			t.Fatalf("dispatcher returned %d of %d results", len(byID), len(jobs))
+		}
+	}
+	return byID
+}
+
+func testCallbacks() BatchLaneCallbacks {
+	return BatchLaneCallbacks{ValidatedJobDir: func(string, string) (string, error) { return "/job", nil }, JobCancelled: func(string) bool { return false }}
+}
+
+func TestDispatcherRunsLocalBatchArrayAndUnsupportedJobs(t *testing.T) {
 	local := &testExecutor{name: "local"}
 	batch := &testExecutor{name: "slurm", array: true}
 	started := make(map[string]bool)
@@ -225,7 +247,7 @@ func TestRunAttemptRunsLocalBatchArrayAndUnsupportedJobs(t *testing.T) {
 		{ID: "array-2", Executor: "slurm", Command: []string{"run"}, ArrayGroup: "array", ArrayTaskID: intPointer(2), ArrayFirst: 1, ArrayLast: 2},
 		{ID: "unknown", Executor: "pbs", Command: []string{"run"}},
 	}
-	results := RunAttempt("/runs/run-1", model.Queue{DefaultExecutorOptions: []string{"--default"}}, jobs, AttemptOptions{
+	dispatcher := NewDispatcher("/runs/run-1", model.Queue{DefaultExecutorOptions: []string{"--default"}}, DispatchOptions{
 		LocalConcurrency: 1, BatchMaxActive: 1, ExecutorOptions: []string{"--batch"},
 		ResolveExecutor: func(name string) (executor.JobExecutor, bool) {
 			switch name {
@@ -237,56 +259,46 @@ func TestRunAttemptRunsLocalBatchArrayAndUnsupportedJobs(t *testing.T) {
 				return nil, false
 			}
 		},
-		Callbacks: BatchLaneCallbacks{ValidatedJobDir: func(string, string) (string, error) { return "/job", nil }, JobCancelled: func(string) bool { return false }},
+		Callbacks: testCallbacks(),
 	}, func(job model.JobSpec) {
 		startedMu.Lock()
 		started[job.ID] = true
 		startedMu.Unlock()
 	})
-	byID := make(map[string]model.JobResult)
-	for _, result := range results {
-		byID[result.ID] = result
-	}
+	byID := dispatchAll(t, dispatcher, jobs)
 	if len(byID) != len(jobs) || byID["local-1"].ExitCode != 0 || byID["array-2"].ExitCode != 0 || byID["unknown"].Error != "unsupported executor: pbs" {
 		t.Fatalf("results = %#v", byID)
 	}
 	startedMu.Lock()
-	localStarted := started["local-1"]
-	batchStarted := started["batch-1"]
-	arrayOneStarted := started["array-1"]
-	arrayTwoStarted := started["array-2"]
-	startedMu.Unlock()
-	if !localStarted || !batchStarted || !arrayOneStarted || !arrayTwoStarted {
+	defer startedMu.Unlock()
+	if !started["local-1"] || !started["batch-1"] || !started["array-1"] || !started["array-2"] {
 		t.Fatalf("started = %#v", started)
 	}
-	if len(batch.options) != 2 || len(batch.options[0]) != 1 || batch.options[0][0] != "--batch" || len(batch.options[1]) != 1 || batch.options[1][0] != "--batch" {
-		t.Fatalf("batch options = %#v", batch.options)
+	if batch.arrayCalls != 1 || len(batch.options) != 2 || batch.options[0][0] != "--batch" || batch.options[1][0] != "--batch" {
+		t.Fatalf("array calls = %d, batch options = %#v", batch.arrayCalls, batch.options)
 	}
 }
 
-func TestRunAttemptConfiguresSchedulerExecutorPerRun(t *testing.T) {
+func TestDispatcherConfiguresSchedulerExecutorPerRun(t *testing.T) {
 	base := &testExecutor{name: "slurm"}
 	var observed executor.RunSettings
 	scheduler := &settingsTestExecutor{testExecutor: base, observed: &observed}
-	jobs := []model.JobSpec{{ID: "job-1", Executor: "slurm", Command: []string{"run"}}}
-
-	results := RunAttempt("/runs/run-1", model.Queue{}, jobs, AttemptOptions{
+	dispatcher := NewDispatcher("/runs/run-1", model.Queue{}, DispatchOptions{
 		BatchMaxActive: 1,
 		Settings: executor.RunSettingsMap{"slurm": {
 			SubmitInterval: 250 * time.Millisecond, SubmitRetryLimit: 4,
 		}},
 		ResolveExecutor: func(string) (executor.JobExecutor, bool) { return scheduler, true },
-		Callbacks:       BatchLaneCallbacks{ValidatedJobDir: func(string, string) (string, error) { return "/job", nil }, JobCancelled: func(string) bool { return false }},
+		Callbacks:       testCallbacks(),
 	}, nil)
-
-	if len(results) != 1 || results[0].ExitCode != 0 || observed.SubmitInterval != 250*time.Millisecond || observed.SubmitRetryLimit != 4 {
+	results := dispatchAll(t, dispatcher, []model.JobSpec{{ID: "job-1", Executor: "slurm", Command: []string{"run"}}})
+	if results["job-1"].ExitCode != 0 || observed.SubmitInterval != 250*time.Millisecond || observed.SubmitRetryLimit != 4 {
 		t.Fatalf("results/settings = %#v/%#v", results, observed)
 	}
 }
 
-func TestRunBatchLaneHandlesSubmissionAndCancellation(t *testing.T) {
-	executor := &testExecutor{name: "slurm", submitError: errors.New("submit failed")}
-	results := make(chan model.JobResult, 2)
+func TestDispatcherHandlesSubmissionAndCancellation(t *testing.T) {
+	failing := &testExecutor{name: "slurm", submitError: errors.New("submit failed")}
 	callbacks := BatchLaneCallbacks{
 		ValidatedJobDir: func(_, jobID string) (string, error) { return "/job/" + jobID, nil },
 		JobCancelled:    func(jobDir string) bool { return jobDir == "/job/cancelled" },
@@ -294,42 +306,75 @@ func TestRunBatchLaneHandlesSubmissionAndCancellation(t *testing.T) {
 			return model.JobResult{ID: job.ID, ExitCode: 130, Error: "cancelled"}
 		},
 	}
-	jobs := []model.JobSpec{{ID: "failed-submit"}, {ID: "cancelled"}}
-	workers := new(sync.WaitGroup)
-	workers.Add(1)
-	go RunBatchLane(workers, "/runs/run-1", model.Queue{}, executor, jobs, 2, nil, results, callbacks, nil)
-	workers.Wait()
-	close(results)
-	byID := make(map[string]model.JobResult)
-	for result := range results {
-		byID[result.ID] = result
-	}
+	dispatcher := NewDispatcher("/runs/run-1", model.Queue{}, DispatchOptions{
+		BatchMaxActive: 2, ResolveExecutor: func(string) (executor.JobExecutor, bool) { return failing, true }, Callbacks: callbacks,
+	}, nil)
+	byID := dispatchAll(t, dispatcher, []model.JobSpec{{ID: "failed-submit", Executor: "slurm"}, {ID: "cancelled", Executor: "slurm"}})
 	if byID["failed-submit"].Error != "submit failed" || byID["cancelled"].Error != "cancelled" {
 		t.Fatalf("results = %#v", byID)
 	}
 }
 
-func TestRunBatchLaneUsesSparseArraySupport(t *testing.T) {
+func TestDispatcherUsesSparseArraySupport(t *testing.T) {
 	arrayExecutor := &testExecutor{name: "slurm", array: true}
 	jobs := []model.JobSpec{
 		{ID: "array-1", Executor: "slurm", Command: []string{"run"}, ArrayGroup: "array", ArrayTaskID: intPointer(1), ArrayFirst: 1, ArrayLast: 4},
 		{ID: "array-3", Executor: "slurm", Command: []string{"run"}, ArrayGroup: "array", ArrayTaskID: intPointer(3), ArrayFirst: 1, ArrayLast: 4},
 		{ID: "array-4", Executor: "slurm", Command: []string{"run"}, ArrayGroup: "array", ArrayTaskID: intPointer(4), ArrayFirst: 1, ArrayLast: 4},
 	}
-	results := make(chan model.JobResult, len(jobs))
-	workers := new(sync.WaitGroup)
-	workers.Add(1)
-	go RunBatchLane(workers, "/runs/run-1", model.Queue{}, arrayExecutor, jobs, 1, nil, results, BatchLaneCallbacks{
-		ValidatedJobDir: func(string, string) (string, error) { return "/job", nil },
-		JobCancelled:    func(string) bool { return false },
+	dispatcher := NewDispatcher("/runs/run-1", model.Queue{}, DispatchOptions{
+		BatchMaxActive: 1, ResolveExecutor: func(string) (executor.JobExecutor, bool) { return arrayExecutor, true }, Callbacks: testCallbacks(),
 	}, nil)
-	workers.Wait()
-	close(results)
-	if arrayExecutor.arrayCalls != 1 {
-		t.Fatalf("array submissions = %d, want 1", arrayExecutor.arrayCalls)
+	if results := dispatchAll(t, dispatcher, jobs); len(results) != len(jobs) || arrayExecutor.arrayCalls != 1 {
+		t.Fatalf("results = %d, array submissions = %d", len(results), arrayExecutor.arrayCalls)
 	}
-	if len(results) != len(jobs) {
-		t.Fatalf("results = %d, want %d", len(results), len(jobs))
+}
+
+// blockingExecutor waits in Wait until the job's channel is closed.
+type blockingExecutor struct {
+	testExecutor
+	mu        sync.Mutex
+	release   map[string]chan struct{}
+	submitted []string
+}
+
+func (blocking *blockingExecutor) Submit(runDir string, job model.JobSpec, options []string) (executor.JobHandle, error) {
+	blocking.mu.Lock()
+	blocking.submitted = append(blocking.submitted, job.ID)
+	blocking.mu.Unlock()
+	return executor.JobHandle{Job: job, Native: job.ID}, nil
+}
+
+func (blocking *blockingExecutor) Wait(_ string, handle executor.JobHandle) model.JobResult {
+	if release := blocking.release[handle.Job.ID]; release != nil {
+		<-release
+	}
+	return model.JobResult{ID: handle.Job.ID, Command: handle.Job.Command}
+}
+
+func TestDispatcherRefillsSchedulerSlotsAsJobsFinish(t *testing.T) {
+	slow := make(chan struct{})
+	blocking := &blockingExecutor{testExecutor: testExecutor{name: "slurm"}, release: map[string]chan struct{}{"slow": slow}}
+	dispatcher := NewDispatcher("/runs/run-1", model.Queue{}, DispatchOptions{
+		BatchMaxActive: 2, ResolveExecutor: func(string) (executor.JobExecutor, bool) { return blocking, true }, Callbacks: testCallbacks(),
+	}, nil)
+	results := make(chan model.JobResult, 3)
+	dispatcher.Start([]model.JobSpec{{ID: "slow", Executor: "slurm"}, {ID: "quick", Executor: "slurm"}, {ID: "third", Executor: "slurm"}}, func(result model.JobResult) { results <- result })
+	// With two slots, "third" starts as soon as "quick" finishes, while
+	// "slow" still runs.
+	for range 2 {
+		select {
+		case result := <-results:
+			if result.ID == "slow" {
+				t.Fatal("slow finished before it was released")
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("third did not start while slow was running")
+		}
+	}
+	close(slow)
+	if result := <-results; result.ID != "slow" {
+		t.Fatalf("last result = %q, want slow", result.ID)
 	}
 }
 
