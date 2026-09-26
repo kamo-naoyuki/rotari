@@ -762,8 +762,8 @@ func TestCmdCopyJobNameRejectsMissingAndAmbiguousNames(t *testing.T) {
 		want string
 	}{
 		"missing in run":    {[]string{"--project-name", "first", "--run-id", "copy-run-first", "--job-name", "missing"}, `job name "missing" not found in run "copy-run-first"`},
-		"missing in latest": {[]string{"--project-name", "first", "--job-name", "missing"}, `job name "missing" is not found`},
-		"ambiguous":         {[]string{"--job-name", "train"}, `job name "train" is ambiguous across latest runs`},
+		"missing in latest": {[]string{"--project-name", "first", "--job-name", "missing"}, `job name "missing" not found`},
+		"ambiguous":         {[]string{"--job-name", "train"}, `job name "train" matches more than one target; pass --project-name or --run-id`},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
