@@ -1,12 +1,5 @@
 # TODO
 
-## Selectors
-
-The selector contract is in
-[docs/contracts/06-selectors.md](docs/contracts/06-selectors.md). When
-changing a selector, update the contract and add or change a test row in the
-same commit.
-
 ## Near-term candidates
 
 These are smaller steps that can come before the AI roadmap in

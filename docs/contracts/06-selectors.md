@@ -21,6 +21,9 @@ Representative implementation and tests:
   (see [Fixture](#fixture)). A row marked with a known deviation must fail
   until the deviation is fixed.
 
+When changing a selector, update this note and add or change its test row in
+the same commit.
+
 ## Complete IDs
 
 A run ID or an attempt ID alone resolves the base directory, the project,
