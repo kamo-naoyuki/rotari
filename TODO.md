@@ -91,7 +91,11 @@ the experiment. See "Runs as the history of the loop" in
   the right of its header; show, for example, the peak or latest load there.
 - A report for several selected jobs repeats the redaction notice ("Paths and
   hostnames are redacted where detected. ...") once per job. Show it once per
-  report.
+  report. Only the static export repeats it: `rotari web` builds one report
+  with `buildAIReportForJobs`, but the static bootstrap joins the per-job
+  reports, each already redacted
+  ([web_static_bootstrap.js](cmd/rotari/assets/web_static_bootstrap.js),
+  `/api/report`).
 - Add an option to generate reports without redaction, for sharing within a
   trusted team. Decide whether it is a CLI flag (`show --report`), a Web
   toggle, or both, and keep redaction the default.
