@@ -331,7 +331,7 @@ func (printer *runProgressPrinter) print(response serverinternal.Response) {
 		if response.Completed == printer.lastCompleted && response.Succeeded == printer.lastSucceeded && response.Failed == printer.lastFailed {
 			return
 		}
-		fmt.Printf("%s\n", colorKeyValueMessage(fmt.Sprintf("progress: %d/%d completed=%d failed=%d", response.Completed, response.Total, response.Succeeded, response.Failed), cyan))
+		fmt.Printf("%s\n", colorKeyValueMessage(fmt.Sprintf("progress: %d/%d succeeded=%d failed=%d", response.Completed, response.Total, response.Succeeded, response.Failed), cyan))
 		printer.lastCompleted, printer.lastSucceeded, printer.lastFailed = response.Completed, response.Succeeded, response.Failed
 		return
 	}
