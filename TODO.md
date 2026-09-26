@@ -38,9 +38,18 @@ another workflow engine has them.
   configurable together with the stop signal below.
 - Per-job retry limits and delays exist (`add --retry N --retry-delay 30s
   --retry-backoff 2 --retry-max-delay 5m`), and failed jobs are retried
-  immediately rather than after the whole run's attempt. Consider retrying
-  only on listed exit codes, as Dagu's `retry_policy.exit_code` does, so
-  deterministic failures are not retried, and run-level delay defaults.
+  immediately rather than after the whole run's attempt. Consider run-level
+  delay defaults.
+- Consider deciding retries from the rule-based diagnosis of a failure rather
+  than its exit code, which rarely tells causes apart (most Python errors
+  exit with 1). A user-written rule would map a diagnosis to an action:
+  retry as is for transient causes such as a stale NFS handle or a network
+  timeout; retry with changed settings, such as halving a `BATCH_SIZE`
+  environment variable or requesting a larger GPU through executor options
+  after `CUDA out of memory`; or do not retry deterministic failures such as
+  `ImportError`. rotari should not guess the changed settings. Each attempt's
+  settings must be recorded so `show`, `diff`, and the Web UI's per-job
+  attempt history can show what changed between attempts.
 - Consider concurrency limits for a named group of jobs (for example "at most
   four GPU jobs at once"). Limits are per executor today.
 
