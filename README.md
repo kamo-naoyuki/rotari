@@ -54,12 +54,12 @@ Prebuilt binaries for Linux and macOS are on the
 not required:
 
 ```sh
-os=$(uname -s | tr '[:upper:]' '[:lower:]')
-arch=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
-curl -fL "https://github.com/kamo-naoyuki/rotari/releases/latest/download/rotari-${os}-${arch}" \
-  -o /tmp/rotari
-install -m 755 /tmp/rotari ~/.local/bin/rotari
+curl -fsSL https://raw.githubusercontent.com/kamo-naoyuki/rotari/main/scripts/install.sh | sh
 ```
+
+This downloads the release binary matching your OS/architecture into
+`~/.local/bin` (override with `ROTARI_INSTALL_DIR`, pin a version with
+`ROTARI_VERSION`).
 
 Other options:
 
