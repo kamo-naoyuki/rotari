@@ -83,7 +83,7 @@ func cmdServerList(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	masterDir, err := resolveMasterDir(*masterdir)
+	masterDir, err := state.ResolveMasterDir(*masterdir)
 	if err != nil {
 		printErrorf("failed to resolve master directory: %v", err)
 		return 1
@@ -156,7 +156,7 @@ func runServer(baseDir string) int {
 		return 1
 	}
 	defer release()
-	masterDir, err := resolveMasterDir("")
+	masterDir, err := state.ResolveMasterDir("")
 	if err != nil {
 		printErrorf("failed to resolve master directory: %v", err)
 		return 1

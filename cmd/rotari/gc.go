@@ -9,14 +9,15 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/runregistry"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 const runRegistryGCCacheTTL = 10 * time.Minute
 
 type runRegistryGCCache struct {
-	CreatedAt string        `json:"created_at"`
-	Entries   []runLocation `json:"entries"`
+	CreatedAt string                 `json:"created_at"`
+	Entries   []runregistry.Location `json:"entries"`
 }
 
 // cmdGC removes stale run registry entries from the master registry.
@@ -33,7 +34,7 @@ func cmdGC(args []string) int {
 		*masterdir = fs.Args()[0]
 	}
 
-	masterDir, err := resolveMasterDir(*masterdir)
+	masterDir, err := state.ResolveMasterDir(*masterdir)
 	if err != nil {
 		printError(err)
 		return 1
@@ -45,7 +46,7 @@ func cmdGC(args []string) int {
 }
 
 func scanRunRegistryGC(masterDir string) int {
-	entries, skipped, err := orphanRunRegistryEntries(masterDir)
+	entries, skipped, err := runregistry.Open(masterDir).Orphans()
 	if err != nil {
 		printErrorf("failed to scan run registry: %v", err)
 		return 1
@@ -83,71 +84,6 @@ func pluralSuffix(count int) string {
 	return "ies"
 }
 
-func orphanRunRegistryEntries(masterDir string) ([]runLocation, []string, error) {
-	dir := filepath.Join(masterDir, "runs")
-	entries, err := os.ReadDir(dir)
-	if os.IsNotExist(err) {
-		return nil, nil, nil
-	}
-	if err != nil {
-		return nil, nil, err
-	}
-	orphans := make([]runLocation, 0)
-	skipped := make([]string, 0)
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
-		if err != nil {
-			return nil, nil, err
-		}
-		var location runLocation
-		if err := json.Unmarshal(data, &location); err != nil {
-			skipped = append(skipped, filepath.Join(dir, entry.Name()))
-			continue
-		}
-		if !validRunRegistryLocation(location) || runLocationExists(location) {
-			if !validRunRegistryLocation(location) {
-				skipped = append(skipped, filepath.Join(dir, entry.Name()))
-			}
-			continue
-		}
-		orphans = append(orphans, location)
-	}
-	return orphans, skipped, nil
-}
-
-func validRunRegistryLocation(location runLocation) bool {
-	return location.BaseDir != "" && filepath.IsAbs(location.BaseDir) &&
-		state.IsValidPathElement(location.ProjectName) &&
-		state.IsValidPathElement(location.RunID)
-}
-
-func runLocationExists(location runLocation) bool {
-	if location.BaseDir == "" || !filepath.IsAbs(location.BaseDir) {
-		return false
-	}
-	projectDir, err := state.SafeJoin(filepath.Clean(location.BaseDir), "projects")
-	if err != nil {
-		return false
-	}
-	projectDir, err = state.SafeJoin(projectDir, location.ProjectName)
-	if err != nil {
-		return false
-	}
-	runsDir, err := state.SafeJoin(projectDir, "runs")
-	if err != nil {
-		return false
-	}
-	path, err := state.SafeJoin(runsDir, location.RunID)
-	if err != nil {
-		return false
-	}
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir()
-}
-
 func applyRunRegistryGC(masterDir string) int {
 	cachePath := filepath.Join(masterDir, "gc.json")
 	data, err := os.ReadFile(cachePath)
@@ -171,47 +107,19 @@ func applyRunRegistryGC(masterDir string) int {
 		return 1
 	}
 
+	registry := runregistry.Open(masterDir)
 	removed := 0
 	for _, planned := range cache.Entries {
-		current, found, err := resolveRunLocationAt(masterDir, planned.RunID)
-		if err != nil {
-			printErrorf("failed to read registry entry %q: %v", planned.RunID, err)
-			return 1
-		}
-		if !found || current != planned || runLocationExists(current) {
-			continue
-		}
-		path, err := runLocationPath(filepath.Join(masterDir, "runs"), planned.RunID)
+		ok, err := registry.RemoveOrphan(planned)
 		if err != nil {
 			printError(err)
 			return 1
 		}
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			printErrorf("failed to remove registry entry %q: %v", planned.RunID, err)
-			return 1
+		if ok {
+			removed++
 		}
-		removed++
 	}
 	_ = os.Remove(cachePath)
 	fmt.Printf("removed %d orphan run registry entr%s\n", removed, pluralSuffix(removed))
 	return 0
-}
-
-func resolveRunLocationAt(masterDir, runID string) (runLocation, bool, error) {
-	path, err := runLocationPath(filepath.Join(masterDir, "runs"), runID)
-	if err != nil {
-		return runLocation{}, false, err
-	}
-	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return runLocation{}, false, nil
-	}
-	if err != nil {
-		return runLocation{}, false, err
-	}
-	var location runLocation
-	if err := json.Unmarshal(data, &location); err != nil {
-		return runLocation{}, false, err
-	}
-	return location, true, nil
 }

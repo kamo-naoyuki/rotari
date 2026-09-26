@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/runregistry"
 )
 
 func TestRunRegistryGCFindsAndAppliesOnlyOrphans(t *testing.T) {
@@ -24,7 +26,7 @@ func TestRunRegistryGCFindsAndAppliesOnlyOrphans(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	orphans, skipped, err := orphanRunRegistryEntries(masterDir)
+	orphans, skipped, err := runregistry.Open(masterDir).Orphans()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,27 +49,6 @@ func TestRunRegistryGCFindsAndAppliesOnlyOrphans(t *testing.T) {
 	}
 	if _, found, err := resolveRunLocation("live"); err != nil || !found {
 		t.Fatalf("live entry: found=%v, err=%v; want retained", found, err)
-	}
-}
-
-func TestRunLocationExistsRejectsUnsafeLocations(t *testing.T) {
-	baseDir := t.TempDir()
-	runDir := filepath.Join(baseDir, "projects", "demo", "runs", "run-1")
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	if !runLocationExists(runLocation{BaseDir: baseDir, ProjectName: "demo", RunID: "run-1"}) {
-		t.Fatal("runLocationExists rejected an existing run")
-	}
-	for _, location := range []runLocation{
-		{BaseDir: "relative", ProjectName: "demo", RunID: "run-1"},
-		{BaseDir: baseDir, ProjectName: "../outside", RunID: "run-1"},
-		{BaseDir: baseDir, ProjectName: "demo", RunID: "../outside"},
-	} {
-		if runLocationExists(location) {
-			t.Fatalf("runLocationExists accepted unsafe location %#v", location)
-		}
 	}
 }
 
@@ -158,29 +139,5 @@ func TestCmdGCAcceptsPositionalMasterDirectory(t *testing.T) {
 	}
 	if code := cmdGC([]string{"--masterdir", masterDir, t.TempDir()}); code != 1 {
 		t.Fatalf("cmdGC accepted positional master directory with --masterdir: exit code = %d", code)
-	}
-}
-
-func TestRunRegistryGCSkipsAndReportsBrokenEntries(t *testing.T) {
-	masterDir := t.TempDir()
-	runsDir := filepath.Join(masterDir, "runs")
-	if err := os.MkdirAll(runsDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	brokenJSON := filepath.Join(runsDir, "broken.json")
-	if err := os.WriteFile(brokenJSON, []byte("{broken\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	invalidLocation := filepath.Join(runsDir, "invalid.json")
-	if err := os.WriteFile(invalidLocation, []byte(`{"base_dir":"relative","project_name":"demo","run_id":"run-1"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	_, skipped, err := orphanRunRegistryEntries(masterDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(skipped) != 2 {
-		t.Fatalf("skipped = %v, want both broken entries", skipped)
 	}
 }

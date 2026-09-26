@@ -7,6 +7,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -35,7 +36,7 @@ func cmdRemove(args []string) int {
 		jobIDs = append(jobIDs, fs.Args()...)
 	}
 
-	baseDir, queueName, err := resolveExistingRunTarget(*basedir, *queueNameOption, *runID)
+	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runID)
 	if err != nil {
 		printError(err)
 		return 1

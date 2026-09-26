@@ -7,6 +7,7 @@ import (
 
 const (
 	baseDirEnv      = "ROTARI_BASEDIR"
+	masterDirEnv    = "ROTARI_MASTERDIR"
 	privateStateEnv = "ROTARI_PRIVATE_STATE"
 	xdgStateHomeEnv = "XDG_STATE_HOME"
 )
@@ -32,6 +33,26 @@ func ResolveBaseDir(cliBaseDir string) (string, bool, error) {
 		return "", false, err
 	}
 	return filepath.Join(home, ".local", "state", "rotari"), false, nil
+}
+
+// ResolveMasterDir resolves the master directory that holds the run and
+// server registries: cliMasterDir, then ROTARI_MASTERDIR, then
+// $XDG_STATE_HOME/rotari/master, then ~/.local/state/rotari/master.
+func ResolveMasterDir(cliMasterDir string) (string, error) {
+	if cliMasterDir != "" {
+		return cliMasterDir, nil
+	}
+	if value := os.Getenv(masterDirEnv); value != "" {
+		return value, nil
+	}
+	if value := os.Getenv(xdgStateHomeEnv); value != "" {
+		return filepath.Join(value, "rotari", "master"), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".local", "state", "rotari", "master"), nil
 }
 
 func privateStateEnabled() bool {

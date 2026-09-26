@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -34,7 +35,7 @@ func cmdCancel(args []string) int {
 		printError("--wait may not be used with a job selection")
 		return 1
 	}
-	baseDir, queueName, selection, err := resolveJobSelectionTarget(*basedir, *queueNameOption, jobIDs)
+	baseDir, queueName, selection, err := resolve.JobSelection(*basedir, *queueNameOption, jobIDs)
 	if err != nil {
 		printError(err)
 		return 1
@@ -74,7 +75,7 @@ func cmdJobSignal(args []string, operation string) int {
 	if len(fs.Args()) > 0 {
 		jobIDs = append(jobIDs, fs.Args()...)
 	}
-	baseDir, queueName, selection, err := resolveJobSelectionTarget(*basedir, *queueNameOption, jobIDs)
+	baseDir, queueName, selection, err := resolve.JobSelection(*basedir, *queueNameOption, jobIDs)
 	if err != nil {
 		printError(err)
 		return 1

@@ -9,6 +9,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -70,7 +71,7 @@ func cmdChange(args []string) int {
 		return 1
 	}
 
-	baseDir, queueName, err := resolveExistingRunTarget(*basedir, *queueNameOption, *runID)
+	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runID)
 	if err != nil {
 		printError(err)
 		return 1
@@ -281,7 +282,7 @@ func validateChangeRename(queue model.Queue, jobIndex int, newName string) error
 }
 
 func loadChangeSnapshot(paths state.ProjectPaths, requestedRunID string) (model.Queue, error) {
-	runID, err := selectRunID(paths, requestedRunID)
+	runID, err := resolve.RunID(paths, requestedRunID)
 	if err != nil {
 		return model.Queue{}, err
 	}

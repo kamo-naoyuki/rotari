@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"io"
 	"os"
@@ -208,11 +209,11 @@ func TestResolveWaitTargetByProjectRunNameAndRunID(t *testing.T) {
 
 	tests := []struct {
 		selector string
-		want     waitTarget
+		want     resolve.Run
 	}{
-		{selector: "build", want: waitTarget{baseDir: baseDir, projectName: "build", runID: "run-id"}},
-		{selector: "nightly", want: waitTarget{baseDir: baseDir, projectName: "build", runID: "run-id"}},
-		{selector: "run-id", want: waitTarget{baseDir: baseDir, projectName: "build", runID: "run-id"}},
+		{selector: "build", want: resolve.Run{BaseDir: baseDir, ProjectName: "build", RunID: "run-id"}},
+		{selector: "nightly", want: resolve.Run{BaseDir: baseDir, ProjectName: "build", RunID: "run-id"}},
+		{selector: "run-id", want: resolve.Run{BaseDir: baseDir, ProjectName: "build", RunID: "run-id"}},
 	}
 	for _, test := range tests {
 		got, err := resolveWaitTarget(baseDir, "", test.selector)
@@ -257,7 +258,7 @@ func TestResolveActiveWaitTargetsFindsAllProjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0].projectName != "alpha" || got[1].projectName != "beta" {
+	if len(got) != 2 || got[0].ProjectName != "alpha" || got[1].ProjectName != "beta" {
 		t.Fatalf("active targets = %#v, want alpha then beta", got)
 	}
 }

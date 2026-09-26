@@ -27,6 +27,21 @@ type Queue struct {
 	WorkflowImport         bool            `json:"workflow_import,omitempty"`
 }
 
+// OriginOf returns where jobID's carried or accepted result came from: the
+// whole command's Origin, or an array task's entry in TaskOrigins. It returns
+// nil for a job that executes in this run.
+func (queue Queue) OriginOf(jobID string) *JobOrigin {
+	for _, command := range queue.Commands {
+		if command.ID == jobID {
+			return command.Origin
+		}
+		if origin, ok := command.TaskOrigins[jobID]; ok {
+			return origin
+		}
+	}
+	return nil
+}
+
 type QueuedCommand struct {
 	ID               string   `json:"id"`
 	Command          []string `json:"command"`

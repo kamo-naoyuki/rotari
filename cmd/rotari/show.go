@@ -20,6 +20,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -31,109 +32,9 @@ const (
 	jobNotFoundMessage = "job %q not found in run %q"
 )
 
-type showSelectorTarget struct {
-	waitTarget
-	jobID     string
-	fromQueue bool
-	priority  int
-}
-
-const (
-	showPriorityActive = iota
-	showPriorityInterrupted
-	showPriorityQueue
-	showPriorityLatest
-)
-
-func showDefaultJobTargets(paths state.ProjectPaths, selector string, byName bool) ([]showSelectorTarget, error) {
-	inspection, err := project.Inspect(paths, true)
-	projectState, stateRunID := inspection.State, inspection.RunID
-	if err != nil {
-		return nil, err
-	}
-	if projectState == project.Running || projectState == project.Interrupted {
-		target, found, err := findShowJobInRun(paths, stateRunID, selector, byName)
-		if err != nil || !found {
-			return nil, err
-		}
-		target.priority = showPriorityActive
-		if projectState == project.Interrupted {
-			target.priority = showPriorityInterrupted
-		}
-		return []showSelectorTarget{target}, nil
-	}
-	targets := make([]showSelectorTarget, 0, 2)
-	queue, err := state.LoadQueue(paths.QueueFile)
-	if err != nil {
-		return nil, err
-	}
-	if len(queue.Commands) > 0 {
-		jobID, found := findShowJobInQueue(queue, selector, byName)
-		if found {
-			targets = append(targets, showSelectorTarget{
-				waitTarget: waitTarget{baseDir: paths.BaseDir, projectName: paths.ProjectName},
-				jobID:      jobID, fromQueue: true, priority: showPriorityQueue,
-			})
-		}
-	}
-	runID, err := selectRunID(paths, "")
-	if err != nil {
-		return targets, nil
-	}
-	target, found, err := findShowJobInRun(paths, runID, selector, byName)
-	if err != nil || !found {
-		return targets, err
-	}
-	target.priority = showPriorityLatest
-	return append(targets, target), nil
-}
-
-func highestPriorityShowTargets(targets []showSelectorTarget) []showSelectorTarget {
-	if len(targets) == 0 {
-		return targets
-	}
-	bestPriority := targets[0].priority
-	for _, target := range targets[1:] {
-		if target.priority < bestPriority {
-			bestPriority = target.priority
-		}
-	}
-	best := make([]showSelectorTarget, 0, len(targets))
-	for _, target := range targets {
-		if target.priority == bestPriority {
-			best = append(best, target)
-		}
-	}
-	return best
-}
-
-func findShowJobInQueue(queue model.Queue, selector string, byName bool) (string, bool) {
-	for _, job := range model.QueueToJobs(queue.Commands) {
-		if (byName && job.Name == selector) || (!byName && job.ID == selector) {
-			return job.ID, true
-		}
-	}
-	return "", false
-}
-
-func findShowJobInRun(paths state.ProjectPaths, runID, selector string, byName bool) (showSelectorTarget, bool, error) {
-	queue, err := state.LoadQueue(filepath.Join(paths.RunsDir, runID, "commands.json"))
-	if err != nil {
-		return showSelectorTarget{}, false, nil
-	}
-	jobID, found := findShowJobInQueue(queue, selector, byName)
-	if !found {
-		return showSelectorTarget{}, false, nil
-	}
-	return showSelectorTarget{
-		waitTarget: waitTarget{baseDir: paths.BaseDir, projectName: paths.ProjectName, runID: runID},
-		jobID:      jobID,
-	}, true, nil
-}
-
-func resolveShowJobTargets(cliBaseDir, cliProjectName, runID, selector string, byName bool) ([]showSelectorTarget, error) {
+func resolveShowJobTargets(cliBaseDir, cliProjectName, runID, selector string, byName bool) ([]resolve.Job, error) {
 	if runID != "" {
-		baseDir, projectName, err := resolveExistingRunTarget(cliBaseDir, cliProjectName, runID)
+		baseDir, projectName, err := resolve.ExistingRun(cliBaseDir, cliProjectName, runID)
 		if err != nil {
 			return nil, err
 		}
@@ -141,87 +42,23 @@ func resolveShowJobTargets(cliBaseDir, cliProjectName, runID, selector string, b
 		if err != nil {
 			return nil, err
 		}
-		target, found, err := findShowJobInRun(paths, runID, selector, byName)
+		target, found, err := resolve.JobInRun(paths, runID, selector, byName)
 		if err != nil || !found {
 			return nil, err
 		}
-		return []showSelectorTarget{target}, nil
+		return []resolve.Job{target}, nil
 	}
-	return resolveJobTargets(cliBaseDir, cliProjectName, selector, byName, true)
+	return resolve.Jobs(cliBaseDir, cliProjectName, selector, byName, true)
 }
 
-func resolveJobTargets(cliBaseDir, cliProjectName, selector string, byName, includeQueue bool) ([]showSelectorTarget, error) {
-	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
+func resolveShowSelector(cliBaseDir, cliProjectName, selector string) ([]resolve.Job, error) {
+	runTargets, err := resolve.RunsByName(cliBaseDir, cliProjectName, selector, false)
 	if err != nil {
 		return nil, err
 	}
-	projects, err := projectNamesForRunName(baseDir, cliProjectName)
-	if err != nil {
-		return nil, err
-	}
-	targets := make([]showSelectorTarget, 0)
-	for _, projectName := range projects {
-		paths, err := state.ResolveProjectPaths(baseDir, projectName)
-		if err != nil {
-			return nil, err
-		}
-		if includeQueue {
-			projectTargets, err := showDefaultJobTargets(paths, selector, byName)
-			if err != nil {
-				return nil, err
-			}
-			targets = append(targets, projectTargets...)
-			continue
-		}
-		runID, err := selectRunID(paths, "")
-		if err != nil {
-			continue
-		}
-		target, found, err := findShowJobInRun(paths, runID, selector, byName)
-		if err != nil {
-			return nil, err
-		}
-		if found {
-			target.priority = showPriorityLatest
-			targets = append(targets, target)
-		}
-	}
-	if includeQueue {
-		return highestPriorityShowTargets(targets), nil
-	}
-	return targets, nil
-}
-
-func resolveLatestJobIDSelection(cliBaseDir, cliProjectName string, jobIDs []string) (showSelectorTarget, error) {
-	var target showSelectorTarget
-	for index, jobID := range jobIDs {
-		targets, err := resolveJobTargets(cliBaseDir, cliProjectName, jobID, false, false)
-		if err != nil {
-			return showSelectorTarget{}, err
-		}
-		if len(targets) == 0 {
-			return showSelectorTarget{}, fmt.Errorf("job %q not found in latest runs", jobID)
-		}
-		if len(targets) > 1 {
-			return showSelectorTarget{}, fmt.Errorf("job %q is ambiguous across latest runs", jobID)
-		}
-		if index == 0 {
-			target = targets[0]
-		} else if targets[0].baseDir != target.baseDir || targets[0].projectName != target.projectName || targets[0].runID != target.runID {
-			return showSelectorTarget{}, errors.New("job IDs resolve to different latest runs")
-		}
-	}
-	return target, nil
-}
-
-func resolveShowSelector(cliBaseDir, cliProjectName, selector string) ([]showSelectorTarget, error) {
-	runTargets, err := resolveRunNameTargets(cliBaseDir, cliProjectName, selector, false)
-	if err != nil {
-		return nil, err
-	}
-	targets := make([]showSelectorTarget, 0, len(runTargets))
+	targets := make([]resolve.Job, 0, len(runTargets))
 	for _, target := range runTargets {
-		targets = append(targets, showSelectorTarget{waitTarget: target})
+		targets = append(targets, resolve.Job{Run: target})
 	}
 
 	for _, byName := range []bool{false, true} {
@@ -236,13 +73,13 @@ func resolveShowSelector(cliBaseDir, cliProjectName, selector string) ([]showSel
 	return targets, nil
 }
 
-func showJobNameTargets(cliBaseDir, cliProjectName, runID, jobName string) ([]showSelectorTarget, error) {
+func showJobNameTargets(cliBaseDir, cliProjectName, runID, jobName string) ([]resolve.Job, error) {
 	return resolveShowJobTargets(cliBaseDir, cliProjectName, runID, jobName, true)
 }
 
-func applyShowSelectorTarget(target showSelectorTarget, basedir, projectName, runID, jobID *string, showQueue *bool) {
-	*basedir, *projectName, *runID, *jobID = target.baseDir, target.projectName, target.runID, target.jobID
-	if target.fromQueue {
+func applyShowSelectorTarget(target resolve.Job, basedir, projectName, runID, jobID *string, showQueue *bool) {
+	*basedir, *projectName, *runID, *jobID = target.BaseDir, target.ProjectName, target.RunID, target.JobID
+	if target.FromQueue {
 		*showQueue = true
 	}
 }
@@ -290,7 +127,7 @@ func cmdShow(args []string) int {
 	attemptID := ""
 	if selector != "" && strings.HasPrefix(selector, "att_") {
 		attemptID = selector
-		baseDir, projectName, resolvedRunID, resolvedJobID, err := resolveAttemptTarget(selector, *basedir, *queueNameOption, "")
+		baseDir, projectName, resolvedRunID, resolvedJobID, err := resolve.Attempt(selector, *basedir, *queueNameOption, "")
 		if err != nil {
 			printError(err)
 			return 1
@@ -303,7 +140,7 @@ func cmdShow(args []string) int {
 			printError(err)
 			return 1
 		} else if found {
-			baseDir, projectName, err := resolveExistingRunTarget(*basedir, *queueNameOption, selector)
+			baseDir, projectName, err := resolve.ExistingRun(*basedir, *queueNameOption, selector)
 			if err != nil {
 				printError(err)
 				return 1
@@ -314,7 +151,7 @@ func cmdShow(args []string) int {
 	}
 	if strings.HasPrefix(*jobIDOption, "att_") {
 		attemptID = *jobIDOption
-		baseDir, projectName, resolvedRunID, resolvedJobID, err := resolveAttemptTarget(*jobIDOption, *basedir, *queueNameOption, *runIDOption)
+		baseDir, projectName, resolvedRunID, resolvedJobID, err := resolve.Attempt(*jobIDOption, *basedir, *queueNameOption, *runIDOption)
 		if err != nil {
 			printError(err)
 			return 1
@@ -375,7 +212,7 @@ func cmdShow(args []string) int {
 			printError("--lineage cannot be combined with run, job, queue, filter, list, log, follow, or report options")
 			return 1
 		}
-		baseDir, projectName, err := resolveExistingRunTarget(*basedir, *queueNameOption, "")
+		baseDir, projectName, err := resolve.ExistingRun(*basedir, *queueNameOption, "")
 		if err != nil {
 			printError(err)
 			return 1
@@ -404,7 +241,7 @@ func cmdShow(args []string) int {
 			printError("--basedirs cannot be combined with project, run, job, log, filter, or JSON options")
 			return 1
 		}
-		masterDir, err := resolveMasterDir(*masterdir)
+		masterDir, err := state.ResolveMasterDir(*masterdir)
 		if err != nil {
 			printErrorf("failed to resolve master directory: %v", err)
 			return 1
@@ -415,7 +252,7 @@ func cmdShow(args []string) int {
 		!(*showQueueOption || *showBaseDirsList || *failedOnly || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
 		return showAllProjects(*basedir, *masterdir)
 	}
-	baseDir, queueName, err := resolveExistingRunTarget(*basedir, *queueNameOption, *runIDOption)
+	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runIDOption)
 	if err != nil {
 		printError(err)
 		return 1
@@ -491,7 +328,7 @@ func cmdShow(args []string) int {
 			}
 		}
 	}
-	runID, err := selectRunID(paths, selectedRunID)
+	runID, err := resolve.RunID(paths, selectedRunID)
 	if err != nil {
 		printError(err)
 		return 1
@@ -734,58 +571,6 @@ func (writer *pagerWriter) startPager() error {
 	}
 	writer.buffer.Reset()
 	return nil
-}
-
-func selectRunID(paths state.ProjectPaths, requested string) (string, error) {
-	if requested == "latest" {
-		requested = ""
-	}
-	if requested != "" {
-		if !state.IsValidPathElement(requested) {
-			return "", fmt.Errorf(runNotFoundMessage, requested)
-		}
-		// codeql[go/path-injection]: requested is validated by IsValidPathElement.
-		if _, err := os.Stat(filepath.Join(paths.RunsDir, requested)); err != nil {
-			return "", fmt.Errorf(runNotFoundMessage, requested)
-		}
-		return requested, nil
-	}
-	meta, err := state.LoadMeta(paths.MetaFile)
-	if err != nil {
-		return "", fmt.Errorf("failed to load metadata: %w", err)
-	}
-	if meta.LastRunID != "" {
-		// codeql[go/path-injection]: LastRunID is loaded from validated state metadata.
-		if info, err := os.Stat(filepath.Join(paths.RunsDir, meta.LastRunID)); err == nil && info.IsDir() {
-			return meta.LastRunID, nil
-		}
-	}
-	{
-		entries, err := os.ReadDir(paths.RunsDir)
-		if err != nil {
-			if os.IsNotExist(err) {
-				return "", fmt.Errorf("project %q has no runs (runs_dir=%s)", paths.ProjectName, paths.RunsDir)
-			}
-			return "", fmt.Errorf("failed to read runs: %w", err)
-		}
-		runIDs := make([]string, 0, len(entries))
-		for _, entry := range entries {
-			if entry.IsDir() {
-				runIDs = append(runIDs, entry.Name())
-			}
-		}
-		if len(runIDs) == 0 {
-			return "", fmt.Errorf("project %q has no runs (runs_dir=%s)", paths.ProjectName, paths.RunsDir)
-		}
-		sort.Slice(runIDs, func(i, j int) bool {
-			// codeql[go/path-injection]: runIDs come from directory entries under RunsDir.
-			left, _ := os.Stat(filepath.Join(paths.RunsDir, runIDs[i]))
-			// codeql[go/path-injection]: runIDs come from directory entries under RunsDir.
-			right, _ := os.Stat(filepath.Join(paths.RunsDir, runIDs[j]))
-			return left.ModTime().After(right.ModTime())
-		})
-		return runIDs[0], nil
-	}
 }
 
 func writeShowTargetHeader(writer io.Writer, paths state.ProjectPaths) {
@@ -1431,7 +1216,7 @@ func showAllProjects(cliBaseDir, cliMasterDir string) int {
 		}
 		return showProjectsForBaseDirs([]string{baseDir})
 	}
-	masterDir, err := resolveMasterDir(cliMasterDir)
+	masterDir, err := state.ResolveMasterDir(cliMasterDir)
 	if err != nil {
 		printErrorf("failed to resolve master directory: %v", err)
 		return 1
@@ -1608,25 +1393,6 @@ func loadRunJobSpecs(runDir string) map[string]model.JobSpec {
 	return specs
 }
 
-// loadRunOrigin returns the Origin recorded for jobID in runDir's
-// commands.json, if any. Carried-forward jobs (see planRerunSelection) are
-// not re-executed, so their output only exists under the origin run/job.
-func loadRunOrigin(runDir, jobID string) *model.JobOrigin {
-	queue, err := state.LoadQueue(filepath.Join(runDir, "commands.json"))
-	if err != nil {
-		return nil
-	}
-	for _, command := range queue.Commands {
-		if command.ID == jobID {
-			return command.Origin
-		}
-		if origin, ok := command.TaskOrigins[jobID]; ok {
-			return origin
-		}
-	}
-	return nil
-}
-
 func showJob(writer io.Writer, paths state.ProjectPaths, runID, jobID string) int {
 	return showJobAttempt(writer, paths, runID, jobID, "")
 }
@@ -1650,7 +1416,7 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	}
 	runDir := filepath.Join(paths.RunsDir, runID)
 	if info, err := os.Stat(jobDir); err != nil || !info.IsDir() {
-		if origin := loadRunOrigin(runDir, jobID); origin != nil {
+		if origin := state.LoadRunOrigin(runDir, jobID); origin != nil {
 			if runResultAccepted(runDir, jobID) {
 				// The destination result is an accepted success; the source
 				// details below keep the original attempt and exit code.
@@ -2001,7 +1767,7 @@ func followJobLog(writer io.Writer, paths state.ProjectPaths, runID, jobID strin
 	outputPath := filepath.Join(jobDir, "output")
 	output, err := os.ReadFile(outputPath)
 	if err != nil {
-		if origin := loadRunOrigin(runDir, jobID); origin != nil {
+		if origin := state.LoadRunOrigin(runDir, jobID); origin != nil {
 			// Carried forward: it already finished under the origin run, so
 			// there is nothing new to follow, just print its output once.
 			fmt.Fprintf(writer, "%s carried forward from run %s (no re-execution)\n\n", cyan("Note:"), origin.RunID)

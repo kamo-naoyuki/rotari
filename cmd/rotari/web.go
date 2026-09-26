@@ -1179,7 +1179,7 @@ func resolveWebLogJob(runsDir, runID, jobID string) (string, string, error) {
 	if _, statErr := os.Stat(outputPath); !errors.Is(statErr, os.ErrNotExist) {
 		return runDir, jobID, nil
 	}
-	origin := loadRunOrigin(runDir, jobID)
+	origin := stateinternal.LoadRunOrigin(runDir, jobID)
 	if origin == nil {
 		return runDir, jobID, nil
 	}

@@ -2,15 +2,18 @@
 
 Representative implementation and tests:
 
-- [cmd/rotari/main.go](../../cmd/rotari/main.go) and
-  [cmd/rotari/main_test.go](../../cmd/rotari/main_test.go) for location
-  resolution and project paths.
+- [internal/resolve/resolve.go](../../internal/resolve/resolve.go) and
+  [internal/resolve/resolve_test.go](../../internal/resolve/resolve_test.go)
+  for run, attempt, run-name, and job selector resolution shared by the
+  commands, and [internal/state/config.go](../../internal/state/config.go) and
+  [internal/state/project.go](../../internal/state/project.go) for base
+  directory, master directory, and project resolution.
 - [cmd/rotari/config.go](../../cmd/rotari/config.go) and
   [cmd/rotari/config_test.go](../../cmd/rotari/config_test.go) for configuration
   precedence and formats.
-- [cmd/rotari/run_registry.go](../../cmd/rotari/run_registry.go) and
-  [cmd/rotari/run_registry_test.go](../../cmd/rotari/run_registry_test.go) for
-  run-location indexing.
+- [internal/runregistry/registry.go](../../internal/runregistry/registry.go)
+  and [internal/runregistry/registry_test.go](../../internal/runregistry/registry_test.go)
+  for run-location indexing and stale-entry garbage collection.
 - [cmd/rotari/completion.go](../../cmd/rotari/completion.go) and
   [cmd/rotari/coverage_extra_test.go](../../cmd/rotari/coverage_extra_test.go)
   for shell completion.
@@ -42,7 +45,8 @@ Without a run-location lookup, base directories resolve in this order:
   both a project and a run must be named explicitly, `--project-name` names
   the project and the positional target names the run. `--run-id` may still be
   repeated for merging saved runs. Run ID resolution uses
-  [cmd/rotari/run_registry.go](../../cmd/rotari/run_registry.go), covered by
+  `resolve.IsRunID` and `resolve.ExistingRun` in
+  [internal/resolve/resolve.go](../../internal/resolve/resolve.go), covered by
   [cmd/rotari/export_test.go](../../cmd/rotari/export_test.go).
 - `unlock` likewise accepts one optional positional project name. It derives
   the run ID from that project's `running.lock`, or from interrupted metadata

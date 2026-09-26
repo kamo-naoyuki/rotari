@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -29,7 +30,7 @@ func cmdDelete(args []string) int {
 		*runIDOption = fs.Args()[0]
 	}
 
-	baseDir, queueName, err := resolveExistingRunTarget(*basedir, *queueNameOption, *runIDOption)
+	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runIDOption)
 	if err != nil {
 		printError(err)
 		return 1

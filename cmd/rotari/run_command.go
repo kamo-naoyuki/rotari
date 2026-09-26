@@ -12,6 +12,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -61,7 +62,7 @@ func cmdRun(args []string) int {
 	}
 	if *jobNameOption != "" {
 		if *runIDOption != "" {
-			baseDir, projectName, err := resolveExistingRunTarget(*basedir, *queueNameOption, *runIDOption)
+			baseDir, projectName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runIDOption)
 			if err != nil {
 				printError(err)
 				return 1
@@ -71,14 +72,14 @@ func cmdRun(args []string) int {
 				printError(err)
 				return 1
 			}
-			target, found, err := findShowJobInRun(paths, *runIDOption, *jobNameOption, true)
+			target, found, err := resolve.JobInRun(paths, *runIDOption, *jobNameOption, true)
 			if err != nil || !found {
 				printErrorf("job name %q not found in run %q", *jobNameOption, *runIDOption)
 				return 1
 			}
-			jobIDs = stringSliceFlag{target.jobID}
+			jobIDs = stringSliceFlag{target.JobID}
 		} else {
-			targets, err := resolveJobTargets(*basedir, *queueNameOption, *jobNameOption, true, false)
+			targets, err := resolve.Jobs(*basedir, *queueNameOption, *jobNameOption, true, false)
 			if err != nil {
 				printError(err)
 				return 1
@@ -87,8 +88,8 @@ func cmdRun(args []string) int {
 				printErrorf("job name %q is %s", *jobNameOption, map[bool]string{true: "ambiguous across latest runs", false: "not found"}[len(targets) > 1])
 				return 1
 			}
-			*basedir, *queueNameOption, *runIDOption = targets[0].baseDir, targets[0].projectName, targets[0].runID
-			jobIDs = stringSliceFlag{targets[0].jobID}
+			*basedir, *queueNameOption, *runIDOption = targets[0].BaseDir, targets[0].ProjectName, targets[0].RunID
+			jobIDs = stringSliceFlag{targets[0].JobID}
 		}
 	}
 	attemptSelection := false
@@ -111,18 +112,18 @@ func cmdRun(args []string) int {
 		}
 	}
 	if *runIDOption == "" && len(jobIDs) > 0 && !attemptSelection {
-		target, resolveErr := resolveLatestJobIDSelection(*basedir, *queueNameOption, jobIDs)
+		target, resolveErr := resolve.LatestJobIDs(*basedir, *queueNameOption, jobIDs)
 		if resolveErr != nil {
 			printError(resolveErr)
 			return 1
 		}
-		*basedir, *queueNameOption, *runIDOption = target.baseDir, target.projectName, target.runID
+		*basedir, *queueNameOption, *runIDOption = target.BaseDir, target.ProjectName, target.RunID
 	}
 	if *overwriteQueue && *runIDOption == "" {
 		printError("usage: " + cliUsage("run"))
 		return 1
 	}
-	baseDir, queueName, err := resolveExistingRunTarget(*basedir, *queueNameOption, *runIDOption)
+	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runIDOption)
 	if err != nil {
 		printError(err)
 		return 1

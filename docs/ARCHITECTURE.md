@@ -98,6 +98,7 @@ flowchart TB
   cmd["cmd/rotari<br/>CLI flags, supervisor operations,<br/>Web handlers, wiring, output"]
   projectrun["projectrun<br/>run lifecycle"]
   project["project<br/>state machine, idle edits"]
+  resolve["resolve<br/>selectors to run and job"]
   subgraph l2["orchestration and projections"]
     server
     run
@@ -112,11 +113,16 @@ flowchart TB
   subgraph l1["adapters"]
     executor
     state
+    runregistry
   end
   model["model<br/>(imports nothing from rotari)"]
 
   cmd --> projectrun
   cmd --> project
+  cmd --> resolve
+  resolve --> project
+  resolve --> runregistry
+  resolve --> state
   project --> jobstatus
   project --> executor
   project --> state
@@ -135,6 +141,7 @@ flowchart TB
   jobstatus --> state
   workflow --> state
   executor --> state
+  runregistry --> state
   l1 --> model
   l2 --> model
 ```
@@ -151,6 +158,8 @@ the current graph if this list drifts.
 | [internal/state](../internal/state/) | The filesystem: path resolution and validation, JSON load/write, locks, run and attempt directory listing. No execution policy. | `paths.go`, `project_paths.go`, `store.go`, `lock.go` |
 | [internal/executor](../internal/executor/) | How one job attempt is started, waited for, cancelled, and suspended: local processes, Slurm, PBS, LSF, SSH, wrapper scripts. No run semantics. | `contracts.go` (`JobExecutor`), `local.go`, `slurm.go` |
 | [internal/project](../internal/project/) | A project's run state (idle, running, interrupted) from `running.lock` and `meta.json`, consistency checks, recovery, and the idle-edit sequence: state lock, idle check, load, edit, metadata-then-queue write. | `inspect.go` (`Inspect`, `EnsureIdle`), `edit.go` (`EditQueue`) |
+| [internal/resolve](../internal/resolve/) | Location rules shared by the commands that read existing state: a run ID through the run registry, an `att_` attempt ID, the latest-run fallback, run names, and job IDs or names looked up in the queue and latest runs. show's and wait's own selector orders build on it. | `resolve.go` (`ExistingRun`, `RunID`, `Jobs`) |
+| [internal/runregistry](../internal/runregistry/) | The master directory's run index, `<masterdir>/runs/<run-id>.json`: register, look up, unregister, and find stale entries for `gc`. | `registry.go` |
 | [internal/projectrun](../internal/projectrun/) | One project's run against its files: `Begin` (context, run lock, registry, running metadata), `Execute` (snapshot, plan, dispatch, summary), and `Finish` (final context, queue and metadata finalization, lock removal). Shared by the sync run, the async worker, and cancellation. | `lifecycle.go`, `execute.go` |
 | [internal/run](../internal/run/) | Run rules without file access: which jobs execute or are carried forward, dependency unblocking, retries, per-executor lanes and concurrency, the summary contents. | `rerun.go` (`PlanRerun`), `engine.go` (`ExecuteJobs`), `dispatch.go` (`Dispatcher`) |
 | [internal/jobstatus](../internal/jobstatus/) | Read side: turns attempt files and the summary into one displayed result and timestamps. Shared by CLI and Web. | `job.go`, `attempt.go`, `times.go` |
@@ -179,6 +188,8 @@ internal package.
   `internal/project`.
 - Does it talk to a process or scheduler? `internal/executor`.
 - Does it decide what status a job shows? `internal/jobstatus`.
+- Does it decide which base directory, project, run, or job a selector
+  names? `internal/resolve`.
 - Is it flag parsing, message wording, or colors? `cmd/rotari`.
 
 ## Files in cmd/rotari
@@ -191,9 +202,10 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 | Entry, dispatch, async worker launch, `__worker-run` | `main.go` |
 | Flag metadata, help, config defaults, completion | `cli_spec.go`, `config.go`, `completion.go`, `schema.go`, `guide.go`, `environment.go` |
 | Queue editing (direct file access) | `add.go`, `change.go`, `copy.go`, `remove.go`, `reset.go`, `delete.go`, `gc.go`, `unlock.go` |
-| Starting a run (client and supervisor side) | `run_command.go`, `run_registry.go`, `job_executor.go` |
+| Starting a run (client and supervisor side) | `run_command.go`, `job_executor.go` |
+| Default run registry wiring (`registerRun`, `resolveRunLocation`) | `run_registry.go` |
 | Wiring the run lifecycle (`projectRunner`) | `project_run.go` |
-| Supervisor and its registry | `server.go`, `registry.go` |
+| Supervisor, its server registry, and `show --basedirs` discovery | `server.go`, `registry.go` |
 | Job control | `job_control.go`, `wait.go` |
 | Reading results | `show.go`, `jobs.go`, `diff.go`, `report.go`, `diagnose.go`, `check.go` |
 | Workflow manifests | `export.go`, `import.go`, `workflow_source.go` |

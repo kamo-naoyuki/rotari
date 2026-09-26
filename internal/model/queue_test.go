@@ -57,3 +57,21 @@ func TestValidateQueueDependenciesRejectsStageJobNameConflict(t *testing.T) {
 		t.Fatalf("ValidateQueueDependencies() error = %v, want stage/job name conflict", err)
 	}
 }
+
+func TestQueueOriginOfChecksCommandAndTaskOrigins(t *testing.T) {
+	whole := &JobOrigin{RunID: "run-1", JobID: "job"}
+	task := &JobOrigin{RunID: "run-1", JobID: "array-2"}
+	queue := Queue{Commands: []QueuedCommand{
+		{ID: "job", Origin: whole},
+		{ID: "array", TaskOrigins: map[string]*JobOrigin{"array-2": task}},
+	}}
+	if got := queue.OriginOf("job"); got != whole {
+		t.Fatalf("OriginOf(job) = %#v", got)
+	}
+	if got := queue.OriginOf("array-2"); got != task {
+		t.Fatalf("OriginOf(array-2) = %#v", got)
+	}
+	if got := queue.OriginOf("array-1"); got != nil {
+		t.Fatalf("OriginOf(array-1) = %#v, want nil for an executed task", got)
+	}
+}

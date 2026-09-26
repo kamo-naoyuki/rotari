@@ -12,6 +12,13 @@ const (
 	defaultProjectName = "default"
 )
 
+// ProjectNameGiven reports whether a project was chosen explicitly, by
+// cliProjectName or ROTARI_PROJECT_NAME, rather than inferred from the base
+// directory.
+func ProjectNameGiven(cliProjectName string) bool {
+	return cliProjectName != "" || os.Getenv(projectNameEnv) != ""
+}
+
 func ResolveProjectName(baseDir, cliProjectName string) (string, error) {
 	if cliProjectName != "" {
 		if !IsValidPathElement(cliProjectName) {

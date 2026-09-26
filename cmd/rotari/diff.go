@@ -14,6 +14,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/rundiff"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -41,7 +42,7 @@ func cmdDiff(args []string) int {
 	case 2:
 		fromID, toID = fs.Args()[0], fs.Args()[1]
 	}
-	baseDir, project, err := resolveExistingRunTarget(*basedir, *projectName, firstNonEmpty(toID, fromID))
+	baseDir, project, err := resolve.ExistingRun(*basedir, *projectName, firstNonEmpty(toID, fromID))
 	if err != nil {
 		printError(err)
 		return 1
@@ -51,7 +52,7 @@ func cmdDiff(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	if toID, err = selectRunID(paths, toID); err != nil {
+	if toID, err = resolve.RunID(paths, toID); err != nil {
 		printError(err)
 		return 1
 	}
@@ -60,7 +61,7 @@ func cmdDiff(args []string) int {
 			printError(err)
 			return 1
 		}
-	} else if fromID, err = selectRunID(paths, fromID); err != nil {
+	} else if fromID, err = resolve.RunID(paths, fromID); err != nil {
 		printError(err)
 		return 1
 	}

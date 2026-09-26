@@ -11,6 +11,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -61,7 +62,7 @@ func cmdDiagnose(args []string) int {
 	}
 	if strings.HasPrefix(*jobID, "att_") {
 		attemptID = *jobID
-		baseDir, resolvedProjectName, resolvedRunID, resolvedJobID, err := resolveAttemptTarget(*jobID, *basedir, *projectName, *runIDOption)
+		baseDir, resolvedProjectName, resolvedRunID, resolvedJobID, err := resolve.Attempt(*jobID, *basedir, *projectName, *runIDOption)
 		if err != nil {
 			printError(err)
 			return 1
@@ -69,7 +70,7 @@ func cmdDiagnose(args []string) int {
 		*basedir, *projectName, *runIDOption, *jobID = baseDir, resolvedProjectName, resolvedRunID, resolvedJobID
 	}
 	if *rules {
-		baseDir, queueName, err := resolveExistingRunTarget(*basedir, *projectName, *runIDOption)
+		baseDir, queueName, err := resolve.ExistingRun(*basedir, *projectName, *runIDOption)
 		if err != nil {
 			printError(err)
 			return 1
@@ -79,7 +80,7 @@ func cmdDiagnose(args []string) int {
 			printErrorf("failed to resolve paths: %v", err)
 			return 1
 		}
-		runID, err := selectRunID(paths, *runIDOption)
+		runID, err := resolve.RunID(paths, *runIDOption)
 		if err != nil {
 			printError(err)
 			return 1
@@ -117,7 +118,7 @@ func cmdDiagnose(args []string) int {
 		printError("ROTARI_LLM_API_KEY is required; it is not stored in rotari state")
 		return 1
 	}
-	baseDir, queueName, err := resolveExistingRunTarget(*basedir, *projectName, *runIDOption)
+	baseDir, queueName, err := resolve.ExistingRun(*basedir, *projectName, *runIDOption)
 	if err != nil {
 		printError(err)
 		return 1
@@ -127,7 +128,7 @@ func cmdDiagnose(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	runID, err := selectRunID(paths, *runIDOption)
+	runID, err := resolve.RunID(paths, *runIDOption)
 	if err != nil {
 		printError(err)
 		return 1
@@ -171,7 +172,7 @@ func loadDiagnosisJob(paths state.ProjectPaths, runID, jobID string, attemptIDs 
 			if attemptID != "" {
 				return diagnose.Job{}, fmt.Errorf(jobNotFoundMessage, jobID, runID)
 			}
-			origin := loadRunOrigin(runDir, jobID)
+			origin := state.LoadRunOrigin(runDir, jobID)
 			if origin == nil {
 				return diagnose.Job{}, fmt.Errorf(jobNotFoundMessage, jobID, runID)
 			}

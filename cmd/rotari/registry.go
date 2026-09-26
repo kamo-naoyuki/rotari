@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/runregistry"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -26,23 +27,6 @@ type knownBaseDir struct {
 	BaseDir string
 	Sources []string
 	PID     int
-}
-
-func resolveMasterDir(cliMasterDir string) (string, error) {
-	if cliMasterDir != "" {
-		return cliMasterDir, nil
-	}
-	if value := os.Getenv(envMasterDir); value != "" {
-		return value, nil
-	}
-	if value := os.Getenv("XDG_STATE_HOME"); value != "" {
-		return filepath.Join(value, "rotari", "master"), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".local", "state", "rotari", "master"), nil
 }
 
 func serverRecordPath(masterDir, baseDir string) string {
@@ -131,27 +115,17 @@ func listKnownBaseDirs(masterDir string, servers []serverRecord) ([]knownBaseDir
 		pid     int
 	}
 	known := make(map[string]knownBaseDirState)
-	entries, err := os.ReadDir(filepath.Join(masterDir, "runs"))
-	if err != nil && !os.IsNotExist(err) {
+	registryBaseDirs, err := runregistry.Open(masterDir).BaseDirs()
+	if err != nil {
 		return nil, err
 	}
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
-			continue
-		}
-		var location runLocation
-		if err := jsonStore().ReadJSON(filepath.Join(masterDir, "runs", entry.Name()), &location); err != nil {
-			continue
-		}
-		if location.BaseDir == "" {
-			continue
-		}
-		value := known[location.BaseDir]
+	for _, baseDir := range registryBaseDirs {
+		value := known[baseDir]
 		if value.sources == nil {
 			value.sources = make(map[string]bool)
 		}
 		value.sources["run registry"] = true
-		known[location.BaseDir] = value
+		known[baseDir] = value
 	}
 	for _, server := range servers {
 		value := known[server.BaseDir]

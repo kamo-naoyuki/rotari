@@ -13,6 +13,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -31,9 +32,9 @@ func cmdWait(args []string) int {
 		return 1
 	}
 	selectors := fs.Args()
-	targets := make([]waitTarget, 0, len(explicitRunIDs)+len(selectors))
+	targets := make([]resolve.Run, 0, len(explicitRunIDs)+len(selectors))
 	for _, runID := range explicitRunIDs {
-		targets = append(targets, waitTarget{baseDir: *basedir, projectName: *queueNameOption, runID: runID})
+		targets = append(targets, resolve.Run{BaseDir: *basedir, ProjectName: *queueNameOption, RunID: runID})
 	}
 	for _, selector := range selectors {
 		target, err := resolveWaitTarget(*basedir, *queueNameOption, selector)
@@ -56,7 +57,7 @@ func cmdWait(args []string) int {
 		if len(activeTargets) > 1 {
 			printError("multiple active runs; specify a project or selector:")
 			for _, target := range activeTargets {
-				fmt.Fprintf(os.Stderr, "  project=%s run=%s\n", target.projectName, target.runID)
+				fmt.Fprintf(os.Stderr, "  project=%s run=%s\n", target.ProjectName, target.RunID)
 			}
 			return 1
 		}
@@ -72,7 +73,7 @@ func cmdWait(args []string) int {
 	}
 	exitCode := 0
 	for _, target := range targets {
-		result := waitForRun(target.baseDir, target.projectName, target.runID, deadline, *jsonOutput)
+		result := waitForRun(target.BaseDir, target.ProjectName, target.RunID, deadline, *jsonOutput)
 		if result.exitCode > exitCode {
 			exitCode = result.exitCode
 		}
@@ -83,96 +84,10 @@ func cmdWait(args []string) int {
 	return exitCode
 }
 
-type waitTarget struct {
-	baseDir     string
-	projectName string
-	runID       string
-}
-
-func resolveRunNameTargets(cliBaseDir, cliProjectName, runName string, activeOnly bool) ([]waitTarget, error) {
+func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run, error) {
 	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 	if err != nil {
-		return nil, err
-	}
-	projectNames, err := projectNamesForRunName(baseDir, cliProjectName)
-	if err != nil {
-		return nil, err
-	}
-	targets := make([]waitTarget, 0)
-	for _, projectName := range projectNames {
-		paths, pathErr := state.ResolveProjectPaths(baseDir, projectName)
-		if pathErr != nil {
-			return nil, pathErr
-		}
-		if activeOnly {
-			running, runningErr := isRunning(paths.LockFile)
-			if runningErr != nil {
-				if os.IsNotExist(runningErr) {
-					continue
-				}
-				return nil, runningErr
-			}
-			if !running {
-				continue
-			}
-			lock, lockErr := state.LoadLock(paths.LockFile)
-			if lockErr != nil {
-				return nil, lockErr
-			}
-			if lock.RunName == runName {
-				targets = append(targets, waitTarget{baseDir: baseDir, projectName: projectName, runID: lock.RunID})
-			}
-			continue
-		}
-		entries, readErr := os.ReadDir(paths.RunsDir)
-		if readErr != nil {
-			if os.IsNotExist(readErr) {
-				continue
-			}
-			return nil, readErr
-		}
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			summary, summaryErr := state.LoadRunSummary(filepath.Join(paths.RunsDir, entry.Name(), "summary.json"))
-			if summaryErr == nil && summary.RunName == runName {
-				targets = append(targets, waitTarget{baseDir: baseDir, projectName: projectName, runID: entry.Name()})
-			}
-		}
-	}
-	return targets, nil
-}
-
-func projectNamesForRunName(baseDir, cliProjectName string) ([]string, error) {
-	if cliProjectName != "" || os.Getenv(envProjectName) != "" {
-		projectName, err := state.ResolveProjectName(baseDir, cliProjectName)
-		if err != nil {
-			return nil, err
-		}
-		return []string{projectName}, nil
-	}
-	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	projects := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() {
-			projects = append(projects, entry.Name())
-		}
-	}
-	sort.Strings(projects)
-	return projects, nil
-}
-
-func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (waitTarget, error) {
-	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
-	if err != nil {
-		return waitTarget{}, err
+		return resolve.Run{}, err
 	}
 	if state.IsValidPathElement(selector) {
 		projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), selector)
@@ -180,32 +95,32 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (waitTarget,
 			if info, statErr := os.Stat(projectDir); statErr == nil && info.IsDir() {
 				runID, activeErr := resolveActiveRunTarget(baseDir, selector)
 				if activeErr != nil {
-					return waitTarget{}, activeErr
+					return resolve.Run{}, activeErr
 				}
-				return waitTarget{baseDir: baseDir, projectName: selector, runID: runID}, nil
+				return resolve.Run{BaseDir: baseDir, ProjectName: selector, RunID: runID}, nil
 			}
 		}
 	}
 
-	activeTargets, err := resolveRunNameTargets(baseDir, cliProjectName, selector, true)
+	activeTargets, err := resolve.RunsByName(baseDir, cliProjectName, selector, true)
 	if err != nil {
-		return waitTarget{}, err
+		return resolve.Run{}, err
 	}
 	if len(activeTargets) == 1 {
 		return activeTargets[0], nil
 	}
 	if len(activeTargets) > 1 {
-		return waitTarget{}, fmt.Errorf("run name %q is ambiguous across active projects", selector)
+		return resolve.Run{}, fmt.Errorf("run name %q is ambiguous across active projects", selector)
 	}
 	if location, found, registryErr := resolveRunLocation(selector); registryErr != nil {
-		return waitTarget{}, registryErr
+		return resolve.Run{}, registryErr
 	} else if found {
-		return waitTarget{baseDir: location.BaseDir, projectName: location.ProjectName, runID: location.RunID}, nil
+		return resolve.Run{BaseDir: location.BaseDir, ProjectName: location.ProjectName, RunID: location.RunID}, nil
 	}
-	return waitTarget{}, fmt.Errorf("no project, active run name, or run ID matches %q", selector)
+	return resolve.Run{}, fmt.Errorf("no project, active run name, or run ID matches %q", selector)
 }
 
-func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]waitTarget, error) {
+func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]resolve.Run, error) {
 	if cliProjectName != "" || os.Getenv(envProjectName) != "" {
 		runID, err := resolveActiveRunTarget(cliBaseDir, cliProjectName)
 		if err != nil {
@@ -219,7 +134,7 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]waitTarget, 
 		if err != nil {
 			return nil, err
 		}
-		return []waitTarget{{baseDir: baseDir, projectName: projectName, runID: runID}}, nil
+		return []resolve.Run{{BaseDir: baseDir, ProjectName: projectName, RunID: runID}}, nil
 	}
 	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 	if err != nil {
@@ -232,7 +147,7 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]waitTarget, 
 		}
 		return nil, err
 	}
-	active := make([]waitTarget, 0)
+	active := make([]resolve.Run, 0)
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -252,9 +167,9 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]waitTarget, 
 		if lockErr != nil {
 			return nil, lockErr
 		}
-		active = append(active, waitTarget{baseDir: baseDir, projectName: entry.Name(), runID: lock.RunID})
+		active = append(active, resolve.Run{BaseDir: baseDir, ProjectName: entry.Name(), RunID: lock.RunID})
 	}
-	sort.Slice(active, func(i, j int) bool { return active[i].projectName < active[j].projectName })
+	sort.Slice(active, func(i, j int) bool { return active[i].ProjectName < active[j].ProjectName })
 	return active, nil
 }
 
@@ -288,7 +203,7 @@ type waitResult struct {
 }
 
 func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, jsonOutput bool) waitResult {
-	baseDir, queueName, err := resolveExistingRunTarget(basedir, queueNameOption, runID)
+	baseDir, queueName, err := resolve.ExistingRun(basedir, queueNameOption, runID)
 	if err != nil {
 		printError(err)
 		return waitResult{exitCode: 1}

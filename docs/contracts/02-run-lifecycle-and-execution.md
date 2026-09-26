@@ -109,7 +109,8 @@
   `Origin` is recorded in `QueuedCommand.TaskOrigins`, keyed by task ID such as
   `id-1`, separately from the whole-command `Origin` field. This is needed
   because one array command can have some tasks freshly executed and others
-  carried in the same run. `loadRunOrigin`/`show`/`web` check both `Origin` and
+  carried in the same run. `model.Queue.OriginOf`, which `state.LoadRunOrigin`
+  applies for `show`, `web`, and `diagnose`, checks both `Origin` and
   `TaskOrigins` when resolving where a job's output lives. `--partial-array=false`
   restores the older whole-array behavior: any match re-executes every task,
   using only the whole-command `Origin`.

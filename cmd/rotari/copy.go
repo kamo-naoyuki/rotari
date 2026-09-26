@@ -12,6 +12,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -77,7 +78,7 @@ func cmdCopy(args []string) int {
 	}
 	if *jobName != "" {
 		if *runID != "" {
-			baseDir, projectName, err := resolveExistingRunTarget(*basedir, *queueNameOption, *runID)
+			baseDir, projectName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runID)
 			if err != nil {
 				printError(err)
 				return 1
@@ -87,14 +88,14 @@ func cmdCopy(args []string) int {
 				printError(err)
 				return 1
 			}
-			target, found, err := findShowJobInRun(paths, *runID, *jobName, true)
+			target, found, err := resolve.JobInRun(paths, *runID, *jobName, true)
 			if err != nil || !found {
 				printErrorf("job name %q not found in run %q", *jobName, *runID)
 				return 1
 			}
-			jobIDs = stringSliceFlag{target.jobID}
+			jobIDs = stringSliceFlag{target.JobID}
 		} else {
-			targets, err := resolveJobTargets(*basedir, *queueNameOption, *jobName, true, false)
+			targets, err := resolve.Jobs(*basedir, *queueNameOption, *jobName, true, false)
 			if err != nil {
 				printError(err)
 				return 1
@@ -103,8 +104,8 @@ func cmdCopy(args []string) int {
 				printErrorf("job name %q is %s", *jobName, map[bool]string{true: "ambiguous across latest runs", false: "not found"}[len(targets) > 1])
 				return 1
 			}
-			*basedir, *queueNameOption, *runID = targets[0].baseDir, targets[0].projectName, targets[0].runID
-			jobIDs = stringSliceFlag{targets[0].jobID}
+			*basedir, *queueNameOption, *runID = targets[0].BaseDir, targets[0].ProjectName, targets[0].RunID
+			jobIDs = stringSliceFlag{targets[0].JobID}
 		}
 	}
 	if *runID == "" {
@@ -120,7 +121,7 @@ func cmdCopy(args []string) int {
 		}
 		if *runID == "" {
 			if len(jobIDs) == 0 {
-				baseDir, projectName, err := resolveExistingRunTarget(*basedir, *queueNameOption, "")
+				baseDir, projectName, err := resolve.ExistingRun(*basedir, *queueNameOption, "")
 				if err != nil {
 					printError(err)
 					return 1
@@ -141,12 +142,12 @@ func cmdCopy(args []string) int {
 				}
 				*basedir, *queueNameOption, *runID = baseDir, projectName, meta.LastRunID
 			} else {
-				target, err := resolveLatestJobIDSelection(*basedir, *queueNameOption, jobIDs)
+				target, err := resolve.LatestJobIDs(*basedir, *queueNameOption, jobIDs)
 				if err != nil {
 					printError(err)
 					return 1
 				}
-				*basedir, *queueNameOption, *runID = target.baseDir, target.projectName, target.runID
+				*basedir, *queueNameOption, *runID = target.BaseDir, target.ProjectName, target.RunID
 			}
 		}
 	}
@@ -161,7 +162,7 @@ func cmdCopy(args []string) int {
 		selection = "all"
 	}
 
-	baseDir, queueName, err := resolveExistingRunTarget(*basedir, *queueNameOption, *runID)
+	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runID)
 	if err != nil {
 		printError(err)
 		return 1

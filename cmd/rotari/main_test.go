@@ -602,63 +602,6 @@ func TestCmdEnvironmentListsCurrentValues(t *testing.T) {
 	}
 }
 
-func TestResolveExistingRunTargetUsesRegistryAndRejectsConflicts(t *testing.T) {
-	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
-	baseDir := t.TempDir()
-	location := runLocation{BaseDir: baseDir, ProjectName: "demo", RunID: "run-1"}
-	if err := registerRunLocation(location); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(baseDir, "projects", "demo", "runs", "run-1"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	gotBaseDir, gotProject, err := resolveExistingRunTarget("", "", "run-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if gotBaseDir != baseDir || gotProject != "demo" {
-		t.Fatalf("target = %q, %q; want %q, demo", gotBaseDir, gotProject, baseDir)
-	}
-	if _, _, err := resolveExistingRunTarget(t.TempDir(), "", "run-1"); err == nil {
-		t.Fatal("conflicting basedir was accepted")
-	}
-	if _, _, err := resolveExistingRunTarget("", "other", "run-1"); err == nil {
-		t.Fatal("conflicting project was accepted")
-	}
-}
-
-func TestResolveExistingRunTargetRejectsStaleRegistryEntry(t *testing.T) {
-	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
-	location := runLocation{BaseDir: t.TempDir(), ProjectName: "demo", RunID: "missing-run"}
-	if err := registerRunLocation(location); err != nil {
-		t.Fatal(err)
-	}
-
-	_, _, err := resolveExistingRunTarget("", "", location.RunID)
-	if err == nil || !strings.Contains(err.Error(), "run \"missing-run\" is registered but its run directory is missing") {
-		t.Fatalf("resolveExistingRunTarget() error = %v, want stale registry error", err)
-	}
-}
-
-func TestResolveRunLocationRejectsInvalidRegistryMetadata(t *testing.T) {
-	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
-	if err := registerRunLocation(runLocation{BaseDir: t.TempDir(), ProjectName: "", RunID: "run-1"}); err != nil {
-		t.Fatal(err)
-	}
-	if _, found, err := resolveRunLocation("run-1"); err == nil || found {
-		t.Fatalf("resolveRunLocation() err=%v found=%v, want invalid registry metadata rejection", err, found)
-	}
-}
-
-func TestRunLocationPathRejectsUnsafePathElementRunIDs(t *testing.T) {
-	for _, runID := range []string{"", ".", "..", "nested/run-1", "../outside", "run\\1", "/tmp/outside"} {
-		if _, err := runLocationPath(t.TempDir(), runID); err == nil {
-			t.Fatalf("runLocationPath accepted unsafe run ID %q", runID)
-		}
-	}
-}
-
 func TestMakeRunIDFormat(t *testing.T) {
 	pattern := regexp.MustCompile(`^\d{8}-\d{6}-[0-9a-f]{8}$`)
 	first := makeRunID()
@@ -1204,30 +1147,6 @@ func TestLatestAttemptIDIgnoresOtherRunsAndJobs(t *testing.T) {
 	want := attemptIDs[0]
 	if got != want {
 		t.Fatalf("latest attempt ID = %q, want %q", got, want)
-	}
-}
-
-func TestResolveAttemptTargetUsesRunRegistry(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	runID := makeRunID()
-	if err := os.MkdirAll(filepath.Join(paths.RunsDir, runID), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := registerRun(paths, runID); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = unregisterRun(runID) })
-	attemptID := makeAttemptID(runID, "job-1", 0)
-	gotBaseDir, gotProject, gotRunID, gotJobID, err := resolveAttemptTarget(attemptID, "", "", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if gotBaseDir != baseDir || gotProject != "demo" || gotRunID != runID || gotJobID != "job-1" {
-		t.Fatalf("resolved attempt = %q, %q, %q, %q", gotBaseDir, gotProject, gotRunID, gotJobID)
 	}
 }
 

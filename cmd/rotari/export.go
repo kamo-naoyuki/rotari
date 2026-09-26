@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
 )
@@ -100,7 +101,7 @@ func cmdExport(args []string) int {
 	}
 	selectedRunIDs := []string(nil)
 	if len(positional) == 1 {
-		if cliOptionSet(fs, "project-name") || runIDPattern.MatchString(positional[0]) {
+		if cliOptionSet(fs, "project-name") || resolve.IsRunID(positional[0]) {
 			selectedRunIDs = []string{positional[0]}
 		} else {
 			*projectName = positional[0]
@@ -210,7 +211,7 @@ func loadExportRuns(baseDir, projectName string, requestedRunIDs []string) ([]wo
 			return nil, "", fmt.Errorf("duplicate run ID %q", requested)
 		}
 		seen[requested] = true
-		resolvedBaseDir, resolvedProject, err := resolveExistingRunTarget(baseDir, projectName, requested)
+		resolvedBaseDir, resolvedProject, err := resolve.ExistingRun(baseDir, projectName, requested)
 		if err != nil {
 			return nil, "", err
 		}
@@ -233,7 +234,7 @@ func loadExportRun(baseDir, projectName, requested string) (workflow.SourceRun, 
 	if err != nil {
 		return workflow.SourceRun{}, err
 	}
-	runID, err := selectRunID(paths, requested)
+	runID, err := resolve.RunID(paths, requested)
 	if err != nil {
 		return workflow.SourceRun{}, err
 	}

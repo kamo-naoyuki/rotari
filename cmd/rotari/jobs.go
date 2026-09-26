@@ -247,7 +247,7 @@ func jobsBaseDirs(requested, masterdir string, all bool) ([]string, error) {
 		}
 		return []string{baseDir}, nil
 	}
-	masterDir, err := resolveMasterDir(masterdir)
+	masterDir, err := state.ResolveMasterDir(masterdir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve master directory: %w", err)
 	}
