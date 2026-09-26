@@ -655,7 +655,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 {
                     "description": "also list jobs whose result and definition "
                     "did not change",
-                    "name": "all",
+                    "name": "unchanged",
                 },
             ],
             "name": "diff",
@@ -686,7 +686,7 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {
                     "description": "include all basedirs known to the master registry",
-                    "name": "all",
+                    "name": "all-basedirs",
                 },
                 {
                     "description": "output fields; use %s %b %p %a %n %c %t %f "

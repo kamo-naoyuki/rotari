@@ -7,7 +7,6 @@ Decided on 2026-09-26 after reviewing
 contract and `TestSelectorTable` / `TestPositionalArguments` with each item,
 and remove the item here once it is done.
 
-- Rename `diff --all` to `--unchanged` and `jobs --all` to `--all-basedirs`.
 - `show` gains `--unfinished` and `--success`; `diagnose` gains `--job-name`;
   `run` and `retry` accept a positional `RUN_ID`.
 

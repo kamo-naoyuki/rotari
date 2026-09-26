@@ -43,7 +43,7 @@ const (
 var positionalCases = []positionalCase{
 	// General rules.
 	{name: "option after a positional", args: "copy {run:remote-run} --overwrite", want: "copied jobs=1 from run={run:remote-run} to queue=remote"},
-	{name: "option between positionals", args: "diff {run:sweep-first} --all {run:sweep-second}", want: "train-SEED1"},
+	{name: "option between positionals", args: "diff {run:sweep-first} --unchanged {run:sweep-second}", want: "train-SEED1"},
 	{name: "positional after --", args: "show -b {B} -p sweep -- --job-id", fail: true, want: `selector "--job-id" not found`},
 	{name: "job command after its first word", args: "add -b {B} -p other echo --retry 3", check: queuedCommand("other", "echo --retry 3")},
 	{name: "command without positionals", args: "run -b {B} -p sweep extra", fail: true, want: "usage"},
@@ -110,6 +110,8 @@ var positionalCases = []positionalCase{
 	{name: "two runs", args: "diff {run:sweep-first} {run:sweep-second}", want: "first ({run:sweep-first}) -> second ({run:sweep-second})"},
 	{name: "runs of two projects", args: "diff {run:other-first} {run:sweep-second}", fail: true, want: "runs {run:other-first} and {run:sweep-second} belong to different projects (other and sweep)"},
 	{name: "three runs", args: "diff {run:sweep-first} {run:sweep-second} {run:other-first}", fail: true, want: "usage"},
+	{name: "old --all", args: "diff {run:sweep-second} --all", fail: true, want: "flag provided but not defined: -all"},
+	{name: "old --all", args: "jobs -b {B} --all", fail: true, want: "flag provided but not defined: -all"},
 
 	// export: a run or a project, and a file.
 	{name: "run ID", args: "export {run:sweep-first}", want: "- {run:sweep-first}"},

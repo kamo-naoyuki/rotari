@@ -82,6 +82,10 @@ see [Known deviations](#known-deviations).
 Selector combinations:
 
 - `--job-id` and `--job-name` exclude each other in every command.
+- `--all` means "every job" (`change`, `remove`) or "every run" (`delete`)
+  and nothing else; the options that widen a listing are named for what they
+  add: `diff --unchanged` and `jobs --all-basedirs`. Every `--all` is
+  command-line only.
 - `--stage`, `--matrix`, and `--all` exclude each other and the job
   selectors in `change` and `remove`; `--stage` and `--matrix` exclude job
   selectors in `copy`, `run`, and `retry`, and combine with a result filter.

@@ -9,8 +9,8 @@ Use `jobs` to inspect the current project activity and recent execution history 
 ```sh
 rotari jobs # list running and recently finished jobs across projects; good for a quick status scan
 rotari jobs --since 7d # include finished jobs from the last seven days
-rotari jobs --all # list jobs across basedirs known to the master registry
-rotari jobs --all --format "%s %b %p %a %n %c %t %e" # choose displayed fields
+rotari jobs --all-basedirs # list jobs across basedirs known to the master registry
+rotari jobs --all-basedirs --format "%s %b %p %a %n %c %t %e" # choose displayed fields
 ```
 
 Use `show` to inspect a project's runs and pending queue, or a specific run/job.
@@ -82,7 +82,7 @@ added or removed; jobs whose command, executor, executor options, environment,
 working directory, stage, or dependencies changed; and jobs whose result was
 carried forward instead of re-executed. Jobs are matched by name, or by job ID
 when they have none. Jobs whose result and definition did not change are
-hidden unless `--all` is given; `--json` always lists every job.
+hidden unless `--unchanged` is given; `--json` always lists every job.
 
 ### Check run readiness
 

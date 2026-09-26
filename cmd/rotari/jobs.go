@@ -50,7 +50,7 @@ func cmdJobs(args []string) int {
 	basedir := cliString(fs, "basedir", "")
 	projectName := cliString(fs, "project-name", "")
 	masterdir := cliString(fs, "masterdir", "")
-	allBaseDirs := cliBool(fs, "all", false)
+	allBaseDirs := cliBool(fs, "all-basedirs", false)
 	format := cliString(fs, "format", defaultJobsFormat)
 	since := cliString(fs, "since", defaultJobsSinceText)
 	if err := cliParse(fs, args); err != nil {

@@ -27,7 +27,7 @@ func cmdDiff(args []string) int {
 	basedir := cliString(fs, "basedir", "")
 	projectName := cliString(fs, "project-name", "")
 	jsonOutput := cliBool(fs, "json", false)
-	showAll := cliBool(fs, "all", false)
+	showAll := cliBool(fs, "unchanged", false)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -246,7 +246,7 @@ func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result rundiff.Res
 		}
 	}
 	if hidden := len(result.Jobs) - len(shown); hidden > 0 {
-		fmt.Fprintf(writer, "\n%d unchanged job(s) hidden; use --all to list them.\n", hidden)
+		fmt.Fprintf(writer, "\n%d unchanged job(s) hidden; use --unchanged to list them.\n", hidden)
 	}
 	wroteHeader := false
 	for _, job := range shown {
