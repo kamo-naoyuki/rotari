@@ -17,8 +17,7 @@ Representative implementation and tests:
   The request handlers live in
   [internal/queueops/add.go](../../internal/queueops/add.go),
   [cmd/rotari/run_command.go](../../cmd/rotari/run_command.go), and
-  [cmd/rotari/job_control.go](../../cmd/rotari/job_control.go), which delegates
-  to [internal/jobcontrol](../../internal/jobcontrol/jobcontrol.go).
+  [internal/jobcontrol](../../internal/jobcontrol/jobcontrol.go).
 - [cmd/rotari/show.go](../../cmd/rotari/show.go) and
   [cmd/rotari/show_test.go](../../cmd/rotari/show_test.go) for CLI projections.
 - [cmd/rotari/wait.go](../../cmd/rotari/wait.go) and

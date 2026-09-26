@@ -79,7 +79,7 @@ func TestJobControlSelectors(t *testing.T) {
 			fixture := newSelectorFixture(t)
 			live := fixture.startLiveRun(t)
 			if tc.suspended {
-				if _, err := controlQueueJobs(fixture.BaseDir, "sweep", "", nil, "suspend"); err != nil {
+				if _, err := jobController().Control(fixture.BaseDir, "sweep", "", nil, "suspend"); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -135,8 +135,8 @@ func (fixture selectorFixture) startLiveRun(t *testing.T) liveRun {
 		_, _ = runner.Run(paths, projectrun.Options{RunID: runID, RunName: "live", LocalConcurrency: 4, BatchMaxActive: 1, PartialArray: true}, projectrun.Observer{})
 	}()
 	t.Cleanup(func() {
-		_, _ = controlQueueJobs(fixture.BaseDir, "sweep", runID, nil, "resume")
-		_, _ = cancelQueueJobs(fixture.BaseDir, "sweep", runID, nil, false)
+		_, _ = jobController().Control(fixture.BaseDir, "sweep", runID, nil, "resume")
+		_, _ = jobController().Cancel(fixture.BaseDir, "sweep", runID, nil, false)
 		select {
 		case <-done:
 		case <-time.After(10 * time.Second):

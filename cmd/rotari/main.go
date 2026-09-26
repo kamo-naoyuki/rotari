@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	"github.com/kamo-naoyuki/rotari/internal/queueops"
@@ -414,6 +415,10 @@ func nowRFC3339Nano() string {
 
 func jsonStore() state.Store {
 	return state.NewStore(state.DirectoryMode(), state.FileMode())
+}
+
+func jobController() jobcontrol.Controller {
+	return jobcontrol.Controller{Store: jsonStore(), Executors: executorRegistry}
 }
 
 func queueEditor() queueops.Editor {

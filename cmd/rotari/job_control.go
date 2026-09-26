@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 // cmdCancel cancels the active run or selected running jobs through the
@@ -95,33 +93,4 @@ func cmdJobSignal(args []string, operation string) int {
 	}
 	fmt.Println(response.Message)
 	return 0
-}
-
-func jobController() jobcontrol.Controller {
-	return jobcontrol.Controller{Store: jsonStore(), Executors: executorRegistry}
-}
-
-func cancelQueue(baseDir, queueName string, wait bool) (string, error) {
-	return cancelQueueJobs(baseDir, queueName, "", nil, wait)
-}
-
-// cancelQueueJobs cancels jobIDs, or the whole run when empty, in the active
-// run of queueName, which must be runID when runID is not empty.
-func cancelQueueJobs(baseDir, queueName, runID string, jobIDs []string, wait bool) (string, error) {
-	paths, err := state.ResolveProjectPaths(baseDir, queueName)
-	if err != nil {
-		return "", err
-	}
-	return jobController().Cancel(paths, queueName, runID, jobIDs, wait)
-}
-
-// controlQueueJobs suspends or resumes jobIDs, or every running job when
-// empty, in the active run of queueName, which must be runID when runID is
-// not empty.
-func controlQueueJobs(baseDir, queueName, runID string, jobIDs []string, operation string) (string, error) {
-	paths, err := state.ResolveProjectPaths(baseDir, queueName)
-	if err != nil {
-		return "", err
-	}
-	return jobController().Control(paths, queueName, runID, jobIDs, operation)
 }

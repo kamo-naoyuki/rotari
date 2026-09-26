@@ -628,7 +628,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("project_name, run_id and job_id are required"))
 			return
 		}
-		message, err := cancelQueueJobs(baseDir, cancel.QueueName, cancel.RunID, []string{cancel.JobID}, false)
+		message, err := jobController().Cancel(baseDir, cancel.QueueName, cancel.RunID, []string{cancel.JobID}, false)
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -653,7 +653,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("project_name, run_id and job_id are required"))
 			return
 		}
-		message, err := controlQueueJobs(baseDir, control.QueueName, control.RunID, []string{control.JobID}, "suspend")
+		message, err := jobController().Control(baseDir, control.QueueName, control.RunID, []string{control.JobID}, "suspend")
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -678,7 +678,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("project_name, run_id and job_id are required"))
 			return
 		}
-		message, err := controlQueueJobs(baseDir, control.QueueName, control.RunID, []string{control.JobID}, "resume")
+		message, err := jobController().Control(baseDir, control.QueueName, control.RunID, []string{control.JobID}, "resume")
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -703,7 +703,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("project_name and run_id are required"))
 			return
 		}
-		message, err := cancelQueueJobs(baseDir, cancel.QueueName, cancel.RunID, nil, false)
+		message, err := jobController().Cancel(baseDir, cancel.QueueName, cancel.RunID, nil, false)
 		if err != nil {
 			writeWebError(writer, err)
 			return

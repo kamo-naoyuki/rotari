@@ -111,14 +111,11 @@ func TestCancelJobsCancelsOwnedAndMarksUnsubmittedJobs(t *testing.T) {
 
 func TestControlRejectsUnsupportedOperationAndIdleProject(t *testing.T) {
 	controller, _ := testController()
-	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := controller.Control(paths, "demo", "", nil, "pause"); err == nil || err.Error() != "unsupported job operation: pause" {
+	baseDir := t.TempDir()
+	if _, err := controller.Control(baseDir, "demo", "", nil, "pause"); err == nil || err.Error() != "unsupported job operation: pause" {
 		t.Fatalf("pause error = %v", err)
 	}
-	if _, err := controller.Control(paths, "demo", "", nil, "suspend"); err == nil || err.Error() != `project "demo" is not running` {
+	if _, err := controller.Control(baseDir, "demo", "", nil, "suspend"); err == nil || err.Error() != `project "demo" is not running` {
 		t.Fatalf("idle project error = %v", err)
 	}
 }

@@ -29,10 +29,15 @@ type Controller struct {
 }
 
 // Control suspends or resumes, as named by operation, the selected running
-// jobs of project, or every running job when jobIDs is empty. A non-empty
-// runID must be the project's active run. Attempt IDs must name the latest
-// attempt of a running job, and an array job's ID selects its running tasks.
-func (controller Controller) Control(paths state.ProjectPaths, project, runID string, jobIDs []string, operation string) (string, error) {
+// jobs of project in baseDir, or every running job when jobIDs is empty. A
+// non-empty runID must be the project's active run. Attempt IDs must name the
+// latest attempt of a running job, and an array job's ID selects its running
+// tasks.
+func (controller Controller) Control(baseDir, project, runID string, jobIDs []string, operation string) (string, error) {
+	paths, err := state.ResolveProjectPaths(baseDir, project)
+	if err != nil {
+		return "", err
+	}
 	if operation != "suspend" && operation != "resume" {
 		return "", fmt.Errorf("unsupported job operation: %s", operation)
 	}
@@ -111,13 +116,17 @@ func (controller Controller) Control(paths state.ProjectPaths, project, runID st
 	return fmt.Sprintf("%s requested\n  Project: %s\n  Run: %s\n  Jobs: %d", strings.ToUpper(operation[:1])+operation[1:], project, lock.RunID, controlled), nil
 }
 
-// Cancel cancels the selected running jobs of project, or its whole run when
-// jobIDs is empty. A non-empty runID must be the project's active run, and an
+// Cancel cancels the selected running jobs of project in baseDir, or its
+// whole run when jobIDs is empty. A non-empty runID must be the project's active run, and an
 // array job's ID selects its unfinished tasks. A whole-run cancel marks the
 // queue as cancelling; when this process is the runner it cancels each
 // unfinished job directly, and otherwise it signals the runner's process
 // group. With wait, it returns once the run lock is released.
-func (controller Controller) Cancel(paths state.ProjectPaths, project, runID string, jobIDs []string, wait bool) (string, error) {
+func (controller Controller) Cancel(baseDir, project, runID string, jobIDs []string, wait bool) (string, error) {
+	paths, err := state.ResolveProjectPaths(baseDir, project)
+	if err != nil {
+		return "", err
+	}
 	lock, err := activeLock(paths, project, runID)
 	if err != nil {
 		return "", err

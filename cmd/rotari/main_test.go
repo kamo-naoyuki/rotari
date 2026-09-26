@@ -2774,7 +2774,7 @@ func TestControlQueueJobsSuspendsAndResumesSelectedLocalJob(t *testing.T) {
 	}
 	waitForFileSize(t, outputPath, 1)
 
-	if _, err := controlQueueJobs(baseDir, "default", "", []string{"job-1"}, "suspend"); err != nil {
+	if _, err := jobController().Control(baseDir, "default", "", []string{"job-1"}, "suspend"); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(outputPath)
@@ -2790,7 +2790,7 @@ func TestControlQueueJobsSuspendsAndResumesSelectedLocalJob(t *testing.T) {
 	if len(data) != suspendedSize {
 		t.Fatalf("suspended process continued writing: size changed from %d to %d", suspendedSize, len(data))
 	}
-	if _, err := controlQueueJobs(baseDir, "default", "", []string{"job-1"}, "resume"); err != nil {
+	if _, err := jobController().Control(baseDir, "default", "", []string{"job-1"}, "resume"); err != nil {
 		t.Fatal(err)
 	}
 	waitForFileSize(t, outputPath, suspendedSize+1)
@@ -2816,7 +2816,7 @@ func TestControlQueueJobsReportsHostMismatchForLocalJob(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(jobDir, "pid"), fmt.Appendf(nil, "%d\n", os.Getpid()), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, err = controlQueueJobs(baseDir, "default", "", []string{"job-1"}, "suspend")
+	_, err = jobController().Control(baseDir, "default", "", []string{"job-1"}, "suspend")
 	if err == nil {
 		t.Fatal("suspend across hosts unexpectedly succeeded")
 	}
@@ -2845,7 +2845,7 @@ func TestCancelQueueRejectsWholeRunFromWrongHost(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(paths.RunsDir, "run-1"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	_, err = cancelQueue(baseDir, "default", false)
+	_, err = jobController().Cancel(baseDir, "default", "", nil, false)
 	if err == nil {
 		t.Fatal("cancel of a whole run on another host unexpectedly succeeded")
 	}
@@ -2906,7 +2906,7 @@ func TestControlQueueJobsControlsAllRunningJobsAndSkipsFinishedJobs(t *testing.T
 		}
 	})
 
-	message, err := controlQueueJobs(baseDir, "default", "", nil, "suspend")
+	message, err := jobController().Control(baseDir, "default", "", nil, "suspend")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2916,11 +2916,11 @@ func TestControlQueueJobsControlsAllRunningJobsAndSkipsFinishedJobs(t *testing.T
 }
 
 func TestControlQueueJobsRejectsInvalidOrUnavailableRequests(t *testing.T) {
-	if _, err := controlQueueJobs(t.TempDir(), "default", "", nil, "pause"); err == nil {
+	if _, err := jobController().Control(t.TempDir(), "default", "", nil, "pause"); err == nil {
 		t.Fatal("unsupported operation succeeded")
 	}
 	baseDir := t.TempDir()
-	if _, err := controlQueueJobs(baseDir, "default", "", nil, "suspend"); err == nil {
+	if _, err := jobController().Control(baseDir, "default", "", nil, "suspend"); err == nil {
 		t.Fatal("suspend without a running queue succeeded")
 	}
 }
