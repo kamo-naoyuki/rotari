@@ -12,6 +12,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -76,6 +77,16 @@ func cmdJobs(args []string) int {
 	if err != nil {
 		printError(err)
 		return 1
+	}
+	if *projectName != "" {
+		found := false
+		for _, baseDir := range baseDirs {
+			found = found || resolve.ProjectExists(baseDir, *projectName)
+		}
+		if !found {
+			printErrorf("project %q does not exist in the listed state directories", *projectName)
+			return 1
+		}
 	}
 	rows, err := collectJobsAcrossBaseDirs(baseDirs, *projectName, time.Now(), window)
 	if err != nil {

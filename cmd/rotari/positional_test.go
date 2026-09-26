@@ -131,6 +131,23 @@ var positionalCases = []positionalCase{
 	{name: "reserved run name", args: "run -b {B} -p sweep --run-name latest", fail: true, want: `run name "latest" is reserved`},
 	{name: "reserved rename", args: "change -b {B} -p sweep --job-name prep --set-job-name latest", setup: setupQueued, fail: true, want: `job name "latest" is reserved`},
 
+	// A project that does not exist, for commands that read or edit one.
+	{name: "project that does not exist", args: "show -b {B} -p nope", fail: true, want: `project "nope" does not exist`},
+	{name: "project that does not exist", args: "check -b {B} nope", fail: true, want: `project "nope" does not exist`},
+	{name: "project that does not exist", args: "reset -b {B} nope", fail: true, want: `project "nope" does not exist`},
+	{name: "project that does not exist", args: "unlock -b {B} nope", fail: true, want: `project "nope" does not exist`},
+	{name: "project that does not exist", args: "copy -b {B} -p nope", fail: true, want: `project "nope" does not exist`},
+	{name: "project that does not exist", args: "change -b {B} -p nope --all --timeout 1m", fail: true, want: `project "nope" does not exist`},
+	{name: "project that does not exist", args: "remove -b {B} -p nope --all", fail: true, want: `project "nope" does not exist`},
+	{name: "project that does not exist", args: "delete -b {B} -p nope --all", fail: true, want: `project "nope" does not exist`},
+	{name: "project that does not exist", args: "run -b {B} -p nope", fail: true, want: `project "nope" does not exist`},
+	{name: "project that does not exist", args: "diff -b {B} -p nope", fail: true, want: `project "nope" does not exist`},
+	{name: "project that does not exist", args: "export -b {B} nope", fail: true, want: `project "nope" does not exist`},
+	{name: "project that does not exist", args: "wait -b {B} -p nope --run-id latest", fail: true, want: `project "nope" does not exist`},
+	{name: "project that does not exist", args: "show -b {B} -p nope --job-name prep", fail: true, want: `project "nope" does not exist`},
+	{name: "project that does not exist", args: "jobs -b {B} nope", fail: true, want: `project "nope" does not exist`},
+	{name: "new project", args: "add -b {B} -p fresh true", check: queueLength("fresh", 1)},
+
 	// run takes no positionals, not even config.
 	{name: "no config alias", args: "run config", fail: true, want: "usage"},
 }

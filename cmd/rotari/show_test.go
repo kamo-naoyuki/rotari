@@ -363,7 +363,11 @@ func TestCmdShowDisplaysCurrentQueue(t *testing.T) {
 
 func TestCmdShowWarnsAndSucceedsWhenProjectHasNoRunsOrQueue(t *testing.T) {
 	baseDir := t.TempDir()
-	if _, err := state.ResolveProjectPaths(baseDir, "demo"); err != nil {
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 

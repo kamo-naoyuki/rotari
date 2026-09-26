@@ -193,6 +193,9 @@ func exportCurrentQueue(baseDir, projectName string) (workflow.Manifest, error) 
 	if err != nil {
 		return workflow.Manifest{}, err
 	}
+	if err := resolve.RequireProject(resolvedBaseDir, resolvedProject); err != nil {
+		return workflow.Manifest{}, err
+	}
 	paths, err := state.ResolveProjectPaths(resolvedBaseDir, resolvedProject)
 	if err != nil {
 		return workflow.Manifest{}, err

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -39,6 +40,10 @@ func cmdUnlock(args []string) int {
 	}
 	queueName, err := state.ResolveProjectName(baseDir, *queueNameOption)
 	if err != nil {
+		printError(err)
+		return 1
+	}
+	if err := resolve.RequireProject(baseDir, queueName); err != nil {
 		printError(err)
 		return 1
 	}

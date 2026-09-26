@@ -25,6 +25,9 @@ func registerRunLocation(location runLocation) error {
 func TestJobSelectionPassesThroughPlainJobIDs(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(baseDir, "projects", "demo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	gotBaseDir, gotProject, gotJobIDs, err := JobSelection(baseDir, "demo", []string{"job-1", "job-2"})
 	if err != nil {

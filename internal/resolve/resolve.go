@@ -160,6 +160,9 @@ func ExistingRun(cliBaseDir, cliProjectName, runID string) (string, string, erro
 	if err != nil {
 		return "", "", err
 	}
+	if err := RequireProject(baseDir, projectName); err != nil {
+		return "", "", err
+	}
 	return baseDir, projectName, nil
 }
 
@@ -260,12 +263,24 @@ func ProjectExists(baseDir, name string) bool {
 	return err == nil && info.IsDir()
 }
 
+// RequireProject reports a project that does not exist, for commands that
+// read or edit a project rather than create one.
+func RequireProject(baseDir, projectName string) error {
+	if !ProjectExists(baseDir, projectName) {
+		return fmt.Errorf("project %q does not exist in state directory %q", projectName, baseDir)
+	}
+	return nil
+}
+
 // ProjectNames lists the projects a search covers: the explicitly chosen
-// project, or every project in baseDir, sorted.
+// project, which must exist, or every project in baseDir, sorted.
 func ProjectNames(baseDir, cliProjectName string) ([]string, error) {
 	if state.ProjectNameGiven(cliProjectName) {
 		projectName, err := state.ResolveProjectName(baseDir, cliProjectName)
 		if err != nil {
+			return nil, err
+		}
+		if err := RequireProject(baseDir, projectName); err != nil {
 			return nil, err
 		}
 		return []string{projectName}, nil

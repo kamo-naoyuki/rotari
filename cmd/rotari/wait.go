@@ -136,6 +136,9 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]resolve.Run,
 		if err != nil {
 			return nil, err
 		}
+		if err := resolve.RequireProject(baseDir, projectName); err != nil {
+			return nil, err
+		}
 		return []resolve.Run{{BaseDir: baseDir, ProjectName: projectName, RunID: runID}}, nil
 	}
 	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
@@ -182,6 +185,9 @@ func resolveActiveRunTarget(cliBaseDir, cliProjectName string) (string, error) {
 	}
 	queueName, err := state.ResolveProjectName(baseDir, cliProjectName)
 	if err != nil {
+		return "", err
+	}
+	if err := resolve.RequireProject(baseDir, queueName); err != nil {
 		return "", err
 	}
 	paths, err := state.ResolveProjectPaths(baseDir, queueName)

@@ -10,6 +10,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -39,6 +40,10 @@ func cmdReset(args []string) int {
 	}
 	queueName, err := state.ResolveProjectName(baseDir, *queueNameOption)
 	if err != nil {
+		printError(err)
+		return 1
+	}
+	if err := resolve.RequireProject(baseDir, queueName); err != nil {
 		printError(err)
 		return 1
 	}

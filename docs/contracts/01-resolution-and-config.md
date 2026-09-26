@@ -38,6 +38,11 @@ Without a run-location lookup, base directories resolve in this order:
   only project in the resolved base directory. With no projects the name is
   `default`; multiple projects require an explicit choice. The bare `show`
   command lists projects across known basedirs instead of resolving one.
+- Commands that read or edit a project fail with `project "x" does not exist`
+  when the resolved project has no directory (`resolve.RequireProject`, applied
+  by `resolve.ExistingRun`, `resolve.ProjectNames`, and the commands that
+  resolve a project directly). Only commands that create projects, `add` and
+  `import`, accept a new one.
 - `check` and `reset` accept one optional positional project name as an
   alternative to `--project-name`; supplying both is a usage error.
 - `jobs` also accepts one optional positional project name to filter the
