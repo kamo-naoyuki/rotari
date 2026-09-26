@@ -118,6 +118,18 @@
   [copy rules](../../internal/queueedit/copy.go),
   [copy unit tests](../../internal/queueedit/copy_test.go), and
   [partial stage copy tests](../../internal/queueops/copy_test.go).
+- A filtered run carries or re-executes jobs by their origin's result; a job
+  without an origin uses the reference run's result instead. The reference
+  run is `--run-id` when given, otherwise the project's last run, and it is
+  resolved once, before `Begin` records the new run as the last one:
+  `projectrun.ReferenceRun`, called from the supervisor's `prepareRun`
+  ([internal/supervisor/run.go](../../internal/supervisor/run.go)).
+  `run.PlanRerun` never reads the last run itself; a job that needs a
+  reference run it was not given fails planning with `ErrNoReferenceRun`. See
+  `TestPrepareRunResolvesReferenceRunBeforeBegin`
+  ([internal/supervisor/supervisor_test.go](../../internal/supervisor/supervisor_test.go))
+  and `TestPlanRerunFallsBackToReferenceRun`
+  ([internal/run/plan_test.go](../../internal/run/plan_test.go)).
 - `run`/`retry` default to `--partial-array=true`. For a filtered rerun,
   `run.PlanRerun` evaluates each array task's own result against the
   selection instead of the aggregate, so only the
@@ -136,8 +148,7 @@
   and manual-acceptance dispositions into the queue, and leaves execution to
   the normal run path. Unchanged successes carry forward; failed, unfinished,
   changed, and downstream jobs execute. Imported jobs without an origin are
-  planned as new work and never consult the project's last run, which the run
-  server has already replaced with the run being planned. Matrix combinations and array tasks
+  planned as new work and never fall back to a reference run. Matrix combinations and array tasks
   retain independent dispositions. A leaf without its own manifest attempt is
   recovered from the listed source run that supplied its command (the same
   latest-run rule as export), and a result carried into that run resolves to

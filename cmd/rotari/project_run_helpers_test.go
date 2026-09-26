@@ -12,8 +12,14 @@ import (
 var errNoPreviousRun = projectrun.ErrNoPreviousRun
 
 // executeMixedRun executes the project's queue as run runID without the
-// surrounding Begin and Finish steps.
+// surrounding Begin and Finish steps, resolving the reference run as the
+// supervisor does.
 func executeMixedRun(paths state.ProjectPaths, runID, runName string, localConcurrency, batchMaxActive, retry int, requestedExecutor string, executorOptions []string, selection string, jobIDs []string, referenceRunID string, partialArray bool, progress func(model.JobResult, int, int, int, int), onStart func(model.JobSpec), settings ...executor.RunSettingsMap) int {
+	referenceRunID, err := projectrun.ReferenceRun(paths, selection, referenceRunID)
+	if err != nil {
+		printError(err)
+		return 1
+	}
 	options := projectrun.Options{
 		RunID: runID, RunName: runName, LocalConcurrency: localConcurrency, BatchMaxActive: batchMaxActive, Retry: retry,
 		Executor: requestedExecutor, ExecutorOptions: executorOptions,

@@ -23,6 +23,7 @@ func (ops Operations) StartRun(request server.Request, onDone func()) (string, e
 		return "", err
 	}
 	defer prepared.release()
+	request.SourceRunID = prepared.sourceRunID
 	paths := prepared.paths
 	runID := ops.NewRunID()
 	options := runRequestOptions(request, runID)
@@ -45,6 +46,7 @@ func (ops Operations) Run(request server.Request, progress func(server.Response)
 	if err != nil {
 		return "", 1, err
 	}
+	request.SourceRunID = prepared.sourceRunID
 	paths, queue := prepared.paths, prepared.queue
 	runner := ops.Runner
 	runID := ops.NewRunID()
@@ -87,7 +89,10 @@ type preparedRun struct {
 	paths    state.ProjectPaths
 	queue    model.Queue
 	executor string
-	release  func()
+	// sourceRunID is the request's reference run, resolved before the new
+	// run is recorded; see projectrun.ReferenceRun.
+	sourceRunID string
+	release     func()
 }
 
 // prepareRun validates a run request and takes the project's state lock. On
@@ -132,7 +137,12 @@ func (ops Operations) prepareRun(request server.Request) (preparedRun, error) {
 			return preparedRun{}, err
 		}
 	}
-	return preparedRun{paths: paths, queue: queue, executor: resolvedExecutor, release: release}, nil
+	sourceRunID, err := projectrun.ReferenceRun(paths, request.Selection, request.SourceRunID)
+	if err != nil {
+		release()
+		return preparedRun{}, err
+	}
+	return preparedRun{paths: paths, queue: queue, executor: resolvedExecutor, sourceRunID: sourceRunID, release: release}, nil
 }
 
 // resolveQueueExecutor returns the run's default executor, requested or the

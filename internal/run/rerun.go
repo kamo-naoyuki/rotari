@@ -1,18 +1,20 @@
 package run
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
+// ErrNoReferenceRun reports that a command without an origin needs a
+// reference run's result, but none was given.
+var ErrNoReferenceRun = errors.New("no previous run")
+
 // OriginResults reads the source results that queued commands' origins name.
 // Implementations own the filesystem access and error wording for loading.
 type OriginResults interface {
-	// LastRunID returns the run that commands without an origin fall back to.
-	// It reports an error when the project has no previous run.
-	LastRunID() (string, error)
 	// RunResults returns a run's summary results by job ID.
 	RunResults(runID string) (map[string]model.JobResult, error)
 	// AttemptResult returns the result recorded by the attempt named by
@@ -30,8 +32,10 @@ type OriginResults interface {
 // matching jobs execute; a job that does not match but has a finished result
 // carries that result forward (Origin recorded, no re-execution), and one
 // without a result is left untouched. Each command's result comes from its
-// origin; a command without one falls back to referenceRunID, or to the
-// project's last run when referenceRunID is empty.
+// origin; a command without one falls back to referenceRunID, and planning
+// fails with ErrNoReferenceRun when that is empty. Callers resolve the
+// reference run before the new run is recorded, so it is never the run being
+// planned.
 //
 // When partialArray is true, array jobs are evaluated per task, so only
 // matching tasks execute and the rest carry their own results. When false,
@@ -71,9 +75,8 @@ func PlanRerun(queue model.Queue, selection string, jobIDs []string, scope model
 }
 
 func planImportedWorkflow(queue model.Queue, source OriginResults) (Plan, error) {
-	// Imported jobs without an origin are new work. They must not fall back to
-	// the project's last run, which the run server has already replaced with
-	// the run being planned.
+	// Imported jobs without an origin are new work, with no earlier result
+	// to fall back to.
 	withOrigin := model.Queue{Commands: make([]model.QueuedCommand, 0, len(queue.Commands))}
 	var fresh []model.QueuedCommand
 	for _, command := range queue.Commands {
@@ -235,7 +238,7 @@ func anyName(candidates []string, names map[string]bool) bool {
 }
 
 // originResolver looks up the result each queued job's origin names, caching
-// run summaries and resolving the fallback run on first use.
+// run summaries.
 type originResolver struct {
 	source        OriginResults
 	fallbackRunID string
@@ -245,11 +248,7 @@ type originResolver struct {
 func (resolver *originResolver) result(origin *model.JobOrigin, fallbackJobID string) (model.JobResult, bool, error) {
 	if origin == nil || origin.RunID == "" || origin.JobID == "" {
 		if resolver.fallbackRunID == "" {
-			runID, err := resolver.source.LastRunID()
-			if err != nil {
-				return model.JobResult{}, false, err
-			}
-			resolver.fallbackRunID = runID
+			return model.JobResult{}, false, ErrNoReferenceRun
 		}
 		origin = &model.JobOrigin{RunID: resolver.fallbackRunID, JobID: fallbackJobID}
 	}

@@ -8,17 +8,9 @@ import (
 )
 
 type fakeOriginResults struct {
-	lastRunID string
-	runs      map[string]map[string]model.JobResult
-	attempts  map[string]model.JobResult
-	loads     int
-}
-
-func (source *fakeOriginResults) LastRunID() (string, error) {
-	if source.lastRunID == "" {
-		return "", errors.New("no previous run")
-	}
-	return source.lastRunID, nil
+	runs     map[string]map[string]model.JobResult
+	attempts map[string]model.JobResult
+	loads    int
 }
 
 func (source *fakeOriginResults) RunResults(runID string) (map[string]model.JobResult, error) {
@@ -81,18 +73,21 @@ func TestPlanRerunCarriesFinishedResultsFromReferenceRun(t *testing.T) {
 	}
 }
 
-func TestPlanRerunFallsBackToLastRun(t *testing.T) {
+func TestPlanRerunFallsBackToReferenceRun(t *testing.T) {
 	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "done"}}}
-	source := &fakeOriginResults{lastRunID: "latest", runs: map[string]map[string]model.JobResult{"latest": {"done": {ID: "done", ExitCode: 0}}}}
-	plan, err := PlanRerun(queue, "failed", nil, model.CommandSelector{}, "", true, source)
+	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"latest": {"done": {ID: "done", ExitCode: 0}}}}
+	plan, err := PlanRerun(queue, "failed", nil, model.CommandSelector{}, "latest", true, source)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if plan.CarriedOrigins["done"].RunID != "latest" {
 		t.Fatalf("origin = %#v, want latest run", plan.CarriedOrigins["done"])
 	}
-	if _, err := PlanRerun(queue, "failed", nil, model.CommandSelector{}, "", true, &fakeOriginResults{}); err == nil || err.Error() != "no previous run" {
-		t.Fatalf("error = %v, want LastRunID error", err)
+	// Without a reference run, a job without an origin has nothing to fall
+	// back to; planning must not look up the last run, which may already be
+	// the run being planned.
+	if _, err := PlanRerun(queue, "failed", nil, model.CommandSelector{}, "", true, source); !errors.Is(err, ErrNoReferenceRun) {
+		t.Fatalf("error = %v, want ErrNoReferenceRun", err)
 	}
 }
 

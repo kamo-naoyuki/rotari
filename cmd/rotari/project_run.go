@@ -38,9 +38,14 @@ func projectRunner() projectrun.Runner {
 	}
 }
 
-// planRerunSelection decides which of the queue's jobs a run executes; see
-// projectrun.Runner.PlanSelection.
+// planRerunSelection decides which of the queue's jobs a run executes, as a
+// run request planned before its run is recorded would; see
+// projectrun.ReferenceRun and projectrun.Runner.PlanSelection.
 func planRerunSelection(paths state.ProjectPaths, queue model.Queue, selection string, jobIDs []string, referenceRunID string, partialArray bool) (runcontract.Plan, error) {
+	referenceRunID, err := projectrun.ReferenceRun(paths, selection, referenceRunID)
+	if err != nil {
+		return runcontract.Plan{}, err
+	}
 	return projectRunner().PlanSelection(paths, queue, selection, jobIDs, model.CommandSelector{}, referenceRunID, partialArray)
 }
 

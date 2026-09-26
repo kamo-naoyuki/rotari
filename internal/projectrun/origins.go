@@ -14,32 +14,41 @@ import (
 
 // ErrNoPreviousRun reports that a selection needs the project's last run but
 // the project has none.
-var ErrNoPreviousRun = errors.New("no previous run")
+var ErrNoPreviousRun = run.ErrNoReferenceRun
 
 // PlanSelection decides which of the queue's jobs a run executes, reading
-// earlier results from the project's runs; see run.PlanRerun.
+// earlier results from the project's runs; see run.PlanRerun. referenceRunID
+// comes from ReferenceRun.
 func (runner Runner) PlanSelection(paths state.ProjectPaths, queue model.Queue, selection string, jobIDs []string, scope model.CommandSelector, referenceRunID string, partialArray bool) (run.Plan, error) {
-	return run.PlanRerun(queue, selection, jobIDs, scope, referenceRunID, partialArray, originResults{paths: paths, store: runner.Store})
+	plan, err := run.PlanRerun(queue, selection, jobIDs, scope, referenceRunID, partialArray, originResults{paths: paths, store: runner.Store})
+	if errors.Is(err, ErrNoPreviousRun) {
+		return run.Plan{}, fmt.Errorf("project '%s' has no previous run: %w", paths.ProjectName, err)
+	}
+	return plan, err
+}
+
+// ReferenceRun returns the run whose results a selection falls back to for
+// jobs without an origin: requested when given, otherwise the project's last
+// run. It is empty without a selection or a previous run. Call it before
+// Begin, which makes the new run the last one.
+func ReferenceRun(paths state.ProjectPaths, selection, requested string) (string, error) {
+	if requested != "" || selection == "" {
+		return requested, nil
+	}
+	meta, err := state.LoadMeta(paths.MetaFile)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to load metadata: %w", err)
+	}
+	return meta.LastRunID, nil
 }
 
 // originResults reads origin results from a project's runs.
 type originResults struct {
 	paths state.ProjectPaths
 	store state.Store
-}
-
-func (source originResults) LastRunID() (string, error) {
-	meta, err := state.LoadMeta(source.paths.MetaFile)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("project '%s' has no previous run: %w", source.paths.ProjectName, ErrNoPreviousRun)
-		}
-		return "", fmt.Errorf("failed to load metadata: %w", err)
-	}
-	if meta.LastRunID == "" {
-		return "", fmt.Errorf("project '%s' has no previous run: %w", source.paths.ProjectName, ErrNoPreviousRun)
-	}
-	return meta.LastRunID, nil
 }
 
 func (source originResults) RunResults(runID string) (map[string]model.JobResult, error) {
