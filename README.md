@@ -31,17 +31,19 @@ Rotari is an **execution manager for researchers who run batches of experiments*
 
 Rotari deliberately stays out of the way. **You don't need a separate workflow language:** write the commands as you normally would in a shell script, and rotari provides the execution, parallelism, logs, status, and run history around them. When a queue needs to be reproduced or edited as a unit, rotari can also export and import a constrained YAML, TOML, or JSON manifest; commands remain argument arrays rather than a new scripting language.
 
-Workflow systems are usually a good fit once a pipeline has settled. Rotari is for the stage before that, while you are still finding out which commands and settings work.
+### Choosing a tool
 
-* [**Snakemake**](https://github.com/snakemake/snakemake) is built around rules, inputs, outputs, and dependencies. It fits when the structure of the pipeline is known and worth formalizing. **Rotari fits while that structure is still changing, and the shell script you already have is the workflow.**
+Rotari covers a narrow need, and the tools below are strong in their own situations. Pick the one that matches yours; often it will not be rotari.
 
-* [**Nextflow**](https://github.com/nextflow-io/nextflow) provides a DSL for describing processes, dataflow, and workflows. It fits pipelines that are shared, reproduced, and run at scale. **Rotari fits experiments you are still changing: failed commands are fixed and rerun directly, without first translating them into a dataflow language.**
+* [**Dagu**](https://dagu.sh/) is a capable single-binary workflow engine with file-based state, a Web UI, cron scheduling, event triggers, containers, remote and distributed workers, and AI agent steps. **If you want a lightweight workflow engine and are happy to describe workflows in YAML, Dagu is likely a better choice than rotari.**
 
-* [**Airflow**](https://github.com/apache/airflow), [**Prefect**](https://github.com/PrefectHQ/prefect), and [**Dagster**](https://github.com/dagster-io/dagster) orchestrate workflows expressed as programs, typically production pipelines that run on a schedule and need monitoring. **Rotari fits batches you start by hand, check, fix, and run again.**
+* [**Snakemake**](https://github.com/snakemake/snakemake) is built around rules, inputs, outputs, and dependencies, reruns only what is out of date, and runs on clusters as well. **Use it when your pipeline is driven by files and its structure is worth formalizing.**
 
-* [**Dagu**](https://dagu.sh/) is a single-binary workflow engine with file-based state, a Web UI, scheduling, and event triggers. It fits workflows you define once in YAML and then operate. **Rotari fits the stage before that: a batch you are still changing, where failed jobs are fixed one by one and rerun while the history of what already worked is kept.**
+* [**Nextflow**](https://github.com/nextflow-io/nextflow) provides a DSL for processes and dataflow, with strong support for containers, clusters, and cloud. **Use it for pipelines that are shared, reproduced, and run at scale.**
 
-The goal is not to replace shell scripts or these workflow systems. **It is to make the trial-and-error loop around the commands you already use manageable, and let the commands remain the workflow.**
+* [**Airflow**](https://github.com/apache/airflow), [**Prefect**](https://github.com/PrefectHQ/prefect), and [**Dagster**](https://github.com/dagster-io/dagster) orchestrate workflows expressed as programs. **Use them for production pipelines that run on a schedule and need monitoring.**
+
+**Rotari is for the stage before a workflow settles:** you are running a batch of experiment commands by hand, on a workstation or a shared Slurm, PBS, or LSF cluster, finding out which commands and settings work, fixing the jobs that failed, and running the batch again. If that loop is where your time goes, rotari keeps it manageable and lets the commands remain the workflow. Once the pipeline stabilizes, moving it to one of the tools above is a natural next step.
 
 ## Installation
 
