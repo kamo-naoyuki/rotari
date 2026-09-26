@@ -43,6 +43,8 @@ Rotari covers a narrow need, and the tools below are strong in their own situati
 
 * [**Airflow**](https://github.com/apache/airflow), [**Prefect**](https://github.com/PrefectHQ/prefect), and [**Dagster**](https://github.com/dagster-io/dagster) orchestrate workflows expressed as programs. **Use them for production pipelines that run on a schedule and need monitoring.**
 
+**In rotari, the experiment is the goal and orchestration is only a means to it.** The workflow does not have to be right before you start: commands can be fixed, rerun in part, or accepted after review as you learn what works.
+
 **Rotari is for the stage before a workflow settles:** you are running a batch of experiment commands by hand, on a workstation or a shared Slurm, PBS, or LSF cluster, finding out which commands and settings work, fixing the jobs that failed, and running the batch again. If that loop is where your time goes, rotari keeps it manageable and lets the commands remain the workflow. Once the pipeline stabilizes, moving it to one of the tools above is a natural next step.
 
 ## Installation

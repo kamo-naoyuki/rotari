@@ -18,7 +18,9 @@
 These are smaller steps that can come before the AI roadmap in
 [docs/DAGU_COMPARISON.md](docs/DAGU_COMPARISON.md). Choose them by whether
 they improve the fix-and-retry loop for experiment batches, not by whether
-another workflow engine has them.
+another workflow engine has them. The experiment is the goal and orchestration
+is only a means: prefer features that make the loop cheaper over features that
+make users settle structure up front.
 
 ### Orchestration
 

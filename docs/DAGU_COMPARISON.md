@@ -6,6 +6,15 @@ take in response.
 
 ## Summary
 
+**Philosophy: the experiment is the goal, and orchestration is only a means to
+it.** Dagu makes orchestration itself lightweight: its value is running a
+settled workflow reliably, as defined. rotari's value is that the workflow does
+not have to be right before you start. Commands can be fixed, rerun in part, or
+accepted after review as the experiment shows what works. Features that make
+the loop cheaper belong in rotari; features that make users settle structure
+up front (conditional branches, output passing between jobs, schedule
+definitions) do not.
+
 rotari and Dagu share a problem space: running existing commands and scripts
 repeatedly while managing dependencies, logs, retries, and history. They start
 from different places.
