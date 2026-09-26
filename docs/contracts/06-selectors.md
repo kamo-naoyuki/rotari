@@ -96,6 +96,10 @@ General rules:
 - A positional argument that stands for an option cannot be combined with
   that option: supplying both is a usage error, not a precedence rule.
 - A command without positional arguments rejects any with a usage error.
+- A positional argument means the same thing whatever options are given: an
+  option never turns a project into a run ID. Where a positional may name a
+  project or something else, the project is tried first, as in `show` and
+  `wait`.
 - Project, run, and job values are path elements, never paths (see
   [01-resolution-and-config.md](01-resolution-and-config.md)); only `FILE` of
   `export` and `import` and `MASTERDIR` of `gc` are filesystem paths.
@@ -105,18 +109,17 @@ General rules:
 | `add`, `change` | `<command ...>` | the job command: every argument from the first positional on | – |
 | `check`, `reset` | `[PROJECT]` | the project | `--project-name` |
 | `jobs` | `[PROJECT]` | the project to list; overrides environment and config defaults | `--project-name` |
-| `unlock` | `[PROJECT]` | the project; with `--project-name`, the run ID to verify instead | `--project-name` together with `--run-id` |
-| `show` | `[SELECTOR]` | an attempt ID, then a registered run ID; otherwise a saved run name, job ID, or job name, where more than one match is ambiguous. Not a project name. | run, job, queue, log, JSON, and report options |
+| `unlock` | `[PROJECT]` | the project; the run ID to verify is always `--run-id` | `--project-name` |
+| `show` | `[SELECTOR]` | an attempt ID, then a registered run ID, then a project (unless `--project-name` is given); otherwise a saved run name, job ID, or job name, where more than one match is ambiguous | run, job, queue, log, JSON, and report options |
 | `wait` | `[SELECTOR ...]` | each: a project (its active run), then an active run name, then a registered run ID | – (added to `--run-id`) |
 | `cancel`, `suspend`, `resume` | `[ID ...]` | job IDs, attempt IDs, and a bare run ID that only locates the run | `--job-id` |
 | `remove` | `[JOB_ID ...]` | job IDs | `--job-id` |
 | `copy`, `delete` | `[RUN_ID]` | the run | `--run-id` |
-| `diff` | `[[RUN_A] RUN_B]` | none: the latest run against the run before it; one: that run against the run before it; two: the runs, of one project | – |
-| `export` | `[TARGET] [FILE]` | `TARGET` is a run ID when it has a run ID's shape or `--project-name` is given, otherwise a project, whose queue is exported; `FILE` is the output | `FILE` excludes `--output` |
+| `diff` | `[[RUN_A] RUN_B]` | none: the latest run against the run before it; one: that run against the run before it; two: the runs, which must belong to one project | – |
+| `export` | `[TARGET] [FILE]` | `TARGET` is a run when it has a run ID's shape or is `latest`, otherwise a project, whose queue is exported; `FILE` is the output | a project `TARGET` excludes `--project-name`; `FILE` excludes `--output` |
 | `import` | `FILE [PROJECT]` | the manifest, and the destination project; a run-exported manifest must come from that project | `PROJECT` excludes `--project-name` |
 | `diagnose` | `JOB_ID` | a job ID or attempt ID | `--job-id` |
 | `gc` | `[MASTERDIR]` | the master directory | `--masterdir` |
-| `run` | `config` | an undocumented alias of `rotari config` | – |
 | others | none | – | – |
 
 `TestPositionalArguments` in

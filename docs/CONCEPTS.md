@@ -131,20 +131,23 @@ rotari copy -b BASE_DIR -p PROJECT_NAME -r RUN_ID -j JOB_ID
 rotari copy -r RUN_ID -j JOB_ID
 ```
 
-Run and job IDs can also be passed positionally when a command accepts one:
+Projects, run IDs, and job IDs can also be passed positionally when a command
+accepts one. A positional argument means the same thing whatever options are
+given, and options may follow it, except in `add` and `change`:
 
 ```sh
+rotari show PROJECT_NAME
 rotari show JOB_ID
 rotari copy -j JOB_ID RUN_ID
 rotari remove JOB_ID OTHER_JOB_ID
 rotari delete RUN_ID
-rotari unlock -p PROJECT_NAME RUN_ID
+rotari unlock PROJECT_NAME --run-id RUN_ID
 rotari diagnose --model MODEL JOB_ID
 rotari cancel JOB_ID OTHER_JOB_ID
 rotari cancel RUN_ID
 rotari suspend ATTEMPT_ID
 rotari resume ATTEMPT_ID
-rotari export TARGET [OUTPUT_FILE]
+rotari export RUN_ID_OR_PROJECT [OUTPUT_FILE]
 rotari import FILE PROJECT
 ```
 

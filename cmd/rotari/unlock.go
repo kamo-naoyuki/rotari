@@ -20,18 +20,17 @@ func cmdUnlock(args []string) int {
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
-	projectNameSet := cliOptionSet(fs, "project-name")
-	runIDSet := cliOptionSet(fs, "run-id")
-	if len(fs.Args()) > 1 || (len(fs.Args()) == 1 && projectNameSet && runIDSet) {
+	if len(fs.Args()) > 1 {
 		printError("usage: " + cliUsage("unlock"))
 		return 1
 	}
+	if len(fs.Args()) == 1 && cliOptionSet(fs, "project-name") {
+		// The positional argument used to be the run ID in this case.
+		printErrorf("the positional argument names the project, so it cannot be combined with --project-name; pass the run ID as --run-id %s", fs.Args()[0])
+		return 1
+	}
 	if len(fs.Args()) == 1 {
-		if projectNameSet {
-			*runID = fs.Args()[0]
-		} else {
-			*queueNameOption = fs.Args()[0]
-		}
+		*queueNameOption = fs.Args()[0]
 	}
 	baseDir, _, err := state.ResolveBaseDir(*basedir)
 	if err != nil {

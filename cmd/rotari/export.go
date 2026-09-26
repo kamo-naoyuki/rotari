@@ -101,9 +101,15 @@ func cmdExport(args []string) int {
 	}
 	selectedRunIDs := []string(nil)
 	if len(positional) == 1 {
-		if cliOptionSet(fs, "project-name") || resolve.IsRunID(positional[0]) {
+		// TARGET is a run when it looks like one, whatever the other options
+		// say; otherwise it names the project and replaces --project-name.
+		switch {
+		case resolve.IsRunID(positional[0]) || positional[0] == "latest":
 			selectedRunIDs = []string{positional[0]}
-		} else {
+		case cliOptionSet(fs, "project-name"):
+			printError("a project TARGET cannot be combined with --project-name; pass a run ID or drop the option")
+			return 1
+		default:
 			*projectName = positional[0]
 		}
 	}

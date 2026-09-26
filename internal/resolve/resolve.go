@@ -228,6 +228,20 @@ func RunsByName(cliBaseDir, cliProjectName, runName string, activeOnly bool) ([]
 	return targets, nil
 }
 
+// ProjectExists reports whether name is an existing project of baseDir, as
+// positional selectors such as those of show and wait try first.
+func ProjectExists(baseDir, name string) bool {
+	if !state.IsValidPathElement(name) {
+		return false
+	}
+	projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), name)
+	if err != nil {
+		return false
+	}
+	info, err := os.Stat(projectDir)
+	return err == nil && info.IsDir()
+}
+
 // ProjectNames lists the projects a search covers: the explicitly chosen
 // project, or every project in baseDir, sorted.
 func ProjectNames(baseDir, cliProjectName string) ([]string, error) {

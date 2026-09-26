@@ -155,6 +155,19 @@ func cmdShow(args []string) int {
 			selector = ""
 		}
 	}
+	if selector != "" && !cliOptionSet(fs, "project-name") {
+		// A project name comes next, as in wait: "show sweep" is
+		// "show -p sweep".
+		baseDir, _, err := state.ResolveBaseDir(*basedir)
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		if resolve.ProjectExists(baseDir, selector) {
+			*queueNameOption = selector
+			selector = ""
+		}
+	}
 	if strings.HasPrefix(*jobIDOption, "att_") {
 		attemptID = *jobIDOption
 		baseDir, projectName, resolvedRunID, resolvedJobID, err := resolve.Attempt(*jobIDOption, *basedir, *queueNameOption, *runIDOption)

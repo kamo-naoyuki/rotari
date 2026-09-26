@@ -62,11 +62,13 @@ var positionalCases = []positionalCase{
 	{name: "project", args: "jobs -b {B} other", want: "{job:other-prep}"},
 	{name: "project and option", args: "jobs -b {B} -p sweep sweep", fail: true, want: "usage"},
 	{name: "project", args: "unlock -b {B} sweep", setup: setupInterrupted, want: "recovered queue project=sweep run_id={run:live}"},
-	{name: "run ID after project option", args: "unlock -b {B} -p sweep {run:live}", setup: setupInterrupted, want: "recovered queue project=sweep run_id={run:live}"},
-	{name: "project and both options", args: "unlock -b {B} -p sweep --run-id {run:live} sweep", setup: setupInterrupted, fail: true, want: "usage"},
+	{name: "project and run ID option", args: "unlock -b {B} --run-id {run:live} sweep", setup: setupInterrupted, want: "recovered queue project=sweep run_id={run:live}"},
+	{name: "project and option", args: "unlock -b {B} -p sweep {run:live}", setup: setupInterrupted, fail: true, want: "pass the run ID as --run-id {run:live}"},
+	{name: "project and both options", args: "unlock -b {B} -p sweep --run-id {run:live} sweep", setup: setupInterrupted, fail: true, want: "cannot be combined with --project-name"},
 
-	// show: a selector, but not a project.
-	{name: "project is not a selector", args: "show -b {B} sweep", fail: true, want: `selector "sweep" not found`},
+	// show: a project, then run and job selectors.
+	{name: "project", args: "show -b {B} sweep", want: "Project: sweep"},
+	{name: "project name with project option", args: "show -b {B} -p other sweep", fail: true, want: `selector "sweep" not found`},
 	{name: "selector and job option", args: "show -b {B} -p sweep prep --job-id {job:prep}", fail: true, want: "cannot be combined"},
 
 	// wait: a project, an active run name, or a run ID.
@@ -87,12 +89,14 @@ var positionalCases = []positionalCase{
 	{name: "one run", args: "diff {run:sweep-second}", want: "first ({run:sweep-first}) -> second ({run:sweep-second})"},
 	{name: "one run without an earlier one", args: "diff {run:sweep-first}", fail: true, want: "no earlier run"},
 	{name: "two runs", args: "diff {run:sweep-first} {run:sweep-second}", want: "first ({run:sweep-first}) -> second ({run:sweep-second})"},
+	{name: "runs of two projects", args: "diff {run:other-first} {run:sweep-second}", fail: true, want: "runs {run:other-first} and {run:sweep-second} belong to different projects (other and sweep)"},
 	{name: "three runs", args: "diff {run:sweep-first} {run:sweep-second} {run:other-first}", fail: true, want: "usage"},
 
 	// export: a run or a project, and a file.
 	{name: "run ID", args: "export {run:sweep-first}", want: "- {run:sweep-first}"},
 	{name: "project exports its queue", args: "export -b {B} sweep", fail: true, want: "queue has no jobs"},
-	{name: "run ID after project option", args: "export -b {B} -p sweep other", fail: true, want: `run "other" not found`},
+	{name: "project and option", args: "export -b {B} -p sweep other", fail: true, want: "cannot be combined with --project-name"},
+	{name: "latest run", args: "export -b {B} -p sweep latest", want: "- {run:sweep-second}"},
 	{name: "run ID and file", args: "export -b {B} -p sweep {run:sweep-first} {T}/out.yaml", check: fileExists("out.yaml")},
 	{name: "file and output option", args: "export {run:sweep-first} {T}/out.yaml --output {T}/other.yaml", fail: true, want: "usage"},
 
@@ -110,8 +114,8 @@ var positionalCases = []positionalCase{
 	{name: "master directory", args: "gc {M}", want: "found 0 orphan run registry entries"},
 	{name: "master directory and option", args: "gc --masterdir {M} {M}", fail: true, want: "usage"},
 
-	// run config: an alias of config.
-	{name: "config alias", args: "run config --output {T}/config.yaml", check: fileExists("config.yaml")},
+	// run takes no positionals, not even config.
+	{name: "no config alias", args: "run config", fail: true, want: "usage"},
 }
 
 func TestPositionalArguments(t *testing.T) {

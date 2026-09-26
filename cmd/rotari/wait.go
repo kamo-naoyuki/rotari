@@ -89,17 +89,12 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 	if err != nil {
 		return resolve.Run{}, err
 	}
-	if state.IsValidPathElement(selector) {
-		projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), selector)
-		if err == nil {
-			if info, statErr := os.Stat(projectDir); statErr == nil && info.IsDir() {
-				runID, activeErr := resolveActiveRunTarget(baseDir, selector)
-				if activeErr != nil {
-					return resolve.Run{}, activeErr
-				}
-				return resolve.Run{BaseDir: baseDir, ProjectName: selector, RunID: runID}, nil
-			}
+	if resolve.ProjectExists(baseDir, selector) {
+		runID, err := resolveActiveRunTarget(baseDir, selector)
+		if err != nil {
+			return resolve.Run{}, err
 		}
+		return resolve.Run{BaseDir: baseDir, ProjectName: selector, RunID: runID}, nil
 	}
 
 	activeTargets, err := resolve.RunsByName(baseDir, cliProjectName, selector, true)

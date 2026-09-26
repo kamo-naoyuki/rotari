@@ -326,7 +326,7 @@ func TestCmdUnlockRemovesMatchingRunLock(t *testing.T) {
 	}
 }
 
-func TestCmdUnlockAcceptsLegacyPositionalRunID(t *testing.T) {
+func TestCmdUnlockPointsLegacyPositionalRunIDToRunIDOption(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
@@ -339,8 +339,14 @@ func TestCmdUnlockAcceptsLegacyPositionalRunID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "run-1"}); code != 0 {
-		t.Fatalf("cmdUnlock legacy positional run ID exit code = %d, want 0", code)
+	code, output := captureSelectorOutput(func() int {
+		return cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "run-1"})
+	})
+	if code == 0 || !strings.Contains(output, "--run-id run-1") {
+		t.Fatalf("cmdUnlock legacy positional run ID exit code = %d, output %q; want an error naming --run-id run-1", code, output)
+	}
+	if code := cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", "run-1"}); code != 0 {
+		t.Fatalf("cmdUnlock --run-id exit code = %d, want 0", code)
 	}
 }
 

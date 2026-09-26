@@ -47,6 +47,15 @@ func cmdDiff(args []string) int {
 		printError(err)
 		return 1
 	}
+	if fromID != "" && fromID != "latest" {
+		// Both runs must belong to one project; say so rather than report
+		// the other project's run as missing.
+		fromBaseDir, fromProject, err := resolve.ExistingRun(*basedir, *projectName, fromID)
+		if err == nil && (fromBaseDir != baseDir || fromProject != project) {
+			printErrorf("runs %s and %s belong to different projects (%s and %s)", fromID, toID, fromProject, project)
+			return 1
+		}
+	}
 	paths, err := state.ResolveProjectPaths(baseDir, project)
 	if err != nil {
 		printErrorf("failed to resolve paths: %v", err)

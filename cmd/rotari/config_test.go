@@ -194,10 +194,10 @@ func TestConfigPathsForRunRejectsUnsafeProjectName(t *testing.T) {
 	}
 }
 
-func TestRunConfigCommandGeneratesFile(t *testing.T) {
+func TestConfigCommandGeneratesFile(t *testing.T) {
 	output := filepath.Join(t.TempDir(), "config.yaml")
-	if code := run([]string{"run", "config", "--output", output}); code != 0 {
-		t.Fatalf("run config exit code = %d", code)
+	if code := run([]string{"config", "--output", output}); code != 0 {
+		t.Fatalf("config exit code = %d", code)
 	}
 	if _, err := os.Stat(output); err != nil {
 		t.Fatalf("generated config: %v", err)

@@ -111,8 +111,7 @@ func run(args []string) int {
 		return 0
 	}
 	cliConfigCommand = args[0]
-	isConfigCommand := args[0] == "config" || (args[0] == "run" && len(args) > 1 && args[1] == "config")
-	if !isConfigCommand && args[0] != "schema" && args[0] != "guide" && args[0] != "--version" && args[0] != "version" {
+	if args[0] != "config" && args[0] != "schema" && args[0] != "guide" && args[0] != "--version" && args[0] != "version" {
 		if err := loadCLIConfig(args[1:]); err != nil {
 			printErrorf("failed to load config: %v", err)
 			return 1
@@ -161,9 +160,6 @@ func run(args []string) int {
 	case "wait":
 		return cmdWait(args[1:])
 	case "run":
-		if len(args) > 1 && args[1] == "config" {
-			return cmdConfig(args[2:])
-		}
 		return cmdRun(args[1:])
 	case "retry":
 		return cmdRetry(args[1:])
