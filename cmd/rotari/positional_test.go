@@ -142,7 +142,7 @@ var positionalCases = []positionalCase{
 	{name: "master directory and option", args: "gc --masterdir {M} {M}", fail: true, want: "usage"},
 
 	// latest: the latest run wherever a run can be given, and a reserved name.
-	{name: "latest run", args: "copy -b {B} -p sweep latest", want: "copied jobs=5 from run={run:sweep-second}"},
+	{name: "latest run", args: "copy -b {B} -p sweep latest", want: "copied jobs=6 from run={run:sweep-second}"},
 	{name: "latest run", args: "delete -b {B} -p sweep latest", want: "cleared logs project=sweep run={run:sweep-second}"},
 	{name: "latest run", args: "wait -b {B} -p sweep latest", fail: true, want: "Run: second ({run:sweep-second})"},
 	{name: "latest run option", args: "wait -b {B} -p sweep --run-id latest", fail: true, want: "Run: second ({run:sweep-second})"},

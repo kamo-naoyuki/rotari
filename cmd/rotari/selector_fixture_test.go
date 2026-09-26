@@ -24,8 +24,10 @@ import (
 //	                    SEED 2 fails both attempts                     [train-SEED1] [train-SEED2]
 //	    eval            array 1-3, stage evaluation; task 2 fails            [eval]
 //	    (unnamed)       stage report, succeeds                         [report]
-//	    run "first":  every job                                        [sweep-first]
-//	    run "second": failed jobs only; the others carry forward       [sweep-second]
+//	    late            added after run "first", never runs            [late]
+//	    run "first":  every job but late                               [sweep-first]
+//	    run "second": failed jobs only; the others carry forward, and
+//	                  late, with no result to select, stays unfinished [sweep-second]
 //	  project "other"
 //	    prep            also named prep, succeeds                      [other-prep]
 //	    run "first"                                                     [other-first]
@@ -75,6 +77,8 @@ func newSelectorFixture(t *testing.T) selectorFixture {
 	fixture.Attempts["train-SEED2/0"] = state.MakeAttemptID(fixture.Runs["sweep-first"], fixture.Jobs["train-SEED2"], 0)
 	fixture.Attempts["train-SEED2/1"] = state.MakeAttemptID(fixture.Runs["sweep-first"], fixture.Jobs["train-SEED2"], 1)
 	fixture.restore(t, fixture.BaseDir, "sweep", fixture.Runs["sweep-first"])
+	fixture.add(t, fixture.BaseDir, "sweep", "--job-name", "late", "--", "true")
+	fixture.recordJobs(t, fixture.BaseDir, "sweep", map[string]string{"late": "late"}, "")
 	fixture.Runs["sweep-second"] = fixture.run(t, fixture.BaseDir, "sweep", "second", "failed")
 	fixture.Attempts["train-SEED2/second"] = state.MakeAttemptID(fixture.Runs["sweep-second"], fixture.Jobs["train-SEED2"], 0)
 
@@ -131,11 +135,21 @@ func (fixture selectorFixture) run(t *testing.T, baseDir, project, runName, sele
 	t.Helper()
 	paths := fixture.paths(t, baseDir, project)
 	runID := makeRunID()
+	// Like cmdRun, a selection reads jobs without an origin from the run
+	// that was latest before this one begins.
+	sourceRunID := ""
+	if selection != "" {
+		meta, err := state.LoadMeta(paths.MetaFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sourceRunID = meta.LastRunID
+	}
 	runner := projectRunner()
 	if err := runner.Begin(paths, projectrun.Start{RunID: runID, RunName: runName, CWD: baseDir}); err != nil {
 		t.Fatal(err)
 	}
-	options := projectrun.Options{RunID: runID, RunName: runName, LocalConcurrency: 4, BatchMaxActive: 1, Selection: selection, PartialArray: true}
+	options := projectrun.Options{RunID: runID, RunName: runName, LocalConcurrency: 4, BatchMaxActive: 1, Selection: selection, SourceRunID: sourceRunID, PartialArray: true}
 	if _, err := runner.Run(paths, options, projectrun.Observer{}); err != nil {
 		t.Fatalf("run %s of %s failed: %v", runName, project, err)
 	}
