@@ -30,6 +30,9 @@ quickly.
   locks, durability, recovery, and shared-state safety rules.
 - [contracts/05-web-assets-and-static-export.md](contracts/05-web-assets-and-static-export.md):
   Web UI assets, static export, and embedded app boundaries.
+- [contracts/06-selectors.md](contracts/06-selectors.md): how each command
+  resolves project, run, and job selectors, known deviations, and the
+  selector test fixture.
 
 ## Cross-cutting rules to keep in sync
 

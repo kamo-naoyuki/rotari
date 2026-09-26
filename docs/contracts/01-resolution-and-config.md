@@ -23,6 +23,9 @@ Representative implementation and tests:
 
 ## Resolution rules
 
+The per-command view of these rules, with job selectors, is in
+[06-selectors.md](06-selectors.md).
+
 Without a run-location lookup, base directories resolve in this order:
 
 1. `--basedir`
