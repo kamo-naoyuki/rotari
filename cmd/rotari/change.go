@@ -181,6 +181,9 @@ func changeQueueJobs(baseDir, queueName, requestedRunID string, selector model.C
 		if len(queue.Commands) == 0 {
 			return emptyQueueError(queueName)
 		}
+		if err := rejectAttemptIDs(selector.IDs); err != nil {
+			return err
+		}
 		indexes, err := model.SelectCommands(queue.Commands, selector)
 		if err != nil {
 			return err
@@ -294,6 +297,17 @@ func validateChangeRename(queue model.Queue, jobIndex int, newName string) error
 			if dependency == oldName {
 				return fmt.Errorf("job %q is referenced by dependency; rename is not allowed", oldName)
 			}
+		}
+	}
+	return nil
+}
+
+// rejectAttemptIDs reports an attempt ID given to a queue edit, which acts
+// on queued jobs, not on attempts, and names the job it belongs to.
+func rejectAttemptIDs(ids []string) error {
+	for _, id := range ids {
+		if payload, err := state.DecodeAttemptID(id); err == nil {
+			return fmt.Errorf("%s is an attempt ID; queue edits take a job ID, such as %s", id, payload.JobID)
 		}
 	}
 	return nil

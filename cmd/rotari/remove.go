@@ -79,6 +79,9 @@ func removeCommands(baseDir, queueName, requestedRunID string, selector model.Co
 		if len(queue.Commands) == 0 {
 			return emptyQueueError(queueName)
 		}
+		if err := rejectAttemptIDs(selector.IDs); err != nil {
+			return err
+		}
 
 		indexes, err := model.SelectCommands(queue.Commands, selector)
 		if err != nil {

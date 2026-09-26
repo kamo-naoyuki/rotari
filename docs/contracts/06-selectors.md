@@ -62,7 +62,7 @@ see [Known deviations](#known-deviations).
 | Job ID | that job | that job; with a result filter, in addition to the matching jobs | only that job executes; with a result filter (always in `retry`), in addition to the matching jobs | that command | that command; repeatable, or positional |
 | Array command ID | a table of the array's tasks | the whole array | the whole array | the whole array | the whole array |
 | Array task ID | that task | that task, narrowing the array | that task; the array's other tasks carry forward | error with the array job's ID | error with the array job's ID |
-| Attempt ID | that attempt (also positional) | that attempt, narrowing an array to its task | copies that attempt, then runs it | error † | error † |
+| Attempt ID | that attempt (also positional) | that attempt, narrowing an array to its task | copies that attempt, then runs it | error naming the attempt's job ID | error naming the attempt's job ID |
 | Job name | that job; ambiguous across projects without `-p` | same as `show` | same as `show` | that command | that command |
 | Array job name | a table of the array's tasks | the whole array | the whole array | the whole array | the whole array |
 | Array task name | that task | that task, narrowing the array | that task; the array's other tasks carry forward | error with the array job's ID | error with the array job's ID |
@@ -132,10 +132,9 @@ whose selector resolution is covered by `resolve.JobSelection` tests in
 
 ## Known deviations
 
-Each is also recorded in [ISSUES.md](../../ISSUES.md) until it is resolved.
-
-- `change` and `remove` report an attempt ID as "job not found" instead of
-  saying that attempt IDs are not accepted.
+None at present. A deviation found later is listed here and in
+[ISSUES.md](../../ISSUES.md), marked with a † in the tables, and its test
+row carries a `known` mark until it is fixed.
 
 ## Fixture
 

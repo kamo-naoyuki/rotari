@@ -1,10 +1,5 @@
 package main
 
-// Known deviations, named as in ISSUES.md.
-const (
-	knownAttemptEdits = "Queue edits report an attempt ID as \"job not found\""
-)
-
 // selectorCases follows the tables of docs/contracts/06-selectors.md. See
 // newSelectorFixture for the keys. Project sweep's latest run is
 // sweep-second, which re-executed the failed train-SEED2 and eval-2.
@@ -72,7 +67,7 @@ var selectorCases = []selectorCase{
 	{name: "array job name", cmd: "change", args: "-b {B} -p sweep --job-name eval", queued: true, jobs: []string{"eval"}},
 	{name: "array task ID", cmd: "change", args: "-b {B} -p sweep --job-id {job:eval}-2", queued: true, err: "task of array job {job:eval}"},
 	{name: "array task name", cmd: "change", args: "-b {B} -p sweep --job-name eval[2]", queued: true, err: "task of array job {job:eval}"},
-	{name: "attempt ID", cmd: "change", args: "-b {B} -p sweep --job-id {att:train-SEED2/0}", queued: true, err: "attempt ID", known: knownAttemptEdits},
+	{name: "attempt ID", cmd: "change", args: "-b {B} -p sweep --job-id {att:train-SEED2/0}", queued: true, err: "is an attempt ID; queue edits take a job ID, such as {job:train-SEED2}"},
 	{name: "unknown matrix", cmd: "change", args: "-b {B} -p sweep --matrix nope", queued: true, err: `no matrix named "nope"`},
 	{name: "two group selectors", cmd: "change", args: "-b {B} -p sweep --all --stage training", queued: true, err: "usage"},
 	{name: "new command for a group", cmd: "change", args: "-b {B} -p sweep --stage training -- echo", queued: true, err: "single job"},
@@ -88,7 +83,7 @@ var selectorCases = []selectorCase{
 	{name: "matrix of latest run", cmd: "remove", args: "-b {B} -p sweep --run-id latest --matrix train", jobs: []string{"train-SEED1", "train-SEED2"}},
 	{name: "all", cmd: "remove", args: "-b {B} -p sweep --all", queued: true, jobs: []string{"eval", "prep", "report", "train-SEED1", "train-SEED2"}},
 	{name: "array task ID", cmd: "remove", args: "-b {B} -p sweep -j {job:eval}-2", queued: true, err: "task of array job {job:eval}"},
-	{name: "attempt ID", cmd: "remove", args: "-b {B} -p sweep -j {att:train-SEED2/0}", queued: true, err: "attempt ID", known: knownAttemptEdits},
+	{name: "attempt ID", cmd: "remove", args: "-b {B} -p sweep -j {att:train-SEED2/0}", queued: true, err: "is an attempt ID; queue edits take a job ID, such as {job:train-SEED2}"},
 
 	// run and retry: which jobs the new run executes.
 	{name: "failed and unfinished", cmd: "retry", args: "-b {B} -p sweep", jobs: []string{"eval-2", "train-SEED2"}},
