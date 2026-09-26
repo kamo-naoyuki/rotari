@@ -624,7 +624,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("project_name and job_id are required"))
 			return
 		}
-		message, err := cancelQueueJobs(baseDir, cancel.QueueName, []string{cancel.JobID}, false)
+		message, err := cancelQueueJobs(baseDir, cancel.QueueName, "", []string{cancel.JobID}, false)
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -649,7 +649,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("project_name and job_id are required"))
 			return
 		}
-		message, err := controlQueueJobs(baseDir, control.QueueName, []string{control.JobID}, "suspend")
+		message, err := controlQueueJobs(baseDir, control.QueueName, "", []string{control.JobID}, "suspend")
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -674,7 +674,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("project_name and job_id are required"))
 			return
 		}
-		message, err := controlQueueJobs(baseDir, control.QueueName, []string{control.JobID}, "resume")
+		message, err := controlQueueJobs(baseDir, control.QueueName, "", []string{control.JobID}, "resume")
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -699,21 +699,7 @@ func newWebHandler(baseDir, queueFilter string, allowControl bool) http.Handler 
 			writeWebError(writer, fmt.Errorf("project_name and run_id are required"))
 			return
 		}
-		paths, err := stateinternal.ResolveProjectPaths(baseDir, cancel.QueueName)
-		if err != nil {
-			writeWebError(writer, err)
-			return
-		}
-		lock, err := stateinternal.LoadLock(paths.LockFile)
-		if err != nil {
-			writeWebError(writer, fmt.Errorf("project %q is not running", cancel.QueueName))
-			return
-		}
-		if lock.RunID != cancel.RunID {
-			writeWebError(writer, fmt.Errorf("run %q is no longer running", cancel.RunID))
-			return
-		}
-		message, err := cancelQueueJobs(baseDir, cancel.QueueName, nil, false)
+		message, err := cancelQueueJobs(baseDir, cancel.QueueName, cancel.RunID, nil, false)
 		if err != nil {
 			writeWebError(writer, err)
 			return

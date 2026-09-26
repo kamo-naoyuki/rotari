@@ -35,16 +35,16 @@ func cmdCancel(args []string) int {
 		printError("--wait may not be used with a job selection")
 		return 1
 	}
-	baseDir, queueName, selection, err := resolve.JobSelection(*basedir, *queueNameOption, jobIDs)
+	target, err := resolve.JobSelection(*basedir, *queueNameOption, jobIDs)
 	if err != nil {
 		printError(err)
 		return 1
 	}
-	if err := ensureServer(baseDir); err != nil {
+	if err := ensureServer(target.BaseDir); err != nil {
 		printError(err)
 		return 1
 	}
-	response, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: serverinternal.OpCancel, QueueName: queueName, JobIDs: selection, Wait: *wait})
+	response, err := serverinternal.SendRequest(target.BaseDir, serverinternal.Request{Op: serverinternal.OpCancel, QueueName: target.ProjectName, RunID: target.RunID, JobIDs: target.JobIDs, Wait: *wait})
 	if err != nil {
 		printErrorf("failed to contact server: %v", err)
 		return 1
@@ -75,16 +75,16 @@ func cmdJobSignal(args []string, operation string) int {
 	if len(fs.Args()) > 0 {
 		jobIDs = append(jobIDs, fs.Args()...)
 	}
-	baseDir, queueName, selection, err := resolve.JobSelection(*basedir, *queueNameOption, jobIDs)
+	target, err := resolve.JobSelection(*basedir, *queueNameOption, jobIDs)
 	if err != nil {
 		printError(err)
 		return 1
 	}
-	if err := ensureServer(baseDir); err != nil {
+	if err := ensureServer(target.BaseDir); err != nil {
 		printError(err)
 		return 1
 	}
-	response, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: operation, QueueName: queueName, JobIDs: selection})
+	response, err := serverinternal.SendRequest(target.BaseDir, serverinternal.Request{Op: operation, QueueName: target.ProjectName, RunID: target.RunID, JobIDs: target.JobIDs})
 	if err != nil {
 		printErrorf("failed to contact server: %v", err)
 		return 1
@@ -102,21 +102,26 @@ func jobController() jobcontrol.Controller {
 }
 
 func cancelQueue(baseDir, queueName string, wait bool) (string, error) {
-	return cancelQueueJobs(baseDir, queueName, nil, wait)
+	return cancelQueueJobs(baseDir, queueName, "", nil, wait)
 }
 
-func cancelQueueJobs(baseDir, queueName string, jobIDs []string, wait bool) (string, error) {
+// cancelQueueJobs cancels jobIDs, or the whole run when empty, in the active
+// run of queueName, which must be runID when runID is not empty.
+func cancelQueueJobs(baseDir, queueName, runID string, jobIDs []string, wait bool) (string, error) {
 	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		return "", err
 	}
-	return jobController().Cancel(paths, queueName, jobIDs, wait)
+	return jobController().Cancel(paths, queueName, runID, jobIDs, wait)
 }
 
-func controlQueueJobs(baseDir, queueName string, jobIDs []string, operation string) (string, error) {
+// controlQueueJobs suspends or resumes jobIDs, or every running job when
+// empty, in the active run of queueName, which must be runID when runID is
+// not empty.
+func controlQueueJobs(baseDir, queueName, runID string, jobIDs []string, operation string) (string, error) {
 	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
 		return "", err
 	}
-	return jobController().Control(paths, queueName, jobIDs, operation)
+	return jobController().Control(paths, queueName, runID, jobIDs, operation)
 }

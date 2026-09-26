@@ -299,11 +299,13 @@ CLI and Web UI agree.
 
 ### `rotari cancel`
 
-1. `cmdCancel` ([job_control.go](../cmd/rotari/job_control.go)) sends
-   `OpCancel` to the supervisor.
+1. `cmdCancel` ([job_control.go](../cmd/rotari/job_control.go)) resolves the
+   project, the run a run or attempt ID names, and the job IDs with
+   `resolve.JobSelection`, and sends `OpCancel` to the supervisor.
 2. `cancelQueueJobs` calls `jobcontrol.Controller.Cancel`
    ([internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go)),
-   which finds the running run through its run lock, marks `meta.json` as
+   which finds the running run through its run lock, rejects a named run that
+   is not the active one, expands array job IDs to tasks, marks `meta.json` as
    `cancelling` for a whole-run cancel, and calls the executor's `Cancel` for
    each running job.
 3. The run loop sees the cancelled results and the `cancelling` phase, and

@@ -71,6 +71,7 @@ lists each candidate's project, run or queue, and job. A group selector
 | `copy` | Source: the run named by attempt IDs, else the latest run that holds every `--job-id` (searching every project without `-p`), else the project's latest run. Destination: the current queue. | Source: that run (also as positional `RUN_ID`). |
 | `run`, `retry` | The current queue. A job selector, result filter, or group first restores the queue from the reference run when it is empty. A job selector looks for the job in a non-empty queue first, as `show` does, and otherwise in the latest run, which then replaces the queue (after confirmation). The reference run is found like `copy`'s source. | The queue is replaced by that run's snapshot (after confirmation), which is also the reference. |
 | `change`, `remove` | The current queue; a job ID or name without a project is looked for in every project's queue. An empty queue is not restored; the command fails and points to `copy` and `--run-id`. | That run's snapshot replaces the queue first. |
+| `cancel`, `suspend`, `resume` | The project's active run; a job ID without a project is looked for in the active run of every project, and all job IDs must be in one. | No `--run-id`: a bare run ID or an attempt ID names the run, which must be the project's active run. |
 
 ## Job selectors by command
 
@@ -106,6 +107,34 @@ Selector combinations:
 - `change` and `remove` edit commands, so a new command or `--set-job-name`
   needs a single job.
 
+### Job control
+
+`cancel`, `suspend`, and `resume` act on the running jobs of a project's
+active run. They take job IDs and attempt IDs, positionally or as repeated
+`--job-id`, and no job name, group, or result filter. Resolution is
+`resolve.JobSelection`; the running-run check and the signalling are
+`jobcontrol.Controller` in
+[internal/jobcontrol/jobcontrol.go](../../internal/jobcontrol/jobcontrol.go),
+shared with the Web UI's cancel, suspend, and resume endpoints.
+
+| Form | `cancel` | `suspend`, `resume` |
+| --- | --- | --- |
+| None | the whole run | every running job |
+| Job ID | that job, submitted or not | that job, which must be running |
+| Array command ID | its unfinished tasks | its running tasks |
+| Array task ID | that task | that task |
+| Attempt ID | its job; it must be the job's latest attempt, running | same |
+| Bare run ID | only names the run: none or the other IDs apply | same |
+| Run ID not active | error naming the project's active run, if any | same |
+| Job ID in no active run | error, when no project is given | same |
+| `latest` | a job ID like any other; not a run | same |
+
+`cancel --wait` takes no job selection. Covered by `TestJobControlSelectors`
+in [cmd/rotari/job_control_selector_test.go](../../cmd/rotari/job_control_selector_test.go),
+against the fixture with run `live` of project `sweep` active, and by the
+`JobSelection` tests in
+[internal/resolve/resolve_test.go](../../internal/resolve/resolve_test.go).
+
 ## Positional arguments
 
 General rules:
@@ -138,7 +167,7 @@ General rules:
 | `unlock` | `[PROJECT]` | the project; the run ID to verify is always `--run-id` | `--project-name` |
 | `show` | `[SELECTOR]` | an attempt ID, then a registered run ID or `latest`, then a project (unless `--project-name` is given); otherwise a run name (active or saved), job ID, or job name, where more than one match is ambiguous | run, job, queue, log, JSON, and report options |
 | `wait` | `[SELECTOR ...]` | each: `latest`, then a project, then a run name, then a registered run ID; a project or run name means its active run, or else its latest run | – (added to `--run-id`) |
-| `cancel`, `suspend`, `resume` | `[ID ...]` | job IDs, attempt IDs, and a bare run ID that only locates the run | `--job-id` |
+| `cancel`, `suspend`, `resume` | `[ID ...]` | job IDs, attempt IDs, and a bare run ID that names the run, which must be active (see [Job control](#job-control)) | `--job-id` |
 | `remove` | `[JOB_ID ...]` | job IDs | `--job-id` |
 | `copy`, `run`, `retry` | `[RUN_ID]` | the run to copy or rerun from | `--run-id` |
 | `delete` | `[RUN_ID]` | the run to delete; without one, `--all` must be given to delete every run | `--run-id`, `--all` |
@@ -152,8 +181,8 @@ General rules:
 `TestPositionalArguments` in
 [cmd/rotari/positional_test.go](../../cmd/rotari/positional_test.go) covers
 each row against the fixture, except `cancel`, `suspend`, and `resume`,
-whose selector resolution is covered by `resolve.JobSelection` tests in
-[internal/resolve/resolve_test.go](../../internal/resolve/resolve_test.go).
+which `TestJobControlSelectors` covers against a running run (see
+[Job control](#job-control)).
 
 ## Known deviations
 
@@ -173,3 +202,7 @@ project `other` (a job that shares the name `prep`; a run also named
 registry. Symbolic keys map to the generated run, job, and attempt IDs.
 Location variables and user config are cleared, so results do not depend on
 the caller's environment. `TestSelectorFixtureLayout` checks the layout.
+`startLiveRun` in
+[cmd/rotari/job_control_selector_test.go](../../cmd/rotari/job_control_selector_test.go)
+adds run `live` of project `sweep`, active in process, with an array job
+`hold` of two tasks and a job `idle`, each sleeping, for the job control rows.

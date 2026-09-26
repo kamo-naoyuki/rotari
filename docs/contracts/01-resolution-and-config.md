@@ -104,11 +104,14 @@ Without a run-location lookup, base directories resolve in this order:
   `add` or a plain new `run`.
 - `cancel`, `suspend`, and `resume` merge positional selectors with repeated
   `--job-id/-j` (mutually exclusive with each other) and accept plain job IDs,
-  `att_` attempt IDs, and a bare run ID in the same list. A bare run ID only
+  `att_` attempt IDs, and a bare run ID in the same list. A bare run ID
   locates the target run through the run registry; it is stripped before the
   remaining IDs are sent as job selectors, so passing only a run ID behaves
-  like omitting `--job-id/-j` (all running jobs in that run). Mixing IDs that
-  resolve to different runs is rejected.
+  like omitting `--job-id/-j` (all running jobs in that run). The run a bare
+  run ID or an attempt ID names must be the project's active run; another run
+  is an error, never a request for the active one. Mixing IDs that resolve to
+  different runs is rejected. See "Job control" in
+  [06-selectors.md](06-selectors.md).
 - Multiple run IDs passed to `wait` are resolved independently, so one command
   may wait for runs from different projects or base directories.
 - Shell completion follows the same location rules with narrower candidates:

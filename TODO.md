@@ -4,12 +4,14 @@
 
 Done: the selector and positional contracts in
 [docs/contracts/06-selectors.md](docs/contracts/06-selectors.md) (Complete
-IDs, per-command tables, positional arguments), all decided changes to them,
-and the tests that pin them: `TestSelectorTable`
-([cmd/rotari/selector_cases_test.go](cmd/rotari/selector_cases_test.go)) and
+IDs, per-command tables, job control, positional arguments), all decided
+changes to them, and the tests that pin them: `TestSelectorTable`
+([cmd/rotari/selector_cases_test.go](cmd/rotari/selector_cases_test.go)),
 `TestPositionalArguments`
-([cmd/rotari/positional_test.go](cmd/rotari/positional_test.go)), both on the
-fixture in [cmd/rotari/selector_fixture_test.go](cmd/rotari/selector_fixture_test.go).
+([cmd/rotari/positional_test.go](cmd/rotari/positional_test.go)), and
+`TestJobControlSelectors`
+([cmd/rotari/job_control_selector_test.go](cmd/rotari/job_control_selector_test.go)),
+all on the fixture in [cmd/rotari/selector_fixture_test.go](cmd/rotari/selector_fixture_test.go).
 The tables list no known deviations. When changing a selector, update the
 contract and add or change a row in the same commit.
 
@@ -26,8 +28,6 @@ Decided to keep as they are:
 Open follow-ups found during the work are in [ISSUES.md](ISSUES.md): run
 progress counting carried results, a planning error after `Begin` leaving a
 run without `commands.json`, and flaky timing-dependent server tests.
-`cancel`, `suspend`, and `resume` have no command-level selector tests yet;
-they need an active run with running jobs in the fixture.
 
 - Consider extending `cancel`/`suspend`/`resume` selectors to also accept a
   `run_name` and/or a bare `project_name`, alongside the existing job_id,

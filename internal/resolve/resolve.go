@@ -47,28 +47,38 @@ func isRunning(lockPath string) (bool, error) {
 // random hex suffix.
 var runIDPattern = regexp.MustCompile(`^[0-9]{8}-[0-9]{6}-[0-9a-f]{8}$`)
 
-// JobSelection resolves the base directory and project for a
-// cancel/suspend/resume job selection that may mix plain job IDs, "att_"
-// attempt IDs, and at most one bare run ID. A bare run ID only locates the
-// target run through the run registry; it is not itself a job selector, so it
-// is removed from the returned job IDs.
-func JobSelection(cliBaseDir, cliProjectName string, ids []string) (string, string, []string, error) {
+// JobControl is the target of a cancel, suspend, or resume selection: a
+// project's active run, and the jobs in it, or every job when JobIDs is
+// empty. RunID is the run the selection names, which the active run must
+// be; it is empty when the selection names none.
+type JobControl struct {
+	Run
+	JobIDs []string
+}
+
+// JobSelection resolves the target of a cancel/suspend/resume selection that
+// may mix plain job IDs, "att_" attempt IDs, and at most one bare run ID. A
+// bare run ID locates the target run through the run registry and is not
+// itself a job selector, so it is removed from the job IDs. Without a run,
+// an attempt, or a project, plain job IDs are looked for in the active run of
+// every project, and must all be in one.
+func JobSelection(cliBaseDir, cliProjectName string, ids []string) (JobControl, error) {
 	targetRunID := ""
 	jobIDs := make([]string, 0, len(ids))
 	for _, id := range ids {
 		switch {
 		case runIDPattern.MatchString(id):
 			if targetRunID != "" && targetRunID != id {
-				return "", "", nil, fmt.Errorf("selection mixes run %q and run %q", targetRunID, id)
+				return JobControl{}, fmt.Errorf("selection mixes run %q and run %q", targetRunID, id)
 			}
 			targetRunID = id
 		case strings.HasPrefix(id, "att_"):
 			payload, err := state.DecodeAttemptID(id)
 			if err != nil {
-				return "", "", nil, err
+				return JobControl{}, err
 			}
 			if targetRunID != "" && targetRunID != payload.RunID {
-				return "", "", nil, fmt.Errorf("attempt %q belongs to run %q, not %q", id, payload.RunID, targetRunID)
+				return JobControl{}, fmt.Errorf("attempt %q belongs to run %q, not %q", id, payload.RunID, targetRunID)
 			}
 			targetRunID = payload.RunID
 			jobIDs = append(jobIDs, id)
@@ -76,11 +86,71 @@ func JobSelection(cliBaseDir, cliProjectName string, ids []string) (string, stri
 			jobIDs = append(jobIDs, id)
 		}
 	}
-	baseDir, queueName, err := ExistingRun(cliBaseDir, cliProjectName, targetRunID)
-	if err != nil {
-		return "", "", nil, err
+	if targetRunID == "" && len(jobIDs) > 0 && !state.ProjectNameGiven(cliProjectName) {
+		target, found, err := activeRunWithJobs(cliBaseDir, jobIDs)
+		if err != nil {
+			return JobControl{}, err
+		}
+		if found {
+			return JobControl{Run: target, JobIDs: jobIDs}, nil
+		}
 	}
-	return baseDir, queueName, jobIDs, nil
+	baseDir, projectName, err := ExistingRun(cliBaseDir, cliProjectName, targetRunID)
+	if err != nil {
+		return JobControl{}, err
+	}
+	return JobControl{Run: Run{BaseDir: baseDir, ProjectName: projectName, RunID: targetRunID}, JobIDs: jobIDs}, nil
+}
+
+// activeRunWithJobs finds the one active run, among the projects of a base
+// directory with more than one, that holds every job ID. It reports false
+// when the base directory has at most one project, which normal project
+// resolution then selects.
+func activeRunWithJobs(cliBaseDir string, jobIDs []string) (Run, bool, error) {
+	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
+	if err != nil {
+		return Run{}, false, err
+	}
+	projects, err := ProjectNames(baseDir, "")
+	if err != nil || len(projects) <= 1 {
+		return Run{}, false, err
+	}
+	targets := make([]Job, 0, 1)
+	for _, projectName := range projects {
+		paths, err := state.ResolveProjectPaths(baseDir, projectName)
+		if err != nil {
+			return Run{}, false, err
+		}
+		running, err := isRunning(paths.LockFile)
+		if err != nil && !os.IsNotExist(err) {
+			return Run{}, false, err
+		}
+		if !running {
+			continue
+		}
+		lock, err := state.LoadLock(paths.LockFile)
+		if err != nil {
+			return Run{}, false, err
+		}
+		holdsAll := true
+		for _, jobID := range jobIDs {
+			if _, found, _ := JobInRun(paths, lock.RunID, jobID, false); !found {
+				holdsAll = false
+				break
+			}
+		}
+		if holdsAll {
+			targets = append(targets, Job{Run: Run{BaseDir: baseDir, ProjectName: projectName, RunID: lock.RunID}, JobID: strings.Join(jobIDs, ",")})
+		}
+	}
+	switch len(targets) {
+	case 0:
+		return Run{}, false, fmt.Errorf("no active run in state directory %q holds job %s; pass --project-name or a run ID", baseDir, strings.Join(jobIDs, ", "))
+	case 1:
+		return targets[0].Run, true, nil
+	default:
+		return Run{}, false, AmbiguousError(fmt.Sprintf("job %s", strings.Join(jobIDs, ", ")), targets)
+	}
 }
 
 // SplitProjectOrRun classifies positional selectors that name either a

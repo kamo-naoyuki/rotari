@@ -46,7 +46,10 @@ type Request struct {
 	WorkingDirectory string                  `json:"working_directory,omitempty"`
 	Environment      []string                `json:"environment,omitempty"`
 	JobIDs           []string                `json:"job_ids,omitempty"`
-	Selection        string                  `json:"selection,omitempty"`
+	// RunID, for cancel, suspend, and resume, is the run the selection
+	// names; the project's active run must be it.
+	RunID     string `json:"run_id,omitempty"`
+	Selection string `json:"selection,omitempty"`
 	// ScopeStage and ScopeMatrix narrow Selection to one stage or matrix.
 	ScopeStage        string   `json:"scope_stage,omitempty"`
 	ScopeMatrix       string   `json:"scope_matrix,omitempty"`

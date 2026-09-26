@@ -595,7 +595,7 @@ func TestWebCancelRunRejectsStaleRunID(t *testing.T) {
 	if recorder.Code == http.StatusOK {
 		t.Fatalf("status = %d, want stale run rejection", recorder.Code)
 	}
-	if !strings.Contains(recorder.Body.String(), "is no longer running") {
+	if !strings.Contains(recorder.Body.String(), `run "run-old" is not running; the active run of project "default" is "run-current"`) {
 		t.Fatalf("body = %q, want stale run error", recorder.Body.String())
 	}
 }

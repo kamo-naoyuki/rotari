@@ -158,7 +158,11 @@ without an ID still removes all saved runs.
 For `cancel`, `suspend`, and `resume`, a positional `JOB_ID` or `ATTEMPT_ID`
 selects jobs the same way `--job-id/-j` does; a bare `RUN_ID` only locates the
 target run through the run registry and is not itself a job selector, so it
-behaves like omitting `--job-id/-j` (all running jobs in that run).
+behaves like omitting `--job-id/-j` (all running jobs in that run). The run
+must be the project's active run: a finished run's ID is an error rather than
+acting on whatever run is active now. An array job's ID selects its running
+tasks, and without `--project-name/-p` a `JOB_ID` is looked for in the active
+run of every project.
 
 ## Dependencies and stages
 

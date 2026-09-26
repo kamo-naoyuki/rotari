@@ -279,7 +279,11 @@ rotari cancel RUN_ID
 `--job-id/-j` is optional. Without it, all running jobs in the queue are
 cancelled. With it, only the specified running jobs are cancelled, and the
 option may be repeated. `--job-id/-j` cannot be used with `--wait`, nor combined
-with a positional `JOB_ID`/`ATTEMPT_ID`/`RUN_ID`.
+with a positional `JOB_ID`/`ATTEMPT_ID`/`RUN_ID`. An array job's ID selects
+all of its unfinished tasks. A `RUN_ID` or `ATTEMPT_ID` must belong to the
+project's active run; `rotari cancel` of an earlier run's ID fails instead of
+cancelling the run that is active now. Without `-p`, a `JOB_ID` is looked for
+in the active run of every project.
 
 Whole-run cancel (no `--job-id/-j`) and, for `local`-executor jobs, `--job-id/-j`
 cancel/suspend/resume all signal the runner or job by PID, which only means
@@ -299,7 +303,8 @@ rotari resume RUN_ID
 ```
 
 Without `--job-id/-j`, all currently running jobs are affected. Repeat `--job-id/-j`
-to control selected jobs. Local jobs use `SIGSTOP`/`SIGCONT`; Slurm jobs use
+to control selected jobs; job IDs select as for `cancel`, except that an array
+job's ID selects only its running tasks. Local jobs use `SIGSTOP`/`SIGCONT`; Slurm jobs use
 `scontrol suspend`/`scontrol resume`.
 
 Delete saved run logs while keeping queued commands:

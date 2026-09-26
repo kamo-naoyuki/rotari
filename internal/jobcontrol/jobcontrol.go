@@ -29,24 +29,26 @@ type Controller struct {
 }
 
 // Control suspends or resumes, as named by operation, the selected running
-// jobs of project, or every running job when jobIDs is empty. Attempt IDs
-// must name the latest attempt of a running job.
-func (controller Controller) Control(paths state.ProjectPaths, project string, jobIDs []string, operation string) (string, error) {
+// jobs of project, or every running job when jobIDs is empty. A non-empty
+// runID must be the project's active run. Attempt IDs must name the latest
+// attempt of a running job, and an array job's ID selects its running tasks.
+func (controller Controller) Control(paths state.ProjectPaths, project, runID string, jobIDs []string, operation string) (string, error) {
 	if operation != "suspend" && operation != "resume" {
 		return "", fmt.Errorf("unsupported job operation: %s", operation)
 	}
-	lock, err := state.LoadLock(paths.LockFile)
+	lock, err := activeLock(paths, project, runID)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("project %q is not running", project)
-		}
-		return "", fmt.Errorf("invalid running lock: %w", err)
+		return "", err
 	}
 	runDir, err := runDirectory(paths, lock)
 	if err != nil {
 		return "", err
 	}
 	jobIDs, err = controller.normalizeRunningAttemptIDs(runDir, lock.RunID, jobIDs)
+	if err != nil {
+		return "", err
+	}
+	jobIDs, err = controller.expandArrays(runDir, jobIDs, false)
 	if err != nil {
 		return "", err
 	}
@@ -110,16 +112,14 @@ func (controller Controller) Control(paths state.ProjectPaths, project string, j
 }
 
 // Cancel cancels the selected running jobs of project, or its whole run when
-// jobIDs is empty. A whole-run cancel marks the queue as cancelling; when this
-// process is the runner it cancels each unfinished job directly, and otherwise
-// it signals the runner's process group. With wait, it returns once the run
-// lock is released.
-func (controller Controller) Cancel(paths state.ProjectPaths, project string, jobIDs []string, wait bool) (string, error) {
-	lock, err := state.LoadLock(paths.LockFile)
+// jobIDs is empty. A non-empty runID must be the project's active run, and an
+// array job's ID selects its unfinished tasks. A whole-run cancel marks the
+// queue as cancelling; when this process is the runner it cancels each
+// unfinished job directly, and otherwise it signals the runner's process
+// group. With wait, it returns once the run lock is released.
+func (controller Controller) Cancel(paths state.ProjectPaths, project, runID string, jobIDs []string, wait bool) (string, error) {
+	lock, err := activeLock(paths, project, runID)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("project %q is not running", project)
-		}
 		return "", err
 	}
 	runDir, err := runDirectory(paths, lock)
@@ -127,6 +127,10 @@ func (controller Controller) Cancel(paths state.ProjectPaths, project string, jo
 		return "", err
 	}
 	jobIDs, err = controller.normalizeRunningAttemptIDs(runDir, lock.RunID, jobIDs)
+	if err != nil {
+		return "", err
+	}
+	jobIDs, err = controller.expandArrays(runDir, jobIDs, true)
 	if err != nil {
 		return "", err
 	}
@@ -226,6 +230,72 @@ func (controller Controller) CancelJobs(runDir, project, runID string, jobIDs []
 		cancelled++
 	}
 	return fmt.Sprintf("Cancel requested\n  Project: %s\n  Run: %s\n  Jobs: %d", project, runID, cancelled), nil
+}
+
+// activeLock loads the lock of project's active run, which must be runID
+// when runID is not empty.
+func activeLock(paths state.ProjectPaths, project, runID string) (model.LockInfo, error) {
+	lock, err := state.LoadLock(paths.LockFile)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return model.LockInfo{}, fmt.Errorf("invalid running lock: %w", err)
+		}
+		if runID != "" {
+			return model.LockInfo{}, fmt.Errorf("run %q is not running; project %q has no active run", runID, project)
+		}
+		return model.LockInfo{}, fmt.Errorf("project %q is not running", project)
+	}
+	if runID != "" && lock.RunID != runID {
+		return model.LockInfo{}, fmt.Errorf("run %q is not running; the active run of project %q is %q", runID, project, lock.RunID)
+	}
+	return lock, nil
+}
+
+// expandArrays replaces each array job's ID with its tasks that can be
+// signalled: unfinished tasks when pending is set, as cancel marks tasks that
+// were never submitted, and otherwise only submitted, unfinished ones. An
+// array job with no such task is not running. Other IDs are kept.
+func (controller Controller) expandArrays(runDir string, jobIDs []string, pending bool) ([]string, error) {
+	if len(jobIDs) == 0 {
+		return jobIDs, nil
+	}
+	snapshot, err := loadCommandSnapshot(runDir)
+	if err != nil {
+		return jobIDs, nil
+	}
+	arrays := make(map[string]model.QueuedCommand)
+	for _, command := range snapshot.Commands {
+		if command.Array != nil {
+			arrays[command.ID] = command
+		}
+	}
+	expanded := make([]string, 0, len(jobIDs))
+	for _, jobID := range jobIDs {
+		command, ok := arrays[jobID]
+		if !ok {
+			expanded = append(expanded, jobID)
+			continue
+		}
+		tasks := 0
+		for _, task := range model.QueueToJobs([]model.QueuedCommand{command}) {
+			taskDir, err := state.LatestAttemptJobDir(runDir, task.ID)
+			if err != nil {
+				return nil, err
+			}
+			if controller.jobFinished(taskDir) {
+				continue
+			}
+			if _, err := controller.Executors.Owner(controller.Store, taskDir); err != nil && !pending {
+				continue
+			}
+			expanded = append(expanded, task.ID)
+			tasks++
+		}
+		if tasks == 0 {
+			return nil, fmt.Errorf("job %q is not running", jobID)
+		}
+	}
+	return expanded, nil
 }
 
 func runDirectory(paths state.ProjectPaths, lock model.LockInfo) (string, error) {

@@ -245,7 +245,7 @@ func TestCancelQueueJobsRejectsUnsafeRunIDFromLock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := cancelQueueJobs(baseDir, "default", nil, false); err == nil {
+	if _, err := cancelQueueJobs(baseDir, "default", "", nil, false); err == nil {
 		t.Fatal("cancelQueueJobs accepted unsafe run ID from lock")
 	}
 }
@@ -260,7 +260,7 @@ func TestControlQueueJobsRejectsUnsafeRunIDFromLock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := controlQueueJobs(baseDir, "default", nil, "suspend"); err == nil {
+	if _, err := controlQueueJobs(baseDir, "default", "", nil, "suspend"); err == nil {
 		t.Fatal("controlQueueJobs accepted unsafe run ID from lock")
 	}
 }
@@ -489,10 +489,10 @@ func TestControlQueueJobsControlsSelectedSlurmJob(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := controlQueueJobs(baseDir, "default", []string{"job-1"}, "suspend"); err != nil {
+	if _, err := controlQueueJobs(baseDir, "default", "", []string{"job-1"}, "suspend"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := controlQueueJobs(baseDir, "default", []string{"job-1"}, "resume"); err != nil {
+	if _, err := controlQueueJobs(baseDir, "default", "", []string{"job-1"}, "resume"); err != nil {
 		t.Fatal(err)
 	}
 	args, err := os.ReadFile(argumentsPath)
@@ -528,7 +528,7 @@ func TestControlQueueJobsReportsMissingScontrolBinary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = controlQueueJobs(baseDir, "default", []string{"job-1"}, "suspend")
+	_, err = controlQueueJobs(baseDir, "default", "", []string{"job-1"}, "suspend")
 	if err == nil {
 		t.Fatal("suspend without scontrol on PATH unexpectedly succeeded")
 	}
@@ -565,7 +565,7 @@ func TestControlQueueJobsSurfacesScontrolRejectionForPendingJob(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = controlQueueJobs(baseDir, "default", []string{"job-1"}, "suspend")
+	_, err = controlQueueJobs(baseDir, "default", "", []string{"job-1"}, "suspend")
 	if err == nil {
 		t.Fatal("suspend of a pending job unexpectedly succeeded")
 	}

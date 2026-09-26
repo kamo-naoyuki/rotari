@@ -212,11 +212,11 @@ func (ops serverOperations) Submit(request serverinternal.Request) (string, erro
 }
 
 func (ops serverOperations) Cancel(request serverinternal.Request) (string, error) {
-	return cancelQueueJobs(ops.baseDir, request.QueueName, request.JobIDs, request.Wait)
+	return cancelQueueJobs(ops.baseDir, request.QueueName, request.RunID, request.JobIDs, request.Wait)
 }
 
 func (ops serverOperations) Control(request serverinternal.Request) (string, error) {
-	return controlQueueJobs(ops.baseDir, request.QueueName, request.JobIDs, request.Op)
+	return controlQueueJobs(ops.baseDir, request.QueueName, request.RunID, request.JobIDs, request.Op)
 }
 
 func (ops serverOperations) StartRun(request serverinternal.Request, onDone func()) (string, error) {
