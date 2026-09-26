@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
@@ -666,7 +667,7 @@ func writeShowTargetHeaderWithMode(writer io.Writer, paths state.ProjectPaths, m
 		fmt.Fprintf(writer, "%s stopped\n", cyan("Runner server:"))
 	}
 	fmt.Fprintf(writer, "%s %d\n", cyan("Runs:"), countProjectRuns(paths.RunsDir))
-	if configPath := effectiveConfigPath(paths.BaseDir, paths.ProjectName); configPath != "" {
+	if configPath := config.EffectivePath(paths.BaseDir, paths.ProjectName); configPath != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Config:"), configPath)
 	}
 }

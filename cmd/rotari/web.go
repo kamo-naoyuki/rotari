@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
@@ -721,7 +722,7 @@ func loadWebConfigFiles(baseDir, projectName, runID string) ([]webprojection.Con
 		if runID != "" {
 			return nil, fmt.Errorf("project_name is required with run_id")
 		}
-		if path := effectiveConfigPath(baseDir, ""); path != "" {
+		if path := config.EffectivePath(baseDir, ""); path != "" {
 			paths = []string{path}
 		}
 	} else {
@@ -729,7 +730,7 @@ func loadWebConfigFiles(baseDir, projectName, runID string) ([]webprojection.Con
 			return nil, fmt.Errorf("invalid project_name %q", projectName)
 		}
 		if runID == "" {
-			if path := effectiveConfigPath(baseDir, projectName); path != "" {
+			if path := config.EffectivePath(baseDir, projectName); path != "" {
 				paths = []string{path}
 			}
 		} else {
@@ -755,11 +756,11 @@ func saveWebConfig(baseDir, projectName, content string) (string, error) {
 	if projectName != "" && !stateinternal.IsValidPathElement(projectName) {
 		return "", fmt.Errorf("invalid project_name %q", projectName)
 	}
-	path := effectiveConfigPath(baseDir, projectName)
+	path := config.EffectivePath(baseDir, projectName)
 	if path == "" {
 		return "", fmt.Errorf("no config file exists to edit")
 	}
-	if _, err := parseConfigContent(path, []byte(content)); err != nil {
+	if _, err := config.Parse(path, []byte(content)); err != nil {
 		return "", fmt.Errorf("invalid %s config: %w", strings.TrimPrefix(filepath.Ext(path), "."), err)
 	}
 	// codeql[go/path-injection]: path is returned by the allow-listed config resolver.
@@ -809,7 +810,7 @@ func loadRunConfigFiles(baseDir, projectName, runID string) ([]webprojection.Con
 }
 
 func webConfigTargets(baseDir, projectName string) ([]webConfigTarget, error) {
-	configHome, err := configHomeDir()
+	configHome, err := config.HomeDir()
 	if err != nil {
 		return nil, err
 	}
@@ -846,7 +847,7 @@ func generateWebConfig(baseDir, projectName, location string) (string, error) {
 		return "", fmt.Errorf("invalid config location %q", location)
 	}
 	directory := filepath.Dir(target)
-	existing := configFilePaths(directory)
+	existing := config.FilePaths(directory)
 	if len(existing) > 1 {
 		return "", fmt.Errorf("multiple config files found in %s: %s", directory, strings.Join(existing, ", "))
 	}
@@ -870,7 +871,7 @@ func generateWebConfig(baseDir, projectName, location string) (string, error) {
 
 func loadLegacyRunConfigFiles(baseDir, projectName string, configPaths []string) ([]webprojection.ConfigFile, error) {
 	allowed := make(map[string]bool)
-	for _, path := range configPathsForRun(baseDir, projectName) {
+	for _, path := range config.PathsForRun(baseDir, projectName) {
 		allowed[filepath.Clean(path)] = true
 	}
 	allowedPaths := make([]string, 0, len(configPaths))
@@ -894,7 +895,7 @@ func loadLegacyRunConfigFiles(baseDir, projectName string, configPaths []string)
 // loadWebState projects persisted server and project state into the Web API
 // model consumed by the embedded and static Web UIs.
 func loadWebState(baseDir, queueFilter string) (webprojection.State, error) {
-	state := webprojection.State{BaseDir: baseDir, ConfigPath: effectiveConfigPath(baseDir, ""), Server: loadWebServerState(baseDir), Environments: environmentDefinitions(), UpdatedAt: nowRFC3339()}
+	state := webprojection.State{BaseDir: baseDir, ConfigPath: config.EffectivePath(baseDir, ""), Server: loadWebServerState(baseDir), Environments: environmentDefinitions(), UpdatedAt: nowRFC3339()}
 	for index := range state.Environments {
 		// Only expose whether the variable is set, never its value: it may hold secrets (API keys, tokens).
 		_, state.Environments[index].Set = os.LookupEnv(state.Environments[index].Name)
@@ -923,7 +924,7 @@ func loadWebState(baseDir, queueFilter string) (webprojection.State, error) {
 		if err != nil {
 			return webprojection.State{}, err
 		}
-		queueState.ConfigPath = effectiveConfigPath(baseDir, queueName)
+		queueState.ConfigPath = config.EffectivePath(baseDir, queueName)
 		state.Queues = append(state.Queues, queueState)
 	}
 	state.UpdatedAt = model.FormatDisplayTimestamp(state.UpdatedAt)

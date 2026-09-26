@@ -8,9 +8,12 @@ Representative implementation and tests:
   commands, and [internal/state/config.go](../../internal/state/config.go) and
   [internal/state/project.go](../../internal/state/project.go) for base
   directory, master directory, and project resolution.
-- [cmd/rotari/config.go](../../cmd/rotari/config.go) and
-  [cmd/rotari/config_test.go](../../cmd/rotari/config_test.go) for configuration
-  precedence and formats.
+- [internal/config/config.go](../../internal/config/config.go) and
+  [internal/config/config_test.go](../../internal/config/config_test.go) for
+  config file locations, scope, and formats, and
+  [cmd/rotari/config.go](../../cmd/rotari/config.go) and
+  [cmd/rotari/config_test.go](../../cmd/rotari/config_test.go) for how config
+  values become CLI option defaults and their precedence.
 - [internal/runregistry/registry.go](../../internal/runregistry/registry.go)
   and [internal/runregistry/registry_test.go](../../internal/runregistry/registry_test.go)
   for run-location indexing and stale-entry garbage collection.

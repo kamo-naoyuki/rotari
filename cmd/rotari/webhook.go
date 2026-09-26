@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -251,11 +252,11 @@ func notifyRunWebhook(paths state.ProjectPaths, runID string, exitCode int) {
 
 func webhookSettings(paths state.ProjectPaths) webhookConfig {
 	settings := map[string]any{}
-	if configPaths := configPathsForRun(paths.BaseDir, paths.ProjectName); len(configPaths) > 0 {
+	if configPaths := config.PathsForRun(paths.BaseDir, paths.ProjectName); len(configPaths) > 0 {
 		configPath := configPaths[0]
-		config, err := loadConfigFile(filepath.Dir(configPath))
+		values, err := config.LoadFile(filepath.Dir(configPath))
 		if err == nil {
-			settings = config
+			settings = values
 		}
 	}
 	webhook, _ := settings["webhook"].(map[string]any)

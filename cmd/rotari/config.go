@@ -13,16 +13,18 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/BurntSushi/toml"
-	"gopkg.in/yaml.v3"
-
+	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/state"
+	"gopkg.in/yaml.v3"
 )
 
 var cliConfig map[string]any
 var cliConfigCommand string
 
-var configExtensions = []string{".yaml", ".toml", ".json"}
+func init() {
+	// Config warnings use the CLI's error style.
+	config.Warnf = printErrorf
+}
 
 func loadCLIConfig(args []string) error {
 	cliConfig = nil
@@ -48,14 +50,14 @@ func loadCLIConfig(args []string) error {
 	if projectName, err = configProjectName(resolvedBaseDir, projectName); err != nil {
 		return err
 	}
-	config := map[string]any{}
-	if path := effectiveConfigPath(resolvedBaseDir, projectName); path != "" {
-		config, err = loadConfigFile(filepath.Dir(path))
+	values := map[string]any{}
+	if path := config.EffectivePath(resolvedBaseDir, projectName); path != "" {
+		values, err = config.LoadFile(filepath.Dir(path))
 		if err != nil {
 			return err
 		}
 	}
-	cliConfig = config
+	cliConfig = values
 	return nil
 }
 
@@ -139,147 +141,6 @@ func configLocationArgs(args []string) (baseDir, projectName string) {
 		}
 	}
 	return baseDir, projectName
-}
-
-func configHomeDir() (string, error) {
-	if value := os.Getenv("XDG_CONFIG_HOME"); value != "" {
-		return filepath.Join(value, "rotari"), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".config", "rotari"), nil
-}
-
-func loadConfigFile(directory string) (map[string]any, error) {
-	paths := configFilePaths(directory)
-	if len(paths) > 1 {
-		return nil, fmt.Errorf("multiple config files found in %s: %s", directory, strings.Join(paths, ", "))
-	}
-	if len(paths) == 0 {
-		return map[string]any{}, nil
-	}
-	data, err := os.ReadFile(paths[0])
-	if err != nil {
-		printErrorf("WARNING: cannot read config %s: %v", paths[0], err)
-		return map[string]any{}, nil
-	}
-	config, err := parseConfigContent(paths[0], data)
-	if err != nil {
-		printErrorf("WARNING: cannot parse config %s: %v", paths[0], err)
-		return map[string]any{}, nil
-	}
-	return config, nil
-}
-
-func parseConfigContent(path string, data []byte) (map[string]any, error) {
-	config := make(map[string]any)
-	var err error
-	switch filepath.Ext(path) {
-	case ".json":
-		err = json.Unmarshal(data, &config)
-	case ".yaml":
-		err = yaml.Unmarshal(data, &config)
-	case ".toml":
-		_, err = toml.Decode(string(data), &config)
-	default:
-		return nil, fmt.Errorf("unsupported config format %q", filepath.Ext(path))
-	}
-	if err != nil {
-		return nil, err
-	}
-	return config, nil
-}
-
-func configFilePaths(directory string) []string {
-	paths := make([]string, 0, len(configExtensions))
-	for _, extension := range configExtensions {
-		path := filepath.Join(directory, "config"+extension)
-		// codeql[go/path-injection]: path is built from the trusted config directory and fixed suffix.
-		if _, err := os.Stat(path); err == nil {
-			paths = append(paths, path)
-		} else if !errors.Is(err, os.ErrNotExist) {
-			printErrorf("WARNING: cannot inspect config %s: %v", path, err)
-		}
-	}
-	return paths
-}
-
-func effectiveConfigPath(baseDir, projectName string) string {
-	paths := configPathsForRun(baseDir, projectName)
-	if len(paths) == 0 {
-		return ""
-	}
-	return paths[len(paths)-1]
-}
-
-func globalConfigPath() string {
-	configHome, err := configHomeDir()
-	if err != nil {
-		return ""
-	}
-	paths := configFilePaths(configHome)
-	if len(paths) == 0 {
-		return ""
-	}
-	return paths[len(paths)-1]
-}
-
-func configPathsForRun(baseDir, projectName string) []string {
-	if projectName != "" {
-		if projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), projectName); err == nil {
-			if paths := configFilePaths(projectDir); len(paths) > 0 {
-				return paths
-			}
-		}
-	}
-	if paths := configFilePaths(baseDir); len(paths) > 0 {
-		return paths
-	}
-	if configHome, err := configHomeDir(); err == nil {
-		return configFilePaths(configHome)
-	}
-	return nil
-}
-
-// configListPaths returns every config file found across all scopes for
-// `config --list`. Unlike configPathsForRun, it does not stop at the first
-// scope that has files: --list is meant to show the user everything, not just
-// the one scope that would take effect.
-func configListPaths(baseDir, projectName string) (common []string, projects map[string][]string) {
-	projects = make(map[string][]string)
-	if configHome, err := configHomeDir(); err == nil {
-		common = append(common, configFilePaths(configHome)...)
-	}
-	common = append(common, configFilePaths(baseDir)...)
-	if projectName != "" {
-		projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), projectName)
-		if err != nil {
-			return common, projects
-		}
-		if paths := configFilePaths(projectDir); len(paths) > 0 {
-			projects[projectName] = paths
-		}
-		return common, projects
-	}
-	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
-	if err != nil {
-		return common, projects
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() || !state.IsValidPathElement(entry.Name()) {
-			continue
-		}
-		projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), entry.Name())
-		if err != nil {
-			continue
-		}
-		if paths := configFilePaths(projectDir); len(paths) > 0 {
-			projects[entry.Name()] = paths
-		}
-	}
-	return common, projects
 }
 
 func configValue(name string) (any, bool) {
@@ -466,7 +327,7 @@ func cmdConfig(args []string) int {
 			printErrorf("invalid project name %q", *projectName)
 			return 1
 		}
-		common, projects := configListPaths(resolvedBaseDir, *projectName)
+		common, projects := config.ListPaths(resolvedBaseDir, *projectName)
 		if len(common) > 0 {
 			fmt.Println("Common:")
 			for _, path := range common {
@@ -525,7 +386,7 @@ func cmdConfig(args []string) int {
 
 func chooseConfigOutput(reader io.Reader, writer io.Writer, baseDir, projectName, format string) (string, bool) {
 	extension := "." + format
-	configHome, err := configHomeDir()
+	configHome, err := config.HomeDir()
 	if err != nil {
 		printErrorf("failed to resolve config home: %v", err)
 		return "", false

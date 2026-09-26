@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -746,7 +747,7 @@ func TestWebConfigAPIReadsResolvedFiles(t *testing.T) {
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(runDir, "context.json"), model.RunContext{ConfigPaths: configPathsForRun(baseDir, "demo")}); err != nil {
+	if err := writeJSON(filepath.Join(runDir, "context.json"), model.RunContext{ConfigPaths: config.PathsForRun(baseDir, "demo")}); err != nil {
 		t.Fatal(err)
 	}
 	handler := newWebHandler(baseDir, "", false)

@@ -118,6 +118,7 @@ flowchart TB
     executor
     state
     runregistry
+    config
   end
   model["model<br/>(imports nothing from rotari)"]
 
@@ -181,6 +182,7 @@ the current graph if this list drifts.
 | [internal/executor](../internal/executor/) | How one job attempt is started, waited for, cancelled, and suspended: local processes, Slurm, PBS, LSF, SSH, wrapper scripts. No run semantics. | `contracts.go` (`JobExecutor`), `local.go`, `slurm.go` |
 | [internal/project](../internal/project/) | A project's run state (idle, running, interrupted) from `running.lock` and `meta.json`, consistency checks, recovery, and the idle-edit sequence: state lock, idle check, load, edit, metadata-then-queue write. | `inspect.go` (`Inspect`, `EnsureIdle`), `edit.go` (`EditQueue`) |
 | [internal/resolve](../internal/resolve/) | Location rules shared by the commands that read existing state: a run ID through the run registry, an `att_` attempt ID, the latest-run fallback, run names, and job IDs or names looked up in the queue and latest runs. show's and wait's own selector orders build on it. | `resolve.go` (`ExistingRun`, `RunID`, `Jobs`) |
+| [internal/config](../internal/config/) | Config file locations (global, base directory, project), which scope applies, and parsing YAML, TOML, and JSON. What the keys mean stays in `cmd/rotari`. | `config.go` (`PathsForRun`, `LoadFile`) |
 | [internal/runregistry](../internal/runregistry/) | The master directory's run index, `<masterdir>/runs/<run-id>.json`: register, look up, unregister, and find stale entries for `gc`. | `registry.go` |
 | [internal/projectrun](../internal/projectrun/) | One project's run against its files: `Begin` (context, run lock, registry, running metadata), `Execute` (snapshot, plan, dispatch, summary), and `Finish` (final context, queue and metadata finalization, lock removal). Shared by the sync run, the async worker, and cancellation. Also checks that a queue can run with the known executors (`ValidateQueue`). | `lifecycle.go`, `execute.go`, `validate.go` |
 | [internal/run](../internal/run/) | Run rules without file access: which jobs execute or are carried forward, dependency unblocking, retries, per-executor lanes and concurrency, the summary contents. | `rerun.go` (`PlanRerun`), `engine.go` (`ExecuteJobs`), `dispatch.go` (`Dispatcher`) |

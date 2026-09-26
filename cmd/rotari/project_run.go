@@ -3,6 +3,7 @@ package main
 import (
 	"path/filepath"
 
+	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
@@ -29,7 +30,7 @@ func projectRunner() projectrun.Runner {
 		AttemptIDName:       envAttemptID,
 		PropagatedVariables: propagatedEnvironmentVariables,
 		ConfigPaths: func(paths state.ProjectPaths) []string {
-			return configPathsForRun(paths.BaseDir, paths.ProjectName)
+			return config.PathsForRun(paths.BaseDir, paths.ProjectName)
 		},
 		RegisterRun: registerRun,
 		Diagnose:    diagnoseJobResult,

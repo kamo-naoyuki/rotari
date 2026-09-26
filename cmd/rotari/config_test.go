@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,60 +11,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 )
-
-func TestLoadConfigFileSupportsAllFormats(t *testing.T) {
-	tests := []struct {
-		name      string
-		extension string
-		content   string
-	}{
-		{name: "yaml", extension: ".yaml", content: "executor: slurm\nlocal-concurrency: 4\n"},
-		{name: "toml", extension: ".toml", content: "executor = \"slurm\"\nlocal-concurrency = 4\n"},
-		{name: "json", extension: ".json", content: `{"executor":"slurm","local-concurrency":4}`},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			directory := t.TempDir()
-			if err := os.WriteFile(filepath.Join(directory, "config"+test.extension), []byte(test.content), 0o644); err != nil {
-				t.Fatal(err)
-			}
-			config, err := loadConfigFile(directory)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if configStringFrom(config, "executor") != "slurm" || configIntFrom(config, "local-concurrency") != 4 {
-				t.Fatalf("config = %#v", config)
-			}
-		})
-	}
-}
-
-func TestLoadConfigFileRejectsMultipleFormats(t *testing.T) {
-	directory := t.TempDir()
-	for _, extension := range []string{".yaml", ".toml"} {
-		if err := os.WriteFile(filepath.Join(directory, "config"+extension), []byte("executor = \"local\"\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	_, err := loadConfigFile(directory)
-	if err == nil || !strings.Contains(err.Error(), "multiple config files") {
-		t.Fatalf("loadConfigFile error = %v", err)
-	}
-}
-
-func TestLoadConfigFileWarnsAndIgnoresInvalidFormat(t *testing.T) {
-	directory := t.TempDir()
-	if err := os.WriteFile(filepath.Join(directory, "config.yaml"), []byte("run: [invalid\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	config, err := loadConfigFile(directory)
-	if err != nil {
-		t.Fatalf("loadConfigFile returned error: %v", err)
-	}
-	if len(config) != 0 {
-		t.Fatalf("config = %#v, want empty config", config)
-	}
-}
 
 func TestProjectConfigIgnoresLowerPriorityScopes(t *testing.T) {
 	baseDir := t.TempDir()
@@ -181,16 +126,6 @@ func TestConfigLoadDoesNotRejectAmbiguousProjects(t *testing.T) {
 	t.Cleanup(func() { cliConfig = oldConfig })
 	if err := loadCLIConfig([]string{"--basedir", baseDir}); err != nil {
 		t.Fatalf("loadCLIConfig rejected ambiguous projects: %v", err)
-	}
-}
-
-func TestConfigPathsForRunRejectsUnsafeProjectName(t *testing.T) {
-	baseDir := t.TempDir()
-	paths := configPathsForRun(baseDir, "../outside")
-	for _, path := range paths {
-		if strings.Contains(path, "outside") {
-			t.Fatalf("configPathsForRun returned path outside the project root: %q", path)
-		}
 	}
 }
 
@@ -502,17 +437,6 @@ func TestPrintConfigCandidates(t *testing.T) {
 	if !strings.Contains(output.String(), "5) other path") || !strings.Contains(output.String(), "Enter config file path:") {
 		t.Fatalf("custom candidate output:\n%s", output.String())
 	}
-}
-
-func configStringFrom(config map[string]any, name string) string {
-	return strings.TrimSpace(strings.Trim(fmt.Sprint(config[name]), `"`))
-}
-
-func configIntFrom(config map[string]any, name string) int {
-	value := fmt.Sprint(config[name])
-	var result int
-	_, _ = fmt.Sscanf(value, "%d", &result)
-	return result
 }
 
 func TestExecutorRunSettingsIncludeCommandLineValues(t *testing.T) {
