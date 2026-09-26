@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
@@ -364,7 +365,7 @@ func prepareServerRun(baseDir string, request serverinternal.Request) (preparedR
 	if err != nil {
 		return preparedRun{}, err
 	}
-	if err := ensureProjectIdleForPaths(paths, "run"); err != nil {
+	if err := project.EnsureIdle(paths, "run"); err != nil {
 		release()
 		return preparedRun{}, err
 	}

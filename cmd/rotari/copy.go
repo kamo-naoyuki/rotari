@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -191,61 +192,52 @@ func copyRunToQueue(baseDir, queueName, runID, selection string, jobIDs []string
 	if err != nil {
 		return "", err
 	}
-	release, err := state.AcquireStateLock(paths.StateLockFile)
-	if err != nil {
-		return "", fmt.Errorf("failed to lock queue: %w", err)
-	}
-	defer release()
-	if err := ensureProjectIdleForPaths(paths, "copy"); err != nil {
-		return "", err
-	}
-
-	sourceRunDir, err := state.SafeJoin(paths.RunsDir, runID)
-	if err != nil {
-		return "", err
-	}
-	snapshot, err := state.LoadQueue(filepath.Join(sourceRunDir, "commands.json")) // NOSONAR: sourceRunDir is produced by validatedRunDir.
-	if err != nil {
-		return "", fmt.Errorf("failed to load command snapshot: %w", err)
-	}
-	if len(snapshot.Commands) == 0 {
-		return "", errors.New("command snapshot has no jobs")
-	}
-	summary, summaryErr := state.LoadRunSummary(filepath.Join(sourceRunDir, "summary.json")) // NOSONAR: sourceRunDir is produced by validatedRunDir.
-	if summaryErr != nil && selection != "all" {
-		return "", fmt.Errorf("failed to load run summary: %w", summaryErr)
-	}
-	source := queueedit.Run{
-		ID: runID, Snapshot: snapshot, Results: model.ResultsByID(summary.Results),
-		Timestamps: func(jobID string) (string, string) {
-			return state.ReadJobTimestamp(sourceRunDir, jobID, stateFileSubmittedAt), state.ReadJobTimestamp(sourceRunDir, jobID, stateFileFinishedAt)
-		},
-	}
-	if context, contextErr := state.LoadContext(jsonStore(), sourceRunDir); contextErr == nil {
-		source.CWD = context.CWD
-	}
-	request := queueedit.CopyRequest{Selection: selection, Append: appendJobs, Overwrite: overwrite}
-	for _, jobID := range jobIDs {
-		if !strings.HasPrefix(jobID, "att_") {
-			request.JobIDs = append(request.JobIDs, jobID)
-			continue
-		}
-		attempt, err := copyAttempt(sourceRunDir, runID, jobID)
+	var copied int
+	err = project.EditQueue(paths, "copy", func(queue *model.Queue) error {
+		sourceRunDir, err := state.SafeJoin(paths.RunsDir, runID)
 		if err != nil {
-			return "", err
+			return err
 		}
-		request.Attempts = append(request.Attempts, attempt)
-	}
-
-	queue, err := state.LoadQueue(paths.QueueFile)
+		snapshot, err := state.LoadQueue(filepath.Join(sourceRunDir, "commands.json")) // NOSONAR: sourceRunDir is produced by validatedRunDir.
+		if err != nil {
+			return fmt.Errorf("failed to load command snapshot: %w", err)
+		}
+		if len(snapshot.Commands) == 0 {
+			return errors.New("command snapshot has no jobs")
+		}
+		summary, summaryErr := state.LoadRunSummary(filepath.Join(sourceRunDir, "summary.json")) // NOSONAR: sourceRunDir is produced by validatedRunDir.
+		if summaryErr != nil && selection != "all" {
+			return fmt.Errorf("failed to load run summary: %w", summaryErr)
+		}
+		source := queueedit.Run{
+			ID: runID, Snapshot: snapshot, Results: model.ResultsByID(summary.Results),
+			Timestamps: func(jobID string) (string, string) {
+				return state.ReadJobTimestamp(sourceRunDir, jobID, stateFileSubmittedAt), state.ReadJobTimestamp(sourceRunDir, jobID, stateFileFinishedAt)
+			},
+		}
+		if context, contextErr := state.LoadContext(jsonStore(), sourceRunDir); contextErr == nil {
+			source.CWD = context.CWD
+		}
+		request := queueedit.CopyRequest{Selection: selection, Append: appendJobs, Overwrite: overwrite}
+		for _, jobID := range jobIDs {
+			if !strings.HasPrefix(jobID, "att_") {
+				request.JobIDs = append(request.JobIDs, jobID)
+				continue
+			}
+			attempt, err := copyAttempt(sourceRunDir, runID, jobID)
+			if err != nil {
+				return err
+			}
+			request.Attempts = append(request.Attempts, attempt)
+		}
+		edited, count, err := queueedit.Copy(*queue, queueName, source, request, makeJobID)
+		if err != nil {
+			return err
+		}
+		*queue, copied = edited, count
+		return nil
+	})
 	if err != nil {
-		return "", fmt.Errorf("failed to load queue: %w", err)
-	}
-	queue, copied, err := queueedit.Copy(queue, queueName, source, request, makeJobID)
-	if err != nil {
-		return "", err
-	}
-	if err := writeIdleQueue(paths, queue); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("copied jobs=%d from run=%s to queue=%s", copied, runID, queueName), nil

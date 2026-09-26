@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
 )
@@ -156,14 +157,14 @@ func validateImportDestination(baseDir, projectName string, overwrite bool) erro
 		return fmt.Errorf("failed to lock queue for reading: %w", err)
 	}
 	defer release()
-	inspection, err := inspectConsistentProjectState(paths, false)
+	inspection, err := project.InspectConsistent(paths, false)
 	if err != nil {
 		return fmt.Errorf("failed to check project state: %w", err)
 	}
-	if inspection.State == projectRunning {
+	if inspection.State == project.Running {
 		return fmt.Errorf("project %q is running; import is not allowed", projectName)
 	}
-	if inspection.State == projectInterrupted {
+	if inspection.State == project.Interrupted {
 		return fmt.Errorf("project %q has interrupted run %q; import is not allowed", projectName, inspection.RunID)
 	}
 	existing, err := state.LoadQueue(paths.QueueFile)
@@ -308,20 +309,11 @@ func writeImportedQueue(baseDir, projectName string, queue model.Queue, overwrit
 	if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
 		return err
 	}
-	release, err := state.AcquireStateLock(paths.StateLockFile)
-	if err != nil {
-		return fmt.Errorf("failed to lock queue: %w", err)
-	}
-	defer release()
-	if err := ensureProjectIdleForPaths(paths, "import"); err != nil {
-		return err
-	}
-	existing, err := state.LoadQueue(paths.QueueFile)
-	if err != nil {
-		return err
-	}
-	if len(existing.Commands) > 0 && !overwrite {
-		return fmt.Errorf("project %q has queued jobs; use --overwrite", projectName)
-	}
-	return writeIdleQueue(paths, queue)
+	return project.EditQueue(paths, "import", func(existing *model.Queue) error {
+		if len(existing.Commands) > 0 && !overwrite {
+			return fmt.Errorf("project %q has queued jobs; use --overwrite", projectName)
+		}
+		*existing = queue
+		return nil
+	})
 }

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -114,13 +115,13 @@ func checkProjectWithOptions(paths state.ProjectPaths, deep bool) (projectCheck,
 	}
 	defer release()
 
-	inspection, err := inspectConsistentProjectState(paths, false)
+	inspection, err := project.InspectConsistent(paths, false)
 	if err != nil {
 		return projectCheck{}, fmt.Errorf("inspect project state: %w", err)
 	}
 	result := projectCheck{Lock: string(inspection.Lock), RunID: inspection.RunID}
 	switch inspection.State {
-	case projectRunning:
+	case project.Running:
 		if inspection.Lock == state.LockRemote {
 			result.State = "locked"
 		} else {
@@ -131,7 +132,7 @@ func checkProjectWithOptions(paths state.ProjectPaths, deep bool) (projectCheck,
 			result.QueuedKnown = true
 		}
 		return result, nil
-	case projectInterrupted:
+	case project.Interrupted:
 		result.State = "interrupted"
 		if queue, err := state.LoadQueue(paths.QueueFile); err == nil {
 			result.Queued = len(queue.Commands)

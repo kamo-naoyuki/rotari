@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -55,70 +56,62 @@ func removeBatch(baseDir, queueName, requestedRunID string, requestedJobIDs []st
 	if err != nil {
 		return "", err
 	}
-	release, err := state.AcquireStateLock(paths.StateLockFile)
-	if err != nil {
-		return "", fmt.Errorf("failed to lock queue: %w", err)
-	}
-	defer release()
-	if err := ensureProjectIdleForPaths(paths, "remove"); err != nil {
-		return "", err
-	}
+	var removed []model.QueuedCommand
+	err = project.EditQueue(paths, "remove", func(queue *model.Queue) error {
+		if len(queue.Commands) == 0 || requestedRunID != "" {
+			snapshot, err := loadChangeSnapshot(paths, requestedRunID)
+			if err != nil {
+				return err
+			}
+			*queue = snapshot
+		}
 
-	queue, err := state.LoadQueue(paths.QueueFile)
-	if err != nil {
-		return "", fmt.Errorf("failed to load queue: %w", err)
-	}
-	if len(queue.Commands) == 0 || requestedRunID != "" {
-		queue, err = loadChangeSnapshot(paths, requestedRunID)
-		if err != nil {
-			return "", err
+		removeIDs := make(map[string]bool, len(requestedJobIDs))
+		for _, id := range requestedJobIDs {
+			removeIDs[id] = true
 		}
-	}
-
-	removeIDs := make(map[string]bool, len(requestedJobIDs))
-	for _, id := range requestedJobIDs {
-		removeIDs[id] = true
-	}
-	foundIDs := make(map[string]bool, len(requestedJobIDs))
-	removed := make([]model.QueuedCommand, 0, len(queue.Commands))
-	for _, job := range queue.Commands {
-		if removeIDs[job.ID] {
-			foundIDs[job.ID] = true
-			removed = append(removed, job)
-		} else if requestedJobName != "" && job.Name == requestedJobName {
-			removed = append(removed, job)
-		}
-	}
-	if len(removed) == 0 {
-		return "", fmt.Errorf("job not found")
-	}
-	if len(requestedJobIDs) > 0 && len(foundIDs) != len(removeIDs) {
-		return "", fmt.Errorf("one or more jobs not found")
-	}
-	removedNames := make(map[string]bool, len(removed))
-	for _, job := range removed {
-		if job.Name != "" {
-			removedNames[job.Name] = true
-		}
-	}
-	remaining := make([]model.QueuedCommand, 0, len(queue.Commands)-len(removed))
-	for _, job := range queue.Commands {
-		if removeIDs[job.ID] || (requestedJobName != "" && job.Name == requestedJobName) {
-			continue
-		}
-		for _, dependency := range job.AllDependencies() {
-			if removedNames[dependency] {
-				return "", fmt.Errorf("job %q is referenced by dependency; remove is not allowed", dependency)
+		foundIDs := make(map[string]bool, len(requestedJobIDs))
+		removed = make([]model.QueuedCommand, 0, len(queue.Commands))
+		for _, job := range queue.Commands {
+			if removeIDs[job.ID] {
+				foundIDs[job.ID] = true
+				removed = append(removed, job)
+			} else if requestedJobName != "" && job.Name == requestedJobName {
+				removed = append(removed, job)
 			}
 		}
-		remaining = append(remaining, job)
-	}
-	queue.Commands = remaining
-	model.ClearIncompleteMatrixGroups(queue.Commands)
-	if err := model.ValidateQueueDependencies(queue.Commands); err != nil {
-		return "", fmt.Errorf("invalid dependencies: %w", err)
-	}
-	if err := writeIdleQueue(paths, queue); err != nil {
+		if len(removed) == 0 {
+			return fmt.Errorf("job not found")
+		}
+		if len(requestedJobIDs) > 0 && len(foundIDs) != len(removeIDs) {
+			return fmt.Errorf("one or more jobs not found")
+		}
+		removedNames := make(map[string]bool, len(removed))
+		for _, job := range removed {
+			if job.Name != "" {
+				removedNames[job.Name] = true
+			}
+		}
+		remaining := make([]model.QueuedCommand, 0, len(queue.Commands)-len(removed))
+		for _, job := range queue.Commands {
+			if removeIDs[job.ID] || (requestedJobName != "" && job.Name == requestedJobName) {
+				continue
+			}
+			for _, dependency := range job.AllDependencies() {
+				if removedNames[dependency] {
+					return fmt.Errorf("job %q is referenced by dependency; remove is not allowed", dependency)
+				}
+			}
+			remaining = append(remaining, job)
+		}
+		queue.Commands = remaining
+		model.ClearIncompleteMatrixGroups(queue.Commands)
+		if err := model.ValidateQueueDependencies(queue.Commands); err != nil {
+			return fmt.Errorf("invalid dependencies: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("removed %d job(s) from queue=%s", len(removed), queueName), nil

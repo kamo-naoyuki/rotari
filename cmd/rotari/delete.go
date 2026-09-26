@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -42,56 +43,51 @@ func cmdDelete(args []string) int {
 		printErrorf("failed to create queue directory: %v", err)
 		return 1
 	}
-	release, err := state.AcquireStateLock(paths.StateLockFile)
+	var message string
+	err = project.Edit(paths, "delete", func() error {
+		var err error
+		message, err = deleteHistory(paths, *runIDOption)
+		return err
+	})
 	if err != nil {
-		printErrorf("failed to lock queue: %v", err)
-		return 1
-	}
-	defer release()
-	if err := ensureProjectIdleForPaths(paths, "delete"); err != nil {
 		printError(err)
 		return 1
 	}
+	fmt.Printf("%s\n", colorKeyValueMessage(message, green))
+	return 0
+}
 
-	if *runIDOption != "" {
-		if err := deleteRun(paths, *runIDOption); err != nil {
-			printErrorf("failed to clear run %q: %v", *runIDOption, err)
-			return 1
+// deleteHistory deletes one run, or every run when runID is empty, and
+// returns the message to report. The caller holds the state lock of an idle
+// project.
+func deleteHistory(paths state.ProjectPaths, runID string) (string, error) {
+	if runID != "" {
+		if err := deleteRun(paths, runID); err != nil {
+			return "", fmt.Errorf("failed to clear run %q: %w", runID, err)
 		}
-		fmt.Printf("%s\n", colorKeyValueMessage(fmt.Sprintf("cleared logs project=%s run=%s", queueName, *runIDOption), green))
-		return 0
+		return fmt.Sprintf("cleared logs project=%s run=%s", paths.ProjectName, runID), nil
 	}
-
 	deletedRunIDs := runIDsInDirectory(paths.RunsDir)
 	if err := os.RemoveAll(paths.RunsDir); err != nil {
-		printErrorf("failed to clear run history: %v", err)
-		return 1
+		return "", fmt.Errorf("failed to clear run history: %w", err)
 	}
 	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
-		printErrorf("failed to load metadata: %v", err)
-		return 1
+		return "", fmt.Errorf("failed to load metadata: %w", err)
 	}
-	if *runIDOption == "" || meta.LastRunID == *runIDOption {
-		meta.LastRunID = latestRunID(paths.RunsDir)
-		if meta.LastRunID == "" {
-			meta.LastRunExitCode = 0
-		}
-	}
+	meta.LastRunID = ""
+	meta.LastRunExitCode = 0
 	meta.Phase = "collecting"
 	meta.UpdatedAt = nowRFC3339()
 	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
-		printErrorf("failed to update metadata: %v", err)
-		return 1
+		return "", fmt.Errorf("failed to update metadata: %w", err)
 	}
-	for _, runID := range deletedRunIDs {
-		if err := unregisterRun(runID); err != nil {
-			printErrorf("failed to remove run registry entry %q: %v", runID, err)
-			return 1
+	for _, deleted := range deletedRunIDs {
+		if err := unregisterRun(deleted); err != nil {
+			return "", fmt.Errorf("failed to remove run registry entry %q: %w", deleted, err)
 		}
 	}
-	fmt.Printf("%s\n", colorKeyValueMessage(fmt.Sprintf("cleared logs project=%s directory=%s", queueName, filepath.Join(paths.ProjectDir, "runs")), green))
-	return 0
+	return fmt.Sprintf("cleared logs project=%s directory=%s", paths.ProjectName, filepath.Join(paths.ProjectDir, "runs")), nil
 }
 
 func runIDsInDirectory(runsDir string) []string {
@@ -166,13 +162,5 @@ func clearRunHistory(baseDir, queueName, runID string) error {
 	if err != nil {
 		return err
 	}
-	release, err := state.AcquireStateLock(paths.StateLockFile)
-	if err != nil {
-		return fmt.Errorf("failed to lock queue: %w", err)
-	}
-	defer release()
-	if err := ensureProjectIdleForPaths(paths, "delete"); err != nil {
-		return err
-	}
-	return deleteRun(paths, runID)
+	return project.Edit(paths, "delete", func() error { return deleteRun(paths, runID) })
 }

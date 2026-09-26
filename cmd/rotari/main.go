@@ -207,39 +207,6 @@ func printUsage() {
 	}
 }
 
-func recoverInterruptedProject(paths state.ProjectPaths, runID string, discardQueue bool) error {
-	release, err := state.AcquireStateLock(paths.StateLockFile)
-	if err != nil {
-		return fmt.Errorf("failed to lock queue: %w", err)
-	}
-	defer release()
-	projectState, currentRunID, err := inspectConsistentProjectRunState(paths, true)
-	if err != nil {
-		return err
-	}
-	if projectState != projectInterrupted || currentRunID != runID {
-		return fmt.Errorf("project %q no longer has interrupted run %q", paths.ProjectName, runID)
-	}
-	if discardQueue {
-		queue, err := state.LoadQueue(paths.QueueFile)
-		if err != nil {
-			return err
-		}
-		queue.Commands = nil
-		queue.WorkflowImport = false
-		if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
-			return err
-		}
-	}
-	meta, err := state.LoadMeta(paths.MetaFile)
-	if err != nil {
-		return err
-	}
-	meta.Phase = "collecting"
-	meta.UpdatedAt = nowRFC3339()
-	return state.WriteJSON(paths.MetaFile, meta)
-}
-
 func formatProjectRunningError(paths state.ProjectPaths, runID string) string {
 	baseDir := paths.BaseDir
 	projectName := paths.ProjectName

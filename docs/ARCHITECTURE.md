@@ -97,6 +97,7 @@ no `internal` package imports `cmd/rotari`.
 flowchart TB
   cmd["cmd/rotari<br/>CLI flags, supervisor operations,<br/>Web handlers, wiring, output"]
   projectrun["projectrun<br/>run lifecycle"]
+  project["project<br/>state machine, idle edits"]
   subgraph l2["orchestration and projections"]
     server
     run
@@ -115,6 +116,10 @@ flowchart TB
   model["model<br/>(imports nothing from rotari)"]
 
   cmd --> projectrun
+  cmd --> project
+  project --> jobstatus
+  project --> executor
+  project --> state
   cmd --> l2
   projectrun --> run
   projectrun --> executor
@@ -145,6 +150,7 @@ the current graph if this list drifts.
 | [internal/model](../internal/model/) | Domain types and pure rules: queue, queued command, job spec, result, summary, selections, dependencies, arrays. No I/O. | `model.go`, `selection.go`, `dependencies.go` |
 | [internal/state](../internal/state/) | The filesystem: path resolution and validation, JSON load/write, locks, run and attempt directory listing. No execution policy. | `paths.go`, `project_paths.go`, `store.go`, `lock.go` |
 | [internal/executor](../internal/executor/) | How one job attempt is started, waited for, cancelled, and suspended: local processes, Slurm, PBS, LSF, SSH, wrapper scripts. No run semantics. | `contracts.go` (`JobExecutor`), `local.go`, `slurm.go` |
+| [internal/project](../internal/project/) | A project's run state (idle, running, interrupted) from `running.lock` and `meta.json`, consistency checks, recovery, and the idle-edit sequence: state lock, idle check, load, edit, metadata-then-queue write. | `inspect.go` (`Inspect`, `EnsureIdle`), `edit.go` (`EditQueue`) |
 | [internal/projectrun](../internal/projectrun/) | One project's run against its files: `Begin` (context, run lock, registry, running metadata), `Execute` (snapshot, plan, dispatch, summary), and `Finish` (final context, queue and metadata finalization, lock removal). Shared by the sync run, the async worker, and cancellation. | `lifecycle.go`, `execute.go` |
 | [internal/run](../internal/run/) | Run rules without file access: which jobs execute or are carried forward, dependency unblocking, retries, per-executor lanes and concurrency, the summary contents. | `rerun.go` (`PlanRerun`), `engine.go` (`ExecuteJobs`), `dispatch.go` (`Dispatcher`) |
 | [internal/jobstatus](../internal/jobstatus/) | Read side: turns attempt files and the summary into one displayed result and timestamps. Shared by CLI and Web. | `job.go`, `attempt.go`, `times.go` |
@@ -169,6 +175,8 @@ internal package.
 - Does it read or write a file or directory layout? `internal/state`.
 - Does it decide the next execution step of a run? `internal/run`.
 - Does it start, record, or finish a project's run on disk? `internal/projectrun`.
+- Does it decide whether a project may be edited, or save an idle edit?
+  `internal/project`.
 - Does it talk to a process or scheduler? `internal/executor`.
 - Does it decide what status a job shows? `internal/jobstatus`.
 - Is it flag parsing, message wording, or colors? `cmd/rotari`.
@@ -185,7 +193,6 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 | Queue editing (direct file access) | `add.go`, `change.go`, `copy.go`, `remove.go`, `reset.go`, `delete.go`, `gc.go`, `unlock.go` |
 | Starting a run (client and supervisor side) | `run_command.go`, `run_registry.go`, `job_executor.go` |
 | Wiring the run lifecycle (`projectRunner`) | `project_run.go` |
-| Project state checks (idle / running / interrupted) | `project_state.go` |
 | Supervisor and its registry | `server.go`, `registry.go` |
 | Job control | `job_control.go`, `wait.go` |
 | Reading results | `show.go`, `jobs.go`, `diff.go`, `report.go`, `diagnose.go`, `check.go` |
@@ -199,8 +206,14 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 
 1. `cmdAdd` ([add.go](../cmd/rotari/add.go)) parses flags into
    `model.QueuedCommand` values.
-2. `enqueueCommands` resolves `state.ProjectPaths`, takes the state lock,
-   checks the project is idle, appends to `queue.json`, and writes it back.
+2. `enqueueCommands` resolves `state.ProjectPaths` and calls
+   `project.EditQueue` ([internal/project/edit.go](../internal/project/edit.go)),
+   which takes the state lock, checks the project is idle, loads
+   `queue.json`, runs the callback that appends the new commands, and writes
+   `meta.json` and then `queue.json`.
+
+`change`, `copy`, `remove`, and `import` follow the same path with their own
+callbacks; `delete` uses `project.Edit` for the lock and idle check alone.
 
 No supervisor is involved.
 

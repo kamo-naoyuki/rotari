@@ -12,6 +12,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -270,11 +271,12 @@ func resolveActiveRunTarget(cliBaseDir, cliProjectName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	state, runID, err := inspectProjectRunState(paths)
+	inspection, err := project.Inspect(paths, true)
+	state, runID := inspection.State, inspection.RunID
 	if err != nil {
 		return "", fmt.Errorf("failed to check project state: %w", err)
 	}
-	if state != projectRunning || runID == "" {
+	if state != project.Running || runID == "" {
 		return "", fmt.Errorf("project %q has no active run", queueName)
 	}
 	return runID, nil
@@ -341,8 +343,8 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 // never wrote summaryPath, for example because its supervisor exited early.
 // It leaves a stale run lock in place for show, unlock, and reset --recover.
 func runEndedWithoutSummary(paths state.ProjectPaths, runID, summaryPath string) (string, bool) {
-	inspection, err := inspectProjectState(paths, false)
-	if err != nil || (inspection.State == projectRunning && inspection.RunID == runID) {
+	inspection, err := project.Inspect(paths, false)
+	if err != nil || (inspection.State == project.Running && inspection.RunID == runID) {
 		return "", false
 	}
 	// The run may have finished between the summary read and the state check.
@@ -351,7 +353,7 @@ func runEndedWithoutSummary(paths state.ProjectPaths, runID, summaryPath string)
 	}
 	target := fmt.Sprintf("--basedir %s --project-name %s --run-id %s",
 		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
-	if inspection.State == projectInterrupted && inspection.RunID == runID {
+	if inspection.State == project.Interrupted && inspection.RunID == runID {
 		return fmt.Sprintf("run %s was interrupted before it wrote a summary; inspect it with 'rotari show %s', then recover with 'rotari unlock %s'", runID, target, target), true
 	}
 	return fmt.Sprintf("run %s is not active and has no summary; inspect it with 'rotari show %s'", runID, target), true

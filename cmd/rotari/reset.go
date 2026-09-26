@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -46,33 +47,35 @@ func cmdReset(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	projectState, runID, err := inspectConsistentProjectRunState(paths, true)
+	inspection, err := project.InspectConsistent(paths, true)
+	projectState, runID := inspection.State, inspection.RunID
 	if err != nil {
 		printErrorf("failed to check project state: %v", err)
 		return 1
 	}
-	if projectState == projectRunning {
+	if projectState == project.Running {
 		meta, metaErr := state.LoadMeta(paths.MetaFile)
 		if metaErr == nil && meta.Phase == "cancelling" {
 			if !waitForCancellation(paths, queueName) {
 				return 1
 			}
-			projectState, runID, err = inspectConsistentProjectRunState(paths, true)
+			inspection, err = project.InspectConsistent(paths, true)
+			projectState, runID = inspection.State, inspection.RunID
 			if err != nil {
 				printErrorf("failed to check project state: %v", err)
 				return 1
 			}
 		}
 	}
-	if projectState == projectRunning {
+	if projectState == project.Running {
 		fmt.Fprint(os.Stderr, formatProjectRunningError(paths, runID))
 		return 1
 	}
-	if projectState == projectInterrupted {
+	if projectState == project.Interrupted {
 		confirmed := *recoverOption
 		if !confirmed {
 			if !stdinIsTerminal() {
-				detail, stillRunning := interruptedRunStatusDetail(paths, runID)
+				detail, stillRunning := project.InterruptedRunDetail(paths, runID)
 				message := fmt.Sprintf("project %q has interrupted run %q%s; reset requires confirmation\nInspect before deciding: rotari show --basedir %s --project-name %s --run-id %s\n",
 					queueName, runID, detail, executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
 				if stillRunning {
@@ -99,7 +102,7 @@ func cmdReset(args []string) int {
 			return 1
 		}
 		cleared := len(queue.Commands)
-		if err := recoverInterruptedProject(paths, runID, true); err != nil {
+		if err := project.RecoverInterrupted(paths, runID, true); err != nil {
 			printErrorf("failed to recover interrupted run: %v", err)
 			return 1
 		}
@@ -125,7 +128,7 @@ func cmdReset(args []string) int {
 }
 
 func confirmResetOfInterruptedRun(input io.Reader, output io.Writer, paths state.ProjectPaths, runID string) (bool, error) {
-	detail, _ := interruptedRunStatusDetail(paths, runID)
+	detail, _ := project.InterruptedRunDetail(paths, runID)
 	fmt.Fprintf(output, "project %q has interrupted run %q%s.\nConfirm all jobs have stopped and reset the queue? [y/N] ", paths.ProjectName, runID, detail)
 	answer, err := bufio.NewReader(input).ReadString('\n')
 	if err != nil && len(answer) == 0 {
@@ -158,11 +161,11 @@ func resetQueueCommands(paths state.ProjectPaths) (int, error) {
 	}
 	cleared := len(queue.Commands)
 	if cleared == 0 {
-		return 0, markProjectCollecting(paths)
+		return 0, project.MarkCollecting(paths)
 	}
 	queue.Commands = nil
 	queue.WorkflowImport = false
-	if err := writeIdleQueue(paths, queue); err != nil {
+	if err := project.WriteIdleQueue(paths, queue); err != nil {
 		return 0, err
 	}
 	return cleared, nil

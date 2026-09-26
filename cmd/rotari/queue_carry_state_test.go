@@ -445,32 +445,6 @@ func TestExecuteMixedRunPersistsAcceptedArrayTask(t *testing.T) {
 	}
 }
 
-func TestRecoverInterruptedProjectClearsWorkflowImportOnlyWhenDiscarding(t *testing.T) {
-	for _, discard := range []bool{false, true} {
-		paths, err := state.ResolveProjectPaths(t.TempDir(), "default")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := writeJSON(paths.QueueFile, model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{ID: "job", Command: []string{"true"}, Force: true}}}); err != nil {
-			t.Fatal(err)
-		}
-		if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
-			t.Fatal(err)
-		}
-		writeTestRunStateFiles(t, paths, "run-1")
-		if err := recoverInterruptedProject(paths, "run-1", discard); err != nil {
-			t.Fatalf("recoverInterruptedProject(discard=%v): %v", discard, err)
-		}
-		queue := loadCarryStateQueue(t, paths)
-		if discard && (queue.WorkflowImport || len(queue.Commands) != 0) {
-			t.Fatalf("discarded queue = %#v", queue)
-		}
-		if !discard && (!queue.WorkflowImport || len(queue.Commands) != 1 || !queue.Commands[0].Force) {
-			t.Fatalf("retained queue = %#v", queue)
-		}
-	}
-}
-
 func testMatrixQueueWithDependent(groupID string) []model.QueuedCommand {
 	return append(testMatrixQueueCommands(groupID), model.QueuedCommand{ID: "evaluate-id", Name: "evaluate", Command: []string{"evaluate"}, DependsOn: []string{"train"}})
 }

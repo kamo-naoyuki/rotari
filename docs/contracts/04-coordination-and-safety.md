@@ -5,7 +5,7 @@ Representative implementation and tests:
 - [internal/state/lock.go](../../internal/state/lock.go) and
   [internal/state/lock_test.go](../../internal/state/lock_test.go) for lock
   inspection, with project-state coverage in
-  [cmd/rotari/state_test.go](../../cmd/rotari/state_test.go).
+  [internal/project/inspect_test.go](../../internal/project/inspect_test.go).
 - [internal/state/store.go](../../internal/state/store.go) and
   [internal/state/store_test.go](../../internal/state/store_test.go) for
   persisted-state load and write contracts.
@@ -62,7 +62,8 @@ Representative implementation and tests:
   second runner from starting the same project. See
   `AcquireStateLock` and `AcquireRunLock` in
   [`internal/state/lock.go`](../../internal/state/lock.go), and
-  [`cmd/rotari/state_test.go`](../../cmd/rotari/state_test.go).
+  `TestBeginRejectsActiveRun` in
+  [`internal/projectrun/lifecycle_test.go`](../../internal/projectrun/lifecycle_test.go).
 - This is coordination, not distributed locking: it cannot fence a host after a
   network partition or determine whether a remote PID is alive. A remote run
   lock remains active until an operator confirms the run stopped and uses
@@ -102,23 +103,25 @@ Representative implementation and tests:
 - `running.lock` represents an active run and includes host information, because
   local PID checks cannot prove remote process liveness.
 
-`inspectProjectRunState` derives one of three states from just `running.lock` and
+`project.Inspect` ([`internal/project/inspect.go`](../../internal/project/inspect.go)) derives one of three states from just `running.lock` and
 `meta.json` -- never from job-level files like a job's own self-reported
 `status.json` (see "Job execution durability" above), which only feeds
 `show`/the web UI, not this state machine:
 
 | State | `running.lock` | `meta.json` phase | `run`/`add`/`copy`/`change`/`delete`/`remove` | `reset` |
 | --- | --- | --- | --- | --- |
-| `projectIdle` | absent, or present but stale (auto-removed) | `collecting`/`finished` | allowed | allowed |
-| `projectRunning` | present; owning coordinator PID is alive | `running`/`cancelling` | rejected: "is running; ... is not allowed" | rejected: same message |
-| `projectInterrupted` | absent, or present but the coordinator PID is dead | `running`/`cancelling` with `last_run_id` set | rejected: "has interrupted run ...; recover with unlock" | `--recover` proceeds |
+| `Idle` | absent, or present but stale (auto-removed) | `collecting`/`finished` | allowed | allowed |
+| `Running` | present; owning coordinator PID is alive | `running`/`cancelling` | rejected: "is running; ... is not allowed" | rejected: same message |
+| `Interrupted` | absent, or present but the coordinator PID is dead | `running`/`cancelling` with `last_run_id` set | rejected: "has interrupted run ...; recover with unlock" | `--recover` proceeds |
 
 - A dead local run lock is removed automatically. `meta.json` remaining in
   `running` or `cancelling` with `last_run_id` marks an interrupted run.
-- `ensureProjectIdleForPaths` is the shared check for `run`, `add`, `copy`,
-  `change`, `delete`, and `remove`. It rejects both active and interrupted
+- `project.EnsureIdle` is the shared check for `run`, `add`, `copy`,
+  `change`, `delete`, `remove`, and `import`; every idle edit except `run`
+  reaches it through `project.Edit` or `project.EditQueue`, which take the
+  state lock first. It rejects both active and interrupted
   projects with the same message, preventing accidental queue mutation.
-- `interruptedRunStatusDetail` scans job directories rather than
+- `project.InterruptedRunDetail` scans job directories rather than
   `summary.json` and reports jobs whose `status` or `status.json` is still
   non-terminal, along with phase and last-update time.
 - Missing or unparseable job status counts as still running. The detail only
@@ -199,14 +202,14 @@ run data:
   Directory, encoding, permission, and rename failures are returned.
 - Each file is replaced atomically, but `queue.json` and `meta.json` are not
   replaced together. Idle queue edits (`add`, `copy`, `change`, `remove`,
-  `reset`, `import`) go through `writeIdleQueue`, which writes the collecting
+  `reset`, `import`) go through `project.WriteIdleQueue`, which writes the collecting
   metadata first and the queue second: the metadata change is harmless for an
   idle project, so a failed queue write leaves the previous queue in place.
   Run finalization and interrupted-run recovery keep their own order (queue
   first), so a failed metadata write leaves the project interrupted and
   recoverable instead of idle with a stale queue. See
-  [`cmd/rotari/project_state.go`](../../cmd/rotari/project_state.go) and
-  [`cmd/rotari/idle_queue_write_test.go`](../../cmd/rotari/idle_queue_write_test.go).
+  [`internal/project/edit.go`](../../internal/project/edit.go) and
+  [`internal/project/edit_test.go`](../../internal/project/edit_test.go).
 - `AppendLoadSample` creates the sample file as needed and appends one JSONL
   record. `ReadLoadSamples` ignores missing files, blank lines, and malformed
   records because load sampling is observational metadata, not run state.

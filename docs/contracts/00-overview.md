@@ -106,8 +106,9 @@ the user-facing documentation, and the affected tests together.
   while the run is active, and it stays as the retained recovery snapshot after
   an interruption. Normal completion clears the consumed queue, at which point a
   new batch can be prepared again. See [`internal/projectrun/lifecycle.go`](../../internal/projectrun/lifecycle.go),
+  [`internal/project/edit.go`](../../internal/project/edit.go),
   [`cmd/rotari/reset.go`](../../cmd/rotari/reset.go), and
-  [`cmd/rotari/state_test.go`](../../cmd/rotari/state_test.go).
+  [`internal/project/edit_test.go`](../../internal/project/edit_test.go).
 - The primary user-facing target depends on project state: `idle` projects show
   the queue as the active work target, while a `running` or `interrupted` project
   treats the associated run as the primary subject and the queue as the retained
@@ -116,8 +117,8 @@ the user-facing documentation, and the affected tests together.
   queue semantics consistent across CLI, Web, and recovery flows.
 - A project has at most one active run and runner at a time. That runner may
   execute multiple jobs concurrently, while different projects can run
-  independently. See [`cmd/rotari/project_state.go`](../../cmd/rotari/project_state.go)
-  and [`cmd/rotari/state_test.go`](../../cmd/rotari/state_test.go).
+  independently. See [`internal/project/inspect.go`](../../internal/project/inspect.go)
+  and [`internal/project/inspect_test.go`](../../internal/project/inspect_test.go).
 - Completed runs are immutable history. Retries, filtered runs, and
   carry-forward create or modify only a new destination run, never their source
   run. See [`internal/run/rerun.go`](../../internal/run/rerun.go),
@@ -139,8 +140,10 @@ The package map, process roles, and per-command walkthroughs are in
   downward through explicit data and callback contracts instead.
 - `internal/model` has no I/O. `internal/state` owns every file and directory
   layout decision and makes no execution-policy decisions. `internal/run` owns
-  run rules without file access, and `internal/projectrun` owns the one
-  lifecycle that starts, executes, and finishes a project's run on disk.
+  run rules without file access, `internal/projectrun` owns the one
+  lifecycle that starts, executes, and finishes a project's run on disk, and
+  `internal/project` owns the project state machine and the idle-edit
+  sequence.
   Executors implement job execution only.
 - Renderers do not read status files themselves: `show`, `jobs`, `report`,
   and the Web UI resolve outcomes through `internal/jobstatus` so they cannot

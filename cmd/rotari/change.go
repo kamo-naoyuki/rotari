@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -150,47 +151,39 @@ func changeQueueJob(baseDir, queueName, requestedRunID, requestedJobID, requeste
 	if err != nil {
 		return "", err
 	}
-	release, err := state.AcquireStateLock(paths.StateLockFile)
-	if err != nil {
-		return "", fmt.Errorf("failed to lock queue: %w", err)
-	}
-	defer release()
-	if err := ensureProjectIdleForPaths(paths, "change"); err != nil {
-		return "", err
-	}
-
-	queue, err := state.LoadQueue(paths.QueueFile)
-	if err != nil {
-		return "", fmt.Errorf("failed to load queue: %w", err)
-	}
-	if requestedRunID != "" {
-		queue, err = loadChangeSnapshot(paths, requestedRunID)
-		if err != nil {
-			return "", err
+	var changedID string
+	err = project.EditQueue(paths, "change", func(queue *model.Queue) error {
+		if requestedRunID != "" {
+			snapshot, err := loadChangeSnapshot(paths, requestedRunID)
+			if err != nil {
+				return err
+			}
+			*queue = snapshot
 		}
-	}
-
-	jobs := model.QueueToJobs(queue.Commands)
-	jobIndex, err := selectChangeJob(jobs, requestedJobID, requestedJobName)
+		jobs := model.QueueToJobs(queue.Commands)
+		jobIndex, err := selectChangeJob(jobs, requestedJobID, requestedJobName)
+		if err != nil {
+			return err
+		}
+		if matrix := queue.Commands[jobIndex].Matrix; matrix != nil {
+			model.ClearMatrixGroup(queue.Commands, matrix.GroupID)
+		}
+		if err := applyChangeMutation(*queue, jobIndex, mutation); err != nil {
+			return err
+		}
+		if err := validateQueueJobs(*queue); err != nil {
+			return err
+		}
+		if err := model.ValidateQueueDependencies(queue.Commands); err != nil {
+			return fmt.Errorf("invalid dependencies: %w", err)
+		}
+		changedID = jobs[jobIndex].ID
+		return nil
+	})
 	if err != nil {
 		return "", err
 	}
-	if matrix := queue.Commands[jobIndex].Matrix; matrix != nil {
-		model.ClearMatrixGroup(queue.Commands, matrix.GroupID)
-	}
-	if err := applyChangeMutation(queue, jobIndex, mutation); err != nil {
-		return "", err
-	}
-	if err := validateQueueJobs(queue); err != nil {
-		return "", err
-	}
-	if err := model.ValidateQueueDependencies(queue.Commands); err != nil {
-		return "", fmt.Errorf("invalid dependencies: %w", err)
-	}
-	if err := writeIdleQueue(paths, queue); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("changed queue=%s job=%s", queueName, jobs[jobIndex].ID), nil
+	return fmt.Sprintf("changed queue=%s job=%s", queueName, changedID), nil
 }
 
 func selectChangeJob(jobs []model.JobSpec, requestedJobID, requestedJobName string) (int, error) {

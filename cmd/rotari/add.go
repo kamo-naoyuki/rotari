@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -177,42 +178,33 @@ func enqueueCommands(baseDir, queueName string, commands []model.QueuedCommand, 
 	if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
 		return "", err
 	}
-	release, err := state.AcquireStateLock(paths.StateLockFile)
-	if err != nil {
-		return "", err
-	}
-	defer release()
-	if err := ensureProjectIdleForPaths(paths, "add"); err != nil {
-		return "", err
-	}
-	queue, err := state.LoadQueue(paths.QueueFile)
-	if err != nil {
-		return "", err
-	}
-	for index := range commands {
-		if commands[index].Executor != "" && !executorRegistry.Known(commands[index].Executor) {
-			return "", fmt.Errorf("unsupported executor: %s", commands[index].Executor)
+	err = project.EditQueue(paths, "add", func(queue *model.Queue) error {
+		for index := range commands {
+			if commands[index].Executor != "" && !executorRegistry.Known(commands[index].Executor) {
+				return fmt.Errorf("unsupported executor: %s", commands[index].Executor)
+			}
+			commands[index].ID = makeJobID()
+			if queue.WorkflowImport {
+				commands[index].Force = true
+			}
 		}
-		commands[index].ID = makeJobID()
-		if queue.WorkflowImport {
-			commands[index].Force = true
+		if err := validateQueueJobs(model.Queue{Commands: append(append([]model.QueuedCommand(nil), queue.Commands...), commands...)}); err != nil {
+			return err
 		}
-	}
-	if err := validateQueueJobs(model.Queue{Commands: append(append([]model.QueuedCommand(nil), queue.Commands...), commands...)}); err != nil {
-		return "", err
-	}
-	// Dependencies may refer to jobs added later, so only duplicate names are checked here.
-	for _, command := range commands {
-		if command.Name != "" {
-			for _, existing := range queue.Commands {
-				if existing.Name == command.Name {
-					return "", fmt.Errorf("invalid dependencies: duplicate job name: %s", command.Name)
+		// Dependencies may refer to jobs added later, so only duplicate names are checked here.
+		for _, command := range commands {
+			if command.Name != "" {
+				for _, existing := range queue.Commands {
+					if existing.Name == command.Name {
+						return fmt.Errorf("invalid dependencies: duplicate job name: %s", command.Name)
+					}
 				}
 			}
 		}
-	}
-	queue.Commands = append(queue.Commands, commands...)
-	if err := writeIdleQueue(paths, queue); err != nil {
+		queue.Commands = append(queue.Commands, commands...)
+		return nil
+	})
+	if err != nil {
 		return "", err
 	}
 	message := fmt.Sprintf("added project=%s jobs=%d", queueName, len(commands))

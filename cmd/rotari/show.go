@@ -19,6 +19,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -45,17 +46,18 @@ const (
 )
 
 func showDefaultJobTargets(paths state.ProjectPaths, selector string, byName bool) ([]showSelectorTarget, error) {
-	projectState, stateRunID, err := inspectProjectRunState(paths)
+	inspection, err := project.Inspect(paths, true)
+	projectState, stateRunID := inspection.State, inspection.RunID
 	if err != nil {
 		return nil, err
 	}
-	if projectState == projectRunning || projectState == projectInterrupted {
+	if projectState == project.Running || projectState == project.Interrupted {
 		target, found, err := findShowJobInRun(paths, stateRunID, selector, byName)
 		if err != nil || !found {
 			return nil, err
 		}
 		target.priority = showPriorityActive
-		if projectState == projectInterrupted {
+		if projectState == project.Interrupted {
 			target.priority = showPriorityInterrupted
 		}
 		return []showSelectorTarget{target}, nil
@@ -447,14 +449,15 @@ func cmdShow(args []string) int {
 	}
 	selectedRunID := *runIDOption
 	if selectedRunID == "" {
-		projectState, stateRunID, err := inspectProjectRunState(paths)
+		inspection, err := project.Inspect(paths, true)
+		projectState, stateRunID := inspection.State, inspection.RunID
 		if err != nil {
 			printErrorf("failed to check project state: %v", err)
 			return 1
 		}
-		if projectState == projectRunning {
+		if projectState == project.Running {
 			selectedRunID = stateRunID
-		} else if projectState == projectInterrupted {
+		} else if projectState == project.Interrupted {
 			selectedRunID = stateRunID
 			printInterruptedRunNotice(paths, stateRunID)
 		} else {
@@ -799,8 +802,8 @@ func writeShowTargetHeaderWithMode(writer io.Writer, paths state.ProjectPaths, m
 	} else {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Queue:"), paths.QueueFile)
 	}
-	if state, _, err := inspectProjectRunState(paths); err == nil {
-		fmt.Fprintf(writer, "%s %s\n", cyan("Project state:"), projectStateName(state))
+	if inspection, err := project.Inspect(paths, true); err == nil {
+		fmt.Fprintf(writer, "%s %s\n", cyan("Project state:"), projectStateName(inspection.State))
 	}
 	if response, err := serverinternal.SendRequest(paths.BaseDir, serverinternal.Request{Op: "ping"}); err == nil && response.OK {
 		fmt.Fprintf(writer, "%s running (pid=%d)\n", cyan("Runner server:"), response.PID)
@@ -1491,7 +1494,8 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 				printErrorf("failed to load queue for project %q: %v", entry.Name(), err)
 				return 1
 			}
-			projectState, _, err := inspectProjectRunState(paths)
+			inspection, err := project.Inspect(paths, true)
+			projectState := inspection.State
 			if err != nil {
 				printErrorf("failed to check project %q state: %v", entry.Name(), err)
 				return 1
@@ -1551,11 +1555,11 @@ func showBaseDirs(masterDir string) int {
 	return 0
 }
 
-func projectStateName(state projectRunState) string {
+func projectStateName(state project.RunState) string {
 	switch state {
-	case projectRunning:
+	case project.Running:
 		return "running"
-	case projectInterrupted:
+	case project.Interrupted:
 		return "interrupted"
 	default:
 		return "idle"

@@ -151,61 +151,6 @@ func TestEnsureProjectIdleReportsAllFinishedForInterruptedRun(t *testing.T) {
 	}
 }
 
-func TestScanInterruptedRunJobStatusSkipsNonJobEntries(t *testing.T) {
-	runDir := t.TempDir()
-	// A stray file alongside job directories (e.g. commands.json) must not
-	// be counted as a job.
-	if err := os.WriteFile(filepath.Join(runDir, "commands.json"), []byte("{}"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	// A directory without command.json isn't a job directory either.
-	if err := os.MkdirAll(filepath.Join(runDir, "not-a-job"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	jobDir := filepath.Join(runDir, "job-1")
-	if err := os.MkdirAll(jobDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(jobDir, "command.json"), []byte("{}"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(jobDir, "status.json"), []byte(`{"phase":"finished","exit_code":0,"finished_at":"2026-09-19T10:00:00Z"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	status, err := scanInterruptedRunJobStatus(runDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if status.Total != 1 || status.StillRunning != 0 {
-		t.Fatalf("status = %+v, want Total=1 StillRunning=0", status)
-	}
-}
-
-func TestScanInterruptedRunJobStatusTreatsNonTerminalStatusJSONAsRunning(t *testing.T) {
-	runDir := t.TempDir()
-	jobDir := filepath.Join(runDir, "job-1")
-	if err := os.MkdirAll(jobDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(jobDir, "command.json"), []byte("{}"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	// A wrapper-written status.json whose phase is still "running" (no
-	// finished_at yet) must count as still running, same as a missing file.
-	if err := os.WriteFile(filepath.Join(jobDir, "status.json"), []byte(`{"phase":"running","started_at":"2026-09-19T10:00:00Z"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	status, err := scanInterruptedRunJobStatus(runDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if status.Total != 1 || status.StillRunning != 1 {
-		t.Fatalf("status = %+v, want Total=1 StillRunning=1", status)
-	}
-}
-
 func TestConfirmResetOfInterruptedRunIncludesJobStatusDetail(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
