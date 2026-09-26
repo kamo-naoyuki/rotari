@@ -91,11 +91,25 @@ func ExecuteJobs(pending []model.JobSpec, jobsByName map[string]model.JobSpec, r
 		}
 		return true, false
 	}
+	// progress counts only the jobs this run executes, and only once their
+	// result is final, so carried results and failures awaiting a retry stay
+	// out of the counts that total bounds.
 	progress := func(result model.JobResult) {
 		if options.Progress == nil {
 			return
 		}
-		completed, succeeded, failed := SummarizeResults(results)
+		completed, succeeded, failed := 0, 0, 0
+		for id := range jobsByID {
+			if !final[id] {
+				continue
+			}
+			completed++
+			if results[id].ExitCode == 0 {
+				succeeded++
+			} else {
+				failed++
+			}
+		}
 		options.Progress(result, completed, total, succeeded, failed)
 	}
 	// schedule starts every waiting job that is ready and blocks those whose

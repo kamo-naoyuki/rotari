@@ -20,18 +20,6 @@ func CompleteArrayGroup(jobs []model.JobSpec, first, last int) bool {
 	return len(seen) == len(jobs)
 }
 
-func SummarizeResults(results map[string]model.JobResult) (completed, succeeded, failed int) {
-	for _, result := range results {
-		completed++
-		if result.ExitCode == 0 {
-			succeeded++
-		} else {
-			failed++
-		}
-	}
-	return completed, succeeded, failed
-}
-
 func FinalizePendingResults(pending []model.JobSpec, results map[string]model.JobResult) {
 	for _, job := range pending {
 		if _, ok := results[job.ID]; ok {

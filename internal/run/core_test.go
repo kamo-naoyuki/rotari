@@ -101,10 +101,6 @@ func TestFinalizePendingResults(t *testing.T) {
 	if result.ExitCode != 1 || result.Error != "blocked by failed dependency" || result.Command[0] != "run" {
 		t.Fatalf("finalized result = %#v", result)
 	}
-	completed, succeeded, failed := SummarizeResults(results)
-	if completed != 2 || succeeded != 1 || failed != 1 {
-		t.Fatalf("SummarizeResults() = %d, %d, %d", completed, succeeded, failed)
-	}
 }
 
 func TestExpandArrayPlanAndApplyCarriedOrigins(t *testing.T) {

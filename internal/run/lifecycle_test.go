@@ -131,6 +131,45 @@ func count(values []string, value string) int {
 	return total
 }
 
+func TestExecuteJobsProgressCountsOnlyFinalExecutedResults(t *testing.T) {
+	jobs := []model.JobSpec{{ID: "flaky", Name: "flaky"}, {ID: "failing", Name: "failing"}}
+	results := map[string]model.JobResult{
+		"carried-ok":   {ID: "carried-ok", ExitCode: 0},
+		"carried-fail": {ID: "carried-fail", ExitCode: 1},
+	}
+	var progress [][4]int
+	var mu sync.Mutex
+	attempts := make(map[string]int)
+	ExecuteJobs(jobs, map[string]model.JobSpec{"flaky": jobs[0], "failing": jobs[1]}, results, EngineOptions{
+		RunRetry: 1,
+		Start: func(ready []model.JobSpec, done func(model.JobResult)) {
+			for _, job := range ready {
+				mu.Lock()
+				attempts[job.ID]++
+				exitCode := 1
+				if job.ID == "flaky" && attempts[job.ID] > 1 {
+					exitCode = 0
+				}
+				mu.Unlock()
+				go done(model.JobResult{ID: job.ID, ExitCode: exitCode})
+			}
+		},
+		Progress: func(_ model.JobResult, completed, total, succeeded, failed int) {
+			mu.Lock()
+			progress = append(progress, [4]int{completed, total, succeeded, failed})
+			mu.Unlock()
+		},
+	})
+	for _, counts := range progress {
+		if counts[0] > counts[1] || counts[0] != counts[2]+counts[3] {
+			t.Fatalf("progress = %v, want completed within total and equal to succeeded+failed", progress)
+		}
+	}
+	if last := progress[len(progress)-1]; last != [4]int{2, 2, 1, 1} {
+		t.Fatalf("final progress = %v, want completed=2 total=2 succeeded=1 failed=1", last)
+	}
+}
+
 func TestExecuteJobsRetriesAndUnblocksWithoutWaitingForOtherJobs(t *testing.T) {
 	gate := &gatedStart{hold: map[string]chan struct{}{"slow": make(chan struct{})}, failOnce: map[string]bool{"flaky": true}}
 	jobs := []model.JobSpec{
