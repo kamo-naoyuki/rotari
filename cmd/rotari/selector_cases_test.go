@@ -101,6 +101,8 @@ var selectorCases = []selectorCase{
 	{name: "matrix and failed", cmd: "run", args: "-b {B} -p sweep --matrix train --failed", jobs: []string{"train-SEED2"}},
 	{name: "job ID", cmd: "run", args: "-b {B} -p sweep --job-id {job:prep}", jobs: []string{"prep"}},
 	{name: "job name", cmd: "run", args: "-b {B} -p sweep --job-name prep", jobs: []string{"prep"}},
+	{name: "job ID from the queue", cmd: "run", args: "-b {B} -p sweep --job-id {job:prep}", queued: true, jobs: []string{"prep"}},
+	{name: "job name from the queue", cmd: "run", args: "-b {B} --job-name prep", queued: true, jobs: []string{"prep"}},
 	{name: "job name shared by projects", cmd: "run", args: "-b {B} --job-name prep", err: "ambiguous"},
 	{name: "attempt ID", cmd: "run", args: "-b {B} --job-id {att:train-SEED2/0}", jobs: []string{"train-SEED2"}},
 	{name: "array command ID", cmd: "run", args: "-b {B} -p sweep --job-id {job:eval}", jobs: []string{"eval-1", "eval-2", "eval-3"}, known: knownArrayLookup},

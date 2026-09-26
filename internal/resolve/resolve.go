@@ -9,7 +9,6 @@
 package resolve
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -427,22 +426,37 @@ func Jobs(cliBaseDir, cliProjectName, selector string, byName, includeQueue bool
 // LatestJobIDs finds the one latest run that contains every job ID. It fails
 // when an ID is missing, ambiguous, or the IDs span different runs.
 func LatestJobIDs(cliBaseDir, cliProjectName string, jobIDs []string) (Job, error) {
+	return jobIDsTarget(cliBaseDir, cliProjectName, jobIDs, false)
+}
+
+// QueuedOrLatestJobIDs finds where every job ID is, like LatestJobIDs, but
+// prefers a project's non-empty queue to its latest run, as Jobs does with
+// includeQueue.
+func QueuedOrLatestJobIDs(cliBaseDir, cliProjectName string, jobIDs []string) (Job, error) {
+	return jobIDsTarget(cliBaseDir, cliProjectName, jobIDs, true)
+}
+
+func jobIDsTarget(cliBaseDir, cliProjectName string, jobIDs []string, includeQueue bool) (Job, error) {
+	where := "latest runs"
+	if includeQueue {
+		where = "queues or latest runs"
+	}
 	var target Job
 	for index, jobID := range jobIDs {
-		targets, err := Jobs(cliBaseDir, cliProjectName, jobID, false, false)
+		targets, err := Jobs(cliBaseDir, cliProjectName, jobID, false, includeQueue)
 		if err != nil {
 			return Job{}, err
 		}
 		if len(targets) == 0 {
-			return Job{}, fmt.Errorf("job %q not found in latest runs", jobID)
+			return Job{}, fmt.Errorf("job %q not found in %s", jobID, where)
 		}
 		if len(targets) > 1 {
-			return Job{}, fmt.Errorf("job %q is ambiguous across latest runs", jobID)
+			return Job{}, fmt.Errorf("job %q is ambiguous across %s", jobID, where)
 		}
 		if index == 0 {
 			target = targets[0]
-		} else if targets[0].Run != target.Run {
-			return Job{}, errors.New("job IDs resolve to different latest runs")
+		} else if targets[0].Run != target.Run || targets[0].FromQueue != target.FromQueue {
+			return Job{}, fmt.Errorf("job IDs resolve to different %s", where)
 		}
 	}
 	return target, nil

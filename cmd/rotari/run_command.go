@@ -87,16 +87,20 @@ func cmdRun(args []string) int {
 			}
 			jobIDs = stringSliceFlag{target.JobID}
 		} else {
-			targets, err := resolve.Jobs(*basedir, *queueNameOption, *jobNameOption, true, false)
+			// A non-empty queue is preferred to the latest run, as in show.
+			targets, err := resolve.Jobs(*basedir, *queueNameOption, *jobNameOption, true, true)
 			if err != nil {
 				printError(err)
 				return 1
 			}
 			if len(targets) != 1 {
-				printErrorf("job name %q is %s", *jobNameOption, map[bool]string{true: "ambiguous across latest runs", false: "not found"}[len(targets) > 1])
+				printErrorf("job name %q is %s", *jobNameOption, map[bool]string{true: "ambiguous across projects", false: "not found"}[len(targets) > 1])
 				return 1
 			}
-			*basedir, *queueNameOption, *runIDOption = targets[0].BaseDir, targets[0].ProjectName, targets[0].RunID
+			*basedir, *queueNameOption = targets[0].BaseDir, targets[0].ProjectName
+			if !targets[0].FromQueue {
+				*runIDOption = targets[0].RunID
+			}
 			jobIDs = stringSliceFlag{targets[0].JobID}
 		}
 	}
@@ -124,12 +128,17 @@ func cmdRun(args []string) int {
 		}
 	}
 	if *runIDOption == "" && len(jobIDs) > 0 && !attemptSelection {
-		target, resolveErr := resolve.LatestJobIDs(*basedir, *queueNameOption, jobIDs)
+		// Jobs in a non-empty queue run from it, keeping its edits; otherwise
+		// the latest run that holds them is restored first.
+		target, resolveErr := resolve.QueuedOrLatestJobIDs(*basedir, *queueNameOption, jobIDs)
 		if resolveErr != nil {
 			printError(resolveErr)
 			return 1
 		}
-		*basedir, *queueNameOption, *runIDOption = target.BaseDir, target.ProjectName, target.RunID
+		*basedir, *queueNameOption = target.BaseDir, target.ProjectName
+		if !target.FromQueue {
+			*runIDOption = target.RunID
+		}
 	}
 	if *overwriteQueue && *runIDOption == "" {
 		printError("usage: " + cliUsage("run"))
@@ -179,10 +188,9 @@ func cmdRun(args []string) int {
 			printErrorf("failed to load queue: %v", queueErr)
 			return 1
 		}
-		// Explicit job selection is equivalent to copying the selected job
-		// from the latest run and then running it. Other filtered runs keep
-		// the current queue when it is already populated.
-		forceCopy = len(queue.Commands) == 0 || selection == "job-id"
+		// A filtered run, job selection included, keeps a populated queue
+		// and restores the latest run only into an empty one.
+		forceCopy = len(queue.Commands) == 0
 	}
 	if forceCopy {
 		// Only prompts when the queue actually has jobs to lose; an empty

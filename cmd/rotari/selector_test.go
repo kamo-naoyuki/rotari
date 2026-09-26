@@ -380,3 +380,36 @@ func captureSelectorOutput(run func() int) (int, string) {
 	os.Stdout, os.Stderr = stdout, stderr
 	return code, output.String()
 }
+
+// TestRunJobIDKeepsEditedQueue checks the fix-and-retry loop: a job changed
+// in the queue runs with its edit, instead of the queue being replaced by
+// the latest run.
+func TestRunJobIDKeepsEditedQueue(t *testing.T) {
+	fixture := newSelectorFixture(t)
+	fixture.restore(t, fixture.BaseDir, "sweep", fixture.Runs["sweep-second"])
+	if code := cmdChange([]string{"-b", fixture.BaseDir, "-p", "sweep", "--job-name", "prep", "--quiet", "echo", "edited"}); code != 0 {
+		t.Fatalf("change exit code = %d", code)
+	}
+	fixture.startServer(t)
+	// The run fails: it carries the failures of the jobs it does not run.
+	_, output := captureSelectorOutput(func() int {
+		return cmdRun([]string{"-b", fixture.BaseDir, "-p", "sweep", "--job-id", fixture.Jobs["prep"]})
+	})
+	sweep := fixture.paths(t, fixture.BaseDir, "sweep")
+	meta, err := state.LoadMeta(sweep.MetaFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.LastRunID == fixture.Runs["sweep-second"] {
+		t.Fatalf("run --job-id did not start a run:\n%s", output)
+	}
+	snapshot, err := state.LoadQueue(filepath.Join(sweep.RunsDir, meta.LastRunID, "commands.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range snapshot.Commands {
+		if command.ID == fixture.Jobs["prep"] && strings.Join(command.Command, " ") != "echo edited" {
+			t.Fatalf("run executed prep as %q, want the edited command", strings.Join(command.Command, " "))
+		}
+	}
+}

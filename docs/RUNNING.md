@@ -192,7 +192,9 @@ This keeps the full queue available for inspection and editing before choosing
 which jobs to execute. `copy --failed` and the other copy-side filters remain
 available when only a subset should be restored. When the queue is empty,
 `run --failed` restores the latest run automatically before selecting failed
-jobs.
+jobs. `run --job-id/-j` and `--job-name` likewise run a job from a non-empty
+queue, keeping edits made with `change`, and restore the latest run only when
+the job is not queued.
 
 `copy` keeps the source job ID unless it would collide with the destination
 queue, and preserves dependencies between copied jobs. A non-empty queue
