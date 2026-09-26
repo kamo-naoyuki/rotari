@@ -25,7 +25,7 @@ func TestWorkerArgsParseBackToOptions(t *testing.T) {
 				"slurm": {Concurrency: 4, Options: []string{"--partition short"}, SubmitInterval: 250 * time.Millisecond, SubmitRetryLimit: 3},
 			},
 		}
-		args := runcontract.WorkerArgs(options, true, executorRunSettingNames)
+		args := runcontract.WorkerArgs(options, true, executor.RunSettingNames)
 		parsed, err := parseWorkerRunArgs(args[1:])
 		if err != nil {
 			t.Fatalf("partialArray=%v: parseWorkerRunArgs(%q) returned error: %v", partialArray, args, err)

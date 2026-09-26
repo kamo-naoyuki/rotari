@@ -10,17 +10,3 @@ func configuredExecutor(jobExecutor executor.JobExecutor, settings executor.RunS
 	}
 	return jobExecutor
 }
-
-func effectiveConcurrency(settings executor.RunSettingsMap, name string, fallback int) int {
-	if settings != nil && settings[name].Concurrency > 0 {
-		return settings[name].Concurrency
-	}
-	return fallback
-}
-
-func effectiveOptions(settings executor.RunSettingsMap, name string, fallback []string) []string {
-	if settings != nil && len(settings[name].Options) > 0 {
-		return settings[name].Options
-	}
-	return fallback
-}

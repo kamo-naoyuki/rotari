@@ -231,7 +231,7 @@ func exportProject(baseDir, projectName string) (workflow.Manifest, string, erro
 		return manifest, fmt.Sprintf("exported run %s (project %s has no queued jobs)", runID, resolvedProject), err
 	}
 	queue = workflow.FlattenQueueDefaults(queue)
-	if err := validateQueueForRun(queue, "", nil, nil); err != nil {
+	if err := projectRunner().ValidateQueue(queue, "", nil, nil); err != nil {
 		return workflow.Manifest{}, "", fmt.Errorf("invalid queue: %w", err)
 	}
 	manifest, err := workflow.FromQueue(queue)
@@ -307,7 +307,7 @@ func loadExportRun(baseDir, projectName, requested string) (workflow.SourceRun, 
 		return workflow.SourceRun{}, fmt.Errorf("failed to load run %s summary: %w", runID, err)
 	}
 	queue = workflow.FlattenQueueDefaults(queue)
-	if err := validateQueueForRun(queue, "", nil, nil); err != nil {
+	if err := projectRunner().ValidateQueue(queue, "", nil, nil); err != nil {
 		return workflow.SourceRun{}, fmt.Errorf("invalid run %s commands: %w", runID, err)
 	}
 	return workflowSourceRun(runID, runDir, queue, summary), nil

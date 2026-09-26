@@ -146,7 +146,7 @@ func checkProjectWithOptions(paths state.ProjectPaths, deep bool) (projectCheck,
 		return result, nil
 	}
 
-	queue, err := loadRunQueue(paths, "", nil, nil)
+	queue, err := projectRunner().LoadQueue(paths, "", nil, nil)
 	if err != nil {
 		return projectCheck{}, fmt.Errorf("validate queue: %w", err)
 	}

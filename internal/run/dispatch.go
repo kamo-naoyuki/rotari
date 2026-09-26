@@ -130,11 +130,11 @@ func (dispatcher *Dispatcher) lane(name string) (*lane, bool) {
 		return nil, false
 	}
 	created := &lane{executor: configuredExecutor(jobExecutor, dispatcher.options.Settings[name]), local: name == "local"}
-	concurrency := effectiveConcurrency(dispatcher.options.Settings, name, dispatcher.options.BatchMaxActive)
+	concurrency := dispatcher.options.Settings.Concurrency(name, dispatcher.options.BatchMaxActive)
 	if created.local {
-		concurrency = effectiveConcurrency(dispatcher.options.Settings, name, dispatcher.options.LocalConcurrency)
+		concurrency = dispatcher.options.Settings.Concurrency(name, dispatcher.options.LocalConcurrency)
 	} else {
-		created.options = effectiveOptions(dispatcher.options.Settings, name, dispatcher.options.ExecutorOptions)
+		created.options = dispatcher.options.Settings.Options(name, dispatcher.options.ExecutorOptions)
 	}
 	if concurrency < 1 {
 		concurrency = 1

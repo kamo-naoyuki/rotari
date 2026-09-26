@@ -300,7 +300,7 @@ func launchAsyncRun(paths state.ProjectPaths, options runcontract.Options) error
 	}
 	childOptions := options
 	childOptions.BaseDir = paths.BaseDir
-	cmd := exec.Command(exe, runcontract.WorkerArgs(childOptions, paths.BaseDirExplicit, executorRunSettingNames)...)
+	cmd := exec.Command(exe, runcontract.WorkerArgs(childOptions, paths.BaseDirExplicit, executor.RunSettingNames)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = nil
@@ -426,15 +426,4 @@ func queueEditor() queueops.Editor {
 
 func loadWrapperStatus(path string) (executor.WrapperStatus, bool) {
 	return executor.LoadWrapperStatus(jsonStore(), path)
-}
-
-func loadRunQueue(paths state.ProjectPaths, requestedExecutor string, executorOptions []string, settings executor.RunSettingsMap) (model.Queue, error) {
-	queue, err := state.LoadQueue(paths.QueueFile)
-	if err != nil {
-		return model.Queue{}, err
-	}
-	if err := validateQueueForRun(queue, requestedExecutor, executorOptions, settings); err != nil {
-		return model.Queue{}, err
-	}
-	return queue, nil
 }

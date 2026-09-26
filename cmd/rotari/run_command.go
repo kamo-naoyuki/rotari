@@ -422,7 +422,7 @@ func prepareServerRun(baseDir string, request serverinternal.Request) (preparedR
 		release()
 		return preparedRun{}, err
 	}
-	queue, err := loadRunQueue(paths, request.Executor, request.ExecutorOptions, request.ExecutorSettings)
+	queue, err := projectRunner().LoadQueue(paths, request.Executor, request.ExecutorOptions, request.ExecutorSettings)
 	if err != nil {
 		release()
 		return preparedRun{}, err

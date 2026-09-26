@@ -48,7 +48,28 @@ type RunSettings struct {
 	SubmitRetryLimit int           `json:"submit_retry_limit,omitempty"`
 }
 
+// RunSettingsMap holds per-run settings by executor name.
 type RunSettingsMap map[string]RunSettings
+
+// RunSettingNames lists the executors that take per-run settings, such as
+// --slurm-concurrency.
+var RunSettingNames = []string{"ssh", "slurm", "pbs", "lsf"}
+
+// Concurrency returns the concurrency set for name, or fallback when none is.
+func (settings RunSettingsMap) Concurrency(name string, fallback int) int {
+	if concurrency := settings[name].Concurrency; concurrency > 0 {
+		return concurrency
+	}
+	return fallback
+}
+
+// Options returns the options set for name, or fallback when none are.
+func (settings RunSettingsMap) Options(name string, fallback []string) []string {
+	if options := settings[name].Options; len(options) > 0 {
+		return options
+	}
+	return fallback
+}
 
 func MergeEnvironment(base, overrides []string) []string {
 	values := make(map[string]string)

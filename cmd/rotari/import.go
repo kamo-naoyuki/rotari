@@ -130,7 +130,7 @@ func cmdImport(args []string) int {
 		printError(err)
 		return 1
 	}
-	if err := validateQueueForRun(queue, "", nil, nil); err != nil {
+	if err := projectRunner().ValidateQueue(queue, "", nil, nil); err != nil {
 		printErrorf("invalid workflow queue: %v", err)
 		return 1
 	}
