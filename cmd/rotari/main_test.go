@@ -1513,6 +1513,7 @@ func TestShowWithPagerDisabledWritesDirectly(t *testing.T) {
 }
 
 func TestShowRunIncludesCarriedJobFromCommands(t *testing.T) {
+	useLocalZone(t, time.FixedZone("JST", 9*60*60))
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {

@@ -80,6 +80,19 @@ func (e *env) in(t *testing.T) *env {
 	return &copied
 }
 
+// withVar returns e with the environment variable name set to value.
+func (e *env) withVar(name, value string) *env {
+	copied := *e
+	copied.vars = nil
+	for _, item := range e.vars {
+		if !strings.HasPrefix(item, name+"=") {
+			copied.vars = append(copied.vars, item)
+		}
+	}
+	copied.vars = append(copied.vars, name+"="+value)
+	return &copied
+}
+
 type result struct {
 	args   []string
 	code   int

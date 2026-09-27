@@ -1419,7 +1419,7 @@ func TestLoadWebJobsIncludesAttemptsNewestFirst(t *testing.T) {
 }
 
 func TestFormatWebQueueDisplayTimesFormatsAttemptTimes(t *testing.T) {
-	t.Setenv("TZ", "Asia/Tokyo")
+	useLocalZone(t, time.FixedZone("JST", 9*60*60))
 	state := webprojection.QueueState{Runs: []webprojection.Run{{Jobs: []webprojection.Job{{Attempts: []webprojection.Attempt{{
 		SubmittedAt: "2026-09-22T08:47:59Z",
 		FinishedAt:  "2026-09-22T08:48:00Z",
@@ -1590,7 +1590,7 @@ func TestReadJobTimestampRejectsUnsafePathElements(t *testing.T) {
 }
 
 func TestLoadWebStateIncludesRunContextAndTimeline(t *testing.T) {
-	t.Setenv("TZ", "Asia/Tokyo")
+	useLocalZone(t, time.FixedZone("JST", 9*60*60))
 	baseDir := t.TempDir()
 	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
@@ -1981,4 +1981,13 @@ func formatInt(value int) string {
 		return "0"
 	}
 	return "1"
+}
+
+// useLocalZone sets time.Local, which display timestamps follow, for one
+// test. TZ is read once at process start, so t.Setenv("TZ") cannot do this.
+func useLocalZone(t *testing.T, zone *time.Location) {
+	t.Helper()
+	previous := time.Local
+	time.Local = zone
+	t.Cleanup(func() { time.Local = previous })
 }

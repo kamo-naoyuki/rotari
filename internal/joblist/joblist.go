@@ -246,9 +246,10 @@ func parseTimestamp(value string) (time.Time, error) {
 	return time.Parse(time.RFC3339Nano, strings.TrimSpace(value))
 }
 
-// FormatTimestamp formats a listing time in JST to the minute.
+// FormatTimestamp formats a listing time in time.Local to the minute, like
+// model.FormatDisplayTimestamp.
 func FormatTimestamp(value time.Time) string {
-	return value.In(time.FixedZone("JST", 9*60*60)).Format("2006-01-02 15:04")
+	return value.In(time.Local).Format("2006-01-02 15:04")
 }
 
 // FormatElapsed formats a duration as "42s", "3m 05s", or "2h 07m", and a

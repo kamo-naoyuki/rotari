@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Contract: the CLI and the Web UI resolve a job's result and times through
@@ -69,6 +70,75 @@ func TestCLIAndWebAgreeOnJobResults(t *testing.T) {
 			t.Errorf("job %s: finished %q in jobs, %q in the Web API", cliResult.ID, row["FINISHED"], web.FinishedAt)
 		}
 	}
+}
+
+// Contract: persisted timestamps are UTC RFC3339; human-readable CLI and Web
+// views use the IANA zone from TZ when valid, otherwise the local zone.
+// See docs/contracts/01-resolution-and-config.md ("Resolution rules").
+
+func TestDisplayTimesFollowTZ(t *testing.T) {
+	e := newEnv(t)
+	run := e.createFinishedRun()
+
+	var shown struct {
+		Summary struct {
+			StartedAt string `json:"started_at"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal([]byte(e.mustRotari("show", "-p", run.project, "--json").stdout), &shown); err != nil {
+		t.Fatal(err)
+	}
+	started, err := time.Parse(time.RFC3339, shown.Summary.StartedAt)
+	if err != nil {
+		t.Fatalf("show --json started_at %q is not RFC3339: %v", shown.Summary.StartedAt, err)
+	}
+	if !strings.HasSuffix(shown.Summary.StartedAt, "Z") {
+		t.Errorf("show --json started_at %q is not stored in UTC", shown.Summary.StartedAt)
+	}
+
+	for _, zone := range []string{"UTC", "Asia/Tokyo", "America/New_York"} {
+		t.Run(zone, func(t *testing.T) {
+			location, err := time.LoadLocation(zone)
+			if err != nil {
+				t.Skipf("time zone data unavailable: %v", err)
+			}
+			want := started.In(location).Format("2006-01-02 15:04:05 MST")
+			zoned := e.in(t).withVar("TZ", zone)
+
+			if output := zoned.mustRotari("show", "-p", run.project).stdout; !strings.Contains(output, want) {
+				t.Errorf("show does not print the start time as %q:\n%s", want, output)
+			}
+			if got := webRunStartedAt(t, zoned, zoned.startWeb(), run); got != want {
+				t.Errorf("Web API started_at = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func webRunStartedAt(t *testing.T, e *env, base string, run finishedRun) string {
+	t.Helper()
+	got := e.httpGet(base + "/api/state")
+	var state struct {
+		Projects []struct {
+			ProjectName string `json:"project_name"`
+			Runs        []struct {
+				RunID     string `json:"run_id"`
+				StartedAt string `json:"started_at"`
+			} `json:"runs"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal([]byte(got.body), &state); err != nil {
+		t.Fatalf("GET /api/state: status %d: %v", got.status, err)
+	}
+	for _, project := range state.Projects {
+		for _, webRun := range project.Runs {
+			if project.ProjectName == run.project && webRun.RunID == run.runID {
+				return webRun.StartedAt
+			}
+		}
+	}
+	t.Fatalf("Web API state has no run %s", run.runID)
+	return ""
 }
 
 type webJob struct {

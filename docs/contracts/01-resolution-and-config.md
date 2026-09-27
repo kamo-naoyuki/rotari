@@ -76,7 +76,12 @@ Without a run-location lookup, base directories resolve in this order:
   [conformance/paths_test.go](../../conformance/paths_test.go) checks this
   through the built binary and the Web API.
 - Persisted timestamps use UTC RFC3339. Human-readable CLI and web views use the
-  IANA timezone from `TZ` when valid, otherwise Go's local timezone.
+  IANA timezone from `TZ` when valid, otherwise Go's local timezone, through
+  `time.Local` in `model.FormatDisplayTimestamp`
+  ([internal/model/time.go](../../internal/model/time.go)) and
+  `joblist.FormatTimestamp`. Covered by
+  [conformance/status_test.go](../../conformance/status_test.go)
+  (`TestDisplayTimesFollowTZ`).
 - A supplied `--run-id` is exact, except that the reserved value `latest`
   selects the latest saved run using the normal metadata/newest-directory
   fallback, through `resolve.ExistingRunID`. `latest` is accepted wherever a
