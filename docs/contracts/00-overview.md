@@ -152,8 +152,9 @@ The package map, process roles, and per-command walkthroughs are in
   CLI or Web path, so no interface silently reimplements run semantics.
 
 The import-level parts of these rules (what `internal/model`, `internal/state`,
-`internal/executor`, `internal/run`, and `internal/rundiff` may import, and no
-`internal` package importing `cmd/`) are enforced by
+`internal/executor`, `internal/run`, and `internal/rundiff` may import, no
+`internal` package importing `cmd/`, and `conformance` importing only the
+standard library) are enforced by
 [`internal/archtest/boundaries_test.go`](../../internal/archtest/boundaries_test.go).
 Change a rule there in the same change as this list.
 

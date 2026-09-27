@@ -73,6 +73,8 @@ Without a run-location lookup, base directories resolve in this order:
 - Empty values, `.`, `..`, absolute paths, and values containing `/` or `\`
   are rejected before filesystem access. This applies to `state.ResolveProjectPaths` and
   `jobcontrol.Controller.CancelJobs`, including requests from remote callers.
+  [conformance/paths_test.go](../../conformance/paths_test.go) checks this
+  through the built binary and the Web API.
 - Persisted timestamps use UTC RFC3339. Human-readable CLI and web views use the
   IANA timezone from `TZ` when valid, otherwise Go's local timezone.
 - A supplied `--run-id` is exact, except that the reserved value `latest`

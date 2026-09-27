@@ -20,6 +20,10 @@ type boundaryRule struct {
 	allowed []string
 	// forbidden lists other imports pkg must not have.
 	forbidden []string
+	// standardOnly forbids imports from outside the standard library.
+	standardOnly bool
+	// withTests applies the rule to the package's test files too.
+	withTests bool
 }
 
 // boundaryRules mirrors "Go package boundaries" in
@@ -54,13 +58,25 @@ var boundaryRules = []boundaryRule{
 		allowed:   []string{"internal/model"},
 		forbidden: fileAccess,
 	},
+	{
+		pkg:          "conformance",
+		reason:       "conformance checks the binary and Web API from outside the code",
+		allowed:      []string{},
+		standardOnly: true,
+		withTests:    true,
+	},
 }
 
 func TestPackageBoundaries(t *testing.T) {
-	imports := listImports(t)
+	imports := listImports(t, false)
+	withTests := listImports(t, true)
 
 	for _, rule := range boundaryRules {
-		pkgImports, ok := imports[module+"/"+rule.pkg]
+		listed := imports
+		if rule.withTests {
+			listed = withTests
+		}
+		pkgImports, ok := listed[module+"/"+rule.pkg]
 		if !ok {
 			t.Errorf("%s: package not found; update the rule if it moved", rule.pkg)
 			continue
@@ -74,7 +90,7 @@ func TestPackageBoundaries(t *testing.T) {
 }
 
 func TestInternalPackagesDoNotImportCommands(t *testing.T) {
-	for pkg, pkgImports := range listImports(t) {
+	for pkg, pkgImports := range listImports(t, false) {
 		if !strings.HasPrefix(pkg, module+"/internal/") {
 			continue
 		}
@@ -90,6 +106,9 @@ func violatesRule(rule boundaryRule, imported string) bool {
 	if local, ok := strings.CutPrefix(imported, module+"/"); ok {
 		return rule.allowed != nil && !slices.Contains(rule.allowed, local)
 	}
+	if rule.standardOnly && strings.Contains(strings.Split(imported, "/")[0], ".") {
+		return true
+	}
 	for _, forbidden := range rule.forbidden {
 		if imported == forbidden || strings.HasPrefix(imported, forbidden+"/") {
 			return true
@@ -98,10 +117,15 @@ func violatesRule(rule boundaryRule, imported string) bool {
 	return false
 }
 
-// listImports returns the non-test imports of every package in the module.
-func listImports(t *testing.T) map[string][]string {
+// listImports returns the imports of every package in the module, adding
+// the imports of its test files when withTests is set.
+func listImports(t *testing.T, withTests bool) map[string][]string {
 	t.Helper()
-	output, err := exec.Command("go", "list", "-f", "{{.ImportPath}} {{join .Imports \" \"}}", module+"/...").Output()
+	format := `{{.ImportPath}} {{join .Imports " "}}`
+	if withTests {
+		format += ` {{join .TestImports " "}} {{join .XTestImports " "}}`
+	}
+	output, err := exec.Command("go", "list", "-f", format, module+"/...").Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			t.Fatalf("go list: %v\n%s", err, exitErr.Stderr)

@@ -128,6 +128,11 @@ When changing behavior:
 Do not modify tests merely to make them pass.
 Tests should reflect the intended behavior.
 
+`conformance/` checks contracts through the built binary and the Web API. A
+refactoring must leave it passing without edits; change it only when a
+contract itself changes, and run `go test ./conformance` for changes in the
+areas listed under "Before changing code".
+
 If tests cannot be run, report that explicitly and explain why.
 
 From the repository root, prefer this validation order:

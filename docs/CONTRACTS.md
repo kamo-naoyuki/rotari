@@ -39,6 +39,12 @@ names a missing file or heading.
 
 ## Cross-cutting rules to keep in sync
 
+[`conformance/`](../conformance/) tests these rules from outside the code: it
+builds `cmd/rotari`, runs it with an isolated environment, and uses the Web
+API, importing only the standard library. Its tests pass unchanged across
+package-level refactoring, so a failure there means user-visible behavior
+changed.
+
 - Keep the filesystem as the source of truth; registry and in-memory state are
   only indexes or coordination helpers. The main persistence boundary is
   [`internal/state/store.go`](../internal/state/store.go), with coverage in
@@ -50,11 +56,15 @@ names a missing file or heading.
   [`internal/webui/webui.go`](../internal/webui/webui.go); representative tests are in
   [`cmd/rotari/show_test.go`](../cmd/rotari/show_test.go),
   [`internal/report/report_test.go`](../internal/report/report_test.go), and
-  [`internal/webui/webui_test.go`](../internal/webui/webui_test.go).
+  [`internal/webui/webui_test.go`](../internal/webui/webui_test.go);
+  [`conformance/status_test.go`](../conformance/status_test.go) checks that
+  `show --json`, `jobs`, and the Web API agree on a finished run.
 - Treat path elements as arbitrary strings and reject unsafe separators before
   filesystem access. The shared boundary is
   [`internal/state/paths.go`](../internal/state/paths.go), with path safety
-  checks in [`cmd/rotari/main_test.go`](../cmd/rotari/main_test.go).
+  checks in [`cmd/rotari/main_test.go`](../cmd/rotari/main_test.go) and, through
+  the built binary and the Web API, in
+  [`conformance/paths_test.go`](../conformance/paths_test.go).
 - Update user-facing docs and relevant tests whenever a behavior contract
   changes. The user-facing entry points are [`README.md`](../README.md), the
   user guides it links to under `docs/`, and [`docs/FAQ.md`](FAQ.md); keep the relevant package tests alongside the
