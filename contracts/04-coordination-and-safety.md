@@ -2,26 +2,26 @@
 
 Representative implementation and tests:
 
-- [internal/state/lock.go](../../internal/state/lock.go) and
-  [internal/state/lock_test.go](../../internal/state/lock_test.go) for lock
+- [internal/state/lock.go](../internal/state/lock.go) and
+  [internal/state/lock_test.go](../internal/state/lock_test.go) for lock
   inspection, with project-state coverage in
-  [internal/project/inspect_test.go](../../internal/project/inspect_test.go).
-- [internal/state/store.go](../../internal/state/store.go) and
-  [internal/state/store_test.go](../../internal/state/store_test.go) for
+  [internal/project/inspect_test.go](../internal/project/inspect_test.go).
+- [internal/state/store.go](../internal/state/store.go) and
+  [internal/state/store_test.go](../internal/state/store_test.go) for
   persisted-state load and write contracts.
-- [internal/executor/registry.go](../../internal/executor/registry.go) and
-  [internal/executor/registry_test.go](../../internal/executor/registry_test.go)
+- [internal/executor/registry.go](../internal/executor/registry.go) and
+  [internal/executor/registry_test.go](../internal/executor/registry_test.go)
   for the executor registry, job ownership, and local host checks.
-- [internal/jobcontrol/jobcontrol.go](../../internal/jobcontrol/jobcontrol.go)
-  and [internal/jobcontrol/jobcontrol_test.go](../../internal/jobcontrol/jobcontrol_test.go)
+- [internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go)
+  and [internal/jobcontrol/jobcontrol_test.go](../internal/jobcontrol/jobcontrol_test.go)
   for cancel, suspend, and resume.
 
 ## Job execution durability
 
 - **DUR-1** Every executor runs the command through a self-reporting wrapper that writes
   `<job-id>/status.json` with phase, exit code, and hosts. See
-  [`internal/executor/wrapper.go`](../../internal/executor/wrapper.go) and
-  [`cmd/rotari/job_executor_test.go`](../../cmd/rotari/job_executor_test.go).
+  [`internal/executor/wrapper.go`](../internal/executor/wrapper.go) and
+  [`cmd/rotari/job_executor_test.go`](../cmd/rotari/job_executor_test.go).
 - **DUR-2** The wrapper records status independently of the process that launched it, so
   scheduler accounting lag cannot hide the result.
 - **DUR-3** The local executor uses the same wrapper. If the coordinating server or async
@@ -40,14 +40,14 @@ Representative implementation and tests:
   selected older attempt (`show ATTEMPT_ID` or the Web UI attempt selector)
   resolves from its own files only and shows its own timestamps
   (`jobstatus.ResolveAttempt`). See
-  [`internal/jobstatus`](../../internal/jobstatus/),
-  [`internal/jobstatus/attempt_test.go`](../../internal/jobstatus/attempt_test.go),
-  [`internal/jobstatus/job_test.go`](../../internal/jobstatus/job_test.go),
+  [`internal/jobstatus`](../internal/jobstatus/),
+  [`internal/jobstatus/attempt_test.go`](../internal/jobstatus/attempt_test.go),
+  [`internal/jobstatus/job_test.go`](../internal/jobstatus/job_test.go),
   `TestLoadJobsSelectedOlderAttemptIgnoresSummary` in
-  [`internal/web/loader_test.go`](../../internal/web/loader_test.go), and
+  [`internal/web/loader_test.go`](../internal/web/loader_test.go), and
   `TestShowAndWebShareStatusFallbackChain` and
   `TestShowJobOlderAttemptIgnoresLatestSummary` in
-  [`cmd/rotari/show_test.go`](../../cmd/rotari/show_test.go).
+  [`cmd/rotari/show_test.go`](../cmd/rotari/show_test.go).
 - **DUR-6** This does not kill or reconcile leftover jobs during recovery; `reset
   --recover` and `unlock` still require the operator to confirm that jobs have
   stopped.
@@ -56,14 +56,14 @@ Representative implementation and tests:
 
 - Shared-base operation relies on exclusive file creation, atomic rename, and
   advisory `flock` semantics from the shared filesystem. See
-  [`internal/state/lock.go`](../../internal/state/lock.go) and
-  [`internal/state/lock_test.go`](../../internal/state/lock_test.go).
+  [`internal/state/lock.go`](../internal/state/lock.go) and
+  [`internal/state/lock_test.go`](../internal/state/lock_test.go).
 - The state lock serializes queue mutations and `running.lock` prevents a
   second runner from starting the same project. See
   `AcquireStateLock` and `AcquireRunLock` in
-  [`internal/state/lock.go`](../../internal/state/lock.go), and
+  [`internal/state/lock.go`](../internal/state/lock.go), and
   `TestBeginRejectsActiveRun` in
-  [`internal/projectrun/lifecycle_test.go`](../../internal/projectrun/lifecycle_test.go).
+  [`internal/projectrun/lifecycle_test.go`](../internal/projectrun/lifecycle_test.go).
 - This is coordination, not distributed locking: it cannot fence a host after a
   network partition or determine whether a remote PID is alive. A remote run
   lock remains active until an operator confirms the run stopped and uses
@@ -103,7 +103,7 @@ Representative implementation and tests:
 - `running.lock` represents an active run and includes host information, because
   local PID checks cannot prove remote process liveness.
 
-`project.Inspect` ([`internal/project/inspect.go`](../../internal/project/inspect.go)) derives one of three states from just `running.lock` and
+`project.Inspect` ([`internal/project/inspect.go`](../internal/project/inspect.go)) derives one of three states from just `running.lock` and
 `meta.json` -- never from job-level files like a job's own self-reported
 `status.json` (see "Job execution durability" above), which only feeds
 `show`/the web UI, not this state machine:
@@ -145,8 +145,8 @@ Representative implementation and tests:
   when stdin is a real terminal. `isTerminal` asks for termios settings, so
   `/dev/null`, pipes, and files get the non-interactive error naming
   `--recover` or `--append`/`--overwrite` instead of a prompt. See
-  [`cmd/rotari/terminal.go`](../../cmd/rotari/terminal.go) and
-  [`cmd/rotari/terminal_test.go`](../../cmd/rotari/terminal_test.go).
+  [`cmd/rotari/terminal.go`](../cmd/rotari/terminal.go) and
+  [`cmd/rotari/terminal_test.go`](../cmd/rotari/terminal_test.go).
 - Server management is separate (`server status`, `server shutdown`); project
   commands do not stop or query the server as a side effect.
 - Never silently remove a possibly active remote lock. Destructive commands
@@ -154,8 +154,8 @@ Representative implementation and tests:
   selection.
 - JSON writes use the common atomic helper. Optional fields must retain
   backward-compatible reads, and unrelated history must not be rewritten. See
-  [`internal/state/store.go`](../../internal/state/store.go) and
-  [`internal/state/store_test.go`](../../internal/state/store_test.go).
+  [`internal/state/store.go`](../internal/state/store.go) and
+  [`internal/state/store_test.go`](../internal/state/store_test.go).
 
 ## State load and write contracts
 
@@ -179,7 +179,7 @@ run data:
   fields this binary does not know. Read these files only through those
   loaders so the check applies. Covered by `TestWriteJSONStampsStateVersion`
   and `TestLoadStateAcceptsLegacyAndRejectsNewerVersions` in
-  [`internal/state/store_test.go`](../../internal/state/store_test.go).
+  [`internal/state/store_test.go`](../internal/state/store_test.go).
 - Version policy: an added optional field does not change the version.
   Renaming, removing, or reinterpreting a field bumps `model.StateVersion`;
   the loaders then convert every older version in memory after decoding, and
@@ -208,8 +208,8 @@ run data:
   Run finalization and interrupted-run recovery keep their own order (queue
   first), so a failed metadata write leaves the project interrupted and
   recoverable instead of idle with a stale queue. See
-  [`internal/project/edit.go`](../../internal/project/edit.go) and
-  [`internal/project/edit_test.go`](../../internal/project/edit_test.go).
+  [`internal/project/edit.go`](../internal/project/edit.go) and
+  [`internal/project/edit_test.go`](../internal/project/edit_test.go).
 - `AppendLoadSample` creates the sample file as needed and appends one JSONL
   record. `ReadLoadSamples` ignores missing files, blank lines, and malformed
   records because load sampling is observational metadata, not run state.

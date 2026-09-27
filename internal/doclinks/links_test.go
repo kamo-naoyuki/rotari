@@ -21,9 +21,9 @@ var (
 )
 
 // TestRelativeLinks checks that every relative link in the root Markdown
-// files and docs/ (except the generated docs/web-demo/) names an existing
-// file or directory, and that an #anchor into a Markdown file names one of
-// its headings.
+// files, contracts/, and docs/ (except the generated docs/web-demo/) names an
+// existing file or directory, and that an #anchor into a Markdown file names
+// one of its headings.
 func TestRelativeLinks(t *testing.T) {
 	root := repoRoot(t)
 	files := markdownFiles(t, root)
@@ -140,20 +140,22 @@ func markdownFiles(t *testing.T, root string) []string {
 		t.Fatal(err)
 	}
 	webDemo := filepath.Join(root, "docs", "web-demo")
-	err = filepath.WalkDir(filepath.Join(root, "docs"), func(path string, entry fs.DirEntry, err error) error {
+	for _, dir := range []string{"contracts", "docs"} {
+		err = filepath.WalkDir(filepath.Join(root, dir), func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() && path == webDemo {
+				return filepath.SkipDir
+			}
+			if !entry.IsDir() && filepath.Ext(path) == ".md" {
+				files = append(files, path)
+			}
+			return nil
+		})
 		if err != nil {
-			return err
+			t.Fatal(err)
 		}
-		if entry.IsDir() && path == webDemo {
-			return filepath.SkipDir
-		}
-		if !entry.IsDir() && filepath.Ext(path) == ".md" {
-			files = append(files, path)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
 	}
 	return files
 }

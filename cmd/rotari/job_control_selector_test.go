@@ -14,7 +14,7 @@ import (
 )
 
 // jobControlCase is one row of the cancel, suspend, and resume selectors in
-// docs/contracts/06-selectors.md, run against newSelectorFixture with run
+// contracts/06-selectors.md, run against newSelectorFixture with run
 // "live" of project sweep active: array job hold (tasks 1 and 2) and job
 // idle, each sleeping. args use the placeholders of selectorCase, plus
 // {run:live} and {att:idle/live} for the active run and idle's attempt in it.

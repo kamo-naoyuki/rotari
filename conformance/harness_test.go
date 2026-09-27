@@ -42,10 +42,10 @@ func runTests(m *testing.M) int {
 	return m.Run()
 }
 
-// covers declares the contract IDs from docs/contracts/ that the calling
+// covers declares the contract IDs from contracts/ that the calling
 // test checks. It does nothing at run time: TestContractStatus reads these
 // calls from the source and matches them against the status table in
-// docs/CONTRACTS.md. Pass the IDs as string literals.
+// contracts/README.md. Pass the IDs as string literals.
 func covers(t *testing.T, ids ...string) {
 	t.Helper()
 }

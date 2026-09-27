@@ -13,8 +13,8 @@ import (
 	"testing"
 )
 
-// Contract IDs tie the rules in docs/contracts/ to the tests here. A rule
-// gets an ID by starting with "**PREFIX-N**"; docs/CONTRACTS.md lists every
+// Contract IDs tie the rules in contracts/ to the tests here. A rule
+// gets an ID by starting with "**PREFIX-N**"; contracts/README.md lists every
 // ID with a status; a test declares what it checks with covers(t, ID...).
 // TestContractStatus keeps the three in agreement.
 
@@ -43,12 +43,12 @@ func TestContractStatus(t *testing.T) {
 
 	for id, file := range defined {
 		if _, ok := rows[id]; !ok {
-			t.Errorf("%s (in %s) has no row in the docs/CONTRACTS.md status table", id, file)
+			t.Errorf("%s (in %s) has no row in the contracts/README.md status table", id, file)
 		}
 	}
 	for id, row := range rows {
 		if _, ok := defined[id]; !ok {
-			t.Errorf("status table lists %s, which no contract in docs/contracts/ defines", id)
+			t.Errorf("status table lists %s, which no contract in contracts/ defines", id)
 			continue
 		}
 		tests := coveredBy[id]
@@ -82,12 +82,15 @@ func TestContractStatus(t *testing.T) {
 // contractDefinitions returns each contract ID with the file defining it.
 func contractDefinitions(t *testing.T) map[string]string {
 	t.Helper()
-	files, err := filepath.Glob(filepath.Join("..", "docs", "contracts", "*.md"))
+	files, err := filepath.Glob(filepath.Join("..", "contracts", "*.md"))
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no contract files found: %v", err)
 	}
 	defined := map[string]string{}
 	for _, file := range files {
+		if filepath.Base(file) == "README.md" {
+			continue
+		}
 		data, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)
@@ -103,12 +106,12 @@ func contractDefinitions(t *testing.T) map[string]string {
 	return defined
 }
 
-// contractStatusRows reads the status table in docs/CONTRACTS.md: rows of
+// contractStatusRows reads the status table in contracts/README.md: rows of
 // "| ID | rule | status | tests |", with tests as backquoted names or "-".
 func contractStatusRows(t *testing.T) map[string]contractStatusRow {
 	t.Helper()
 	rows := map[string]contractStatusRow{}
-	for _, line := range strings.Split(readRepoFile(t, "docs/CONTRACTS.md"), "\n") {
+	for _, line := range strings.Split(readRepoFile(t, "contracts/README.md"), "\n") {
 		match := contractRow.FindStringSubmatch(line)
 		if match == nil {
 			continue
@@ -125,7 +128,7 @@ func contractStatusRows(t *testing.T) map[string]contractStatusRow {
 		rows[id] = contractStatusRow{status: match[2], tests: tests}
 	}
 	if len(rows) == 0 {
-		t.Fatal("docs/CONTRACTS.md has no contract status rows")
+		t.Fatal("contracts/README.md has no contract status rows")
 	}
 	return rows
 }

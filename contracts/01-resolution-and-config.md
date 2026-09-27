@@ -2,29 +2,29 @@
 
 Representative implementation and tests:
 
-- [internal/resolve/resolve.go](../../internal/resolve/resolve.go) and
-  [internal/resolve/resolve_test.go](../../internal/resolve/resolve_test.go)
+- [internal/resolve/resolve.go](../internal/resolve/resolve.go) and
+  [internal/resolve/resolve_test.go](../internal/resolve/resolve_test.go)
   for run, attempt, run-name, and job selector resolution shared by the
-  commands, and [internal/state/config.go](../../internal/state/config.go) and
-  [internal/state/project.go](../../internal/state/project.go) for base
+  commands, and [internal/state/config.go](../internal/state/config.go) and
+  [internal/state/project.go](../internal/state/project.go) for base
   directory, master directory, and project resolution.
-- [internal/config/config.go](../../internal/config/config.go) and
-  [internal/config/config_test.go](../../internal/config/config_test.go) for
+- [internal/config/config.go](../internal/config/config.go) and
+  [internal/config/config_test.go](../internal/config/config_test.go) for
   config file locations, scope, and formats, and
-  [cmd/rotari/config.go](../../cmd/rotari/config.go) and
-  [cmd/rotari/config_test.go](../../cmd/rotari/config_test.go) for how config
+  [cmd/rotari/config.go](../cmd/rotari/config.go) and
+  [cmd/rotari/config_test.go](../cmd/rotari/config_test.go) for how config
   values become CLI option defaults and their precedence.
-- [internal/runregistry/registry.go](../../internal/runregistry/registry.go)
-  and [internal/runregistry/registry_test.go](../../internal/runregistry/registry_test.go)
+- [internal/runregistry/registry.go](../internal/runregistry/registry.go)
+  and [internal/runregistry/registry_test.go](../internal/runregistry/registry_test.go)
   for run-location indexing and stale-entry garbage collection.
-- [cmd/rotari/completion.go](../../cmd/rotari/completion.go) and
-  [cmd/rotari/coverage_extra_test.go](../../cmd/rotari/coverage_extra_test.go)
+- [cmd/rotari/completion.go](../cmd/rotari/completion.go) and
+  [cmd/rotari/coverage_extra_test.go](../cmd/rotari/coverage_extra_test.go)
   for shell completion; `TestShellCompletionCandidates` in
-  [cmd/rotari/completion_shell_test.go](../../cmd/rotari/completion_shell_test.go)
+  [cmd/rotari/completion_shell_test.go](../cmd/rotari/completion_shell_test.go)
   drives the generated scripts in Bash, Zsh, and Fish for every command,
   subcommand, option, and option value in the CLI metadata.
-- [cmd/rotari/guide.go](../../cmd/rotari/guide.go) and
-  [cmd/rotari/guide_test.go](../../cmd/rotari/guide_test.go) for the agent
+- [cmd/rotari/guide.go](../cmd/rotari/guide.go) and
+  [cmd/rotari/guide_test.go](../cmd/rotari/guide_test.go) for the agent
   guide.
 
 ## Resolution rules
@@ -60,8 +60,8 @@ The per-command view of these rules, with job selectors, is in
   the project and the positional target names the run. `--run-id` may still be
   repeated for merging saved runs. Run ID resolution uses
   `resolve.IsRunID` and `resolve.ExistingRun` in
-  [internal/resolve/resolve.go](../../internal/resolve/resolve.go), covered by
-  [cmd/rotari/export_test.go](../../cmd/rotari/export_test.go).
+  [internal/resolve/resolve.go](../internal/resolve/resolve.go), covered by
+  [cmd/rotari/export_test.go](../cmd/rotari/export_test.go).
 - **RES-7** `unlock` likewise accepts one optional positional project name. It derives
   the run ID from that project's `running.lock`, or from interrupted metadata
   when the lock is already absent; `--run-id` optionally verifies the result.
@@ -73,14 +73,14 @@ The per-command view of these rules, with job selectors, is in
 - **RES-10** Empty values, `.`, `..`, absolute paths, and values containing `/` or `\`
   are rejected before filesystem access. This applies to `state.ResolveProjectPaths` and
   `jobcontrol.Controller.CancelJobs`, including requests from remote callers.
-  [conformance/paths_test.go](../../conformance/paths_test.go) checks this
+  [conformance/paths_test.go](../conformance/paths_test.go) checks this
   through the built binary and the Web API.
 - **RES-11** Persisted timestamps use UTC RFC3339. Human-readable CLI and web views use the
   IANA timezone from `TZ` when valid, otherwise Go's local timezone, through
   `time.Local` in `model.FormatDisplayTimestamp`
-  ([internal/model/time.go](../../internal/model/time.go)) and
+  ([internal/model/time.go](../internal/model/time.go)) and
   `joblist.FormatTimestamp`. Covered by
-  [conformance/status_test.go](../../conformance/status_test.go)
+  [conformance/status_test.go](../conformance/status_test.go)
   (`TestDisplayTimesFollowTZ`).
 - **RES-12** A supplied `--run-id` is exact, except that the reserved value `latest`
   selects the latest saved run using the normal metadata/newest-directory
@@ -163,7 +163,7 @@ The per-command view of these rules, with job selectors, is in
   ignores config and environment defaults and is left out of the template and
   `configOptionNames`. Covered by
   `TestCommandLineOnlyFlagIgnoresConfigAndStaysOutOfTemplate` in
-  [`cmd/rotari/config_test.go`](../../cmd/rotari/config_test.go).
+  [`cmd/rotari/config_test.go`](../cmd/rotari/config_test.go).
 - `rotari config --list` is an inventory rather than a resolution operation. It
   lists every supported config found in the global and basedir scopes under
   `Common:`, then scans every `projects/<project>/` directory and lists paths
@@ -196,12 +196,12 @@ The per-command view of these rules, with job selectors, is in
   so an invalid edit cannot replace the valid config.
 - The Web side is implemented by `loadWebConfigFiles`, `loadRunConfigFiles`,
   `saveWebConfig`, `webConfigTargets`, and `generateWebConfig` in
-  [`internal/webui/webui.go`](../../internal/webui/webui.go). Representative tests are
+  [`internal/webui/webui.go`](../internal/webui/webui.go). Representative tests are
   `TestWebConfigAPIReadsResolvedFiles`, `TestWebConfigAPIReadsRunConfigSnapshots`,
   `TestWebSaveConfigWritesOnlyTheResolvedCurrentConfig`,
   `TestWebSaveConfigRejectsReadOnlyMode`, and
   `TestStaticWebUsesGenerateConfigReadOnlyFlow` in
-  [`internal/webui/webui_test.go`](../../internal/webui/webui_test.go).
+  [`internal/webui/webui_test.go`](../internal/webui/webui_test.go).
 
 ## Shell completion
 
@@ -211,14 +211,14 @@ The per-command view of these rules, with job selectors, is in
   and completes on the first TAB after Zsh autoloads the script from `fpath`.
   Job ID candidates skip a run's config snapshot directory. Covered by
   `TestShellCompletionCandidates` in
-  [`cmd/rotari/completion_shell_test.go`](../../cmd/rotari/completion_shell_test.go).
+  [`cmd/rotari/completion_shell_test.go`](../cmd/rotari/completion_shell_test.go).
 - `completion` and `server` dispatch on a subcommand instead of parsing a
   FlagSet, so they check `-h`/`--help` before dispatch and call
-  `printSubcommandHelp` in [`cmd/rotari/cli_spec.go`](../../cmd/rotari/cli_spec.go).
+  `printSubcommandHelp` in [`cmd/rotari/cli_spec.go`](../cmd/rotari/cli_spec.go).
   It prints the usage and subcommand descriptions from the same metadata to
   stderr with exit status 1, matching FlagSet help. Covered by
   `TestSubcommandCommandsPrintHelp` in
-  [`cmd/rotari/coverage_extra_test.go`](../../cmd/rotari/coverage_extra_test.go).
+  [`cmd/rotari/coverage_extra_test.go`](../cmd/rotari/coverage_extra_test.go).
 - A string option whose CLI metadata declares `Values` uses those values for
   parse-time choice validation as well as completion and schema generation.
 - CLI environment defaults are declared in one flag-to-variable mapping, used
@@ -246,7 +246,7 @@ The per-command view of these rules, with job selectors, is in
 ## Agent guide
 
 - `rotari guide` prints the hand-written rules in
-  [`cmd/rotari/assets/agent_guide.md`](../../cmd/rotari/assets/agent_guide.md),
+  [`cmd/rotari/assets/agent_guide.md`](../cmd/rotari/assets/agent_guide.md),
   embedded with Go `embed`, followed by a command reference generated from
   `cliCommandSpecs`. Flag lines use `cliFlagDescription`, so choices and
   environment variables match `--help`.

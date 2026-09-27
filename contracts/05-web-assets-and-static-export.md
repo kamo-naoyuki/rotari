@@ -6,16 +6,16 @@ boundaries. Read it for Web/API/static-site changes in addition to
 
 Representative implementation and tests:
 
-- [internal/webui/assets.go](../../internal/webui/assets.go) for embedded asset
+- [internal/webui/assets.go](../internal/webui/assets.go) for embedded asset
   declarations.
-- [internal/webui/webui.go](../../internal/webui/webui.go) and
-  [internal/webui/webui_test.go](../../internal/webui/webui_test.go) for Web
+- [internal/webui/webui.go](../internal/webui/webui.go) and
+  [internal/webui/webui_test.go](../internal/webui/webui_test.go) for Web
   handlers and static export, and
-  [cmd/rotari/web.go](../../cmd/rotari/web.go) for the `web` command, which
+  [cmd/rotari/web.go](../cmd/rotari/web.go) for the `web` command, which
   supplies the CLI metadata, environment definitions, and config template
   through `webui.Options`.
-- [internal/webui/assets/web_app_core.js](../../internal/webui/assets/web_app_core.js)
-  and [internal/webui/assets/web_template.html](../../internal/webui/assets/web_template.html)
+- [internal/webui/assets/web_app_core.js](../internal/webui/assets/web_app_core.js)
+  and [internal/webui/assets/web_template.html](../internal/webui/assets/web_template.html)
   for the browser application and page shell.
 
 ## Asset layout
@@ -67,7 +67,7 @@ generated pages. It is formatted as ordinary JavaScript, then receives the
 generated state, logs, and reports during export.
 
 `/jobs/` is server-rendered from the same `joblist.Collect` path
-([internal/joblist](../../internal/joblist/joblist.go)) as `rotari jobs`:
+([internal/joblist](../internal/joblist/joblist.go)) as `rotari jobs`:
 it includes running jobs and jobs completed within the preceding 24 hours by
 default. The dynamic page accepts `?since=DURATION`, validated by the shared
 `joblist.ParseSince` helper. Its static equivalent is `jobs/index.html` and remains
@@ -85,7 +85,7 @@ layout.
   `Authorization: Bearer TOKEN`, `X-Rotari-Token: TOKEN`, or Basic
   authentication with username `rotari` and the token as the password; this is
   authentication only and does not encrypt HTTP traffic.
-- `loadWebState` ([internal/webui/webui.go](../../internal/webui/webui.go)) exposes persisted runtime metadata: `running.lock` fields and
+- `loadWebState` ([internal/webui/webui.go](../internal/webui/webui.go)) exposes persisted runtime metadata: `running.lock` fields and
   the presence of the server socket (`SocketPath`) and `server.pid`. The panel does not query process
   liveness or infer that `state.lock` is held from the file's existence.
 - The Unix-socket control surface is separate from `ROTARI_PRIVATE_STATE`:
@@ -156,7 +156,7 @@ job before reading that attempt directory.
 
 A run page adds one collapsible section per matrix group, collapsed by default,
 between the run graphics and the job table controls
-([web_app_matrix.js](../../internal/webui/assets/web_app_matrix.js)).
+([web_app_matrix.js](../internal/webui/assets/web_app_matrix.js)).
 `addMatrixPanels` runs at the end of each render, like the other run
 sections, and its header shows the group's success and failure counts.
 `LoadJobs` attaches each member's group ID, base name, dimensions, and values
@@ -177,12 +177,12 @@ exactly as in the table. `restoreMatrixActions` moves the box to the
 re-rendered cell, rebuilds it when the cell's jobs changed, or closes it when
 the cell is gone or collapsed. Jobs whose matrix provenance was cleared by a
 partial copy or change appear only in the table. Covered by `TestWebRunViewDrawsMatrixGrid` in
-[cmd/rotari/web_test.go](../../cmd/rotari/web_test.go).
+[cmd/rotari/web_test.go](../cmd/rotari/web_test.go).
 
 Long values in the Command, Working directory, Dependencies, and Executor
 options columns of the job and queue tables start clamped to three lines
 (`clampLongTableCells` in
-[web_app_tables.js](../../internal/webui/assets/web_app_tables.js)). Clicking the
+[web_app_tables.js](../internal/webui/assets/web_app_tables.js)). Clicking the
 text, which highlights on hover, or pressing Enter or Space on it expands or
 collapses it; a click that ends a text selection does not, so values can still
 be selected. A cell is

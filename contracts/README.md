@@ -2,12 +2,12 @@
 
 This file is the entry point for the behavior rotari must keep: the state
 layout, resolution and fallback rules, run semantics, locking, and path rules.
-The details live in the split pages under [docs/contracts](contracts/), and
+The details live in the split pages in this directory, and
 cross-cutting rules remain here as the high-level index.
 
 These are contracts, not a tour of the code. For which process and package
 does what, and how a command flows through the code, read
-[ARCHITECTURE.md](ARCHITECTURE.md) first. User-facing behavior belongs in
+[ARCHITECTURE.md](../docs/ARCHITECTURE.md) first. User-facing behavior belongs in
 [../README.md](../README.md) and the user guides it links to under `docs/`.
 
 When a behavior contract changes, update the relevant contract note in the
@@ -15,25 +15,25 @@ same change. Include links to the representative implementation and tests so
 future contributors and coding agents can move from the contract to the code
 quickly.
 [`internal/doclinks`](../internal/doclinks/links_test.go) fails when one of
-these links, or any relative link in the root Markdown files and `docs/`,
-names a missing file or heading.
+these links, or any relative link in the root Markdown files, `contracts/`,
+and `docs/`, names a missing file or heading.
 
 ## Split notes
 
-- [contracts/00-overview.md](contracts/00-overview.md): overview, system model,
+- [00-overview.md](00-overview.md): overview, system model,
   and core contracts.
-- [contracts/01-resolution-and-config.md](contracts/01-resolution-and-config.md):
+- [01-resolution-and-config.md](01-resolution-and-config.md):
   path resolution, config precedence, shell completion, and registry behavior.
-- [contracts/02-run-lifecycle-and-execution.md](contracts/02-run-lifecycle-and-execution.md):
+- [02-run-lifecycle-and-execution.md](02-run-lifecycle-and-execution.md):
   run creation, retries, filtered reruns, executor orchestration, and
   external integrations.
-- [contracts/03-server-and-command-interfaces.md](contracts/03-server-and-command-interfaces.md):
+- [03-server-and-command-interfaces.md](03-server-and-command-interfaces.md):
   server projections, command interfaces, and client lifecycle.
-- [contracts/04-coordination-and-safety.md](contracts/04-coordination-and-safety.md):
+- [04-coordination-and-safety.md](04-coordination-and-safety.md):
   locks, durability, recovery, and shared-state safety rules.
-- [contracts/05-web-assets-and-static-export.md](contracts/05-web-assets-and-static-export.md):
+- [05-web-assets-and-static-export.md](05-web-assets-and-static-export.md):
   Web UI assets, static export, and embedded app boundaries.
-- [contracts/06-selectors.md](contracts/06-selectors.md): how each command
+- [06-selectors.md](06-selectors.md): how each command
   resolves project, run, and job selectors, known deviations, and the
   selector test fixture.
 
@@ -67,19 +67,19 @@ changed.
   [`conformance/paths_test.go`](../conformance/paths_test.go).
 - Update user-facing docs and relevant tests whenever a behavior contract
   changes. The user-facing entry points are [`README.md`](../README.md), the
-  user guides it links to under `docs/`, and [`docs/FAQ.md`](FAQ.md); keep the relevant package tests alongside the
+  user guides it links to under `docs/`, and [`docs/FAQ.md`](../docs/FAQ.md); keep the relevant package tests alongside the
   implementation change.
 
 ## Contract status
 
-A rule in [docs/contracts](contracts/) gets an ID by starting with
+A rule in the pages of this directory gets an ID by starting with
 `**PREFIX-N**`. The prefix names the section that defines it:
 
 | Prefix | Section |
 | --- | --- |
-| `CORE` | "Core design contracts" in [contracts/00-overview.md](contracts/00-overview.md#core-design-contracts) |
-| `RES` | "Resolution rules" in [contracts/01-resolution-and-config.md](contracts/01-resolution-and-config.md#resolution-rules) |
-| `DUR` | "Job execution durability" in [contracts/04-coordination-and-safety.md](contracts/04-coordination-and-safety.md#job-execution-durability) |
+| `CORE` | "Core design contracts" in [00-overview.md](00-overview.md#core-design-contracts) |
+| `RES` | "Resolution rules" in [01-resolution-and-config.md](01-resolution-and-config.md#resolution-rules) |
+| `DUR` | "Job execution durability" in [04-coordination-and-safety.md](04-coordination-and-safety.md#job-execution-durability) |
 
 Other sections have no IDs yet; give a rule one, with the next free number,
 when a conformance test starts checking it. Never renumber or reuse an ID;

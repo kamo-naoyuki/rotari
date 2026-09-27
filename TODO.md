@@ -95,7 +95,7 @@ most.
 - Consider recording `state_version` in `meta.json`, `context.json`, and
   per-job files, as `queue.json`, `commands.json`, and `summary.json` already
   do. See "State load and write contracts" in
-  [docs/contracts/04-coordination-and-safety.md](docs/contracts/04-coordination-and-safety.md).
+  [contracts/04-coordination-and-safety.md](contracts/04-coordination-and-safety.md).
 - Building blocks for the above: `runs/<run-id>/commands.json`, `JobOrigin` in
   [internal/model/model.go](internal/model/model.go), and the queue-versus-run
   change count in `compareQueueWithRun` in
@@ -131,10 +131,10 @@ that should be protecting it. Turn the rules into checks, cheapest and most
 immediately useful first. Each step stands alone and can stop there.
 
 1. **Widen conformance coverage.** Move `partial` and `pending` rows in the
-   "Contract status" table of [docs/CONTRACTS.md](docs/CONTRACTS.md) toward
+   "Contract status" table of [contracts/README.md](contracts/README.md) toward
    `conformance`, giving rules in sections without IDs an ID as they gain a
    test. In order: the selector table in
-   [docs/contracts/06-selectors.md](docs/contracts/06-selectors.md) through
+   [contracts/06-selectors.md](contracts/06-selectors.md) through
    the binary; the run lifecycle (failure then filtered rerun, cancel, two
    concurrent `run`s on one base directory); recovery after the runner is
    killed with SIGKILL.

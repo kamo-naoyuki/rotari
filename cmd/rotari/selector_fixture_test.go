@@ -12,7 +12,7 @@ import (
 )
 
 // selectorFixture is shared state for testing how commands resolve their
-// project, run, and job selectors (docs/contracts/06-selectors.md). It is
+// project, run, and job selectors (contracts/06-selectors.md). It is
 // built through the real add and run paths, so run IDs, attempt IDs, the run
 // registry, and run names are laid out exactly as a user would see them.
 //

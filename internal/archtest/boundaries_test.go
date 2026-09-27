@@ -27,7 +27,7 @@ type boundaryRule struct {
 }
 
 // boundaryRules mirrors "Go package boundaries" in
-// docs/contracts/00-overview.md and the package table in
+// contracts/00-overview.md and the package table in
 // docs/ARCHITECTURE.md. Keep them in sync.
 var boundaryRules = []boundaryRule{
 	{

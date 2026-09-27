@@ -11,7 +11,7 @@ import (
 )
 
 // positionalCase is one positional-argument row of
-// docs/contracts/06-selectors.md. args start with the command and use the
+// contracts/06-selectors.md. args start with the command and use the
 // placeholders of selectorCase, plus {T} for a temporary directory, {M} for
 // the master directory, and {run:live} for the run that setup starts.
 type positionalCase struct {

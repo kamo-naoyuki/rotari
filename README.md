@@ -254,6 +254,6 @@ fails; see [Web browser notifications](docs/WEB_BROWSER_NOTIFICATIONS.md).
 ## Development
 
 See [code architecture](docs/ARCHITECTURE.md) for how the processes and
-packages fit together, and [design contracts](docs/CONTRACTS.md) for the
+packages fit together, and [design contracts](contracts/README.md) for the
 persistent-state, resolution, and safety rules that maintainers and coding
 agents must preserve.

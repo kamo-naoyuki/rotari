@@ -6,29 +6,29 @@ and CLI presentation. Web-specific UI and asset behavior live in
 
 Representative implementation and tests:
 
-- [internal/server/serve.go](../../internal/server/serve.go),
-  [internal/server/client.go](../../internal/server/client.go), and
-  [internal/server/serve_test.go](../../internal/server/serve_test.go) for the
+- [internal/server/serve.go](../internal/server/serve.go),
+  [internal/server/client.go](../internal/server/client.go), and
+  [internal/server/serve_test.go](../internal/server/serve_test.go) for the
   server lease, request dispatch, active-run tracking, and the detach and
   disconnect protocol.
-- [cmd/rotari/server.go](../../cmd/rotari/server.go) and
-  [cmd/rotari/server_test.go](../../cmd/rotari/server_test.go) for server
+- [cmd/rotari/server.go](../cmd/rotari/server.go) and
+  [cmd/rotari/server_test.go](../cmd/rotari/server_test.go) for server
   commands and the `Operations` that perform cancel, suspend, resume, and run
   work. The request handlers live in
-  [internal/supervisor](../../internal/supervisor/operations.go),
-  [cmd/rotari/run_command.go](../../cmd/rotari/run_command.go), and
-  [internal/jobcontrol](../../internal/jobcontrol/jobcontrol.go).
-- [cmd/rotari/show.go](../../cmd/rotari/show.go) and
-  [cmd/rotari/show_test.go](../../cmd/rotari/show_test.go) for CLI projections.
-- [cmd/rotari/wait.go](../../cmd/rotari/wait.go) and
-  [cmd/rotari/wait_test.go](../../cmd/rotari/wait_test.go) for wait output and
+  [internal/supervisor](../internal/supervisor/operations.go),
+  [cmd/rotari/run_command.go](../cmd/rotari/run_command.go), and
+  [internal/jobcontrol](../internal/jobcontrol/jobcontrol.go).
+- [cmd/rotari/show.go](../cmd/rotari/show.go) and
+  [cmd/rotari/show_test.go](../cmd/rotari/show_test.go) for CLI projections.
+- [cmd/rotari/wait.go](../cmd/rotari/wait.go) and
+  [cmd/rotari/wait_test.go](../cmd/rotari/wait_test.go) for wait output and
   run selection.
 
 ## Server and read projections
 
 - The server supervises one base directory and may stop when idle, so durable
   behavior belongs in files, not memory.
-- `SocketPath` in [internal/server/socket.go](../../internal/server/socket.go)
+- `SocketPath` in [internal/server/socket.go](../internal/server/socket.go)
   uses `<basedir>/server.sock` when it fits in 103 bytes (the smallest
   `sun_path` limit, on macOS and BSD). Longer paths use
   `/tmp/rotari-<uid>/<sha256 prefix of the resolved basedir>.sock`, a fixed
@@ -36,7 +36,7 @@ Representative implementation and tests:
   path, and symlinks are resolved so aliases share one server. `Listen` creates
   that directory `0700` and refuses one that is not a real directory owned by
   the current user with no group or other access. Covered by
-  [internal/server/socket_test.go](../../internal/server/socket_test.go).
+  [internal/server/socket_test.go](../internal/server/socket_test.go).
 - A detached server discards stderr, so `runServer` writes a `start failed`
   event to `server.log` when `Listen` fails for any reason other than another
   server holding the lease, and `Ensure` names that log when the server does
@@ -59,9 +59,9 @@ Representative implementation and tests:
 - `show RUN` compares the current queue with that run's saved commands by job
   ID. Its changed count uses the same definition-field comparison as `diff`,
   including environment, stage, timeout, and retry settings; see
-  [`cmd/rotari/show.go`](../../cmd/rotari/show.go),
-  [`internal/rundiff/rundiff.go`](../../internal/rundiff/rundiff.go), and
-  [`cmd/rotari/main_test.go`](../../cmd/rotari/main_test.go).
+  [`cmd/rotari/show.go`](../cmd/rotari/show.go),
+  [`internal/rundiff/rundiff.go`](../internal/rundiff/rundiff.go), and
+  [`cmd/rotari/main_test.go`](../cmd/rotari/main_test.go).
 
 ## Client connection lifecycle
 
@@ -109,14 +109,14 @@ follows:
   root `quiet` and command-specific values such as `add.quiet` and `run.quiet`
   with the same precedence.
   The shared environment-variable mapping is defined in
-  [`cmd/rotari/environment.go`](../../cmd/rotari/environment.go) and
-  [`cmd/rotari/cli_spec.go`](../../cmd/rotari/cli_spec.go).
+  [`cmd/rotari/environment.go`](../cmd/rotari/environment.go) and
+  [`cmd/rotari/cli_spec.go`](../cmd/rotari/cli_spec.go).
 - For `run`, quiet is carried in the server request as `Request.Quiet`; the
   client suppresses successful progress and completion output. Job failures,
   startup errors, and other command errors remain visible, and synchronous
   `run` still returns a non-zero status when a job fails.
 - The same success-silent/error-visible rule applies to queue-editing commands
   (`add`, `copy`, `change`, `remove`, `reset`, and `check`). The protocol field
-  is defined in [`internal/server/protocol.go`](../../internal/server/protocol.go),
+  is defined in [`internal/server/protocol.go`](../internal/server/protocol.go),
   with client behavior covered by
-  [`cmd/rotari/server_test.go`](../../cmd/rotari/server_test.go).
+  [`cmd/rotari/server_test.go`](../cmd/rotari/server_test.go).

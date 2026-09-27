@@ -42,7 +42,11 @@ Read the relevant implementation and tests first. To find them, use
 `docs/ARCHITECTURE.md`, which maps processes, packages, `cmd/rotari` files,
 and the path each main command takes through the code.
 
-If the change affects any of the following, also read `docs/CONTRACTS.md`:
+`contracts/` holds the behavior rotari promises and must keep; `docs/` holds
+user guides and design notes. `conformance/` tests the contracts through the
+built binary and the Web API.
+
+If the change affects any of the following, also read `contracts/README.md`:
 
 * job state
 * scheduling
@@ -53,7 +57,7 @@ If the change affects any of the following, also read `docs/CONTRACTS.md`:
 * CLI behavior
 * web/API behavior
 
-When unsure whether a change affects these areas, read `docs/CONTRACTS.md`.
+When unsure whether a change affects these areas, read `contracts/README.md`.
 
 ## Project invariants
 
@@ -96,7 +100,7 @@ A user-visible behavior change may require updates to:
 * the user guides linked from the README `Documentation` section, such as
   `docs/CONCEPTS.md`, `docs/RUNNING.md`, or `docs/CONFIGURATION.md`
 * `docs/FAQ.md`
-* `docs/CONTRACTS.md`
+* `contracts/README.md`
 * `docs/ARCHITECTURE.md`, when a package, process role, or command flow it
   describes changes
 
@@ -114,7 +118,7 @@ Examples include changes to:
 * path rules
 * web/API behavior
 
-When behavior changes, inspect these documents and update every affected one. When the behavior is covered by `docs/CONTRACTS.md` or `docs/contracts/`, keep the relevant contract note current and add or update links to the representative implementation and tests in the same change.
+When behavior changes, inspect these documents and update every affected one. When the behavior is covered by `contracts/`, keep the relevant contract note current and add or update links to the representative implementation and tests in the same change.
 
 ## Testing
 
@@ -133,7 +137,7 @@ refactoring must leave it passing without edits; change it only when a
 contract itself changes, and run `go test ./conformance` for changes in the
 areas listed under "Before changing code". Contract rules carry IDs such as
 `RES-10`; a conformance test names the IDs it checks with `covers(t, "ID")`,
-and the "Contract status" table in `docs/CONTRACTS.md` must agree with those
+and the "Contract status" table in `contracts/README.md` must agree with those
 calls. When a test starts checking a rule, update the rule's row, giving the
 rule an ID first if it has none.
 

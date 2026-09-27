@@ -6,7 +6,7 @@ changing code you have not touched before.
 
 It describes structure, not rules. The behavior that must be preserved (state
 layout, fallback chains, locking, path rules) is in
-[CONTRACTS.md](CONTRACTS.md). User-facing behavior is in the
+[contracts/README.md](../contracts/README.md). User-facing behavior is in the
 [README](../README.md) and the guides it links to.
 
 ## Processes
@@ -184,7 +184,7 @@ every package imports `model`; those edges are drawn once per group.
 the current graph if this list drifts.
 
 The boundary rules in
-[contracts/00-overview.md](contracts/00-overview.md#go-package-boundaries)
+[contracts/00-overview.md](../contracts/00-overview.md#go-package-boundaries)
 are checked against this graph by
 [internal/archtest](../internal/archtest/boundaries_test.go).
 
@@ -213,7 +213,7 @@ are checked against this graph by
 | [internal/rundiff](../internal/rundiff/) | Comparison of two loaded runs for `diff` and `show --lineage`. | `rundiff.go` |
 | [internal/diagnose](../internal/diagnose/) | Rule-based and provider-backed failure diagnosis. | `analysis.go` |
 | [internal/archtest](../internal/archtest/) | Tests only: the package boundary rules checked against the import graph. | `boundaries_test.go` |
-| [internal/doclinks](../internal/doclinks/) | Tests only: relative links and `#anchor` links in the root Markdown files and `docs/`. | `links_test.go` |
+| [internal/doclinks](../internal/doclinks/) | Tests only: relative links and `#anchor` links in the root Markdown files, `contracts/`, and `docs/`. | `links_test.go` |
 | [conformance](../conformance/) | Tests only: contract checks against the built binary and the Web API, importing only the standard library. | `harness_test.go`, `contracts_test.go`, `paths_test.go`, `status_test.go` |
 
 Many `internal` functions take callbacks or hook fields

@@ -11,7 +11,7 @@ import (
 // Contracts RES-9 and RES-10: project names, run IDs, job IDs, and attempt
 // IDs are single path elements. ".", "..", absolute paths, and values
 // containing "/" or "\" are rejected before filesystem access, by the CLI and
-// by the Web API alike. See docs/contracts/01-resolution-and-config.md and
+// by the Web API alike. See contracts/01-resolution-and-config.md and
 // the path invariants in AGENTS.md. Empty values are not checked: an empty
 // option means "not given" on the CLI, and some Web fields are optional.
 //

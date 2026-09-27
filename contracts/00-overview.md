@@ -1,7 +1,7 @@
 # Overview and system model
 
 This page holds the shared model and core contracts. User-facing behavior
-belongs in [README.md](../../README.md) and the user guides it links to; local implementation details belong in
+belongs in [README.md](../README.md) and the user guides it links to; local implementation details belong in
 code and tests. Update these notes when a cross-cutting contract changes, and replace
 obsolete rules rather than accumulating history.
 
@@ -95,20 +95,20 @@ the user-facing documentation, and the affected tests together.
 
 - **CORE-1** The filesystem is the source of truth. Registries and in-memory state are
   indexes or coordination aids and must be recoverable from persisted files.
-  See [`internal/state/store.go`](../../internal/state/store.go) and
-  [`internal/state/store_test.go`](../../internal/state/store_test.go).
+  See [`internal/state/store.go`](../internal/state/store.go) and
+  [`internal/state/store_test.go`](../internal/state/store_test.go).
 - **CORE-2** The server coordinates access and execution; it is not persistent authority
-  for project or run state. See [`cmd/rotari/server.go`](../../cmd/rotari/server.go)
-  and [`cmd/rotari/server_test.go`](../../cmd/rotari/server_test.go).
+  for project or run state. See [`cmd/rotari/server.go`](../cmd/rotari/server.go)
+  and [`cmd/rotari/server_test.go`](../cmd/rotari/server_test.go).
 - **CORE-3** Each project owns one mutable current queue as the staging area for the next
   run. Queue edits change that queue only while the project is idle. A run that
   starts snapshots the queue; the queue remains on disk as a preserved snapshot
   while the run is active, and it stays as the retained recovery snapshot after
   an interruption. Normal completion clears the consumed queue, at which point a
-  new batch can be prepared again. See [`internal/projectrun/lifecycle.go`](../../internal/projectrun/lifecycle.go),
-  [`internal/project/edit.go`](../../internal/project/edit.go),
-  [`cmd/rotari/reset.go`](../../cmd/rotari/reset.go), and
-  [`internal/project/edit_test.go`](../../internal/project/edit_test.go).
+  new batch can be prepared again. See [`internal/projectrun/lifecycle.go`](../internal/projectrun/lifecycle.go),
+  [`internal/project/edit.go`](../internal/project/edit.go),
+  [`cmd/rotari/reset.go`](../cmd/rotari/reset.go), and
+  [`internal/project/edit_test.go`](../internal/project/edit_test.go).
 - **CORE-4** The primary user-facing target depends on project state: `idle` projects show
   the queue as the active work target, while a `running` or `interrupted` project
   treats the associated run as the primary subject and the queue as the retained
@@ -117,24 +117,24 @@ the user-facing documentation, and the affected tests together.
   queue semantics consistent across CLI, Web, and recovery flows.
 - **CORE-5** A project has at most one active run and runner at a time. That runner may
   execute multiple jobs concurrently, while different projects can run
-  independently. See [`internal/project/inspect.go`](../../internal/project/inspect.go)
-  and [`internal/project/inspect_test.go`](../../internal/project/inspect_test.go).
+  independently. See [`internal/project/inspect.go`](../internal/project/inspect.go)
+  and [`internal/project/inspect_test.go`](../internal/project/inspect_test.go).
 - **CORE-6** Completed runs are immutable history. Retries, filtered runs, and
   carry-forward create or modify only a new destination run, never their source
-  run. See [`internal/run/rerun.go`](../../internal/run/rerun.go),
-  [`internal/queueedit/copy.go`](../../internal/queueedit/copy.go), and
-  [`cmd/rotari/run_selection_test.go`](../../cmd/rotari/run_selection_test.go).
+  run. See [`internal/run/rerun.go`](../internal/run/rerun.go),
+  [`internal/queueedit/copy.go`](../internal/queueedit/copy.go), and
+  [`cmd/rotari/run_selection_test.go`](../cmd/rotari/run_selection_test.go).
 - **CORE-7** Executors implement job execution and scheduler integration, not run
   semantics. Run planning, dependency handling, carry-forward, and summary
   finalization belong to rotari's shared execution path. See
-  [`internal/projectrun/execute.go`](../../internal/projectrun/execute.go),
-  [`internal/executor/contracts.go`](../../internal/executor/contracts.go), and
-  [`cmd/rotari/mixed_run_test.go`](../../cmd/rotari/mixed_run_test.go).
+  [`internal/projectrun/execute.go`](../internal/projectrun/execute.go),
+  [`internal/executor/contracts.go`](../internal/executor/contracts.go), and
+  [`cmd/rotari/mixed_run_test.go`](../cmd/rotari/mixed_run_test.go).
 
 ## Go package boundaries
 
 The package map, process roles, and per-command walkthroughs are in
-[../ARCHITECTURE.md](../ARCHITECTURE.md). The boundary rules that must hold:
+[docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md). The boundary rules that must hold:
 
 - Internal packages must not import `cmd/rotari`. Shared behavior moves
   downward through explicit data and callback contracts instead.
@@ -155,7 +155,7 @@ The import-level parts of these rules (what `internal/model`, `internal/state`,
 `internal/executor`, `internal/run`, and `internal/rundiff` may import, no
 `internal` package importing `cmd/`, and `conformance` importing only the
 standard library) are enforced by
-[`internal/archtest/boundaries_test.go`](../../internal/archtest/boundaries_test.go).
+[`internal/archtest/boundaries_test.go`](../internal/archtest/boundaries_test.go).
 Change a rule there in the same change as this list.
 
 `internal/rundiff` compares two runs that `cmd/rotari/diff.go` has loaded, with
@@ -168,5 +168,5 @@ first load sample, then by the summary's start time, then by run ID, because
 run IDs only have one-second resolution. `show --lineage` lists runs in the
 same order and uses `rundiff.Lineage` for each run's counts and its changes
 since the previous run. Covered by
-[`internal/rundiff/rundiff_test.go`](../../internal/rundiff/rundiff_test.go)
-and [`cmd/rotari/diff_test.go`](../../cmd/rotari/diff_test.go).
+[`internal/rundiff/rundiff_test.go`](../internal/rundiff/rundiff_test.go)
+and [`cmd/rotari/diff_test.go`](../cmd/rotari/diff_test.go).

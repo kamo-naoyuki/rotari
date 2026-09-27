@@ -1,6 +1,6 @@
 package main
 
-// selectorCases follows the tables of docs/contracts/06-selectors.md. See
+// selectorCases follows the tables of contracts/06-selectors.md. See
 // newSelectorFixture for the keys. Project sweep's latest run is
 // sweep-second, which re-executed the failed train-SEED2 and eval-2 and left
 // late unfinished.

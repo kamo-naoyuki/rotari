@@ -8,16 +8,16 @@ per-command view, and the reference for selector tests.
 
 Representative implementation and tests:
 
-- [internal/resolve/resolve.go](../../internal/resolve/resolve.go) and
-  [its tests](../../internal/resolve/resolve_test.go): locations, run IDs,
+- [internal/resolve/resolve.go](../internal/resolve/resolve.go) and
+  [its tests](../internal/resolve/resolve_test.go): locations, run IDs,
   attempt IDs, and job lookup in a queue or run.
-- [internal/model/command_selector.go](../../internal/model/command_selector.go)
-  and [its tests](../../internal/model/command_selector_test.go): selecting
+- [internal/model/command_selector.go](../internal/model/command_selector.go)
+  and [its tests](../internal/model/command_selector_test.go): selecting
   queue commands by job ID, name, stage, matrix, or all.
-- [cmd/rotari/selector_cases_test.go](../../cmd/rotari/selector_cases_test.go):
+- [cmd/rotari/selector_cases_test.go](../cmd/rotari/selector_cases_test.go):
   the tables below as test cases, run by `TestSelectorTable` in
-  [selector_test.go](../../cmd/rotari/selector_test.go) against the shared
-  fixture in [selector_fixture_test.go](../../cmd/rotari/selector_fixture_test.go)
+  [selector_test.go](../cmd/rotari/selector_test.go) against the shared
+  fixture in [selector_fixture_test.go](../cmd/rotari/selector_fixture_test.go)
   (see [Fixture](#fixture)). A row marked with a known deviation must fail
   until the deviation is fixed.
 
@@ -120,7 +120,7 @@ rejected. Instead `--failed --unfinished` is `retry`'s default, used only when
 neither a result filter nor a direct selector is given: `retry -j ID` runs only
 that job, exactly as `run -j ID` does, and `retry --success` runs successful
 jobs. Implemented by `runJobs` in
-[cmd/rotari/run_command.go](../../cmd/rotari/run_command.go); covered by the
+[cmd/rotari/run_command.go](../cmd/rotari/run_command.go); covered by the
 `retry` rows of `TestSelectorTable`.
 
 A job whose command, environment, or working directory changed since its
@@ -150,12 +150,12 @@ active run. They take job IDs and attempt IDs, positionally or as repeated
 `--job-id`, and no job name, group, or result filter. Resolution is
 `resolve.JobSelection`; the running-run check and the signalling are
 `jobcontrol.Controller` in
-[internal/jobcontrol/jobcontrol.go](../../internal/jobcontrol/jobcontrol.go),
+[internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go),
 shared with the Web UI's cancel, suspend, and resume endpoints. Those
 endpoints require the `run_id` of the run the page shows, so a page left
 open on a finished run cannot act on the same job ID in the active run
 (`TestWebJobControlRejectsStaleRunID` in
-[internal/webui/webui_test.go](../../internal/webui/webui_test.go)).
+[internal/webui/webui_test.go](../internal/webui/webui_test.go)).
 
 | Form | `cancel` | `suspend`, `resume` |
 | --- | --- | --- |
@@ -173,10 +173,10 @@ open on a finished run cannot act on the same job ID in the active run
 commands take no run name or positional project: they act on running jobs, so
 they name them only by IDs and `--project-name`, and a free-form run name could
 not be told apart from a job ID in the same list. Covered by `TestJobControlSelectors`
-in [cmd/rotari/job_control_selector_test.go](../../cmd/rotari/job_control_selector_test.go),
+in [cmd/rotari/job_control_selector_test.go](../cmd/rotari/job_control_selector_test.go),
 against the fixture with run `live` of project `sweep` active, and by the
 `JobSelection` tests in
-[internal/resolve/resolve_test.go](../../internal/resolve/resolve_test.go).
+[internal/resolve/resolve_test.go](../internal/resolve/resolve_test.go).
 
 ## Positional arguments
 
@@ -186,7 +186,7 @@ General rules:
   (`copy RUN_ID --overwrite`), except in `add` and `change`. `--` ends the
   options: every later argument is positional, which is how a positional that
   starts with `-` is passed. Implemented by `cliParse` in
-  [cmd/rotari/cli_spec.go](../../cmd/rotari/cli_spec.go).
+  [cmd/rotari/cli_spec.go](../cmd/rotari/cli_spec.go).
 - In `add` and `change`, options must come before the job command: parsing
   stops at the first positional argument, and every later argument belongs to
   the job command even when it looks like a rotari option, so
@@ -222,7 +222,7 @@ General rules:
 | others | none | – | – |
 
 `TestPositionalArguments` in
-[cmd/rotari/positional_test.go](../../cmd/rotari/positional_test.go) covers
+[cmd/rotari/positional_test.go](../cmd/rotari/positional_test.go) covers
 each row against the fixture, except `cancel`, `suspend`, and `resume`,
 which `TestJobControlSelectors` covers against a running run (see
 [Job control](#job-control)).
@@ -230,13 +230,13 @@ which `TestJobControlSelectors` covers against a running run (see
 ## Known deviations
 
 None at present. A deviation found later is listed here and in
-[ISSUES.md](../../ISSUES.md), marked with a † in the tables, and its test
+[ISSUES.md](../ISSUES.md), marked with a † in the tables, and its test
 row carries a `known` mark until it is fixed.
 
 ## Fixture
 
 `newSelectorFixture` in
-[cmd/rotari/selector_fixture_test.go](../../cmd/rotari/selector_fixture_test.go)
+[cmd/rotari/selector_fixture_test.go](../cmd/rotari/selector_fixture_test.go)
 builds, through the real `add` and run paths, a base directory with project
 `sweep` (a plain job, a matrix with a retried failure, an array with a failed
 task, and an unnamed job, each in its own stage; runs `first` and `second`),
@@ -246,6 +246,6 @@ registry. Symbolic keys map to the generated run, job, and attempt IDs.
 Location variables and user config are cleared, so results do not depend on
 the caller's environment. `TestSelectorFixtureLayout` checks the layout.
 `startLiveRun` in
-[cmd/rotari/job_control_selector_test.go](../../cmd/rotari/job_control_selector_test.go)
+[cmd/rotari/job_control_selector_test.go](../cmd/rotari/job_control_selector_test.go)
 adds run `live` of project `sweep`, active in process, with an array job
 `hold` of two tasks and a job `idle`, each sleeping, for the job control rows.

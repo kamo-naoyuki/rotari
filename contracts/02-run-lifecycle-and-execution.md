@@ -13,10 +13,10 @@
   with no new run or lock. Execution plans the selection again against the run's
   queue snapshot. If a source becomes unreadable after preflight, execution
   has already written `commands.json` before replanning, so the run is still
-  inspectable. See [run preparation](../../internal/supervisor/run.go),
-  [execution](../../internal/projectrun/execute.go),
-  [preflight tests](../../internal/supervisor/supervisor_test.go), and
-  [snapshot tests](../../internal/projectrun/lifecycle_test.go).
+  inspectable. See [run preparation](../internal/supervisor/run.go),
+  [execution](../internal/projectrun/execute.go),
+  [preflight tests](../internal/supervisor/supervisor_test.go), and
+  [snapshot tests](../internal/projectrun/lifecycle_test.go).
 - Retries and filtered runs always create new history and never modify their
   source run. `--retry N` retries a failed job up to N additional times within
   the same run. A job's own `Retry` (`add --retry`, manifest `retry`) replaces
@@ -50,8 +50,8 @@
   `--success`, and never carries that result. Other edits, such as the
   timeout, retry settings, dependencies, or name, keep the result. A
   workflow-import queue forces a job on any edit. Implemented by
-  `applyMutation` in [internal/queueops/change.go](../../internal/queueops/change.go)
-  and `jobResult` in [internal/run/rerun.go](../../internal/run/rerun.go);
+  `applyMutation` in [internal/queueops/change.go](../internal/queueops/change.go)
+  and `jobResult` in [internal/run/rerun.go](../internal/run/rerun.go);
   covered by the "changed" rows of `TestSelectorTable` and
   `TestPlanRerunForcedJobsHaveNoResult`.
 - In a filtered run, selected jobs execute. Completed jobs outside the
@@ -79,9 +79,9 @@
   dependent job is ready. Stage names and explicit job names share a namespace
   and therefore cannot collide. Commands without an explicit job name receive
   a runtime-only name derived from their job ID when they are stage members.
-  See [stage expansion](../../internal/model/model.go), [queue dependency
-  validation](../../internal/model/dependencies.go), [stage barrier test](../../cmd/rotari/mixed_run_test.go),
-  and [copy preservation test](../../internal/queueops/copy_test.go).
+  See [stage expansion](../internal/model/model.go), [queue dependency
+  validation](../internal/model/dependencies.go), [stage barrier test](../cmd/rotari/mixed_run_test.go),
+  and [copy preservation test](../internal/queueops/copy_test.go).
 - An array queue command has an inclusive `first-last` range or an explicit
   comma-separated task list. Runtime expansion creates one `JobSpec` and
   persisted job directory per selected task. Local executors run those tasks as
@@ -99,7 +99,7 @@
   inconsistent with it, clear provenance for the affected group rather
   than presenting an incomplete group as the original matrix. A `change
   --matrix`, `--stage`, or `--all` that changes every member the same way
-  keeps it ([bulk change tests](../../cmd/rotari/change_test.go)). A dependency on
+  keeps it ([bulk change tests](../cmd/rotari/change_test.go)). A dependency on
   the group's base name resolves to every member only while provenance exists,
   so clearing it rewrites such dependencies to the member names that remain.
   `copy` keeps a base-name dependency when the whole group is copied;
@@ -107,10 +107,10 @@
   rewritten to the copied members.
   Legacy snapshots
   without provenance export as independent jobs. See
-  [matrix validation](../../internal/model/dependencies.go),
-  [matrix queue mutation tests](../../internal/queueops/carry_state_test.go),
-  [manifest compilation](../../internal/workflow/manifest.go), and
-  [matrix export tests](../../internal/workflow/export_test.go).
+  [matrix validation](../internal/model/dependencies.go),
+  [matrix queue mutation tests](../internal/queueops/carry_state_test.go),
+  [manifest compilation](../internal/workflow/manifest.go), and
+  [matrix export tests](../internal/workflow/export_test.go).
 - Result-based selection (`--failed`/`--unfinished`/`--success` in `copy`, and
   in rerun when `--partial-array=false`) and copied-job origin status operate on
   the unexpanded `QueuedCommand`, but results are recorded per expanded task ID.
@@ -125,21 +125,21 @@
   dependency stays while any member is copied, because copied members keep
   their stage and the name resolves to them. A retry that re-executes one
   failed stage member therefore keeps its dependents waiting for it. See
-  [copy rules](../../internal/queueedit/copy.go),
-  [copy unit tests](../../internal/queueedit/copy_test.go), and
-  [partial stage copy tests](../../internal/queueops/copy_test.go).
+  [copy rules](../internal/queueedit/copy.go),
+  [copy unit tests](../internal/queueedit/copy_test.go), and
+  [partial stage copy tests](../internal/queueops/copy_test.go).
 - A filtered run carries or re-executes jobs by their origin's result; a job
   without an origin uses the reference run's result instead. The reference
   run is `--run-id` when given, otherwise the project's last run, and it is
   resolved once, before `Begin` records the new run as the last one:
   `projectrun.ReferenceRun`, called from the supervisor's `prepareRun`
-  ([internal/supervisor/run.go](../../internal/supervisor/run.go)).
+  ([internal/supervisor/run.go](../internal/supervisor/run.go)).
   `run.PlanRerun` never reads the last run itself; a job that needs a
   reference run it was not given fails planning with `ErrNoReferenceRun`. See
   `TestPrepareRunResolvesReferenceRunBeforeBegin`
-  ([internal/supervisor/supervisor_test.go](../../internal/supervisor/supervisor_test.go))
+  ([internal/supervisor/supervisor_test.go](../internal/supervisor/supervisor_test.go))
   and `TestPlanRerunFallsBackToReferenceRun`
-  ([internal/run/plan_test.go](../../internal/run/plan_test.go)).
+  ([internal/run/plan_test.go](../internal/run/plan_test.go)).
 - `run`/`retry` default to `--partial-array=true`. For a filtered rerun,
   `run.PlanRerun` evaluates each array task's own result against the
   selection instead of the aggregate, so only the
@@ -180,14 +180,14 @@
   one of its attempts, another member of its matrix group is kept, its name is
   still queued, or it is unnamed, has no attempts, and an identical definition
   is still queued; this report never affects reconciliation. See
-  [workflow reconciliation](../../internal/workflow/reconcile.go) and its
-  [unit tests](../../internal/workflow/reconcile_test.go),
-  [run planning](../../internal/run/rerun.go) and its
-  [unit tests](../../internal/run/plan_test.go),
-  [workflow integration tests](../../cmd/rotari/import_test.go),
-  [workflow reconciliation edge cases](../../cmd/rotari/workflow_manifest_errors_test.go),
-  [accepted result display tests](../../cmd/rotari/workflow_accepted_display_test.go),
-  and [import plan tests](../../cmd/rotari/workflow_import_plan_test.go).
+  [workflow reconciliation](../internal/workflow/reconcile.go) and its
+  [unit tests](../internal/workflow/reconcile_test.go),
+  [run planning](../internal/run/rerun.go) and its
+  [unit tests](../internal/run/plan_test.go),
+  [workflow integration tests](../cmd/rotari/import_test.go),
+  [workflow reconciliation edge cases](../cmd/rotari/workflow_manifest_errors_test.go),
+  [accepted result display tests](../cmd/rotari/workflow_accepted_display_test.go),
+  and [import plan tests](../cmd/rotari/workflow_import_plan_test.go).
 - An `ATTEMPT_ID` passed to `copy --job-id` identifies one exact execution
   attempt. A normal job ID selects the latest attempt. For an array task
   attempt, copy narrows the source command to a sparse array containing only
@@ -195,7 +195,7 @@
   where possible. `run --job-id ATTEMPT_ID` and
   `retry --job-id ATTEMPT_ID` use the same copy-then-execute path.
 - Jobs run event by event: `ExecuteJobs` in
-  [internal/run/engine.go](../../internal/run/engine.go) re-checks the waiting
+  [internal/run/engine.go](../internal/run/engine.go) re-checks the waiting
   jobs whenever a result arrives or a retry delay passes, and starts each job
   as soon as its prerequisites allow, without waiting for unrelated jobs. It
   never relies on scheduler-native dependency features such as Slurm's
@@ -208,7 +208,7 @@
   `cancelled before start`. Covered by
   `TestExecuteJobsRetriesAndUnblocksWithoutWaitingForOtherJobs` and
   `TestExecuteJobsStopsRetryingWhenStopped` in
-  [internal/run/lifecycle_test.go](../../internal/run/lifecycle_test.go).
+  [internal/run/lifecycle_test.go](../internal/run/lifecycle_test.go).
 - `DependsOnFinished` (`--depends-on-finished`, manifest `depends_on_finished`)
   is Slurm's `afterany`: the dependent starts once each prerequisite succeeded
   or has a final failure. A result is final when the job will not run again:
@@ -218,12 +218,12 @@
   waiting jobs and `afterany` dependents of blocked jobs still start. Both lists share validation (unknown names, cycles across
   kinds, and stage and matrix expansion); a name listed in both on one command
   is rejected. Covered by the `TestFinishedDependency*` tests in
-  [internal/run/lifecycle_test.go](../../internal/run/lifecycle_test.go) and
+  [internal/run/lifecycle_test.go](../internal/run/lifecycle_test.go) and
   `TestExecuteMixedRunStartsFinishedDependentAfterFailure` in
-  [cmd/rotari/mixed_run_test.go](../../cmd/rotari/mixed_run_test.go).
+  [cmd/rotari/mixed_run_test.go](../cmd/rotari/mixed_run_test.go).
 - A result-filtered rerun also executes every job whose `DependsOnFinished`
   names an executing job, transitively through such edges
-  (`expandFinishedDownstream` in [internal/run/rerun.go](../../internal/run/rerun.go)),
+  (`expandFinishedDownstream` in [internal/run/rerun.go](../internal/run/rerun.go)),
   because an `afterany` job may have succeeded on a failed prerequisite's
   output. `copy` requires an omitted `DependsOnFinished` prerequisite to have
   finished with any result, rather than to have succeeded.
@@ -233,19 +233,19 @@
   new request or queue fields.
 - `change`, `remove`, and the `--stage`/`--matrix` scope of `run`, `retry`,
   `copy`, and `show` select queue commands through one rule, `model.SelectCommands` in
-  [internal/model/command_selector.go](../../internal/model/command_selector.go):
+  [internal/model/command_selector.go](../internal/model/command_selector.go):
   by job IDs, a job name, a stage, a matrix base name, or all. An array command
   is selected as a whole, and naming one of its tasks is an error that points
   to the array job. A scope narrows a result filter; jobs outside it carry
   their results forward (`PlanRerun` in
-  [internal/run/rerun.go](../../internal/run/rerun.go), `Copy` in
-  [internal/queueedit/copy.go](../../internal/queueedit/copy.go)). The server
+  [internal/run/rerun.go](../internal/run/rerun.go), `Copy` in
+  [internal/queueedit/copy.go](../internal/queueedit/copy.go)). The server
   checks the scope before it creates the run. See
-  [selector tests](../../internal/model/command_selector_test.go) and
-  [scoped plan tests](../../internal/run/plan_test.go).
+  [selector tests](../internal/model/command_selector_test.go) and
+  [scoped plan tests](../internal/run/plan_test.go).
 - A job `Timeout` is enforced inside the job wrappers, not by the supervisor,
   so it counts running time on every executor.
-  [internal/executor/wrapper.go](../../internal/executor/wrapper.go) builds a
+  [internal/executor/wrapper.go](../internal/executor/wrapper.go) builds a
   watchdog shared by the status wrapper (local, Slurm, PBS, LSF), the native
   array wrapper, and the SSH wrapper. After the timeout it marks the attempt
   timed out, sends SIGTERM to the job's process group, waits 30 seconds, and
@@ -261,7 +261,7 @@
   leader, it skips the watchdog and logs that the timeout is not enforced
   rather than signal a group it does not own. The SSH wrapper signals the
   command's own `setsid` group. Covered by
-  [internal/executor/timeout_test.go](../../internal/executor/timeout_test.go)
+  [internal/executor/timeout_test.go](../internal/executor/timeout_test.go)
   and `TestExecuteMixedRunRecordsJobTimeout`, and against real schedulers by
   `TestSchedulerContainerStopsTimedOutJob`.
 
@@ -287,10 +287,10 @@
 
 ## Run orchestration and executor responsibilities
 
-- `projectrun.Runner` ([internal/projectrun](../../internal/projectrun/)) is
+- `projectrun.Runner` ([internal/projectrun](../internal/projectrun/)) is
   the single run lifecycle for every run, regardless of executor mix. The
   synchronous path (`Operations.Run` in
-  [internal/supervisor/run.go](../../internal/supervisor/run.go)) and the async
+  [internal/supervisor/run.go](../internal/supervisor/run.go)) and the async
   path (`Operations.StartRun`, then the `__worker-run` worker in `cmdWorkerRun`)
   both call it:
   - `Begin`, under the state lock of an idle project, writes `context.json`
@@ -306,22 +306,22 @@
     removes the run lock unless it belongs to another run. The lock is removed
     even when finalization fails, so the project reads as interrupted rather
     than running.
-  Covered by [internal/projectrun/lifecycle_test.go](../../internal/projectrun/lifecycle_test.go)
-  and [cmd/rotari/mixed_run_test.go](../../cmd/rotari/mixed_run_test.go).
+  Covered by [internal/projectrun/lifecycle_test.go](../internal/projectrun/lifecycle_test.go)
+  and [cmd/rotari/mixed_run_test.go](../cmd/rotari/mixed_run_test.go).
   Commands are enqueued by `add` and started by `run`; `run --async` selects
   the async worker path.
 - The server launches the async worker as `__worker-run` with arguments built
-  by `WorkerArgs` in [internal/run/worker_args.go](../../internal/run/worker_args.go)
-  and parsed by `parseWorkerRunArgs` in [cmd/rotari/main.go](../../cmd/rotari/main.go).
+  by `WorkerArgs` in [internal/run/worker_args.go](../internal/run/worker_args.go)
+  and parsed by `parseWorkerRunArgs` in [cmd/rotari/main.go](../cmd/rotari/main.go).
   Bool flags must be written as `--name=BOOL`, because a separate value is
   parsed as the first positional argument. Worker-only flags such as
   `--selection` have no CLI metadata and are registered directly on the
   FlagSet. `TestWorkerArgsParseBackToOptions` in
-  [cmd/rotari/worker_args_test.go](../../cmd/rotari/worker_args_test.go)
+  [cmd/rotari/worker_args_test.go](../cmd/rotari/worker_args_test.go)
   round-trips the arguments through the worker's parser.
 - Per-executor full-run orchestrators must not be added outside this path.
   Extend `JobExecutor` methods or `projectrun.Runner.Execute` instead.
-- Run dispatch (`Dispatcher` in [internal/run/dispatch.go](../../internal/run/dispatch.go))
+- Run dispatch (`Dispatcher` in [internal/run/dispatch.go](../internal/run/dispatch.go))
   keeps one lane per executor for the whole run: a local concurrency lane and
   one independent lane per non-local executor. Each lane is a FIFO queue: jobs
   start in the order they became ready, which is queue order for jobs ready
@@ -335,12 +335,12 @@
   slots; retried tasks are submitted individually or as a sparse array. Jobs
   on a scheduler lane are waited on concurrently, so
   `schedulerQueryGate` in
-  [internal/executor/scheduler_shared.go](../../internal/executor/scheduler_shared.go)
+  [internal/executor/scheduler_shared.go](../internal/executor/scheduler_shared.go)
   spaces scheduler state and accounting queries 200ms apart per process;
   reading a job's wrapper `status.json` is not gated. Covered by
   `TestDispatcherRefillsSchedulerSlotsAsJobsFinish`.
 - Against real schedulers, the `TestSchedulerContainer*` tests in
-  [cmd/rotari/scheduler_container_run_test.go](../../cmd/rotari/scheduler_container_run_test.go)
+  [cmd/rotari/scheduler_container_run_test.go](../cmd/rotari/scheduler_container_run_test.go)
   build rotari into the state directory mounted at `/state` and run it inside
   the Slurm or PBS container of the scheduler integration workflow: an
   immediate retry, refilled concurrency slots, a timeout, `--depends-on` and
@@ -348,7 +348,7 @@
   They skip unless `ROTARI_SCHEDULER_CONTAINER_TEST=1`; running them also
   needs `ROTARI_SCHEDULER_EXECUTOR`, `SCHEDULER_CONTAINER`, `SCHEDULER_USER`,
   and `SCHEDULER_STATE_DIR` (the host directory mounted at `/state`), which
-  [.github/workflows/scheduler-integration.yml](../../.github/workflows/scheduler-integration.yml)
+  [.github/workflows/scheduler-integration.yml](../.github/workflows/scheduler-integration.yml)
   sets.
 - `local-concurrency` and `batch-concurrency` are common
   defaults used when no executor-specific setting is supplied; executor
@@ -429,8 +429,8 @@
   matching line, ordered from the latest evidence to the earliest with the
   scheduler error treated as later than the log; the generic Python-exception entry is
   dropped when a specific rule explains the same line
-  ([rules.go](../../internal/diagnose/rules.go),
-  [rules_test.go](../../internal/diagnose/rules_test.go)). When
+  ([rules.go](../internal/diagnose/rules.go),
+  [rules_test.go](../internal/diagnose/rules_test.go)). When
   a failed run is finalized, the analysis is saved on its `summary.json` result
   as an informational snapshot; it never affects run status, retry planning,
   dependency resolution, or scheduler control. `diagnosis_status` records
@@ -442,9 +442,9 @@
   rules as produced by earlier rules. Results saved before these fields existed
   are converted when decoded: a lone no-match or unavailable entry becomes the
   status, and they carry no rules hash
-  ([analysis.go](../../internal/diagnose/analysis.go),
-  [analysis_test.go](../../internal/diagnose/analysis_test.go),
-  [job_result_test.go](../../internal/model/job_result_test.go)). `showJob`
+  ([analysis.go](../internal/diagnose/analysis.go),
+  [analysis_test.go](../internal/diagnose/analysis_test.go),
+  [job_result_test.go](../internal/model/job_result_test.go)). `showJob`
   reads the saved analysis for CLI job detail, while the Web UI always shows a
   `Diagnosis` control and enables it for finalized failed jobs with a saved
   analysis; it is disabled for live fallback results that have no finalized

@@ -1,4 +1,4 @@
-// Package conformance checks invariants from docs/CONTRACTS.md against the
+// Package conformance checks invariants from contracts/README.md against the
 // built rotari binary and its Web API, from outside the code.
 //
 // It holds only tests and imports only the standard library, so it keeps

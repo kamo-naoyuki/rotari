@@ -18,7 +18,7 @@ import (
 )
 
 // selectorCase is one row of the selector table in
-// docs/contracts/06-selectors.md, run against newSelectorFixture.
+// contracts/06-selectors.md, run against newSelectorFixture.
 //
 // Arguments may use {B} and {OB} for the fixture's base directories,
 // {run:KEY}, {job:KEY}, and {att:KEY} for its generated IDs. Results are
