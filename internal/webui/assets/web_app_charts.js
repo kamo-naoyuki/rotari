@@ -1322,7 +1322,7 @@ function addProjectRuntime() {
       (queue.runner_host ? " on " + queue.runner_host : "") +
       (queue.runner_pid ? " (PID " + queue.runner_pid + ")" : "")
     : "No runner lock";
-  const server = state.server || {};
+  const server = queue.server || {};
   const coordinator =
     (server.socket_exists ? "socket present" : "socket absent") +
     (server.pid_file_exists

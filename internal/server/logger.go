@@ -8,21 +8,27 @@ import (
 	"time"
 )
 
-func LockPath(baseDir string) string { return filepath.Join(baseDir, "server.lock") }
-func PIDPath(baseDir string) string  { return filepath.Join(baseDir, "server.pid") }
+// LockPath is the lease file of the supervisor of dir, a project directory.
+func LockPath(dir string) string { return filepath.Join(dir, "server.lock") }
+
+// PIDPath records the PID of the supervisor of dir while it runs.
+func PIDPath(dir string) string { return filepath.Join(dir, "server.pid") }
 
 type Logger struct {
 	Path     string
 	FileMode os.FileMode
 	MaxBytes int64
-	mu       sync.Mutex
+	// Prefix, if set, starts every event, so the supervisors of several
+	// projects can share one log.
+	Prefix string
+	mu     sync.Mutex
 }
 
 func (logger *Logger) Writef(format string, args ...any) {
 	if logger == nil {
 		return
 	}
-	line := time.Now().UTC().Format(time.RFC3339) + " " + fmt.Sprintf(format, args...) + "\n"
+	line := time.Now().UTC().Format(time.RFC3339) + " " + logger.Prefix + fmt.Sprintf(format, args...) + "\n"
 	if logger.MaxBytes > 0 && int64(len(line)) > logger.MaxBytes {
 		line = line[:logger.MaxBytes]
 	}

@@ -4,20 +4,15 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"flag"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
 	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	"github.com/kamo-naoyuki/rotari/internal/queueops"
-	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -113,8 +108,6 @@ func run(args []string) int {
 		return cmdComplete(args[1:])
 	case "__server":
 		return cmdServerProcess(args[1:])
-	case "__worker-run":
-		return cmdWorkerRun(args[1:])
 	default:
 		printErrorf("unknown subcommand: %s", args[0])
 		printUsage()
@@ -195,69 +188,6 @@ func finalizeCompletedCancellation(paths state.ProjectPaths) (bool, error) {
 		return false, err
 	}
 	return true, nil
-}
-
-// cmdWorkerRun executes an async run that the supervisor recorded with
-// projectrun.Runner.Begin, then finishes it.
-func cmdWorkerRun(args []string) int {
-	options, err := parseWorkerRunArgs(args)
-	if err != nil {
-		printError(err)
-		return 1
-	}
-	paths, err := state.ResolveProjectPaths(options.BaseDir, options.QueueName)
-	if err != nil {
-		printErrorf("failed to resolve paths: %v", err)
-		return 1
-	}
-	exitCode, err := projectRunner().Run(paths, projectrun.OptionsFrom(options), projectrun.Observer{})
-	if err != nil {
-		printErrorf("worker run failed: %v", err)
-		return 1
-	}
-	return exitCode
-}
-
-// parseWorkerRunArgs parses the arguments that runcontract.WorkerArgs builds
-// for __worker-run.
-func parseWorkerRunArgs(args []string) (runcontract.Options, error) {
-	fs := flag.NewFlagSet("__worker-run", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	basedir := cliString(fs, "basedir", "")
-	executor := cliString(fs, "executor", "")
-	var executorOptions stringSliceFlag
-	cliValue(fs, &executorOptions, "executor-option")
-	executorSettings := cliExecutorRunSettings(fs)
-	// selection, scope-stage, scope-matrix, and source-run-id exist only on
-	// this internal command, so they have no CLI metadata, environment, or
-	// config defaults.
-	selection := fs.String("selection", "", "")
-	scopeStage := fs.String("scope-stage", "", "")
-	scopeMatrix := fs.String("scope-matrix", "", "")
-	var jobIDs stringSliceFlag
-	cliValue(fs, &jobIDs, "job-id")
-	sourceRunID := fs.String("source-run-id", "", "")
-	partialArray := cliBool(fs, "partial-array", true)
-	if err := fs.Parse(args); err != nil {
-		return runcontract.Options{}, fmt.Errorf("failed to parse worker args: %w", err)
-	}
-	left := fs.Args()
-	if len(left) != 7 {
-		return runcontract.Options{}, errors.New("usage: rotari __worker-run [--basedir DIR] <project_name> <run_id> <run_name> <local_concurrency> <batch_max_active> <retry> <cwd>")
-	}
-	localConcurrency, err := strconv.Atoi(left[3])
-	batchMaxActive, batchErr := strconv.Atoi(left[4])
-	retry, retryErr := strconv.Atoi(left[5])
-	if err != nil || batchErr != nil || retryErr != nil || localConcurrency < 1 || batchMaxActive < 1 || retry < -1 {
-		return runcontract.Options{}, fmt.Errorf("invalid run options: local=%s batch=%s retry=%s", left[3], left[4], left[5])
-	}
-	return runcontract.Options{
-		BaseDir: *basedir, QueueName: left[0], RunID: left[1], RunName: left[2],
-		LocalConcurrency: localConcurrency, BatchMaxActive: batchMaxActive, Retry: retry,
-		Executor: *executor, ExecutorOptions: executorOptions, Selection: *selection, JobIDs: jobIDs,
-		Scope:       model.CommandSelector{Stage: *scopeStage, Matrix: *scopeMatrix},
-		SourceRunID: *sourceRunID, PartialArray: *partialArray, CWD: left[6], ExecutorSettings: executorSettings(),
-	}, nil
 }
 
 func runOneJob(runDir string, job model.JobSpec) model.JobResult {

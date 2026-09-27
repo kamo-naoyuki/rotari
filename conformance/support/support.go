@@ -66,6 +66,8 @@ type Env struct {
 	Base   string
 	Master string
 	vars   []string
+	// dir is the working directory of commands; empty means Root.
+	dir string
 }
 
 func Run(m *testing.M) int {
@@ -112,6 +114,9 @@ func (e *Env) command(args ...string) *exec.Cmd {
 	cmd := exec.Command(binary, args...)
 	cmd.Env = e.vars
 	cmd.Dir = e.Root
+	if e.dir != "" {
+		cmd.Dir = e.dir
+	}
 	return cmd
 }
 
@@ -147,6 +152,13 @@ func (e *Env) Without(name string) *Env {
 			copied.vars = append(copied.vars, item)
 		}
 	}
+	return &copied
+}
+
+// In returns a copy of e whose commands run in dir.
+func (e *Env) In(dir string) *Env {
+	copied := *e
+	copied.dir = dir
 	return &copied
 }
 

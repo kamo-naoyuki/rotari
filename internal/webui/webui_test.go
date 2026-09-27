@@ -1139,10 +1139,10 @@ func TestLoadWebStateIncludesRuntimeRecords(t *testing.T) {
 	if err := stateinternal.WriteJSON(paths.LockFile, lock); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(serverinternal.PIDPath(baseDir), []byte("5678\n"), 0o600); err != nil {
+	if err := os.WriteFile(serverinternal.PIDPath(paths.ProjectDir), []byte("5678\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(serverinternal.SocketPath(baseDir), nil, 0o600); err != nil {
+	if err := os.WriteFile(serverinternal.SocketPath(paths.ProjectDir), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1157,8 +1157,8 @@ func TestLoadWebStateIncludesRuntimeRecords(t *testing.T) {
 	if project.RunnerStartedAt != model.FormatDisplayTimestamp(lock.StartedAt) {
 		t.Fatalf("runner started at = %q, want formatted lock timestamp", project.RunnerStartedAt)
 	}
-	if !state.Server.SocketExists || !state.Server.PIDFileExists || state.Server.PID != 5678 {
-		t.Fatalf("server runtime = %#v, want socket and PID record", state.Server)
+	if !project.Server.SocketExists || !project.Server.PIDFileExists || project.Server.PID != 5678 {
+		t.Fatalf("server runtime = %#v, want the project's socket and PID record", project.Server)
 	}
 }
 

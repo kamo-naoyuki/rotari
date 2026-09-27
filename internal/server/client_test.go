@@ -2,8 +2,10 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -89,4 +91,37 @@ type unexpectedRequestError struct {
 
 func (err *unexpectedRequestError) Error() string {
 	return "unexpected request"
+}
+
+func TestStartReportsSupervisorThatExitsEarly(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "rotari-server-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	_, err = Start(dir, []string{"sh", "-c", "exit 1"}, "LOG")
+	if err == nil || !strings.Contains(err.Error(), "exited before it became ready") || !strings.Contains(err.Error(), "LOG") {
+		t.Fatalf("Start() error = %v, want the early exit and the log to read", err)
+	}
+}
+
+func TestStartDoesNotReuseRunningSupervisor(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "rotari-server-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	listener, release, err := Listen(dir, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	server := New(listener, &fakeOperations{}, nil)
+	go server.Serve()
+	defer server.Stop()
+	// The started command never listens; the answer comes from the running
+	// supervisor, whose PID is not the child's.
+	if _, err := Start(dir, []string{"sleep", "5"}, "LOG"); !errors.Is(err, ErrAlreadyRunning) {
+		t.Fatalf("Start() error = %v, want ErrAlreadyRunning", err)
+	}
 }

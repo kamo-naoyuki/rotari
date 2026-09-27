@@ -662,7 +662,7 @@ func writeShowTargetHeaderWithMode(writer io.Writer, paths state.ProjectPaths, m
 	if inspection, err := project.Inspect(paths, true); err == nil {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Project state:"), projectStateName(inspection.State))
 	}
-	if response, err := serverinternal.SendRequest(paths.BaseDir, serverinternal.Request{Op: "ping"}); err == nil && response.OK {
+	if response, err := serverinternal.SendRequest(paths.ProjectDir, serverinternal.Request{Op: serverinternal.OpPing}); err == nil && response.OK {
 		fmt.Fprintf(writer, "%s running (pid=%d)\n", cyan("Runner server:"), response.PID)
 	} else {
 		fmt.Fprintf(writer, "%s stopped\n", cyan("Runner server:"))

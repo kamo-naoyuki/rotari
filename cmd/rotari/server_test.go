@@ -16,6 +16,72 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
+// testProjectPaths returns the paths of project in baseDir and creates its
+// directory, as add would.
+func testProjectPaths(t *testing.T, baseDir, project string) state.ProjectPaths {
+	t.Helper()
+	paths, err := state.ResolveProjectPaths(baseDir, project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.ProjectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return paths
+}
+
+// useInProcessSupervisor makes the run commands of this test serve their
+// run from a supervisor in the test process, instead of starting the test
+// binary as a child, and waits for each one to stop at cleanup.
+func useInProcessSupervisor(t *testing.T) {
+	t.Helper()
+	previous := startSupervisor
+	t.Cleanup(func() { startSupervisor = previous })
+	startSupervisor = func(paths state.ProjectPaths) error {
+		done := make(chan int, 1)
+		go func() { done <- runServer(paths) }()
+		t.Cleanup(func() {
+			select {
+			case <-done:
+			case <-time.After(3 * time.Second):
+				t.Log("server did not stop after the run completed")
+			}
+		})
+		deadline := time.Now().Add(3 * time.Second)
+		for {
+			response, err := serverinternal.SendRequest(paths.ProjectDir, serverinternal.Request{Op: serverinternal.OpPing})
+			if err == nil && response.OK {
+				return nil
+			}
+			if time.Now().After(deadline) {
+				return fmt.Errorf("server did not become ready: %v", err)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+// serveProject serves paths' supervisor socket from the test process until
+// the test ends.
+func serveProject(t *testing.T, paths state.ProjectPaths) {
+	t.Helper()
+	listener, err := net.Listen("unix", serverinternal.SocketPath(paths.ProjectDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	server := newRotariServer(paths)
+	go func() {
+		for {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+			go server.Handle(conn)
+		}
+	}()
+}
+
 func TestCmdRunWithRunIDRejectsRunningProjectBeforeQueueConfirmation(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
@@ -104,7 +170,8 @@ func TestSendRunRequestQuietSuppressesProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(baseDir)
-	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
+	paths := testProjectPaths(t, baseDir, "demo")
+	listener, err := net.Listen("unix", serverinternal.SocketPath(paths.ProjectDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +211,7 @@ func TestSendRunRequestQuietSuppressesProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	response, err := sendRunRequest(baseDir, serverinternal.Request{Op: serverinternal.OpRun, QueueName: "demo", Quiet: true})
+	response, err := sendRunRequest(paths.ProjectDir, serverinternal.Request{Op: serverinternal.OpRun, QueueName: "demo", Quiet: true})
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -201,7 +268,7 @@ func TestCmdServerRequestFailsWithoutRunningServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 1 || !strings.Contains(string(output), "failed to contact server") {
+	if code != 1 || !strings.Contains(string(output), "server is not running") {
 		t.Fatalf("cmdServerRequest exit code = %d, stderr = %q", code, output)
 	}
 }
@@ -594,32 +661,9 @@ func TestCmdAddThenCmdRunExecutesLocalJobEndToEnd(t *testing.T) {
 	defer os.RemoveAll(baseDir)
 	masterDir := t.TempDir()
 	t.Setenv("ROTARI_MASTERDIR", masterDir)
-	serverDone := make(chan int, 1)
-	go func() { serverDone <- runServer(baseDir) }()
-
-	deadline := time.Now().Add(3 * time.Second)
-	var pingErr error
-	for time.Now().Before(deadline) {
-		response, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "ping"})
-		if err == nil && response.OK {
-			pingErr = nil
-			break
-		}
-		pingErr = err
-		time.Sleep(10 * time.Millisecond)
-	}
-	if pingErr != nil {
-		t.Fatalf("server did not become ready: %v", pingErr)
-	}
 	// A completed sync run drops activeRuns to zero, which makes the server
 	// stop itself; no explicit shutdown request is needed here.
-	defer func() {
-		select {
-		case <-serverDone:
-		case <-time.After(3 * time.Second):
-			t.Log("server did not stop after the run completed")
-		}
-	}()
+	useInProcessSupervisor(t)
 
 	if code := cmdAdd([]string{"--basedir", baseDir, "--project-name", "demo", "echo", "hello"}); code != 0 {
 		t.Fatalf("cmdAdd exit code = %d, want 0", code)
@@ -696,26 +740,7 @@ func TestCmdRunFailedRestoresEmptyQueue(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	serverDone := make(chan int, 1)
-	go func() { serverDone <- runServer(baseDir) }()
-	t.Cleanup(func() {
-		select {
-		case <-serverDone:
-		case <-time.After(3 * time.Second):
-			t.Log("server did not stop after the run completed")
-		}
-	})
-	deadline := time.Now().Add(3 * time.Second)
-	for {
-		response, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "ping"})
-		if err == nil && response.OK {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("server did not become ready: %v", err)
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	useInProcessSupervisor(t)
 
 	if code := cmdRun([]string{"--basedir", baseDir, "--project-name", "demo", "--failed", "--quiet"}); code != 0 {
 		t.Fatalf("cmdRun --failed exit code = %d, want 0", code)
@@ -775,15 +800,7 @@ func testCmdWithAttemptID(t *testing.T, retry bool) {
 		t.Fatal(err)
 	}
 
-	serverDone := make(chan int, 1)
-	go func() { serverDone <- runServer(baseDir) }()
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		if response, pingErr := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "ping"}); pingErr == nil && response.OK {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	useInProcessSupervisor(t)
 	args := []string{"--basedir", baseDir, "--project-name", "demo", "--job-id", attemptID}
 	if retry {
 		if code := cmdRetry(args); code != 0 {
@@ -810,18 +827,13 @@ func testCmdWithAttemptID(t *testing.T, retry bool) {
 	if len(queue.Commands) != 0 {
 		t.Fatalf("queue = %#v, want empty queue", queue.Commands)
 	}
-	select {
-	case <-serverDone:
-	case <-time.After(3 * time.Second):
-		t.Log("server did not stop after attempt run")
-	}
 }
 
 func TestServerHandlePing(t *testing.T) {
 	client, serverConn := net.Pipe()
 	defer client.Close()
 
-	server := newRotariServer(t.TempDir())
+	server := newRotariServer(testProjectPaths(t, t.TempDir(), "default"))
 	go server.Handle(serverConn)
 
 	if err := json.NewEncoder(client).Encode(serverinternal.Request{Op: "ping"}); err != nil {
@@ -837,7 +849,7 @@ func TestServerHandlePing(t *testing.T) {
 }
 
 func TestServerLoggerCapsFileSize(t *testing.T) {
-	logger := newServerLogger(t.TempDir())
+	logger := newServerLogger(testProjectPaths(t, t.TempDir(), "default"))
 	logger.Writef("%s", strings.Repeat("x", maxServerLogSize))
 	logger.Writef("latest event")
 
@@ -857,7 +869,7 @@ func TestServerHandleRejectsMalformedJSON(t *testing.T) {
 	client, serverConn := net.Pipe()
 	defer client.Close()
 
-	server := newRotariServer(t.TempDir())
+	server := newRotariServer(testProjectPaths(t, t.TempDir(), "default"))
 	go server.Handle(serverConn)
 
 	if _, err := client.Write([]byte("{invalid}\n")); err != nil {
@@ -876,7 +888,7 @@ func TestServerHandleRejectsUnknownOperation(t *testing.T) {
 	client, serverConn := net.Pipe()
 	defer client.Close()
 
-	server := newRotariServer(t.TempDir())
+	server := newRotariServer(testProjectPaths(t, t.TempDir(), "default"))
 	go server.Handle(serverConn)
 	if err := json.NewEncoder(client).Encode(serverinternal.Request{Op: "unknown"}); err != nil {
 		t.Fatal(err)
@@ -896,21 +908,10 @@ func TestSendServerRequestOverUnixSocket(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(baseDir) })
+	paths := testProjectPaths(t, baseDir, "default")
+	serveProject(t, paths)
 
-	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = listener.Close() })
-	server := newRotariServer(baseDir)
-	go func() {
-		conn, acceptErr := listener.Accept()
-		if acceptErr == nil {
-			server.Handle(conn)
-		}
-	}()
-
-	response, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "ping"})
+	response, err := serverinternal.SendRequest(paths.ProjectDir, serverinternal.Request{Op: "ping"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -919,34 +920,10 @@ func TestSendServerRequestOverUnixSocket(t *testing.T) {
 	}
 }
 
-func TestEnsureServerReusesCompatibleServer(t *testing.T) {
-	baseDir, err := os.MkdirTemp("", "rotari-existing-server-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(baseDir) })
-	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = listener.Close() })
-	server := newRotariServer(baseDir)
-	go func() {
-		conn, acceptErr := listener.Accept()
-		if acceptErr == nil {
-			server.Handle(conn)
-		}
-	}()
-
-	if err := ensureServer(baseDir); err != nil {
-		t.Fatalf("ensureServer returned error for compatible server: %v", err)
-	}
-}
-
 // TestCmdCancelRejectsWholeRunFromWrongHostViaCLI exercises the actual CLI
-// entry point (cmdCancel -> ensureServer -> sendServerRequest -> server.handle)
-// rather than calling jobController().Cancel directly, so the host-mismatch guard is
-// verified on the same code path a real `rotari cancel` invocation uses.
+// entry point rather than calling jobController().Cancel directly, so the
+// host-mismatch guard is verified on the same code path a real `rotari
+// cancel` invocation uses.
 func TestCmdCancelRejectsWholeRunFromWrongHostViaCLI(t *testing.T) {
 	baseDir, err := os.MkdirTemp("", "rotari-cli-host-mismatch-")
 	if err != nil {
@@ -1098,18 +1075,8 @@ func TestCmdServerStatusReportsRunningServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(baseDir) })
-	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = listener.Close() })
-	server := newRotariServer(baseDir)
-	go func() {
-		conn, acceptErr := listener.Accept()
-		if acceptErr == nil {
-			server.Handle(conn)
-		}
-	}()
+	serveProject(t, testProjectPaths(t, baseDir, "live"))
+	testProjectPaths(t, baseDir, "idle")
 
 	oldStdout := os.Stdout
 	reader, writer, err := os.Pipe()
@@ -1129,10 +1096,13 @@ func TestCmdServerStatusReportsRunningServer(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cmdServerStatus exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"server is running", baseDir} {
+	for _, want := range []string{"server is running", "project=live", baseDir} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("server status does not contain %q: %s", want, output)
 		}
+	}
+	if strings.Contains(string(output), "project=idle") {
+		t.Fatalf("server status reports a project without a supervisor: %s", output)
 	}
 }
 
@@ -1165,19 +1135,8 @@ func TestCmdServerListReportsLiveServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(baseDir) })
-	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = listener.Close() })
-	server := newRotariServer(baseDir)
-	go func() {
-		conn, acceptErr := listener.Accept()
-		if acceptErr == nil {
-			server.Handle(conn)
-		}
-	}()
-	if err := registerServer(masterDir, serverRecord{BaseDir: baseDir, PID: os.Getpid(), LastSeen: nowRFC3339()}); err != nil {
+	serveProject(t, testProjectPaths(t, baseDir, "live"))
+	if err := registerServer(masterDir, serverRecord{BaseDir: baseDir, Project: "live", PID: os.Getpid(), LastSeen: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1199,7 +1158,7 @@ func TestCmdServerListReportsLiveServer(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cmdServerList exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"master=" + masterDir, "PID", baseDir} {
+	for _, want := range []string{"master=" + masterDir, "PID", "PROJECT", "live", baseDir} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("server list does not contain %q: %s", want, output)
 		}
@@ -1213,25 +1172,19 @@ func TestListServersKeepsLiveAndRemovesInvalidRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(liveBaseDir) })
-	listener, err := net.Listen("unix", serverinternal.SocketPath(liveBaseDir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = listener.Close() })
-	server := newRotariServer(liveBaseDir)
-	go func() {
-		conn, acceptErr := listener.Accept()
-		if acceptErr == nil {
-			server.Handle(conn)
-		}
-	}()
+	serveProject(t, testProjectPaths(t, liveBaseDir, "live"))
 
-	live := serverRecord{BaseDir: liveBaseDir, PID: os.Getpid(), StartedAt: nowRFC3339(), LastSeen: nowRFC3339()}
+	live := serverRecord{BaseDir: liveBaseDir, Project: "live", PID: os.Getpid(), StartedAt: nowRFC3339(), LastSeen: nowRFC3339()}
 	if err := registerServer(masterDir, live); err != nil {
 		t.Fatal(err)
 	}
 	staleBaseDir := filepath.Join(t.TempDir(), "stale")
-	if err := registerServer(masterDir, serverRecord{BaseDir: staleBaseDir, PID: 999999}); err != nil {
+	if err := registerServer(masterDir, serverRecord{BaseDir: staleBaseDir, Project: "p", PID: 999999}); err != nil {
+		t.Fatal(err)
+	}
+	// A record from before supervisors were per project names no project.
+	unversionedPath := serverRecordPath(masterDir, liveBaseDir, "")
+	if err := registerServer(masterDir, serverRecord{BaseDir: liveBaseDir, PID: os.Getpid()}); err != nil {
 		t.Fatal(err)
 	}
 	malformedPath := filepath.Join(masterDir, "malformed.json")
@@ -1243,10 +1196,10 @@ func TestListServersKeepsLiveAndRemovesInvalidRecords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(servers) != 1 || servers[0].BaseDir != liveBaseDir {
-		t.Fatalf("servers = %+v, want only %q", servers, liveBaseDir)
+	if len(servers) != 1 || servers[0].BaseDir != liveBaseDir || servers[0].Project != "live" {
+		t.Fatalf("servers = %+v, want only project live of %q", servers, liveBaseDir)
 	}
-	for _, path := range []string{serverRecordPath(masterDir, staleBaseDir), malformedPath} {
+	for _, path := range []string{serverRecordPath(masterDir, staleBaseDir, "p"), unversionedPath, malformedPath} {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Fatalf("invalid record %q was not removed: %v", path, err)
 		}
@@ -1257,15 +1210,15 @@ func TestServerRegistryRecordLifecycle(t *testing.T) {
 	masterDir := t.TempDir()
 	baseDir := t.TempDir()
 	record := serverRecord{
-		BaseDir: baseDir, PID: 1234, StartedAt: "2026-01-01T00:00:00Z", LastSeen: "2026-01-01T00:00:00Z",
+		BaseDir: baseDir, Project: "demo", PID: 1234, StartedAt: "2026-01-01T00:00:00Z", LastSeen: "2026-01-01T00:00:00Z",
 	}
 	if err := registerServer(masterDir, record); err != nil {
 		t.Fatal(err)
 	}
-	if err := touchServerRecord(masterDir, baseDir); err != nil {
+	if err := touchServerRecord(masterDir, baseDir, "demo"); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(serverRecordPath(masterDir, baseDir))
+	data, err := os.ReadFile(serverRecordPath(masterDir, baseDir, "demo"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1277,7 +1230,7 @@ func TestServerRegistryRecordLifecycle(t *testing.T) {
 		t.Fatalf("last seen was not updated: %+v", updated)
 	}
 	formatted := formatServerList([]serverRecord{updated})
-	for _, want := range []string{"PID", "LAST_SEEN", baseDir, "1234"} {
+	for _, want := range []string{"PID", "LAST_SEEN", "PROJECT", "demo", baseDir, "1234"} {
 		if !strings.Contains(formatted, want) {
 			t.Fatalf("formatted server list does not contain %q:\n%s", want, formatted)
 		}
@@ -1285,28 +1238,32 @@ func TestServerRegistryRecordLifecycle(t *testing.T) {
 	if got := formatServerList(nil); got != "no running servers" {
 		t.Fatalf("empty server list = %q", got)
 	}
-	if err := unregisterServer(masterDir, baseDir); err != nil {
+	if err := unregisterServer(masterDir, baseDir, "demo"); err != nil {
 		t.Fatal(err)
 	}
-	if err := unregisterServer(masterDir, baseDir); err != nil {
+	if err := unregisterServer(masterDir, baseDir, "demo"); err != nil {
 		t.Fatalf("second unregister failed: %v", err)
 	}
 }
 
 func TestRunServerLifecycle(t *testing.T) {
-	baseDir := t.TempDir()
+	baseDir, err := os.MkdirTemp("", "rotari-lifecycle-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(baseDir) })
+	paths := testProjectPaths(t, baseDir, "demo")
 	masterDir := t.TempDir()
 	t.Setenv("ROTARI_MASTERDIR", masterDir)
 	result := make(chan int, 1)
 	go func() {
-		result <- runServer(baseDir)
+		result <- runServer(paths)
 	}()
 
 	deadline := time.Now().Add(3 * time.Second)
 	var response serverinternal.Response
-	var err error
 	for time.Now().Before(deadline) {
-		response, err = serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "ping"})
+		response, err = serverinternal.SendRequest(paths.ProjectDir, serverinternal.Request{Op: "ping"})
 		if err == nil && response.OK {
 			break
 		}
@@ -1315,11 +1272,16 @@ func TestRunServerLifecycle(t *testing.T) {
 	if err != nil || !response.OK {
 		t.Fatalf("server did not become ready: response=%+v err=%v", response, err)
 	}
-	if _, err := os.Stat(serverRecordPath(masterDir, baseDir)); err != nil {
+	if _, err := os.Stat(serverRecordPath(masterDir, baseDir, "demo")); err != nil {
 		t.Fatalf("server registry record missing: %v", err)
 	}
+	for _, path := range []string{serverinternal.LockPath(paths.ProjectDir), serverinternal.PIDPath(paths.ProjectDir)} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("supervisor file %q is not in the project directory: %v", path, err)
+		}
+	}
 
-	response, err = serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "shutdown"})
+	response, err = serverinternal.SendRequest(paths.ProjectDir, serverinternal.Request{Op: "shutdown"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1335,7 +1297,7 @@ func TestRunServerLifecycle(t *testing.T) {
 		t.Fatal("server did not stop after shutdown")
 	}
 	for _, path := range []string{
-		serverinternal.SocketPath(baseDir), serverinternal.PIDPath(baseDir), serverRecordPath(masterDir, baseDir),
+		serverinternal.SocketPath(paths.ProjectDir), serverinternal.PIDPath(paths.ProjectDir), serverRecordPath(masterDir, baseDir, "demo"),
 	} {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Fatalf("server artifact %q remains after shutdown: %v", path, err)
@@ -1349,15 +1311,16 @@ func TestRunServerUsesOwnerOnlyPermissions(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(baseDir)
+	paths := testProjectPaths(t, baseDir, "demo")
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	result := make(chan int, 1)
 	go func() {
-		result <- runServer(baseDir)
+		result <- runServer(paths)
 	}()
 
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		_, err = serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "ping"})
+		_, err = serverinternal.SendRequest(paths.ProjectDir, serverinternal.Request{Op: "ping"})
 		if err == nil {
 			break
 		}
@@ -1367,7 +1330,7 @@ func TestRunServerUsesOwnerOnlyPermissions(t *testing.T) {
 		t.Fatalf("server did not become ready: %v", err)
 	}
 
-	info, statErr := os.Stat(serverinternal.SocketPath(baseDir))
+	info, statErr := os.Stat(serverinternal.SocketPath(paths.ProjectDir))
 	if statErr != nil {
 		t.Fatal(statErr)
 	}
@@ -1375,7 +1338,7 @@ func TestRunServerUsesOwnerOnlyPermissions(t *testing.T) {
 		t.Fatalf("server socket permissions = %o, want no group/other access", perm)
 	}
 
-	if _, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: "shutdown"}); err != nil {
+	if _, err := serverinternal.SendRequest(paths.ProjectDir, serverinternal.Request{Op: "shutdown"}); err != nil {
 		t.Fatal(err)
 	}
 	select {

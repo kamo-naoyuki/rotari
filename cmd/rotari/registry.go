@@ -17,6 +17,7 @@ import (
 
 type serverRecord struct {
 	BaseDir   string `json:"base_dir"`
+	Project   string `json:"project"`
 	Socket    string `json:"socket"`
 	PID       int    `json:"pid"`
 	StartedAt string `json:"started_at"`
@@ -29,8 +30,8 @@ type knownBaseDir struct {
 	PID     int
 }
 
-func serverRecordPath(masterDir, baseDir string) string {
-	sum := sha256.Sum256([]byte(baseDir))
+func serverRecordPath(masterDir, baseDir, project string) string {
+	sum := sha256.Sum256([]byte(baseDir + "\x00" + project))
 	return filepath.Join(masterDir, hex.EncodeToString(sum[:])[:16]+".json")
 }
 
@@ -38,19 +39,19 @@ func registerServer(masterDir string, record serverRecord) error {
 	if err := os.MkdirAll(masterDir, state.DirectoryMode()); err != nil {
 		return err
 	}
-	return state.WriteJSON(serverRecordPath(masterDir, record.BaseDir), record)
+	return state.WriteJSON(serverRecordPath(masterDir, record.BaseDir, record.Project), record)
 }
 
-func unregisterServer(masterDir, baseDir string) error {
-	err := os.Remove(serverRecordPath(masterDir, baseDir))
+func unregisterServer(masterDir, baseDir, project string) error {
+	err := os.Remove(serverRecordPath(masterDir, baseDir, project))
 	if os.IsNotExist(err) {
 		return nil
 	}
 	return err
 }
 
-func touchServerRecord(masterDir, baseDir string) error {
-	path := serverRecordPath(masterDir, baseDir)
+func touchServerRecord(masterDir, baseDir, project string) error {
+	path := serverRecordPath(masterDir, baseDir, project)
 	var record serverRecord
 	if err := jsonStore().ReadJSON(path, &record); err != nil {
 		return err
@@ -80,11 +81,12 @@ func listServers(masterDir string) ([]serverRecord, error) {
 			}
 			continue
 		}
-		if record.BaseDir == "" {
+		paths, err := state.ResolveProjectPaths(record.BaseDir, record.Project)
+		if record.BaseDir == "" || err != nil {
 			_ = os.Remove(path)
 			continue
 		}
-		response, err := serverinternal.SendRequest(record.BaseDir, serverinternal.Request{Op: "ping"})
+		response, err := serverinternal.SendRequest(paths.ProjectDir, serverinternal.Request{Op: serverinternal.OpPing})
 		if err != nil || !response.OK || response.PID != record.PID {
 			_ = os.Remove(path)
 			continue
@@ -93,7 +95,12 @@ func listServers(masterDir string) ([]serverRecord, error) {
 		_ = state.WriteJSON(path, record)
 		servers = append(servers, record)
 	}
-	sort.Slice(servers, func(i, j int) bool { return servers[i].BaseDir < servers[j].BaseDir })
+	sort.Slice(servers, func(i, j int) bool {
+		if servers[i].BaseDir != servers[j].BaseDir {
+			return servers[i].BaseDir < servers[j].BaseDir
+		}
+		return servers[i].Project < servers[j].Project
+	})
 	return servers, nil
 }
 
@@ -102,9 +109,9 @@ func formatServerList(servers []serverRecord) string {
 		return "no running servers"
 	}
 	lines := make([]string, 0, len(servers)+1)
-	lines = append(lines, fmt.Sprintf("%-8s %-24s %s", "PID", "LAST_SEEN", "BASE_DIR"))
+	lines = append(lines, fmt.Sprintf("%-8s %-24s %-20s %s", "PID", "LAST_SEEN", "PROJECT", "BASE_DIR"))
 	for _, server := range servers {
-		lines = append(lines, fmt.Sprintf("%-8d %-24s %s", server.PID, server.LastSeen, server.BaseDir))
+		lines = append(lines, fmt.Sprintf("%-8d %-24s %-20s %s", server.PID, server.LastSeen, server.Project, server.BaseDir))
 	}
 	return strings.Join(lines, "\n")
 }

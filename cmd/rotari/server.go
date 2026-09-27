@@ -17,6 +17,8 @@ import (
 
 const maxServerLogSize = 1 << 20
 
+// serverIdleTimeout stops a supervisor whose client never sent its run
+// request.
 const serverIdleTimeout = time.Minute
 
 // cmdServer dispatches server lifecycle subcommands such as status, list, and
@@ -44,16 +46,61 @@ func cmdServer(args []string) int {
 	}
 }
 
-func ensureServer(baseDir string) error {
+// startSupervisor starts the supervisor of one run of paths' project. Tests
+// replace it to serve the run in their own process.
+var startSupervisor = startSupervisorProcess
+
+// startSupervisorProcess starts the supervisor of one run of paths' project
+// as a child of this process, so it and the run's jobs inherit this
+// command's working directory and environment; a supervisor is never reused.
+func startSupervisorProcess(paths state.ProjectPaths) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to detect executable path: %w", err)
 	}
-	return serverinternal.Ensure(baseDir, []string{exe, "__server", "--basedir", baseDir})
+	command := []string{exe, "__server", "--basedir", paths.BaseDir, "--project-name", paths.ProjectName}
+	_, err = serverinternal.Start(paths.ProjectDir, command, serverLogPath(paths.BaseDir))
+	if errors.Is(err, serverinternal.ErrAlreadyRunning) {
+		return fmt.Errorf("project %q already has a run starting or running", paths.ProjectName)
+	}
+	return err
 }
 
-// cmdServerStatus reports whether the selected base directory has a reachable
-// compatible background server.
+// runningSupervisor is a supervisor that answered a ping.
+type runningSupervisor struct {
+	paths state.ProjectPaths
+	pid   int
+}
+
+// runningSupervisors returns the supervisors of baseDir's projects that
+// answer a ping, in project order.
+func runningSupervisors(baseDir string) ([]runningSupervisor, error) {
+	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var supervisors []runningSupervisor
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		paths, err := state.ResolveProjectPaths(baseDir, entry.Name())
+		if err != nil {
+			continue
+		}
+		response, err := serverinternal.SendRequest(paths.ProjectDir, serverinternal.Request{Op: serverinternal.OpPing})
+		if err == nil && response.OK {
+			supervisors = append(supervisors, runningSupervisor{paths: paths, pid: response.PID})
+		}
+	}
+	return supervisors, nil
+}
+
+// cmdServerStatus reports the running supervisors of the selected base
+// directory, one per project with an active run.
 func cmdServerStatus(args []string) int {
 	fs := flag.NewFlagSet("server status", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -66,12 +113,18 @@ func cmdServerStatus(args []string) int {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
 	}
-	response, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: serverinternal.OpPing})
-	if err != nil || !response.OK {
+	supervisors, err := runningSupervisors(baseDir)
+	if err != nil {
+		printErrorf("failed to list projects: %v", err)
+		return 1
+	}
+	if len(supervisors) == 0 {
 		printError("server is not running")
 		return 1
 	}
-	fmt.Printf("server is running pid=%d state=%s\n", response.PID, baseDir)
+	for _, supervisor := range supervisors {
+		fmt.Printf("server is running pid=%d project=%s state=%s\n", supervisor.pid, supervisor.paths.ProjectName, baseDir)
+	}
 	return 0
 }
 
@@ -97,7 +150,8 @@ func cmdServerList(args []string) int {
 	return 0
 }
 
-// cmdServerRequest sends a simple lifecycle operation to the selected server.
+// cmdServerRequest sends a lifecycle operation to every running supervisor
+// of the selected base directory.
 func cmdServerRequest(args []string, op string) int {
 	fs := flag.NewFlagSet("server request", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -110,43 +164,56 @@ func cmdServerRequest(args []string, op string) int {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
 	}
-	response, err := serverinternal.SendRequest(baseDir, serverinternal.Request{Op: op})
+	supervisors, err := runningSupervisors(baseDir)
 	if err != nil {
-		printErrorf("failed to contact server: %v", err)
+		printErrorf("failed to list projects: %v", err)
 		return 1
 	}
-	if !response.OK {
-		printError(response.Message)
+	if len(supervisors) == 0 {
+		printError("server is not running")
 		return 1
 	}
-	fmt.Print(colorMessage(response.Message))
-	return 0
+	code := 0
+	for _, supervisor := range supervisors {
+		response, err := serverinternal.SendRequest(supervisor.paths.ProjectDir, serverinternal.Request{Op: op})
+		if err != nil {
+			printErrorf("failed to contact server of project %q: %v", supervisor.paths.ProjectName, err)
+			code = 1
+			continue
+		}
+		if !response.OK {
+			printError(response.Message)
+			code = 1
+			continue
+		}
+		fmt.Print(colorMessage(response.Message + " (project " + supervisor.paths.ProjectName + ")\n"))
+	}
+	return code
 }
 
-// cmdServerProcess runs the hidden background server process for one base
-// directory.
+// cmdServerProcess runs the hidden supervisor process of one run of one
+// project.
 func cmdServerProcess(args []string) int {
 	fs := flag.NewFlagSet("__server", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	basedir := cliString(fs, "basedir", "")
+	projectName := cliString(fs, "project-name", "")
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
-	baseDir, _, err := state.ResolveBaseDir(*basedir)
+	paths, err := state.ResolveProjectPaths(*basedir, *projectName)
 	if err != nil {
-		printErrorf("failed to resolve state directory: %v", err)
+		printErrorf("failed to resolve project: %v", err)
 		return 1
 	}
-	return runServer(baseDir)
+	return runServer(paths)
 }
 
-func runServer(baseDir string) int {
-	if err := os.MkdirAll(baseDir, state.DirectoryMode()); err != nil {
-		printErrorf("failed to create state directory: %v", err)
-		return 1
-	}
-	logger := newServerLogger(baseDir)
-	listener, release, err := serverinternal.Listen(baseDir, state.FileMode())
+func runServer(paths state.ProjectPaths) int {
+	logger := newServerLogger(paths)
+	// The project exists: the run client checked it before starting this
+	// process, and the supervisor must not create one.
+	listener, release, err := serverinternal.Listen(paths.ProjectDir, state.FileMode())
 	if err != nil {
 		// A detached server's stderr is discarded, so record why it stopped.
 		if !errors.Is(err, serverinternal.ErrAlreadyRunning) {
@@ -162,16 +229,16 @@ func runServer(baseDir string) int {
 		return 1
 	}
 	record := serverRecord{
-		BaseDir: baseDir, Socket: serverinternal.SocketPath(baseDir), PID: os.Getpid(),
+		BaseDir: paths.BaseDir, Project: paths.ProjectName, Socket: serverinternal.SocketPath(paths.ProjectDir), PID: os.Getpid(),
 		StartedAt: nowRFC3339(), LastSeen: nowRFC3339(),
 	}
 	if err := registerServer(masterDir, record); err != nil {
 		printErrorf("failed to register server: %v", err)
 		return 1
 	}
-	defer unregisterServer(masterDir, baseDir)
+	defer unregisterServer(masterDir, paths.BaseDir, paths.ProjectName)
 
-	server := serverinternal.New(listener, supervisorOperations(baseDir), logger)
+	server := serverinternal.New(listener, supervisorOperations(paths, logger), logger)
 	logger.Writef("started pid=%d", os.Getpid())
 	defer logger.Writef("stopped")
 	signals := make(chan os.Signal, 1)
@@ -181,25 +248,32 @@ func runServer(baseDir string) int {
 		<-signals
 		server.Stop()
 	}()
-	go server.WatchIdle(5*time.Second, serverIdleTimeout, func() { _ = touchServerRecord(masterDir, baseDir) })
+	go server.WatchIdle(5*time.Second, serverIdleTimeout, func() { _ = touchServerRecord(masterDir, paths.BaseDir, paths.ProjectName) })
 	server.Serve()
 	return 0
 }
 
-func newServerLogger(baseDir string) *serverinternal.Logger {
-	return &serverinternal.Logger{Path: filepath.Join(baseDir, "server.log"), FileMode: state.FileMode(), MaxBytes: maxServerLogSize}
+func serverLogPath(baseDir string) string {
+	return filepath.Join(baseDir, "server.log")
 }
 
-// newRotariServer returns a server for baseDir that is served through Handle.
-func newRotariServer(baseDir string) *serverinternal.Server {
-	return serverinternal.New(nil, supervisorOperations(baseDir), newServerLogger(baseDir))
+// newServerLogger returns the log of the supervisor of paths' project, which
+// shares the base directory's server.log with other projects' supervisors.
+func newServerLogger(paths state.ProjectPaths) *serverinternal.Logger {
+	return &serverinternal.Logger{Path: serverLogPath(paths.BaseDir), FileMode: state.FileMode(), MaxBytes: maxServerLogSize, Prefix: "project=" + paths.ProjectName + " "}
 }
 
-// supervisorOperations performs the project work behind background server
-// requests for baseDir.
-func supervisorOperations(baseDir string) supervisor.Operations {
+// newRotariServer returns a supervisor for paths' project that is served
+// through Handle.
+func newRotariServer(paths state.ProjectPaths) *serverinternal.Server {
+	logger := newServerLogger(paths)
+	return serverinternal.New(nil, supervisorOperations(paths, logger), logger)
+}
+
+// supervisorOperations performs the run of paths' project.
+func supervisorOperations(paths state.ProjectPaths, logger *serverinternal.Logger) supervisor.Operations {
 	return supervisor.Operations{
-		BaseDir: baseDir, Controller: jobController(), Runner: projectRunner(),
-		NewRunID: makeRunID, Printf: func(format string, args ...any) { fmt.Printf(format, args...) },
+		BaseDir: paths.BaseDir, Project: paths.ProjectName, Controller: jobController(), Runner: projectRunner(),
+		NewRunID: makeRunID, Logf: logger.Writef,
 	}
 }

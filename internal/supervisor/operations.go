@@ -6,18 +6,19 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/server"
 )
 
-// Operations performs the requests of the background server for BaseDir.
+// Operations performs the requests of the supervisor of Project in BaseDir.
 type Operations struct {
-	BaseDir    string
+	BaseDir string
+	// Project is the only project this supervisor runs; empty accepts any,
+	// for tests that drive Operations directly.
+	Project    string
 	Controller jobcontrol.Controller
 	Runner     projectrun.Runner
 	// NewRunID returns a fresh run ID.
 	NewRunID func() string
-	// Executable returns the program started as an async run's worker; it
-	// must accept the arguments of run.WorkerArgs. Nil means os.Executable.
-	Executable func() (string, error)
-	// Printf receives a line for each started async worker. Nil drops it.
-	Printf func(format string, args ...any)
+	// Logf receives events, such as an async run that failed, that have no
+	// client to report them to. Nil drops them.
+	Logf func(format string, args ...any)
 }
 
 var _ server.Operations = Operations{}
@@ -27,8 +28,8 @@ func (ops Operations) CancelRun(request server.Request) {
 	_, _ = ops.Controller.Cancel(ops.BaseDir, request.QueueName, "", nil, false)
 }
 
-func (ops Operations) printf(format string, args ...any) {
-	if ops.Printf != nil {
-		ops.Printf(format, args...)
+func (ops Operations) logf(format string, args ...any) {
+	if ops.Logf != nil {
+		ops.Logf(format, args...)
 	}
 }

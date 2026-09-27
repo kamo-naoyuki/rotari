@@ -378,7 +378,7 @@ Yes. `--allow-control=false` (or `ROTARI_WEB_ALLOW_CONTROL=false`) keeps state, 
 
 ### Do I need to start a server manually?
 
-Usually not. `run`, `add`, and `copy` start the supervisor when needed. `rotari server status`, `list`, and `shutdown` are for inspection or manual cleanup.
+No. `run` and `retry` start a supervisor for each run, and it exits when the run ends; other commands never start one. `rotari server status`, `list`, and `shutdown` are for inspection or manual cleanup. `server shutdown` leaves an active run interrupted with its jobs still running, so use `cancel` to stop a run.
 
 ### Who can control my jobs through the server's Unix socket?
 
@@ -397,3 +397,7 @@ Stored times are UTC. Display uses the valid IANA timezone from `TZ`, or the sys
 ### A CLI option and its matching `ROTARI_*` environment variable are both set — which wins?
 
 The explicit CLI option takes precedence over the environment variable.
+
+### Which working directory and environment do my jobs run with?
+
+Those of the shell that runs `rotari run` or `rotari retry`, unless a job sets its own with `add --working-directory` or `add --env`. They are not part of the queue or an exported workflow, so the same jobs can be run again from another directory. Each run has its own supervisor, so a run started while another is active still uses its own shell's directory and environment. See [Workflow and execution environment](CONCEPTS.md#workflow-and-execution-environment).

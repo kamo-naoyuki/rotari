@@ -4,8 +4,11 @@ Server management, run registry maintenance, shared filesystems, and the securit
 
 ## Server management
 
-The supervisor starts automatically when a run needs it and stops after the
-run finishes. These commands are mainly useful for inspection and cleanup:
+`run` and `retry` start a supervisor for each run, and it stops after the run
+finishes, so a project has one only while a run is starting or active. These
+commands act on the supervisors of every project in the base directory and
+are mainly useful for inspection and cleanup; `server shutdown` leaves an
+active run interrupted, so stop runs with `cancel` instead:
 
 ```sh
 rotari server status
@@ -108,12 +111,13 @@ provides HTTP authentication, not encryption.
   owner-only `0700`/`0600` to keep job commands, working directories, and
   output private. This affects only newly created paths, which are not
   re-chmodded later, and applies to the whole `--basedir/-b`.
-- **Server socket:** `<basedir>/server.sock` accepts job submission and control
-  requests, so reaching it means controlling that server. It is always created
-  `0600` regardless of `ROTARI_PRIVATE_STATE`, and on Linux the server also
-  rejects connections from a different UID. Unix socket paths are limited to
-  about 100 bytes, so when that path would be longer, rotari uses
-  `/tmp/rotari-<uid>/<hash>.sock` instead, derived from the resolved basedir.
+- **Server socket:** `<basedir>/projects/<project>/server.sock` exists while a
+  run's supervisor is running and accepts that run's requests, so reaching it
+  means controlling that run. It is always created `0600` regardless of
+  `ROTARI_PRIVATE_STATE`, and on Linux the server also rejects connections
+  from a different UID. Unix socket paths are limited to about 100 bytes, so
+  when that path would be longer, rotari uses `/tmp/rotari-<uid>/<hash>.sock`
+  instead, derived from the resolved project directory.
   The directory must be owned by you with mode `0700`; otherwise the server
   refuses to start and records the reason in `<basedir>/server.log`.
 - **Web UI:** without `ROTARI_WEB_AUTH_TOKEN` or `--auth-token`, bind it to

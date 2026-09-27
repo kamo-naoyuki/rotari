@@ -821,7 +821,7 @@ func loadLegacyRunConfigFiles(baseDir, projectName string, configPaths []string)
 // loadWebState projects persisted server and project state into the Web API
 // model consumed by the embedded and static Web UIs.
 func (s site) loadWebState(baseDir, queueFilter string) (webprojection.State, error) {
-	state := webprojection.State{BaseDir: baseDir, ConfigPath: config.EffectivePath(baseDir, ""), Server: loadWebServerState(baseDir), Environments: s.environments(), UpdatedAt: time.Now().UTC().Format(time.RFC3339)}
+	state := webprojection.State{BaseDir: baseDir, ConfigPath: config.EffectivePath(baseDir, ""), Environments: s.environments(), UpdatedAt: time.Now().UTC().Format(time.RFC3339)}
 	for index := range state.Environments {
 		// Only expose whether the variable is set, never its value: it may hold secrets (API keys, tokens).
 		_, state.Environments[index].Set = os.LookupEnv(state.Environments[index].Name)
@@ -851,18 +851,21 @@ func (s site) loadWebState(baseDir, queueFilter string) (webprojection.State, er
 			return webprojection.State{}, err
 		}
 		queueState.ConfigPath = config.EffectivePath(baseDir, queueName)
+		queueState.Server = loadWebServerState(paths.ProjectDir)
 		state.Queues = append(state.Queues, queueState)
 	}
 	state.UpdatedAt = model.FormatDisplayTimestamp(state.UpdatedAt)
 	return state, nil
 }
 
-func loadWebServerState(baseDir string) webprojection.ServerState {
+// loadWebServerState reads the files of the supervisor of projectDir without
+// contacting it.
+func loadWebServerState(projectDir string) webprojection.ServerState {
 	state := webprojection.ServerState{}
-	if _, err := os.Stat(serverinternal.SocketPath(baseDir)); err == nil {
+	if _, err := os.Stat(serverinternal.SocketPath(projectDir)); err == nil {
 		state.SocketExists = true
 	}
-	data, err := os.ReadFile(serverinternal.PIDPath(baseDir))
+	data, err := os.ReadFile(serverinternal.PIDPath(projectDir))
 	if err != nil {
 		return state
 	}

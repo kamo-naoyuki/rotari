@@ -14,20 +14,21 @@ import (
 // including the terminating NUL).
 const maxSocketPathLength = 103
 
-// shortSocketRoot holds per-user socket directories for base directories
+// shortSocketRoot holds per-user socket directories for project directories
 // whose own socket path would be too long. It is a fixed path rather than
-// $TMPDIR so every client of a base directory computes the same socket.
+// $TMPDIR so every client of a project computes the same socket.
 var shortSocketRoot = "/tmp"
 
-// SocketPath returns the server socket for baseDir: <baseDir>/server.sock when
-// it fits, otherwise a short per-user path derived from the resolved baseDir.
-func SocketPath(baseDir string) string {
-	path := filepath.Join(baseDir, "server.sock")
+// SocketPath returns the supervisor socket for dir, a project directory:
+// <dir>/server.sock when it fits, otherwise a short per-user path derived
+// from the resolved dir.
+func SocketPath(dir string) string {
+	path := filepath.Join(dir, "server.sock")
 	if len(path) <= maxSocketPathLength {
 		return path
 	}
-	key := baseDir
-	if absolute, err := filepath.Abs(baseDir); err == nil {
+	key := dir
+	if absolute, err := filepath.Abs(dir); err == nil {
 		key = absolute
 		if resolved, err := filepath.EvalSymlinks(absolute); err == nil {
 			key = resolved

@@ -28,24 +28,41 @@ Representative implementation and tests:
 
 ## Server and read projections
 
-- The server supervises one base directory and may stop when idle, so durable
-  behavior belongs in files, not memory.
+- A server (the supervisor) serves one run of one project. `run` and `retry`
+  start a new one for every run, as a child process that inherits their
+  working directory and environment (RUN-3 in
+  [02-run-lifecycle-and-execution.md](02-run-lifecycle-and-execution.md#run-lifecycle)),
+  and never reuse a running one: `server.Start` fails when another
+  supervisor answers for the project, and a supervisor rejects a second run
+  request. It stops when its run ends, or after a minute without a run
+  request. Its lease, socket, and PID file live in the project directory, so
+  the runs of different projects have different supervisors. Durable
+  behavior belongs in files, not memory. Covered by
+  [internal/server/serve_test.go](../internal/server/serve_test.go) and
+  [internal/server/client_test.go](../internal/server/client_test.go).
 - `SocketPath` in [internal/server/socket.go](../internal/server/socket.go)
-  uses `<basedir>/server.sock` when it fits in 103 bytes (the smallest
-  `sun_path` limit, on macOS and BSD). Longer paths use
-  `/tmp/rotari-<uid>/<sha256 prefix of the resolved basedir>.sock`, a fixed
-  root rather than `$TMPDIR` so every client of a basedir computes the same
-  path, and symlinks are resolved so aliases share one server. `Listen` creates
-  that directory `0700` and refuses one that is not a real directory owned by
-  the current user with no group or other access. Covered by
-  [internal/server/socket_test.go](../internal/server/socket_test.go).
+  uses `<basedir>/projects/<project>/server.sock` when it fits in 103 bytes
+  (the smallest `sun_path` limit, on macOS and BSD). Longer paths use
+  `/tmp/rotari-<uid>/<sha256 prefix of the resolved project directory>.sock`,
+  a fixed root rather than `$TMPDIR` so every client of a project computes
+  the same path, and symlinks are resolved so aliases share one supervisor.
+  `Listen` creates that directory `0700` and refuses one that is not a real
+  directory owned by the current user with no group or other access. Covered
+  by [internal/server/socket_test.go](../internal/server/socket_test.go).
+- `server status` and `server shutdown` act on the supervisor of every
+  project in the base directory that has one, and report `server is not
+  running` when none does. Shutting a supervisor down leaves its run
+  interrupted with its jobs still running; `cancel` is how to stop a run.
+  `server list` shows the supervisors registered in the master directory,
+  one per project.
 - A detached server discards stderr, so `runServer` writes a `start failed`
   event to `server.log` when `Listen` fails for any reason other than another
-  server holding the lease, and `Ensure` names that log when the server does
-  not become ready.
-- The background server writes lifecycle, request, and error events to
-  `<basedir>/server.log`. Before an event would make the regular file exceed
-  1 MiB, it is truncated and the new event is written.
+  server holding the lease, and `server.Start` names that log when the server
+  does not become ready.
+- Every supervisor of a base directory writes lifecycle, request, and error
+  events, each prefixed with its project, to `<basedir>/server.log`. Before an
+  event would make the regular file exceed 1 MiB, it is truncated and the new
+  event is written.
 - The optional Python interface invokes the installed CLI with `subprocess` and
   must not implement queue or execution semantics itself.
 - `wait --json` emits one `RunSummary` object per requested run, using NDJSON
@@ -67,7 +84,7 @@ Representative implementation and tests:
 
 ## Client connection lifecycle
 
-The server distinguishes client cancellation, detach, and worker completion as
+The server distinguishes client cancellation, detach, and run completion as
 follows:
 
 - A synchronous client disconnect, including Ctrl-C, requests cancellation and
@@ -78,9 +95,11 @@ follows:
 - Ctrl-Z sends no rotari protocol message. The terminal suspends the client
   while the server-side run continues; a later EOF follows the normal
   disconnect path and requests cancellation.
-- The server monitors async workers. Worker exit decrements the active-run
-  count, and interrupted-run recovery is reserved for failures that bypass
-  finalization.
+- An async run executes inside its supervisor, like a sync run whose client
+  detached at once: `run --async` returns after `=== Run started ===`, and the
+  supervisor finishes the run in the background. Interrupted-run recovery is
+  reserved for failures that bypass finalization, such as a killed
+  supervisor.
 - Completed sync and async runs decrement the active-run count immediately
   through `Server.BeginRun`/`Server.EndRun`. When it reaches zero, the server stops without
   waiting for the idle timeout.

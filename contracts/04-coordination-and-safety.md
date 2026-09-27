@@ -22,9 +22,9 @@ Representative implementation and tests:
   the attempt's `status.json` with phase, exit code, and hosts.
 - **DUR-2** The wrapper records status independently of the process that launched it, so
   scheduler accounting lag cannot hide the result.
-- **DUR-3** The local executor uses the same wrapper. If the coordinating server or async
-  worker is killed, the orphaned local job still finishes and records its own
-  status, which `show` and `jobs` then report, instead of leaving no result.
+- **DUR-3** The local executor uses the same wrapper. If the run's supervisor is
+  killed, the orphaned local job still finishes and records its own status,
+  which `show` and `jobs` then report, instead of leaving no result.
 - **DUR-4** Detached supervisors are not automatically restarted. Crash detection is
   file-backed: the run lock records the supervisor PID and host, and readers
   inspect per-job status files and missing summaries to report an active or
@@ -166,7 +166,7 @@ Further rules:
   IDs agree, the run ID is a safe path element, and the run directory and
   initial `context.json` exist. An interrupted run must also have its
   `commands.json` snapshot. Active runs may temporarily lack `commands.json`
-  while the worker starts. Stale locks are removed only after these checks
+  while the supervisor starts executing them. Stale locks are removed only after these checks
   succeed.
 - The message for an interrupted run lists the jobs whose `status` or
   `status.json` is still non-terminal, with phase and last-update time;
@@ -174,7 +174,8 @@ Further rules:
   improves the message; it does not change what `reset --recover` or `unlock`
   may do.
 - Server management is separate (`server status`, `server shutdown`); project
-  commands do not stop or query the server as a side effect.
+  commands do not stop or query a supervisor as a side effect. Only `run` and
+  `retry` start one, for their own run.
 - Destructive commands reject ambiguous targets, and exact IDs never degrade
   into latest-item selection.
 - JSON writes use the common atomic helper. Optional fields must retain

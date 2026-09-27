@@ -85,8 +85,8 @@ layout.
   `Authorization: Bearer TOKEN`, `X-Rotari-Token: TOKEN`, or Basic
   authentication with username `rotari` and the token as the password; this is
   authentication only and does not encrypt HTTP traffic.
-- `loadWebState` ([internal/webui/webui.go](../internal/webui/webui.go)) exposes persisted runtime metadata: `running.lock` fields and
-  the presence of the server socket (`SocketPath`) and `server.pid`. The panel does not query process
+- `loadWebState` ([internal/webui/webui.go](../internal/webui/webui.go)) exposes persisted runtime metadata for each project: `running.lock` fields and,
+  in the project's `server`, the presence of its supervisor socket (`SocketPath`) and `server.pid`. The panel does not query process
   liveness or infer that `state.lock` is held from the file's existence.
 - The Unix-socket control surface is separate from `ROTARI_PRIVATE_STATE`:
   reaching it means controlling the server, not merely reading state.

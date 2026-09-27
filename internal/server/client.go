@@ -6,13 +6,14 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 	"time"
 )
 
-func SendRequest(baseDir string, request Request) (Response, error) {
-	conn, err := net.DialTimeout("unix", SocketPath(baseDir), time.Second)
+// SendRequest sends one request to the supervisor of dir, a project
+// directory, and returns its answer.
+func SendRequest(dir string, request Request) (Response, error) {
+	conn, err := net.DialTimeout("unix", SocketPath(dir), time.Second)
 	if err != nil {
 		return Response{}, err
 	}
@@ -44,8 +45,8 @@ const (
 // to progress until the final response arrives. A value from detach sends
 // DetachControl before disconnecting; a value from interrupt disconnects
 // without it.
-func StreamRun(baseDir string, request Request, detach <-chan struct{}, interrupt <-chan os.Signal, progress func(Response)) (Response, RunOutcome, error) {
-	conn, err := net.DialTimeout("unix", SocketPath(baseDir), time.Second)
+func StreamRun(dir string, request Request, detach <-chan struct{}, interrupt <-chan os.Signal, progress func(Response)) (Response, RunOutcome, error) {
+	conn, err := net.DialTimeout("unix", SocketPath(dir), time.Second)
 	if err != nil {
 		return Response{}, RunFinished, err
 	}
@@ -89,28 +90,17 @@ func StreamRun(baseDir string, request Request, detach <-chan struct{}, interrup
 	}
 }
 
-// Ensure makes sure a server with the current protocol serves baseDir. It
-// stops a server with another protocol version and otherwise starts command,
-// detached from the caller's terminal session.
-func Ensure(baseDir string, command []string) error {
-	if response, err := SendRequest(baseDir, Request{Op: OpPing}); err == nil && response.OK {
-		if response.Protocol == ProtocolVersion {
-			return nil
-		}
-		if _, shutdownErr := SendRequest(baseDir, Request{Op: OpShutdown}); shutdownErr != nil {
-			return fmt.Errorf("server protocol mismatch (got %d, want %d); failed to stop old server: %w", response.Protocol, ProtocolVersion, shutdownErr)
-		}
-		for range 40 {
-			if _, pingErr := SendRequest(baseDir, Request{Op: OpPing}); pingErr != nil {
-				break
-			}
-			time.Sleep(50 * time.Millisecond)
-		}
-	}
+// Start starts command as the supervisor of dir, a project directory, and
+// returns its PID once it answers. The supervisor is detached from the
+// caller's terminal session but inherits the caller's working directory and
+// environment, which its run's jobs then inherit in turn. Start never reuses
+// a running supervisor: it fails with ErrAlreadyRunning when another one
+// serves dir. logPath names the log that explains a failed start.
+func Start(dir string, command []string, logPath string) (int, error) {
 	child := exec.Command(command[0], command[1:]...)
 	devNull, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
 	if err != nil {
-		return fmt.Errorf("failed to detach server stdio: %w", err)
+		return 0, fmt.Errorf("failed to detach server stdio: %w", err)
 	}
 	defer devNull.Close()
 	child.Stdin = devNull
@@ -118,13 +108,32 @@ func Ensure(baseDir string, command []string) error {
 	child.Stderr = devNull
 	child.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := child.Start(); err != nil {
-		return fmt.Errorf("failed to start server: %w", err)
+		return 0, fmt.Errorf("failed to start server: %w", err)
 	}
-	for range 40 {
-		if response, err := SendRequest(baseDir, Request{Op: OpPing}); err == nil && response.OK {
-			return nil
+	pid := child.Process.Pid
+	exited := make(chan struct{})
+	go func() {
+		_ = child.Wait()
+		close(exited)
+	}()
+	for range 100 {
+		// A supervisor that answers with another PID holds the lease, and
+		// the child exits once it fails to take it.
+		if response, err := SendRequest(dir, Request{Op: OpPing}); err == nil && response.OK {
+			if response.PID == pid {
+				return pid, nil
+			}
+			return 0, ErrAlreadyRunning
 		}
-		time.Sleep(50 * time.Millisecond)
+		select {
+		case <-exited:
+			if response, err := SendRequest(dir, Request{Op: OpPing}); err == nil && response.OK {
+				return 0, ErrAlreadyRunning
+			}
+			return 0, fmt.Errorf("server exited before it became ready (pid=%d); see %s for the cause", pid, logPath)
+		case <-time.After(50 * time.Millisecond):
+		}
 	}
-	return fmt.Errorf("server did not become ready (pid=%d); see %s for the cause", child.Process.Pid, filepath.Join(baseDir, "server.log"))
+	_ = child.Process.Kill()
+	return 0, fmt.Errorf("server did not become ready (pid=%d); see %s for the cause", pid, logPath)
 }

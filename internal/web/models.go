@@ -69,6 +69,9 @@ type QueueState struct {
 	RunningRunID    string      `json:"running_run_id,omitempty"`
 	RunnerHost      string      `json:"runner_host,omitempty"`
 	RunnerStartedAt string      `json:"runner_started_at,omitempty"`
+	// Server is the persisted record of the project's supervisor, which
+	// exists only while a run is starting or active.
+	Server ServerState `json:"server"`
 }
 
 type ServerState struct {
@@ -86,7 +89,6 @@ type State struct {
 	BaseDir      string                  `json:"base_dir"`
 	ConfigPath   string                  `json:"config_path,omitempty"`
 	Queues       []QueueState            `json:"projects"`
-	Server       ServerState             `json:"server"`
 	Environments []EnvironmentDefinition `json:"environments"`
 	UpdatedAt    string                  `json:"updated_at"`
 }

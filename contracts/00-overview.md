@@ -61,15 +61,15 @@ The normal state layout is:
 
 ```text
 <basedir>/
-├── server.log
-├── server.lock
-├── server.sock          # while the server runs; /tmp/rotari-<uid>/<hash>.sock if too long
-├── server.pid           # while the background server is running
+├── server.log            # events of every project's supervisor
 └── projects/<project>/
     ├── queue.json
     ├── meta.json
     ├── state.lock
     ├── running.lock      # while a project run is active
+    ├── server.lock       # lease of the run's supervisor
+    ├── server.sock       # while a supervisor runs; /tmp/rotari-<uid>/<hash>.sock if too long
+    ├── server.pid        # while a supervisor runs
     └── runs/<run-id>/
         ├── commands.json
         ├── context.json
@@ -97,8 +97,8 @@ the user-facing documentation, and the affected tests together.
   indexes or coordination aids and must be recoverable from persisted files.
   See [`internal/state/store.go`](../internal/state/store.go) and
   [`internal/state/store_test.go`](../internal/state/store_test.go).
-- **CORE-2** The server coordinates access and execution; it is not persistent authority
-  for project or run state. See [`cmd/rotari/server.go`](../cmd/rotari/server.go)
+- **CORE-2** The server (a run's supervisor) coordinates access and execution; it is
+  not persistent authority for project or run state. See [`cmd/rotari/server.go`](../cmd/rotari/server.go)
   and [`cmd/rotari/server_test.go`](../cmd/rotari/server_test.go).
 - **CORE-3** Each project owns one mutable current queue as the staging area for the next
   run. Queue edits change that queue only while the project is idle. A run that

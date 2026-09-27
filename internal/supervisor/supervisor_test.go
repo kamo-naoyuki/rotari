@@ -3,12 +3,10 @@ package supervisor
 import (
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -17,20 +15,6 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
-
-func TestWaitForWorkerCallsOnDone(t *testing.T) {
-	command := exec.Command("sh", "-c", "exit 0")
-	if err := command.Start(); err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan struct{})
-	waitForWorker(command, func() { close(done) })
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("async run completion callback was not called")
-	}
-}
 
 func TestResolveQueueExecutorUsesDefaultExecutor(t *testing.T) {
 	baseDir := t.TempDir()
@@ -132,8 +116,7 @@ func testPlanningFailureDoesNotCreateRun(t *testing.T, async bool) {
 			Store: store, Executors: executor.NewRegistry(store, nil),
 			RegisterRun: func(state.ProjectPaths, string) error { registered = true; return nil },
 		},
-		NewRunID:   func() string { t.Fatal("run ID allocated before planning succeeded"); return "new-run" },
-		Executable: func() (string, error) { t.Fatal("worker launched before planning succeeded"); return "", nil },
+		NewRunID: func() string { t.Fatal("run ID allocated before planning succeeded"); return "new-run" },
 	}
 	request := server.Request{QueueName: "default", LocalConcurrency: 1, Selection: "failed"}
 	if async {

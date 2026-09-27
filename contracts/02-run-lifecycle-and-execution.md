@@ -8,6 +8,27 @@
 - **RUN-2** A run-level retry limit retries a failed job within the same run
   until it succeeds or the limit is exhausted; a successful retry makes the
   run successful.
+- **RUN-3** A run executes its jobs in the working directory and environment
+  of the `run` or `retry` command that started it, whatever other runs are
+  active or which command ran before it. Only a job's own
+  `--working-directory` and `--env` override them. The run's `context.json`
+  and `ROTARI_CWD` name that same directory.
+
+- A queue, a run's command snapshot, and an exported workflow hold the command
+  layer only: each job's command, its own `--env` and `--working-directory`,
+  and its scheduling fields. The working directory and environment a run uses
+  otherwise come from its caller at run time and are not part of the
+  workflow, so the same queue or workflow can be run again from another
+  directory or shell. The caller's environment is not recorded; its working
+  directory is, in `context.json`.
+- RUN-3 holds because a run has its own supervisor: `run` starts it as a
+  child process (`startSupervisorProcess` in
+  [cmd/rotari/server.go](../cmd/rotari/server.go) and `server.Start` in
+  [internal/server/client.go](../internal/server/client.go)), which inherits
+  the caller's working directory and environment and passes them on to the
+  jobs, and a supervisor is never reused by another run. Covered by
+  `TestRunUsesCallersDirectoryAndEnvironment` in
+  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
 
 - Queue-editing commands mutate `queue.json`. Starting a run assigns a new ID,
   snapshots the queue and every active config file, records context, and marks
@@ -235,11 +256,12 @@
   because an `afterany` job may have succeeded on a failed prerequisite's
   output. `copy` requires an omitted `DependsOnFinished` prerequisite to have
   finished with any result, rather than to have succeeded.
-- The server protocol version is 8 since `cancel`, `suspend`, and `resume`
-  left the server (7 added a stage or matrix scope to run requests, 6 the
-  retry delay fields, 5 per-job `retry`, 4 `timeout`, 3
-  `depends_on_finished`), so a client replaces an older server that would drop
-  new request or queue fields.
+- The server protocol version is 9 since a supervisor serves one run of one
+  project (8 moved `cancel`, `suspend`, and `resume` out of the server, 7 added
+  a stage or matrix scope to run requests, 6 the retry delay fields, 5 per-job
+  `retry`, 4 `timeout`, 3 `depends_on_finished`). A `run` client talks only
+  to the supervisor it started from its own executable, so ping reports the
+  version for diagnosis, not negotiation.
 - `change`, `remove`, and the `--stage`/`--matrix` scope of `run`, `retry`,
   `copy`, and `show` select queue commands through one rule, `model.SelectCommands` in
   [internal/model/command_selector.go](../internal/model/command_selector.go):
@@ -322,16 +344,15 @@ Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle
 
 - `projectrun.Runner` ([internal/projectrun](../internal/projectrun/)) is
   the single run lifecycle for every run, regardless of executor mix. The
-  synchronous path (`Operations.Run` in
-  [internal/supervisor/run.go](../internal/supervisor/run.go)) and the async
-  path (`Operations.StartRun`, then the `__worker-run` worker in `cmdWorkerRun`)
-  both call it:
+  run's supervisor calls it for synchronous runs (`Operations.Run` in
+  [internal/supervisor/run.go](../internal/supervisor/run.go)) and
+  asynchronous ones (`Operations.StartRun`) alike; the two differ only in
+  whether the client stays attached:
   - `Begin`, under the state lock of an idle project, writes `context.json`
-    first, then takes `running.lock`, registers the run, and marks
-    `meta.json` running, so a project that looks running always has its run
-    context. A failure after the lock is taken removes the lock; a failed
-    registration also removes the new run directory. The async path then
-    rewrites the lock with the worker's PID.
+    first, then takes `running.lock` with the supervisor's PID, registers the
+    run, and marks `meta.json` running, so a project that looks running always
+    has its run context. A failure after the lock is taken removes the lock; a
+    failed registration also removes the new run directory.
   - `Execute` snapshots the queue to `commands.json`, plans the selection,
     expands array plans, dispatches to executors, and writes the run summary.
   - `Finish` records the final load, finalizes the queue and metadata
@@ -341,17 +362,8 @@ Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle
     than running.
   Covered by [internal/projectrun/lifecycle_test.go](../internal/projectrun/lifecycle_test.go)
   and [cmd/rotari/mixed_run_test.go](../cmd/rotari/mixed_run_test.go).
-  Commands are enqueued by `add` and started by `run`; `run --async` selects
-  the async worker path.
-- The server launches the async worker as `__worker-run` with arguments built
-  by `WorkerArgs` in [internal/run/worker_args.go](../internal/run/worker_args.go)
-  and parsed by `parseWorkerRunArgs` in [cmd/rotari/main.go](../cmd/rotari/main.go).
-  Bool flags must be written as `--name=BOOL`, because a separate value is
-  parsed as the first positional argument. Worker-only flags such as
-  `--selection` have no CLI metadata and are registered directly on the
-  FlagSet. `TestWorkerArgsParseBackToOptions` in
-  [cmd/rotari/worker_args_test.go](../cmd/rotari/worker_args_test.go)
-  round-trips the arguments through the worker's parser.
+  Commands are enqueued by `add` and started by `run`; `run --async` returns
+  once the supervisor has begun the run.
 - Per-executor full-run orchestrators must not be added outside this path.
   Extend `JobExecutor` methods or `projectrun.Runner.Execute` instead.
 - Run dispatch (`Dispatcher` in [internal/run/dispatch.go](../internal/run/dispatch.go))

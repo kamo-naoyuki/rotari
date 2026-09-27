@@ -70,6 +70,31 @@ keeping the previous run history. Use `delete` to remove saved run logs
 explicitly. Use `run --async` when an experiment should continue after the
 terminal returns.
 
+### Workflow and execution environment
+
+A queue, a run's command snapshot, and an exported workflow describe the
+command layer only: each job's command, its own `--env` and
+`--working-directory`, and scheduling settings such as dependencies,
+timeouts, and retries. The working directory and environment a job otherwise
+sees come from the shell that runs `rotari run` or `rotari retry`, at the time
+it runs, as with any command started from that shell:
+
+```sh
+cd ~/exp-a && rotari run   # jobs start in ~/exp-a with this shell's environment
+cd ~/exp-b && rotari retry # jobs start in ~/exp-b with this shell's environment
+```
+
+So the same queue or workflow can be run again from another directory, or
+after activating another environment, without editing it. Pin a job to a
+directory or variable with `add --working-directory` or `add --env` when it
+must not depend on where it is run from.
+
+This holds whatever else is running: every run has its own supervisor process,
+started by `run` or `retry` as its child, so one run never takes the directory
+or environment of another. The run records its caller's directory in
+`context.json`, and jobs see it as `ROTARI_CWD`; the caller's environment is
+not recorded.
+
 ### IDs and location resolution
 
 Rotari uses three different IDs:
@@ -239,12 +264,12 @@ command must target a specific location explicitly.
 ## Internal execution model
 
 This section is the runtime architecture view: it explains who owns the project
-state, which process actually launches jobs, and how the queue, server, and
+state, which process actually launches jobs, and how the queue, supervisor, and
 runner fit together during a run.
 
 ```mermaid
 flowchart LR
-    Client["run client\nrotari run"] -->|start request| Server["server\nowns project state and lock"]
+    Client["run client\nrotari run"] -->|starts, then sends run request| Server["supervisor\none per run of a project"]
     Server -->|begin active run| Runner["runner\nshared run lifecycle"]
     Runner -->|dispatch jobs| Local["local jobs"]
     Runner -->|dispatch jobs| SSH["SSH jobs"]
@@ -253,7 +278,10 @@ flowchart LR
     Server -->|status + progress| Client
 ```
 
-The CLI is the user-facing entry point. It sends a run request to the
-long-lived server for the project, and the server owns the queue, lock, and
-final run state. The runner then executes the queued jobs, persists their logs
-and results, and reports progress back through the same server state.
+The CLI is the user-facing entry point. `run` starts a supervisor for the
+run as its child process and sends it the run request; the supervisor takes
+the project's run lock, executes the run, and exits when the run ends. It
+inherits the working directory and environment of the `run` command, and the
+jobs inherit them from it. The runner, inside the supervisor, then executes
+the queued jobs, persists their logs and results, and reports progress back
+to an attached client.

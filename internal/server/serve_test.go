@@ -101,6 +101,38 @@ func TestHandleSyncRunStreamsProgressAndEndsRun(t *testing.T) {
 	}
 }
 
+func TestHandleRejectsSecondRun(t *testing.T) {
+	ops := &fakeOperations{runStart: make(chan struct{}), runFinish: make(chan struct{})}
+	server := New(nil, ops, nil)
+	client, serverConn := net.Pipe()
+	defer client.Close()
+	go server.Handle(serverConn)
+	if err := json.NewEncoder(client).Encode(Request{Op: OpRun}); err != nil {
+		t.Fatal(err)
+	}
+	final := make(chan Response, 1)
+	go func() {
+		decoder := json.NewDecoder(client)
+		for {
+			var response Response
+			if err := decoder.Decode(&response); err != nil || !response.Progress {
+				final <- response
+				return
+			}
+		}
+	}()
+	<-ops.runStart
+	// A supervisor belongs to the run that started it, so another run of
+	// the project, even one sent to it directly, is rejected.
+	if response := roundTrip(t, server, Request{Op: OpRun}); response.OK || response.Message != ErrRunAlreadyStarted.Error() {
+		t.Fatalf("second run = %#v, want rejection", response)
+	}
+	close(ops.runFinish)
+	if response := <-final; !response.OK || response.Message != "finished" {
+		t.Fatalf("first run = %#v, want it to finish", response)
+	}
+}
+
 func TestHandleAsyncRunStartFailureEndsRun(t *testing.T) {
 	server := New(nil, &fakeOperations{startErr: errors.New("no commands")}, nil)
 	response := roundTrip(t, server, Request{Op: OpRun, Async: true})

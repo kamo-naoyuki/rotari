@@ -3002,7 +3002,7 @@ func TestServerSyncRunDisconnectCancelsRunningJob(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		newRotariServer(baseDir).Handle(serverConn)
+		newRotariServer(testProjectPaths(t, baseDir, "default")).Handle(serverConn)
 	}()
 	startAttachedTestRun(t, client)
 
@@ -3057,7 +3057,7 @@ func TestServerSyncRunDetachLeavesJobRunning(t *testing.T) {
 	defer client.Close()
 	defer serverConn.Close()
 	done := make(chan struct{})
-	server := newRotariServer(baseDir)
+	server := newRotariServer(testProjectPaths(t, baseDir, "default"))
 	go func() {
 		defer close(done)
 		server.Handle(serverConn)

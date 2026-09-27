@@ -110,3 +110,87 @@ func TestRunRetrySucceedsWithinOneRun(t *testing.T) {
 		t.Fatalf("attempt directories = %d, want three: %v", len(attempts), err)
 	}
 }
+
+// callerRecord is what a job observed of its working directory and
+// environment, and what its run recorded as the caller's directory.
+type callerRecord struct {
+	pwd, foo, rotariCWD, contextCWD string
+}
+
+// recordingJob adds a job to project that writes its working directory,
+// $FOO, and $ROTARI_CWD to a file under e.Root, and returns that file.
+func recordingJob(t *testing.T, e *support.Env, project string, addArgs ...string) string {
+	t.Helper()
+	out := filepath.Join(e.Root, project+".out")
+	args := append([]string{"add", "-p", project}, addArgs...)
+	args = append(args, "--", "sh", "-c", `printf '%s\n%s\n%s\n' "$(pwd -P)" "$FOO" "$ROTARI_CWD" > "$0"`, out)
+	e.MustRotari(args...)
+	return out
+}
+
+func readCallerRecord(t *testing.T, e *support.Env, project, out string) callerRecord {
+	t.Helper()
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatalf("job of %s left no record: %v", project, err)
+	}
+	lines := bytes.Split(bytes.TrimSuffix(data, []byte("\n")), []byte("\n"))
+	if len(lines) != 3 {
+		t.Fatalf("record of %s = %q", project, data)
+	}
+	runID := readSummary(t, e, project).RunID
+	var context struct {
+		CWD string `json:"cwd"`
+	}
+	contextData, err := os.ReadFile(filepath.Join(e.Base, "projects", project, "runs", runID, "context.json"))
+	if err != nil || json.Unmarshal(contextData, &context) != nil {
+		t.Fatalf("context.json of %s: %v %s", project, err, contextData)
+	}
+	return callerRecord{pwd: string(lines[0]), foo: string(lines[1]), rotariCWD: string(lines[2]), contextCWD: context.CWD}
+}
+
+// callerDir creates a directory under e.Root and returns its resolved path.
+func callerDir(t *testing.T, e *support.Env, name string) string {
+	t.Helper()
+	dir := filepath.Join(e.Root, name)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resolved
+}
+
+func TestRunUsesCallersDirectoryAndEnvironment(t *testing.T) {
+	covers(t, "RUN-3")
+	e := support.NewEnv(t)
+	support.RequireUnixSockets(t)
+	want := func(t *testing.T, project string, got callerRecord, dir, foo string) {
+		t.Helper()
+		if got != (callerRecord{pwd: dir, foo: foo, rotariCWD: dir, contextCWD: dir}) {
+			t.Errorf("%s: job ran in %q with FOO=%q, ROTARI_CWD=%q, context cwd %q; want %q and FOO=%q everywhere",
+				project, got.pwd, got.foo, got.rotariCWD, got.contextCWD, dir, foo)
+		}
+	}
+
+	// A run started while another project's run is active must not take
+	// that run's directory and environment.
+	dirA, dirB, dirC := callerDir(t, e, "a"), callerDir(t, e, "b"), callerDir(t, e, "c")
+	e.In(dirA).WithVar("FOO", "from-a").StartRun("hold", 1, true)
+
+	syncOut := recordingJob(t, e, "sync")
+	e.In(dirB).WithVar("FOO", "from-b").MustRotari("run", "-p", "sync", "--quiet")
+	want(t, "sync", readCallerRecord(t, e, "sync", syncOut), dirB, "from-b")
+
+	asyncOut := recordingJob(t, e, "async")
+	e.In(dirC).WithVar("FOO", "from-c").MustRotari("run", "-p", "async", "--async", "--quiet")
+	e.MustRotari("wait", "-p", "async", "--timeout", "30s")
+	want(t, "async", readCallerRecord(t, e, "async", asyncOut), dirC, "from-c")
+
+	// A job's own --env still overrides the caller's environment.
+	explicitOut := recordingJob(t, e, "explicit", "--env", "FOO=from-job")
+	e.In(dirB).WithVar("FOO", "from-b").MustRotari("run", "-p", "explicit", "--quiet")
+	want(t, "explicit", readCallerRecord(t, e, "explicit", explicitOut), dirB, "from-job")
+}

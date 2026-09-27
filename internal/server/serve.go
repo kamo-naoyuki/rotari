@@ -13,9 +13,10 @@ import (
 	"time"
 )
 
-// ProtocolVersion is reported by ping. A client replaces a running server
-// that reports a different version.
-const ProtocolVersion = 8
+// ProtocolVersion is reported by ping. A `run` client talks only to the
+// supervisor it started from its own executable, so the version is for
+// diagnosis rather than negotiation.
+const ProtocolVersion = 9
 
 // DetachControl is the byte a synchronous run client sends before
 // disconnecting to leave the run going in the background.
@@ -24,9 +25,12 @@ const DetachControl byte = 0x04
 // DetachedMessage reports a synchronous run that was detached from its client.
 const DetachedMessage = "Run detached; it continues in the background."
 
-// ErrAlreadyRunning reports that another server holds the base directory's
+// ErrAlreadyRunning reports that another supervisor holds the project's
 // lease.
 var ErrAlreadyRunning = errors.New("server is already running")
+
+// ErrRunAlreadyStarted rejects a second run request to one supervisor.
+var ErrRunAlreadyStarted = errors.New("this supervisor has already started a run")
 
 // Operations performs the project work behind server requests. The server
 // owns the transport, active-run bookkeeping, and its own lifetime.
@@ -40,8 +44,10 @@ type Operations interface {
 	CancelRun(request Request)
 }
 
-// Server serves one base directory's requests and stops once it is idle or
-// its last run ends.
+// Server is the supervisor of one run of one project. It accepts a single run
+// request and stops once that run ends, or when it is idle before one
+// arrives. A new run starts a new supervisor, so the run's jobs inherit the
+// working directory and environment of the command that started it.
 type Server struct {
 	ops        Operations
 	logger     *Logger
@@ -51,6 +57,8 @@ type Server struct {
 	accessMu   sync.Mutex
 	lastAccess time.Time
 	activeRuns int
+	// runClaimed is set by the first run request.
+	runClaimed bool
 }
 
 // New returns a server that accepts from listener. A nil listener is allowed
@@ -59,10 +67,11 @@ func New(listener net.Listener, ops Operations, logger *Logger) *Server {
 	return &Server{ops: ops, logger: logger, listener: listener, stopped: make(chan struct{}), lastAccess: time.Now()}
 }
 
-// Listen takes the base directory's server lease, listens on its owner-only
-// socket, and records the server PID. The returned function releases them.
-func Listen(baseDir string, fileMode os.FileMode) (net.Listener, func(), error) {
-	lease, err := os.OpenFile(LockPath(baseDir), os.O_CREATE|os.O_RDWR, fileMode)
+// Listen takes the lease of dir, a project directory, listens on its
+// owner-only socket, and records the supervisor PID. The returned function
+// releases them.
+func Listen(dir string, fileMode os.FileMode) (net.Listener, func(), error) {
+	lease, err := os.OpenFile(LockPath(dir), os.O_CREATE|os.O_RDWR, fileMode)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to open server lock: %w", err)
 	}
@@ -70,7 +79,7 @@ func Listen(baseDir string, fileMode os.FileMode) (net.Listener, func(), error) 
 		_ = lease.Close()
 		return nil, nil, ErrAlreadyRunning
 	}
-	socketPath := SocketPath(baseDir)
+	socketPath := SocketPath(dir)
 	if err := prepareSocketDir(socketPath); err != nil {
 		_ = lease.Close()
 		return nil, nil, err
@@ -83,7 +92,7 @@ func Listen(baseDir string, fileMode os.FileMode) (net.Listener, func(), error) 
 	}
 	release := func() {
 		_ = listener.Close()
-		_ = os.Remove(PIDPath(baseDir))
+		_ = os.Remove(PIDPath(dir))
 		_ = os.Remove(socketPath)
 		_ = lease.Close()
 	}
@@ -93,7 +102,7 @@ func Listen(baseDir string, fileMode os.FileMode) (net.Listener, func(), error) 
 		release()
 		return nil, nil, fmt.Errorf("failed to set server socket permissions: %w", err)
 	}
-	if err := os.WriteFile(PIDPath(baseDir), []byte(strconv.Itoa(os.Getpid())+"\n"), fileMode); err != nil {
+	if err := os.WriteFile(PIDPath(dir), []byte(strconv.Itoa(os.Getpid())+"\n"), fileMode); err != nil {
 		release()
 		return nil, nil, fmt.Errorf("failed to write server pid: %w", err)
 	}
@@ -176,6 +185,17 @@ func (server *Server) BeginRun() {
 	server.accessMu.Unlock()
 }
 
+// claimRun reports whether this is the server's first run request.
+func (server *Server) claimRun() bool {
+	server.accessMu.Lock()
+	defer server.accessMu.Unlock()
+	if server.runClaimed {
+		return false
+	}
+	server.runClaimed = true
+	return true
+}
+
 // EndRun records a finished run and stops the server after its last run.
 func (server *Server) EndRun() {
 	server.accessMu.Lock()
@@ -215,6 +235,10 @@ func (server *Server) Handle(conn net.Conn) {
 	case OpPing:
 		response = Response{OK: true, PID: os.Getpid(), Protocol: ProtocolVersion}
 	case OpRun:
+		if !server.claimRun() {
+			response.Message = ErrRunAlreadyStarted.Error()
+			break
+		}
 		server.BeginRun()
 		if request.Async {
 			message, err := server.ops.StartRun(request, server.EndRun)

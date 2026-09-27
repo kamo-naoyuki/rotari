@@ -15,56 +15,42 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-// StartRun starts an async run in a detached worker and returns at once.
-// onDone is called once the worker exits.
+// StartRun starts an async run inside the supervisor and returns at once.
+// onDone, if not nil, is called once the run has finished.
 func (ops Operations) StartRun(request server.Request, onDone func()) (string, error) {
-	prepared, err := ops.prepareRun(request)
+	started, err := ops.beginRun(request)
 	if err != nil {
 		return "", err
 	}
-	defer prepared.release()
-	request.SourceRunID = prepared.sourceRunID
-	paths := prepared.paths
-	runID := ops.NewRunID()
-	options := runRequestOptions(request, runID)
-	options.OnDone = onDone
-	if err := ops.launchWorker(paths, options); err != nil {
-		return "", err
-	}
-	runDir, err := state.SafeJoin(paths.RunsDir, runID)
+	go func() {
+		if onDone != nil {
+			defer onDone()
+		}
+		if _, err := ops.Runner.Run(started.paths, started.options, projectrun.Observer{}); err != nil {
+			ops.logf("async run %s failed: %v", started.runID, err)
+		}
+	}()
+	runDir, err := state.SafeJoin(started.paths.RunsDir, started.runID)
 	if err != nil {
 		return "", err
 	}
+	paths := started.paths
 	return fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run: %s\n  Directory: %s\n\nCheck status:\n  rotari show --run-id %s\n\nCancel run:\n  rotari cancel --basedir %s --project-name %s",
-		request.QueueName, model.RunLabel(runID, request.RunName), runDir, runID, paths.BaseDir, request.QueueName), nil
+		request.QueueName, model.RunLabel(started.runID, request.RunName), runDir, started.runID, paths.BaseDir, request.QueueName), nil
 }
 
 // Run executes a run inside the supervisor, reporting progress to the
 // attached client, and returns once it has finished.
 func (ops Operations) Run(request server.Request, progress func(server.Response)) (string, int, error) {
-	prepared, err := ops.prepareRun(request)
+	started, err := ops.beginRun(request)
 	if err != nil {
 		return "", 1, err
 	}
-	request.SourceRunID = prepared.sourceRunID
-	paths, queue := prepared.paths, prepared.queue
-	runner := ops.Runner
-	runID := ops.NewRunID()
-	plan := prepared.plan
-	if err := runner.Begin(paths, projectrun.Start{RunID: runID, RunName: request.RunName, CWD: request.CWD}); err != nil {
-		prepared.release()
-		return "", 1, err
-	}
-	submitted := len(plan.Execute)
-	excluded := len(queue.Commands) - submitted
-	prepared.release()
+	paths, runID := started.paths, started.runID
 	if progress != nil {
-		progress(server.Response{Progress: true, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", request.QueueName, runID, submitted, excluded, len(queue.Commands))})
+		progress(server.Response{Progress: true, Message: fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run ID: %s\n  Submitted: %d\n  Excluded: %d\n  Total: %d", request.QueueName, runID, started.submitted, started.total-started.submitted, started.total)})
 	}
-
-	options := projectrun.OptionsFrom(runRequestOptions(request, runID))
-	options.Executor = prepared.executor
-	exitCode, err := runner.Run(paths, options, runObserver(request, runID, progress))
+	exitCode, err := ops.Runner.Run(paths, started.options, runObserver(request, runID, progress))
 	if err != nil {
 		return "", 1, err
 	}
@@ -76,6 +62,34 @@ func (ops Operations) Run(request server.Request, progress func(server.Response)
 		return CompletionMessage(paths, runID, summary), exitCode, nil
 	}
 	return fmt.Sprintf("=== Run finished ===\n  Project: %s\n  Run: %s\n  Exit code: %d", request.QueueName, runID, exitCode), exitCode, nil
+}
+
+// startedRun is a run that Begin has recorded and that is ready to execute.
+type startedRun struct {
+	paths   state.ProjectPaths
+	runID   string
+	options projectrun.Options
+	// submitted and total count the jobs the run executes and the queue's
+	// jobs.
+	submitted, total int
+}
+
+// beginRun validates a run request and records the new run with Begin, under
+// the project's state lock.
+func (ops Operations) beginRun(request server.Request) (startedRun, error) {
+	prepared, err := ops.prepareRun(request)
+	if err != nil {
+		return startedRun{}, err
+	}
+	defer prepared.release()
+	request.SourceRunID = prepared.sourceRunID
+	runID := ops.NewRunID()
+	if err := ops.Runner.Begin(prepared.paths, projectrun.Start{RunID: runID, RunName: request.RunName, CWD: request.CWD}); err != nil {
+		return startedRun{}, err
+	}
+	options := runRequestOptions(request, runID)
+	options.Executor = prepared.executor
+	return startedRun{paths: prepared.paths, runID: runID, options: options, submitted: len(prepared.plan.Execute), total: len(prepared.queue.Commands)}, nil
 }
 
 // preparedRun is a run request that passed validation while its caller holds
@@ -94,6 +108,9 @@ type preparedRun struct {
 // prepareRun validates a run request and takes the project's state lock. On
 // success the caller must call release.
 func (ops Operations) prepareRun(request server.Request) (preparedRun, error) {
+	if ops.Project != "" && request.QueueName != ops.Project {
+		return preparedRun{}, fmt.Errorf("this supervisor runs project %q, not %q", ops.Project, request.QueueName)
+	}
 	resolvedExecutor, err := ops.resolveQueueExecutor(request.QueueName, request.Executor)
 	if err != nil {
 		return preparedRun{}, err
@@ -187,15 +204,14 @@ func requestScope(request server.Request) model.CommandSelector {
 	return model.CommandSelector{Stage: request.ScopeStage, Matrix: request.ScopeMatrix}
 }
 
-// runRequestOptions converts a run request into worker options for runID.
-func runRequestOptions(request server.Request, runID string) run.Options {
-	return run.Options{
-		QueueName: request.QueueName, RunID: runID, RunName: request.RunName,
+// runRequestOptions converts a run request into the options of run runID.
+func runRequestOptions(request server.Request, runID string) projectrun.Options {
+	return projectrun.Options{
+		RunID: runID, RunName: request.RunName,
 		LocalConcurrency: request.LocalConcurrency, BatchMaxActive: request.BatchMaxActive, Retry: request.Retry,
-		Executor: request.Executor, ExecutorOptions: request.ExecutorOptions, Selection: request.Selection,
-		Scope:  requestScope(request),
-		JobIDs: request.JobIDs, SourceRunID: request.SourceRunID, PartialArray: request.PartialArray,
-		CWD: request.CWD, ExecutorSettings: request.ExecutorSettings,
+		Executor: request.Executor, ExecutorOptions: request.ExecutorOptions, Settings: request.ExecutorSettings,
+		Selection: request.Selection, JobIDs: request.JobIDs, Scope: requestScope(request),
+		SourceRunID: request.SourceRunID, PartialArray: request.PartialArray,
 	}
 }
 
