@@ -41,6 +41,24 @@ func TestPrintJobsTableAlignsMultipleRows(t *testing.T) {
 	}
 }
 
+func TestFormatJobsRowColorsStateWithoutChangingColumnWidth(t *testing.T) {
+	oldCheck := terminalCheck
+	terminalCheck = func(*os.File) bool { return true }
+	defer func() { terminalCheck = oldCheck }()
+
+	values := []string{"success", "demo"}
+	colored := formatJobsRow(values, []int{7, 4}, []byte{'s', 'p'})
+	if colored != ansiGreen+"success"+ansiReset+"  demo" {
+		t.Fatalf("colored row = %q, want visible width-preserving row", colored)
+	}
+
+	values[0] = "failed"
+	colored = formatJobsRow(values, []int{7, 4}, []byte{'s', 'p'})
+	if colored != ansiRed+"failed"+ansiReset+"   demo" {
+		t.Fatalf("failed row = %q, want visible width-preserving row", colored)
+	}
+}
+
 func TestCmdJobsAcceptsPositionalProjectName(t *testing.T) {
 	baseDir := t.TempDir()
 	now := time.Now()

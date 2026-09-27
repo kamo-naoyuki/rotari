@@ -115,10 +115,12 @@ func printJobsTableFormat(rows []joblist.Row, formatColumns []jobsColumn) {
 	}
 	for rowIndex := range columns[0] {
 		values := make([]string, len(columns))
+		codes := make([]byte, len(columns))
 		for columnIndex := range columns {
 			values[columnIndex] = columns[columnIndex][rowIndex]
+			codes[columnIndex] = formatColumns[columnIndex].code
 		}
-		line := strings.TrimRight(formatJobsRow(values, widths), " ")
+		line := strings.TrimRight(formatJobsRow(values, widths, codes), " ")
 		fmt.Println(line)
 	}
 }
@@ -187,18 +189,34 @@ func jobsColumnValue(code byte, row joblist.Row) string {
 	}
 }
 
-func formatJobsRow(values []string, widths []int) string {
+func formatJobsRow(values []string, widths []int, codes []byte) string {
 	var builder strings.Builder
 	for index, value := range values {
 		if index > 0 {
 			builder.WriteString("  ")
 		}
-		builder.WriteString(value)
+		builder.WriteString(colorJobsValue(codes[index], value))
 		if index < len(values)-1 {
 			builder.WriteString(strings.Repeat(" ", widths[index]-len(value)))
 		}
 	}
 	return builder.String()
+}
+
+func colorJobsValue(code byte, value string) string {
+	if code != 's' {
+		return value
+	}
+	switch value {
+	case "success":
+		return green(value)
+	case "failed":
+		return red(value)
+	case "running":
+		return yellow(value)
+	default:
+		return value
+	}
 }
 
 func jobsBaseDirs(requested, masterdir string, all bool) ([]string, error) {

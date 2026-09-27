@@ -109,6 +109,12 @@ follows:
 - **CLI-1** `check --json` reports the same project state, run identifier,
   queue count, lock, and runnable result as the human-readable `check`
   output.
+- **CLI-2** The human-readable `jobs` table keeps every column's visible start
+  position aligned across rows, including when status values are colorized.
+  ANSI escape sequences are presentation only and do not count toward a
+  column's width. The implementation is in
+  [`cmd/rotari/jobs.go`](../cmd/rotari/jobs.go), with the end-to-end check in
+  [`conformance/03-interfaces/jobs_presentation_test.go`](../conformance/03-interfaces/jobs_presentation_test.go).
 
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.
