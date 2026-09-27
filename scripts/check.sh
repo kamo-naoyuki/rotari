@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the Go checks from CI's go job in one command.
+# Run the checks from CI's go and web-format jobs in one command.
 #
 #   scripts/check.sh           gofmt, web asset formatting, go vet, go test,
 #                              and go test -race
