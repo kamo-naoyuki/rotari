@@ -347,6 +347,3 @@ or may turn out not to be; decide before starting any of them.
   allocate them, show the options: a per-job `--env CUDA_VISIBLE_DEVICES=...`
   with `--local-concurrency`, a single-node Slurm, or task-spooler behind the
   local executor.
-- **Do not frame rotari as a stage to outgrow.** Many research batches never
-  settle into a pipeline. If rotari is enough for them indefinitely, say so,
-  and avoid features that only make sense as a bridge to a workflow engine.
