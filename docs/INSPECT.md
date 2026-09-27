@@ -16,7 +16,7 @@ rotari jobs --all-basedirs --format "%s %b %p %a %n %c %t %e" # choose displayed
 Use `show` to inspect a project's runs and pending queue, or a specific run/job.
 
 ```sh
-rotari show # list projects across known basedirs
+rotari show # list projects across registered basedirs
 rotari show --basedirs # print the resolved master directory and state directories
 rotari show -p sweep # list the project's runs and current queue, if non-empty
 rotari show -p sweep --failed # list failed jobs in the selected run

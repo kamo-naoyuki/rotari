@@ -48,11 +48,11 @@ A project groups the current queue and run history. The queue (`queue.json`) con
 
 ### I didn't pass `--project-name` — which project does rotari use?
 
-Selection uses `--project-name`, `ROTARI_PROJECT_NAME`, the only project in the resolved state directory, and then `default`. Multiple candidates require an explicit selection. A bare `rotari show` lists projects.
+Selection uses `--project-name`, `ROTARI_PROJECT_NAME`, the only project in the resolved state directory, and then `default`. Multiple candidates require an explicit selection. A bare `rotari show` lists projects in registered basedirs.
 
 ### How do I list projects in a state directory?
 
-Run `rotari show`. Use `--basedir` to narrow the state directory and `rotari show -p PROJECT` to inspect a project.
+Run `rotari show`. Use `--basedir` to select a state directory, `--masterdir DIR` to select the registry, and `rotari show -p PROJECT` to inspect a project.
 
 ### I don't know which basedir contains my jobs. How do I find it?
 

@@ -17,6 +17,9 @@ Representative implementation and tests:
 - [internal/runregistry/registry.go](../internal/runregistry/registry.go)
   and [internal/runregistry/registry_test.go](../internal/runregistry/registry_test.go)
   for run-location indexing and stale-entry garbage collection.
+- [internal/basedirregistry/registry.go](../internal/basedirregistry/registry.go)
+  and [internal/basedirregistry/registry_test.go](../internal/basedirregistry/registry_test.go)
+  for basedir discovery indexing.
 - [cmd/rotari/completion.go](../cmd/rotari/completion.go) and
   [cmd/rotari/coverage_extra_test.go](../cmd/rotari/coverage_extra_test.go)
   for shell completion; `TestShellCompletionCandidates` in
@@ -300,6 +303,39 @@ order:
   only unchanged entries whose run directories are still absent.
 - Automatic garbage collection is not performed. Malformed or invalid registry
   files are reported and left untouched for manual inspection.
+
+### Implementation note: basedir discovery registry
+
+This is an internal indexing decision, not a user-facing contract. Do not add
+SQLite for registry metadata. Keep the filesystem state authoritative and
+maintain a separate one-record-per-basedir index under the master directory:
+
+```text
+<masterdir>/basedirs/<hash>.json -> { base_dir }
+```
+
+Register a basedir idempotently when a command creates or adopts state there:
+queue/project creation, run creation, import, copy, and server startup. Do
+not register from read-only commands such as `show` or `jobs`. The basedir
+registry is used for discovery by bare `show` and `show --basedirs`, so those
+commands do not need to scan every historical run record. Existing
+installations are backfilled from the run registry when the basedir index is
+empty; a deliberate repair or fallback path must remain available for older
+state.
+
+The run registry remains the run-ID lookup index:
+
+```text
+<masterdir>/runs/<run-id>.json -> { base_dir, project_name, run_id }
+```
+
+Registering a run also registers its basedir. Deleting a run removes only the
+run-registry entry; it does not remove the basedir entry because queues,
+projects, or other runs may still use that basedir. The basedir registry is a
+discovery index only, so a stale entry is harmless and is skipped when the
+basedir cannot be read. The first implementation does not GC basedir entries
+and never deletes state directories. Run-registry orphan GC remains separate
+because stale run entries can interfere with run-ID resolution.
 
 ### Why the registry is run-scoped
 

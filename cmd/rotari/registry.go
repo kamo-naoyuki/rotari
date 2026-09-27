@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
 	"github.com/kamo-naoyuki/rotari/internal/runregistry"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -122,9 +123,19 @@ func listKnownBaseDirs(masterDir string, servers []serverRecord) ([]knownBaseDir
 		pid     int
 	}
 	known := make(map[string]knownBaseDirState)
-	registryBaseDirs, err := runregistry.Open(masterDir).BaseDirs()
+	registryBaseDirs, err := basedirregistry.Open(masterDir).BaseDirs()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read basedir registry: %w", err)
+	}
+	if len(registryBaseDirs) == 0 {
+		legacyBaseDirs, legacyErr := runregistry.Open(masterDir).BaseDirs()
+		if legacyErr != nil {
+			return nil, legacyErr
+		}
+		registryBaseDirs = legacyBaseDirs
+		for _, baseDir := range legacyBaseDirs {
+			_ = basedirregistry.Open(masterDir).Register(baseDir)
+		}
 	}
 	for _, baseDir := range registryBaseDirs {
 		value := known[baseDir]

@@ -18,6 +18,9 @@ func SendRequest(dir string, request Request) (Response, error) {
 		return Response{}, err
 	}
 	defer conn.Close()
+	if err := conn.SetDeadline(time.Now().Add(time.Second)); err != nil {
+		return Response{}, err
+	}
 	if err := json.NewEncoder(conn).Encode(request); err != nil {
 		return Response{}, err
 	}

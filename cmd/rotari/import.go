@@ -145,6 +145,10 @@ func cmdImport(args []string) int {
 			printError(err)
 			return 1
 		}
+		if err := registerBasedir(baseDir); err != nil {
+			printErrorf("failed to register state directory: %v", err)
+			return 1
+		}
 	}
 	if err := writeImportPlan(plan, *jsonOutput); err != nil {
 		printErrorf("failed to encode import plan: %v", err)

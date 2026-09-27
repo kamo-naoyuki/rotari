@@ -236,6 +236,10 @@ func runServer(paths state.ProjectPaths) int {
 		printErrorf("failed to register server: %v", err)
 		return 1
 	}
+	if err := registerBasedir(paths.BaseDir); err != nil {
+		printErrorf("failed to register state directory: %v", err)
+		return 1
+	}
 	defer unregisterServer(masterDir, paths.BaseDir, paths.ProjectName)
 
 	server := serverinternal.New(listener, supervisorOperations(paths, logger), logger)

@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -206,18 +208,56 @@ func (registry Registry) BaseDirs() ([]string, error) {
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
-	baseDirs := make([]string, 0, len(entries))
+	paths := registryEntryPaths(registry.dir, entries)
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	return readBaseDirs(paths), nil
+}
+
+func registryEntryPaths(registryDir string, entries []os.DirEntry) []string {
+	paths := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
-			continue
-		}
-		var location Location
-		if err := store().ReadJSON(filepath.Join(registry.dir, entry.Name()), &location); err != nil {
-			continue
-		}
-		if location.BaseDir != "" {
-			baseDirs = append(baseDirs, location.BaseDir)
+		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".json" {
+			paths = append(paths, filepath.Join(registryDir, entry.Name()))
 		}
 	}
-	return baseDirs, nil
+	return paths
+}
+
+func readBaseDirs(paths []string) []string {
+	baseDirs := make([]string, 0, len(paths))
+	pathQueue := make(chan string)
+	baseDirQueue := make(chan string, len(paths))
+	workerCount := minInt(len(paths), runtime.GOMAXPROCS(0)*4)
+	var workers sync.WaitGroup
+	for range workerCount {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for path := range pathQueue {
+				var location Location
+				if err := store().ReadJSON(path, &location); err == nil && location.BaseDir != "" {
+					baseDirQueue <- location.BaseDir
+				}
+			}
+		}()
+	}
+	for _, path := range paths {
+		pathQueue <- path
+	}
+	close(pathQueue)
+	workers.Wait()
+	close(baseDirQueue)
+	for baseDir := range baseDirQueue {
+		baseDirs = append(baseDirs, baseDir)
+	}
+	return baseDirs
+}
+
+func minInt(left, right int) int {
+	if left < right {
+		return left
+	}
+	return right
 }

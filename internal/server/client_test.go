@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestSendRequest(t *testing.T) {
@@ -82,6 +83,40 @@ func TestSendRequestReturnsInvalidResponseError(t *testing.T) {
 
 	if _, err := SendRequest(baseDir, Request{Op: OpPing}); err == nil {
 		t.Fatal("SendRequest() accepted an invalid response")
+	}
+}
+
+func TestSendRequestTimesOutWhenServerDoesNotRespond(t *testing.T) {
+	baseDir := t.TempDir()
+	listener, err := net.Listen("unix", SocketPath(baseDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	serverDone := make(chan struct{})
+	go func() {
+		connection, err := listener.Accept()
+		if err == nil {
+			defer connection.Close()
+			<-serverDone
+		}
+	}()
+	defer close(serverDone)
+
+	result := make(chan error, 1)
+	go func() {
+		_, err := SendRequest(baseDir, Request{Op: OpPing})
+		result <- err
+	}()
+
+	select {
+	case err := <-result:
+		if err == nil {
+			t.Fatal("SendRequest() returned nil error without a response")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("SendRequest() did not time out")
 	}
 }
 

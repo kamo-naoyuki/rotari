@@ -196,6 +196,10 @@ func cmdCopy(args []string) int {
 		printError(err)
 		return 1
 	}
+	if err := registerBasedir(baseDir); err != nil {
+		printErrorf("failed to register state directory: %v", err)
+		return 1
+	}
 	if !*quiet {
 		fmt.Println(colorKeyValueMessage(message, green))
 	}

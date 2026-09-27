@@ -138,6 +138,41 @@ faster. It also fits rotari's rule that durable behavior belongs in files. See
 The short socket location for long base directories, the first step of this
 plan, is done (`internal/server/socket.go`).
 
+### Registry indexing without SQLite
+
+Do not introduce SQLite for registry metadata. Keep the filesystem as the
+authoritative store and add a separate basedir registry for discovery. The
+current run registry is keyed by run ID (`master/runs/<run-id>.json`), which
+keeps direct run lookup cheap but makes `show` scan every historical run just
+to discover distinct basedirs.
+
+The basedir registry should be a one-entry-per-basedir filesystem index under
+the master directory. Register a basedir when a command creates or adopts
+state there, including queue/project creation, run creation, import, and
+copy. Registration must be idempotent. Read-only commands such as `show` and
+`jobs` must not create registry entries as a side effect.
+
+Use the basedir registry for basedir discovery, especially bare `show` and
+`show --basedirs`. Keep the run registry as the authoritative run-ID lookup
+for `show --run-id`, `wait`, retry, and other commands that resolve a
+specific run. Registering a run should also register its basedir; deleting a
+run should remove only its run-registry entry and must not remove the
+basedir entry, because queues, projects, or other runs may still use it.
+
+Do not add basedir-registry cleanup to the first implementation. A stale
+basedir entry is harmless: discovery can skip it after a failed existence
+check. The existing run-registry GC remains responsible for orphan run
+entries, whose stale records can interfere with run-ID resolution. A separate
+basedir GC can be considered later if stale discovery entries become a
+measured problem, but it must not delete state directories.
+
+Keep the run files, project state, and logs as the source of truth. The
+basedir registry is only a discovery index and must be rebuildable or safely
+discardable without losing job or run data. Add migration/backfill for
+existing basedirs before relying on the new index, and retain a deliberate
+fallback or explicit repair path for installations created by older
+versions.
+
 ### Machine-checked guardrails for coding agents
 
 Rules that live only in prose (AGENTS.md, the contracts) are easy for a coding
