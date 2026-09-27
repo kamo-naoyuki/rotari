@@ -37,7 +37,7 @@ func TestCLIAndWebAgreeOnJobResults(t *testing.T) {
 	jobRows := parseTable(t, e.mustRotari("jobs", run.project, "--format", "%a %s %f").stdout)
 
 	// Web API: the same run's jobs.
-	webJobs := loadWebJobs(t, e, e.startWeb(), run)
+	webJobs := loadWebJobs(t, e, e.startWeb(), run.project, run.runID)
 
 	if len(shown.Summary.Results) != 2 {
 		t.Fatalf("show --json lists %d results, want 2", len(shown.Summary.Results))
@@ -149,12 +149,15 @@ type webJob struct {
 	ID        string `json:"id"`
 	AttemptID string `json:"attempt_id"`
 	Result    *struct {
-		ExitCode int `json:"exit_code"`
+		ExitCode int    `json:"exit_code"`
+		Error    string `json:"error"`
 	} `json:"result"`
 	FinishedAt string `json:"finished_at"`
 }
 
-func loadWebJobs(t *testing.T, e *env, base string, run finishedRun) map[string]webJob {
+// loadWebJobs returns the jobs of project's run runID in the Web API state,
+// keyed by job ID.
+func loadWebJobs(t *testing.T, e *env, base, project, runID string) map[string]webJob {
 	t.Helper()
 	got := e.httpGet(base + "/api/state")
 	if got.status != 200 {
@@ -173,12 +176,12 @@ func loadWebJobs(t *testing.T, e *env, base string, run finishedRun) map[string]
 		t.Fatal(err)
 	}
 	jobs := map[string]webJob{}
-	for _, project := range state.Projects {
-		if project.ProjectName != run.project {
+	for _, listed := range state.Projects {
+		if listed.ProjectName != project {
 			continue
 		}
-		for _, webRun := range project.Runs {
-			if webRun.RunID != run.runID {
+		for _, webRun := range listed.Runs {
+			if webRun.RunID != runID {
 				continue
 			}
 			for _, job := range webRun.Jobs {
@@ -187,7 +190,7 @@ func loadWebJobs(t *testing.T, e *env, base string, run finishedRun) map[string]
 		}
 	}
 	if len(jobs) == 0 {
-		t.Fatalf("Web API state has no jobs for run %s", run.runID)
+		t.Fatalf("Web API state has no jobs for run %s", runID)
 	}
 	return jobs
 }

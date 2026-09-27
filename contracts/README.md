@@ -130,7 +130,7 @@ the IDs, this table, and those calls disagree.
 | DUR-2 | The wrapper records status independently of its launcher | pending | - |
 | DUR-3 | An orphaned local job still records its own status | pending | - |
 | DUR-4 | Supervisors are not restarted; crash detection is file-backed | pending | - |
-| DUR-5 | `show`, `jobs`, reports, and the Web UI share one status fallback chain | partial | `TestCLIAndWebAgreeOnJobResults` |
+| DUR-5 | `show`, `jobs`, reports, and the Web UI share one status fallback chain | deviation | `TestCLIAndWebAgreeOnJobResults`, `TestStatusFallbackChainAgreesAcrossViews` |
 | DUR-6 | Recovery does not kill or reconcile leftover jobs | pending | - |
 | CAN-1 | A whole-run cancel stops every running job of the run, from any caller | conformance | `TestWholeRunCancelFinishesRun` |
 | CAN-2 | A cancelled run finishes with a summary and leaves the project idle, not interrupted | conformance | `TestWholeRunCancelFinishesRun` |

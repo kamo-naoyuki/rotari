@@ -14,7 +14,6 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
-	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
 
 func TestFormatDisplayTimestampUsesLocalZone(t *testing.T) {
@@ -1368,71 +1367,6 @@ func TestCmdShowBaseDirsListsMasterRegistryEntries(t *testing.T) {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("cmdShow --basedirs output does not contain %q:\n%s", want, output)
 		}
-	}
-}
-
-func TestShowAndWebShareStatusFallbackChain(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	runID := makeRunID()
-	runDir := filepath.Join(paths.RunsDir, runID)
-	queue := model.Queue{Commands: []model.QueuedCommand{
-		{ID: "job-a", Command: []string{"true"}},
-		{ID: "job-b", Command: []string{"true"}, Executor: "slurm"},
-		{ID: "job-c", Command: []string{"true"}, DependsOn: []string{"job-a"}},
-	}}
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
-		t.Fatal(err)
-	}
-	// job-a: the attempt's status file wins over a disagreeing summary result.
-	if err := os.MkdirAll(filepath.Join(runDir, "job-a"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(runDir, "job-a", "status"), []byte("3\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	// job-b: a still-running wrapper falls back to the terminal scheduler state.
-	if err := writeJSON(filepath.Join(runDir, "job-b", "status.json"), executor.WrapperStatus{Phase: "running"}); err != nil {
-		t.Fatal(err)
-	}
-	writeSchedulerStatus(filepath.Join(runDir, "job-b"), "FAILED")
-	// job-c: no attempt directory, so the summary result decides.
-	summary := model.RunSummary{RunID: runID, Status: "failed", ExitCode: 1, Results: []model.JobResult{
-		{ID: "job-a", ExitCode: 0},
-		{ID: "job-c", ExitCode: 1, Error: "blocked by failed dependency"},
-	}}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), summary); err != nil {
-		t.Fatal(err)
-	}
-
-	var runOutput bytes.Buffer
-	code := captureShowStdout(t, &runOutput, func() int { return showRun(paths, runID, showJobFilter{}) })
-	if code != 0 || !strings.Contains(runOutput.String(), "Job status: success: 0, failed: 2, blocked: 1, running: 0, pending: 0") {
-		t.Fatalf("showRun code=%d output=%q", code, runOutput.String())
-	}
-	var jobOutput bytes.Buffer
-	if code := showJob(&jobOutput, paths, runID, "job-b"); code != 0 || !strings.Contains(jobOutput.String(), "failed (exit code 1)") {
-		t.Fatalf("showJob code=%d output=%q", code, jobOutput.String())
-	}
-
-	jobs, err := webprojection.LoadRunJobs(jsonStore(), runDir, summary, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := map[string]int{"job-a": 3, "job-b": 1, "job-c": 1}
-	for _, job := range jobs {
-		if job.Result == nil || job.Result.ExitCode != want[job.ID] {
-			t.Fatalf("web job %s result = %#v, want exit code %d", job.ID, job.Result, want[job.ID])
-		}
-		if job.ID == "job-c" && !strings.HasPrefix(job.Result.Error, "blocked") {
-			t.Fatalf("web job-c result = %#v, want blocked summary result", job.Result)
-		}
-	}
-	if len(jobs) != len(want) {
-		t.Fatalf("web jobs = %#v, want %d jobs", jobs, len(want))
 	}
 }
 
