@@ -32,7 +32,7 @@ Representative implementation and tests:
 The per-command view of these rules, with job selectors, is in
 [06-selectors.md](06-selectors.md).
 
-Without a run-location lookup, base directories resolve in this order:
+**RES-1** Without a run-location lookup, base directories resolve in this order:
 
 1. `--basedir`
 2. `ROTARI_BASEDIR`
@@ -40,21 +40,21 @@ Without a run-location lookup, base directories resolve in this order:
 4. `$XDG_STATE_HOME/rotari`
 5. `~/.local/state/rotari`
 
-- Projects resolve from `--project-name`, then `ROTARI_PROJECT_NAME`, then the
+- **RES-2** Projects resolve from `--project-name`, then `ROTARI_PROJECT_NAME`, then the
   only project in the resolved base directory. With no projects the name is
   `default`; multiple projects require an explicit choice. The bare `show`
   command lists projects across known basedirs instead of resolving one.
-- Commands that read or edit a project fail with `project "x" does not exist`
+- **RES-3** Commands that read or edit a project fail with `project "x" does not exist`
   when the resolved project has no directory (`resolve.RequireProject`, applied
   by `resolve.ExistingRun`, `resolve.ProjectNames`, and the commands that
   resolve a project directly). Only commands that create projects, `add` and
   `import`, accept a new one.
-- `check` and `reset` accept one optional positional project name as an
+- **RES-4** `check` and `reset` accept one optional positional project name as an
   alternative to `--project-name`; supplying both is a usage error.
-- `jobs` also accepts one optional positional project name to filter the
+- **RES-5** `jobs` also accepts one optional positional project name to filter the
   selected basedir's projects; it takes precedence over environment and config
   defaults, and cannot be combined with an explicit `--project-name`.
-- `export` accepts one positional copy target and an optional output file
+- **RES-6** `export` accepts one positional copy target and an optional output file
   (`export TARGET [FILE]`). The target names a project or saved run ID. When
   both a project and a run must be named explicitly, `--project-name` names
   the project and the positional target names the run. `--run-id` may still be
@@ -62,27 +62,27 @@ Without a run-location lookup, base directories resolve in this order:
   `resolve.IsRunID` and `resolve.ExistingRun` in
   [internal/resolve/resolve.go](../../internal/resolve/resolve.go), covered by
   [cmd/rotari/export_test.go](../../cmd/rotari/export_test.go).
-- `unlock` likewise accepts one optional positional project name. It derives
+- **RES-7** `unlock` likewise accepts one optional positional project name. It derives
   the run ID from that project's `running.lock`, or from interrupted metadata
   when the lock is already absent; `--run-id` optionally verifies the result.
-- `show --basedirs` lists state directories known to the run and live-server
+- **RES-8** `show --basedirs` lists state directories known to the run and live-server
   registries under the resolved master directory; this discovery is not
   exhaustive.
-- Project names and job IDs are single path elements, never relative or
+- **RES-9** Project names and job IDs are single path elements, never relative or
   absolute paths.
-- Empty values, `.`, `..`, absolute paths, and values containing `/` or `\`
+- **RES-10** Empty values, `.`, `..`, absolute paths, and values containing `/` or `\`
   are rejected before filesystem access. This applies to `state.ResolveProjectPaths` and
   `jobcontrol.Controller.CancelJobs`, including requests from remote callers.
   [conformance/paths_test.go](../../conformance/paths_test.go) checks this
   through the built binary and the Web API.
-- Persisted timestamps use UTC RFC3339. Human-readable CLI and web views use the
+- **RES-11** Persisted timestamps use UTC RFC3339. Human-readable CLI and web views use the
   IANA timezone from `TZ` when valid, otherwise Go's local timezone, through
   `time.Local` in `model.FormatDisplayTimestamp`
   ([internal/model/time.go](../../internal/model/time.go)) and
   `joblist.FormatTimestamp`. Covered by
   [conformance/status_test.go](../../conformance/status_test.go)
   (`TestDisplayTimesFollowTZ`).
-- A supplied `--run-id` is exact, except that the reserved value `latest`
+- **RES-12** A supplied `--run-id` is exact, except that the reserved value `latest`
   selects the latest saved run using the normal metadata/newest-directory
   fallback, through `resolve.ExistingRunID`. `latest` is accepted wherever a
   run is given, as `--run-id` or positionally; the exceptions are `unlock`,
@@ -92,18 +92,18 @@ Without a run-location lookup, base directories resolve in this order:
   matrix named `latest` (`model.ValidateReservedName`); existing ones keep
   working through options. Existing-run commands use the master registry for
   its base directory and project.
-- A run ID or attempt ID alone resolves the base directory, project, and run
+- **RES-13** A run ID or attempt ID alone resolves the base directory, project, and run
   in every command that takes one; see "Complete IDs" in
   [06-selectors.md](06-selectors.md).
-- Explicit location options take priority, but conflicts with the registry fail.
+- **RES-14** Explicit location options take priority, but conflicts with the registry fail.
   An unregistered run uses normal resolution for compatibility, while a missing
   explicit run is an error with no latest fallback.
-- Without `--run-id`, history consumers use `meta.json` `last_run_id`, then the
+- **RES-15** Without `--run-id`, history consumers use `meta.json` `last_run_id`, then the
   newest run directory where supported. `show` may prefer an active run,
   an interrupted run, or a non-empty idle queue before history, and `export`
   picks a non-empty queue before the latest run; see
   [06-selectors.md](06-selectors.md) for the options that skip the queue.
-- `wait` without a selector scans the resolved basedir's projects and waits
+- **RES-16** `wait` without a selector scans the resolved basedir's projects and waits
   when exactly one active `running.lock` exists; multiple active projects are
   listed for explicit selection, and no active project is an error. A positional
   selector is resolved in this order: `latest`, a project name, a run name,
@@ -112,10 +112,10 @@ Without a run-location lookup, base directories resolve in this order:
   does, so a run that ends before `wait` starts is not an error; a run name
   whose latest runs are in several projects is ambiguous.
   An explicit `--run-id` bypasses this selector resolution.
-- Run lookup applies to history commands (`show`, `wait`, `copy`, `change`,
+- **RES-17** Run lookup applies to history commands (`show`, `wait`, `copy`, `change`,
   `remove`, `delete`, and rerun selection), not state-creating commands such as
   `add` or a plain new `run`.
-- `cancel`, `suspend`, and `resume` merge positional selectors with repeated
+- **RES-18** `cancel`, `suspend`, and `resume` merge positional selectors with repeated
   `--job-id/-j` (mutually exclusive with each other) and accept plain job IDs,
   `att_` attempt IDs, and a bare run ID in the same list. A bare run ID
   locates the target run through the run registry; it is stripped before the
@@ -125,15 +125,15 @@ Without a run-location lookup, base directories resolve in this order:
   is an error, never a request for the active one. Mixing IDs that resolve to
   different runs is rejected. See "Job control" in
   [06-selectors.md](06-selectors.md).
-- Multiple run IDs passed to `wait` are resolved independently, so one command
+- **RES-19** Multiple run IDs passed to `wait` are resolved independently, so one command
   may wait for runs from different projects or base directories.
-- Shell completion follows the same location rules with narrower candidates:
+- **RES-20** Shell completion follows the same location rules with narrower candidates:
   `project-name` lists project directories, `run-id` lists saved runs, and
   `job-id` lists queue and saved-run job IDs according to the selected run.
   Completion generation is implemented for Bash, Zsh, and Fish, and
   `rotari completion install` writes the appropriate shell-specific script for
   the detected or requested shell.
-- Missing state directories produce no completion candidates instead of a shell
+- **RES-21** Missing state directories produce no completion candidates instead of a shell
   error.
 
 ## Configuration files

@@ -130,23 +130,20 @@ agent to break without noticing, and most `cmd/rotari` tests import
 that should be protecting it. Turn the rules into checks, cheapest and most
 immediately useful first. Each step stands alone and can stop there.
 
-1. **Contract IDs and a status table.** Give each invariant in
-   [docs/contracts/](docs/contracts/) an ID, name conformance subtests after
-   it, and keep a table in [docs/CONTRACTS.md](docs/CONTRACTS.md) of which
-   IDs are covered, untested, or known deviations, as Dagu's `specs/` and
-   `conformance/` do. A test fails when an ID has neither a test nor an
-   `untested` mark. Base the ID scheme on the tests in `conformance/`.
-2. **Widen conformance coverage.** In order: the Web API routes the pilot
-   leaves out of the path test because a valid request needs more setup
+1. **Widen conformance coverage.** Move `partial` and `pending` rows in the
+   "Contract status" table of [docs/CONTRACTS.md](docs/CONTRACTS.md) toward
+   `conformance`, giving rules in sections without IDs an ID as they gain a
+   test. In order: the Web API routes the pilot leaves out of the path test
+   because a valid request needs more setup
    (`/api/cancel-job`, `/api/suspend-job`, `/api/resume-job`,
    `/api/cancel-run` with an active run; `/api/change` and `/api/remove` with
    a queued job; `/api/save-config` and `/api/generate-config` with a config
    file), with `cancel`, `run`, and `reset` on the CLI side; the selector
-   table in [docs/contracts/06-selectors.md](docs/contracts/06-selectors.md) through
-   the binary; the run lifecycle (failure then filtered rerun, cancel, two
+   table in [docs/contracts/06-selectors.md](docs/contracts/06-selectors.md)
+   through the binary; the run lifecycle (failure then filtered rerun, cancel, two
    concurrent `run`s on one base directory); recovery after the runner is
    killed with SIGKILL.
-3. **Golden output files.** Golden files with an `-update` flag for `--help`,
+2. **Golden output files.** Golden files with an `-update` flag for `--help`,
    `schema --json`, and representative `show --json` output, so an
    unintended output change shows up as a diff. None exist today.
 
@@ -154,10 +151,11 @@ Done so far: the package boundary test
 ([internal/archtest](internal/archtest/boundaries_test.go)), the
 documentation link test
 ([internal/doclinks](internal/doclinks/links_test.go)), one local check
-command ([scripts/check.sh](scripts/check.sh)), and the conformance pilot
-([conformance/](conformance/)). The pilot checks the path element
-rules through the CLI and the Web API and that `show --json`, `jobs`, and the
-Web API agree on a finished run. It keeps a hand-written harness rather than
+command ([scripts/check.sh](scripts/check.sh)), the conformance pilot
+([conformance/](conformance/)), and contract IDs with a status table that
+`TestContractStatus` keeps in agreement with the tests' `covers` calls. The
+pilot checks the path element rules through the CLI and the Web API and that
+`show --json`, `jobs`, and the Web API agree on a finished run. It keeps a hand-written harness rather than
 `testscript`: the Web API checks and JSON comparisons need Go code either way,
 and the harness adds no dependency.
 

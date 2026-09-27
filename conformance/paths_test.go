@@ -8,11 +8,12 @@ import (
 	"testing"
 )
 
-// Contract: project names, run IDs, and job IDs are single path elements.
+// Contracts RES-9 and RES-10: project names, run IDs, and job IDs are single
+// path elements.
 // Empty values, ".", "..", and values containing "/" or "\" are rejected
 // before filesystem access, by the CLI and by the Web API alike.
-// See docs/contracts/01-resolution-and-config.md ("Resolution rules") and
-// the path invariants in AGENTS.md.
+// See docs/contracts/01-resolution-and-config.md and the path invariants in
+// AGENTS.md.
 //
 // Each command or route is checked the same way: it fails for every unsafe
 // value, nothing named after an unsafe value appears on disk, and it then
@@ -32,6 +33,7 @@ func unsafeValues(valid, parent string) []string {
 }
 
 func TestCLIRejectsUnsafePathElements(t *testing.T) {
+	covers(t, "RES-9", "RES-10")
 	e := newEnv(t)
 	run := e.createFinishedRun()
 
@@ -100,6 +102,7 @@ func (route webRoute) send(e *env, base string, values map[string]string) httpRe
 }
 
 func TestWebAPIRejectsUnsafePathElements(t *testing.T) {
+	covers(t, "RES-9", "RES-10")
 	e := newEnv(t)
 	run := e.createFinishedRun()
 	base := e.startWeb()

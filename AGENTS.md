@@ -131,7 +131,11 @@ Tests should reflect the intended behavior.
 `conformance/` checks contracts through the built binary and the Web API. A
 refactoring must leave it passing without edits; change it only when a
 contract itself changes, and run `go test ./conformance` for changes in the
-areas listed under "Before changing code".
+areas listed under "Before changing code". Contract rules carry IDs such as
+`RES-10`; a conformance test names the IDs it checks with `covers(t, "ID")`,
+and the "Contract status" table in `docs/CONTRACTS.md` must agree with those
+calls. When a test starts checking a rule, update the rule's row, giving the
+rule an ID first if it has none.
 
 If tests cannot be run, report that explicitly and explain why.
 

@@ -69,3 +69,64 @@ changed.
   changes. The user-facing entry points are [`README.md`](../README.md), the
   user guides it links to under `docs/`, and [`docs/FAQ.md`](FAQ.md); keep the relevant package tests alongside the
   implementation change.
+
+## Contract status
+
+A rule in [docs/contracts](contracts/) gets an ID by starting with
+`**PREFIX-N**`. The prefix names the section that defines it:
+
+| Prefix | Section |
+| --- | --- |
+| `CORE` | "Core design contracts" in [contracts/00-overview.md](contracts/00-overview.md#core-design-contracts) |
+| `RES` | "Resolution rules" in [contracts/01-resolution-and-config.md](contracts/01-resolution-and-config.md#resolution-rules) |
+| `DUR` | "Job execution durability" in [contracts/04-coordination-and-safety.md](contracts/04-coordination-and-safety.md#job-execution-durability) |
+
+Other sections have no IDs yet; give a rule one, with the next free number,
+when a conformance test starts checking it. Never renumber or reuse an ID;
+when a rule is removed, remove its row.
+
+Each ID has one row below. A status is `conformance` when the listed tests in
+[conformance/](../conformance/) check the whole rule, `partial` when they check
+part of it, `pending` when no conformance test checks it yet (package tests
+may), and `deviation` when rotari knowingly breaks it, with an
+[ISSUES.md](../ISSUES.md) entry naming the ID. A test declares what it checks
+with `covers(t, "ID")`, and `TestContractStatus` in
+[conformance/contracts_test.go](../conformance/contracts_test.go) fails when
+the IDs, this table, and those calls disagree.
+
+| ID | Rule | Status | Conformance tests |
+| --- | --- | --- | --- |
+| CORE-1 | The filesystem is the source of truth; registries and memory are recoverable indexes | pending | - |
+| CORE-2 | The supervisor coordinates but is not the authority for project or run state | pending | - |
+| CORE-3 | One mutable queue per project, edited only while idle and snapshotted by a run | pending | - |
+| CORE-4 | Idle projects are queue-first; running and interrupted projects are run-first | pending | - |
+| CORE-5 | At most one active run and runner per project | pending | - |
+| CORE-6 | Completed runs are immutable; reruns change only their destination run | pending | - |
+| CORE-7 | Executors run jobs; run semantics stay in the shared execution path | pending | - |
+| RES-1 | Base directory resolution order | pending | - |
+| RES-2 | Project resolution order and the single-project default | pending | - |
+| RES-3 | Reading or editing a missing project fails; only `add` and `import` create one | pending | - |
+| RES-4 | `check` and `reset` take an optional positional project | pending | - |
+| RES-5 | `jobs` takes an optional positional project that overrides defaults | pending | - |
+| RES-6 | `export TARGET [FILE]` names a project or saved run | pending | - |
+| RES-7 | `unlock` derives the run from the lock or interrupted metadata | pending | - |
+| RES-8 | `show --basedirs` lists registered state directories | pending | - |
+| RES-9 | Project names and job IDs are single path elements | partial | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
+| RES-10 | Unsafe path elements are rejected before filesystem access, locally and remotely | partial | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
+| RES-11 | Stored times are UTC RFC3339; displayed times follow `TZ` | partial | `TestDisplayTimesFollowTZ` |
+| RES-12 | `--run-id` is exact except the reserved `latest` | pending | - |
+| RES-13 | A run ID or attempt ID alone resolves base directory, project, and run | pending | - |
+| RES-14 | Explicit location options win; conflicts with the registry fail | pending | - |
+| RES-15 | History consumers fall back to `last_run_id`, then the newest run | pending | - |
+| RES-16 | `wait` selector resolution and single-active-project scan | pending | - |
+| RES-17 | Run lookup applies to history commands only | pending | - |
+| RES-18 | `cancel`, `suspend`, and `resume` merge selectors and require the active run | pending | - |
+| RES-19 | `wait` resolves multiple run IDs independently | pending | - |
+| RES-20 | Shell completion follows the location rules | pending | - |
+| RES-21 | Missing state directories give no completion candidates | pending | - |
+| DUR-1 | Every executor runs jobs through the self-reporting wrapper | pending | - |
+| DUR-2 | The wrapper records status independently of its launcher | pending | - |
+| DUR-3 | An orphaned local job still records its own status | pending | - |
+| DUR-4 | Supervisors are not restarted; crash detection is file-backed | pending | - |
+| DUR-5 | `show`, `jobs`, reports, and the Web UI share one status fallback chain | partial | `TestCLIAndWebAgreeOnJobResults` |
+| DUR-6 | Recovery does not kill or reconcile leftover jobs | pending | - |

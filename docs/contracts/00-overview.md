@@ -93,14 +93,14 @@ The following rules govern the current CLI, server, web, and executor design.
 An intentional change to one is an architectural change: update this document,
 the user-facing documentation, and the affected tests together.
 
-- The filesystem is the source of truth. Registries and in-memory state are
+- **CORE-1** The filesystem is the source of truth. Registries and in-memory state are
   indexes or coordination aids and must be recoverable from persisted files.
   See [`internal/state/store.go`](../../internal/state/store.go) and
   [`internal/state/store_test.go`](../../internal/state/store_test.go).
-- The server coordinates access and execution; it is not persistent authority
+- **CORE-2** The server coordinates access and execution; it is not persistent authority
   for project or run state. See [`cmd/rotari/server.go`](../../cmd/rotari/server.go)
   and [`cmd/rotari/server_test.go`](../../cmd/rotari/server_test.go).
-- Each project owns one mutable current queue as the staging area for the next
+- **CORE-3** Each project owns one mutable current queue as the staging area for the next
   run. Queue edits change that queue only while the project is idle. A run that
   starts snapshots the queue; the queue remains on disk as a preserved snapshot
   while the run is active, and it stays as the retained recovery snapshot after
@@ -109,22 +109,22 @@ the user-facing documentation, and the affected tests together.
   [`internal/project/edit.go`](../../internal/project/edit.go),
   [`cmd/rotari/reset.go`](../../cmd/rotari/reset.go), and
   [`internal/project/edit_test.go`](../../internal/project/edit_test.go).
-- The primary user-facing target depends on project state: `idle` projects show
+- **CORE-4** The primary user-facing target depends on project state: `idle` projects show
   the queue as the active work target, while a `running` or `interrupted` project
   treats the associated run as the primary subject and the queue as the retained
   snapshot or recovery context. In other words, the contract is: `idle` =
   queue-first, `running`/`interrupted` = run-first. This keeps run state and
   queue semantics consistent across CLI, Web, and recovery flows.
-- A project has at most one active run and runner at a time. That runner may
+- **CORE-5** A project has at most one active run and runner at a time. That runner may
   execute multiple jobs concurrently, while different projects can run
   independently. See [`internal/project/inspect.go`](../../internal/project/inspect.go)
   and [`internal/project/inspect_test.go`](../../internal/project/inspect_test.go).
-- Completed runs are immutable history. Retries, filtered runs, and
+- **CORE-6** Completed runs are immutable history. Retries, filtered runs, and
   carry-forward create or modify only a new destination run, never their source
   run. See [`internal/run/rerun.go`](../../internal/run/rerun.go),
   [`internal/queueedit/copy.go`](../../internal/queueedit/copy.go), and
   [`cmd/rotari/run_selection_test.go`](../../cmd/rotari/run_selection_test.go).
-- Executors implement job execution and scheduler integration, not run
+- **CORE-7** Executors implement job execution and scheduler integration, not run
   semantics. Run planning, dependency handling, carry-forward, and summary
   finalization belong to rotari's shared execution path. See
   [`internal/projectrun/execute.go`](../../internal/projectrun/execute.go),

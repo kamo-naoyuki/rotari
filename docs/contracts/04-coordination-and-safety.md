@@ -18,20 +18,20 @@ Representative implementation and tests:
 
 ## Job execution durability
 
-- Every executor runs the command through a self-reporting wrapper that writes
+- **DUR-1** Every executor runs the command through a self-reporting wrapper that writes
   `<job-id>/status.json` with phase, exit code, and hosts. See
   [`internal/executor/wrapper.go`](../../internal/executor/wrapper.go) and
   [`cmd/rotari/job_executor_test.go`](../../cmd/rotari/job_executor_test.go).
-- The wrapper records status independently of the process that launched it, so
+- **DUR-2** The wrapper records status independently of the process that launched it, so
   scheduler accounting lag cannot hide the result.
-- The local executor uses the same wrapper. If the coordinating server or async
+- **DUR-3** The local executor uses the same wrapper. If the coordinating server or async
   worker is killed, the orphaned local job can finish and record its own status
   instead of leaving no result.
-- Detached supervisors are not automatically restarted. Crash detection is
+- **DUR-4** Detached supervisors are not automatically restarted. Crash detection is
   file-backed: the run lock records the supervisor PID and host, and readers
   inspect per-job status files and missing summaries to report an active or
   interrupted run. Recovery remains an explicit operator action.
-- Readers consume this state through one fallback chain: the attempt's
+- **DUR-5** Readers consume this state through one fallback chain: the attempt's
   `status`, then a terminal `status.json`, then a terminal
   `scheduler_status.json`, and finally the run's `summary.json` result. A
   summary result still supplies acceptance, blocked state, hosts, and diagnoses
@@ -48,7 +48,7 @@ Representative implementation and tests:
   `TestShowAndWebShareStatusFallbackChain` and
   `TestShowJobOlderAttemptIgnoresLatestSummary` in
   [`cmd/rotari/show_test.go`](../../cmd/rotari/show_test.go).
-- This does not kill or reconcile leftover jobs during recovery; `reset
+- **DUR-6** This does not kill or reconcile leftover jobs during recovery; `reset
   --recover` and `unlock` still require the operator to confirm that jobs have
   stopped.
 

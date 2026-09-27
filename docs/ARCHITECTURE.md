@@ -214,7 +214,7 @@ are checked against this graph by
 | [internal/diagnose](../internal/diagnose/) | Rule-based and provider-backed failure diagnosis. | `analysis.go` |
 | [internal/archtest](../internal/archtest/) | Tests only: the package boundary rules checked against the import graph. | `boundaries_test.go` |
 | [internal/doclinks](../internal/doclinks/) | Tests only: relative links and `#anchor` links in the root Markdown files and `docs/`. | `links_test.go` |
-| [conformance](../conformance/) | Tests only: contract checks against the built binary and the Web API, importing only the standard library. | `harness_test.go`, `paths_test.go`, `status_test.go` |
+| [conformance](../conformance/) | Tests only: contract checks against the built binary and the Web API, importing only the standard library. | `harness_test.go`, `contracts_test.go`, `paths_test.go`, `status_test.go` |
 
 Many `internal` functions take callbacks or hook fields
 (`projectrun.Runner`, `run.BatchLaneCallbacks`, `run.OriginResults`, `server.Operations`). This is

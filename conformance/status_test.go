@@ -8,12 +8,14 @@ import (
 	"time"
 )
 
-// Contract: the CLI and the Web UI resolve a job's result and times through
-// the same fallback chain, so they never disagree about a job.
-// See docs/CONTRACTS.md ("Cross-cutting rules to keep in sync") and the
-// status invariant in AGENTS.md.
+// Contract DUR-5: the CLI and the Web UI resolve a job's result and times
+// through the same fallback chain, so they never disagree about a job. See
+// docs/contracts/04-coordination-and-safety.md and the status invariant in
+// AGENTS.md. This test checks a finished run, where the summary decides; the
+// attempt-file fallbacks are not covered yet.
 
 func TestCLIAndWebAgreeOnJobResults(t *testing.T) {
+	covers(t, "DUR-5")
 	e := newEnv(t)
 	run := e.createFinishedRun()
 
@@ -72,11 +74,13 @@ func TestCLIAndWebAgreeOnJobResults(t *testing.T) {
 	}
 }
 
-// Contract: persisted timestamps are UTC RFC3339; human-readable CLI and Web
-// views use the IANA zone from TZ when valid, otherwise the local zone.
-// See docs/contracts/01-resolution-and-config.md ("Resolution rules").
+// Contract RES-11: persisted timestamps are UTC RFC3339; human-readable CLI
+// and Web views use the IANA zone from TZ when valid, otherwise the local
+// zone. See docs/contracts/01-resolution-and-config.md. An invalid or unset
+// TZ is not covered yet.
 
 func TestDisplayTimesFollowTZ(t *testing.T) {
+	covers(t, "RES-11")
 	e := newEnv(t)
 	run := e.createFinishedRun()
 
