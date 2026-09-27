@@ -36,3 +36,26 @@ func assertManifest(t *testing.T, path string) {
 		t.Fatalf("export wrote an empty manifest: %s", path)
 	}
 }
+
+func TestUnlockDerivesInterruptedRun(t *testing.T) {
+	covers(t, "RES-7")
+	for _, removeLock := range []bool{false, true} {
+		removeLock := removeLock
+		t.Run(map[bool]string{false: "lock", true: "metadata"}[removeLock], func(t *testing.T) {
+			e := support.NewEnv(t)
+			e.StartRun("unlock", 1, false)
+			support.KillStrays(t, e.Root)
+			support.WaitForInterrupted(t, e, "unlock")
+			if removeLock {
+				lockPath := filepath.Join(e.Base, "projects", "unlock", "running.lock")
+				if err := os.Remove(lockPath); err != nil {
+					t.Fatal(err)
+				}
+			}
+			e.MustRotari("unlock", "unlock")
+			if state := e.CheckState("unlock"); state != "ready" {
+				t.Fatalf("after unlock: state %q", state)
+			}
+		})
+	}
+}
