@@ -134,7 +134,7 @@ the IDs, this table, and those calls disagree.
 | RES-15 | History consumers fall back to `last_run_id`, then the newest run | conformance | `TestHistoryUsesLastRunThenNewestRun` |
 | RES-16 | `wait` selector resolution and single-active-project scan | partial | `TestWaitResolvesActiveAndFinishedSelectors` |
 | RES-17 | Run lookup applies to history commands only | partial | `TestStateCreatingCommandsDoNotResolveRunIDs` |
-| RES-18 | `cancel`, `suspend`, and `resume` merge selectors and require the active run | pending | - |
+| RES-18 | `cancel`, `suspend`, and `resume` merge selectors and require the active run | conformance | `TestJobControlSelectors` |
 | RES-19 | `wait` resolves multiple run IDs independently | conformance | `TestWaitResolvesRunIDsIndependently` |
 | RES-20 | Shell completion follows the location rules | pending | - |
 | RES-21 | Missing state directories give no completion candidates | pending | - |

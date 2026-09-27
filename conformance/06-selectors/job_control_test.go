@@ -73,7 +73,7 @@ var jobControlCases = []jobControlCase{
 }
 
 func TestJobControlSelectors(t *testing.T) {
-	covers(t, "SEL-9")
+	covers(t, "RES-18", "SEL-9")
 	for _, tc := range jobControlCases {
 		command := strings.Fields(tc.args)[0]
 		t.Run(command+"/"+tc.name, func(t *testing.T) {
