@@ -338,7 +338,6 @@ func TestExecuteMixedRunPersistsRunName(t *testing.T) {
 	}}}); err != nil {
 		t.Fatal(err)
 	}
-
 	if code := executeMixedRun(paths, "named-run", "nightly-build", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
 		t.Fatalf("executeMixedRun exit = %d, want 0", code)
 	}
