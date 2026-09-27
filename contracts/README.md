@@ -90,7 +90,8 @@ Each ID has one row below. A status is `conformance` when the listed tests in
 [conformance/](../conformance/) check the whole rule, `partial` when they check
 part of it, `pending` when no conformance test checks it yet (package tests
 may), and `deviation` when rotari knowingly breaks it, with an
-[ISSUES.md](../ISSUES.md) entry naming the ID. A test declares what it checks
+[ISSUES.md](../ISSUES.md) entry naming the ID; a test of a deviation skips
+the failing cases with `knownDeviation(t, "ID")` until the fix removes it. A test declares what it checks
 with `covers(t, "ID")`, and `TestContractStatus` in
 [conformance/contracts_test.go](../conformance/contracts_test.go) fails when
 the IDs, this table, and those calls disagree.
@@ -131,7 +132,7 @@ the IDs, this table, and those calls disagree.
 | DUR-4 | Supervisors are not restarted; crash detection is file-backed | pending | - |
 | DUR-5 | `show`, `jobs`, reports, and the Web UI share one status fallback chain | partial | `TestCLIAndWebAgreeOnJobResults` |
 | DUR-6 | Recovery does not kill or reconcile leftover jobs | pending | - |
-| CAN-1 | A whole-run cancel stops every running job of the run, from any caller | deviation | `TestWholeRunCancelFinishesRun` |
-| CAN-2 | A cancelled run finishes with a summary and leaves the project idle, not interrupted | deviation | `TestWholeRunCancelFinishesRun` |
-| CAN-3 | `cancel --wait` returns once the run has finished and exits 0 | deviation | `TestCancelWaitReturnsAfterRunFinishes` |
+| CAN-1 | A whole-run cancel stops every running job of the run, from any caller | conformance | `TestWholeRunCancelFinishesRun` |
+| CAN-2 | A cancelled run finishes with a summary and leaves the project idle, not interrupted | conformance | `TestWholeRunCancelFinishesRun` |
+| CAN-3 | `cancel --wait` returns once the run has finished and exits 0 | conformance | `TestCancelWaitReturnsAfterRunFinishes` |
 | CAN-4 | Cancelling one job stops only that job, which the run does not retry | conformance | `TestCancelJobStopsOnlyThatJob` |

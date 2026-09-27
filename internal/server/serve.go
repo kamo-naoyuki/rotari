@@ -54,6 +54,8 @@ type Server struct {
 	accessMu   sync.Mutex
 	lastAccess time.Time
 	activeRuns int
+	// handlers counts the connections Serve is handling.
+	handlers sync.WaitGroup
 }
 
 // New returns a server that accepts from listener. A nil listener is allowed
@@ -104,11 +106,18 @@ func Listen(baseDir string, fileMode os.FileMode) (net.Listener, func(), error) 
 }
 
 // Serve accepts connections from verified peers until the server stops.
+// When the stop leaves no run active, as when the last run ends, Serve first
+// lets the requests in flight finish, so a `cancel --wait` for that run gets
+// its answer before the process exits. A stop with runs still active, from a
+// signal or `server shutdown`, returns at once as before.
 func (server *Server) Serve() {
 	for {
 		conn, err := server.listener.Accept()
 		if err != nil {
 			if server.Stopped() {
+				if !server.Busy() {
+					server.handlers.Wait()
+				}
 				return
 			}
 			continue
@@ -117,7 +126,11 @@ func (server *Server) Serve() {
 			_ = conn.Close()
 			continue
 		}
-		go server.Handle(conn)
+		server.handlers.Add(1)
+		go func() {
+			defer server.handlers.Done()
+			server.Handle(conn)
+		}()
 	}
 }
 

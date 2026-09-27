@@ -298,7 +298,7 @@ cancelling the run that is active now. Without `-p`, a `JOB_ID` is looked for
 in the active run of every project.
 
 Whole-run cancel (no `--job-id/-j`) and, for `local`-executor jobs, `--job-id/-j`
-cancel/suspend/resume all signal the runner or job by PID, which only means
+cancel/suspend/resume all signal jobs by PID, which only means
 something on the host that actually runs it; run these commands from that
 host if it differs from wherever `cancel`/`suspend`/`resume` is invoked. See
 the [FAQ](FAQ.md#client-control-and-job-cancellation) for what happens

@@ -83,9 +83,10 @@ Representative implementation and tests:
 - `schedulerCommandHint` turns missing scheduler binaries into explicit errors
   and preserves scheduler stdout/stderr, including explanations for rejected
   operations on queued jobs.
-- Whole-run cancel has the same PID locality issue. `runnerHostMismatch`
-  in `internal/jobcontrol` checks `running.lock`'s host before signaling; a cross-host request fails
-  instead of reporting success while leaving the real runner untouched.
+- Whole-run cancel has the same PID locality issue: it signals the run's local
+  jobs by PID. `runnerHostMismatch` in `internal/jobcontrol` checks
+  `running.lock`'s host first; a cross-host request fails instead of reporting
+  success while leaving the run untouched.
 - Finalization rechecks that `running.lock` belongs to the finishing run while
   holding the state lock. New locks are written to a temporary file and
   published without replacing an existing lock, preventing partial JSON.

@@ -17,9 +17,19 @@ type fakeOperations struct {
 	runStart  chan struct{}
 	runFinish chan struct{}
 	startErr  error
+	// cancelStart and cancelFinish, when set, hold Cancel between them.
+	cancelStart  chan struct{}
+	cancelFinish chan struct{}
 }
 
-func (ops *fakeOperations) Cancel(Request) (string, error) { return "", errors.New("not running") }
+func (ops *fakeOperations) Cancel(Request) (string, error) {
+	if ops.cancelStart == nil {
+		return "", errors.New("not running")
+	}
+	close(ops.cancelStart)
+	<-ops.cancelFinish
+	return "cancelled", nil
+}
 
 func (ops *fakeOperations) Control(request Request) (string, error) {
 	return request.Op + " requested", nil
@@ -201,6 +211,75 @@ func TestBeginAndEndRunTrackActiveRuns(t *testing.T) {
 	}
 	if _, err := listener.Accept(); err == nil {
 		t.Fatal("stopped server left its listener open")
+	}
+}
+
+// serveWithCancelInFlight serves a Unix socket with one active run and a
+// cancel request held in Cancel, and returns the client connection and a
+// channel closed when Serve returns.
+func serveWithCancelInFlight(t *testing.T, ops *fakeOperations) (*Server, net.Conn, chan struct{}) {
+	t.Helper()
+	baseDir, err := os.MkdirTemp("", "rotari-serve-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(baseDir) })
+	listener, release, err := Listen(baseDir, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(release)
+	server := New(listener, ops, nil)
+	server.BeginRun()
+	served := make(chan struct{})
+	go func() {
+		server.Serve()
+		close(served)
+	}()
+	conn, err := net.Dial("unix", SocketPath(baseDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	if err := json.NewEncoder(conn).Encode(Request{Op: OpCancel, Wait: true}); err != nil {
+		t.Fatal(err)
+	}
+	<-ops.cancelStart
+	return server, conn, served
+}
+
+func TestServeAnswersRequestsInFlightAfterLastRunEnds(t *testing.T) {
+	ops := &fakeOperations{cancelStart: make(chan struct{}), cancelFinish: make(chan struct{})}
+	server, conn, served := serveWithCancelInFlight(t, ops)
+
+	server.EndRun()
+	select {
+	case <-served:
+		t.Fatal("Serve returned while a request was still being handled")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(ops.cancelFinish)
+	var response Response
+	if err := json.NewDecoder(conn).Decode(&response); err != nil || !response.OK || response.Message != "cancelled" {
+		t.Fatalf("response = %#v, %v; want the cancel's answer", response, err)
+	}
+	select {
+	case <-served:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve did not return after the request finished")
+	}
+}
+
+func TestServeStopWithActiveRunDoesNotWait(t *testing.T) {
+	ops := &fakeOperations{cancelStart: make(chan struct{}), cancelFinish: make(chan struct{})}
+	server, _, served := serveWithCancelInFlight(t, ops)
+	defer close(ops.cancelFinish)
+
+	server.Stop()
+	select {
+	case <-served:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve waited for requests although a run was still active")
 	}
 }
 

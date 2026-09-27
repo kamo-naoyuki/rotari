@@ -33,9 +33,6 @@ func TestWholeRunCancelFinishesRun(t *testing.T) {
 	covers(t, "CAN-1", "CAN-2")
 	for _, c := range wholeRunCancelCases {
 		t.Run(c.name, func(t *testing.T) {
-			if c.async || c.web {
-				knownDeviation(t, "CAN-1")
-			}
 			e := newEnv(t).in(t)
 			run := e.startRun("live", 2, c.async)
 			if c.web {
@@ -74,7 +71,6 @@ func TestCancelWaitReturnsAfterRunFinishes(t *testing.T) {
 			name = "async run"
 		}
 		t.Run(name, func(t *testing.T) {
-			knownDeviation(t, "CAN-3")
 			e := newEnv(t).in(t)
 			run := e.startRun("live", 1, async)
 			r := e.rotari("cancel", "-p", run.project, "--wait")

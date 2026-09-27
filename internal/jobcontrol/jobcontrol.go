@@ -2,8 +2,8 @@
 //
 // It finds the running run through the project's run lock, resolves job and
 // attempt selections against it, and signals each job through the executor
-// that owns it. It refuses to signal local processes or runner process groups
-// from a host other than the one that started them. It should not decide run
+// that owns it. It refuses to signal local processes from a host other than
+// the one that started them. It should not decide run
 // planning or finalization; a cancelled run finalizes through the normal run
 // path.
 package jobcontrol
@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
@@ -119,9 +118,8 @@ func (controller Controller) Control(baseDir, project, runID string, jobIDs []st
 // Cancel cancels the selected running jobs of project in baseDir, or its
 // whole run when jobIDs is empty. A non-empty runID must be the project's active run, and an
 // array job's ID selects its unfinished tasks. A whole-run cancel marks the
-// queue as cancelling; when this process is the runner it cancels each
-// unfinished job directly, and otherwise it signals the runner's process
-// group. With wait, it returns once the run lock is released.
+// queue as cancelling and cancels each unfinished job directly, whichever
+// process calls it. With wait, it returns once the run lock is released.
 func (controller Controller) Cancel(baseDir, project, runID string, jobIDs []string, wait bool) (string, error) {
 	paths, err := state.ResolveProjectPaths(baseDir, project)
 	if err != nil {
@@ -146,43 +144,39 @@ func (controller Controller) Cancel(baseDir, project, runID string, jobIDs []str
 	if len(jobIDs) > 0 {
 		return controller.CancelJobs(runDir, project, lock.RunID, jobIDs)
 	}
-	if err := markCancelling(paths); err != nil {
-		return "", err
-	}
-	if lock.PID == os.Getpid() {
-		// Cancel every still-running job directly through its owning
-		// executor (job.json for schedulers, pid file for local), instead of
-		// relying on an aggregate metadata file that schedulers only write
-		// once the whole run finishes -- otherwise a cancel issued mid-run
-		// never reaches an already-submitted Slurm/PBS/LSF job.
-		snapshot, err := loadCommandSnapshot(runDir)
-		if err != nil {
-			return "", err
-		}
-		targets := make([]string, 0, len(snapshot.Commands))
-		for _, job := range model.QueueToJobs(snapshot.Commands) {
-			jobDir, err := state.LatestAttemptJobDir(runDir, job.ID)
-			if err != nil {
-				return "", err
-			}
-			if controller.jobFinished(jobDir) {
-				continue
-			}
-			targets = append(targets, job.ID)
-		}
-		message, err := controller.CancelJobs(runDir, project, lock.RunID, targets)
-		if err != nil {
-			return "", err
-		}
-		return finishCancelMessage(message, paths, lock.RunID, wait)
-	}
 	if host, mismatch := runnerHostMismatch(lock); mismatch {
 		return "", fmt.Errorf("run %q is owned by host %q; run cancel from that host", lock.RunID, host)
 	}
-	if err := syscall.Kill(-lock.PID, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
-		return "", fmt.Errorf("cancel local worker: %w", err)
+	if err := markCancelling(paths); err != nil {
+		return "", err
 	}
-	return finishCancelMessage(fmt.Sprintf("Cancel requested\n  Project: %s\n  Run: %s\n  Worker PID: %d", project, lock.RunID, lock.PID), paths, lock.RunID, wait)
+	// Cancel every still-running job directly through its owning executor
+	// (job.json for schedulers, the pid file for local jobs), instead of
+	// signalling the runner. The runner, a supervisor or an async worker,
+	// then sees each job end with the project cancelling, starts nothing
+	// more, and finishes the run; a signal would stop it before it could.
+	// Doing the same from every caller also reaches scheduler jobs that an
+	// aggregate metadata file would only list once the whole run finishes.
+	snapshot, err := loadCommandSnapshot(runDir)
+	if err != nil {
+		return "", err
+	}
+	targets := make([]string, 0, len(snapshot.Commands))
+	for _, job := range model.QueueToJobs(snapshot.Commands) {
+		jobDir, err := state.LatestAttemptJobDir(runDir, job.ID)
+		if err != nil {
+			return "", err
+		}
+		if controller.jobFinished(jobDir) {
+			continue
+		}
+		targets = append(targets, job.ID)
+	}
+	message, err := controller.CancelJobs(runDir, project, lock.RunID, targets)
+	if err != nil {
+		return "", err
+	}
+	return finishCancelMessage(message, paths, lock.RunID, wait)
 }
 
 // CancelJobs cancels jobIDs in runDir through their owning executors. A job
@@ -442,10 +436,10 @@ func finishCancelMessage(message string, paths state.ProjectPaths, runID string,
 }
 
 // runnerHostMismatch reports the recorded host when a run's lock belongs to a
-// different host than this process. Whole-run cancel signals the runner's
-// process group by the PID stored in that lock; on the wrong host that PID
-// belongs to (at best) nothing, so the signal harmlessly returns ESRCH and
-// would silently report success without cancelling anything.
+// different host than this process. Whole-run cancel signals local jobs by
+// the PIDs recorded on the runner's host; on another host those PIDs belong
+// to nothing or to unrelated processes, so the cancel would report success
+// without stopping the run.
 func runnerHostMismatch(lock model.LockInfo) (recordedHost string, mismatch bool) {
 	if lock.Host == "" {
 		return "", false
