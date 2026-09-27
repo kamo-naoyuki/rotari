@@ -50,13 +50,8 @@ func (ops Operations) Run(request server.Request, progress func(server.Response)
 	paths, queue := prepared.paths, prepared.queue
 	runner := ops.Runner
 	runID := ops.NewRunID()
+	plan := prepared.plan
 	if err := runner.Begin(paths, projectrun.Start{RunID: runID, RunName: request.RunName, CWD: request.CWD}); err != nil {
-		prepared.release()
-		return "", 1, err
-	}
-	plan, err := runner.PlanSelection(paths, queue, request.Selection, request.JobIDs, requestScope(request), request.SourceRunID, request.PartialArray)
-	if err != nil {
-		_ = os.Remove(paths.LockFile)
 		prepared.release()
 		return "", 1, err
 	}
@@ -88,6 +83,7 @@ func (ops Operations) Run(request server.Request, progress func(server.Response)
 type preparedRun struct {
 	paths    state.ProjectPaths
 	queue    model.Queue
+	plan     run.Plan
 	executor string
 	// sourceRunID is the request's reference run, resolved before the new
 	// run is recorded; see projectrun.ReferenceRun.
@@ -129,8 +125,8 @@ func (ops Operations) prepareRun(request server.Request) (preparedRun, error) {
 		release()
 		return preparedRun{}, fmt.Errorf("queue %q has no queued commands", request.QueueName)
 	}
-	// Check the scope before the run is created; planning happens after, and
-	// its errors leave the new run behind.
+	// A scope also needs validation for unfiltered runs, which do not use it
+	// when planning their execution.
 	if scope := requestScope(request); scope.Kinds() > 0 {
 		if _, err := model.SelectCommands(queue.Commands, scope); err != nil {
 			release()
@@ -142,7 +138,14 @@ func (ops Operations) prepareRun(request server.Request) (preparedRun, error) {
 		release()
 		return preparedRun{}, err
 	}
-	return preparedRun{paths: paths, queue: queue, executor: resolvedExecutor, sourceRunID: sourceRunID, release: release}, nil
+	// Resolve the reference and plan under the state lock, before Begin changes
+	// the project's last run. A planning error must not create an incomplete run.
+	plan, err := ops.Runner.PlanSelection(paths, queue, request.Selection, request.JobIDs, requestScope(request), sourceRunID, request.PartialArray)
+	if err != nil {
+		release()
+		return preparedRun{}, err
+	}
+	return preparedRun{paths: paths, queue: queue, plan: plan, executor: resolvedExecutor, sourceRunID: sourceRunID, release: release}, nil
 }
 
 // resolveQueueExecutor returns the run's default executor, requested or the

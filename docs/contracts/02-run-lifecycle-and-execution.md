@@ -7,6 +7,16 @@
   it active. Completion writes results and summary, updates metadata, clears the
   consumed queue, and removes the active lock. Completed run snapshots, results,
   logs, and config copies remain immutable until the run is explicitly deleted.
+- The supervisor resolves the reference run and checks selection planning under
+  the project state lock before `Begin` creates a run, for both synchronous and
+  asynchronous starts. A planning error leaves the queue and metadata unchanged,
+  with no new run or lock. Execution plans the selection again against the run's
+  queue snapshot. If a source becomes unreadable after preflight, execution
+  has already written `commands.json` before replanning, so the run is still
+  inspectable. See [run preparation](../../internal/supervisor/run.go),
+  [execution](../../internal/projectrun/execute.go),
+  [preflight tests](../../internal/supervisor/supervisor_test.go), and
+  [snapshot tests](../../internal/projectrun/lifecycle_test.go).
 - Retries and filtered runs always create new history and never modify their
   source run. `--retry N` retries a failed job up to N additional times within
   the same run. A job's own `Retry` (`add --retry`, manifest `retry`) replaces

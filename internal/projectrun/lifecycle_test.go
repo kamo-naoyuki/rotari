@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -78,6 +79,27 @@ func TestBeginRejectsActiveRun(t *testing.T) {
 	}
 	if err := runner.Begin(paths, Start{RunID: "run-2"}); err == nil || !strings.Contains(err.Error(), "already running") {
 		t.Fatalf("second Begin error = %v", err)
+	}
+}
+
+func TestExecuteSnapshotsCommandsBeforeReplanning(t *testing.T) {
+	runner, paths := testRunner(t)
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}
+	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.Begin(paths, Start{RunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	// The source summary can disappear between the supervisor's preflight
+	// plan and Execute's second planning pass.
+	_, err := runner.Execute(paths, Options{RunID: "run-1", Selection: "failed", SourceRunID: "missing-run"}, Observer{})
+	if err == nil || !strings.Contains(err.Error(), `failed to load run summary for origin run "missing-run"`) {
+		t.Fatalf("Execute error = %v", err)
+	}
+	snapshot, err := state.ReadQueueFile(filepath.Join(paths.RunsDir, "run-1", "commands.json"))
+	if err != nil || !reflect.DeepEqual(snapshot.Commands, queue.Commands) {
+		t.Fatalf("snapshot = %+v, err = %v", snapshot, err)
 	}
 }
 

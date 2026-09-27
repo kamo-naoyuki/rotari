@@ -1,14 +1,18 @@
 package supervisor
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	"github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -70,6 +74,11 @@ func TestPrepareRunResolvesReferenceRunBeforeBegin(t *testing.T) {
 	if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: "finished", LastRunID: "previous-run"}); err != nil {
 		t.Fatal(err)
 	}
+	for _, runID := range []string{"previous-run", "chosen-run"} {
+		if err := state.WriteJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), model.RunSummary{RunID: runID}); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	for _, test := range []struct {
 		name, selection, sourceRunID, want string
@@ -88,5 +97,76 @@ func TestPrepareRunResolvesReferenceRunBeforeBegin(t *testing.T) {
 				t.Fatalf("sourceRunID = %q, want %q", prepared.sourceRunID, test.want)
 			}
 		})
+	}
+}
+
+func TestPlanningFailureDoesNotCreateRun(t *testing.T) {
+	for _, async := range []bool{false, true} {
+		name := "sync"
+		if async {
+			name = "async"
+		}
+		t.Run(name, func(t *testing.T) { testPlanningFailureDoesNotCreateRun(t, async) })
+	}
+}
+
+func testPlanningFailureDoesNotCreateRun(t *testing.T, async bool) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job", Command: []string{"true"}}}}
+	meta := model.Meta{Phase: "finished", LastRunID: "previous-run", UpdatedAt: "2026-01-01T00:00:00Z"}
+	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
+		t.Fatal(err)
+	}
+	store := state.NewStore(0o755, 0o644)
+	registered := false
+	ops := Operations{
+		BaseDir: baseDir,
+		Runner: projectrun.Runner{
+			Store: store, Executors: executor.NewRegistry(store, nil),
+			RegisterRun: func(state.ProjectPaths, string) error { registered = true; return nil },
+		},
+		NewRunID:   func() string { t.Fatal("run ID allocated before planning succeeded"); return "new-run" },
+		Executable: func() (string, error) { t.Fatal("worker launched before planning succeeded"); return "", nil },
+	}
+	request := server.Request{QueueName: "default", LocalConcurrency: 1, Selection: "failed"}
+	if async {
+		_, err = ops.StartRun(request, nil)
+	} else {
+		_, _, err = ops.Run(request, nil)
+	}
+	if err == nil || !strings.Contains(err.Error(), `failed to load run summary for origin run "previous-run"`) {
+		t.Fatalf("planning error = %v", err)
+	}
+	if registered {
+		t.Fatal("failed run was registered")
+	}
+	assertPlanningFailureLeavesProjectIdle(t, paths, queue, meta)
+}
+
+func assertPlanningFailureLeavesProjectIdle(t *testing.T, paths state.ProjectPaths, queue model.Queue, meta model.Meta) {
+	t.Helper()
+	if _, err := os.Stat(paths.LockFile); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("run lock after planning error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(paths.RunsDir, "new-run")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("run directory after planning error: %v", err)
+	}
+	gotMeta, err := state.LoadMeta(paths.MetaFile)
+	if err != nil || !reflect.DeepEqual(gotMeta, meta) {
+		t.Fatalf("metadata after planning error = %+v, %v", gotMeta, err)
+	}
+	gotQueue, err := state.LoadQueue(paths.QueueFile)
+	if err != nil || !reflect.DeepEqual(gotQueue.Commands, queue.Commands) {
+		t.Fatalf("queue after planning error = %+v, %v", gotQueue, err)
+	}
+	if err := project.EnsureIdle(paths, "run"); err != nil {
+		t.Fatalf("project cannot run again after planning error: %v", err)
 	}
 }

@@ -88,13 +88,6 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 	}
 	runner.PrepareJobEnvironments(paths, options, jobs)
 
-	plan, err := runner.PlanSelection(paths, queue, options.Selection, options.JobIDs, options.Scope, options.SourceRunID, options.PartialArray)
-	if err != nil {
-		return 1, fmt.Errorf("failed to prepare job selection: %w", err)
-	}
-	run.ExpandArrayPlan(queue.Commands, jobs, plan.Execute)
-	run.ApplyCarriedOrigins(queue.Commands, plan.CarriedOrigins)
-
 	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := os.MkdirAll(runDir, state.DirectoryMode()); err != nil {
 		return 1, fmt.Errorf("failed to create run directory: %w", err)
@@ -102,6 +95,13 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		return 1, fmt.Errorf("failed to save run commands: %w", err)
 	}
+
+	plan, err := runner.PlanSelection(paths, queue, options.Selection, options.JobIDs, options.Scope, options.SourceRunID, options.PartialArray)
+	if err != nil {
+		return 1, fmt.Errorf("failed to prepare job selection: %w", err)
+	}
+	run.ExpandArrayPlan(queue.Commands, jobs, plan.Execute)
+	run.ApplyCarriedOrigins(queue.Commands, plan.CarriedOrigins)
 
 	finalResults := make(map[string]model.JobResult, len(jobs))
 	for id, result := range plan.CarriedResults {
