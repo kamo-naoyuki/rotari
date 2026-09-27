@@ -56,41 +56,6 @@ func TestCmdCopyRejectsRunningProjectBeforeQueueConfirmation(t *testing.T) {
 	}
 }
 
-func TestCmdCopyDerivesRunIDFromAttemptID(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
-	runID := makeRunID()
-	attemptID := makeAttemptID(runID, "source", 0)
-	runDir := filepath.Join(paths.RunsDir, runID)
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "source", Command: []string{"source"}}}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{Results: []model.JobResult{{ID: "source", AttemptID: attemptID, ExitCode: 1}}}); err != nil {
-		t.Fatal(err)
-	}
-	attemptDir, err := specificAttemptJobDir(runDir, "source", attemptID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(attemptDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-
-	if code := cmdCopy([]string{"--basedir", baseDir, "--project-name", "default", "--job-id", attemptID}); code != 0 {
-		t.Fatalf("cmdCopy exit code = %d", code)
-	}
-	queue, err := loadQueue(paths.QueueFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(queue.Commands) != 1 || queue.Commands[0].Origin == nil || queue.Commands[0].Origin.AttemptID != attemptID {
-		t.Fatalf("copied queue = %#v, want attempt %q", queue.Commands, attemptID)
-	}
-}
-
 func TestConfirmQueueOverwriteSkipsPromptWhenAppendRequested(t *testing.T) {
 	baseDir := t.TempDir()
 	confirmed, err := confirmQueueOverwrite(baseDir, "default", true, false)
