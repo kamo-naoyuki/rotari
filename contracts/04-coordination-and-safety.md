@@ -230,7 +230,9 @@ run data. How it implements these rules and the rest of the state layout:
   without the field as version 1 and reject a newer version with
   `ErrNewerStateVersion`, telling the user to upgrade, instead of dropping
   fields this binary does not know. Read these files only through those
-  loaders so the check applies. Covered by `TestWriteJSONStampsStateVersion`
+  loaders so the check applies. A reader that treats a run's `commands.json`
+  or `summary.json` as optional calls `state.CheckRunVersions` first, so a
+  newer file is refused rather than read as missing. Covered by `TestWriteJSONStampsStateVersion`
   and `TestLoadStateAcceptsLegacyAndRejectsNewerVersions` in
   [`internal/state/store_test.go`](../internal/state/store_test.go).
 - Version policy: an added optional field does not change the version.

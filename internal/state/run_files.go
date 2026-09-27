@@ -1,6 +1,7 @@
 package state
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -30,6 +31,21 @@ func LoadRunOrigin(runDir, jobID string) *model.JobOrigin {
 		return nil
 	}
 	return queue.OriginOf(jobID)
+}
+
+// CheckRunVersions returns ErrNewerStateVersion when the run's commands.json
+// or summary.json was written by a newer rotari, and nil otherwise, leaving a
+// missing or unreadable file to the caller. Readers that treat those files
+// as optional call it first, so a newer file is refused instead of being read
+// as absent.
+func CheckRunVersions(runDir string) error {
+	if _, err := LoadQueue(filepath.Join(runDir, "commands.json")); errors.Is(err, ErrNewerStateVersion) {
+		return err
+	}
+	if _, err := LoadRunSummary(filepath.Join(runDir, "summary.json")); errors.Is(err, ErrNewerStateVersion) {
+		return err
+	}
+	return nil
 }
 
 func LoadRunSummary(path string) (model.RunSummary, error) {

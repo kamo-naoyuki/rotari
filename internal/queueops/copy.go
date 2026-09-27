@@ -28,6 +28,9 @@ func (editor Editor) Copy(baseDir, projectName, runID string, request queueedit.
 		if err != nil {
 			return err
 		}
+		if err := state.CheckRunVersions(sourceRunDir); err != nil {
+			return err
+		}
 		snapshot, err := state.LoadQueue(filepath.Join(sourceRunDir, "commands.json")) // NOSONAR: sourceRunDir is produced by validatedRunDir.
 		if err != nil {
 			return fmt.Errorf("failed to load command snapshot: %w", err)

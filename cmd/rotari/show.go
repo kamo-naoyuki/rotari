@@ -724,6 +724,10 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		printErrorf(runNotFoundMessage, runID)
 		return 1
 	}
+	if err := state.CheckRunVersions(runDir); err != nil {
+		printErrorf("failed to read run: %v", err)
+		return 1
+	}
 	summary, summaryErr := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
 	summaryOK := summaryErr == nil
 	if summaryErr != nil && !errors.Is(summaryErr, os.ErrNotExist) {
@@ -1471,6 +1475,10 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 		return 1
 	}
 	runDir := filepath.Join(paths.RunsDir, runID)
+	if err := state.CheckRunVersions(runDir); err != nil {
+		printErrorf("failed to read run: %v", err)
+		return 1
+	}
 	jobSpecs := loadRunJobSpecs(runDir)
 	// A job of the run that never started, such as one blocked by a failed
 	// dependency, has no attempt directory; its summary result decides it.

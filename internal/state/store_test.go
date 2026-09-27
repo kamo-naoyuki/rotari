@@ -296,3 +296,28 @@ func TestLoadStateAcceptsLegacyAndRejectsNewerVersions(t *testing.T) {
 		t.Fatalf("ReadQueueFile(missing) error = %v, want os.ErrNotExist", err)
 	}
 }
+
+func TestCheckRunVersionsReportsOnlyNewerFiles(t *testing.T) {
+	runDir := t.TempDir()
+	if err := CheckRunVersions(runDir); err != nil {
+		t.Fatalf("missing run files: %v, want nil", err)
+	}
+	for _, name := range []string{"commands.json", "summary.json"} {
+		path := filepath.Join(runDir, name)
+		if err := os.WriteFile(path, []byte(`{"state_version": 1}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := CheckRunVersions(runDir); err != nil {
+			t.Fatalf("current %s: %v, want nil", name, err)
+		}
+		if err := os.WriteFile(path, []byte(`{"state_version": 99}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := CheckRunVersions(runDir); !errors.Is(err, ErrNewerStateVersion) {
+			t.Fatalf("newer %s: %v, want ErrNewerStateVersion", name, err)
+		}
+		if err := os.WriteFile(path, []byte(`{"state_version": 1}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

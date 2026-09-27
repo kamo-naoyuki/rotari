@@ -59,11 +59,9 @@ func snapshotTree(t *testing.T, root string) map[string]string {
 
 func TestNewerStateVersionIsRejected(t *testing.T) {
 	covers(t, "STATE-1")
-	// readCommand is a command that reads the file under test. known marks
-	// one that still reads a newer file, recorded in ISSUES.md.
+	// readCommand is a command that reads the file under test.
 	type readCommand struct {
-		args  []string
-		known bool
+		args []string
 	}
 	readers := func(file, runID, jobID string) []readCommand {
 		switch file {
@@ -76,16 +74,16 @@ func TestNewerStateVersionIsRejected(t *testing.T) {
 			}
 		case "commands.json":
 			return []readCommand{
-				{args: []string{"show", "-p", "p", "--run-id", runID}, known: true},
+				{args: []string{"show", "-p", "p", "--run-id", runID}},
 				{args: []string{"copy", "-p", "p", "--run-id", runID, "--overwrite"}},
 				{args: []string{"export", runID}},
 			}
 		default:
 			return []readCommand{
 				{args: []string{"show", "-p", "p", "--run-id", runID}},
-				{args: []string{"show", "-p", "p", "--run-id", runID, "--job-id", jobID}, known: true},
-				{args: []string{"jobs", "p"}, known: true},
-				{args: []string{"copy", "-p", "p", "--run-id", runID, "--overwrite"}, known: true},
+				{args: []string{"show", "-p", "p", "--run-id", runID, "--job-id", jobID}},
+				{args: []string{"jobs", "p"}},
+				{args: []string{"copy", "-p", "p", "--run-id", runID, "--overwrite"}},
 				{args: []string{"copy", "-p", "p", "--run-id", runID, "--failed", "--overwrite"}},
 				{args: []string{"export", runID}},
 			}
@@ -108,9 +106,6 @@ func TestNewerStateVersionIsRejected(t *testing.T) {
 			written := setStateVersion(t, path, 99)
 			for i, command := range readers(file, runID, jobID) {
 				t.Run(command.args[0]+"/"+strconv.Itoa(i), func(t *testing.T) {
-					if command.known {
-						knownDeviation(t, "STATE-1")
-					}
 					got := e.in(t).rotari(command.args...)
 					if got.code == 0 || !strings.Contains(got.stderr+got.stdout, "upgrade rotari") {
 						t.Errorf("%s read a newer %s without asking to upgrade: %s", strings.Join(command.args, " "), file, got)

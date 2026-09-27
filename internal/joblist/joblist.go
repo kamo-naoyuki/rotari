@@ -142,6 +142,9 @@ func Collect(store state.Store, baseDir string, projects []string, now time.Time
 
 func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, cutoff time.Time) ([]Row, bool, bool, error) {
 	runDir := filepath.Join(paths.RunsDir, runID)
+	if err := state.CheckRunVersions(runDir); err != nil {
+		return nil, false, false, err
+	}
 	summary, summaryErr := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
 	active := project.RunActive(paths, runID)
 	if summaryErr == nil && !active {
