@@ -38,10 +38,6 @@ jobs:
       - name: Install JavaScript test dependencies
         run: npm ci
 
-      - name: Check formatting
-        run: |
-          test -z "$(gofmt -l .)"
-
       - name: Run vet
         run: go vet ./...
 
@@ -99,24 +95,6 @@ jobs:
           ruff check --select I --fix "$tmpdir/generated_cli.py"
           ruff format "$tmpdir/generated_cli.py"
           diff -u python/rotari/generated_cli.py "$tmpdir/generated_cli.py"
-
-  web-format:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "npm"
-
-      - name: Install JavaScript dependencies
-        run: npm ci
-
-      - name: Check web asset formatting
-        run: npm run format:check
 
   go-api:
     runs-on: ubuntu-latest

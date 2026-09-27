@@ -34,21 +34,10 @@ repos:
       - id: gofmt
         name: gofmt
         entry: gofmt -w
-        language: system
+        # Bootstraps Go in pre-commit.ci instead of relying on a system gofmt.
+        language: golang
+        language_version: 1.22.12
         types: [go]
-
-      - id: gofmt-check
-        name: gofmt check
-        entry: bash -c 'test -z "$(gofmt -l $(git ls-files "*.go"))"'
-        language: system
-        pass_filenames: false
-
-      - id: go-test
-        name: go test
-        entry: go test ./...
-        language: system
-        pass_filenames: false
-        stages: [manual]
 
       - id: example-shellcheck
         name: bash syntax check

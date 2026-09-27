@@ -42,9 +42,6 @@ jobs:
       - name: Install JavaScript test dependencies
         run: npm ci --ignore-scripts
 
-      - name: Check web asset formatting
-        run: npm run format:check
-
       - name: Install gotestsum
         run: go install gotest.tools/gotestsum@v1.12.0
 

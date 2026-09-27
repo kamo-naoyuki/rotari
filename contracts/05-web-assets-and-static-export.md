@@ -233,8 +233,8 @@ normal Web handler and `webui.GenerateStatic`/its bootstrap.
 - Tests should inspect final generated HTML for required hooks and obsolete
   vocabulary. Avoid assertions that depend on formatter whitespace or quote
   style.
-- Run `npm run format:check`, `go test ./...`, and `go build ./...` after Web
-  asset changes.
+- Run pre-commit on changed files, `go test ./...`, and `go build ./...` after
+  Web asset changes.
 
 ## Generated Web pages
 
