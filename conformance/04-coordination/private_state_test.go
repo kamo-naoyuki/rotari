@@ -62,6 +62,168 @@ func TestPrivateStateModes(t *testing.T) {
 	}
 }
 
+func TestProjectStates(t *testing.T) {
+	covers(t, "SAFE-1")
+	e := support.NewEnv(t)
+	e.MustRotari("add", "-p", "idle", "--", "true")
+	if state := e.CheckState("idle"); state != "ready" {
+		t.Errorf("a project with a queue: state %q, want ready", state)
+	}
+	e.StartRun("live", 1, false)
+	if state := e.CheckState("live"); state != "running" {
+		t.Errorf("a project with a run: state %q, want running", state)
+	}
+	support.KillStrays(t, e.Root)
+	support.WaitForInterrupted(t, e, "live")
+	if out := e.MustRotari("show", "-p", "live").Stdout; !strings.Contains(out, "Project state: interrupted") {
+		t.Errorf("show does not report the interrupted state:\n%s", out)
+	}
+}
+
+func TestControlFromAnotherHost(t *testing.T) {
+	covers(t, "COORD-1", "COORD-2", "COORD-3", "SAFE-1", "SAFE-4")
+	e := support.NewEnv(t)
+	run := e.StartRun("live", 1, false)
+	project := filepath.Join(e.Base, "projects", "live")
+	setJSONField(t, filepath.Join(project, "runs", run.RunID, "context.json"), "hostname", "elsewhere")
+	for _, command := range []string{"cancel", "suspend", "resume"} {
+		if r := e.Rotari(command, "-p", "live", run.Jobs[0]); r.Code == 0 || !strings.Contains(r.Stderr, `runs on host "elsewhere"`) {
+			t.Errorf("%s accepted: %s", command, r)
+		}
+	}
+	base := e.StartWeb()
+	if got := e.HTTPPostJSON(base+"/api/cancel-job", map[string]any{"project_name": "live", "run_id": run.RunID, "job_id": run.Jobs[0]}); got.Status == 200 || !strings.Contains(got.Body, `runs on host "elsewhere"`) {
+		t.Errorf("Web cancel accepted: %d %s", got.Status, got.Body)
+	}
+	if alive := support.JobProcesses(t, e.Root, run.Jobs[0]); alive != 1 {
+		t.Fatalf("rejected request stopped job: %d", alive)
+	}
+	setJSONField(t, filepath.Join(project, "running.lock"), "host", "elsewhere")
+	if state := e.CheckState("live"); state != "locked" {
+		t.Errorf("state %q, want locked", state)
+	}
+	if r := e.Rotari("cancel", "-p", "live"); r.Code == 0 || !strings.Contains(r.Stderr, `owned by host "elsewhere"`) {
+		t.Errorf("whole cancel accepted: %s", r)
+	}
+	if r := e.Rotari("run", "-p", "live"); r.Code == 0 || !strings.Contains(r.Stderr, "is running") {
+		t.Errorf("run accepted: %s", r)
+	}
+	e.MustRotari("unlock", "live")
+	if state := e.CheckState("live"); state != "ready" {
+		t.Errorf("after unlock state %q", state)
+	}
+}
+
+func setJSONField(t *testing.T, path, field, value string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(data, &fields); err != nil {
+		t.Fatal(err)
+	}
+	fields[field] = value
+	data, err = json.Marshal(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, path, string(data))
+}
+
+func TestUnlockRefusesLiveRun(t *testing.T) {
+	covers(t, "SAFE-4", "CORE-5")
+	e := support.NewEnv(t)
+	e.StartRun("live", 1, false)
+	if r := e.Rotari("unlock", "live"); r.Code == 0 {
+		t.Errorf("unlock of a run whose coordinator is alive succeeded: %s", r)
+	}
+	if state := e.CheckState("live"); state != "running" {
+		t.Errorf("after unlock: state %q, want running", state)
+	}
+	if r := e.Rotari("run", "-p", "live", "--async"); r.Code == 0 {
+		t.Errorf("a second run of the project started: %s", r)
+	}
+}
+
+func TestCopyIntoQueueWithoutTerminal(t *testing.T) {
+	covers(t, "SAFE-6")
+	e := support.NewEnv(t)
+	runID, _ := e.FinishedJobRun("a")
+	e.MustRotari("add", "-p", "a", "--", "true")
+	r := e.Rotari("copy", "-p", "a", "--run-id", runID)
+	out := r.Stderr + r.Stdout
+	if r.Code == 0 || !strings.Contains(out, "--append") || !strings.Contains(out, "--overwrite") {
+		t.Errorf("copy into a non-empty queue without a terminal should fail naming --append and --overwrite: %s", r)
+	}
+}
+
+func TestRunningProjectRejectsChanges(t *testing.T) {
+	covers(t, "SAFE-2", "SAFE-5", "CORE-5")
+	e := support.NewEnv(t)
+	manifest := e.ExportFinishedRun("live")
+	run := e.StartRun("live", 1, false)
+	commands := support.GuardedCommands("live", manifest, run)
+	commands["reset"] = []string{"reset", "live", "--recover"}
+	for name, args := range commands {
+		if r := e.Rotari(args...); r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "is running") {
+			t.Errorf("%s of a running project was not rejected: %s", name, r)
+		}
+	}
+	if runs, _ := filepath.Glob(filepath.Join(e.Base, "projects", "live", "runs", "*")); len(runs) != 2 {
+		t.Errorf("project has %d runs, want two", len(runs))
+	}
+	if state := e.CheckState("live"); state != "running" {
+		t.Errorf("after rejected commands: state %q", state)
+	}
+	e.MustRotari("add", "-p", "other", "--", "true")
+	e.MustRotari("run", "-p", "other", "--quiet")
+}
+
+func TestInterruptedProjectNeedsRecovery(t *testing.T) {
+	covers(t, "SAFE-3", "SAFE-4")
+	e := support.NewEnv(t)
+	manifest := e.ExportFinishedRun("live")
+	run := e.StartRun("live", 1, false)
+	support.KillStrays(t, e.Root)
+	support.WaitForInterrupted(t, e, "live")
+	for name, args := range support.GuardedCommands("live", manifest, run) {
+		r := e.Rotari(args...)
+		out := r.Stdout + r.Stderr
+		if r.Code == 0 || !strings.Contains(out, "has interrupted run") || !strings.Contains(out, "rotari unlock") || !strings.Contains(out, "rotari show") {
+			t.Errorf("%s did not point to show and unlock: %s", name, r)
+		}
+	}
+	if r := e.Rotari("unlock", "live", "--run-id", "20990101-000000-deadbeef"); r.Code == 0 {
+		t.Errorf("unlock accepted wrong run: %s", r)
+	}
+	e.MustRotari("unlock", "live", "--run-id", run.RunID)
+	if state := e.CheckState("live"); state != "ready" {
+		t.Errorf("after unlock: state %q", state)
+	}
+	e.MustRotari("add", "-p", "live", "--", "true")
+}
+
+func TestResetOfInterruptedProject(t *testing.T) {
+	covers(t, "SAFE-5", "SAFE-6")
+	e := support.NewEnv(t)
+	run := e.StartRun("live", 1, false)
+	support.KillStrays(t, e.Root)
+	support.WaitForInterrupted(t, e, "live")
+	r := e.Rotari("reset", "live")
+	if r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "--recover") {
+		t.Errorf("reset did not require --recover: %s", r)
+	}
+	e.MustRotari("reset", "live", "--recover")
+	if state := e.CheckState("live"); state != "empty" {
+		t.Errorf("after reset: state %q", state)
+	}
+	if _, err := os.Stat(filepath.Join(e.Base, "projects", "live", "runs", run.RunID)); err != nil {
+		t.Errorf("reset removed run history: %v", err)
+	}
+}
+
 func fileMode(t *testing.T, path string) fs.FileMode {
 	t.Helper()
 	info, err := os.Stat(path)

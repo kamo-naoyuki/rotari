@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -288,6 +289,7 @@ func (e *Env) StartRun(project string, count int, async bool, runArgs ...string)
 			_ = client.Process.Kill()
 			_ = client.Wait()
 			_ = e.command("wait", "-p", project, "--timeout", "30s").Run()
+			KillStrays(e.T, e.Root)
 		})
 	}
 	deadline := time.Now().Add(15 * time.Second)
@@ -308,6 +310,104 @@ func (e *Env) StartRun(project string, count int, async bool, runArgs ...string)
 	}
 }
 
+func (e *Env) CheckState(project string) string {
+	e.T.Helper()
+	for _, field := range strings.Fields(e.Rotari("check", project).Stdout) {
+		if state, ok := strings.CutPrefix(field, "state="); ok {
+			return state
+		}
+	}
+	return ""
+}
+
+func (e *Env) ExportFinishedRun(project string) string {
+	e.T.Helper()
+	runID, _ := e.FinishedJobRun(project)
+	manifest := filepath.Join(e.Root, "manifest.yaml")
+	e.MustRotari("export", runID, manifest)
+	return manifest
+}
+
+func GuardedCommands(project, manifest string, run ActiveRun) map[string][]string {
+	return map[string][]string{
+		"run":    {"run", "-p", project},
+		"add":    {"add", "-p", project, "--", "true"},
+		"copy":   {"copy", "-p", project, "--run-id", run.RunID, "--overwrite"},
+		"change": {"change", "-p", project, "--job-id", run.Jobs[0], "--timeout", "1m"},
+		"delete": {"delete", "-p", project, "--all"},
+		"remove": {"remove", "-p", project, run.Jobs[0]},
+		"import": {"import", manifest, project, "--overwrite"},
+	}
+}
+
+func (e *Env) OrphanRun(project, script string) string {
+	e.T.Helper()
+	RequireUnixSockets(e.T)
+	jobID := AddedJobID(e.T, e.MustRotari("add", "-p", project, "--", "sh", "-c", script))
+	client := e.command("run", "-p", project, flagQuiet)
+	if err := client.Start(); err != nil {
+		e.T.Fatal(err)
+	}
+	e.T.Cleanup(func() { _ = client.Wait() })
+	WaitUntil(e.T, 15*time.Second, func() (bool, string) { return JobProcesses(e.T, e.Root, jobID) == 1, "the job did not start" })
+	var lock struct {
+		PID int `json:"pid"`
+	}
+	data, err := os.ReadFile(filepath.Join(e.Base, "projects", project, "running.lock"))
+	if err != nil || json.Unmarshal(data, &lock) != nil || lock.PID <= 0 {
+		e.T.Fatalf("running.lock does not name supervisor: %s", data)
+	}
+	if err := syscall.Kill(lock.PID, syscall.SIGKILL); err != nil {
+		e.T.Fatal(err)
+	}
+	WaitForInterrupted(e.T, e, project)
+	return jobID
+}
+
+func (e *Env) JobExitStatus(project, jobID string) string {
+	e.T.Helper()
+	var status string
+	WaitUntil(e.T, 30*time.Second, func() (bool, string) {
+		out := e.Rotari("show", "-p", project, "--run-id", "latest", "--job-id", jobID).Stdout
+		for _, line := range strings.Split(out, "\n") {
+			if strings.HasPrefix(line, "Status:") {
+				status = line
+			}
+		}
+		return strings.Contains(status, "7"), "show reports " + status
+	})
+	return status
+}
+
+func KillStrays(t *testing.T, root string) {
+	t.Helper()
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		pid, err := strconv.Atoi(entry.Name())
+		if err != nil {
+			continue
+		}
+		cmdline, err := os.ReadFile(filepath.Join("/proc", entry.Name(), "cmdline"))
+		if err != nil || !bytes.Contains(cmdline, []byte(root+string(filepath.Separator))) {
+			continue
+		}
+		pgid, err := syscall.Getpgid(pid)
+		if err == nil && pgid != syscall.Getpgrp() {
+			_ = syscall.Kill(-pgid, syscall.SIGKILL)
+		}
+	}
+}
+
+func WaitForInterrupted(t *testing.T, e *Env, project string) {
+	WaitUntil(t, 15*time.Second, func() (bool, string) {
+		state := e.CheckState(project)
+		return state == "interrupted", "state " + state + ", want interrupted"
+	})
+}
+
 func JobProcesses(t *testing.T, root, job string) int {
 	t.Helper()
 	entries, err := os.ReadDir("/proc")
@@ -317,7 +417,10 @@ func JobProcesses(t *testing.T, root, job string) int {
 	count := 0
 	for _, entry := range entries {
 		cmdline, err := os.ReadFile(filepath.Join("/proc", entry.Name(), "cmdline"))
-		if err != nil || !bytes.Contains(cmdline, []byte(root+string(filepath.Separator))) || !bytes.Contains(cmdline, []byte("local-wrapper.sh")) {
+		if err != nil || !bytes.Contains(cmdline, []byte(root+string(filepath.Separator))) {
+			continue
+		}
+		if job == "" && !bytes.Contains(cmdline, []byte("local-wrapper.sh")) {
 			continue
 		}
 		if job == "" || bytes.Contains(cmdline, []byte(string(filepath.Separator)+job+string(filepath.Separator))) {

@@ -422,6 +422,16 @@ func projectFinished(check string) bool {
 	return strings.Contains(check, "lock=none") && !strings.Contains(check, "state=interrupted") && !strings.Contains(check, "state=running")
 }
 
+func checkState(e *env, project string) string {
+	e.t.Helper()
+	for _, field := range strings.Fields(e.rotari("check", project).stdout) {
+		if state, ok := strings.CutPrefix(field, "state="); ok {
+			return state
+		}
+	}
+	return ""
+}
+
 func runResults(t *testing.T, e *env, run activeRun) []json.RawMessage {
 	t.Helper()
 	var shown struct {

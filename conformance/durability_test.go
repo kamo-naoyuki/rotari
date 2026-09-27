@@ -10,14 +10,6 @@ import (
 	"time"
 )
 
-// Contracts DUR-3, DUR-4, and DUR-6: a local job outlives its killed
-// supervisor and records its own result, and neither a restart nor recovery
-// touches it. See "Job execution durability" in
-// contracts/04-coordination-and-safety.md.
-
-// orphanRun starts a run of project with one job that runs script, waits
-// until the job runs, and kills the run's supervisor with SIGKILL, leaving
-// the job running on its own. It returns the job's ID.
 func (e *env) orphanRun(project, script string) string {
 	e.t.Helper()
 	requireUnixSockets(e.t)
@@ -27,15 +19,13 @@ func (e *env) orphanRun(project, script string) string {
 		e.t.Fatal(err)
 	}
 	e.t.Cleanup(func() { _ = client.Wait() })
-	waitUntil(e.t, 15*time.Second, func() (bool, string) {
-		return jobProcesses(e.t, e.root, jobID) == 1, "the job did not start"
-	})
+	waitUntil(e.t, 15*time.Second, func() (bool, string) { return jobProcesses(e.t, e.root, jobID) == 1, "the job did not start" })
 	var lock struct {
 		PID int `json:"pid"`
 	}
 	data, err := os.ReadFile(filepath.Join(e.base, "projects", project, "running.lock"))
 	if err != nil || json.Unmarshal(data, &lock) != nil || lock.PID <= 0 {
-		e.t.Fatalf("running.lock does not name the supervisor: %s, %v", data, err)
+		e.t.Fatalf("running.lock does not name supervisor: %s", data)
 	}
 	if err := syscall.Kill(lock.PID, syscall.SIGKILL); err != nil {
 		e.t.Fatal(err)
@@ -44,8 +34,14 @@ func (e *env) orphanRun(project, script string) string {
 	return jobID
 }
 
-// jobExitStatus waits for show to report job's result and returns its status
-// line.
+func waitForInterrupted(e *env, project string) {
+	e.t.Helper()
+	waitUntil(e.t, 15*time.Second, func() (bool, string) {
+		state := checkState(e, project)
+		return state == "interrupted", "state " + state + ", want interrupted"
+	})
+}
+
 func jobExitStatus(e *env, project, jobID string) string {
 	e.t.Helper()
 	var status string
@@ -65,16 +61,12 @@ func TestJobOutlivesKilledSupervisor(t *testing.T) {
 	covers(t, "DUR-3", "DUR-4")
 	e := newEnv(t)
 	jobID := e.orphanRun("p", "sleep 2; exit 7")
-
-	// DUR-4: nothing restarts the supervisor; orphanRun waited for the run
-	// to be interrupted.
-	// DUR-3: the job finishes on its own and its result is readable.
 	jobExitStatus(e, "p", jobID)
 	if rows := e.mustRotari("jobs", "p", "--format", "%s").stdout; !strings.Contains(rows, "failed") {
-		t.Errorf("jobs does not report the orphaned job's failure:\n%s", rows)
+		t.Errorf("jobs does not report failure: %s", rows)
 	}
 	if state := checkState(e, "p"); state != "interrupted" {
-		t.Errorf("after the job finished: state %q, want interrupted until recovered", state)
+		t.Errorf("state %q, want interrupted", state)
 	}
 }
 
@@ -84,7 +76,7 @@ func TestRecoveryLeavesJobsRunning(t *testing.T) {
 	jobID := e.orphanRun("p", "sleep 3; exit 7")
 	e.mustRotari("unlock", "p")
 	if alive := jobProcesses(t, e.root, jobID); alive != 1 {
-		t.Fatalf("recovery stopped the job: %d processes left", alive)
+		t.Fatalf("recovery stopped job: %d processes", alive)
 	}
 	jobExitStatus(e, "p", jobID)
 }
