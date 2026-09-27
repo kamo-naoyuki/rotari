@@ -15,7 +15,7 @@
 </div>
 
 
-**Rotari turns trial-and-error into a repeatable loop**: build a batch of jobs from the CLI, see which failed, fix only their commands, and run it again — without losing the history of what already worked.
+**Rotari keeps track of the experiment batches you run from shell scripts**: which jobs are running, which failed and why, their logs, and every earlier run. When jobs fail, `rotari retry` reruns only those, keeping the work that already succeeded.
 
 Rotari is an **execution manager for researchers who run batches of experiments**, with commands and shell scripts as the building blocks and simple dependencies between them. It is a single binary with no daemon, database, or server to set up; state is kept in the filesystem.
 
@@ -39,7 +39,7 @@ Rotari deliberately stays out of the way. **You don't need a separate workflow l
 
 Rotari covers a narrow need, and the tools below are strong in their own situations. Pick the one that matches yours; often it will not be rotari.
 
-**Rotari is for the stage before a workflow settles:** you are running a batch of experiment commands by hand, on a workstation or a shared Slurm, PBS, or LSF cluster, finding out which commands and settings work, fixing the jobs that failed, and running the batch again. **In rotari, the experiment is the goal and orchestration is only a means to it.** The workflow does not have to be right before you start: commands can be fixed, rerun in part, or accepted after review as you learn what works.
+**Rotari is for batches of experiment commands that you run yourself**, from a shell script on a workstation, over SSH, or on a shared Slurm, PBS, or LSF cluster, and want a record of. On many hosts, a job whose command is correct can still fail because one node misbehaved; `run --retry N` retries such jobs within a run, and `rotari retry` later reruns only the failed and unfinished jobs, so the successful work is kept.
 
 #### Tools for running the commands you already have
 
@@ -55,7 +55,7 @@ These are rotari's closest neighbors. Like rotari, they run existing commands in
 
 Rotari adds a history: each run keeps its commands, every job's status, and its logs, so you can see later what ran, what failed, and why. The same batch runs locally, over SSH, or on Slurm, PBS, or LSF. See [Comparison with nearby tools](docs/TOOL_COMPARISON.md) for details.
 
-#### Workflow engines, for when the workflow settles
+#### Workflow engines
 
 * [**Dagu**](https://dagu.sh/) is a capable single-binary workflow engine with file-based state, a Web UI, cron scheduling, event triggers, containers, remote and distributed workers, and AI agent steps. **If you want a lightweight workflow engine and are happy to describe workflows in YAML, Dagu is likely a better choice than rotari.**
 
@@ -65,7 +65,7 @@ Rotari adds a history: each run keeps its commands, every job's status, and its 
 
 * [**Airflow**](https://github.com/apache/airflow), [**Prefect**](https://github.com/PrefectHQ/prefect), and [**Dagster**](https://github.com/dagster-io/dagster) orchestrate workflows expressed as programs. **Use them for production pipelines that run on a schedule and need monitoring.**
 
-Workflow engines such as Dagu and Airflow also describe where each step runs (its directory, variables, container, or host), because a scheduler or trigger must be able to start a workflow with no one at a shell. Rotari leaves that out on purpose: there is no cron or trigger, you start every run, and its jobs run in the environment you started it from. If a pipeline settles into something that runs on a schedule or is shared with others, moving it to one of these tools is a natural next step; many experiment batches never need to.
+Workflow engines such as Dagu and Airflow also describe where each step runs (its directory, variables, container, or host), because a scheduler or trigger must be able to start a workflow with no one at a shell. Rotari leaves that out on purpose: there is no cron or trigger, you start every run, and its jobs run in the environment you started it from. These tools serve a different job, operating defined pipelines, and rotari is not meant as a step toward them.
 
 ## Installation
 

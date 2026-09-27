@@ -18,7 +18,7 @@ commands you already have, in the environment you already have, with no
 workflow definition to write. What it adds is a history: a script of
 `rotari add` lines stays the definition of the batch, and each time it runs,
 rotari keeps that run's commands, every job's status, and its logs, on
-whichever backend it ran.
+whichever backend it ran, and can rerun only the jobs that failed.
 
 | | Unit of work | Where it runs | Rerunning failures | Batch history |
 | --- | --- | --- | --- | --- |
@@ -105,9 +105,13 @@ tied to one scheduler.
   job's status and logs, so `show` answers what ran and what failed long
   after the terminal is gone, and `diff` compares two runs. The other tools
   track individual tasks or one invocation.
-- **Editing in rotari is optional.** `retry` reruns only failed and
-  unfinished jobs, and `change`, `copy`, and manifests edit a batch inside
-  rotari, but most batches are simply rerun from their script.
+- **Rerunning only what failed.** Across many hosts, a correct command can
+  still fail because one node misbehaved. `run --retry N` retries a failed
+  job within the run, and `rotari retry` starts a new run of only the failed
+  and unfinished jobs, carrying the successful ones forward. GNU Parallel's
+  `--retry-failed` is the closest, for one invocation's joblog.
+- **Editing in rotari is optional.** `change`, `copy`, and manifests edit a
+  batch inside rotari, but most batches are simply rerun from their script.
 - **One queue, several backends.** The same queue runs locally, over SSH, or on
   Slurm, PBS, or LSF, with array and matrix jobs, and status and logs look the
   same on each.
