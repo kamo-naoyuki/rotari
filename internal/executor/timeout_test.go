@@ -50,6 +50,40 @@ func TestLocalJobTimeoutKillsCommandIgnoringTerm(t *testing.T) {
 	}
 }
 
+func TestLocalCancelBeforeWrapperStarts(t *testing.T) {
+	runDir := t.TempDir()
+	jobDir := filepath.Join(runDir, "job")
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	wrapperPath := filepath.Join(jobDir, "local-wrapper.sh")
+	script := StatusWrapperScript([]string{"sh", "-c", "sleep 0.25; exec sleep 30"}, jobDir, nil, "", "")
+	if err := os.WriteFile(wrapperPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(jobDir, "cancelled"), []byte("cancelled\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command("/bin/sh", wrapperPath)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	start := time.Now()
+	err := cmd.Run()
+	if err == nil {
+		t.Fatal("wrapper exited successfully even though cancellation was already recorded")
+	}
+	if d := time.Since(start); d > 500*time.Millisecond {
+		t.Fatalf("cancelled wrapper took %s; it waited for the delayed exec before aborting", d)
+	}
+	status, err := os.ReadFile(filepath.Join(jobDir, "status.json"))
+	if err != nil {
+		t.Fatalf("status.json not written: %v", err)
+	}
+	if !strings.Contains(string(status), `"phase":"cancelled"`) || !strings.Contains(string(status), `"exit_code":143`) {
+		t.Fatalf("status.json = %s, want a cancelled exit", status)
+	}
+}
+
 func TestLocalJobCancelStopsCommandBeforeForegroundExec(t *testing.T) {
 	for i := 0; i < 25; i++ {
 		runDir := t.TempDir()

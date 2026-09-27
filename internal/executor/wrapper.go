@@ -110,6 +110,7 @@ write_status() {
 }
 write_status running 0
 timed_out_marker="${status_path}.timed_out"
+cancelled_marker="${status_path%/*}/cancelled"
 on_signal() {
 	signal=$1
     if [ -f "$timed_out_marker" ]; then
@@ -128,9 +129,15 @@ trap 'on_signal 130' INT
 trap 'on_signal 131' QUIT
 watchdog_pid=
 ` + watchdog + `
+if [ -f "$cancelled_marker" ]; then
+    on_signal 143
+fi
 job_pid=
 ` + commandLine + ` &
 job_pid=$!
+if [ -f "$cancelled_marker" ]; then
+    on_signal 143
+fi
 wait "$job_pid"
 code=$?
 [ -z "$watchdog_pid" ] || kill "$watchdog_pid" 2>/dev/null
