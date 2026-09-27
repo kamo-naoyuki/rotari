@@ -37,7 +37,7 @@ Rotari deliberately stays out of the way. **You don't need a separate workflow l
 
 ### Choosing a tool
 
-Rotari covers a narrow need, and the tools below are strong in their own situations. Pick the one that matches yours; often it will not be rotari. If the names are unfamiliar, [Comparison with nearby tools](docs/TOOL_COMPARISON.md) explains what each one does and how it differs from rotari.
+Rotari covers a narrow need, and the tools below are strong in their own situations. Pick the one that matches yours; often it will not be rotari. If the names are unfamiliar, [Comparison with other tools](docs/TOOL_COMPARISON.md) explains what each one does and how it differs from rotari, with a table for each group.
 
 **Rotari is for batches of experiment commands that you run yourself**, from a shell script on a workstation, over SSH, or on a shared Slurm, PBS, or LSF cluster, and want a record of. On many hosts, a job whose command is correct can still fail because one node misbehaved; `run --retry N` retries such jobs within a run, and `rotari retry` later reruns only the failed and unfinished jobs, so the successful work is kept.
 
@@ -53,9 +53,11 @@ These are rotari's closest neighbors. Like rotari, they run existing commands in
 
 * [**submitit**](https://github.com/facebookincubator/submitit) submits Python functions to Slurm and returns their results. **Use it when your experiment driver is a Python program.**
 
-Rotari adds a history: each run keeps its commands, every job's status, and its logs, so you can see later what ran, what failed, and why. The same batch runs locally, over SSH, or on Slurm, PBS, or LSF. See [Comparison with nearby tools](docs/TOOL_COMPARISON.md) for details.
+Rotari adds a history: each run keeps its commands, every job's status, and its logs, so you can see later what ran, what failed, and why. The same batch runs locally, over SSH, or on Slurm, PBS, or LSF. See [Comparison with other tools](docs/TOOL_COMPARISON.md#summary) for details.
 
 #### Workflow engines
+
+These start from a workflow definition and run it the same way each time; see [Workflow engines](docs/TOOL_COMPARISON.md#workflow-engines) for a side-by-side table.
 
 * [**Dagu**](https://dagu.sh/) is a capable single-binary workflow engine with file-based state, a Web UI, cron scheduling, event triggers, containers, remote and distributed workers, and AI agent steps. **If you want a lightweight workflow engine and are happy to describe workflows in YAML, Dagu is likely a better choice than rotari.**
 
@@ -267,9 +269,9 @@ fails; see [Web browser notifications](docs/WEB_BROWSER_NOTIFICATIONS.md).
 - [Operations](docs/OPERATIONS.md): server management, run registry
   maintenance, shared filesystems, and the security model.
 - [FAQ](docs/FAQ.md): short answers about rotari's behavior.
-- [Comparison with nearby tools](docs/TOOL_COMPARISON.md): shell background
-  jobs, GNU Parallel, pueue, task-spooler, submitit, and scheduler scripts,
-  and how rotari differs; see also the [Dagu comparison](docs/DAGU_COMPARISON.md).
+- [Comparison with other tools](docs/TOOL_COMPARISON.md): shell background
+  jobs, GNU Parallel, pueue, task-spooler, submitit, scheduler scripts, and
+  workflow engines such as Snakemake, Nextflow, Dagu, and Airflow.
 - [Python client](python/README.md): installation, usage, and API
   documentation for the Python interface.
 - Integrations: [webhook notifications](docs/WEBHOOK_NOTIFICATIONS.md),

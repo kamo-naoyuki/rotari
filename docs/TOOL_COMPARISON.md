@@ -1,15 +1,15 @@
-# Comparison with nearby tools
+# Comparison with other tools
 
-This note compares rotari with the tools it most directly replaces: shell
-background jobs, GNU Parallel, pueue, task-spooler, submitit, and hand-written
-scheduler submissions. It is based on clones of
+This note compares rotari first with the tools it most directly replaces:
+shell background jobs, GNU Parallel, pueue, task-spooler, submitit, and
+hand-written scheduler submissions. It then compares it with workflow
+engines, which are often mentioned alongside it but do a different job. The
+first part is based on clones of
 [pueue](https://github.com/Nukesor/pueue) (2026-09-09),
 [task-spooler](https://github.com/justanhduc/task-spooler) (the GPU fork,
 2024-01-19), and [submitit](https://github.com/facebookincubator/submitit)
 (2026-01-14), taken on 2026-09-27, and on the
 [GNU Parallel manual](https://www.gnu.org/software/parallel/man.html).
-Workflow engines are compared in
-[DAGU_COMPARISON.md](DAGU_COMPARISON.md).
 
 ## Summary
 
@@ -28,7 +28,7 @@ whichever backend it ran, and can rerun only the jobs that failed.
 | task-spooler | a task in a per-user server's queue | one machine, GPU-aware | add the command again | finished-task list, capped |
 | submitit | a Python function call | Slurm, local | resubmit from Python | job folders |
 | `sbatch --array`, `queue.pl` | a script and an index | one scheduler | resubmit chosen indices | scheduler accounting |
-| rotari | a job in a queue, run as a batch | local, SSH, Slurm, PBS, LSF | `retry` starts a new run of failed and unfinished jobs, after `change` if needed | every run, with `diff` between runs |
+| rotari | a job in a queue, run as a batch | local, SSH, Slurm, PBS, LSF | `retry` starts a new run of only the failed and unfinished jobs | every run, with `diff` between runs |
 
 ## Tool by tool
 
@@ -130,3 +130,35 @@ replacement strings. Resource allocation, such as task-spooler's GPU
 assignment, is out of scope on purpose: it belongs to the scheduler or other
 middleware below rotari, and rotari only limits how many jobs it runs or
 submits at once.
+
+## Workflow engines
+
+Workflow engines start from a definition of the workflow, written in a DSL,
+YAML, or Python, and run it the same way each time. Most of them also define
+where and with what each step runs, and several start runs by themselves from
+schedules or events. This is the right design for pipelines that are shared,
+reproduced, or operated, and it is what rotari leaves out.
+
+| | Workflow defined as | Runs start from | Where steps run | Environment | Rerunning failures |
+| --- | --- | --- | --- | --- | --- |
+| [Snakemake](https://snakemake.github.io/) | rules with input and output files (Python-based DSL) | the CLI | local; Slurm, LSF, SGE, Kubernetes, and cloud batch services through executor plugins | per-rule conda environments or containers, or the calling shell | reruns jobs whose outputs are missing or out of date |
+| [Nextflow](https://www.nextflow.io/) | processes and channels (Groovy-based DSL) | the CLI | local, Slurm, PBS, LSF, SGE, and other HPC schedulers, Kubernetes, and cloud batch services | per-process containers or conda environments | `-resume` reuses cached task results |
+| [Dagu](https://dagu.sh/) | a YAML DAG | the CLI, Web UI, API, cron, and event triggers | local, SSH, containers, Kubernetes, distributed workers | the working directory, variables, and container in the YAML | step retry policies and `dagu retry` of a run |
+| [Airflow](https://airflow.apache.org/), [Prefect](https://www.prefect.io/), [Dagster](https://dagster.io/) | Python code | a scheduler, sensors, the UI, or the API | workers on the configured infrastructure | each task's operator or deployment settings | task retries and rerunning from the failed task |
+| rotari | none: a shell script of `rotari add` lines builds each batch | the user, from a shell | local, SSH, Slurm, PBS, LSF | the shell that runs `rotari run` | `run --retry` within a run, `retry` for a new run of the failed and unfinished jobs |
+
+What separates rotari from all of them:
+
+- **No workflow definition.** The script builds a batch and is rerun as it
+  is; rotari has no rules, file dependencies, conditionals, or output
+  passing between jobs, only job-level dependencies.
+- **No triggers.** There is no scheduler, cron, or sensor; every run is
+  started by a person or an agent at a shell, which is why the environment
+  can come from that shell instead of being written down.
+- **No service to operate.** There is no resident server or database, and
+  on a cluster the site's scheduler does the placement and resource
+  allocation.
+
+Choose a workflow engine when the pipeline itself is the product: shared with
+others, rerun on new data, or operated on a schedule. Rotari is not a step
+toward one; it is for batches that people run themselves from scripts.
