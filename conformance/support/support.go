@@ -13,11 +13,18 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
 
 var binary string
+
+const (
+	flagJSON    = "--json"
+	flagJobName = "--job-name"
+	flagQuiet   = "--quiet"
+)
 
 var addedJobPattern = regexp.MustCompile(`job_id=(\S+)`)
 var listeningPattern = regexp.MustCompile(`listening at (http://\S+)`)
@@ -32,6 +39,20 @@ type Result struct {
 type HTTPResult struct {
 	Status int
 	Body   string
+}
+
+type ActiveRun struct {
+	Project string
+	RunID   string
+	Jobs    []string
+}
+
+type FinishedRun struct {
+	Project    string
+	RunID      string
+	OKJob      string
+	BadJob     string
+	BadAttempt string
 }
 
 func (r Result) String() string {
@@ -138,7 +159,7 @@ func (e *Env) FinishedJobRun(project string) (runID, attemptID string) {
 	e.T.Helper()
 	RequireUnixSockets(e.T)
 	e.MustRotari("add", "-p", project, "--", "true")
-	e.MustRotari("run", "-p", project, "--quiet")
+	e.MustRotari("run", "-p", project, flagQuiet)
 	var shown struct {
 		RunID   string `json:"run_id"`
 		Summary struct {
@@ -147,10 +168,40 @@ func (e *Env) FinishedJobRun(project string) (runID, attemptID string) {
 			} `json:"results"`
 		} `json:"summary"`
 	}
-	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", project, "--json").Stdout), &shown); err != nil || shown.RunID == "" || len(shown.Summary.Results) == 0 {
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", project, flagJSON).Stdout), &shown); err != nil || shown.RunID == "" || len(shown.Summary.Results) == 0 {
 		e.T.Fatalf("show --json did not describe the run of %s: %v", project, err)
 	}
 	return shown.RunID, shown.Summary.Results[0].AttemptID
+}
+
+func (e *Env) CreateFinishedRun() FinishedRun {
+	e.T.Helper()
+	RequireUnixSockets(e.T)
+	run := FinishedRun{Project: "p1"}
+	run.OKJob = AddedJobID(e.T, e.MustRotari("add", "-p", run.Project, flagJobName, "ok", "--", "sh", "-c", "echo hello"))
+	run.BadJob = AddedJobID(e.T, e.MustRotari("add", "-p", run.Project, flagJobName, "bad", "--", "sh", "-c", "exit 3"))
+	if result := e.Rotari("run", "-p", run.Project, flagQuiet); result.Code == 0 {
+		e.T.Fatalf("run with a failing job should exit 1: %s", result)
+	}
+	var shown struct {
+		RunID   string `json:"run_id"`
+		Summary struct {
+			Results []struct {
+				ID        string `json:"id"`
+				AttemptID string `json:"attempt_id"`
+			} `json:"results"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", run.Project, flagJSON).Stdout), &shown); err != nil || shown.RunID == "" {
+		e.T.Fatalf("show --json did not name the run: %v", err)
+	}
+	run.RunID = shown.RunID
+	for _, result := range shown.Summary.Results {
+		if result.ID == run.BadJob {
+			run.BadAttempt = result.AttemptID
+		}
+	}
+	return run
 }
 
 func (e *Env) StartWeb(args ...string) string {
@@ -196,6 +247,101 @@ func (e *Env) HTTPGet(url string) HTTPResult {
 		e.T.Fatal(err)
 	}
 	return HTTPResult{Status: response.StatusCode, Body: string(body)}
+}
+
+func (e *Env) HTTPPostJSON(url string, body any) HTTPResult {
+	e.T.Helper()
+	data, err := json.Marshal(body)
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	response, err := (&http.Client{Timeout: 10 * time.Second}).Post(url, "application/json", bytes.NewReader(data))
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	defer response.Body.Close()
+	result, err := io.ReadAll(response.Body)
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	return HTTPResult{Status: response.StatusCode, Body: string(result)}
+}
+
+func (e *Env) StartRun(project string, count int, async bool, runArgs ...string) ActiveRun {
+	e.T.Helper()
+	RequireUnixSockets(e.T)
+	run := ActiveRun{Project: project}
+	for i := 1; i <= count; i++ {
+		name := fmt.Sprintf("hold%d", i)
+		run.Jobs = append(run.Jobs, AddedJobID(e.T, e.MustRotari("add", "-p", project, flagJobName, name, "--", "sleep", "300")))
+	}
+	args := append([]string{"run", "-p", project, flagQuiet}, runArgs...)
+	if async {
+		e.MustRotari(append(args, "--async")...)
+		e.T.Cleanup(func() { _ = e.command("cancel", "-p", project, "--wait").Run() })
+	} else {
+		client := e.command(args...)
+		if err := client.Start(); err != nil {
+			e.T.Fatal(err)
+		}
+		e.T.Cleanup(func() {
+			_ = client.Process.Kill()
+			_ = client.Wait()
+			_ = e.command("wait", "-p", project, "--timeout", "30s").Run()
+		})
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		running := strings.Count(e.Rotari("jobs", project, "--format", "%a %s").Stdout, " running")
+		var shown struct {
+			RunID string `json:"run_id"`
+		}
+		_ = json.Unmarshal([]byte(e.Rotari("show", "-p", project, flagJSON).Stdout), &shown)
+		if running == count && shown.RunID != "" {
+			run.RunID = shown.RunID
+			return run
+		}
+		if time.Now().After(deadline) {
+			e.T.Fatalf("run did not start: running=%d, want=%d", running, count)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func JobProcesses(t *testing.T, root, job string) int {
+	t.Helper()
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		t.Skipf("cannot list processes: %v", err)
+	}
+	count := 0
+	for _, entry := range entries {
+		cmdline, err := os.ReadFile(filepath.Join("/proc", entry.Name(), "cmdline"))
+		if err != nil || !bytes.Contains(cmdline, []byte(root+string(filepath.Separator))) || !bytes.Contains(cmdline, []byte("local-wrapper.sh")) {
+			continue
+		}
+		if job == "" || bytes.Contains(cmdline, []byte(string(filepath.Separator)+job+string(filepath.Separator))) {
+			count++
+		}
+	}
+	return count
+}
+
+func WaitUntil(t *testing.T, timeout time.Duration, done func() (bool, string)) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		if ok, message := done(); ok {
+			return
+		} else if time.Now().After(deadline) {
+			t.Fatalf("after %s: %s", timeout, message)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func KillProcessGroup(pid int) error {
+	return syscall.Kill(-pid, syscall.SIGKILL)
 }
 
 func RequireUnixSockets(t *testing.T) {

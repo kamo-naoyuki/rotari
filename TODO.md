@@ -170,6 +170,12 @@ The fallback and selector tests were moved from in-process `cmd/rotari`
 tests. The harness is hand-written rather than `testscript`: the Web API
 checks and JSON comparisons need Go code either way, and it adds no
 dependency.
+The current migration has moved the resolution tests under `01-resolution`,
+run lifecycle and cancellation under `02-lifecycle`, command checks under
+`03-interfaces`, and coordination, durability, state, and projection checks
+under `04-coordination`. The remaining SAFE recovery tests share active-run
+and process-recovery helpers and should move together after those helpers are
+extracted into the support package.
 
 #### Working notes for the next agent
 

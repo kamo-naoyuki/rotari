@@ -221,6 +221,7 @@ func (e *env) startWeb(args ...string) string {
 				break
 			}
 		}
+		_ = scanner.Err()
 		_, _ = io.Copy(io.Discard, stdout)
 	}()
 	select {
@@ -415,6 +416,68 @@ func (e *env) finishedJobRun(project string) (runID, attemptID string) {
 		e.t.Fatalf("show --json did not describe the run of %s: %v", project, err)
 	}
 	return shown.RunID, shown.Summary.Results[0].AttemptID
+}
+
+func projectFinished(check string) bool {
+	return strings.Contains(check, "lock=none") && !strings.Contains(check, "state=interrupted") && !strings.Contains(check, "state=running")
+}
+
+func runResults(t *testing.T, e *env, run activeRun) []json.RawMessage {
+	t.Helper()
+	var shown struct {
+		Summary *struct {
+			Results []json.RawMessage `json:"results"`
+		} `json:"summary"`
+	}
+	r := e.mustRotari("show", "-p", run.project, "--run-id", run.runID, "--json")
+	if err := json.Unmarshal([]byte(r.stdout), &shown); err != nil || shown.Summary == nil {
+		t.Fatalf("run %s has no summary: %s", run.runID, r)
+	}
+	return shown.Summary.Results
+}
+
+func jobAttempts(t *testing.T, e *env, run activeRun, job string) int {
+	t.Helper()
+	return strings.Count(e.mustRotari("jobs", run.project, "--format", "%a").stdout, "-"+job+"-")
+}
+
+func jobProcesses(t *testing.T, root, job string) int {
+	t.Helper()
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		t.Skipf("cannot list processes: %v", err)
+	}
+	count := 0
+	for _, entry := range entries {
+		cmdline, err := os.ReadFile(filepath.Join("/proc", entry.Name(), "cmdline"))
+		if err != nil || !bytes.Contains(cmdline, []byte(root+string(filepath.Separator))) || !bytes.Contains(cmdline, []byte("local-wrapper.sh")) {
+			continue
+		}
+		if job == "" || bytes.Contains(cmdline, []byte(string(filepath.Separator)+job+string(filepath.Separator))) {
+			count++
+		}
+	}
+	return count
+}
+
+func waitUntil(t *testing.T, timeout time.Duration, done func() (bool, string)) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		if ok, message := done(); ok {
+			return
+		} else if time.Now().After(deadline) {
+			t.Fatalf("after %s: %s", timeout, message)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func addedJobID(t *testing.T, r result) string {

@@ -3,7 +3,6 @@ package conformance
 import (
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -70,32 +69,5 @@ func TestControlFromAnotherHost(t *testing.T) {
 	e.mustRotari("unlock", "live")
 	if state := checkState(e, "live"); state != "ready" {
 		t.Errorf("after unlock of a lock from another host: state %q, want ready", state)
-	}
-}
-
-func TestMissingSchedulerCommand(t *testing.T) {
-	covers(t, "COORD-4")
-	requireUnixSockets(t)
-	path := filepath.Join(t.TempDir(), "bin")
-	if err := os.MkdirAll(path, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	// Only the tools a local job wrapper needs; no sbatch.
-	for _, tool := range []string{"sh", "true"} {
-		found, err := exec.LookPath(tool)
-		if err != nil {
-			t.Skipf("%s not found: %v", tool, err)
-		}
-		if err := os.Symlink(found, filepath.Join(path, tool)); err != nil {
-			t.Fatal(err)
-		}
-	}
-	e := newEnv(t).withVar("PATH", path)
-	job := addedJobID(t, e.mustRotari("add", "-p", "s", "--executor", "slurm", "--", "true"))
-	if r := e.rotari("run", "-p", "s", "--quiet"); r.code == 0 {
-		t.Fatalf("a slurm job ran without sbatch: %s", r)
-	}
-	if out := e.mustRotari("show", "-p", "s", "--run-id", "latest", "--job-id", job).stdout; !strings.Contains(out, "sbatch") {
-		t.Errorf("show of the failed job does not name the missing command:\n%s", out)
 	}
 }

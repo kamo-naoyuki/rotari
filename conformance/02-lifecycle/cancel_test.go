@@ -1,0 +1,117 @@
+package lifecycle
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/kamo-naoyuki/rotari/conformance/support"
+)
+
+func TestWholeRunCancelFinishesRun(t *testing.T) {
+	covers(t, "CAN-1", "CAN-2")
+	for _, test := range []struct {
+		name  string
+		async bool
+		web   bool
+	}{
+		{"sync run, CLI", false, false}, {"sync run, Web", false, true},
+		{"async run, CLI", true, false}, {"async run, Web", true, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			e := support.NewEnv(t)
+			run := e.StartRun("live", 2, test.async)
+			if test.web {
+				got := e.HTTPPostJSON(e.StartWeb()+"/api/cancel-run", map[string]any{"project_name": run.Project, "run_id": run.RunID})
+				if got.Status != 200 {
+					t.Fatalf("cancel-run: status %d: %s", got.Status, got.Body)
+				}
+			} else {
+				e.MustRotari("cancel", "-p", run.Project)
+			}
+			support.WaitUntil(t, 30*time.Second, func() (bool, string) {
+				alive := support.JobProcesses(t, e.Root, "")
+				return alive == 0, fmt.Sprintf("%d job processes still running", alive)
+			})
+			support.WaitUntil(t, 30*time.Second, func() (bool, string) {
+				check := e.Rotari("check", run.Project).Stdout
+				return projectFinished(check), "check: " + check
+			})
+			results := runResults(t, e, run)
+			if len(results) != len(run.Jobs) {
+				t.Errorf("summary records %d results, want %d", len(results), len(run.Jobs))
+			}
+			e.MustRotari("add", "-p", run.Project, "--", "true")
+		})
+	}
+}
+
+func TestCancelWaitReturnsAfterRunFinishes(t *testing.T) {
+	covers(t, "CAN-3")
+	for _, async := range []bool{false, true} {
+		t.Run(fmt.Sprintf("async=%t", async), func(t *testing.T) {
+			e := support.NewEnv(t)
+			run := e.StartRun("live", 1, async)
+			if r := e.Rotari("cancel", "-p", run.Project, "--wait"); r.Code != 0 {
+				t.Fatalf("cancel --wait failed: %s", r)
+			}
+			if check := e.Rotari("check", run.Project).Stdout; !projectFinished(check) {
+				t.Errorf("run not finished: %s", check)
+			}
+		})
+	}
+}
+
+func TestCancelJobStopsOnlyThatJob(t *testing.T) {
+	covers(t, "CAN-4")
+	for _, web := range []bool{false, true} {
+		t.Run(fmt.Sprintf("web=%t", web), func(t *testing.T) {
+			e := support.NewEnv(t)
+			run := e.StartRun("live", 2, false, "--retry", "1")
+			cancelled, other := run.Jobs[0], run.Jobs[1]
+			if web {
+				got := e.HTTPPostJSON(e.StartWeb()+"/api/cancel-job", map[string]any{"project_name": run.Project, "run_id": run.RunID, "job_id": cancelled})
+				if got.Status != 200 {
+					t.Fatalf("cancel-job: status %d: %s", got.Status, got.Body)
+				}
+			} else {
+				e.MustRotari("cancel", "-p", run.Project, cancelled)
+			}
+			support.WaitUntil(t, 30*time.Second, func() (bool, string) {
+				return support.JobProcesses(t, e.Root, cancelled) == 0, "cancelled job is still running"
+			})
+			time.Sleep(2 * time.Second)
+			if alive := support.JobProcesses(t, e.Root, other); alive == 0 {
+				t.Errorf("job %s stopped too; only %s was cancelled", other, cancelled)
+			}
+			if attempts := jobAttempts(t, e, run); attempts != 1 {
+				t.Errorf("cancelled job has %d attempts, want 1", attempts)
+			}
+		})
+	}
+}
+
+func projectFinished(check string) bool {
+	return strings.Contains(check, "lock=none") && !strings.Contains(check, "state=interrupted") && !strings.Contains(check, "state=running")
+}
+
+func runResults(t *testing.T, e *support.Env, run support.ActiveRun) []json.RawMessage {
+	t.Helper()
+	var shown struct {
+		Summary *struct {
+			Results []json.RawMessage `json:"results"`
+		} `json:"summary"`
+	}
+	r := e.MustRotari("show", "-p", run.Project, "--run-id", run.RunID, "--json")
+	if err := json.Unmarshal([]byte(r.Stdout), &shown); err != nil || shown.Summary == nil {
+		t.Fatalf("run %s has no summary: %s", run.RunID, r)
+	}
+	return shown.Summary.Results
+}
+
+func jobAttempts(t *testing.T, e *support.Env, run support.ActiveRun) int {
+	t.Helper()
+	return strings.Count(e.MustRotari("jobs", run.Project, "--format", "%a").Stdout, "-"+run.Jobs[0]+"-")
+}

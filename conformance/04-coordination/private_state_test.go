@@ -2,6 +2,7 @@ package coordination
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -159,6 +160,96 @@ func TestReadingHistoryDoesNotRewriteIt(t *testing.T) {
 	}
 }
 
+func TestNewerStateVersionIsRejected(t *testing.T) {
+	covers(t, "STATE-1")
+	type readCommand struct{ args []string }
+	readers := func(file, runID, jobID string) []readCommand {
+		switch file {
+		case "queue.json":
+			return []readCommand{{[]string{"show", "-p", "p", "--queue"}}, {[]string{"check", "p"}}, {[]string{"add", "-p", "p", "--", "true"}}, {[]string{"run", "-p", "p"}}}
+		case "commands.json":
+			return []readCommand{{[]string{"show", "-p", "p", "--run-id", runID}}, {[]string{"copy", "-p", "p", "--run-id", runID, "--overwrite"}}, {[]string{"export", runID}}}
+		default:
+			return []readCommand{{[]string{"show", "-p", "p", "--run-id", runID}}, {[]string{"show", "-p", "p", "--run-id", runID, "--job-id", jobID}}, {[]string{"jobs", "p"}}, {[]string{"copy", "-p", "p", "--run-id", runID, "--overwrite"}}, {[]string{"copy", "-p", "p", "--run-id", runID, "--failed", "--overwrite"}}, {[]string{"export", runID}}}
+		}
+	}
+	for _, file := range []string{"queue.json", "commands.json", "summary.json"} {
+		t.Run(file, func(t *testing.T) {
+			e := support.NewEnv(t)
+			runID, _ := e.FinishedJobRun("p")
+			var shown struct {
+				Summary struct {
+					Results []struct {
+						ID string `json:"id"`
+					} `json:"results"`
+				} `json:"summary"`
+			}
+			if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "p", "--json").Stdout), &shown); err != nil || len(shown.Summary.Results) == 0 {
+				t.Fatal(err)
+			}
+			jobID := shown.Summary.Results[0].ID
+			e.MustRotari("add", "-p", "p", "--", "true")
+			path := filepath.Join(e.Base, "projects", "p", "queue.json")
+			if file != "queue.json" {
+				path = filepath.Join(e.Base, "projects", "p", "runs", runID, file)
+			}
+			written := setStateVersion(t, path, 99)
+			for i, command := range readers(file, runID, jobID) {
+				t.Run(command.args[0]+fmt.Sprint(i), func(t *testing.T) {
+					got := e.Rotari(command.args...)
+					if got.Code == 0 || !strings.Contains(got.Stderr+got.Stdout, "upgrade rotari") {
+						t.Errorf("read newer %s without upgrade message: %s", file, got)
+					}
+				})
+			}
+			if data, _ := os.ReadFile(path); string(data) != written {
+				t.Errorf("a command rewrote the newer %s", file)
+			}
+		})
+	}
+}
+
+func TestWebShowsNewerRunAsUnreadable(t *testing.T) {
+	covers(t, "STATE-1")
+	for _, file := range []string{"summary.json", "commands.json"} {
+		t.Run(file, func(t *testing.T) {
+			e := support.NewEnv(t)
+			readable, _ := e.FinishedJobRun("p")
+			newer, _ := e.FinishedJobRun("p")
+			setStateVersion(t, filepath.Join(e.Base, "projects", "p", "runs", newer, file), 99)
+			got := e.HTTPGet(e.StartWeb() + "/api/state")
+			if got.Status != 200 {
+				t.Fatalf("Web state: status %d: %s", got.Status, got.Body)
+			}
+			var state struct {
+				Projects []struct {
+					Runs []struct {
+						RunID      string            `json:"run_id"`
+						Status     string            `json:"status"`
+						Unreadable string            `json:"unreadable"`
+						Jobs       []json.RawMessage `json:"jobs"`
+					} `json:"runs"`
+				} `json:"projects"`
+			}
+			if err := json.Unmarshal([]byte(got.Body), &state); err != nil || len(state.Projects) != 1 {
+				t.Fatalf("Web state: %v: %s", err, got.Body)
+			}
+			for _, run := range state.Projects[0].Runs {
+				switch run.RunID {
+				case newer:
+					if run.Status != "unreadable" || !strings.Contains(run.Unreadable, "upgrade rotari") || len(run.Jobs) != 0 {
+						t.Errorf("newer run: %#v", run)
+					}
+				case readable:
+					if run.Status != "finished" || len(run.Jobs) != 1 {
+						t.Errorf("readable run: %#v", run)
+					}
+				}
+			}
+		})
+	}
+}
+
 func snapshotTree(t *testing.T, root string) map[string]string {
 	t.Helper()
 	files := map[string]string{}
@@ -178,7 +269,7 @@ func snapshotTree(t *testing.T, root string) map[string]string {
 	return files
 }
 
-func setStateVersion(t *testing.T, path string, version int) {
+func setStateVersion(t *testing.T, path string, version int) string {
 	t.Helper()
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -198,6 +289,7 @@ func setStateVersion(t *testing.T, path string, version int) {
 		t.Fatal(err)
 	}
 	writeFile(t, path, string(data))
+	return string(data)
 }
 
 func writeFile(t *testing.T, path, content string) {
