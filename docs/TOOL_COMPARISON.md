@@ -15,10 +15,10 @@ Workflow engines are compared in
 
 Rotari belongs with these tools, not with workflow engines. Like them, it runs
 commands you already have, in the environment you already have, with no
-workflow definition to write. What it adds is the batch as a unit with a
-history: a queue of jobs is run as a run, and fixing and rerunning part of it
-creates the next run, so the batch can be corrected step by step while every
-earlier result stays inspectable.
+workflow definition to write. What it adds is a history: a script of
+`rotari add` lines stays the definition of the batch, and each time it runs,
+rotari keeps that run's commands, every job's status, and its logs, on
+whichever backend it ran.
 
 | | Unit of work | Where it runs | Rerunning failures | Batch history |
 | --- | --- | --- | --- | --- |
@@ -101,14 +101,13 @@ tied to one scheduler.
 
 ## Where rotari differs
 
-- **The run is the unit of history.** Every `run` or `retry` snapshots the
-  queue and records each job's result, so `show` and `diff` answer which jobs
-  a fix repaired, which still fail, and which definitions changed. The other
-  tools track individual tasks or one invocation.
-- **Fixing is part of the loop.** `change` edits jobs, `copy` brings jobs of an
-  earlier run back into the queue, and `retry` reruns only failed and
-  unfinished jobs while carrying successful ones forward. A failed result can
-  also be accepted after review.
+- **The run is the unit of history.** Every run keeps its commands and each
+  job's status and logs, so `show` answers what ran and what failed long
+  after the terminal is gone, and `diff` compares two runs. The other tools
+  track individual tasks or one invocation.
+- **Editing in rotari is optional.** `retry` reruns only failed and
+  unfinished jobs, and `change`, `copy`, and manifests edit a batch inside
+  rotari, but most batches are simply rerun from their script.
 - **One queue, several backends.** The same queue runs locally, over SSH, or on
   Slurm, PBS, or LSF, with array and matrix jobs, and status and logs look the
   same on each.

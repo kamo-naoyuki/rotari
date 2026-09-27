@@ -29,7 +29,7 @@ Rotari is an **execution manager for researchers who run batches of experiments*
 | <img src="https://kamo-naoyuki.github.io/rotari/demo-shell.gif" alt="shell background jobs demo" width="400"> | <img src="https://kamo-naoyuki.github.io/rotari/demo-rotari.gif" alt="rotari demo" width="400"> |
 
 
-Rotari deliberately stays out of the way. **You don't need a separate workflow language:** write the commands as you normally would, as `rotari add` lines in a shell script or typed one by one, and rotari provides the execution, parallelism, logs, status, and run history around them. The script only builds the batch; once it has run, you can fix jobs in rotari itself (`change`, `retry`), and every run keeps the version that ran, so the script is a starting point rather than a definition to keep in sync. When a queue needs to be reproduced or edited as a unit, rotari can also export and import a constrained YAML, TOML, or JSON manifest; commands remain argument arrays rather than a new scripting language.
+Rotari deliberately stays out of the way. **You don't need a separate workflow language:** write the commands as you normally would, as `rotari add` lines in a shell script or typed one by one, and rotari provides the execution, parallelism, logs, status, and run history around them. The script stays the definition of the batch: each time it runs, rotari keeps that run's commands, results, and logs, so you can edit the script, run it again, and still see what every earlier run did. When a queue needs to be reproduced or edited as a unit, rotari can also export and import a constrained YAML, TOML, or JSON manifest; commands remain argument arrays rather than a new scripting language.
 
 **The environment stays yours, too.** A queue records commands, not where or with what they run: jobs are started from the working directory and environment of the shell that runs `rotari run`, as the commands of a shell script would be. After `cd` into another experiment directory or activating another conda environment, the same queue runs there without editing; pin a job's directory or variables only where it must not depend on the caller. See [Workflow and execution environment](docs/CONCEPTS.md#workflow-and-execution-environment).
 
@@ -53,7 +53,7 @@ These are rotari's closest neighbors. Like rotari, they run existing commands in
 
 * [**submitit**](https://github.com/facebookincubator/submitit) submits Python functions to Slurm and returns their results. **Use it when your experiment driver is a Python program.**
 
-Rotari adds the batch as a unit with a history: each run snapshots the queue and every job's result, `retry` reruns only failed and unfinished jobs after you fix them, and `diff` shows what a fix changed. The same queue runs locally, over SSH, or on Slurm, PBS, or LSF. See [Comparison with nearby tools](docs/TOOL_COMPARISON.md) for details.
+Rotari adds a history: each run keeps its commands, every job's status, and its logs, so you can see later what ran, what failed, and why. The same batch runs locally, over SSH, or on Slurm, PBS, or LSF. See [Comparison with nearby tools](docs/TOOL_COMPARISON.md) for details.
 
 #### Workflow engines, for when the workflow settles
 
