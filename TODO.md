@@ -190,9 +190,9 @@ test infrastructure and may remain at the package root.
 - All pending contract rows are covered by at least one conformance test.
   Remaining coverage is the `partial` rows in `contracts/README.md`, notably
   CORE/DUR, RES, CLI-1, and SEL-1/2.
-- Golden tests live in `conformance/golden_test.go`; `-update` refreshes
-  `conformance/testdata/golden/`. Schema output is compacted to command/flag
-  metadata, and show output uses a deterministic queue JSON projection.
+- Golden test operation is documented in
+  [`conformance/README.md`](conformance/README.md); `-update` refreshes
+  `conformance/testdata/golden/`.
 - Recent cleanup commits: `857de4c` (wait), `333d51d` and `41f99fa` (copy),
   `bc87a21` and `c8d2e2f` (show), and `d126dde` (mixed-run retry).
 - `scripts/check.sh --short` still cannot complete in this sandbox because
