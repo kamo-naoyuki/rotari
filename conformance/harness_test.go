@@ -131,6 +131,13 @@ func (e *env) in(t *testing.T) *env {
 
 // withVar returns e with the environment variable name set to value.
 func (e *env) withVar(name, value string) *env {
+	copied := e.without(name)
+	copied.vars = append(copied.vars, name+"="+value)
+	return copied
+}
+
+// without returns e with the environment variable name unset.
+func (e *env) without(name string) *env {
 	copied := *e
 	copied.vars = nil
 	for _, item := range e.vars {
@@ -138,7 +145,6 @@ func (e *env) withVar(name, value string) *env {
 			copied.vars = append(copied.vars, item)
 		}
 	}
-	copied.vars = append(copied.vars, name+"="+value)
 	return &copied
 }
 

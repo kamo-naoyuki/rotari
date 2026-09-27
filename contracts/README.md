@@ -105,25 +105,25 @@ the IDs, this table, and those calls disagree.
 | CORE-5 | At most one active run and runner per project | pending | - |
 | CORE-6 | Completed runs are immutable; reruns change only their destination run | pending | - |
 | CORE-7 | Executors run jobs; run semantics stay in the shared execution path | pending | - |
-| RES-1 | Base directory resolution order | pending | - |
-| RES-2 | Project resolution order and the single-project default | pending | - |
-| RES-3 | Reading or editing a missing project fails; only `add` and `import` create one | pending | - |
-| RES-4 | `check` and `reset` take an optional positional project | pending | - |
-| RES-5 | `jobs` takes an optional positional project that overrides defaults | pending | - |
+| RES-1 | Base directory resolution order | conformance | `TestBaseDirResolutionOrder` |
+| RES-2 | Project resolution order and the single-project default | partial | `TestProjectResolutionOrder` |
+| RES-3 | Reading or editing a missing project fails; only `add` and `import` create one | partial | `TestMissingProjectIsAnError` |
+| RES-4 | `check` and `reset` take an optional positional project | conformance | `TestPositionalProject` |
+| RES-5 | `jobs` takes an optional positional project that overrides defaults | partial | `TestPositionalProject` |
 | RES-6 | `export TARGET [FILE]` names a project or saved run | pending | - |
 | RES-7 | `unlock` derives the run from the lock or interrupted metadata | pending | - |
 | RES-8 | `show --basedirs` lists registered state directories | pending | - |
 | RES-9 | Project names and job IDs are single path elements | conformance | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
 | RES-10 | Unsafe path elements are rejected before filesystem access, locally and remotely | partial | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
 | RES-11 | Stored times are UTC RFC3339; displayed times follow `TZ` | partial | `TestDisplayTimesFollowTZ` |
-| RES-12 | `--run-id` is exact except the reserved `latest` | pending | - |
-| RES-13 | A run ID or attempt ID alone resolves base directory, project, and run | pending | - |
-| RES-14 | Explicit location options win; conflicts with the registry fail | pending | - |
+| RES-12 | `--run-id` is exact except the reserved `latest` | partial | `TestLatestRunID` |
+| RES-13 | A run ID or attempt ID alone resolves base directory, project, and run | partial | `TestRunIDAloneResolvesLocation` |
+| RES-14 | Explicit location options win; conflicts with the registry fail | deviation | `TestExplicitLocationMustMatchRegistry` |
 | RES-15 | History consumers fall back to `last_run_id`, then the newest run | pending | - |
 | RES-16 | `wait` selector resolution and single-active-project scan | pending | - |
 | RES-17 | Run lookup applies to history commands only | pending | - |
 | RES-18 | `cancel`, `suspend`, and `resume` merge selectors and require the active run | pending | - |
-| RES-19 | `wait` resolves multiple run IDs independently | pending | - |
+| RES-19 | `wait` resolves multiple run IDs independently | conformance | `TestWaitResolvesRunIDsIndependently` |
 | RES-20 | Shell completion follows the location rules | pending | - |
 | RES-21 | Missing state directories give no completion candidates | pending | - |
 | DUR-1 | Every executor runs jobs through the self-reporting wrapper | pending | - |
