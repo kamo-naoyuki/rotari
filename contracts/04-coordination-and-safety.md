@@ -19,14 +19,12 @@ Representative implementation and tests:
 ## Job execution durability
 
 - **DUR-1** Every executor runs the command through a self-reporting wrapper that writes
-  `<job-id>/status.json` with phase, exit code, and hosts. See
-  [`internal/executor/wrapper.go`](../internal/executor/wrapper.go) and
-  [`cmd/rotari/job_executor_test.go`](../cmd/rotari/job_executor_test.go).
+  the attempt's `status.json` with phase, exit code, and hosts.
 - **DUR-2** The wrapper records status independently of the process that launched it, so
   scheduler accounting lag cannot hide the result.
 - **DUR-3** The local executor uses the same wrapper. If the coordinating server or async
-  worker is killed, the orphaned local job can finish and record its own status
-  instead of leaving no result.
+  worker is killed, the orphaned local job still finishes and records its own
+  status, which `show` and `jobs` then report, instead of leaving no result.
 - **DUR-4** Detached supervisors are not automatically restarted. Crash detection is
   file-backed: the run lock records the supervisor PID and host, and readers
   inspect per-job status files and missing summaries to report an active or
@@ -43,9 +41,15 @@ Representative implementation and tests:
   resolves from its own files only and shows its own timestamps.
 - **DUR-6** This does not kill or reconcile leftover jobs during recovery; `reset
   --recover` and `unlock` still require the operator to confirm that jobs have
-  stopped.
+  stopped, and a job that was still running keeps running and records its
+  result.
 
-Implementation and tests for DUR-5: `jobstatus.ReadAttempt` and
+Implementation and tests: the wrapper is built in
+[`internal/executor/wrapper.go`](../internal/executor/wrapper.go), with
+[`cmd/rotari/job_executor_test.go`](../cmd/rotari/job_executor_test.go).
+DUR-3, DUR-4, and DUR-6 are checked through the binary by
+[`conformance/durability_test.go`](../conformance/durability_test.go), which
+kills a run's supervisor with SIGKILL. For DUR-5, `jobstatus.ReadAttempt` and
 `jobstatus.ResolveAttempt` in [`internal/jobstatus`](../internal/jobstatus/),
 with [`internal/jobstatus/attempt_test.go`](../internal/jobstatus/attempt_test.go),
 [`internal/jobstatus/job_test.go`](../internal/jobstatus/job_test.go),

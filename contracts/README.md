@@ -130,10 +130,10 @@ the IDs, this table, and those calls disagree.
 | RES-21 | Missing state directories give no completion candidates | pending | - |
 | DUR-1 | Every executor runs jobs through the self-reporting wrapper | pending | - |
 | DUR-2 | The wrapper records status independently of its launcher | pending | - |
-| DUR-3 | An orphaned local job still records its own status | pending | - |
-| DUR-4 | Supervisors are not restarted; crash detection is file-backed | pending | - |
+| DUR-3 | An orphaned local job still records its own status | conformance | `TestJobOutlivesKilledSupervisor` |
+| DUR-4 | Supervisors are not restarted; crash detection is file-backed | conformance | `TestJobOutlivesKilledSupervisor` |
 | DUR-5 | `show`, `jobs`, reports, and the Web UI share one status fallback chain | partial | `TestCLIAndWebAgreeOnJobResults`, `TestStatusFallbackChainAgreesAcrossViews` |
-| DUR-6 | Recovery does not kill or reconcile leftover jobs | pending | - |
+| DUR-6 | Recovery does not kill or reconcile leftover jobs | partial | `TestRecoveryLeavesJobsRunning` |
 | SAFE-1 | `check` and `show` report a project as idle, running, or interrupted; a killed coordinator leaves it interrupted | conformance | `TestProjectStates` |
 | SAFE-2 | A running project rejects the commands that would change it, so no second runner starts | conformance | `TestRunningProjectRejectsChanges` |
 | SAFE-3 | An interrupted project rejects them, naming the run and how to inspect and recover it | conformance | `TestInterruptedProjectNeedsRecovery` |
