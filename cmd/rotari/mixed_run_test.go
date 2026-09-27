@@ -4,15 +4,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestExecuteMixedRunPersistsAcceptedImportedResult(t *testing.T) {
