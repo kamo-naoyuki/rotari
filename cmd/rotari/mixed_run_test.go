@@ -313,7 +313,7 @@ func TestExecuteMixedRunPartialArrayReexecutesOnlyFailedTask(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(paths.RunsDir, "run-1", "array-2"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(paths.RunsDir, "run-1", "array-2", "output"), []byte("carried output\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(paths.RunsDir, "run-1", "array-2", state.StdoutFileName), []byte("carried output\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	var buffer bytes.Buffer

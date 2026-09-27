@@ -46,7 +46,7 @@ func createAIReportFixture(t *testing.T) (string, state.ProjectPaths, string, st
 	for index := range lines {
 		lines[index] = "log-line-" + fmt.Sprintf("%03d", index+1)
 	}
-	if err := os.WriteFile(filepath.Join(jobDir, "output"), []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(jobDir, state.StdoutFileName), []byte(strings.Join(lines, "\n")), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return baseDir, paths, runID, jobID
@@ -135,7 +135,7 @@ func TestCmdShowReportSelectsAttemptID(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(oldAttemptDir, stateFileFinishedAt), []byte("2026-09-22T01:00:00Z\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(oldAttemptDir, stateFileOutput), []byte("old-attempt-log\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(oldAttemptDir, state.StdoutFileName), []byte("old-attempt-log\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "finished", Results: []model.JobResult{{ID: jobID, AttemptID: latestAttemptID, ExitCode: 0}}}); err != nil {

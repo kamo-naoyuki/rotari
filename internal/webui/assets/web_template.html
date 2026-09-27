@@ -59,6 +59,10 @@
           <header>
             <strong>Output</strong>
             <div class="modal-actions">
+              <select id="log-stream" aria-label="Log stream" onchange="changeLogStream(this.value)" hidden>
+                <option value="stdout">stdout</option>
+                <option value="stderr">stderr</option>
+              </select>
               <button
                 id="copy-tail"
                 onclick="copyLogTail(this)"

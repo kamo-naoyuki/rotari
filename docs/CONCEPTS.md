@@ -32,7 +32,8 @@ The queue has different roles depending on the project state:
         └── <job-id>/
             └── attempts/<attempt-id>/
                 ├── command.json
-                ├── output     # the job's log
+                ├── stdout     # the job's standard output
+                ├── stderr     # the job's standard error
                 ├── status.json
                 └── ...        # executor-specific state
 ```
@@ -63,7 +64,8 @@ flowchart LR
 Each added command has a stable job ID. Use `add --job-name NAME` to give a
 job a readable label, and `run --run-name NAME` (or `ROTARI_RUN_NAME`) to label
 a run; the generated IDs remain available for unambiguous commands and paths. `run` saves the complete command
-snapshot under `runs/<run-id>/`, together with a summary and each job's log.
+snapshot under `runs/<run-id>/`, together with a summary and separate stdout
+and stderr logs for each attempt.
 After it finishes, the queue is emptied, while the run can be inspected or used
 with selections such as `rotari retry`. The next `add` starts a new batch while
 keeping the previous run history. Use `delete` to remove saved run logs

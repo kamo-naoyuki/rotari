@@ -414,7 +414,7 @@ func TestSlurmArrayWrapperWritesFinishedTaskStatus(t *testing.T) {
 			jobDir := filepath.Join(runDir, "array-1")
 			job := model.JobSpec{
 				ID: "array-1", ArrayGroup: "array", ArrayTaskID: &task, ArrayFirst: 1, ArrayLast: 1,
-				Command: []string{"sh", "-c", "printf task-output; exit 0"},
+				Command: []string{"sh", "-c", "printf task-output; printf task-error >&2; exit 0"},
 				Environment: []string{
 					"ROTARI_ARRAY_TASK_ID=1",
 					model.EnvJobDir + "=" + jobDir,
@@ -433,9 +433,13 @@ func TestSlurmArrayWrapperWritesFinishedTaskStatus(t *testing.T) {
 			if !ok || status.Phase != "finished" || status.ExitCode != 0 {
 				t.Fatalf("status = %#v, ok=%v", status, ok)
 			}
-			output, err := os.ReadFile(filepath.Join(jobDir, "output"))
-			if err != nil || string(output) != "task-output" {
-				t.Fatalf("output = %q, err=%v; want task output in job directory", output, err)
+			stdout, err := os.ReadFile(filepath.Join(jobDir, state.StdoutFileName))
+			if err != nil || string(stdout) != "task-output" {
+				t.Fatalf("stdout = %q, err=%v; want task stdout in job directory", stdout, err)
+			}
+			stderr, err := os.ReadFile(filepath.Join(jobDir, state.StderrFileName))
+			if err != nil || string(stderr) != "task-error" {
+				t.Fatalf("stderr = %q, err=%v; want task stderr in job directory", stderr, err)
 			}
 		})
 	}

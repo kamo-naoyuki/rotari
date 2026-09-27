@@ -108,10 +108,19 @@ func cmdShow(args []string) int {
 	showLogs := cliBool(fs, "logs", false)
 	showFailedLogs := cliBool(fs, "failed-logs", false)
 	followLogs := cliBool(fs, "follow", false)
+	streamOption := cliString(fs, "stream", "both")
 	noPager := cliBool(fs, "no-pager", false)
 	jsonOutput := cliBool(fs, "json", false)
 	reportOutput := cliBool(fs, "report", false)
 	if err := cliParse(fs, args); err != nil {
+		return 1
+	}
+	if *streamOption != "both" && *streamOption != "stdout" && *streamOption != "stderr" {
+		printError("--stream must be both, stdout, or stderr")
+		return 1
+	}
+	if *followLogs && *streamOption == "both" && cliOptionSet(fs, "stream") {
+		printError("--follow requires --stream stdout or --stream stderr")
 		return 1
 	}
 	scope := model.CommandSelector{Stage: *stageOption, Matrix: *matrixOption}
@@ -241,6 +250,10 @@ func cmdShow(args []string) int {
 		}
 		applyShowSelectorTarget(targets[0], basedir, queueNameOption, runIDOption, jobIDOption, showQueueOption)
 	}
+	if cliOptionSet(fs, "stream") && (*reportOutput || (!*showLogs && !*showFailedLogs && !*followLogs && *jobIDOption == "")) {
+		printError("--stream requires a job log, --logs, or --failed-logs view")
+		return 1
+	}
 	if *lineage {
 		if selector != "" || *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || resultFilter || scope.Kinds() > 0 ||
 			*showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *reportOutput {
@@ -302,6 +315,10 @@ func cmdShow(args []string) int {
 		return showProjectOverview(paths)
 	}
 	if *showQueueOption {
+		if cliOptionSet(fs, "stream") {
+			printError("--stream cannot be combined with --queue")
+			return 1
+		}
 		queue, err := state.LoadQueue(paths.QueueFile)
 		if err != nil {
 			printErrorf("failed to load queue: %v", err)
@@ -343,7 +360,7 @@ func cmdShow(args []string) int {
 			}
 			// Options that only apply to runs look past a non-empty queue to
 			// the latest run; other views show the queue.
-			runOnly := *showLogs || *showFailedLogs || *followLogs || resultFilter || *reportOutput
+					runOnly := *showLogs || *showFailedLogs || *followLogs || resultFilter || *reportOutput || cliOptionSet(fs, "stream")
 			if len(queue.Commands) > 0 && !runOnly {
 				if arrayScope, ok := arrayCommandScope(queue.Commands, *jobIDOption); ok {
 					return showQueue(paths, queue, arrayScope)
@@ -398,10 +415,14 @@ func cmdShow(args []string) int {
 			return 1
 		}
 		if shouldFollowLogs(*followLogs, running, isTerminal(os.Stdout)) {
-			return followJobLog(os.Stdout, paths, runID, *jobIDOption)
+			stream := *streamOption
+			if stream == "both" {
+				stream = "stdout"
+			}
+			return followJobLog(os.Stdout, paths, runID, *jobIDOption, stream)
 		}
 		return showWithPager(!*noPager, func(writer io.Writer) int {
-			return showJobAttempt(writer, paths, runID, *jobIDOption, attemptID)
+			return showJobAttempt(writer, paths, runID, *jobIDOption, attemptID, *streamOption)
 		})
 	}
 	if *followLogs {
@@ -414,7 +435,7 @@ func cmdShow(args []string) int {
 			return 1
 		}
 		return showWithPager(!*noPager, func(writer io.Writer) int {
-			return showRunLogs(writer, paths, runID, *showFailedLogs)
+			return showRunLogs(writer, paths, runID, *showFailedLogs, *streamOption)
 		})
 	}
 	if *reportOutput {
@@ -1462,7 +1483,7 @@ func showJob(writer io.Writer, paths state.ProjectPaths, runID, jobID string) in
 	return showJobAttempt(writer, paths, runID, jobID, "")
 }
 
-func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, attemptID string) int {
+func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, attemptID string, selectedStreams ...string) int {
 	if !state.IsValidPathElement(runID) {
 		printErrorf(runNotFoundMessage, runID)
 		return 1
@@ -1496,10 +1517,10 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 				// details below keep the original attempt and exit code.
 				fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), green("success (accepted)"))
 				fmt.Fprintf(writer, "%s manually accepted from run %s attempt %s (no re-execution)\n\n", cyan("Note:"), origin.RunID, origin.AttemptID)
-				return showJobAttempt(writer, paths, origin.RunID, origin.JobID, origin.AttemptID)
+				return showJobAttempt(writer, paths, origin.RunID, origin.JobID, origin.AttemptID, selectedStreams...)
 			}
 			fmt.Fprintf(writer, "%s carried forward from run %s (no re-execution)\n\n", cyan("Note:"), origin.RunID)
-			return showJobAttempt(writer, paths, origin.RunID, origin.JobID, "")
+			return showJobAttempt(writer, paths, origin.RunID, origin.JobID, "", selectedStreams...)
 		}
 		if !inRun || attemptID != "" {
 			printErrorf(jobNotFoundMessage, jobID, runID)
@@ -1592,15 +1613,38 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	}
 	fmt.Fprintf(writer, "%s %s\n", cyan("Command:"), command)
 	if neverRan {
-		fmt.Fprintf(writer, "%s -\n", cyan("Output:"))
+		fmt.Fprintf(writer, "%s -\n", cyan("Logs:"))
 		return 0
 	}
-	fmt.Fprintf(writer, "%s %s\n\n", cyan("Output:"), filepath.Join(jobDir, "output"))
-	output, err := os.ReadFile(filepath.Join(jobDir, "output"))
-	if err == nil {
-		fmt.Fprint(writer, string(output))
-	}
+	printJobStreams(writer, jobDir, selectedStreamNames(selectedStreams...))
 	return 0
+}
+
+func selectedStreamNames(selected ...string) []string {
+	stream := "both"
+	if len(selected) > 0 && selected[0] != "" {
+		stream = selected[0]
+	}
+	if stream == "both" {
+		return []string{state.StdoutFileName, state.StderrFileName}
+	}
+	return []string{stream}
+}
+
+func printJobStreams(writer io.Writer, jobDir string, streams []string) {
+	for _, stream := range streams {
+		path := filepath.Join(jobDir, stream)
+		fmt.Fprintf(writer, "%s %s\n", cyan(strings.ToUpper(stream)+":"), path)
+		data, err := os.ReadFile(path)
+		if err != nil || len(data) == 0 {
+			fmt.Fprintf(writer, "(No %s log)\n", stream)
+		} else {
+			fmt.Fprint(writer, string(data))
+			if !strings.HasSuffix(string(data), "\n") {
+				fmt.Fprintln(writer)
+			}
+		}
+	}
 }
 
 // jobAttemptStatusText renders a resolved job's status for `show` of one job.
@@ -1680,7 +1724,7 @@ func readJSONCommand(path string) string {
 	return strings.Join(job.Command, " ")
 }
 
-func showRunLogs(writer io.Writer, paths state.ProjectPaths, runID string, failedOnly bool) int {
+func showRunLogs(writer io.Writer, paths state.ProjectPaths, runID string, failedOnly bool, selectedStreams ...string) int {
 	runDir := filepath.Join(paths.RunsDir, runID)
 	entries, err := os.ReadDir(runDir)
 	if err != nil {
@@ -1736,18 +1780,7 @@ func showRunLogs(writer io.Writer, paths state.ProjectPaths, runID string, faile
 			fmt.Fprintf(writer, "Working directory: %s\n", jobSpecs[jobID].WorkingDirectory)
 		}
 		fmt.Fprintf(writer, "Command: %s\n", command)
-		fmt.Fprintf(writer, "Output path: %s\n", filepath.Join(jobDir, "output"))
-
-		output, err := os.ReadFile(filepath.Join(jobDir, "output"))
-		if err == nil && len(output) > 0 {
-			fmt.Fprintln(writer, "--- Log Output ---")
-			fmt.Fprint(writer, string(output))
-			if !strings.HasSuffix(string(output), "\n") {
-				fmt.Fprintln(writer)
-			}
-		} else {
-			fmt.Fprintln(writer, "(No output log)")
-		}
+		printJobStreams(writer, jobDir, selectedStreamNames(selectedStreams...))
 		fmt.Fprintln(writer)
 	}
 
@@ -1759,12 +1792,12 @@ func showRunLogs(writer io.Writer, paths state.ProjectPaths, runID string, faile
 	if queueErr == nil {
 		for _, command := range queue.Commands {
 			if command.Array == nil {
-				printCarriedForwardOutput(writer, paths, command.ID, command.Name, command.Command, command.WorkingDirectory, command.Origin, seen, failedOnly)
+				printCarriedForwardOutput(writer, paths, command.ID, command.Name, command.Command, command.WorkingDirectory, command.Origin, seen, failedOnly, selectedStreams...)
 				continue
 			}
 			for _, task := range model.ArrayTaskIDs(command.Array) {
 				taskID := fmt.Sprintf("%s-%d", command.ID, task)
-				printCarriedForwardOutput(writer, paths, taskID, command.Name, command.Command, command.WorkingDirectory, command.TaskOrigins[taskID], seen, failedOnly)
+				printCarriedForwardOutput(writer, paths, taskID, command.Name, command.Command, command.WorkingDirectory, command.TaskOrigins[taskID], seen, failedOnly, selectedStreams...)
 			}
 		}
 	}
@@ -1774,7 +1807,7 @@ func showRunLogs(writer io.Writer, paths state.ProjectPaths, runID string, faile
 // printCarriedForwardOutput prints a carried-forward job's output read from
 // its origin run/job, if it was not itself re-executed in this run (i.e. it
 // has no directory of its own here).
-func printCarriedForwardOutput(writer io.Writer, paths state.ProjectPaths, id, name string, command []string, workingDirectory string, origin *model.JobOrigin, seen map[string]bool, failedOnly bool) {
+func printCarriedForwardOutput(writer io.Writer, paths state.ProjectPaths, id, name string, command []string, workingDirectory string, origin *model.JobOrigin, seen map[string]bool, failedOnly bool, selectedStreams ...string) {
 	if seen[id] || origin == nil {
 		return
 	}
@@ -1805,25 +1838,20 @@ func printCarriedForwardOutput(writer io.Writer, paths state.ProjectPaths, id, n
 	if err != nil {
 		return
 	}
-	originDir, err := state.SafeJoin(originRunDir, origin.JobID)
+	var originDir string
+	if origin.AttemptID != "" {
+		originDir, err = state.SpecificAttemptJobDir(originRunDir, origin.JobID, origin.AttemptID)
+	} else {
+		originDir, err = state.LatestAttemptJobDir(originRunDir, origin.JobID)
+	}
 	if err != nil {
 		return
 	}
-	fmt.Fprintf(writer, "Output path: %s\n", filepath.Join(originDir, "output"))
-	output, err := os.ReadFile(filepath.Join(originDir, "output"))
-	if err == nil && len(output) > 0 {
-		fmt.Fprintln(writer, "--- Log Output ---")
-		fmt.Fprint(writer, string(output))
-		if !strings.HasSuffix(string(output), "\n") {
-			fmt.Fprintln(writer)
-		}
-	} else {
-		fmt.Fprintln(writer, "(No output log)")
-	}
+	printJobStreams(writer, originDir, selectedStreamNames(selectedStreams...))
 	fmt.Fprintln(writer)
 }
 
-func followJobLog(writer io.Writer, paths state.ProjectPaths, runID, jobID string) int {
+func followJobLog(writer io.Writer, paths state.ProjectPaths, runID, jobID string, streams ...string) int {
 	if !state.IsValidPathElement(runID) {
 		printErrorf(runNotFoundMessage, runID)
 		return 1
@@ -1837,30 +1865,52 @@ func followJobLog(writer io.Writer, paths state.ProjectPaths, runID, jobID strin
 		printErrorf(runNotFoundMessage, runID)
 		return 1
 	}
-	jobDir, err := state.SafeJoin(runDir, jobID)
+	stream := streamForFollow(streams...)
+	if stream != state.StdoutFileName && stream != state.StderrFileName {
+		printError("--follow requires --stream stdout or --stream stderr")
+		return 1
+	}
+	latestAttemptID, attemptErr := state.LatestAttemptID(runDir, jobID)
+	if attemptErr != nil || latestAttemptID == "" {
+		if origin := state.LoadRunOrigin(runDir, jobID); origin != nil {
+			fmt.Fprintf(writer, "%s carried forward from run %s (no re-execution)\n\n", cyan("Note:"), origin.RunID)
+			originRunDir, pathErr := state.SafeJoin(paths.RunsDir, origin.RunID)
+			if pathErr != nil {
+				return 0
+			}
+			var originDir string
+			if origin.AttemptID != "" {
+				originDir, err = state.SpecificAttemptJobDir(originRunDir, origin.JobID, origin.AttemptID)
+			} else {
+				originDir, err = state.LatestAttemptJobDir(originRunDir, origin.JobID)
+			}
+			if err == nil {
+				originOutput, readErr := os.ReadFile(filepath.Join(originDir, stream))
+				if readErr == nil {
+					_, _ = writer.Write(originOutput)
+				}
+			}
+			return 0
+		}
+		if _, exists := loadRunJobSpecs(runDir)[jobID]; !exists {
+			printErrorf(jobNotFoundMessage, jobID, runID)
+			return 1
+		}
+		if _, finished := loadRunResult(runDir, jobID); finished {
+			return 0
+		}
+		printErrorf("job %q has not started an attempt in run %q", jobID, runID)
+		return 1
+	}
+	jobDir, err := state.SpecificAttemptJobDir(runDir, jobID, latestAttemptID)
 	if err != nil {
 		printErrorf(jobNotFoundMessage, jobID, runID)
 		return 1
 	}
-	outputPath := filepath.Join(jobDir, "output")
+	outputPath := filepath.Join(jobDir, stream)
 	output, err := os.ReadFile(outputPath)
-	if err != nil {
-		if origin := state.LoadRunOrigin(runDir, jobID); origin != nil {
-			// Carried forward: it already finished under the origin run, so
-			// there is nothing new to follow, just print its output once.
-			fmt.Fprintf(writer, "%s carried forward from run %s (no re-execution)\n\n", cyan("Note:"), origin.RunID)
-			originRunDir, pathErr := state.SafeJoin(paths.RunsDir, origin.RunID)
-			originDir, jobErr := state.SafeJoin(originRunDir, origin.JobID)
-			if pathErr != nil || jobErr != nil {
-				return 0
-			}
-			originOutput, readErr := os.ReadFile(filepath.Join(originDir, "output"))
-			if readErr == nil {
-				_, _ = writer.Write(originOutput)
-			}
-			return 0
-		}
-		printErrorf("failed to read job output: %v", err)
+	if err != nil && !os.IsNotExist(err) {
+		printErrorf("failed to read job %s: %v", stream, err)
 		return 1
 	}
 	if _, err := writer.Write(output); err != nil {
@@ -1871,9 +1921,13 @@ func followJobLog(writer io.Writer, paths state.ProjectPaths, runID, jobID strin
 		data, err := os.ReadFile(outputPath)
 		if err != nil {
 			if !os.IsNotExist(err) {
-				printErrorf("failed to read job output: %v", err)
+				printErrorf("failed to read job %s: %v", stream, err)
 				return 1
 			}
+			if jobstatus.ReadAttempt(jsonStore(), jobDir).Finished() {
+				return 0
+			}
+			time.Sleep(250 * time.Millisecond)
 			continue
 		}
 		if len(data) > int(offset) {
@@ -1887,6 +1941,13 @@ func followJobLog(writer io.Writer, paths state.ProjectPaths, runID, jobID strin
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
+}
+
+func streamForFollow(streams ...string) string {
+	if len(streams) > 0 && streams[0] != "" {
+		return streams[0]
+	}
+	return state.StdoutFileName
 }
 
 func runResultAccepted(runDir, jobID string) bool {

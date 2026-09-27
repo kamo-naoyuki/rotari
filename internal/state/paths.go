@@ -8,6 +8,11 @@ import (
 	"strings"
 )
 
+const (
+	StdoutFileName = "stdout"
+	StderrFileName = "stderr"
+)
+
 func IsValidPathElement(value string) bool {
 	if value == "" || value == "." || value == ".." || filepath.IsAbs(value) {
 		return false
@@ -48,7 +53,7 @@ func SafeJoin(basePath, element string) (string, error) {
 
 func ValidatedStateFile(basePath, fileName string) (string, error) {
 	switch fileName {
-	case "commands.json", "summary.json", "context.json", "output", "scheduler_status.json",
+	case "commands.json", "summary.json", "context.json", StdoutFileName, StderrFileName, "scheduler_status.json",
 		"status.json", "status", "submitted_at", "finished_at", "command.json", "job.json",
 		"pid", "cancelled", "name":
 		return SafeJoin(basePath, fileName)

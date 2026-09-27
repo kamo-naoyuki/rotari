@@ -627,7 +627,12 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "failed-logs",
                 },
                 {
-                    "description": "follow log output until the run completes",
+                    "description": "show both streams or select stdout/stderr",
+                    "name": "stream",
+                    "value_name": "STREAM",
+                },
+                {
+                    "description": "follow one selected log stream until the run completes",
                     "name": "follow",
                 },
                 {

@@ -37,12 +37,16 @@ func RunLocalJob(runDir string, job model.JobSpec, store state.Store, logf func(
 		return RecordCancelledJob(jobDir, job, store)
 	}
 
-	logPath := filepath.Join(jobDir, "output")
-	logFile, err := os.Create(logPath)
+	stdoutFile, err := os.Create(filepath.Join(jobDir, state.StdoutFileName))
 	if err != nil {
 		return model.JobResult{ID: job.ID, ExitCode: 1, Error: err.Error()}
 	}
-	defer logFile.Close()
+	defer stdoutFile.Close()
+	stderrFile, err := os.Create(filepath.Join(jobDir, state.StderrFileName))
+	if err != nil {
+		return model.JobResult{ID: job.ID, ExitCode: 1, Error: err.Error()}
+	}
+	defer stderrFile.Close()
 	if len(job.Command) == 0 {
 		return model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: "empty command"}
 	}
@@ -54,8 +58,8 @@ func RunLocalJob(runDir string, job model.JobSpec, store state.Store, logf func(
 	}
 
 	command := exec.Command("/bin/sh", wrapperPath)
-	command.Stdout = logFile
-	command.Stderr = logFile
+	command.Stdout = stdoutFile
+	command.Stderr = stderrFile
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := command.Start(); err != nil {
 		_ = os.WriteFile(filepath.Join(jobDir, "status"), []byte("1\n"), store.FileMode)
@@ -98,7 +102,7 @@ func RecordCancelledJob(jobDir string, job model.JobSpec, store state.Store) mod
 		_ = os.WriteFile(filepath.Join(jobDir, "name"), []byte(job.Name+"\n"), store.FileMode)
 	}
 	_ = os.WriteFile(filepath.Join(jobDir, "submitted_at"), []byte(nowRFC3339()+"\n"), store.FileMode)
-	_ = os.WriteFile(filepath.Join(jobDir, "output"), []byte(message+"\n"), store.FileMode)
+	_ = os.WriteFile(filepath.Join(jobDir, state.StderrFileName), []byte(message+"\n"), store.FileMode)
 	_ = os.WriteFile(filepath.Join(jobDir, "status"), []byte("143\n"), store.FileMode)
 	_ = os.WriteFile(filepath.Join(jobDir, "finished_at"), []byte(nowRFC3339()+"\n"), store.FileMode)
 	return model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 143, Error: message}

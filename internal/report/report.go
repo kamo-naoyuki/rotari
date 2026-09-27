@@ -245,16 +245,7 @@ func reportJobStatus(job webprojection.Job, running bool) string {
 
 func readReportLog(paths state.ProjectPaths, runID string, job webprojection.Job) string {
 	if job.AttemptDir != "" {
-		// NOSONAR: job.AttemptDir is created from validated path elements only.
-		path, err := state.ValidatedStateFile(job.AttemptDir, "output")
-		if err != nil {
-			return ""
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return ""
-		}
-		return tailReportLog(string(data))
+		return tailReportLog(readSeparateJobLogs(job.AttemptDir))
 	}
 	jobID := job.ID
 	if job.Origin != nil {
@@ -269,16 +260,28 @@ func readReportLog(paths state.ProjectPaths, runID string, job webprojection.Job
 	if err != nil {
 		return ""
 	}
-	path, err := state.ValidatedStateFile(jobDir, "output")
-	if err != nil {
-		return ""
+	return tailReportLog(readSeparateJobLogs(jobDir))
+}
+
+func readSeparateJobLogs(jobDir string) string {
+	var logs strings.Builder
+	for _, stream := range []string{state.StdoutFileName, state.StderrFileName} {
+		path, err := state.ValidatedStateFile(jobDir, stream)
+		if err != nil {
+			continue
+		}
+		// codeql[go/path-injection]: path is restricted by ValidatedStateFile to stdout or stderr.
+		data, err := os.ReadFile(path) // NOSONAR: path is restricted to the two validated stream filenames.
+		if err != nil || len(data) == 0 {
+			continue
+		}
+		if logs.Len() > 0 {
+			logs.WriteString("\n")
+		}
+		fmt.Fprintf(&logs, "--- %s ---\n", stream)
+		logs.Write(data)
 	}
-	// codeql[go/path-injection]: path is restricted by validatedStateFile to output.
-	data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to output.
-	if err != nil {
-		return ""
-	}
-	return tailReportLog(string(data))
+	return logs.String()
 }
 
 func tailReportLog(data string) string {

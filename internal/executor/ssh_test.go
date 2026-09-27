@@ -30,7 +30,7 @@ sh "$ROTARI_SSH_SCRIPT"
 	t.Setenv("XDG_RUNTIME_DIR", remoteDir)
 
 	runDir := filepath.Join(t.TempDir(), "runs", "run-1")
-	job := model.JobSpec{ID: "job-1", Command: []string{"sh", "-c", "printf '%s' \"$ROTARI_JOB_ID\""}, Environment: []string{"ROTARI_JOB_ID=job-1"}}
+	job := model.JobSpec{ID: "job-1", Command: []string{"sh", "-c", "printf '%s' \"$ROTARI_JOB_ID\"; printf ssh-error >&2"}, Environment: []string{"ROTARI_JOB_ID=job-1"}}
 	ssh := SSH{Store: testStore()}
 	handle, err := ssh.Submit(runDir, job, []string{"builder@example.test", "-p 2222"})
 	if err != nil {
@@ -40,9 +40,13 @@ sh "$ROTARI_SSH_SCRIPT"
 	if result.ExitCode != 0 || len(result.Hosts) != 1 || result.Hosts[0] != "builder@example.test" {
 		t.Fatalf("result = %#v", result)
 	}
-	output, err := os.ReadFile(filepath.Join(runDir, "job-1", "output"))
-	if err != nil || string(output) != "job-1" {
-		t.Fatalf("output = %q, err = %v", output, err)
+	stdout, err := os.ReadFile(filepath.Join(runDir, "job-1", state.StdoutFileName))
+	if err != nil || string(stdout) != "job-1" {
+		t.Fatalf("stdout = %q, err = %v", stdout, err)
+	}
+	stderr, err := os.ReadFile(filepath.Join(runDir, "job-1", state.StderrFileName))
+	if err != nil || string(stderr) != "ssh-error" {
+		t.Fatalf("stderr = %q, err = %v", stderr, err)
 	}
 	arguments, err := os.ReadFile(argumentsPath)
 	if err != nil {

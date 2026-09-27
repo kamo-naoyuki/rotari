@@ -2085,11 +2085,11 @@ func TestFollowJobLogReadsAppendedOutputUntilFinished(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	jobDir := filepath.Join(paths.RunsDir, "run-1", "job-1")
+	jobDir := filepath.Join(paths.RunsDir, "run-1", "job-1", "attempts", state.MakeAttemptID("run-1", "job-1", 0))
 	if err := os.MkdirAll(jobDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	outputPath := filepath.Join(jobDir, "output")
+	outputPath := filepath.Join(jobDir, state.StdoutFileName)
 	if err := os.WriteFile(outputPath, []byte("first\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -2101,7 +2101,7 @@ func TestFollowJobLogReadsAppendedOutputUntilFinished(t *testing.T) {
 	}()
 
 	var output bytes.Buffer
-	if code := followJobLog(&output, paths, "run-1", "job-1"); code != 0 {
+	if code := followJobLog(&output, paths, "run-1", "job-1", state.StdoutFileName); code != 0 {
 		t.Fatalf("followJobLog exit = %d, want 0", code)
 	}
 	if got := output.String(); got != "first\nsecond\n" {
@@ -2895,8 +2895,8 @@ func TestRunOneJobSkipsCancelledPendingJob(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(jobDir, "pid")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("pid file exists or stat failed: %v", err)
 	}
-	if output, err := os.ReadFile(filepath.Join(jobDir, "output")); err != nil || !strings.Contains(string(output), "cancelled before start") {
-		t.Fatalf("output = %q, err = %v", output, err)
+	if output, err := os.ReadFile(filepath.Join(jobDir, state.StderrFileName)); err != nil || !strings.Contains(string(output), "cancelled before start") {
+		t.Fatalf("stderr = %q, err = %v", output, err)
 	}
 }
 

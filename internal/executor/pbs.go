@@ -139,8 +139,9 @@ func submitPBSJobWithPolicies(store state.Store, logf func(string, ...any), runD
 	if err := os.WriteFile(wrapperPath, []byte(StatusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory, job.Timeout)), store.ScriptMode); err != nil {
 		return pbsJobMetadata{}, err
 	}
-	outputPath := filepath.Join(jobDir, "output")
-	args := []string{"-j", "oe", "-o", outputPath}
+	stdoutPath := filepath.Join(jobDir, state.StdoutFileName)
+	stderrPath := filepath.Join(jobDir, state.StderrFileName)
+	args := []string{"-o", stdoutPath, "-e", stderrPath}
 	expandedOptions, err := ExpandShellOptions(options)
 	if err != nil {
 		return pbsJobMetadata{}, err

@@ -353,8 +353,16 @@ func (s site) handler() http.Handler {
 		}
 		queueName := request.URL.Query().Get("project_name")
 		runID, jobID := request.URL.Query().Get("run_id"), request.URL.Query().Get("job_id")
+		stream := request.URL.Query().Get("stream")
+		if stream == "" {
+			stream = stateinternal.StdoutFileName
+		}
 		if !stateinternal.IsValidPathElement(queueName) || !stateinternal.IsValidPathElement(runID) || !stateinternal.IsValidPathElement(jobID) {
 			writeWebError(writer, fmt.Errorf("project_name, run_id and job_id are required"))
+			return
+		}
+		if stream != stateinternal.StdoutFileName && stream != stateinternal.StderrFileName {
+			writeWebError(writer, fmt.Errorf("stream must be stdout or stderr"))
 			return
 		}
 		projectDir, err := stateinternal.SafeJoin(filepath.Join(baseDir, "projects"), queueName)
@@ -362,13 +370,13 @@ func (s site) handler() http.Handler {
 			writeWebError(writer, err)
 			return
 		}
-		path, err := webLogPath(filepath.Join(projectDir, "runs"), runID, jobID, request.URL.Query().Get("attempt_id"))
+		path, err := webLogPath(filepath.Join(projectDir, "runs"), runID, jobID, request.URL.Query().Get("attempt_id"), stream)
 		if err != nil {
 			writeWebError(writer, err)
 			return
 		}
-		// codeql[go/path-injection]: path is restricted by webLogPath to the validated output file.
-		data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to output.log
+		// codeql[go/path-injection]: path is restricted by webLogPath to a validated stream file.
+		data, err := os.ReadFile(path) // NOSONAR: path is restricted by validatedStateFile to stdout or stderr.
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -916,30 +924,29 @@ func (s site) generateStaticWeb(outputDir string) error {
 				reports[staticReportKey(queue.QueueName, run.RunID, "")] = report
 			}
 			for _, job := range run.Jobs {
-				path, pathErr := webLogPath(paths.RunsDir, run.RunID, job.ID, "")
-				if pathErr != nil {
-					continue
-				}
-				data, readErr := os.ReadFile(path)
-				if readErr == nil {
-					logs[staticLogKey(queue.QueueName, run.RunID, job.ID)] = string(data)
-				}
-				if job.AttemptID != "" {
-					attemptPath, attemptErr := webLogPath(paths.RunsDir, run.RunID, job.ID, job.AttemptID)
-					if attemptErr == nil {
-						if attemptData, attemptReadErr := os.ReadFile(attemptPath); attemptReadErr == nil {
-							logs[staticLogKey(queue.QueueName, run.RunID, job.ID, job.AttemptID)] = string(attemptData)
+				for _, stream := range []string{stateinternal.StdoutFileName, stateinternal.StderrFileName} {
+					path, pathErr := webLogPath(paths.RunsDir, run.RunID, job.ID, "", stream)
+					if pathErr == nil {
+						if data, readErr := os.ReadFile(path); readErr == nil {
+							logs[staticLogKey(queue.QueueName, run.RunID, job.ID, stream, "")] = string(data)
 						}
 					}
-				}
-				for _, attempt := range job.Attempts {
-					attemptPath, attemptErr := webLogPath(paths.RunsDir, run.RunID, job.ID, attempt.ID)
-					if attemptErr != nil {
-						continue
+					if job.AttemptID != "" {
+						attemptPath, attemptErr := webLogPath(paths.RunsDir, run.RunID, job.ID, job.AttemptID, stream)
+						if attemptErr == nil {
+							if attemptData, attemptReadErr := os.ReadFile(attemptPath); attemptReadErr == nil {
+								logs[staticLogKey(queue.QueueName, run.RunID, job.ID, stream, job.AttemptID)] = string(attemptData)
+							}
+						}
 					}
-					attemptData, attemptReadErr := os.ReadFile(attemptPath)
-					if attemptReadErr == nil {
-						logs[staticLogKey(queue.QueueName, run.RunID, job.ID, attempt.ID)] = string(attemptData)
+					for _, attempt := range job.Attempts {
+						attemptPath, attemptErr := webLogPath(paths.RunsDir, run.RunID, job.ID, attempt.ID, stream)
+						if attemptErr != nil {
+							continue
+						}
+						if attemptData, attemptReadErr := os.ReadFile(attemptPath); attemptReadErr == nil {
+							logs[staticLogKey(queue.QueueName, run.RunID, job.ID, stream, attempt.ID)] = string(attemptData)
+						}
 					}
 				}
 				if report, reportErr := report.Build(s.Store, paths, run.RunID, job.ID, false, ""); reportErr == nil {
@@ -1046,19 +1053,18 @@ func (s site) generateStaticWeb(outputDir string) error {
 	return nil
 }
 
-func staticLogKey(queueName, runID, jobID string, attemptIDs ...string) string {
-	attemptID := ""
-	if len(attemptIDs) > 0 {
-		attemptID = attemptIDs[0]
-	}
-	return queueName + "/" + runID + "/" + jobID + "/" + attemptID
+func staticLogKey(queueName, runID, jobID, stream, attemptID string) string {
+	return queueName + "/" + runID + "/" + jobID + "/" + stream + "/" + attemptID
 }
 
 func staticConfigKey(projectName, runID string) string {
 	return projectName + "/" + runID
 }
 
-func webLogPath(runsDir, runID, jobID, attemptID string) (string, error) {
+func webLogPath(runsDir, runID, jobID, attemptID, stream string) (string, error) {
+	if stream != stateinternal.StdoutFileName && stream != stateinternal.StderrFileName {
+		return "", fmt.Errorf("stream must be stdout or stderr")
+	}
 	if attemptID != "" {
 		runDir, err := stateinternal.SafeJoin(runsDir, runID)
 		if err != nil {
@@ -1072,7 +1078,7 @@ func webLogPath(runsDir, runID, jobID, attemptID string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return stateinternal.ValidatedStateFile(jobDir, "output")
+		return stateinternal.ValidatedStateFile(jobDir, stream)
 	}
 	runDir, resolvedJobID, err := resolveWebLogJob(runsDir, runID, jobID)
 	if err != nil {
@@ -1082,7 +1088,7 @@ func webLogPath(runsDir, runID, jobID, attemptID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return stateinternal.ValidatedStateFile(jobDir, "output")
+	return stateinternal.ValidatedStateFile(jobDir, stream)
 }
 
 func resolveWebLogJob(runsDir, runID, jobID string) (string, string, error) {
@@ -1090,16 +1096,8 @@ func resolveWebLogJob(runsDir, runID, jobID string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	jobDir, err := stateinternal.SafeJoin(runDir, jobID)
-	if err != nil {
-		return "", "", err
-	}
-	outputPath, err := stateinternal.ValidatedStateFile(jobDir, "output")
-	if err != nil {
-		return "", "", err
-	}
-	// codeql[go/path-injection]: outputPath is under the validated run/job directory.
-	if _, statErr := os.Stat(outputPath); !errors.Is(statErr, os.ErrNotExist) {
+	attemptID, attemptErr := stateinternal.LatestAttemptID(runDir, jobID)
+	if attemptErr == nil && attemptID != "" {
 		return runDir, jobID, nil
 	}
 	origin := stateinternal.LoadRunOrigin(runDir, jobID)

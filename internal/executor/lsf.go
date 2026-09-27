@@ -135,9 +135,10 @@ func submitLSFJobWithPolicies(store state.Store, logf func(string, ...any), runD
 	if err := state.WriteJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 		return lsfJobMetadata{}, err
 	}
-	outputPath := filepath.Join(jobDir, "output")
+	stdoutPath := filepath.Join(jobDir, state.StdoutFileName)
+	stderrPath := filepath.Join(jobDir, state.StderrFileName)
 	wrapperPath := filepath.Join(jobDir, "lsf-wrapper.sh")
-	wrapper := lsfWrapperScript(job.Command, jobDir, outputPath, job.Environment, job.WorkingDirectory, job.Timeout)
+	wrapper := lsfWrapperScript(job.Command, jobDir, stdoutPath, stderrPath, job.Environment, job.WorkingDirectory, job.Timeout)
 	if err := os.WriteFile(wrapperPath, []byte(wrapper), store.ScriptMode); err != nil {
 		return lsfJobMetadata{}, err
 	}
@@ -231,8 +232,8 @@ func submitLSFArrayWithPolicies(store state.Store, logf func(string, ...any), ru
 	return handles, nil
 }
 
-func lsfWrapperScript(command []string, jobDir, outputPath string, environment []string, workingDirectory, timeout string) string {
-	return "#BSUB -o " + ShellQuote(outputPath) + "\n#BSUB -e " + ShellQuote(outputPath) + "\n" + StatusWrapperScript(command, jobDir, environment, workingDirectory, timeout)
+func lsfWrapperScript(command []string, jobDir, stdoutPath, stderrPath string, environment []string, workingDirectory, timeout string) string {
+	return "#BSUB -o " + ShellQuote(stdoutPath) + "\n#BSUB -e " + ShellQuote(stderrPath) + "\n" + StatusWrapperScript(command, jobDir, environment, workingDirectory, timeout)
 }
 
 var lsfJobIDPattern = regexp.MustCompile(`<([0-9]+)>`)

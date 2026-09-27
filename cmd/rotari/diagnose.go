@@ -243,11 +243,11 @@ func loadDiagnosisJob(paths state.ProjectPaths, runID, jobID string, attemptIDs 
 		if err := jsonStore().ReadJSON(filepath.Join(jobDir, commandJSONName), &spec); err != nil {
 			return diagnose.Job{}, fmt.Errorf("read job command: %w", err)
 		}
-		log, err := os.ReadFile(filepath.Join(jobDir, "output"))
-		if err != nil && !os.IsNotExist(err) {
-			return diagnose.Job{}, fmt.Errorf("read job output: %w", err)
+		log, err := readSeparateJobLogs(jobDir)
+		if err != nil {
+			return diagnose.Job{}, fmt.Errorf("read job logs: %w", err)
 		}
-		job := diagnose.Job{RunID: runID, JobID: jobID, Command: spec.Command, Log: diagnose.TailLog(string(log), diagnosisLogLimit)}
+		job := diagnose.Job{RunID: runID, JobID: jobID, Command: spec.Command, Log: diagnose.TailLog(log, diagnosisLogLimit)}
 		if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
 			for _, result := range summary.Results {
 				if result.ID == jobID {
@@ -284,11 +284,30 @@ func readDiagnosisLog(runDir, jobID string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("the job directory could not be resolved: %w", err)
 	}
-	data, err := os.ReadFile(filepath.Join(jobDir, "output"))
-	if err != nil && !os.IsNotExist(err) {
-		return "", fmt.Errorf("the job output could not be read: %w", err)
+	logs, err := readSeparateJobLogs(jobDir)
+	if err != nil {
+		return "", fmt.Errorf("the job logs could not be read: %w", err)
 	}
-	return diagnose.TailLog(string(data), diagnosisLogLimit), nil
+	return diagnose.TailLog(logs, diagnosisLogLimit), nil
+}
+
+func readSeparateJobLogs(jobDir string) (string, error) {
+	var logs strings.Builder
+	for _, stream := range []string{state.StdoutFileName, state.StderrFileName} {
+		data, err := os.ReadFile(filepath.Join(jobDir, stream))
+		if err != nil && !os.IsNotExist(err) {
+			return "", err
+		}
+		if len(data) == 0 {
+			continue
+		}
+		if logs.Len() > 0 {
+			logs.WriteString("\n")
+		}
+		fmt.Fprintf(&logs, "--- %s ---\n", stream)
+		logs.Write(data)
+	}
+	return logs.String(), nil
 }
 
 func formatRuleDiagnoses(diagnoses []model.RuleDiagnosis) string {

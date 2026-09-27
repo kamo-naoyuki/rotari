@@ -87,6 +87,7 @@ A rule in the pages of this directory gets an ID by starting with
 | `RES` | "Resolution rules" in [01-resolution-and-config.md](01-resolution-and-config.md#resolution-rules) |
 | `DUR` | "Job execution durability" in [04-coordination-and-safety.md](04-coordination-and-safety.md#job-execution-durability) |
 | `CAN` | "Cancellation" in [02-run-lifecycle-and-execution.md](02-run-lifecycle-and-execution.md#cancellation) |
+| `LOG` | "Job logs" in [02-run-lifecycle-and-execution.md](02-run-lifecycle-and-execution.md#job-logs) |
 | `RUN` | "Run lifecycle" in [02-run-lifecycle-and-execution.md](02-run-lifecycle-and-execution.md#run-lifecycle) |
 | `CLI` | "CLI presentation" in [03-server-and-command-interfaces.md](03-server-and-command-interfaces.md#cli-presentation) |
 | `COORD` | "Shared-state coordination" in [04-coordination-and-safety.md](04-coordination-and-safety.md#shared-state-coordination) |
@@ -163,6 +164,7 @@ the IDs, this table, and those calls disagree.
 | CAN-2 | A cancelled run finishes with a summary and leaves the project idle, not interrupted | conformance | `TestWholeRunCancelFinishesRun` |
 | CAN-3 | `cancel --wait` returns once the run has finished and exits 0 | conformance | `TestCancelWaitReturnsAfterRunFinishes` |
 | CAN-4 | Cancelling one job stops only that job, which the run does not retry | conformance | `TestCancelJobStopsOnlyThatJob` |
+| LOG-1 | Each attempt stores stdout and stderr separately; CLI and Web select streams without a combined log | conformance | `TestJobStreamsPersistSeparately` |
 | RUN-1 | A filtered rerun executes the selected jobs, carries completed results outside the selection into the new run, and leaves the source run unchanged | conformance | `TestFilteredRerunCarriesCompletedResults` |
 | RUN-2 | A run-level retry limit retries a failed job within the same run until it succeeds or the limit is exhausted; a successful retry makes the run successful | conformance | `TestRunRetrySucceedsWithinOneRun` |
 | RUN-3 | A run's jobs use the working directory and environment of the command that started it; only a job's own `--working-directory` and `--env` override them | conformance | `TestRunUsesCallersDirectoryAndEnvironment` |

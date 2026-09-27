@@ -1342,7 +1342,7 @@ func TestGenerateStaticWebIncludesJobsPage(t *testing.T) {
 
 func TestWebSeparatesLogsFromActions(t *testing.T) {
 	html := testSite().webHTML()
-	for _, want := range []string{"function mergeActionColumns(){}", "function orderJobActions()", "view-log", "show-path", "delete-run", "Job log", "View log", "Source log", "Logs", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const buttons=[...logCell.querySelectorAll('button')]", "const diagnosisControl=canDiagnose", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", "dataset.view!=='path'", "modal.dataset.view='log';modal.querySelector('strong').textContent='Job log';", "cell.style.display='table-cell'", "button.style.margin='0 6px 6px 0'", "cell.style.width='170px'"} {
+	for _, want := range []string{"function mergeActionColumns(){}", "function orderJobActions()", "view-log", "show-path", "delete-run", "Job log", "changeLogStream", `id="log-stream"`, "View log", "Source log", "Logs", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const buttons=[...logCell.querySelectorAll('button')]", "const diagnosisControl=canDiagnose", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", "dataset.view!=='path'", `textContent="Job log — "+stream`, "cell.style.display='table-cell'", "button.style.margin='0 6px 6px 0'", "cell.style.width='170px'"} {
 		if !webContains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
 		}
@@ -1514,15 +1514,24 @@ func TestWebLogReadsSelectedAttempt(t *testing.T) {
 	if err := os.MkdirAll(attemptDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(attemptDir, "output"), []byte("selected attempt\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(attemptDir, "stdout"), []byte("selected stdout\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(attemptDir, "stderr"), []byte("selected stderr\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "/api/log?project_name=default&run_id="+runID+"&job_id=job-1&attempt_id="+attemptID, nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/log?project_name=default&run_id="+runID+"&job_id=job-1&attempt_id="+attemptID+"&stream=stdout", nil)
 	recorder := httptest.NewRecorder()
 	Handler(testOptions(baseDir, "", false)).ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK || recorder.Body.String() != "selected attempt\n" {
-		t.Fatalf("selected attempt log = (%d, %q), want selected attempt output", recorder.Code, recorder.Body.String())
+	if recorder.Code != http.StatusOK || recorder.Body.String() != "selected stdout\n" {
+		t.Fatalf("selected stdout log = (%d, %q)", recorder.Code, recorder.Body.String())
+	}
+	request = httptest.NewRequest(http.MethodGet, "/api/log?project_name=default&run_id="+runID+"&job_id=job-1&attempt_id="+attemptID+"&stream=stderr", nil)
+	recorder = httptest.NewRecorder()
+	Handler(testOptions(baseDir, "", false)).ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || recorder.Body.String() != "selected stderr\n" {
+		t.Fatalf("selected stderr log = (%d, %q)", recorder.Code, recorder.Body.String())
 	}
 }
 

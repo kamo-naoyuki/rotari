@@ -56,6 +56,12 @@ printf '12345;fake-host\n'
 	if !strings.Contains(string(arguments), wantShowCommand+"\n") {
 		t.Fatalf("sbatch arguments = %q, want %q", arguments, wantShowCommand)
 	}
+	jobDir := filepath.Join(runDir, job.ID, "attempts", job.AttemptID)
+	for _, want := range []string{"--output=" + filepath.Join(jobDir, state.StdoutFileName), "--error=" + filepath.Join(jobDir, state.StderrFileName)} {
+		if !strings.Contains(string(arguments), want+"\n") {
+			t.Errorf("sbatch arguments = %q, want %q", arguments, want)
+		}
+	}
 }
 
 func TestSlurmWithRunSettingsCopiesSubmissionPolicy(t *testing.T) {

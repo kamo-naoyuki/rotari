@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/conformance/support"
@@ -108,6 +110,39 @@ func TestRunRetrySucceedsWithinOneRun(t *testing.T) {
 	attempts, err := filepath.Glob(filepath.Join(e.Base, "projects", "retry", "runs", summary.RunID, jobID, "attempts", "*"))
 	if err != nil || len(attempts) != 3 {
 		t.Fatalf("attempt directories = %d, want three: %v", len(attempts), err)
+	}
+}
+
+func TestJobStreamsPersistSeparately(t *testing.T) {
+	covers(t, "LOG-1")
+	e := support.NewEnv(t)
+	support.RequireUnixSockets(t)
+	jobID := support.AddedJobID(t, e.MustRotari("add", "-p", "streams", "--", "sh", "-c", "printf from-stdout; printf from-stderr >&2"))
+	e.MustRotari("run", "-p", "streams", "--quiet")
+	summary := readSummary(t, e, "streams")
+	attemptID, _ := summaryResult(t, summary, jobID)
+	attemptDir := filepath.Join(e.Base, "projects", "streams", "runs", summary.RunID, jobID, "attempts", attemptID)
+	for _, stream := range []struct {
+		name string
+		want string
+	}{{name: "stdout", want: "from-stdout"}, {name: "stderr", want: "from-stderr"}} {
+		data, err := os.ReadFile(filepath.Join(attemptDir, stream.name))
+		if err != nil || string(data) != stream.want {
+			t.Fatalf("%s = %q, err=%v; want %q", stream.name, data, err, stream.want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(attemptDir, "output")); !os.IsNotExist(err) {
+		t.Fatalf("combined output file exists or could not be checked: %v", err)
+	}
+
+	shown := e.MustRotari("show", "-p", "streams", "--run-id", summary.RunID, "--job-id", jobID, "--stream", "stderr", "--no-pager")
+	if !strings.Contains(shown.Stdout, "from-stderr") || strings.Contains(shown.Stdout, "from-stdout") {
+		t.Fatalf("stderr-only CLI view mixed streams: %s", shown)
+	}
+	query := url.Values{"project_name": {"streams"}, "run_id": {summary.RunID}, "job_id": {jobID}, "stream": {"stderr"}}
+	response := e.HTTPGet(e.StartWeb() + "/api/log?" + query.Encode())
+	if response.Status != 200 || response.Body != "from-stderr" {
+		t.Fatalf("stderr Web API response = (%d, %q)", response.Status, response.Body)
 	}
 }
 

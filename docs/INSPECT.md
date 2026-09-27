@@ -22,16 +22,20 @@ rotari show -p sweep # list the project's runs and current queue, if non-empty
 rotari show -p sweep --failed # list failed jobs in the selected run
 rotari show -p sweep --stage train # list only the jobs in stage train of the selected run or queue
 rotari show -p sweep --matrix train # list only the jobs of matrix train, named by its base job name
-rotari show ATTEMPT_ID # show one job attempt in detail: status, executor, command, and saved output path
+rotari show ATTEMPT_ID # show one job attempt in detail: status, executor, command, stdout, and stderr
+rotari show JOB_ID --stream stderr # show only the selected job's stderr
 rotari show JOB_ID # show a job from the resolved run or queue
 rotari show JOB_NAME # show a job by name
-rotari show -p sweep --logs # print output logs for every job in the selected run
-rotari show -p sweep --failed-logs # print only the logs for failed jobs in the selected project/run
+rotari show -p sweep --logs # print separately labeled stdout and stderr for every job in the selected run
+rotari show -p sweep --failed-logs --stream stderr # print stderr for failed jobs only
+rotari show -p sweep --job-id JOB_ID --stream stdout --follow # follow only stdout
 rotari show ATTEMPT_ID --report # print an AI-ready Markdown report for one attempt
 rotari show RUN_ID --report # describe the whole run and include recent logs
 ```
 
-An older `ATTEMPT_ID` shows that attempt's own status, timestamps, and output.
+An older `ATTEMPT_ID` shows that attempt's own status, timestamps, stdout, and
+stderr. The two streams are stored separately; their relative ordering is not
+reconstructed when viewing both.
 The run's saved hosts and diagnoses belong to the latest attempt, so they are
 not shown for an older one.
 

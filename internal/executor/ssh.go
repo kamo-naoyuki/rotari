@@ -45,7 +45,8 @@ func NewSSH(store state.Store) SSH {
 
 type sshProcess struct {
 	command *exec.Cmd
-	output  *os.File
+	stdout  *os.File
+	stderr  *os.File
 }
 
 var sshProcesses = struct {
@@ -74,27 +75,34 @@ func (ssh SSH) Submit(runDir string, job model.JobSpec, options []string) (JobHa
 	if err := state.WriteJSON(filepath.Join(jobDir, "command.json"), job); err != nil {
 		return JobHandle{}, err
 	}
-	output, err := os.Create(filepath.Join(jobDir, "output"))
+	stdout, err := os.Create(filepath.Join(jobDir, state.StdoutFileName))
 	if err != nil {
+		return JobHandle{}, err
+	}
+	stderr, err := os.Create(filepath.Join(jobDir, state.StderrFileName))
+	if err != nil {
+		_ = stdout.Close()
 		return JobHandle{}, err
 	}
 	cmd := exec.Command(SSHCommandPath, append(sshOptions, "--", host, "sh", "-s")...)
 	cmd.Stdin = strings.NewReader(sshWrapperScript(job.Command, job.Environment, job.WorkingDirectory, remoteToken, job.Timeout))
-	cmd.Stdout = output
-	cmd.Stderr = output
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
-		_ = output.Close()
+		_ = stdout.Close()
+		_ = stderr.Close()
 		return JobHandle{}, fmt.Errorf("ssh %s: %w", host, err)
 	}
 	metadata := sshJobMetadata{Executor: "ssh", JobID: job.ID, Command: job.Command, Host: host, PID: cmd.Process.Pid, SSHOptions: sshOptions, RemoteToken: remoteToken, SubmittedAt: nowRFC3339()}
 	if err := state.WriteJSON(filepath.Join(jobDir, "job.json"), metadata); err != nil {
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
-		_ = output.Close()
+		_ = stdout.Close()
+		_ = stderr.Close()
 		return JobHandle{}, err
 	}
 	sshProcesses.Lock()
-	sshProcesses.commands[cmd.Process.Pid] = sshProcess{command: cmd, output: output}
+	sshProcesses.commands[cmd.Process.Pid] = sshProcess{command: cmd, stdout: stdout, stderr: stderr}
 	sshProcesses.Unlock()
 	return JobHandle{Job: job, Native: strconv.Itoa(cmd.Process.Pid)}, nil
 }
@@ -115,7 +123,8 @@ func (ssh SSH) Wait(runDir string, handle JobHandle) model.JobResult {
 		return model.JobResult{ID: handle.Job.ID, Command: handle.Job.Command, ExitCode: 1, Error: "SSH job is no longer managed by this process"}
 	}
 	err = process.command.Wait()
-	_ = process.output.Close()
+	_ = process.stdout.Close()
+	_ = process.stderr.Close()
 	sshProcesses.Lock()
 	delete(sshProcesses.commands, metadata.PID)
 	sshProcesses.Unlock()

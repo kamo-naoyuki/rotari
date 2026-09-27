@@ -39,6 +39,7 @@ window.fetch = async function (input, init) {
       request.searchParams.get("project_name"),
       request.searchParams.get("run_id"),
       request.searchParams.get("job_id"),
+      request.searchParams.get("stream") || "stdout",
       request.searchParams.get("attempt_id"),
     );
     return new Response(window.__ROTARI_STATIC_LOGS__[key] || "", {
@@ -84,8 +85,8 @@ window.fetch = async function (input, init) {
   );
 };
 
-function staticLogKey(queue, run, job, attempt) {
-  return [queue, run, job, attempt || ""].join("/");
+function staticLogKey(queue, run, job, stream, attempt) {
+  return [queue, run, job, stream, attempt || ""].join("/");
 }
 
 function staticReportKey(project, run, job) {

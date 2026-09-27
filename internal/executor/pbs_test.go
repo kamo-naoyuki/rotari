@@ -14,9 +14,11 @@ import (
 
 func TestSubmitPBSJobWithFakePBS(t *testing.T) {
 	binDir := t.TempDir()
-	writeExecutable(t, binDir, "qsub", `#!/bin/sh
+	argumentsPath := filepath.Join(t.TempDir(), "qsub-args")
+	writeExecutable(t, binDir, "qsub", fmt.Sprintf(`#!/bin/sh
+printf '%%s\n' "$@" > %q
 printf '123.headnode\n'
-`)
+`, argumentsPath))
 
 	oldPath := os.Getenv("PATH")
 	if err := os.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath); err != nil {
@@ -32,6 +34,16 @@ printf '123.headnode\n'
 	}
 	if metadata.PBSJobID != "123.headnode" {
 		t.Fatalf("job id = %q, want 123.headnode", metadata.PBSJobID)
+	}
+	arguments, err := os.ReadFile(argumentsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobDir := filepath.Join(runDir, job.ID)
+	for _, want := range []string{"-o\n" + filepath.Join(jobDir, state.StdoutFileName), "-e\n" + filepath.Join(jobDir, state.StderrFileName)} {
+		if !strings.Contains(string(arguments), want+"\n") {
+			t.Errorf("qsub arguments = %q, want %q", arguments, want)
+		}
 	}
 	wrapper, err := os.ReadFile(filepath.Join(runDir, "abc123", "pbs-wrapper.sh"))
 	if err != nil {

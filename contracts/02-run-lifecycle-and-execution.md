@@ -1,5 +1,17 @@
 # Run lifecycle and execution semantics
 
+## Job logs
+
+- **LOG-1** Each job attempt persists process stdout and stderr separately as
+  `stdout` and `stderr` in its attempt directory. CLI log views show both as
+  labeled streams by default, `show --stream` selects one, and `/api/log`
+  selects one stream; rotari does not create a combined log file. Covered by
+  `TestJobStreamsPersistSeparately` in
+  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go),
+  [executor tests](../internal/executor/timeout_test.go),
+  [CLI tests](../cmd/rotari/show_test.go), and
+  [Web API tests](../internal/webui/webui_test.go).
+
 ## Run lifecycle
 
 - **RUN-1** A filtered rerun executes the selected jobs, carries completed
@@ -85,9 +97,9 @@
   `TestPlanRerunForcedJobsHaveNoResult`.
 - In a filtered run, selected jobs execute. Completed jobs outside the
   selection carry forward their result and an origin pointing to the original
-  output; jobs without a completed result remain unfinished. Carry-forward writes
-  reused results only to the destination run and records the source run and job
-  so output remains traceable.
+  attempt's stdout and stderr; jobs without a completed result remain unfinished.
+  Carry-forward writes reused results only to the destination run and records
+  the source run and job so both streams remain traceable.
 - `copy` without a selection restores every command from the current project's
   latest run. Result filters belong on the following `run`, allowing the full
   restored queue to be inspected or edited before execution. A filtered `run`
@@ -463,12 +475,13 @@ Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle
   change run status; successful delivery is marked by `webhook.sent` in the run
   directory.
 - `diagnose` is an explicitly invoked, stateless integration. It sends one job's
-  command, recorded result, and at most the last 12,000 characters of output to
+  command, recorded result, and at most the last 12,000 characters of separately
+  labeled stdout and stderr to
   the configured LLM endpoint. API keys and diagnoses are never persisted or
   injected into job environments. An explicit BCP 47 response language is
   included when configured.
 - `diagnose --rules` is a local, read-only alternative. It evaluates the same
-  recorded scheduler error and output against a fixed set of documented
+  recorded scheduler error and separately labeled streams against a fixed set of documented
   signatures after case, ANSI-escape, and whitespace normalization. It makes no
   network request and reports only matched signatures, each citing its latest
   matching line, ordered from the latest evidence to the earliest with the

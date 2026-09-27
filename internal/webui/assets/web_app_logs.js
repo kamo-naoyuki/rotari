@@ -1,4 +1,4 @@
-async function loadLogChunk(queue, run, job, attemptID, before) {
+async function loadLogChunk(queue, run, job, attemptID, stream, before) {
   const response = await fetch(
     "/api/log?project_name=" +
       encodeURIComponent(queue) +
@@ -6,6 +6,8 @@ async function loadLogChunk(queue, run, job, attemptID, before) {
       encodeURIComponent(run) +
       "&job_id=" +
       encodeURIComponent(job) +
+      "&stream=" +
+      encodeURIComponent(stream) +
       (attemptID ? "&attempt_id=" + encodeURIComponent(attemptID) : "") +
       "&tail=200&before=" +
       before,
@@ -30,6 +32,7 @@ function attachLogLoader(output) {
       selectedLog.run,
       selectedLog.job,
       selectedLog.attemptID,
+      selectedLog.stream,
       selectedLog.before + 200,
     );
     if (!chunk) {
@@ -48,21 +51,26 @@ async function showOriginalOutput(run, job, trigger) {
   const parts = pageParts();
   await showLog(decodeURIComponent(parts[1]), run, job, "");
 }
-async function showLog(queue, run, job, attemptID) {
+async function showLog(queue, run, job, attemptID, stream) {
   const modal = document.getElementById("output-modal");
   modal.dataset.view = "log";
-  modal.querySelector("strong").textContent = "Job log";
+  stream = stream || "stdout";
+  modal.querySelector("strong").textContent = "Job log — " + stream;
+  const streamSelect = document.getElementById("log-stream");
+  streamSelect.value = stream;
+  streamSelect.hidden = false;
   if (followTimer) clearInterval(followTimer);
   selectedLog = {
     queue: queue,
     run: run,
     job: job,
     attemptID: attemptID,
+    stream: stream,
     before: 0,
     loading: false,
     done: false,
   };
-  selectedOutput = await loadLogChunk(queue, run, job, attemptID, 0);
+  selectedOutput = await loadLogChunk(queue, run, job, attemptID, stream, 0);
   const output = ensureModalOutput();
   output.textContent = selectedOutput;
   openOutputModal(isCompactOutput(selectedOutput));
@@ -110,6 +118,7 @@ async function followOutput() {
     selectedLog.run,
     selectedLog.job,
     selectedLog.attemptID,
+    selectedLog.stream,
     0,
   );
   if (latest && latest !== selectedOutput) {
@@ -122,6 +131,16 @@ async function followOutput() {
 }
 async function log(queue, run, job, attemptID) {
   await showLog(queue, run, job, attemptID);
+}
+async function changeLogStream(stream) {
+  if (!selectedLog) return;
+  await showLog(
+    selectedLog.queue,
+    selectedLog.run,
+    selectedLog.job,
+    selectedLog.attemptID,
+    stream,
+  );
 }
 function lastLogLines(value, count) {
   const lines = String(value || "").split("\n");
@@ -176,6 +195,8 @@ async function fetchSelectedLog(tail) {
       encodeURIComponent(selectedLog.run) +
       "&job_id=" +
       encodeURIComponent(selectedLog.job) +
+      "&stream=" +
+      encodeURIComponent(selectedLog.stream) +
       (selectedLog.attemptID
         ? "&attempt_id=" + encodeURIComponent(selectedLog.attemptID)
         : "") +
@@ -208,6 +229,7 @@ async function copyLogTail(button) {
 function updateModalActions() {
   const modal = document.getElementById("output-modal");
   const view = modal.dataset.view;
+  document.getElementById("log-stream").hidden = view !== "log";
   const copyTail = document.getElementById("copy-tail");
   copyTail.hidden = view !== "log";
   copyTail.dataset.copyTitle = "Copy last 100 lines";

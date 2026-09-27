@@ -16,7 +16,7 @@ Usage:
   rotari export [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-r ID|--run-id ID] [-o FORMAT|--format FORMAT] [--template] [--output FILE] [TARGET] [FILE]
   rotari import [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--overwrite] [--dry-run] [--json] FILE [PROJECT]
   rotari remove [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-r ID|--run-id ID] [-j ID|--job-id ID] [--job-name NAME] [--stage STAGE] [--matrix NAME] [--all] [--quiet] [JOB_ID ...]
-  rotari show [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--masterdir DIR] [-r ID|--run-id ID] [--queue] [-j ID|--job-id ID] [--job-name NAME] [--failed] [--unfinished] [--success] [--stage NAME] [--matrix NAME] [--lineage] [--logs] [--failed-logs] [--follow] [--no-pager] [--basedirs] [--json] [--report] [SELECTOR]
+  rotari show [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--masterdir DIR] [-r ID|--run-id ID] [--queue] [-j ID|--job-id ID] [--job-name NAME] [--failed] [--unfinished] [--success] [--stage NAME] [--matrix NAME] [--lineage] [--logs] [--failed-logs] [--stream STREAM] [--follow] [--no-pager] [--basedirs] [--json] [--report] [SELECTOR]
   rotari diff [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--json] [--unchanged] [[RUN_A] RUN_B]
   rotari jobs [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--masterdir DIR] [--all-basedirs] [-o FORMAT|--format FORMAT] [--since DURATION] [PROJECT]
   rotari diagnose [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-r ID|--run-id ID] [-j ID|--job-id ID] [--job-name NAME] [--rules] [--provider PROVIDER] [--endpoint URL] [--model MODEL] [--language TAG] [JOB_ID]

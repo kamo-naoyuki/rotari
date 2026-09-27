@@ -282,7 +282,7 @@ func schedulerArrayWrapperScript(jobs []model.JobSpec, taskVariable string) stri
 	}
 	// Tasks of one array share the command and its timeout.
 	seconds := model.TimeoutSeconds(jobs[0].Timeout)
-	return "#!/bin/sh\nset +e\n" + processGroupLeaderShell(seconds) + "case \"$" + taskVariable + "\" in\n" + strings.Join(caseLines, "\n") + "\n    *) exit 1 ;;\nesac\nexec >\"$job_dir/output\" 2>&1\nstatus_path=\"$job_dir/status.json\"\n" +
+	return "#!/bin/sh\nset +e\n" + processGroupLeaderShell(seconds) + "case \"$" + taskVariable + "\" in\n" + strings.Join(caseLines, "\n") + "\n    *) exit 1 ;;\nesac\nexec >\"$job_dir/" + state.StdoutFileName + "\" 2>\"$job_dir/" + state.StderrFileName + "\"\nstatus_path=\"$job_dir/status.json\"\n" +
 		statusWrapperBody(shellCommandLine(jobs[0].Command), seconds)
 }
 

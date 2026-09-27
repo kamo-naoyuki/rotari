@@ -13,27 +13,46 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
-func runLocalWithTimeout(t *testing.T, command []string, timeout string) (model.JobResult, string, time.Duration) {
+func runLocalWithTimeout(t *testing.T, command []string, timeout string) (model.JobResult, string, string, time.Duration) {
 	t.Helper()
 	runDir := t.TempDir()
 	job := model.JobSpec{ID: "job", Command: command, Timeout: timeout}
 	started := time.Now()
 	result := RunLocalJob(runDir, job, testStore(), func(string, ...any) {})
 	elapsed := time.Since(started)
-	output, _ := os.ReadFile(filepath.Join(runDir, "job", "output"))
-	return result, string(output), elapsed
+	stdout, _ := os.ReadFile(filepath.Join(runDir, "job", "stdout"))
+	stderr, _ := os.ReadFile(filepath.Join(runDir, "job", "stderr"))
+	return result, string(stdout), string(stderr), elapsed
+}
+
+func TestLocalJobKeepsStdoutAndStderrSeparate(t *testing.T) {
+	runDir := t.TempDir()
+	job := model.JobSpec{ID: "job", Command: []string{"sh", "-c", "printf out; printf err >&2"}}
+	result := RunLocalJob(runDir, job, testStore(), func(string, ...any) {})
+	if result.ExitCode != 0 {
+		t.Fatalf("result = %#v", result)
+	}
+	for _, testCase := range []struct {
+		name string
+		want string
+	}{{name: "stdout", want: "out"}, {name: "stderr", want: "err"}} {
+		got, err := os.ReadFile(filepath.Join(runDir, "job", testCase.name))
+		if err != nil || string(got) != testCase.want {
+			t.Errorf("%s = %q, err=%v; want %q", testCase.name, got, err, testCase.want)
+		}
+	}
 }
 
 func TestLocalJobTimeoutStopsCommand(t *testing.T) {
-	result, output, elapsed := runLocalWithTimeout(t, []string{"sleep", "30"}, "1s")
+	result, _, stderr, elapsed := runLocalWithTimeout(t, []string{"sleep", "30"}, "1s")
 	if result.ExitCode != TimeoutExitCode || result.Error != "timed out after 1s" {
 		t.Fatalf("result = %+v, want a timeout", result)
 	}
 	if elapsed > 10*time.Second {
 		t.Fatalf("timed-out job took %s", elapsed)
 	}
-	if !strings.Contains(output, "rotari: job timed out after 1s") {
-		t.Fatalf("output = %q, want the timeout message", output)
+	if !strings.Contains(stderr, "rotari: job timed out after 1s") {
+		t.Fatalf("stderr = %q, want the timeout message", stderr)
 	}
 }
 
@@ -41,7 +60,7 @@ func TestLocalJobTimeoutKillsCommandIgnoringTerm(t *testing.T) {
 	old := timeoutGraceSeconds
 	timeoutGraceSeconds = 1
 	t.Cleanup(func() { timeoutGraceSeconds = old })
-	result, _, elapsed := runLocalWithTimeout(t, []string{"sh", "-c", `trap "" TERM; sleep 30 & wait $!; sleep 30`}, "1s")
+	result, _, _, elapsed := runLocalWithTimeout(t, []string{"sh", "-c", `trap "" TERM; sleep 30 & wait $!; sleep 30`}, "1s")
 	if result.ExitCode != TimeoutExitCode || !strings.Contains(result.Error, "timed out") {
 		t.Fatalf("result = %+v, want a timeout", result)
 	}
@@ -121,9 +140,9 @@ func TestLocalJobCancelStopsCommandBeforeForegroundExec(t *testing.T) {
 }
 
 func TestLocalJobFinishingBeforeTimeoutIsUnaffected(t *testing.T) {
-	result, output, elapsed := runLocalWithTimeout(t, []string{"sh", "-c", "echo done; exit 3"}, "1h")
-	if result.ExitCode != 3 || result.Error != "" || !strings.Contains(output, "done") {
-		t.Fatalf("result = %+v, output = %q", result, output)
+	result, stdout, _, elapsed := runLocalWithTimeout(t, []string{"sh", "-c", "echo done; exit 3"}, "1h")
+	if result.ExitCode != 3 || result.Error != "" || !strings.Contains(stdout, "done") {
+		t.Fatalf("result = %+v, stdout = %q", result, stdout)
 	}
 	if elapsed > 5*time.Second {
 		t.Fatalf("a finished job waited for its watchdog: %s", elapsed)
@@ -182,8 +201,8 @@ func TestLocalJobTimeoutWorksWithoutUsablePs(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	result, output, elapsed := runLocalWithTimeout(t, []string{"sleep", "30"}, "1s")
+	result, _, _, elapsed := runLocalWithTimeout(t, []string{"sleep", "30"}, "1s")
 	if result.ExitCode != TimeoutExitCode || elapsed > 10*time.Second {
-		t.Fatalf("result = %+v after %s, output = %q; want the timeout enforced", result, elapsed, output)
+		t.Fatalf("result = %+v after %s; want the timeout enforced", result, elapsed)
 	}
 }

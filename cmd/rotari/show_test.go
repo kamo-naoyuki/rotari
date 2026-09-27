@@ -624,7 +624,7 @@ func TestCmdShowFailedLogsFiltersSuccessfulJobs(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(jobDir, "status"), []byte(job.status), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(jobDir, "output"), []byte(job.output), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(jobDir, state.StdoutFileName), []byte(job.output), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -688,7 +688,7 @@ func TestShowJobDisplaysPersistedDetails(t *testing.T) {
 	}
 	for name, content := range map[string]string{
 		"status": "0\n", "submitted_at": "2026-01-01T00:00:00Z\n",
-		"finished_at": "2026-01-01T00:01:00Z\n", "output": "completed\n",
+		"finished_at": "2026-01-01T00:01:00Z\n", state.StdoutFileName: "completed\n", state.StderrFileName: "warning\n",
 	} {
 		if err := os.WriteFile(filepath.Join(jobDir, name), []byte(content), 0o644); err != nil {
 			t.Fatal(err)
@@ -700,11 +700,18 @@ func TestShowJobDisplaysPersistedDetails(t *testing.T) {
 		t.Fatalf("showJob exit code = %d, want 0", code)
 	}
 	for _, want := range []string{
-		"analysis", "slurm", "--partition gpu", "setup", "node-a", "Status: 0", "python work.py", "completed",
+		"analysis", "slurm", "--partition gpu", "setup", "node-a", "Status: 0", "python work.py", "STDOUT:", "completed", "STDERR:", "warning",
 	} {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("showJob output does not contain %q:\n%s", want, output.String())
 		}
+	}
+	var stderrOnly bytes.Buffer
+	if code := showJobAttempt(&stderrOnly, paths, runID, jobID, "", state.StderrFileName); code != 0 {
+		t.Fatalf("showJobAttempt(stderr) exit code = %d", code)
+	}
+	if !strings.Contains(stderrOnly.String(), "warning") || strings.Contains(stderrOnly.String(), "completed") {
+		t.Fatalf("stderr-only view mixed streams: %q", stderrOnly.String())
 	}
 }
 
@@ -858,7 +865,7 @@ func TestShowJobRejectsTraversalInRunAndJobIDs(t *testing.T) {
 	if err := os.MkdirAll(escapedDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(escapedDir, "output"), []byte("escaped\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(escapedDir, state.StdoutFileName), []byte("escaped\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
@@ -899,7 +906,7 @@ func TestShowJobFollowsCarriedForwardOrigin(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(originJobDir, "status"), []byte("0\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(originJobDir, "output"), []byte("original output\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(originJobDir, state.StdoutFileName), []byte("original output\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

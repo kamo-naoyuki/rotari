@@ -144,9 +144,10 @@ func submitSlurmJobWithPolicies(store state.Store, logf func(string, ...any), ru
 	if err := os.WriteFile(wrapperPath, []byte(StatusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory, job.Timeout)), store.ScriptMode); err != nil {
 		return slurmJobMetadata{}, err
 	}
-	outputPath := filepath.Join(jobDir, "output")
+	stdoutPath := filepath.Join(jobDir, state.StdoutFileName)
+	stderrPath := filepath.Join(jobDir, state.StderrFileName)
 	showCommand := fmt.Sprintf("rotari show --job-id %s", ShellQuote(job.AttemptID))
-	args := []string{"--parsable", "--job-name=" + showCommand, "--output=" + outputPath, "--error=" + outputPath}
+	args := []string{"--parsable", "--job-name=" + showCommand, "--output=" + stdoutPath, "--error=" + stderrPath}
 	expandedOptions, err := ExpandShellOptions(executorOptions)
 	if err != nil {
 		return slurmJobMetadata{}, err

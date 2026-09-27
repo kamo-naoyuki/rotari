@@ -479,6 +479,10 @@
           "name": "failed-logs"
         },
         {
+          "name": "stream",
+          "value_name": "STREAM"
+        },
+        {
           "name": "follow"
         },
         {

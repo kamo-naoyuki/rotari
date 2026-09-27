@@ -39,6 +39,9 @@ printf 'Job <123> is submitted to default queue.\n'
 	if !strings.Contains(string(wrapper), "#BSUB -o") || !strings.Contains(string(wrapper), "echo") {
 		t.Fatalf("wrapper is missing LSF directives or command: %s", wrapper)
 	}
+	if !strings.Contains(string(wrapper), "#BSUB -o '"+filepath.Join(runDir, job.ID, state.StdoutFileName)+"'\n") || !strings.Contains(string(wrapper), "#BSUB -e '"+filepath.Join(runDir, job.ID, state.StderrFileName)+"'\n") {
+		t.Fatalf("LSF wrapper does not separate stream files: %s", wrapper)
+	}
 }
 
 func TestSubmitLSFJobFailureDoesNotRetryOrRecordJob(t *testing.T) {

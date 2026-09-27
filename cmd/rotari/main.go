@@ -197,7 +197,6 @@ func runOneJob(runDir string, job model.JobSpec) model.JobResult {
 const (
 	stateFileCommandsJSON  = "commands.json"
 	stateFileSummaryJSON   = "summary.json"
-	stateFileOutput        = "output"
 	stateFileSchedulerJSON = "scheduler_status.json"
 	stateFileStatusJSON    = "status.json"
 	stateFileStatus        = "status"

@@ -47,7 +47,7 @@ func createFixture(t *testing.T) (string, state.ProjectPaths, string, string) {
 	for index := range lines {
 		lines[index] = "log-line-" + fmt.Sprintf("%03d", index+1)
 	}
-	if err := os.WriteFile(filepath.Join(jobDir, "output"), []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(jobDir, state.StdoutFileName), []byte(strings.Join(lines, "\n")), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return baseDir, paths, runID, jobID
@@ -75,7 +75,7 @@ func TestBuildRedactsKnownAndTypicalSensitiveValues(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(runDir, "context.json"), []byte(`{"cwd":"/work/demo","hostname":"worker-1"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(paths.RunsDir, runID, jobID, "output"), []byte("failed at /home/alice/private.txt on node-1.example.com\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(paths.RunsDir, runID, jobID, state.StderrFileName), []byte("failed at /home/alice/private.txt on node-1.example.com\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	report, err := Build(testStore(), paths, runID, jobID, false, "")
@@ -100,7 +100,7 @@ func TestBuildRedactsMultipleSecretsAndKeepsTheFirstVisibleMarker(t *testing.T) 
 	if err := os.WriteFile(filepath.Join(runDir, "context.json"), []byte(`{"cwd":"/tmp/build-logs/run-42","hostname":"cluster-gpu-01.example.com"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(runDir, jobID, "output"), []byte("error: /home/alice/project/data/checkpoint.bin on cluster-gpu-01.example.com\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(runDir, jobID, state.StderrFileName), []byte("error: /home/alice/project/data/checkpoint.bin on cluster-gpu-01.example.com\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	report, err := Build(testStore(), paths, runID, jobID, false, "")

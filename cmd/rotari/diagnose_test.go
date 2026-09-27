@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"github.com/kamo-naoyuki/rotari/internal/diagnose"
-	"github.com/kamo-naoyuki/rotari/internal/model"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestRequestDiagnosisSendsOpenAIResponsesRequest(t *testing.T) {
@@ -166,7 +168,7 @@ func TestDiagnoseJobResultReadsOutputAndPreservesSavedDiagnoses(t *testing.T) {
 	if err := os.MkdirAll(jobDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(jobDir, "output"), []byte("CUDA out of memory\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(jobDir, state.StderrFileName), []byte("CUDA out of memory\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	result := diagnoseJobResult(runDir, model.JobResult{ID: "job-1", ExitCode: 1})
@@ -186,7 +188,7 @@ func TestDiagnoseJobResultPersistsNoMatch(t *testing.T) {
 	if err := os.MkdirAll(jobDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(jobDir, "output"), []byte("unrecognized failure\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(jobDir, state.StdoutFileName), []byte("unrecognized failure\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	result := diagnoseJobResult(runDir, model.JobResult{ID: "job-1", ExitCode: 1})
