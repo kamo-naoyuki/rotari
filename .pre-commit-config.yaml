@@ -17,9 +17,10 @@ repos:
     rev: v0.14.10
     hooks:
       - id: ruff
-        args: [--select, I, --fix]
+        args: [--config, python/pyproject.toml, --select, I, --fix]
         files: ^(python|scripts)/
       - id: ruff-format
+        args: [--config, python/pyproject.toml]
         files: ^(python|scripts)/
 
   - repo: https://github.com/scop/pre-commit-shfmt

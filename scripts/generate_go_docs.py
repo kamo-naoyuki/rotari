@@ -33,7 +33,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def resolve_output_dir(repo_dir: pathlib.Path, output_dir: pathlib.Path | None) -> pathlib.Path:
+def resolve_output_dir(
+    repo_dir: pathlib.Path, output_dir: pathlib.Path | None
+) -> pathlib.Path:
     if output_dir is None:
         output_dir = repo_dir / "docs" / "go-api"
     output_dir = output_dir.resolve()
@@ -51,10 +53,16 @@ def run_go(repo_dir: pathlib.Path, go_binary: str, *args: str) -> str:
     return subprocess.check_output([go_binary, *args], cwd=repo_dir, text=True)
 
 
-def generate_dependency_graph(repo_dir: pathlib.Path, output_dir: pathlib.Path) -> pathlib.Path:
-    with tempfile.TemporaryDirectory(prefix="rotari-dep-graph-", dir=output_dir.parent) as temp_dir:
+def generate_dependency_graph(
+    repo_dir: pathlib.Path, output_dir: pathlib.Path
+) -> pathlib.Path:
+    with tempfile.TemporaryDirectory(
+        prefix="rotari-dep-graph-", dir=output_dir.parent
+    ) as temp_dir:
         graph_dir = pathlib.Path(temp_dir)
-        subprocess.check_call([repo_dir / "scripts" / "generate-dep-graph.sh", graph_dir], cwd=repo_dir)
+        subprocess.check_call(
+            [repo_dir / "scripts" / "generate-dep-graph.sh", graph_dir], cwd=repo_dir
+        )
         generated = graph_dir / "rotari-deps.svg"
         destination = output_dir / "rotari-deps.svg"
         shutil.copyfile(generated, destination)
@@ -137,7 +145,8 @@ def render_index(
     dependency_graph_svg: pathlib.Path | None,
 ) -> None:
     index_items = "\n".join(
-        f'<li><a href="{html.escape(filename)}">{html.escape(relative)}</a></li>' for relative, filename in links
+        f'<li><a href="{html.escape(filename)}">{html.escape(relative)}</a></li>'
+        for relative, filename in links
     )
     graph_section = render_dependency_graph(output_dir, dependency_graph_svg)
     index_page = index_template.substitute(
@@ -148,7 +157,9 @@ def render_index(
     (output_dir / "index.html").write_text(index_page, encoding="utf-8")
 
 
-def render_dependency_graph(output_dir: pathlib.Path, source: pathlib.Path | None) -> str:
+def render_dependency_graph(
+    output_dir: pathlib.Path, source: pathlib.Path | None
+) -> str:
     if source is None:
         return ""
     source = source.resolve()
