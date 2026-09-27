@@ -148,6 +148,13 @@ Before reporting a task as complete:
 6. Re-check the project invariants above for affected code.
 7. Do not claim tests passed unless they were actually run.
 
+## Commits
+
+* After finishing work, commit each work item separately.
+* Include only changes from the current thread. Other work may be in progress
+  in the same working tree; leave unrelated files and hunks unstaged, even in
+  a file this thread also edited.
+
 ## Scope
 
 Do not:
