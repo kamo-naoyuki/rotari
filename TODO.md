@@ -122,13 +122,64 @@ faster. It also fits rotari's rule that durable behavior belongs in files. See
 The short socket location for long base directories, the first step of this
 plan, is done (`internal/server/socket.go`).
 
-### Black-box conformance tests
+### Machine-checked guardrails for coding agents
 
-- Consider CLI-level black-box tests derived from the invariants in
-  [docs/CONTRACTS.md](docs/CONTRACTS.md), independent of package structure, so
-  behavior is protected during package-level refactoring. Dagu keeps
-  normative specs in `specs/` with an implementation-status table and tests
-  them from `conformance/`.
+Rules that live only in prose (AGENTS.md, the contracts) are easy for a coding
+agent to break without noticing, and most `cmd/rotari` tests import
+`internal/` packages, so a package-level refactoring has to edit the tests
+that should be protecting it. Turn the rules into checks, cheapest and most
+immediately useful first. Each step stands alone and can stop there.
+
+1. **Package boundary test.** A stdlib-only test that reads `go list -json
+   ./...` and enforces the boundary rules in
+   [docs/contracts/00-overview.md](docs/contracts/00-overview.md) as a table:
+   `internal/model` imports no I/O packages (`os`, `io/fs`, `net`,
+   `os/exec`); `internal/run` does no file access; `internal/rundiff` does
+   not import `internal/state`; and so on. Link the test from the contract.
+   It already finds one violation: `internal/run/load.go` reads
+   `/proc/loadavg` although `internal/run` is documented as having no file
+   access. Either move the read behind a callback or state the exception in
+   the contract before the test lands.
+2. **Documentation link test.** A test that checks every relative link in
+   `README.md`, `AGENTS.md`, `ISSUES.md`, `TODO.md`, and `docs/` (excluding
+   `docs/web-demo/`) points at an existing file, and later that `#anchor`
+   links match a heading. The contracts link to code and tests on purpose, so
+   refactorings break them silently. Of 305 links today, one is broken:
+   `cmd/rotari/assets/web_static_bootstrap.js` in the Web UI section below,
+   now under `internal/webui/assets/`.
+3. **One local check command.** A `scripts/check.sh` that runs what CI's Go
+   job runs (`gofmt -l`, `go vet ./...`, `go test ./...`), with a short mode
+   for the edit loop. Point AGENTS.md's validation order at it so an agent
+   runs the same checks as CI with one command.
+4. **Conformance pilot.** A `conformance/` package that builds the binary in
+   `TestMain` (as `cmd/rotari/scheduler_container_run_test.go` does), runs it
+   as a subprocess with `HOME`, `XDG_*`, and `ROTARI_*` isolated, imports only
+   the standard library (enforced by the step 1 test), and asserts on exit
+   codes, output, `--json` output, and the documented state layout. Start
+   with two invariants from AGENTS.md: `/` and `\` rejected in path elements
+   through the CLI and the server API, and `show --json` agreeing with the
+   Web API on job results and times. Skip server cases where Unix sockets are
+   unavailable. After the pilot, decide between the hand-written harness and
+   `testscript` (`rogpeppe/go-internal`, as `cmd/go` uses), which is easier to
+   read and write but adds a dependency.
+5. **Contract IDs and a status table.** Give each invariant in
+   [docs/contracts/](docs/contracts/) an ID, name conformance subtests after
+   it, and keep a table in [docs/CONTRACTS.md](docs/CONTRACTS.md) of which
+   IDs are covered, untested, or known deviations, as Dagu's `specs/` and
+   `conformance/` do. A test fails when an ID has neither a test nor an
+   `untested` mark. Do this after step 4 so the ID scheme fits real tests.
+6. **Widen conformance coverage.** In order: the selector table in
+   [docs/contracts/06-selectors.md](docs/contracts/06-selectors.md) through
+   the binary; the run lifecycle (failure then filtered rerun, cancel, two
+   concurrent `run`s on one base directory); recovery after the runner is
+   killed with SIGKILL.
+7. **Golden output files.** Golden files with an `-update` flag for `--help`,
+   `schema --json`, and representative `show --json` output, so an
+   unintended output change shows up as a diff. None exist today.
+
+Not planned: decision records beyond the existing rationale in the contracts,
+and tool-specific agent hooks or skills; AGENTS.md stays the tool-neutral
+entry point.
 
 ### Web UI
 
