@@ -88,7 +88,7 @@ func TestFilteredRerunCarriesCompletedResults(t *testing.T) {
 }
 
 func TestRunRetrySucceedsWithinOneRun(t *testing.T) {
-	covers(t, "RUN-2")
+	covers(t, "CORE-7", "RUN-2")
 	support.RequireUnixSockets(t)
 	e := support.NewEnv(t)
 	marker := filepath.Join(e.Root, "retry-count")

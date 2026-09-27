@@ -116,7 +116,7 @@ the IDs, this table, and those calls disagree.
 | CORE-4 | Idle projects are queue-first; running and interrupted projects are run-first | partial | `TestProjectStates` |
 | CORE-5 | At most one active run and runner per project | conformance | `TestRunningProjectRejectsChanges`, `TestUnlockRefusesLiveRun` |
 | CORE-6 | Completed runs are immutable; reruns change only their destination run | partial | `TestFilteredRerunCarriesCompletedResults` |
-| CORE-7 | Executors run jobs; run semantics stay in the shared execution path | pending | - |
+| CORE-7 | Executors run jobs; run semantics stay in the shared execution path | partial | `TestRunRetrySucceedsWithinOneRun` |
 | RES-1 | Base directory resolution order | conformance | `TestBaseDirResolutionOrder` |
 | RES-2 | Project resolution order and the single-project default | partial | `TestProjectResolutionOrder` |
 | RES-3 | Reading or editing a missing project fails; only `add` and `import` create one | partial | `TestMissingProjectIsAnError` |
