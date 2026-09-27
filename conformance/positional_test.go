@@ -1,14 +1,17 @@
-package main
+package conformance
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/kamo-naoyuki/rotari/internal/projectrun"
-	"github.com/kamo-naoyuki/rotari/internal/state"
+	"time"
 )
+
+// Contract SEL-10: each command takes the positional arguments of its row in
+// "Positional arguments" of contracts/06-selectors.md, with that meaning and
+// those exclusions, and the general rules above the table hold.
 
 // positionalCase is one positional-argument row of
 // contracts/06-selectors.md. args start with the command and use the
@@ -23,7 +26,7 @@ type positionalCase struct {
 	// want is a substring of the command's symbolic output.
 	want string
 	// check, when set, inspects the state after the command.
-	check func(t *testing.T, fixture selectorFixture, tmp string)
+	check func(t *testing.T, f selectorFixture, tmp string)
 }
 
 // Setups for positionalCase.
@@ -45,7 +48,7 @@ var positionalCases = []positionalCase{
 	{name: "option after a positional", args: "copy {run:remote-run} --overwrite", want: "copied jobs=1 from run={run:remote-run} to queue=remote"},
 	{name: "option between positionals", args: "diff {run:sweep-first} --unchanged {run:sweep-second}", want: "train-SEED1"},
 	{name: "positional after --", args: "show -b {B} -p sweep -- --job-id", fail: true, want: `selector "--job-id" not found`},
-	{name: "job command after its first word", args: "add -b {B} -p other echo --retry 3", check: queuedCommand("other", "echo --retry 3")},
+	{name: "job command after its first word", args: "add -b {B} -p other echo --retry 3", check: hasQueuedCommand("other", "echo --retry 3")},
 	{name: "two runs", args: "run -b {B} -p sweep {run:sweep-first} {run:sweep-second}", fail: true, want: "usage"},
 	{name: "run ID and option", args: "retry -b {B} -p sweep --run-id {run:sweep-first} {run:sweep-first}", fail: true, want: "usage"},
 	{name: "command without positionals", args: "web -b {B} extra", fail: true, want: "usage"},
@@ -53,8 +56,8 @@ var positionalCases = []positionalCase{
 	{name: "command without positionals", args: "env extra", fail: true},
 
 	// add and change: the job command keeps its own options.
-	{name: "job command options", args: "add -b {B} -p other echo --flag", check: queuedCommand("other", "echo --flag")},
-	{name: "job command options", args: "change -b {B} -p sweep --job-name prep echo --flag", setup: setupQueued, check: queuedCommand("sweep", "echo --flag")},
+	{name: "job command options", args: "add -b {B} -p other echo --flag", check: hasQueuedCommand("other", "echo --flag")},
+	{name: "job command options", args: "change -b {B} -p sweep --job-name prep echo --flag", setup: setupQueued, check: hasQueuedCommand("sweep", "echo --flag")},
 
 	// A project.
 	{name: "project", args: "check -b {B} sweep", fail: true, want: "project=sweep state=empty"},
@@ -198,82 +201,92 @@ var positionalCases = []positionalCase{
 }
 
 func TestPositionalArguments(t *testing.T) {
+	covers(t, "SEL-1", "SEL-10")
 	for _, tc := range positionalCases {
 		t.Run(strings.Fields(tc.args)[0]+"/"+tc.name, func(t *testing.T) {
-			fixture := newSelectorFixture(t)
+			t.Parallel()
+			f := newSelectorFixture(t)
 			tmp := t.TempDir()
-			fixture.setUp(t, tc.setup, tmp)
+			f.setUp(tc.setup, tmp)
 			var args []string
-			for _, arg := range fixture.expand(tc.args) {
+			for _, arg := range f.expand(tc.args) {
 				arg = strings.ReplaceAll(arg, "{T}", tmp)
-				arg = strings.ReplaceAll(arg, "{M}", fixture.MasterDir)
-				arg = strings.ReplaceAll(arg, "{run:live}", fixture.Runs["live"])
+				arg = strings.ReplaceAll(arg, "{M}", f.e.master)
 				args = append(args, arg)
 			}
-			code, output := captureSelectorOutput(func() int { return run(args) })
-			output = fixture.symbolic(output)
-			output = strings.ReplaceAll(output, tmp, "{T}")
-			if (code != 0) != tc.fail {
-				t.Fatalf("rotari %s exit code = %d, want failure %v; output:\n%s", tc.args, code, tc.fail, output)
+			r := f.e.rotari(args...)
+			output := strings.ReplaceAll(f.symbolic(r.stdout+r.stderr), tmp, "{T}")
+			if (r.code != 0) != tc.fail {
+				t.Fatalf("rotari %s exit code = %d, want failure %v; output:\n%s", tc.args, r.code, tc.fail, output)
 			}
 			if !strings.Contains(output, tc.want) {
 				t.Fatalf("rotari %s output does not contain %q:\n%s", tc.args, tc.want, output)
 			}
 			if tc.check != nil {
-				tc.check(t, fixture, tmp)
+				tc.check(t, f, tmp)
 			}
 		})
 	}
 }
 
-func (fixture selectorFixture) setUp(t *testing.T, setup, tmp string) {
-	t.Helper()
-	sweep := fixture.paths(t, fixture.BaseDir, "sweep")
+func (f selectorFixture) setUp(setup, tmp string) {
+	f.e.t.Helper()
 	switch setup {
 	case "":
 	case setupQueued:
-		fixture.restore(t, fixture.BaseDir, "sweep", fixture.Runs["sweep-second"])
+		f.restore("sweep-second")
 	case setupQueuedAll:
-		fixture.restore(t, fixture.BaseDir, "sweep", fixture.Runs["sweep-second"])
-		fixture.restore(t, fixture.BaseDir, "other", fixture.Runs["other-first"])
+		f.restore("sweep-second")
+		f.e.mustRotari("copy", "-b", f.base, "-p", "other", "--run-id", f.runs["other-first"], "--overwrite", "--quiet")
 	case setupManifest:
-		if code, output := captureSelectorOutput(func() int {
-			return cmdExport([]string{fixture.Runs["sweep-first"], filepath.Join(tmp, "m.yaml")})
-		}); code != 0 {
-			t.Fatalf("export failed:\n%s", output)
-		}
-	case setupActive, setupInterrupted:
-		// The lock records this test process, which is alive, so the run
-		// counts as active until the lock names a process that is gone.
-		fixture.Runs["live"] = makeRunID()
-		if err := projectRunner().Begin(sweep, projectrun.Start{RunID: fixture.Runs["live"], RunName: "live", CWD: tmp}); err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { _ = os.Remove(sweep.LockFile) })
-		if setup == setupInterrupted {
-			lock, err := state.LoadLock(sweep.LockFile)
-			if err != nil {
-				t.Fatal(err)
-			}
-			lock.PID = 1 << 30
-			if err := writeJSON(sweep.LockFile, lock); err != nil {
-				t.Fatal(err)
-			}
-		}
+		f.e.mustRotari("export", f.runs["sweep-first"], filepath.Join(tmp, "m.yaml"))
+	case setupActive:
+		f.startLive()
+	case setupInterrupted:
+		// Killing the run's supervisor, and its job, leaves the run lock
+		// naming a process that is gone.
+		f.startLive()
+		killStrays(f.e.t, f.e.root)
 	default:
-		t.Fatalf("unknown setup %q", setup)
+		f.e.t.Fatalf("unknown setup %q", setup)
 	}
 }
 
-// queuedCommand checks that project's queue holds a job with command.
-func queuedCommand(project, command string) func(*testing.T, selectorFixture, string) {
-	return func(t *testing.T, fixture selectorFixture, _ string) {
-		t.Helper()
-		queue, err := state.LoadQueue(fixture.paths(t, fixture.BaseDir, project).QueueFile)
-		if err != nil {
-			t.Fatal(err)
+// startLive starts run "live" of project sweep, with one job that sleeps,
+// records its ID as {run:live}, and returns once the job runs. The run is
+// cancelled when the test ends.
+func (f selectorFixture) startLive() {
+	f.e.t.Helper()
+	f.add(f.base, "sweep", "--job-name", "hold", "--", "sleep", "300")
+	client := f.e.command("run", "-b", f.base, "-p", "sweep", "--run-name", "live", "--quiet")
+	if err := client.Start(); err != nil {
+		f.e.t.Fatal(err)
+	}
+	f.e.t.Cleanup(func() {
+		// Disconnecting a synchronous client cancels its run.
+		_ = client.Process.Kill()
+		_ = client.Wait()
+	})
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		runID := f.lastRunID(f.base, "sweep")
+		running := strings.Count(f.e.rotari("jobs", "-b", f.base, "sweep", "--format", "%a %s").stdout, " running")
+		if runID != f.runs["sweep-second"] && running == 1 {
+			f.runs["live"] = runID
+			return
 		}
-		for _, queued := range queue.Commands {
+		if time.Now().After(deadline) {
+			f.e.t.Fatal("run live did not start")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// hasQueuedCommand checks that project's queue holds a job with command.
+func hasQueuedCommand(project, command string) func(*testing.T, selectorFixture, string) {
+	return func(t *testing.T, f selectorFixture, _ string) {
+		t.Helper()
+		for _, queued := range queueCommands(t, f, project) {
 			if strings.Join(queued.Command, " ") == command {
 				return
 			}
@@ -284,14 +297,10 @@ func queuedCommand(project, command string) func(*testing.T, selectorFixture, st
 
 // queueLength checks the number of jobs in project's queue.
 func queueLength(project string, want int) func(*testing.T, selectorFixture, string) {
-	return func(t *testing.T, fixture selectorFixture, _ string) {
+	return func(t *testing.T, f selectorFixture, _ string) {
 		t.Helper()
-		queue, err := state.LoadQueue(fixture.paths(t, fixture.BaseDir, project).QueueFile)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(queue.Commands) != want {
-			t.Fatalf("project %s queue has %d jobs, want %d", project, len(queue.Commands), want)
+		if got := len(queueCommands(t, f, project)); got != want {
+			t.Fatalf("project %s queue has %d jobs, want %d", project, got, want)
 		}
 	}
 }
@@ -304,4 +313,25 @@ func fileExists(name string) func(*testing.T, selectorFixture, string) {
 			t.Fatal(err)
 		}
 	}
+}
+
+// queueCommands returns the commands of project's queue in the base
+// directory, with the job command each runs.
+func queueCommands(t *testing.T, f selectorFixture, project string) []struct {
+	Command []string `json:"command"`
+} {
+	t.Helper()
+	var queue struct {
+		Commands []struct {
+			Command []string `json:"command"`
+		} `json:"commands"`
+	}
+	data, err := os.ReadFile(filepath.Join(f.base, "projects", project, "queue.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &queue); err != nil {
+		t.Fatal(err)
+	}
+	return queue.Commands
 }

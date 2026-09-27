@@ -35,7 +35,8 @@ disagrees with the registry is an error. Whether the command then succeeds
 depends on the command, such as `unlock`, which also requires the run to be
 the locked one. Every other selector (job IDs, names, stages, run names)
 depends on the resolved base directory and project, and may not be unique.
-Covered by the "complete" rows of `TestPositionalArguments`.
+Covered by the "complete" rows of `TestPositionalArguments` in
+[conformance/positional_test.go](../conformance/positional_test.go).
 
 ## Selector forms
 
@@ -189,7 +190,7 @@ says.
 commands take no run name or positional project: they act on running jobs, so
 they name them only by IDs and `--project-name`, and a free-form run name could
 not be told apart from a job ID in the same list. Covered by `TestJobControlSelectors`
-in [cmd/rotari/job_control_selector_test.go](../cmd/rotari/job_control_selector_test.go),
+in [conformance/job_control_test.go](../conformance/job_control_test.go),
 against the fixture with run `live` of project `sweep` active, and by the
 `JobSelection` tests in
 [internal/resolve/resolve_test.go](../internal/resolve/resolve_test.go).
@@ -242,7 +243,7 @@ meaning, and rejects them together with the options they exclude; the
 general rules above hold.
 
 `TestPositionalArguments` in
-[cmd/rotari/positional_test.go](../cmd/rotari/positional_test.go) covers
+[conformance/positional_test.go](../conformance/positional_test.go) covers
 each row against the fixture, except `cancel`, `suspend`, and `resume`,
 which `TestJobControlSelectors` covers against a running run (see
 [Job control](#job-control)).
@@ -266,10 +267,10 @@ generated run, job, and attempt IDs. The environment has no location
 variables, so commands find a base directory only through `-b` or the run
 registry. `TestSelectorFixtureLayout` checks the layout.
 
-`TestPositionalArguments` and `TestJobControlSelectors` still run in process
-against the same layout, built by the `newSelectorFixture` of
-[cmd/rotari/selector_fixture_test.go](../cmd/rotari/selector_fixture_test.go).
-`startLiveRun` in
-[cmd/rotari/job_control_selector_test.go](../cmd/rotari/job_control_selector_test.go)
-adds run `live` of project `sweep`, active in process, with an array job
-`hold` of two tasks and a job `idle`, each sleeping, for the job control rows.
+The job control rows add run `live` of project `sweep`, run in the
+background, with an array job `hold` of two tasks and a job `idle`, each
+sleeping (`startJobControlRun` in
+[conformance/job_control_test.go](../conformance/job_control_test.go)). The
+positional rows that need an active run use a run `live` with one sleeping
+job, and those that need an interrupted one kill its supervisor and job
+(`setUp` in [conformance/positional_test.go](../conformance/positional_test.go)).

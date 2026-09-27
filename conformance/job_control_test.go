@@ -1,23 +1,23 @@
-package main
+package conformance
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/projectrun"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
+// Contract SEL-9: cancel, suspend, and resume resolve each form as "Job
+// control" in contracts/06-selectors.md says.
+
 // jobControlCase is one row of the cancel, suspend, and resume selectors in
-// contracts/06-selectors.md, run against newSelectorFixture with run
-// "live" of project sweep active: array job hold (tasks 1 and 2) and job
-// idle, each sleeping. args use the placeholders of selectorCase, plus
-// {run:live} and {att:idle/live} for the active run and idle's attempt in it.
+// contracts/06-selectors.md, run against newSelectorFixture with run "live"
+// of project sweep active: array job hold (tasks 1 and 2) and job idle, each
+// sleeping. args use the placeholders of selectorCase, plus {run:live} and
+// {att:idle/live} for the active run and idle's attempt in it.
 type jobControlCase struct {
 	name string
 	args string
@@ -73,142 +73,107 @@ var jobControlCases = []jobControlCase{
 }
 
 func TestJobControlSelectors(t *testing.T) {
+	covers(t, "SEL-9")
 	for _, tc := range jobControlCases {
 		command := strings.Fields(tc.args)[0]
 		t.Run(command+"/"+tc.name, func(t *testing.T) {
-			fixture := newSelectorFixture(t)
-			live := fixture.startLiveRun(t)
+			t.Parallel()
+			f := newSelectorFixture(t)
+			live := f.startJobControlRun()
 			if tc.suspended {
-				if _, err := jobController().Control(fixture.BaseDir, "sweep", "", nil, "suspend"); err != nil {
-					t.Fatal(err)
-				}
+				f.e.mustRotari("suspend", "-b", f.base, "-p", "sweep")
 			}
-			var args []string
-			for _, arg := range fixture.expand(tc.args) {
-				arg = strings.ReplaceAll(arg, "{run:live}", fixture.Runs["live"])
-				arg = strings.ReplaceAll(arg, "{att:idle/live}", fixture.Attempts["idle/live"])
-				args = append(args, arg)
-			}
-			code, output := captureSelectorOutput(func() int { return run(args) })
-			output = strings.ReplaceAll(fixture.symbolic(output), fixture.Runs["live"], "{run:live}")
+			r := f.e.rotari(f.expand(tc.args)...)
+			output := f.symbolic(r.stdout + r.stderr)
 			if tc.err != "" {
-				if code == 0 || !strings.Contains(output, tc.err) {
-					t.Fatalf("rotari %s: exit %d, output:\n%s\nwant an error containing %q", tc.args, code, output, tc.err)
+				if r.code == 0 || !strings.Contains(output, tc.err) {
+					t.Fatalf("rotari %s: exit %d, output:\n%s\nwant an error containing %q", tc.args, r.code, output, tc.err)
 				}
-			} else if code != 0 {
-				t.Fatalf("rotari %s: exit %d, output:\n%s", tc.args, code, output)
+			} else if r.code != 0 {
+				t.Fatalf("rotari %s: exit %d, output:\n%s", tc.args, r.code, output)
 			}
 			want := append([]string(nil), tc.jobs...)
 			sort.Strings(want)
-			if got := live.affected(t, command, tc.suspended, want); strings.Join(got, ",") != strings.Join(want, ",") {
+			if got := live.affected(t, command, want); strings.Join(got, ",") != strings.Join(want, ",") {
 				t.Fatalf("rotari %s acted on [%s], want [%s]; output:\n%s", tc.args, strings.Join(got, ","), strings.Join(want, ","), output)
 			}
 		})
 	}
 }
 
-// liveRun is run "live" of project sweep, running in process.
-type liveRun struct {
-	runDir string
-	// jobs maps hold-1, hold-2, and idle to their job IDs in the run.
-	jobs map[string]string
+// jobControlRun is run "live" of project sweep, with the attempt directory
+// of each of its jobs by key: hold-1, hold-2, and idle.
+type jobControlRun struct {
+	attemptDirs map[string]string
 }
 
-// startLiveRun queues array job hold and job idle in project sweep, starts
-// run "live" of them, and returns once every job has started. The run's
-// supervisor is started too, and the run is cancelled when the test ends.
-func (fixture selectorFixture) startLiveRun(t *testing.T) liveRun {
-	t.Helper()
-	fixture.add(t, fixture.BaseDir, "sweep", "--job-name", "hold", "--array", "1-2", "--", "sleep", "30")
-	fixture.add(t, fixture.BaseDir, "sweep", "--job-name", "idle", "--", "sleep", "30")
-	fixture.recordJobs(t, fixture.BaseDir, "sweep", map[string]string{"hold": "hold", "idle": "idle"}, "")
-	paths := fixture.paths(t, fixture.BaseDir, "sweep")
-	runID := makeRunID()
-	fixture.Runs["live"] = runID
-	// The run's goroutines outlive the commands under test, so they must not
-	// print: captureSelectorOutput swaps os.Stdout and os.Stderr meanwhile.
-	silent := func(string, ...any) {}
-	runner := projectRunner()
-	runner.Executors = executor.NewRegistry(jsonStore(), silent)
-	runner.Logf, runner.Errorf = silent, silent
-	if err := runner.Begin(paths, projectrun.Start{RunID: runID, RunName: "live", CWD: fixture.BaseDir}); err != nil {
-		t.Fatal(err)
+// startJobControlRun queues array job hold and job idle in project sweep,
+// starts run "live" of them in the background, records {run:live},
+// {job:hold}, {job:idle}, and {att:idle/live}, and returns once every job
+// runs. The run is cancelled when the test ends.
+func (f selectorFixture) startJobControlRun() jobControlRun {
+	f.e.t.Helper()
+	f.add(f.base, "sweep", "--job-name", "hold", "--array", "1-2", "--", "sleep", "300")
+	f.add(f.base, "sweep", "--job-name", "idle", "--", "sleep", "300")
+	f.recordJobs(f.base, "sweep", map[string]string{"hold": "hold", "idle": "idle"}, "")
+	client := f.e.command("run", "-b", f.base, "-p", "sweep", "--run-name", "live", "--quiet")
+	if err := client.Start(); err != nil {
+		f.e.t.Fatal(err)
 	}
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		_, _ = runner.Run(paths, projectrun.Options{RunID: runID, RunName: "live", LocalConcurrency: 4, BatchMaxActive: 1, PartialArray: true}, projectrun.Observer{})
-	}()
-	t.Cleanup(func() {
-		_, _ = jobController().Control(fixture.BaseDir, "sweep", runID, nil, "resume")
-		_, _ = jobController().Cancel(fixture.BaseDir, "sweep", runID, nil, false)
-		select {
-		case <-done:
-		case <-time.After(10 * time.Second):
-			t.Error("run live did not end after cancellation")
-		}
+	f.e.t.Cleanup(func() {
+		// Resume first: a suspended job cannot act on the cancel.
+		_ = f.e.command("resume", "-b", f.base, "-p", "sweep").Run()
+		// Disconnecting a synchronous client cancels its run.
+		_ = client.Process.Kill()
+		_ = client.Wait()
 	})
-	live := liveRun{
-		runDir: filepath.Join(paths.RunsDir, runID),
-		jobs:   map[string]string{"hold-1": fixture.Jobs["hold"] + "-1", "hold-2": fixture.Jobs["hold"] + "-2", "idle": fixture.Jobs["idle"]},
-	}
-	deadline := time.Now().Add(5 * time.Second)
-	for !live.allStarted(t) {
-		if time.Now().After(deadline) {
-			t.Fatal("jobs of run live did not start")
+	keys := map[string]string{"hold-1": f.jobs["hold"] + "-1", "hold-2": f.jobs["hold"] + "-2", "idle": f.jobs["idle"]}
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		runID := f.lastRunID(f.base, "sweep")
+		running := strings.Count(f.e.rotari("jobs", "-b", f.base, "sweep", "--format", "%a %s").stdout, " running")
+		if runID != f.runs["sweep-second"] && running == len(keys) {
+			f.runs["live"] = runID
+			break
 		}
-		time.Sleep(20 * time.Millisecond)
+		if time.Now().After(deadline) {
+			f.e.t.Fatal("run live did not start")
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
-	attemptID, err := state.LatestAttemptID(live.runDir, fixture.Jobs["idle"])
-	if err != nil {
-		t.Fatal(err)
+	live := jobControlRun{attemptDirs: map[string]string{}}
+	for key, jobID := range keys {
+		dirs, err := filepath.Glob(filepath.Join(f.base, "projects", "sweep", "runs", f.runs["live"], jobID, "attempts", "*"))
+		if err != nil || len(dirs) != 1 {
+			f.e.t.Fatalf("attempts of %s in run live: %q, %v", key, dirs, err)
+		}
+		live.attemptDirs[key] = dirs[0]
 	}
-	fixture.Attempts["idle/live"] = attemptID
-	fixture.startServer(t)
+	f.attempts["idle/live"] = filepath.Base(live.attemptDirs["idle"])
 	return live
 }
 
-func (live liveRun) jobDir(t *testing.T, key string) string {
-	t.Helper()
-	dir, err := state.LatestAttemptJobDir(live.runDir, live.jobs[key])
-	if err != nil {
-		t.Fatal(err)
-	}
-	return dir
-}
-
-func (live liveRun) allStarted(t *testing.T) bool {
-	t.Helper()
-	for key := range live.jobs {
-		if _, err := os.Stat(filepath.Join(live.jobDir(t, key), "pid")); err != nil {
-			return false
-		}
-	}
-	return true
-}
-
 // affected reports the live jobs that command acted on: the finished jobs
-// for cancel, and the jobs whose scheduler state changed for suspend and
+// for cancel, and the jobs in the scheduler state it sets for suspend and
 // resume. A cancelled job finishes asynchronously, so it waits briefly for
 // the finished set to reach want.
-func (live liveRun) affected(t *testing.T, command string, suspended bool, want []string) []string {
+func (live jobControlRun) affected(t *testing.T, command string, want []string) []string {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		var got []string
-		for key := range live.jobs {
-			dir := live.jobDir(t, key)
+		for key, dir := range live.attemptDirs {
 			switch command {
 			case "cancel":
 				if _, err := os.Stat(filepath.Join(dir, "finished_at")); err == nil {
 					got = append(got, key)
 				}
 			case "suspend":
-				if executor.LoadSchedulerStatus(jsonStore(), dir) == "suspended" {
+				if schedulerState(dir) == "suspended" {
 					got = append(got, key)
 				}
 			case "resume":
-				if executor.LoadSchedulerStatus(jsonStore(), dir) == "running" {
+				if schedulerState(dir) == "running" {
 					got = append(got, key)
 				}
 			}
@@ -219,4 +184,16 @@ func (live liveRun) affected(t *testing.T, command string, suspended bool, want 
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+}
+
+// schedulerState reads the state an attempt's scheduler_status.json records.
+func schedulerState(attemptDir string) string {
+	var status struct {
+		State string `json:"state"`
+	}
+	data, err := os.ReadFile(filepath.Join(attemptDir, "scheduler_status.json"))
+	if err != nil || json.Unmarshal(data, &status) != nil {
+		return ""
+	}
+	return status.State
 }

@@ -339,7 +339,7 @@ func TestCmdUnlockPointsLegacyPositionalRunIDToRunIDOption(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	code, output := captureSelectorOutput(func() int {
+	code, output := captureCommandOutput(func() int {
 		return cmdUnlock([]string{"--basedir", baseDir, "--project-name", "demo", "run-1"})
 	})
 	if code == 0 || !strings.Contains(output, "--run-id run-1") {
@@ -426,4 +426,24 @@ func TestAcquireLockRejectsActiveLockWithoutReplacingIt(t *testing.T) {
 	if stored.RunID != "run-1" {
 		t.Fatalf("stored lock = %+v, want original run-1 lock", stored)
 	}
+}
+
+func captureCommandOutput(run func() int) (int, string) {
+	stdout, stderr := os.Stdout, os.Stderr
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+	os.Stdout, os.Stderr = writer, writer
+	var output bytes.Buffer
+	copied := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(&output, reader)
+		close(copied)
+	}()
+	code := run()
+	writer.Close()
+	<-copied
+	os.Stdout, os.Stderr = stdout, stderr
+	return code, output.String()
 }

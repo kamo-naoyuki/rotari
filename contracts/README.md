@@ -137,7 +137,7 @@ the IDs, this table, and those calls disagree.
 | CAN-2 | A cancelled run finishes with a summary and leaves the project idle, not interrupted | conformance | `TestWholeRunCancelFinishesRun` |
 | CAN-3 | `cancel --wait` returns once the run has finished and exits 0 | conformance | `TestCancelWaitReturnsAfterRunFinishes` |
 | CAN-4 | Cancelling one job stops only that job, which the run does not retry | conformance | `TestCancelJobStopsOnlyThatJob` |
-| SEL-1 | A run ID or attempt ID alone resolves its location in every command | partial | `TestSelectorTable` |
+| SEL-1 | A run ID or attempt ID alone resolves its location in every command | partial | `TestPositionalArguments`, `TestSelectorTable` |
 | SEL-2 | Each command reads the run or queue its row names | partial | `TestSelectorTable` |
 | SEL-3 | `show` resolves each selector form as its column says | conformance | `TestSelectorTable` |
 | SEL-4 | `copy` resolves each selector form as its column says | conformance | `TestSelectorTable` |
@@ -145,5 +145,5 @@ the IDs, this table, and those calls disagree.
 | SEL-6 | `change` resolves each selector form as its column says | conformance | `TestSelectorTable` |
 | SEL-7 | `remove` resolves each selector form as its column says | conformance | `TestSelectorTable` |
 | SEL-8 | Selectors combine by kind, with the listed exclusions | conformance | `TestSelectorTable` |
-| SEL-9 | `cancel`, `suspend`, and `resume` resolve each form as the job control table says | pending | - |
-| SEL-10 | Each command takes its positional arguments with their meaning and exclusions | pending | - |
+| SEL-9 | `cancel`, `suspend`, and `resume` resolve each form as the job control table says | conformance | `TestJobControlSelectors` |
+| SEL-10 | Each command takes its positional arguments with their meaning and exclusions | conformance | `TestPositionalArguments` |
