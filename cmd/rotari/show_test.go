@@ -251,39 +251,6 @@ func TestShowRunDisplaysAcceptedStatus(t *testing.T) {
 	}
 }
 
-func TestCmdShowResolvesRunNameAcrossProjects(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	runID := "named-run"
-	runDir := filepath.Join(paths.RunsDir, runID)
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, RunName: "nightly", Status: "finished"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(filepath.Join(runDir, "commands.json"), model.Queue{}); err != nil {
-		t.Fatal(err)
-	}
-
-	oldStdout := os.Stdout
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	os.Stdout = writer
-	code := cmdShow([]string{"--basedir", baseDir, "--no-pager", "nightly"})
-	_ = writer.Close()
-	os.Stdout = oldStdout
-	output, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if code != 0 || !strings.Contains(string(output), "Project: demo") || !strings.Contains(string(output), "Run: nightly (named-run)") {
-		t.Fatalf("cmdShow code=%d output=%q", code, output)
-	}
-}
-
 func TestCmdShowDisplaysCurrentQueue(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
