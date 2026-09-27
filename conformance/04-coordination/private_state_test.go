@@ -63,15 +63,21 @@ func TestPrivateStateModes(t *testing.T) {
 }
 
 func TestProjectStates(t *testing.T) {
-	covers(t, "SAFE-1")
+	covers(t, "CORE-4", "SAFE-1")
 	e := support.NewEnv(t)
 	e.MustRotari("add", "-p", "idle", "--", "true")
 	if state := e.CheckState("idle"); state != "ready" {
 		t.Errorf("a project with a queue: state %q, want ready", state)
 	}
+	if out := e.MustRotari("show", "-p", "idle").Stdout; !strings.Contains(out, "Queue:") {
+		t.Errorf("idle project is not queue-first:\n%s", out)
+	}
 	e.StartRun("live", 1, false)
 	if state := e.CheckState("live"); state != "running" {
 		t.Errorf("a project with a run: state %q, want running", state)
+	}
+	if out := e.MustRotari("show", "-p", "live").Stdout; !strings.Contains(out, "Run:") {
+		t.Errorf("running project unexpectedly shows queue first:\n%s", out)
 	}
 	support.KillStrays(t, e.Root)
 	support.WaitForInterrupted(t, e, "live")

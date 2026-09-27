@@ -113,7 +113,7 @@ the IDs, this table, and those calls disagree.
 | CORE-1 | The filesystem is the source of truth; registries and memory are recoverable indexes | partial | `TestRunFilesRemainAuthoritativeWithoutRegistryEntry` |
 | CORE-2 | The supervisor coordinates but is not the authority for project or run state | partial | `TestPersistedRunStateIsReadableAfterServerShutdown` |
 | CORE-3 | One mutable queue per project, edited only while idle and snapshotted by a run | partial | `TestFilteredRerunCarriesCompletedResults`, `TestRunningProjectRejectsChanges` |
-| CORE-4 | Idle projects are queue-first; running and interrupted projects are run-first | pending | - |
+| CORE-4 | Idle projects are queue-first; running and interrupted projects are run-first | partial | `TestProjectStates` |
 | CORE-5 | At most one active run and runner per project | conformance | `TestRunningProjectRejectsChanges`, `TestUnlockRefusesLiveRun` |
 | CORE-6 | Completed runs are immutable; reruns change only their destination run | pending | - |
 | CORE-7 | Executors run jobs; run semantics stay in the shared execution path | pending | - |
