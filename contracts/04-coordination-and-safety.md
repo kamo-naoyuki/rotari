@@ -197,8 +197,23 @@ SAFE-6 are checked through the binary by
 
 ## State load and write contracts
 
+- **STATE-1** A command that reads `queue.json`, `commands.json`, or
+  `summary.json` written by a newer rotari, with a greater `state_version`,
+  fails with a message to upgrade rotari and leaves the file as it was. It
+  never reads such a file by dropping the fields it does not know.
+- **STATE-2** These files without `state_version`, written before versioning,
+  are read as version 1 and keep working.
+- **STATE-3** Reading history never rewrites it: the commands and Web views
+  that read a finished run leave its files as they were, whatever version
+  they carry.
+- **STATE-4** Load samples are observational: blank or malformed lines in
+  `load_samples.jsonl` are skipped, and `show` and the Web UI still work.
+
+STATE-1 to STATE-4 are checked through the binary by
+[`conformance/state_test.go`](../conformance/state_test.go).
+
 The `internal/state` package is the shared boundary for persisted project and
-run data:
+run data. How it implements these rules and the rest of the state layout:
 
 - `LoadMeta` treats a missing `meta.json` as a new project and returns the
   collecting default with an RFC3339 `updated_at`. Existing metadata with an
