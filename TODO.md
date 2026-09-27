@@ -141,7 +141,9 @@ immediately useful first. Each step stands alone and can stop there.
    registry, SEL-1 and SEL-2 not every command, DUR-6 not `reset --recover`).
 2. **Golden output files.** Golden files with an `-update` flag for `--help`,
    `schema --json`, and representative `show --json` output, so an
-   unintended output change shows up as a diff. None exist today.
+   unintended output change shows up as a diff. These now live under
+   `conformance/testdata/golden/`; schema and show output are normalized to
+   keep the files maintainable.
 3. **Mirror the contract documents in conformance.** Organize tests under
   directories matching the contract Markdown structure, rather than making
   one directory per contract ID. Keep the existing `00` through `06` topics
@@ -174,22 +176,27 @@ The current migration has moved resolution and display-time tests under
 `01-resolution`, run lifecycle and cancellation under `02-lifecycle`, command
 checks under `03-interfaces`, coordination, state, and projection checks under
 `04-coordination`, and selector/path tests under `06-selectors`. SAFE recovery
-tests are also under `04-coordination`. The remaining user-facing contract
-tests at the root are the orphan-process durability tests; they use a special
-supervisor-kill fixture and should move only after that fixture is made stable
-in a package-local harness. Root `harness_test.go` and `contracts_test.go` are
-shared test infrastructure and may remain at the package root.
+and orphan-process durability tests are also under `04-coordination`.
+Root `harness_test.go`, `contracts_test.go`, and `golden_test.go` are shared
+test infrastructure and may remain at the package root.
 
 #### Handoff status
 
 - Completed and committed: document-to-directory layout, recursive contract
-  checking, `01-resolution`, `02-lifecycle`, `03-interfaces`,
-  `04-coordination`, and `06-selectors` migrations.
-- Remaining migration: none. `DUR-3`, `DUR-4`, and `DUR-6` now live under
-  `04-coordination` and use the package-local support fixture.
-- Remaining coverage work: the remaining run lifecycle/server-interface rules,
-  partial CORE/DUR/selector coverage, and golden output files. All pending
-  contract rows are now covered by at least one conformance test.
+  checking, all `01` through `06` conformance migrations, golden outputs,
+  and the wait/copy/show selector deduplication in `cmd/rotari`.
+- The moved durability tests (`DUR-3`, `DUR-4`, and `DUR-6`) use the
+  package-local support fixture under `04-coordination`.
+- All pending contract rows are covered by at least one conformance test.
+  Remaining coverage is the `partial` rows in `contracts/README.md`, notably
+  CORE/DUR, RES, CLI-1, and SEL-1/2.
+- Golden tests live in `conformance/golden_test.go`; `-update` refreshes
+  `conformance/testdata/golden/`. Schema output is compacted to command/flag
+  metadata, and show output uses a deterministic queue JSON projection.
+- Recent cleanup commits: `857de4c` (wait), `333d51d` and `41f99fa` (copy),
+  `bc87a21` and `c8d2e2f` (show), and `d126dde` (mixed-run retry).
+- `scripts/check.sh --short` still cannot complete in this sandbox because
+  Unix sockets return `operation not permitted` in internal/server tests.
 - Known flaky tests are recorded in [ISSUES.md](ISSUES.md), notably
   `TestControlFromAnotherHost` and `TestResetOfInterruptedProject`; do not
   treat those failures as migration regressions without reproducing them in
