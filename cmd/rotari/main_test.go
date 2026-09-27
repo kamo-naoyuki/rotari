@@ -2631,6 +2631,11 @@ func TestControlQueueJobsSuspendsAndResumesSelectedLocalJob(t *testing.T) {
 	if _, err := jobController().Control(baseDir, "default", "", []string{"job-1"}, "suspend"); err != nil {
 		t.Fatal(err)
 	}
+	// SIGSTOP is asynchronous; wait until the child has stopped before sampling.
+	var status syscall.WaitStatus
+	if _, err := syscall.Wait4(child.Process.Pid, &status, syscall.WUNTRACED, nil); err != nil || !status.Stopped() {
+		t.Fatalf("child did not stop: status=%v err=%v", status, err)
+	}
 	data, err := os.ReadFile(outputPath)
 	if err != nil {
 		t.Fatal(err)
