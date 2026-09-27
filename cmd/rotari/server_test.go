@@ -968,22 +968,6 @@ func TestCmdCancelRejectsWholeRunFromWrongHostViaCLI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = listener.Close() })
-	server := newRotariServer(baseDir)
-	go func() {
-		for {
-			conn, acceptErr := listener.Accept()
-			if acceptErr != nil {
-				return
-			}
-			go server.Handle(conn)
-		}
-	}()
-
 	oldStderr := os.Stderr
 	reader, writer, err := os.Pipe()
 	if err != nil {
@@ -1008,8 +992,8 @@ func TestCmdCancelRejectsWholeRunFromWrongHostViaCLI(t *testing.T) {
 }
 
 // TestCmdCancelAcceptsPositionalJobID exercises the CLI entry point with a
-// positional job ID (instead of --job-id), checking that it reaches the
-// server and cancels the not-yet-submitted job.
+// positional job ID (instead of --job-id), checking that it cancels the
+// not-yet-submitted job without a server.
 func TestCmdCancelAcceptsPositionalJobID(t *testing.T) {
 	baseDir, err := os.MkdirTemp("", "rotari-cli-positional-job-")
 	if err != nil {
@@ -1032,22 +1016,6 @@ func TestCmdCancelAcceptsPositionalJobID(t *testing.T) {
 	if err := writeJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		t.Fatal(err)
 	}
-
-	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = listener.Close() })
-	server := newRotariServer(baseDir)
-	go func() {
-		for {
-			conn, acceptErr := listener.Accept()
-			if acceptErr != nil {
-				return
-			}
-			go server.Handle(conn)
-		}
-	}()
 
 	oldStdout := os.Stdout
 	reader, writer, err := os.Pipe()
@@ -1100,22 +1068,6 @@ func TestCmdCancelAcceptsPositionalRunID(t *testing.T) {
 	if err := registerRunLocation(runLocation{BaseDir: baseDir, ProjectName: "default", RunID: runID}); err != nil {
 		t.Fatal(err)
 	}
-
-	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = listener.Close() })
-	server := newRotariServer(baseDir)
-	go func() {
-		for {
-			conn, acceptErr := listener.Accept()
-			if acceptErr != nil {
-				return
-			}
-			go server.Handle(conn)
-		}
-	}()
 
 	oldStderr := os.Stderr
 	reader, writer, err := os.Pipe()

@@ -43,8 +43,9 @@ flowchart LR
 
 - **CLI client.** Every `rotari <command>` invocation. Most commands (`add`,
   `copy`, `change`, `show`, `jobs`, `export`, ...) read and write the project
-  files directly under the project's state lock. Only `run`, `retry`,
-  `cancel`, `suspend`, and `resume` go through the supervisor.
+  files directly under the project's state lock. Only `run` and `retry` go
+  through the supervisor; `cancel`, `suspend`, and `resume` signal jobs from
+  the calling process, as the Web UI does.
 - **Supervisor.** `rotari __server`, started on demand by `ensureServer`
   ([cmd/rotari/server.go](../cmd/rotari/server.go)) and stopped after one
   idle minute. The source still calls it the *server*. It serializes run
@@ -200,7 +201,7 @@ are checked against this graph by
 | [internal/projectrun](../internal/projectrun/) | One project's run against its files: `Begin` (context, run lock, registry, running metadata), `Execute` (snapshot, plan, dispatch, summary), and `Finish` (final context, queue and metadata finalization, lock removal). Shared by the sync run, the async worker, and cancellation. Also checks that a queue can run with the known executors (`ValidateQueue`). | `lifecycle.go`, `execute.go`, `validate.go` |
 | [internal/run](../internal/run/) | Run rules without file access: which jobs execute or are carried forward, dependency unblocking, retries, per-executor lanes and concurrency, the summary contents. | `rerun.go` (`PlanRerun`), `engine.go` (`ExecuteJobs`), `dispatch.go` (`Dispatcher`) |
 | [internal/jobstatus](../internal/jobstatus/) | Read side: turns attempt files and the summary into one displayed result and timestamps. Shared by CLI and Web. | `job.go`, `attempt.go`, `times.go` |
-| [internal/supervisor](../internal/supervisor/) | The work behind supervisor requests: cancel, suspend and resume, and sync and async runs, including preflight selection planning and spawning the async worker. Implements `server.Operations` and returns plain-text messages. | `run.go` (`Operations.Run`, `StartRun`), `worker.go` |
+| [internal/supervisor](../internal/supervisor/) | The work behind supervisor requests: sync and async runs, including preflight selection planning and spawning the async worker. Implements `server.Operations` and returns plain-text messages. | `run.go` (`Operations.Run`, `StartRun`), `worker.go` |
 | [internal/server](../internal/server/) | Supervisor transport: request/response types, socket, lease, peer checks, idle shutdown, attached-run streaming. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go` |
 | [internal/jobcontrol](../internal/jobcontrol/) | Cancel, suspend, resume of running jobs through executors. | `jobcontrol.go` |
 | [internal/webui](../internal/webui/) | The Web UI: HTTP handlers and JSON API, static export, embedded assets, and the auth wrapper. CLI metadata, environment definitions, and the config template come in through `Options`. | `webui.go` (`handler`), `options.go`, `assets/` |
@@ -354,8 +355,9 @@ CLI and Web UI agree.
 
 1. `cmdCancel` ([job_control.go](../cmd/rotari/job_control.go)) resolves the
    project, the run a run or attempt ID names, and the job IDs with
-   `resolve.JobSelection`, and sends `OpCancel` to the supervisor.
-2. `supervisor.Operations.Cancel` calls `jobcontrol.Controller.Cancel`
+   `resolve.JobSelection`, and calls `jobcontrol.Controller.Cancel` in its own
+   process.
+2. `jobcontrol.Controller.Cancel`
    ([internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go)),
    which finds the running run through its run lock, rejects a named run that
    is not the active one, expands array job IDs to tasks, marks `meta.json` as

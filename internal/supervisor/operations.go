@@ -22,16 +22,6 @@ type Operations struct {
 
 var _ server.Operations = Operations{}
 
-// Cancel cancels the requested jobs, or the whole active run.
-func (ops Operations) Cancel(request server.Request) (string, error) {
-	return ops.Controller.Cancel(ops.BaseDir, request.QueueName, request.RunID, request.JobIDs, request.Wait)
-}
-
-// Control suspends or resumes the requested jobs, as named by request.Op.
-func (ops Operations) Control(request server.Request) (string, error) {
-	return ops.Controller.Control(ops.BaseDir, request.QueueName, request.RunID, request.JobIDs, request.Op)
-}
-
 // CancelRun cancels the project's whole active run.
 func (ops Operations) CancelRun(request server.Request) {
 	_, _ = ops.Controller.Cancel(ops.BaseDir, request.QueueName, "", nil, false)

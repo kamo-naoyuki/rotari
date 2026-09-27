@@ -235,8 +235,9 @@
   because an `afterany` job may have succeeded on a failed prerequisite's
   output. `copy` requires an omitted `DependsOnFinished` prerequisite to have
   finished with any result, rather than to have succeeded.
-- The server protocol version is 7 since run requests carry a stage or matrix
-  scope (6 added the retry delay fields, 5 per-job `retry`, 4 `timeout`, 3
+- The server protocol version is 8 since `cancel`, `suspend`, and `resume`
+  left the server (7 added a stage or matrix scope to run requests, 6 the
+  retry delay fields, 5 per-job `retry`, 4 `timeout`, 3
   `depends_on_finished`), so a client replaces an older server that would drop
   new request or queue fields.
 - `change`, `remove`, and the `--stage`/`--matrix` scope of `run`, `retry`,

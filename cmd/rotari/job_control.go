@@ -6,11 +6,9 @@ import (
 	"os"
 
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 )
 
-// cmdCancel cancels the active run or selected running jobs through the
-// background server.
+// cmdCancel cancels the active run or selected running jobs.
 func cmdCancel(args []string) int {
 	fs := flag.NewFlagSet("cancel", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -38,24 +36,16 @@ func cmdCancel(args []string) int {
 		printError(err)
 		return 1
 	}
-	if err := ensureServer(target.BaseDir); err != nil {
+	message, err := jobController().Cancel(target.BaseDir, target.ProjectName, target.RunID, target.JobIDs, *wait)
+	if err != nil {
 		printError(err)
 		return 1
 	}
-	response, err := serverinternal.SendRequest(target.BaseDir, serverinternal.Request{Op: serverinternal.OpCancel, QueueName: target.ProjectName, RunID: target.RunID, JobIDs: target.JobIDs, Wait: *wait})
-	if err != nil {
-		printErrorf("failed to contact server: %v", err)
-		return 1
-	}
-	if !response.OK {
-		printError(response.Message)
-		return 1
-	}
-	fmt.Println(response.Message)
+	fmt.Println(message)
 	return 0
 }
 
-// cmdJobSignal sends suspend or resume requests for selected running jobs.
+// cmdJobSignal suspends or resumes selected running jobs.
 func cmdJobSignal(args []string, operation string) int {
 	fs := flag.NewFlagSet(operation, flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -78,19 +68,11 @@ func cmdJobSignal(args []string, operation string) int {
 		printError(err)
 		return 1
 	}
-	if err := ensureServer(target.BaseDir); err != nil {
+	message, err := jobController().Control(target.BaseDir, target.ProjectName, target.RunID, target.JobIDs, operation)
+	if err != nil {
 		printError(err)
 		return 1
 	}
-	response, err := serverinternal.SendRequest(target.BaseDir, serverinternal.Request{Op: operation, QueueName: target.ProjectName, RunID: target.RunID, JobIDs: target.JobIDs})
-	if err != nil {
-		printErrorf("failed to contact server: %v", err)
-		return 1
-	}
-	if !response.OK {
-		printError(response.Message)
-		return 1
-	}
-	fmt.Println(response.Message)
+	fmt.Println(message)
 	return 0
 }

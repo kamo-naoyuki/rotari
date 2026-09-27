@@ -15,7 +15,7 @@ import (
 
 // ProtocolVersion is reported by ping. A client replaces a running server
 // that reports a different version.
-const ProtocolVersion = 7
+const ProtocolVersion = 8
 
 // DetachControl is the byte a synchronous run client sends before
 // disconnecting to leave the run going in the background.
@@ -31,9 +31,6 @@ var ErrAlreadyRunning = errors.New("server is already running")
 // Operations performs the project work behind server requests. The server
 // owns the transport, active-run bookkeeping, and its own lifetime.
 type Operations interface {
-	Cancel(request Request) (string, error)
-	// Control suspends or resumes jobs, as named by request.Op.
-	Control(request Request) (string, error)
 	// StartRun starts an asynchronous run and calls onDone once it ends.
 	StartRun(request Request, onDone func()) (string, error)
 	// Run executes a synchronous run, reporting progress as it goes.
@@ -54,8 +51,6 @@ type Server struct {
 	accessMu   sync.Mutex
 	lastAccess time.Time
 	activeRuns int
-	// handlers counts the connections Serve is handling.
-	handlers sync.WaitGroup
 }
 
 // New returns a server that accepts from listener. A nil listener is allowed
@@ -106,18 +101,11 @@ func Listen(baseDir string, fileMode os.FileMode) (net.Listener, func(), error) 
 }
 
 // Serve accepts connections from verified peers until the server stops.
-// When the stop leaves no run active, as when the last run ends, Serve first
-// lets the requests in flight finish, so a `cancel --wait` for that run gets
-// its answer before the process exits. A stop with runs still active, from a
-// signal or `server shutdown`, returns at once as before.
 func (server *Server) Serve() {
 	for {
 		conn, err := server.listener.Accept()
 		if err != nil {
 			if server.Stopped() {
-				if !server.Busy() {
-					server.handlers.Wait()
-				}
 				return
 			}
 			continue
@@ -126,11 +114,7 @@ func (server *Server) Serve() {
 			_ = conn.Close()
 			continue
 		}
-		server.handlers.Add(1)
-		go func() {
-			defer server.handlers.Done()
-			server.Handle(conn)
-		}()
+		go server.Handle(conn)
 	}
 }
 
@@ -230,10 +214,6 @@ func (server *Server) Handle(conn net.Conn) {
 	switch request.Op {
 	case OpPing:
 		response = Response{OK: true, PID: os.Getpid(), Protocol: ProtocolVersion}
-	case OpCancel:
-		response = messageResponse(server.ops.Cancel(request))
-	case OpSuspend, OpResume:
-		response = messageResponse(server.ops.Control(request))
 	case OpRun:
 		server.BeginRun()
 		if request.Async {
