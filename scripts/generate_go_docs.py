@@ -13,7 +13,6 @@ import string
 import subprocess
 import tempfile
 
-
 SECTION_HEADINGS = {
     "CONSTANTS",
     "FUNCTIONS",
@@ -138,8 +137,7 @@ def render_index(
     dependency_graph_svg: pathlib.Path | None,
 ) -> None:
     index_items = "\n".join(
-        f'<li><a href="{html.escape(filename)}">{html.escape(relative)}</a></li>'
-        for relative, filename in links
+        f'<li><a href="{html.escape(filename)}">{html.escape(relative)}</a></li>' for relative, filename in links
     )
     graph_section = render_dependency_graph(output_dir, dependency_graph_svg)
     index_page = index_template.substitute(
@@ -178,11 +176,7 @@ def main() -> None:
     prepare_output_dir(output_dir)
 
     module = run_go(repo_dir, args.go_binary, "list", "-m").strip()
-    packages = [
-        line
-        for line in run_go(repo_dir, args.go_binary, "list", "./...").splitlines()
-        if line
-    ]
+    packages = [line for line in run_go(repo_dir, args.go_binary, "list", "./...").splitlines() if line]
     index_template = load_template(template_dir, "go-docs-index.html")
     package_template = load_template(template_dir, "go-docs-package.html")
     dependency_graph_svg = args.dependency_graph_svg

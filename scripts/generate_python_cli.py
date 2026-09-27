@@ -13,7 +13,7 @@ from typing import Any
 def render(schema: dict[str, Any]) -> str:
     payload = pprint.pformat(schema, sort_dicts=True, width=88)
     return (
-        "\"\"\"Generated from `rotari schema --json`; do not edit manually.\"\"\"\n\n"
+        '"""Generated from `rotari schema --json`; do not edit manually."""\n\n'
         "from __future__ import annotations\n\n"
         "from typing import Any\n\n\n"
         f"CLI_SCHEMA: dict[str, Any] = {payload}\n"

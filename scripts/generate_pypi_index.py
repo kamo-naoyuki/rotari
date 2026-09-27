@@ -17,7 +17,6 @@ import re
 import urllib.error
 import urllib.request
 
-
 PROJECT_NAME = "rotari"
 GITHUB_API_ROOT = "https://api.github.com"
 
