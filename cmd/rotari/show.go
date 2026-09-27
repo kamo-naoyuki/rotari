@@ -360,7 +360,7 @@ func cmdShow(args []string) int {
 			}
 			// Options that only apply to runs look past a non-empty queue to
 			// the latest run; other views show the queue.
-					runOnly := *showLogs || *showFailedLogs || *followLogs || resultFilter || *reportOutput || cliOptionSet(fs, "stream")
+			runOnly := *showLogs || *showFailedLogs || *followLogs || resultFilter || *reportOutput || cliOptionSet(fs, "stream")
 			if len(queue.Commands) > 0 && !runOnly {
 				if arrayScope, ok := arrayCommandScope(queue.Commands, *jobIDOption); ok {
 					return showQueue(paths, queue, arrayScope)
@@ -683,8 +683,8 @@ func writeShowTargetHeaderWithMode(writer io.Writer, paths state.ProjectPaths, m
 	if inspection, err := project.Inspect(paths, true); err == nil {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Project state:"), projectStateName(inspection.State))
 	}
-	if response, err := serverinternal.SendRequest(paths.ProjectDir, serverinternal.Request{Op: serverinternal.OpPing}); err == nil && response.OK {
-		fmt.Fprintf(writer, "%s running (pid=%d)\n", cyan("Runner server:"), response.PID)
+	if pid, running := serverinternal.Running(paths.ProjectDir); running {
+		fmt.Fprintf(writer, "%s running (pid=%d)\n", cyan("Runner server:"), pid)
 	} else {
 		fmt.Fprintf(writer, "%s stopped\n", cyan("Runner server:"))
 	}

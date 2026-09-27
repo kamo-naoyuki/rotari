@@ -77,7 +77,6 @@ type QueueState struct {
 type ServerState struct {
 	PID           int  `json:"pid,omitempty"`
 	PIDFileExists bool `json:"pid_file_exists"`
-	SocketExists  bool `json:"socket_exists"`
 }
 
 type ConfigFile struct {

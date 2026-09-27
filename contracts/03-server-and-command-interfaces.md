@@ -9,8 +9,8 @@ Representative implementation and tests:
 - [internal/server/serve.go](../internal/server/serve.go),
   [internal/server/client.go](../internal/server/client.go), and
   [internal/server/serve_test.go](../internal/server/serve_test.go) for the
-  server lease, request dispatch, active-run tracking, and the detach and
-  disconnect protocol.
+  server lease, the pipe connection to the run client, request dispatch,
+  active-run tracking, and the detach and disconnect protocol.
 - [cmd/rotari/server.go](../cmd/rotari/server.go) and
   [cmd/rotari/server_test.go](../cmd/rotari/server_test.go) for server
   commands and the `Operations` that perform run work. The request handlers
@@ -32,33 +32,38 @@ Representative implementation and tests:
   start a new one for every run, as a child process that inherits their
   working directory and environment (RUN-3 in
   [02-run-lifecycle-and-execution.md](02-run-lifecycle-and-execution.md#run-lifecycle)),
-  and never reuse a running one: `server.Start` fails when another
-  supervisor answers for the project, and a supervisor rejects a second run
-  request. It stops when its run ends, or after a minute without a run
-  request. Its lease, socket, and PID file live in the project directory, so
-  the runs of different projects have different supervisors. Durable
+  and never reuse a running one: a supervisor that finds the project's lease
+  held reports it and exits, so `server.Start` fails, and a supervisor
+  rejects a second run request. It stops when its run ends, when its client
+  leaves without a run request, or after a minute without one. Its lease
+  (`server.lock`) and PID file (`server.pid`) live in the project directory,
+  so the runs of different projects have different supervisors. Durable
   behavior belongs in files, not memory. Covered by
   [internal/server/serve_test.go](../internal/server/serve_test.go) and
   [internal/server/client_test.go](../internal/server/client_test.go).
-- `SocketPath` in [internal/server/socket.go](../internal/server/socket.go)
-  uses `<basedir>/projects/<project>/server.sock` when it fits in 103 bytes
-  (the smallest `sun_path` limit, on macOS and BSD). Longer paths use
-  `/tmp/rotari-<uid>/<sha256 prefix of the resolved project directory>.sock`,
-  a fixed root rather than `$TMPDIR` so every client of a project computes
-  the same path, and symlinks are resolved so aliases share one supervisor.
-  `Listen` creates that directory `0700` and refuses one that is not a real
-  directory owned by the current user with no group or other access. Covered
-  by [internal/server/socket_test.go](../internal/server/socket_test.go).
-- `server status` and `server shutdown` act on the supervisor of every
+- The run client and its supervisor talk over two pipes the supervisor
+  inherits as descriptors 3 and 4, not over a socket, so `run` needs no Unix
+  socket and works in sandboxes that block them, whatever the length of the
+  base directory. Only that client can reach the supervisor. The supervisor
+  marks the descriptors close-on-exec, so jobs do not hold them, and its
+  first message says whether it took the lease. Covered by
+  [internal/server/client_test.go](../internal/server/client_test.go).
+- A supervisor is running while its lease is locked. `server status`, `show`,
+  and `server list` check the lock and read the PID file without contacting
+  the supervisor; the check never creates the lease file, and a starting
+  supervisor retries the lease briefly so a check does not make it fail.
+  `server status` and `server shutdown` act on the supervisor of every
   project in the base directory that has one, and report `server is not
-  running` when none does. Shutting a supervisor down leaves its run
+  running` when none does. `server shutdown` sends it `SIGTERM` and waits for
+  the lease to be released. Shutting a supervisor down leaves its run
   interrupted with its jobs still running; `cancel` is how to stop a run.
   `server list` shows the supervisors registered in the master directory,
   one per project.
 - A detached server discards stderr, so `runServer` writes a `start failed`
-  event to `server.log` when `Listen` fails for any reason other than another
-  server holding the lease, and `server.Start` names that log when the server
-  does not become ready.
+  event to `server.log` when it cannot start for any reason other than
+  another server holding the lease, and sends the reason to its client;
+  `server.Start` reports it with the log's path, as it does when the server
+  exits or does not become ready.
 - Every supervisor of a base directory writes lifecycle, request, and error
   events, each prefixed with its project, to `<basedir>/server.log`. Before an
   event would make the regular file exceed 1 MiB, it is truncated and the new

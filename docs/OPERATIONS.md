@@ -111,15 +111,12 @@ provides HTTP authentication, not encryption.
   owner-only `0700`/`0600` to keep job commands, working directories, and
   output private. This affects only newly created paths, which are not
   re-chmodded later, and applies to the whole `--basedir/-b`.
-- **Server socket:** `<basedir>/projects/<project>/server.sock` exists while a
-  run's supervisor is running and accepts that run's requests, so reaching it
-  means controlling that run. It is always created `0600` regardless of
-  `ROTARI_PRIVATE_STATE`, and on Linux the server also rejects connections
-  from a different UID. Unix socket paths are limited to about 100 bytes, so
-  when that path would be longer, rotari uses `/tmp/rotari-<uid>/<hash>.sock`
-  instead, derived from the resolved project directory.
-  The directory must be owned by you with mode `0700`; otherwise the server
-  refuses to start and records the reason in `<basedir>/server.log`.
+- **Supervisor:** a run's supervisor opens no socket or port. Only the `run`
+  command that started it talks to it, over inherited pipes, so `run` works
+  where Unix sockets are blocked and with base directories of any length.
+  While it runs, it holds `<basedir>/projects/<project>/server.lock` and
+  records its PID in `server.pid` next to it; a failed start is recorded in
+  `<basedir>/server.log`.
 - **Web UI:** without `ROTARI_WEB_AUTH_TOKEN` or `--auth-token`, bind it to
   `127.0.0.1`; with a token, use only a trusted network or HTTPS proxy. Prefer
   the environment variable so the token does not appear in the process list.

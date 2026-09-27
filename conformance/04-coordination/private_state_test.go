@@ -254,7 +254,6 @@ func fileMode(t *testing.T, path string) fs.FileMode {
 
 func TestMissingSchedulerCommand(t *testing.T) {
 	covers(t, "COORD-4")
-	support.RequireUnixSockets(t)
 	path := filepath.Join(t.TempDir(), "bin")
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		t.Fatal(err)

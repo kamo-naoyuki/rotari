@@ -250,15 +250,17 @@ func runJobs(args []string, defaultSelection string) int {
 		printError(err)
 		return 1
 	}
-	if err := startSupervisor(paths); err != nil {
-		printError(err)
-		return 1
-	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		printErrorf("failed to determine working directory: %v", err)
 		return 1
 	}
+	client, err := startSupervisor(paths)
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	defer client.Close()
 	request := serverinternal.Request{
 		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings(), Retry: *retry, Async: *async, Quiet: *quiet,
 		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, CWD: cwd,
@@ -266,9 +268,9 @@ func runJobs(args []string, defaultSelection string) int {
 	}
 	var response serverinternal.Response
 	if *async {
-		response, err = serverinternal.SendRequest(paths.ProjectDir, request)
+		response, err = client.Send(request)
 	} else {
-		response, err = sendRunRequest(paths.ProjectDir, request)
+		response, err = sendRunRequest(client, request)
 	}
 	if err != nil {
 		printErrorf("failed to contact server: %v", err)
@@ -290,10 +292,10 @@ func cmdRetry(args []string) int {
 	return runJobs(args, model.ResultSelection(true, true, false))
 }
 
-// sendRunRequest sends a synchronous run request to the supervisor of
-// projectDir and prints its progress until the run finishes or the client
-// detaches or is interrupted.
-func sendRunRequest(projectDir string, request serverinternal.Request) (serverinternal.Response, error) {
+// sendRunRequest sends a synchronous run request to the supervisor on client
+// and prints its progress until the run finishes or the client detaches or is
+// interrupted.
+func sendRunRequest(client *serverinternal.Client, request serverinternal.Request) (serverinternal.Response, error) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
 	defer signal.Stop(signals)
@@ -308,7 +310,7 @@ func sendRunRequest(projectDir string, request serverinternal.Request) (serverin
 		}()
 	}
 	printer := runProgressPrinter{quiet: request.Quiet, lastCompleted: -1, lastSucceeded: -1, lastFailed: -1}
-	response, outcome, err := serverinternal.StreamRun(projectDir, request, detach, signals, printer.print)
+	response, outcome, err := client.StreamRun(request, detach, signals, printer.print)
 	if err != nil {
 		return serverinternal.Response{}, err
 	}

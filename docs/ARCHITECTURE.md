@@ -28,7 +28,7 @@ flowchart LR
   nodes["wrapper scripts on<br/>Slurm / PBS / LSF / SSH nodes"]
 
   runcli -->|"starts as a child"| supervisor
-  runcli -->|"JSON request over Unix socket"| supervisor
+  runcli -->|"JSON request over inherited pipes"| supervisor
   supervisor -->|progress stream| runcli
   supervisor -->|read / write| files
   direct -->|"read / write under state lock"| files
@@ -47,8 +47,9 @@ flowchart LR
 - **Supervisor.** `rotari __server`, started by `run` and `retry` through
   `startSupervisor` ([cmd/rotari/server.go](../cmd/rotari/server.go)) for
   each run, and stopped when that run ends. The source still calls it the
-  *server*. It serves one run of one project; its socket and lease are in
-  the project directory. Because it is a child of the `run` command, it and
+  *server*. It serves one run of one project, talks only to its `run`
+  command over pipes inherited as descriptors 3 and 4, and holds a lease
+  (`server.lock`, `server.pid`) in the project directory. Because it is a child of the `run` command, it and
   the run's jobs inherit that command's working directory and environment,
   which is why a supervisor is never reused (RUN-3 in
   [contracts](../contracts/02-run-lifecycle-and-execution.md#run-lifecycle)).
@@ -201,7 +202,7 @@ are checked against this graph by
 | [internal/run](../internal/run/) | Run rules without file access: which jobs execute or are carried forward, dependency unblocking, retries, per-executor lanes and concurrency, the summary contents. | `rerun.go` (`PlanRerun`), `engine.go` (`ExecuteJobs`), `dispatch.go` (`Dispatcher`) |
 | [internal/jobstatus](../internal/jobstatus/) | Read side: turns attempt files and the summary into one displayed result and timestamps. Shared by CLI and Web. | `job.go`, `attempt.go`, `times.go` |
 | [internal/supervisor](../internal/supervisor/) | The work behind supervisor requests: sync and async runs, including preflight selection planning. Implements `server.Operations` and returns plain-text messages. | `run.go` (`Operations.Run`, `StartRun`) |
-| [internal/server](../internal/server/) | Supervisor transport: request/response types, socket, lease, peer checks, idle shutdown, attached-run streaming. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go` |
+| [internal/server](../internal/server/) | Supervisor transport: request/response types, the pipe connection between `run` and its supervisor, the lease and liveness check, idle shutdown, attached-run streaming. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go`, `lease.go` |
 | [internal/jobcontrol](../internal/jobcontrol/) | Cancel, suspend, resume of running jobs through executors. | `jobcontrol.go` |
 | [internal/webui](../internal/webui/) | The Web UI: HTTP handlers and JSON API, static export, embedded assets, and the auth wrapper. CLI metadata, environment definitions, and the config template come in through `Options`. | `webui.go` (`handler`), `options.go`, `assets/` |
 | [internal/web](../internal/web/) | JSON projections of runs, jobs, attempts, and timelines for the Web UI. | `loader.go` |
@@ -288,8 +289,9 @@ Client side, in [run_command.go](../cmd/rotari/run_command.go):
    `--job-id`, first repopulates the queue from an earlier run
    (`queueops.Editor.Copy`, backed by `internal/queueedit`).
 2. `startSupervisor` starts a new supervisor for this run as a child process,
-   so it inherits the command's working directory and environment. It fails
-   if the project already has one.
+   so it inherits the command's working directory and environment, and waits
+   for its ready message on the inherited pipes. It fails if the project
+   already has one.
 3. It sends a `server.Request{Op: OpRun}`. Synchronous runs use
    `sendRunRequest`, which streams progress and handles Ctrl-C (cancel) and
    Ctrl-D (detach).

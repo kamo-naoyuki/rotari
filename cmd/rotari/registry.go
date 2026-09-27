@@ -19,7 +19,6 @@ import (
 type serverRecord struct {
 	BaseDir   string `json:"base_dir"`
 	Project   string `json:"project"`
-	Socket    string `json:"socket"`
 	PID       int    `json:"pid"`
 	StartedAt string `json:"started_at"`
 	LastSeen  string `json:"last_seen"`
@@ -87,8 +86,7 @@ func listServers(masterDir string) ([]serverRecord, error) {
 			_ = os.Remove(path)
 			continue
 		}
-		response, err := serverinternal.SendRequest(paths.ProjectDir, serverinternal.Request{Op: serverinternal.OpPing})
-		if err != nil || !response.OK || response.PID != record.PID {
+		if pid, running := serverinternal.Running(paths.ProjectDir); !running || pid != record.PID {
 			_ = os.Remove(path)
 			continue
 		}

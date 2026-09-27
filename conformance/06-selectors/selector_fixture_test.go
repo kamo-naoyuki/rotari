@@ -52,7 +52,6 @@ type selectorFixture struct {
 
 func newSelectorFixture(t *testing.T) selectorFixture {
 	t.Helper()
-	requireUnixSockets(t)
 	e := newEnv(t).in(t).without("ROTARI_BASEDIR")
 	f := selectorFixture{
 		e:         e,

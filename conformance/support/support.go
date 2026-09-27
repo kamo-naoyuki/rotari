@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -170,7 +169,6 @@ func (e *Env) WithVar(name, value string) *Env {
 
 func (e *Env) FinishedJobRun(project string) (runID, attemptID string) {
 	e.T.Helper()
-	RequireUnixSockets(e.T)
 	e.MustRotari("add", "-p", project, "--", "true")
 	e.MustRotari("run", "-p", project, flagQuiet)
 	var shown struct {
@@ -189,7 +187,6 @@ func (e *Env) FinishedJobRun(project string) (runID, attemptID string) {
 
 func (e *Env) CreateFinishedRun() FinishedRun {
 	e.T.Helper()
-	RequireUnixSockets(e.T)
 	run := FinishedRun{Project: "p1"}
 	run.OKJob = AddedJobID(e.T, e.MustRotari("add", "-p", run.Project, flagJobName, "ok", "--", "sh", "-c", "echo hello"))
 	run.BadJob = AddedJobID(e.T, e.MustRotari("add", "-p", run.Project, flagJobName, "bad", "--", "sh", "-c", "exit 3"))
@@ -282,7 +279,6 @@ func (e *Env) HTTPPostJSON(url string, body any) HTTPResult {
 
 func (e *Env) StartRun(project string, count int, async bool, runArgs ...string) ActiveRun {
 	e.T.Helper()
-	RequireUnixSockets(e.T)
 	run := ActiveRun{Project: project}
 	for i := 1; i <= count; i++ {
 		name := fmt.Sprintf("hold%d", i)
@@ -354,7 +350,6 @@ func GuardedCommands(project, manifest string, run ActiveRun) map[string][]strin
 
 func (e *Env) OrphanRun(project, script string) string {
 	e.T.Helper()
-	RequireUnixSockets(e.T)
 	jobID := AddedJobID(e.T, e.MustRotari("add", "-p", project, "--", "sh", "-c", script))
 	client := e.command("run", "-p", project, flagQuiet)
 	if err := client.Start(); err != nil {
@@ -457,16 +452,6 @@ func WaitUntil(t *testing.T, timeout time.Duration, done func() (bool, string)) 
 
 func KillProcessGroup(pid int) error {
 	return syscall.Kill(-pid, syscall.SIGKILL)
-}
-
-func RequireUnixSockets(t *testing.T) {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "probe.sock")
-	listener, err := net.Listen("unix", path)
-	if err != nil {
-		t.Skipf("Unix sockets unavailable: %v", err)
-	}
-	_ = listener.Close()
 }
 
 func AddedJobID(t *testing.T, result Result) string {

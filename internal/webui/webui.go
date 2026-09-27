@@ -870,9 +870,6 @@ func (s site) loadWebState(baseDir, queueFilter string) (webprojection.State, er
 // contacting it.
 func loadWebServerState(projectDir string) webprojection.ServerState {
 	state := webprojection.ServerState{}
-	if _, err := os.Stat(serverinternal.SocketPath(projectDir)); err == nil {
-		state.SocketExists = true
-	}
 	data, err := os.ReadFile(serverinternal.PIDPath(projectDir))
 	if err != nil {
 		return state

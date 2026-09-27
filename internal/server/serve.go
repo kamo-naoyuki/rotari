@@ -3,20 +3,16 @@ package server
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
-	"net"
 	"os"
-	"strconv"
 	"sync"
-	"syscall"
 	"time"
 )
 
-// ProtocolVersion is reported by ping. A `run` client talks only to the
+// ProtocolVersion is reported by Ready. A `run` client talks only to the
 // supervisor it started from its own executable, so the version is for
 // diagnosis rather than negotiation.
-const ProtocolVersion = 9
+const ProtocolVersion = 10
 
 // DetachControl is the byte a synchronous run client sends before
 // disconnecting to leave the run going in the background.
@@ -51,7 +47,6 @@ type Operations interface {
 type Server struct {
 	ops        Operations
 	logger     *Logger
-	listener   net.Listener
 	stopped    chan struct{}
 	stopOnce   sync.Once
 	accessMu   sync.Mutex
@@ -61,69 +56,28 @@ type Server struct {
 	runClaimed bool
 }
 
-// New returns a server that accepts from listener. A nil listener is allowed
-// when connections are passed to Handle directly.
-func New(listener net.Listener, ops Operations, logger *Logger) *Server {
-	return &Server{ops: ops, logger: logger, listener: listener, stopped: make(chan struct{}), lastAccess: time.Now()}
+// New returns a server whose connection is passed to Serve or Handle.
+func New(ops Operations, logger *Logger) *Server {
+	return &Server{ops: ops, logger: logger, stopped: make(chan struct{}), lastAccess: time.Now()}
 }
 
-// Listen takes the lease of dir, a project directory, listens on its
-// owner-only socket, and records the supervisor PID. The returned function
-// releases them.
-func Listen(dir string, fileMode os.FileMode) (net.Listener, func(), error) {
-	lease, err := os.OpenFile(LockPath(dir), os.O_CREATE|os.O_RDWR, fileMode)
+// Ready tells the run client on conn that the supervisor holds its project's
+// lease and waits for the run request, or why it could not start. It is the
+// first message of every connection.
+func Ready(conn io.Writer, err error) error {
+	response := Response{OK: true, PID: os.Getpid(), Protocol: ProtocolVersion}
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open server lock: %w", err)
+		response = Response{Message: err.Error()}
 	}
-	if err := syscall.Flock(int(lease.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		_ = lease.Close()
-		return nil, nil, ErrAlreadyRunning
-	}
-	socketPath := SocketPath(dir)
-	if err := prepareSocketDir(socketPath); err != nil {
-		_ = lease.Close()
-		return nil, nil, err
-	}
-	_ = os.Remove(socketPath)
-	listener, err := net.Listen("unix", socketPath)
-	if err != nil {
-		_ = lease.Close()
-		return nil, nil, fmt.Errorf("failed to listen on server socket %s: %w", socketPath, err)
-	}
-	release := func() {
-		_ = listener.Close()
-		_ = os.Remove(PIDPath(dir))
-		_ = os.Remove(socketPath)
-		_ = lease.Close()
-	}
-	// net.Listen applies the process umask; enforce owner-only access explicitly
-	// regardless of --shared-state, since this is the control-plane socket.
-	if err := os.Chmod(socketPath, 0o600); err != nil {
-		release()
-		return nil, nil, fmt.Errorf("failed to set server socket permissions: %w", err)
-	}
-	if err := os.WriteFile(PIDPath(dir), []byte(strconv.Itoa(os.Getpid())+"\n"), fileMode); err != nil {
-		release()
-		return nil, nil, fmt.Errorf("failed to write server pid: %w", err)
-	}
-	return listener, release, nil
+	return json.NewEncoder(conn).Encode(response)
 }
 
-// Serve accepts connections from verified peers until the server stops.
-func (server *Server) Serve() {
-	for {
-		conn, err := server.listener.Accept()
-		if err != nil {
-			if server.Stopped() {
-				return
-			}
-			continue
-		}
-		if err := VerifyPeerCredential(conn); err != nil {
-			_ = conn.Close()
-			continue
-		}
-		go server.Handle(conn)
+// Serve serves the run request on conn, the supervisor's only connection,
+// and stops the server when the request leaves no run active.
+func (server *Server) Serve(conn io.ReadWriteCloser) {
+	server.Handle(conn)
+	if !server.Busy() {
+		server.Stop()
 	}
 }
 
@@ -159,14 +113,16 @@ func (server *Server) Stopped() bool {
 	}
 }
 
-// Stop stops accepting connections.
+// Done is closed when the server stops.
+func (server *Server) Done() <-chan struct{} {
+	return server.stopped
+}
+
+// Stop stops the server; the supervisor process exits once it has.
 func (server *Server) Stop() {
 	server.stopOnce.Do(func() {
 		server.logger.Writef("stopping")
 		close(server.stopped)
-		if server.listener != nil {
-			_ = server.listener.Close()
-		}
 	})
 }
 
@@ -215,7 +171,7 @@ func (server *Server) touch() {
 }
 
 // Handle serves one connection's request.
-func (server *Server) Handle(conn net.Conn) {
+func (server *Server) Handle(conn io.ReadWriteCloser) {
 	defer conn.Close()
 	server.touch()
 	var request Request
@@ -232,8 +188,6 @@ func (server *Server) Handle(conn net.Conn) {
 	}
 	var response Response
 	switch request.Op {
-	case OpPing:
-		response = Response{OK: true, PID: os.Getpid(), Protocol: ProtocolVersion}
 	case OpRun:
 		if !server.claimRun() {
 			response.Message = ErrRunAlreadyStarted.Error()
@@ -256,9 +210,6 @@ func (server *Server) Handle(conn net.Conn) {
 			response = messageResponse(message, err)
 			response.ExitCode = exitCode
 		}
-	case OpShutdown:
-		response = Response{OK: true, Message: "server stopped"}
-		server.Stop()
 	default:
 		response.Message = "unsupported server operation: " + request.Op
 	}
@@ -275,7 +226,7 @@ func messageResponse(message string, err error) Response {
 // runAttached runs a synchronous run while watching its client. A detach
 // leaves the run going and moves EndRun to its completion; any other
 // disconnect cancels the run and waits for it to finish.
-func (server *Server) runAttached(conn net.Conn, request Request, progress func(Response)) (string, int, error, bool) {
+func (server *Server) runAttached(conn io.Reader, request Request, progress func(Response)) (string, int, error, bool) {
 	type result struct {
 		message  string
 		exitCode int

@@ -384,7 +384,7 @@ No. On a run page, the `Report` button in the toolbar (for the run, or for the s
 
 ### What does the project page's “Project runtime” panel show?
 
-It shows the saved runner lock and local coordinator socket/PID records. It is not a liveness probe.
+It shows the saved runner lock and the supervisor's PID record. It is not a liveness probe.
 
 ### Is `rotari web` safe to expose beyond `127.0.0.1`?
 
@@ -400,9 +400,9 @@ Yes. `--allow-control=false` (or `ROTARI_WEB_ALLOW_CONTROL=false`) keeps state, 
 
 No. `run` and `retry` start a supervisor for each run, and it exits when the run ends; other commands never start one. `rotari server status`, `list`, and `shutdown` are for inspection or manual cleanup. `server shutdown` leaves an active run interrupted with its jobs still running, so use `cancel` to stop a run.
 
-### Who can control my jobs through the server's Unix socket?
+### Can other users control my run through its supervisor?
 
-Users who can connect as the same UID can control jobs. The socket is `0600`, and Linux also checks the peer UID; this does not protect against root or access through the same UID.
+No. A supervisor has no socket or port: only the `run` command that started it talks to it, over inherited pipes. `cancel`, `suspend`, and `resume` act through the state files and job processes, so they need the same file and process permissions as the run's owner.
 
 ### Can other people on the cluster read my job logs/commands?
 

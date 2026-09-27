@@ -4,19 +4,11 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 )
 
-const (
-	OpPing     = "ping"
-	OpShutdown = "shutdown"
-	OpRun      = "run"
-)
+// OpRun is the only request: the run a supervisor was started for.
+const OpRun = "run"
 
 func IsKnownOperation(op string) bool {
-	switch op {
-	case OpPing, OpShutdown, OpRun:
-		return true
-	default:
-		return false
-	}
+	return op == OpRun
 }
 
 type Request struct {

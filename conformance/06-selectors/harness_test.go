@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -118,14 +117,6 @@ func (e *env) withVar(n, v string) *env {
 	c.vars = append(c.vars, n+"="+v)
 	return c
 }
-func requireUnixSockets(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "probe.sock")
-	l, err := net.Listen("unix", p)
-	if err != nil {
-		t.Skipf("Unix sockets unavailable: %v", err)
-	}
-	l.Close()
-}
 func addedJobID(t *testing.T, r result) string {
 	m := addedJobPattern.FindStringSubmatch(r.stdout)
 	if m == nil {
@@ -184,7 +175,6 @@ func (e *env) httpPostJSON(u string, v any) httpResult {
 }
 func (e *env) startActiveRun(p string, n int) activeRun { return e.startRun(p, n, false) }
 func (e *env) startRun(p string, n int, async bool, extra ...string) activeRun {
-	requireUnixSockets(e.t)
 	r := activeRun{project: p}
 	for i := 1; i <= n; i++ {
 		name := fmt.Sprintf("hold%d", i)
@@ -234,7 +224,6 @@ type finishedRun struct{ project, runID, okJob, badJob, badAttempt string }
 
 func (e *env) createFinishedRun() finishedRun {
 	e.t.Helper()
-	requireUnixSockets(e.t)
 	r := finishedRun{project: "p1"}
 	r.okJob = addedJobID(e.t, e.mustRotari("add", "-p", r.project, "--job-name", "ok", "--", "sh", "-c", "echo hello"))
 	r.badJob = addedJobID(e.t, e.mustRotari("add", "-p", r.project, "--job-name", "bad", "--", "sh", "-c", "exit 3"))

@@ -253,11 +253,10 @@ rotari without writing workflow files.
   with a command reference generated from the CLI metadata.
 - Keep destructive operations explicit so an agent cannot silently discard
   history.
-- Work inside agent sandboxes. The run server's socket lives at
-  `<basedir>/server.sock`, which fails when the path exceeds the 108-byte Unix
-  socket limit (common under deep agent workspaces) and would fail entirely
-  where a sandbox blocks Unix sockets. `run` and job control need a path that
-  works there.
+- Work inside agent sandboxes. Done: job control works through files, and
+  `run` reaches its supervisor over inherited pipes instead of a Unix socket,
+  so neither the socket path limit nor sandboxes that block Unix sockets
+  affect it.
 - Survive agent command timeouts. Synchronous `run` treats client disconnect
   as cancellation, so `rotari guide` tells agents to use `run --async` and
   `wait`.

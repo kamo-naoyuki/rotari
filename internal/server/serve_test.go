@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -65,9 +66,13 @@ func roundTrip(t *testing.T, server *Server, request Request) Response {
 
 func TestHandleDispatchesOperations(t *testing.T) {
 	ops := &fakeOperations{}
-	server := New(nil, ops, nil)
-	if response := roundTrip(t, server, Request{Op: OpPing}); !response.OK || response.Protocol != ProtocolVersion || response.PID != os.Getpid() {
-		t.Fatalf("ping = %#v", response)
+	server := New(ops, nil)
+	// Only the run's own client can reach a supervisor, so liveness and
+	// shutdown go through the lease and signals instead of requests.
+	for _, op := range []string{"ping", "shutdown"} {
+		if response := roundTrip(t, server, Request{Op: op}); response.OK || response.Message != "unknown server operation: "+op {
+			t.Fatalf("%s = %#v, want unknown operation", op, response)
+		}
 	}
 	for _, op := range []string{"cancel", "suspend", "resume"} {
 		if response := roundTrip(t, server, Request{Op: op}); response.OK || response.Message != "unknown server operation: "+op {
@@ -81,15 +86,39 @@ func TestHandleDispatchesOperations(t *testing.T) {
 		t.Fatalf("submit = %#v, want unknown operation", response)
 	}
 	if server.Stopped() {
-		t.Fatal("server stopped without a run or shutdown")
+		t.Fatal("Handle stopped the server without a run")
 	}
-	if response := roundTrip(t, server, Request{Op: OpShutdown}); !response.OK || !server.Stopped() {
-		t.Fatalf("shutdown = %#v, stopped = %v", response, server.Stopped())
+}
+
+func TestServeStopsWithoutRun(t *testing.T) {
+	for name, send := range map[string]func(net.Conn){
+		"client gone": func(client net.Conn) { _ = client.Close() },
+		"unknown op": func(client net.Conn) {
+			_ = json.NewEncoder(client).Encode(Request{Op: "ping"})
+			_, _ = io.Copy(io.Discard, client)
+		},
+		"start failed": func(client net.Conn) {
+			_ = json.NewEncoder(client).Encode(Request{Op: OpRun, Async: true})
+			_, _ = io.Copy(io.Discard, client)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			server := New(&fakeOperations{startErr: errors.New("no commands")}, nil)
+			client, serverConn := net.Pipe()
+			defer client.Close()
+			go send(client)
+			server.Serve(serverConn)
+			select {
+			case <-server.Done():
+			default:
+				t.Fatal("server kept running after a request that started no run")
+			}
+		})
 	}
 }
 
 func TestHandleSyncRunStreamsProgressAndEndsRun(t *testing.T) {
-	server := New(nil, &fakeOperations{}, nil)
+	server := New(&fakeOperations{}, nil)
 	response := roundTrip(t, server, Request{Op: OpRun})
 	if !response.OK || response.Message != "finished" || response.ExitCode != 3 {
 		t.Fatalf("run = %#v", response)
@@ -103,7 +132,7 @@ func TestHandleSyncRunStreamsProgressAndEndsRun(t *testing.T) {
 
 func TestHandleRejectsSecondRun(t *testing.T) {
 	ops := &fakeOperations{runStart: make(chan struct{}), runFinish: make(chan struct{})}
-	server := New(nil, ops, nil)
+	server := New(ops, nil)
 	client, serverConn := net.Pipe()
 	defer client.Close()
 	go server.Handle(serverConn)
@@ -134,7 +163,7 @@ func TestHandleRejectsSecondRun(t *testing.T) {
 }
 
 func TestHandleAsyncRunStartFailureEndsRun(t *testing.T) {
-	server := New(nil, &fakeOperations{startErr: errors.New("no commands")}, nil)
+	server := New(&fakeOperations{startErr: errors.New("no commands")}, nil)
 	response := roundTrip(t, server, Request{Op: OpRun, Async: true})
 	if response.OK || response.Message != "no commands" || server.Busy() {
 		t.Fatalf("run = %#v, busy = %v", response, server.Busy())
@@ -143,7 +172,7 @@ func TestHandleAsyncRunStartFailureEndsRun(t *testing.T) {
 
 func TestHandleSyncRunDisconnectCancelsRun(t *testing.T) {
 	ops := &fakeOperations{runStart: make(chan struct{}), runFinish: make(chan struct{})}
-	server := New(nil, ops, nil)
+	server := New(ops, nil)
 	client, serverConn := net.Pipe()
 	done := make(chan struct{})
 	go func() {
@@ -174,7 +203,7 @@ func TestHandleSyncRunDisconnectCancelsRun(t *testing.T) {
 
 func TestHandleSyncRunDetachEndsRunAfterCompletion(t *testing.T) {
 	ops := &fakeOperations{runStart: make(chan struct{}), runFinish: make(chan struct{})}
-	server := New(nil, ops, nil)
+	server := New(ops, nil)
 	client, serverConn := net.Pipe()
 	defer client.Close()
 	go server.Handle(serverConn)
@@ -205,12 +234,7 @@ func TestHandleSyncRunDetachEndsRunAfterCompletion(t *testing.T) {
 }
 
 func TestBeginAndEndRunTrackActiveRuns(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer listener.Close()
-	server := New(listener, &fakeOperations{}, nil)
+	server := New(&fakeOperations{}, nil)
 	if server.Busy() {
 		t.Fatal("server should be idle before any run begins")
 	}
@@ -224,95 +248,130 @@ func TestBeginAndEndRunTrackActiveRuns(t *testing.T) {
 	if server.Busy() || !server.Stopped() {
 		t.Fatal("server should stop after its last run ends")
 	}
-	if _, err := listener.Accept(); err == nil {
-		t.Fatal("stopped server left its listener open")
+	select {
+	case <-server.Done():
+	default:
+		t.Fatal("Done is open after the server stopped")
 	}
 }
 
-func TestListenHoldsLease(t *testing.T) {
-	baseDir, err := os.MkdirTemp("", "rotari-listen-")
+func TestAcquireHoldsLease(t *testing.T) {
+	dir := t.TempDir()
+	if _, running := Running(dir); running {
+		t.Fatal("Running() = true before any supervisor")
+	}
+	if _, err := os.Stat(LockPath(dir)); !os.IsNotExist(err) {
+		t.Fatalf("Running() created the lease file: %v", err)
+	}
+	release, err := Acquire(dir, 0o600)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(baseDir)
-	listener, release, err := Listen(baseDir, 0o600)
-	if err != nil {
-		t.Fatal(err)
+	if pid, running := Running(dir); !running || pid != os.Getpid() {
+		t.Fatalf("Running() = %d, %v, want this process", pid, running)
 	}
-	info, err := os.Stat(SocketPath(baseDir))
-	if err != nil || info.Mode().Perm() != 0o600 {
-		t.Fatalf("socket = %v, %v, want owner-only", info, err)
+	if _, err := Acquire(dir, 0o600); !errors.Is(err, ErrAlreadyRunning) {
+		t.Fatalf("second Acquire() error = %v, want ErrAlreadyRunning", err)
 	}
-	if _, _, err := Listen(baseDir, 0o600); !errors.Is(err, ErrAlreadyRunning) {
-		t.Fatalf("second Listen() error = %v, want ErrAlreadyRunning", err)
-	}
-	_ = listener
 	release()
-	if _, err := os.Stat(PIDPath(baseDir)); !os.IsNotExist(err) {
+	if _, err := os.Stat(PIDPath(dir)); !os.IsNotExist(err) {
 		t.Fatalf("pid file after release: %v", err)
 	}
-	listener, release, err = Listen(baseDir, 0o600)
-	if err != nil {
-		t.Fatalf("Listen() after release: %v", err)
+	if _, running := Running(dir); running {
+		t.Fatal("Running() = true after release")
 	}
-	_ = listener
+	release, err = Acquire(dir, 0o600)
+	if err != nil {
+		t.Fatalf("Acquire() after release: %v", err)
+	}
 	release()
+}
+
+func TestAcquireWaitsOutRunningProbe(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(LockPath(dir), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// A probe's shared lock is momentary; hold one briefly as Running does.
+	probe, err := os.Open(LockPath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Flock(int(probe.Fd()), syscall.LOCK_SH); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		time.Sleep(3 * leaseRetryDelay)
+		_ = probe.Close()
+	}()
+	release, err := Acquire(dir, 0o600)
+	if err != nil {
+		t.Fatalf("Acquire() during a probe: %v", err)
+	}
+	release()
+}
+
+// fakeSupervisor serves one connection like a supervisor: Ready, then one
+// request, which it answers according to the request's RunName, and returns
+// what it read after the request.
+func fakeSupervisor(conn net.Conn) <-chan []byte {
+	received := make(chan []byte, 1)
+	go func() {
+		defer conn.Close()
+		if Ready(conn, nil) != nil {
+			return
+		}
+		decoder := json.NewDecoder(conn)
+		var request Request
+		if decoder.Decode(&request) != nil {
+			return
+		}
+		encoder := json.NewEncoder(conn)
+		_ = encoder.Encode(Response{Progress: true, Message: "started"})
+		if request.RunName == "finish" {
+			_ = encoder.Encode(Response{OK: true, Message: "done", ExitCode: 2})
+			return
+		}
+		reader := io.MultiReader(decoder.Buffered(), conn)
+		var buffer [1]byte
+		for {
+			n, _ := reader.Read(buffer[:])
+			if n == 0 || buffer[0] != '\n' {
+				received <- buffer[:n]
+				return
+			}
+		}
+	}()
+	return received
+}
+
+func connectFake(t *testing.T) (*Client, <-chan []byte) {
+	t.Helper()
+	clientConn, serverConn := net.Pipe()
+	received := fakeSupervisor(serverConn)
+	client, err := Connect(clientConn, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.PID != os.Getpid() {
+		t.Fatalf("PID = %d, want the supervisor's", client.PID)
+	}
+	return client, received
 }
 
 func TestStreamRunOutcomes(t *testing.T) {
-	baseDir, err := os.MkdirTemp("", "rotari-stream-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(baseDir)
-	listener, err := net.Listen("unix", SocketPath(baseDir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer listener.Close()
-	received := make(chan []byte, 3)
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				return
-			}
-			go func(conn net.Conn) {
-				defer conn.Close()
-				decoder := json.NewDecoder(conn)
-				var request Request
-				if decoder.Decode(&request) != nil {
-					return
-				}
-				encoder := json.NewEncoder(conn)
-				_ = encoder.Encode(Response{Progress: true, Message: "started"})
-				if request.RunName == "finish" {
-					_ = encoder.Encode(Response{OK: true, Message: "done", ExitCode: 2})
-					return
-				}
-				reader := io.MultiReader(decoder.Buffered(), conn)
-				var buffer [1]byte
-				for {
-					n, _ := reader.Read(buffer[:])
-					if n == 0 || buffer[0] != '\n' {
-						received <- buffer[:n]
-						return
-					}
-				}
-			}(conn)
-		}
-	}()
-
 	var progress []string
 	collect := func(response Response) { progress = append(progress, response.Message) }
-	response, outcome, err := StreamRun(baseDir, Request{Op: OpRun, RunName: "finish"}, nil, nil, collect)
+	client, _ := connectFake(t)
+	response, outcome, err := client.StreamRun(Request{Op: OpRun, RunName: "finish"}, nil, nil, collect)
 	if err != nil || outcome != RunFinished || response.Message != "done" || response.ExitCode != 2 || len(progress) != 1 {
 		t.Fatalf("finish = %#v, %v, %v, progress %#v", response, outcome, err, progress)
 	}
 
+	client, received := connectFake(t)
 	detach := make(chan struct{}, 1)
 	detach <- struct{}{}
-	response, outcome, err = StreamRun(baseDir, Request{Op: OpRun}, detach, nil, collect)
+	response, outcome, err = client.StreamRun(Request{Op: OpRun}, detach, nil, collect)
 	if err != nil || outcome != RunDetached || !response.OK {
 		t.Fatalf("detach = %#v, %v, %v", response, outcome, err)
 	}
@@ -320,9 +379,10 @@ func TestStreamRunOutcomes(t *testing.T) {
 		t.Fatalf("server received %v, want detach control", got)
 	}
 
+	client, received = connectFake(t)
 	interrupt := make(chan os.Signal, 1)
 	interrupt <- os.Interrupt
-	response, outcome, err = StreamRun(baseDir, Request{Op: OpRun}, nil, interrupt, collect)
+	response, outcome, err = client.StreamRun(Request{Op: OpRun}, nil, interrupt, collect)
 	if err != nil || outcome != RunInterrupted || response.ExitCode != 130 {
 		t.Fatalf("interrupt = %#v, %v, %v", response, outcome, err)
 	}

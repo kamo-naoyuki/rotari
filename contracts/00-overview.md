@@ -13,8 +13,9 @@ that file for Web UI changes.
 
 ## Terminology
 
-- **Supervisor** means the background process that coordinates runs for one
-  base directory over its Unix socket. Existing source names, package names,
+- **Supervisor** means the background process that executes one run of one
+  project, started by `run` and connected to it through inherited pipes.
+  Existing source names, package names,
   files such as `server.go`, and the `rotari server` management command retain
   the older **server** terminology for now.
 - **Web server** means the HTTP process started by `rotari web` that serves the
@@ -27,7 +28,7 @@ that file for Web UI changes.
 
 - The core implementation uses Go because rotari is primarily a command-line
   and background-server tool that coordinates OS processes, files, locks,
-  signals, Unix sockets, and external schedulers.
+  signals, pipes, and external schedulers.
 - A statically linked Go binary keeps installation and deployment simple on
   login nodes, worker nodes, and shared HPC environments. The core does not
   require a language runtime, daemon framework, or database service at runtime.

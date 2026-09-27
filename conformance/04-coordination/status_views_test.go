@@ -123,7 +123,6 @@ type fallbackCase struct {
 func TestStatusFallbackChainAgreesAcrossViews(t *testing.T) {
 	covers(t, "DUR-5")
 	e := support.NewEnv(t)
-	support.RequireUnixSockets(t)
 	project := "chain"
 	cases := []fallbackCase{
 		{name: "status", command: []string{"true"}, exitCode: 3, edit: func(t *testing.T, dir string) { writeFile(t, filepath.Join(dir, "status"), "3\n") }},

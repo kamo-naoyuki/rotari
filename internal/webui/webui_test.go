@@ -1142,9 +1142,6 @@ func TestLoadWebStateIncludesRuntimeRecords(t *testing.T) {
 	if err := os.WriteFile(serverinternal.PIDPath(paths.ProjectDir), []byte("5678\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(serverinternal.SocketPath(paths.ProjectDir), nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
 
 	state, err := siteFor(baseDir, "default").loadWebState(baseDir, "default")
 	if err != nil {
@@ -1157,8 +1154,8 @@ func TestLoadWebStateIncludesRuntimeRecords(t *testing.T) {
 	if project.RunnerStartedAt != model.FormatDisplayTimestamp(lock.StartedAt) {
 		t.Fatalf("runner started at = %q, want formatted lock timestamp", project.RunnerStartedAt)
 	}
-	if !project.Server.SocketExists || !project.Server.PIDFileExists || project.Server.PID != 5678 {
-		t.Fatalf("server runtime = %#v, want the project's socket and PID record", project.Server)
+	if !project.Server.PIDFileExists || project.Server.PID != 5678 {
+		t.Fatalf("server runtime = %#v, want the project's PID record", project.Server)
 	}
 }
 
@@ -1848,8 +1845,8 @@ func TestWebCopyEndpointCopiesWithoutRunner(t *testing.T) {
 	if len(queue.Commands) != 1 || queue.Commands[0].ID != "job-1" {
 		t.Fatalf("queue = %#v, want one copied job with the source ID preserved", queue)
 	}
-	if _, err := os.Stat(serverinternal.SocketPath(baseDir)); !os.IsNotExist(err) {
-		t.Fatalf("runner socket exists after web copy: %v", err)
+	if _, err := os.Stat(serverinternal.LockPath(paths.ProjectDir)); !os.IsNotExist(err) {
+		t.Fatalf("web copy started a supervisor: %v", err)
 	}
 }
 

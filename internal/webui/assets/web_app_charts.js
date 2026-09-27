@@ -1323,13 +1323,11 @@ function addProjectRuntime() {
       (queue.runner_pid ? " (PID " + queue.runner_pid + ")" : "")
     : "No runner lock";
   const server = queue.server || {};
-  const coordinator =
-    (server.socket_exists ? "socket present" : "socket absent") +
-    (server.pid_file_exists
-      ? server.pid
-        ? " / PID " + server.pid
-        : " / PID record unreadable"
-      : " / no PID record");
+  const coordinator = server.pid_file_exists
+    ? server.pid
+      ? "PID " + server.pid
+      : "PID record unreadable"
+    : "no PID record";
   const section = document.createElement("section");
   section.className = "project-runtime";
   section.innerHTML =

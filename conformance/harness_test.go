@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -272,18 +271,6 @@ func readResponse(t *testing.T, response *http.Response) httpResult {
 	return httpResult{status: response.StatusCode, body: string(body)}
 }
 
-// requireUnixSockets skips a test that runs jobs, which go through the
-// supervisor's Unix socket, where the platform or sandbox does not allow one.
-func requireUnixSockets(t *testing.T) {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "probe.sock")
-	listener, err := net.Listen("unix", path)
-	if err != nil {
-		t.Skipf("Unix sockets unavailable: %v", err)
-	}
-	_ = listener.Close()
-}
-
 // finishedRun is a run of project "p1" with one successful and one failed
 // job, created through the CLI.
 type finishedRun struct {
@@ -319,7 +306,6 @@ func (e *env) startAsyncRun(project string, count int) activeRun {
 
 func (e *env) startRun(project string, count int, async bool, runArgs ...string) activeRun {
 	e.t.Helper()
-	requireUnixSockets(e.t)
 	run := activeRun{project: project}
 	for i := 1; i <= count; i++ {
 		name := fmt.Sprintf("hold%d", i)
@@ -368,7 +354,6 @@ func (e *env) startRun(project string, count int, async bool, runArgs ...string)
 
 func (e *env) createFinishedRun() finishedRun {
 	e.t.Helper()
-	requireUnixSockets(e.t)
 	run := finishedRun{project: "p1"}
 	run.okJob = addedJobID(e.t, e.mustRotari("add", "-p", run.project, "--job-name", "ok", "--", "sh", "-c", "echo hello"))
 	run.badJob = addedJobID(e.t, e.mustRotari("add", "-p", run.project, "--job-name", "bad", "--", "sh", "-c", "echo broken >&2; exit 3"))
@@ -401,7 +386,6 @@ func (e *env) createFinishedRun() finishedRun {
 
 func (e *env) finishedJobRun(project string) (runID, attemptID string) {
 	e.t.Helper()
-	requireUnixSockets(e.t)
 	e.mustRotari("add", "-p", project, "--", "true")
 	e.mustRotari("run", "-p", project, "--quiet")
 	var shown struct {

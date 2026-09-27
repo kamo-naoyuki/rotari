@@ -117,27 +117,6 @@ most.
   change count in `compareQueueWithRun` in
   [cmd/rotari/show.go](cmd/rotari/show.go).
 
-### Files as the control path, the socket as a fast path
-
-Today `run`, `cancel`, `suspend`, and `resume` work only through the server
-socket, so they fail wherever the socket cannot be created, such as sandboxes
-that block Unix sockets. Follow Dagu's design instead: files hold the
-authoritative state and requests, and the socket only makes them take effect
-faster. It also fits rotari's rule that durable behavior belongs in files. See
-"No execution path when Unix sockets are unavailable" in
-[ISSUES.md](ISSUES.md) for the Dagu reference and details.
-
-- Consider letting `cancel` and `suspend` write a durable request file that the
-  runner picks up, then notifying the server over the socket for immediate
-  effect when it is reachable.
-- Consider running a synchronous `run` in process when the socket cannot be
-  created. This needs a design for coordinating concurrent runs on one basedir
-  with file locks alone, and the unsupported-socket check should cover `EPERM`
-  from seccomp sandboxes as well as `EAFNOSUPPORT`.
-
-The short socket location for long base directories, the first step of this
-plan, is done (`internal/server/socket.go`).
-
 ### Registry indexing without SQLite
 
 Do not introduce SQLite for registry metadata. Keep the filesystem as the
@@ -246,8 +225,6 @@ test infrastructure and may remain at the package root.
   `conformance/testdata/golden/`.
 - Recent cleanup commits: `857de4c` (wait), `333d51d` and `41f99fa` (copy),
   `bc87a21` and `c8d2e2f` (show), and `d126dde` (mixed-run retry).
-- `scripts/check.sh --short` still cannot complete in this sandbox because
-  Unix sockets return `operation not permitted` in internal/server tests.
 - Known flaky tests are recorded in [ISSUES.md](ISSUES.md), notably
   `TestControlFromAnotherHost` and `TestResetOfInterruptedProject`; do not
   treat those failures as migration regressions without reproducing them in

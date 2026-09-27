@@ -86,13 +86,11 @@ layout.
   authentication with username `rotari` and the token as the password; this is
   authentication only and does not encrypt HTTP traffic.
 - `loadWebState` ([internal/webui/webui.go](../internal/webui/webui.go)) exposes persisted runtime metadata for each project: `running.lock` fields and,
-  in the project's `server`, the presence of its supervisor socket (`SocketPath`) and `server.pid`. The panel does not query process
+  in the project's `server`, whether its supervisor's `server.pid` exists and the PID it records. The panel does not query process
   liveness or infer that `state.lock` is held from the file's existence.
-- The Unix-socket control surface is separate from `ROTARI_PRIVATE_STATE`:
-  reaching it means controlling the server, not merely reading state.
-- `runServer` always sets the socket to `0600`. On Linux,
-  `verifyPeerCredential` rejects connections whose UID differs from the server
-  process; on other platforms the socket mode is the enforcement.
+- A supervisor has no control surface of its own: only the `run` command that
+  started it can send it requests, over inherited pipes, so reaching it does
+  not depend on `ROTARI_PRIVATE_STATE` or on socket permissions.
 - Web mutating routes are gated by `allowControl`, enabled by default and
   configurable with `--allow-control` or `ROTARI_WEB_ALLOW_CONTROL`.
   `--allow-control=false` rejects them with `403` before reading request bodies.

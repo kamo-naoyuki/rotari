@@ -53,7 +53,6 @@ func summaryResult(t *testing.T, summary conformanceSummary, jobID string) (stri
 func TestFilteredRerunCarriesCompletedResults(t *testing.T) {
 	covers(t, "CORE-3", "CORE-6", "RUN-1")
 	e := support.NewEnv(t)
-	support.RequireUnixSockets(t)
 	okJob := support.AddedJobID(t, e.MustRotari("add", "-p", "p1", "--job-name", "ok", "--", "sh", "-c", "echo hello"))
 	badJob := support.AddedJobID(t, e.MustRotari("add", "-p", "p1", "--job-name", "bad", "--", "sh", "-c", "exit 3"))
 	if r := e.Rotari("run", "-p", "p1", "--quiet"); r.Code == 0 {
@@ -91,7 +90,6 @@ func TestFilteredRerunCarriesCompletedResults(t *testing.T) {
 
 func TestRunRetrySucceedsWithinOneRun(t *testing.T) {
 	covers(t, "CORE-7", "RUN-2")
-	support.RequireUnixSockets(t)
 	e := support.NewEnv(t)
 	marker := filepath.Join(e.Root, "retry-count")
 	command := fmt.Sprintf("printf x >> %q; test $(wc -c < %q) -ge 3", marker, marker)
@@ -116,7 +114,6 @@ func TestRunRetrySucceedsWithinOneRun(t *testing.T) {
 func TestJobStreamsPersistSeparately(t *testing.T) {
 	covers(t, "LOG-1")
 	e := support.NewEnv(t)
-	support.RequireUnixSockets(t)
 	jobID := support.AddedJobID(t, e.MustRotari("add", "-p", "streams", "--", "sh", "-c", "printf from-stdout; printf from-stderr >&2"))
 	e.MustRotari("run", "-p", "streams", "--quiet")
 	summary := readSummary(t, e, "streams")
@@ -201,7 +198,6 @@ func callerDir(t *testing.T, e *support.Env, name string) string {
 func TestRunUsesCallersDirectoryAndEnvironment(t *testing.T) {
 	covers(t, "RUN-3")
 	e := support.NewEnv(t)
-	support.RequireUnixSockets(t)
 	want := func(t *testing.T, project string, got callerRecord, dir, foo string) {
 		t.Helper()
 		if got != (callerRecord{pwd: dir, foo: foo, rotariCWD: dir, contextCWD: dir}) {
