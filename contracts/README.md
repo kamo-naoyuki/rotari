@@ -137,7 +137,7 @@ the IDs, this table, and those calls disagree.
 | RES-18 | `cancel`, `suspend`, and `resume` merge selectors and require the active run | conformance | `TestJobControlSelectors` |
 | RES-19 | `wait` resolves multiple run IDs independently | conformance | `TestWaitResolvesRunIDsIndependently` |
 | RES-20 | Shell completion follows the location rules | partial | `TestCompletionScriptsExposeDynamicCompletion` |
-| RES-21 | Missing state directories give no completion candidates | pending | - |
+| RES-21 | Missing state directories give no completion candidates | conformance | `TestCompletionMissingStateDirectoryHasNoCandidates` |
 | DUR-1 | Every executor runs jobs through the self-reporting wrapper | pending | - |
 | DUR-2 | The wrapper records status independently of its launcher | pending | - |
 | DUR-3 | An orphaned local job still records its own status | conformance | `TestJobOutlivesKilledSupervisor` |
