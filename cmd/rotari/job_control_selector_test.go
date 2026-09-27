@@ -125,7 +125,12 @@ func (fixture selectorFixture) startLiveRun(t *testing.T) liveRun {
 	paths := fixture.paths(t, fixture.BaseDir, "sweep")
 	runID := makeRunID()
 	fixture.Runs["live"] = runID
+	// The run's goroutines outlive the commands under test, so they must not
+	// print: captureSelectorOutput swaps os.Stdout and os.Stderr meanwhile.
+	silent := func(string, ...any) {}
 	runner := projectRunner()
+	runner.Executors = executor.NewRegistry(jsonStore(), silent)
+	runner.Logf, runner.Errorf = silent, silent
 	if err := runner.Begin(paths, projectrun.Start{RunID: runID, RunName: "live", CWD: fixture.BaseDir}); err != nil {
 		t.Fatal(err)
 	}
