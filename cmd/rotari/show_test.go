@@ -246,8 +246,43 @@ func TestShowRunDisplaysAcceptedStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 0 || !strings.Contains(string(output), "success (accepted)") {
+	text := string(output)
+	if code != 0 || !strings.Contains(text, "success (accepted)") || !strings.Contains(text, "To show a job:") || !strings.Contains(text, "rotari show -r accepted-run -j JOB_ID") {
 		t.Fatalf("showRun code=%d output=%q", code, output)
+	}
+}
+
+func TestCmdShowProjectOverviewSuggestsShowingRun(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "summary.json"), model.RunSummary{RunID: "run-1", Status: "finished"}); err != nil {
+		t.Fatal(err)
+	}
+
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	code := cmdShow([]string{"--basedir", baseDir, "--project-name", "demo"})
+	os.Stdout = oldStdout
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(output)
+	if code != 0 || !strings.Contains(text, "To show a run:") || !strings.Contains(text, "rotari show -p PROJECT -r RUN_ID") {
+		t.Fatalf("project overview code=%d output=%q", code, output)
 	}
 }
 

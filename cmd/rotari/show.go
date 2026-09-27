@@ -884,6 +884,8 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 	}
 	fmt.Printf("\n%s success: %d, failed: %d, blocked: %d, running: %d, pending: %d\n", cyan("Job status:"), jobCounts.success, jobCounts.failed, jobCounts.blocked, jobCounts.running, jobCounts.pending)
+	fmt.Println("\n" + cyan("To show a job:"))
+	fmt.Printf("  rotari show -r %s -j JOB_ID\n", runID)
 	printChangeHints(paths, runID, runQueue, changeHints)
 	printFailedLogHints(runID, changeHints, resultByID)
 	fmt.Printf("\n%s\n  rotari delete --run-id %s\n", cyan("To delete this run's saved logs:"), runID)
@@ -1139,7 +1141,7 @@ func showRuns(paths state.ProjectPaths) int {
 }
 
 func showRunsOverview(paths state.ProjectPaths) int {
-	return showRunsWithMode(paths, false, "project")
+	return showRunsWithMode(paths, true, "project")
 }
 
 func showRunsWithHint(paths state.ProjectPaths, showHint bool) int {
@@ -1237,7 +1239,10 @@ func showRunsWithMode(paths state.ProjectPaths, showHint bool, mode string) int 
 		}
 		fmt.Printf("%-36s %-24s %-12s %-12s %-24s %-24s\n", r.id, name, statusText, exitCode, started, finished)
 	}
-	if showHint {
+	if showHint && mode == "project" && len(runs) > 0 {
+		fmt.Println("\n" + cyan("To show a run:"))
+		fmt.Println("  rotari show -p PROJECT -r RUN_ID")
+	} else if showHint && mode != "project" {
 		fmt.Println("\n" + cyan("To show jobs in a run:"))
 		fmt.Println("  rotari show -p PROJECT -r RUN_ID")
 	}
