@@ -62,6 +62,31 @@ chain is checked across `show`, `jobs`, reports, and the Web API by
 
 ## Shared-state coordination
 
+- **COORD-1** Controlling a local job (`cancel`, `suspend`, or `resume`, from
+  the CLI or the Web UI) from a host other than the one it runs on fails with
+  an error naming that host, instead of reporting that the job is not running
+  or signalling an unrelated process with the same PID.
+- **COORD-2** A whole-run cancel of a run whose coordinator runs on another
+  host fails the same way, naming that host, instead of reporting success
+  while the run goes on.
+- **COORD-3** A run lock from another host counts as running: `check`
+  reports the project `locked`, and the commands of SAFE-2 are rejected. Its
+  coordinator cannot be checked, so the lock stays until the operator
+  confirms that the run stopped and uses `unlock` (SAFE-4). This is
+  coordination, not distributed locking: it cannot fence a host after a
+  network partition.
+- **COORD-4** A scheduler job whose scheduler command is not installed fails
+  with an error naming the command, which `show` of the job reports.
+  Scheduler executors and SSH work from any host with the required access,
+  but their commands must be installed on the host issuing the request.
+- **COORD-5** With `ROTARI_PRIVATE_STATE=true`, new state and registry paths
+  are owner-only (`0700` directories, `0600` files); otherwise they are
+  `0755`/`0644`, less the umask. Existing paths keep their mode, so changing
+  the setting can leave mixed permissions. The static Web export
+  (`web --static-dir`) always writes publishable `0755`/`0644` output.
+
+Design and implementation notes:
+
 - Shared-base operation relies on exclusive file creation, atomic rename, and
   advisory `flock` semantics from the shared filesystem. See
   [`internal/state/lock.go`](../internal/state/lock.go) and
@@ -72,39 +97,28 @@ chain is checked across `show`, `jobs`, reports, and the Web API by
   [`internal/state/lock.go`](../internal/state/lock.go), and
   `TestBeginRejectsActiveRun` in
   [`internal/projectrun/lifecycle_test.go`](../internal/projectrun/lifecycle_test.go).
-- This is coordination, not distributed locking: it cannot fence a host after a
-  network partition or determine whether a remote PID is alive. A remote run
-  lock remains active until an operator confirms the run stopped and uses
-  `unlock`.
 - Project locks are scoped to project directories, so different projects largely
   isolate queue and run state. Server, registry, and filesystem state remain
   common base-level dependencies.
-- `jobcontrol.Controller.Control` and `CancelJobs` signal local jobs by process group. The
-  wrapper's PID is also its process-group ID via `Setpgid`, so a negative PID
-  reaches both the wrapper and its command.
-- `executor.LocalHostMismatch` compares the current host with `context.json`
-  before signaling. A cross-host local control request gets an explicit host
-  error instead of a misleading "job is not running" or a PID reuse hazard.
-- Scheduler executors and SSH are expected to work from any host with the
-  required access. Their control CLIs must still be installed on the host
-  issuing the request.
+- `jobcontrol.Controller.Control` and `CancelJobs` signal local jobs by process
+  group. The wrapper's PID is also its process-group ID via `Setpgid`, so a
+  negative PID reaches both the wrapper and its command.
+  `executor.LocalHostMismatch` compares the current host with `context.json`
+  (COORD-1), and `runnerHostMismatch` in `internal/jobcontrol` compares it
+  with `running.lock` (COORD-2), before any signal.
 - `schedulerCommandHint` turns missing scheduler binaries into explicit errors
   and preserves scheduler stdout/stderr, including explanations for rejected
-  operations on queued jobs.
-- Whole-run cancel has the same PID locality issue: it signals the run's local
-  jobs by PID. `runnerHostMismatch` in `internal/jobcontrol` checks
-  `running.lock`'s host first; a cross-host request fails instead of reporting
-  success while leaving the run untouched.
+  operations on queued jobs (COORD-4).
 - Finalization rechecks that `running.lock` belongs to the finishing run while
   holding the state lock. New locks are written to a temporary file and
   published without replacing an existing lock, preventing partial JSON.
-- State and registry trees use centralized permission helpers. The default
-  modes are `0755`/`0644`; `ROTARI_PRIVATE_STATE=true` switches new paths to
-  owner-only `0700`/`0600`/`0700`.
-- Permission settings apply only to newly created paths. Existing paths are not
-  rechmoded, so changing the setting can produce mixed permissions.
-- `webui.GenerateStatic` is the intentional exception and always emits
-  publishable `0755`/`0644` output.
+- State and registry trees use centralized permission helpers (COORD-5);
+  `webui.GenerateStatic` is the intentional exception.
+
+COORD-1 to COORD-5 are checked through the binary by
+[`conformance/coordination_test.go`](../conformance/coordination_test.go),
+which rewrites the host recorded in `context.json` and `running.lock` to
+stand for another host.
 
 ## Concurrency and safety
 
@@ -118,7 +132,10 @@ A project is in one of three states, derived from `running.lock` and
 | `Running` | present; owning coordinator PID is alive, or it runs on another host | `running`/`cancelling` | rejected: "is running; ... is not allowed" | rejected |
 | `Interrupted` | absent, or present but the coordinator PID is dead | `running`/`cancelling` with `last_run_id` set | rejected: "has interrupted run ...", naming how to inspect and recover it | requires confirmation |
 
-- **SAFE-1** `check` and `show` report a project's state as the table says.
+- **SAFE-1** `check` and `show` report a project's state as the table says;
+  `check` names an idle project `ready` or `empty` (with or without queued
+  jobs), a running one `running`, or `locked` when its lock comes from
+  another host (COORD-3), and an interrupted one `interrupted`.
   A run whose coordinator is gone, for example killed with SIGKILL, leaves
   the project interrupted, never idle; a dead local lock is removed, and the
   metadata alone then marks the run.
