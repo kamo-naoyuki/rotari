@@ -151,6 +151,12 @@ The package map, process roles, and per-command walkthroughs are in
 - New run behavior goes in `internal/run` or `internal/projectrun`, not in a
   CLI or Web path, so no interface silently reimplements run semantics.
 
+The import-level parts of these rules (what `internal/model`, `internal/state`,
+`internal/executor`, `internal/run`, and `internal/rundiff` may import, and no
+`internal` package importing `cmd/`) are enforced by
+[`internal/archtest/boundaries_test.go`](../../internal/archtest/boundaries_test.go).
+Change a rule there in the same change as this list.
+
 `internal/rundiff` compares two runs that `cmd/rotari/diff.go` has loaded, with
 each job's status already resolved through `internal/jobstatus`. It matches
 jobs by name, or by job ID for unnamed jobs, because a job changed through an

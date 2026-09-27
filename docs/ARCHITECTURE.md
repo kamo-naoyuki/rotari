@@ -183,6 +183,11 @@ every package imports `model`; those edges are drawn once per group.
 `go list -f '{{.ImportPath}}: {{join .Imports " "}}' ./internal/...` prints
 the current graph if this list drifts.
 
+The boundary rules in
+[contracts/00-overview.md](contracts/00-overview.md#go-package-boundaries)
+are checked against this graph by
+[internal/archtest](../internal/archtest/boundaries_test.go).
+
 | Package | Owns | Start reading at |
 | --- | --- | --- |
 | [internal/model](../internal/model/) | Domain types and pure rules: queue, queued command, job spec, result, summary, selections, command selectors, dependencies, arrays. No I/O. | `model.go`, `selection.go`, `command_selector.go`, `dependencies.go` |
@@ -207,6 +212,7 @@ the current graph if this list drifts.
 | [internal/report](../internal/report/) | The redacted evidence report for AI-assisted diagnosis, shared by `show --report` and the Web UI. Reads jobs through `internal/web`'s projection. | `report.go` (`Build`) |
 | [internal/rundiff](../internal/rundiff/) | Comparison of two loaded runs for `diff` and `show --lineage`. | `rundiff.go` |
 | [internal/diagnose](../internal/diagnose/) | Rule-based and provider-backed failure diagnosis. | `analysis.go` |
+| [internal/archtest](../internal/archtest/) | Tests only: the package boundary rules checked against the import graph. | `boundaries_test.go` |
 
 Many `internal` functions take callbacks or hook fields
 (`projectrun.Runner`, `run.BatchLaneCallbacks`, `run.OriginResults`, `server.Operations`). This is
