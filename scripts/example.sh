@@ -10,28 +10,28 @@ use_slurm=false
 project_name=""
 while (($# > 0)); do
     case "$1" in
-        --slurm)
-            use_slurm=true
-            ;;
-        --)
-            shift
-            if (($# != 1)); then
-                echo "usage: $0 [--slurm] [PROJECT_NAME]" >&2
-                exit 2
-            fi
-            project_name=$1
-            ;;
-        -*)
+    --slurm)
+        use_slurm=true
+        ;;
+    --)
+        shift
+        if (($# != 1)); then
             echo "usage: $0 [--slurm] [PROJECT_NAME]" >&2
             exit 2
-            ;;
-        *)
-            if [[ -n "${project_name}" ]]; then
-                echo "usage: $0 [--slurm] [PROJECT_NAME]" >&2
-                exit 2
-            fi
-            project_name=$1
-            ;;
+        fi
+        project_name=$1
+        ;;
+    -*)
+        echo "usage: $0 [--slurm] [PROJECT_NAME]" >&2
+        exit 2
+        ;;
+    *)
+        if [[ -n "${project_name}" ]]; then
+            echo "usage: $0 [--slurm] [PROJECT_NAME]" >&2
+            exit 2
+        fi
+        project_name=$1
+        ;;
     esac
     shift
 done

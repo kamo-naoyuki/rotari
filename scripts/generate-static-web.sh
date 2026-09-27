@@ -12,8 +12,8 @@ state_dir="${work_dir}/state"
 go_binary=${GO_BINARY:-/usr/bin/go}
 
 if [[ ! -x "${go_binary}" ]]; then
-	echo "Go compiler not found at ${go_binary}; set GO_BINARY to its absolute path" >&2
-	exit 1
+    echo "Go compiler not found at ${go_binary}; set GO_BINARY to its absolute path" >&2
+    exit 1
 fi
 
 echo "building rotari..."
@@ -28,8 +28,8 @@ export ROTARI_PROJECT_NAME=demo
 "${binary}" run --run-name "Demo run" || true
 first_run_id=$(find "${state_dir}/projects/demo/runs" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 1)
 if [[ -z "${first_run_id}" ]]; then
-	echo "first run was not created" >&2
-	exit 1
+    echo "first run was not created" >&2
+    exit 1
 fi
 
 # Fix the failing job, then retry only it. "prepare" and "train" already
@@ -43,8 +43,8 @@ fi
 # Keep a useful current queue in the demo so the queue page is not empty.
 run_count=$(find "${state_dir}/projects/demo/runs" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | wc -l)
 if [[ "${run_count}" -lt 2 ]]; then
-	echo "expected two demo runs, found ${run_count}" >&2
-	exit 1
+    echo "expected two demo runs, found ${run_count}" >&2
+    exit 1
 fi
 "${binary}" copy --run-id "${first_run_id}" --failed --unfinished --overwrite
 
@@ -54,13 +54,13 @@ fi
 # fails on its own. "collect" still runs because it only needs the sweep to
 # finish.
 "${binary}" add -p sweep --job-name train \
-	--matrix LR=0.1,0.01,0.001 --matrix SEED=1,2,3 --matrix MODEL=small,large \
-	sh -c 'echo "lr=$LR seed=$SEED model=$MODEL"
+    --matrix LR=0.1,0.01,0.001 --matrix SEED=1,2,3 --matrix MODEL=small,large \
+    sh -c 'echo "lr=$LR seed=$SEED model=$MODEL"
 		case "$MODEL/$LR/$SEED" in
 		*/0.001/* | large/0.1/* | small/0.1/3) exit 1 ;;
 		esac'
 "${binary}" add -p sweep --job-name collect --depends-on-finished train \
-	sh -c 'echo collected the finished sweep results'
+    sh -c 'echo collected the finished sweep results'
 "${binary}" run -p sweep --run-name "Hyperparameter sweep" || true
 
 echo "generating static pages in ${output_dir}..."

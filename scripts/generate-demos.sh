@@ -55,7 +55,7 @@ fi
 
 # Fake `go` binary: `go test ./...` fails once per working directory, then
 # passes after "fixing" (marker file is relative, so each demo is independent).
-cat > "${bin_dir}/go" <<'EOF'
+cat >"${bin_dir}/go" <<'EOF'
 #!/bin/sh
 marker=./.go-fix-marker
 if [ -f "${marker}" ]; then
@@ -87,12 +87,12 @@ record() {
 
 shell_work_dir="${work_dir}/shell-demo"
 mkdir -p "${shell_work_dir}"
-cat > "${shell_work_dir}/Makefile" <<'EOF'
+cat >"${shell_work_dir}/Makefile" <<'EOF'
 build:
 	@echo make
 EOF
 shell_demo="${work_dir}/shell-demo.sh"
-cat > "${shell_demo}" <<EOF
+cat >"${shell_demo}" <<EOF
 #!/usr/bin/env bash
 set -uo pipefail
 export PATH="${bin_dir}:\$PATH"
@@ -149,13 +149,13 @@ chmod +x "${shell_demo}"
 
 rotari_work_dir="${work_dir}/rotari-demo"
 mkdir -p "${rotari_work_dir}"
-cat > "${rotari_work_dir}/Makefile" <<'EOF'
+cat >"${rotari_work_dir}/Makefile" <<'EOF'
 build:
 	@echo make
 EOF
 
 rotari_demo="${work_dir}/rotari-demo.sh"
-cat > "${rotari_demo}" <<EOF
+cat >"${rotari_demo}" <<EOF
 #!/usr/bin/env bash
 set -uo pipefail
 export PATH="${bin_dir}:\$PATH"

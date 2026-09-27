@@ -17,9 +17,9 @@ os=$(uname -s | tr '[:upper:]' '[:lower:]')
 arch=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
 
 if [ "$version" = "latest" ]; then
-  url="https://github.com/${repo}/releases/latest/download/rotari-${os}-${arch}"
+    url="https://github.com/${repo}/releases/latest/download/rotari-${os}-${arch}"
 else
-  url="https://github.com/${repo}/releases/download/${version}/rotari-${os}-${arch}"
+    url="https://github.com/${repo}/releases/download/${version}/rotari-${os}-${arch}"
 fi
 
 tmp=$(mktemp)
@@ -33,11 +33,11 @@ install -m 755 "$tmp" "$install_dir/rotari"
 
 echo "Installed rotari to ${install_dir}/rotari" >&2
 case ":$PATH:" in
-  *":${install_dir}:"*)
+*":${install_dir}:"*)
     echo "Run 'rotari version' to verify the installation." >&2
     echo "Run 'rotari completion install' to set up shell completion." >&2
     ;;
-  *)
+*)
     echo "Add ${install_dir} to your PATH to run 'rotari' directly." >&2
     echo "Then run 'rotari version' to verify the installation." >&2
     echo "Run 'rotari completion install' to set up shell completion." >&2

@@ -29,31 +29,55 @@ EOF
 
 while (($# > 0)); do
     case "$1" in
-        --jobs) jobs=$2; shift 2 ;;
-        --fail-percent) fail_percent=$2; shift 2 ;;
-        --local-concurrency) local_concurrency=$2; shift 2 ;;
-        --batch-concurrency) batch_concurrency=$2; shift 2 ;;
-        --dep-probability) dep_probability=$2; shift 2 ;;
-        --slurm-option) slurm_options+=("$2"); shift 2 ;;
-        -h|--help) usage; exit 0 ;;
-        --)
-            shift
-            if (($# != 1)); then
-                usage
-                exit 2
-            fi
-            project_name=$1
-            shift
-            ;;
-        -*) usage; exit 2 ;;
-        *)
-            if (($# != 1)); then
-                usage
-                exit 2
-            fi
-            project_name=$1
-            shift
-            ;;
+    --jobs)
+        jobs=$2
+        shift 2
+        ;;
+    --fail-percent)
+        fail_percent=$2
+        shift 2
+        ;;
+    --local-concurrency)
+        local_concurrency=$2
+        shift 2
+        ;;
+    --batch-concurrency)
+        batch_concurrency=$2
+        shift 2
+        ;;
+    --dep-probability)
+        dep_probability=$2
+        shift 2
+        ;;
+    --slurm-option)
+        slurm_options+=("$2")
+        shift 2
+        ;;
+    -h | --help)
+        usage
+        exit 0
+        ;;
+    --)
+        shift
+        if (($# != 1)); then
+            usage
+            exit 2
+        fi
+        project_name=$1
+        shift
+        ;;
+    -*)
+        usage
+        exit 2
+        ;;
+    *)
+        if (($# != 1)); then
+            usage
+            exit 2
+        fi
+        project_name=$1
+        shift
+        ;;
     esac
 done
 
@@ -70,19 +94,19 @@ for ((i = 1; i <= jobs; i++)); do
     name=$(printf "loadtest-%04d" "$i")
 
     executor=local
-    if (( i % 2 == 0 )); then
+    if ((i % 2 == 0)); then
         executor=slurm
     fi
 
     deps=()
     dep_args=()
-    if (( i > 1 )) && (( RANDOM % 100 < dep_probability )); then
-        ndeps=$(( RANDOM % max_deps + 1 ))
+    if ((i > 1)) && ((RANDOM % 100 < dep_probability)); then
+        ndeps=$((RANDOM % max_deps + 1))
         for ((d = 0; d < ndeps; d++)); do
-            idx=$(( RANDOM % (i - 1) + 1 ))
+            idx=$((RANDOM % (i - 1) + 1))
             dep_name="${job_names[idx - 1]}"
             duplicate=0
-            if (( ${#deps[@]} > 0 )); then
+            if ((${#deps[@]} > 0)); then
                 for existing in "${deps[@]}"; do
                     if [[ "$existing" == "$dep_name" ]]; then
                         duplicate=1
@@ -90,7 +114,7 @@ for ((i = 1; i <= jobs; i++)); do
                     fi
                 done
             fi
-            if (( duplicate == 0 )); then
+            if ((duplicate == 0)); then
                 deps+=("$dep_name")
                 dep_args+=(--depends-on "$dep_name")
             fi
