@@ -187,9 +187,9 @@ shared test infrastructure and may remain at the package root.
   `04-coordination`, and `06-selectors` migrations.
 - Remaining migration: none. `DUR-3`, `DUR-4`, and `DUR-6` now live under
   `04-coordination` and use the package-local support fixture.
-- Remaining coverage work: the `pending` RES rows, the remaining run
-  lifecycle/server-interface rules, partial selector coverage, and golden
-  output files.
+- Remaining coverage work: the remaining run lifecycle/server-interface rules,
+  partial CORE/DUR/selector coverage, and golden output files. All pending
+  contract rows are now covered by at least one conformance test.
 - Known flaky tests are recorded in [ISSUES.md](ISSUES.md), notably
   `TestControlFromAnotherHost` and `TestResetOfInterruptedProject`; do not
   treat those failures as migration regressions without reproducing them in
