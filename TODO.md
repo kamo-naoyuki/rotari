@@ -131,34 +131,103 @@ that should be protecting it. Turn the rules into checks, cheapest and most
 immediately useful first. Each step stands alone and can stop there.
 
 1. **Widen conformance coverage.** Move `partial` and `pending` rows in the
-   "Contract status" table of [contracts/README.md](contracts/README.md) toward
-   `conformance`, giving rules in sections without IDs an ID as they gain a
-   test. In order: locks and recovery in
-   [contracts/04-coordination-and-safety.md](contracts/04-coordination-and-safety.md)
-   (two concurrent `run`s on one base directory, recovery after the runner
-   is killed with SIGKILL); the run lifecycle (failure then filtered rerun);
-   the `pending` resolution rules. When a conformance test covers what an
-   in-process `cmd/rotari` test checks from the outside, move the test and
-   delete the old one, as for the selector and fallback tests.
+   "Contract status" table of [contracts/README.md](contracts/README.md)
+  toward `conformance`. The first run-lifecycle slice is now covered by
+  `RUN-1` and `RUN-2` (failure then filtered rerun, retries within a run).
+  Next, in order: the remaining run lifecycle rules, then server and command interfaces in
+   [contracts/03-server-and-command-interfaces.md](contracts/03-server-and-command-interfaces.md);
+   the `pending` RES rows; and the `partial` rows, whose gaps the table and
+   the test comments name (COORD-4 covers only Slurm, COORD-5 not the
+   registry, SEL-1 and SEL-2 not every command, DUR-6 not `reset --recover`).
 2. **Golden output files.** Golden files with an `-update` flag for `--help`,
    `schema --json`, and representative `show --json` output, so an
    unintended output change shows up as a diff. None exist today.
+3. **Mirror the contract documents in conformance.** Organize tests under
+  directories matching the contract Markdown structure, rather than making
+  one directory per contract ID. Keep the existing `00` through `06` topics
+  as the top-level groups, and split a large Markdown file into responsibility
+  files when its sections are unrelated (for example, lifecycle, cancellation,
+  validation, orchestration, and integrations under `02`). A test may cover
+  several IDs from one document, and each directory should link back to its
+  Markdown section. Extract the shared harness first, then move one document
+  or subsection at a time; keep `go test ./conformance/...` and the contract
+  status scan working throughout the migration. Extend `TestContractStatus`
+  to verify the prefix-to-Markdown mapping and recursively discover tests in
+  the new directories; do not rely on directory names being correct by
+  convention alone.
 
 Done so far: the package boundary test
 ([internal/archtest](internal/archtest/boundaries_test.go)), the
 documentation link test
 ([internal/doclinks](internal/doclinks/links_test.go)), one local check
-command ([scripts/check.sh](scripts/check.sh)), the conformance pilot
+command ([scripts/check.sh](scripts/check.sh)), the conformance harness
 ([conformance/](conformance/)), and contract IDs with a status table that
-`TestContractStatus` keeps in agreement with the tests' `covers` calls. The
-pilot checks the path element rules through the CLI and the Web API and that
-`show --json`, `jobs`, and the Web API agree on a finished run. It keeps a
-hand-written harness rather than `testscript`: the Web API checks and JSON
-comparisons need Go code either way, and the harness adds no dependency.
-Since then conformance also covers cancellation, the resolution rules, the
-status fallback chain, and the selector tables of
-[contracts/06-selectors.md](contracts/06-selectors.md), the last two moved
-from in-process `cmd/rotari` tests.
+`TestContractStatus` keeps in agreement with the tests' `covers` calls.
+Conformance covers path rules, cancellation, the resolution rules, the
+status fallback chain, the selector tables, and all of
+[contracts/04-coordination-and-safety.md](contracts/04-coordination-and-safety.md).
+The fallback and selector tests were moved from in-process `cmd/rotari`
+tests. The harness is hand-written rather than `testscript`: the Web API
+checks and JSON comparisons need Go code either way, and it adds no
+dependency.
+
+#### Working notes for the next agent
+
+How one contract section has been done, one commit per step:
+
+1. Read the section and sort each rule into an observable contract (what the
+   CLI, the Web API, or the files on disk show), a design rule, or an
+   implementation note. Rewrite the observable ones so they name no Go
+   function, give them IDs (`PREFIX-N` at the start of the rule; add the
+   prefix to the table in [contracts/README.md](contracts/README.md)), and
+  move function names and file links to an "Implementation and tests" note
+  after the rules. When contract rules and internal implementation/spec
+  notes would otherwise be mixed, put them in separate subsections rather
+  than interleaving them in one list.
+2. Before writing expectations, probe the real behavior with the built
+   binary: a throwaway `conformance/zz_probe_test.go` that logs output, run
+   with `-v`, then deleted. Every section so far turned up at least one bug
+   this way (async and Web cancel, `wait` ignoring the registry, `show` of a
+   job that never ran, `unlock` of a live run, readers of newer state).
+3. Write the conformance test with `covers(t, "ID")`. If the current
+   behavior breaks the rule, skip that case with `knownDeviation(t, "ID")`,
+   set the row to `deviation`, add an ISSUES.md entry naming the ID, and
+   commit. Then fix the code, remove the skip, move the row to `partial` or
+   `conformance`, move the ISSUES.md entry to Resolved, and commit again.
+4. When a conformance test covers what an existing in-process test under
+  `cmd/rotari` or `internal/` checks from the outside, move that observable
+  case to `conformance/` and delete the old test and its now-unused helpers.
+  Search both trees before adding a new case. Keep unit tests of internal
+  branches and implementation details in their original package.
+5. Run `scripts/check.sh` (with `-race`) before each commit.
+6. When an unrelated bug or design concern is discovered during the work,
+   record it in [ISSUES.md](ISSUES.md) with enough context to act on it later;
+   do not broaden the current fix just to resolve it.
+
+Pitfalls met so far:
+
+- `ROTARI_BASEDIR` counts as an explicit location, so a run ID that the
+  registry places elsewhere is rejected. Tests of registry lookups use an env
+  without it (`e.without("ROTARI_BASEDIR")`, as the selector fixture does).
+- In a subtest, use `e.in(t)` so failures report to the subtest. Parallel
+  subtests need their own fixture; building one takes well under a second.
+- A second synchronous `run` of a project whose first run is live blocks on
+  its jobs if it is wrongly accepted; probe with `--async` or a timeout.
+- After SIGKILL, a supervisor stays a zombie, which counts as alive, until
+  its parent reaps it. Wait for `check` to report `interrupted`
+  (`waitForInterrupted`) instead of checking at once.
+- Job wrappers trap SIGTERM; clean up with `killStrays` (SIGKILL to the
+  process group). Never use `pkill -f` with a pattern that also appears in
+  your own shell command: it kills the shell. Kill by PID.
+- State files are indented JSON; edit them by decoding, as `setJSONField`
+  and `setStateVersion` do, not by string replacement.
+- `curl` to the Web server may go through an HTTP proxy from the
+  environment; use `--noproxy '*'`. Go's client never proxies loopback.
+- When removing an ISSUES.md entry, keep the blank line before
+  `## Resolved`; one edit lost it once.
+- Other agents may be working in the same tree. Stage only your own files,
+  check `git status` before committing, and re-stage a `git mv` if another
+  commit reset the index.
 
 Not planned: decision records beyond the existing rationale in the contracts,
 and tool-specific agent hooks or skills; AGENTS.md stays the tool-neutral

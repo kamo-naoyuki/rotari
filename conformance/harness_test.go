@@ -398,6 +398,25 @@ func (e *env) createFinishedRun() finishedRun {
 	return run
 }
 
+func (e *env) finishedJobRun(project string) (runID, attemptID string) {
+	e.t.Helper()
+	requireUnixSockets(e.t)
+	e.mustRotari("add", "-p", project, "--", "true")
+	e.mustRotari("run", "-p", project, "--quiet")
+	var shown struct {
+		RunID   string `json:"run_id"`
+		Summary struct {
+			Results []struct {
+				AttemptID string `json:"attempt_id"`
+			} `json:"results"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal([]byte(e.mustRotari("show", "-p", project, "--json").stdout), &shown); err != nil || shown.RunID == "" || len(shown.Summary.Results) == 0 {
+		e.t.Fatalf("show --json did not describe the run of %s: %v", project, err)
+	}
+	return shown.RunID, shown.Summary.Results[0].AttemptID
+}
+
 func addedJobID(t *testing.T, r result) string {
 	t.Helper()
 	match := addedJobPattern.FindStringSubmatch(r.stdout)

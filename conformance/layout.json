@@ -1,0 +1,9 @@
+{
+  "00-overview.md": "00-overview",
+  "01-resolution-and-config.md": "01-resolution",
+  "02-run-lifecycle-and-execution.md": "02-lifecycle",
+  "03-server-and-command-interfaces.md": "03-interfaces",
+  "04-coordination-and-safety.md": "04-coordination",
+  "05-web-assets-and-static-export.md": "05-web",
+  "06-selectors.md": "06-selectors"
+}

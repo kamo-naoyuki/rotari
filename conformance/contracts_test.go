@@ -1,6 +1,7 @@
 package conformance
 
 import (
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -22,6 +23,7 @@ var (
 	contractDefinition = regexp.MustCompile(`(?m)^(?:- )?\*\*([A-Z]+-[0-9]+)\*\* `)
 	contractRow        = regexp.MustCompile(`^\| ([A-Z]+-[0-9]+) \| .+ \| ([a-z]+) \| (.+) \|$`)
 	contractTestName   = regexp.MustCompile("`(Test[A-Za-z0-9_]+)`")
+	contractPrefixRow  = regexp.MustCompile("^\\| `" + "([A-Z]+)" + "` \\|")
 )
 
 // contractStatuses are the statuses a row may have. "conformance" means the
@@ -37,6 +39,7 @@ type contractStatusRow struct {
 
 func TestContractStatus(t *testing.T) {
 	defined := contractDefinitions(t)
+	contractDocuments := contractDocumentPrefixes(t)
 	rows := contractStatusRows(t)
 	coveredBy := coveringTests(t)
 	issues := readRepoFile(t, "ISSUES.md")
@@ -50,6 +53,12 @@ func TestContractStatus(t *testing.T) {
 		if _, ok := defined[id]; !ok {
 			t.Errorf("status table lists %s, which no contract in contracts/ defines", id)
 			continue
+		}
+		prefix := strings.SplitN(id, "-", 2)[0]
+		if document, ok := contractDocuments[prefix]; !ok {
+			t.Errorf("%s: no Markdown document is registered for prefix %s", id, prefix)
+		} else if defined[id] != document {
+			t.Errorf("%s: defined in %s, but prefix %s maps to %s", id, defined[id], prefix, document)
 		}
 		tests := coveredBy[id]
 		if !slices.Equal(row.tests, tests) {
@@ -79,21 +88,76 @@ func TestContractStatus(t *testing.T) {
 	}
 }
 
+func TestConformanceLayout(t *testing.T) {
+	t.Helper()
+	data := readRepoFile(t, "conformance/layout.json")
+	var layout map[string]string
+	if err := json.Unmarshal([]byte(data), &layout); err != nil {
+		t.Fatal(err)
+	}
+	if len(layout) == 0 {
+		t.Fatal("conformance/layout.json is empty")
+	}
+	for document, directory := range layout {
+		if _, err := os.Stat(filepath.Join("..", "contracts", document)); err != nil {
+			t.Errorf("layout maps missing contract document %q: %v", document, err)
+		}
+		info, err := os.Stat(directory)
+		if err != nil {
+			t.Errorf("layout maps %q to missing directory %q: %v", document, directory, err)
+		} else if !info.IsDir() {
+			t.Errorf("layout maps %q to %q, which is not a directory", document, directory)
+		}
+	}
+}
+
+// contractDocumentPrefixes reads the prefix table in contracts/README.md.
+// Keeping this mapping checked means a contract Markdown split cannot silently
+// leave IDs associated with the wrong document or conformance group.
+func contractDocumentPrefixes(t *testing.T) map[string]string {
+	t.Helper()
+	prefixes := map[string]string{}
+	for _, line := range strings.Split(readRepoFile(t, "contracts/README.md"), "\n") {
+		match := contractPrefixRow.FindStringSubmatch(line)
+		if match == nil {
+			continue
+		}
+		open := strings.Index(line, "[")
+		closing := strings.Index(line[open+1:], "]")
+		if open < 0 || closing < 0 {
+			t.Errorf("prefix %s has no Markdown link", match[1])
+			continue
+		}
+		document := line[open+1 : open+1+closing]
+		if !strings.HasPrefix(document, "0") || !strings.HasSuffix(document, ".md") {
+			t.Errorf("prefix %s links to %q, want a numbered contract Markdown file", match[1], document)
+			continue
+		}
+		if _, exists := prefixes[match[1]]; exists {
+			t.Errorf("prefix %s is listed more than once", match[1])
+		}
+		prefixes[match[1]] = document
+	}
+	if len(prefixes) == 0 {
+		t.Fatal("contracts/README.md has no prefix-to-document rows")
+	}
+	return prefixes
+}
+
 // contractDefinitions returns each contract ID with the file defining it.
 func contractDefinitions(t *testing.T) map[string]string {
 	t.Helper()
-	files, err := filepath.Glob(filepath.Join("..", "contracts", "*.md"))
-	if err != nil || len(files) == 0 {
-		t.Fatalf("no contract files found: %v", err)
-	}
 	defined := map[string]string{}
-	for _, file := range files {
-		if filepath.Base(file) == "README.md" {
-			continue
+	err := filepath.WalkDir(filepath.Join("..", "contracts"), func(file string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || filepath.Base(file) == "README.md" || filepath.Ext(file) != ".md" {
+			return nil
 		}
 		data, err := os.ReadFile(file)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
 		for _, match := range contractDefinition.FindAllStringSubmatch(string(data), -1) {
 			id := match[1]
@@ -102,6 +166,13 @@ func contractDefinitions(t *testing.T) map[string]string {
 			}
 			defined[id] = filepath.Base(file)
 		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(defined) == 0 {
+		t.Fatal("no contract files found")
 	}
 	return defined
 }
@@ -137,7 +208,16 @@ func contractStatusRows(t *testing.T) map[string]contractStatusRow {
 // functions in this package that call covers with it.
 func coveringTests(t *testing.T) map[string][]string {
 	t.Helper()
-	files, err := filepath.Glob("*_test.go")
+	var files []string
+	err := filepath.WalkDir(".", func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() && strings.HasSuffix(path, "_test.go") {
+			files = append(files, path)
+		}
+		return nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

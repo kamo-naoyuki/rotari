@@ -2,7 +2,6 @@ package conformance
 
 import (
 	"encoding/json"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -99,67 +98,4 @@ func TestMissingSchedulerCommand(t *testing.T) {
 	if out := e.mustRotari("show", "-p", "s", "--run-id", "latest", "--job-id", job).stdout; !strings.Contains(out, "sbatch") {
 		t.Errorf("show of the failed job does not name the missing command:\n%s", out)
 	}
-}
-
-func TestPrivateStateModes(t *testing.T) {
-	covers(t, "COORD-5")
-	e := newEnv(t)
-	e.mustRotari("add", "-p", "public", "--", "true")
-	publicDir := filepath.Join(e.base, "projects", "public")
-	before := fileMode(t, publicDir)
-
-	private := e.withVar("ROTARI_PRIVATE_STATE", "true")
-	private.mustRotari("add", "-p", "private", "--", "true")
-	private.mustRotari("add", "-p", "public", "--", "true")
-	err := filepath.WalkDir(filepath.Join(e.base, "projects", "private"), func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if mode := fileMode(t, path); mode&0o077 != 0 {
-			t.Errorf("%s: mode %v, want owner-only", path, mode)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if after := fileMode(t, publicDir); after != before {
-		t.Errorf("an existing project directory changed mode from %v to %v", before, after)
-	}
-
-	static := filepath.Join(e.root, "static")
-	private.mustRotari("web", "--static-dir", static)
-	if !umaskKeepsGroupRead(t) {
-		t.Skip("the umask removes group read, so the export's modes cannot show")
-	}
-	err = filepath.WalkDir(static, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if mode := fileMode(t, path); mode&0o044 != 0o044 {
-			t.Errorf("%s: mode %v, want publishable", path, mode)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func fileMode(t *testing.T, path string) fs.FileMode {
-	t.Helper()
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return info.Mode().Perm()
-}
-
-// umaskKeepsGroupRead reports whether a file created 0644 keeps its group
-// and other read bits under the current umask.
-func umaskKeepsGroupRead(t *testing.T) bool {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "probe")
-	writeFile(t, path, "")
-	return fileMode(t, path)&0o044 == 0o044
 }

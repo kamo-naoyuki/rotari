@@ -2,6 +2,13 @@
 
 ## Run lifecycle
 
+- **RUN-1** A filtered rerun executes the selected jobs, carries completed
+  results outside the selection into the new run, and leaves the source run
+  unchanged.
+- **RUN-2** A run-level retry limit retries a failed job within the same run
+  until it succeeds or the limit is exhausted; a successful retry makes the
+  run successful.
+
 - Queue-editing commands mutate `queue.json`. Starting a run assigns a new ID,
   snapshots the queue and every active config file, records context, and marks
   it active. Completion writes results and summary, updates metadata, clears the

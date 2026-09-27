@@ -85,6 +85,10 @@ follows:
 
 ## CLI presentation
 
+- **CLI-1** `check --json` reports the same project state, run identifier,
+  queue count, lock, and runnable result as the human-readable `check`
+  output.
+
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.
 - Red denotes errors and failed results; green denotes success; yellow denotes
