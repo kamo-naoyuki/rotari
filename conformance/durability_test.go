@@ -40,6 +40,7 @@ func (e *env) orphanRun(project, script string) string {
 	if err := syscall.Kill(lock.PID, syscall.SIGKILL); err != nil {
 		e.t.Fatal(err)
 	}
+	waitForInterrupted(e, project)
 	return jobID
 }
 
@@ -65,10 +66,8 @@ func TestJobOutlivesKilledSupervisor(t *testing.T) {
 	e := newEnv(t)
 	jobID := e.orphanRun("p", "sleep 2; exit 7")
 
-	// DUR-4: nothing restarts the supervisor; the run is interrupted.
-	if state := checkState(e, "p"); state != "interrupted" {
-		t.Errorf("after the supervisor was killed: state %q, want interrupted", state)
-	}
+	// DUR-4: nothing restarts the supervisor; orphanRun waited for the run
+	// to be interrupted.
 	// DUR-3: the job finishes on its own and its result is readable.
 	jobExitStatus(e, "p", jobID)
 	if rows := e.mustRotari("jobs", "p", "--format", "%s").stdout; !strings.Contains(rows, "failed") {

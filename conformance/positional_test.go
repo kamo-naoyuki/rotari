@@ -247,6 +247,10 @@ func (f selectorFixture) setUp(setup, tmp string) {
 		// naming a process that is gone.
 		f.startLive()
 		killStrays(f.e.t, f.e.root)
+		waitUntil(f.e.t, 15*time.Second, func() (bool, string) {
+			out := f.e.rotari("check", "-b", f.base, "sweep").stdout
+			return strings.Contains(out, "state=interrupted"), "check: " + out
+		})
 	default:
 		f.e.t.Fatalf("unknown setup %q", setup)
 	}

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Contracts SAFE-1 to SAFE-6 and CORE-5: how a project that is running or
@@ -17,7 +18,19 @@ func (e *env) interruptRun(project string) activeRun {
 	e.t.Helper()
 	run := e.startActiveRun(project, 1)
 	killStrays(e.t, e.root)
+	waitForInterrupted(e, project)
 	return run
+}
+
+// waitForInterrupted waits until check reports project interrupted. A killed
+// coordinator stays a zombie, and so counts as alive, until its parent reaps
+// it, which a loaded machine can delay.
+func waitForInterrupted(e *env, project string) {
+	e.t.Helper()
+	waitUntil(e.t, 15*time.Second, func() (bool, string) {
+		state := checkState(e, project)
+		return state == "interrupted", "state " + state + ", want interrupted"
+	})
 }
 
 // checkState returns the state `rotari check` reports for project.
@@ -68,9 +81,7 @@ func TestProjectStates(t *testing.T) {
 		t.Errorf("a project with a run: state %q, want running", state)
 	}
 	killStrays(t, e.root)
-	if state := checkState(e, "live"); state != "interrupted" {
-		t.Errorf("a project whose coordinator was killed: state %q, want interrupted", state)
-	}
+	waitForInterrupted(e, "live")
 	if out := e.mustRotari("show", "-p", "live").stdout; !strings.Contains(out, "Project state: interrupted") {
 		t.Errorf("show does not report the interrupted state:\n%s", out)
 	}
