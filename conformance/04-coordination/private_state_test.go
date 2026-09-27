@@ -160,7 +160,7 @@ func TestCopyIntoQueueWithoutTerminal(t *testing.T) {
 }
 
 func TestRunningProjectRejectsChanges(t *testing.T) {
-	covers(t, "SAFE-2", "SAFE-5", "CORE-5")
+	covers(t, "CORE-3", "SAFE-2", "SAFE-5", "CORE-5")
 	e := support.NewEnv(t)
 	manifest := e.ExportFinishedRun("live")
 	run := e.StartRun("live", 1, false)
