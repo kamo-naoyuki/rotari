@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -46,6 +47,42 @@ func TestLocalJobTimeoutKillsCommandIgnoringTerm(t *testing.T) {
 	}
 	if elapsed > 15*time.Second {
 		t.Fatalf("job ignoring SIGTERM was not killed after the grace period: %s", elapsed)
+	}
+}
+
+func TestLocalJobCancelStopsCommandBeforeForegroundExec(t *testing.T) {
+	for i := 0; i < 25; i++ {
+		runDir := t.TempDir()
+		wrapperPath := filepath.Join(runDir, "job", "local-wrapper.sh")
+		if err := os.MkdirAll(filepath.Dir(wrapperPath), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		script := StatusWrapperScript([]string{"sh", "-c", "sleep 0.25; exec sleep 30"}, filepath.Dir(wrapperPath), nil, "", "")
+		if err := os.WriteFile(wrapperPath, []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := exec.Command("/bin/sh", wrapperPath)
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		// Trigger cancellation before the wrapped command has had time to exec;
+		// the shell must abort promptly instead of waiting for the delayed child.
+		time.Sleep(10 * time.Millisecond)
+		if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM); err != nil {
+			t.Fatalf("signal = %v", err)
+		}
+
+		start := time.Now()
+		err := cmd.Wait()
+		elapsed := time.Since(start)
+		if err == nil {
+			t.Fatalf("job exited successfully after SIGTERM before the delayed exec")
+		}
+		if elapsed > 500*time.Millisecond {
+			t.Fatalf("killed job took %s; cancellation was deferred until after the delayed child started", elapsed)
+		}
 	}
 }
 

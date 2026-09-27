@@ -111,19 +111,27 @@ write_status() {
 write_status running 0
 timed_out_marker="${status_path}.timed_out"
 on_signal() {
+	signal=$1
     if [ -f "$timed_out_marker" ]; then
         echo "rotari: job ` + message + `" >&2
         write_status finished ` + fmt.Sprint(TimeoutExitCode) + ` "` + message + `"
         exit ` + fmt.Sprint(TimeoutExitCode) + `
     fi
-    write_status cancelled "$1"
-    exit "$1"
+    if [ -n "${job_pid:-}" ] && kill -0 "$job_pid" 2>/dev/null; then
+        kill -TERM "$job_pid" 2>/dev/null || true
+    fi
+    write_status cancelled "$signal"
+    exit "$signal"
 }
 trap 'on_signal 143' TERM
 trap 'on_signal 130' INT
 trap 'on_signal 131' QUIT
 watchdog_pid=
-` + watchdog + commandLine + `
+` + watchdog + `
+job_pid=
+` + commandLine + ` &
+job_pid=$!
+wait "$job_pid"
 code=$?
 [ -z "$watchdog_pid" ] || kill "$watchdog_pid" 2>/dev/null
 write_status finished "$code"
