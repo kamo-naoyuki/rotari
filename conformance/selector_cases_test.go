@@ -1,4 +1,4 @@
-package main
+package conformance
 
 // selectorCases follows the tables of contracts/06-selectors.md. See
 // newSelectorFixture for the keys. Project sweep's latest run is

@@ -14,19 +14,19 @@ Representative implementation and tests:
 - [internal/model/command_selector.go](../internal/model/command_selector.go)
   and [its tests](../internal/model/command_selector_test.go): selecting
   queue commands by job ID, name, stage, matrix, or all.
-- [cmd/rotari/selector_cases_test.go](../cmd/rotari/selector_cases_test.go):
-  the tables below as test cases, run by `TestSelectorTable` in
-  [selector_test.go](../cmd/rotari/selector_test.go) against the shared
-  fixture in [selector_fixture_test.go](../cmd/rotari/selector_fixture_test.go)
-  (see [Fixture](#fixture)). A row marked with a known deviation must fail
-  until the deviation is fixed.
+- [conformance/selector_cases_test.go](../conformance/selector_cases_test.go):
+  the tables below as test cases, run through the built binary by
+  `TestSelectorTable` in [selector_test.go](../conformance/selector_test.go)
+  against the fixture in
+  [selector_fixture_test.go](../conformance/selector_fixture_test.go) (see
+  [Fixture](#fixture)).
 
 When changing a selector, update this note and add or change its test row in
 the same commit.
 
 ## Complete IDs
 
-A run ID or an attempt ID alone resolves the base directory, the project,
+**SEL-1** A run ID or an attempt ID alone resolves the base directory, the project,
 and the run (and, for an attempt, the job), through the run registry
 (`resolve.ExistingRun` and `resolve.Attempt`). Wherever a command takes one,
 as an option or positionally, it resolves them this way, so no base
@@ -76,6 +76,9 @@ lists each candidate's project, run or queue, and job. A group selector
 | `change`, `remove` | The current queue; a job ID or name without a project is looked for in every project's queue. An empty queue is not restored; the command fails and points to `copy` and `--run-id`. | That run's snapshot replaces the queue first. |
 | `cancel`, `suspend`, `resume` | The project's active run; a job ID without a project is looked for in the active run of every project, and all job IDs must be in one. | No `--run-id`: a bare run ID or an attempt ID names the run, which must be the project's active run. |
 
+**SEL-2** Each command reads the run or queue that its row names, with and
+without `--run-id`.
+
 ## Job selectors by command
 
 Cells describe the intended behavior; "error" means the command rejects the
@@ -95,6 +98,12 @@ see [Known deviations](#known-deviations).
 | `--all` | – | default without a selector | default without a selector | every command | every command |
 | Result filter | `--failed` only | select by result | select by result | – | – |
 | Positional | an attempt ID, then a registered run ID; otherwise a saved run name, job ID, or job name, where more than one match fails | run ID | – | – | job IDs |
+
+- **SEL-3** `show` resolves each form as its column says.
+- **SEL-4** `copy` resolves each form as its column says.
+- **SEL-5** `run` and `retry` resolve each form as their column says.
+- **SEL-6** `change` resolves each form as its column says.
+- **SEL-7** `remove` resolves each form as its column says.
 
 Selector combinations:
 
@@ -121,12 +130,16 @@ neither a result filter nor a direct selector is given: `retry -j ID` runs only
 that job, exactly as `run -j ID` does, and `retry --success` runs successful
 jobs. Implemented by `runJobs` in
 [cmd/rotari/run_command.go](../cmd/rotari/run_command.go); covered by the
-`retry` rows of `TestSelectorTable`.
+`retry` rows of `TestSelectorTable` in
+[conformance/selector_test.go](../conformance/selector_test.go).
 
 A job whose command, environment, or working directory changed since its
 recorded result has no result until it runs again (see
 [02-run-lifecycle-and-execution.md](02-run-lifecycle-and-execution.md)), so
 `retry` runs failed jobs and edited jobs together without naming them.
+
+**SEL-8** Selectors combine by kind as described above, and these exclusions
+hold:
 
 - `--job-id` and `--job-name` exclude each other in every command.
 - `--all` means "every job" (`change`, `remove`) or "every run" (`delete`)
@@ -168,6 +181,9 @@ open on a finished run cannot act on the same job ID in the active run
 | Run ID not active | error naming the project's active run, if any | same |
 | Job ID in no active run | error, when no project is given | same |
 | `latest` | a job ID like any other; not a run | same |
+
+**SEL-9** `cancel`, `suspend`, and `resume` resolve each form as the table
+says.
 
 `cancel --wait` takes no job selection. Unlike `show` and `wait`, these
 commands take no run name or positional project: they act on running jobs, so
@@ -221,6 +237,10 @@ General rules:
 | `gc` | `[MASTERDIR]` | the master directory | `--masterdir` |
 | others | none | – | – |
 
+**SEL-10** Each command takes the positional arguments of its row, with that
+meaning, and rejects them together with the options they exclude; the
+general rules above hold.
+
 `TestPositionalArguments` in
 [cmd/rotari/positional_test.go](../cmd/rotari/positional_test.go) covers
 each row against the fixture, except `cancel`, `suspend`, and `resume`,
@@ -231,20 +251,24 @@ which `TestJobControlSelectors` covers against a running run (see
 
 None at present. A deviation found later is listed here and in
 [ISSUES.md](../ISSUES.md), marked with a † in the tables, and its test
-row carries a `known` mark until it is fixed.
+row skips through `knownDeviation` until it is fixed.
 
 ## Fixture
 
 `newSelectorFixture` in
-[cmd/rotari/selector_fixture_test.go](../cmd/rotari/selector_fixture_test.go)
-builds, through the real `add` and run paths, a base directory with project
-`sweep` (a plain job, a matrix with a retried failure, an array with a failed
-task, and an unnamed job, each in its own stage; runs `first` and `second`),
-project `other` (a job that shares the name `prep`; a run also named
-`first`), and a second base directory reachable only through the run
-registry. Symbolic keys map to the generated run, job, and attempt IDs.
-Location variables and user config are cleared, so results do not depend on
-the caller's environment. `TestSelectorFixtureLayout` checks the layout.
+[conformance/selector_fixture_test.go](../conformance/selector_fixture_test.go)
+builds, with the binary, a base directory with project `sweep` (a plain job,
+a matrix with a retried failure, an array with a failed task, and an unnamed
+job, each in its own stage; runs `first` and `second`), project `other` (a
+job that shares the name `prep`; a run also named `first`), and a second base
+directory reachable only through the run registry. Symbolic keys map to the
+generated run, job, and attempt IDs. The environment has no location
+variables, so commands find a base directory only through `-b` or the run
+registry. `TestSelectorFixtureLayout` checks the layout.
+
+`TestPositionalArguments` and `TestJobControlSelectors` still run in process
+against the same layout, built by the `newSelectorFixture` of
+[cmd/rotari/selector_fixture_test.go](../cmd/rotari/selector_fixture_test.go).
 `startLiveRun` in
 [cmd/rotari/job_control_selector_test.go](../cmd/rotari/job_control_selector_test.go)
 adds run `live` of project `sweep`, active in process, with an array job

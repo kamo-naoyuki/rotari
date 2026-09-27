@@ -81,6 +81,7 @@ A rule in the pages of this directory gets an ID by starting with
 | `RES` | "Resolution rules" in [01-resolution-and-config.md](01-resolution-and-config.md#resolution-rules) |
 | `DUR` | "Job execution durability" in [04-coordination-and-safety.md](04-coordination-and-safety.md#job-execution-durability) |
 | `CAN` | "Cancellation" in [02-run-lifecycle-and-execution.md](02-run-lifecycle-and-execution.md#cancellation) |
+| `SEL` | [06-selectors.md](06-selectors.md): complete IDs, what each command reads, the job selector and job control tables, selector combinations, and positional arguments |
 
 Other sections have no IDs yet; give a rule one, with the next free number,
 when a conformance test starts checking it. Never renumber or reuse an ID;
@@ -136,3 +137,13 @@ the IDs, this table, and those calls disagree.
 | CAN-2 | A cancelled run finishes with a summary and leaves the project idle, not interrupted | conformance | `TestWholeRunCancelFinishesRun` |
 | CAN-3 | `cancel --wait` returns once the run has finished and exits 0 | conformance | `TestCancelWaitReturnsAfterRunFinishes` |
 | CAN-4 | Cancelling one job stops only that job, which the run does not retry | conformance | `TestCancelJobStopsOnlyThatJob` |
+| SEL-1 | A run ID or attempt ID alone resolves its location in every command | partial | `TestSelectorTable` |
+| SEL-2 | Each command reads the run or queue its row names | partial | `TestSelectorTable` |
+| SEL-3 | `show` resolves each selector form as its column says | conformance | `TestSelectorTable` |
+| SEL-4 | `copy` resolves each selector form as its column says | conformance | `TestSelectorTable` |
+| SEL-5 | `run` and `retry` resolve each selector form as their column says | conformance | `TestRunJobIDRunsEditedQueue`, `TestSelectorTable` |
+| SEL-6 | `change` resolves each selector form as its column says | conformance | `TestSelectorTable` |
+| SEL-7 | `remove` resolves each selector form as its column says | conformance | `TestSelectorTable` |
+| SEL-8 | Selectors combine by kind, with the listed exclusions | conformance | `TestSelectorTable` |
+| SEL-9 | `cancel`, `suspend`, and `resume` resolve each form as the job control table says | pending | - |
+| SEL-10 | Each command takes its positional arguments with their meaning and exclusions | pending | - |

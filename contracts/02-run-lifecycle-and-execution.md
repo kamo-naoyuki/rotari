@@ -52,7 +52,8 @@
   workflow-import queue forces a job on any edit. Implemented by
   `applyMutation` in [internal/queueops/change.go](../internal/queueops/change.go)
   and `jobResult` in [internal/run/rerun.go](../internal/run/rerun.go);
-  covered by the "changed" rows of `TestSelectorTable` and
+  covered by the "changed" rows of `TestSelectorTable` in
+  [conformance/selector_test.go](../conformance/selector_test.go) and
   `TestPlanRerunForcedJobsHaveNoResult`.
 - In a filtered run, selected jobs execute. Completed jobs outside the
   selection carry forward their result and an origin pointing to the original
