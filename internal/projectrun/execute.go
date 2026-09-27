@@ -102,6 +102,10 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 	}
 	run.ExpandArrayPlan(queue.Commands, jobs, plan.Execute)
 	run.ApplyCarriedOrigins(queue.Commands, plan.CarriedOrigins)
+	// The first snapshot keeps a failed plan inspectable; this one records origins.
+	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
+		return 1, fmt.Errorf("failed to save run commands: %w", err)
+	}
 
 	finalResults := make(map[string]model.JobResult, len(jobs))
 	for id, result := range plan.CarriedResults {
