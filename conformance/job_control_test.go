@@ -155,8 +155,9 @@ func (f selectorFixture) startJobControlRun() jobControlRun {
 
 // affected reports the live jobs that command acted on: the finished jobs
 // for cancel, and the jobs in the scheduler state it sets for suspend and
-// resume. A cancelled job finishes asynchronously, so it waits briefly for
-// the finished set to reach want.
+// resume. The files that show this can lag the command, most for a cancelled
+// job, which finishes asynchronously, so it waits briefly for the set to
+// reach want.
 func (live jobControlRun) affected(t *testing.T, command string, want []string) []string {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -179,7 +180,7 @@ func (live jobControlRun) affected(t *testing.T, command string, want []string) 
 			}
 		}
 		sort.Strings(got)
-		if command != "cancel" || strings.Join(got, ",") == strings.Join(want, ",") || time.Now().After(deadline) {
+		if strings.Join(got, ",") == strings.Join(want, ",") || time.Now().After(deadline) {
 			return got
 		}
 		time.Sleep(20 * time.Millisecond)
