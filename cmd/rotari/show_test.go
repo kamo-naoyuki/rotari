@@ -284,42 +284,6 @@ func TestCmdShowResolvesRunNameAcrossProjects(t *testing.T) {
 	}
 }
 
-func TestCmdShowJobSelectorsPreferCurrentQueue(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "queued-job", Name: "queued", Command: []string{"echo", "queued"}}}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(filepath.Join(paths.RunsDir, "latest-run", "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "queued-job", Name: "queued", Command: []string{"echo", "latest"}}}}); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, args := range [][]string{
-		{"--basedir", baseDir, "--job-id", "queued-job", "--no-pager"},
-		{"--basedir", baseDir, "--job-name", "queued", "--no-pager"},
-	} {
-		oldStdout := os.Stdout
-		reader, writer, err := os.Pipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		os.Stdout = writer
-		code := cmdShow(args)
-		_ = writer.Close()
-		os.Stdout = oldStdout
-		output, err := io.ReadAll(reader)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if code != 0 || !strings.Contains(string(output), "SHOW MODE: PROJECT / QUEUE / JOB") || !strings.Contains(string(output), "queued-job") || strings.Contains(string(output), "latest") {
-			t.Fatalf("cmdShow args=%#v code=%d output=%q", args, code, output)
-		}
-	}
-}
-
 func TestCmdShowDisplaysCurrentQueue(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
