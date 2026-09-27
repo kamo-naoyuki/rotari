@@ -14,11 +14,11 @@ Representative implementation and tests:
 - [internal/model/command_selector.go](../internal/model/command_selector.go)
   and [its tests](../internal/model/command_selector_test.go): selecting
   queue commands by job ID, name, stage, matrix, or all.
-- [conformance/selector_cases_test.go](../conformance/selector_cases_test.go):
+- [conformance/06-selectors/selector_cases_test.go](../conformance/06-selectors/selector_cases_test.go):
   the tables below as test cases, run through the built binary by
-  `TestSelectorTable` in [selector_test.go](../conformance/selector_test.go)
+  `TestSelectorTable` in [selector_test.go](../conformance/06-selectors/selector_test.go)
   against the fixture in
-  [selector_fixture_test.go](../conformance/selector_fixture_test.go) (see
+  [selector_fixture_test.go](../conformance/06-selectors/selector_fixture_test.go) (see
   [Fixture](#fixture)).
 
 When changing a selector, update this note and add or change its test row in
@@ -36,7 +36,7 @@ depends on the command, such as `unlock`, which also requires the run to be
 the locked one. Every other selector (job IDs, names, stages, run names)
 depends on the resolved base directory and project, and may not be unique.
 Covered by the "complete" rows of `TestPositionalArguments` in
-[conformance/positional_test.go](../conformance/positional_test.go).
+[conformance/06-selectors/positional_test.go](../conformance/06-selectors/positional_test.go).
 
 ## Selector forms
 
@@ -132,7 +132,7 @@ that job, exactly as `run -j ID` does, and `retry --success` runs successful
 jobs. Implemented by `runJobs` in
 [cmd/rotari/run_command.go](../cmd/rotari/run_command.go); covered by the
 `retry` rows of `TestSelectorTable` in
-[conformance/selector_test.go](../conformance/selector_test.go).
+[conformance/06-selectors/selector_test.go](../conformance/06-selectors/selector_test.go).
 
 A job whose command, environment, or working directory changed since its
 recorded result has no result until it runs again (see
@@ -190,7 +190,7 @@ says.
 commands take no run name or positional project: they act on running jobs, so
 they name them only by IDs and `--project-name`, and a free-form run name could
 not be told apart from a job ID in the same list. Covered by `TestJobControlSelectors`
-in [conformance/job_control_test.go](../conformance/job_control_test.go),
+in [conformance/06-selectors/job_control_test.go](../conformance/06-selectors/job_control_test.go),
 against the fixture with run `live` of project `sweep` active, and by the
 `JobSelection` tests in
 [internal/resolve/resolve_test.go](../internal/resolve/resolve_test.go).
@@ -243,7 +243,7 @@ meaning, and rejects them together with the options they exclude; the
 general rules above hold.
 
 `TestPositionalArguments` in
-[conformance/positional_test.go](../conformance/positional_test.go) covers
+[conformance/06-selectors/positional_test.go](../conformance/06-selectors/positional_test.go) covers
 each row against the fixture, except `cancel`, `suspend`, and `resume`,
 which `TestJobControlSelectors` covers against a running run (see
 [Job control](#job-control)).
@@ -257,7 +257,7 @@ row skips through `knownDeviation` until it is fixed.
 ## Fixture
 
 `newSelectorFixture` in
-[conformance/selector_fixture_test.go](../conformance/selector_fixture_test.go)
+[conformance/06-selectors/selector_fixture_test.go](../conformance/06-selectors/selector_fixture_test.go)
 builds, with the binary, a base directory with project `sweep` (a plain job,
 a matrix with a retried failure, an array with a failed task, and an unnamed
 job, each in its own stage; runs `first` and `second`), project `other` (a
@@ -270,7 +270,7 @@ registry. `TestSelectorFixtureLayout` checks the layout.
 The job control rows add run `live` of project `sweep`, run in the
 background, with an array job `hold` of two tasks and a job `idle`, each
 sleeping (`startJobControlRun` in
-[conformance/job_control_test.go](../conformance/job_control_test.go)). The
+[conformance/06-selectors/job_control_test.go](../conformance/06-selectors/job_control_test.go)). The
 positional rows that need an active run use a run `live` with one sleeping
 job, and those that need an interrupted one kill its supervisor and job
-(`setUp` in [conformance/positional_test.go](../conformance/positional_test.go)).
+(`setUp` in [conformance/06-selectors/positional_test.go](../conformance/06-selectors/positional_test.go)).

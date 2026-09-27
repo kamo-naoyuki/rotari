@@ -58,7 +58,8 @@ with [`internal/jobstatus/attempt_test.go`](../internal/jobstatus/attempt_test.g
 `TestShowJobOlderAttemptIgnoresLatestSummary` in
 [`cmd/rotari/show_test.go`](../cmd/rotari/show_test.go). Every step of the
 chain is checked across `show`, `jobs`, reports, and the Web API by
-[`conformance/fallback_test.go`](../conformance/fallback_test.go).
+`TestStatusFallbackChainAgreesAcrossViews` in
+[`conformance/04-coordination/status_views_test.go`](../conformance/04-coordination/status_views_test.go).
 
 ## Shared-state coordination
 
@@ -116,7 +117,7 @@ Design and implementation notes:
   `webui.GenerateStatic` is the intentional exception.
 
 COORD-1 to COORD-5 are checked through the binary by
-[`conformance/coordination_test.go`](../conformance/coordination_test.go),
+[`conformance/04-coordination/private_state_test.go`](../conformance/04-coordination/private_state_test.go),
 which rewrites the host recorded in `context.json` and `running.lock` to
 stand for another host.
 
@@ -193,7 +194,7 @@ and files are not terminals; see
 [`cmd/rotari/terminal.go`](../cmd/rotari/terminal.go) and
 [`cmd/rotari/terminal_test.go`](../cmd/rotari/terminal_test.go). SAFE-1 to
 SAFE-6 are checked through the binary by
-[`conformance/safety_test.go`](../conformance/safety_test.go).
+[`conformance/04-coordination/private_state_test.go`](../conformance/04-coordination/private_state_test.go).
 
 ## State load and write contracts
 
@@ -212,7 +213,7 @@ SAFE-6 are checked through the binary by
   `load_samples.jsonl` are skipped, and `show` and the Web UI still work.
 
 STATE-1 to STATE-4 are checked through the binary by
-[`conformance/state_test.go`](../conformance/state_test.go).
+[`conformance/04-coordination/private_state_test.go`](../conformance/04-coordination/private_state_test.go).
 
 The `internal/state` package is the shared boundary for persisted project and
 run data. How it implements these rules and the rest of the state layout:

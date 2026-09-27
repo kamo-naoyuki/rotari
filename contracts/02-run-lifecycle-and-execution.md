@@ -60,7 +60,7 @@
   `applyMutation` in [internal/queueops/change.go](../internal/queueops/change.go)
   and `jobResult` in [internal/run/rerun.go](../internal/run/rerun.go);
   covered by the "changed" rows of `TestSelectorTable` in
-  [conformance/selector_test.go](../conformance/selector_test.go) and
+  [conformance/06-selectors/selector_test.go](../conformance/06-selectors/selector_test.go) and
   `TestPlanRerunForcedJobsHaveNoResult`.
 - In a filtered run, selected jobs execute. Completed jobs outside the
   selection carry forward their result and an origin pointing to the original
@@ -295,7 +295,7 @@ the request, on the host that owns the run.
 
 Whole-run and job cancel go through `jobcontrol.Controller`
 ([internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go)).
-Covered by [conformance/cancel_test.go](../conformance/cancel_test.go).
+Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle/cancel_test.go).
 
 ## Validation and readiness
 

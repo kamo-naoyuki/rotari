@@ -136,12 +136,12 @@ Implementation and tests for these rules:
   `state.ResolveProjectPaths` in
   [internal/state/paths.go](../internal/state/paths.go), also applied by
   `jobcontrol.Controller.CancelJobs` and the Web handlers; checked end to end
-  by [conformance/paths_test.go](../conformance/paths_test.go).
+  by [conformance/06-selectors/paths_test.go](../conformance/06-selectors/paths_test.go).
 - Display times (RES-11): `model.FormatDisplayTimestamp` in
   [internal/model/time.go](../internal/model/time.go) and
   `joblist.FormatTimestamp` format in `time.Local`; checked end to end by
   `TestDisplayTimesFollowTZ` in
-  [conformance/status_test.go](../conformance/status_test.go).
+  [conformance/01-resolution/display_time_test.go](../conformance/01-resolution/display_time_test.go).
 
 ## Configuration files
 
