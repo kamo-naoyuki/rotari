@@ -14,6 +14,9 @@ When a behavior contract changes, update the relevant contract note in the
 same change. Include links to the representative implementation and tests so
 future contributors and coding agents can move from the contract to the code
 quickly.
+[`internal/doclinks`](../internal/doclinks/links_test.go) fails when one of
+these links, or any relative link in the root Markdown files and `docs/`,
+names a missing file or heading.
 
 ## Split notes
 

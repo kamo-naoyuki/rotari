@@ -130,46 +130,41 @@ agent to break without noticing, and most `cmd/rotari` tests import
 that should be protecting it. Turn the rules into checks, cheapest and most
 immediately useful first. Each step stands alone and can stop there.
 
-1. **Documentation link test.** A test that checks every relative link in
-   `README.md`, `AGENTS.md`, `ISSUES.md`, `TODO.md`, and `docs/` (excluding
-   `docs/web-demo/`) points at an existing file, and later that `#anchor`
-   links match a heading. The contracts link to code and tests on purpose, so
-   refactorings break them silently. Of 305 links today, one is broken:
-   `cmd/rotari/assets/web_static_bootstrap.js` in the Web UI section below,
-   now under `internal/webui/assets/`.
-2. **One local check command.** A `scripts/check.sh` that runs what CI's Go
+1. **One local check command.** A `scripts/check.sh` that runs what CI's Go
    job runs (`gofmt -l`, `go vet ./...`, `go test ./...`), with a short mode
    for the edit loop. Point AGENTS.md's validation order at it so an agent
    runs the same checks as CI with one command.
-3. **Conformance pilot.** A `conformance/` package that builds the binary in
+2. **Conformance pilot.** A `conformance/` package that builds the binary in
    `TestMain` (as `cmd/rotari/scheduler_container_run_test.go` does), runs it
    as a subprocess with `HOME`, `XDG_*`, and `ROTARI_*` isolated, imports
    only the standard library (add it to the `internal/archtest` rules), and
    asserts on exit codes, output, `--json` output, and the documented state
-   layout. Start
-   with two invariants from AGENTS.md: `/` and `\` rejected in path elements
-   through the CLI and the server API, and `show --json` agreeing with the
-   Web API on job results and times. Skip server cases where Unix sockets are
+   layout. Start with two invariants from AGENTS.md: `/` and `\` rejected in
+   path elements through the CLI and the server API, and `show --json`
+   agreeing with the Web API on job results and times. Skip server cases where Unix sockets are
    unavailable. After the pilot, decide between the hand-written harness and
    `testscript` (`rogpeppe/go-internal`, as `cmd/go` uses), which is easier to
    read and write but adds a dependency.
-4. **Contract IDs and a status table.** Give each invariant in
+3. **Contract IDs and a status table.** Give each invariant in
    [docs/contracts/](docs/contracts/) an ID, name conformance subtests after
    it, and keep a table in [docs/CONTRACTS.md](docs/CONTRACTS.md) of which
    IDs are covered, untested, or known deviations, as Dagu's `specs/` and
    `conformance/` do. A test fails when an ID has neither a test nor an
-   `untested` mark. Do this after step 3 so the ID scheme fits real tests.
-5. **Widen conformance coverage.** In order: the selector table in
+   `untested` mark. Do this after step 2 so the ID scheme fits real tests.
+4. **Widen conformance coverage.** In order: the selector table in
    [docs/contracts/06-selectors.md](docs/contracts/06-selectors.md) through
    the binary; the run lifecycle (failure then filtered rerun, cancel, two
    concurrent `run`s on one base directory); recovery after the runner is
    killed with SIGKILL.
-6. **Golden output files.** Golden files with an `-update` flag for `--help`,
+5. **Golden output files.** Golden files with an `-update` flag for `--help`,
    `schema --json`, and representative `show --json` output, so an
    unintended output change shows up as a diff. None exist today.
 
-The package boundary test, the first step of this plan, is done
-([internal/archtest](internal/archtest/boundaries_test.go)).
+The package boundary test
+([internal/archtest](internal/archtest/boundaries_test.go)) and the
+documentation link test
+([internal/doclinks](internal/doclinks/links_test.go)), the first two steps of
+this plan, are done.
 
 Not planned: decision records beyond the existing rationale in the contracts,
 and tool-specific agent hooks or skills; AGENTS.md stays the tool-neutral
@@ -193,7 +188,7 @@ entry point.
   report. Only the static export repeats it: `rotari web` builds one report
   with `buildAIReportForJobs`, but the static bootstrap joins the per-job
   reports, each already redacted
-  ([web_static_bootstrap.js](cmd/rotari/assets/web_static_bootstrap.js),
+  ([web_static_bootstrap.js](internal/webui/assets/web_static_bootstrap.js),
   `/api/report`).
 - Add an option to generate reports without redaction, for sharing within a
   trusted team. Decide whether it is a CLI flag (`show --report`), a Web
