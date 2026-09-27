@@ -56,6 +56,12 @@ Representative implementation and tests:
 - `show --json` emits one object with the resolved location, available run
   summary, and saved commands. JSON modes are additive; default CLI output
   remains human-facing.
+- `show RUN` compares the current queue with that run's saved commands by job
+  ID. Its changed count uses the same definition-field comparison as `diff`,
+  including environment, stage, timeout, and retry settings; see
+  [`cmd/rotari/show.go`](../../cmd/rotari/show.go),
+  [`internal/rundiff/rundiff.go`](../../internal/rundiff/rundiff.go), and
+  [`cmd/rotari/main_test.go`](../../cmd/rotari/main_test.go).
 
 ## Client connection lifecycle
 

@@ -2016,9 +2016,14 @@ func TestCompareQueueWithRun(t *testing.T) {
 	dir := t.TempDir()
 	queuePath := filepath.Join(dir, "queue.json")
 	runPath := filepath.Join(dir, "commands.json")
+	currentRetry, runRetry := 2, 1
 	if err := writeJSON(queuePath, model.Queue{Commands: []model.QueuedCommand{
 		{ID: "same", Command: []string{"echo", "same"}, Name: "same"},
 		{ID: "changed", Command: []string{"echo", "changed"}, Name: "new-name"},
+		{ID: "environment", Command: []string{"echo", "environment"}, Name: "environment", Environment: []string{"VALUE=new"}},
+		{ID: "stage", Command: []string{"echo", "stage"}, Name: "stage", Stage: "new-stage"},
+		{ID: "timeout", Command: []string{"echo", "timeout"}, Name: "timeout", Timeout: "1h"},
+		{ID: "retry", Command: []string{"echo", "retry"}, Name: "retry", Retry: &currentRetry, RetryDelay: "10s"},
 		{ID: "added", Command: []string{"echo", "added"}},
 	}}); err != nil {
 		t.Fatal(err)
@@ -2026,6 +2031,10 @@ func TestCompareQueueWithRun(t *testing.T) {
 	if err := writeJSON(runPath, model.Queue{Commands: []model.QueuedCommand{
 		{ID: "same", Command: []string{"echo", "same"}, Name: "same"},
 		{ID: "changed", Command: []string{"echo", "changed"}, Name: "old-name"},
+		{ID: "environment", Command: []string{"echo", "environment"}, Name: "environment", Environment: []string{"VALUE=old"}},
+		{ID: "stage", Command: []string{"echo", "stage"}, Name: "stage", Stage: "old-stage"},
+		{ID: "timeout", Command: []string{"echo", "timeout"}, Name: "timeout", Timeout: "30m"},
+		{ID: "retry", Command: []string{"echo", "retry"}, Name: "retry", Retry: &runRetry, RetryDelay: "5s"},
 		{ID: "removed", Command: []string{"echo", "removed"}},
 	}}); err != nil {
 		t.Fatal(err)
@@ -2035,8 +2044,8 @@ func TestCompareQueueWithRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if diff.Added != 1 || diff.Removed != 1 || diff.Changed != 1 {
-		t.Fatalf("diff = %#v, want added=1 removed=1 changed=1", diff)
+	if diff.Added != 1 || diff.Removed != 1 || diff.Changed != 5 {
+		t.Fatalf("diff = %#v, want added=1 removed=1 changed=5", diff)
 	}
 }
 

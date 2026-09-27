@@ -115,7 +115,7 @@ func Compare(from, to Run) Result {
 		if old, ok := fromByKey[key]; ok {
 			diff.FromID = old.Spec.ID
 			diff.FromStatus = old.Status
-			diff.Changes = specChanges(old.Spec, job.Spec)
+			diff.Changes = SpecChanges(old.Spec, job.Spec)
 			diff.Transition = transition(old.Status, job.Status)
 		} else {
 			diff.Transition = TransitionAdded
@@ -196,9 +196,9 @@ func transition(from, to string) string {
 	}
 }
 
-// specChanges lists the definition fields that differ. Lists whose order
-// does not matter report added and removed entries.
-func specChanges(from, to model.JobSpec) []Change {
+// SpecChanges lists the definition fields that differ. Lists whose order does
+// not matter report added and removed entries.
+func SpecChanges(from, to model.JobSpec) []Change {
 	var changes []Change
 	scalar := func(field, left, right string) {
 		if left != right {

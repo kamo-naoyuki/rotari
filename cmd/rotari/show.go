@@ -23,6 +23,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/report"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
+	"github.com/kamo-naoyuki/rotari/internal/rundiff"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -1126,22 +1127,7 @@ func sameJobSpec(left, right model.JobSpec) bool {
 	if (left.ArrayTaskID == nil) != (right.ArrayTaskID == nil) || (left.ArrayTaskID != nil && *left.ArrayTaskID != *right.ArrayTaskID) {
 		return false
 	}
-	if !slicesEqual(left.Command, right.Command) || !slicesEqual(left.ExecutorOptions, right.ExecutorOptions) || !slicesEqual(left.DependsOn, right.DependsOn) || !slicesEqual(left.DependsOnFinished, right.DependsOnFinished) {
-		return false
-	}
-	return true
-}
-
-func slicesEqual(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
+	return len(rundiff.SpecChanges(left, right)) == 0
 }
 
 func showRuns(paths state.ProjectPaths) int {
