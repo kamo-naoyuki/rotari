@@ -20,7 +20,10 @@ import (
 )
 
 // rotariBin is the binary built by TestMain.
-var rotariBin string
+var (
+	rotariBin string
+	coverDir  string
+)
 
 func TestMain(m *testing.M) {
 	os.Exit(runTests(m))
@@ -34,7 +37,21 @@ func runTests(m *testing.M) int {
 	}
 	defer os.RemoveAll(dir)
 	rotariBin = filepath.Join(dir, "rotari")
-	build := exec.Command("go", "build", "-o", rotariBin, "github.com/kamo-naoyuki/rotari/cmd/rotari")
+	args := []string{"build", "-o", rotariBin}
+	coverDir = os.Getenv("ROTARI_COVERDIR")
+	if coverDir != "" {
+		if err := os.MkdirAll(coverDir, 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "create coverage directory: %v", err)
+			return 1
+		}
+		_ = os.Setenv("GOCOVERDIR", coverDir)
+		args = append(args, "-cover", "-covermode=atomic")
+	}
+	args = append(args, "github.com/kamo-naoyuki/rotari/cmd/rotari")
+	build := exec.Command("go", args...)
+	if coverDir != "" {
+		build.Env = append(os.Environ(), "GOCOVERDIR="+coverDir)
+	}
 	if output, err := build.CombinedOutput(); err != nil {
 		fmt.Fprintf(os.Stderr, "build rotari: %v\n%s", err, output)
 		return 1
@@ -87,6 +104,9 @@ func newEnv(t *testing.T) *env {
 		"TZ=UTC",
 		"ROTARI_BASEDIR=" + e.base,
 		"ROTARI_MASTERDIR=" + e.master,
+	}
+	if coverDir != "" {
+		e.vars = append(e.vars, "GOCOVERDIR="+coverDir)
 	}
 	// Before the directories go away, stop the supervisor a test started,
 	// then any job process still running. Cleanups run last-in first-out.

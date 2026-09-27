@@ -19,7 +19,10 @@ import (
 	"time"
 )
 
-var rotariBin string
+var (
+	rotariBin string
+	coverDir  string
+)
 var listeningPattern = regexp.MustCompile(`listening at (http://\S+)`)
 var addedJobPattern = regexp.MustCompile(`job_id=(\S+)`)
 
@@ -50,7 +53,21 @@ func runTests(m *testing.M) int {
 	}
 	defer os.RemoveAll(dir)
 	rotariBin = filepath.Join(dir, "rotari")
-	b := exec.Command("go", "build", "-o", rotariBin, "github.com/kamo-naoyuki/rotari/cmd/rotari")
+	args := []string{"build", "-o", rotariBin}
+	coverDir = os.Getenv("ROTARI_COVERDIR")
+	if coverDir != "" {
+		if err := os.MkdirAll(coverDir, 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "create coverage directory: %v", err)
+			return 1
+		}
+		_ = os.Setenv("GOCOVERDIR", coverDir)
+		args = append(args, "-cover", "-covermode=atomic")
+	}
+	args = append(args, "github.com/kamo-naoyuki/rotari/cmd/rotari")
+	b := exec.Command("go", args...)
+	if coverDir != "" {
+		b.Env = append(os.Environ(), "GOCOVERDIR="+coverDir)
+	}
 	if out, err := b.CombinedOutput(); err != nil {
 		fmt.Fprintf(os.Stderr, "build: %v\n%s", err, out)
 		return 1
@@ -68,6 +85,9 @@ func newEnv(t *testing.T) *env {
 		}
 	}
 	e.vars = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + filepath.Join(root, "home"), "XDG_CONFIG_HOME=" + filepath.Join(root, "config"), "XDG_STATE_HOME=" + filepath.Join(root, "state"), "XDG_CACHE_HOME=" + filepath.Join(root, "cache"), "TMPDIR=" + filepath.Join(root, "tmp"), "TZ=UTC", "ROTARI_BASEDIR=" + e.base, "ROTARI_MASTERDIR=" + e.master}
+	if coverDir != "" {
+		e.vars = append(e.vars, "GOCOVERDIR="+coverDir)
+	}
 	t.Cleanup(func() { killStrays(t, root) })
 	t.Cleanup(func() { _ = e.command("server", "shutdown").Run() })
 	return e

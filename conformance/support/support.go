@@ -19,7 +19,10 @@ import (
 	"time"
 )
 
-var binary string
+var (
+	binary   string
+	coverDir string
+)
 
 const (
 	flagJSON    = "--json"
@@ -78,7 +81,21 @@ func Run(m *testing.M) int {
 	}
 	defer os.RemoveAll(dir)
 	binary = filepath.Join(dir, "rotari")
-	build := exec.Command("go", "build", "-o", binary, "github.com/kamo-naoyuki/rotari/cmd/rotari")
+	args := []string{"build", "-o", binary}
+	coverDir = os.Getenv("ROTARI_COVERDIR")
+	if coverDir != "" {
+		if err := os.MkdirAll(coverDir, 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "create coverage directory: %v", err)
+			return 1
+		}
+		_ = os.Setenv("GOCOVERDIR", coverDir)
+		args = append(args, "-cover", "-covermode=atomic")
+	}
+	args = append(args, "github.com/kamo-naoyuki/rotari/cmd/rotari")
+	build := exec.Command("go", args...)
+	if coverDir != "" {
+		build.Env = append(os.Environ(), "GOCOVERDIR="+coverDir)
+	}
 	if output, err := build.CombinedOutput(); err != nil {
 		fmt.Fprintf(os.Stderr, "build rotari: %v\n%s", err, output)
 		return 1
@@ -105,6 +122,9 @@ func NewEnv(t *testing.T) *Env {
 		"TZ=UTC",
 		"ROTARI_BASEDIR=" + e.Base,
 		"ROTARI_MASTERDIR=" + e.Master,
+	}
+	if coverDir != "" {
+		e.vars = append(e.vars, "GOCOVERDIR="+coverDir)
 	}
 	t.Cleanup(func() { _ = e.command("server", "shutdown").Run() })
 	return e
