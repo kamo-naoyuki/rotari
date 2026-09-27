@@ -245,7 +245,8 @@ func (e *env) createFinishedRun() finishedRun {
 		RunID   string `json:"run_id"`
 		Summary struct {
 			Results []struct {
-				ID, AttemptID string `json:"id"`
+				ID        string `json:"id"`
+				AttemptID string `json:"attempt_id"`
 			} `json:"results"`
 		} `json:"summary"`
 	}
