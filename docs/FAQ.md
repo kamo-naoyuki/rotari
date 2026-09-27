@@ -350,6 +350,10 @@ message.
 
 Use the arrow beside the attempt ID and select an attempt. Its status, timestamps, result, and log are shown.
 
+### Why does a run show as `unreadable` in the Web UI?
+
+Its `summary.json` or `commands.json` was written by a newer rotari, whose state format this version cannot read safely. The run's page shows the message; upgrade rotari to see it. The CLI refuses the same run with the same message, and the project's other runs are unaffected.
+
 ### Can the Web UI notify me when a run finishes?
 
 Yes. It uses browser notifications locally and sends nothing to an external service. See [Web browser notifications](WEB_BROWSER_NOTIFICATIONS.md).

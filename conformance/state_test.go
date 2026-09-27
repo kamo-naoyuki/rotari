@@ -119,6 +119,47 @@ func TestNewerStateVersionIsRejected(t *testing.T) {
 	}
 }
 
+func TestWebShowsNewerRunAsUnreadable(t *testing.T) {
+	covers(t, "STATE-1")
+	for _, file := range []string{"summary.json", "commands.json"} {
+		t.Run(file, func(t *testing.T) {
+			e := newEnv(t).in(t)
+			readable, _ := e.finishedJobRun("p")
+			newer, _ := e.finishedJobRun("p")
+			setStateVersion(t, filepath.Join(e.base, "projects", "p", "runs", newer, file), 99)
+			got := e.httpGet(e.startWeb() + "/api/state")
+			if got.status != 200 {
+				t.Fatalf("a run from a newer rotari failed the Web state: status %d: %s", got.status, got.body)
+			}
+			var state struct {
+				Projects []struct {
+					Runs []struct {
+						RunID      string            `json:"run_id"`
+						Status     string            `json:"status"`
+						Unreadable string            `json:"unreadable"`
+						Jobs       []json.RawMessage `json:"jobs"`
+					} `json:"runs"`
+				} `json:"projects"`
+			}
+			if err := json.Unmarshal([]byte(got.body), &state); err != nil || len(state.Projects) != 1 {
+				t.Fatalf("Web state: %v: %s", err, got.body)
+			}
+			for _, run := range state.Projects[0].Runs {
+				switch run.RunID {
+				case newer:
+					if run.Status != "unreadable" || !strings.Contains(run.Unreadable, "upgrade rotari") || len(run.Jobs) != 0 {
+						t.Errorf("the newer run: status %q, reason %q, %d jobs; want unreadable with the upgrade message", run.Status, run.Unreadable, len(run.Jobs))
+					}
+				case readable:
+					if run.Status != "finished" || len(run.Jobs) != 1 {
+						t.Errorf("the readable run: status %q, %d jobs", run.Status, len(run.Jobs))
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestUnversionedStateIsVersionOne(t *testing.T) {
 	covers(t, "STATE-2")
 	e := newEnv(t)

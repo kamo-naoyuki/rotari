@@ -208,6 +208,77 @@ setTimeout(() => {
 	}
 }
 
+func TestWebHTMLRendersUnreadableRun(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	baseDir := t.TempDir()
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stateinternal.WriteJSON(paths.QueueFile, model.Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(paths.RunsDir, "20260927-000000-00000000")
+	if err := stateinternal.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job", Command: []string{"true"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "summary.json"), []byte(`{"state_version": 99}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state, err := siteFor(baseDir, "default").loadWebState(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	htmlPath := filepath.Join(t.TempDir(), "index.html")
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	if err := os.WriteFile(htmlPath, []byte(testSite().webHTML()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := `
+const fs = require('fs');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const html = fs.readFileSync(process.argv[1], 'utf8');
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+for (const [path, want] of [['/project/default', 'unreadable'], ['/project/default/run/20260927-000000-00000000', 'upgrade rotari']]) {
+  const dom = new JSDOM(html, {
+    runScripts: 'dangerously',
+    url: 'http://127.0.0.1' + path,
+    virtualConsole,
+    beforeParse(window) {
+      window.fetch = async () => ({ok: true, json: async () => state});
+      window.setInterval = () => 1;
+    },
+  });
+  setTimeout(() => {
+    if (errors.length) {
+      console.error(errors.join('\n'));
+      process.exit(1);
+    }
+    const app = dom.window.document.getElementById('app').textContent;
+    if (!app.includes(want)) {
+      console.error(path + ' does not show ' + want + ': ' + app);
+      process.exit(2);
+    }
+  }, 50);
+}
+`
+	if output, err := exec.Command("node", "-e", script, htmlPath, statePath).CombinedOutput(); err != nil {
+		t.Fatalf("web runtime check failed: %v\n%s", err, output)
+	}
+}
+
 func TestWebShowDiagnosisRendersAnalysisStatus(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")

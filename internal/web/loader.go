@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -42,6 +43,10 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 	}
 	for _, runID := range runIDs {
 		summary, summaryErr := loader.Summary(runID)
+		if newerStateVersion(summaryErr) {
+			state.Runs = append(state.Runs, unreadableRun(runID, summaryErr))
+			continue
+		}
 		if summaryErr != nil {
 			summary = model.RunSummary{RunID: runID, Status: "running", StartedAt: runningStartedAt}
 		}
@@ -49,6 +54,10 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 			summary.RunID = runID
 		}
 		jobs, err := loader.Jobs(runID, summary)
+		if newerStateVersion(err) {
+			state.Runs = append(state.Runs, unreadableRun(runID, err))
+			continue
+		}
 		if err != nil {
 			return QueueState{}, err
 		}
@@ -61,6 +70,17 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 	}
 	sort.Slice(state.Runs, func(i, j int) bool { return state.Runs[i].RunID > state.Runs[j].RunID })
 	return state, nil
+}
+
+// newerStateVersion reports whether err is a run file from a newer rotari.
+func newerStateVersion(err error) bool {
+	return errors.Is(err, state.ErrNewerStateVersion)
+}
+
+// unreadableRun keeps a run whose files come from a newer rotari in the list,
+// with the reason, so the project's other runs still show.
+func unreadableRun(runID string, err error) Run {
+	return Run{RunSummary: model.RunSummary{RunID: runID, Status: "unreadable"}, Jobs: []Job{}, Unreadable: err.Error()}
 }
 
 // LoadRunJobs reads runDir's command snapshot and projects its jobs with

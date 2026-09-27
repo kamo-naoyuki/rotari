@@ -293,6 +293,9 @@ section {
 .status-running {
   color: var(--warn);
 }
+.status-unreadable {
+  color: var(--bad);
+}
 .run-id {
   font-family: ui-monospace, monospace;
   color: #b8d9f2;

@@ -413,6 +413,12 @@ function renderRun(q, runID) {
     "</span><span>Exit: " +
     (run.finished_at ? esc(run.exit_code) : "-") +
     "</span>";
+  if (run.unreadable) {
+    // The run's files come from a newer rotari; only the reason is known.
+    document.getElementById("app").innerHTML =
+      '<div class="empty error">' + esc(run.unreadable) + "</div>";
+    return;
+  }
   const attemptKey = (jobID) => q.project_name + "/" + runID + "/" + jobID;
   const selectAttempt = (job, attemptID) => {
     const attempt = (job.attempts || []).find((item) => item.id === attemptID);

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -43,6 +44,39 @@ func TestLoadQueueStateBuildsRunsFromCallbacks(t *testing.T) {
 	}
 	if state.Runs[1].RunID != "run-1" || len(state.Runs[1].Jobs) != 1 {
 		t.Fatalf("sorted runs = %#v", state.Runs)
+	}
+}
+
+func TestLoadQueueStateMarksRunsFromNewerRotariUnreadable(t *testing.T) {
+	newer := fmt.Errorf("%w: summary.json has state version 99", state.ErrNewerStateVersion)
+	loaded, err := LoadQueueState(QueueLoader{
+		ProjectName: "demo",
+		Queue:       func() (model.Queue, error) { return model.Queue{}, nil },
+		Lock:        func() (model.LockInfo, error) { return model.LockInfo{}, assertNotFound{} },
+		Runs:        func() ([]string, error) { return []string{"run-1", "run-2", "run-3"}, nil },
+		Summary: func(runID string) (model.RunSummary, error) {
+			if runID == "run-2" {
+				return model.RunSummary{}, newer
+			}
+			return model.RunSummary{RunID: runID, Status: "finished"}, nil
+		},
+		Jobs: func(runID string, summary model.RunSummary) ([]Job, error) {
+			if runID == "run-3" {
+				return nil, fmt.Errorf("%w: commands.json has state version 99", state.ErrNewerStateVersion)
+			}
+			return []Job{{ID: runID + "-job"}}, nil
+		},
+		Context: func(string) (model.RunContext, error) { return model.RunContext{}, nil },
+		Samples: func(string) []model.LoadSample { return nil },
+	})
+	if err != nil {
+		t.Fatalf("a run from a newer rotari failed the whole state: %v", err)
+	}
+	for _, run := range loaded.Runs {
+		unreadable := run.RunID == "run-2" || run.RunID == "run-3"
+		if unreadable != (run.Status == "unreadable" && run.Unreadable != "" && len(run.Jobs) == 0) {
+			t.Fatalf("run %s = %#v", run.RunID, run)
+		}
 	}
 }
 

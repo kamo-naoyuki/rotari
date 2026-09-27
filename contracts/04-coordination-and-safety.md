@@ -200,7 +200,9 @@ SAFE-6 are checked through the binary by
 - **STATE-1** A command that reads `queue.json`, `commands.json`, or
   `summary.json` written by a newer rotari, with a greater `state_version`,
   fails with a message to upgrade rotari and leaves the file as it was. It
-  never reads such a file by dropping the fields it does not know.
+  never reads such a file by dropping the fields it does not know. The Web UI
+  lists such a run as `unreadable`, showing the upgrade message on its page,
+  and still shows the project's other runs.
 - **STATE-2** These files without `state_version`, written before versioning,
   are read as version 1 and keep working.
 - **STATE-3** Reading history never rewrites it: the commands and Web views

@@ -19,6 +19,9 @@ type Run struct {
 	Context  model.RunContext `json:"context,omitempty"`
 	Timeline []TimelinePoint  `json:"timeline,omitempty"`
 	Running  bool             `json:"running"`
+	// Unreadable, when set, is why the run's files cannot be read: they come
+	// from a newer rotari. The run then has status "unreadable" and no jobs.
+	Unreadable string `json:"unreadable,omitempty"`
 }
 
 type Job struct {
