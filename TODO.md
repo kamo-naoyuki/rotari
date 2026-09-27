@@ -37,6 +37,20 @@ make users settle structure up front.
   cancellation can let training scripts save a checkpoint before exiting.
   Slurm has a matching `--signal` option.
 
+- Decide how the working directory and environment of `run` reach jobs on
+  each executor. The design is that a queue holds commands only and jobs
+  take the caller's directory and environment (see "Workflow and execution
+  environment" in [docs/CONCEPTS.md](docs/CONCEPTS.md)), but only the local
+  executor guarantees it; the others keep their own defaults. The SSH
+  wrapper applies only the job's own `--env` and `--working-directory`, so
+  without them a job starts in the remote login directory with the remote
+  login environment. Slurm, PBS, and LSF submit with the scheduler's
+  defaults: `sbatch` and `bsub` usually carry the submitting directory and
+  environment, while `qsub` starts in `$HOME` without `-V`, and sites can
+  change all of these. Decide per executor whether to carry the caller's
+  directory (and which variables, if any) or to document the difference,
+  then make CONCEPTS.md and the README state it per executor.
+
 For field design, Dagu's step options are a useful reference
 (`dagu/internal/spec/step.go`), for example `signal_on_stop`.
 
