@@ -131,7 +131,7 @@ the IDs, this table, and those calls disagree.
 | RES-12 | `--run-id` is exact except the reserved `latest` | partial | `TestLatestRunID` |
 | RES-13 | A run ID or attempt ID alone resolves base directory, project, and run | partial | `TestRunIDAloneResolvesLocation` |
 | RES-14 | Explicit location options win; conflicts with the registry fail | partial | `TestExplicitLocationMustMatchRegistry` |
-| RES-15 | History consumers fall back to `last_run_id`, then the newest run | pending | - |
+| RES-15 | History consumers fall back to `last_run_id`, then the newest run | conformance | `TestHistoryUsesLastRunThenNewestRun` |
 | RES-16 | `wait` selector resolution and single-active-project scan | pending | - |
 | RES-17 | Run lookup applies to history commands only | pending | - |
 | RES-18 | `cancel`, `suspend`, and `resume` merge selectors and require the active run | pending | - |
