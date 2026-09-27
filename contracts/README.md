@@ -138,8 +138,8 @@ the IDs, this table, and those calls disagree.
 | RES-19 | `wait` resolves multiple run IDs independently | conformance | `TestWaitResolvesRunIDsIndependently` |
 | RES-20 | Shell completion follows the location rules | partial | `TestCompletionScriptsExposeDynamicCompletion` |
 | RES-21 | Missing state directories give no completion candidates | conformance | `TestCompletionMissingStateDirectoryHasNoCandidates` |
-| DUR-1 | Every executor runs jobs through the self-reporting wrapper | pending | - |
-| DUR-2 | The wrapper records status independently of its launcher | pending | - |
+| DUR-1 | Every executor runs jobs through the self-reporting wrapper | partial | `TestJobOutlivesKilledSupervisor` |
+| DUR-2 | The wrapper records status independently of its launcher | partial | `TestJobOutlivesKilledSupervisor` |
 | DUR-3 | An orphaned local job still records its own status | conformance | `TestJobOutlivesKilledSupervisor` |
 | DUR-4 | Supervisors are not restarted; crash detection is file-backed | conformance | `TestJobOutlivesKilledSupervisor` |
 | DUR-5 | `show`, `jobs`, reports, and the Web UI share one status fallback chain | partial | `TestCLIAndWebAgreeOnJobResults`, `TestStatusFallbackChainAgreesAcrossViews` |

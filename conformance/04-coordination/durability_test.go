@@ -8,7 +8,7 @@ import (
 )
 
 func TestJobOutlivesKilledSupervisor(t *testing.T) {
-	covers(t, "DUR-3", "DUR-4")
+	covers(t, "DUR-1", "DUR-2", "DUR-3", "DUR-4")
 	e := support.NewEnv(t)
 	jobID := e.OrphanRun("p", "sleep 2; exit 7")
 	e.JobExitStatus("p", jobID)
