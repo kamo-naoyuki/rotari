@@ -45,10 +45,8 @@ The per-command view of these rules, with job selectors, is in
   `default`; multiple projects require an explicit choice. The bare `show`
   command lists projects across known basedirs instead of resolving one.
 - **RES-3** Commands that read or edit a project fail with `project "x" does not exist`
-  when the resolved project has no directory (`resolve.RequireProject`, applied
-  by `resolve.ExistingRun`, `resolve.ProjectNames`, and the commands that
-  resolve a project directly). Only commands that create projects, `add` and
-  `import`, accept a new one.
+  when the resolved project has no directory. Only commands that create
+  projects, `add` and `import`, accept a new one.
 - **RES-4** `check` and `reset` accept one optional positional project name as an
   alternative to `--project-name`; supplying both is a usage error.
 - **RES-5** `jobs` also accepts one optional positional project name to filter the
@@ -58,10 +56,7 @@ The per-command view of these rules, with job selectors, is in
   (`export TARGET [FILE]`). The target names a project or saved run ID. When
   both a project and a run must be named explicitly, `--project-name` names
   the project and the positional target names the run. `--run-id` may still be
-  repeated for merging saved runs. Run ID resolution uses
-  `resolve.IsRunID` and `resolve.ExistingRun` in
-  [internal/resolve/resolve.go](../internal/resolve/resolve.go), covered by
-  [cmd/rotari/export_test.go](../cmd/rotari/export_test.go).
+  repeated for merging saved runs.
 - **RES-7** `unlock` likewise accepts one optional positional project name. It derives
   the run ID from that project's `running.lock`, or from interrupted metadata
   when the lock is already absent; `--run-id` optionally verifies the result.
@@ -71,25 +66,17 @@ The per-command view of these rules, with job selectors, is in
 - **RES-9** Project names and job IDs are single path elements, never relative or
   absolute paths.
 - **RES-10** Empty values, `.`, `..`, absolute paths, and values containing `/` or `\`
-  are rejected before filesystem access. This applies to `state.ResolveProjectPaths` and
-  `jobcontrol.Controller.CancelJobs`, including requests from remote callers.
-  [conformance/paths_test.go](../conformance/paths_test.go) checks this
-  through the built binary and the Web API.
+  are rejected before filesystem access, by the CLI and by the Web API alike.
 - **RES-11** Persisted timestamps use UTC RFC3339. Human-readable CLI and web views use the
-  IANA timezone from `TZ` when valid, otherwise Go's local timezone, through
-  `time.Local` in `model.FormatDisplayTimestamp`
-  ([internal/model/time.go](../internal/model/time.go)) and
-  `joblist.FormatTimestamp`. Covered by
-  [conformance/status_test.go](../conformance/status_test.go)
-  (`TestDisplayTimesFollowTZ`).
+  IANA timezone from `TZ` when valid, otherwise Go's local timezone.
 - **RES-12** A supplied `--run-id` is exact, except that the reserved value `latest`
   selects the latest saved run using the normal metadata/newest-directory
-  fallback, through `resolve.ExistingRunID`. `latest` is accepted wherever a
+  fallback. `latest` is accepted wherever a
   run is given, as `--run-id` or positionally; the exceptions are `unlock`,
   whose `--run-id` confirms the locked run, and `cancel`, `suspend`, and
   `resume`, which act on running jobs. It is reserved: `add`, `change`,
   `import`, and `run --run-name` reject a new project, run, job, stage, or
-  matrix named `latest` (`model.ValidateReservedName`); existing ones keep
+  matrix named `latest`; existing ones keep
   working through options. Existing-run commands use the master registry for
   its base directory and project.
 - **RES-13** A run ID or attempt ID alone resolves the base directory, project, and run
@@ -135,6 +122,26 @@ The per-command view of these rules, with job selectors, is in
   the detected or requested shell.
 - **RES-21** Missing state directories produce no completion candidates instead of a shell
   error.
+
+Implementation and tests for these rules:
+
+- Location, project, and run resolution, including `latest` and the
+  missing-project error: `resolve.ExistingRun`, `resolve.ExistingRunID`,
+  `resolve.RequireProject`, `resolve.ProjectNames`, and `resolve.IsRunID` in
+  [internal/resolve/resolve.go](../internal/resolve/resolve.go), with
+  [internal/resolve/resolve_test.go](../internal/resolve/resolve_test.go) and
+  [cmd/rotari/export_test.go](../cmd/rotari/export_test.go). Reserved names:
+  `model.ValidateReservedName`.
+- Path elements (RES-9, RES-10): `state.IsValidPathElement` and
+  `state.ResolveProjectPaths` in
+  [internal/state/paths.go](../internal/state/paths.go), also applied by
+  `jobcontrol.Controller.CancelJobs` and the Web handlers; checked end to end
+  by [conformance/paths_test.go](../conformance/paths_test.go).
+- Display times (RES-11): `model.FormatDisplayTimestamp` in
+  [internal/model/time.go](../internal/model/time.go) and
+  `joblist.FormatTimestamp` format in `time.Local`; checked end to end by
+  `TestDisplayTimesFollowTZ` in
+  [conformance/status_test.go](../conformance/status_test.go).
 
 ## Configuration files
 
