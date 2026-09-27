@@ -33,6 +33,13 @@ install -m 755 "$tmp" "$install_dir/rotari"
 
 echo "Installed rotari to ${install_dir}/rotari" >&2
 case ":$PATH:" in
-  *":${install_dir}:"*) ;;
-  *) echo "Add ${install_dir} to your PATH to run 'rotari' directly." >&2 ;;
+  *":${install_dir}:"*)
+    echo "Run 'rotari version' to verify the installation." >&2
+    echo "Run 'rotari completion install' to set up shell completion." >&2
+    ;;
+  *)
+    echo "Add ${install_dir} to your PATH to run 'rotari' directly." >&2
+    echo "Then run 'rotari version' to verify the installation." >&2
+    echo "Run 'rotari completion install' to set up shell completion." >&2
+    ;;
 esac
