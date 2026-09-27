@@ -133,11 +133,13 @@ immediately useful first. Each step stands alone and can stop there.
 1. **Widen conformance coverage.** Move `partial` and `pending` rows in the
    "Contract status" table of [contracts/README.md](contracts/README.md) toward
    `conformance`, giving rules in sections without IDs an ID as they gain a
-   test. In order: the selector table in
-   [contracts/06-selectors.md](contracts/06-selectors.md) through
-   the binary; the run lifecycle (failure then filtered rerun, cancel, two
-   concurrent `run`s on one base directory); recovery after the runner is
-   killed with SIGKILL.
+   test. In order: locks and recovery in
+   [contracts/04-coordination-and-safety.md](contracts/04-coordination-and-safety.md)
+   (two concurrent `run`s on one base directory, recovery after the runner
+   is killed with SIGKILL); the run lifecycle (failure then filtered rerun);
+   the `pending` resolution rules. When a conformance test covers what an
+   in-process `cmd/rotari` test checks from the outside, move the test and
+   delete the old one, as for the selector and fallback tests.
 2. **Golden output files.** Golden files with an `-update` flag for `--help`,
    `schema --json`, and representative `show --json` output, so an
    unintended output change shows up as a diff. None exist today.
@@ -150,9 +152,13 @@ command ([scripts/check.sh](scripts/check.sh)), the conformance pilot
 ([conformance/](conformance/)), and contract IDs with a status table that
 `TestContractStatus` keeps in agreement with the tests' `covers` calls. The
 pilot checks the path element rules through the CLI and the Web API and that
-`show --json`, `jobs`, and the Web API agree on a finished run. It keeps a hand-written harness rather than
-`testscript`: the Web API checks and JSON comparisons need Go code either way,
-and the harness adds no dependency.
+`show --json`, `jobs`, and the Web API agree on a finished run. It keeps a
+hand-written harness rather than `testscript`: the Web API checks and JSON
+comparisons need Go code either way, and the harness adds no dependency.
+Since then conformance also covers cancellation, the resolution rules, the
+status fallback chain, and the selector tables of
+[contracts/06-selectors.md](contracts/06-selectors.md), the last two moved
+from in-process `cmd/rotari` tests.
 
 Not planned: decision records beyond the existing rationale in the contracts,
 and tool-specific agent hooks or skills; AGENTS.md stays the tool-neutral
