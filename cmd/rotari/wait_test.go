@@ -1,14 +1,15 @@
 package main
 
 import (
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestCmdWaitTimesOutForMalformedSummary(t *testing.T) {
