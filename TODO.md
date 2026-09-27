@@ -327,12 +327,12 @@ or may turn out not to be; decide before starting any of them.
   variables (for example `CUDA_VISIBLE_DEVICES`, `PYTHONPATH`). A hash of the
   whole environment would let `diff` say that it changed without storing
   secrets. Show differences between runs in `diff` and the run summary.
-- **Say which is authoritative, the script or the queue.** A script of
-  `rotari add` lines builds the queue, and `change` and `retry` then move the
-  queue away from it. Users may not know whether to edit the script and
-  rebuild, or fix the queue. Start with a short guide section; later ideas
-  include `show` noting that the queue has changed since it was built, or
-  exporting the current queue as a script of `rotari add` lines.
+- **Keep the script the center.** The normal use is to run a script of
+  `rotari add` lines and read the history and logs afterwards; the queue is
+  emptied after each run, so rerunning the script starts the next run.
+  Editing inside rotari (`change`, `copy`, manifests) is an occasional
+  extra. Keep it out of the first-contact path, and do not design new
+  features that assume users edit the queue rather than the script.
 - **Keep the first-contact surface small.** The README lists 27 commands and
   the concepts include projects, queues, runs, jobs, attempts, stages,
   matrices, arrays, and manifests. Consider `rotari --help` listing the core
