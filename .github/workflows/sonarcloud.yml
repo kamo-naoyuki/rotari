@@ -46,10 +46,7 @@ jobs:
         run: go install gotest.tools/gotestsum@v1.12.0
 
       - name: Run Go tests with coverage
-        run: |
-          gotestsum --format pkgname-and-test-fails -- -coverprofile=coverage.out $(go list ./... | grep -v '/conformance')
-          ROTARI_COVERDIR="$RUNNER_TEMP/rotari-cover" gotestsum --format pkgname-and-test-fails -- ./conformance/...
-          go tool covdata textfmt -i="$RUNNER_TEMP/rotari-cover" -o=conformance.coverprofile
+        run: gotestsum --format pkgname-and-test-fails -- -coverprofile=coverage.out ./...
 
       - name: Run Python tests with coverage
         run: |
