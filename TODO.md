@@ -4,10 +4,10 @@
 
 These are smaller steps that can come before the AI roadmap in
 [docs/DAGU_COMPARISON.md](docs/DAGU_COMPARISON.md). Choose them by whether
-they improve the fix-and-retry loop for experiment batches, not by whether
-another workflow engine has them. The experiment is the goal and orchestration
-is only a means: prefer features that make the loop cheaper over features that
-make users settle structure up front.
+they make it cheaper to run a batch from a script, see what happened, and
+retry what failed, not by whether another workflow engine has them. Prefer
+features that serve the script over features that turn the queue into a
+workflow definition.
 
 ### Orchestration
 
@@ -65,8 +65,8 @@ middleware, and rotari only limits how many jobs it runs or submits at once.
 
 ### Runs as experiment versions
 
-A run snapshots the edited queue, so the run sequence is the version history of
-the experiment. See "Runs as the history of the loop" in
+A run snapshots the queue the script built, so the run sequence records what
+the experiment actually ran. See "Runs as history" in
 [docs/DAGU_COMPARISON.md](docs/DAGU_COMPARISON.md).
 
 What is missing today: `show RUN` describes a run on its own, so whether the
@@ -340,7 +340,7 @@ or may turn out not to be; decide before starting any of them.
   advanced heading, and check each new feature against whether a first-time
   user has to learn it.
 - **Treat coding agents as a primary user.** A stateful CLI with `diff`,
-  `guide`, and `--json` output fits an agent running the fix-and-retry loop.
+  `guide`, and `--json` output fits an agent running and retrying batches.
   Consider a worked example of an agent-driven sweep in the docs, and a
   stable, documented JSON schema for the outputs an agent reads.
 - **A FAQ entry for sharing GPUs on a workstation.** Since rotari will not
