@@ -63,6 +63,17 @@ func TestExplicitLocationMustMatchRegistry(t *testing.T) {
 	}
 }
 
+func TestStateCreatingCommandsDoNotResolveRunIDs(t *testing.T) {
+	covers(t, "RES-17")
+	e := support.NewEnv(t)
+	runID, _ := e.FinishedJobRun("source")
+	e.MustRotari("add", "-p", runID, "--", "true")
+	check := e.MustRotari("check", runID).Stdout
+	if !strings.Contains(check, "project="+runID) {
+		t.Fatalf("add treated registered run ID as a run selector: %s", check)
+	}
+}
+
 func TestWaitResolvesRunIDsIndependently(t *testing.T) {
 	covers(t, "RES-19")
 	e := support.NewEnv(t)
