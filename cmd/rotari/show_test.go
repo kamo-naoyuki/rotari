@@ -18,24 +18,13 @@ import (
 )
 
 func TestFormatDisplayTimestampUsesLocalZone(t *testing.T) {
-	useLocalZone(t, time.FixedZone("JST", 9*60*60))
-	if got := model.FormatDisplayTimestamp("2026-09-16T00:00:01Z"); got != "2026-09-16 09:00:01 JST" {
-		t.Fatalf("formatDisplayTimestamp() = %q, want the local zone's display", got)
+	if got, want := model.FormatDisplayTimestamp("2026-09-16T00:00:01Z"), model.FormatDisplayTimestampIn("2026-09-16T00:00:01Z", time.Local); got != want {
+		t.Fatalf("formatDisplayTimestamp() = %q, want the local zone's %q", got, want)
 	}
 	if got := model.FormatDisplayTimestamp("-"); got != "-" {
 		t.Fatalf("formatDisplayTimestamp(-) = %q, want unchanged marker", got)
 	}
 }
-
-// useLocalZone sets time.Local, which display timestamps follow, for one
-// test. TZ is read once at process start, so t.Setenv("TZ") cannot do this.
-func useLocalZone(t *testing.T, zone *time.Location) {
-	t.Helper()
-	previous := time.Local
-	time.Local = zone
-	t.Cleanup(func() { time.Local = previous })
-}
-
 func TestCmdShowDisplaysFinishedArrayTaskFromStatusJSON(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")

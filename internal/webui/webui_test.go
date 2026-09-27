@@ -1419,7 +1419,6 @@ func TestLoadWebJobsIncludesAttemptsNewestFirst(t *testing.T) {
 }
 
 func TestFormatWebQueueDisplayTimesFormatsAttemptTimes(t *testing.T) {
-	useLocalZone(t, time.FixedZone("JST", 9*60*60))
 	state := webprojection.QueueState{Runs: []webprojection.Run{{Jobs: []webprojection.Job{{Attempts: []webprojection.Attempt{{
 		SubmittedAt: "2026-09-22T08:47:59Z",
 		FinishedAt:  "2026-09-22T08:48:00Z",
@@ -1427,8 +1426,8 @@ func TestFormatWebQueueDisplayTimesFormatsAttemptTimes(t *testing.T) {
 
 	formatWebQueueDisplayTimes(&state)
 	attempt := state.Runs[0].Jobs[0].Attempts[0]
-	if attempt.SubmittedAt != "2026-09-22 17:47:59 JST" || attempt.FinishedAt != "2026-09-22 17:48:00 JST" {
-		t.Fatalf("attempt timestamps = %#v, want JST display timestamps", attempt)
+	if attempt.SubmittedAt != model.FormatDisplayTimestamp("2026-09-22T08:47:59Z") || attempt.FinishedAt != model.FormatDisplayTimestamp("2026-09-22T08:48:00Z") {
+		t.Fatalf("attempt timestamps = %#v, want display timestamps", attempt)
 	}
 }
 
@@ -1590,7 +1589,6 @@ func TestReadJobTimestampRejectsUnsafePathElements(t *testing.T) {
 }
 
 func TestLoadWebStateIncludesRunContextAndTimeline(t *testing.T) {
-	useLocalZone(t, time.FixedZone("JST", 9*60*60))
 	baseDir := t.TempDir()
 	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
@@ -1632,10 +1630,10 @@ func TestLoadWebStateIncludesRunContextAndTimeline(t *testing.T) {
 	if run.Context.Hostname != "node-a" || run.Context.StartedLoad == nil || run.CWD != "/work/project" {
 		t.Fatalf("context = %#v, cwd = %q, want host/load/cwd", run.Context, run.CWD)
 	}
-	if run.StartedAt != "2026-09-16 09:00:00 JST" || run.FinishedAt != "2026-09-16 09:00:03 JST" {
-		t.Fatalf("run timestamps = %#v, want JST display timestamps", run.RunSummary)
+	if run.StartedAt != model.FormatDisplayTimestamp("2026-09-16T00:00:00Z") || run.FinishedAt != model.FormatDisplayTimestamp("2026-09-16T00:00:03Z") {
+		t.Fatalf("run timestamps = %#v, want display timestamps", run.RunSummary)
 	}
-	if run.Jobs[0].SubmittedAt != "2026-09-16 09:00:01 JST" || run.Jobs[0].FinishedAt != "2026-09-16 09:00:02 JST" {
+	if run.Jobs[0].SubmittedAt != model.FormatDisplayTimestamp("2026-09-16T00:00:01Z") || run.Jobs[0].FinishedAt != model.FormatDisplayTimestamp("2026-09-16T00:00:02Z") {
 		t.Fatalf("job timestamps = %#v, want submitted and finished timestamps", run.Jobs[0])
 	}
 	if len(run.Timeline) != 3 || run.Timeline[1].Running != 1 || run.Timeline[2].Finished != 1 || run.Timeline[2].Success != 1 {
@@ -1981,13 +1979,4 @@ func formatInt(value int) string {
 		return "0"
 	}
 	return "1"
-}
-
-// useLocalZone sets time.Local, which display timestamps follow, for one
-// test. TZ is read once at process start, so t.Setenv("TZ") cannot do this.
-func useLocalZone(t *testing.T, zone *time.Location) {
-	t.Helper()
-	previous := time.Local
-	time.Local = zone
-	t.Cleanup(func() { time.Local = previous })
 }

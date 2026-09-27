@@ -1513,7 +1513,6 @@ func TestShowWithPagerDisabledWritesDirectly(t *testing.T) {
 }
 
 func TestShowRunIncludesCarriedJobFromCommands(t *testing.T) {
-	useLocalZone(t, time.FixedZone("JST", 9*60*60))
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
@@ -1562,7 +1561,7 @@ func TestShowRunIncludesCarriedJobFromCommands(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("showRun exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"carried", "carried-job", "2026-09-16 09:00:01 JST", "2026-09-16 09:00:02 JST", "echo done"} {
+	for _, want := range []string{"carried", "carried-job", model.FormatDisplayTimestamp("2026-09-16T00:00:01Z"), model.FormatDisplayTimestamp("2026-09-16T00:00:02Z"), "echo done"} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("showRun output does not contain %q:\n%s", want, output)
 		}

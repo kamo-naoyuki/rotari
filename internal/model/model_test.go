@@ -123,13 +123,14 @@ func TestResultSelectionAndAggregation(t *testing.T) {
 }
 
 func TestFormatDisplayTimestamp(t *testing.T) {
-	useLocalZone(t, time.FixedZone("JST", 9*60*60))
-	if got := FormatDisplayTimestamp("2026-09-24T00:00:00Z"); got != "2026-09-24 09:00:00 JST" {
-		t.Fatalf("FormatDisplayTimestamp() = %q", got)
+	if got := FormatDisplayTimestampIn("2026-09-24T00:00:00Z", time.FixedZone("JST", 9*60*60)); got != "2026-09-24 09:00:00 JST" {
+		t.Fatalf("FormatDisplayTimestampIn(JST) = %q", got)
 	}
-	useLocalZone(t, time.UTC)
-	if got := FormatDisplayTimestamp("2026-09-24T00:00:00Z"); got != "2026-09-24 00:00:00 UTC" {
-		t.Fatalf("FormatDisplayTimestamp() in UTC = %q", got)
+	if got := FormatDisplayTimestampIn("2026-09-24T00:00:00Z", time.UTC); got != "2026-09-24 00:00:00 UTC" {
+		t.Fatalf("FormatDisplayTimestampIn(UTC) = %q", got)
+	}
+	if got, want := FormatDisplayTimestamp("2026-09-24T00:00:00Z"), FormatDisplayTimestampIn("2026-09-24T00:00:00Z", time.Local); got != want {
+		t.Fatalf("FormatDisplayTimestamp() = %q, want time.Local's %q", got, want)
 	}
 	for _, value := range []string{"", "-", "not-a-timestamp"} {
 		if got := FormatDisplayTimestamp(value); got != value {
@@ -211,13 +212,4 @@ func TestRetryDelayForAppliesBackoffAndCap(t *testing.T) {
 			t.Fatalf("ValidateRetryBackoff(%v) accepted an invalid value", invalid)
 		}
 	}
-}
-
-// useLocalZone sets time.Local, which display timestamps follow, for one
-// test. TZ is read once at process start, so t.Setenv("TZ") cannot do this.
-func useLocalZone(t *testing.T, zone *time.Location) {
-	t.Helper()
-	previous := time.Local
-	time.Local = zone
-	t.Cleanup(func() { time.Local = previous })
 }
