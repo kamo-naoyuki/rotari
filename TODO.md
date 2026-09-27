@@ -59,7 +59,9 @@ PBS, LSF) and be tested per executor. Add them one at a time.
 
 Out of scope: output passing between jobs, conditional branches, loops, cron
 scheduling, and event triggers. They turn the queue into a workflow language or
-belong to operating workflows that are already settled.
+belong to operating workflows that are already settled. Resource allocation
+(GPUs, memory, nodes) is out of scope too: it belongs to the scheduler or other
+middleware, and rotari only limits how many jobs it runs or submits at once.
 
 ### Runs as experiment versions
 
@@ -310,3 +312,41 @@ entry point.
 
 Suggested first steps: the report redaction notice and option, which are
 small, then the table width and navigation, which most affect everyday use.
+
+## Ideas, not decided
+
+Thoughts from reviewing rotari's positioning against Dagu and the tools in
+[docs/TOOL_COMPARISON.md](docs/TOOL_COMPARISON.md). Each may be worth doing,
+or may turn out not to be; decide before starting any of them.
+
+- **Record more of the environment a run used.** A queue leaves the
+  environment to the caller, so the record is the only way to tell later what
+  a result ran with, yet only the caller's directory is kept (`context.json`,
+  `ROTARI_CWD`). Candidates: the git commit and dirty state of that
+  directory, the active conda or virtualenv, the host, and an allowlist of
+  variables (for example `CUDA_VISIBLE_DEVICES`, `PYTHONPATH`). A hash of the
+  whole environment would let `diff` say that it changed without storing
+  secrets. Show differences between runs in `diff` and the run summary.
+- **Say which is authoritative, the script or the queue.** A script of
+  `rotari add` lines builds the queue, and `change` and `retry` then move the
+  queue away from it. Users may not know whether to edit the script and
+  rebuild, or fix the queue. Start with a short guide section; later ideas
+  include `show` noting that the queue has changed since it was built, or
+  exporting the current queue as a script of `rotari add` lines.
+- **Keep the first-contact surface small.** The README lists 27 commands and
+  the concepts include projects, queues, runs, jobs, attempts, stages,
+  matrices, arrays, and manifests. Consider `rotari --help` listing the core
+  commands (`add`, `run`, `show`, `retry`) first and the rest under an
+  advanced heading, and check each new feature against whether a first-time
+  user has to learn it.
+- **Treat coding agents as a primary user.** A stateful CLI with `diff`,
+  `guide`, and `--json` output fits an agent running the fix-and-retry loop.
+  Consider a worked example of an agent-driven sweep in the docs, and a
+  stable, documented JSON schema for the outputs an agent reads.
+- **A FAQ entry for sharing GPUs on a workstation.** Since rotari will not
+  allocate them, show the options: a per-job `--env CUDA_VISIBLE_DEVICES=...`
+  with `--local-concurrency`, a single-node Slurm, or task-spooler behind the
+  local executor.
+- **Do not frame rotari as a stage to outgrow.** Many research batches never
+  settle into a pipeline. If rotari is enough for them indefinitely, say so,
+  and avoid features that only make sense as a bridge to a workflow engine.
