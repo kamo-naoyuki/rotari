@@ -1566,7 +1566,7 @@ func TestShowRunIncludesCarriedJobFromCommands(t *testing.T) {
 			t.Fatalf("showRun output does not contain %q:\n%s", want, output)
 		}
 	}
-	if !strings.Contains(string(output), "rotari delete --run-id run-2") {
+	if !strings.Contains(string(output), "rotari delete -r run-2") {
 		t.Fatalf("showRun output does not contain short delete command:\n%s", output)
 	}
 	if strings.Contains(string(output), "rotari delete --basedir") {

@@ -247,7 +247,7 @@ func TestShowRunDisplaysAcceptedStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(output)
-	if code != 0 || !strings.Contains(text, "success (accepted)") || !strings.Contains(text, "To show a job:") || !strings.Contains(text, "rotari show -r accepted-run -j JOB_ID") {
+	if code != 0 || !strings.Contains(text, "success (accepted)") || !strings.Contains(text, "To show a job:") || !strings.Contains(text, "rotari show -j ATTEMPT_ID") || !strings.Contains(text, "rotari delete -r accepted-run") {
 		t.Fatalf("showRun code=%d output=%q", code, output)
 	}
 }
@@ -281,7 +281,7 @@ func TestCmdShowProjectOverviewSuggestsShowingRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(output)
-	if code != 0 || !strings.Contains(text, "To show a run:") || !strings.Contains(text, "rotari show -p PROJECT -r RUN_ID") {
+	if code != 0 || !strings.Contains(text, "To show a run:") || !strings.Contains(text, "rotari show -r RUN_ID") {
 		t.Fatalf("project overview code=%d output=%q", code, output)
 	}
 }
