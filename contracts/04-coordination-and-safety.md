@@ -104,34 +104,41 @@ chain is checked across `show`, `jobs`, reports, and the Web API by
 
 ## Concurrency and safety
 
-- Project mutations hold the advisory `state.lock`.
-- `running.lock` represents an active run and includes host information, because
-  local PID checks cannot prove remote process liveness.
+A project is in one of three states, derived from `running.lock` and
+`meta.json` only, never from job-level files such as a job's own
+`status.json` (see "Job execution durability" above):
 
-`project.Inspect` ([`internal/project/inspect.go`](../internal/project/inspect.go)) derives one of three states from just `running.lock` and
-`meta.json` -- never from job-level files like a job's own self-reported
-`status.json` (see "Job execution durability" above), which only feeds
-`show`/the web UI, not this state machine:
-
-| State | `running.lock` | `meta.json` phase | `run`/`add`/`copy`/`change`/`delete`/`remove` | `reset` |
+| State | `running.lock` | `meta.json` phase | `run`/`add`/`copy`/`change`/`delete`/`remove`/`import` | `reset` |
 | --- | --- | --- | --- | --- |
 | `Idle` | absent, or present but stale (auto-removed) | `collecting`/`finished` | allowed | allowed |
-| `Running` | present; owning coordinator PID is alive | `running`/`cancelling` | rejected: "is running; ... is not allowed" | rejected: same message |
-| `Interrupted` | absent, or present but the coordinator PID is dead | `running`/`cancelling` with `last_run_id` set | rejected: "has interrupted run ...; recover with unlock" | `--recover` proceeds |
+| `Running` | present; owning coordinator PID is alive, or it runs on another host | `running`/`cancelling` | rejected: "is running; ... is not allowed" | rejected |
+| `Interrupted` | absent, or present but the coordinator PID is dead | `running`/`cancelling` with `last_run_id` set | rejected: "has interrupted run ...", naming how to inspect and recover it | requires confirmation |
 
-- A dead local run lock is removed automatically. `meta.json` remaining in
-  `running` or `cancelling` with `last_run_id` marks an interrupted run.
-- `project.EnsureIdle` is the shared check for `run`, `add`, `copy`,
-  `change`, `delete`, `remove`, and `import`; every idle edit except `run`
-  reaches it through `project.Edit` or `project.EditQueue`, which take the
-  state lock first. It rejects both active and interrupted
-  projects with the same message, preventing accidental queue mutation.
-- `project.InterruptedRunDetail` scans job directories rather than
-  `summary.json` and reports jobs whose `status` or `status.json` is still
-  non-terminal, along with phase and last-update time.
-- Missing or unparseable job status counts as still running. The detail only
-  improves rejection and confirmation messages; it does not change what
-  `--recover` or `unlock` may do.
+- **SAFE-1** `check` and `show` report a project's state as the table says.
+  A run whose coordinator is gone, for example killed with SIGKILL, leaves
+  the project interrupted, never idle; a dead local lock is removed, and the
+  metadata alone then marks the run.
+- **SAFE-2** While a project is running, `run`, `add`, `copy`, `change`,
+  `delete`, `remove`, `import`, and `reset` fail and change nothing, so a
+  second `run` of the project never starts a second runner. Other projects
+  are unaffected.
+- **SAFE-3** While a project is interrupted, the same commands except `reset`
+  fail with a message that names the interrupted run and the `show` and
+  `unlock` commands to inspect and recover it.
+- **SAFE-4** `unlock` recovers an interrupted run: it keeps the retained
+  queue and returns the project to idle. A `--run-id` must name that run. It
+  refuses a run whose coordinator is alive on this host. A lock from another
+  host, whose coordinator cannot be checked, is never removed automatically;
+  `unlock` removes it once the operator has confirmed that the run stopped.
+- **SAFE-5** `reset` discards the queue and keeps the run history. It
+  rejects a running project. For an interrupted project it needs the
+  operator's confirmation that jobs stopped, then also recovers the run.
+- **SAFE-6** A command asks for confirmation only when stdin is a terminal.
+  Otherwise `reset` of an interrupted project and `copy` into a non-empty
+  queue fail with a message naming `--recover` or `--append`/`--overwrite`.
+
+Further rules:
+
 - Before `check` reports an active or interrupted run, and before `run` or
   `reset` acts on that project state, rotari verifies that lock and metadata run
   IDs agree, the run ID is a safe path element, and the run directory and
@@ -139,28 +146,33 @@ chain is checked across `show`, `jobs`, reports, and the Web API by
   `commands.json` snapshot. Active runs may temporarily lack `commands.json`
   while the worker starts. Stale locks are removed only after these checks
   succeed.
-- `unlock` derives the run ID from the selected project's lock, or from
-  interrupted metadata when no lock remains. An optional `--run-id` verifies
-  the expected ID before recovery; it keeps the retained queue and returns the
-  phase to `collecting`.
-- `reset` discards the current queue while keeping defaults and history. It
-  confirms that jobs stopped before recovering an interrupted run, unless
-  `reset --recover` supplies that confirmation. It rejects an active run.
-- `reset` of an interrupted run and `copy` into a non-empty queue prompt only
-  when stdin is a real terminal. `isTerminal` asks for termios settings, so
-  `/dev/null`, pipes, and files get the non-interactive error naming
-  `--recover` or `--append`/`--overwrite` instead of a prompt. See
-  [`cmd/rotari/terminal.go`](../cmd/rotari/terminal.go) and
-  [`cmd/rotari/terminal_test.go`](../cmd/rotari/terminal_test.go).
+- The message for an interrupted run lists the jobs whose `status` or
+  `status.json` is still non-terminal, with phase and last-update time;
+  missing or unparseable job status counts as still running. The detail only
+  improves the message; it does not change what `reset --recover` or `unlock`
+  may do.
 - Server management is separate (`server status`, `server shutdown`); project
   commands do not stop or query the server as a side effect.
-- Never silently remove a possibly active remote lock. Destructive commands
-  reject ambiguous targets, and exact IDs never degrade into latest-item
-  selection.
+- Destructive commands reject ambiguous targets, and exact IDs never degrade
+  into latest-item selection.
 - JSON writes use the common atomic helper. Optional fields must retain
   backward-compatible reads, and unrelated history must not be rewritten. See
   [`internal/state/store.go`](../internal/state/store.go) and
   [`internal/state/store_test.go`](../internal/state/store_test.go).
+
+Implementation and tests: `project.Inspect` in
+[`internal/project/inspect.go`](../internal/project/inspect.go) derives the
+state, and `project.EnsureIdle` is the shared check for `run`, `add`, `copy`,
+`change`, `delete`, `remove`, and `import`; every idle edit except `run`
+reaches it through `project.Edit` or `project.EditQueue`, which take the
+state lock first. `project.InterruptedRunDetail` builds the job detail.
+`unlock` is [`cmd/rotari/unlock.go`](../cmd/rotari/unlock.go). Prompts go
+through `isTerminal`, which asks for termios settings, so `/dev/null`, pipes,
+and files are not terminals; see
+[`cmd/rotari/terminal.go`](../cmd/rotari/terminal.go) and
+[`cmd/rotari/terminal_test.go`](../cmd/rotari/terminal_test.go). SAFE-1 to
+SAFE-6 are checked through the binary by
+[`conformance/safety_test.go`](../conformance/safety_test.go).
 
 ## State load and write contracts
 
