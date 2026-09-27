@@ -122,7 +122,7 @@ the IDs, this table, and those calls disagree.
 | RES-3 | Reading or editing a missing project fails; only `add` and `import` create one | partial | `TestMissingProjectIsAnError` |
 | RES-4 | `check` and `reset` take an optional positional project | conformance | `TestPositionalProject` |
 | RES-5 | `jobs` takes an optional positional project that overrides defaults | partial | `TestPositionalProject` |
-| RES-6 | `export TARGET [FILE]` names a project or saved run | pending | - |
+| RES-6 | `export TARGET [FILE]` names a project or saved run | conformance | `TestExportResolvesProjectAndRunTargets` |
 | RES-7 | `unlock` derives the run from the lock or interrupted metadata | pending | - |
 | RES-8 | `show --basedirs` lists registered state directories | pending | - |
 | RES-9 | Project names and job IDs are single path elements | conformance | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
