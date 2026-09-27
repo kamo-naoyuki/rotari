@@ -37,7 +37,7 @@ Rotari deliberately stays out of the way. **You don't need a separate workflow l
 
 ### Choosing a tool
 
-Rotari covers a narrow need, and the tools below are strong in their own situations. Pick the one that matches yours; often it will not be rotari.
+Rotari covers a narrow need, and the tools below are strong in their own situations. Pick the one that matches yours; often it will not be rotari. If the names are unfamiliar, [Comparison with nearby tools](docs/TOOL_COMPARISON.md) explains what each one does and how it differs from rotari.
 
 **Rotari is for batches of experiment commands that you run yourself**, from a shell script on a workstation, over SSH, or on a shared Slurm, PBS, or LSF cluster, and want a record of. On many hosts, a job whose command is correct can still fail because one node misbehaved; `run --retry N` retries such jobs within a run, and `rotari retry` later reruns only the failed and unfinished jobs, so the successful work is kept.
 
@@ -267,6 +267,9 @@ fails; see [Web browser notifications](docs/WEB_BROWSER_NOTIFICATIONS.md).
 - [Operations](docs/OPERATIONS.md): server management, run registry
   maintenance, shared filesystems, and the security model.
 - [FAQ](docs/FAQ.md): short answers about rotari's behavior.
+- [Comparison with nearby tools](docs/TOOL_COMPARISON.md): shell background
+  jobs, GNU Parallel, pueue, task-spooler, submitit, and scheduler scripts,
+  and how rotari differs; see also the [Dagu comparison](docs/DAGU_COMPARISON.md).
 - [Python client](python/README.md): installation, usage, and API
   documentation for the Python interface.
 - Integrations: [webhook notifications](docs/WEBHOOK_NOTIFICATIONS.md),
