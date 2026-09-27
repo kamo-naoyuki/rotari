@@ -101,7 +101,6 @@ func TestStatusFallbackChainAgreesAcrossViews(t *testing.T) {
 				if report.status != 200 || !strings.Contains(report.body, "Status: blocked") {
 					t.Errorf("Web report of the blocked job: status %d:\n%s", report.status, report.body)
 				}
-				knownDeviation(t, "DUR-5")
 			}
 			shown := e.rotari("show", "-p", project, "--run-id", runID, "--job-id", id)
 			if shown.code != 0 {

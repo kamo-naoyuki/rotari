@@ -1471,6 +1471,11 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 		return 1
 	}
 	runDir := filepath.Join(paths.RunsDir, runID)
+	jobSpecs := loadRunJobSpecs(runDir)
+	// A job of the run that never started, such as one blocked by a failed
+	// dependency, has no attempt directory; its summary result decides it.
+	_, inRun := jobSpecs[jobID]
+	neverRan := false
 	if info, err := os.Stat(jobDir); err != nil || !info.IsDir() {
 		if origin := state.LoadRunOrigin(runDir, jobID); origin != nil {
 			if runResultAccepted(runDir, jobID) {
@@ -1483,12 +1488,14 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 			fmt.Fprintf(writer, "%s carried forward from run %s (no re-execution)\n\n", cyan("Note:"), origin.RunID)
 			return showJobAttempt(writer, paths, origin.RunID, origin.JobID, "")
 		}
-		printErrorf(jobNotFoundMessage, jobID, runID)
-		return 1
+		if !inRun || attemptID != "" {
+			printErrorf(jobNotFoundMessage, jobID, runID)
+			return 1
+		}
+		neverRan = true
 	}
 	writeShowTargetHeaderWithMode(writer, paths, "run job")
 	fmt.Fprintf(writer, "%s %s\n%s %s\n", cyan("Run:"), runID, cyan("Job:"), jobID)
-	jobSpecs := loadRunJobSpecs(runDir)
 	latestAttemptID, _ := state.LatestAttemptID(runDir, jobID)
 	selectedAttemptID := attemptID
 	if selectedAttemptID == "" {
@@ -1546,6 +1553,9 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 	if !latest {
 		submittedAt, finishedAt = state.ReadAttemptTimestamp(jobDir, "submitted_at"), state.ReadAttemptTimestamp(jobDir, "finished_at")
 	}
+	if neverRan {
+		submittedAt, finishedAt = "-", "-"
+	}
 	fmt.Fprintf(writer, "%s %s\n", cyan("Submitted:"), model.FormatDisplayTimestamp(submittedAt))
 	fmt.Fprintf(writer, "%s %s\n", cyan("Finished:"), model.FormatDisplayTimestamp(finishedAt))
 	summaryResult, hasSummary := loadRunResult(runDir, jobSpecs[jobID].ID)
@@ -1561,10 +1571,17 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 		fmt.Fprintf(writer, "%s %s\n", cyan("Status:"), status)
 	}
 	command := readJSONCommand(filepath.Join(jobDir, commandJSONName))
+	if neverRan {
+		command = strings.Join(jobSpecs[jobID].Command, " ")
+	}
 	if resolved.HasSummary {
 		writeJobDiagnoses(writer, resolved.Summary)
 	}
 	fmt.Fprintf(writer, "%s %s\n", cyan("Command:"), command)
+	if neverRan {
+		fmt.Fprintf(writer, "%s -\n", cyan("Output:"))
+		return 0
+	}
 	fmt.Fprintf(writer, "%s %s\n\n", cyan("Output:"), filepath.Join(jobDir, "output"))
 	output, err := os.ReadFile(filepath.Join(jobDir, "output"))
 	if err == nil {
