@@ -48,7 +48,7 @@ Implementation and tests: the wrapper is built in
 [`internal/executor/wrapper.go`](../internal/executor/wrapper.go), with
 [`cmd/rotari/job_executor_test.go`](../cmd/rotari/job_executor_test.go).
 DUR-3, DUR-4, and DUR-6 are checked through the binary by
-[`conformance/durability_test.go`](../conformance/durability_test.go), which
+[`conformance/04-coordination/durability_test.go`](../conformance/04-coordination/durability_test.go), which
 kills a run's supervisor with SIGKILL. For DUR-5, `jobstatus.ReadAttempt` and
 `jobstatus.ResolveAttempt` in [`internal/jobstatus`](../internal/jobstatus/),
 with [`internal/jobstatus/attempt_test.go`](../internal/jobstatus/attempt_test.go),

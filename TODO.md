@@ -185,8 +185,8 @@ shared test infrastructure and may remain at the package root.
 - Completed and committed: document-to-directory layout, recursive contract
   checking, `01-resolution`, `02-lifecycle`, `03-interfaces`,
   `04-coordination`, and `06-selectors` migrations.
-- Remaining migration: move `DUR-3`, `DUR-4`, and `DUR-6` from the root only
-  after validating the orphan supervisor fixture in its destination package.
+- Remaining migration: none. `DUR-3`, `DUR-4`, and `DUR-6` now live under
+  `04-coordination` and use the package-local support fixture.
 - Remaining coverage work: the `pending` RES rows, the remaining run
   lifecycle/server-interface rules, partial selector coverage, and golden
   output files.
