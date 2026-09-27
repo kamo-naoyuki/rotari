@@ -29,9 +29,11 @@ Rotari is an **execution manager for researchers who run batches of experiments*
 | <img src="https://kamo-naoyuki.github.io/rotari/demo-shell.gif" alt="shell background jobs demo" width="400"> | <img src="https://kamo-naoyuki.github.io/rotari/demo-rotari.gif" alt="rotari demo" width="400"> |
 
 
-Rotari deliberately stays out of the way. **You don't need a separate workflow language:** write the commands as you normally would in a shell script, and rotari provides the execution, parallelism, logs, status, and run history around them. When a queue needs to be reproduced or edited as a unit, rotari can also export and import a constrained YAML, TOML, or JSON manifest; commands remain argument arrays rather than a new scripting language.
+Rotari deliberately stays out of the way. **You don't need a separate workflow language:** write the commands as you normally would, as `rotari add` lines in a shell script or typed one by one, and rotari provides the execution, parallelism, logs, status, and run history around them. The script only builds the batch; once it has run, you can fix jobs in rotari itself (`change`, `retry`), and every run keeps the version that ran, so the script is a starting point rather than a definition to keep in sync. When a queue needs to be reproduced or edited as a unit, rotari can also export and import a constrained YAML, TOML, or JSON manifest; commands remain argument arrays rather than a new scripting language.
 
 **The environment stays yours, too.** A queue records commands, not where or with what they run: jobs are started from the working directory and environment of the shell that runs `rotari run`, as the commands of a shell script would be. After `cd` into another experiment directory or activating another conda environment, the same queue runs there without editing; pin a job's directory or variables only where it must not depend on the caller. See [Workflow and execution environment](docs/CONCEPTS.md#workflow-and-execution-environment).
+
+**So do resources.** Rotari does not allocate GPUs, memory, or nodes. On a cluster the scheduler does, from the options you pass with `--executor-option`; on a workstation, rotari only limits how many jobs run at once (`--local-concurrency`), and a job's own variables such as `CUDA_VISIBLE_DEVICES` do the rest.
 
 ### Choosing a tool
 
@@ -63,7 +65,7 @@ Rotari adds the batch as a unit with a history: each run snapshots the queue and
 
 * [**Airflow**](https://github.com/apache/airflow), [**Prefect**](https://github.com/PrefectHQ/prefect), and [**Dagster**](https://github.com/dagster-io/dagster) orchestrate workflows expressed as programs. **Use them for production pipelines that run on a schedule and need monitoring.**
 
-Workflow engines such as Dagu and Airflow also describe where each step runs (its directory, variables, container, or host), because a scheduler or trigger must be able to start a workflow with no one at a shell. Rotari leaves that out on purpose: there is no cron or trigger, you start every run, and its jobs run in the environment you started it from. Once the pipeline stabilizes, moving it to one of these tools is a natural next step.
+Workflow engines such as Dagu and Airflow also describe where each step runs (its directory, variables, container, or host), because a scheduler or trigger must be able to start a workflow with no one at a shell. Rotari leaves that out on purpose: there is no cron or trigger, you start every run, and its jobs run in the environment you started it from. If a pipeline settles into something that runs on a schedule or is shared with others, moving it to one of these tools is a natural next step; many experiment batches never need to.
 
 ## Installation
 
@@ -125,8 +127,10 @@ rotari show -p sweep --failed-logs
 rotari retry -p sweep
 ```
 
-`jobs` gives a compact status overview across projects. `show` provides details
-for a project, run, or job, including logs and saved results.
+`add`, `run`, `show`, and `retry` are all most batches need; the other
+commands are there for when you need them. `jobs` gives a compact status
+overview across projects. `show` provides details for a project, run, or job,
+including logs and saved results.
 
 See [Projects, queues, runs, and state](docs/CONCEPTS.md#projects-queues-runs-and-state) for
 project selection and state layout, [Inspect](docs/INSPECT.md#inspect) for status and logs,

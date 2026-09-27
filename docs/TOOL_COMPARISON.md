@@ -121,6 +121,9 @@ tied to one scheduler.
 - **No resident daemon.** Each run has its own supervisor process for its
   lifetime; state is files.
 
-Rotari does less than these tools in places: it has no GPU allocation like
-task-spooler, no group-level queues like pueue, and no input-driven fan-out as
-flexible as GNU Parallel's replacement strings.
+Rotari does less than these tools in places: it has no group-level queues
+like pueue and no input-driven fan-out as flexible as GNU Parallel's
+replacement strings. Resource allocation, such as task-spooler's GPU
+assignment, is out of scope on purpose: it belongs to the scheduler or other
+middleware below rotari, and rotari only limits how many jobs it runs or
+submits at once.
