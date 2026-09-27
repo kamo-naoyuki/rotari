@@ -31,6 +31,8 @@ Rotari is an **execution manager for researchers who run batches of experiments*
 
 Rotari deliberately stays out of the way. **You don't need a separate workflow language:** write the commands as you normally would in a shell script, and rotari provides the execution, parallelism, logs, status, and run history around them. When a queue needs to be reproduced or edited as a unit, rotari can also export and import a constrained YAML, TOML, or JSON manifest; commands remain argument arrays rather than a new scripting language.
 
+**The environment stays yours, too.** A queue records commands, not where or with what they run: jobs are started from the working directory and environment of the shell that runs `rotari run`, as the commands of a shell script would be. After `cd` into another experiment directory or activating another conda environment, the same queue runs there without editing; pin a job's directory or variables only where it must not depend on the caller. See [Workflow and execution environment](docs/CONCEPTS.md#workflow-and-execution-environment).
+
 ### Choosing a tool
 
 Rotari covers a narrow need, and the tools below are strong in their own situations. Pick the one that matches yours; often it will not be rotari.
@@ -44,6 +46,8 @@ Rotari covers a narrow need, and the tools below are strong in their own situati
 * [**Airflow**](https://github.com/apache/airflow), [**Prefect**](https://github.com/PrefectHQ/prefect), and [**Dagster**](https://github.com/dagster-io/dagster) orchestrate workflows expressed as programs. **Use them for production pipelines that run on a schedule and need monitoring.**
 
 **In rotari, the experiment is the goal and orchestration is only a means to it.** The workflow does not have to be right before you start: commands can be fixed, rerun in part, or accepted after review as you learn what works.
+
+Workflow engines such as Dagu and Airflow also describe where each step runs (its directory, variables, container, or host), because a scheduler or trigger must be able to start a workflow with no one at a shell. Rotari leaves that out on purpose: there is no cron or trigger, you start every run, and its jobs run in the environment you started it from.
 
 **Rotari is for the stage before a workflow settles:** you are running a batch of experiment commands by hand, on a workstation or a shared Slurm, PBS, or LSF cluster, finding out which commands and settings work, fixing the jobs that failed, and running the batch again. If that loop is where your time goes, rotari keeps it manageable and lets the commands remain the workflow. Once the pipeline stabilizes, moving it to one of the tools above is a natural next step.
 
