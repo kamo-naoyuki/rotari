@@ -342,6 +342,14 @@ entry point.
   table to that parameter value.
 - Consider a per-job attempt history that shows how the command or executor
   options changed between attempts.
+- Consider opening job-specific experiment monitors (TensorBoard, wandb) from
+  the Web UI. Associate a monitor URL with the run/job/attempt rather than
+  guessing it from stdout or the command; allow jobs to publish URLs decided
+  at runtime. Start with links (or a copyable launch command), not arbitrary
+  command execution from the browser. A later one-click launch would need a
+  controlled backend process, authentication and lifecycle management, plus
+  a way for the browser to reach monitors on remote compute nodes (a browser's
+  localhost is not the node's localhost).
 - Consider grouping failed jobs by rule-based diagnosis result.
 - Consider a run timeline built on the run lineage above.
 
