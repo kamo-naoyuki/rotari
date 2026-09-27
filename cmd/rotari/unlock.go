@@ -81,6 +81,19 @@ func cmdUnlock(args []string) int {
 			printErrorf("run lock belongs to %q, not %q", lock.RunID, *runID)
 			return 1
 		}
+		// A coordinator alive on this host is still running the run, and
+		// removing its lock would let a second runner start. A lock from
+		// another host cannot be checked, so it is removed on the operator's
+		// word, as is one whose coordinator is gone.
+		lockState, _, err := state.InspectLock(paths.LockFile, false)
+		if err != nil {
+			printErrorf("failed to inspect run lock: %v", err)
+			return 1
+		}
+		if lockState == state.LockActive {
+			fmt.Fprint(os.Stderr, formatProjectRunningError(paths, *runID))
+			return 1
+		}
 		if err := os.Remove(paths.LockFile); err != nil {
 			printErrorf("failed to remove run lock: %v", err)
 			return 1

@@ -104,7 +104,7 @@ the IDs, this table, and those calls disagree.
 | CORE-2 | The supervisor coordinates but is not the authority for project or run state | pending | - |
 | CORE-3 | One mutable queue per project, edited only while idle and snapshotted by a run | pending | - |
 | CORE-4 | Idle projects are queue-first; running and interrupted projects are run-first | pending | - |
-| CORE-5 | At most one active run and runner per project | deviation | `TestRunningProjectRejectsChanges`, `TestUnlockRefusesLiveRun` |
+| CORE-5 | At most one active run and runner per project | partial | `TestRunningProjectRejectsChanges`, `TestUnlockRefusesLiveRun` |
 | CORE-6 | Completed runs are immutable; reruns change only their destination run | pending | - |
 | CORE-7 | Executors run jobs; run semantics stay in the shared execution path | pending | - |
 | RES-1 | Base directory resolution order | conformance | `TestBaseDirResolutionOrder` |
@@ -137,7 +137,7 @@ the IDs, this table, and those calls disagree.
 | SAFE-1 | `check` and `show` report a project as idle, running, or interrupted; a killed coordinator leaves it interrupted | conformance | `TestProjectStates` |
 | SAFE-2 | A running project rejects the commands that would change it, so no second runner starts | conformance | `TestRunningProjectRejectsChanges` |
 | SAFE-3 | An interrupted project rejects them, naming the run and how to inspect and recover it | conformance | `TestInterruptedProjectNeedsRecovery` |
-| SAFE-4 | `unlock` recovers an interrupted run and refuses one whose coordinator is alive | deviation | `TestInterruptedProjectNeedsRecovery`, `TestUnlockRefusesLiveRun` |
+| SAFE-4 | `unlock` recovers an interrupted run and refuses one whose coordinator is alive | partial | `TestInterruptedProjectNeedsRecovery`, `TestUnlockRefusesLiveRun` |
 | SAFE-5 | `reset` discards the queue, rejects a running project, and needs confirmation for an interrupted one | conformance | `TestResetOfInterruptedProject`, `TestRunningProjectRejectsChanges` |
 | SAFE-6 | Commands ask for confirmation only on a terminal, otherwise naming the option that confirms | conformance | `TestCopyIntoQueueWithoutTerminal`, `TestResetOfInterruptedProject` |
 | CAN-1 | A whole-run cancel stops every running job of the run, from any caller | conformance | `TestWholeRunCancelFinishesRun` |

@@ -263,7 +263,7 @@ It works when the shared filesystem correctly provides locking and atomic operat
 
 ### A runner or supervisor process died mid-run — what do I do?
 
-Confirm that jobs have stopped, inspect `rotari show --run-id RUN_ID`, then run `rotari unlock PROJECT`. Use `rotari reset --recover` to discard the retained queue.
+Confirm that jobs have stopped, inspect `rotari show --run-id RUN_ID`, then run `rotari unlock PROJECT`. Use `rotari reset --recover` to discard the retained queue. `unlock` refuses a run whose supervisor is still alive on this host, so it cannot start a second runner beside a live one; use `rotari cancel` for that.
 
 ### A remote host's lock looks stuck even though the job actually stopped — why won't `unlock` go away automatically?
 

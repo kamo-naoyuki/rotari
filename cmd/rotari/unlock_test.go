@@ -326,6 +326,39 @@ func TestCmdUnlockRemovesMatchingRunLock(t *testing.T) {
 	}
 }
 
+func TestCmdUnlockRejectsRunningLocalRun(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// This test process is alive on this host, so the run counts as running.
+	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), Host: host, RunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if code := cmdUnlock([]string{"--basedir", baseDir, "demo"}); code == 0 {
+		t.Fatal("cmdUnlock removed the lock of a running local run")
+	}
+	if _, err := os.Stat(paths.LockFile); err != nil {
+		t.Fatalf("run lock was removed: %v", err)
+	}
+	meta, err := loadMeta(paths.MetaFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.Phase != "running" {
+		t.Fatalf("metadata phase = %q, want running", meta.Phase)
+	}
+}
+
 func TestCmdUnlockPointsLegacyPositionalRunIDToRunIDOption(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")

@@ -59,7 +59,8 @@ killed. The run lock records its PID and host, and local jobs report their own
 status through wrappers, so `rotari show -r RUN_ID` still sees results written
 after the supervisor disappeared. `show` then reports the interrupted run.
 After confirming jobs have stopped, use `unlock` to keep the queue or
-`reset --recover` to discard it.
+`reset --recover` to discard it. Both refuse a run whose supervisor is still
+alive on this host; stop that one with `cancel`.
 
 ## Recover and rerun
 ### run and retry

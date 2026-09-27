@@ -123,7 +123,6 @@ func TestInterruptedProjectNeedsRecovery(t *testing.T) {
 
 func TestUnlockRefusesLiveRun(t *testing.T) {
 	covers(t, "SAFE-4", "CORE-5")
-	knownDeviation(t, "SAFE-4")
 	e := newEnv(t)
 	e.startActiveRun("live", 1)
 	if r := e.rotari("unlock", "live"); r.code == 0 {
