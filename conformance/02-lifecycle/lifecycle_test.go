@@ -49,7 +49,7 @@ func summaryResult(t *testing.T, summary conformanceSummary, jobID string) (stri
 }
 
 func TestFilteredRerunCarriesCompletedResults(t *testing.T) {
-	covers(t, "CORE-3", "RUN-1")
+	covers(t, "CORE-3", "CORE-6", "RUN-1")
 	e := support.NewEnv(t)
 	support.RequireUnixSockets(t)
 	okJob := support.AddedJobID(t, e.MustRotari("add", "-p", "p1", "--job-name", "ok", "--", "sh", "-c", "echo hello"))
