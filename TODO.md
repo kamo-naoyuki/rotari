@@ -170,12 +170,30 @@ The fallback and selector tests were moved from in-process `cmd/rotari`
 tests. The harness is hand-written rather than `testscript`: the Web API
 checks and JSON comparisons need Go code either way, and it adds no
 dependency.
-The current migration has moved the resolution tests under `01-resolution`,
-run lifecycle and cancellation under `02-lifecycle`, command checks under
-`03-interfaces`, and coordination, durability, state, and projection checks
-under `04-coordination`. The remaining SAFE recovery tests share active-run
-and process-recovery helpers and should move together after those helpers are
-extracted into the support package.
+The current migration has moved resolution and display-time tests under
+`01-resolution`, run lifecycle and cancellation under `02-lifecycle`, command
+checks under `03-interfaces`, coordination, state, and projection checks under
+`04-coordination`, and selector/path tests under `06-selectors`. SAFE recovery
+tests are also under `04-coordination`. The remaining user-facing contract
+tests at the root are the orphan-process durability tests; they use a special
+supervisor-kill fixture and should move only after that fixture is made stable
+in a package-local harness. Root `harness_test.go` and `contracts_test.go` are
+shared test infrastructure and may remain at the package root.
+
+#### Handoff status
+
+- Completed and committed: document-to-directory layout, recursive contract
+  checking, `01-resolution`, `02-lifecycle`, `03-interfaces`,
+  `04-coordination`, and `06-selectors` migrations.
+- Remaining migration: move `DUR-3`, `DUR-4`, and `DUR-6` from the root only
+  after validating the orphan supervisor fixture in its destination package.
+- Remaining coverage work: the `pending` RES rows, the remaining run
+  lifecycle/server-interface rules, partial selector coverage, and golden
+  output files.
+- Known flaky tests are recorded in [ISSUES.md](ISSUES.md), notably
+  `TestControlFromAnotherHost` and `TestResetOfInterruptedProject`; do not
+  treat those failures as migration regressions without reproducing them in
+  isolation.
 
 #### Working notes for the next agent
 
