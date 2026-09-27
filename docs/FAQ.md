@@ -78,6 +78,26 @@ Set `webhook.url` or `ROTARI_WEBHOOK_URL`. Use `webhook.on` with `success`, `fai
 
 `--local-concurrency` applies to local jobs; `--batch-concurrency` is the default for other executors. SSH, Slurm, PBS, and LSF also have executor-specific settings, with job-level settings taking priority.
 
+### Can I limit CPU or memory for a local job without Slurm?
+
+On Linux hosts with a working systemd user manager, use `systemd-run` as the
+local job's command. It places the command in a systemd scope with cgroup
+resource limits; no separate rotari executor is needed:
+
+```sh
+rotari add -p demo -- systemd-run --user --scope \
+	-p MemoryMax=4G -p CPUQuota=200% -- ./train.sh
+rotari run -p demo
+```
+
+`CPUQuota=200%` allows up to two CPUs' worth of CPU time; it does not reserve
+two CPUs. `--local-concurrency` still only limits the number of local jobs,
+not their combined resource usage. This requires access to the systemd user
+bus and permission to set the limits, which may be unavailable in containers
+or on some hosts. Check cancellation and out-of-memory behavior on your host
+before relying on it for long-running jobs. Unlike Slurm, this does not queue
+jobs until the requested resources become available.
+
 ### `rotari show` displayed my queue, not the run I expected — why?
 
 Without a project selector, `show` lists projects. Use `--project-name/-p` for a project, `--run-id` for a run, and `--run-id latest` for the latest run.
