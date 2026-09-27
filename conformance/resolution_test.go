@@ -228,9 +228,6 @@ func TestExplicitLocationMustMatchRegistry(t *testing.T) {
 
 	for _, command := range []string{"show", "wait"} {
 		t.Run(command, func(t *testing.T) {
-			if command == "wait" {
-				knownDeviation(t, "RES-14")
-			}
 			e := e.in(t)
 			for _, args := range [][]string{
 				{command, "-b", filepath.Join(e.root, "other"), runID},

@@ -203,6 +203,11 @@ func TestResolveWaitTargetByProjectRunNameAndRunID(t *testing.T) {
 	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-id", RunName: "nightly"}); err != nil {
 		t.Fatal(err)
 	}
+	// A registered run has its directory, which a run ID selector requires
+	// like --run-id does.
+	if err := os.MkdirAll(filepath.Join(paths.RunsDir, "run-id"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if err := registerRun(paths, "run-id"); err != nil {
 		t.Fatal(err)
 	}

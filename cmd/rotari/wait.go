@@ -134,10 +134,17 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 		}
 		return resolve.Run{}, resolve.AmbiguousError(fmt.Sprintf("run name %q", selector), candidates)
 	}
-	if location, found, registryErr := resolveRunLocation(selector); registryErr != nil {
+	if _, found, registryErr := resolveRunLocation(selector); registryErr != nil {
 		return resolve.Run{}, registryErr
 	} else if found {
-		return resolve.Run{BaseDir: location.BaseDir, ProjectName: location.ProjectName, RunID: location.RunID}, nil
+		// A run ID locates its own run, and an explicit base directory or
+		// project that disagrees with the registry is an error, as with
+		// --run-id and every other command.
+		baseDir, projectName, err := resolve.ExistingRun(cliBaseDir, cliProjectName, selector)
+		if err != nil {
+			return resolve.Run{}, err
+		}
+		return resolve.Run{BaseDir: baseDir, ProjectName: projectName, RunID: selector}, nil
 	}
 	return resolve.Run{}, fmt.Errorf("no project, run name, or run ID matches %q", selector)
 }
