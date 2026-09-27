@@ -134,7 +134,10 @@ From the repository root, prefer this validation order:
 
 1. Run the smallest relevant test first, for example `go test ./cmd/rotari -run TestName`.
 2. Run the package tests with `go test ./cmd/rotari`.
-3. For broader validation, run `go test ./...` and `go vet ./...`.
+3. For broader validation, run `scripts/check.sh --short` (gofmt, `go vet ./...`,
+   and `go test -short ./...`).
+4. Before finishing a change, run `scripts/check.sh`, which adds web asset
+   formatting and the race detector to match CI's Go checks.
 
 ## Before finishing
 

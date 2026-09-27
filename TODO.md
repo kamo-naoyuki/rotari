@@ -130,11 +130,7 @@ agent to break without noticing, and most `cmd/rotari` tests import
 that should be protecting it. Turn the rules into checks, cheapest and most
 immediately useful first. Each step stands alone and can stop there.
 
-1. **One local check command.** A `scripts/check.sh` that runs what CI's Go
-   job runs (`gofmt -l`, `go vet ./...`, `go test ./...`), with a short mode
-   for the edit loop. Point AGENTS.md's validation order at it so an agent
-   runs the same checks as CI with one command.
-2. **Conformance pilot.** A `conformance/` package that builds the binary in
+1. **Conformance pilot.** A `conformance/` package that builds the binary in
    `TestMain` (as `cmd/rotari/scheduler_container_run_test.go` does), runs it
    as a subprocess with `HOME`, `XDG_*`, and `ROTARI_*` isolated, imports
    only the standard library (add it to the `internal/archtest` rules), and
@@ -145,26 +141,27 @@ immediately useful first. Each step stands alone and can stop there.
    unavailable. After the pilot, decide between the hand-written harness and
    `testscript` (`rogpeppe/go-internal`, as `cmd/go` uses), which is easier to
    read and write but adds a dependency.
-3. **Contract IDs and a status table.** Give each invariant in
+2. **Contract IDs and a status table.** Give each invariant in
    [docs/contracts/](docs/contracts/) an ID, name conformance subtests after
    it, and keep a table in [docs/CONTRACTS.md](docs/CONTRACTS.md) of which
    IDs are covered, untested, or known deviations, as Dagu's `specs/` and
    `conformance/` do. A test fails when an ID has neither a test nor an
-   `untested` mark. Do this after step 2 so the ID scheme fits real tests.
-4. **Widen conformance coverage.** In order: the selector table in
+   `untested` mark. Do this after step 1 so the ID scheme fits real tests.
+3. **Widen conformance coverage.** In order: the selector table in
    [docs/contracts/06-selectors.md](docs/contracts/06-selectors.md) through
    the binary; the run lifecycle (failure then filtered rerun, cancel, two
    concurrent `run`s on one base directory); recovery after the runner is
    killed with SIGKILL.
-5. **Golden output files.** Golden files with an `-update` flag for `--help`,
+4. **Golden output files.** Golden files with an `-update` flag for `--help`,
    `schema --json`, and representative `show --json` output, so an
    unintended output change shows up as a diff. None exist today.
 
 The package boundary test
-([internal/archtest](internal/archtest/boundaries_test.go)) and the
+([internal/archtest](internal/archtest/boundaries_test.go)), the
 documentation link test
-([internal/doclinks](internal/doclinks/links_test.go)), the first two steps of
-this plan, are done.
+([internal/doclinks](internal/doclinks/links_test.go)), and one local check
+command ([scripts/check.sh](scripts/check.sh)), the first three steps of this
+plan, are done.
 
 Not planned: decision records beyond the existing rationale in the contracts,
 and tool-specific agent hooks or skills; AGENTS.md stays the tool-neutral
