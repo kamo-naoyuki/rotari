@@ -3,6 +3,7 @@ package resolution
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/conformance/support"
@@ -57,5 +58,18 @@ func TestUnlockDerivesInterruptedRun(t *testing.T) {
 				t.Fatalf("after unlock: state %q", state)
 			}
 		})
+	}
+}
+
+func TestShowBasedirsListsKnownStateDirectories(t *testing.T) {
+	covers(t, "RES-8")
+	e := support.NewEnv(t)
+	e.FinishedJobRun("basedirs")
+	out := e.MustRotari("show", "--basedirs").Stdout
+	if !strings.Contains(out, "Known state directories: 1") {
+		t.Fatalf("show --basedirs did not report one known directory: %s", out)
+	}
+	if !strings.Contains(out, e.Base) {
+		t.Fatalf("show --basedirs omitted %q: %s", e.Base, out)
 	}
 }
