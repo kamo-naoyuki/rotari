@@ -69,21 +69,34 @@ func TestProjectStates(t *testing.T) {
 	if state := e.CheckState("idle"); state != "ready" {
 		t.Errorf("a project with a queue: state %q, want ready", state)
 	}
-	if out := e.MustRotari("show", "-p", "idle").Stdout; !strings.Contains(out, "Queue:") {
-		t.Errorf("idle project is not queue-first:\n%s", out)
+	if runID := shownRunID(t, e, "idle"); runID != "" {
+		t.Errorf("idle project is not queue-first: show selected run %q", runID)
 	}
-	e.StartRun("live", 1, false)
+	run := e.StartRun("live", 1, false)
 	if state := e.CheckState("live"); state != "running" {
 		t.Errorf("a project with a run: state %q, want running", state)
 	}
-	if out := e.MustRotari("show", "-p", "live").Stdout; !strings.Contains(out, "Run:") {
-		t.Errorf("running project unexpectedly shows queue first:\n%s", out)
+	if runID := shownRunID(t, e, "live"); runID != run.RunID {
+		t.Errorf("running project is not run-first: show selected run %q, want %q", runID, run.RunID)
 	}
 	support.KillStrays(t, e.Root)
 	support.WaitForInterrupted(t, e, "live")
 	if out := e.MustRotari("show", "-p", "live").Stdout; !strings.Contains(out, "Project state: interrupted") {
 		t.Errorf("show does not report the interrupted state:\n%s", out)
 	}
+}
+
+// shownRunID returns the run that show selects for project, or "" when it shows the queue.
+func shownRunID(t *testing.T, e *support.Env, project string) string {
+	t.Helper()
+	var shown struct {
+		RunID string `json:"run_id"`
+	}
+	out := e.MustRotari("show", "-p", project, "--json").Stdout
+	if err := json.Unmarshal([]byte(out), &shown); err != nil {
+		t.Fatalf("show --json for %s: %v\n%s", project, err, out)
+	}
+	return shown.RunID
 }
 
 func TestControlFromAnotherHost(t *testing.T) {

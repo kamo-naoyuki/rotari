@@ -12,8 +12,9 @@ func TestWaitReturnsCompletedRunExitCode(t *testing.T) {
 	e := support.NewEnv(t)
 	run := e.CreateFinishedRun()
 	r := e.Rotari("wait", "-p", run.Project, "--run-id", run.RunID)
-	if r.Code != 3 {
-		t.Fatalf("wait exit code = %d, want 3: %s", r.Code, r)
+	// wait returns the run's overall exit code, not the failed job's.
+	if r.Code != 1 {
+		t.Fatalf("wait exit code = %d, want 1: %s", r.Code, r)
 	}
 	for _, want := range []string{"=== Run failed ===", "Success: 1", "Failed: 1"} {
 		if !strings.Contains(r.Stdout, want) {
