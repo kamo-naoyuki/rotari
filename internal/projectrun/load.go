@@ -1,4 +1,4 @@
-package run
+package projectrun
 
 import (
 	"os"
@@ -8,12 +8,18 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
-func ReadLoadAverage() *model.LoadAverage {
+// readLoadAverage returns the host's load average, or nil where
+// /proc/loadavg is unavailable or malformed.
+func readLoadAverage() *model.LoadAverage {
 	data, err := os.ReadFile("/proc/loadavg")
 	if err != nil {
 		return nil
 	}
-	fields := strings.Fields(string(data))
+	return parseLoadAverage(string(data))
+}
+
+func parseLoadAverage(data string) *model.LoadAverage {
+	fields := strings.Fields(data)
 	if len(fields) < 3 {
 		return nil
 	}

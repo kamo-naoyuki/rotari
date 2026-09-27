@@ -136,10 +136,6 @@ immediately useful first. Each step stands alone and can stop there.
    `internal/model` imports no I/O packages (`os`, `io/fs`, `net`,
    `os/exec`); `internal/run` does no file access; `internal/rundiff` does
    not import `internal/state`; and so on. Link the test from the contract.
-   It already finds one violation: `internal/run/load.go` reads
-   `/proc/loadavg` although `internal/run` is documented as having no file
-   access. Either move the read behind a callback or state the exception in
-   the contract before the test lands.
 2. **Documentation link test.** A test that checks every relative link in
    `README.md`, `AGENTS.md`, `ISSUES.md`, `TODO.md`, and `docs/` (excluding
    `docs/web-demo/`) points at an existing file, and later that `#anchor`

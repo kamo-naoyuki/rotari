@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -22,7 +21,7 @@ func (runner Runner) WriteContext(paths state.ProjectPaths, runID, cwd string) e
 		return err
 	}
 	hostname, _ := os.Hostname()
-	context := model.RunContext{CWD: cwd, Hostname: hostname, StartedLoad: run.ReadLoadAverage()}
+	context := model.RunContext{CWD: cwd, Hostname: hostname, StartedLoad: readLoadAverage()}
 	if runner.ConfigPaths != nil {
 		context.ConfigPaths = runner.ConfigPaths(paths)
 	}
@@ -52,7 +51,7 @@ func (runner Runner) FinishContext(paths state.ProjectPaths, runID string) error
 	if loaded, err := state.LoadContext(runner.Store, runDir); err == nil {
 		context = loaded
 	}
-	context.FinishedLoad = run.ReadLoadAverage()
+	context.FinishedLoad = readLoadAverage()
 	if context.FinishedLoad != nil {
 		if err := runner.appendLoadSample(runDir, *context.FinishedLoad); err != nil {
 			return err
@@ -103,7 +102,7 @@ func (runner Runner) startLoadSampling(paths state.ProjectPaths, runID string) f
 		for {
 			select {
 			case <-ticker.C:
-				if load := run.ReadLoadAverage(); load != nil && err == nil {
+				if load := readLoadAverage(); load != nil && err == nil {
 					_ = runner.appendLoadSample(runDir, *load)
 				}
 			case <-stop:
