@@ -1,0 +1,1607 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "name": "config",
+      "description": "generate a config file template",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "list",
+          "description": "list existing config files"
+        },
+        {
+          "name": "format",
+          "description": "config format: yaml, toml, or json",
+          "value_name": "FORMAT",
+          "values": [
+            "yaml",
+            "toml",
+            "json"
+          ],
+          "short": "o"
+        },
+        {
+          "name": "output",
+          "description": "output config file path",
+          "value_name": "FILE"
+        }
+      ]
+    },
+    {
+      "name": "check",
+      "description": "check whether a project is ready to run",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "json",
+          "description": "print machine-readable JSON"
+        },
+        {
+          "name": "deep",
+          "description": "check local executables and working directories"
+        },
+        {
+          "name": "quiet",
+          "description": "suppress success output",
+          "environment": "ROTARI_QUIET"
+        }
+      ],
+      "positional": "[PROJECT]"
+    },
+    {
+      "name": "reset",
+      "description": "discard the current, not-yet-run queue",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "recover",
+          "description": "confirm an interrupted run has stopped without prompting",
+          "environment": "ROTARI_RESET_RECOVER"
+        },
+        {
+          "name": "quiet",
+          "description": "suppress success output",
+          "environment": "ROTARI_QUIET"
+        }
+      ],
+      "positional": "[PROJECT]"
+    },
+    {
+      "name": "cancel",
+      "description": "cancel the active run or running jobs",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "job-id",
+          "description": "cancel a running job; may be repeated",
+          "value_name": "ID",
+          "short": "j",
+          "environment": "ROTARI_JOB_ID",
+          "repeated": true
+        },
+        {
+          "name": "wait",
+          "description": "wait until cancellation is complete"
+        }
+      ],
+      "positional": "[JOB_ID|ATTEMPT_ID|RUN_ID ...]"
+    },
+    {
+      "name": "suspend",
+      "description": "suspend running jobs",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "job-id",
+          "description": "suspend a running job; may be repeated",
+          "value_name": "ID",
+          "short": "j",
+          "environment": "ROTARI_JOB_ID",
+          "repeated": true
+        }
+      ],
+      "positional": "[JOB_ID|ATTEMPT_ID|RUN_ID ...]"
+    },
+    {
+      "name": "resume",
+      "description": "resume suspended jobs",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "job-id",
+          "description": "resume a suspended job; may be repeated",
+          "value_name": "ID",
+          "short": "j",
+          "environment": "ROTARI_JOB_ID",
+          "repeated": true
+        }
+      ],
+      "positional": "[JOB_ID|ATTEMPT_ID|RUN_ID ...]"
+    },
+    {
+      "name": "delete",
+      "description": "delete saved run history",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "run-id",
+          "description": "run to delete",
+          "value_name": "ID",
+          "short": "r",
+          "environment": "ROTARI_RUN_ID"
+        },
+        {
+          "name": "all",
+          "description": "delete every run of the project"
+        }
+      ],
+      "positional": "[RUN_ID]"
+    },
+    {
+      "name": "gc",
+      "description": "find and remove orphan run registry entries",
+      "flags": [
+        {
+          "name": "masterdir",
+          "description": "master registry directory",
+          "value_name": "DIR",
+          "environment": "ROTARI_MASTERDIR"
+        },
+        {
+          "name": "apply",
+          "description": "remove the cached orphan entries"
+        }
+      ],
+      "positional": "[MASTERDIR]"
+    },
+    {
+      "name": "unlock",
+      "description": "remove a confirmed stale run lock",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "run-id",
+          "description": "verify the run ID recorded in the stale lock",
+          "value_name": "ID",
+          "short": "r",
+          "environment": "ROTARI_RUN_ID"
+        }
+      ],
+      "positional": "[PROJECT]"
+    },
+    {
+      "name": "change",
+      "description": "change jobs in the current or previous batch",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "run-id",
+          "description": "run ID to use when restoring a batch",
+          "value_name": "ID",
+          "short": "r",
+          "environment": "ROTARI_RUN_ID"
+        },
+        {
+          "name": "job-id",
+          "description": "target job ID",
+          "value_name": "ID",
+          "short": "j",
+          "environment": "ROTARI_JOB_ID"
+        },
+        {
+          "name": "job-name",
+          "description": "target job name",
+          "value_name": "NAME",
+          "environment": "ROTARI_JOB_NAME"
+        },
+        {
+          "name": "stage",
+          "description": "change every job in a stage",
+          "value_name": "STAGE"
+        },
+        {
+          "name": "matrix",
+          "description": "change every job of a matrix, named by its base job name",
+          "value_name": "NAME"
+        },
+        {
+          "name": "all",
+          "description": "change every job"
+        },
+        {
+          "name": "executor",
+          "description": "replace job executor",
+          "value_name": "EXECUTOR",
+          "values": [
+            "local",
+            "lsf",
+            "pbs",
+            "slurm",
+            "ssh"
+          ],
+          "short": "e",
+          "environment": "ROTARI_EXECUTOR"
+        },
+        {
+          "name": "executor-option",
+          "description": "replace executor options",
+          "value_name": "OPTION",
+          "environment": "ROTARI_EXECUTOR_OPTIONS"
+        },
+        {
+          "name": "clear-executor-options",
+          "description": "clear executor options"
+        },
+        {
+          "name": "working-directory",
+          "description": "working directory for the job",
+          "value_name": "DIR"
+        },
+        {
+          "name": "clear-working-directory",
+          "description": "clear the job working directory"
+        },
+        {
+          "name": "env",
+          "description": "replace job environment variables; may be repeated",
+          "value_name": "KEY=VALUE",
+          "repeated": true
+        },
+        {
+          "name": "clear-env",
+          "description": "clear job environment variables"
+        },
+        {
+          "name": "set-job-name",
+          "description": "replace job name",
+          "value_name": "NAME"
+        },
+        {
+          "name": "depends-on",
+          "description": "replace prerequisites; may be repeated",
+          "value_name": "NAME",
+          "repeated": true
+        },
+        {
+          "name": "clear-depends-on",
+          "description": "clear prerequisites"
+        },
+        {
+          "name": "depends-on-finished",
+          "description": "replace prerequisites that only need to finish, whatever their result; may be repeated",
+          "value_name": "NAME",
+          "repeated": true
+        },
+        {
+          "name": "clear-depends-on-finished",
+          "description": "clear prerequisites that only need to finish"
+        },
+        {
+          "name": "timeout",
+          "description": "replace the job timeout, such as 90m or 2h",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "clear-timeout",
+          "description": "remove the job timeout"
+        },
+        {
+          "name": "retry",
+          "description": "replace the job's retry limit; 0 disables retries",
+          "value_name": "N"
+        },
+        {
+          "name": "clear-retry",
+          "description": "use the run's --retry limit for the job again and remove its retry delay settings"
+        },
+        {
+          "name": "retry-delay",
+          "description": "replace the wait before the job's first retry, such as 30s",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "retry-backoff",
+          "description": "replace the factor applied to the retry delay for each further retry",
+          "value_name": "FACTOR"
+        },
+        {
+          "name": "retry-max-delay",
+          "description": "replace the upper limit of the retry delay",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "quiet",
+          "description": "suppress success output",
+          "environment": "ROTARI_QUIET"
+        }
+      ],
+      "positional": "\u003ccommand ...\u003e"
+    },
+    {
+      "name": "export",
+      "description": "export the current queue or saved runs as a workflow manifest",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "run-id",
+          "description": "run ID to export; may be repeated",
+          "value_name": "ID",
+          "short": "r",
+          "environment": "ROTARI_RUN_ID",
+          "repeated": true
+        },
+        {
+          "name": "format",
+          "description": "manifest format: yaml, toml, or json",
+          "value_name": "FORMAT",
+          "values": [
+            "yaml",
+            "toml",
+            "json"
+          ],
+          "short": "o"
+        },
+        {
+          "name": "template",
+          "description": "print a starter workflow manifest"
+        },
+        {
+          "name": "output",
+          "description": "write the workflow manifest to a file",
+          "value_name": "FILE"
+        }
+      ],
+      "positional": "[TARGET] [FILE]"
+    },
+    {
+      "name": "import",
+      "description": "validate and replace a queue from a workflow manifest",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "overwrite",
+          "description": "replace a non-empty queue"
+        },
+        {
+          "name": "dry-run",
+          "description": "validate and print the import plan without writing"
+        },
+        {
+          "name": "json",
+          "description": "print the import plan as JSON"
+        }
+      ],
+      "positional": "FILE [PROJECT]"
+    },
+    {
+      "name": "remove",
+      "description": "remove jobs from the current or previous batch",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "run-id",
+          "description": "run ID to use when restoring a batch",
+          "value_name": "ID",
+          "short": "r",
+          "environment": "ROTARI_RUN_ID"
+        },
+        {
+          "name": "job-id",
+          "description": "remove a job; may be repeated",
+          "value_name": "ID",
+          "short": "j",
+          "environment": "ROTARI_JOB_ID",
+          "repeated": true
+        },
+        {
+          "name": "job-name",
+          "description": "remove a job by name",
+          "value_name": "NAME",
+          "environment": "ROTARI_JOB_NAME"
+        },
+        {
+          "name": "stage",
+          "description": "remove every job in a stage",
+          "value_name": "STAGE"
+        },
+        {
+          "name": "matrix",
+          "description": "remove every job of a matrix, named by its base job name",
+          "value_name": "NAME"
+        },
+        {
+          "name": "all",
+          "description": "remove every job"
+        },
+        {
+          "name": "quiet",
+          "description": "suppress success output",
+          "environment": "ROTARI_QUIET"
+        }
+      ],
+      "positional": "[JOB_ID ...]"
+    },
+    {
+      "name": "show",
+      "description": "show queue or run status",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "masterdir",
+          "description": "master registry directory",
+          "value_name": "DIR",
+          "environment": "ROTARI_MASTERDIR"
+        },
+        {
+          "name": "run-id",
+          "description": "run ID or latest",
+          "value_name": "ID",
+          "short": "r",
+          "environment": "ROTARI_RUN_ID"
+        },
+        {
+          "name": "queue",
+          "description": "show the current queue even when a run is selected"
+        },
+        {
+          "name": "job-id",
+          "description": "job ID",
+          "value_name": "ID",
+          "short": "j",
+          "environment": "ROTARI_JOB_ID"
+        },
+        {
+          "name": "job-name",
+          "description": "job name",
+          "value_name": "NAME",
+          "environment": "ROTARI_JOB_NAME"
+        },
+        {
+          "name": "failed",
+          "description": "show failed jobs; may be combined with the other result filters"
+        },
+        {
+          "name": "unfinished",
+          "description": "show unfinished jobs; may be combined with the other result filters"
+        },
+        {
+          "name": "success",
+          "description": "show successful jobs; may be combined with the other result filters"
+        },
+        {
+          "name": "stage",
+          "description": "show jobs in this stage only",
+          "value_name": "NAME"
+        },
+        {
+          "name": "matrix",
+          "description": "show jobs of this matrix only, named by its base job name",
+          "value_name": "NAME"
+        },
+        {
+          "name": "lineage",
+          "description": "list the project's runs oldest first with result counts and changes since the previous run"
+        },
+        {
+          "name": "logs",
+          "description": "print output logs for all jobs"
+        },
+        {
+          "name": "failed-logs",
+          "description": "print output logs for failed jobs"
+        },
+        {
+          "name": "follow",
+          "description": "follow log output until the run completes"
+        },
+        {
+          "name": "no-pager",
+          "description": "print logs directly instead of using a pager"
+        },
+        {
+          "name": "basedirs",
+          "description": "list state directories known to the master registry"
+        },
+        {
+          "name": "json",
+          "description": "print machine-readable JSON for a run"
+        },
+        {
+          "name": "report",
+          "description": "print an AI-ready Markdown report"
+        }
+      ],
+      "positional": "[SELECTOR]"
+    },
+    {
+      "name": "diff",
+      "description": "compare job results and definitions between two runs",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "json",
+          "description": "print the comparison as JSON"
+        },
+        {
+          "name": "unchanged",
+          "description": "also list jobs whose result and definition did not change"
+        }
+      ],
+      "positional": "[[RUN_A] RUN_B]"
+    },
+    {
+      "name": "jobs",
+      "description": "list running and recently finished jobs across projects",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "masterdir",
+          "description": "master registry directory for --all",
+          "value_name": "DIR",
+          "environment": "ROTARI_MASTERDIR"
+        },
+        {
+          "name": "all-basedirs",
+          "description": "include all basedirs known to the master registry"
+        },
+        {
+          "name": "format",
+          "description": "output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time)",
+          "value_name": "FORMAT",
+          "short": "o"
+        },
+        {
+          "name": "since",
+          "description": "include jobs finished within this duration; use 0 for running jobs only",
+          "value_name": "DURATION"
+        }
+      ],
+      "positional": "[PROJECT]"
+    },
+    {
+      "name": "diagnose",
+      "description": "diagnose one job with an LLM or local error rules",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "run-id",
+          "description": "run ID",
+          "value_name": "ID",
+          "short": "r",
+          "environment": "ROTARI_RUN_ID"
+        },
+        {
+          "name": "job-id",
+          "description": "failed job ID",
+          "value_name": "ID",
+          "short": "j",
+          "environment": "ROTARI_JOB_ID"
+        },
+        {
+          "name": "job-name",
+          "description": "failed job name",
+          "value_name": "NAME",
+          "environment": "ROTARI_JOB_NAME"
+        },
+        {
+          "name": "rules",
+          "description": "use local rule-based diagnosis without calling an LLM"
+        },
+        {
+          "name": "provider",
+          "description": "LLM provider: openai, openai-chat, anthropic, gemini, or cohere",
+          "value_name": "PROVIDER",
+          "values": [
+            "openai",
+            "openai-chat",
+            "anthropic",
+            "gemini",
+            "cohere"
+          ],
+          "environment": "ROTARI_LLM_PROVIDER"
+        },
+        {
+          "name": "endpoint",
+          "description": "LLM API endpoint",
+          "value_name": "URL",
+          "environment": "ROTARI_LLM_ENDPOINT"
+        },
+        {
+          "name": "model",
+          "description": "LLM model name",
+          "value_name": "MODEL",
+          "environment": "ROTARI_LLM_MODEL"
+        },
+        {
+          "name": "language",
+          "description": "response language BCP 47 tag",
+          "value_name": "TAG",
+          "environment": "ROTARI_LLM_LANGUAGE"
+        }
+      ],
+      "positional": "[JOB_ID]"
+    },
+    {
+      "name": "wait",
+      "description": "wait for an asynchronous run by project, run name, or run ID",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "run-id",
+          "description": "run ID; may be repeated",
+          "value_name": "ID",
+          "short": "r",
+          "environment": "ROTARI_RUN_ID",
+          "repeated": true
+        },
+        {
+          "name": "timeout",
+          "description": "maximum wait duration",
+          "value_name": "DURATION",
+          "environment": "ROTARI_WAIT_TIMEOUT"
+        },
+        {
+          "name": "json",
+          "description": "print each completed run as one JSON object"
+        }
+      ],
+      "positional": "[PROJECT_OR_RUN_NAME_OR_RUN_ID ...]"
+    },
+    {
+      "name": "add",
+      "description": "add a command to a queue",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "executor",
+          "description": "job executor",
+          "value_name": "EXECUTOR",
+          "values": [
+            "local",
+            "lsf",
+            "pbs",
+            "slurm",
+            "ssh"
+          ],
+          "short": "e",
+          "environment": "ROTARI_EXECUTOR"
+        },
+        {
+          "name": "executor-option",
+          "description": "option passed to the selected scheduler (sbatch/qsub/...); may be repeated",
+          "value_name": "OPTION",
+          "environment": "ROTARI_EXECUTOR_OPTIONS",
+          "repeated": true
+        },
+        {
+          "name": "working-directory",
+          "description": "working directory for the job",
+          "value_name": "DIR"
+        },
+        {
+          "name": "env",
+          "description": "environment variable for the job; may be repeated",
+          "value_name": "KEY=VALUE",
+          "repeated": true
+        },
+        {
+          "name": "job-name",
+          "description": "job name label",
+          "value_name": "NAME",
+          "environment": "ROTARI_JOB_NAME"
+        },
+        {
+          "name": "stage",
+          "description": "stage that contains the job",
+          "value_name": "NAME"
+        },
+        {
+          "name": "depends-on",
+          "description": "name of a prerequisite job or stage; may be repeated",
+          "value_name": "NAME",
+          "repeated": true
+        },
+        {
+          "name": "depends-on-finished",
+          "description": "name of a prerequisite job or stage that must finish, whatever its result; may be repeated",
+          "value_name": "NAME",
+          "repeated": true
+        },
+        {
+          "name": "timeout",
+          "description": "stop the job this long after it starts, such as 90m or 2h; it then fails with exit code 124",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "retry",
+          "description": "retry the job up to N times when it fails, instead of the run's --retry; 0 disables retries",
+          "value_name": "N"
+        },
+        {
+          "name": "retry-delay",
+          "description": "wait this long before the job's first retry, such as 30s; retries are immediate by default",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "retry-backoff",
+          "description": "multiply the retry delay by this factor for each further retry, such as 2",
+          "value_name": "FACTOR"
+        },
+        {
+          "name": "retry-max-delay",
+          "description": "upper limit of the retry delay, such as 10m",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "array",
+          "description": "create an array job range or selected tasks",
+          "value_name": "FIRST-LAST|TASK[,TASK...]",
+          "environment": "ROTARI_ARRAY_RANGE"
+        },
+        {
+          "name": "matrix",
+          "description": "expand a command into jobs from KEY=VALUE[,VALUE...] dimensions; may be repeated",
+          "value_name": "KEY=VALUE[,VALUE...]",
+          "repeated": true
+        },
+        {
+          "name": "quiet",
+          "description": "suppress success output",
+          "environment": "ROTARI_QUIET"
+        }
+      ],
+      "positional": "\u003ccommand ...\u003e"
+    },
+    {
+      "name": "copy",
+      "description": "copy the latest run's jobs into the queue",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "run-id",
+          "description": "source run ID; defaults to the latest run",
+          "value_name": "ID",
+          "short": "r",
+          "environment": "ROTARI_RUN_ID"
+        },
+        {
+          "name": "failed",
+          "description": "include failed jobs; may be combined with result filters"
+        },
+        {
+          "name": "unfinished",
+          "description": "include unfinished jobs; may be combined with result filters"
+        },
+        {
+          "name": "success",
+          "description": "include successful jobs; may be combined with result filters"
+        },
+        {
+          "name": "job-id",
+          "description": "copy a job; may be repeated",
+          "value_name": "ID",
+          "short": "j",
+          "environment": "ROTARI_JOB_ID",
+          "repeated": true
+        },
+        {
+          "name": "job-name",
+          "description": "copy a job by name",
+          "value_name": "NAME",
+          "environment": "ROTARI_JOB_NAME"
+        },
+        {
+          "name": "stage",
+          "description": "only copy jobs in this stage, narrowed by any result filter",
+          "value_name": "STAGE"
+        },
+        {
+          "name": "matrix",
+          "description": "only copy jobs of this matrix, named by its base job name, narrowed by any result filter",
+          "value_name": "NAME"
+        },
+        {
+          "name": "append",
+          "description": "append to a non-empty queue"
+        },
+        {
+          "name": "overwrite",
+          "description": "replace a non-empty queue"
+        },
+        {
+          "name": "quiet",
+          "description": "suppress success output",
+          "environment": "ROTARI_QUIET"
+        }
+      ],
+      "positional": "[RUN_ID]"
+    },
+    {
+      "name": "run",
+      "description": "execute queued commands, optionally selecting jobs from a run",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "run-id",
+          "description": "repopulate the queue from this run before executing (copy --run-id + run); defaults to the latest run when a result filter is used",
+          "value_name": "ID",
+          "short": "r",
+          "environment": "ROTARI_RUN_ID"
+        },
+        {
+          "name": "overwrite",
+          "description": "replace a non-empty queue without prompting; requires --run-id"
+        },
+        {
+          "name": "run-name",
+          "description": "run name label",
+          "value_name": "NAME",
+          "environment": "ROTARI_RUN_NAME"
+        },
+        {
+          "name": "local-concurrency",
+          "description": "local worker concurrency",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_LOCAL_CONCURRENCY"
+        },
+        {
+          "name": "batch-concurrency",
+          "description": "scheduler job concurrency (Slurm/PBS/...)",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_BATCH_CONCURRENCY"
+        },
+        {
+          "name": "retry",
+          "description": "retry failed jobs up to N times; explicit cancellations are not retried",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_RETRY"
+        },
+        {
+          "name": "failed",
+          "description": "only execute failed jobs; others carry forward their previous result"
+        },
+        {
+          "name": "unfinished",
+          "description": "only execute unfinished jobs; others carry forward their previous result"
+        },
+        {
+          "name": "success",
+          "description": "only execute successful jobs; others carry forward their previous result"
+        },
+        {
+          "name": "job-id",
+          "description": "only execute this job; may be repeated; not with a result filter; others carry forward their previous result",
+          "value_name": "ID",
+          "short": "j",
+          "environment": "ROTARI_JOB_ID",
+          "repeated": true
+        },
+        {
+          "name": "job-name",
+          "description": "only execute this job by name",
+          "value_name": "NAME",
+          "environment": "ROTARI_JOB_NAME"
+        },
+        {
+          "name": "stage",
+          "description": "only execute jobs in this stage, narrowed by any result filter; others carry forward their previous result",
+          "value_name": "STAGE"
+        },
+        {
+          "name": "matrix",
+          "description": "only execute jobs of this matrix, named by its base job name, narrowed by any result filter; others carry forward their previous result",
+          "value_name": "NAME"
+        },
+        {
+          "name": "partial-array",
+          "description": "with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches"
+        },
+        {
+          "name": "async",
+          "description": "return after starting the run",
+          "environment": "ROTARI_RUN_ASYNC"
+        },
+        {
+          "name": "quiet",
+          "description": "suppress progress and completion output",
+          "environment": "ROTARI_QUIET"
+        },
+        {
+          "name": "executor",
+          "description": "execution executor override",
+          "value_name": "EXECUTOR",
+          "values": [
+            "local",
+            "lsf",
+            "pbs",
+            "slurm",
+            "ssh"
+          ],
+          "short": "e",
+          "environment": "ROTARI_EXECUTOR"
+        },
+        {
+          "name": "executor-option",
+          "description": "option passed to the selected scheduler (sbatch/qsub/...); may be repeated",
+          "value_name": "OPTION",
+          "environment": "ROTARI_EXECUTOR_OPTIONS",
+          "repeated": true
+        },
+        {
+          "name": "ssh-concurrency",
+          "description": "SSH executor concurrency",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_SSH_CONCURRENCY"
+        },
+        {
+          "name": "ssh-options",
+          "description": "SSH executor dispatch options; may be repeated",
+          "value_name": "OPTION",
+          "environment": "ROTARI_RUN_SSH_OPTIONS",
+          "repeated": true
+        },
+        {
+          "name": "slurm-concurrency",
+          "description": "Slurm executor concurrency",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_SLURM_CONCURRENCY"
+        },
+        {
+          "name": "slurm-options",
+          "description": "Slurm executor dispatch options; may be repeated",
+          "value_name": "OPTION",
+          "environment": "ROTARI_RUN_SLURM_OPTIONS",
+          "repeated": true
+        },
+        {
+          "name": "slurm-submit-interval",
+          "description": "minimum Slurm submission interval",
+          "value_name": "DURATION",
+          "environment": "ROTARI_RUN_SLURM_SUBMIT_INTERVAL"
+        },
+        {
+          "name": "slurm-submit-retry-limit",
+          "description": "maximum retries for transient Slurm submission failures",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_SLURM_SUBMIT_RETRY_LIMIT"
+        },
+        {
+          "name": "pbs-concurrency",
+          "description": "PBS executor concurrency",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_PBS_CONCURRENCY"
+        },
+        {
+          "name": "pbs-options",
+          "description": "PBS executor dispatch options; may be repeated",
+          "value_name": "OPTION",
+          "environment": "ROTARI_RUN_PBS_OPTIONS",
+          "repeated": true
+        },
+        {
+          "name": "pbs-submit-interval",
+          "description": "minimum PBS submission interval",
+          "value_name": "DURATION",
+          "environment": "ROTARI_RUN_PBS_SUBMIT_INTERVAL"
+        },
+        {
+          "name": "pbs-submit-retry-limit",
+          "description": "maximum retries for transient PBS submission failures",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_PBS_SUBMIT_RETRY_LIMIT"
+        },
+        {
+          "name": "lsf-concurrency",
+          "description": "LSF executor concurrency",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_LSF_CONCURRENCY"
+        },
+        {
+          "name": "lsf-options",
+          "description": "LSF executor dispatch options; may be repeated",
+          "value_name": "OPTION",
+          "environment": "ROTARI_RUN_LSF_OPTIONS",
+          "repeated": true
+        },
+        {
+          "name": "lsf-submit-interval",
+          "description": "minimum LSF submission interval",
+          "value_name": "DURATION",
+          "environment": "ROTARI_RUN_LSF_SUBMIT_INTERVAL"
+        },
+        {
+          "name": "lsf-submit-retry-limit",
+          "description": "maximum retries for transient LSF submission failures",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT"
+        }
+      ],
+      "positional": "[RUN_ID]"
+    },
+    {
+      "name": "retry",
+      "description": "run failed and unfinished jobs; with --job-id, run those jobs",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "run-id",
+          "description": "repopulate the queue from this run before executing; defaults to the latest run",
+          "value_name": "ID",
+          "short": "r",
+          "environment": "ROTARI_RUN_ID"
+        },
+        {
+          "name": "overwrite",
+          "description": "replace a non-empty queue without prompting; requires --run-id"
+        },
+        {
+          "name": "run-name",
+          "description": "run name label",
+          "value_name": "NAME",
+          "environment": "ROTARI_RUN_NAME"
+        },
+        {
+          "name": "local-concurrency",
+          "description": "local worker concurrency",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_LOCAL_CONCURRENCY"
+        },
+        {
+          "name": "batch-concurrency",
+          "description": "scheduler job concurrency (Slurm/PBS/...)",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_BATCH_CONCURRENCY"
+        },
+        {
+          "name": "retry",
+          "description": "retry failed jobs up to N times; explicit cancellations are not retried",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_RETRY"
+        },
+        {
+          "name": "job-id",
+          "description": "only execute this job instead of failed and unfinished jobs; may be repeated",
+          "value_name": "ID",
+          "short": "j",
+          "environment": "ROTARI_JOB_ID",
+          "repeated": true
+        },
+        {
+          "name": "stage",
+          "description": "only retry jobs in this stage",
+          "value_name": "STAGE"
+        },
+        {
+          "name": "matrix",
+          "description": "only retry jobs of this matrix, named by its base job name",
+          "value_name": "NAME"
+        },
+        {
+          "name": "async",
+          "description": "return after starting the run",
+          "environment": "ROTARI_RUN_ASYNC"
+        },
+        {
+          "name": "quiet",
+          "description": "suppress progress and completion output",
+          "environment": "ROTARI_QUIET"
+        },
+        {
+          "name": "executor",
+          "description": "execution executor override",
+          "value_name": "EXECUTOR",
+          "values": [
+            "local",
+            "lsf",
+            "pbs",
+            "slurm",
+            "ssh"
+          ],
+          "short": "e",
+          "environment": "ROTARI_EXECUTOR"
+        },
+        {
+          "name": "executor-option",
+          "description": "option passed to the selected scheduler (sbatch/qsub/...); may be repeated",
+          "value_name": "OPTION",
+          "environment": "ROTARI_EXECUTOR_OPTIONS",
+          "repeated": true
+        },
+        {
+          "name": "ssh-concurrency",
+          "description": "SSH executor concurrency",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_SSH_CONCURRENCY"
+        },
+        {
+          "name": "ssh-options",
+          "description": "SSH executor dispatch options; may be repeated",
+          "value_name": "OPTION",
+          "environment": "ROTARI_RUN_SSH_OPTIONS",
+          "repeated": true
+        },
+        {
+          "name": "slurm-concurrency",
+          "description": "Slurm executor concurrency",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_SLURM_CONCURRENCY"
+        },
+        {
+          "name": "slurm-options",
+          "description": "Slurm executor dispatch options; may be repeated",
+          "value_name": "OPTION",
+          "environment": "ROTARI_RUN_SLURM_OPTIONS",
+          "repeated": true
+        },
+        {
+          "name": "slurm-submit-interval",
+          "description": "minimum Slurm submission interval",
+          "value_name": "DURATION",
+          "environment": "ROTARI_RUN_SLURM_SUBMIT_INTERVAL"
+        },
+        {
+          "name": "slurm-submit-retry-limit",
+          "description": "maximum retries for transient Slurm submission failures",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_SLURM_SUBMIT_RETRY_LIMIT"
+        },
+        {
+          "name": "pbs-concurrency",
+          "description": "PBS executor concurrency",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_PBS_CONCURRENCY"
+        },
+        {
+          "name": "pbs-options",
+          "description": "PBS executor dispatch options; may be repeated",
+          "value_name": "OPTION",
+          "environment": "ROTARI_RUN_PBS_OPTIONS",
+          "repeated": true
+        },
+        {
+          "name": "pbs-submit-interval",
+          "description": "minimum PBS submission interval",
+          "value_name": "DURATION",
+          "environment": "ROTARI_RUN_PBS_SUBMIT_INTERVAL"
+        },
+        {
+          "name": "pbs-submit-retry-limit",
+          "description": "maximum retries for transient PBS submission failures",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_PBS_SUBMIT_RETRY_LIMIT"
+        },
+        {
+          "name": "lsf-concurrency",
+          "description": "LSF executor concurrency",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_LSF_CONCURRENCY"
+        },
+        {
+          "name": "lsf-options",
+          "description": "LSF executor dispatch options; may be repeated",
+          "value_name": "OPTION",
+          "environment": "ROTARI_RUN_LSF_OPTIONS",
+          "repeated": true
+        },
+        {
+          "name": "lsf-submit-interval",
+          "description": "minimum LSF submission interval",
+          "value_name": "DURATION",
+          "environment": "ROTARI_RUN_LSF_SUBMIT_INTERVAL"
+        },
+        {
+          "name": "lsf-submit-retry-limit",
+          "description": "maximum retries for transient LSF submission failures",
+          "value_name": "N",
+          "environment": "ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT"
+        }
+      ],
+      "positional": "[RUN_ID]"
+    },
+    {
+      "name": "server",
+      "description": "manage the background server",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "masterdir",
+          "description": "server registry directory",
+          "value_name": "DIR",
+          "environment": "ROTARI_MASTERDIR"
+        }
+      ],
+      "subcommands": [
+        {
+          "name": "status",
+          "description": "show server status"
+        },
+        {
+          "name": "list",
+          "description": "list servers"
+        },
+        {
+          "name": "shutdown",
+          "description": "shut down server"
+        }
+      ]
+    },
+    {
+      "name": "web",
+      "description": "serve the web status UI",
+      "flags": [
+        {
+          "name": "basedir",
+          "description": "state directory",
+          "value_name": "DIR",
+          "short": "b",
+          "environment": "ROTARI_BASEDIR"
+        },
+        {
+          "name": "project-name",
+          "description": "project name",
+          "value_name": "NAME",
+          "short": "p",
+          "environment": "ROTARI_PROJECT_NAME"
+        },
+        {
+          "name": "host",
+          "description": "HTTP listen host",
+          "value_name": "HOST",
+          "environment": "ROTARI_WEB_HOST"
+        },
+        {
+          "name": "port",
+          "description": "HTTP listen port",
+          "value_name": "PORT",
+          "environment": "ROTARI_WEB_PORT"
+        },
+        {
+          "name": "static-dir",
+          "description": "generate a static web UI",
+          "value_name": "DIR",
+          "environment": "ROTARI_WEB_STATIC_DIR"
+        },
+        {
+          "name": "allow-control",
+          "description": "enable job control (copy/change/remove/cancel/clear); pass --allow-control=false for a read-only UI",
+          "environment": "ROTARI_WEB_ALLOW_CONTROL"
+        },
+        {
+          "name": "auth-token",
+          "description": "require this token in Authorization: Bearer or X-Rotari-Token; prefer ROTARI_WEB_AUTH_TOKEN for secrets",
+          "value_name": "TOKEN",
+          "environment": "ROTARI_WEB_AUTH_TOKEN"
+        },
+        {
+          "name": "notifications",
+          "description": "default state of the browser desktop-notification toggle; pass --notifications=false to default it off",
+          "environment": "ROTARI_WEB_NOTIFICATIONS"
+        }
+      ]
+    },
+    {
+      "name": "completion",
+      "description": "print shell completion script",
+      "subcommands": [
+        {
+          "name": "bash",
+          "description": "bash completion"
+        },
+        {
+          "name": "zsh",
+          "description": "zsh completion"
+        },
+        {
+          "name": "fish",
+          "description": "fish completion"
+        },
+        {
+          "name": "install",
+          "description": "install completion for the current shell"
+        }
+      ]
+    },
+    {
+      "name": "schema",
+      "description": "print the CLI schema as JSON",
+      "flags": [
+        {
+          "name": "json",
+          "description": "print the schema as JSON"
+        }
+      ]
+    },
+    {
+      "name": "guide",
+      "description": "print a usage guide for coding agents"
+    },
+    {
+      "name": "version",
+      "description": "print version"
+    },
+    {
+      "name": "env",
+      "description": "list ROTARI environment variables"
+    }
+  ]
+}
