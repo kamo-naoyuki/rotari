@@ -111,7 +111,7 @@ the IDs, this table, and those calls disagree.
 | RES-6 | `export TARGET [FILE]` names a project or saved run | pending | - |
 | RES-7 | `unlock` derives the run from the lock or interrupted metadata | pending | - |
 | RES-8 | `show --basedirs` lists registered state directories | pending | - |
-| RES-9 | Project names and job IDs are single path elements | partial | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
+| RES-9 | Project names and job IDs are single path elements | conformance | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
 | RES-10 | Unsafe path elements are rejected before filesystem access, locally and remotely | partial | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
 | RES-11 | Stored times are UTC RFC3339; displayed times follow `TZ` | partial | `TestDisplayTimesFollowTZ` |
 | RES-12 | `--run-id` is exact except the reserved `latest` | pending | - |

@@ -12,7 +12,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -78,7 +80,38 @@ func newEnv(t *testing.T) *env {
 		"ROTARI_BASEDIR=" + e.base,
 		"ROTARI_MASTERDIR=" + e.master,
 	}
+	// Before the directories go away, stop the supervisor a test started,
+	// then any job process still running. Cleanups run last-in first-out.
+	t.Cleanup(func() { killStrays(t, root) })
+	t.Cleanup(func() { _ = e.command("server", "shutdown").Run() })
 	return e
+}
+
+// killStrays kills the process group of every process whose command line
+// names a path under root, such as a job wrapper that a failed cancel left
+// running, so a test leaks no processes. It needs /proc and does nothing
+// without it.
+func killStrays(t *testing.T, root string) {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		pid, err := strconv.Atoi(entry.Name())
+		if err != nil {
+			continue
+		}
+		cmdline, err := os.ReadFile(filepath.Join("/proc", entry.Name(), "cmdline"))
+		if err != nil || !bytes.Contains(cmdline, []byte(root+string(filepath.Separator))) {
+			continue
+		}
+		pgid, err := syscall.Getpgid(pid)
+		if err != nil || pgid == syscall.Getpgrp() {
+			continue
+		}
+		t.Logf("killing leftover process group %d: %s", pgid, bytes.ReplaceAll(cmdline, []byte{0}, []byte{' '}))
+		_ = syscall.Kill(-pgid, syscall.SIGKILL)
+	}
 }
 
 // in returns e reporting to t, for use inside a subtest.
@@ -239,13 +272,67 @@ func requireUnixSockets(t *testing.T) {
 // finishedRun is a run of project "p1" with one successful and one failed
 // job, created through the CLI.
 type finishedRun struct {
-	project string
-	runID   string
-	okJob   string
-	badJob  string
+	project    string
+	runID      string
+	okJob      string
+	badJob     string
+	badAttempt string
 }
 
 var addedJobPattern = regexp.MustCompile(`job_id=(\S+)`)
+
+// activeRun is a synchronous run whose jobs sleep until they are cancelled.
+// A synchronous run is used because the supervisor owns its lock; see the
+// async cancel entry in ISSUES.md.
+type activeRun struct {
+	project string
+	runID   string
+	jobs    []string
+}
+
+// startActiveRun queues count sleeping jobs in project, starts a
+// synchronous run of them in the background, and waits until every job is
+// running. The run is cancelled when the test ends.
+func (e *env) startActiveRun(project string, count int) activeRun {
+	e.t.Helper()
+	requireUnixSockets(e.t)
+	run := activeRun{project: project}
+	for i := 1; i <= count; i++ {
+		name := fmt.Sprintf("hold%d", i)
+		run.jobs = append(run.jobs, addedJobID(e.t, e.mustRotari("add", "-p", project, "--job-name", name, "--", "sleep", "300")))
+	}
+	client := e.command("run", "-p", project, "--quiet")
+	var output bytes.Buffer
+	client.Stdout, client.Stderr = &output, &output
+	if err := client.Start(); err != nil {
+		e.t.Fatal(err)
+	}
+	e.t.Cleanup(func() {
+		// Disconnecting a synchronous client cancels its run.
+		_ = client.Process.Kill()
+		_ = client.Wait()
+		_ = e.command("wait", "-p", project, "--timeout", "30s").Run()
+	})
+
+	// Wait until every job runs and show names the run, which it does only
+	// once the project's metadata records it.
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		running := strings.Count(e.rotari("jobs", project, "--format", "%a %s").stdout, " running")
+		var shown struct {
+			RunID string `json:"run_id"`
+		}
+		_ = json.Unmarshal([]byte(e.rotari("show", "-p", project, "--json").stdout), &shown)
+		if running == count && shown.RunID != "" {
+			run.runID = shown.RunID
+			return run
+		}
+		if time.Now().After(deadline) {
+			e.t.Fatalf("after 15s, %d of %d jobs run and show names run %q; run output:\n%s", running, count, shown.RunID, output.String())
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
 
 func (e *env) createFinishedRun() finishedRun {
 	e.t.Helper()
@@ -257,12 +344,26 @@ func (e *env) createFinishedRun() finishedRun {
 		e.t.Fatalf("run with a failing job should exit 1: %s", r)
 	}
 	var shown struct {
-		RunID string `json:"run_id"`
+		RunID   string `json:"run_id"`
+		Summary struct {
+			Results []struct {
+				ID        string `json:"id"`
+				AttemptID string `json:"attempt_id"`
+			} `json:"results"`
+		} `json:"summary"`
 	}
 	if err := json.Unmarshal([]byte(e.mustRotari("show", "-p", run.project, "--json").stdout), &shown); err != nil || shown.RunID == "" {
 		e.t.Fatalf("show --json did not name the run: %v", err)
 	}
 	run.runID = shown.RunID
+	for _, result := range shown.Summary.Results {
+		if result.ID == run.badJob {
+			run.badAttempt = result.AttemptID
+		}
+	}
+	if run.badAttempt == "" {
+		e.t.Fatalf("show --json has no attempt for job %s", run.badJob)
+	}
 	return run
 }
 

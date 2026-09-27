@@ -133,14 +133,9 @@ immediately useful first. Each step stands alone and can stop there.
 1. **Widen conformance coverage.** Move `partial` and `pending` rows in the
    "Contract status" table of [docs/CONTRACTS.md](docs/CONTRACTS.md) toward
    `conformance`, giving rules in sections without IDs an ID as they gain a
-   test. In order: the Web API routes the pilot leaves out of the path test
-   because a valid request needs more setup
-   (`/api/cancel-job`, `/api/suspend-job`, `/api/resume-job`,
-   `/api/cancel-run` with an active run; `/api/change` and `/api/remove` with
-   a queued job; `/api/save-config` and `/api/generate-config` with a config
-   file), with `cancel`, `run`, and `reset` on the CLI side; the selector
-   table in [docs/contracts/06-selectors.md](docs/contracts/06-selectors.md)
-   through the binary; the run lifecycle (failure then filtered rerun, cancel, two
+   test. In order: the selector table in
+   [docs/contracts/06-selectors.md](docs/contracts/06-selectors.md) through
+   the binary; the run lifecycle (failure then filtered rerun, cancel, two
    concurrent `run`s on one base directory); recovery after the runner is
    killed with SIGKILL.
 2. **Golden output files.** Golden files with an `-update` flag for `--help`,
