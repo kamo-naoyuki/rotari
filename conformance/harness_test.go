@@ -50,6 +50,14 @@ func covers(t *testing.T, ids ...string) {
 	t.Helper()
 }
 
+// knownDeviation skips the rest of a test of a contract that rotari
+// knowingly breaks. The contract's row has status deviation, and ISSUES.md
+// names the ID; remove the call with the fix.
+func knownDeviation(t *testing.T, id string) {
+	t.Helper()
+	t.Skipf("known deviation from %s; see ISSUES.md", id)
+}
+
 // env is one isolated rotari installation: a base directory, a master
 // directory, and a home with its own config directories.
 type env struct {
@@ -281,9 +289,7 @@ type finishedRun struct {
 
 var addedJobPattern = regexp.MustCompile(`job_id=(\S+)`)
 
-// activeRun is a synchronous run whose jobs sleep until they are cancelled.
-// A synchronous run is used because the supervisor owns its lock; see the
-// async cancel entry in ISSUES.md.
+// activeRun is a run whose jobs sleep until they are cancelled.
 type activeRun struct {
 	project string
 	runID   string
@@ -295,24 +301,43 @@ type activeRun struct {
 // running. The run is cancelled when the test ends.
 func (e *env) startActiveRun(project string, count int) activeRun {
 	e.t.Helper()
+	return e.startRun(project, count, false)
+}
+
+// startAsyncRun is startActiveRun with `run --async`.
+func (e *env) startAsyncRun(project string, count int) activeRun {
+	e.t.Helper()
+	return e.startRun(project, count, true)
+}
+
+func (e *env) startRun(project string, count int, async bool, runArgs ...string) activeRun {
+	e.t.Helper()
 	requireUnixSockets(e.t)
 	run := activeRun{project: project}
 	for i := 1; i <= count; i++ {
 		name := fmt.Sprintf("hold%d", i)
 		run.jobs = append(run.jobs, addedJobID(e.t, e.mustRotari("add", "-p", project, "--job-name", name, "--", "sleep", "300")))
 	}
-	client := e.command("run", "-p", project, "--quiet")
 	var output bytes.Buffer
-	client.Stdout, client.Stderr = &output, &output
-	if err := client.Start(); err != nil {
-		e.t.Fatal(err)
+	args := append([]string{"run", "-p", project, "--quiet"}, runArgs...)
+	if async {
+		output.WriteString(e.mustRotari(append(args, "--async")...).String())
+		e.t.Cleanup(func() {
+			_ = e.command("cancel", "-p", project, "--wait").Run()
+		})
+	} else {
+		client := e.command(args...)
+		client.Stdout, client.Stderr = &output, &output
+		if err := client.Start(); err != nil {
+			e.t.Fatal(err)
+		}
+		e.t.Cleanup(func() {
+			// Disconnecting a synchronous client cancels its run.
+			_ = client.Process.Kill()
+			_ = client.Wait()
+			_ = e.command("wait", "-p", project, "--timeout", "30s").Run()
+		})
 	}
-	e.t.Cleanup(func() {
-		// Disconnecting a synchronous client cancels its run.
-		_ = client.Process.Kill()
-		_ = client.Wait()
-		_ = e.command("wait", "-p", project, "--timeout", "30s").Run()
-	})
 
 	// Wait until every job runs and show names the run, which it does only
 	// once the project's metadata records it.

@@ -265,6 +265,30 @@
   and `TestExecuteMixedRunRecordsJobTimeout`, and against real schedulers by
   `TestSchedulerContainerStopsTimedOutJob`.
 
+## Cancellation
+
+These rules describe what a caller observes; they hold for synchronous and
+asynchronous runs, for the CLI and the Web UI, and whichever process sends
+the request, on the host that owns the run.
+
+- **CAN-1** A whole-run cancel of an active run (`rotari cancel` with no job
+  selection or only the run ID, or the Web UI's cancel-run) stops every job of
+  the run that is running, and no job of the run starts afterwards.
+- **CAN-2** A cancelled run still finishes: it writes its summary, every job
+  has a recorded result, the running lock is removed, and the project returns
+  to idle. Cancellation never leaves the run interrupted, so no `unlock` is
+  needed before the next `add` or `run`.
+- **CAN-3** `rotari cancel --wait` returns once the cancelled run has finished,
+  and exits 0.
+- **CAN-4** Cancelling one job (`rotari cancel JOB_ID`, or the Web UI's
+  cancel-job) stops only that job. The rest of the run keeps running and
+  finishes normally, and the run's `--retry` does not start the cancelled job
+  again.
+
+Whole-run and job cancel go through `jobcontrol.Controller`
+([internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go)).
+Covered by [conformance/cancel_test.go](../conformance/cancel_test.go).
+
 ## Validation and readiness
 
 - `run`, `reset`, and `check` share the same project-state inspector. `run` and

@@ -80,6 +80,7 @@ A rule in the pages of this directory gets an ID by starting with
 | `CORE` | "Core design contracts" in [00-overview.md](00-overview.md#core-design-contracts) |
 | `RES` | "Resolution rules" in [01-resolution-and-config.md](01-resolution-and-config.md#resolution-rules) |
 | `DUR` | "Job execution durability" in [04-coordination-and-safety.md](04-coordination-and-safety.md#job-execution-durability) |
+| `CAN` | "Cancellation" in [02-run-lifecycle-and-execution.md](02-run-lifecycle-and-execution.md#cancellation) |
 
 Other sections have no IDs yet; give a rule one, with the next free number,
 when a conformance test starts checking it. Never renumber or reuse an ID;
@@ -130,3 +131,7 @@ the IDs, this table, and those calls disagree.
 | DUR-4 | Supervisors are not restarted; crash detection is file-backed | pending | - |
 | DUR-5 | `show`, `jobs`, reports, and the Web UI share one status fallback chain | partial | `TestCLIAndWebAgreeOnJobResults` |
 | DUR-6 | Recovery does not kill or reconcile leftover jobs | pending | - |
+| CAN-1 | A whole-run cancel stops every running job of the run, from any caller | deviation | `TestWholeRunCancelFinishesRun` |
+| CAN-2 | A cancelled run finishes with a summary and leaves the project idle, not interrupted | deviation | `TestWholeRunCancelFinishesRun` |
+| CAN-3 | `cancel --wait` returns once the run has finished and exits 0 | deviation | `TestCancelWaitReturnsAfterRunFinishes` |
+| CAN-4 | Cancelling one job stops only that job, which the run does not retry | conformance | `TestCancelJobStopsOnlyThatJob` |
