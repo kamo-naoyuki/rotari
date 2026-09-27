@@ -182,11 +182,11 @@ func (server *Server) BeginRun() {
 // EndRun records a finished run and stops the server after its last run.
 func (server *Server) EndRun() {
 	server.accessMu.Lock()
+	defer server.accessMu.Unlock()
 	server.activeRuns--
 	server.lastAccess = time.Now()
-	shouldStop := server.activeRuns == 0
-	server.accessMu.Unlock()
-	if shouldStop {
+	// Stop under the lock so Busy never reports idle before Stopped is true.
+	if server.activeRuns == 0 {
 		server.Stop()
 	}
 }
