@@ -37,6 +37,24 @@ Rotari deliberately stays out of the way. **You don't need a separate workflow l
 
 Rotari covers a narrow need, and the tools below are strong in their own situations. Pick the one that matches yours; often it will not be rotari.
 
+**Rotari is for the stage before a workflow settles:** you are running a batch of experiment commands by hand, on a workstation or a shared Slurm, PBS, or LSF cluster, finding out which commands and settings work, fixing the jobs that failed, and running the batch again. **In rotari, the experiment is the goal and orchestration is only a means to it.** The workflow does not have to be right before you start: commands can be fixed, rerun in part, or accepted after review as you learn what works.
+
+#### Tools for running the commands you already have
+
+These are rotari's closest neighbors. Like rotari, they run existing commands in your existing environment, with no workflow to define.
+
+* **Shell background jobs** (`&` and `wait`, `nohup`, `xargs -P`) need nothing installed but keep no status, so finding and rerunning the failed jobs is up to your script.
+
+* [**GNU Parallel**](https://www.gnu.org/software/parallel/) runs one command template over many inputs, locally or on SSH hosts, and can rerun the failures recorded in its joblog. **Use it when the batch is one command over a list of inputs.**
+
+* [**pueue**](https://github.com/Nukesor/pueue) and [**task-spooler**](https://github.com/justanhduc/task-spooler) keep a queue of commands on one machine, with dependencies and a parallelism limit; task-spooler also hands out free GPUs. **Use them for a personal queue on one workstation or GPU server.**
+
+* [**submitit**](https://github.com/facebookincubator/submitit) submits Python functions to Slurm and returns their results. **Use it when your experiment driver is a Python program.**
+
+Rotari adds the batch as a unit with a history: each run snapshots the queue and every job's result, `retry` reruns only failed and unfinished jobs after you fix them, and `diff` shows what a fix changed. The same queue runs locally, over SSH, or on Slurm, PBS, or LSF. See [Comparison with nearby tools](docs/TOOL_COMPARISON.md) for details.
+
+#### Workflow engines, for when the workflow settles
+
 * [**Dagu**](https://dagu.sh/) is a capable single-binary workflow engine with file-based state, a Web UI, cron scheduling, event triggers, containers, remote and distributed workers, and AI agent steps. **If you want a lightweight workflow engine and are happy to describe workflows in YAML, Dagu is likely a better choice than rotari.**
 
 * [**Snakemake**](https://github.com/snakemake/snakemake) is built around rules, inputs, outputs, and dependencies, reruns only what is out of date, and runs on clusters as well. **Use it when your pipeline is driven by files and its structure is worth formalizing.**
@@ -45,11 +63,7 @@ Rotari covers a narrow need, and the tools below are strong in their own situati
 
 * [**Airflow**](https://github.com/apache/airflow), [**Prefect**](https://github.com/PrefectHQ/prefect), and [**Dagster**](https://github.com/dagster-io/dagster) orchestrate workflows expressed as programs. **Use them for production pipelines that run on a schedule and need monitoring.**
 
-**In rotari, the experiment is the goal and orchestration is only a means to it.** The workflow does not have to be right before you start: commands can be fixed, rerun in part, or accepted after review as you learn what works.
-
-Workflow engines such as Dagu and Airflow also describe where each step runs (its directory, variables, container, or host), because a scheduler or trigger must be able to start a workflow with no one at a shell. Rotari leaves that out on purpose: there is no cron or trigger, you start every run, and its jobs run in the environment you started it from.
-
-**Rotari is for the stage before a workflow settles:** you are running a batch of experiment commands by hand, on a workstation or a shared Slurm, PBS, or LSF cluster, finding out which commands and settings work, fixing the jobs that failed, and running the batch again. If that loop is where your time goes, rotari keeps it manageable and lets the commands remain the workflow. Once the pipeline stabilizes, moving it to one of the tools above is a natural next step.
+Workflow engines such as Dagu and Airflow also describe where each step runs (its directory, variables, container, or host), because a scheduler or trigger must be able to start a workflow with no one at a shell. Rotari leaves that out on purpose: there is no cron or trigger, you start every run, and its jobs run in the environment you started it from. Once the pipeline stabilizes, moving it to one of these tools is a natural next step.
 
 ## Installation
 
