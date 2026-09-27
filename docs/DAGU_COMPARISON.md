@@ -6,13 +6,15 @@ take in response.
 
 ## Summary
 
-**Philosophy: the experiment is the goal, and orchestration is only a means to
-it.** Dagu makes orchestration itself lightweight: its value is running a
-settled workflow reliably, as defined. rotari's value is that the workflow does
-not have to be right before you start. Commands can be fixed, rerun in part, or
-accepted after review as the experiment shows what works. Features that make
-the loop cheaper belong in rotari; features that make users settle structure
-up front (conditional branches, output passing between jobs, schedule
+**Philosophy: the shell script stays the workflow; rotari keeps the record.**
+Dagu makes orchestration itself lightweight: its value is running a defined
+workflow reliably. rotari does not define workflows. A script of `rotari add`
+lines, run by a person or an agent, is the batch; rotari runs its jobs on the
+host or scheduler at hand, keeps every run's status and logs, and reruns only
+the jobs that failed, which on many hosts is often a node's fault rather than
+the command's. Features that make running, inspecting, and retrying a batch
+cheaper belong in rotari; features that turn the queue into a workflow
+definition (conditional branches, output passing between jobs, schedule
 definitions) do not.
 
 rotari and Dagu share a problem space: running existing commands and scripts
@@ -29,15 +31,16 @@ from different places.
 
 Dagu is a much larger project (roughly 320k lines of non-test Go against
 rotari's 21k, and years of history). rotari will not win by matching its
-feature list. Dagu fits workflows that are defined once and then operated;
-rotari fits the stage before that, when a batch is still being changed. It
-should aim to be clearly better on three related axes:
+feature list, and it is not a step toward a workflow engine: Dagu fits
+workflows that are defined once and then operated, and rotari fits batches
+that people run themselves from scripts. It should aim to be clearly better on
+three related axes:
 
-1. **The fix-and-retry loop** for batches of experiment jobs. This is rotari's
+1. **Run history and retry** for batches of experiment jobs. This is rotari's
    core: what it does.
-2. **Depth on shared HPC schedulers.** This is where the loop runs.
+2. **Depth on shared HPC schedulers.** This is where the batches run.
 3. **Operability by coding agents** such as Claude Code or Codex. This is who
-   runs the loop besides a human.
+   runs them besides a human.
 
 AI integration is treated as a way to strengthen these axes, not as a
 separate feature area to compete in. Containers are not a first-class concept.
@@ -137,21 +140,24 @@ starting point. This matters for humans who already have shell scripts, and it
 matters even more for coding agents, which are good at issuing CLI commands and
 worse at writing and maintaining workflow files correctly.
 
-### Failures are fixed per job and history is kept
+### Failures are rerun per job and history is kept
 
-When some jobs fail, `rotari change` updates only those jobs' commands or
-executor options and a rerun leaves successful jobs alone. The previous
-attempts stay in the run history.
+When some jobs fail, often because one host or node misbehaved rather than
+because the command is wrong, `run --retry N` retries them within the run and
+`rotari retry` starts a new run of only the failed and unfinished jobs,
+leaving successful jobs alone. The previous attempts stay in the run history.
+`rotari change` can also update a job's command or executor options first,
+but most fixes are made in the script.
 
 ### Runs are versions of the experiment
 
 Dagu and Airflow also have runs, but there a run is one execution of a fixed
 definition, and the definition's history lives separately in YAML or code under
-version control. In rotari, a run is a snapshot of the queue as it was edited
-at that moment (`runs/<run-id>/commands.json`). Commands change between runs,
-and each carried-forward job records which run and attempt it came from
-(`JobOrigin`). The sequence of runs is therefore the version history of the
-experiment itself.
+version control. In rotari, a run is a snapshot of the queue the script built
+at that moment (`runs/<run-id>/commands.json`). Commands change between runs
+as the script changes, and each carried-forward job records which run and
+attempt it came from (`JobOrigin`). The sequence of runs is therefore a record
+of what the experiment actually ran.
 
 ### Positioning
 
@@ -168,15 +174,15 @@ rotari
   existing commands and shell scripts
       + current host or shared HPC environment
       + queue / parallel execution
-      + fix-and-retry with preserved history
+      + run history, logs, and retry of failed jobs
       + a CLI that humans and coding agents drive directly
 ```
 
 ## Direction
 
-### Axis 1: the fix-and-retry loop for batches
+### Axis 1: run history and retry for batches
 
-#### Runs as the history of the loop
+#### Runs as history
 
 The data for treating runs as experiment versions already exists: per-run
 command snapshots, per-job `JobOrigin`, and a queue-versus-run change count in
@@ -209,6 +215,9 @@ reason about the batch.
 - Compare a failed attempt with a successful attempt of the same job, or with
   successful siblings in the same matrix, and use the differences in command,
   environment, node, and resources as diagnosis evidence.
+- Tell host failures from command failures: record each attempt's node, and
+  show when failures cluster on one node, so a retry is known to be worth
+  trying and the node can be excluded through executor options.
 
 ### Axis 2: depth on shared HPC schedulers
 
