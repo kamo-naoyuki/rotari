@@ -84,13 +84,20 @@ func (ssh SSH) Submit(runDir string, job model.JobSpec, options []string) (JobHa
 		_ = stdout.Close()
 		return JobHandle{}, err
 	}
-	cmd := exec.Command(SSHCommandPath, append(sshOptions, "--", host, "sh", "-s")...)
-	cmd.Stdin = strings.NewReader(sshWrapperScript(job.Command, job.Environment, job.WorkingDirectory, remoteToken, job.Timeout))
+	if job.EffectiveLogMode() == model.LogModeMerge {
+		_ = stderr.Close()
+		stderr = stdout
+	}
+	remoteCommand := []string{"sh", "-s"}
+	cmd := exec.Command(SSHCommandPath, append(append(sshOptions, "--", host), remoteCommand...)...)
+	cmd.Stdin = strings.NewReader(sshWrapperScript(job.Command, jobEnvironment(job), job.WorkingDirectory, remoteToken, job.Timeout, job))
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
 		_ = stdout.Close()
-		_ = stderr.Close()
+		if stderr != stdout {
+			_ = stderr.Close()
+		}
 		return JobHandle{}, fmt.Errorf("ssh %s: %w", host, err)
 	}
 	metadata := sshJobMetadata{Executor: "ssh", JobID: job.ID, Command: job.Command, Host: host, PID: cmd.Process.Pid, SSHOptions: sshOptions, RemoteToken: remoteToken, SubmittedAt: nowRFC3339()}
@@ -98,7 +105,9 @@ func (ssh SSH) Submit(runDir string, job model.JobSpec, options []string) (JobHa
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 		_ = stdout.Close()
-		_ = stderr.Close()
+		if stderr != stdout {
+			_ = stderr.Close()
+		}
 		return JobHandle{}, err
 	}
 	sshProcesses.Lock()
@@ -124,7 +133,9 @@ func (ssh SSH) Wait(runDir string, handle JobHandle) model.JobResult {
 	}
 	err = process.command.Wait()
 	_ = process.stdout.Close()
-	_ = process.stderr.Close()
+	if process.stderr != process.stdout {
+		_ = process.stderr.Close()
+	}
 	sshProcesses.Lock()
 	delete(sshProcesses.commands, metadata.PID)
 	sshProcesses.Unlock()
@@ -226,7 +237,7 @@ func validSSHRemoteToken(token string) bool {
 	return err == nil
 }
 
-func sshWrapperScript(command []string, environment []string, workingDirectory, remoteToken, timeout string) string {
+func sshWrapperScript(command []string, environment []string, workingDirectory, remoteToken, timeout string, settings ...model.JobSpec) string {
 	exports := make([]string, 0, len(environment))
 	for _, entry := range environment {
 		parts := strings.SplitN(entry, "=", 2)
@@ -234,15 +245,41 @@ func sshWrapperScript(command []string, environment []string, workingDirectory, 
 			exports = append(exports, "export "+parts[0]+"="+ShellQuote(parts[1]))
 		}
 	}
-	quoted := make([]string, 0, len(command))
-	for _, arg := range command {
+	remoteCommand := append([]string(nil), command...)
+	if len(settings) > 0 && (len(settings[0].Output) > 0 || len(settings[0].Error) > 0) {
+		job := settings[0]
+		openMode := job.OpenMode
+		if openMode == "" {
+			openMode = model.OpenModeAppend
+		}
+		remoteCommand = []string{"rotari", "__log-forward", "--open-mode", openMode}
+		for _, path := range job.Output {
+			remoteCommand = append(remoteCommand, "--output", path)
+		}
+		for _, path := range job.Error {
+			remoteCommand = append(remoteCommand, "--error", path)
+		}
+		remoteCommand = append(remoteCommand, "--")
+		remoteCommand = append(remoteCommand, command...)
+	}
+	quoted := make([]string, 0, len(remoteCommand))
+	for _, arg := range remoteCommand {
 		quoted = append(quoted, ShellQuote(arg))
 	}
 	changeDirectory := ""
 	if workingDirectory != "" {
 		changeDirectory = "cd " + ShellQuote(workingDirectory) + " || exit 1\n"
 	}
-	return `#!/bin/sh
+	changeDirectory += "export PWD=\"$PWD\"\n"
+	remoteJobCommand := "setsid sh -c 'exec \"$@\"' sh " + strings.Join(quoted, " ")
+	cleanEnvironment := []string{"PATH=/usr/local/bin:/usr/bin:/bin"}
+	cleanEnvironment = MergeEnvironment(cleanEnvironment, environment)
+	quotedEnvironment := make([]string, 0, len(cleanEnvironment))
+	for _, entry := range cleanEnvironment {
+		quotedEnvironment = append(quotedEnvironment, ShellQuote(entry))
+	}
+	remoteJobCommand = "env -i " + strings.Join(quotedEnvironment, " ") + " " + remoteJobCommand
+	script := `#!/bin/sh
 set +e
 umask 077
 runtime_base=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}
@@ -260,7 +297,7 @@ read_start_time() {
 	shift 19
 	printf '%s\n' "$1"
 }
-` + strings.Join(exports, "\n") + "\n" + changeDirectory + `setsid sh -c 'exec "$@"' sh ` + strings.Join(quoted, " ") + ` &
+` + strings.Join(exports, "\n") + "\n" + changeDirectory + remoteJobCommand + ` &
 remote_pid=$!
 if remote_start=$(read_start_time "$remote_pid"); then
 	printf '%s %s\n' "$remote_pid" "$remote_start" > "$state_dir/process.tmp" && mv "$state_dir/process.tmp" "$state_dir/process"
@@ -276,6 +313,7 @@ fi
 rm -rf "$state_dir"
 exit "$exit_code"
 `
+	return script
 }
 
 // sshTimeoutWatchdog stops the remote command's process group, which setsid

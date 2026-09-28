@@ -31,6 +31,9 @@ func run(args []string) int {
 		printUsage()
 		return 1
 	}
+	if args[0] == "__log-forward" {
+		return executor.RunLogForward(args[1:])
+	}
 	if isHelpArgument(args[0]) || args[0] == "help" {
 		printUsage()
 		return 0

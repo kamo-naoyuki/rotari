@@ -663,6 +663,30 @@
           "value_name": "OPTION"
         },
         {
+          "name": "output",
+          "value_name": "FILE"
+        },
+        {
+          "name": "error",
+          "value_name": "FILE"
+        },
+        {
+          "name": "log-mode",
+          "value_name": "MODE",
+          "values": [
+            "merge",
+            "separate"
+          ]
+        },
+        {
+          "name": "open-mode",
+          "value_name": "MODE",
+          "values": [
+            "append",
+            "truncate"
+          ]
+        },
+        {
           "name": "working-directory",
           "value_name": "DIR"
         },
@@ -859,6 +883,14 @@
           ]
         },
         {
+          "name": "env",
+          "value_name": "ALL|NONE",
+          "values": [
+            "ALL",
+            "NONE"
+          ]
+        },
+        {
           "name": "executor-option",
           "value_name": "OPTION"
         },
@@ -986,6 +1018,14 @@
             "pbs",
             "slurm",
             "ssh"
+          ]
+        },
+        {
+          "name": "env",
+          "value_name": "ALL|NONE",
+          "values": [
+            "ALL",
+            "NONE"
           ]
         },
         {

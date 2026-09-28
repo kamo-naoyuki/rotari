@@ -282,17 +282,44 @@ func schedulerArrayWrapperScript(jobs []model.JobSpec, taskVariable string) stri
 	}
 	// Tasks of one array share the command and its timeout.
 	seconds := model.TimeoutSeconds(jobs[0].Timeout)
-	return "#!/bin/sh\nset +e\n" + processGroupLeaderShell(seconds) + "case \"$" + taskVariable + "\" in\n" + strings.Join(caseLines, "\n") + "\n    *) exit 1 ;;\nesac\nexec >\"$job_dir/" + state.StdoutFileName + "\" 2>\"$job_dir/" + state.StderrFileName + "\"\nstatus_path=\"$job_dir/status.json\"\n" +
-		statusWrapperBody(shellCommandLine(jobs[0].Command), seconds)
+	job := jobs[0]
+	redirect := "exec >\"$job_dir/" + state.StdoutFileName + "\" 2>\"$job_dir/" + state.StderrFileName + "\"\n"
+	if job.EffectiveLogMode() == model.LogModeMerge {
+		redirect = "exec >\"$job_dir/output\" 2>&1\n"
+	}
+	commandLine := schedulerJobCommandLine(job)
+	if len(job.Output) > 0 || len(job.Error) > 0 {
+		commandLine = wrapEnvironment(jobEnvironment(job), job.EnvMode, logForwardCommandLine("rotari", job.OpenMode, job.Output, job.Error, job.Command))
+	}
+	script := "#!/bin/sh\nset +e\n" + processGroupLeaderShell(seconds) + "case \"$" + taskVariable + "\" in\n" + strings.Join(caseLines, "\n") + "\n    *) exit 1 ;;\nesac\n" + redirect + "status_path=\"$job_dir/status.json\"\n" +
+		statusWrapperBody(commandLine, seconds)
+	return script
+}
+
+func schedulerJobCommandLine(job model.JobSpec) string {
+	command := shellCommandLine(job.Command)
+	return wrapEnvironment(jobEnvironment(job), job.EnvMode, command)
+}
+
+func wrapEnvironment(environment []string, envMode, command string) string {
+	if envMode != model.EnvModeNone {
+		return command
+	}
+	assignments := []string{"'PATH=/usr/local/bin:/usr/bin:/bin'"}
+	for _, entry := range environment {
+		assignments = append(assignments, ShellQuote(entry))
+	}
+	return "env -i " + strings.Join(assignments, " ") + " " + command
 }
 
 func schedulerArrayCaseLine(job model.JobSpec) (string, bool) {
 	if !state.IsValidPathElement(job.ID) || job.ArrayTaskID == nil {
 		return "", false
 	}
-	exports := make([]string, 0, len(job.Environment))
+	environment := jobEnvironment(job)
+	exports := make([]string, 0, len(environment))
 	jobDir := ""
-	for _, entry := range job.Environment {
+	for _, entry := range environment {
 		parts := strings.SplitN(entry, "=", 2)
 		if len(parts) != 2 {
 			continue
@@ -310,7 +337,9 @@ func schedulerArrayCaseLine(job model.JobSpec) (string, bool) {
 	if job.WorkingDirectory != "" {
 		changeDirectory = "        cd " + ShellQuote(job.WorkingDirectory) + " || exit 1\n"
 	}
-	return fmt.Sprintf("    %d)\n        %s\n        job_dir=%s\n        export %s=%s\n        mkdir -p \"$job_dir\" || exit 1\n%s        ;;", *job.ArrayTaskID, strings.Join(exports, "\n        "), ShellQuote(jobDir), model.EnvJobDir, ShellQuote(jobDir), changeDirectory), true
+	changeDirectory += "        export PWD=\"$PWD\"\n"
+	commandLine := ShellQuote(schedulerJobCommandLine(job))
+	return fmt.Sprintf("    %d)\n        %s\n        job_dir=%s\n        export %s=%s\n        mkdir -p \"$job_dir\" || exit 1\n%s        job_command_line=%s\n        ;;", *job.ArrayTaskID, strings.Join(exports, "\n        "), ShellQuote(jobDir), model.EnvJobDir, ShellQuote(jobDir), changeDirectory, commandLine), true
 }
 
 type schedulerPollingPolicy struct {

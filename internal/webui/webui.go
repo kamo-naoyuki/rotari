@@ -1075,7 +1075,7 @@ func webLogPath(runsDir, runID, jobID, attemptID, stream string) (string, error)
 		if err != nil {
 			return "", err
 		}
-		return stateinternal.ValidatedStateFile(jobDir, stream)
+		return validatedLogPath(jobDir, stream)
 	}
 	runDir, resolvedJobID, err := resolveWebLogJob(runsDir, runID, jobID)
 	if err != nil {
@@ -1084,6 +1084,19 @@ func webLogPath(runsDir, runID, jobID, attemptID, stream string) (string, error)
 	jobDir, err := stateinternal.LatestAttemptJobDir(runDir, resolvedJobID)
 	if err != nil {
 		return "", err
+	}
+	return validatedLogPath(jobDir, stream)
+}
+
+func validatedLogPath(jobDir, stream string) (string, error) {
+	merged, err := stateinternal.ValidatedStateFile(jobDir, "output")
+	if err != nil {
+		return "", err
+	}
+	if _, statErr := os.Stat(merged); statErr == nil {
+		return merged, nil
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return "", statErr
 	}
 	return stateinternal.ValidatedStateFile(jobDir, stream)
 }

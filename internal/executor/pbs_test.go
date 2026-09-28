@@ -27,7 +27,7 @@ printf '123.headnode\n'
 	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
 
 	runDir := t.TempDir()
-	job := model.JobSpec{ID: "abc123", Command: []string{"echo", "hello"}}
+	job := model.JobSpec{ID: "abc123", LogMode: model.LogModeSeparate, Command: []string{"echo", "hello"}}
 	metadata, err := submitPBSJob(testStore(), testLogf, runDir, job, []string{"-l select=1:ncpus=2"})
 	if err != nil {
 		t.Fatal(err)
@@ -44,6 +44,9 @@ printf '123.headnode\n'
 		if !strings.Contains(string(arguments), want+"\n") {
 			t.Errorf("qsub arguments = %q, want %q", arguments, want)
 		}
+	}
+	if !strings.Contains(string(arguments), "-V\n") {
+		t.Fatalf("qsub arguments = %q, want default -V", arguments)
 	}
 	wrapper, err := os.ReadFile(filepath.Join(runDir, "abc123", "pbs-wrapper.sh"))
 	if err != nil {
@@ -65,6 +68,15 @@ printf '123.headnode\n'
 	}
 	if _, ok := raw["executors"]; ok {
 		t.Fatal("job metadata uses obsolete executors key")
+	}
+	job.ID = "none-job"
+	job.EnvMode = model.EnvModeNone
+	if _, err := submitPBSJob(testStore(), testLogf, runDir, job, nil); err != nil {
+		t.Fatal(err)
+	}
+	arguments, err = os.ReadFile(argumentsPath)
+	if err != nil || strings.Contains(string(arguments), "-V\n") {
+		t.Fatalf("NONE qsub arguments = %q, err=%v; want no -V", arguments, err)
 	}
 }
 
@@ -116,6 +128,9 @@ printf '123[].server\n'
 	if !strings.Contains(string(arguments), "-J\n1-2\n") {
 		t.Fatalf("qsub arguments = %q", arguments)
 	}
+	if !strings.Contains(string(arguments), "-V\n") {
+		t.Fatalf("qsub arguments = %q, want array default -V", arguments)
+	}
 	if !strings.Contains(string(arguments), "-o\n/dev/null\n") {
 		t.Fatalf("qsub arguments = %q, want PBS output files disabled", arguments)
 	}
@@ -125,6 +140,19 @@ printf '123[].server\n'
 	}
 	if !strings.Contains(string(wrapper), `case "$PBS_ARRAY_INDEX"`) {
 		t.Fatalf("PBS wrapper missing array variable: %s", wrapper)
+	}
+	jobs[0].EnvMode = model.EnvModeNone
+	jobs[1].EnvMode = model.EnvModeNone
+	if _, err := submitPBSArray(testStore(), testLogf, runDir, jobs, nil); err != nil {
+		t.Fatal(err)
+	}
+	arguments, err = os.ReadFile(argumentsPath)
+	if err != nil || strings.Contains(string(arguments), "-V\n") {
+		t.Fatalf("NONE array qsub arguments = %q, err=%v; want no -V", arguments, err)
+	}
+	wrapper, err = os.ReadFile(filepath.Join(runDir, "array-pbs-array-wrapper.sh"))
+	if err != nil || !strings.Contains(string(wrapper), "env -i ") {
+		t.Fatalf("NONE array wrapper = %q, err=%v; want clean task environment", wrapper, err)
 	}
 }
 

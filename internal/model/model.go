@@ -49,6 +49,10 @@ type QueuedCommand struct {
 	Executor         string   `json:"executor,omitempty"`
 	ExecutorOptions  []string `json:"executor_options,omitempty"`
 	Environment      []string `json:"environment,omitempty"`
+	Output           []string `json:"output,omitempty"`
+	Error            []string `json:"error,omitempty"`
+	LogMode          string   `json:"log_mode,omitempty"`
+	OpenMode         string   `json:"open_mode,omitempty"`
 	Name             string   `json:"name,omitempty"`
 	Stage            string   `json:"stage,omitempty"`
 	DependsOn        []string `json:"depends_on,omitempty"`
@@ -280,6 +284,7 @@ const EnvJobDir = "ROTARI_JOB_DIR"
 type JobSpec struct {
 	ID               string   `json:"id"`
 	AttemptID        string   `json:"attempt_id,omitempty"`
+	EnvMode          string   `json:"env_mode,omitempty"`
 	Command          []string `json:"command"`
 	WorkingDirectory string   `json:"working_directory,omitempty"`
 	Executor         string   `json:"executor,omitempty"`
@@ -304,6 +309,29 @@ type JobSpec struct {
 	ArrayLast     int      `json:"array_last,omitempty"`
 	ArraySize     int      `json:"array_size,omitempty"`
 	Environment   []string `json:"environment,omitempty"`
+	// InheritedEnvironment carries run-scoped caller values to executor adapters
+	// without persisting them in per-attempt command snapshots.
+	InheritedEnvironment []string `json:"-"`
+	Output               []string `json:"output,omitempty"`
+	Error                []string `json:"error,omitempty"`
+	LogMode              string   `json:"log_mode,omitempty"`
+	OpenMode             string   `json:"open_mode,omitempty"`
+}
+
+const (
+	EnvModeAll       = "ALL"
+	EnvModeNone      = "NONE"
+	LogModeMerge     = "merge"
+	LogModeSeparate  = "separate"
+	OpenModeAppend   = "append"
+	OpenModeTruncate = "truncate"
+)
+
+func (job JobSpec) EffectiveLogMode() string {
+	if job.LogMode == LogModeSeparate {
+		return LogModeSeparate
+	}
+	return LogModeMerge
 }
 
 type RuleDiagnosis struct {
@@ -465,6 +493,8 @@ func queueCommandJob(queued QueuedCommand, id, name string, taskID *int) JobSpec
 		Executor: queued.Executor, ExecutorOptions: queued.ExecutorOptions, Environment: queued.Environment, Stage: queued.Stage, DependsOn: queued.DependsOn,
 		DependsOnFinished: queued.DependsOnFinished, Timeout: queued.Timeout, Retry: queued.Retry,
 		RetryDelay: queued.RetryDelay, RetryBackoff: queued.RetryBackoff, RetryMaxDelay: queued.RetryMaxDelay,
+		Output: queued.Output, Error: queued.Error, LogMode: queued.LogMode,
+		OpenMode: queued.OpenMode,
 	}
 	if taskID != nil {
 		job.ArrayGroup = queued.ID

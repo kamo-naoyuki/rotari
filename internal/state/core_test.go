@@ -27,16 +27,13 @@ func TestAttemptIDRoundTripAndDirectories(t *testing.T) {
 	}
 }
 
-func TestValidatedStateFileAllowsSeparateLogStreams(t *testing.T) {
+func TestValidatedStateFileAllowsJobLogs(t *testing.T) {
 	jobDir := t.TempDir()
-	for _, name := range []string{StdoutFileName, StderrFileName} {
+	for _, name := range []string{"output", StdoutFileName, StderrFileName} {
 		got, err := ValidatedStateFile(jobDir, name)
 		if err != nil || got != filepath.Join(jobDir, name) {
 			t.Errorf("ValidatedStateFile(%q) = %q, %v", name, got, err)
 		}
-	}
-	if _, err := ValidatedStateFile(jobDir, "output"); err == nil {
-		t.Fatal("ValidatedStateFile accepted the removed combined log name")
 	}
 }
 

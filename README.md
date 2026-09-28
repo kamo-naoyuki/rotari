@@ -104,7 +104,9 @@ rotari retry -p sweep
 `add`, `run`, `show`, and `retry` are all most batches need; the other
 commands are there for when you need them. `jobs` gives a compact status
 overview across projects. `show` provides details for a project, run, or job,
-including separate stdout and stderr logs and saved results.
+including merged or separately captured stdout/stderr logs and saved results.
+`run` and `retry` inherit the caller's environment by default; pass
+`--env=NONE` to suppress it while retaining job `--env` and rotari metadata.
 
 See [Projects, queues, runs, and state](docs/CONCEPTS.md#projects-queues-runs-and-state) for
 project selection and state layout, [Inspect](docs/INSPECT.md#inspect) for status and logs,

@@ -24,6 +24,7 @@ type Request struct {
 	Quiet            bool                    `json:"quiet,omitempty"`
 	Executor         string                  `json:"executor,omitempty"`
 	ExecutorOptions  []string                `json:"executor_options,omitempty"`
+	EnvMode          string                  `json:"env_mode,omitempty"`
 	JobIDs           []string                `json:"job_ids,omitempty"`
 	Selection        string                  `json:"selection,omitempty"`
 	// ScopeStage and ScopeMatrix narrow Selection to one stage or matrix.

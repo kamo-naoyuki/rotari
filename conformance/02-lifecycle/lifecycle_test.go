@@ -114,7 +114,8 @@ func TestRunRetrySucceedsWithinOneRun(t *testing.T) {
 func TestJobStreamsPersistSeparately(t *testing.T) {
 	covers(t, "LOG-1")
 	e := support.NewEnv(t)
-	jobID := support.AddedJobID(t, e.MustRotari("add", "-p", "streams", "--", "sh", "-c", "printf from-stdout; printf from-stderr >&2"))
+	jobID := support.AddedJobID(t, e.MustRotari("add", "-p", "streams", "--log-mode", "separate", "--", "sh", "-c", "printf OUT_MARKER; printf ERR_MARKER >&2"))
+	mergedJobID := support.AddedJobID(t, e.MustRotari("add", "-p", "streams", "--", "sh", "-c", "printf DEFAULT_OUT; printf DEFAULT_ERR >&2"))
 	e.MustRotari("run", "-p", "streams", "--quiet")
 	summary := readSummary(t, e, "streams")
 	attemptID, _ := summaryResult(t, summary, jobID)
@@ -122,7 +123,7 @@ func TestJobStreamsPersistSeparately(t *testing.T) {
 	for _, stream := range []struct {
 		name string
 		want string
-	}{{name: "stdout", want: "from-stdout"}, {name: "stderr", want: "from-stderr"}} {
+	}{{name: "stdout", want: "OUT_MARKER"}, {name: "stderr", want: "ERR_MARKER"}} {
 		data, err := os.ReadFile(filepath.Join(attemptDir, stream.name))
 		if err != nil || string(data) != stream.want {
 			t.Fatalf("%s = %q, err=%v; want %q", stream.name, data, err, stream.want)
@@ -131,15 +132,94 @@ func TestJobStreamsPersistSeparately(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(attemptDir, "output")); !os.IsNotExist(err) {
 		t.Fatalf("combined output file exists or could not be checked: %v", err)
 	}
+	mergedAttemptID, _ := summaryResult(t, summary, mergedJobID)
+	mergedDir := filepath.Join(e.Base, "projects", "streams", "runs", summary.RunID, mergedJobID, "attempts", mergedAttemptID)
+	merged, err := os.ReadFile(filepath.Join(mergedDir, "output"))
+	if err != nil || !strings.Contains(string(merged), "DEFAULT_OUT") || !strings.Contains(string(merged), "DEFAULT_ERR") {
+		t.Fatalf("default merged output = %q, err=%v", merged, err)
+	}
+	if _, err := os.Stat(filepath.Join(mergedDir, "stdout")); !os.IsNotExist(err) {
+		t.Fatalf("default merged attempt unexpectedly has stdout file: %v", err)
+	}
 
 	shown := e.MustRotari("show", "-p", "streams", "--run-id", summary.RunID, "--job-id", jobID, "--stream", "stderr", "--no-pager")
-	if !strings.Contains(shown.Stdout, "from-stderr") || strings.Contains(shown.Stdout, "from-stdout") {
+	stderrStart := strings.LastIndex(shown.Stdout, "STDERR:")
+	if stderrStart < 0 || !strings.Contains(shown.Stdout[stderrStart:], "ERR_MARKER") || strings.Contains(shown.Stdout[stderrStart:], "OUT_MARKER") {
 		t.Fatalf("stderr-only CLI view mixed streams: %s", shown)
 	}
 	query := url.Values{"project_name": {"streams"}, "run_id": {summary.RunID}, "job_id": {jobID}, "stream": {"stderr"}}
 	response := e.HTTPGet(e.StartWeb() + "/api/log?" + query.Encode())
-	if response.Status != 200 || response.Body != "from-stderr" {
+	if response.Status != 200 || response.Body != "ERR_MARKER" {
 		t.Fatalf("stderr Web API response = (%d, %q)", response.Status, response.Body)
+	}
+}
+
+func TestExternalLogDestinations(t *testing.T) {
+	covers(t, "LOG-2", "LOG-3", "LOG-4")
+	e := support.NewEnv(t)
+
+	if err := os.MkdirAll(filepath.Join(e.Root, "logs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mergedPath := filepath.Join(e.Root, "logs", "merged.log")
+	if err := os.WriteFile(mergedPath, []byte("prior:"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.MustRotari("add", "-p", "external-merge", "--output", "logs/merged.log", "--output", "logs/copy.log", "--", "sh", "-c", "printf out; printf err >&2")
+	e.MustRotari("run", "-p", "external-merge", "--quiet")
+	for _, path := range []string{mergedPath, filepath.Join(e.Root, "logs", "copy.log")} {
+		data, err := os.ReadFile(path)
+		if err != nil || !strings.Contains(string(data), "out") || !strings.Contains(string(data), "err") {
+			t.Fatalf("output-only destination %s = %q, err=%v; stderr should follow --output", path, data, err)
+		}
+	}
+
+	separatedJobID := support.AddedJobID(t, e.MustRotari("add", "-p", "external-separated", "--output", "nested/a/out.log", "--output", "nested/b/out.log", "--output", "nested/shared.log", "--error", "nested/errors/err.log", "--error", "nested/shared.log", "--log-mode", "merge", "--", "sh", "-c", "printf only-out; printf only-err >&2"))
+	e.MustRotari("run", "-p", "external-separated", "--quiet")
+	separatedSummary := readSummary(t, e, "external-separated")
+	separatedAttemptID, _ := summaryResult(t, separatedSummary, separatedJobID)
+	separatedAttemptDir := filepath.Join(e.Base, "projects", "external-separated", "runs", separatedSummary.RunID, separatedJobID, "attempts", separatedAttemptID)
+	internalMerged, err := os.ReadFile(filepath.Join(separatedAttemptDir, "output"))
+	if err != nil || !strings.Contains(string(internalMerged), "only-out") || !strings.Contains(string(internalMerged), "only-err") {
+		t.Fatalf("internal merged log with separate external sinks = %q, err=%v", internalMerged, err)
+	}
+	for _, path := range []string{"nested/a/out.log", "nested/b/out.log"} {
+		data, err := os.ReadFile(filepath.Join(e.Root, path))
+		if err != nil || string(data) != "only-out" {
+			t.Fatalf("stdout destination %s = %q, err=%v", path, data, err)
+		}
+	}
+	stderr, err := os.ReadFile(filepath.Join(e.Root, "nested/errors/err.log"))
+	if err != nil || string(stderr) != "only-err" {
+		t.Fatalf("stderr destination = %q, err=%v", stderr, err)
+	}
+	shared, err := os.ReadFile(filepath.Join(e.Root, "nested/shared.log"))
+	if err != nil || !strings.Contains(string(shared), "only-out") || !strings.Contains(string(shared), "only-err") {
+		t.Fatalf("shared stdout/stderr destination = %q, err=%v", shared, err)
+	}
+
+	truncatePath := filepath.Join(e.Root, "logs", "truncate.log")
+	if err := os.WriteFile(truncatePath, []byte("old-data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.MustRotari("add", "-p", "external-truncate", "--output", "logs/truncate.log", "--open-mode", "truncate", "--", "printf", "new-data")
+	e.MustRotari("run", "-p", "external-truncate", "--quiet")
+	truncated, err := os.ReadFile(truncatePath)
+	if err != nil || string(truncated) != "new-data" {
+		t.Fatalf("truncated destination = %q, err=%v", truncated, err)
+	}
+
+	blocker := filepath.Join(e.Root, "not-a-directory")
+	if err := os.WriteFile(blocker, []byte("file"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(e.Root, "must-not-run")
+	e.MustRotari("add", "-p", "bad-destination", "--output", "not-a-directory/output", "--", "touch", marker)
+	if result := e.Rotari("run", "-p", "bad-destination", "--quiet"); result.Code == 0 {
+		t.Fatalf("run succeeded despite destination setup failure: %s", result)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("command ran despite destination setup failure: stat error=%v", err)
 	}
 }
 
@@ -224,4 +304,28 @@ func TestRunUsesCallersDirectoryAndEnvironment(t *testing.T) {
 	explicitOut := recordingJob(t, e, "explicit", "--env", "FOO=from-job")
 	e.In(dirB).WithVar("FOO", "from-b").MustRotari("run", "-p", "explicit", "--quiet")
 	want(t, "explicit", readCallerRecord(t, e, "explicit", explicitOut), dirB, "from-job")
+
+	noneOut := recordingJob(t, e, "none")
+	e.In(dirB).WithVar("FOO", "from-b").MustRotari("run", "-p", "none", "--env=NONE", "--quiet")
+	none := readCallerRecord(t, e, "none", noneOut)
+	if none.pwd != dirB || none.foo != "" || none.rotariCWD != dirB || none.contextCWD != dirB {
+		t.Fatalf("NONE env run record = %#v; want cwd %q, empty FOO, and caller cwd metadata", none, dirB)
+	}
+
+	noneJobEnvOut := recordingJob(t, e, "none-job-env", "--env", "FOO=from-job")
+	e.In(dirB).WithVar("FOO", "from-b").MustRotari("run", "-p", "none-job-env", "--env=NONE", "--quiet")
+	noneJobEnv := readCallerRecord(t, e, "none-job-env", noneJobEnvOut)
+	if noneJobEnv.foo != "from-job" || noneJobEnv.rotariCWD != dirB {
+		t.Fatalf("NONE env with job override = %#v; want FOO from-job and caller cwd metadata", noneJobEnv)
+	}
+	relativeDir := filepath.Join(dirB, "relative-work")
+	if err := os.Mkdir(relativeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	relativeOut := recordingJob(t, e, "relative-working-directory", "--working-directory", "relative-work")
+	e.In(dirB).WithVar("FOO", "from-b").MustRotari("run", "-p", "relative-working-directory", "--quiet")
+	relative := readCallerRecord(t, e, "relative-working-directory", relativeOut)
+	if relative.pwd != relativeDir || relative.foo != "from-b" || relative.rotariCWD != dirB || relative.contextCWD != dirB {
+		t.Fatalf("relative working-directory record = %#v; want job cwd %q and caller context %q", relative, relativeDir, dirB)
+	}
 }

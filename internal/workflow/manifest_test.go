@@ -11,9 +11,9 @@ import (
 
 func TestDecodeFormatsCompileEquivalentQueues(t *testing.T) {
 	inputs := map[string]string{
-		"yaml": "version: 1\njobs:\n  - name: train\n    command: [echo, hello]\n    environment: [BASE=yes]\n    array: \"1,3\"\n    matrix: [\"SEED=1,2\"]\n",
-		"json": `{"version":1,"jobs":[{"name":"train","command":["echo","hello"],"environment":["BASE=yes"],"array":"1,3","matrix":["SEED=1,2"]}]}`,
-		"toml": "version = 1\n[[jobs]]\nname = \"train\"\ncommand = [\"echo\", \"hello\"]\nenvironment = [\"BASE=yes\"]\narray = \"1,3\"\nmatrix = [\"SEED=1,2\"]\n",
+		"yaml": "version: 1\njobs:\n  - name: train\n    command: [echo, hello]\n    environment: [BASE=yes]\n    output: [logs/out-a, logs/out-b]\n    error: [logs/err]\n    log_mode: separate\n    open_mode: truncate\n    array: \"1,3\"\n    matrix: [\"SEED=1,2\"]\n",
+		"json": `{"version":1,"jobs":[{"name":"train","command":["echo","hello"],"environment":["BASE=yes"],"output":["logs/out-a","logs/out-b"],"error":["logs/err"],"log_mode":"separate","open_mode":"truncate","array":"1,3","matrix":["SEED=1,2"]}]}`,
+		"toml": "version = 1\n[[jobs]]\nname = \"train\"\ncommand = [\"echo\", \"hello\"]\nenvironment = [\"BASE=yes\"]\noutput = [\"logs/out-a\", \"logs/out-b\"]\nerror = [\"logs/err\"]\nlog_mode = \"separate\"\nopen_mode = \"truncate\"\narray = \"1,3\"\nmatrix = [\"SEED=1,2\"]\n",
 	}
 	var want *model.Queue
 	for format, input := range inputs {
@@ -31,6 +31,9 @@ func TestDecodeFormatsCompileEquivalentQueues(t *testing.T) {
 		}
 		if queue.Commands[0].Array == nil || !reflect.DeepEqual(queue.Commands[0].Array.Tasks, []int{1, 3}) {
 			t.Fatalf("Compile(%s) array = %#v", format, queue.Commands[0].Array)
+		}
+		if !reflect.DeepEqual(queue.Commands[0].Output, []string{"logs/out-a", "logs/out-b"}) || !reflect.DeepEqual(queue.Commands[0].Error, []string{"logs/err"}) || queue.Commands[0].LogMode != model.LogModeSeparate || queue.Commands[0].OpenMode != model.OpenModeTruncate {
+			t.Fatalf("Compile(%s) log settings = %#v", format, queue.Commands[0])
 		}
 	}
 }

@@ -58,9 +58,10 @@ rotari diagnose --run-id RUN_ID --job-id JOB_ID --model "$ROTARI_LLM_MODEL" --la
 ```
 
 The request contains the job's command, recorded exit/error information, and
-at most the final 12,000 characters of its stdout and stderr logs, labeled by
-stream. It does not rerun the job. rotari does not persist the API key or the
-returned diagnosis.
+at most the final 12,000 characters of its configured log. The default merged
+log is sent as-is; separate mode includes labeled stdout and stderr sections.
+It does not rerun the job. rotari does not persist the API key or the returned
+diagnosis.
 
 `--language` accepts a BCP 47 language tag such as `ja`, `en`, or `en-US` and
 asks the model to answer in that language. Set `ROTARI_LLM_LANGUAGE=ja` to use

@@ -26,7 +26,11 @@ func TimeoutMessage(seconds int) string {
 // StatusWrapperScript runs a job's command and records its progress in
 // status.json. A positive timeout (a model.ParseTimeout duration) stops the
 // command that long after it starts.
-func StatusWrapperScript(command []string, jobDir string, environment []string, workingDirectory, timeout string) string {
+func StatusWrapperScript(command []string, jobDir string, environment []string, workingDirectory, timeout string, envMode ...string) string {
+	return statusWrapperScript(shellCommandLine(command), jobDir, environment, workingDirectory, timeout, envMode...)
+}
+
+func statusWrapperScript(commandLine, jobDir string, environment []string, workingDirectory, timeout string, envMode ...string) string {
 	statusPath := filepath.Join(jobDir, "status.json")
 	exports := make([]string, 0, len(environment))
 	for _, entry := range environment {
@@ -39,9 +43,49 @@ func StatusWrapperScript(command []string, jobDir string, environment []string, 
 	if workingDirectory != "" {
 		changeDirectory = "cd " + ShellQuote(workingDirectory) + " || exit 1\n"
 	}
+	changeDirectory += "export PWD=\"$PWD\"\n"
 	seconds := model.TimeoutSeconds(timeout)
+	if len(envMode) > 0 && envMode[0] == model.EnvModeNone {
+		cleanEnvironment := []string{"PATH=/usr/local/bin:/usr/bin:/bin"}
+		cleanEnvironment = append(cleanEnvironment, environment...)
+		assignments := make([]string, 0, len(cleanEnvironment))
+		for _, entry := range cleanEnvironment {
+			assignments = append(assignments, ShellQuote(entry))
+		}
+		commandLine = "env -i " + strings.Join(assignments, " ") + " " + commandLine
+	}
 	return "#!/bin/sh\nset +e\n" + processGroupLeaderShell(seconds) + "status_path=" + ShellQuote(statusPath) + "\n" + strings.Join(exports, "\n") + "\n" + changeDirectory +
-		statusWrapperBody(shellCommandLine(command), seconds)
+		statusWrapperBody(commandLine, seconds)
+}
+
+func StatusWrapperScriptWithDestinations(command []string, jobDir string, environment []string, workingDirectory, timeout, logMode, openMode string, outputPaths, errorPaths []string, envMode ...string) string {
+	return StatusWrapperScriptWithLogForwarder(command, jobDir, environment, workingDirectory, timeout, openMode, outputPaths, errorPaths, "rotari", envMode...)
+}
+
+func StatusWrapperScriptWithLogForwarder(command []string, jobDir string, environment []string, workingDirectory, timeout, openMode string, outputPaths, errorPaths []string, helper string, envMode ...string) string {
+	commandLine := shellCommandLine(command)
+	if len(outputPaths) > 0 || len(errorPaths) > 0 {
+		if openMode == "" {
+			openMode = model.OpenModeAppend
+		}
+		commandLine = logForwardCommandLine(helper, openMode, outputPaths, errorPaths, command)
+	}
+	return statusWrapperScript(commandLine, jobDir, environment, workingDirectory, timeout, envMode...)
+}
+
+func logForwardCommandLine(helper, openMode string, outputPaths, errorPaths, command []string) string {
+	if openMode == "" {
+		openMode = model.OpenModeAppend
+	}
+	parts := []string{ShellQuote(helper), "__log-forward", "--open-mode", ShellQuote(openMode)}
+	for _, path := range outputPaths {
+		parts = append(parts, "--output", ShellQuote(path))
+	}
+	for _, path := range errorPaths {
+		parts = append(parts, "--error", ShellQuote(path))
+	}
+	parts = append(parts, "--", shellCommandLine(command))
+	return strings.Join(parts, " ")
 }
 
 // processGroupLeaderShell makes a wrapper with a timeout the leader of its
@@ -93,6 +137,7 @@ func statusWrapperBody(commandLine string, timeoutSeconds int) string {
 			"if kill -0 $$ 2>/dev/null; then\n        write_status finished "+fmt.Sprint(TimeoutExitCode)+" \""+message+"\"\n        kill -KILL 0\n    fi") + "fi\n"
 	}
 	return `hostname=$(hostname 2>/dev/null || true)
+finish_logs() { :; }
 write_status() {
     phase=$1
     code=$2
@@ -115,13 +160,13 @@ on_signal() {
 	signal=$1
     if [ -f "$timed_out_marker" ]; then
         echo "rotari: job ` + message + `" >&2
-        write_status finished ` + fmt.Sprint(TimeoutExitCode) + ` "` + message + `"
-        exit ` + fmt.Sprint(TimeoutExitCode) + `
+		return 0
     fi
     if [ -n "${job_pid:-}" ] && kill -0 "$job_pid" 2>/dev/null; then
         kill -TERM "$job_pid" 2>/dev/null || true
     fi
-    write_status cancelled "$signal"
+	finish_logs || true
+	write_status cancelled "$signal"
     exit "$signal"
 }
 trap 'on_signal 143' TERM
@@ -140,8 +185,19 @@ if [ -f "$cancelled_marker" ]; then
 fi
 wait "$job_pid"
 code=$?
-[ -z "$watchdog_pid" ] || kill "$watchdog_pid" 2>/dev/null
-write_status finished "$code"
+if [ -f "$timed_out_marker" ]; then
+	while kill -0 "$job_pid" 2>/dev/null; do
+		wait "$job_pid"
+		code=$?
+	done
+	code=` + fmt.Sprint(TimeoutExitCode) + `
+	[ -z "$watchdog_pid" ] || kill "$watchdog_pid" 2>/dev/null
+	write_status finished "$code" "` + message + `"
+else
+	[ -z "$watchdog_pid" ] || kill "$watchdog_pid" 2>/dev/null
+	finish_logs || code=1
+	write_status finished "$code"
+fi
 exit "$code"
 `
 }

@@ -2,6 +2,7 @@ package queueops
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -39,6 +40,25 @@ func ValidateJobs(queue model.Queue) error {
 		}
 		if strings.ContainsRune(command.WorkingDirectory, '\x00') {
 			return fmt.Errorf("job %q working directory contains a NUL byte", command.ID)
+		}
+		for _, destinations := range [][]string{command.Output, command.Error} {
+			seen := make(map[string]bool, len(destinations))
+			for _, destination := range destinations {
+				if destination == "" || strings.ContainsRune(destination, '\x00') {
+					return fmt.Errorf("job %q has an invalid output destination", command.ID)
+				}
+				cleaned := filepath.Clean(destination)
+				if seen[cleaned] {
+					return fmt.Errorf("job %q repeats output destination %q", command.ID, destination)
+				}
+				seen[cleaned] = true
+			}
+		}
+		if command.LogMode != "" && command.LogMode != model.LogModeMerge && command.LogMode != model.LogModeSeparate {
+			return fmt.Errorf("job %q has invalid log mode %q", command.ID, command.LogMode)
+		}
+		if command.OpenMode != "" && command.OpenMode != model.OpenModeAppend && command.OpenMode != model.OpenModeTruncate {
+			return fmt.Errorf("job %q has invalid output open mode %q", command.ID, command.OpenMode)
 		}
 		if command.Timeout != "" {
 			if _, err := model.ParseTimeout(command.Timeout); err != nil {

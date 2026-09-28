@@ -20,6 +20,9 @@ Jobs run in the working directory and with the environment of the shell that
 runs `rotari run`, sync or async, unless a job sets its own with
 `--working-directory` or `--env`; see
 [Workflow and execution environment](CONCEPTS.md#workflow-and-execution-environment).
+Use `run --env=NONE` or `retry --env=NONE` to suppress ordinary caller
+environment variables for that run. The default `--env=ALL` propagates them;
+job `--env` values and rotari metadata still apply in either mode.
 
 The async start message prints commands for checking status and cancelling the
 run. `wait` returns the overall run exit code. Pass a project name, run name,

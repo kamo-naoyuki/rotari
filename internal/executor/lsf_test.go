@@ -13,10 +13,12 @@ import (
 
 func TestSubmitLSFJobWithFakeLSF(t *testing.T) {
 	binDir := t.TempDir()
-	writeExecutable(t, binDir, "bsub", `#!/bin/sh
+	argumentsPath := filepath.Join(t.TempDir(), "bsub-args")
+	writeExecutable(t, binDir, "bsub", fmt.Sprintf(`#!/bin/sh
+printf '%%s\n' "$@" > %q
 cat >/dev/null
 printf 'Job <123> is submitted to default queue.\n'
-`)
+`, argumentsPath))
 	oldPath := os.Getenv("PATH")
 	if err := os.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath); err != nil {
 		t.Fatal(err)
@@ -24,7 +26,7 @@ printf 'Job <123> is submitted to default queue.\n'
 	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
 
 	runDir := t.TempDir()
-	job := model.JobSpec{ID: "abc123", Command: []string{"echo", "hello"}}
+	job := model.JobSpec{ID: "abc123", LogMode: model.LogModeSeparate, Command: []string{"echo", "hello"}}
 	metadata, err := submitLSFJob(testStore(), testLogf, runDir, job, []string{"-q short", "-n 2"})
 	if err != nil {
 		t.Fatal(err)
@@ -41,6 +43,19 @@ printf 'Job <123> is submitted to default queue.\n'
 	}
 	if !strings.Contains(string(wrapper), "#BSUB -o '"+filepath.Join(runDir, job.ID, state.StdoutFileName)+"'\n") || !strings.Contains(string(wrapper), "#BSUB -e '"+filepath.Join(runDir, job.ID, state.StderrFileName)+"'\n") {
 		t.Fatalf("LSF wrapper does not separate stream files: %s", wrapper)
+	}
+	arguments, err := os.ReadFile(argumentsPath)
+	if err != nil || !strings.Contains(string(arguments), "-env\nall\n") {
+		t.Fatalf("ALL bsub arguments = %q, err=%v; want -env all", arguments, err)
+	}
+	job.ID = "none-job"
+	job.EnvMode = model.EnvModeNone
+	if _, err := submitLSFJob(testStore(), testLogf, runDir, job, nil); err != nil {
+		t.Fatal(err)
+	}
+	arguments, err = os.ReadFile(argumentsPath)
+	if err != nil || !strings.Contains(string(arguments), "-env\nnone\n") {
+		t.Fatalf("NONE bsub arguments = %q, err=%v; want -env none", arguments, err)
 	}
 }
 
@@ -94,6 +109,9 @@ printf '%%s\n' "$@" > %q
 	if !strings.Contains(string(arguments), "-J\nrotari[1-2]\n") {
 		t.Fatalf("bsub arguments = %q", arguments)
 	}
+	if !strings.Contains(string(arguments), "-env\nall\n") {
+		t.Fatalf("bsub arguments = %q, want array default -env all", arguments)
+	}
 	// LSF array output is controlled by directives in the submitted wrapper.
 	wrapper, err := os.ReadFile(wrapperPath)
 	if err != nil {
@@ -101,6 +119,19 @@ printf '%%s\n' "$@" > %q
 	}
 	if !strings.Contains(string(wrapper), "#BSUB -o /dev/null\n") || !strings.Contains(string(wrapper), "#BSUB -e /dev/null\n") {
 		t.Fatalf("LSF array wrapper = %q, want scheduler output files disabled", wrapper)
+	}
+	jobs[0].EnvMode = model.EnvModeNone
+	jobs[1].EnvMode = model.EnvModeNone
+	if _, err := submitLSFArray(testStore(), testLogf, runDir, jobs, nil); err != nil {
+		t.Fatal(err)
+	}
+	arguments, err = os.ReadFile(argumentsPath)
+	if err != nil || !strings.Contains(string(arguments), "-env\nnone\n") {
+		t.Fatalf("NONE array bsub arguments = %q, err=%v", arguments, err)
+	}
+	wrapper, err = os.ReadFile(wrapperPath)
+	if err != nil || !strings.Contains(string(wrapper), "env -i ") {
+		t.Fatalf("NONE array wrapper = %q, err=%v; want clean task environment", wrapper, err)
 	}
 }
 

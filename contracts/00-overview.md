@@ -78,8 +78,9 @@ The normal state layout is:
         └── <job-id>/
             └── attempts/<attempt-id>/
                 ├── command.json
-                ├── stdout
-                ├── stderr
+                ├── output      # default merged log
+                ├── stdout      # separate mode
+                ├── stderr      # separate mode
                 ├── status.json
                 └── executor-specific state
 ```
@@ -87,7 +88,8 @@ The normal state layout is:
 - Files may appear incrementally while a run is active.
 - Readers must tolerate missing optional or not-yet-written run files without
   inventing completed results.
-- Run status and separate stream logs remain the durable execution record.
+- Run status and each attempt's configured merged or separate stream logs
+  remain the durable execution record.
 
 ## Core design contracts
 

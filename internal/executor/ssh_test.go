@@ -14,6 +14,7 @@ import (
 
 func TestSSHExecutorRunsRemoteCommandAndRecordsResult(t *testing.T) {
 	binDir := t.TempDir()
+	helperDir := installTestRotari(t)
 	oldSSHCommandPath := SSHCommandPath
 	SSHCommandPath = filepath.Join(binDir, "ssh")
 	t.Cleanup(func() { SSHCommandPath = oldSSHCommandPath })
@@ -21,16 +22,22 @@ func TestSSHExecutorRunsRemoteCommandAndRecordsResult(t *testing.T) {
 	writeExecutable(t, binDir, "ssh", fmt.Sprintf(`#!/bin/sh
 printf '%%s\n' "$@" > %q
 cat > "$ROTARI_SSH_SCRIPT"
-sh "$ROTARI_SSH_SCRIPT"
-`, argumentsPath))
+env -i PATH=%q:/usr/local/bin:/usr/bin:/bin sh "$ROTARI_SSH_SCRIPT"
+`, argumentsPath, helperDir))
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	remoteDir := t.TempDir()
 	scriptPath := filepath.Join(remoteDir, "remote.sh")
 	t.Setenv("ROTARI_SSH_SCRIPT", scriptPath)
 	t.Setenv("XDG_RUNTIME_DIR", remoteDir)
+	t.Setenv("HOST_ONLY_VALUE", "remote-host-only")
 
 	runDir := filepath.Join(t.TempDir(), "runs", "run-1")
-	job := model.JobSpec{ID: "job-1", Command: []string{"sh", "-c", "printf '%s' \"$ROTARI_JOB_ID\"; printf ssh-error >&2"}, Environment: []string{"ROTARI_JOB_ID=job-1"}}
+	job := model.JobSpec{
+		ID: "job-1", EnvMode: model.EnvModeAll, LogMode: model.LogModeSeparate,
+		Command:     []string{"sh", "-c", "printf '%s:%s:%s' \"$ROTARI_JOB_ID\" \"$CALLER_VALUE\" \"$HOST_ONLY_VALUE\"; printf ssh-error >&2"},
+		Environment: []string{"ROTARI_JOB_ID=job-1", "PATH=" + helperDir + ":/usr/local/bin:/usr/bin:/bin"}, InheritedEnvironment: []string{"CALLER_VALUE=caller"}, WorkingDirectory: remoteDir,
+		Output: []string{"nested/stdout.log", "archive/stdout.log"}, Error: []string{"nested/stderr.log"},
+	}
 	ssh := SSH{Store: testStore()}
 	handle, err := ssh.Submit(runDir, job, []string{"builder@example.test", "-p 2222"})
 	if err != nil {
@@ -41,12 +48,38 @@ sh "$ROTARI_SSH_SCRIPT"
 		t.Fatalf("result = %#v", result)
 	}
 	stdout, err := os.ReadFile(filepath.Join(runDir, "job-1", state.StdoutFileName))
-	if err != nil || string(stdout) != "job-1" {
+	if err != nil || string(stdout) != "job-1:caller:" {
 		t.Fatalf("stdout = %q, err = %v", stdout, err)
 	}
 	stderr, err := os.ReadFile(filepath.Join(runDir, "job-1", state.StderrFileName))
 	if err != nil || string(stderr) != "ssh-error" {
 		t.Fatalf("stderr = %q, err = %v", stderr, err)
+	}
+	for path, want := range map[string]string{
+		filepath.Join(remoteDir, "nested", "stdout.log"):  "job-1:caller:",
+		filepath.Join(remoteDir, "archive", "stdout.log"): "job-1:caller:",
+		filepath.Join(remoteDir, "nested", "stderr.log"):  "ssh-error",
+	} {
+		data, err := os.ReadFile(path)
+		if err != nil || string(data) != want {
+			t.Errorf("external destination %s = %q, err=%v; want %q", path, data, err, want)
+		}
+	}
+	noneJob := model.JobSpec{
+		ID: "job-none", EnvMode: model.EnvModeNone, LogMode: model.LogModeSeparate,
+		Command:     []string{"sh", "-c", "printf '%s:%s' \"$ROTARI_JOB_ID\" \"$HOST_ONLY_VALUE\""},
+		Environment: []string{"ROTARI_JOB_ID=job-none"}, WorkingDirectory: remoteDir,
+	}
+	noneHandle, err := ssh.Submit(runDir, noneJob, []string{"builder@example.test", "-p", "2222"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result := ssh.Wait(runDir, noneHandle); result.ExitCode != 0 {
+		t.Fatalf("NONE SSH result = %#v", result)
+	}
+	noneOutput, err := os.ReadFile(filepath.Join(runDir, "job-none", state.StdoutFileName))
+	if err != nil || string(noneOutput) != "job-none:" {
+		t.Fatalf("NONE SSH stdout = %q, err=%v", noneOutput, err)
 	}
 	arguments, err := os.ReadFile(argumentsPath)
 	if err != nil {

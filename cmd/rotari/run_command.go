@@ -50,6 +50,7 @@ func runJobs(args []string, defaultSelection string) int {
 	async := cliBool(fs, "async", false)
 	quiet := cliBool(fs, "quiet", false)
 	executor := cliString(fs, "executor", "")
+	envMode := cliString(fs, "env", model.EnvModeAll)
 	var executorOptions stringSliceFlag
 	cliValue(fs, &executorOptions, "executor-option")
 	if err := cliParse(fs, args); err != nil {
@@ -263,7 +264,7 @@ func runJobs(args []string, defaultSelection string) int {
 	defer client.Close()
 	request := serverinternal.Request{
 		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings(), Retry: *retry, Async: *async, Quiet: *quiet,
-		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, CWD: cwd,
+		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, EnvMode: *envMode, CWD: cwd,
 		Selection: selection, JobIDs: jobIDs, ScopeStage: scope.Stage, ScopeMatrix: scope.Matrix, SourceRunID: sourceRunID, PartialArray: *partialArray,
 	}
 	var response serverinternal.Response

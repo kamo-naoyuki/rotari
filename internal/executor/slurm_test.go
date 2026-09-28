@@ -27,7 +27,7 @@ printf '12345;fake-host\n'
 
 	baseDir := t.TempDir()
 	runDir := filepath.Join(baseDir, "projects", "demo", "runs", "run-1")
-	job := model.JobSpec{ID: "abc123", AttemptID: "att_run-1-abc123-0", Command: []string{"echo", "hello"}}
+	job := model.JobSpec{ID: "abc123", AttemptID: "att_run-1-abc123-0", LogMode: model.LogModeSeparate, Command: []string{"echo", "hello"}}
 	metadata, err := submitSlurmJob(testStore(), testLogf, runDir, job, []string{"-p short --cpus-per-task=2"})
 	if err != nil {
 		t.Fatal(err)
@@ -61,6 +61,18 @@ printf '12345;fake-host\n'
 		if !strings.Contains(string(arguments), want+"\n") {
 			t.Errorf("sbatch arguments = %q, want %q", arguments, want)
 		}
+	}
+	if !strings.Contains(string(arguments), "--export=ALL\n") {
+		t.Fatalf("sbatch arguments = %q, want default --export=ALL", arguments)
+	}
+	job.ID = "none-job"
+	job.EnvMode = model.EnvModeNone
+	if _, err := submitSlurmJob(testStore(), testLogf, runDir, job, nil); err != nil {
+		t.Fatal(err)
+	}
+	arguments, err = os.ReadFile(argumentsPath)
+	if err != nil || !strings.Contains(string(arguments), "--export=NONE\n") {
+		t.Fatalf("NONE sbatch arguments = %q, err=%v", arguments, err)
 	}
 }
 
@@ -165,6 +177,9 @@ printf '54321;fake-host\n'
 	if !strings.Contains(string(arguments), "--array=1-2\n") {
 		t.Fatalf("sbatch arguments = %q, want native array range", arguments)
 	}
+	if !strings.Contains(string(arguments), "--export=ALL\n") {
+		t.Fatalf("sbatch arguments = %q, want array default --export=ALL", arguments)
+	}
 	if !strings.Contains(string(arguments), "--output=/dev/null\n") || !strings.Contains(string(arguments), "--error=/dev/null\n") {
 		t.Fatalf("sbatch arguments = %q, want Slurm output files disabled", arguments)
 	}
@@ -174,6 +189,19 @@ printf '54321;fake-host\n'
 	}
 	if !strings.Contains(string(wrapper), "ROTARI_ARRAY_TASK_ID='1'") || !strings.Contains(string(wrapper), "job_dir='"+filepath.Join(runDir, "array-1")+"'") || strings.Contains(string(wrapper), `job_dir="$ROTARI_JOB_DIR"`) {
 		t.Fatalf("array wrapper missing task environment: %s", wrapper)
+	}
+	jobs[0].EnvMode = model.EnvModeNone
+	jobs[1].EnvMode = model.EnvModeNone
+	if _, err := submitSlurmArray(testStore(), testLogf, runDir, jobs, nil); err != nil {
+		t.Fatal(err)
+	}
+	arguments, err = os.ReadFile(argumentsPath)
+	if err != nil || !strings.Contains(string(arguments), "--export=NONE\n") {
+		t.Fatalf("NONE array sbatch arguments = %q, err=%v", arguments, err)
+	}
+	wrapper, err = os.ReadFile(filepath.Join(runDir, "array-array-wrapper.sh"))
+	if err != nil || !strings.Contains(string(wrapper), "env -i ") {
+		t.Fatalf("NONE array wrapper = %q, err=%v; want clean task environment", wrapper, err)
 	}
 }
 

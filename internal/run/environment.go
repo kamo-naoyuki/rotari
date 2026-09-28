@@ -15,20 +15,21 @@ type EnvironmentNames struct {
 }
 
 type EnvironmentConfig struct {
-	Names            EnvironmentNames
-	BaseDir          string
-	ProjectName      string
-	RunID            string
-	RunDir           string
-	RunName          string
-	Bin              string
-	CWD              string
-	LocalConcurrency int
-	BatchConcurrency int
-	Retry            int
-	ExecutorOptions  []string
-	Inherited        map[string]string
-	JobDir           func(runDir string, job model.JobSpec) (string, error)
+	Names             EnvironmentNames
+	BaseDir           string
+	ProjectName       string
+	RunID             string
+	RunDir            string
+	RunName           string
+	Bin               string
+	CWD               string
+	LocalConcurrency  int
+	BatchConcurrency  int
+	Retry             int
+	ExecutorOptions   []string
+	Inherited         map[string]string
+	CallerEnvironment map[string]string
+	JobDir            func(runDir string, job model.JobSpec) (string, error)
 }
 
 func PrepareJobEnvironments(jobs []model.JobSpec, config EnvironmentConfig) {
@@ -37,6 +38,10 @@ func PrepareJobEnvironments(jobs []model.JobSpec, config EnvironmentConfig) {
 		jobDir, err := config.JobDir(config.RunDir, *job)
 		if err != nil {
 			continue
+		}
+		workingDirectory := job.WorkingDirectory
+		if workingDirectory == "" {
+			workingDirectory = config.CWD
 		}
 		environment := []string{
 			config.Names.BaseDir + "=" + config.BaseDir,
@@ -48,6 +53,7 @@ func PrepareJobEnvironments(jobs []model.JobSpec, config EnvironmentConfig) {
 			config.Names.RunDir + "=" + config.RunDir,
 			config.Names.JobDir + "=" + jobDir,
 			config.Names.CWD + "=" + config.CWD,
+			"PWD=" + workingDirectory,
 		}
 		if job.Name != "" {
 			environment = append(environment, config.Names.JobName+"="+job.Name)
@@ -74,6 +80,17 @@ func PrepareJobEnvironments(jobs []model.JobSpec, config EnvironmentConfig) {
 		for name, value := range config.Inherited {
 			if _, exists := EnvironmentEntry(environment, name); !exists {
 				environment = append(environment, name+"="+value)
+			}
+		}
+		job.InheritedEnvironment = nil
+		if job.EnvMode == model.EnvModeAll {
+			for name, value := range config.CallerEnvironment {
+				if job.Executor != "ssh" && !(job.Executor == "lsf" && executor.LSFExplicitEnvironmentVariable(name)) {
+					continue
+				}
+				if _, exists := EnvironmentEntry(environment, name); !exists {
+					job.InheritedEnvironment = append(job.InheritedEnvironment, name+"="+value)
+				}
 			}
 		}
 		job.Environment = executor.MergeEnvironment(job.Environment, environment)

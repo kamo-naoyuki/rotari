@@ -37,6 +37,7 @@ type Job struct {
 	WorkingDirectory  string    `json:"working_directory,omitempty"`
 	Executor          string    `json:"executor,omitempty"`
 	ExecutorOptions   []string  `json:"executor_options,omitempty"`
+	LogMode           string    `json:"log_mode,omitempty"`
 	DependsOn         []string  `json:"depends_on,omitempty"`
 	DependsOnFinished []string  `json:"depends_on_finished,omitempty"`
 	// Matrix places a matrix member in its group's grid.

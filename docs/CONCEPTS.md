@@ -32,8 +32,9 @@ The queue has different roles depending on the project state:
         └── <job-id>/
             └── attempts/<attempt-id>/
                 ├── command.json
-                ├── stdout     # the job's standard output
-                ├── stderr     # the job's standard error
+                ├── output     # merged log by default; stdout/stderr when separate
+                ├── stdout     # separate-mode standard output
+                ├── stderr     # separate-mode standard error
                 ├── status.json
                 └── ...        # executor-specific state
 ```
@@ -64,8 +65,14 @@ flowchart LR
 Each added command has a stable job ID. Use `add --job-name NAME` to give a
 job a readable label, and `run --run-name NAME` (or `ROTARI_RUN_NAME`) to label
 a run; the generated IDs remain available for unambiguous commands and paths. `run` saves the complete command
-snapshot under `runs/<run-id>/`, together with a summary and separate stdout
-and stderr logs for each attempt.
+snapshot under `runs/<run-id>/`, together with a summary and each attempt's
+configured log. By default stdout and stderr are merged into `output`;
+`add --log-mode separate` stores them as `stdout` and `stderr`.
+Repeated `--output FILE` and `--error FILE` add external destinations without
+changing the internal log mode. If `--error` is omitted, stderr follows the
+`--output` destinations too. Missing parent directories are created on the
+execution host before the command starts; `--open-mode truncate` truncates
+destinations once, while append is the default.
 After it finishes, the queue is emptied, while the run can be inspected or used
 with selections such as `rotari retry`. The next `add` starts a new batch while
 keeping the previous run history. Use `delete` to remove saved run logs
@@ -89,13 +96,17 @@ cd ~/exp-b && rotari retry # jobs start in ~/exp-b with this shell's environment
 So the same queue or workflow can be run again from another directory, or
 after activating another environment, without editing it. Pin a job to a
 directory or variable with `add --working-directory` or `add --env` when it
-must not depend on where it is run from.
+must not depend on where it is run from. `run` and `retry` default to
+`--env=ALL`; use `--env=NONE` to omit ordinary caller variables for a run.
+Job `--env` values still apply in either mode, and `PWD` always reflects the
+effective job working directory. `ALL` may propagate secrets to remote
+executors and scheduler records, so it is not secret management.
 
 This holds whatever else is running: every run has its own supervisor process,
 started by `run` or `retry` as its child, so one run never takes the directory
 or environment of another. The run records its caller's directory in
 `context.json`, and jobs see it as `ROTARI_CWD`; the caller's environment is
-not recorded.
+not recorded in that context file.
 
 ### IDs and location resolution
 

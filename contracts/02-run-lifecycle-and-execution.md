@@ -2,15 +2,28 @@
 
 ## Job logs
 
-- **LOG-1** Each job attempt persists process stdout and stderr separately as
-  `stdout` and `stderr` in its attempt directory. CLI log views show both as
-  labeled streams by default, `show --stream` selects one, and `/api/log`
-  selects one stream; rotari does not create a combined log file. Covered by
+- **LOG-1** Each attempt records stdout and stderr according to its
+  `log_mode`: `merge` is the default and records one combined `output` log;
+  `separate` records `stdout` and `stderr` independently. The mode is
+  independent of external output destinations. Covered by
   `TestJobStreamsPersistSeparately` in
-  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go),
-  [executor tests](../internal/executor/timeout_test.go),
-  [CLI tests](../cmd/rotari/show_test.go), and
-  [Web API tests](../internal/webui/webui_test.go).
+  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
+- **LOG-2** `add --output FILE` and `add --error FILE` may each be repeated.
+  They add external stdout/stderr destinations without replacing the attempt
+  log. If `--output` is supplied without `--error`, stderr is routed to the
+  `--output` destinations too; specifying `--error` routes stderr only to the
+  `--error` destinations. This is independent of internal `log_mode`.
+  Duplicates within either option are rejected; the same destination may be
+  used in both lists to combine them externally.
+- **LOG-3** Missing parent directories for external output destinations are
+  created on the execution host before the command starts. A destination open
+  or directory creation failure fails the job before its command starts;
+  scheduler-native submission failure remains distinct from a failure on the
+  execution host.
+- **LOG-4** External destinations append by default; `--open-mode truncate`
+  truncates each unique destination once before execution. When stdout and
+  stderr are directed to the same destination, their combined ordering is not
+  guaranteed.
 
 ## Run lifecycle
 
@@ -20,27 +33,50 @@
 - **RUN-2** A run-level retry limit retries a failed job within the same run
   until it succeeds or the limit is exhausted; a successful retry makes the
   run successful.
-- **RUN-3** A run executes its jobs in the working directory and environment
-  of the `run` or `retry` command that started it, whatever other runs are
-  active or which command ran before it. Only a job's own
-  `--working-directory` and `--env` override them. The run's `context.json`
-  and `ROTARI_CWD` name that same directory.
+- **RUN-3** At run start, rotari captures the caller's absolute working
+  directory. On every executor, that directory is the default job working
+  directory; a job's `--working-directory` overrides it, and a relative value
+  is resolved against the caller's directory. The resulting path is interpreted
+  on the execution host. If it is missing, inaccessible, or not a directory
+  there, the job fails before its command starts; SSH and scheduler executors
+  must not silently fall back to a login or scheduler default directory. The
+  caller is responsible for making the path available on remote hosts (for
+  example, through a shared mount); host-specific path mapping is not implied.
+  `run` and `retry` use the caller's environment by default (`--env=ALL`).
+  `--env=NONE` suppresses ordinary caller variables. Both modes preserve
+  rotari-managed job metadata and the job's own `--env` values; job values
+  override caller values, and rotari metadata is authoritative on name
+  collisions. Rotari uses each executor's native environment transfer option
+  where available and compensates for documented executor differences. The
+  Scheduler-generated variables may be present when a scheduler supplies them;
+  rotari guarantees propagation of caller values, not an identical set of
+  scheduler metadata variables across executors.
+  `PWD` is set to the effective job working directory, not copied from the caller; relative job
+  `--working-directory` values are resolved against the caller's directory.
+  `NONE` retains
+  a standard executable `PATH`, job `--env`, and rotari-managed metadata while
+  suppressing other caller variables. `ALL` forwards
+  values, not just variable names, and is not a secret-management mechanism:
+  sensitive values can reach remote jobs and scheduler records. The run's
+  `context.json` and `ROTARI_CWD` record the caller's directory; they do not
+  assert that the path exists on a remote host.
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,
   and its scheduling fields. The working directory and environment a run uses
   otherwise come from its caller at run time and are not part of the
   workflow, so the same queue or workflow can be run again from another
-  directory or shell. The caller's environment is not recorded; its working
-  directory is, in `context.json`.
-- RUN-3 holds because a run has its own supervisor: `run` starts it as a
-  child process (`startSupervisorProcess` in
+  directory or shell. The caller's working directory is recorded in
+  `context.json`; its environment is not part of that context record.
+- The caller context is captured per run, not taken from a reusable supervisor:
+  `run` starts a supervisor child (`startSupervisorProcess` in
   [cmd/rotari/server.go](../cmd/rotari/server.go) and `server.Start` in
-  [internal/server/client.go](../internal/server/client.go)), which inherits
-  the caller's working directory and environment and passes them on to the
-  jobs, and a supervisor is never reused by another run. Covered by
+  [internal/server/client.go](../internal/server/client.go)). The existing
   `TestRunUsesCallersDirectoryAndEnvironment` in
-  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
+  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go)
+  checks local execution only; RUN-3 remains partial until executor-specific
+  tests cover the common directory and explicit `--env` guarantees, including
+  failure on an unavailable remote directory.
 
 - Queue-editing commands mutate `queue.json`. Starting a run assigns a new ID,
   snapshots the queue and every active config file, records context, and marks
@@ -475,13 +511,13 @@ Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle
   change run status; successful delivery is marked by `webhook.sent` in the run
   directory.
 - `diagnose` is an explicitly invoked, stateless integration. It sends one job's
-  command, recorded result, and at most the last 12,000 characters of separately
-  labeled stdout and stderr to
+  command, recorded result, and at most the last 12,000 characters of its
+  configured log; merged mode is sent as-is and separate mode labels the streams to
   the configured LLM endpoint. API keys and diagnoses are never persisted or
   injected into job environments. An explicit BCP 47 response language is
   included when configured.
 - `diagnose --rules` is a local, read-only alternative. It evaluates the same
-  recorded scheduler error and separately labeled streams against a fixed set of documented
+  recorded scheduler error and configured log against a fixed set of documented
   signatures after case, ANSI-escape, and whitespace normalization. It makes no
   network request and reports only matched signatures, each citing its latest
   matching line, ordered from the latest evidence to the earliest with the

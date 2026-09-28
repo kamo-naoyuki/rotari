@@ -36,6 +36,19 @@ replaces the job's saved environment; repeat it for multiple variables, or use
 `--clear-env` to remove them. Rotari's own `ROTARI_*` context variables take
 precedence over a same-named user value.
 
+`run` and `retry` default to `--env=ALL`, which propagates the caller's
+environment using each executor's native mechanism. Pass `--env=NONE` to
+suppress caller variables while retaining job `--env` values and rotari
+metadata. Slurm uses `--export=ALL|NONE`, PBS uses `qsub -V` for ALL, and LSF
+uses `bsub -env all|none`; rotari compensates for documented LSF exclusions.
+`PWD` is set to the job's effective working directory. ALL can propagate
+secrets and is not a secret-management facility.
+
+When `add --output` or `add --error` is used with SSH, Slurm, PBS, or LSF,
+`rotari` must be available on the execution host's `PATH` so the job wrapper
+can stream logs live to those destinations. Jobs without external destinations
+do not invoke this helper.
+
 ### Concurrency and scheduler load
 
 `--batch-concurrency` (or `--<executor>-concurrency`) limits how many jobs

@@ -1339,7 +1339,7 @@ func TestGenerateStaticWebIncludesJobsPage(t *testing.T) {
 
 func TestWebSeparatesLogsFromActions(t *testing.T) {
 	html := testSite().webHTML()
-	for _, want := range []string{"function mergeActionColumns(){}", "function orderJobActions()", "view-log", "show-path", "delete-run", "Job log", "changeLogStream", `id="log-stream"`, "View log", "Source log", "Logs", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const buttons=[...logCell.querySelectorAll('button')]", "const diagnosisControl=canDiagnose", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", "dataset.view!=='path'", `textContent="Job log — "+stream`, "cell.style.display='table-cell'", "button.style.margin='0 6px 6px 0'", "cell.style.width='170px'"} {
+	for _, want := range []string{"function mergeActionColumns(){}", "function orderJobActions()", "view-log", "show-path", "delete-run", "Job log", "Job log — merged", `logMode === "separate"`, "changeLogStream", `id="log-stream"`, "View log", "Source log", "Logs", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const buttons=[...logCell.querySelectorAll('button')]", "const diagnosisControl=canDiagnose", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", "dataset.view!=='path'", "cell.style.display='table-cell'", "button.style.margin='0 6px 6px 0'", "cell.style.width='170px'"} {
 		if !webContains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
 		}

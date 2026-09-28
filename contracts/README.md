@@ -164,10 +164,13 @@ the IDs, this table, and those calls disagree.
 | CAN-2 | A cancelled run finishes with a summary and leaves the project idle, not interrupted | conformance | `TestWholeRunCancelFinishesRun` |
 | CAN-3 | `cancel --wait` returns once the run has finished and exits 0 | conformance | `TestCancelWaitReturnsAfterRunFinishes` |
 | CAN-4 | Cancelling one job stops only that job, which the run does not retry | conformance | `TestCancelJobStopsOnlyThatJob` |
-| LOG-1 | Each attempt stores stdout and stderr separately; CLI and Web select streams without a combined log | conformance | `TestJobStreamsPersistSeparately` |
+| LOG-1 | Attempts use the selected internal merge or separate log mode, independently of external destinations | conformance | `TestJobStreamsPersistSeparately` |
+| LOG-2 | Repeatable `--output`/`--error` sinks; absent `--error`, stderr follows `--output`; independent of internal log mode | conformance | `TestExternalLogDestinations` |
+| LOG-3 | Destination parents are created on the execution host; setup errors fail before the command starts | conformance | `TestExternalLogDestinations` |
+| LOG-4 | External sinks append by default; truncate initializes each destination once; shared streams have no guaranteed interleaving | conformance | `TestExternalLogDestinations` |
 | RUN-1 | A filtered rerun executes the selected jobs, carries completed results outside the selection into the new run, and leaves the source run unchanged | conformance | `TestFilteredRerunCarriesCompletedResults` |
 | RUN-2 | A run-level retry limit retries a failed job within the same run until it succeeds or the limit is exhausted; a successful retry makes the run successful | conformance | `TestRunRetrySucceedsWithinOneRun` |
-| RUN-3 | A run's jobs use the working directory and environment of the command that started it; only a job's own `--working-directory` and `--env` override them | conformance | `TestRunUsesCallersDirectoryAndEnvironment` |
+| RUN-3 | Executor working-directory defaults are portable; run `--env=ALL|NONE` controls caller environment propagation and job overrides consistently | partial | `TestRunUsesCallersDirectoryAndEnvironment` |
 | CLI-1 | `check --json` reports the same project state, run identifier, queue count, lock, and runnable result as the human-readable `check` output | partial | `TestCheckJSONMatchesText` |
 | CLI-2 | Human-readable `jobs` columns keep their visible start positions aligned across rows; ANSI color sequences do not count toward column width | conformance | `TestJobsTableKeepsVisibleColumnsAligned` |
 | SEL-1 | A run ID or attempt ID alone resolves its location in every command | partial | `TestPositionalArguments`, `TestSelectorTable` |

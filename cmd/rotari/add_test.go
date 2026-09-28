@@ -1,12 +1,13 @@
 package main
 
 import (
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 	"io"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 // enqueueCommand appends one command to the project queue, as `add` does.
@@ -83,6 +84,40 @@ func TestCmdAddEnqueuesJob(t *testing.T) {
 	if len(queue.Commands) != 1 || queue.Commands[0].Name != "job" || queue.Commands[0].Stage != "prepare" || queue.Commands[0].Executor != "local" ||
 		len(queue.Commands[0].Environment) != 1 || queue.Commands[0].Environment[0] != "TOKEN=secret" {
 		t.Fatalf("queue commands = %#v, want persisted job with executor and env", queue.Commands)
+	}
+}
+
+func TestCmdAddPersistsLogDestinationsAndMode(t *testing.T) {
+	baseDir := t.TempDir()
+	if code := cmdAdd([]string{
+		"--basedir", baseDir, "--project-name", "demo", "--output", "logs/a", "--output", "logs/b",
+		"--error", "logs/errors", "--log-mode", "separate", "--open-mode", "truncate", "--", "true",
+	}); code != 0 {
+		t.Fatalf("cmdAdd exit code = %d", code)
+	}
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 1 {
+		t.Fatalf("queue commands = %#v", queue.Commands)
+	}
+	command := queue.Commands[0]
+	if strings.Join(command.Output, ",") != "logs/a,logs/b" || strings.Join(command.Error, ",") != "logs/errors" || command.LogMode != model.LogModeSeparate || command.OpenMode != model.OpenModeTruncate {
+		t.Fatalf("log settings = %#v", command)
+	}
+}
+
+func TestValidateOutputPathsDeduplicatesWithinStreamOnly(t *testing.T) {
+	if err := validateOutputPaths([]string{"logs/out", "logs/./out"}, nil); err == nil {
+		t.Fatal("validateOutputPaths accepted duplicate stdout destinations")
+	}
+	if err := validateOutputPaths([]string{"logs/shared"}, []string{"logs/./shared"}); err != nil {
+		t.Fatalf("validateOutputPaths rejected one shared stdout/stderr sink: %v", err)
 	}
 }
 

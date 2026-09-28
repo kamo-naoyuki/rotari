@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -44,6 +45,10 @@ type Job struct {
 	RetryMaxDelay    string     `json:"retry_max_delay,omitempty" yaml:"retry_max_delay,omitempty" toml:"retry_max_delay,omitempty"`
 	Executor         string     `json:"executor,omitempty" yaml:"executor,omitempty" toml:"executor,omitempty"`
 	ExecutorOptions  []string   `json:"executor_options,omitempty" yaml:"executor_options,omitempty" toml:"executor_options,omitempty"`
+	Output           []string   `json:"output,omitempty" yaml:"output,omitempty" toml:"output,omitempty"`
+	Error            []string   `json:"error,omitempty" yaml:"error,omitempty" toml:"error,omitempty"`
+	LogMode          string     `json:"log_mode,omitempty" yaml:"log_mode,omitempty" toml:"log_mode,omitempty"`
+	OpenMode         string     `json:"open_mode,omitempty" yaml:"open_mode,omitempty" toml:"open_mode,omitempty"`
 	WorkingDirectory string     `json:"working_directory,omitempty" yaml:"working_directory,omitempty" toml:"working_directory,omitempty"`
 	Environment      []string   `json:"environment,omitempty" yaml:"environment,omitempty" toml:"environment,omitempty"`
 	Array            string     `json:"array,omitempty" yaml:"array,omitempty" toml:"array,omitempty"`
@@ -180,6 +185,25 @@ func validateJob(job Job, index int, hasSource bool, seenNames map[string]bool) 
 	if err := model.ValidateEnvironment(job.Environment); err != nil {
 		return fmt.Errorf("%s has invalid environment: %w", label, err)
 	}
+	for _, destinations := range [][]string{job.Output, job.Error} {
+		seen := make(map[string]bool, len(destinations))
+		for _, destination := range destinations {
+			if destination == "" || strings.ContainsRune(destination, '\x00') {
+				return fmt.Errorf("%s has an invalid output destination", label)
+			}
+			cleaned := filepath.Clean(destination)
+			if seen[cleaned] {
+				return fmt.Errorf("%s repeats output destination %q", label, destination)
+			}
+			seen[cleaned] = true
+		}
+	}
+	if job.LogMode != "" && job.LogMode != model.LogModeMerge && job.LogMode != model.LogModeSeparate {
+		return fmt.Errorf("%s has invalid log mode %q", label, job.LogMode)
+	}
+	if job.OpenMode != "" && job.OpenMode != model.OpenModeAppend && job.OpenMode != model.OpenModeTruncate {
+		return fmt.Errorf("%s has invalid output open mode %q", label, job.OpenMode)
+	}
 	if _, _, err := parseExpansion(job); err != nil {
 		return fmt.Errorf("%s: %w", label, err)
 	}
@@ -250,6 +274,7 @@ func Compile(manifest Manifest, nextID func() string) (model.Queue, error) {
 				DependsOnFinished: append([]string(nil), job.DependsOnFinished...), Timeout: job.Timeout, Retry: cloneRetry(job.Retry),
 				RetryDelay: job.RetryDelay, RetryBackoff: job.RetryBackoff, RetryMaxDelay: job.RetryMaxDelay,
 				Executor: job.Executor, ExecutorOptions: append([]string(nil), job.ExecutorOptions...),
+				Output: append([]string(nil), job.Output...), Error: append([]string(nil), job.Error...), LogMode: job.LogMode, OpenMode: job.OpenMode,
 				WorkingDirectory: job.WorkingDirectory, Environment: environment, Array: cloneArray(array),
 			}
 			if matrixGroupID != "" {

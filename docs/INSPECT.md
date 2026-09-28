@@ -26,16 +26,19 @@ rotari show ATTEMPT_ID # show one job attempt in detail: status, executor, comma
 rotari show JOB_ID --stream stderr # show only the selected job's stderr
 rotari show JOB_ID # show a job from the resolved run or queue
 rotari show JOB_NAME # show a job by name
-rotari show -p sweep --logs # print separately labeled stdout and stderr for every job in the selected run
-rotari show -p sweep --failed-logs --stream stderr # print stderr for failed jobs only
+rotari show -p sweep --logs # print each job's configured log for every job in the selected run
+rotari show -p sweep --failed-logs --stream stderr # print stderr for failed jobs whose logs are separate
 rotari show -p sweep --job-id JOB_ID --stream stdout --follow # follow only stdout
 rotari show ATTEMPT_ID --report # print an AI-ready Markdown report for one attempt
 rotari show RUN_ID --report # describe the whole run and include recent logs
 ```
 
-An older `ATTEMPT_ID` shows that attempt's own status, timestamps, stdout, and
-stderr. The two streams are stored separately; their relative ordering is not
-reconstructed when viewing both.
+An older `ATTEMPT_ID` shows that attempt's own status, timestamps, and logs.
+Logs are merged by default; use `add --log-mode separate` when adding a job to
+preserve stdout and stderr independently. Repeat `add --output FILE` and
+`add --error FILE` to add external destinations independently. If `--error` is
+omitted, stderr follows the `--output` destinations too. Destinations append
+by default; `--open-mode truncate` truncates them before execution.
 The run's saved hosts and diagnoses belong to the latest attempt, so they are
 not shown for an older one.
 

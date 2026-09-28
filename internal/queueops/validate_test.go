@@ -53,6 +53,11 @@ func TestValidateJobsRejectsInvalidJobFields(t *testing.T) {
 		{name: "NUL environment value", job: model.QueuedCommand{ID: "job-1", Command: []string{"true"}, Environment: []string{"KEY=value\x00tail"}}, want: `job "job-1" has invalid environment`},
 		{name: "NUL working directory", job: model.QueuedCommand{ID: "job-1", Command: []string{"true"}, WorkingDirectory: "work\x00dir"}, want: `job "job-1" working directory contains a NUL byte`},
 		{name: "NUL command argument", job: model.QueuedCommand{ID: "job-1", Command: []string{"printf", "value\x00tail"}}, want: `job "job-1" command contains a NUL byte`},
+		{name: "empty output destination", job: model.QueuedCommand{ID: "job-1", Command: []string{"true"}, Output: []string{""}}, want: `job "job-1" has an invalid output destination`},
+		{name: "NUL error destination", job: model.QueuedCommand{ID: "job-1", Command: []string{"true"}, Error: []string{"bad\x00path"}}, want: `job "job-1" has an invalid output destination`},
+		{name: "duplicate output destination", job: model.QueuedCommand{ID: "job-1", Command: []string{"true"}, Output: []string{"same", "same"}}, want: `job "job-1" repeats output destination "same"`},
+		{name: "invalid log mode", job: model.QueuedCommand{ID: "job-1", Command: []string{"true"}, LogMode: "combined"}, want: `job "job-1" has invalid log mode "combined"`},
+		{name: "invalid open mode", job: model.QueuedCommand{ID: "job-1", Command: []string{"true"}, OpenMode: "overwrite"}, want: `job "job-1" has invalid output open mode "overwrite"`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

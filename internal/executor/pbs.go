@@ -136,17 +136,23 @@ func submitPBSJobWithPolicies(store state.Store, logf func(string, ...any), runD
 		return pbsJobMetadata{}, err
 	}
 	wrapperPath := filepath.Join(jobDir, "pbs-wrapper.sh")
-	if err := os.WriteFile(wrapperPath, []byte(StatusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory, job.Timeout)), store.ScriptMode); err != nil {
+	if err := os.WriteFile(wrapperPath, []byte(StatusWrapperScriptWithDestinations(job.Command, jobDir, jobEnvironment(job), job.WorkingDirectory, job.Timeout, job.EffectiveLogMode(), job.OpenMode, job.Output, job.Error, job.EnvMode)), store.ScriptMode); err != nil {
 		return pbsJobMetadata{}, err
 	}
 	stdoutPath := filepath.Join(jobDir, state.StdoutFileName)
 	stderrPath := filepath.Join(jobDir, state.StderrFileName)
+	if job.EffectiveLogMode() == model.LogModeMerge {
+		stdoutPath, stderrPath = filepath.Join(jobDir, "output"), filepath.Join(jobDir, "output")
+	}
 	args := []string{"-o", stdoutPath, "-e", stderrPath}
 	expandedOptions, err := ExpandShellOptions(options)
 	if err != nil {
 		return pbsJobMetadata{}, err
 	}
 	args = append(args, expandedOptions...)
+	if job.EnvMode != model.EnvModeNone {
+		args = append(args, "-V")
+	}
 	args = append(args, wrapperPath)
 	output, err := retryPolicy.submit(logf, "pbs", func() ([]byte, error) {
 		spacing.wait("pbs", interval)
@@ -208,6 +214,9 @@ func submitPBSArrayWithPolicies(store state.Store, logf func(string, ...any), ru
 	}
 	args := []string{"-j", "oe", "-o", "/dev/null", "-J", fmt.Sprintf("%d-%d", first, last)}
 	args = append(args, expandedOptions...)
+	if jobs[0].EnvMode != model.EnvModeNone {
+		args = append(args, "-V")
+	}
 	args = append(args, wrapperPath)
 	output, err := retryPolicy.submit(logf, "pbs", func() ([]byte, error) {
 		spacing.wait("pbs", interval)

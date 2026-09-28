@@ -141,11 +141,14 @@ func submitSlurmJobWithPolicies(store state.Store, logf func(string, ...any), ru
 		return slurmJobMetadata{}, err
 	}
 	wrapperPath := filepath.Join(jobDir, "slurm-wrapper.sh")
-	if err := os.WriteFile(wrapperPath, []byte(StatusWrapperScript(job.Command, jobDir, job.Environment, job.WorkingDirectory, job.Timeout)), store.ScriptMode); err != nil {
+	if err := os.WriteFile(wrapperPath, []byte(StatusWrapperScriptWithDestinations(job.Command, jobDir, jobEnvironment(job), job.WorkingDirectory, job.Timeout, job.EffectiveLogMode(), job.OpenMode, job.Output, job.Error, job.EnvMode)), store.ScriptMode); err != nil {
 		return slurmJobMetadata{}, err
 	}
 	stdoutPath := filepath.Join(jobDir, state.StdoutFileName)
 	stderrPath := filepath.Join(jobDir, state.StderrFileName)
+	if job.EffectiveLogMode() == model.LogModeMerge {
+		stdoutPath, stderrPath = filepath.Join(jobDir, "output"), filepath.Join(jobDir, "output")
+	}
 	showCommand := fmt.Sprintf("rotari show --job-id %s", ShellQuote(job.AttemptID))
 	args := []string{"--parsable", "--job-name=" + showCommand, "--output=" + stdoutPath, "--error=" + stderrPath}
 	expandedOptions, err := ExpandShellOptions(executorOptions)
@@ -153,6 +156,11 @@ func submitSlurmJobWithPolicies(store state.Store, logf func(string, ...any), ru
 		return slurmJobMetadata{}, err
 	}
 	args = append(args, expandedOptions...)
+	if job.EnvMode == model.EnvModeNone {
+		args = append(args, "--export=NONE")
+	} else {
+		args = append(args, "--export=ALL")
+	}
 	args = append(args, wrapperPath)
 	output, err := retryPolicy.submit(logf, "slurm", func() ([]byte, error) {
 		spacing.wait("slurm", interval)
@@ -222,6 +230,11 @@ func submitSlurmArrayWithPolicies(store state.Store, logf func(string, ...any), 
 		"--error=/dev/null",
 	}
 	args = append(args, expandedOptions...)
+	if jobs[0].EnvMode == model.EnvModeNone {
+		args = append(args, "--export=NONE")
+	} else {
+		args = append(args, "--export=ALL")
+	}
 	args = append(args, wrapperPath)
 	output, err := retryPolicy.submit(logf, "slurm", func() ([]byte, error) {
 		spacing.wait("slurm", interval)

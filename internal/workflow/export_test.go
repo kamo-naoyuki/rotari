@@ -9,13 +9,16 @@ import (
 )
 
 func TestFromQueueRoundTripsArray(t *testing.T) {
-	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "array", Name: "work", Command: []string{"run"}, Environment: []string{"A=1", "A=2"}, Array: &model.ArraySpec{First: 1, Last: 4, Tasks: []int{1, 3, 4}}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "array", Name: "work", Command: []string{"run"}, Environment: []string{"A=1", "A=2"}, Output: []string{"out-a", "out-b"}, Error: []string{"err"}, LogMode: model.LogModeSeparate, OpenMode: model.OpenModeTruncate, Array: &model.ArraySpec{First: 1, Last: 4, Tasks: []int{1, 3, 4}}}}}
 	manifest, err := FromQueue(queue)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(manifest.Jobs) != 1 || manifest.Jobs[0].Array != "1,3,4" || !reflect.DeepEqual(manifest.Jobs[0].Environment, []string{"A=1", "A=2"}) {
 		t.Fatalf("manifest = %#v", manifest)
+	}
+	if !reflect.DeepEqual(manifest.Jobs[0].Output, queue.Commands[0].Output) || !reflect.DeepEqual(manifest.Jobs[0].Error, queue.Commands[0].Error) || manifest.Jobs[0].LogMode != queue.Commands[0].LogMode || manifest.Jobs[0].OpenMode != queue.Commands[0].OpenMode {
+		t.Fatalf("manifest dropped log settings: %#v", manifest.Jobs[0])
 	}
 }
 

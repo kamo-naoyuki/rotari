@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -21,6 +22,7 @@ type Options struct {
 	// Executor overrides the queue's default executor for jobs without one.
 	Executor        string
 	ExecutorOptions []string
+	EnvMode         string
 	Settings        executor.RunSettingsMap
 	// Selection, JobIDs, Scope, SourceRunID, and PartialArray choose which
 	// jobs execute and which carry a result forward; see run.PlanRerun.
@@ -44,6 +46,12 @@ type Observer struct {
 // the run summary. It returns the run's exit code. An error means the run
 // could not be prepared or recorded; its exit code is then 1.
 func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer Observer) (int, error) {
+	if options.EnvMode == "" {
+		options.EnvMode = model.EnvModeAll
+	}
+	if options.EnvMode != model.EnvModeAll && options.EnvMode != model.EnvModeNone {
+		return 1, fmt.Errorf("invalid environment mode %q (choose ALL or NONE)", options.EnvMode)
+	}
 	runID := options.RunID
 	if !state.IsValidPathElement(runID) {
 		return 1, fmt.Errorf("invalid run ID %q", runID)
@@ -75,7 +83,9 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 		if jobs[index].Executor == "" {
 			jobs[index].Executor = defaultExecutor
 		}
+		jobs[index].EnvMode = options.EnvMode
 	}
+	runner.ResolveJobWorkingDirectories(paths, options, jobs)
 	runner.PrepareJobEnvironments(paths, options, jobs)
 
 	runDir := filepath.Join(paths.RunsDir, runID)
@@ -198,15 +208,43 @@ func (runner Runner) PrepareJobEnvironments(paths state.ProjectPaths, options Op
 			inherited[name] = value
 		}
 	}
+	callerEnvironment := make(map[string]string)
+	if options.EnvMode == model.EnvModeAll {
+		for _, entry := range os.Environ() {
+			name, value, ok := strings.Cut(entry, "=")
+			if ok && model.ValidEnvironmentName(name) {
+				callerEnvironment[name] = value
+			}
+		}
+	}
 	run.PrepareJobEnvironments(jobs, run.EnvironmentConfig{
 		Names: runner.Environment, BaseDir: paths.BaseDir, ProjectName: paths.ProjectName,
 		RunID: options.RunID, RunDir: runDir, RunName: options.RunName, Bin: bin, CWD: cwd,
 		LocalConcurrency: options.LocalConcurrency, BatchConcurrency: options.BatchMaxActive,
 		Retry: options.Retry, ExecutorOptions: options.ExecutorOptions, Inherited: inherited,
+		CallerEnvironment: callerEnvironment,
 		JobDir: func(runDir string, job model.JobSpec) (string, error) {
 			return state.SafeJoin(runDir, job.ID)
 		},
 	})
+}
+
+func (runner Runner) ResolveJobWorkingDirectories(paths state.ProjectPaths, options Options, jobs []model.JobSpec) {
+	runDir := filepath.Join(paths.RunsDir, options.RunID)
+	context, err := state.LoadContext(runner.Store, runDir)
+	if err != nil {
+		return
+	}
+	for index := range jobs {
+		jobDirectory := jobs[index].WorkingDirectory
+		if jobDirectory == "" {
+			jobs[index].WorkingDirectory = context.CWD
+		} else if !filepath.IsAbs(jobDirectory) {
+			jobs[index].WorkingDirectory = filepath.Join(context.CWD, jobDirectory)
+		} else {
+			jobs[index].WorkingDirectory = filepath.Clean(jobDirectory)
+		}
+	}
 }
 
 // AssignAttemptIDs gives each job a new attempt ID for the given attempt

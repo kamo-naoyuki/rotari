@@ -452,6 +452,7 @@ function renderRun(q, runID) {
       const logRun = carried ? j.origin.run_id : runID;
       const logJob = carried ? j.origin.job_id : j.id;
       const logAttemptID = carried ? "" : j.attempt_id;
+      const logMode = j.log_mode || "merge";
       const diagnoses = (result && result.diagnoses) || [];
       const diagnosisStatus = (result && result.diagnosis_status) || "";
       const canDiagnose = !!(
@@ -480,6 +481,8 @@ function renderRun(q, runID) {
           esc(logJob) +
           "','" +
           esc(logAttemptID) +
+          "','" +
+          esc(logMode) +
           "')\">Output</button>" +
           diagnosisControl
         : diagnosisControl;

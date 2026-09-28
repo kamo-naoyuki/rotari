@@ -317,7 +317,7 @@ function addRunningOutputButtons() {
         button.disabled = !started;
         button.title = started ? "" : "Job has not started yet";
         button.onclick = () =>
-          showLog(queue.project_name, run.run_id, job.id, job.attempt_id);
+          showLog(queue.project_name, run.run_id, job.id, job.attempt_id, "stdout", job.log_mode);
         cell.textContent = "";
         cell.append(button);
       }
@@ -443,15 +443,21 @@ function labelJobActionHeaders() {
   });
 }
 function clarifyLogControls() {
+  const modal = document.getElementById("output-modal");
   if (
-    document.getElementById("output-modal").dataset.view !== "config" &&
-    document.getElementById("output-modal").dataset.view !==
-      "generate-config" &&
-    document.getElementById("output-modal").dataset.view !== "diagnosis" &&
-    document.getElementById("output-modal").dataset.view !== "path" &&
-    document.getElementById("output-modal").dataset.view !== "ai"
-  )
-    document.querySelector("#output-modal strong").textContent = "Job log";
+    modal.dataset.view !== "config" &&
+    modal.dataset.view !== "generate-config" &&
+    modal.dataset.view !== "diagnosis" &&
+    modal.dataset.view !== "path" &&
+    modal.dataset.view !== "ai"
+  ) {
+    modal.querySelector("strong").textContent =
+      modal.dataset.view === "log" && selectedLog?.logMode === "separate"
+        ? "Job log — " + selectedLog.stream
+        : modal.dataset.view === "log"
+          ? "Job log — merged"
+          : "Job log";
+  }
   document.querySelectorAll("#app table.runs th").forEach((header) => {
     if (header.textContent.trim() === "Output") header.textContent = "Logs";
     if (header.textContent.trim() === "Source output")

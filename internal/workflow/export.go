@@ -18,6 +18,8 @@ func EquivalentCommand(left, right model.QueuedCommand) bool {
 		left.WorkingDirectory == right.WorkingDirectory &&
 		left.Executor == right.Executor &&
 		reflect.DeepEqual(left.ExecutorOptions, right.ExecutorOptions) &&
+		reflect.DeepEqual(left.Output, right.Output) && reflect.DeepEqual(left.Error, right.Error) &&
+		left.LogMode == right.LogMode && left.OpenMode == right.OpenMode &&
 		reflect.DeepEqual(left.Environment, right.Environment) &&
 		left.Name == right.Name && left.Stage == right.Stage &&
 		reflect.DeepEqual(left.DependsOn, right.DependsOn) &&
@@ -102,7 +104,9 @@ func exportJob(command model.QueuedCommand, matrixBase bool) Job {
 		Timeout: command.Timeout, Retry: cloneRetry(command.Retry),
 		RetryDelay: command.RetryDelay, RetryBackoff: command.RetryBackoff, RetryMaxDelay: command.RetryMaxDelay,
 		Executor:        command.Executor,
-		ExecutorOptions: append([]string(nil), command.ExecutorOptions...), WorkingDirectory: command.WorkingDirectory,
+		ExecutorOptions: append([]string(nil), command.ExecutorOptions...),
+		Output:          append([]string(nil), command.Output...), Error: append([]string(nil), command.Error...),
+		LogMode: command.LogMode, OpenMode: command.OpenMode, WorkingDirectory: command.WorkingDirectory,
 		Environment: append([]string(nil), environment...), Array: formatArray(command.Array),
 	}
 }

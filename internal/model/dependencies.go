@@ -132,6 +132,7 @@ func validateMatrixMember(groupID string, member, base QueuedCommand) error {
 func equalMatrixCommandBase(left, right QueuedCommand) bool {
 	return equalStrings(left.Command, right.Command) && left.WorkingDirectory == right.WorkingDirectory &&
 		left.Executor == right.Executor && equalStrings(left.ExecutorOptions, right.ExecutorOptions) &&
+		equalStrings(left.Output, right.Output) && equalStrings(left.Error, right.Error) && left.LogMode == right.LogMode && left.OpenMode == right.OpenMode &&
 		left.Stage == right.Stage && equalStrings(left.DependsOn, right.DependsOn) &&
 		equalStrings(left.DependsOnFinished, right.DependsOnFinished) && left.Timeout == right.Timeout && equalRetry(left.Retry, right.Retry) &&
 		left.RetryDelay == right.RetryDelay && left.RetryBackoff == right.RetryBackoff && left.RetryMaxDelay == right.RetryMaxDelay && equalArraySpec(left.Array, right.Array)

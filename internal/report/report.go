@@ -264,6 +264,9 @@ func readReportLog(paths state.ProjectPaths, runID string, job webprojection.Job
 }
 
 func readSeparateJobLogs(jobDir string) string {
+	if data, err := os.ReadFile(filepath.Join(jobDir, "output")); err == nil {
+		return string(data)
+	}
 	var logs strings.Builder
 	for _, stream := range []string{state.StdoutFileName, state.StderrFileName} {
 		path, err := state.ValidatedStateFile(jobDir, stream)

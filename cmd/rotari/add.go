@@ -4,7 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
@@ -22,6 +24,12 @@ func cmdAdd(args []string) int {
 	workingDirectory := cliString(fs, "working-directory", "")
 	var executorOptions stringSliceFlag
 	cliValue(fs, &executorOptions, "executor-option")
+	var outputPaths stringSliceFlag
+	cliValue(fs, &outputPaths, "output")
+	var errorPaths stringSliceFlag
+	cliValue(fs, &errorPaths, "error")
+	logMode := cliString(fs, "log-mode", model.LogModeMerge)
+	openMode := cliString(fs, "open-mode", model.OpenModeAppend)
 	var environment stringSliceFlag
 	cliValue(fs, &environment, "env")
 	jobName := cliString(fs, "job-name", "")
@@ -91,6 +99,18 @@ func cmdAdd(args []string) int {
 		printErrorf("invalid --env: %v", err)
 		return 1
 	}
+	if *logMode != model.LogModeMerge && *logMode != model.LogModeSeparate {
+		printError("invalid --log-mode: want merge or separate")
+		return 1
+	}
+	if *openMode != model.OpenModeAppend && *openMode != model.OpenModeTruncate {
+		printError("invalid --open-mode: want append or truncate")
+		return 1
+	}
+	if err := validateOutputPaths(outputPaths, errorPaths); err != nil {
+		printError(err)
+		return 1
+	}
 	if *timeout != "" {
 		if _, err := model.ParseTimeout(*timeout); err != nil {
 			printErrorf("invalid --timeout: %v", err)
@@ -119,6 +139,14 @@ func cmdAdd(args []string) int {
 	}
 	commands := expandMatrixCommands(left, *executor, executorOptions, environment, *workingDirectory, *jobName, *stage, dependsOn, dimensions)
 	for index := range commands {
+		commands[index].Output = normalizeOutputPaths(outputPaths)
+		commands[index].Error = normalizeOutputPaths(errorPaths)
+		if cliOptionSet(fs, "log-mode") {
+			commands[index].LogMode = *logMode
+		}
+		if cliOptionSet(fs, "open-mode") {
+			commands[index].OpenMode = *openMode
+		}
 		commands[index].DependsOnFinished = dependsOnFinished
 		commands[index].Timeout = *timeout
 		commands[index].Retry = jobRetry
@@ -135,6 +163,31 @@ func cmdAdd(args []string) int {
 		fmt.Println(colorKeyValueMessage(message, green))
 	}
 	return 0
+}
+
+func validateOutputPaths(outputPaths, errorPaths []string) error {
+	for _, paths := range [][]string{outputPaths, errorPaths} {
+		seen := make(map[string]bool, len(paths))
+		for _, path := range paths {
+			if path == "" || strings.IndexByte(path, 0) >= 0 {
+				return fmt.Errorf("output destinations must be non-empty and must not contain NUL")
+			}
+			cleaned := filepath.Clean(path)
+			if seen[cleaned] {
+				return fmt.Errorf("output destination %q was specified more than once", path)
+			}
+			seen[cleaned] = true
+		}
+	}
+	return nil
+}
+
+func normalizeOutputPaths(paths []string) []string {
+	result := make([]string, 0, len(paths))
+	for _, path := range paths {
+		result = append(result, filepath.Clean(path))
+	}
+	return result
 }
 
 func expandMatrixCommands(command []string, executor string, executorOptions, environment []string, workingDirectory, jobName, stage string, dependsOn []string, dimensions []model.MatrixDimension) []model.QueuedCommand {

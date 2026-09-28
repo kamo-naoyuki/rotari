@@ -51,14 +51,16 @@ async function showOriginalOutput(run, job, trigger) {
   const parts = pageParts();
   await showLog(decodeURIComponent(parts[1]), run, job, "");
 }
-async function showLog(queue, run, job, attemptID, stream) {
+async function showLog(queue, run, job, attemptID, stream, logMode) {
   const modal = document.getElementById("output-modal");
   modal.dataset.view = "log";
+  logMode = logMode === "separate" ? "separate" : "merge";
   stream = stream || "stdout";
-  modal.querySelector("strong").textContent = "Job log — " + stream;
+  modal.querySelector("strong").textContent =
+    logMode === "separate" ? "Job log — " + stream : "Job log — merged";
   const streamSelect = document.getElementById("log-stream");
   streamSelect.value = stream;
-  streamSelect.hidden = false;
+  streamSelect.hidden = logMode !== "separate";
   if (followTimer) clearInterval(followTimer);
   selectedLog = {
     queue: queue,
@@ -66,6 +68,7 @@ async function showLog(queue, run, job, attemptID, stream) {
     job: job,
     attemptID: attemptID,
     stream: stream,
+    logMode: logMode,
     before: 0,
     loading: false,
     done: false,
@@ -129,8 +132,8 @@ async function followOutput() {
     openOutputModal(isCompactOutput(latest));
   }
 }
-async function log(queue, run, job, attemptID) {
-  await showLog(queue, run, job, attemptID);
+async function log(queue, run, job, attemptID, logMode) {
+  await showLog(queue, run, job, attemptID, "stdout", logMode);
 }
 async function changeLogStream(stream) {
   if (!selectedLog) return;
@@ -140,6 +143,7 @@ async function changeLogStream(stream) {
     selectedLog.job,
     selectedLog.attemptID,
     stream,
+    selectedLog.logMode,
   );
 }
 function lastLogLines(value, count) {
@@ -229,7 +233,8 @@ async function copyLogTail(button) {
 function updateModalActions() {
   const modal = document.getElementById("output-modal");
   const view = modal.dataset.view;
-  document.getElementById("log-stream").hidden = view !== "log";
+  document.getElementById("log-stream").hidden =
+    view !== "log" || !selectedLog || selectedLog.logMode !== "separate";
   const copyTail = document.getElementById("copy-tail");
   copyTail.hidden = view !== "log";
   copyTail.dataset.copyTitle = "Copy last 100 lines";

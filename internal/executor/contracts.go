@@ -90,3 +90,23 @@ func MergeEnvironment(base, overrides []string) []string {
 	}
 	return merged
 }
+
+func jobEnvironment(job model.JobSpec) []string {
+	return MergeEnvironment(job.InheritedEnvironment, job.Environment)
+}
+
+// LSFExplicitEnvironmentVariable reports variables omitted by LSF's
+// documented `-env all` transfer rules. The run environment adapter adds
+// caller values for these names to the job wrapper as a targeted correction.
+func LSFExplicitEnvironmentVariable(name string) bool {
+	switch name {
+	case "HOME", "LS_JOBPID", "LSB_ACCT_MAP", "LSB_EXIT_PRE_ABORT", "LSB_EXIT_REQUEUE",
+		"LSB_EVENT_ATTRIB", "LSB_HOSTS", "LSB_INTERACTIVE", "LSB_INTERACTIVE_SSH",
+		"LSB_INTERACTIVE_TTY", "LSB_JOBFILENAME", "LSB_JOBGROUP", "LSB_JOBID",
+		"LSB_JOBNAME", "LSB_JOB_STARTER", "LSB_QUEUE", "LSB_RESTART", "LSB_TRAPSIGS",
+		"LSB_XJOB_SSH", "LSF_VERSION", "PWD", "USER", "VIRTUAL_HOSTNAME", "TERM", "TERMCAP":
+		return true
+	default:
+		return strings.HasPrefix(name, "LSB_SUB_")
+	}
+}

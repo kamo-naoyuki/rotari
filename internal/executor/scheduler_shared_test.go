@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -409,12 +410,15 @@ func TestSlurmArrayWrapperWritesFinishedTaskStatus(t *testing.T) {
 		{name: "lsf", taskVariable: "LSB_JOBINDEX"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
+			helperDir := installTestRotari(t)
+			t.Setenv("PATH", helperDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 			runDir := t.TempDir()
 			task := 1
 			jobDir := filepath.Join(runDir, "array-1")
 			job := model.JobSpec{
-				ID: "array-1", ArrayGroup: "array", ArrayTaskID: &task, ArrayFirst: 1, ArrayLast: 1,
+				ID: "array-1", LogMode: model.LogModeSeparate, ArrayGroup: "array", ArrayTaskID: &task, ArrayFirst: 1, ArrayLast: 1,
 				Command: []string{"sh", "-c", "printf task-output; printf task-error >&2; exit 0"},
+				Output:  []string{filepath.Join(runDir, "external", "combined.log")},
 				Environment: []string{
 					"ROTARI_ARRAY_TASK_ID=1",
 					model.EnvJobDir + "=" + jobDir,
@@ -440,6 +444,10 @@ func TestSlurmArrayWrapperWritesFinishedTaskStatus(t *testing.T) {
 			stderr, err := os.ReadFile(filepath.Join(jobDir, state.StderrFileName))
 			if err != nil || string(stderr) != "task-error" {
 				t.Fatalf("stderr = %q, err=%v; want task stderr in job directory", stderr, err)
+			}
+			external, err := os.ReadFile(filepath.Join(runDir, "external", "combined.log"))
+			if err != nil || !strings.Contains(string(external), "task-output") || !strings.Contains(string(external), "task-error") {
+				t.Fatalf("external output = %q, err=%v; want merged task output", external, err)
 			}
 		})
 	}

@@ -137,8 +137,11 @@ func submitLSFJobWithPolicies(store state.Store, logf func(string, ...any), runD
 	}
 	stdoutPath := filepath.Join(jobDir, state.StdoutFileName)
 	stderrPath := filepath.Join(jobDir, state.StderrFileName)
+	if job.EffectiveLogMode() == model.LogModeMerge {
+		stdoutPath, stderrPath = filepath.Join(jobDir, "output"), filepath.Join(jobDir, "output")
+	}
 	wrapperPath := filepath.Join(jobDir, "lsf-wrapper.sh")
-	wrapper := lsfWrapperScript(job.Command, jobDir, stdoutPath, stderrPath, job.Environment, job.WorkingDirectory, job.Timeout)
+	wrapper := lsfWrapperScript(job.Command, jobDir, stdoutPath, stderrPath, jobEnvironment(job), job.WorkingDirectory, job.Timeout, job.EffectiveLogMode(), job.OpenMode, job.Output, job.Error, job.EnvMode)
 	if err := os.WriteFile(wrapperPath, []byte(wrapper), store.ScriptMode); err != nil {
 		return lsfJobMetadata{}, err
 	}
@@ -147,6 +150,11 @@ func submitLSFJobWithPolicies(store state.Store, logf func(string, ...any), runD
 		return lsfJobMetadata{}, err
 	}
 	args := append([]string{"bsub"}, expandedOptions...)
+	if job.EnvMode == model.EnvModeNone {
+		args = append(args, "-env", "none")
+	} else {
+		args = append(args, "-env", "all")
+	}
 	output, err := retryPolicy.submit(logf, "lsf", func() ([]byte, error) {
 		spacing.wait("lsf", interval)
 		return runLSFCommandWithInput(bytes.NewReader([]byte(wrapper)), args...)
@@ -204,6 +212,11 @@ func submitLSFArrayWithPolicies(store state.Store, logf func(string, ...any), ru
 	}
 	args := []string{"bsub", "-J", fmt.Sprintf("rotari[%d-%d]", first, last)}
 	args = append(args, expandedOptions...)
+	if jobs[0].EnvMode == model.EnvModeNone {
+		args = append(args, "-env", "none")
+	} else {
+		args = append(args, "-env", "all")
+	}
 	output, err := retryPolicy.submit(logf, "lsf", func() ([]byte, error) {
 		spacing.wait("lsf", interval)
 		return runLSFCommandWithInput(bytes.NewReader([]byte(wrapper)), args...)
@@ -232,8 +245,8 @@ func submitLSFArrayWithPolicies(store state.Store, logf func(string, ...any), ru
 	return handles, nil
 }
 
-func lsfWrapperScript(command []string, jobDir, stdoutPath, stderrPath string, environment []string, workingDirectory, timeout string) string {
-	return "#BSUB -o " + ShellQuote(stdoutPath) + "\n#BSUB -e " + ShellQuote(stderrPath) + "\n" + StatusWrapperScript(command, jobDir, environment, workingDirectory, timeout)
+func lsfWrapperScript(command []string, jobDir, stdoutPath, stderrPath string, environment []string, workingDirectory, timeout, logMode, openMode string, outputPaths, errorPaths []string, envMode ...string) string {
+	return "#BSUB -o " + ShellQuote(stdoutPath) + "\n#BSUB -e " + ShellQuote(stderrPath) + "\n" + StatusWrapperScriptWithDestinations(command, jobDir, environment, workingDirectory, timeout, logMode, openMode, outputPaths, errorPaths, envMode...)
 }
 
 var lsfJobIDPattern = regexp.MustCompile(`<([0-9]+)>`)

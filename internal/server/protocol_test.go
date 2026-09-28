@@ -9,7 +9,7 @@ func TestRequestJSONRoundTrip(t *testing.T) {
 	original := Request{
 		Op: "run", QueueName: "demo", RunName: "nightly", LocalConcurrency: 2,
 		Executor: "slurm", ExecutorOptions: []string{"--partition short"},
-		JobIDs: []string{"job-1"}, SourceRunID: "run-0", PartialArray: true,
+		EnvMode: "NONE", JobIDs: []string{"job-1"}, SourceRunID: "run-0", PartialArray: true,
 	}
 	data, err := json.Marshal(original)
 	if err != nil {
@@ -19,7 +19,7 @@ func TestRequestJSONRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if decoded.Op != original.Op || decoded.QueueName != original.QueueName || decoded.RunName != original.RunName || decoded.Executor != original.Executor || !decoded.PartialArray {
+	if decoded.Op != original.Op || decoded.QueueName != original.QueueName || decoded.RunName != original.RunName || decoded.Executor != original.Executor || decoded.EnvMode != original.EnvMode || !decoded.PartialArray {
 		t.Fatalf("decoded request = %#v", decoded)
 	}
 }
