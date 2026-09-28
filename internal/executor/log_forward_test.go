@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,7 +23,9 @@ func installTestRotari(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(executable, filepath.Join(binDir, "rotari")); err != nil {
+	// A coverage-instrumented binary warns on stderr unless GOCOVERDIR is set.
+	script := fmt.Sprintf("#!/bin/sh\nGOCOVERDIR=%q exec %q \"$@\"\n", t.TempDir(), executable)
+	if err := os.WriteFile(filepath.Join(binDir, "rotari"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	return binDir

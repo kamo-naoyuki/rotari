@@ -537,13 +537,17 @@ fi
 func zshArguments(flags []cliFlagSpec) string {
 	arguments := make([]string, 0, len(flags))
 	for _, flag := range flags {
-		option := "'--" + flag.Name
+		// A repeatable option stays offered after its first use.
+		repeat := ""
+		if flag.Repeated {
+			repeat = "*"
+		}
+		option := "'" + repeat + "--" + flag.Name
 		if short := cliShortFlagNames[flag.Name]; short != "" {
 			option = "{-" + short + ",--" + flag.Name + "}'"
-		}
-		if flag.Repeated {
-			// A repeatable option stays offered after its first use.
-			option = "'*'" + strings.TrimPrefix(option, "'")
+			if repeat != "" {
+				option = "'" + repeat + "'" + option
+			}
 		}
 		valueName := zshEscapeSpec(flag.ValueName)
 		argument := fmt.Sprintf("%s[%s]", option, zshEscapeSpec(flag.Description))

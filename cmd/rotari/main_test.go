@@ -2895,8 +2895,8 @@ func TestRunOneJobSkipsCancelledPendingJob(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(jobDir, "pid")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("pid file exists or stat failed: %v", err)
 	}
-	if output, err := os.ReadFile(filepath.Join(jobDir, state.StderrFileName)); err != nil || !strings.Contains(string(output), "cancelled before start") {
-		t.Fatalf("stderr = %q, err = %v", output, err)
+	if output, err := os.ReadFile(filepath.Join(jobDir, "output")); err != nil || !strings.Contains(string(output), "cancelled before start") {
+		t.Fatalf("output = %q, err = %v", output, err)
 	}
 }
 
