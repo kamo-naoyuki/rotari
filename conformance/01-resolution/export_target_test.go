@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
@@ -46,6 +47,9 @@ func TestUnlockDerivesInterruptedRun(t *testing.T) {
 		t.Run(map[bool]string{false: "lock", true: "metadata"}[removeLock], func(t *testing.T) {
 			e := support.NewEnv(t)
 			e.StartRun("unlock", 1, false)
+			support.WaitUntil(t, 15*time.Second, func() (bool, string) {
+				return support.JobProcesses(t, e.Root, "") == 1, "the job did not start"
+			})
 			support.KillStrays(t, e.Root)
 			support.WaitForInterrupted(t, e, "unlock")
 			if removeLock {
