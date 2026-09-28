@@ -402,6 +402,15 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "DURATION",
                 },
                 {
+                    "description": "mark the job with a status that result "
+                    "filters of the next run read in place of its "
+                    "recorded result",
+                    "name": "status",
+                    "value_name": "STATUS",
+                    "values": ["success", "failed", "cancelled", "unfinished"],
+                },
+                {"description": "remove the job's status mark", "name": "clear-status"},
+                {
                     "description": "suppress success output",
                     "environment": "ROTARI_QUIET",
                     "name": "quiet",
@@ -1203,6 +1212,12 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "env",
                     "value_name": "ALL|NONE",
                     "values": ["ALL", "NONE"],
+                },
+                {
+                    "description": "job identity matching",
+                    "name": "match-by",
+                    "value_name": "MODE",
+                    "values": ["job-id", "fingerprint", "id-and-fingerprint"],
                 },
                 {
                     "description": "option passed to the selected scheduler "

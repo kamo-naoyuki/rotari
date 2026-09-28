@@ -262,7 +262,10 @@ function fixQueueSourceColumns(commands) {
     const sourceOutput = document.createElement("td");
     if (job.origin) {
       sourceRun.textContent = job.origin.run_id + "/" + job.origin.job_id;
-      sourceStatus.textContent = queuedStatusText(job.origin.status, job.marked_status);
+      sourceStatus.textContent = queuedStatusText(
+        job.origin.status,
+        job.marked_status,
+      );
       sourceStarted.textContent = job.origin.submitted_at || "-";
       sourceFinished.textContent = job.origin.finished_at || "-";
       sourceOutput.innerHTML =

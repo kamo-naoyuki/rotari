@@ -568,7 +568,7 @@ function renderRun(q, runID) {
           '" onclick="showDiagnosis(this)">Diagnosis</button>'
         : ' <button class="diagnosis" disabled title="Available after a finalized failed result with saved analysis">Diagnosis</button>';
       const output = result
-        ? "<button class=\"view-log\" onclick=\"log('" +
+        ? '<button class="view-log" onclick="log(\'' +
           esc(q.project_name) +
           "','" +
           esc(logRun) +

@@ -21,16 +21,16 @@ func TestJobSpecDoesNotPersistInheritedEnvironment(t *testing.T) {
 
 func TestFingerprintUsesCanonicalExplicitInputs(t *testing.T) {
 	first := QueuedCommand{
-		Command: []string{"run", "--name", "a"},
-		Environment: []string{"Z=last", "A=one", "PY=3.12", "Z=final"},
+		Command:          []string{"run", "--name", "a"},
+		Environment:      []string{"Z=last", "A=one", "PY=3.12", "Z=final"},
 		WorkingDirectory: "./work/../data",
-		Matrix: &MatrixSpec{Values: []MatrixValue{{Name: "GPU", Value: "a"}, {Name: "PY", Value: "3.12"}}},
+		Matrix:           &MatrixSpec{Values: []MatrixValue{{Name: "GPU", Value: "a"}, {Name: "PY", Value: "3.12"}}},
 	}
 	second := QueuedCommand{
-		Command: []string{"run", "--name", "a"},
-		Environment: []string{"PY=3.12", "Z=final", "A=one"},
+		Command:          []string{"run", "--name", "a"},
+		Environment:      []string{"PY=3.12", "Z=final", "A=one"},
 		WorkingDirectory: "data",
-		Matrix: &MatrixSpec{Values: []MatrixValue{{Name: "PY", Value: "3.12"}, {Name: "GPU", Value: "a"}}},
+		Matrix:           &MatrixSpec{Values: []MatrixValue{{Name: "PY", Value: "3.12"}, {Name: "GPU", Value: "a"}}},
 	}
 	firstFingerprint, err := Fingerprint(first, intPointer(4))
 	if err != nil {

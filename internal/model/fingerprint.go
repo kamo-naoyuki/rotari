@@ -11,11 +11,11 @@ import (
 )
 
 type fingerprintPayload struct {
-	Command          []string          `json:"command"`
-	Environment      []fingerprintEnv  `json:"environment,omitempty"`
-	WorkingDirectory string            `json:"working_directory,omitempty"`
+	Command          []string           `json:"command"`
+	Environment      []fingerprintEnv   `json:"environment,omitempty"`
+	WorkingDirectory string             `json:"working_directory,omitempty"`
 	Matrix           []fingerprintParam `json:"matrix,omitempty"`
-	ArrayTask        *int              `json:"array_task,omitempty"`
+	ArrayTask        *int               `json:"array_task,omitempty"`
 }
 
 type fingerprintEnv struct {
@@ -40,9 +40,9 @@ type FingerprintMatch struct {
 }
 
 const (
-	MatchByJobID             = "job-id"
-	MatchByFingerprint       = "fingerprint"
-	MatchByIDAndFingerprint  = "id-and-fingerprint"
+	MatchByJobID            = "job-id"
+	MatchByFingerprint      = "fingerprint"
+	MatchByIDAndFingerprint = "id-and-fingerprint"
 )
 
 // Fingerprint returns the SHA-256 fingerprint of one expanded execution unit.
