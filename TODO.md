@@ -55,10 +55,6 @@ middleware, and rotari only limits how many jobs it runs or submits at once.
 
 ### Runs as experiment versions
 
-A run snapshots the queue the script built, so the run sequence records what
-the experiment actually ran. See "Runs as history" in
-[docs/DAGU_COMPARISON.md](docs/DAGU_COMPARISON.md).
-
 What is missing today: `show RUN` describes a run on its own, so whether the
 last fix worked needs a separate `diff`; rule-based diagnoses are per attempt,
 so the causes of a run's failures cannot be seen together; one job cannot be
