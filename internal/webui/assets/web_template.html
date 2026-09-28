@@ -99,6 +99,13 @@
                 >
                   Copy last 100 lines</button
                 ><button
+                  id="report-redact-toggle"
+                  onclick="toggleReportRedaction()"
+                  aria-pressed="true"
+                  hidden
+                >
+                  Redact: On</button
+                ><button
                   id="open-chatgpt"
                   onclick="openAI('https://chatgpt.com/', this)"
                   hidden
@@ -123,15 +130,6 @@
               Markdown report for pasting into an AI assistant. Nothing is sent
               to external services automatically.
             </p>
-            <label id="report-redact-toggle" class="meta" hidden>
-              <input
-                type="checkbox"
-                id="report-redact-checkbox"
-                checked
-                onchange="toggleReportRedaction(this.checked)"
-              />
-              Redact paths and hostnames
-            </label>
             <div class="output-box">
               <pre id="modal-log" class="log"></pre>
               <div id="config-editor" class="config-editor" hidden>

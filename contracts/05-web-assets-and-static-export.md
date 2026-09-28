@@ -202,11 +202,11 @@ Report generation redacts known hostnames and paths, then applies heuristic
 redaction to common absolute paths and FQDNs in log text. This is best-effort
 privacy protection, not complete secret detection; users must review reports
 before sharing them externally. `rotari web` (not the static export) exposes
-a "Redact paths and hostnames" checkbox in the report modal; unchecking it
+a `Redact: On` / `Redact: Off` button in the report modal; turning it off
 requests `/api/report` with `redact=false` and re-fetches the unredacted
 report. Redaction stays on by default and the static export always serves
-its precomputed, redacted report regardless of the checkbox, so the checkbox
-is hidden there.
+its precomputed, redacted report regardless of the button, so the button is
+hidden there.
 
 ## Runtime and static mode
 

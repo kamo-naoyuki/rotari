@@ -272,7 +272,7 @@ async function showAIReport(project, run, job, jobIDs) {
   ensureModalOutput().textContent = selectedOutput;
   openOutputModal(false);
   selectedReportContext = { project, run, job, jobIDs };
-  document.getElementById("report-redact-checkbox").checked = true;
+  setReportRedactionButton(true);
   await fetchAIReport(true);
 }
 async function fetchAIReport(redact) {
@@ -292,8 +292,17 @@ async function fetchAIReport(redact) {
   ensureModalOutput().textContent = selectedOutput;
   openOutputModal(false);
 }
-async function toggleReportRedaction(redact) {
+function setReportRedactionButton(redact) {
+  const button = document.getElementById("report-redact-toggle");
+  button.textContent = `Redact: ${redact ? "On" : "Off"}`;
+  button.setAttribute("aria-pressed", String(redact));
+  button.dataset.redact = String(redact);
+}
+async function toggleReportRedaction() {
   if (!selectedReportContext) return;
+  const redact =
+    document.getElementById("report-redact-toggle").dataset.redact !== "true";
+  setReportRedactionButton(redact);
   selectedOutput = "Preparing...";
   ensureModalOutput().textContent = selectedOutput;
   await fetchAIReport(redact);
