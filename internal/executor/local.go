@@ -41,8 +41,12 @@ func (local Local) Resume(jobDir string) error  { return local.signal(jobDir, sy
 // wrapper between installing its traps and spawning the command can be
 // deferred until that command finishes, so the wrapper also reads this marker
 // around the command launch and stops there.
+//
+// A job can end between the moment a caller selects it and the signal, so a
+// process group that is already gone is not an error: the recorded
+// cancellation is all that is left to do.
 func (local Local) Cancel(jobDir string) error {
-	pid, err := local.runningPID(jobDir)
+	pid, err := local.recordedPID(jobDir)
 	if err != nil {
 		return err
 	}
@@ -50,25 +54,31 @@ func (local Local) Cancel(jobDir string) error {
 	if err := os.WriteFile(filepath.Join(jobDir, "cancelled"), []byte(nowRFC3339()+"\n"), local.Store.FileMode); err != nil { // NOSONAR: jobDir comes from validated job path helpers.
 		return fmt.Errorf("record job cancellation: %w", err)
 	}
-	return syscall.Kill(-pid, syscall.SIGTERM)
+	if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
+		return err
+	}
+	return nil
 }
 
 func (local Local) signal(jobDir string, sig syscall.Signal) error {
-	pid, err := local.runningPID(jobDir)
+	pid, err := local.recordedPID(jobDir)
 	if err != nil {
 		return err
+	}
+	if !processAlive(pid) {
+		return fmt.Errorf("job is not running")
 	}
 	return syscall.Kill(-pid, sig)
 }
 
-func (Local) runningPID(jobDir string) (int, error) {
+func (Local) recordedPID(jobDir string) (int, error) {
 	// codeql[go/path-injection]: jobDir is a validated job directory and pid is a fixed file name.
 	pidData, err := os.ReadFile(filepath.Join(jobDir, "pid"))
 	if err != nil {
 		return 0, fmt.Errorf("job is not running")
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(string(pidData)))
-	if err != nil || !processAlive(pid) {
+	if err != nil {
 		return 0, fmt.Errorf("job is not running")
 	}
 	return pid, nil

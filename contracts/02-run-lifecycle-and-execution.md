@@ -352,7 +352,9 @@ the request, on the host that owns the run.
 
 - **CAN-1** A whole-run cancel of an active run (`rotari cancel` with no job
   selection or only the run ID, or the Web UI's cancel-run) stops every job of
-  the run that is running, and no job of the run starts afterwards.
+  the run that is running, and no job of the run starts afterwards. A job that
+  ends between the request and the signal is already stopped, so it does not
+  fail the cancel.
 - **CAN-2** A cancelled run still finishes: it writes its summary, every job
   has a recorded result, the running lock is removed, and the project returns
   to idle. Cancellation never leaves the run interrupted, so no `unlock` is
