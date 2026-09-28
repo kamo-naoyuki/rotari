@@ -702,7 +702,7 @@ function renderRun(q, runID) {
     esc(cwd) +
     "</code>" +
     cwdCopy +
-    '</p><pre class="log">Retry from a terminal:\n' +
+    '</p><pre class="log command-example">Retry from a terminal:\n' +
     esc(copy) +
     "</pre>" +
     (jobs

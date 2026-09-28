@@ -32,6 +32,9 @@
   overflow: auto;
   position: relative;
 }
+.command-example {
+  text-align: left;
+}
 .command-guide-copy {
   position: absolute;
   top: 8px;

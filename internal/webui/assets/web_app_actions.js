@@ -328,7 +328,7 @@ function addExecutionGuide() {
   const queue = state.projects.find((item) => item.project_name === queueName);
   if (!queue) return;
   const guide = document.createElement("pre");
-  guide.className = "command-guide execution-guide";
+  guide.className = "command-guide execution-guide command-example";
   const copyButton = document.createElement("button");
   copyButton.className = "command-guide-copy";
   copyButton.type = "button";
