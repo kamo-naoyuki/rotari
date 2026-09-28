@@ -76,7 +76,7 @@ func composeInfoHTML(template, homePath, content string) string {
 	template = strings.Replace(template, "__ROTARI_FAVICON_LINKS__", faviconLinks(), 1)
 	template = strings.Replace(template, "__ROTARI_INFO_STYLES__", webInfoStylesCSS, 1)
 	template = strings.Replace(template, "__ROTARI_BRAND_ICON__", brandIcon(), 1)
-	template = strings.Replace(template, "__ROTARI_HOME_PATH__", html.EscapeString(homePath), 1)
+	template = strings.ReplaceAll(template, "__ROTARI_HOME_PATH__", html.EscapeString(homePath))
 	template = strings.Replace(template, "__ROTARI_CONTENT__", content, 1)
 	return template
 }

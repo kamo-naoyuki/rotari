@@ -11,6 +11,11 @@
   </head>
   <body>
     <main>
+      <nav class="sidebar">
+        <a class="sidebar-link" href="__ROTARI_HOME_PATH__">All projects</a>
+        <a class="sidebar-link active" href="__ROTARI_HOME_PATH__jobs/">Job activity</a>
+      </nav>
+      <div class="content">
       <header>
         <div>
           <h1>__ROTARI_BRAND_ICON__rotari Job activity</h1>
@@ -18,9 +23,9 @@
             Running jobs and jobs finished in the last 24 hours
           </div>
         </div>
-        <a href="__ROTARI_HOME_PATH__">Web UI</a>
       </header>
       __ROTARI_CONTENT__
+      </div>
     </main>
     <script>
       function copyJobsValueFallback(value) {

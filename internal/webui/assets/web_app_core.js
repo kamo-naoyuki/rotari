@@ -49,6 +49,7 @@ async function refresh() {
 }
 function render() {
   const queues = state.projects || [];
+  renderSidebar(queues);
   const parts = pageParts();
   if (parts[0] !== "project") {
     renderOverview(queues);
@@ -66,6 +67,49 @@ function render() {
     return;
   }
   renderQueue(queue);
+}
+function renderSidebar(queues) {
+  const container = document.getElementById("sidebar-projects");
+  if (!container) return;
+  const parts = pageParts();
+  const activeProject = parts[0] === "project" ? decodeURIComponent(parts[1]) : "";
+  const activeRun = parts[2] === "run" ? decodeURIComponent(parts[3]) : "";
+  container.innerHTML = queues
+    .map((q) => {
+      const runs = (q.runs || [])
+        .slice()
+        .sort((a, b) => (a.run_id < b.run_id ? 1 : a.run_id > b.run_id ? -1 : 0));
+      const isActive = q.project_name === activeProject;
+      const runLinks = runs
+        .map(
+          (r) =>
+            '<a class="sidebar-run' +
+            (isActive && r.run_id === activeRun ? " active" : "") +
+            '" href="/project/' +
+            encodeURIComponent(q.project_name) +
+            "/run/" +
+            encodeURIComponent(r.run_id) +
+            '">' +
+            esc(r.run_name || r.run_id) +
+            "</a>",
+        )
+        .join("");
+      return (
+        '<details class="sidebar-project' +
+        (isActive ? " active" : "") +
+        '"' +
+        (isActive ? " open" : "") +
+        '><summary><a class="link" href="/project/' +
+        encodeURIComponent(q.project_name) +
+        '">' +
+        esc(q.project_name) +
+        "</a></summary>" +
+        '<div class="sidebar-runs">' +
+        (runLinks || '<span class="sidebar-run">No runs</span>') +
+        "</div></details>"
+      );
+    })
+    .join("");
 }
 function setLocation(base, paths) {
   const location = document.getElementById("location");

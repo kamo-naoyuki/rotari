@@ -20,6 +20,12 @@
   </head>
   <body>
     <main>
+      <nav class="sidebar">
+        <a class="sidebar-link" href="/">All projects</a>
+        <a class="sidebar-link" href="/jobs/">Job activity</a>
+        <div class="sidebar-projects" id="sidebar-projects"></div>
+      </nav>
+      <div class="content">
       <header>
         <div>
           <h1>
@@ -32,8 +38,7 @@
           <div class="meta" id="location">loading...</div>
         </div>
         <div class="toolbar">
-          <a class="link" href="/jobs/">Job activity</a
-          ><button id="notify-toggle" onclick="toggleRunNotifications()">
+          <button id="notify-toggle" onclick="toggleRunNotifications()">
             Enable notifications</button
           ><button onclick="refresh()">Refresh</button>
         </div>
@@ -121,6 +126,7 @@
             </button>
           </div>
         </div>
+      </div>
       </div>
     </main>
     __ROTARI_STATIC_BOOTSTRAP__
