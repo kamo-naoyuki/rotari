@@ -7,14 +7,18 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 ## Open
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
-- **`TestLocalJobTimeoutKillsCommandIgnoringTerm` fails cleanup on NFS-backed `TMPDIR`** (`internal/executor/timeout_test.go`): the test itself passes, but `t.TempDir` cleanup reports `directory not empty` for the job directory. It reproduces on an unmodified checkout, so it is independent of the cancellation fix; the killed process group appears to leave an NFS silly-rename (`.nfs*`) entry behind. The test should reap the wrapper's process group before its temporary directory is removed.
-- **`TestJobControlSelectors` failed once under `scripts/check.sh`** (`conformance/job_control_test.go`): one full run reported a failing subtest; its output was not kept, and 4 conformance runs, 2 `go test ./...` runs, and isolated runs did not reproduce it. A likely cause is that `affected` read suspend and resume results once while it polled only for cancel, so it now polls for every command. If it recurs, keep the subtest's output.
-- **`TestResetOfInterruptedProject` was flaky during the conformance migration** (`conformance/safety_test.go`): one full `go test ./conformance/...` run stayed `ready` instead of reaching `interrupted` after process cleanup and timed out after 15 seconds; an isolated rerun skipped because Unix sockets were unavailable. If it recurs on a socket-capable host, preserve the full subtest output and inspect whether cleanup killed the coordinator before its state was persisted.
-- **`TestControlFromAnotherHost` failed during the conformance migration** (`conformance/coordination_test.go`): a run marked as owned by another host accepted `cancel` and the Web cancel request, then the job was no longer running; `suspend` and `resume` reported that it was not running. The isolated coordination package did not reproduce it. If it recurs, preserve the full output and determine whether the test's host rewrite raced with the active job-control request or exposed a cross-host validation gap.
 
 ## Resolved
 
 <!-- Keep only short records of resolved items when they may help prevent recurrence. -->
+
+- **`TestJobControlSelectors` failed once under `scripts/check.sh`** (`conformance/06-selectors/job_control_test.go`): the selector observer now polls all command states until they settle, and the complete selector test passed in a subsequent run.
+
+- **`TestControlFromAnotherHost` raced with local job startup** (`conformance/04-coordination/private_state_test.go`): the fixture rewrote `context.json` after the run was reported as running but before the local wrapper had started, so job-control requests observed a missing job. It now waits for the job process before changing the recorded host; CLI and Web controls then both reject the request without stopping the job.
+
+- **`TestResetOfInterruptedProject` raced with local job startup** (`conformance/04-coordination/private_state_test.go`): the fixture killed coordinator processes as soon as the project was reported running, before the local job wrapper had started and persisted the run state. It now waits for a job process before killing strays, and the reset test reaches the interrupted state reliably.
+
+- **`TestLocalJobTimeoutKillsCommandIgnoringTerm` could fail cleanup on NFS-backed `TMPDIR`** (`internal/executor/timeout_test.go`): the test cleanup now waits for the wrapper's process group to disappear before `t.TempDir` removes the job directory, avoiding delayed `.nfs*` entries.
 
 - **`run` failed where Unix sockets were unavailable** (`internal/server/client.go`, `Start`; `cmd/rotari/server.go`, `runServer`): the run client reached its supervisor over a Unix socket, so sandboxes that block `AF_UNIX` (often with `EPERM`) made `run` unusable, and long base directories needed a fallback socket path. Since a supervisor only ever talks to the `run` that started it, they now talk over pipes it inherits as descriptors 3 and 4; liveness is the `server.lock` flock and `server shutdown` sends `SIGTERM`. Dagu's approach (socket as an optional fast path, files as the control path) was considered but not needed once `cancel`, `suspend`, and `resume` worked through files. Covered by `internal/server/client_test.go`, including `TestJobsDoNotHoldTheClientPipes`.
 

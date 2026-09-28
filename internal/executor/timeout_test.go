@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -17,6 +18,24 @@ import (
 func runLocalWithTimeout(t *testing.T, command []string, timeout string) (model.JobResult, string, string, time.Duration) {
 	t.Helper()
 	runDir := t.TempDir()
+	t.Cleanup(func() {
+		pidData, err := os.ReadFile(filepath.Join(runDir, "job", "pid"))
+		if err != nil {
+			return
+		}
+		pid, err := strconv.Atoi(strings.TrimSpace(string(pidData)))
+		if err != nil {
+			return
+		}
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			err := syscall.Kill(-pid, 0)
+			if err == syscall.ESRCH {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	})
 	job := model.JobSpec{ID: "job", Command: command, Timeout: timeout, LogMode: model.LogModeSeparate}
 	started := time.Now()
 	result := RunLocalJob(runDir, job, testStore(), func(string, ...any) {})

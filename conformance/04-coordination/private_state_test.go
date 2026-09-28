@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
@@ -103,6 +104,9 @@ func TestControlFromAnotherHost(t *testing.T) {
 	covers(t, "COORD-1", "COORD-2", "COORD-3", "SAFE-1", "SAFE-4")
 	e := support.NewEnv(t)
 	run := e.StartRun("live", 1, false)
+	support.WaitUntil(t, 15*time.Second, func() (bool, string) {
+		return support.JobProcesses(t, e.Root, run.Jobs[0]) == 1, "the job did not start"
+	})
 	project := filepath.Join(e.Base, "projects", "live")
 	setJSONField(t, filepath.Join(project, "runs", run.RunID, "context.json"), "hostname", "elsewhere")
 	for _, command := range []string{"cancel", "suspend", "resume"} {
@@ -228,6 +232,9 @@ func TestResetOfInterruptedProject(t *testing.T) {
 	covers(t, "SAFE-5", "SAFE-6")
 	e := support.NewEnv(t)
 	run := e.StartRun("live", 1, false)
+	support.WaitUntil(t, 15*time.Second, func() (bool, string) {
+		return support.JobProcesses(t, e.Root, "") == 1, "the job did not start"
+	})
 	support.KillStrays(t, e.Root)
 	support.WaitForInterrupted(t, e, "live")
 	r := e.Rotari("reset", "live")
