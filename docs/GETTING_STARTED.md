@@ -70,8 +70,10 @@ rotari metadata.
 
 See [Projects, queues, runs, and state](CONCEPTS.md#projects-queues-runs-and-state)
 for project selection and state layout, [Inspect](INSPECT.md#inspect) for
-status and logs, and [Recover and rerun](RUNNING.md#recover-and-rerun) for
-retries and asynchronous runs.
+status and logs, [Recover and rerun](RUNNING.md#recover-and-rerun) for
+retries and asynchronous runs, [Executors and schedulers](EXECUTORS.md#executors-and-schedulers)
+for execution backends, and [Array and matrix jobs](RUNNING.md#array-and-matrix-jobs)
+for task expansion and matrix combinations.
 
 Use `--depends-on NAME` to run a job only after a prerequisite job or stage
 succeeds:

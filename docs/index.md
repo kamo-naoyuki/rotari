@@ -12,8 +12,8 @@ or LSF cluster while keeping commands, results, and logs together.
 - [CLI reference](CLI_REFERENCE.md): commands and common options.
 - [Environment variables](ENVIRONMENT_VARIABLES.md): variable meanings and scope.
 - [Concepts](CONCEPTS.md): projects, queues, runs, dependencies, and state.
-- [Running and recovering](RUNNING.md): execute, inspect, rerun, and retry jobs.
-- [Executors and schedulers](EXECUTORS.md): local, SSH, Slurm, PBS, and LSF.
+- [Running and recovering](RUNNING.md): execute, inspect, rerun, retry, and use array and matrix jobs.
+- [Executors and schedulers](EXECUTORS.md): local, SSH, Slurm, PBS, and LSF execution backends.
 - [Inspecting and diagnosing](INSPECT.md): status, logs, and failure diagnosis.
 
 The repository [README](https://github.com/kamo-naoyuki/rotari) provides the

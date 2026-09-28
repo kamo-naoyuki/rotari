@@ -2,6 +2,54 @@
 
 Background runs, reruns and retries, and controlling queued and running jobs.
 
+## Array and matrix jobs
+
+Array jobs can be added with a numeric range or a comma-separated task list:
+
+```sh
+rotari add --array 1-10 -e local ./train.sh
+rotari add --array 1-10 -e slurm ./train.sh
+rotari add --array 1,3,4 -e slurm ./train.sh
+```
+
+Each task is tracked separately. Local and SSH execution starts one process per
+task. Slurm, PBS, and LSF may submit a complete contiguous range as a native
+scheduler array, while sparse selections use independent jobs where native
+arrays are not applicable. For each array task, rotari exposes:
+
+- `ROTARI_ARRAY_TASK_ID`: current task number
+- `ROTARI_ARRAY_FIRST`: first task number in the array
+- `ROTARI_ARRAY_LAST`: last task number in the array
+- `ROTARI_ARRAY_SIZE`: total number of tasks
+
+Scheduler-backed arrays also map the native index variable into these values,
+for example `SLURM_ARRAY_TASK_ID`, `PBS_ARRAY_INDEX`, or `LSB_JOBINDEX`.
+
+To register a matrix as independent jobs, repeat `--matrix` on `add`:
+
+```sh
+rotari add --job-name train \
+  --matrix python=3.10,3.11 \
+  --matrix cuda=cpu,cuda \
+  -- ./train.sh
+```
+
+This registers the Cartesian product as four jobs named like
+`train-python3.10-cudacpu`. Each job receives its values as ordinary
+environment variables, such as `python=3.10` and `cuda=cpu`. Matrix jobs have
+independent job IDs and can be combined with `--array`; the array is applied to
+each matrix combination. `--depends-on` can name the matrix's `--job-name` (for
+example `--depends-on train`) to wait for every combination. If `copy`,
+`remove`, or `change` later touches only part of the matrix, such dependencies
+are rewritten to the remaining combination names. `include` and `exclude`
+customization is not supported by the version 1 workflow manifest.
+
+The Slurm and PBS executors are integration-tested in CI against a Slurm
+container and an OpenPBS container. These tests do not certify compatibility
+with every real cluster configuration. The LSF executor is covered by unit
+tests using fake scheduler commands, but has not yet been tested against a
+real LSF installation.
+
 ## Async runs
 
 ```sh
