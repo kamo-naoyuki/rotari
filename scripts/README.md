@@ -26,6 +26,42 @@ examples. They are not part of the `rotari` command-line interface.
 Run `python3 scripts/sync_readme.py --check` to verify that the README is in
 sync with the Getting Started guide.
 
+## Updating documentation
+
+Use the source documents as the editing locations:
+
+- User onboarding: `docs/GETTING_STARTED.md`
+- CLI and environment reference: CLI schema in `cmd/rotari/cli_spec.go` and
+  `cmd/rotari/environment.go`
+- Python client usage: `docs/PYTHON_CLIENT.md`
+- Go and Python API output: the existing generators and CLI schema
+
+After changing CLI or environment metadata, regenerate the checked-in views:
+
+```sh
+tmpdir=$(mktemp -d)
+go run ./cmd/rotari schema --json > "$tmpdir/schema.json"
+python3 scripts/generate_python_cli.py \
+  --input "$tmpdir/schema.json" \
+  --output python/rotari/generated_cli.py
+PYTHONPATH=python python3 scripts/generate_cli_reference.py
+PYTHONPATH=python python3 scripts/generate_python_api_docs.py
+python3 scripts/sync_readme.py
+```
+
+For documentation-only edits, run the relevant generator after editing the
+source document. Before committing, run the complete local validation:
+
+```sh
+PYTHONPATH=python python3 scripts/generate_cli_reference.py --check
+PYTHONPATH=python python3 scripts/generate_python_api_docs.py --check
+python3 scripts/sync_readme.py --check
+PYTHONPATH=python python3 -m mkdocs build --strict --site-dir "$TMPDIR/mkdocs-site"
+```
+
+CI runs these synchronization checks and the strict MkDocs build for pull
+requests and pushes to `main`.
+
 ## Checks and integration
 
 - `check.sh`: run the repository's full validation checks.
