@@ -54,3 +54,40 @@ rotari retry -p sweep
 ```
 
 See [Concepts](CONCEPTS.md) for projects, queues, runs, and dependencies.
+
+## Example
+
+```sh
+./scripts/example.sh
+```
+
+The example adds a dependent job, a two-task array, and a job that
+intentionally fails once. The first run therefore has failures; `rotari retry`
+reruns only the failed array task and job, while carrying the successful work
+forward.
+
+To run the array job through Slurm instead, pass the optional flag:
+
+```sh
+./scripts/example.sh --slurm
+```
+
+For the workflow manifest flow, run:
+
+```sh
+./scripts/example-workflow.sh
+```
+
+See [Workflow manifests](WORKFLOW_MANIFESTS.md) for the manifest workflow.
+
+## Local web UI
+
+Start the local web status UI separately from the job runner:
+
+```sh
+rotari web
+```
+
+See the [web demo](https://kamo-naoyuki.github.io/rotari/) for a read-only UI
+using generated example data. For remote access, authentication, and read-only
+mode, see the [FAQ](FAQ.md#web-ui) and [Security model](OPERATIONS.md#security-model).

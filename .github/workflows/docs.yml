@@ -5,6 +5,7 @@ on:
     paths:
       - "docs/**"
       - "python/**"
+      - "scripts/sync_readme.py"
       - "mkdocs.yml"
       - "README.md"
       - ".github/workflows/docs.yml"
@@ -29,4 +30,6 @@ jobs:
         run: python -m pip install "./python[docs]"
 
       - name: Build documentation
-        run: python -m mkdocs build --strict --site-dir "$RUNNER_TEMP/mkdocs-site"
+        run: |
+          python3 scripts/sync_readme.py --check
+          python -m mkdocs build --strict --site-dir "$RUNNER_TEMP/mkdocs-site"
