@@ -292,6 +292,11 @@ func readDiagnosisLog(runDir, jobID string) (string, error) {
 }
 
 func readSeparateJobLogs(jobDir string) (string, error) {
+	if data, err := os.ReadFile(filepath.Join(jobDir, "output")); err == nil {
+		return string(data), nil
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
 	var logs strings.Builder
 	for _, stream := range []string{state.StdoutFileName, state.StderrFileName} {
 		data, err := os.ReadFile(filepath.Join(jobDir, stream))
