@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html"
 	"net"
 	"net/http"
 	"net/url"
@@ -169,13 +168,6 @@ func (s site) handler() http.Handler {
 		writer.Header().Set("Content-Type", "text/css; charset=utf-8")
 		_, _ = writer.Write([]byte(webStylesCSS))
 	})
-	mux.HandleFunc("/cli/", func(writer http.ResponseWriter, request *http.Request) {
-		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
-		_, _ = writer.Write([]byte(s.cliDocsHTML("/")))
-	})
-	mux.HandleFunc("/cli", func(writer http.ResponseWriter, request *http.Request) {
-		http.Redirect(writer, request, "/cli/", http.StatusMovedPermanently)
-	})
 	mux.HandleFunc("/jobs/", func(writer http.ResponseWriter, request *http.Request) {
 		sinceText := request.URL.Query().Get("since")
 		window, err := joblist.ParseSince(sinceText)
@@ -202,18 +194,6 @@ func (s site) handler() http.Handler {
 	})
 	mux.HandleFunc("/jobs", func(writer http.ResponseWriter, request *http.Request) {
 		http.Redirect(writer, request, "/jobs/", http.StatusMovedPermanently)
-	})
-	mux.HandleFunc("/environment/", func(writer http.ResponseWriter, request *http.Request) {
-		state, err := s.loadWebState(baseDir, queueFilter)
-		if err != nil {
-			writeWebError(writer, err)
-			return
-		}
-		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
-		_, _ = writer.Write([]byte(environmentHTML("/", state.Environments)))
-	})
-	mux.HandleFunc("/environment", func(writer http.ResponseWriter, request *http.Request) {
-		http.Redirect(writer, request, "/environment/", http.StatusMovedPermanently)
 	})
 	mux.HandleFunc("/api/state", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
@@ -999,12 +979,6 @@ func (s site) generateStaticWeb(outputDir string) error {
 	if err := writeStaticStylesheet(outputDir); err != nil {
 		return err
 	}
-	if err := writeStaticWebPage(filepath.Join(outputDir, "cli", "index.html"), s.cliDocsHTML("../")); err != nil {
-		return err
-	}
-	if err := writeStaticStylesheet(filepath.Join(outputDir, "cli")); err != nil {
-		return err
-	}
 	projects, err := joblist.Projects(baseDir, queueFilter)
 	if err != nil {
 		return err
@@ -1018,12 +992,6 @@ func (s site) generateStaticWeb(outputDir string) error {
 		return err
 	}
 	if err := writeStaticStylesheet(filepath.Join(outputDir, "jobs")); err != nil {
-		return err
-	}
-	if err := writeStaticWebPage(filepath.Join(outputDir, "environment", "index.html"), environmentHTML("../", state.Environments)); err != nil {
-		return err
-	}
-	if err := writeStaticStylesheet(filepath.Join(outputDir, "environment")); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(outputDir, ".nojekyll"), nil, 0o644); err != nil {
@@ -1211,73 +1179,6 @@ func methodNotAllowed(writer http.ResponseWriter) {
 
 func forbiddenReadOnly(writer http.ResponseWriter) {
 	http.Error(writer, "the web UI is read-only; restart with --allow-control to enable job control", http.StatusForbidden)
-}
-
-func (s site) cliDocsHTML(homePath string) string {
-	var builder strings.Builder
-	for _, command := range s.Commands {
-		builder.WriteString(`<section><h2 id="`)
-		builder.WriteString(html.EscapeString(command.Name))
-		builder.WriteString(`">rotari `)
-		builder.WriteString(html.EscapeString(command.Name))
-		builder.WriteString(`</h2><p>`)
-		builder.WriteString(html.EscapeString(command.Description))
-		builder.WriteString(`</p><pre>`)
-		builder.WriteString(html.EscapeString(command.Usage))
-		builder.WriteString(`</pre>`)
-		if len(command.Flags) > 0 {
-			builder.WriteString(`<h3>Options</h3><table><thead><tr><th>Option</th><th>Description</th><th>Values</th></tr></thead><tbody>`)
-			for _, flagDoc := range command.Flags {
-				builder.WriteString(`<tr><td><code>--`)
-				builder.WriteString(html.EscapeString(flagDoc.Name))
-				builder.WriteString(`</code></td><td>`)
-				builder.WriteString(html.EscapeString(flagDoc.Description))
-				builder.WriteString(`</td><td>`)
-				builder.WriteString(html.EscapeString(flagDoc.Values))
-				builder.WriteString(`</td></tr>`)
-			}
-			builder.WriteString(`</tbody></table>`)
-		}
-		if len(command.Subcommands) > 0 {
-			builder.WriteString(`<h3>Subcommands</h3><table><thead><tr><th>Name</th><th>Description</th></tr></thead><tbody>`)
-			for _, subcommand := range command.Subcommands {
-				builder.WriteString(`<tr><td><code>`)
-				builder.WriteString(html.EscapeString(subcommand.Name))
-				builder.WriteString(`</code></td><td>`)
-				builder.WriteString(html.EscapeString(subcommand.Description))
-				builder.WriteString(`</td></tr>`)
-			}
-			builder.WriteString(`</tbody></table>`)
-		}
-		builder.WriteString(`</section>`)
-	}
-	return composeInfoHTML(cliDocsTemplateHTML, homePath, builder.String())
-}
-
-func environmentHTML(homePath string, environments []webprojection.EnvironmentDefinition) string {
-	var builder strings.Builder
-	builder.WriteString(`<section><table><thead><tr><th>Variable</th><th>Set</th><th>CLI</th><th>Job</th><th>Array</th><th>Description</th></tr></thead><tbody>`)
-	for _, environment := range environments {
-		value := "-"
-		if environment.Set {
-			value = "set"
-		}
-		builder.WriteString(`<tr><td><code>`)
-		builder.WriteString(html.EscapeString(environment.Name))
-		builder.WriteString(`</code></td><td>`)
-		builder.WriteString(html.EscapeString(value))
-		builder.WriteString(`</td><td>`)
-		builder.WriteString(yesNo(environment.CLIDefault))
-		builder.WriteString(`</td><td>`)
-		builder.WriteString(yesNo(environment.Job))
-		builder.WriteString(`</td><td>`)
-		builder.WriteString(yesNo(environment.Array))
-		builder.WriteString(`</td><td>`)
-		builder.WriteString(html.EscapeString(environment.Description))
-		builder.WriteString(`</td></tr>`)
-	}
-	builder.WriteString(`</tbody></table></section>`)
-	return composeInfoHTML(environmentTemplateHTML, homePath, builder.String())
 }
 
 func loadSamplesPath(paths stateinternal.ProjectPaths, runID string) string {

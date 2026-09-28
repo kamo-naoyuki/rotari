@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
@@ -96,27 +95,8 @@ func webOptions(baseDir, projectFilter string, allowControl, notifications bool)
 	return webui.Options{
 		BaseDir: baseDir, ProjectFilter: projectFilter, AllowControl: allowControl, Notifications: notifications,
 		Store: jsonStore(), Editor: queueEditor(), Controller: jobController(),
-		Executors: executorRegistry.Names(), Environments: environmentDefinitions(), Commands: cliCommandDocs(),
+		Executors:      executorRegistry.Names(),
+		Environments:   environmentDefinitions(),
 		ConfigTemplate: func() ([]byte, error) { return configTemplate("toml") },
 	}
-}
-
-// cliCommandDocs describes every command for the Web UI's docs page.
-func cliCommandDocs() []webui.CommandDoc {
-	docs := make([]webui.CommandDoc, 0, len(cliCommandSpecs))
-	for _, command := range cliCommandSpecs {
-		doc := webui.CommandDoc{Name: command.Name, Description: command.Description, Usage: cliUsage(command.Name)}
-		for _, flagSpec := range command.Flags {
-			values := flagSpec.ValueName
-			if len(flagSpec.Values) > 0 {
-				values = strings.Join(flagSpec.Values, ", ")
-			}
-			doc.Flags = append(doc.Flags, webui.FlagDoc{Name: flagSpec.Name, Description: flagSpec.Description, Values: values})
-		}
-		for _, subcommand := range command.Subcommands {
-			doc.Subcommands = append(doc.Subcommands, webui.SubcommandDoc{Name: subcommand.Name, Description: subcommand.Description})
-		}
-		docs = append(docs, doc)
-	}
-	return docs
 }

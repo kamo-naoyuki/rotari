@@ -24,42 +24,20 @@ type Options struct {
 	Controller jobcontrol.Controller
 	// Executors lists the executor names the UI offers.
 	Executors []string
-	// Environments lists the environment variables the UI documents; whether
-	// each is set is filled in when state is loaded.
+	// Environments are included in the Web state projection.
 	Environments []web.EnvironmentDefinition
-	// Commands documents the CLI on the docs page.
-	Commands []CommandDoc
 	// ConfigTemplate returns the TOML config template that "generate config"
 	// writes.
 	ConfigTemplate func() ([]byte, error)
 }
 
-// CommandDoc documents one CLI command on the docs page.
-type CommandDoc struct {
-	Name        string
-	Description string
-	Usage       string
-	Flags       []FlagDoc
-	Subcommands []SubcommandDoc
-}
-
-// FlagDoc documents one option of a command.
-type FlagDoc struct {
-	Name        string
-	Description string
-	// Values names the option's value or lists its choices.
-	Values string
-}
-
-// SubcommandDoc documents one subcommand of a command.
-type SubcommandDoc struct {
-	Name        string
-	Description string
-}
-
 // site serves one Options.
 type site struct {
 	Options
+}
+
+func (s site) environments() []web.EnvironmentDefinition {
+	return append([]web.EnvironmentDefinition(nil), s.Environments...)
 }
 
 // Handler serves the Web UI and its JSON API.
@@ -71,9 +49,4 @@ func Handler(options Options) http.Handler {
 // outputDir, replacing what is there.
 func GenerateStatic(outputDir string, options Options) error {
 	return site{options}.generateStaticWeb(outputDir)
-}
-
-// environments returns a copy of the documented environment variables.
-func (s site) environments() []web.EnvironmentDefinition {
-	return append([]web.EnvironmentDefinition(nil), s.Environments...)
 }

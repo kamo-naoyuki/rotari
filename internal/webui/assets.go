@@ -42,12 +42,6 @@ var webAppBootstrapJS string
 //go:embed assets/web_static_bootstrap.js
 var webStaticBootstrapJS string
 
-//go:embed assets/cli_docs_template.html
-var cliDocsTemplateHTML string
-
-//go:embed assets/environment_template.html
-var environmentTemplateHTML string
-
 //go:embed assets/jobs_template.html
 var jobsTemplateHTML string
 

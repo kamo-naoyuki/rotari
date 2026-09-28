@@ -11,6 +11,8 @@ from rotari.generated_cli import CLI_SCHEMA
 
 BEGIN = "<!-- BEGIN GENERATED CLI REFERENCE -->"
 END = "<!-- END GENERATED CLI REFERENCE -->"
+ENV_BEGIN = "<!-- BEGIN GENERATED ENVIRONMENT REFERENCE -->"
+ENV_END = "<!-- END GENERATED ENVIRONMENT REFERENCE -->"
 
 
 def render_subcommands(items: list[dict[str, str]]) -> list[str]:
@@ -18,9 +20,10 @@ def render_subcommands(items: list[dict[str, str]]) -> list[str]:
 
 
 def render_flag(flag: dict[str, object]) -> str:
-    value = flag.get("value_name", "")
+    value = str(flag.get("value_name", ""))
     if flag.get("repeated"):
         value = f"{value} (repeatable)" if value else "repeatable"
+    value = value.replace("|", "\\|")
     option = f"`--{flag['name']}`"
     if flag.get("short"):
         option = f"`-{flag['short']}` / {option}"
@@ -61,10 +64,6 @@ def render_commands() -> str:
 
 def render_environments() -> str:
     sections = [
-        "## Environment variables",
-        "",
-        "`rotari env` prints this list with current values.",
-        "",
         "| Variable | CLI default | Job | Array | Description |",
         "| --- | --- | --- | --- | --- |",
     ]
@@ -79,14 +78,20 @@ def render_environments() -> str:
 
 
 def render() -> str:
-    return f"{BEGIN}\n\n{render_commands()}\n\n{render_environments()}\n\n{END}"
+    return f"{BEGIN}\n\n{render_commands()}\n\n{END}"
+
+
+def render_environment_document() -> str:
+    return f"{ENV_BEGIN}\n\n{render_environments()}\n\n{ENV_END}"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    path = pathlib.Path(__file__).resolve().parents[1] / "docs" / "CLI_REFERENCE.md"
+    docs_dir = pathlib.Path(__file__).resolve().parents[1] / "docs"
+    path = docs_dir / "CLI_REFERENCE.md"
+    environment_path = docs_dir / "ENVIRONMENT_VARIABLES.md"
     contents = path.read_text(encoding="utf-8")
     updated, count = re.subn(
         rf"{re.escape(BEGIN)}.*?{re.escape(END)}",
@@ -102,8 +107,31 @@ def main() -> int:
     if args.check:
         if updated != contents:
             raise SystemExit("CLI_REFERENCE.md is out of sync; run this script")
+        environment_contents = environment_path.read_text(encoding="utf-8")
+        environment_updated, environment_count = re.subn(
+            rf"{re.escape(ENV_BEGIN)}.*?{re.escape(ENV_END)}",
+            render_environment_document(),
+            environment_contents,
+            count=1,
+            flags=re.DOTALL,
+        )
+        if environment_count != 1 or environment_updated != environment_contents:
+            raise SystemExit("ENVIRONMENT_VARIABLES.md is out of sync; run this script")
     else:
         path.write_text(updated, encoding="utf-8")
+        environment_contents = environment_path.read_text(encoding="utf-8")
+        environment_updated, environment_count = re.subn(
+            rf"{re.escape(ENV_BEGIN)}.*?{re.escape(ENV_END)}",
+            render_environment_document(),
+            environment_contents,
+            count=1,
+            flags=re.DOTALL,
+        )
+        if environment_count != 1:
+            raise SystemExit(
+                "ENVIRONMENT_VARIABLES.md must contain exactly one generated marker pair"
+            )
+        environment_path.write_text(environment_updated, encoding="utf-8")
     return 0
 
 

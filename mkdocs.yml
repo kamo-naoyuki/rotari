@@ -23,6 +23,8 @@ nav:
       - Running and recovering: RUNNING.md
       - Inspecting and diagnosing: INSPECT.md
       - Configuration: CONFIGURATION.md
+      - Environment variables: ENVIRONMENT_VARIABLES.md
+      - Environment variables: ENVIRONMENT_VARIABLES.md
       - Operations: OPERATIONS.md
       - Workflow manifests: WORKFLOW_MANIFESTS.md
       - FAQ: FAQ.md

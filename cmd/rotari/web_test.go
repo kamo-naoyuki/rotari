@@ -16,39 +16,6 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/webui"
 )
 
-func TestCLIDocsPageUsesCommandMetadata(t *testing.T) {
-	page := webGet(t, t.TempDir(), "", "/cli/")
-	for _, want := range []string{`<h1><img class="brand-icon"`, "rotari CLI", "rotari reset", "rotari completion", "--project-name", "Generated from the command metadata"} {
-		if !strings.Contains(page, want) {
-			t.Fatalf("docs page does not contain %q", want)
-		}
-	}
-
-	request := httptest.NewRequest(http.MethodGet, "/cli/", nil)
-	recorder := httptest.NewRecorder()
-	webui.Handler(webOptions(t.TempDir(), "", false, true)).ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), "rotari CLI") {
-		t.Fatalf("docs response = status %d, body %q", recorder.Code, recorder.Body.String())
-	}
-}
-
-func TestEnvironmentPageUsesDefinitions(t *testing.T) {
-	t.Setenv(envRunID, "web-run")
-	page := webGet(t, t.TempDir(), "", "/environment/")
-	for _, want := range []string{`<h1><img class="brand-icon"`, "rotari environment variables", envRunID, envBaseDir, "State directory"} {
-		if !strings.Contains(page, want) {
-			t.Fatalf("environment page does not contain %q", want)
-		}
-	}
-
-	request := httptest.NewRequest(http.MethodGet, "/environment/", nil)
-	recorder := httptest.NewRecorder()
-	webui.Handler(webOptions(t.TempDir(), "", false, true)).ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), "rotari environment variables") {
-		t.Fatalf("environment response = status %d, body %q", recorder.Code, recorder.Body.String())
-	}
-}
-
 func TestWebAllowControlDefaultsToTrue(t *testing.T) {
 	fs := newFlagSet("web")
 	allowControl := cliBool(fs, "allow-control", true)

@@ -10,6 +10,7 @@ or LSF cluster while keeping commands, results, and logs together.
 
 - [Getting started](GETTING_STARTED.md): installation and the first run.
 - [CLI reference](CLI_REFERENCE.md): commands and common options.
+- [Environment variables](ENVIRONMENT_VARIABLES.md): variable meanings and scope.
 - [Concepts](CONCEPTS.md): projects, queues, runs, dependencies, and state.
 - [Running and recovering](RUNNING.md): execute, inspect, rerun, and retry jobs.
 - [Executors and schedulers](EXECUTORS.md): local, SSH, Slurm, PBS, and LSF.

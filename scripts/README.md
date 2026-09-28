@@ -32,7 +32,8 @@ Use the source documents as the editing locations:
 
 - User onboarding: `docs/GETTING_STARTED.md`
 - CLI and environment reference: CLI schema in `cmd/rotari/cli_spec.go` and
-  `cmd/rotari/environment.go`
+  `cmd/rotari/environment.go`, generated into `docs/CLI_REFERENCE.md` and
+  `docs/ENVIRONMENT_VARIABLES.md`
 - Python client usage: `docs/PYTHON_CLIENT.md`
 - Go and Python API output: the existing generators and CLI schema
 

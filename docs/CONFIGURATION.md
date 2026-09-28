@@ -58,7 +58,9 @@ explicitly to another rotari command.
 Each command's `--help` output identifies an option's matching environment
 variable, when one is available.
 
-Use `rotari env` to print the same list with values from the current process.
+See the [environment variable reference](ENVIRONMENT_VARIABLES.md) for the
+complete definitions and meanings. Use `rotari env` to print the same list with
+values from the current process.
 
 ## Run completion webhook
 

@@ -1159,7 +1159,7 @@ func TestLoadWebStateIncludesRuntimeRecords(t *testing.T) {
 	}
 }
 
-func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
+func TestGenerateStaticWebWritesProjectPages(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
@@ -1174,20 +1174,6 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 	outputDir := filepath.Join(t.TempDir(), "web")
 	if err := siteFor(baseDir, "").generateStaticWeb(outputDir); err != nil {
 		t.Fatal(err)
-	}
-	data, err := os.ReadFile(filepath.Join(outputDir, "cli", "index.html"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(data), "rotari CLI") || !strings.Contains(string(data), "../") {
-		t.Fatalf("static docs page = %q", string(data))
-	}
-	environmentData, err := os.ReadFile(filepath.Join(outputDir, "environment", "index.html"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(environmentData), "rotari environment variables") || !strings.Contains(string(environmentData), "../") {
-		t.Fatalf("static environment page = %q", string(environmentData))
 	}
 	index, err := os.ReadFile(filepath.Join(outputDir, "index.html"))
 	if err != nil {
