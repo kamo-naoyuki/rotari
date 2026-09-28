@@ -20,6 +20,7 @@ Do not assume behavior from names alone.
 * When the task is refactoring, prioritize clear responsibilities, one-way dependencies, and appropriate package boundaries over minimal file churn.
 * Prefer incremental structural changes with compile/test checkpoints over broad unverified rewrites.
 * Do not modify generated files unless the task explicitly requires it.
+* Do not edit `README.md` directly. The `<!-- BEGIN GETTING STARTED -->` section is generated from `docs/GETTING_STARTED.md`; edit that source document and run `python3 scripts/sync_readme.py` instead.
 
 ### Refactoring priorities
 
