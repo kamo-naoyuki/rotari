@@ -172,7 +172,6 @@ func resetQueueCommands(paths state.ProjectPaths) (int, error) {
 		return 0, project.MarkCollecting(paths)
 	}
 	queue.Commands = nil
-	queue.WorkflowImport = false
 	if err := project.WriteIdleQueue(paths, queue); err != nil {
 		return 0, err
 	}

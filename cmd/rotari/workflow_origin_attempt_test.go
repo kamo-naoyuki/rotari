@@ -1,12 +1,13 @@
 package main
 
 import (
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 const originAttemptRunID = "20260925-210000-12345678"
@@ -55,8 +56,12 @@ func writeOriginAttemptRun(t *testing.T) state.ProjectPaths {
 }
 
 func importedOriginQueue(attemptID string, accepted bool) model.Queue {
-	return model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{
-		ID: "destination", Command: []string{"work"}, Accepted: accepted,
+	marked := ""
+	if accepted {
+		marked = model.StatusSuccess
+	}
+	return model.Queue{Commands: []model.QueuedCommand{{
+		ID: "destination", Command: []string{"work"}, MarkedStatus: marked,
 		Origin: &model.JobOrigin{RunID: originAttemptRunID, JobID: "source", AttemptID: attemptID},
 	}}}
 }
@@ -65,7 +70,7 @@ func TestImportedWorkflowCarriesNonLatestLocalAttempt(t *testing.T) {
 	paths := writeOriginAttemptRun(t)
 	olderAttempt := makeAttemptID(originAttemptRunID, "source", 0)
 	writeOriginAttempt(t, paths, "source", olderAttempt, "0", nil)
-	plan, err := planRerunSelection(paths, importedOriginQueue(olderAttempt, false), "", nil, "", true)
+	plan, err := planRerunSelection(paths, importedOriginQueue(olderAttempt, false), retrySelection, nil, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +84,7 @@ func TestImportedWorkflowExecutesNonLatestAttemptWithoutResult(t *testing.T) {
 	paths := writeOriginAttemptRun(t)
 	olderAttempt := makeAttemptID(originAttemptRunID, "source", 0)
 	writeOriginAttempt(t, paths, "source", olderAttempt, "", nil)
-	plan, err := planRerunSelection(paths, importedOriginQueue(olderAttempt, false), "", nil, "", true)
+	plan, err := planRerunSelection(paths, importedOriginQueue(olderAttempt, false), retrySelection, nil, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +97,7 @@ func TestImportedWorkflowAcceptsNonLatestWrapperStatusAttempt(t *testing.T) {
 	paths := writeOriginAttemptRun(t)
 	olderAttempt := makeAttemptID(originAttemptRunID, "source", 0)
 	writeOriginAttempt(t, paths, "source", olderAttempt, "", map[string]any{"phase": "failed", "exit_code": 3, "error": "boom", "hosts": []string{"node1"}})
-	plan, err := planRerunSelection(paths, importedOriginQueue(olderAttempt, true), "", nil, "", true)
+	plan, err := planRerunSelection(paths, importedOriginQueue(olderAttempt, true), retrySelection, nil, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,13 +130,13 @@ func TestImportedWorkflowRejectsBrokenOriginState(t *testing.T) {
 		}, want: "summary"},
 		"accepted attempt without result": {accepted: true, setup: func(t *testing.T, paths state.ProjectPaths) {
 			writeOriginAttempt(t, paths, "source", olderAttempt, "", nil)
-		}, want: "not found"},
+		}, want: "marked success but has no recorded result"},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			paths := writeOriginAttemptRun(t)
 			test.setup(t, paths)
-			_, err := planRerunSelection(paths, importedOriginQueue(olderAttempt, test.accepted), "", nil, "", true)
+			_, err := planRerunSelection(paths, importedOriginQueue(olderAttempt, test.accepted), retrySelection, nil, "", true)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("planRerunSelection error = %v, want %q", err, test.want)
 			}
@@ -176,7 +181,7 @@ func TestWorkflowUnchangedMatrixRunImportReusesEveryCombination(t *testing.T) {
 		t.Fatalf("cmdImport exit code = %d", code)
 	}
 	for _, command := range loadCarryStateQueue(t, paths).Commands {
-		if command.Force || command.Accepted || command.Origin == nil || command.Origin.JobID != command.ID || command.Origin.AttemptID != makeAttemptID(runID, command.ID, 0) {
+		if command.MarkedStatus != "" || len(command.TaskMarkedStatus) != 0 || command.Origin == nil || command.Origin.JobID != command.ID || command.Origin.AttemptID != makeAttemptID(runID, command.ID, 0) {
 			t.Fatalf("matrix member = %#v, origin = %#v", command, command.Origin)
 		}
 	}
@@ -195,7 +200,7 @@ func TestWorkflowExportImportOfFilteredMatrixRetryKeepsEachOrigin(t *testing.T) 
 	queue := loadCarryStateQueue(t, paths)
 	want := map[string]string{"seed-1": makeAttemptID(firstRun, "seed-1", 0), "seed-2": makeAttemptID(retryRun, "seed-2", 0)}
 	for _, command := range queue.Commands {
-		if command.Force || command.Accepted || command.Origin == nil || command.Origin.AttemptID != want[command.ID] || command.Origin.Status != "success" {
+		if command.MarkedStatus != "" || len(command.TaskMarkedStatus) != 0 || command.Origin == nil || command.Origin.AttemptID != want[command.ID] || command.Origin.Status != "success" {
 			t.Fatalf("matrix member %q = %#v, origin = %#v", command.ID, command, command.Origin)
 		}
 	}

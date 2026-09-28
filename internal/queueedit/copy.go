@@ -142,10 +142,9 @@ func Copy(destination model.Queue, project string, source Run, request CopyReque
 		existingIDs[command.ID] = true
 		command.DependsOn = dependencies
 		command.DependsOnFinished = finishedDependencies
-		command.Accepted = false
-		command.TaskAccepted = nil
-		command.TaskForce = nil
-		command.Force = request.Append && destination.WorkflowImport
+		// A mark applied to the source run, whose results already show it.
+		command.MarkedStatus = ""
+		command.TaskMarkedStatus = nil
 		command.Origin = commandOrigin(source, sourceJobID, command.Array, requestedAttempts)
 		if command.Array != nil {
 			command.TaskOrigins = taskOrigins(source, sourceJobID, command.Array, requestedAttempts)
@@ -153,7 +152,6 @@ func Copy(destination model.Queue, project string, source Run, request CopyReque
 	}
 	if !request.Append {
 		destination.Commands = nil
-		destination.WorkflowImport = false
 	}
 	destination.Commands = append(destination.Commands, selected...)
 	if err := model.ValidateQueueDependencies(destination.Commands); err != nil {

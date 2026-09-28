@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -248,7 +249,7 @@ func TestWriteJSONStampsStateVersion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(data), `"state_version": 1`) {
+		if !strings.Contains(string(data), `"state_version": 2`) {
 			t.Fatalf("%s does not record the state version:\n%s", path, data)
 		}
 	}
@@ -294,6 +295,38 @@ func TestLoadStateAcceptsLegacyAndRejectsNewerVersions(t *testing.T) {
 	}
 	if _, err := ReadQueueFile(filepath.Join(dir, "missing.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("ReadQueueFile(missing) error = %v, want os.ErrNotExist", err)
+	}
+}
+
+// TestReadQueueFileConvertsVersion1Marks checks the version 1 to 2
+// conversion recorded in contracts: accepted becomes a success mark, force an
+// unfinished one that wins over accepted, and task flags become task marks.
+func TestReadQueueFileConvertsVersion1Marks(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "queue.json")
+	legacy := `{"state_version":1,"workflow_import":true,"commands":[
+		{"id":"accepted","command":["true"],"accepted":true},
+		{"id":"forced","command":["true"],"accepted":true,"force":true},
+		{"id":"plain","command":["true"]},
+		{"id":"array","command":["true"],"array":{"first":1,"last":3},
+			"task_accepted":{"array-1":true,"array-2":true},"task_force":{"array-2":true}}]}`
+	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	queue, err := ReadQueueFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	marks := map[string]string{}
+	for _, command := range queue.Commands {
+		marks[command.ID] = command.MarkedStatus
+	}
+	want := map[string]string{"accepted": model.StatusSuccess, "forced": model.StatusUnfinished, "plain": "", "array": ""}
+	if !reflect.DeepEqual(marks, want) {
+		t.Fatalf("marks = %#v, want %#v", marks, want)
+	}
+	wantTasks := map[string]string{"array-1": model.StatusSuccess, "array-2": model.StatusUnfinished}
+	if got := queue.Commands[3].TaskMarkedStatus; !reflect.DeepEqual(got, wantTasks) {
+		t.Fatalf("task marks = %#v, want %#v", got, wantTasks)
 	}
 }
 

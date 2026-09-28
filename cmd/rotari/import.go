@@ -26,22 +26,22 @@ type importPlan struct {
 type importPlanJob struct {
 	ID      string            `json:"id"`
 	Name    string            `json:"name,omitempty"`
-	Action  string            `json:"action"`
+	Status  string            `json:"status"`
 	Command []string          `json:"command"`
 	Source  *importPlanSource `json:"source,omitempty"`
 	Tasks   []importPlanTask  `json:"tasks,omitempty"`
 }
 
-// importPlanTask reports the disposition of one array task that has source
+// importPlanTask reports the status of one array task that has source
 // provenance.
 type importPlanTask struct {
 	ID     string            `json:"id"`
-	Action string            `json:"action"`
+	Status string            `json:"status"`
 	Source *importPlanSource `json:"source,omitempty"`
 }
 
 // importPlanSource names the decoded source attempt so a reviewer can check
-// which earlier result a reused, accepted, or re-executed job refers to.
+// which earlier result a queued job refers to.
 type importPlanSource struct {
 	RunID     string `json:"run_id"`
 	JobID     string `json:"job_id"`
@@ -199,12 +199,12 @@ func writeImportPlan(plan importPlan, jsonOutput bool) error {
 		return encoder.Encode(plan)
 	}
 	for _, job := range plan.Jobs {
-		fields := append([]string{job.Action, "job_id=" + job.ID}, optionalField("job_name", job.Name)...)
+		fields := append([]string{job.Status, "job_id=" + job.ID}, optionalField("job_name", job.Name)...)
 		fields = append(fields, importSourceFields(job.Source)...)
-		printImportPlanLine(job.Action, append(fields, importCommandField(job.Command)))
+		printImportPlanLine(job.Status, append(fields, importCommandField(job.Command)))
 		for _, task := range job.Tasks {
-			fields := append([]string{" ", task.Action, "task_id=" + task.ID}, importSourceFields(task.Source)...)
-			printImportPlanLine(task.Action, fields)
+			fields := append([]string{" ", task.Status, "task_id=" + task.ID}, importSourceFields(task.Source)...)
+			printImportPlanLine(task.Status, fields)
 		}
 	}
 	for _, removed := range plan.Removed {
@@ -215,16 +215,16 @@ func writeImportPlan(plan importPlan, jsonOutput bool) error {
 	return nil
 }
 
-// printImportPlanLine colors a plan line by its action. Queued work is green
-// like other successful queue changes such as add; reused results are cyan
-// because they are informational and do not execute; accepted failures and
-// removals are yellow because they need attention.
-func printImportPlanLine(action string, fields []string) {
+// printImportPlanLine colors a plan line by the job's status. Successful
+// results are cyan because they are informational; marked statuses and
+// removals are yellow because they need attention; other jobs are green like
+// other queue changes such as add.
+func printImportPlanLine(status string, fields []string) {
 	labelColor := green
-	switch action {
-	case "reuse":
+	switch {
+	case status == model.StatusSuccess:
 		labelColor = cyan
-	case "accept", "remove":
+	case status == "remove" || strings.HasSuffix(status, ")"):
 		labelColor = yellow
 	}
 	fmt.Println(colorKeyValueMessage(strings.Join(fields, " "), labelColor))
@@ -269,26 +269,33 @@ func newImportPlan(project string, queue model.Queue, removed []workflow.Removed
 	if removed == nil {
 		removed = []workflow.RemovedJob{}
 	}
-	plan := importPlan{Version: 1, Project: project, Jobs: make([]importPlanJob, 0, len(queue.Commands)), Removed: removed}
+	plan := importPlan{Version: 2, Project: project, Jobs: make([]importPlanJob, 0, len(queue.Commands)), Removed: removed}
 	for _, command := range queue.Commands {
-		action := "execute"
-		if command.Accepted || len(command.TaskAccepted) > 0 {
-			action = "accept"
-		} else if command.Origin != nil || len(command.TaskOrigins) > 0 {
-			action = "reuse"
-		}
-		if command.Force || len(command.TaskForce) > 0 {
-			action = "execute"
-		}
-		job := importPlanJob{ID: command.ID, Name: command.Name, Action: action, Command: command.Command}
-		if command.Array == nil {
+		job := importPlanJob{ID: command.ID, Name: command.Name, Command: command.Command}
+		if command.Array == nil || len(command.TaskOrigins) == 0 {
+			job.Status = importPlanStatus(command.Origin, command.MarkedStatus)
 			job.Source = newImportPlanSource(command.Origin)
-		} else if len(command.TaskOrigins) > 0 {
+		} else {
 			job.Tasks = importPlanTasks(command)
+			job.Status = job.Tasks[0].Status
+			for _, task := range job.Tasks[1:] {
+				if task.Status != job.Status {
+					job.Status = "mixed"
+				}
+			}
 		}
 		plan.Jobs = append(plan.Jobs, job)
 	}
 	return plan
+}
+
+// importPlanStatus is the status a job has in the imported queue, as `show`
+// lists it: a job without a source result is unfinished.
+func importPlanStatus(origin *model.JobOrigin, marked string) string {
+	if text := model.QueuedStatusText(origin, marked); text != "-" {
+		return text
+	}
+	return model.StatusUnfinished
 }
 
 func importPlanTasks(command model.QueuedCommand) []importPlanTask {
@@ -296,15 +303,8 @@ func importPlanTasks(command model.QueuedCommand) []importPlanTask {
 	for _, task := range model.ArrayTaskIDs(command.Array) {
 		taskID := fmt.Sprintf("%s-%d", command.ID, task)
 		origin := command.TaskOrigins[taskID]
-		action := "execute"
-		switch {
-		case command.Force || command.TaskForce[taskID]:
-		case command.TaskAccepted[taskID]:
-			action = "accept"
-		case origin != nil:
-			action = "reuse"
-		}
-		tasks = append(tasks, importPlanTask{ID: taskID, Action: action, Source: newImportPlanSource(origin)})
+		status := importPlanStatus(origin, command.MarkedStatusOf(taskID))
+		tasks = append(tasks, importPlanTask{ID: taskID, Status: status, Source: newImportPlanSource(origin)})
 	}
 	return tasks
 }

@@ -155,7 +155,64 @@ func ReadQueueFile(path string) (model.Queue, error) {
 	if err := checkStateVersion(path, queue.StateVersion); err != nil {
 		return model.Queue{}, err
 	}
+	if queue.StateVersion < 2 {
+		if err := convertQueueV1(path, &queue); err != nil {
+			return model.Queue{}, err
+		}
+	}
 	return queue, nil
+}
+
+// queueV1 holds the version 1 queue fields that version 2 replaced.
+type queueV1 struct {
+	Commands []struct {
+		Accepted     bool            `json:"accepted"`
+		TaskAccepted map[string]bool `json:"task_accepted"`
+		Force        bool            `json:"force"`
+		TaskForce    map[string]bool `json:"task_force"`
+	} `json:"commands"`
+}
+
+// convertQueueV1 maps a version 1 queue's acceptance and force flags onto
+// marked statuses: accepted becomes success and force, which discarded the
+// recorded result, becomes unfinished; force wins where both are set, as it
+// did when planning a run. workflow_import is dropped.
+func convertQueueV1(path string, queue *model.Queue) error {
+	var legacy queueV1
+	if err := NewStore(DirectoryMode(), FileMode()).ReadJSON(path, &legacy); err != nil {
+		return err
+	}
+	for index := range queue.Commands {
+		if index >= len(legacy.Commands) {
+			break
+		}
+		old := legacy.Commands[index]
+		command := &queue.Commands[index]
+		switch {
+		case old.Force:
+			command.MarkedStatus = model.StatusUnfinished
+		case old.Accepted:
+			command.MarkedStatus = model.StatusSuccess
+		}
+		for taskID := range old.TaskAccepted {
+			if old.TaskAccepted[taskID] && !old.Force {
+				setTaskMark(command, taskID, model.StatusSuccess)
+			}
+		}
+		for taskID := range old.TaskForce {
+			if old.TaskForce[taskID] {
+				setTaskMark(command, taskID, model.StatusUnfinished)
+			}
+		}
+	}
+	return nil
+}
+
+func setTaskMark(command *model.QueuedCommand, taskID, status string) {
+	if command.TaskMarkedStatus == nil {
+		command.TaskMarkedStatus = make(map[string]string)
+	}
+	command.TaskMarkedStatus[taskID] = status
 }
 
 func WriteJSON(path string, value any) error {

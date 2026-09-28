@@ -265,7 +265,7 @@ func TestCmdImportUsesStatusOfNonLatestAttempt(t *testing.T) {
 		t.Fatalf("cmdImport exit code = %d", code)
 	}
 	other := queuedCommandByName(t, loadCarryStateQueue(t, paths), "other")
-	if other.Origin == nil || other.Origin.AttemptID != olderAttempt || other.Origin.Status != "failed" || !other.Force {
+	if other.Origin == nil || other.Origin.AttemptID != olderAttempt || other.Origin.Status != "failed" || other.MarkedStatus != "" {
 		t.Fatalf("imported job = %#v, origin = %#v", other, other.Origin)
 	}
 }
@@ -341,8 +341,8 @@ func TestCmdImportReconcilesArrayTaskStatuses(t *testing.T) {
 	want := map[string]string{"array-1": "success", "array-2": "failed", "array-3": "cancelled", "array-4": "unfinished"}
 	for taskID, status := range want {
 		origin := command.TaskOrigins[taskID]
-		if origin == nil || origin.Status != status || command.TaskForce[taskID] != (status != "success") {
-			t.Fatalf("task %s origin = %#v, force = %v", taskID, origin, command.TaskForce[taskID])
+		if origin == nil || origin.Status != status || command.TaskMarkedStatus[taskID] != "" {
+			t.Fatalf("task %s origin = %#v, marked status = %q", taskID, origin, command.TaskMarkedStatus[taskID])
 		}
 	}
 	if command.TaskOrigins["array-4"].AttemptID != "" {
@@ -364,7 +364,7 @@ func TestCmdImportAnchorsArrayJobFromInstanceAttempt(t *testing.T) {
 		t.Fatalf("cmdImport exit code = %d", code)
 	}
 	command := loadCarryStateQueue(t, paths).Commands[0]
-	if command.ID != "array" || command.TaskOrigins["array-1"] == nil || command.TaskForce["array-1"] || !command.TaskForce["array-2"] {
+	if command.ID != "array" || command.TaskOrigins["array-1"] == nil || len(command.TaskMarkedStatus) != 0 {
 		t.Fatalf("imported array command = %#v", command)
 	}
 }
@@ -420,8 +420,8 @@ func TestWorkflowExportImportOfFilteredArrayRetryReusesRetriedTask(t *testing.T)
 		t.Fatalf("cmdImport exit code = %d", code)
 	}
 	command := loadCarryStateQueue(t, paths).Commands[0]
-	if len(command.TaskForce) != 0 || len(command.TaskAccepted) != 0 {
-		t.Fatalf("successful retried array was forced or manually accepted: force=%#v accepted=%#v", command.TaskForce, command.TaskAccepted)
+	if len(command.TaskMarkedStatus) != 0 {
+		t.Fatalf("successful retried array had marked statuses: %v", command.TaskMarkedStatus)
 	}
 	if origin := command.TaskOrigins["array-1"]; origin == nil || origin.AttemptID != firstTaskAttempt {
 		t.Fatalf("task 1 origin = %#v", origin)

@@ -51,76 +51,27 @@ func TestCopyClearsPartialMatrixGroup(t *testing.T) {
 	}
 }
 
-func TestCopyDropsImportCarryFlagsFromSnapshot(t *testing.T) {
+func TestCopyDropsMarksFromSnapshot(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{
-		{ID: "scalar", Command: []string{"true"}, Accepted: true, Force: true},
+	snapshot := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "scalar", Command: []string{"true"}, MarkedStatus: model.StatusSuccess},
 		{ID: "array", Command: []string{"true"}, Array: &model.ArraySpec{First: 1, Last: 2},
-			TaskAccepted: map[string]bool{"array-1": true}, TaskForce: map[string]bool{"array-2": true}},
+			TaskMarkedStatus: map[string]string{"array-1": model.StatusSuccess, "array-2": model.StatusUnfinished}},
 	}}
-	writeCarryStateRun(t, paths, "imported-run", snapshot, []model.JobResult{
+	writeCarryStateRun(t, paths, "marked-run", snapshot, []model.JobResult{
 		{ID: "scalar", ExitCode: 0, Accepted: true}, {ID: "array-1", ExitCode: 0, Accepted: true}, {ID: "array-2", ExitCode: 0},
 	})
-	if _, err := testEditor().Copy(baseDir, "default", "imported-run", queueedit.CopyRequest{Selection: "all"}); err != nil {
+	if _, err := testEditor().Copy(baseDir, "default", "marked-run", queueedit.CopyRequest{Selection: "all"}); err != nil {
 		t.Fatal(err)
 	}
-	queue := loadCarryStateQueue(t, paths)
-	if queue.WorkflowImport {
-		t.Fatal("copy into an empty queue kept the workflow import marker")
-	}
-	for _, command := range queue.Commands {
-		if command.Accepted || command.Force || command.TaskAccepted != nil || command.TaskForce != nil {
-			t.Fatalf("copied command kept import carry flags: %#v", command)
+	for _, command := range loadCarryStateQueue(t, paths).Commands {
+		if command.MarkedStatus != "" || command.TaskMarkedStatus != nil {
+			t.Fatalf("copied command kept the source run's mark: %#v", command)
 		}
-	}
-}
-
-func TestCopyAppendToImportedQueueForcesCopiedJobs(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
-	writeCarryStateRun(t, paths, "source-run", model.Queue{Commands: []model.QueuedCommand{{ID: "copied", Command: []string{"true"}}}}, []model.JobResult{{ID: "copied", ExitCode: 0}})
-	imported := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{ID: "imported", Command: []string{"true"}, Origin: &model.JobOrigin{RunID: "source-run", JobID: "copied"}}}}
-	if err := state.WriteJSON(paths.QueueFile, imported); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := testEditor().Copy(baseDir, "default", "source-run", queueedit.CopyRequest{Selection: "all", Append: true}); err != nil {
-		t.Fatal(err)
-	}
-	queue := loadCarryStateQueue(t, paths)
-	if !queue.WorkflowImport || len(queue.Commands) != 2 {
-		t.Fatalf("appended queue = %#v", queue)
-	}
-	if queue.Commands[0].Force {
-		t.Fatalf("existing imported job was forced: %#v", queue.Commands[0])
-	}
-	if !queue.Commands[1].Force {
-		t.Fatalf("copied job appended to an imported queue was not forced: %#v", queue.Commands[1])
-	}
-}
-
-func TestCopyOverwriteClearsWorkflowImport(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
-	writeCarryStateRun(t, paths, "source-run", model.Queue{Commands: []model.QueuedCommand{{ID: "copied", Command: []string{"true"}}}}, []model.JobResult{{ID: "copied", ExitCode: 0}})
-	if err := state.WriteJSON(paths.QueueFile, model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{ID: "imported", Command: []string{"true"}}}}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := testEditor().Copy(baseDir, "default", "source-run", queueedit.CopyRequest{Selection: "all", Overwrite: true}); err != nil {
-		t.Fatal(err)
-	}
-	queue := loadCarryStateQueue(t, paths)
-	if queue.WorkflowImport || len(queue.Commands) != 1 || queue.Commands[0].Force {
-		t.Fatalf("overwritten queue = %#v", queue)
 	}
 }
 
@@ -165,61 +116,51 @@ func TestChangeClearsWholeMatrixGroup(t *testing.T) {
 	}
 }
 
-func TestChangeForcesChangedJobInImportedQueue(t *testing.T) {
+// TestChangeKeepsRecordedResult checks that editing a job, even its command,
+// leaves its origin and mark alone: only --status and --clear-status change
+// the status a filtered run reads.
+func TestChangeKeepsRecordedResult(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
 	origin := &model.JobOrigin{RunID: "source-run", JobID: "source", Status: "failed"}
-	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{
-		{ID: "accepted", Command: []string{"false"}, Accepted: true, Origin: origin},
-		{ID: "untouched", Command: []string{"false"}, Accepted: true, Origin: origin},
-	}}
-	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := testEditor().Change(baseDir, "default", "", model.CommandSelector{IDs: []string{"accepted"}}, Mutation{Command: []string{"true"}}); err != nil {
-		t.Fatal(err)
-	}
-	changed := loadCarryStateQueue(t, paths)
-	if !changed.WorkflowImport {
-		t.Fatal("change cleared the workflow import marker")
-	}
-	if !changed.Commands[0].Force || changed.Commands[0].Accepted {
-		t.Fatalf("changed imported job = %#v", changed.Commands[0])
-	}
-	if changed.Commands[1].Force || !changed.Commands[1].Accepted {
-		t.Fatalf("untouched imported job = %#v", changed.Commands[1])
-	}
-}
-
-// TestChangeForcesChangedCommandInOrdinaryQueue checks that a changed
-// command drops the job's recorded result, and that a rename keeps it.
-func TestChangeForcesChangedCommandInOrdinaryQueue(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
 	if err := state.WriteJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{
-		{ID: "job", Name: "job", Command: []string{"false"}},
-		{ID: "other", Name: "other", Command: []string{"true"}},
+		{ID: "job", Name: "job", Command: []string{"false"}, Origin: origin, MarkedStatus: model.StatusSuccess},
+		{ID: "array", Name: "array", Command: []string{"true"}, Array: &model.ArraySpec{First: 1, Last: 2},
+			TaskMarkedStatus: map[string]string{"array-1": model.StatusSuccess}},
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := testEditor().Change(baseDir, "default", "", model.CommandSelector{IDs: []string{"job"}}, Mutation{Command: []string{"true"}}); err != nil {
-		t.Fatal(err)
+	change := func(id string, mutation Mutation) {
+		t.Helper()
+		if _, err := testEditor().Change(baseDir, "default", "", model.CommandSelector{IDs: []string{id}}, mutation); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if _, err := testEditor().Change(baseDir, "default", "", model.CommandSelector{IDs: []string{"other"}}, Mutation{SetJobName: "renamed"}); err != nil {
-		t.Fatal(err)
-	}
+	change("job", Mutation{Command: []string{"true"}, Environment: []string{"A=1"}, WorkingDirectory: "/elsewhere"})
 	commands := loadCarryStateQueue(t, paths).Commands
-	if !commands[0].Force {
-		t.Fatalf("changed command was not forced: %#v", commands[0])
+	if commands[0].Origin == nil || commands[0].MarkedStatus != model.StatusSuccess {
+		t.Fatalf("edited job lost its origin or mark: %#v", commands[0])
 	}
-	if commands[1].Force {
-		t.Fatalf("rename forced the job: %#v", commands[1])
+	change("job", Mutation{Status: model.StatusFailed})
+	change("array", Mutation{Status: model.StatusUnfinished})
+	commands = loadCarryStateQueue(t, paths).Commands
+	if commands[0].MarkedStatus != model.StatusFailed {
+		t.Fatalf("job mark = %q, want failed", commands[0].MarkedStatus)
+	}
+	if commands[1].MarkedStatus != model.StatusUnfinished || commands[1].TaskMarkedStatus != nil {
+		t.Fatalf("array marks = %#v, want the whole array marked unfinished", commands[1])
+	}
+	change("job", Mutation{ClearStatus: true})
+	if commands = loadCarryStateQueue(t, paths).Commands; commands[0].MarkedStatus != "" {
+		t.Fatalf("cleared mark = %q", commands[0].MarkedStatus)
+	}
+	for _, mutation := range []Mutation{{Status: "done"}, {Status: model.StatusFailed, ClearStatus: true}} {
+		if _, err := testEditor().Change(baseDir, "default", "", model.CommandSelector{IDs: []string{"job"}}, mutation); err == nil {
+			t.Fatalf("Change(%#v) succeeded", mutation)
+		}
 	}
 }
 

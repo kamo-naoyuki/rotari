@@ -43,47 +43,6 @@ func loadCarryStateQueue(t *testing.T, paths state.ProjectPaths) model.Queue {
 	return queue
 }
 
-func TestEnqueueCommandForcesOnlyInImportedQueue(t *testing.T) {
-	for _, imported := range []bool{false, true} {
-		baseDir := t.TempDir()
-		paths, err := state.ResolveProjectPaths(baseDir, "default")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := writeJSON(paths.QueueFile, model.Queue{WorkflowImport: imported, Commands: []model.QueuedCommand{{ID: "existing", Command: []string{"true"}}}}); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := enqueueCommand(baseDir, "default", []string{"added"}, "", nil, nil, "", nil); err != nil {
-			t.Fatal(err)
-		}
-		queue := loadCarryStateQueue(t, paths)
-		if queue.WorkflowImport != imported || queue.Commands[0].Force || queue.Commands[1].Force != imported {
-			t.Fatalf("imported=%v queue = %#v", imported, queue)
-		}
-	}
-}
-
-func TestResetQueueCommandsClearsWorkflowImport(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(paths.QueueFile, model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{ID: "job", Command: []string{"true"}, Force: true}}}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := resetQueueCommands(paths); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := enqueueCommand(baseDir, "default", []string{"added"}, "", nil, nil, "", nil); err != nil {
-		t.Fatal(err)
-	}
-	queue := loadCarryStateQueue(t, paths)
-	if queue.WorkflowImport || len(queue.Commands) != 1 || queue.Commands[0].Force {
-		t.Fatalf("queue after reset and add = %#v", queue)
-	}
-}
-
 func writeImportedArraySource(t *testing.T, paths state.ProjectPaths) {
 	t.Helper()
 	writeCarryStateRun(t, paths, "source-run", model.Queue{Commands: []model.QueuedCommand{{ID: "source", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 2}}}}, []model.JobResult{
@@ -92,22 +51,25 @@ func writeImportedArraySource(t *testing.T, paths state.ProjectPaths) {
 	})
 }
 
-func TestImportedWorkflowAcceptsFailedArrayTask(t *testing.T) {
+// retrySelection is the selection of rotari retry.
+const retrySelection = "failed,unfinished"
+
+func TestMarkedSuccessAcceptsFailedArrayTask(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
 	writeImportedArraySource(t, paths)
-	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{
+	queue := model.Queue{Commands: []model.QueuedCommand{{
 		ID: "array", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 2},
 		TaskOrigins: map[string]*model.JobOrigin{
 			"array-1": {RunID: "source-run", JobID: "source-1", AttemptID: "attempt-1", Status: "success"},
 			"array-2": {RunID: "source-run", JobID: "source-2", AttemptID: "attempt-2", Status: "failed"},
 		},
-		TaskAccepted: map[string]bool{"array-2": true},
+		TaskMarkedStatus: map[string]string{"array-2": model.StatusSuccess},
 	}}}
-	plan, err := planRerunSelection(paths, queue, "", nil, "", true)
+	plan, err := planRerunSelection(paths, queue, retrySelection, nil, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,36 +77,36 @@ func TestImportedWorkflowAcceptsFailedArrayTask(t *testing.T) {
 		t.Fatalf("execute = %#v, want no execution", plan.Execute)
 	}
 	accepted := plan.CarriedResults["array-2"]
-	if !accepted.Accepted || accepted.ExitCode != 0 || accepted.Error != "" || accepted.ID != "array-2" || plan.CarriedOrigins["array-2"].Status != "failed" {
-		t.Fatalf("accepted task result = %#v, origin = %#v", accepted, plan.CarriedOrigins["array-2"])
+	if !accepted.Accepted || accepted.ExitCode != 0 || accepted.Error != "" || accepted.ID != "array-2" || accepted.AttemptID != "attempt-2" {
+		t.Fatalf("accepted task result = %#v", accepted)
 	}
 	if carried := plan.CarriedResults["array-1"]; carried.Accepted || carried.AttemptID != "attempt-1" {
 		t.Fatalf("successful task result = %#v", carried)
 	}
 }
 
-func TestImportedWorkflowAcceptsArrayTaskThroughCommandOrigin(t *testing.T) {
+func TestMarkedSuccessAcceptsArrayTaskThroughCommandOrigin(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
 	writeImportedArraySource(t, paths)
-	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{
+	queue := model.Queue{Commands: []model.QueuedCommand{{
 		ID: "array", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 2},
-		Origin:       &model.JobOrigin{RunID: "source-run", JobID: "source"},
-		TaskAccepted: map[string]bool{"array-2": true},
+		Origin:           &model.JobOrigin{RunID: "source-run", JobID: "source"},
+		TaskMarkedStatus: map[string]string{"array-2": model.StatusSuccess},
 	}}}
-	plan, err := planRerunSelection(paths, queue, "", nil, "", true)
+	plan, err := planRerunSelection(paths, queue, retrySelection, nil, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Execute["array-2"] || !plan.CarriedResults["array-2"].Accepted || plan.CarriedOrigins["array-2"].JobID != "source-2" {
+	if plan.Execute["array-2"] || !plan.CarriedResults["array-2"].Accepted || plan.CarriedResults["array-2"].AttemptID != "attempt-2" {
 		t.Fatalf("plan = %#v", plan)
 	}
 }
 
-func TestImportedWorkflowForcedArrayTaskExecutesDownstream(t *testing.T) {
+func TestUnfinishedArrayTaskExecutesDownstream(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
@@ -153,15 +115,15 @@ func TestImportedWorkflowForcedArrayTaskExecutesDownstream(t *testing.T) {
 	writeCarryStateRun(t, paths, "source-run", model.Queue{}, []model.JobResult{
 		{ID: "source-1", ExitCode: 0}, {ID: "source-2", ExitCode: 0}, {ID: "source-downstream", ExitCode: 0}, {ID: "source-independent", ExitCode: 0},
 	})
-	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{
+	queue := model.Queue{Commands: []model.QueuedCommand{
 		{ID: "array", Name: "work", Stage: "compute", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 2},
-			Origin: &model.JobOrigin{RunID: "source-run", JobID: "source"}, TaskForce: map[string]bool{"array-2": true}},
+			Origin: &model.JobOrigin{RunID: "source-run", JobID: "source"}, TaskMarkedStatus: map[string]string{"array-2": model.StatusUnfinished}},
 		{ID: "downstream", Name: "downstream", Command: []string{"true"}, DependsOn: []string{"compute"},
 			Origin: &model.JobOrigin{RunID: "source-run", JobID: "source-downstream"}},
 		{ID: "independent", Name: "independent", Command: []string{"true"},
 			Origin: &model.JobOrigin{RunID: "source-run", JobID: "source-independent"}},
 	}}
-	plan, err := planRerunSelection(paths, queue, "", nil, "", true)
+	plan, err := planRerunSelection(paths, queue, retrySelection, nil, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,43 +135,19 @@ func TestImportedWorkflowForcedArrayTaskExecutesDownstream(t *testing.T) {
 	}
 }
 
-func TestImportedWorkflowForceOverridesAcceptance(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
-	writeCarryStateRun(t, paths, "source-run", model.Queue{}, []model.JobResult{{ID: "source", AttemptID: "attempt", ExitCode: 1}})
-	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{
-		ID: "job", Command: []string{"true"}, Accepted: true, Force: true,
-		Origin: &model.JobOrigin{RunID: "source-run", JobID: "source", AttemptID: "attempt", Status: "failed"},
-	}}}
-	plan, err := planRerunSelection(paths, queue, "", nil, "", true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !plan.Execute["job"] {
-		t.Fatalf("forced job was not executed: %#v", plan)
-	}
-	if _, carried := plan.CarriedResults["job"]; carried {
-		t.Fatal("forced job kept an accepted carried result")
-	}
-}
-
-func TestImportedWorkflowAcceptRequiresOrigin(t *testing.T) {
+func TestMarkWithoutRecordedResultFails(t *testing.T) {
 	paths, err := state.ResolveProjectPaths(t.TempDir(), "default")
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Give the fallback lookup a previous run so planning reaches acceptance.
-	writeCarryStateRun(t, paths, "previous-run", model.Queue{}, []model.JobResult{{ID: "job", ExitCode: 1}})
+	writeCarryStateRun(t, paths, "previous-run", model.Queue{}, []model.JobResult{{ID: "other", ExitCode: 1}})
 	if err := writeJSON(paths.MetaFile, model.Meta{LastRunID: "previous-run", Phase: "collecting"}); err != nil {
 		t.Fatal(err)
 	}
-	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{ID: "job", Command: []string{"true"}, Accepted: true}}}
-	_, err = planRerunSelection(paths, queue, "", nil, "", true)
-	if err == nil || !strings.Contains(err.Error(), "has no source origin") {
-		t.Fatalf("planRerunSelection error = %v, want missing source origin", err)
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job", Command: []string{"true"}, MarkedStatus: model.StatusSuccess}}}
+	_, err = planRerunSelection(paths, queue, retrySelection, nil, "", true)
+	if err == nil || !strings.Contains(err.Error(), "has no recorded result") {
+		t.Fatalf("planRerunSelection error = %v, want missing result", err)
 	}
 }
 
@@ -220,18 +158,18 @@ func TestExecuteMixedRunPersistsAcceptedArrayTask(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeImportedArraySource(t, paths)
-	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{
+	queue := model.Queue{Commands: []model.QueuedCommand{{
 		ID: "array", Command: []string{"must-not-run"}, Array: &model.ArraySpec{First: 1, Last: 2},
 		TaskOrigins: map[string]*model.JobOrigin{
 			"array-1": {RunID: "source-run", JobID: "source-1", AttemptID: "attempt-1", Status: "success"},
 			"array-2": {RunID: "source-run", JobID: "source-2", AttemptID: "attempt-2", Status: "failed"},
 		},
-		TaskAccepted: map[string]bool{"array-2": true},
+		TaskMarkedStatus: map[string]string{"array-2": model.StatusSuccess},
 	}}}
 	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
-	if code := executeMixedRun(paths, "accepted-array-run", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
+	if code := executeMixedRun(paths, "accepted-array-run", "", 1, 1, 0, "", nil, retrySelection, nil, "source-run", true, nil, nil); code != 0 {
 		t.Fatalf("executeMixedRun exit code = %d, want 0", code)
 	}
 	summary, err := loadRunSummary(filepath.Join(paths.RunsDir, "accepted-array-run", "summary.json"))

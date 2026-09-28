@@ -1009,6 +1009,7 @@ func runScopeCommands(runDir string, jobSpecs map[string]model.JobSpec) []model.
 // showQueueContent prints jobs, taken from queue, as a table.
 func showQueueContent(paths state.ProjectPaths, queue model.Queue, jobs []model.JobSpec) int {
 	originByID := model.QueueOriginsByJobID(model.Queue(queue))
+	markedStatusByID := model.QueueMarkedStatusByJobID(queue)
 	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-6s %-15s %-15s %-20s %-30s %-24s %-12s %s", "JOB ID", "TASK", "NAME", "STAGE", "DEPENDS ON", "EXECUTOR", "SOURCE RUN", "SOURCE STATUS", "COMMAND")))
 	for _, job := range jobs {
 		name := job.Name
@@ -1028,13 +1029,12 @@ func showQueueContent(paths state.ProjectPaths, queue model.Queue, jobs []model.
 			taskText = strconv.Itoa(*job.ArrayTaskID)
 		}
 		executorText := queueExecutorText(queue, job)
-		sourceRun, sourceStatus := "-", "-"
-		if origin := originByID[job.ID]; origin != nil {
+		sourceRun := "-"
+		origin := originByID[job.ID]
+		if origin != nil {
 			sourceRun = origin.RunID + "/" + origin.JobID
-			if origin.Status != "" {
-				sourceStatus = origin.Status
-			}
 		}
+		sourceStatus := model.QueuedStatusText(origin, markedStatusByID[job.ID])
 		fmt.Printf("%-12s %-6s %-15s %-15s %-20s %-30s %-24s %-12s %s\n", job.ID, taskText, name, stage, dependsOn, executorText, sourceRun, sourceStatus, strings.Join(job.Command, " "))
 	}
 	fmt.Printf("\n%s\n  rotari run -b %s -p %s\n", cyan("To execute these jobs:"), executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName))

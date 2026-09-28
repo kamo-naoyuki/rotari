@@ -16,7 +16,7 @@ import (
 // misread, such as a renamed, removed, or reinterpreted field, and keep
 // decoding every older version; adding an optional field does not need a new
 // version.
-const StateVersion = 1
+const StateVersion = 2
 
 type Queue struct {
 	// StateVersion is set by the state package when the queue is written.
@@ -24,10 +24,9 @@ type Queue struct {
 	DefaultExecutor        string          `json:"default_executor,omitempty"`
 	DefaultExecutorOptions []string        `json:"default_executor_options,omitempty"`
 	Commands               []QueuedCommand `json:"commands"`
-	WorkflowImport         bool            `json:"workflow_import,omitempty"`
 }
 
-// OriginOf returns where jobID's carried or accepted result came from: the
+// OriginOf returns where jobID's carried or marked result came from: the
 // whole command's Origin, or an array task's entry in TaskOrigins. It returns
 // nil for a job that executes in this run.
 func (queue Queue) OriginOf(jobID string) *JobOrigin {
@@ -74,13 +73,12 @@ type QueuedCommand struct {
 	Array         *ArraySpec            `json:"array,omitempty"`
 	TaskOrigins   map[string]*JobOrigin `json:"task_origins,omitempty"`
 	Matrix        *MatrixSpec           `json:"matrix,omitempty"`
-	Accepted      bool                  `json:"accepted,omitempty"`
-	TaskAccepted  map[string]bool       `json:"task_accepted,omitempty"`
-	// Force and TaskForce mark a command, or tasks of it, whose recorded
-	// result no longer applies because the job changed since it ran: a rerun
-	// treats them as unfinished and never carries that result.
-	Force     bool            `json:"force,omitempty"`
-	TaskForce map[string]bool `json:"task_force,omitempty"`
+	// MarkedStatus and TaskMarkedStatus hold a status the user gave the
+	// command, or tasks of it, with change --status or a workflow manifest.
+	// A filtered run reads it in place of the recorded result's status; see
+	// MarkResult.
+	MarkedStatus     string            `json:"marked_status,omitempty"`
+	TaskMarkedStatus map[string]string `json:"task_marked_status,omitempty"`
 }
 
 type ArraySpec struct {

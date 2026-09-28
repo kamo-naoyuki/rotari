@@ -16,7 +16,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-func TestExecuteMixedRunPersistsAcceptedImportedResult(t *testing.T) {
+func TestExecuteMixedRunPersistsMarkedSuccess(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
@@ -26,14 +26,14 @@ func TestExecuteMixedRunPersistsAcceptedImportedResult(t *testing.T) {
 	if err := writeJSON(filepath.Join(paths.RunsDir, sourceRunID, "summary.json"), model.RunSummary{RunID: sourceRunID, Results: []model.JobResult{{ID: "source", AttemptID: "source-attempt", ExitCode: 7, Error: "failed"}}}); err != nil {
 		t.Fatal(err)
 	}
-	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{
-		ID: "accepted", Command: []string{"must-not-run"}, Accepted: true,
+	queue := model.Queue{Commands: []model.QueuedCommand{{
+		ID: "accepted", Command: []string{"must-not-run"}, MarkedStatus: model.StatusSuccess,
 		Origin: &model.JobOrigin{RunID: sourceRunID, JobID: "source", AttemptID: "source-attempt", Status: "failed"},
 	}}}
 	if err := writeJSON(paths.QueueFile, queue); err != nil {
 		t.Fatal(err)
 	}
-	if code := executeMixedRun(paths, "accepted-run", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
+	if code := executeMixedRun(paths, "accepted-run", "", 1, 1, 0, "", nil, retrySelection, nil, sourceRunID, true, nil, nil); code != 0 {
 		t.Fatalf("executeMixedRun exit code = %d, want 0", code)
 	}
 	summary, err := loadRunSummary(filepath.Join(paths.RunsDir, "accepted-run", "summary.json"))

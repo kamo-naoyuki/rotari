@@ -110,13 +110,13 @@ func writeIdleQueueFixture(t *testing.T) state.ProjectPaths {
 	return paths
 }
 
-func TestRecoverInterruptedClearsWorkflowImportOnlyWhenDiscarding(t *testing.T) {
+func TestRecoverInterruptedKeepsQueueOnlyWithoutDiscarding(t *testing.T) {
 	for _, discard := range []bool{false, true} {
 		paths, err := state.ResolveProjectPaths(t.TempDir(), "default")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := state.WriteJSON(paths.QueueFile, model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{ID: "job", Command: []string{"true"}, Force: true}}}); err != nil {
+		if err := state.WriteJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job", Command: []string{"true"}, MarkedStatus: model.StatusUnfinished}}}); err != nil {
 			t.Fatal(err)
 		}
 		if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
@@ -127,10 +127,10 @@ func TestRecoverInterruptedClearsWorkflowImportOnlyWhenDiscarding(t *testing.T) 
 			t.Fatalf("RecoverInterrupted(discard=%v): %v", discard, err)
 		}
 		queue := loadQueueForTest(t, paths)
-		if discard && (queue.WorkflowImport || len(queue.Commands) != 0) {
+		if discard && len(queue.Commands) != 0 {
 			t.Fatalf("discarded queue = %#v", queue)
 		}
-		if !discard && (!queue.WorkflowImport || len(queue.Commands) != 1 || !queue.Commands[0].Force) {
+		if !discard && (len(queue.Commands) != 1 || queue.Commands[0].MarkedStatus != model.StatusUnfinished) {
 			t.Fatalf("retained queue = %#v", queue)
 		}
 	}

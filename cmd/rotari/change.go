@@ -48,6 +48,8 @@ func cmdChange(args []string) int {
 	retryDelay := cliString(fs, "retry-delay", "")
 	retryBackoffText := cliString(fs, "retry-backoff", "")
 	retryMaxDelay := cliString(fs, "retry-max-delay", "")
+	status := cliString(fs, "status", "")
+	clearStatus := cliBool(fs, "clear-status", false)
 	quiet := cliBool(fs, "quiet", false)
 	if err := fs.Parse(args); err != nil {
 		return 1
@@ -59,7 +61,7 @@ func cmdChange(args []string) int {
 	if selector.Kinds() != 1 ||
 		(len(fs.Args()) == 0 && *executor == "" && len(executorOptions) == 0 && !*clearExecutorOptions && *workingDirectory == "" && !*clearWorkingDirectory && len(environment) == 0 && !*clearEnvironment &&
 			*setJobName == "" && len(dependsOn) == 0 && !*clearDependsOn && len(dependsOnFinished) == 0 && !*clearDependsOnFinished && *timeout == "" && !*clearTimeout && !cliOptionSet(fs, "retry") && !*clearRetry &&
-			*retryDelay == "" && *retryBackoffText == "" && *retryMaxDelay == "") ||
+			*retryDelay == "" && *retryBackoffText == "" && *retryMaxDelay == "" && *status == "" && !*clearStatus) ||
 		(*executor != "" && !executorRegistry.Known(*executor)) {
 		printError("usage: " + cliUsage("change"))
 		return 1
@@ -102,6 +104,7 @@ func cmdChange(args []string) int {
 		DependsOnFinished: dependsOnFinished, ClearDependsOnFinished: *clearDependsOnFinished,
 		Timeout: *timeout, ClearTimeout: *clearTimeout, Retry: optionalRetry(fs, *retry), ClearRetry: *clearRetry,
 		RetryDelay: *retryDelay, RetryBackoff: retryBackoff, RetryMaxDelay: *retryMaxDelay,
+		Status: *status, ClearStatus: *clearStatus,
 		Command: fs.Args(),
 	})
 	if err != nil {

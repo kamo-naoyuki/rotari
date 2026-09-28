@@ -209,6 +209,8 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "retry-delay", Description: "replace the wait before the job's first retry, such as 30s", ValueName: "DURATION"},
 			cliFlagSpec{Name: "retry-backoff", Description: "replace the factor applied to the retry delay for each further retry", ValueName: "FACTOR"},
 			cliFlagSpec{Name: "retry-max-delay", Description: "replace the upper limit of the retry delay", ValueName: "DURATION"},
+			cliFlagSpec{Name: "status", Description: "mark the job with a status that result filters of the next run read in place of its recorded result", ValueName: "STATUS", Values: []string{"success", "failed", "cancelled", "unfinished"}, CommandLineOnly: true},
+			cliFlagSpec{Name: "clear-status", Description: "remove the job's status mark"},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
 		),
 		Positional: "<command ...>",

@@ -43,10 +43,11 @@ type sourceLeaf struct {
 	finished bool
 }
 
-// Reconcile writes explicit carry, force, and acceptance dispositions into a
-// queue compiled from a run-exported manifest, by matching its jobs to their
-// source attempts. It also lists exported source jobs that the manifest no
-// longer describes. A manifest without a source is returned unchanged.
+// Reconcile links the jobs of a queue compiled from a run-exported manifest to
+// their source attempts, as copy does, and marks each job whose manifest
+// status differs from its source result with that status. It also lists
+// exported source jobs that the manifest no longer describes. A manifest
+// without a source is returned unchanged.
 func Reconcile(manifest Manifest, queue model.Queue, store SourceStore) (model.Queue, []RemovedJob, error) {
 	if manifest.Source == nil {
 		return queue, nil, nil
@@ -55,7 +56,6 @@ func Reconcile(manifest Manifest, queue model.Queue, store SourceStore) (model.Q
 	if err != nil {
 		return model.Queue{}, nil, err
 	}
-	queue.WorkflowImport = true
 	cursor := 0
 	for _, job := range manifest.Jobs {
 		count, err := reconcileJob(job, queue.Commands[cursor:], catalog)
@@ -169,7 +169,7 @@ func reconcileJob(job Job, remaining []model.QueuedCommand, catalog *sourceCatal
 	}
 	anchorAttempt := anchorAttempt(job)
 	if anchorAttempt == "" {
-		forceCommands(commands)
+		// A job without an attempt is new work, with no result to link.
 		return count, nil
 	}
 	anchor, err := catalog.resolveAttempt(anchorAttempt)
@@ -214,11 +214,10 @@ func anchorAttempt(job Job) string {
 }
 
 func reconcileCommand(destination *model.QueuedCommand, job Job, anchor sourceLeaf, catalog *sourceCatalog) error {
+	// An edited job keeps its source result, as it does after change; its
+	// manifest status decides whether a filtered run executes it.
 	source, ok := catalog.matchCommand(anchor, *destination)
-	if !ok || !EquivalentCommand(*destination, source.command) {
-		destination.Force = true
-		destination.Accepted = false
-		destination.TaskAccepted = nil
+	if !ok {
 		return nil
 	}
 	return reconcileCommandLeaves(destination, source, job, catalog)
@@ -280,14 +279,6 @@ func jobCommandCount(job Job) (int, error) {
 		count *= len(dimension.Values)
 	}
 	return count, nil
-}
-
-func forceCommands(commands []model.QueuedCommand) {
-	for index := range commands {
-		commands[index].Force = true
-		commands[index].Accepted = false
-		commands[index].TaskAccepted = nil
-	}
 }
 
 func loadSourceCatalog(store SourceStore, source Source) (*sourceCatalog, error) {
@@ -545,27 +536,24 @@ func (catalog *sourceCatalog) applyLeaf(command *model.QueuedCommand, destinatio
 		RunID: source.run.ID, JobID: source.jobID, AttemptID: source.result.AttemptID,
 		Status: actualStatus, CWD: source.run.CWD, SubmittedAt: submittedAt, FinishedAt: finishedAt,
 	}
+	marked := ""
+	if desiredStatus != actualStatus {
+		marked = desiredStatus
+	}
 	if destinationID == "" {
 		command.Origin = origin
-		command.Force = desiredStatus != "success"
-		command.Accepted = desiredStatus == "success" && actualStatus != "success"
+		command.MarkedStatus = marked
 		return
 	}
 	if command.TaskOrigins == nil {
 		command.TaskOrigins = make(map[string]*model.JobOrigin)
 	}
 	command.TaskOrigins[destinationID] = origin
-	if desiredStatus != "success" {
-		if command.TaskForce == nil {
-			command.TaskForce = make(map[string]bool)
+	if marked != "" {
+		if command.TaskMarkedStatus == nil {
+			command.TaskMarkedStatus = make(map[string]string)
 		}
-		command.TaskForce[destinationID] = true
-	}
-	if desiredStatus == "success" && actualStatus != "success" {
-		if command.TaskAccepted == nil {
-			command.TaskAccepted = make(map[string]bool)
-		}
-		command.TaskAccepted[destinationID] = true
+		command.TaskMarkedStatus[destinationID] = marked
 	}
 }
 

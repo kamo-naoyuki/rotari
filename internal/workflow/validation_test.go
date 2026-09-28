@@ -37,7 +37,7 @@ func TestEquivalentCommandComparesExecutionDefinition(t *testing.T) {
 	same := clone()
 	same.ID = "right"
 	same.Origin = &model.JobOrigin{RunID: "run"}
-	same.Force = true
+	same.MarkedStatus = model.StatusUnfinished
 	if !EquivalentCommand(base, same) {
 		t.Fatal("commands differing only in runtime state are not equivalent")
 	}

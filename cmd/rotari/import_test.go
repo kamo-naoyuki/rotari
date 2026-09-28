@@ -197,7 +197,7 @@ func TestCmdImportDryRunChecksOverwriteWithoutWriting(t *testing.T) {
 	}
 }
 
-func TestCmdImportReusesSuccessAndExecutesChangedFailure(t *testing.T) {
+func TestCmdImportKeepsSourceOfChangedJob(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, runID := writeWorkflowRunFixture(t, baseDir)
 	manifest, _, err := exportWorkflow(baseDir, "demo", []string{runID})
@@ -217,11 +217,12 @@ func TestCmdImportReusesSuccessAndExecutesChangedFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !queue.WorkflowImport || queue.Commands[0].Origin == nil || queue.Commands[0].Force {
+	if queue.Commands[0].Origin == nil || queue.Commands[0].MarkedStatus != "" {
 		t.Fatalf("success import = %#v", queue.Commands[0])
 	}
-	if queue.Commands[1].Origin != nil || !queue.Commands[1].Force || queue.Commands[1].Command[0] != "true" || queue.Commands[1].ID == "failed-id" {
-		t.Fatalf("changed import = %#v", queue.Commands[1])
+	changed := queue.Commands[1]
+	if changed.Origin == nil || changed.Origin.Status != "failed" || changed.MarkedStatus != "" || changed.Command[0] != "true" || changed.ID != "failed-id" {
+		t.Fatalf("changed import = %#v, want its source result kept", changed)
 	}
 }
 
@@ -241,7 +242,7 @@ func TestImportedWorkflowRunCarriesSuccessAndExecutesChangedJob(t *testing.T) {
 	if code := cmdImport([]string{"--basedir", baseDir, "--project-name", "demo", path}); code != 0 {
 		t.Fatalf("cmdImport exit code = %d, want 0", code)
 	}
-	if code := executeMixedRun(paths, "new-run", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
+	if code := executeMixedRun(paths, "new-run", "", 1, 1, 0, "", nil, retrySelection, nil, "", true, nil, nil); code != 0 {
 		t.Fatalf("executeMixedRun exit code = %d, want 0", code)
 	}
 	summary, err := loadRunSummary(filepath.Join(paths.RunsDir, "new-run", "summary.json"))
@@ -277,7 +278,7 @@ func TestCmdImportAcceptsFailedJobAsSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !queue.Commands[1].Accepted || queue.Commands[1].Origin == nil || queue.Commands[1].Origin.Status != "failed" {
+	if queue.Commands[1].MarkedStatus != model.StatusSuccess || queue.Commands[1].Origin == nil || queue.Commands[1].Origin.Status != "failed" {
 		t.Fatalf("accepted import = %#v", queue.Commands[1])
 	}
 }
@@ -333,7 +334,8 @@ func TestCmdImportReconcilesMatrixInstances(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(imported.Commands) != 2 || imported.Commands[0].Origin == nil || imported.Commands[0].Force || imported.Commands[1].Origin == nil || !imported.Commands[1].Force {
+	if len(imported.Commands) != 2 || imported.Commands[0].Origin == nil || imported.Commands[1].Origin == nil || imported.Commands[1].Origin.Status != "failed" ||
+		imported.Commands[0].MarkedStatus != "" || imported.Commands[1].MarkedStatus != "" {
 		t.Fatalf("imported matrix queue = %#v", imported.Commands)
 	}
 }
@@ -386,10 +388,10 @@ func TestCmdImportReconcilesArrayTasks(t *testing.T) {
 		t.Fatal(err)
 	}
 	command := imported.Commands[0]
-	if command.TaskOrigins["array-1"] == nil || command.TaskOrigins["array-2"] == nil || !command.TaskForce["array-2"] || command.TaskForce["array-1"] {
+	if command.TaskOrigins["array-1"] == nil || command.TaskOrigins["array-2"] == nil || command.TaskOrigins["array-2"].Status != "failed" || command.TaskMarkedStatus != nil {
 		t.Fatalf("imported array command = %#v", command)
 	}
-	plan, err := planRerunSelection(paths, imported, "", nil, "", true)
+	plan, err := planRerunSelection(paths, imported, retrySelection, nil, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}

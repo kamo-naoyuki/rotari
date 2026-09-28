@@ -310,6 +310,19 @@
           "value_name": "DURATION"
         },
         {
+          "name": "status",
+          "value_name": "STATUS",
+          "values": [
+            "success",
+            "failed",
+            "cancelled",
+            "unfinished"
+          ]
+        },
+        {
+          "name": "clear-status"
+        },
+        {
           "name": "quiet"
         }
       ],

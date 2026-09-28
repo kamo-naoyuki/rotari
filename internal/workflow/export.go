@@ -173,17 +173,7 @@ func mergeStatus(current, next string) string {
 }
 
 func resultStatus(result model.JobResult, ok bool) string {
-	if !ok {
-		return "unfinished"
-	}
-	if result.ExitCode == 0 {
-		return "success"
-	}
-	errorText := strings.ToLower(strings.TrimSpace(result.Error))
-	if errorText == "cancelled" || errorText == "canceled" || strings.HasPrefix(errorText, "cancelled ") || strings.HasPrefix(errorText, "canceled ") {
-		return "cancelled"
-	}
-	return "failed"
+	return model.ResultStatus(result, ok)
 }
 
 func matrixValuesMap(values []model.MatrixValue) map[string]string {

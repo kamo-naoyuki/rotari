@@ -2,13 +2,14 @@ package main
 
 import (
 	"bytes"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
-	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
+	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
 
 const acceptedDisplaySourceRunID = "20260925-220000-12345678"
@@ -58,7 +59,7 @@ func runAcceptedImport(t *testing.T, baseDir string, paths state.ProjectPaths, a
 	if code := importEditedWorkflow(t, baseDir, manifest); code != 0 {
 		t.Fatalf("cmdImport exit code = %d", code)
 	}
-	if code := executeMixedRun(paths, "accepted-run", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
+	if code := executeMixedRun(paths, "accepted-run", "", 1, 1, 0, "", nil, retrySelection, nil, acceptedDisplaySourceRunID, true, nil, nil); code != 0 {
 		t.Fatalf("executeMixedRun exit code = %d", code)
 	}
 }
@@ -127,7 +128,7 @@ func TestShowJobOrdinaryCarryStillShowsCarriedNote(t *testing.T) {
 	if code := importEditedWorkflow(t, baseDir, mustExportWorkflow(t, baseDir, workflowPipelineRunID)); code != 0 {
 		t.Fatalf("cmdImport exit code = %d", code)
 	}
-	if code := executeMixedRun(paths, "carried-run", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
+	if code := executeMixedRun(paths, "carried-run", "", 1, 1, 0, "", nil, retrySelection, nil, workflowPipelineRunID, true, nil, nil); code != 0 {
 		t.Fatalf("executeMixedRun exit code = %d", code)
 	}
 	var output bytes.Buffer
@@ -150,7 +151,7 @@ func TestCmdImportResolvesNonLatestLocalAttempt(t *testing.T) {
 		t.Fatalf("cmdImport exit code = %d", code)
 	}
 	command := loadCarryStateQueue(t, paths).Commands[0]
-	if command.Force || command.Accepted || command.Origin == nil || command.Origin.AttemptID != olderAttempt || command.Origin.Status != "success" {
+	if command.MarkedStatus != "" || len(command.TaskMarkedStatus) != 0 || command.Origin == nil || command.Origin.AttemptID != olderAttempt || command.Origin.Status != "success" {
 		t.Fatalf("imported command = %#v, origin = %#v", command, command.Origin)
 	}
 }
@@ -175,7 +176,7 @@ func TestAcceptedArrayTaskDisplaysConsistentlyInShowAndWeb(t *testing.T) {
 	if code := importEditedWorkflow(t, baseDir, manifest); code != 0 {
 		t.Fatalf("cmdImport exit code = %d", code)
 	}
-	if code := executeMixedRun(paths, "accepted-run", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
+	if code := executeMixedRun(paths, "accepted-run", "", 1, 1, 0, "", nil, retrySelection, nil, acceptedDisplaySourceRunID, true, nil, nil); code != 0 {
 		t.Fatalf("executeMixedRun exit code = %d", code)
 	}
 

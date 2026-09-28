@@ -218,6 +218,13 @@ async function cancelRun(queue, run) {
   }
   await refresh();
 }
+// queuedStatusText mirrors model.QueuedStatusText: a status the job was
+// marked with replaces its source status.
+function queuedStatusText(recorded, marked) {
+  if (!marked || marked === recorded) return recorded || "-";
+  if (marked === "success") return "success (accepted)";
+  return marked + " (marked)";
+}
 function fixQueueSourceColumns(commands) {
   const table = document.querySelector(".web-queue-commands table");
   if (!table) return;
@@ -255,7 +262,7 @@ function fixQueueSourceColumns(commands) {
     const sourceOutput = document.createElement("td");
     if (job.origin) {
       sourceRun.textContent = job.origin.run_id + "/" + job.origin.job_id;
-      sourceStatus.textContent = job.origin.status;
+      sourceStatus.textContent = queuedStatusText(job.origin.status, job.marked_status);
       sourceStarted.textContent = job.origin.submitted_at || "-";
       sourceFinished.textContent = job.origin.finished_at || "-";
       sourceOutput.innerHTML =
@@ -266,7 +273,7 @@ function fixQueueSourceColumns(commands) {
         "',this)\">Output</button>";
     } else {
       sourceRun.textContent = "-";
-      sourceStatus.textContent = "-";
+      sourceStatus.textContent = queuedStatusText("", job.marked_status);
       sourceStarted.textContent = "-";
       sourceFinished.textContent = "-";
       sourceOutput.textContent = "-";

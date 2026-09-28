@@ -96,7 +96,6 @@ func RecoverInterrupted(paths state.ProjectPaths, runID string, discardQueue boo
 			return err
 		}
 		queue.Commands = nil
-		queue.WorkflowImport = false
 		if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
 			return err
 		}

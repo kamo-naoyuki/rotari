@@ -326,18 +326,18 @@ func TestWorkflowUnchangedRunImportReusesEveryJob(t *testing.T) {
 	if err := json.Unmarshal(output, &plan); err != nil {
 		t.Fatalf("decode import plan: %v\n%s", err, output)
 	}
-	if plan.Version != 1 || plan.Project != "demo" || len(plan.Jobs) != 3 {
+	if plan.Version != 2 || plan.Project != "demo" || len(plan.Jobs) != 3 {
 		t.Fatalf("plan = %#v", plan)
 	}
 	for _, job := range plan.Jobs {
-		if job.Action != "reuse" {
-			t.Fatalf("plan job = %#v, want reuse", job)
+		if job.Status != "success" {
+			t.Fatalf("plan job = %#v, want success", job)
 		}
 	}
 	queue := loadCarryStateQueue(t, paths)
 	for index, want := range []string{"prepare-id", "train-id", "other-id"} {
 		command := queue.Commands[index]
-		if command.ID != want || command.Force || command.Accepted || command.Origin == nil || command.Origin.RunID != workflowPipelineRunID || command.Origin.Status != "success" {
+		if command.ID != want || command.MarkedStatus != "" || len(command.TaskMarkedStatus) != 0 || command.Origin == nil || command.Origin.RunID != workflowPipelineRunID || command.Origin.Status != "success" {
 			t.Fatalf("command %d = %#v", index, command)
 		}
 	}
@@ -345,7 +345,7 @@ func TestWorkflowUnchangedRunImportReusesEveryJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rerun.Execute) != 0 || len(rerun.CarriedResults) != 3 {
+	if len(rerun.Execute) != 3 || len(rerun.CarriedResults) != 0 {
 		t.Fatalf("run plan = %#v", rerun)
 	}
 }
@@ -360,14 +360,14 @@ func TestWorkflowChangedJobExecutesDownstreamOnly(t *testing.T) {
 	}
 	queue := loadCarryStateQueue(t, paths)
 	prepare := queuedCommandByName(t, queue, "prepare")
-	if prepare.ID == "prepare-id" || prepare.Origin != nil || !prepare.Force {
+	if prepare.ID != "prepare-id" || prepare.Origin == nil || prepare.MarkedStatus != "" {
 		t.Fatalf("changed job = %#v", prepare)
 	}
 	rerun, err := planRerunSelection(paths, queue, "", nil, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !rerun.Execute[prepare.ID] || !rerun.Execute["train-id"] || rerun.Execute["other-id"] {
+	if !rerun.Execute[prepare.ID] || !rerun.Execute["train-id"] || !rerun.Execute["other-id"] {
 		t.Fatalf("execute = %#v", rerun.Execute)
 	}
 }
@@ -396,10 +396,14 @@ func TestCmdImportDetectsDefinitionChanges(t *testing.T) {
 			}
 			queue := loadCarryStateQueue(t, paths)
 			changed := queue.Commands[len(queue.Commands)-1]
-			if changed.Origin != nil || len(changed.TaskOrigins) != 0 || !changed.Force || changed.ID == "other-id" {
+			if name == "array" {
+				if changed.Origin != nil || len(changed.TaskOrigins) != 2 || changed.TaskMarkedStatus["other-id-1"] != model.StatusSuccess || changed.TaskMarkedStatus["other-id-2"] != model.StatusSuccess {
+					t.Fatalf("changed array job was not reconciled: %#v", changed)
+				}
+			} else if changed.Origin == nil || changed.ID != "other-id" || changed.MarkedStatus != "" {
 				t.Fatalf("changed job was reused: %#v", changed)
 			}
-			if prepare := queuedCommandByName(t, queue, "prepare"); prepare.Origin == nil || prepare.Force {
+			if prepare := queuedCommandByName(t, queue, "prepare"); prepare.Origin == nil || prepare.MarkedStatus != "" {
 				t.Fatalf("unrelated job was not reused: %#v", prepare)
 			}
 		})
@@ -417,7 +421,7 @@ func TestCmdImportSuccessStatusDoesNotSuppressChangedDefinition(t *testing.T) {
 		t.Fatalf("cmdImport exit code = %d", code)
 	}
 	command := queuedCommandByName(t, loadCarryStateQueue(t, paths), "train")
-	if command.Accepted || !command.Force || command.Origin != nil {
+	if command.MarkedStatus != model.StatusSuccess || command.Origin == nil {
 		t.Fatalf("changed job marked success was accepted: %#v", command)
 	}
 }
@@ -431,14 +435,14 @@ func TestCmdImportDowngradedSuccessStatusForcesExecution(t *testing.T) {
 		t.Fatalf("cmdImport exit code = %d", code)
 	}
 	queue := loadCarryStateQueue(t, paths)
-	if other := queuedCommandByName(t, queue, "other"); !other.Force || other.Origin == nil || other.ID != "other-id" {
+	if other := queuedCommandByName(t, queue, "other"); other.MarkedStatus != model.StatusFailed || other.Origin == nil || other.ID != "other-id" {
 		t.Fatalf("downgraded job = %#v", other)
 	}
 	rerun, err := planRerunSelection(paths, queue, "", nil, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !rerun.Execute["other-id"] || rerun.Execute["prepare-id"] {
+	if !rerun.Execute["other-id"] || !rerun.Execute["prepare-id"] || !rerun.Execute["train-id"] {
 		t.Fatalf("execute = %#v", rerun.Execute)
 	}
 }
@@ -591,7 +595,7 @@ func TestCmdImportSwappedAttemptIDsDoNotReuseOtherJobResults(t *testing.T) {
 	}
 	queue := loadCarryStateQueue(t, paths)
 	for _, name := range []string{"prepare", "other"} {
-		if command := queuedCommandByName(t, queue, name); command.Origin != nil || !command.Force {
+		if command := queuedCommandByName(t, queue, name); command.Origin == nil || command.MarkedStatus != "" {
 			t.Fatalf("job %q reused another job's attempt: %#v", name, command)
 		}
 	}
@@ -658,10 +662,10 @@ func TestCmdImportGroupSuccessAcceptsEveryFailedInstance(t *testing.T) {
 	if len(queue.Commands) != 2 {
 		t.Fatalf("queue = %#v", queue.Commands)
 	}
-	if first := queue.Commands[0]; first.ID != "seed-1" || first.Accepted || first.Force || first.Origin == nil {
+	if first := queue.Commands[0]; first.ID != "seed-1" || first.MarkedStatus != "" || first.Origin == nil {
 		t.Fatalf("successful member = %#v", first)
 	}
-	if second := queue.Commands[1]; second.ID != "seed-2" || !second.Accepted || second.Force || second.Origin == nil || second.Origin.Status != "failed" {
+	if second := queue.Commands[1]; second.ID != "seed-2" || second.MarkedStatus != model.StatusSuccess || second.Origin == nil || second.Origin.Status != "failed" {
 		t.Fatalf("accepted member = %#v", second)
 	}
 }
@@ -693,7 +697,7 @@ func TestCmdImportInstanceSuccessAcceptsOnlyThatArrayTask(t *testing.T) {
 		t.Fatalf("cmdImport exit code = %d", code)
 	}
 	command := loadCarryStateQueue(t, paths).Commands[0]
-	if !command.TaskAccepted["array-2"] || command.TaskForce["array-2"] || command.TaskAccepted["array-3"] || !command.TaskForce["array-3"] || command.TaskForce["array-1"] {
+	if command.TaskMarkedStatus["array-2"] != model.StatusSuccess || command.TaskMarkedStatus["array-3"] != "" || command.TaskMarkedStatus["array-1"] != "" {
 		t.Fatalf("imported array command = %#v", command)
 	}
 }
@@ -716,15 +720,15 @@ func TestImportedWorkflowRunAcceptsFailureAndUnblocksDependent(t *testing.T) {
 	manifest := mustExportWorkflow(t, baseDir, runID)
 	workflowJobByName(t, &manifest, "prepare").Status = "success"
 	code, output := captureWorkflowStdout(t, func() int { return importEditedWorkflow(t, baseDir, manifest) })
-	if code != 0 || !strings.Contains(string(output), "accept job_id=prepare-id job_name=prepare") || !strings.Contains(string(output), "job_name=train") {
+	if code != 0 || !strings.Contains(string(output), "success (accepted) job_id=prepare-id job_name=prepare") || !strings.Contains(string(output), "job_name=train") {
 		t.Fatalf("cmdImport code = %d, output = %q", code, output)
 	}
 	// The blocked dependent has no source attempt, so it is imported as fresh work.
 	trainID := queuedCommandByName(t, loadCarryStateQueue(t, paths), "train").ID
-	if !strings.Contains(string(output), "execute job_id="+trainID+" job_name=train") {
+	if !strings.Contains(string(output), "unfinished job_id="+trainID+" job_name=train") {
 		t.Fatalf("dependent is not planned for execution: %q", output)
 	}
-	if code := executeMixedRun(paths, "accepted-run", "", 1, 1, 0, "", nil, "", nil, "", true, nil, nil); code != 0 {
+	if code := executeMixedRun(paths, "accepted-run", "", 1, 1, 0, "", nil, retrySelection, nil, runID, true, nil, nil); code != 0 {
 		t.Fatalf("executeMixedRun exit code = %d, want 0", code)
 	}
 	summary, err := loadRunSummary(filepath.Join(paths.RunsDir, "accepted-run", "summary.json"))
@@ -777,11 +781,11 @@ func TestWorkflowQueueExportImportRoundTripIsFreshWork(t *testing.T) {
 		t.Fatal(err)
 	}
 	queue := loadCarryStateQueue(t, copyPaths)
-	if queue.WorkflowImport || len(queue.Commands) != 3 {
+	if len(queue.Commands) != 3 {
 		t.Fatalf("imported queue = %#v", queue)
 	}
 	for _, command := range queue.Commands {
-		if command.Origin != nil || command.Force || command.Accepted {
+		if command.Origin != nil || command.MarkedStatus != "" || len(command.TaskMarkedStatus) != 0 {
 			t.Fatalf("fresh import carried state: %#v", command)
 		}
 	}
@@ -815,7 +819,7 @@ func TestWorkflowExportImportFollowsCarriedOrigin(t *testing.T) {
 		t.Fatalf("cmdImport exit code = %d", code)
 	}
 	command := loadCarryStateQueue(t, paths).Commands[0]
-	if command.Force || command.Origin == nil || command.Origin.RunID != firstRun || command.Origin.AttemptID != firstAttempt {
+	if command.MarkedStatus != "" || command.Origin == nil || command.Origin.RunID != firstRun || command.Origin.AttemptID != firstAttempt {
 		t.Fatalf("imported command = %#v", command)
 	}
 }

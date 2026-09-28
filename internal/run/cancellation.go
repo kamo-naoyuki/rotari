@@ -1,6 +1,10 @@
 package run
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+)
 
 func WasExplicitlyCancelled(resultError string, cancelled func() bool, schedulerPhase func() string) bool {
 	if cancelled != nil && cancelled() {
@@ -12,6 +16,5 @@ func WasExplicitlyCancelled(resultError string, cancelled func() bool, scheduler
 			return true
 		}
 	}
-	errorText := strings.ToLower(strings.TrimSpace(resultError))
-	return errorText == "cancelled" || errorText == "canceled" || strings.HasPrefix(errorText, "cancelled ") || strings.HasPrefix(errorText, "canceled ")
+	return model.IsCancelledError(resultError)
 }

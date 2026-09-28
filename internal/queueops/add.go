@@ -37,9 +37,6 @@ func (editor Editor) Add(baseDir, projectName string, commands []model.QueuedCom
 				return fmt.Errorf("unsupported executor: %s", commands[index].Executor)
 			}
 			commands[index].ID = editor.NewJobID()
-			if queue.WorkflowImport {
-				commands[index].Force = true
-			}
 		}
 		if err := model.ValidateReservedNames(commands); err != nil {
 			return err

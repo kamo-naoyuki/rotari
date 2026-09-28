@@ -132,8 +132,8 @@ func TestCopyAttemptNarrowsArray(t *testing.T) {
 }
 
 func TestCopyDestinationRules(t *testing.T) {
-	source := testRun([]model.QueuedCommand{{ID: "job", Name: "job", Command: []string{"true"}}}, model.JobResult{ID: "job", ExitCode: 0})
-	existing := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{ID: "job", Name: "other", Command: []string{"true"}}}}
+	source := testRun([]model.QueuedCommand{{ID: "job", Name: "job", Command: []string{"true"}, MarkedStatus: model.StatusSuccess}}, model.JobResult{ID: "job", ExitCode: 0})
+	existing := model.Queue{Commands: []model.QueuedCommand{{ID: "job", Name: "other", Command: []string{"true"}}}}
 
 	if _, _, err := Copy(existing, "demo", source, CopyRequest{Selection: "all"}, sequentialIDs()); err == nil || !strings.Contains(err.Error(), `project "demo" has queued jobs`) {
 		t.Fatalf("error = %v, want queued-jobs error", err)
@@ -142,15 +142,15 @@ func TestCopyDestinationRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(commandIDs(queue), []string{"job", "new-1"}) || !queue.Commands[1].Force || !queue.WorkflowImport {
-		t.Fatalf("queue = %#v, want appended job with a new ID forced into the imported queue", queue)
+	if !reflect.DeepEqual(commandIDs(queue), []string{"job", "new-1"}) || queue.Commands[1].MarkedStatus != "" {
+		t.Fatalf("queue = %#v, want appended job with a new ID and without the source run's mark", queue)
 	}
 	queue, _, err = Copy(existing, "demo", source, CopyRequest{Selection: "all", Overwrite: true}, sequentialIDs())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(commandIDs(queue), []string{"job"}) || queue.Commands[0].Force || queue.WorkflowImport {
-		t.Fatalf("queue = %#v, want only the copied job in a plain queue", queue)
+	if !reflect.DeepEqual(commandIDs(queue), []string{"job"}) || queue.Commands[0].MarkedStatus != "" {
+		t.Fatalf("queue = %#v, want only the copied job, without the source run's mark", queue)
 	}
 
 	for request, want := range map[string]CopyRequest{

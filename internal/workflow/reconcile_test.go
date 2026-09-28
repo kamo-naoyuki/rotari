@@ -65,36 +65,46 @@ func reconcileManifest(t *testing.T, store fakeSourceStore, jobs ...Job) (model.
 	return Reconcile(manifest, queue, store)
 }
 
-func TestReconcileCarriesForcesAndAccepts(t *testing.T) {
+func TestReconcileLinksSourcesAndMarksEditedStatuses(t *testing.T) {
 	store, attempts := sourceStore([]model.QueuedCommand{
 		{ID: "ok-id", Name: "ok", Command: []string{"true"}},
 		{ID: "bad-id", Name: "bad", Command: []string{"false"}},
 		{ID: "edit-id", Name: "edit", Command: []string{"old"}},
+		{ID: "redo-id", Name: "redo", Command: []string{"true"}},
 	},
 		model.JobResult{ID: "ok-id", ExitCode: 0},
 		model.JobResult{ID: "bad-id", ExitCode: 1},
 		model.JobResult{ID: "edit-id", ExitCode: 0},
+		model.JobResult{ID: "redo-id", ExitCode: 0},
 	)
 	queue, removed, err := reconcileManifest(t, store,
 		Job{Name: "ok", Command: []string{"true"}, AttemptID: attempts["ok-id"], Status: "success"},
 		Job{Name: "bad", Command: []string{"false"}, AttemptID: attempts["bad-id"], Status: "success"},
 		Job{Name: "edit", Command: []string{"new"}, AttemptID: attempts["edit-id"], Status: "success"},
+		Job{Name: "redo", Command: []string{"true"}, AttemptID: attempts["redo-id"], Status: "unfinished"},
+		Job{Name: "fresh", Command: []string{"true"}},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !queue.WorkflowImport || len(removed) != 0 {
-		t.Fatalf("queue = %#v, removed = %#v", queue, removed)
+	if len(removed) != 0 {
+		t.Fatalf("removed = %#v", removed)
 	}
-	ok, bad, edit := queue.Commands[0], queue.Commands[1], queue.Commands[2]
-	if ok.ID != "ok-id" || ok.Force || ok.Accepted || ok.Origin == nil || ok.Origin.Status != "success" || ok.Origin.CWD != "/work" || ok.Origin.SubmittedAt != "s-"+attempts["ok-id"] {
-		t.Fatalf("unchanged success = %#v / %#v, want carried", ok, ok.Origin)
+	ok, bad, edit, redo, fresh := queue.Commands[0], queue.Commands[1], queue.Commands[2], queue.Commands[3], queue.Commands[4]
+	if ok.ID != "ok-id" || ok.MarkedStatus != "" || ok.Origin == nil || ok.Origin.Status != "success" || ok.Origin.CWD != "/work" || ok.Origin.SubmittedAt != "s-"+attempts["ok-id"] {
+		t.Fatalf("unchanged success = %#v / %#v, want linked without a mark", ok, ok.Origin)
 	}
-	if bad.Force || !bad.Accepted || bad.Origin.Status != "failed" {
-		t.Fatalf("accepted failure = %#v, want manual acceptance", bad)
+	if bad.MarkedStatus != model.StatusSuccess || bad.Origin.Status != "failed" {
+		t.Fatalf("accepted failure = %#v, want marked success", bad)
 	}
-	if !edit.Force || edit.Origin != nil {
-		t.Fatalf("changed command = %#v, want forced without origin", edit)
+	if edit.ID != "edit-id" || edit.MarkedStatus != "" || edit.Origin == nil || edit.Origin.Status != "success" {
+		t.Fatalf("changed command = %#v, want its source result kept", edit)
+	}
+	if redo.MarkedStatus != model.StatusUnfinished || redo.Origin == nil {
+		t.Fatalf("success marked unfinished = %#v", redo)
+	}
+	if fresh.Origin != nil || fresh.MarkedStatus != "" {
+		t.Fatalf("new job = %#v, want no origin or mark", fresh)
 	}
 }
 

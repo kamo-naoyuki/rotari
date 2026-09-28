@@ -152,42 +152,78 @@ func TestPlanRerunReportsUnknownJobIDs(t *testing.T) {
 	}
 }
 
-func TestPlanRerunImportedWorkflowDispositions(t *testing.T) {
-	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{
-		{ID: "reuse", Name: "reuse", Command: []string{"true"}, Origin: &model.JobOrigin{RunID: "source", JobID: "reuse"}},
-		{ID: "accept", Name: "accept", Command: []string{"true"}, Accepted: true, Origin: &model.JobOrigin{RunID: "source", JobID: "accept"}},
-		{ID: "forced", Name: "forced", Command: []string{"true"}, Force: true, Origin: &model.JobOrigin{RunID: "source", JobID: "forced"}},
-		{ID: "downstream", Name: "downstream", Command: []string{"true"}, DependsOn: []string{"forced"}, Origin: &model.JobOrigin{RunID: "source", JobID: "downstream"}},
+// TestPlanRerunMarkedStatuses checks that a marked status replaces the
+// recorded result's for both selection and carry-forward, and that an
+// imported-looking queue is planned like any other.
+func TestPlanRerunMarkedStatuses(t *testing.T) {
+	origin := func(id string) *model.JobOrigin { return &model.JobOrigin{RunID: "source", JobID: id} }
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "reuse", Name: "reuse", Command: []string{"true"}, Origin: origin("reuse")},
+		{ID: "accept", Name: "accept", Command: []string{"true"}, MarkedStatus: model.StatusSuccess, Origin: origin("accept")},
+		{ID: "dropped", Name: "dropped", Command: []string{"true"}, MarkedStatus: model.StatusUnfinished, Origin: origin("dropped")},
+		{ID: "redo", Name: "redo", Command: []string{"true"}, MarkedStatus: model.StatusFailed, Origin: origin("redo")},
+		{ID: "halted", Name: "halted", Command: []string{"true"}, MarkedStatus: model.StatusCancelled, Origin: origin("halted")},
+		{ID: "downstream", Name: "downstream", Command: []string{"true"}, DependsOn: []string{"dropped"}, Origin: origin("downstream")},
 		{ID: "fresh", Name: "fresh", Command: []string{"true"}},
 	}}
-	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"source": {
-		"reuse":      {ID: "reuse", ExitCode: 0},
-		"accept":     {ID: "accept", ExitCode: 1, Error: "boom"},
-		"forced":     {ID: "forced", ExitCode: 0},
-		"downstream": {ID: "downstream", ExitCode: 0},
-	}}}
-	plan, err := PlanRerun(queue, "", nil, model.CommandSelector{}, "", true, source)
+	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{
+		"source": {
+			"reuse":      {ID: "reuse", ExitCode: 0},
+			"accept":     {ID: "accept", ExitCode: 1, Error: "boom", DiagnosisStatus: model.DiagnosisNoMatch},
+			"dropped":    {ID: "dropped", ExitCode: 0},
+			"redo":       {ID: "redo", ExitCode: 0},
+			"halted":     {ID: "halted", ExitCode: 0},
+			"downstream": {ID: "downstream", ExitCode: 0},
+		},
+		"run-1": {},
+	}}
+	plan, err := PlanRerun(queue, "failed,unfinished", nil, model.CommandSelector{}, "run-1", true, source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for id, want := range map[string]bool{"reuse": false, "accept": false, "forced": true, "downstream": true, "fresh": true} {
-		if plan.Execute[id] != want {
-			t.Fatalf("execute[%s] = %v, want %v (plan %#v)", id, plan.Execute[id], want, plan.Execute)
+	want := map[string]bool{"reuse": false, "accept": false, "dropped": true, "redo": true, "halted": true, "downstream": true, "fresh": true}
+	for id, execute := range want {
+		if plan.Execute[id] != execute {
+			t.Fatalf("execute[%s] = %v, want %v (plan %#v)", id, plan.Execute[id], execute, plan.Execute)
 		}
 	}
-	if accepted := plan.CarriedResults["accept"]; !accepted.Accepted || accepted.ExitCode != 0 || accepted.Error != "" {
+	if accepted := plan.CarriedResults["accept"]; !accepted.Accepted || accepted.ExitCode != 0 || accepted.Error != "" || accepted.DiagnosisStatus != "" {
 		t.Fatalf("accepted result = %#v", accepted)
 	}
-	if _, carried := plan.CarriedResults["downstream"]; carried {
-		t.Fatal("downstream job kept its carried result")
+
+	plan, err = PlanRerun(queue, "unfinished", nil, model.CommandSelector{}, "run-1", true, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if redo := plan.CarriedResults["redo"]; redo.ExitCode == 0 || redo.Error != model.MarkedFailedError {
+		t.Fatalf("result marked failed = %#v", redo)
+	}
+	if halted := plan.CarriedResults["halted"]; model.ResultStatus(halted, true) != model.StatusCancelled {
+		t.Fatalf("result marked cancelled = %#v", halted)
+	}
+
+	plan, err = PlanRerun(queue, "", nil, model.CommandSelector{}, "", true, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Execute) != len(queue.Commands) {
+		t.Fatalf("execute = %#v, want every job without a selection", plan.Execute)
 	}
 }
 
-func TestPlanRerunExecutesFinishedDependentsOfExecutingJobs(t *testing.T) {
+func TestPlanRerunRejectsMarkWithoutResult(t *testing.T) {
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "new", Command: []string{"true"}, MarkedStatus: model.StatusSuccess}}}
+	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"run-1": {}}}
+	if _, err := PlanRerun(queue, "failed", nil, model.CommandSelector{}, "run-1", true, source); err == nil {
+		t.Fatal("PlanRerun accepted a job marked success without a result")
+	}
+}
+
+func TestPlanRerunExecutesDependentsOfExecutingJobs(t *testing.T) {
 	queue := model.Queue{Commands: []model.QueuedCommand{
 		{ID: "sweep", Name: "sweep", Command: []string{"false"}},
 		{ID: "collect", Name: "collect", Command: []string{"true"}, DependsOnFinished: []string{"sweep"}},
-		{ID: "report", Name: "report", Command: []string{"true"}, DependsOnFinished: []string{"collect"}},
+		{ID: "report", Name: "report", Command: []string{"true"}, DependsOn: []string{"collect"}},
 		{ID: "strict", Name: "strict", Command: []string{"true"}, DependsOn: []string{"other"}},
 		{ID: "other", Name: "other", Command: []string{"true"}},
 	}}
@@ -211,7 +247,7 @@ func TestPlanRerunExecutesFinishedDependentsOfExecutingJobs(t *testing.T) {
 		}
 	}
 	if plan.Execute["strict"] || plan.Execute["other"] {
-		t.Fatalf("execute = %#v, want jobs outside the finished chain carried", plan.Execute)
+		t.Fatalf("execute = %#v, want jobs outside the executing chain carried", plan.Execute)
 	}
 }
 
@@ -262,14 +298,14 @@ func TestPlanRerunRejectsJobIDsWithResultSelection(t *testing.T) {
 	}
 }
 
-// TestPlanRerunForcedJobsHaveNoResult checks that a changed job's recorded
-// result no longer applies: it is unfinished, so it is neither matched by
-// --failed nor carried, and --unfinished selects it.
-func TestPlanRerunForcedJobsHaveNoResult(t *testing.T) {
+// TestPlanRerunUnfinishedMarkDropsResult checks that a job or task marked
+// unfinished has no result: it is neither matched by --failed nor carried,
+// and --unfinished selects it.
+func TestPlanRerunUnfinishedMarkDropsResult(t *testing.T) {
 	queue := model.Queue{Commands: []model.QueuedCommand{
-		{ID: "edited", Command: []string{"true"}, Force: true},
+		{ID: "edited", Command: []string{"true"}, MarkedStatus: model.StatusUnfinished},
 		{ID: "bad", Command: []string{"false"}},
-		{ID: "sweep", Command: []string{"true"}, Array: &model.ArraySpec{First: 1, Last: 2}, TaskForce: map[string]bool{"sweep-2": true}},
+		{ID: "sweep", Command: []string{"true"}, Array: &model.ArraySpec{First: 1, Last: 2}, TaskMarkedStatus: map[string]string{"sweep-2": model.StatusUnfinished}},
 	}}
 	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"run-1": {
 		"edited": {ID: "edited"}, "bad": {ID: "bad", ExitCode: 1}, "sweep-1": {ID: "sweep-1"}, "sweep-2": {ID: "sweep-2"},
@@ -283,18 +319,18 @@ func TestPlanRerunForcedJobsHaveNoResult(t *testing.T) {
 	}
 	for _, id := range []string{"edited", "sweep-2"} {
 		if _, carried := plan.CarriedResults[id]; carried {
-			t.Fatalf("carried = %#v, want %s's stale result dropped", plan.CarriedResults, id)
+			t.Fatalf("carried = %#v, want %s's result dropped", plan.CarriedResults, id)
 		}
 	}
 	if _, carried := plan.CarriedResults["sweep-1"]; !carried {
-		t.Fatalf("carried = %#v, want the unchanged task carried", plan.CarriedResults)
+		t.Fatalf("carried = %#v, want the unmarked task carried", plan.CarriedResults)
 	}
 	plan, err = PlanRerun(queue, "unfinished", nil, model.CommandSelector{}, "run-1", true, source)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(plan.Execute) != 2 || !plan.Execute["edited"] || !plan.Execute["sweep-2"] {
-		t.Fatalf("execute = %#v, want the changed job and task", plan.Execute)
+		t.Fatalf("execute = %#v, want the marked job and task", plan.Execute)
 	}
 }
 

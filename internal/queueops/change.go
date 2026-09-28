@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -41,7 +40,11 @@ type Mutation struct {
 	RetryDelay    string
 	RetryBackoff  float64
 	RetryMaxDelay string
-	Command       []string
+	// Status marks the job with a status in place of its recorded result's
+	// when set; ClearStatus removes the mark. See model.MarkResult.
+	Status      string
+	ClearStatus bool
+	Command     []string
 }
 
 // Change applies mutation to the selected jobs of the current queue, or of
@@ -53,6 +56,12 @@ func (editor Editor) Change(baseDir, projectName, requestedRunID string, selecto
 	}
 	if err := model.ValidateEnvironment(mutation.Environment); err != nil {
 		return "", fmt.Errorf("invalid environment: %w", err)
+	}
+	if mutation.Status != "" && !model.ValidMarkedStatus(mutation.Status) {
+		return "", fmt.Errorf("invalid status %q (choose success, failed, cancelled, or unfinished)", mutation.Status)
+	}
+	if mutation.Status != "" && mutation.ClearStatus {
+		return "", errors.New("a status and clearing the status cannot be combined")
 	}
 	paths, err := state.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
@@ -113,22 +122,11 @@ func (editor Editor) Change(baseDir, projectName, requestedRunID string, selecto
 
 func applyMutation(queue model.Queue, jobIndex int, mutation Mutation) error {
 	changed := &queue.Commands[jobIndex]
-	before := *changed
-	if queue.WorkflowImport {
-		changed.Force = true
-		changed.Accepted = false
-		changed.TaskAccepted = nil
+	if mutation.Status != "" || mutation.ClearStatus {
+		// A mark covers the whole command, replacing any task's own.
+		changed.MarkedStatus = mutation.Status
+		changed.TaskMarkedStatus = nil
 	}
-	defer func() {
-		// A job computes something else once its command, environment, or
-		// working directory changes, so its recorded result no longer
-		// applies. Scheduling settings such as the timeout keep it.
-		if !slices.Equal(before.Command, changed.Command) || !slices.Equal(before.Environment, changed.Environment) || before.WorkingDirectory != changed.WorkingDirectory {
-			changed.Force = true
-			changed.Accepted = false
-			changed.TaskAccepted = nil
-		}
-	}()
 	if mutation.Executor != "" {
 		changed.Executor = mutation.Executor
 	}
@@ -222,6 +220,11 @@ func restoreSnapshot(paths state.ProjectPaths, requestedRunID string, queue *mod
 	}
 	if len(snapshot.Commands) == 0 {
 		return errors.New("command snapshot has no jobs")
+	}
+	// Marks applied to that run, whose results already show them.
+	for index := range snapshot.Commands {
+		snapshot.Commands[index].MarkedStatus = ""
+		snapshot.Commands[index].TaskMarkedStatus = nil
 	}
 	*queue = snapshot
 	return nil

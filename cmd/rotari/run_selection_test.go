@@ -123,7 +123,7 @@ func TestFilteredRunUsesEachCopiedOrigin(t *testing.T) {
 	}
 }
 
-func TestImportedWorkflowExecutesFailedJobAndDownstream(t *testing.T) {
+func TestRetryExecutesFailedJobAndDownstream(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
@@ -135,12 +135,12 @@ func TestImportedWorkflowExecutesFailedJobAndDownstream(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{
+	queue := model.Queue{Commands: []model.QueuedCommand{
 		{ID: "failed", Name: "failed", Command: []string{"false"}, Origin: &model.JobOrigin{RunID: runID, JobID: "source-failed"}},
 		{ID: "downstream", Name: "downstream", Command: []string{"true"}, DependsOn: []string{"failed"}, Origin: &model.JobOrigin{RunID: runID, JobID: "source-downstream"}},
 		{ID: "independent", Name: "independent", Command: []string{"true"}, Origin: &model.JobOrigin{RunID: runID, JobID: "source-independent"}},
 	}}
-	plan, err := planRerunSelection(paths, queue, "", nil, "", true)
+	plan, err := planRerunSelection(paths, queue, retrySelection, nil, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestImportedWorkflowExecutesFailedJobAndDownstream(t *testing.T) {
 	}
 }
 
-func TestImportedWorkflowAcceptsFailedSourceResult(t *testing.T) {
+func TestRetryCarriesMarkedSuccessOfFailedSource(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
@@ -159,16 +159,16 @@ func TestImportedWorkflowAcceptsFailedSourceResult(t *testing.T) {
 	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), model.RunSummary{RunID: runID, Results: []model.JobResult{{ID: "source", AttemptID: "attempt", ExitCode: 7, Error: "source failed"}}}); err != nil {
 		t.Fatal(err)
 	}
-	queue := model.Queue{WorkflowImport: true, Commands: []model.QueuedCommand{{
-		ID: "destination", Command: []string{"false"}, Accepted: true,
+	queue := model.Queue{Commands: []model.QueuedCommand{{
+		ID: "destination", Command: []string{"false"}, MarkedStatus: model.StatusSuccess,
 		Origin: &model.JobOrigin{RunID: runID, JobID: "source", AttemptID: "attempt", Status: "failed"},
 	}}}
-	plan, err := planRerunSelection(paths, queue, "", nil, "", true)
+	plan, err := planRerunSelection(paths, queue, retrySelection, nil, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	result := plan.CarriedResults["destination"]
-	if plan.Execute["destination"] || result.ExitCode != 0 || !result.Accepted || result.Error != "" || plan.CarriedOrigins["destination"].Status != "failed" {
+	if plan.Execute["destination"] || result.ExitCode != 0 || !result.Accepted || result.Error != "" || result.AttemptID != "attempt" {
 		t.Fatalf("plan = %#v", plan)
 	}
 }

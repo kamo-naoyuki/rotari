@@ -27,15 +27,15 @@ type OriginResults interface {
 
 // PlanRerun decides which of the queue's jobs a new run executes.
 //
-// Without a selection every command executes, except in an imported workflow
-// queue, whose commands carry explicit dispositions. With a selection only
-// matching jobs execute; a job that does not match but has a finished result
+// Without a selection every command executes. With a selection only
+// matching jobs execute, together with every job that depends on an
+// executing job; a job that does not match but has a finished result
 // carries that result forward (Origin recorded, no re-execution), and one
 // without a result is left untouched. Each command's result comes from its
 // origin; a command without one falls back to referenceRunID, and planning
 // fails with ErrNoReferenceRun when that is empty. Callers resolve the
 // reference run before the new run is recorded, so it is never the run being
-// planned.
+// planned. A job's marked status replaces its result's; see model.MarkResult.
 //
 // When partialArray is true, array jobs are evaluated per task, so only
 // matching tasks execute and the rest carry their own results. When false,
@@ -48,9 +48,6 @@ type OriginResults interface {
 func PlanRerun(queue model.Queue, selection string, jobIDs []string, scope model.CommandSelector, referenceRunID string, partialArray bool, source OriginResults) (Plan, error) {
 	if len(jobIDs) > 0 && selection != "job-id" {
 		return Plan{}, fmt.Errorf("job IDs cannot be combined with result selection %q", selection)
-	}
-	if selection == "" && queue.WorkflowImport {
-		return planImportedWorkflow(queue, source)
 	}
 	if selection == "" {
 		plan := Plan{Execute: make(map[string]bool, len(queue.Commands))}
@@ -70,68 +67,8 @@ func PlanRerun(queue model.Queue, selection string, jobIDs []string, scope model
 	if err != nil {
 		return Plan{}, err
 	}
-	expandFinishedDownstream(queue, &plan)
+	expandDownstream(queue, &plan)
 	return plan, nil
-}
-
-func planImportedWorkflow(queue model.Queue, source OriginResults) (Plan, error) {
-	// Imported jobs without an origin are new work, with no earlier result
-	// to fall back to.
-	withOrigin := model.Queue{Commands: make([]model.QueuedCommand, 0, len(queue.Commands))}
-	var fresh []model.QueuedCommand
-	for _, command := range queue.Commands {
-		if command.Origin == nil && len(command.TaskOrigins) == 0 {
-			fresh = append(fresh, command)
-		} else {
-			withOrigin.Commands = append(withOrigin.Commands, command)
-		}
-	}
-	plan, err := planByOrigin(withOrigin, "failed,unfinished", nil, func(model.QueuedCommand) bool { return true }, "", true, source)
-	if err != nil {
-		return Plan{}, err
-	}
-	for _, command := range fresh {
-		if command.Array == nil {
-			plan.Execute[command.ID] = true
-			continue
-		}
-		for _, task := range model.ArrayTaskIDs(command.Array) {
-			plan.Execute[taskID(command.ID, task)] = true
-		}
-	}
-	for _, command := range queue.Commands {
-		if err := applyImportedCommandPlan(command, &plan, source); err != nil {
-			return Plan{}, err
-		}
-	}
-	expandImportedDownstream(queue, &plan)
-	return plan, nil
-}
-
-func applyImportedCommandPlan(command model.QueuedCommand, plan *Plan, source OriginResults) error {
-	if command.Array == nil {
-		if command.Accepted {
-			if err := acceptImportedResult(command.ID, command.Origin, plan, source); err != nil {
-				return err
-			}
-		}
-		if command.Force {
-			forceExecution(command.ID, plan)
-		}
-		return nil
-	}
-	for _, task := range model.ArrayTaskIDs(command.Array) {
-		id := taskID(command.ID, task)
-		if command.TaskAccepted[id] {
-			if err := acceptImportedResult(id, TaskOrigin(command, task), plan, source); err != nil {
-				return err
-			}
-		}
-		if command.TaskForce[id] || command.Force {
-			forceExecution(id, plan)
-		}
-	}
-	return nil
 }
 
 func forceExecution(jobID string, plan *Plan) {
@@ -140,40 +77,12 @@ func forceExecution(jobID string, plan *Plan) {
 	delete(plan.CarriedOrigins, jobID)
 }
 
-func acceptImportedResult(destinationID string, origin *model.JobOrigin, plan *Plan, source OriginResults) error {
-	if origin == nil {
-		return fmt.Errorf("accepted job %q has no source origin", destinationID)
-	}
-	results, err := source.RunResults(origin.RunID)
-	if err != nil {
-		return fmt.Errorf("failed to load accepted source result: %w", err)
-	}
-	result, ok := results[origin.JobID]
-	if origin.AttemptID != "" && (!ok || result.AttemptID != origin.AttemptID) {
-		result, ok, err = source.AttemptResult(*origin)
-		if err != nil {
-			return err
-		}
-	}
-	if !ok {
-		return fmt.Errorf("accepted source result %q not found in run %q", origin.JobID, origin.RunID)
-	}
-	result.ID = destinationID
-	result.ExitCode = 0
-	result.Accepted = true
-	result.Error = ""
-	result.ClearDiagnosis()
-	delete(plan.Execute, destinationID)
-	plan.CarriedResults[destinationID] = result
-	plan.CarriedOrigins[destinationID] = origin
-	return nil
-}
-
-// expandFinishedDownstream executes every job whose DependsOnFinished names an
-// executing job, directly or through other such jobs. Such a job may have
-// succeeded after its prerequisite failed, so a result filter alone would
-// carry forward output computed from the failed prerequisite.
-func expandFinishedDownstream(queue model.Queue, plan *Plan) {
+// expandDownstream executes every job that depends on an executing job,
+// directly or through other such jobs, with DependsOn or DependsOnFinished.
+// Its recorded result was computed from the prerequisite's earlier output,
+// so a result filter alone would carry forward a result the new run no
+// longer supports.
+func expandDownstream(queue model.Queue, plan *Plan) {
 	jobs := model.QueueToJobs(queue.Commands)
 	executing := func(job model.JobSpec) bool {
 		return plan.Execute[job.ID] || (job.ArrayGroup != "" && plan.Execute[job.ArrayGroup])
@@ -187,32 +96,7 @@ func expandFinishedDownstream(queue model.Queue, plan *Plan) {
 	for changed := true; changed; {
 		changed = false
 		for _, job := range jobs {
-			if executing(job) || !anyName(job.DependsOnFinished, executingNames) {
-				continue
-			}
-			forceExecution(job.ID, plan)
-			if job.Name != "" {
-				executingNames[job.Name] = true
-			}
-			changed = true
-		}
-	}
-}
-
-// expandImportedDownstream executes every job that depends, directly or
-// transitively, on an executing job.
-func expandImportedDownstream(queue model.Queue, plan *Plan) {
-	jobs := model.QueueToJobs(queue.Commands)
-	executingNames := make(map[string]bool)
-	for _, job := range jobs {
-		if plan.Execute[job.ID] && job.Name != "" {
-			executingNames[job.Name] = true
-		}
-	}
-	for changed := true; changed; {
-		changed = false
-		for _, job := range jobs {
-			if plan.Execute[job.ID] || !dependsOnAny(job, executingNames) {
+			if executing(job) || !dependsOnAny(job, executingNames) {
 				continue
 			}
 			forceExecution(job.ID, plan)
@@ -272,14 +156,18 @@ func (resolver *originResolver) fallbackOrigin(jobID string, result model.JobRes
 	return resolver.source.Origin(resolver.fallbackRunID, jobID, result)
 }
 
-// jobResult returns the result recorded for a job or task of command, or
-// none when it is forced: it changed since that result, which therefore no
-// longer applies and is neither matched nor carried.
+// jobResult returns the result of a job or task of command: the one its
+// origin or the reference run records, as its marked status leaves it.
 func (resolver *originResolver) jobResult(command model.QueuedCommand, origin *model.JobOrigin, id string) (model.JobResult, bool, error) {
-	if command.Force || command.TaskForce[id] {
+	marked := command.MarkedStatusOf(id)
+	if marked == model.StatusUnfinished {
 		return model.JobResult{}, false, nil
 	}
-	return resolver.result(origin, id)
+	result, finished, err := resolver.result(origin, id)
+	if err != nil {
+		return model.JobResult{}, false, err
+	}
+	return model.MarkResult(id, result, finished, marked)
 }
 
 func (resolver *originResolver) commandResult(command model.QueuedCommand) (model.JobResult, bool, error) {
