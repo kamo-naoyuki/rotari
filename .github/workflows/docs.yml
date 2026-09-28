@@ -1,13 +1,6 @@
 name: Documentation
 
 on:
-  push:
-    paths:
-      - "docs/**"
-      - "python/**"
-      - "mkdocs.yml"
-      - "README.md"
-      - ".github/workflows/docs.yml"
   pull_request:
     paths:
       - "docs/**"
