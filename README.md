@@ -6,13 +6,7 @@
 
 ---
 
-[![web demo](https://img.shields.io/website?url=https%3A%2F%2Fkamo-naoyuki.github.io%2Frotari%2F&label=web%20demo&style=flat)](https://kamo-naoyuki.github.io/rotari/) [![Documentation](https://img.shields.io/badge/docs-MkDocs%20Material-526CFE)](https://kamo-naoyuki.github.io/rotari/docs/) [![Go API](https://img.shields.io/badge/Go%20API-go%20doc-00ADD8)](https://kamo-naoyuki.github.io/rotari/go-api/) [![Go CI](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml/badge.svg)](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml) [![Slurm + PBS CI](https://img.shields.io/github/actions/workflow/status/kamo-naoyuki/rotari/scheduler-integration.yml?branch=main&label=Slurm%20%2B%20PBS%20CI)](https://github.com/kamo-naoyuki/rotari/actions/workflows/scheduler-integration.yml) [![codecov](https://codecov.io/gh/kamo-naoyuki/rotari/graph/badge.svg)](https://codecov.io/gh/kamo-naoyuki/rotari) [![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=kamo-naoyuki_rotari&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kamo-naoyuki_rotari)
-
-<div align="center">
-
-[[Documentation]](#documentation)
-
-</div>
+[![web demo](https://img.shields.io/website?url=https%3A%2F%2Fkamo-naoyuki.github.io%2Frotari%2F&label=web%20demo&style=flat)](https://kamo-naoyuki.github.io/rotari/) [![Documentation](https://img.shields.io/badge/docs-MkDocs%20Material-526CFE)](https://kamo-naoyuki.github.io/rotari/docs/) [![Go CI](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml/badge.svg)](https://github.com/kamo-naoyuki/rotari/actions/workflows/ci.yml) [![Slurm + PBS CI](https://img.shields.io/github/actions/workflow/status/kamo-naoyuki/rotari/scheduler-integration.yml?branch=main&label=Slurm%20%2B%20PBS%20CI)](https://github.com/kamo-naoyuki/rotari/actions/workflows/scheduler-integration.yml) [![codecov](https://codecov.io/gh/kamo-naoyuki/rotari/graph/badge.svg)](https://codecov.io/gh/kamo-naoyuki/rotari) [![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=kamo-naoyuki_rotari&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kamo-naoyuki_rotari)
 
 
 **Rotari keeps track of the experiment batches you run from shell scripts**: which jobs are running, which failed and why, their logs, and every earlier run. When jobs fail, `rotari retry` reruns only those, keeping the work that already succeeded.
@@ -143,33 +137,7 @@ fails; see [Web browser notifications](docs/WEB_BROWSER_NOTIFICATIONS.md).
 
 ## Documentation
 
-- [Concepts](docs/CONCEPTS.md): projects, queues, runs, IDs, dependencies and
-  stages, and state and project resolution.
-- [Executors and schedulers](docs/EXECUTORS.md): local, SSH, Slurm, PBS, and
-  LSF execution, plus array and matrix jobs.
-- [Workflow manifests](docs/WORKFLOW_MANIFESTS.md): export, edit, and import a
-  run as a declarative file.
-- [Running and recovering](docs/RUNNING.md): async runs, reruns and retries,
-  and queue and job control.
-- [Inspecting and diagnosing](docs/INSPECT.md): status, logs, readiness
-  checks, and failure diagnosis.
-- [Configuration](docs/CONFIGURATION.md): config files, environment variables,
-  run completion webhooks, and shell completion.
-- [Operations](docs/OPERATIONS.md): server management, run registry
-  maintenance, shared filesystems, and the security model.
-- [FAQ](docs/FAQ.md): short answers about rotari's behavior.
-- [Comparison with other tools](docs/TOOL_COMPARISON.md): shell background
-  jobs, GNU Parallel, pueue, task-spooler, submitit, scheduler scripts, and
-  workflow engines such as Snakemake, Nextflow, Dagu, and Airflow.
-- [Python client](python/README.md): installation, usage, and API
-  documentation for the Python interface.
-- Integrations: [webhook notifications](docs/WEBHOOK_NOTIFICATIONS.md),
-  [LLM diagnosis](docs/LLM_DIAGNOSIS.md), and
-  [local diagnosis rules](docs/LOCAL_DIAGNOSIS.md).
-
-## Development
-
-See [code architecture](docs/ARCHITECTURE.md) for how the processes and
-packages fit together, and [design contracts](contracts/README.md) for the
-persistent-state, resolution, and safety rules that maintainers and coding
-agents must preserve.
+- [Documentation site](https://kamo-naoyuki.github.io/rotari/docs/)
+- [Getting started](https://kamo-naoyuki.github.io/rotari/docs/getting-started/)
+- [Python API](https://kamo-naoyuki.github.io/rotari/docs/python-api/)
+- [Go API](https://kamo-naoyuki.github.io/rotari/go-api/)
