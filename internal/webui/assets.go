@@ -51,6 +51,9 @@ var webInfoStylesCSS string
 //go:embed assets/web_styles.css
 var webStylesCSS string
 
+//go:embed assets/web_sidebar_styles.css
+var webSidebarStylesCSS string
+
 func composeWebHTML(executors []string, notifications bool, bootstrap string) string {
 	executorJSON, _ := json.Marshal(executors)
 	webAppJS := strings.Join([]string{webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppTablesJS, webAppChartsJS, webAppMatrixJS, webAppNotificationsJS, webAppBootstrapJS}, "\n")
@@ -75,7 +78,7 @@ func composeStaticBootstrap(state, logs, reports, configTargets, configs string)
 
 func composeInfoHTML(template, homePath, content string) string {
 	template = strings.Replace(template, "__ROTARI_FAVICON_LINKS__", faviconLinks(), 1)
-	template = strings.Replace(template, "__ROTARI_INFO_STYLES__", webInfoStylesCSS, 1)
+	template = strings.Replace(template, "__ROTARI_INFO_STYLES__", webInfoStylesCSS+"\n"+webSidebarStylesCSS, 1)
 	template = strings.ReplaceAll(template, "__ROTARI_BRAND_ICON__", brandIcon())
 	template = strings.ReplaceAll(template, "__ROTARI_HOME_PATH__", html.EscapeString(homePath))
 	template = strings.Replace(template, "__ROTARI_CONTENT__", content, 1)
@@ -146,13 +149,13 @@ func writeJobsSidebarProjects(builder *strings.Builder, homePath string, project
 	builder.WriteString(html.EscapeString(homePath))
 	builder.WriteString(`">All projects</a></div><div class="sidebar-projects" id="sidebar-projects">`)
 	for _, project := range projects {
-		builder.WriteString(`<a class="sidebar-project-link" href="`)
+		builder.WriteString(`<div class="sidebar-project-row"><span class="sidebar-toggle-placeholder" aria-hidden="true"></span><a class="sidebar-project-link" href="`)
 		builder.WriteString(html.EscapeString(homePath))
 		builder.WriteString(`project/`)
 		builder.WriteString(url.PathEscape(project))
 		builder.WriteString(`">`)
 		builder.WriteString(html.EscapeString(project))
-		builder.WriteString(`</a>`)
+		builder.WriteString(`</a></div>`)
 	}
 	builder.WriteString(`</div></div>`)
 }

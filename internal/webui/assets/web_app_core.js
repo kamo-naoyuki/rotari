@@ -422,11 +422,11 @@ function renderOverview(queues) {
             esc(latest.run_name || latest.run_id) +
             "</a>"
           : "-") +
-        '</td><td class="status-' +
+        "</td><td><span class=\"status-" +
         (latest ? latest.status : "") +
-        '">' +
+        '\">' +
         esc(latest ? latest.status : "-") +
-        "</td><td>" +
+        "</span></td><td>" +
         esc(latest ? latest.started_at : "-") +
         "</td></tr>"
       );
@@ -463,12 +463,12 @@ function renderQueue(q) {
         encodeURIComponent(r.run_id) +
         '">' +
         esc(r.run_id) +
-        '</a></td><td class="status-' +
+        '</a></td><td><span class="status-' +
         r.status +
         '">' +
         esc(r.status) +
         (r.running ? " ..." : "") +
-        "</td><td>" +
+        "</span></td><td>" +
         (r.finished_at ? esc(r.exit_code) : "-") +
         "</td><td>" +
         esc(r.started_at || "-") +

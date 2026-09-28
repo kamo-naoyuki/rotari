@@ -267,6 +267,19 @@ function jobDisplayStatus(job, run) {
   if (result.error === "blocked by failed dependency") return "blocked";
   return result.exit_code === 0 ? "success" : "failed";
 }
+function jobStatusClass(status) {
+  const classes = {
+    pending: "status-pending",
+    unfinished: "status-pending",
+    running: "status-running",
+    success: "status-finished",
+    finished: "status-finished",
+    "success (accepted)": "status-finished",
+    failed: "status-failed",
+    blocked: "status-blocked",
+  };
+  return classes[status.toLowerCase()] || "status-unreadable";
+}
 function addRunJobStatusColumn() {
   const parts = pageParts();
   if (parts[0] !== "project" || parts[2] !== "run") return;
@@ -289,8 +302,11 @@ function addRunJobStatusColumn() {
   (run.jobs || []).forEach((job, index) => {
     if (!rows[index]) return;
     const status = document.createElement("td");
-    status.className = "status-value";
-    status.textContent = jobDisplayStatus(job, run);
+    const label = jobDisplayStatus(job, run);
+    const pill = document.createElement("span");
+    pill.className = "status-value " + jobStatusClass(label);
+    pill.textContent = label;
+    status.append(pill);
     rows[index].insertBefore(status, rows[index].children[1]);
   });
 }

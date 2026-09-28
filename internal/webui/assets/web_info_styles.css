@@ -31,99 +31,6 @@ main {
   gap: 28px;
 }
 
-.sidebar {
-  flex: 0 0 220px;
-  position: sticky;
-  top: 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.sidebar-link {
-  padding: 6px 8px;
-  border-radius: 4px;
-  color: var(--text);
-  text-decoration: none;
-}
-
-.sidebar-link:hover {
-  background: var(--panel);
-}
-
-.sidebar-link.active {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.sidebar-projects {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-left: 10px;
-  padding-left: 10px;
-  border-left: 1px solid var(--line);
-}
-
-.sidebar-projects[hidden] {
-  display: none;
-}
-
-.sidebar-project-row {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  border-radius: 4px;
-}
-
-.sidebar-project-row:hover {
-  background: var(--panel);
-}
-
-.sidebar-toggle {
-  display: flex;
-  flex: 0 0 auto;
-  width: 22px;
-  height: 28px;
-  min-height: 0;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.sidebar-toggle::before {
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 4px 0 4px 6px;
-  border-color: transparent transparent transparent currentColor;
-  content: "";
-  transition: transform 100ms ease;
-}
-
-.sidebar-project.expanded .sidebar-toggle::before {
-  transform: rotate(90deg);
-}
-
-.sidebar-project-link {
-  flex: 1;
-  min-width: 0;
-  padding: 6px 8px 6px 0;
-  color: var(--text);
-  font-size: 15px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sidebar-project-row .sidebar-project-link {
-  text-decoration: none;
-}
-
 .content {
   min-width: 0;
   flex: 1;
@@ -145,11 +52,6 @@ h1 {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.brand-icon {
-  width: 0.85em;
-  height: 0.85em;
 }
 
 h2 {
@@ -325,90 +227,6 @@ main {
   gap: 0;
 }
 
-.sidebar {
-  top: 0;
-  align-self: stretch;
-  height: 100vh;
-  min-height: 520px;
-  padding: 26px 14px 22px;
-  border-right: 1px solid rgba(83, 105, 125, 0.22);
-  background: rgba(11, 17, 24, 0.76);
-  backdrop-filter: blur(18px);
-}
-
-.sidebar-brand {
-  display: grid;
-  grid-template-columns: 36px 1fr;
-  grid-template-rows: 21px 16px;
-  align-items: center;
-  column-gap: 11px;
-  margin: 0 4px 27px;
-  padding: 4px 7px 13px;
-  border-bottom: 1px solid rgba(83, 105, 125, 0.2);
-  color: var(--text);
-  text-decoration: none;
-}
-
-.brand-mark {
-  grid-row: 1 / 3;
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  border: 1px solid rgba(240, 139, 112, 0.45);
-  border-radius: 11px;
-  background: linear-gradient(
-    145deg,
-    rgba(240, 139, 112, 0.2),
-    rgba(240, 139, 112, 0.07)
-  );
-  color: #ffa88f;
-  font-size: 25px;
-  font-weight: 750;
-  line-height: 1;
-}
-
-.brand-mark .brand-icon {
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
-}
-
-.brand-name {
-  align-self: end;
-  font-size: 17px;
-  font-weight: 720;
-  letter-spacing: -0.035em;
-}
-
-.brand-caption {
-  align-self: start;
-  color: #7f91a3;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-}
-
-.sidebar-link {
-  padding: 9px 11px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  color: #aebbc9;
-  font-size: 13px;
-  font-weight: 560;
-  text-decoration: none;
-}
-
-.sidebar-link:hover {
-  background: rgba(137, 164, 188, 0.08);
-}
-
-.sidebar-link.active {
-  border-color: rgba(240, 139, 112, 0.16);
-  background: rgba(240, 139, 112, 0.1);
-  color: #ffa88f;
-}
-
 .content {
   padding: 30px clamp(22px, 3.1vw, 48px) 56px;
 }
@@ -568,47 +386,6 @@ pre {
     display: block;
   }
 
-  .sidebar {
-    position: relative;
-    top: auto;
-    display: flex;
-    width: 100%;
-    height: auto;
-    min-height: 0;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 18px;
-    border-right: 0;
-    border-bottom: 1px solid rgba(83, 105, 125, 0.28);
-  }
-
-  .sidebar-brand {
-    flex: 0 0 auto;
-    grid-template-columns: 30px auto;
-    grid-template-rows: 30px;
-    margin: 0 8px 0 0;
-    padding: 0 10px 0 0;
-    border: 0;
-    border-right: 1px solid rgba(83, 105, 125, 0.28);
-  }
-
-  .brand-mark {
-    grid-row: auto;
-    width: 30px;
-    height: 30px;
-    font-size: 21px;
-  }
-
-  .brand-caption {
-    display: none;
-  }
-
-  .sidebar-link {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-
   .content {
     padding: 23px 18px 40px;
   }
@@ -623,10 +400,6 @@ pre {
 }
 
 @media (max-width: 520px) {
-  .sidebar {
-    overflow-x: auto;
-  }
-
   .content > header {
     display: block;
   }

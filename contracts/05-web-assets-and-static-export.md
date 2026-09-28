@@ -26,6 +26,7 @@ Web assets live under `internal/webui/assets/`:
 internal/webui/assets/
 ├── web_template.html
 ├── web_styles.css
+├── web_sidebar_styles.css
 ├── web_app_core.js
 ├── web_app_actions.js
 ├── web_app_logs.js
@@ -73,6 +74,14 @@ default. The dynamic page accepts `?since=DURATION`, validated by the shared
 `joblist.ParseSince` helper. Its static equivalent is `jobs/index.html` and remains
 fixed at the default window; preserve that page whenever changing the Web export
 layout.
+
+The All projects and Job activity pages load the same sidebar stylesheet,
+`web_sidebar_styles.css`; static Web exports include it beside each generated
+application page. Keep shared sidebar layout changes in that asset rather than
+duplicating them in the page-specific stylesheets. `TestWebSidebarStylesAreSharedWithJobsPage`
+and `TestGenerateStaticWebWritesProjectPages` in
+[internal/webui/webui_test.go](../internal/webui/webui_test.go) cover the shared
+asset and static copies.
 
 ## Web server and control-plane security
 

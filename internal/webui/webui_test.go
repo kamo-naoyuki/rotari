@@ -457,6 +457,8 @@ setTimeout(async () => {
   try {
     assert(row(), 'job row was not rendered');
     assert(row().textContent.includes('attempt-1'), 'latest attempt is not displayed');
+    const statusPill = () => row().querySelector('.status-value');
+    assert(statusPill().tagName === 'SPAN' && statusPill().classList.contains('status-failed'), 'failed job status is not rendered as a pill');
     dom.window.setAttemptMenuOpen('default', 'run-1', 'job-1', true);
     dom.window.render();
     assert(row().querySelector('.attempt-menu').open, 'attempt menu did not stay open after render');
@@ -468,6 +470,7 @@ setTimeout(async () => {
     assert(row().textContent.includes('attempt-0'), 'selected attempt is not displayed');
     assert(row().textContent.includes('0'), 'selected attempt result is not displayed');
     assert(row().textContent.includes('old-start'), 'selected attempt timestamp is not displayed');
+    assert(statusPill().classList.contains('status-finished'), 'successful job status is not rendered as a pill');
     assert(row().querySelector('.attempt-menu').open === false, 'attempt menu did not close after selection');
 	const logButton = row().querySelector('button[onclick*="attempt-0"]');
 	assert(logButton, 'log button does not target selected attempt');
@@ -492,6 +495,7 @@ setTimeout(async () => {
 			RunSummary: model.RunSummary{RunID: "run-1", Status: "finished"},
 			Jobs: []webprojection.Job{{
 				ID: "job-1", Name: "train", Command: []string{"true"}, AttemptID: "attempt-1",
+				Result: &model.JobResult{ID: "job-1", AttemptID: "attempt-1", ExitCode: 1},
 				Attempts: []webprojection.Attempt{
 					{ID: "attempt-1", Result: &model.JobResult{ID: "job-1", AttemptID: "attempt-1", ExitCode: 1}, SubmittedAt: "latest-start"},
 					{ID: "attempt-0", Result: &model.JobResult{ID: "job-1", AttemptID: "attempt-0", ExitCode: 0}, SubmittedAt: "old-start"},
@@ -538,6 +542,21 @@ func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 	for _, marker := range []string{"selectedRunJobsByRun", "function restoreSelectedRunJobs()", "restoreSelectedRunJobs();"} {
 		if !webContains(html, marker) {
 			t.Fatalf("web run page does not preserve job selection across refreshes: %q", marker)
+		}
+	}
+}
+
+func TestRunSelectionCheckboxesUseCompactDimensions(t *testing.T) {
+	for _, marker := range []string{
+		".job-selection,\n#select-all-jobs {",
+		"width: 16px;",
+		"height: 16px;",
+		"min-width: 0;",
+		"min-height: 0;",
+		"padding: 0;",
+	} {
+		if !strings.Contains(webStylesCSS, marker) {
+			t.Fatalf("run selection checkbox styling is missing %q", marker)
 		}
 	}
 }
@@ -597,6 +616,35 @@ func TestWebIndexTemplateUsesProjectVocabulary(t *testing.T) {
 	}
 	if !strings.Contains(webTemplateHTML, `href="/web_styles.css"`) {
 		t.Fatal("web template does not load the stylesheet from the server root")
+	}
+	if !strings.Contains(webTemplateHTML, `href="/web_sidebar_styles.css"`) {
+		t.Fatal("web template does not load the shared sidebar stylesheet")
+	}
+}
+
+func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/web_sidebar_styles.css", nil)
+	response := httptest.NewRecorder()
+	Handler(testOptions(t.TempDir(), "", false)).ServeHTTP(response, request)
+	if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "text/css; charset=utf-8" {
+		t.Fatalf("GET /web_sidebar_styles.css = %d (%q), want CSS response", response.Code, response.Header().Get("Content-Type"))
+	}
+	if response.Body.String() != webSidebarStylesCSS {
+		t.Fatal("sidebar stylesheet route does not serve the shared stylesheet")
+	}
+	for _, selector := range []string{".sidebar {", ".sidebar-brand {", ".sidebar-project-row {"} {
+		if strings.Contains(webStylesCSS, selector) || strings.Contains(webInfoStylesCSS, selector) {
+			t.Fatalf("page-specific stylesheets duplicate shared sidebar selector %q", selector)
+		}
+	}
+	jobsHTML := jobsHTML("/", []string{"demo"}, nil, joblist.DefaultSinceText, true)
+	for _, marker := range []string{".sidebar-brand {", ".sidebar-project-row {", ".sidebar-link.active {"} {
+		if !strings.Contains(jobsHTML, marker) || !strings.Contains(webSidebarStylesCSS, marker) {
+			t.Fatalf("Job activity page is missing shared sidebar style %q", marker)
+		}
+	}
+	if !strings.Contains(jobsHTML, `class="sidebar-project-row"><span class="sidebar-toggle-placeholder"`) {
+		t.Fatal("Job activity project links do not use the shared sidebar row layout")
 	}
 }
 
@@ -1207,12 +1255,21 @@ func TestGenerateStaticWebWritesProjectPages(t *testing.T) {
 		if !strings.Contains(string(pageData), `href="web_styles.css"`) || strings.Contains(string(pageData), `href="/web_styles.css"`) {
 			t.Fatalf("static web page %s does not use a relative stylesheet path", page)
 		}
+		if !strings.Contains(string(pageData), `href="web_sidebar_styles.css"`) || strings.Contains(string(pageData), `href="/web_sidebar_styles.css"`) {
+			t.Fatalf("static web page %s does not use the relative shared sidebar stylesheet path", page)
+		}
 		if _, statErr := os.Stat(filepath.Join(filepath.Dir(page), "web_styles.css")); statErr != nil {
 			t.Fatalf("static web stylesheet beside %s is missing: %v", page, statErr)
+		}
+		if _, statErr := os.Stat(filepath.Join(filepath.Dir(page), "web_sidebar_styles.css")); statErr != nil {
+			t.Fatalf("static sidebar stylesheet beside %s is missing: %v", page, statErr)
 		}
 	}
 	if stylesheet, readErr := os.ReadFile(filepath.Join(outputDir, "web_styles.css")); readErr != nil || !strings.Contains(string(stylesheet), "--bg:") {
 		t.Fatalf("static web stylesheet is missing or invalid: %v", readErr)
+	}
+	if stylesheet, readErr := os.ReadFile(filepath.Join(outputDir, "web_sidebar_styles.css")); readErr != nil || !strings.Contains(string(stylesheet), ".sidebar-brand {") {
+		t.Fatalf("static shared sidebar stylesheet is missing or invalid: %v", readErr)
 	}
 	for _, obsolete := range []string{"queue_name", "/queue/", "state.queues", "All queues", "No queues found."} {
 		if strings.Contains(string(index), obsolete) {
