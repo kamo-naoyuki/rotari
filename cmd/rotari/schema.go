@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
 
 type cliSchema struct {
-	Version  int                `json:"version"`
-	Commands []cliSchemaCommand `json:"commands"`
+	Version      int                                   `json:"version"`
+	Commands     []cliSchemaCommand                    `json:"commands"`
+	Environments []webprojection.EnvironmentDefinition `json:"environments"`
 }
 
 type cliSchemaCommand struct {
@@ -37,7 +40,11 @@ func cmdSchema(args []string) int {
 		return 1
 	}
 
-	schema := cliSchema{Version: 1, Commands: make([]cliSchemaCommand, 0, len(cliCommandSpecs))}
+	schema := cliSchema{
+		Version:      1,
+		Commands:     make([]cliSchemaCommand, 0, len(cliCommandSpecs)),
+		Environments: environmentDefinitions(),
+	}
 	for _, command := range cliCommandSpecs {
 		value := cliSchemaCommand{
 			Name: command.Name, Description: command.Description,

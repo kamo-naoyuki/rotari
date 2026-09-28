@@ -1,51 +1,563 @@
 # CLI reference
 
-## Commands at a glance
+The command and environment reference below is generated from
+`rotari schema --json`, the same metadata used by command help and the Web UI.
 
-| Command | Purpose |
+<!-- BEGIN GENERATED CLI REFERENCE -->
+
+## Commands
+
+### `rotari config`
+
+generate a config file template
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `--list` | `` | `` | list existing config files |
+| `-o` / `--format` | `FORMAT` | `` | config format: yaml, toml, or json |
+| `--output` | `FILE` | `` | output config file path |
+
+### `rotari check`
+
+check whether a project is ready to run
+
+Usage: `rotari check [PROJECT]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `--json` | `` | `` | print machine-readable JSON |
+| `--deep` | `` | `` | check local executables and working directories |
+| `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
+
+### `rotari reset`
+
+discard the current, not-yet-run queue
+
+Usage: `rotari reset [PROJECT]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `--recover` | `` | `ROTARI_RESET_RECOVER` | confirm an interrupted run has stopped without prompting |
+| `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
+
+### `rotari cancel`
+
+cancel the active run or running jobs
+
+Usage: `rotari cancel [JOB_ID|ATTEMPT_ID|RUN_ID ...]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | cancel a running job; may be repeated |
+| `--wait` | `` | `` | wait until cancellation is complete |
+
+### `rotari suspend`
+
+suspend running jobs
+
+Usage: `rotari suspend [JOB_ID|ATTEMPT_ID|RUN_ID ...]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | suspend a running job; may be repeated |
+
+### `rotari resume`
+
+resume suspended jobs
+
+Usage: `rotari resume [JOB_ID|ATTEMPT_ID|RUN_ID ...]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | resume a suspended job; may be repeated |
+
+### `rotari delete`
+
+delete saved run history
+
+Usage: `rotari delete [RUN_ID]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run to delete |
+| `--all` | `` | `` | delete every run of the project |
+
+### `rotari gc`
+
+find and remove orphan run registry entries
+
+Usage: `rotari gc [MASTERDIR]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
+| `--apply` | `` | `` | remove the cached orphan entries |
+
+### `rotari unlock`
+
+remove a confirmed stale run lock
+
+Usage: `rotari unlock [PROJECT]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | verify the run ID recorded in the stale lock |
+
+### `rotari change`
+
+change jobs in the current or previous batch
+
+Usage: `rotari change <command ...>`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run ID to use when restoring a batch |
+| `-j` / `--job-id` | `ID` | `ROTARI_JOB_ID` | target job ID |
+| `--job-name` | `NAME` | `ROTARI_JOB_NAME` | target job name |
+| `--stage` | `STAGE` | `` | change every job in a stage |
+| `--matrix` | `NAME` | `` | change every job of a matrix, named by its base job name |
+| `--all` | `` | `` | change every job |
+| `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | replace job executor |
+| `--executor-option` | `OPTION` | `ROTARI_EXECUTOR_OPTIONS` | replace executor options |
+| `--clear-executor-options` | `` | `` | clear executor options |
+| `--working-directory` | `DIR` | `` | working directory for the job |
+| `--clear-working-directory` | `` | `` | clear the job working directory |
+| `--env` | `KEY=VALUE (repeatable)` | `` | replace job environment variables; may be repeated |
+| `--clear-env` | `` | `` | clear job environment variables |
+| `--set-job-name` | `NAME` | `` | replace job name |
+| `--depends-on` | `NAME (repeatable)` | `` | replace prerequisites; may be repeated |
+| `--clear-depends-on` | `` | `` | clear prerequisites |
+| `--depends-on-finished` | `NAME (repeatable)` | `` | replace prerequisites that only need to finish, whatever their result; may be repeated |
+| `--clear-depends-on-finished` | `` | `` | clear prerequisites that only need to finish |
+| `--timeout` | `DURATION` | `` | replace the job timeout, such as 90m or 2h |
+| `--clear-timeout` | `` | `` | remove the job timeout |
+| `--retry` | `N` | `` | replace the job's retry limit; 0 disables retries |
+| `--clear-retry` | `` | `` | use the run's --retry limit for the job again and remove its retry delay settings |
+| `--retry-delay` | `DURATION` | `` | replace the wait before the job's first retry, such as 30s |
+| `--retry-backoff` | `FACTOR` | `` | replace the factor applied to the retry delay for each further retry |
+| `--retry-max-delay` | `DURATION` | `` | replace the upper limit of the retry delay |
+| `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
+
+### `rotari export`
+
+export the current queue or saved runs as a workflow manifest
+
+Usage: `rotari export [TARGET] [FILE]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `-r` / `--run-id` | `ID (repeatable)` | `ROTARI_RUN_ID` | run ID to export; may be repeated |
+| `-o` / `--format` | `FORMAT` | `` | manifest format: yaml, toml, or json |
+| `--template` | `` | `` | print a starter workflow manifest |
+| `--output` | `FILE` | `` | write the workflow manifest to a file |
+
+### `rotari import`
+
+validate and replace a queue from a workflow manifest
+
+Usage: `rotari import FILE [PROJECT]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `--overwrite` | `` | `` | replace a non-empty queue |
+| `--dry-run` | `` | `` | validate and print the import plan without writing |
+| `--json` | `` | `` | print the import plan as JSON |
+
+### `rotari remove`
+
+remove jobs from the current or previous batch
+
+Usage: `rotari remove [JOB_ID ...]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run ID to use when restoring a batch |
+| `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | remove a job; may be repeated |
+| `--job-name` | `NAME` | `ROTARI_JOB_NAME` | remove a job by name |
+| `--stage` | `STAGE` | `` | remove every job in a stage |
+| `--matrix` | `NAME` | `` | remove every job of a matrix, named by its base job name |
+| `--all` | `` | `` | remove every job |
+| `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
+
+### `rotari show`
+
+show queue or run status
+
+Usage: `rotari show [SELECTOR]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run ID or latest |
+| `--queue` | `` | `` | show the current queue even when a run is selected |
+| `-j` / `--job-id` | `ID` | `ROTARI_JOB_ID` | job ID |
+| `--job-name` | `NAME` | `ROTARI_JOB_NAME` | job name |
+| `--failed` | `` | `` | show failed jobs; may be combined with the other result filters |
+| `--unfinished` | `` | `` | show unfinished jobs; may be combined with the other result filters |
+| `--success` | `` | `` | show successful jobs; may be combined with the other result filters |
+| `--stage` | `NAME` | `` | show jobs in this stage only |
+| `--matrix` | `NAME` | `` | show jobs of this matrix only, named by its base job name |
+| `--lineage` | `` | `` | list the project's runs oldest first with result counts and changes since the previous run |
+| `--logs` | `` | `` | print output logs for all jobs |
+| `--failed-logs` | `` | `` | print output logs for failed jobs |
+| `--stream` | `STREAM` | `` | show both streams or select stdout/stderr |
+| `--follow` | `` | `` | follow one selected log stream until the run completes |
+| `--no-pager` | `` | `` | print logs directly instead of using a pager |
+| `--basedirs` | `` | `` | list state directories known to the master registry |
+| `--json` | `` | `` | print machine-readable JSON for a run |
+| `--report` | `` | `` | print an AI-ready Markdown report |
+
+### `rotari diff`
+
+compare job results and definitions between two runs
+
+Usage: `rotari diff [[RUN_A] RUN_B]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `--json` | `` | `` | print the comparison as JSON |
+| `--unchanged` | `` | `` | also list jobs whose result and definition did not change |
+
+### `rotari jobs`
+
+list running and recently finished jobs across projects
+
+Usage: `rotari jobs [PROJECT]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory for --all |
+| `--all-basedirs` | `` | `` | include all basedirs known to the master registry |
+| `-o` / `--format` | `FORMAT` | `` | output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time) |
+| `--since` | `DURATION` | `` | include jobs finished within this duration; use 0 for running jobs only |
+
+### `rotari diagnose`
+
+diagnose one job with an LLM or local error rules
+
+Usage: `rotari diagnose [JOB_ID]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run ID |
+| `-j` / `--job-id` | `ID` | `ROTARI_JOB_ID` | failed job ID |
+| `--job-name` | `NAME` | `ROTARI_JOB_NAME` | failed job name |
+| `--rules` | `` | `` | use local rule-based diagnosis without calling an LLM |
+| `--provider` | `PROVIDER` | `ROTARI_LLM_PROVIDER` | LLM provider: openai, openai-chat, anthropic, gemini, or cohere |
+| `--endpoint` | `URL` | `ROTARI_LLM_ENDPOINT` | LLM API endpoint |
+| `--model` | `MODEL` | `ROTARI_LLM_MODEL` | LLM model name |
+| `--language` | `TAG` | `ROTARI_LLM_LANGUAGE` | response language BCP 47 tag |
+
+### `rotari wait`
+
+wait for an asynchronous run by project, run name, or run ID
+
+Usage: `rotari wait [PROJECT_OR_RUN_NAME_OR_RUN_ID ...]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `-r` / `--run-id` | `ID (repeatable)` | `ROTARI_RUN_ID` | run ID; may be repeated |
+| `--timeout` | `DURATION` | `ROTARI_WAIT_TIMEOUT` | maximum wait duration |
+| `--json` | `` | `` | print each completed run as one JSON object |
+
+### `rotari add`
+
+add a command to a queue
+
+Usage: `rotari add <command ...>`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | job executor |
+| `--executor-option` | `OPTION (repeatable)` | `ROTARI_EXECUTOR_OPTIONS` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
+| `--output` | `FILE (repeatable)` | `` | stdout destination; stderr also goes here unless --error is specified; may be repeated |
+| `--error` | `FILE (repeatable)` | `` | stderr destination; defaults to --output destinations; may be repeated |
+| `--log-mode` | `MODE` | `` | internal log mode |
+| `--open-mode` | `MODE` | `` | external output file mode |
+| `--working-directory` | `DIR` | `` | working directory for the job |
+| `--env` | `KEY=VALUE (repeatable)` | `` | environment variable for the job; may be repeated |
+| `--job-name` | `NAME` | `ROTARI_JOB_NAME` | job name label |
+| `--stage` | `NAME` | `` | stage that contains the job |
+| `--depends-on` | `NAME (repeatable)` | `` | name of a prerequisite job or stage; may be repeated |
+| `--depends-on-finished` | `NAME (repeatable)` | `` | name of a prerequisite job or stage that must finish, whatever its result; may be repeated |
+| `--timeout` | `DURATION` | `` | stop the job this long after it starts, such as 90m or 2h; it then fails with exit code 124 |
+| `--retry` | `N` | `` | retry the job up to N times when it fails, instead of the run's --retry; 0 disables retries |
+| `--retry-delay` | `DURATION` | `` | wait this long before the job's first retry, such as 30s; retries are immediate by default |
+| `--retry-backoff` | `FACTOR` | `` | multiply the retry delay by this factor for each further retry, such as 2 |
+| `--retry-max-delay` | `DURATION` | `` | upper limit of the retry delay, such as 10m |
+| `--array` | `FIRST-LAST|TASK[,TASK...]` | `ROTARI_ARRAY_RANGE` | create an array job range or selected tasks |
+| `--matrix` | `KEY=VALUE[,VALUE...] (repeatable)` | `` | expand a command into jobs from KEY=VALUE[,VALUE...] dimensions; may be repeated |
+| `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
+
+### `rotari copy`
+
+copy the latest run's jobs into the queue
+
+Usage: `rotari copy [RUN_ID]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | source run ID; defaults to the latest run |
+| `--failed` | `` | `` | include failed jobs; may be combined with result filters |
+| `--unfinished` | `` | `` | include unfinished jobs; may be combined with result filters |
+| `--success` | `` | `` | include successful jobs; may be combined with result filters |
+| `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | copy a job; may be repeated |
+| `--job-name` | `NAME` | `ROTARI_JOB_NAME` | copy a job by name |
+| `--stage` | `STAGE` | `` | only copy jobs in this stage, narrowed by any result filter |
+| `--matrix` | `NAME` | `` | only copy jobs of this matrix, named by its base job name, narrowed by any result filter |
+| `--append` | `` | `` | append to a non-empty queue |
+| `--overwrite` | `` | `` | replace a non-empty queue |
+| `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
+
+### `rotari run`
+
+execute queued commands, optionally selecting jobs from a run
+
+Usage: `rotari run [RUN_ID]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | repopulate the queue from this run before executing (copy --run-id + run); defaults to the latest run when a result filter is used |
+| `--overwrite` | `` | `` | replace a non-empty queue without prompting; requires --run-id |
+| `--run-name` | `NAME` | `ROTARI_RUN_NAME` | run name label |
+| `--local-concurrency` | `N` | `ROTARI_RUN_LOCAL_CONCURRENCY` | local worker concurrency |
+| `--batch-concurrency` | `N` | `ROTARI_RUN_BATCH_CONCURRENCY` | scheduler job concurrency (Slurm/PBS/...) |
+| `--retry` | `N` | `ROTARI_RUN_RETRY` | retry failed jobs up to N times; explicit cancellations are not retried |
+| `--failed` | `` | `` | only execute failed jobs; others carry forward their previous result |
+| `--unfinished` | `` | `` | only execute unfinished jobs; others carry forward their previous result |
+| `--success` | `` | `` | only execute successful jobs; others carry forward their previous result |
+| `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | only execute this job; may be repeated; not with a result filter; others carry forward their previous result |
+| `--job-name` | `NAME` | `ROTARI_JOB_NAME` | only execute this job by name |
+| `--stage` | `STAGE` | `` | only execute jobs in this stage, narrowed by any result filter; others carry forward their previous result |
+| `--matrix` | `NAME` | `` | only execute jobs of this matrix, named by its base job name, narrowed by any result filter; others carry forward their previous result |
+| `--partial-array` | `` | `` | with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches |
+| `--async` | `` | `ROTARI_RUN_ASYNC` | return after starting the run |
+| `--quiet` | `` | `ROTARI_QUIET` | suppress progress and completion output |
+| `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | execution executor override |
+| `--env` | `ALL|NONE` | `` | caller environment propagation mode (default ALL) |
+| `--executor-option` | `OPTION (repeatable)` | `ROTARI_EXECUTOR_OPTIONS` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
+| `--ssh-concurrency` | `N` | `ROTARI_RUN_SSH_CONCURRENCY` | SSH executor concurrency |
+| `--ssh-options` | `OPTION (repeatable)` | `ROTARI_RUN_SSH_OPTIONS` | SSH executor dispatch options; may be repeated |
+| `--slurm-concurrency` | `N` | `ROTARI_RUN_SLURM_CONCURRENCY` | Slurm executor concurrency |
+| `--slurm-options` | `OPTION (repeatable)` | `ROTARI_RUN_SLURM_OPTIONS` | Slurm executor dispatch options; may be repeated |
+| `--slurm-submit-interval` | `DURATION` | `ROTARI_RUN_SLURM_SUBMIT_INTERVAL` | minimum Slurm submission interval |
+| `--slurm-submit-retry-limit` | `N` | `ROTARI_RUN_SLURM_SUBMIT_RETRY_LIMIT` | maximum retries for transient Slurm submission failures |
+| `--pbs-concurrency` | `N` | `ROTARI_RUN_PBS_CONCURRENCY` | PBS executor concurrency |
+| `--pbs-options` | `OPTION (repeatable)` | `ROTARI_RUN_PBS_OPTIONS` | PBS executor dispatch options; may be repeated |
+| `--pbs-submit-interval` | `DURATION` | `ROTARI_RUN_PBS_SUBMIT_INTERVAL` | minimum PBS submission interval |
+| `--pbs-submit-retry-limit` | `N` | `ROTARI_RUN_PBS_SUBMIT_RETRY_LIMIT` | maximum retries for transient PBS submission failures |
+| `--lsf-concurrency` | `N` | `ROTARI_RUN_LSF_CONCURRENCY` | LSF executor concurrency |
+| `--lsf-options` | `OPTION (repeatable)` | `ROTARI_RUN_LSF_OPTIONS` | LSF executor dispatch options; may be repeated |
+| `--lsf-submit-interval` | `DURATION` | `ROTARI_RUN_LSF_SUBMIT_INTERVAL` | minimum LSF submission interval |
+| `--lsf-submit-retry-limit` | `N` | `ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT` | maximum retries for transient LSF submission failures |
+
+### `rotari retry`
+
+run failed and unfinished jobs; with --job-id, run those jobs
+
+Usage: `rotari retry [RUN_ID]`
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | repopulate the queue from this run before executing; defaults to the latest run |
+| `--overwrite` | `` | `` | replace a non-empty queue without prompting; requires --run-id |
+| `--run-name` | `NAME` | `ROTARI_RUN_NAME` | run name label |
+| `--local-concurrency` | `N` | `ROTARI_RUN_LOCAL_CONCURRENCY` | local worker concurrency |
+| `--batch-concurrency` | `N` | `ROTARI_RUN_BATCH_CONCURRENCY` | scheduler job concurrency (Slurm/PBS/...) |
+| `--retry` | `N` | `ROTARI_RUN_RETRY` | retry failed jobs up to N times; explicit cancellations are not retried |
+| `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | only execute this job instead of failed and unfinished jobs; may be repeated |
+| `--stage` | `STAGE` | `` | only retry jobs in this stage |
+| `--matrix` | `NAME` | `` | only retry jobs of this matrix, named by its base job name |
+| `--async` | `` | `ROTARI_RUN_ASYNC` | return after starting the run |
+| `--quiet` | `` | `ROTARI_QUIET` | suppress progress and completion output |
+| `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | execution executor override |
+| `--env` | `ALL|NONE` | `` | caller environment propagation mode (default ALL) |
+| `--executor-option` | `OPTION (repeatable)` | `ROTARI_EXECUTOR_OPTIONS` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
+| `--ssh-concurrency` | `N` | `ROTARI_RUN_SSH_CONCURRENCY` | SSH executor concurrency |
+| `--ssh-options` | `OPTION (repeatable)` | `ROTARI_RUN_SSH_OPTIONS` | SSH executor dispatch options; may be repeated |
+| `--slurm-concurrency` | `N` | `ROTARI_RUN_SLURM_CONCURRENCY` | Slurm executor concurrency |
+| `--slurm-options` | `OPTION (repeatable)` | `ROTARI_RUN_SLURM_OPTIONS` | Slurm executor dispatch options; may be repeated |
+| `--slurm-submit-interval` | `DURATION` | `ROTARI_RUN_SLURM_SUBMIT_INTERVAL` | minimum Slurm submission interval |
+| `--slurm-submit-retry-limit` | `N` | `ROTARI_RUN_SLURM_SUBMIT_RETRY_LIMIT` | maximum retries for transient Slurm submission failures |
+| `--pbs-concurrency` | `N` | `ROTARI_RUN_PBS_CONCURRENCY` | PBS executor concurrency |
+| `--pbs-options` | `OPTION (repeatable)` | `ROTARI_RUN_PBS_OPTIONS` | PBS executor dispatch options; may be repeated |
+| `--pbs-submit-interval` | `DURATION` | `ROTARI_RUN_PBS_SUBMIT_INTERVAL` | minimum PBS submission interval |
+| `--pbs-submit-retry-limit` | `N` | `ROTARI_RUN_PBS_SUBMIT_RETRY_LIMIT` | maximum retries for transient PBS submission failures |
+| `--lsf-concurrency` | `N` | `ROTARI_RUN_LSF_CONCURRENCY` | LSF executor concurrency |
+| `--lsf-options` | `OPTION (repeatable)` | `ROTARI_RUN_LSF_OPTIONS` | LSF executor dispatch options; may be repeated |
+| `--lsf-submit-interval` | `DURATION` | `ROTARI_RUN_LSF_SUBMIT_INTERVAL` | minimum LSF submission interval |
+| `--lsf-submit-retry-limit` | `N` | `ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT` | maximum retries for transient LSF submission failures |
+
+### `rotari server`
+
+manage the background server
+
+| Subcommand | Description |
 | --- | --- |
-| `add` | Add a command to the current queue. |
-| `run` | Run the queued jobs. |
-| `reset` | Discard the current queue. |
-| `show` | Show queue, run, job, or log details. |
-| `jobs` | List running and recently finished jobs across projects. |
-| `diff` | Compare two runs: fixed, still failing, and newly failing jobs, and changed definitions. |
-| `web` | Start the local web status UI. |
-| `retry` | Rerun failed or unfinished jobs. |
-| `cancel` | Cancel running jobs. |
-| `wait` | Wait for an asynchronous run to finish. |
-| `config` | Create or inspect configuration files. |
-| `suspend` / `resume` | Suspend or resume running jobs. |
-| `copy` | Copy jobs from a saved run into the queue. |
-| `change` | Change a queued or restored job. |
-| `export` | Export a queue, saved runs, or a starter workflow manifest. |
-| `import` | Validate a workflow manifest and replace the current queue. |
-| `remove` | Remove jobs from the queue. |
-| `delete` | Delete saved run history. |
-| `check` | Check whether a project is ready to run. |
-| `diagnose` | Diagnose a failed job. |
-| `env` | Show CLI and job environment variables. |
-| `completion` | Generate shell completion scripts. |
-| `gc` | Find and remove orphaned run registry entries. |
-| `unlock` | Recover a confirmed stale run lock. |
-| `server` | Inspect or control the project server. |
-| `schema` | Print the machine-readable CLI schema. |
-| `guide` | Print a usage guide for coding agents. |
+| `status` | show server status |
+| `list` | list servers |
+| `shutdown` | shut down server |
 
-## Common options
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | server registry directory |
 
-Frequently used options have short forms:
+### `rotari web`
 
-| Long option | Short option |
+serve the web status UI
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
+| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
+| `--host` | `HOST` | `ROTARI_WEB_HOST` | HTTP listen host |
+| `--port` | `PORT` | `ROTARI_WEB_PORT` | HTTP listen port |
+| `--static-dir` | `DIR` | `ROTARI_WEB_STATIC_DIR` | generate a static web UI |
+| `--allow-control` | `` | `ROTARI_WEB_ALLOW_CONTROL` | enable job control (copy/change/remove/cancel/clear); pass --allow-control=false for a read-only UI |
+| `--auth-token` | `TOKEN` | `ROTARI_WEB_AUTH_TOKEN` | require this token in Authorization: Bearer or X-Rotari-Token; prefer ROTARI_WEB_AUTH_TOKEN for secrets |
+| `--notifications` | `` | `ROTARI_WEB_NOTIFICATIONS` | default state of the browser desktop-notification toggle; pass --notifications=false to default it off |
+
+### `rotari completion`
+
+print shell completion script
+
+| Subcommand | Description |
 | --- | --- |
-| `--project-name` | `-p` |
-| `--basedir` | `-b` |
-| `--run-id` | `-r` |
-| `--job-id` | `-j` |
-| `--executor` | `-e` |
+| `bash` | bash completion |
+| `zsh` | zsh completion |
+| `fish` | fish completion |
+| `install` | install completion for the current shell |
 
-For the complete command and option schema, run:
+### `rotari schema`
 
-```sh
-rotari schema --json
-```
+print the CLI schema as JSON
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `--json` | `` | `` | print the schema as JSON |
+
+### `rotari guide`
+
+print a usage guide for coding agents
+
+### `rotari version`
+
+print version
+
+### `rotari env`
+
+list ROTARI environment variables
+
+## Environment variables
+
+`rotari env` prints this list with current values.
+
+| Variable | CLI default | Job | Array | Description |
+| --- | --- | --- | --- | --- |
+| `ROTARI_BASEDIR` | yes | yes | yes | State directory; --basedir default. |
+| `ROTARI_PROJECT_NAME` | yes | yes | yes | Project name; --project-name default. |
+| `ROTARI_MASTERDIR` | yes | no | no | Server registry directory; --masterdir default. |
+| `ROTARI_RUN_ID` | yes | yes | yes | Current run ID; --run-id default. |
+| `ROTARI_JOB_ID` | yes | yes | yes | Current job ID; --job-id default. |
+| `ROTARI_ATTEMPT_ID` | no | yes | yes | Current job attempt ID. |
+| `ROTARI_JOB_NAME` | yes | yes | yes | Current job name; --job-name default. |
+| `ROTARI_EXECUTOR` | yes | yes | yes | Current executor; --executor default. |
+| `ROTARI_EXECUTOR_OPTIONS` | yes | yes | yes | Default scheduler executor options. |
+| `ROTARI_RUN_NAME` | yes | yes | yes | Run name; --run-name default. |
+| `ROTARI_RUN_LOCAL_CONCURRENCY` | yes | yes | yes | Local worker limit; --local-concurrency default. |
+| `ROTARI_RUN_BATCH_CONCURRENCY` | yes | yes | yes | Scheduler submission limit; --batch-concurrency default. |
+| `ROTARI_RUN_SSH_CONCURRENCY` | yes | no | no | SSH worker limit; --ssh-concurrency default. |
+| `ROTARI_RUN_SSH_OPTIONS` | yes | no | no | SSH dispatch options; --ssh-options default. |
+| `ROTARI_RUN_SLURM_CONCURRENCY` | yes | no | no | Slurm worker limit; --slurm-concurrency default. |
+| `ROTARI_RUN_SLURM_OPTIONS` | yes | no | no | Slurm dispatch options; --slurm-options default. |
+| `ROTARI_RUN_SLURM_SUBMIT_INTERVAL` | yes | no | no | Slurm submit interval; --slurm-submit-interval default. |
+| `ROTARI_RUN_SLURM_SUBMIT_RETRY_LIMIT` | yes | no | no | Slurm transient submit retry limit; --slurm-submit-retry-limit default. |
+| `ROTARI_RUN_PBS_CONCURRENCY` | yes | no | no | PBS worker limit; --pbs-concurrency default. |
+| `ROTARI_RUN_PBS_OPTIONS` | yes | no | no | PBS dispatch options; --pbs-options default. |
+| `ROTARI_RUN_PBS_SUBMIT_INTERVAL` | yes | no | no | PBS submit interval; --pbs-submit-interval default. |
+| `ROTARI_RUN_PBS_SUBMIT_RETRY_LIMIT` | yes | no | no | PBS transient submit retry limit; --pbs-submit-retry-limit default. |
+| `ROTARI_RUN_LSF_CONCURRENCY` | yes | no | no | LSF worker limit; --lsf-concurrency default. |
+| `ROTARI_RUN_LSF_OPTIONS` | yes | no | no | LSF dispatch options; --lsf-options default. |
+| `ROTARI_RUN_LSF_SUBMIT_INTERVAL` | yes | no | no | LSF submit interval; --lsf-submit-interval default. |
+| `ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT` | yes | no | no | LSF transient submit retry limit; --lsf-submit-retry-limit default. |
+| `ROTARI_RUN_RETRY` | yes | yes | yes | Retry count; --retry default. |
+| `ROTARI_RUN_ASYNC` | yes | yes | yes | Async run mode; --async default. |
+| `ROTARI_QUIET` | yes | yes | yes | Global quiet mode; --quiet default. |
+| `ROTARI_ADD_QUIET` | yes | no | no | Add command quiet mode; --quiet default. |
+| `ROTARI_COPY_QUIET` | yes | no | no | Copy command quiet mode; --quiet default. |
+| `ROTARI_CHANGE_QUIET` | yes | no | no | Change command quiet mode; --quiet default. |
+| `ROTARI_REMOVE_QUIET` | yes | no | no | Remove command quiet mode; --quiet default. |
+| `ROTARI_RESET_QUIET` | yes | no | no | Reset command quiet mode; --quiet default. |
+| `ROTARI_CHECK_QUIET` | yes | no | no | Check command quiet mode; --quiet default. |
+| `ROTARI_RUN_QUIET` | yes | yes | yes | Run-specific quiet mode; --quiet default. |
+| `ROTARI_ARRAY_RANGE` | yes | yes | yes | Array range; --array default. |
+| `ROTARI_BIN` | no | yes | yes | Absolute path to the rotari binary. |
+| `ROTARI_RUN_DIR` | no | yes | yes | Current run directory. |
+| `ROTARI_JOB_DIR` | no | yes | yes | Current job directory. |
+| `ROTARI_CWD` | no | yes | yes | Working directory from which the run started. |
+| `ROTARI_ARRAY_TASK_ID` | no | no | yes | Current array task number. |
+| `ROTARI_ARRAY_FIRST` | no | no | yes | First array task number. |
+| `ROTARI_ARRAY_LAST` | no | no | yes | Last array task number. |
+| `ROTARI_ARRAY_SIZE` | no | no | yes | Number of tasks in the array. |
+| `ROTARI_RESET_RECOVER` | yes | no | no | --recover default for reset. |
+| `ROTARI_WAIT_TIMEOUT` | yes | no | no | --timeout default for wait. |
+| `ROTARI_WEB_HOST` | yes | no | no | --host default for web. |
+| `ROTARI_WEB_PORT` | yes | no | no | --port default for web. |
+| `ROTARI_WEB_STATIC_DIR` | yes | no | no | --static-dir default for web. |
+| `ROTARI_WEB_ALLOW_CONTROL` | yes | no | no | --allow-control default for web. |
+| `ROTARI_WEB_AUTH_TOKEN` | yes | no | no | --auth-token default for web; never exposed by the Web UI. |
+| `ROTARI_WEB_NOTIFICATIONS` | yes | no | no | --notifications default for web. |
+| `ROTARI_LLM_API_KEY` | no | no | no | API key for the diagnose command; never persisted or passed to jobs. |
+| `ROTARI_LLM_PROVIDER` | yes | no | no | LLM provider (openai, openai-chat, anthropic, gemini, or cohere); --provider default for diagnose. |
+| `ROTARI_LLM_ENDPOINT` | yes | no | no | LLM API endpoint; --endpoint default for diagnose. |
+| `ROTARI_LLM_MODEL` | yes | no | no | Model name; --model default for diagnose. |
+| `ROTARI_LLM_LANGUAGE` | yes | no | no | BCP 47 response language tag; --language default for diagnose. |
+| `ROTARI_WEBHOOK_URL` | no | no | no | Run completion webhook URL. |
+| `ROTARI_WEBHOOK_ON` | no | no | no | Run completion webhook events: always, success, or failure. |
+| `ROTARI_WEBHOOK_FORMAT` | no | no | no | Run completion webhook format: json, slack, teams, or discord. |
+| `ROTARI_PRIVATE_STATE` | no | no | no | set to true for 0700/0600 state directory permissions instead of the default 0755/0644 (shared state). |
+
+<!-- END GENERATED CLI REFERENCE -->

@@ -15,6 +15,8 @@ examples. They are not part of the `rotari` command-line interface.
 - `generate-demos.sh`: record the terminal demo GIFs.
 - `generate-static-web.sh`: build the static web demo.
 - `generate_go_docs.py`: generate the Go API HTML reference.
+- `generate_cli_reference.py`: generate the CLI and environment reference from
+  the CLI schema.
 - `generate_python_api_docs.py`: generate Python client option documentation
   for all public methods from the CLI schema.
 - `generate_python_cli.py`: generate the Python CLI wrapper from the CLI schema.
