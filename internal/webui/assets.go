@@ -56,6 +56,7 @@ func composeWebHTML(executors []string, notifications bool, bootstrap string) st
 	webAppJS := strings.Join([]string{webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppTablesJS, webAppChartsJS, webAppMatrixJS, webAppNotificationsJS, webAppBootstrapJS}, "\n")
 	template := strings.Replace(webTemplateHTML, "__ROTARI_WEB_APP__", webAppJS, 1)
 	template = strings.Replace(template, "__ROTARI_EXECUTORS__", string(executorJSON), 1)
+	template = strings.ReplaceAll(template, "__ROTARI_BRAND_ICON__", brandIcon())
 	template = strings.Replace(template, "__ROTARI_NOTIFICATION_ICON__", faviconDataURL(webFaviconDarkSVG), 1)
 	template = strings.Replace(template, "__ROTARI_NOTIFICATION_DEFAULT__", strconv.FormatBool(notifications), 1)
 	template = strings.Replace(template, "__ROTARI_STATIC_BOOTSTRAP__", bootstrap, 1)
@@ -75,22 +76,25 @@ func composeStaticBootstrap(state, logs, reports, configTargets, configs string)
 func composeInfoHTML(template, homePath, content string) string {
 	template = strings.Replace(template, "__ROTARI_FAVICON_LINKS__", faviconLinks(), 1)
 	template = strings.Replace(template, "__ROTARI_INFO_STYLES__", webInfoStylesCSS, 1)
-	template = strings.Replace(template, "__ROTARI_BRAND_ICON__", brandIcon(), 1)
+	template = strings.ReplaceAll(template, "__ROTARI_BRAND_ICON__", brandIcon())
 	template = strings.ReplaceAll(template, "__ROTARI_HOME_PATH__", html.EscapeString(homePath))
 	template = strings.Replace(template, "__ROTARI_CONTENT__", content, 1)
 	return template
 }
 
-func jobsHTML(homePath string, rows []joblist.Row, since string, canFilter bool) string {
+func jobsHTML(homePath string, projects []string, rows []joblist.Row, since string, canFilter bool) string {
 	var builder strings.Builder
 	if canFilter {
 		builder.WriteString(`<form class="jobs-filter" method="get"><label for="jobs-since">Since</label><input id="jobs-since" name="since" value="`)
 		builder.WriteString(html.EscapeString(since))
 		builder.WriteString(`" placeholder="24h" inputmode="text"><button type="submit">Apply</button></form>`)
 	}
+	var sidebar strings.Builder
+	writeJobsSidebarProjects(&sidebar, homePath, projects)
+	template := strings.Replace(jobsTemplateHTML, "__ROTARI_JOBS_PROJECTS__", sidebar.String(), 1)
 	if len(rows) == 0 {
 		builder.WriteString(`<p class="meta">No running or recently finished jobs found.</p>`)
-		return composeInfoHTML(jobsTemplateHTML, homePath, builder.String())
+		return composeInfoHTML(template, homePath, builder.String())
 	}
 	builder.WriteString(`<section><table><thead><tr><th>State</th><th>Project</th><th>Job</th><th>Command</th><th>Attempt</th><th>Started</th><th>Finished</th><th>Elapsed</th></tr></thead><tbody>`)
 	for _, row := range rows {
@@ -134,7 +138,23 @@ func jobsHTML(homePath string, rows []joblist.Row, since string, canFilter bool)
 		builder.WriteString(`</td></tr>`)
 	}
 	builder.WriteString(`</tbody></table></section>`)
-	return composeInfoHTML(jobsTemplateHTML, homePath, builder.String())
+	return composeInfoHTML(template, homePath, builder.String())
+}
+
+func writeJobsSidebarProjects(builder *strings.Builder, homePath string, projects []string) {
+	builder.WriteString(`<div class="sidebar-project expanded" id="sidebar-root"><div class="sidebar-project-row"><button type="button" class="sidebar-toggle" aria-expanded="true" aria-label="Toggle all projects" onclick="toggleJobsSidebar(this)"></button><a class="sidebar-project-link" href="`)
+	builder.WriteString(html.EscapeString(homePath))
+	builder.WriteString(`">All projects</a></div><div class="sidebar-projects" id="sidebar-projects">`)
+	for _, project := range projects {
+		builder.WriteString(`<a class="sidebar-project-link" href="`)
+		builder.WriteString(html.EscapeString(homePath))
+		builder.WriteString(`project/`)
+		builder.WriteString(url.PathEscape(project))
+		builder.WriteString(`">`)
+		builder.WriteString(html.EscapeString(project))
+		builder.WriteString(`</a>`)
+	}
+	builder.WriteString(`</div></div>`)
 }
 
 func jobsStateClass(state string) string {

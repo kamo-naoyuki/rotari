@@ -190,7 +190,7 @@ func (s site) handler() http.Handler {
 		}
 		joblist.Sort(rows)
 		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
-		_, _ = writer.Write([]byte(jobsHTML("/", rows, sinceText, true)))
+		_, _ = writer.Write([]byte(jobsHTML("/", projects, rows, sinceText, true)))
 	})
 	mux.HandleFunc("/jobs", func(writer http.ResponseWriter, request *http.Request) {
 		http.Redirect(writer, request, "/jobs/", http.StatusMovedPermanently)
@@ -988,7 +988,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 		return err
 	}
 	joblist.Sort(jobs)
-	if err := writeStaticWebPage(filepath.Join(outputDir, "jobs", "index.html"), jobsHTML("../", jobs, joblist.DefaultSinceText, false)); err != nil {
+	if err := writeStaticWebPage(filepath.Join(outputDir, "jobs", "index.html"), jobsHTML("../", projects, jobs, joblist.DefaultSinceText, false)); err != nil {
 		return err
 	}
 	if err := writeStaticStylesheet(filepath.Join(outputDir, "jobs")); err != nil {

@@ -802,6 +802,12 @@ main {
     0 5px 18px rgba(240, 139, 112, 0.08);
 }
 
+.brand-mark .brand-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
 .brand-name {
   align-self: end;
   font-size: 17px;

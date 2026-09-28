@@ -643,6 +643,7 @@ func TestWebHTMLIncludesEmbeddedThemeFavicons(t *testing.T) {
 		`media="(prefers-color-scheme: dark)"`,
 		`media="(prefers-color-scheme: light)"`,
 		`data:image/svg+xml;base64,`,
+		`<span class="brand-mark" aria-hidden="true"><img class="brand-icon" alt="" src="data:image/svg+xml;base64,`,
 		`<h1><img class="brand-icon"`,
 		`rotari Web</h1>`,
 	} {
@@ -1245,6 +1246,10 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 	}
 	for _, want := range []string{
 		"rotari Job activity",
+		`aria-label="Toggle all projects"`,
+		`onclick="toggleJobsSidebar(this)"`,
+		`href="/project/demo"`,
+		`class="brand-icon"`,
 		`name="since" value="24h"`,
 		"job-1",
 		`href="/project/demo"`,
@@ -1288,7 +1293,7 @@ func TestWebJobsPageRejectsInvalidSince(t *testing.T) {
 }
 
 func TestJobsHTMLStylesStates(t *testing.T) {
-	html := jobsHTML("/", []joblist.Row{{State: "success"}, {State: "failed"}, {State: "running"}}, joblist.DefaultSinceText, true)
+	html := jobsHTML("/", nil, []joblist.Row{{State: "success"}, {State: "failed"}, {State: "running"}}, joblist.DefaultSinceText, true)
 	for _, want := range []string{
 		`class="jobs-state jobs-state-success"`,
 		`class="jobs-state jobs-state-failed"`,
@@ -1316,7 +1321,7 @@ func TestGenerateStaticWebIncludesJobsPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"rotari Job activity", "job-1", `href="../project/demo/run/` + runID + `"`} {
+	for _, want := range []string{"rotari Job activity", `aria-label="Toggle all projects"`, `href="../project/demo"`, `class="brand-icon"`, "job-1", `href="../project/demo/run/` + runID + `"`} {
 		if !strings.Contains(string(data), want) {
 			t.Fatalf("static jobs page does not contain %q: %s", want, string(data))
 		}
@@ -1965,7 +1970,7 @@ func TestJobsPageCopyButtonShowsFeedback(t *testing.T) {
 		t.Skip("node is not installed")
 	}
 	htmlPath := filepath.Join(t.TempDir(), "jobs.html")
-	page := jobsHTML("/", []joblist.Row{{State: "success", Project: "p", RunID: "r", JobName: "j", Command: "echo hi", FullCommand: "echo hi", AttemptID: "att_1"}}, joblist.DefaultSinceText, false)
+	page := jobsHTML("/", nil, []joblist.Row{{State: "success", Project: "p", RunID: "r", JobName: "j", Command: "echo hi", FullCommand: "echo hi", AttemptID: "att_1"}}, joblist.DefaultSinceText, false)
 	if err := os.WriteFile(htmlPath, []byte(page), 0o600); err != nil {
 		t.Fatal(err)
 	}

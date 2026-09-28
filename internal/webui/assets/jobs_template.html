@@ -17,11 +17,11 @@
           href="__ROTARI_HOME_PATH__"
           aria-label="rotari home"
         >
-          <span class="brand-mark" aria-hidden="true">r</span>
+          <span class="brand-mark" aria-hidden="true">__ROTARI_BRAND_ICON__</span>
           <span class="brand-name">rotari</span>
           <span class="brand-caption">JOB CONTROL</span>
         </a>
-        <a class="sidebar-link" href="__ROTARI_HOME_PATH__">All projects</a>
+        __ROTARI_JOBS_PROJECTS__
         <a class="sidebar-link active" href="__ROTARI_HOME_PATH__jobs/"
           >Job activity</a
         >
@@ -84,6 +84,14 @@
           button.innerHTML =
             '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg>';
         }, 1200);
+      }
+
+      function toggleJobsSidebar(button) {
+        const root = button.closest(".sidebar-project");
+        const projects = root.querySelector(".sidebar-projects");
+        const expanded = root.classList.toggle("expanded");
+        button.setAttribute("aria-expanded", String(expanded));
+        projects.hidden = !expanded;
       }
     </script>
   </body>
