@@ -35,6 +35,9 @@ Rotari deliberately stays out of the way. **You don't need a separate workflow l
 
 Rotari covers a narrow need, and other tools may fit yours better: [GNU Parallel](https://www.gnu.org/software/parallel/) for one command over many inputs, [pueue](https://github.com/Nukesor/pueue) or [task-spooler](https://github.com/justanhduc/task-spooler) for a personal queue on one machine, and a workflow engine such as [Snakemake](https://snakemake.github.io/), [Nextflow](https://www.nextflow.io/), [Dagu](https://dagu.sh/), or [Airflow](https://airflow.apache.org/) for a pipeline you share, rerun on new data, or run on a schedule. [Comparison with other tools](docs/TOOL_COMPARISON.md) explains what each one does and how rotari differs.
 
+## Documentation
+- [Documentation site](https://kamo-naoyuki.github.io/rotari/docs/)
+
 <!-- BEGIN GETTING STARTED -->
 
 ## Installation
@@ -130,11 +133,3 @@ using generated example data. For remote access, authentication, and read-only
 mode, see the [FAQ](docs/FAQ.md#web-ui) and [Security model](docs/OPERATIONS.md#security-model).
 
 <!-- END GETTING STARTED -->
-
-## Documentation
-
-- [Documentation site](https://kamo-naoyuki.github.io/rotari/docs/)
-- [Getting started](https://kamo-naoyuki.github.io/rotari/docs/getting-started/)
-- [CLI reference](https://kamo-naoyuki.github.io/rotari/docs/cli-reference/)
-- [Python API](https://kamo-naoyuki.github.io/rotari/docs/python-api/)
-- [Go API](https://kamo-naoyuki.github.io/rotari/go-api/)
