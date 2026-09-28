@@ -904,6 +904,15 @@
           ]
         },
         {
+          "name": "match-by",
+          "value_name": "MODE",
+          "values": [
+            "job-id",
+            "fingerprint",
+            "id-and-fingerprint"
+          ]
+        },
+        {
           "name": "executor-option",
           "value_name": "OPTION"
         },
