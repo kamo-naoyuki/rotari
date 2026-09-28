@@ -16,6 +16,7 @@ Remove the directory when finished.
 | --- | --- | --- |
 | Dependencies and a local run | `./examples/basic.sh` | rotari |
 | Local array tasks | `./examples/array.sh` | rotari |
+| Matrix of independent jobs | `./examples/matrix.sh` | rotari |
 | Retry only failed work | `./examples/retry.sh` | rotari |
 | Start an async run and wait | `./examples/async.sh` | rotari |
 | Slurm array | `./examples/slurm.sh` | Configured Slurm cluster |
