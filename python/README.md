@@ -3,50 +3,11 @@
 This directory contains a thin Python client for the `rotari` executable. For
 CLI behavior and examples, see the repository [README](../README.md).
 
-## Usage
+## Usage and API documentation
 
-The client is not published on PyPI. Wheels built from tagged releases bundle
-the matching `rotari` executable and are available through a static
-[package index](https://kamo-naoyuki.github.io/rotari/simple/) hosted on
-GitHub Pages (Linux x86_64/arm64, macOS x86_64/arm64):
-
-```sh
-python3 -m pip install --index-url https://kamo-naoyuki.github.io/rotari/simple/ rotari
-```
-
-This installs both the Python client and a `rotari` command on `PATH` for the
-current platform; no separate Homebrew/binary install is needed. On an
-unsupported platform, install the client from a checkout and place `rotari` on
-`PATH` yourself.
-
-To install the client from a checkout instead, ensure that the `rotari`
-executable is available on your `PATH`, then run:
-
-```sh
-python3 -m pip install --no-deps ./python
-```
-
-Use `Rotari` to submit executable argument lists and inspect run state:
-
-```python
-from rotari import Rotari
-
-rotari = Rotari(basedir=".rotari-state", project="experiment")
-rotari.add(["./train.sh"], job_name="train")
-rotari.run(async_=True)
-summary = rotari.wait()
-```
-
-`wait()` and `show()` return decoded JSON objects. Other commands return a
-`CommandResult` or raise `RotariError` when the command exits unsuccessfully.
-Run `rotari schema --json` to inspect every dynamically generated command
-option and its CLI description.
-
-## API documentation
-
-The Python API reference is published in the [Rotari documentation site](https://kamo-naoyuki.github.io/rotari/docs/python-api/).
-It obtains method signatures from the checked-in CLI schema, so it reflects the
-generated Python interface.
+See the [Python client guide](https://kamo-naoyuki.github.io/rotari/docs/python-client/)
+for installation and a usage example. The [Python API reference](https://kamo-naoyuki.github.io/rotari/docs/python-api/)
+contains every client command and its schema-generated options.
 
 ## Generated CLI metadata
 

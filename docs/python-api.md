@@ -181,6 +181,5 @@ Show queue or run status.
 ::: rotari
     options:
       members:
-        - Rotari
         - CommandResult
         - RotariError

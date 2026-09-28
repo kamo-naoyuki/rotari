@@ -36,6 +36,7 @@ nav:
   - Development:
       - Architecture: ARCHITECTURE.md
   - API reference:
+      - Python client: PYTHON_CLIENT.md
       - Python API: python-api.md
       - Go API: go-api.md
 
