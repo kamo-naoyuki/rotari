@@ -8,6 +8,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **Unidentified intermittent test failure in `cmd/rotari` (suspected flaky test)**: during sandbox investigation on 2026-09-29, `go test ./cmd/rotari ./internal/state` reported `FAIL github.com/kamo-naoyuki/rotari/cmd/rotari 32.326s`; `internal/state` passed from cache. Only the last 50 output lines were retained, so the failing test and assertion are unknown. Subsequent uncached runs all passed: 5 CLI-only runs, 5 runs of both packages, and 15 verbose CLI-only runs. The cause and any sandbox involvement remain unverified; error messages from negative test cases near the end of the output do not identify the failure. On recurrence, preserve full output and the actual `go test` exit code, preferably using `go test -count=1 -json ./cmd/rotari ./internal/state`, then identify the failing test before investigating timing or environment dependencies. A trailing `grep` returning 1 because it found no failures is not a test failure.
+
 ## Resolved
 
 <!-- Keep only short records of resolved items when they may help prevent recurrence. -->
