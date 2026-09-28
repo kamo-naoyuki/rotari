@@ -423,7 +423,7 @@ function renderOverview(queues) {
             esc(latest.run_name || latest.run_id) +
             "</a>"
           : "-") +
-        "</td><td><span class=\"status-" +
+        '</td><td><span class="status-' +
         (latest ? latest.status : "") +
         '\">' +
         esc(latest ? latest.status : "-") +
