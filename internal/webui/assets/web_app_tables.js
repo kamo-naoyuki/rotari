@@ -317,7 +317,14 @@ function addRunningOutputButtons() {
         button.disabled = !started;
         button.title = started ? "" : "Job has not started yet";
         button.onclick = () =>
-          showLog(queue.project_name, run.run_id, job.id, job.attempt_id, "stdout", job.log_mode);
+          showLog(
+            queue.project_name,
+            run.run_id,
+            job.id,
+            job.attempt_id,
+            "stdout",
+            job.log_mode,
+          );
         cell.textContent = "";
         cell.append(button);
       }
