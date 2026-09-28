@@ -129,6 +129,14 @@ function toggleSidebarProject(button) {
   project.classList.toggle("expanded", !expanded);
   runs.hidden = expanded;
 }
+function toggleSidebarRoot(button) {
+  const root = button.closest(".sidebar-project");
+  const projects = root.querySelector(".sidebar-projects");
+  const expanded = button.getAttribute("aria-expanded") === "true";
+  button.setAttribute("aria-expanded", String(!expanded));
+  root.classList.toggle("expanded", !expanded);
+  projects.hidden = expanded;
+}
 function setLocation(base, paths) {
   const location = document.getElementById("location");
   location.textContent = base;

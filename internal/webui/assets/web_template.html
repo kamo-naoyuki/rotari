@@ -21,9 +21,20 @@
   <body>
     <main>
       <nav class="sidebar">
-        <a class="sidebar-link" href="/">All projects</a>
+        <div class="sidebar-project expanded" id="sidebar-root">
+          <div class="sidebar-project-row">
+            <button
+              type="button"
+              class="sidebar-toggle"
+              aria-expanded="true"
+              aria-label="Toggle all projects"
+              onclick="toggleSidebarRoot(this)"
+            ></button>
+            <a class="sidebar-project-link" href="/">All projects</a>
+          </div>
+          <div class="sidebar-projects" id="sidebar-projects"></div>
+        </div>
         <a class="sidebar-link" href="/jobs/">Job activity</a>
-        <div class="sidebar-projects" id="sidebar-projects"></div>
       </nav>
       <div class="content">
       <header>

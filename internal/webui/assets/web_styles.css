@@ -201,12 +201,15 @@ main {
   background: var(--panel);
 }
 .sidebar-projects {
-  margin-top: 12px;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
+.sidebar-projects[hidden] {
+  display: none;
 }
 .sidebar-project-row {
   display: flex;
