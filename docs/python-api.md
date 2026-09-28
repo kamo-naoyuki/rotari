@@ -64,6 +64,7 @@ Execute queued commands, optionally selecting jobs from a run.
 | `quiet` | `bool` | suppress progress and completion output |
 | `executor` | `str` | execution executor override |
 | `env` | `str` | caller environment propagation mode (default ALL) |
+| `match_by` | `str` | job identity matching |
 | `executor_options` | `Sequence[str]` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
 | `ssh_concurrency` | `str` | SSH executor concurrency |
 | `ssh_options` | `Sequence[str]` | SSH executor dispatch options; may be repeated |
