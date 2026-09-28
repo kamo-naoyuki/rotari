@@ -134,10 +134,11 @@ jobs. Implemented by `runJobs` in
 `retry` rows of `TestSelectorTable` in
 [conformance/06-selectors/selector_test.go](../conformance/06-selectors/selector_test.go).
 
-A job whose command, environment, or working directory changed since its
-recorded result has no result until it runs again (see
+An edited job keeps its recorded result; a job marked
+`change --status unfinished` has no result until it runs again (see
 [02-run-lifecycle-and-execution.md](02-run-lifecycle-and-execution.md)), so
-`retry` runs failed jobs and edited jobs together without naming them.
+`retry` runs failed jobs and jobs marked unfinished together without naming
+them.
 
 **SEL-8** Selectors combine by kind as described above, and these exclusions
 hold:

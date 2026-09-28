@@ -293,11 +293,10 @@ rotari change --job-name train --depends-on prepare -- ./train-v2.sh
 rotari retry
 ```
 
-A job whose command, environment (`--env`), or working directory changes loses
-its previous result: it counts as unfinished until it runs again, so `retry`
-runs it together with the failed jobs, and a successful result of the old
-command is never carried forward. Other changes, such as the executor, timeout,
-or name, keep the result.
+A changed job keeps its previous result, even when its command, environment
+(`--env`), or working directory changes. To run an edited job again with
+`retry`, mark it with `change --status unfinished`: it then counts as
+unfinished until it runs again, and the old result is never carried forward.
 
 `change` requires exactly one target selector: `--job-id/-j ID` or
 `--job-name NAME` for one job, or `--stage STAGE`, `--matrix NAME` (the base job

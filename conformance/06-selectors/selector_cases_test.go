@@ -132,10 +132,11 @@ var selectorCases = []selectorCase{
 	{name: "unknown stage", cmd: "run", args: "-b {B} -p sweep --stage nope", err: `no jobs in stage "nope"`},
 	{name: "stage and job ID", cmd: "run", args: "-b {B} -p sweep --stage training --job-id {job:prep}", err: "cannot be combined"},
 
-	// A changed command has no result until it runs again.
-	{name: "changed command", cmd: "retry", args: "-b {B} -p sweep", queued: true, change: "-b {B} -p sweep --job-name prep echo edited", jobs: []string{"eval-2", "late", "prep", "train-SEED2"}},
-	{name: "changed environment", cmd: "retry", args: "-b {B} -p sweep", queued: true, change: "-b {B} -p sweep --job-name prep --env MODE=fast", jobs: []string{"eval-2", "late", "prep", "train-SEED2"}},
+	// An edit keeps the recorded result; only a status mark replaces it.
+	{name: "changed command", cmd: "retry", args: "-b {B} -p sweep", queued: true, change: "-b {B} -p sweep --job-name prep echo edited", jobs: []string{"eval-2", "late", "train-SEED2"}},
+	{name: "changed environment", cmd: "retry", args: "-b {B} -p sweep", queued: true, change: "-b {B} -p sweep --job-name prep --env MODE=fast", jobs: []string{"eval-2", "late", "train-SEED2"}},
 	{name: "changed timeout", cmd: "retry", args: "-b {B} -p sweep", queued: true, change: "-b {B} -p sweep --job-name prep --timeout 5m", jobs: []string{"eval-2", "late", "train-SEED2"}},
 	{name: "changed command and failed", cmd: "run", args: "-b {B} -p sweep --failed", queued: true, change: "-b {B} -p sweep --job-name prep echo edited", jobs: []string{"eval-2", "train-SEED2"}},
-	{name: "changed command and unfinished", cmd: "run", args: "-b {B} -p sweep --unfinished", queued: true, change: "-b {B} -p sweep --job-name prep echo edited", jobs: []string{"late", "prep"}},
+	{name: "changed command and unfinished", cmd: "run", args: "-b {B} -p sweep --unfinished", queued: true, change: "-b {B} -p sweep --job-name prep echo edited", jobs: []string{"late"}},
+	{name: "changed command marked unfinished", cmd: "retry", args: "-b {B} -p sweep", queued: true, change: "-b {B} -p sweep --job-name prep --status unfinished echo edited", jobs: []string{"eval-2", "late", "prep", "train-SEED2"}},
 }

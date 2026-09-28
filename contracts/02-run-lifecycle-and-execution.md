@@ -135,17 +135,17 @@
   separate `ROTARI_RETRY_*` environment-variable namespace. It shares the
   corresponding `ROTARI_RUN_*` defaults, including `ROTARI_RUN_RETRY`,
   `ROTARI_RUN_ASYNC`, and `ROTARI_RUN_QUIET`.
-- A queued job whose command, environment, or working directory `change`
-  edits is marked `Force`: its recorded result no longer describes it, so a
-  rerun treats it as unfinished, never matches it by `--failed` or
-  `--success`, and never carries that result. Other edits, such as the
-  timeout, retry settings, dependencies, or name, keep the result. A
-  workflow-import queue forces a job on any edit. Implemented by
-  `applyMutation` in [internal/queueops/change.go](../internal/queueops/change.go)
-  and `jobResult` in [internal/run/rerun.go](../internal/run/rerun.go);
-  covered by the "changed" rows of `TestSelectorTable` in
+- A queued job that `change` edits keeps its recorded result, whether the
+  edit is its command, environment, working directory, or a scheduling field
+  such as the timeout. Only a status mark (`change --status`) replaces it:
+  `unfinished` discards the result, so a rerun treats the job as unfinished,
+  never matches it by `--failed` or `--success`, and never carries that
+  result. Implemented by `applyMutation` in
+  [internal/queueops/change.go](../internal/queueops/change.go) and
+  `jobResult` in [internal/run/rerun.go](../internal/run/rerun.go); covered
+  by the "changed" rows of `TestSelectorTable` in
   [conformance/06-selectors/selector_test.go](../conformance/06-selectors/selector_test.go) and
-  `TestPlanRerunForcedJobsHaveNoResult`.
+  `TestPlanRerunMarkedStatuses`.
 - In a filtered run, selected jobs execute. Completed jobs outside the
   selection carry forward their result and an origin pointing to the original
   attempt's stdout and stderr; jobs without a completed result remain unfinished.
