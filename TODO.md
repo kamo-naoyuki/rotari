@@ -44,9 +44,6 @@
   have focused coverage; RUN-3 remains partial until remote behavior is
   exercised.
 
-For field design, Dagu's step options are a useful reference
-(`dagu/internal/spec/step.go`), for example `signal_on_stop`.
-
 Each of these must define its behavior for every executor (local, SSH, Slurm,
 PBS, LSF) and be tested per executor. Add them one at a time.
 
