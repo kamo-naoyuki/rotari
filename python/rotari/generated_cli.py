@@ -584,14 +584,13 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'generate a config fi
                           'name': 'executor-option',
                           'repeated': True,
                           'value_name': 'OPTION'},
-                         {'description': 'stdout destination; stderr also goes '
-                                         'here unless --error is specified; may '
-                                         'be repeated',
+                         {'description': 'stdout destination; stderr also goes here '
+                                         'unless --error is specified; may be repeated',
                           'name': 'output',
                           'repeated': True,
                           'value_name': 'FILE'},
-                         {'description': 'stderr destination; defaults to '
-                                         '--output destinations; may be repeated',
+                         {'description': 'stderr destination; defaults to --output '
+                                         'destinations; may be repeated',
                           'name': 'error',
                           'repeated': True,
                           'value_name': 'FILE'},
@@ -806,10 +805,11 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'generate a config fi
                           'short': 'e',
                           'value_name': 'EXECUTOR',
                           'values': ['local', 'lsf', 'pbs', 'slurm', 'ssh']},
-                         {'description': 'caller environment propagation mode (default ALL) '
-                                         '(choices: ALL, NONE)',
+                         {'description': 'caller environment propagation mode (default '
+                                         'ALL)',
                           'name': 'env',
-                          'value_name': 'ALL|NONE'},
+                          'value_name': 'ALL|NONE',
+                          'values': ['ALL', 'NONE']},
                          {'description': 'option passed to the selected scheduler '
                                          '(sbatch/qsub/...); may be repeated',
                           'environment': 'ROTARI_EXECUTOR_OPTIONS',
@@ -949,10 +949,11 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'generate a config fi
                           'short': 'e',
                           'value_name': 'EXECUTOR',
                           'values': ['local', 'lsf', 'pbs', 'slurm', 'ssh']},
-                         {'description': 'caller environment propagation mode (default ALL) '
-                                         '(choices: ALL, NONE)',
+                         {'description': 'caller environment propagation mode (default '
+                                         'ALL)',
                           'name': 'env',
-                          'value_name': 'ALL|NONE'},
+                          'value_name': 'ALL|NONE',
+                          'values': ['ALL', 'NONE']},
                          {'description': 'option passed to the selected scheduler '
                                          '(sbatch/qsub/...); may be repeated',
                           'environment': 'ROTARI_EXECUTOR_OPTIONS',

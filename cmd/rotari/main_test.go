@@ -2918,27 +2918,14 @@ func TestJobWasExplicitlyCancelledUsesCancellationStateNotExitCode(t *testing.T)
 }
 
 func TestSendRunRequestReadsProgressThenFinalResponse(t *testing.T) {
-	baseDir, err := os.MkdirTemp("", "rotari-socket-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(baseDir)
-	if err := os.MkdirAll(baseDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	listener, err := net.Listen("unix", serverinternal.SocketPath(baseDir))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer listener.Close()
-	defer os.Remove(serverinternal.SocketPath(baseDir))
+	clientConn, conn := net.Pipe()
 
 	go func() {
-		conn, err := listener.Accept()
-		if err != nil {
+		defer conn.Close()
+		if err := serverinternal.Ready(conn, nil); err != nil {
+			t.Errorf("send ready response: %v", err)
 			return
 		}
-		defer conn.Close()
 		var request serverinternal.Request
 		if err := json.NewDecoder(conn).Decode(&request); err != nil {
 			t.Errorf("decode request: %v", err)
@@ -2965,7 +2952,11 @@ func TestSendRunRequestReadsProgressThenFinalResponse(t *testing.T) {
 	os.Stdout = w
 	defer func() { os.Stdout = oldStdout }()
 
-	response, err := sendRunRequest(baseDir, serverinternal.Request{Op: "run"})
+	client, err := serverinternal.Connect(clientConn, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := sendRunRequest(client, serverinternal.Request{Op: serverinternal.OpRun})
 	_ = w.Close()
 	output, readErr := io.ReadAll(r)
 	if readErr != nil {
