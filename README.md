@@ -139,5 +139,6 @@ fails; see [Web browser notifications](docs/WEB_BROWSER_NOTIFICATIONS.md).
 
 - [Documentation site](https://kamo-naoyuki.github.io/rotari/docs/)
 - [Getting started](https://kamo-naoyuki.github.io/rotari/docs/getting-started/)
+- [CLI reference](https://kamo-naoyuki.github.io/rotari/docs/cli-reference/)
 - [Python API](https://kamo-naoyuki.github.io/rotari/docs/python-api/)
 - [Go API](https://kamo-naoyuki.github.io/rotari/go-api/)

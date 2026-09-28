@@ -17,6 +17,7 @@ nav:
   - Home: index.md
   - User guide:
       - Getting started: GETTING_STARTED.md
+      - CLI reference: CLI_REFERENCE.md
       - Concepts: CONCEPTS.md
       - Executors and schedulers: EXECUTORS.md
       - Running and recovering: RUNNING.md
