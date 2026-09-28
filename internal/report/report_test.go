@@ -55,7 +55,7 @@ func createFixture(t *testing.T) (string, state.ProjectPaths, string, string) {
 
 func TestBuildIncludesDiagnosisAndBoundedLog(t *testing.T) {
 	_, paths, runID, jobID := createFixture(t)
-	report, err := Build(testStore(), paths, runID, jobID, false, "")
+	report, err := Build(testStore(), paths, runID, jobID, false, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestBuildRedactsKnownAndTypicalSensitiveValues(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(paths.RunsDir, runID, jobID, state.StderrFileName), []byte("failed at /home/alice/private.txt on node-1.example.com\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	report, err := Build(testStore(), paths, runID, jobID, false, "")
+	report, err := Build(testStore(), paths, runID, jobID, false, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestBuildRedactsMultipleSecretsAndKeepsTheFirstVisibleMarker(t *testing.T) 
 	if err := os.WriteFile(filepath.Join(runDir, jobID, state.StderrFileName), []byte("error: /home/alice/project/data/checkpoint.bin on cluster-gpu-01.example.com\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	report, err := Build(testStore(), paths, runID, jobID, false, "")
+	report, err := Build(testStore(), paths, runID, jobID, false, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestBuildJobReportIncludesSuccessfulJobLog(t *testing.T) {
 	if err := state.WriteJSON(filepath.Join(paths.RunsDir, runID, "summary.json"), model.RunSummary{RunID: runID, Status: "finished", Results: []model.JobResult{{ID: jobID, ExitCode: 0}}}); err != nil {
 		t.Fatal(err)
 	}
-	report, err := Build(testStore(), paths, runID, jobID, false, "")
+	report, err := Build(testStore(), paths, runID, jobID, false, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -32,10 +32,11 @@ var (
 )
 
 // Build formats the evidence of runID, or of its job jobID, for AI-assisted
-// diagnosis, with paths and hostnames redacted. failedOnly limits a run report
-// to failed and blocked jobs. A non-empty attemptID shows that attempt instead
-// of its job's latest.
-func Build(store state.Store, paths state.ProjectPaths, runID, jobID string, failedOnly bool, attemptID string) (string, error) {
+// diagnosis. failedOnly limits a run report to failed and blocked jobs. A
+// non-empty attemptID shows that attempt instead of its job's latest. redact
+// replaces paths and hostnames with placeholders; disable it only for
+// sharing within a trusted team.
+func Build(store state.Store, paths state.ProjectPaths, runID, jobID string, failedOnly bool, attemptID string, redact bool) (string, error) {
 	run, err := loadRun(store, paths, runID, attemptID)
 	if err != nil {
 		return "", err
@@ -46,17 +47,17 @@ func Build(store state.Store, paths state.ProjectPaths, runID, jobID string, fai
 		}
 		for _, job := range run.Jobs {
 			if job.ID == jobID {
-				return redactAIReport(formatJobAIReport(paths, run, job), paths, run), nil
+				return finishAIReport(formatJobAIReport(paths, run, job), paths, run, redact), nil
 			}
 		}
 		return "", fmt.Errorf(jobNotFoundMessage, jobID, runID)
 	}
-	return redactAIReport(formatRunAIReport(paths, run, failedOnly), paths, run), nil
+	return finishAIReport(formatRunAIReport(paths, run, failedOnly), paths, run, redact), nil
 }
 
 // BuildForJobs formats the evidence of the selected jobs of runID as a run
-// report.
-func BuildForJobs(store state.Store, paths state.ProjectPaths, runID string, jobIDs []string) (string, error) {
+// report. See Build for redact.
+func BuildForJobs(store state.Store, paths state.ProjectPaths, runID string, jobIDs []string, redact bool) (string, error) {
 	run, err := loadRun(store, paths, runID, "")
 	if err != nil {
 		return "", err
@@ -80,7 +81,7 @@ func BuildForJobs(store state.Store, paths state.ProjectPaths, runID string, job
 			return "", fmt.Errorf(jobNotFoundMessage, jobID, runID)
 		}
 	}
-	return redactAIReport(formatRunAIReportSelected(paths, run, selected, false), paths, run), nil
+	return finishAIReport(formatRunAIReportSelected(paths, run, selected, false), paths, run, redact), nil
 }
 
 func loadRun(store state.Store, paths state.ProjectPaths, runID, attemptID string) (webprojection.Run, error) {
@@ -151,6 +152,15 @@ func formatJobAIReport(paths state.ProjectPaths, run webprojection.Run, job webp
 	fmt.Fprintf(&builder, "\n- Project: %s\n- Run ID: `%s`\n- Run status: %s\n- Host: %s\n", paths.ProjectName, run.RunID, run.Status, reportValue(run.Context.Hostname))
 	writeJobAIReport(&builder, paths, run, job, reportJobStatus(job, run.Running), true)
 	return builder.String()
+}
+
+// finishAIReport optionally redacts report, then appends the notice matching
+// that choice.
+func finishAIReport(report string, paths state.ProjectPaths, run webprojection.Run, redact bool) string {
+	if !redact {
+		return report + "\n> Redaction is turned off for this report. Review paths and hostnames before sharing.\n"
+	}
+	return redactAIReport(report, paths, run)
 }
 
 func redactAIReport(report string, paths state.ProjectPaths, run webprojection.Run) string {

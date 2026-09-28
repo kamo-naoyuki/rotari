@@ -5,6 +5,7 @@ let stateJSON = "";
 const expandedRunGraphics = {};
 let selectedOutput = "";
 let selectedLog = null;
+let selectedReportContext = null;
 let followTimer = null;
 const selectedAttemptByJob = {};
 const openAttemptMenuByJob = {};

@@ -397,7 +397,7 @@ func cmdShow(args []string) int {
 	}
 	if *jobIDOption != "" {
 		if *reportOutput {
-			report, err := report.Build(jsonStore(), paths, runID, *jobIDOption, false, attemptID)
+			report, err := report.Build(jsonStore(), paths, runID, *jobIDOption, false, attemptID, true)
 			if err != nil {
 				printError(err)
 				return 1
@@ -439,7 +439,7 @@ func cmdShow(args []string) int {
 		})
 	}
 	if *reportOutput {
-		report, err := report.Build(jsonStore(), paths, runID, "", *failedOnly, "")
+		report, err := report.Build(jsonStore(), paths, runID, "", *failedOnly, "", true)
 		if err != nil {
 			printError(err)
 			return 1

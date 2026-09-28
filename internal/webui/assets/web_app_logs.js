@@ -240,6 +240,9 @@ function updateModalActions() {
   copyTail.dataset.copyTitle = "Copy last 100 lines";
   copyTail.dataset.copyIcon ||= copyTail.innerHTML;
   document.getElementById("report-note").hidden = view !== "ai";
+  const redactToggle = document.getElementById("report-redact-toggle");
+  redactToggle.hidden =
+    view !== "ai" || typeof window.__ROTARI_STATIC_STATE__ !== "undefined";
   ["open-gemini", "open-chatgpt", "open-claude"].forEach((id) => {
     const button = document.getElementById(id);
     button.hidden = view !== "ai";
@@ -268,6 +271,12 @@ async function showAIReport(project, run, job, jobIDs) {
   selectedOutput = "Preparing...";
   ensureModalOutput().textContent = selectedOutput;
   openOutputModal(false);
+  selectedReportContext = { project, run, job, jobIDs };
+  document.getElementById("report-redact-checkbox").checked = true;
+  await fetchAIReport(true);
+}
+async function fetchAIReport(redact) {
+  const { project, run, job, jobIDs } = selectedReportContext;
   const params = new URLSearchParams({
     project_name: project.project_name,
     run_id: run.run_id,
@@ -275,12 +284,19 @@ async function showAIReport(project, run, job, jobIDs) {
   if (job) params.set("job_id", job.id);
   if (!job && jobIDs)
     jobIDs.forEach((jobID) => params.append("job_ids", jobID));
+  if (!redact) params.set("redact", "false");
   const response = await fetch("/api/report?" + params);
   selectedOutput = await response.text();
   if (!response.ok)
     selectedOutput = "Failed to prepare report: " + selectedOutput;
   ensureModalOutput().textContent = selectedOutput;
   openOutputModal(false);
+}
+async function toggleReportRedaction(redact) {
+  if (!selectedReportContext) return;
+  selectedOutput = "Preparing...";
+  ensureModalOutput().textContent = selectedOutput;
+  await fetchAIReport(redact);
 }
 function addAIButtons() {
   const parts = pageParts();
@@ -453,6 +469,7 @@ function closeOutputModal() {
   followTimer = null;
   selectedLog = null;
   selectedOutput = "";
+  selectedReportContext = null;
 }
 function restoreSelectedOutput() {
   if (selectedLog && selectedOutput) {

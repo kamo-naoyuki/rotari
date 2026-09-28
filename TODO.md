@@ -301,6 +301,9 @@ entry point.
 - Add an option to generate reports without redaction, for sharing within a
   trusted team. Decide whether it is a CLI flag (`show --report`), a Web
   toggle, or both, and keep redaction the default.
+  Done for the Web toggle: `rotari web`'s report modal has a "Redact paths
+  and hostnames" checkbox (`/api/report?redact=false`); a CLI flag is still
+  open.
 - Matrix grid: consider clicking a row or column heading to filter the job
   table to that parameter value.
 - Consider a per-job attempt history that shows how the command or executor

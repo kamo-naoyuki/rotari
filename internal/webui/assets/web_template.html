@@ -121,6 +121,15 @@
               Markdown report for pasting into an AI assistant. Nothing is sent
               to external services automatically.
             </p>
+            <label id="report-redact-toggle" class="meta" hidden>
+              <input
+                type="checkbox"
+                id="report-redact-checkbox"
+                checked
+                onchange="toggleReportRedaction(this.checked)"
+              />
+              Redact paths and hostnames
+            </label>
             <div class="output-box">
               <pre id="modal-log" class="log"></pre>
               <div id="config-editor" class="config-editor" hidden>

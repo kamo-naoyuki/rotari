@@ -308,8 +308,9 @@ func (s site) handler() http.Handler {
 			writeWebError(writer, err)
 			return
 		}
+		redact := request.URL.Query().Get("redact") != "false"
 		if request.URL.Query().Get("job_ids") != "" {
-			report, err := report.BuildForJobs(s.Store, paths, runID, jobIDs)
+			report, err := report.BuildForJobs(s.Store, paths, runID, jobIDs, redact)
 			if err != nil {
 				writeWebError(writer, err)
 				return
@@ -322,7 +323,7 @@ func (s site) handler() http.Handler {
 		if request.URL.Query().Get("job_id") != "" {
 			singleJobID = jobIDs[0]
 		}
-		report, err := report.Build(s.Store, paths, runID, singleJobID, false, "")
+		report, err := report.Build(s.Store, paths, runID, singleJobID, false, "", redact)
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -901,7 +902,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 			if files, configErr := s.loadWebConfigFiles(baseDir, queue.QueueName, run.RunID); configErr == nil {
 				configs[staticConfigKey(queue.QueueName, run.RunID)] = files
 			}
-			if report, reportErr := report.Build(s.Store, paths, run.RunID, "", false, ""); reportErr == nil {
+			if report, reportErr := report.Build(s.Store, paths, run.RunID, "", false, "", true); reportErr == nil {
 				reports[staticReportKey(queue.QueueName, run.RunID, "")] = report
 			}
 			for _, job := range run.Jobs {
@@ -930,7 +931,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 						}
 					}
 				}
-				if report, reportErr := report.Build(s.Store, paths, run.RunID, job.ID, false, ""); reportErr == nil {
+				if report, reportErr := report.Build(s.Store, paths, run.RunID, job.ID, false, "", true); reportErr == nil {
 					reports[staticReportKey(queue.QueueName, run.RunID, job.ID)] = report
 				}
 			}
