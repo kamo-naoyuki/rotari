@@ -60,13 +60,28 @@ window.fetch = async function (input, init) {
           ],
       );
       const found = selectedReports.every(Boolean);
-      return new Response(
-        found ? selectedReports.join("\n\n") : "Report not found",
-        {
-          status: found ? 200 : 404,
+      if (!found) {
+        return new Response("Report not found", {
+          status: 404,
           headers: { "Content-Type": "text/markdown" },
-        },
+        });
+      }
+      // Each precomputed per-job report ends with its own redaction notice;
+      // keep only one when joining them into a single selected-jobs report.
+      const noticePattern = /\n> [^\n]*\n$/;
+      const notices = selectedReports.map((report) =>
+        report.match(noticePattern),
       );
+      const bodies = selectedReports.map((report, index) =>
+        notices[index]
+          ? report.slice(0, report.length - notices[index][0].length)
+          : report,
+      );
+      const notice = notices.find(Boolean);
+      return new Response(bodies.join("\n\n") + (notice ? notice[0] : ""), {
+        status: 200,
+        headers: { "Content-Type": "text/markdown" },
+      });
     }
     const key = staticReportKey(
       request.searchParams.get("project_name"),
