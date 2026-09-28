@@ -42,3 +42,5 @@ dagu/
 # Local refactoring notes and unresolved issues
 /ISSUES.md
 /docs/REFACTORING_PLAN.md
+
+.vscode/
