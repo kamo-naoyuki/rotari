@@ -16,6 +16,7 @@ theme:
 nav:
   - Home: index.md
   - User guide:
+      - Getting started: GETTING_STARTED.md
       - Concepts: CONCEPTS.md
       - Executors and schedulers: EXECUTORS.md
       - Running and recovering: RUNNING.md
@@ -26,7 +27,6 @@ nav:
       - FAQ: FAQ.md
       - Comparison with other tools: TOOL_COMPARISON.md
       - Docker: DOCKER.md
-      - Dagu comparison: DAGU_COMPARISON.md
   - Integrations:
       - Webhook notifications: WEBHOOK_NOTIFICATIONS.md
       - Browser notifications: WEB_BROWSER_NOTIFICATIONS.md
@@ -43,7 +43,11 @@ markdown_extensions:
   - attr_list
   - pymdownx.details
   - pymdownx.highlight
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed
 
 plugins:
@@ -54,9 +58,14 @@ plugins:
           options:
             docstring_section_style: table
             members_order: source
+            show_signature_annotations: true
             show_root_heading: true
             show_source: false
 
 validation:
   links:
     not_found: ignore
+
+extra_javascript:
+  - https://unpkg.com/mermaid@11/dist/mermaid.min.js
+  - javascripts/mermaid.js

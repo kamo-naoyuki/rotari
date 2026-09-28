@@ -41,96 +41,11 @@ Rotari deliberately stays out of the way. **You don't need a separate workflow l
 
 Rotari covers a narrow need, and other tools may fit yours better: [GNU Parallel](https://www.gnu.org/software/parallel/) for one command over many inputs, [pueue](https://github.com/Nukesor/pueue) or [task-spooler](https://github.com/justanhduc/task-spooler) for a personal queue on one machine, and a workflow engine such as [Snakemake](https://snakemake.github.io/), [Nextflow](https://www.nextflow.io/), [Dagu](https://dagu.sh/), or [Airflow](https://airflow.apache.org/) for a pipeline you share, rerun on new data, or run on a schedule. [Comparison with other tools](docs/TOOL_COMPARISON.md) explains what each one does and how rotari differs.
 
-## Installation
+## Installation and quick start
 
-Prebuilt binaries for Linux and macOS are on the
-[GitHub Releases](https://github.com/kamo-naoyuki/rotari/releases) page; Go is
-not required:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/kamo-naoyuki/rotari/main/scripts/install.sh | sh
-```
-
-This downloads the release binary matching your OS/architecture into
-`~/.local/bin` (override with `ROTARI_INSTALL_DIR`, pin a version with
-`ROTARI_VERSION`).
-
-Other options:
-
-```sh
-brew install kamo-naoyuki/tap/rotari   # Homebrew / Linuxbrew
-python3 -m pip install --index-url https://kamo-naoyuki.github.io/rotari/simple/ rotari  # bundles the executable
-go install github.com/kamo-naoyuki/rotari/cmd/rotari@latest  # from source
-```
-
-Run `rotari version` to check the installed version, and
-`rotari completion install` to set up shell completion for Bash, Zsh, or Fish
-(see [Shell completion](docs/CONFIGURATION.md#shell-completion)).
-
-### Docker
-
-For the published image, persistent state, and runtime requirements, see the
-[Docker guide](docs/DOCKER.md).
-
-## Quick start
-
-```sh
-# Set the project once for the current shell. The default state directory is
-# ~/.local/state/rotari; set ROTARI_BASEDIR to use another location.
-export ROTARI_PROJECT_NAME=sweep
-# Add commands to the current project queue.
-rotari add -- python train.py --lr 0.1
-rotari add -- python train.py --lr 0.01
-rotari add -- python train.py --lr 0.001
-# Execute the queued commands and wait for the run to finish.
-rotari run
-# List job status across projects.
-rotari jobs
-# Inspect the current project's queue or most relevant run.
-rotari show
-```
-
-Add commands first, then run the queue explicitly. Use `rotari run --async` when
-the run should continue in the background. To inspect failed-job logs and retry
-only failed or unfinished work:
-
-```sh
-# Show logs for failed jobs in the selected project.
-rotari show -p sweep --failed-logs
-# Start a new run for failed and unfinished jobs; successful jobs are reused.
-rotari retry -p sweep
-```
-
-`add`, `run`, `show`, and `retry` are all most batches need; the other
-commands are there for when you need them. `jobs` gives a compact status
-overview across projects. `show` provides details for a project, run, or job,
-including merged or separately captured stdout/stderr logs and saved results.
-`run` and `retry` inherit the caller's environment by default; pass
-`--env=NONE` to suppress it while retaining job `--env` and rotari metadata.
-
-See [Projects, queues, runs, and state](docs/CONCEPTS.md#projects-queues-runs-and-state) for
-project selection and state layout, [Inspect](docs/INSPECT.md#inspect) for status and logs,
-[Recover and rerun](docs/RUNNING.md#recover-and-rerun) for retries, and [Async runs](docs/RUNNING.md#async-runs)
-for background execution.
-
-When a coding agent drives rotari, have it read `rotari guide` first. The guide
-explains the recommended workflow and includes a command reference generated
-from the installed binary's CLI metadata. `rotari --help` points agents to it,
-and a line such as "Run `rotari guide` before using rotari" in your project's
-`AGENTS.md` or `CLAUDE.md` makes an agent read it without being asked.
-
-Use `--depends-on NAME` to run a job only after a prerequisite job or stage
-succeeds:
-
-```sh
-rotari add --job-name prepare -- ./prepare.sh
-rotari add --job-name train --depends-on prepare -- ./train.sh
-```
-
-Use `--depends-on-finished NAME` instead for aggregation or cleanup jobs that
-should run once the prerequisite finishes, whatever its result. See
-[Dependencies and stages](docs/CONCEPTS.md#dependencies-and-stages) for
-stages and multiple prerequisites.
+See the [Getting started guide](https://kamo-naoyuki.github.io/rotari/docs/getting-started/)
+for installation, Docker, and the first run. It is the single maintained
+source for those instructions.
 
 ## Commands at a glance
 
