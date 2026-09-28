@@ -11,6 +11,8 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
+        # MkDocs uses a PyYAML !!python/name tag for custom Mermaid fences.
+        exclude: ^mkdocs\.yml$
       - id: check-added-large-files
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
