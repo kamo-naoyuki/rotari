@@ -48,7 +48,9 @@ fi
 
 # Discard any queue left over from a previous, possibly interrupted run of
 # this script, so the jobs added below never collide with earlier ones.
-rotari reset --recover
+if [[ -d "${ROTARI_BASEDIR}/projects/${ROTARI_PROJECT_NAME}" ]]; then
+    rotari reset --recover
+fi
 
 # Stable markers outside any run directory: these jobs fail on their first
 # attempt and succeed afterwards, so "rotari retry" below has a real

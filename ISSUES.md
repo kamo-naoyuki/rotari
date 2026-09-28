@@ -8,6 +8,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **Other example scripts require an existing project** (`scripts/example-workflow.sh`, `scripts/loadtest.sh`): both call `rotari reset --recover` before `import` or `add`, so their first run fails when the project does not exist.
+
 ## Resolved
 
 <!-- Keep only short records of resolved items when they may help prevent recurrence. -->
