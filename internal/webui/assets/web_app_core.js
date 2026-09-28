@@ -93,7 +93,8 @@ function renderSidebar(queues) {
   const container = document.getElementById("sidebar-projects");
   if (!container) return;
   const parts = pageParts();
-  const activeProject = parts[0] === "project" ? decodeURIComponent(parts[1]) : "";
+  const activeProject =
+    parts[0] === "project" ? decodeURIComponent(parts[1]) : "";
   const activeRun = parts[2] === "run" ? decodeURIComponent(parts[3]) : "";
   container.innerHTML = queues
     .map((q) => {
@@ -101,7 +102,9 @@ function renderSidebar(queues) {
       if (isActive) expandedSidebarProjects[q.project_name] = true;
       const isExpanded = !!expandedSidebarProjects[q.project_name];
       // Only build the run list when expanded; a collapsed project stays cheap.
-      const runsHTML = isExpanded ? sidebarRunLinksHTML(q, isActive, activeRun) : "";
+      const runsHTML = isExpanded
+        ? sidebarRunLinksHTML(q, isActive, activeRun)
+        : "";
       return (
         '<div class="sidebar-project' +
         (isExpanded ? " expanded" : "") +
@@ -117,7 +120,7 @@ function renderSidebar(queues) {
         esc(q.project_name) +
         "</a></div>" +
         '<div class="sidebar-runs"' +
-        (isExpanded ? "" : ' hidden') +
+        (isExpanded ? "" : " hidden") +
         ">" +
         runsHTML +
         "</div></div>"
@@ -142,8 +145,10 @@ function toggleSidebarProject(button) {
   const q = (state.projects || []).find((p) => p.project_name === projectName);
   if (q) {
     const parts = pageParts();
-    const isActive = parts[0] === "project" && decodeURIComponent(parts[1]) === projectName;
-    const activeRun = isActive && parts[2] === "run" ? decodeURIComponent(parts[3]) : "";
+    const isActive =
+      parts[0] === "project" && decodeURIComponent(parts[1]) === projectName;
+    const activeRun =
+      isActive && parts[2] === "run" ? decodeURIComponent(parts[3]) : "";
     runs.innerHTML = sidebarRunLinksHTML(q, isActive, activeRun);
   }
   runs.hidden = false;
