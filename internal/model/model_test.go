@@ -19,6 +19,88 @@ func TestJobSpecDoesNotPersistInheritedEnvironment(t *testing.T) {
 	}
 }
 
+func TestFingerprintUsesCanonicalExplicitInputs(t *testing.T) {
+	first := QueuedCommand{
+		Command: []string{"run", "--name", "a"},
+		Environment: []string{"Z=last", "A=one", "PY=3.12", "Z=final"},
+		WorkingDirectory: "./work/../data",
+		Matrix: &MatrixSpec{Values: []MatrixValue{{Name: "GPU", Value: "a"}, {Name: "PY", Value: "3.12"}}},
+	}
+	second := QueuedCommand{
+		Command: []string{"run", "--name", "a"},
+		Environment: []string{"PY=3.12", "Z=final", "A=one"},
+		WorkingDirectory: "data",
+		Matrix: &MatrixSpec{Values: []MatrixValue{{Name: "PY", Value: "3.12"}, {Name: "GPU", Value: "a"}}},
+	}
+	firstFingerprint, err := Fingerprint(first, intPointer(4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondFingerprint, err := Fingerprint(second, intPointer(4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstFingerprint != secondFingerprint {
+		t.Fatalf("equivalent fingerprints differ: %s != %s", firstFingerprint, secondFingerprint)
+	}
+	changedTask, err := Fingerprint(second, intPointer(5))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changedTask == secondFingerprint {
+		t.Fatal("array task number did not affect fingerprint")
+	}
+}
+
+func TestFingerprintExcludesImplicitInputs(t *testing.T) {
+	base := QueuedCommand{Command: []string{"run"}}
+	withExecutor := base
+	withExecutor.Executor = "slurm"
+	withExecutor.Timeout = "1h"
+	withExecutor.Retry = intPointer(2)
+	first, err := Fingerprint(base, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := Fingerprint(withExecutor, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != second {
+		t.Fatalf("implicit execution settings changed fingerprint: %s != %s", first, second)
+	}
+}
+
+func TestMatchFingerprintJobsPrioritizesJobIDsAndCountsRemainingUnits(t *testing.T) {
+	current := []FingerprintJob{
+		{ID: "same", Fingerprint: "x"},
+		{ID: "new-1", Fingerprint: "x"},
+		{ID: "new-2", Fingerprint: "x"},
+	}
+	source := []FingerprintJob{
+		{ID: "same", Fingerprint: "changed"},
+		{ID: "old-1", Fingerprint: "x"},
+		{ID: "old-2", Fingerprint: "x"},
+	}
+	matches := MatchFingerprintJobs(current, source)
+	if len(matches) != 3 || matches[0].Method != "job-id" || matches[1].Method != "fingerprint" || matches[2].Method != "fingerprint" {
+		t.Fatalf("matches = %#v", matches)
+	}
+	if matches[0].CurrentID != "same" || matches[0].SourceID != "same" || matches[1].SourceID != "old-1" || matches[2].SourceID != "old-2" {
+		t.Fatalf("matches = %#v", matches)
+	}
+}
+
+func TestMatchFingerprintJobsMakesCountMismatchNew(t *testing.T) {
+	current := []FingerprintJob{{ID: "new-1", Fingerprint: "x"}, {ID: "new-2", Fingerprint: "x"}}
+	source := []FingerprintJob{{ID: "old-1", Fingerprint: "x"}}
+	if matches := MatchFingerprintJobs(current, source); len(matches) != 0 {
+		t.Fatalf("count-mismatched matches = %#v", matches)
+	}
+}
+
+func intPointer(value int) *int { return &value }
+
 func TestParseAndValidateArrayRange(t *testing.T) {
 	array, err := ParseArrayRange("1-3,7")
 	if err != nil || array.First != 1 || array.Last != 7 || len(array.Tasks) != 4 {

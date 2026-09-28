@@ -31,6 +31,7 @@ type Options struct {
 	Scope        model.CommandSelector
 	SourceRunID  string
 	PartialArray bool
+	MatchBy      string
 }
 
 // Observer receives run progress. Both fields are optional.
@@ -63,6 +64,13 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 	jobs := model.QueueToJobs(queue.Commands)
 	if len(jobs) == 0 {
 		return 1, fmt.Errorf("queue '%s' has no valid commands", paths.ProjectName)
+	}
+	if options.MatchBy != "" {
+		queue, err = runner.MatchFingerprintQueue(paths, queue, options.MatchBy, options.SourceRunID)
+		if err != nil {
+			return 1, err
+		}
+		jobs = model.QueueToJobs(queue.Commands)
 	}
 	for _, job := range jobs {
 		if !state.IsValidPathElement(job.ID) {

@@ -32,6 +32,7 @@ type Request struct {
 	ScopeMatrix  string `json:"scope_matrix,omitempty"`
 	SourceRunID  string `json:"source_run_id,omitempty"`
 	PartialArray bool   `json:"partial_array,omitempty"`
+	MatchBy      string `json:"match_by,omitempty"`
 }
 
 type Response struct {

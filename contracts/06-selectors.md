@@ -44,7 +44,7 @@ Covered by the "complete" rows of `TestPositionalArguments` in
 | --- | --- | --- |
 | Base directory | `--basedir/-b DIR`, `ROTARI_BASEDIR` | the state directory |
 | Project | `--project-name/-p NAME`, `ROTARI_PROJECT_NAME`, the only project | a project |
-| Run ID | `--run-id/-r ID`, `latest` | a saved run; a registered ID also names its base directory and project; `latest` is the project's latest run, and no name may be `latest` |
+| Run ID | `--run-id/-r ID`, `latest` | a saved run; a registered ID also names its base directory and project; `latest` is the project's latest settled run (not active or interrupted), and no name may be `latest` |
 | Job ID | `--job-id/-j ID` | a queued command |
 | Array task ID | `ID-2` | one task of an array command |
 | Attempt ID | `att_<run>-<job>-<n>` | one execution attempt; also names its run |

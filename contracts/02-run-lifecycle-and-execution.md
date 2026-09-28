@@ -61,6 +61,21 @@
   `context.json` and `ROTARI_CWD` record the caller's directory; they do not
   assert that the path exists on a remote host.
 
+- **RUN-4** When a new run uses the `id-and-fingerprint` matching mode, Job
+  ID/Origin matching is resolved first. Expanded execution units already
+  matched that way are removed from the fingerprint candidates. The remaining
+  normal jobs, array tasks, and matrix leaves form one candidate set. A
+  fingerprint is computed from the command/argv, final explicitly stored
+  `add --env` values, explicitly stored `add --working-directory` after `.` and
+  `..` normalization, expanded matrix parameters, and array task number. It
+  does not include job ID, name, executor settings, timeout, retry settings,
+  DAG, or the array/matrix range as a whole. Fingerprints are recalculated
+  from the current queue and historical `commands.json`; they are not
+  persisted. Matching uses `(fingerprint, queue occurrence)` after ID matches
+  have been removed. If counts differ for a fingerprint, all current units
+  with that fingerprint are new work. A missing historical input makes that
+  historical unit ineligible rather than using a weaker fallback.
+
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,
   and its scheduling fields. The working directory and environment a run uses

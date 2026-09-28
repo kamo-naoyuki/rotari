@@ -51,9 +51,14 @@ func runJobs(args []string, defaultSelection string) int {
 	quiet := cliBool(fs, "quiet", false)
 	executor := cliString(fs, "executor", "")
 	envMode := cliString(fs, "env", model.EnvModeAll)
+	matchBy := cliString(fs, "match-by", model.MatchByIDAndFingerprint)
 	var executorOptions stringSliceFlag
 	cliValue(fs, &executorOptions, "executor-option")
 	if err := cliParse(fs, args); err != nil {
+		return 1
+	}
+	if *matchBy != model.MatchByJobID && *matchBy != model.MatchByFingerprint && *matchBy != model.MatchByIDAndFingerprint {
+		printErrorf("invalid match mode %q (choose %s, %s, or %s)", *matchBy, model.MatchByJobID, model.MatchByFingerprint, model.MatchByIDAndFingerprint)
 		return 1
 	}
 	left := fs.Args()
@@ -265,7 +270,7 @@ func runJobs(args []string, defaultSelection string) int {
 	request := serverinternal.Request{
 		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings(), Retry: *retry, Async: *async, Quiet: *quiet,
 		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, EnvMode: *envMode, CWD: cwd,
-		Selection: selection, JobIDs: jobIDs, ScopeStage: scope.Stage, ScopeMatrix: scope.Matrix, SourceRunID: sourceRunID, PartialArray: *partialArray,
+		Selection: selection, JobIDs: jobIDs, ScopeStage: scope.Stage, ScopeMatrix: scope.Matrix, SourceRunID: sourceRunID, PartialArray: *partialArray, MatchBy: *matchBy,
 	}
 	var response serverinternal.Response
 	if *async {

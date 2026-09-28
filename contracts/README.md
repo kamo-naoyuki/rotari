@@ -171,6 +171,7 @@ the IDs, this table, and those calls disagree.
 | RUN-1 | A filtered rerun executes the selected jobs, carries completed results outside the selection into the new run, and leaves the source run unchanged | conformance | `TestFilteredRerunCarriesCompletedResults` |
 | RUN-2 | A run-level retry limit retries a failed job within the same run until it succeeds or the limit is exhausted; a successful retry makes the run successful | conformance | `TestRunRetrySucceedsWithinOneRun` |
 | RUN-3 | Executor working-directory defaults are portable; run `--env=ALL|NONE` controls caller environment propagation and job overrides consistently | partial | `TestRunUsesCallersDirectoryAndEnvironment` |
+| RUN-4 | New-run fingerprint matching prioritizes Job ID/Origin, matches remaining expanded jobs by fingerprint and occurrence, and treats count mismatches as new work | pending | package tests planned |
 | CLI-1 | `check --json` reports the same project state, run identifier, queue count, lock, and runnable result as the human-readable `check` output | partial | `TestCheckJSONMatchesText` |
 | CLI-2 | Human-readable `jobs` columns keep their visible start positions aligned across rows; ANSI color sequences do not count toward column width | conformance | `TestJobsTableKeepsVisibleColumnsAligned` |
 | SEL-1 | A run ID or attempt ID alone resolves its location in every command | partial | `TestPositionalArguments`, `TestSelectorTable` |

@@ -388,6 +388,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "quiet", Description: "suppress progress and completion output"},
 			cliFlagSpec{Name: "executor", Description: "execution executor override", ValueName: "EXECUTOR", Values: executorRegistry.Names()},
 			cliFlagSpec{Name: "env", Description: "caller environment propagation mode (default ALL)", ValueName: "ALL|NONE", Values: []string{"ALL", "NONE"}, CommandLineOnly: true},
+			cliFlagSpec{Name: "match-by", Description: "job identity matching", ValueName: "MODE", Values: []string{"job-id", "fingerprint", "id-and-fingerprint"}, CommandLineOnly: true},
 			cliFlagSpec{Name: "executor-option", Description: "option passed to the selected scheduler (sbatch/qsub/...); may be repeated", ValueName: "OPTION"},
 			cliFlagSpec{Name: "ssh-concurrency", Description: "SSH executor concurrency", ValueName: "N"},
 			cliFlagSpec{Name: "ssh-options", Description: "SSH executor dispatch options; may be repeated", ValueName: "OPTION"},

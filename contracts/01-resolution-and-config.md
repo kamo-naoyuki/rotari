@@ -77,8 +77,8 @@ The per-command view of these rules, with job selectors, is in
 - **RES-11** Persisted timestamps use UTC RFC3339. Human-readable CLI and web views use the
   IANA timezone from `TZ` when valid, otherwise Go's local timezone.
 - **RES-12** A supplied `--run-id` is exact, except that the reserved value `latest`
-  selects the latest saved run using the normal metadata/newest-directory
-  fallback. `latest` is accepted wherever a
+  selects the latest settled (completed, neither active nor interrupted) run
+  using the normal metadata/newest-directory fallback. `latest` is accepted wherever a
   run is given, as `--run-id` or positionally; the exceptions are `unlock`,
   whose `--run-id` confirms the locked run, and `cancel`, `suspend`, and
   `resume`, which act on running jobs. It is reserved: `add`, `change`,

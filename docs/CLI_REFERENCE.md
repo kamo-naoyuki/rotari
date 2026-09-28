@@ -155,6 +155,8 @@ Usage: `rotari change <command ...>`
 | `--retry-delay` | `DURATION` | `` | replace the wait before the job's first retry, such as 30s |
 | `--retry-backoff` | `FACTOR` | `` | replace the factor applied to the retry delay for each further retry |
 | `--retry-max-delay` | `DURATION` | `` | replace the upper limit of the retry delay |
+| `--status` | `STATUS` | `` | mark the job with a status that result filters of the next run read in place of its recorded result |
+| `--clear-status` | `` | `` | remove the job's status mark |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
 
 ### `rotari export`
@@ -376,6 +378,7 @@ Usage: `rotari run [RUN_ID]`
 | `--quiet` | `` | `ROTARI_QUIET` | suppress progress and completion output |
 | `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | execution executor override |
 | `--env` | `ALL\|NONE` | `` | caller environment propagation mode (default ALL) |
+| `--match-by` | `MODE` | `` | job identity matching |
 | `--executor-option` | `OPTION (repeatable)` | `ROTARI_EXECUTOR_OPTIONS` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
 | `--ssh-concurrency` | `N` | `ROTARI_RUN_SSH_CONCURRENCY` | SSH executor concurrency |
 | `--ssh-options` | `OPTION (repeatable)` | `ROTARI_RUN_SSH_OPTIONS` | SSH executor dispatch options; may be repeated |

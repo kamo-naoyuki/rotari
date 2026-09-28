@@ -141,6 +141,13 @@ rotari run -p sweep --success
 rotari run -p sweep --failed --unfinished
 rotari run -j ATTEMPT_ID
 ```
+When a new queue has different job IDs, `run` can match its jobs to the
+reference run by identity mode: `--match-by job-id`, `--match-by fingerprint`,
+or the default `--match-by id-and-fingerprint`. The combined mode uses Job ID
+first and fingerprint only for jobs that remain unmatched. Fingerprints are
+calculated from the command, explicitly saved job inputs, and expanded array
+or matrix parameters; they are recalculated for each comparison rather than
+stored in queue or run files.
 
 `retry` is `run --failed --unfinished` by default, but not an alias of it:
 `--failed --unfinished` applies only when no result filter or job is given. It selects failed and
