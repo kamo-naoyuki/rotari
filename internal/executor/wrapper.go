@@ -43,7 +43,7 @@ func statusWrapperScript(commandLine, jobDir string, environment []string, worki
 	if workingDirectory != "" {
 		changeDirectory = "cd " + ShellQuote(workingDirectory) + " || exit 1\n"
 	}
-	changeDirectory += "export PWD=\"$PWD\"\n"
+	changeDirectory += "export PWD=\"$PWD\"\n" // NOSONAR: PWD is the effective job directory, not a credential.
 	seconds := model.TimeoutSeconds(timeout)
 	if len(envMode) > 0 && envMode[0] == model.EnvModeNone {
 		cleanEnvironment := []string{"PATH=/usr/local/bin:/usr/bin:/bin"}

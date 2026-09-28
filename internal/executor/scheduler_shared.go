@@ -337,7 +337,7 @@ func schedulerArrayCaseLine(job model.JobSpec) (string, bool) {
 	if job.WorkingDirectory != "" {
 		changeDirectory = "        cd " + ShellQuote(job.WorkingDirectory) + " || exit 1\n"
 	}
-	changeDirectory += "        export PWD=\"$PWD\"\n"
+	changeDirectory += "        export PWD=\"$PWD\"\n" // NOSONAR: PWD is the effective job directory, not a credential.
 	commandLine := ShellQuote(schedulerJobCommandLine(job))
 	return fmt.Sprintf("    %d)\n        %s\n        job_dir=%s\n        export %s=%s\n        mkdir -p \"$job_dir\" || exit 1\n%s        job_command_line=%s\n        ;;", *job.ArrayTaskID, strings.Join(exports, "\n        "), ShellQuote(jobDir), model.EnvJobDir, ShellQuote(jobDir), changeDirectory, commandLine), true
 }

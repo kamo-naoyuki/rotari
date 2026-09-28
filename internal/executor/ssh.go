@@ -270,7 +270,7 @@ func sshWrapperScript(command []string, environment []string, workingDirectory, 
 	if workingDirectory != "" {
 		changeDirectory = "cd " + ShellQuote(workingDirectory) + " || exit 1\n"
 	}
-	changeDirectory += "export PWD=\"$PWD\"\n"
+	changeDirectory += "export PWD=\"$PWD\"\n" // NOSONAR: PWD is the effective job directory, not a credential.
 	remoteJobCommand := "setsid sh -c 'exec \"$@\"' sh " + strings.Join(quoted, " ")
 	cleanEnvironment := []string{"PATH=/usr/local/bin:/usr/bin:/bin"}
 	cleanEnvironment = MergeEnvironment(cleanEnvironment, environment)
