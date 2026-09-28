@@ -68,6 +68,7 @@ function render() {
   }
   renderQueue(queue);
 }
+const expandedSidebarProjects = {};
 function renderSidebar(queues) {
   const container = document.getElementById("sidebar-projects");
   if (!container) return;
@@ -80,6 +81,8 @@ function renderSidebar(queues) {
         .slice()
         .sort((a, b) => (a.run_id < b.run_id ? 1 : a.run_id > b.run_id ? -1 : 0));
       const isActive = q.project_name === activeProject;
+      if (isActive) expandedSidebarProjects[q.project_name] = true;
+      const isExpanded = !!expandedSidebarProjects[q.project_name];
       const runLinks = runs
         .map(
           (r) =>
@@ -95,21 +98,36 @@ function renderSidebar(queues) {
         )
         .join("");
       return (
-        '<details class="sidebar-project' +
+        '<div class="sidebar-project' +
+        (isExpanded ? " expanded" : "") +
+        '" data-project-name="' +
+        esc(q.project_name) +
+        '"><div class="sidebar-project-row"><button type="button" class="sidebar-toggle" aria-expanded="' +
+        (isExpanded ? "true" : "false") +
+        '" aria-label="Toggle runs" onclick="toggleSidebarProject(this)"></button><a class="sidebar-project-link' +
         (isActive ? " active" : "") +
-        '"' +
-        (isActive ? " open" : "") +
-        '><summary><a class="link" href="/project/' +
+        '" href="/project/' +
         encodeURIComponent(q.project_name) +
         '">' +
         esc(q.project_name) +
-        "</a></summary>" +
-        '<div class="sidebar-runs">' +
+        "</a></div>" +
+        '<div class="sidebar-runs"' +
+        (isExpanded ? "" : ' hidden') +
+        ">" +
         (runLinks || '<span class="sidebar-run">No runs</span>') +
-        "</div></details>"
+        "</div></div>"
       );
     })
     .join("");
+}
+function toggleSidebarProject(button) {
+  const project = button.closest(".sidebar-project");
+  const runs = project.querySelector(".sidebar-runs");
+  const expanded = button.getAttribute("aria-expanded") === "true";
+  expandedSidebarProjects[project.dataset.projectName] = !expanded;
+  button.setAttribute("aria-expanded", String(!expanded));
+  project.classList.toggle("expanded", !expanded);
+  runs.hidden = expanded;
 }
 function setLocation(base, paths) {
   const location = document.getElementById("location");
