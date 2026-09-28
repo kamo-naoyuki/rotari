@@ -1,14 +1,5 @@
 # TODO
 
-## Near-term candidates
-
-These are smaller steps that can come before the AI roadmap in
-[docs/DAGU_COMPARISON.md](docs/DAGU_COMPARISON.md). Choose them by whether
-they make it cheaper to run a batch from a script, see what happened, and
-retry what failed, not by whether another workflow engine has them. Prefer
-features that serve the script over features that turn the queue into a
-workflow definition.
-
 ### Orchestration
 
 - Consider run-only overrides of stored job settings (`--retry` and its
