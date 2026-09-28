@@ -47,9 +47,13 @@ The per-command view of these rules, with job selectors, is in
   only project in the resolved base directory. With no projects the name is
   `default`; multiple projects require an explicit choice. The bare `show`
   command lists projects across known basedirs instead of resolving one.
-- **RES-3** Commands that read or edit a project fail with `project "x" does not exist`
-  when the resolved project has no directory. Only commands that create
-  projects, `add` and `import`, accept a new one.
+- **RES-3** Commands that read or edit a missing project fail with
+  `project "x" does not exist`, except `check` reports an empty, non-runnable queue without
+  creating a project (exit status 1), and `unlock` without `--run-id` succeeds
+  without creating a project. `add`, `import`, and `reset` create projects;
+  `reset` on a missing project succeeds with an empty queue, with or without
+  `--recover`. `wait` selecting an uncreated project by name also succeeds
+  without creating it. Explicit `--run-id` selection still requires its run.
 - **RES-4** `check` and `reset` accept one optional positional project name as an
   alternative to `--project-name`; supplying both is a usage error.
 - **RES-5** `jobs` also accepts one optional positional project name to filter the
@@ -100,7 +104,11 @@ The per-command view of these rules, with job selectors, is in
   then a run ID. A project or run name waits for its active run, or else
   returns the result of the latest matching run at once, as a finished run ID
   does, so a run that ends before `wait` starts is not an error; a run name
-  whose latest runs are in several projects is ambiguous.
+  whose latest runs are in several projects is ambiguous. If a selected
+  project does not yet exist, `wait` succeeds as a no-op; a name that matches
+  neither a project nor a run is treated as an uncreated project unless it
+  looks like a run ID. An explicit project without a selector follows the
+  same rule, but no selector and no project still reports no active runs.
   An explicit `--run-id` bypasses this selector resolution.
 - **RES-17** Run lookup applies to history commands (`show`, `wait`, `copy`, `change`,
   `remove`, `delete`, and rerun selection), not state-creating commands such as

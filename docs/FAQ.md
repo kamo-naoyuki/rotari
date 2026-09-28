@@ -276,6 +276,7 @@ Use a BCP 47 tag such as `--language ja`, or set `ROTARI_LLM_LANGUAGE`.
 ### How can I check whether a project is ready to run without changing it?
 
 Run `rotari check PROJECT` (or `rotari check --project-name PROJECT`). Its status and output identify active runs, stale locks, interruptions, and empty queues. `--deep` also checks required local executables but does not connect to remote hosts.
+An uncreated project is reported as empty (exit status 1); `check` does not create it.
 
 ### What happens if runners on multiple hosts use the same project?
 
@@ -284,6 +285,7 @@ It works when the shared filesystem correctly provides locking and atomic operat
 ### A runner or supervisor process died mid-run — what do I do?
 
 Confirm that jobs have stopped, inspect `rotari show --run-id RUN_ID`, then run `rotari unlock PROJECT`. Use `rotari reset --recover` to discard the retained queue. `unlock` refuses a run whose supervisor is still alive on this host, so it cannot start a second runner beside a live one; use `rotari cancel` for that.
+Without `--run-id`, `unlock` of a project with no lock or a project not yet created succeeds without changing state.
 
 ### A remote host's lock looks stuck even though the job actually stopped — why won't `unlock` go away automatically?
 

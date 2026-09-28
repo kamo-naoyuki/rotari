@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -49,10 +48,6 @@ func cmdCheck(args []string) int {
 	}
 	projectName, err := state.ResolveProjectName(baseDir, *projectNameOption)
 	if err != nil {
-		printError(err)
-		return 1
-	}
-	if err := resolve.RequireProject(baseDir, projectName); err != nil {
 		printError(err)
 		return 1
 	}

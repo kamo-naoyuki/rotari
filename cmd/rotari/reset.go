@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -43,9 +44,11 @@ func cmdReset(args []string) int {
 		printError(err)
 		return 1
 	}
-	if err := resolve.RequireProject(baseDir, queueName); err != nil {
-		printError(err)
-		return 1
+	if !resolve.ProjectExists(baseDir, queueName) {
+		if err := model.ValidateReservedName("project", queueName); err != nil {
+			printError(err)
+			return 1
+		}
 	}
 	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {

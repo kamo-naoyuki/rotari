@@ -37,6 +37,12 @@ rotari run -p eval --async
 rotari wait sweep eval
 ```
 
+Waiting for a project that has not been created yet succeeds immediately and
+does not create it, whether selected by name or `--project-name`. A missing
+explicit `--run-id` (including `latest`) remains an error. A name that matches
+neither a project nor a run is treated as an uncreated project unless it looks
+like a run ID; use explicit run IDs when a missing run must be reported.
+
 `--async` starts the run in a detached session (`setsid`), so it survives
 terminal closure. Use `rotari wait` with a project, run name, or run ID from any
 terminal, and `rotari cancel` to stop it. Without a selector, `wait` scans the

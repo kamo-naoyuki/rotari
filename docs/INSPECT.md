@@ -58,8 +58,14 @@ discard the queue while preserving the interrupted run's history, use:
 rotari reset --recover
 ```
 
+Without an explicit run ID, `unlock` is also safe to call when the project
+does not exist or has no lock/interrupted run: it succeeds without changing
+state. With `--run-id`, a missing or mismatched run remains an error.
+
 Use `retry` or result filters when the interrupted run contains completed jobs.
 Outside an interrupted run, `rotari reset` simply discards the current queue.
+If the project does not exist yet, `reset` (also with `--recover`) initializes
+an empty project, so it can safely start a batch-building script.
 When output is a terminal, log views (including `--job-id/-j`) longer than 24
 lines open in `$PAGER` (or `less -R` by default). Use `--no-pager` to print
 directly; piped and redirected output is always printed directly.
@@ -106,6 +112,9 @@ status 1 otherwise. Pass `--json` for machine-readable output, or `--deep` to
 also check executables and local working directories on the current host. Both
 `check` and `reset` accept the project name as an optional positional argument;
 do not combine it with `--project-name`.
+
+A project that does not exist yet is reported as `state=empty` with zero queued
+jobs and exit status 1; `check` does not create the project.
 
 The command is read-only and does not reserve the project or remove a stale
 lock. `run` and `reset` repeat the applicable checks before changing state, so

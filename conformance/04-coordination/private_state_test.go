@@ -250,6 +250,21 @@ func TestResetOfInterruptedProject(t *testing.T) {
 	}
 }
 
+func TestUnlockWithoutInterruptedRunIsNoOp(t *testing.T) {
+	covers(t, "SAFE-4")
+	e := support.NewEnv(t)
+	e.MustRotari("add", "-p", "idle", "--", "true")
+	e.MustRotari("unlock", "idle")
+	if state := e.CheckState("idle"); state != "ready" {
+		t.Errorf("after unlock of idle project: state %q, want ready", state)
+	}
+	e.MustRotari("run", "-p", "idle", "--quiet")
+	e.MustRotari("unlock", "idle")
+	if state := e.CheckState("idle"); state != "empty" {
+		t.Errorf("after unlock of finished project: state %q, want empty", state)
+	}
+}
+
 func fileMode(t *testing.T, path string) fs.FileMode {
 	t.Helper()
 	info, err := os.Stat(path)

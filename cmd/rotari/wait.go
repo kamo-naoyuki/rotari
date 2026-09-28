@@ -33,6 +33,10 @@ func cmdWait(args []string) int {
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
+	if *timeout < 0 {
+		printError("--timeout must be >= 0")
+		return 1
+	}
 	selectors := fs.Args()
 	targets := make([]resolve.Run, 0, len(explicitRunIDs)+len(selectors))
 	for _, runID := range explicitRunIDs {
@@ -65,16 +69,15 @@ func cmdWait(args []string) int {
 		}
 		targets = append(targets, activeTargets[0])
 	}
-	if *timeout < 0 {
-		printError("--timeout must be >= 0")
-		return 1
-	}
 	deadline := time.Time{}
 	if *timeout > 0 {
 		deadline = time.Now().Add(*timeout)
 	}
 	exitCode := 0
 	for _, target := range targets {
+		if target.RunID == "" {
+			continue // A project that does not exist yet has nothing to wait for.
+		}
 		result := waitForRun(target.BaseDir, target.ProjectName, target.RunID, deadline, *jsonOutput)
 		if result.exitCode > exitCode {
 			exitCode = result.exitCode
@@ -112,6 +115,13 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 		}
 		return resolve.Run{BaseDir: baseDir, ProjectName: selector, RunID: runID}, nil
 	}
+	selectedProject := cliProjectName
+	if selectedProject == "" {
+		selectedProject = os.Getenv(envProjectName)
+	}
+	if selectedProject == selector && !resolve.IsRunID(selector) && state.IsValidPathElement(selector) {
+		return resolve.Run{BaseDir: baseDir, ProjectName: selector}, nil
+	}
 
 	activeTargets, err := resolve.RunsByName(baseDir, cliProjectName, selector, true)
 	if err != nil {
@@ -146,6 +156,10 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 		}
 		return resolve.Run{BaseDir: baseDir, ProjectName: projectName, RunID: selector}, nil
 	}
+	if state.IsValidPathElement(selector) && !resolve.IsRunID(selector) &&
+		selectedProject == "" {
+		return resolve.Run{BaseDir: baseDir, ProjectName: selector}, nil
+	}
 	return resolve.Run{}, fmt.Errorf("no project, run name, or run ID matches %q", selector)
 }
 
@@ -173,10 +187,6 @@ func latestRunPerProject(runs []resolve.Run) []resolve.Run {
 
 func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]resolve.Run, error) {
 	if cliProjectName != "" || os.Getenv(envProjectName) != "" {
-		runID, err := resolveActiveRunTarget(cliBaseDir, cliProjectName)
-		if err != nil {
-			return nil, err
-		}
 		baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 		if err != nil {
 			return nil, err
@@ -185,7 +195,11 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]resolve.Run,
 		if err != nil {
 			return nil, err
 		}
-		if err := resolve.RequireProject(baseDir, projectName); err != nil {
+		if !resolve.ProjectExists(baseDir, projectName) {
+			return []resolve.Run{{BaseDir: baseDir, ProjectName: projectName}}, nil
+		}
+		runID, err := resolveActiveRunTarget(cliBaseDir, cliProjectName)
+		if err != nil {
 			return nil, err
 		}
 		return []resolve.Run{{BaseDir: baseDir, ProjectName: projectName, RunID: runID}}, nil

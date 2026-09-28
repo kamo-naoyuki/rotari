@@ -120,7 +120,7 @@ the IDs, this table, and those calls disagree.
 | CORE-7 | Executors run jobs; run semantics stay in the shared execution path | partial | `TestRunRetrySucceedsWithinOneRun` |
 | RES-1 | Base directory resolution order | conformance | `TestBaseDirResolutionOrder` |
 | RES-2 | Project resolution order and the single-project default | partial | `TestProjectResolutionOrder` |
-| RES-3 | Reading or editing a missing project fails; only `add` and `import` create one | partial | `TestMissingProjectIsAnError` |
+| RES-3 | Missing projects fail except `check` reports empty, `unlock`/`wait` without run ID no-op, and `add`, `import`, `reset` create one | partial | `TestMissingProjectIsAnError`, `TestCheckMissingProjectIsEmptyWithoutCreatingIt`, `TestResetMissingProjectCreatesEmptyQueue`, `TestUnlockMissingProjectIsNoOp`, `TestWaitMissingProjectIsNoOp` |
 | RES-4 | `check` and `reset` take an optional positional project | conformance | `TestPositionalProject` |
 | RES-5 | `jobs` takes an optional positional project that overrides defaults | partial | `TestPositionalProject` |
 | RES-6 | `export TARGET [FILE]` names a project or saved run | conformance | `TestExportResolvesProjectAndRunTargets` |
@@ -133,7 +133,7 @@ the IDs, this table, and those calls disagree.
 | RES-13 | A run ID or attempt ID alone resolves base directory, project, and run | partial | `TestRunIDAloneResolvesLocation` |
 | RES-14 | Explicit location options win; conflicts with the registry fail | partial | `TestExplicitLocationMustMatchRegistry` |
 | RES-15 | History consumers fall back to `last_run_id`, then the newest run | conformance | `TestHistoryUsesLastRunThenNewestRun` |
-| RES-16 | `wait` selector resolution and single-active-project scan | partial | `TestWaitResolvesActiveAndFinishedSelectors`, `TestWaitReturnsCompletedRunExitCode` |
+| RES-16 | `wait` selector resolution, missing-project no-op, and single-active-project scan | partial | `TestWaitResolvesActiveAndFinishedSelectors`, `TestWaitReturnsCompletedRunExitCode`, `TestWaitMissingProjectIsNoOp` |
 | RES-17 | Run lookup applies to history commands only | partial | `TestStateCreatingCommandsDoNotResolveRunIDs` |
 | RES-18 | `cancel`, `suspend`, and `resume` merge selectors and require the active run | conformance | `TestJobControlSelectors` |
 | RES-19 | `wait` resolves multiple run IDs independently | conformance | `TestWaitResolvesRunIDsIndependently` |
@@ -148,7 +148,7 @@ the IDs, this table, and those calls disagree.
 | SAFE-1 | `check` and `show` report a project as idle, running, or interrupted; a killed coordinator leaves it interrupted | conformance | `TestControlFromAnotherHost`, `TestProjectStates` |
 | SAFE-2 | A running project rejects the commands that would change it, so no second runner starts | conformance | `TestRunningProjectRejectsChanges` |
 | SAFE-3 | An interrupted project rejects them, naming the run and how to inspect and recover it | conformance | `TestInterruptedProjectNeedsRecovery` |
-| SAFE-4 | `unlock` recovers an interrupted run and refuses one whose coordinator is alive | conformance | `TestControlFromAnotherHost`, `TestInterruptedProjectNeedsRecovery`, `TestUnlockRefusesLiveRun` |
+| SAFE-4 | `unlock` recovers an interrupted run, no-ops without one, and refuses one whose coordinator is alive | conformance | `TestControlFromAnotherHost`, `TestInterruptedProjectNeedsRecovery`, `TestUnlockRefusesLiveRun`, `TestUnlockWithoutInterruptedRunIsNoOp` |
 | SAFE-5 | `reset` discards the queue, rejects a running project, and needs confirmation for an interrupted one | conformance | `TestResetOfInterruptedProject`, `TestRunningProjectRejectsChanges` |
 | SAFE-6 | Commands ask for confirmation only on a terminal, otherwise naming the option that confirms | conformance | `TestCopyIntoQueueWithoutTerminal`, `TestResetOfInterruptedProject` |
 | COORD-1 | Controlling a local job from another host fails, naming that host | conformance | `TestControlFromAnotherHost` |

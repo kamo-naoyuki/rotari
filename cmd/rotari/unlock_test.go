@@ -298,6 +298,41 @@ func TestCmdUnlockRecoversInterruptedRunWithoutLock(t *testing.T) {
 	}
 }
 
+func TestCmdUnlockWithoutInterruptedRunIsNoOp(t *testing.T) {
+	baseDir := t.TempDir()
+	args := []string{"--basedir", baseDir, "--project-name", "demo"}
+	if code := cmdUnlock(args); code != 0 {
+		t.Fatalf("missing project exit code = %d, want 0", code)
+	}
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(paths.ProjectDir); !os.IsNotExist(err) {
+		t.Fatalf("unlock created a missing project: %v", err)
+	}
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "queued", Command: []string{"true"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "finished", LastRunID: "old-run"}); err != nil {
+		t.Fatal(err)
+	}
+	if code := cmdUnlock(args); code != 0 {
+		t.Fatalf("idle project exit code = %d, want 0", code)
+	}
+	meta, err := state.LoadMeta(paths.MetaFile)
+	if err != nil || meta.Phase != "finished" || meta.LastRunID != "old-run" {
+		t.Fatalf("idle metadata changed: %#v, %v", meta, err)
+	}
+	queue, err := state.LoadQueue(paths.QueueFile)
+	if err != nil || len(queue.Commands) != 1 {
+		t.Fatalf("idle queue changed: %#v, %v", queue, err)
+	}
+	if code := cmdUnlock(append(append([]string(nil), args...), "--run-id", "old-run")); code == 0 {
+		t.Fatal("unlock accepted an explicit run ID with no interrupted run")
+	}
+}
+
 func TestCmdUnlockRemovesMatchingRunLock(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")

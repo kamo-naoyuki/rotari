@@ -152,6 +152,8 @@ A project is in one of three states, derived from `running.lock` and
   refuses a run whose coordinator is alive on this host. A lock from another
   host, whose coordinator cannot be checked, is never removed automatically;
   `unlock` removes it once the operator has confirmed that the run stopped.
+  Without `--run-id`, `unlock` of an idle project with no lock, or a project
+  that does not exist, succeeds as a no-op and does not modify or create state.
 - **SAFE-5** `reset` discards the queue and keeps the run history. It
   rejects a running project. For an interrupted project it needs the
   operator's confirmation that jobs stopped, then also recovers the run.

@@ -33,12 +33,25 @@ func cmdUnlock(args []string) int {
 	if len(fs.Args()) == 1 {
 		*queueNameOption = fs.Args()[0]
 	}
-	// A run ID locates its base directory and project through the run
-	// registry, as in every command that takes one.
-	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runID)
+	// An explicit run ID must still locate and verify an existing run. Without
+	// one, unlocking a project that has never been created is a no-op.
+	var baseDir, queueName string
+	var err error
+	if *runID != "" {
+		baseDir, queueName, err = resolve.ExistingRun(*basedir, *queueNameOption, *runID)
+	} else {
+		baseDir, _, err = state.ResolveBaseDir(*basedir)
+		if err == nil {
+			queueName, err = state.ResolveProjectName(baseDir, *queueNameOption)
+		}
+	}
 	if err != nil {
 		printError(err)
 		return 1
+	}
+	if !resolve.ProjectExists(baseDir, queueName) {
+		fmt.Printf("project=%s already unlocked\n", queueName)
+		return 0
 	}
 	paths, err := state.ResolveProjectPaths(baseDir, queueName)
 	if err != nil {
@@ -64,6 +77,10 @@ func cmdUnlock(args []string) int {
 	if err != nil {
 		printErrorf("failed to load metadata: %v", err)
 		return 1
+	}
+	if !lockExists && *runID == "" && (meta.Phase == "collecting" || meta.Phase == "finished") {
+		fmt.Printf("project=%s already unlocked\n", queueName)
+		return 0
 	}
 	if *runID == "" {
 		if lockExists {

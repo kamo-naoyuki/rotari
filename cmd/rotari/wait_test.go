@@ -79,6 +79,32 @@ func TestCmdWaitRejectsMissingRegisteredRunDirectory(t *testing.T) {
 	}
 }
 
+func TestCmdWaitMissingProjectIsNoOp(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	for _, args := range [][]string{
+		{"--basedir", baseDir, "--project-name", "demo"},
+		{"--basedir", baseDir, "demo"},
+		{"--basedir", baseDir, "--project-name", "demo", "demo"},
+	} {
+		if code := cmdWait(args); code != 0 {
+			t.Fatalf("cmdWait(%q) exit code = %d, want 0", args, code)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(baseDir, "projects", "demo")); !os.IsNotExist(err) {
+		t.Fatalf("wait created project: %v", err)
+	}
+	for _, args := range [][]string{
+		{"--basedir", baseDir, "--project-name", "demo", "--run-id", "missing-run"},
+		{"--basedir", baseDir, "--project-name", "demo", "latest"},
+		{"--basedir", baseDir, "--project-name", "demo", "--timeout", "-1s"},
+	} {
+		if code := cmdWait(args); code == 0 {
+			t.Fatalf("cmdWait(%q) accepted invalid request", args)
+		}
+	}
+}
+
 func TestResolveActiveRunTarget(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")

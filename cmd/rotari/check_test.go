@@ -3,12 +3,14 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestCheckProjectReadyAndEmpty(t *testing.T) {
@@ -239,6 +241,30 @@ func TestCmdCheckExitCode(t *testing.T) {
 	}
 	if code := cmdCheck(args); code != 0 {
 		t.Fatalf("ready cmdCheck exit code = %d, want 0", code)
+	}
+}
+
+func TestCmdCheckMissingProjectReportsEmptyWithoutCreatingIt(t *testing.T) {
+	baseDir := t.TempDir()
+	output, code := captureCheckStdout(t, []string{"--basedir", baseDir, "--project-name", "demo", "--json"})
+	if code != 1 {
+		t.Fatalf("cmdCheck exit code = %d, want 1 for an empty queue", code)
+	}
+	var decoded struct {
+		Project  string `json:"project"`
+		State    string `json:"state"`
+		Runnable bool   `json:"runnable"`
+		Queued   int    `json:"queued"`
+		Lock     string `json:"lock"`
+	}
+	if err := json.Unmarshal(output, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Project != "demo" || decoded.State != "empty" || decoded.Runnable || decoded.Queued != 0 || decoded.Lock != "none" {
+		t.Fatalf("check = %#v", decoded)
+	}
+	if _, err := os.Stat(filepath.Join(baseDir, "projects", "demo")); !os.IsNotExist(err) {
+		t.Fatalf("check created project: %v", err)
 	}
 }
 

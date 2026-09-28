@@ -167,6 +167,46 @@ func TestCmdResetRejectsProjectNameWithPathSeparator(t *testing.T) {
 	}
 }
 
+func TestCmdResetCreatesEmptyProject(t *testing.T) {
+	for _, recover := range []bool{false, true} {
+		t.Run(map[bool]string{false: "plain", true: "recover"}[recover], func(t *testing.T) {
+			baseDir := t.TempDir()
+			args := []string{"--basedir", baseDir, "--project-name", "demo", "--quiet"}
+			if recover {
+				args = append(args, "--recover")
+			}
+			if code := cmdReset(args); code != 0 {
+				t.Fatalf("cmdReset exit code = %d, want 0", code)
+			}
+			paths, err := state.ResolveProjectPaths(baseDir, "demo")
+			if err != nil {
+				t.Fatal(err)
+			}
+			meta, err := state.LoadMeta(paths.MetaFile)
+			if err != nil || meta.Phase != "collecting" {
+				t.Fatalf("metadata = %#v, error = %v", meta, err)
+			}
+			if _, err := os.Stat(paths.ProjectDir); err != nil {
+				t.Fatalf("project not created: %v", err)
+			}
+			if code := cmdReset(args); code != 0 {
+				t.Fatalf("repeated cmdReset exit code = %d, want 0", code)
+			}
+		})
+	}
+}
+
+func TestCmdResetRejectsReservedNewProject(t *testing.T) {
+	baseDir := t.TempDir()
+	code, output := captureResetStderr(t, []string{"--basedir", baseDir, "--project-name", "latest", "--recover"})
+	if code != 1 || !strings.Contains(output, `project "latest" is reserved`) {
+		t.Fatalf("cmdReset exit code = %d, stderr = %q", code, output)
+	}
+	if _, err := os.Stat(filepath.Join(baseDir, "projects", "latest")); !os.IsNotExist(err) {
+		t.Fatalf("reserved project was created: %v", err)
+	}
+}
+
 func writeInterruptedResetProject(t *testing.T, baseDir string) state.ProjectPaths {
 	t.Helper()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
