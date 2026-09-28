@@ -37,19 +37,21 @@ workflow definition.
   cancellation can let training scripts save a checkpoint before exiting.
   Slurm has a matching `--signal` option.
 
-- Decide how the working directory and environment of `run` reach jobs on
-  each executor. The design is that a queue holds commands only and jobs
-  take the caller's directory and environment (see "Workflow and execution
-  environment" in [docs/CONCEPTS.md](docs/CONCEPTS.md)), but only the local
-  executor guarantees it; the others keep their own defaults. The SSH
-  wrapper applies only the job's own `--env` and `--working-directory`, so
-  without them a job starts in the remote login directory with the remote
-  login environment. Slurm, PBS, and LSF submit with the scheduler's
-  defaults: `sbatch` and `bsub` usually carry the submitting directory and
-  environment, while `qsub` starts in `$HOME` without `-V`, and sites can
-  change all of these. Decide per executor whether to carry the caller's
-  directory (and which variables, if any) or to document the difference,
-  then make CONCEPTS.md and the README state it per executor.
+- Implement the portable execution-input contract in RUN-3 of
+  [contracts/02-run-lifecycle-and-execution.md](contracts/02-run-lifecycle-and-execution.md):
+  the caller's working directory is the default on every executor, and a
+  job's `--working-directory` overrides it. Resolve a relative job directory
+  against the caller's directory. If the requested directory is absent or
+  inaccessible on the execution host, fail the job before its command starts;
+  never silently use the SSH login directory or a scheduler's default. This
+  means remote hosts must have the requested path available (for example via
+  a shared mount); host-specific directory mapping is a separate future
+  feature, not an implicit fallback.
+- Add executor-specific conformance tests for RUN-3 on SSH, Slurm, PBS, and
+  LSF, including missing remote working-directory failures. Local ALL/NONE and
+  relative-directory behavior plus scheduler single/array submission modes
+  have focused coverage; RUN-3 remains partial until remote behavior is
+  exercised.
 
 For field design, Dagu's step options are a useful reference
 (`dagu/internal/spec/step.go`), for example `signal_on_stop`.

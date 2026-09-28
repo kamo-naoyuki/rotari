@@ -3,6 +3,7 @@ package run
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -124,7 +125,7 @@ func TestExpandArrayPlanAndApplyCarriedOrigins(t *testing.T) {
 
 func TestPrepareJobEnvironments(t *testing.T) {
 	taskID := 3
-	jobs := []model.JobSpec{{ID: "job-1", Name: "train", Executor: "slurm", ArrayTaskID: &taskID, ArrayFirst: 1, ArrayLast: 4, ArraySize: 4, Environment: []string{"CUSTOM=job", "ROTARI_RUN_ID=old"}}}
+	jobs := []model.JobSpec{{ID: "job-1", Name: "train", Executor: "slurm", WorkingDirectory: "/work/relative-work", ArrayTaskID: &taskID, ArrayFirst: 1, ArrayLast: 4, ArraySize: 4, Environment: []string{"CUSTOM=job", "ROTARI_RUN_ID=old"}}}
 	names := EnvironmentNames{
 		BaseDir: "ROTARI_BASE", ProjectName: "ROTARI_PROJECT", RunID: "ROTARI_RUN_ID", JobID: "ROTARI_JOB_ID",
 		Executor: "ROTARI_EXECUTOR", Bin: "ROTARI_BIN", RunDir: "ROTARI_RUN_DIR", JobDir: "ROTARI_JOB_DIR", CWD: "ROTARI_CWD",
@@ -137,7 +138,7 @@ func TestPrepareJobEnvironments(t *testing.T) {
 		JobDir: func(string, model.JobSpec) (string, error) { return "/base/run-1/job-1", nil },
 	})
 	values := make(map[string]string)
-	for _, entry := range jobs[0].Environment {
+	for _, entry := range append(append([]string(nil), jobs[0].InheritedEnvironment...), jobs[0].Environment...) {
 		for index := 0; index < len(entry); index++ {
 			if entry[index] == '=' {
 				values[entry[:index]] = entry[index+1:]
@@ -145,7 +146,33 @@ func TestPrepareJobEnvironments(t *testing.T) {
 			}
 		}
 	}
-	for name, want := range map[string]string{"ROTARI_PROJECT": "demo", "ROTARI_RUN_ID": "run-1", "ROTARI_ARRAY_TASK_ID": "3", "ROTARI_ARRAY_SIZE": "4", "ROTARI_EXECUTOR_OPTIONS": "--partition short", "CUSTOM": "inherited", "PATH": "/bin"} {
+	for name, want := range map[string]string{"ROTARI_PROJECT": "demo", "ROTARI_RUN_ID": "run-1", "ROTARI_ARRAY_TASK_ID": "3", "ROTARI_ARRAY_SIZE": "4", "ROTARI_EXECUTOR_OPTIONS": "--partition short", "CUSTOM": "inherited", "PATH": "/bin", "PWD": "/work/relative-work"} {
+		if values[name] != want {
+			t.Errorf("environment[%q] = %q, want %q", name, values[name], want)
+		}
+	}
+}
+
+func TestPrepareJobEnvironmentsForSSHPropagatesCallerAndHonorsJobOverrides(t *testing.T) {
+	jobs := []model.JobSpec{{
+		ID: "job-1", Executor: "ssh", EnvMode: model.EnvModeAll,
+		Environment: []string{"CALLER_VALUE=job", "ROTARI_RUN_ID=job-value"},
+	}}
+	PrepareJobEnvironments(jobs, EnvironmentConfig{
+		Names: EnvironmentNames{RunID: "ROTARI_RUN_ID", JobID: "ROTARI_JOB_ID", JobDir: "ROTARI_JOB_DIR"},
+		RunID: "run-1", CallerEnvironment: map[string]string{"CALLER_VALUE": "caller", "FROM_CALLER": "yes", "ROTARI_RUN_ID": "caller-value"},
+		JobDir: func(string, model.JobSpec) (string, error) { return "/runs/job-1", nil },
+	})
+	values := make(map[string]string)
+	for _, entry := range append(append([]string(nil), jobs[0].InheritedEnvironment...), jobs[0].Environment...) {
+		name, value, ok := strings.Cut(entry, "=")
+		if ok {
+			values[name] = value
+		}
+	}
+	for name, want := range map[string]string{
+		"FROM_CALLER": "yes", "CALLER_VALUE": "job", "ROTARI_RUN_ID": "run-1",
+	} {
 		if values[name] != want {
 			t.Errorf("environment[%q] = %q, want %q", name, values[name], want)
 		}

@@ -1,10 +1,23 @@
 package model
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestJobSpecDoesNotPersistInheritedEnvironment(t *testing.T) {
+	data, err := json.Marshal(JobSpec{
+		ID: "job-1", InheritedEnvironment: []string{"CALLER_SECRET=do-not-persist"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "CALLER_SECRET") || strings.Contains(string(data), "do-not-persist") {
+		t.Fatalf("caller environment leaked into persisted JobSpec: %s", data)
+	}
+}
 
 func TestParseAndValidateArrayRange(t *testing.T) {
 	array, err := ParseArrayRange("1-3,7")

@@ -108,6 +108,9 @@ type preparedRun struct {
 // prepareRun validates a run request and takes the project's state lock. On
 // success the caller must call release.
 func (ops Operations) prepareRun(request server.Request) (preparedRun, error) {
+	if request.EnvMode != "" && request.EnvMode != model.EnvModeAll && request.EnvMode != model.EnvModeNone {
+		return preparedRun{}, fmt.Errorf("invalid environment mode %q (choose ALL or NONE)", request.EnvMode)
+	}
 	if ops.Project != "" && request.QueueName != ops.Project {
 		return preparedRun{}, fmt.Errorf("this supervisor runs project %q, not %q", ops.Project, request.QueueName)
 	}
@@ -206,10 +209,15 @@ func requestScope(request server.Request) model.CommandSelector {
 
 // runRequestOptions converts a run request into the options of run runID.
 func runRequestOptions(request server.Request, runID string) projectrun.Options {
+	envMode := request.EnvMode
+	if envMode == "" {
+		envMode = model.EnvModeAll
+	}
 	return projectrun.Options{
 		RunID: runID, RunName: request.RunName,
 		LocalConcurrency: request.LocalConcurrency, BatchMaxActive: request.BatchMaxActive, Retry: request.Retry,
 		Executor: request.Executor, ExecutorOptions: request.ExecutorOptions, Settings: request.ExecutorSettings,
+		EnvMode:   envMode,
 		Selection: request.Selection, JobIDs: request.JobIDs, Scope: requestScope(request),
 		SourceRunID: request.SourceRunID, PartialArray: request.PartialArray,
 	}
