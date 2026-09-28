@@ -1175,7 +1175,7 @@ func TestGenerateStaticWebIncludesCLIDocs(t *testing.T) {
 	if err := siteFor(baseDir, "").generateStaticWeb(outputDir); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(outputDir, "docs", "index.html"))
+	data, err := os.ReadFile(filepath.Join(outputDir, "cli", "index.html"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,6 +8,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- `TODO.md` links to `docs/DAGU_COMPARISON.md`, which does not exist (the file is `docs/TOOL_COMPARISON.md`). Fails `TestRelativeLinks` in `internal/doclinks`.
+
 ## Resolved
 
 <!-- Keep only short records of resolved items when they may help prevent recurrence. -->

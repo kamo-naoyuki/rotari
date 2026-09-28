@@ -169,12 +169,12 @@ func (s site) handler() http.Handler {
 		writer.Header().Set("Content-Type", "text/css; charset=utf-8")
 		_, _ = writer.Write([]byte(webStylesCSS))
 	})
-	mux.HandleFunc("/docs/", func(writer http.ResponseWriter, request *http.Request) {
+	mux.HandleFunc("/cli/", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
 		_, _ = writer.Write([]byte(s.cliDocsHTML("/")))
 	})
-	mux.HandleFunc("/docs", func(writer http.ResponseWriter, request *http.Request) {
-		http.Redirect(writer, request, "/docs/", http.StatusMovedPermanently)
+	mux.HandleFunc("/cli", func(writer http.ResponseWriter, request *http.Request) {
+		http.Redirect(writer, request, "/cli/", http.StatusMovedPermanently)
 	})
 	mux.HandleFunc("/jobs/", func(writer http.ResponseWriter, request *http.Request) {
 		sinceText := request.URL.Query().Get("since")
@@ -999,10 +999,10 @@ func (s site) generateStaticWeb(outputDir string) error {
 	if err := writeStaticStylesheet(outputDir); err != nil {
 		return err
 	}
-	if err := writeStaticWebPage(filepath.Join(outputDir, "docs", "index.html"), s.cliDocsHTML("../")); err != nil {
+	if err := writeStaticWebPage(filepath.Join(outputDir, "cli", "index.html"), s.cliDocsHTML("../")); err != nil {
 		return err
 	}
-	if err := writeStaticStylesheet(filepath.Join(outputDir, "docs")); err != nil {
+	if err := writeStaticStylesheet(filepath.Join(outputDir, "cli")); err != nil {
 		return err
 	}
 	projects, err := joblist.Projects(baseDir, queueFilter)
