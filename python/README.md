@@ -44,16 +44,9 @@ option and its CLI description.
 
 ## API documentation
 
-Build the HTML API reference from the repository root with:
-
-```sh
-python3 -m pip install "./python[docs]"
-python3 -m sphinx -W -b html python/docs python/docs/_build/html
-```
-
-Open `python/docs/_build/html/index.html`. The reference obtains its method
-signatures from the checked-in CLI schema, so it reflects the generated Python
-interface.
+The Python API reference is published in the [Rotari documentation site](https://kamo-naoyuki.github.io/rotari/docs/python-api/).
+It obtains method signatures from the checked-in CLI schema, so it reflects the
+generated Python interface.
 
 ## Generated CLI metadata
 

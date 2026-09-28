@@ -1,0 +1,62 @@
+site_name: rotari documentation
+site_description: Documentation for rotari, an execution manager for experiment batches
+site_url: https://kamo-naoyuki.github.io/rotari/docs/
+repo_url: https://github.com/kamo-naoyuki/rotari
+repo_name: kamo-naoyuki/rotari
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - User guide:
+      - Concepts: CONCEPTS.md
+      - Executors and schedulers: EXECUTORS.md
+      - Running and recovering: RUNNING.md
+      - Inspecting and diagnosing: INSPECT.md
+      - Configuration: CONFIGURATION.md
+      - Operations: OPERATIONS.md
+      - Workflow manifests: WORKFLOW_MANIFESTS.md
+      - FAQ: FAQ.md
+      - Comparison with other tools: TOOL_COMPARISON.md
+      - Docker: DOCKER.md
+      - Dagu comparison: DAGU_COMPARISON.md
+  - Integrations:
+      - Webhook notifications: WEBHOOK_NOTIFICATIONS.md
+      - Browser notifications: WEB_BROWSER_NOTIFICATIONS.md
+      - LLM diagnosis: LLM_DIAGNOSIS.md
+      - Local diagnosis rules: LOCAL_DIAGNOSIS.md
+  - Development:
+      - Architecture: ARCHITECTURE.md
+  - API reference:
+      - Python API: python-api.md
+      - Go API: go-api.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_section_style: table
+            members_order: source
+            show_root_heading: true
+            show_source: false
+
+validation:
+  links:
+    not_found: ignore

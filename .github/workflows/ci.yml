@@ -235,5 +235,5 @@ jobs:
       - name: Run tests
         run: PYTHONPATH=python python -m pytest python/tests
 
-      - name: Build Python API documentation
-        run: python -m sphinx -W -b html python/docs python/docs/_build/html
+      - name: Build documentation
+        run: python -m mkdocs build --strict --site-dir "$RUNNER_TEMP/mkdocs-site"

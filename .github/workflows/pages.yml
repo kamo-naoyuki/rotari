@@ -50,6 +50,12 @@ jobs:
             --output-dir "$RUNNER_TEMP/go-api" \
             --dependency-graph
 
+      - name: Install documentation dependencies
+        run: python -m pip install "./python[docs]"
+
+      - name: Build documentation site
+        run: python -m mkdocs build --strict --site-dir "$RUNNER_TEMP/docs-site"
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -63,10 +69,6 @@ jobs:
           scripts/generate-demos.sh
           cp docs/demo-shell.gif docs/demo-rotari.gif docs/web-demo/
 
-      - name: Build Python API documentation
-        run: |
-          python -m sphinx -W -b html python/docs "$RUNNER_TEMP/python-api"
-
       - name: Generate PyPI-style package index
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -79,8 +81,9 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/pages-site"
           cp -a docs/web-demo/. "$RUNNER_TEMP/pages-site/"
+          mkdir -p "$RUNNER_TEMP/pages-site/docs"
+          cp -a "$RUNNER_TEMP/docs-site/." "$RUNNER_TEMP/pages-site/docs/"
           cp -a "$RUNNER_TEMP/go-api" "$RUNNER_TEMP/pages-site/go-api"
-          cp -a "$RUNNER_TEMP/python-api" "$RUNNER_TEMP/pages-site/python-api"
           cp -a "$RUNNER_TEMP/pypi-index/simple" "$RUNNER_TEMP/pages-site/simple"
 
       - name: Configure GitHub Pages

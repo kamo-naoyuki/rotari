@@ -7,7 +7,8 @@ changing code you have not touched before.
 It describes structure, not rules. The behavior that must be preserved (state
 layout, fallback chains, locking, path rules) is in
 [contracts/README.md](../contracts/README.md). User-facing behavior is in the
-[README](../README.md) and the guides it links to.
+[README](https://github.com/kamo-naoyuki/rotari#documentation) and the guides
+it links to.
 
 ## Processes
 
