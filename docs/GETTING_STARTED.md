@@ -88,38 +88,22 @@ run once the prerequisite finishes, whatever its result. See
 [Dependencies and stages](CONCEPTS.md#dependencies-and-stages) for stages and
 multiple prerequisites.
 
-## Example
+## Examples
+
+Start with the [basic example](../examples/basic.sh) for a dependent job:
 
 ```sh
-./scripts/example.sh
+./examples/basic.sh
 ```
 
-The example adds a dependent job, a two-task array, and a job that
-intentionally fails once. The first run therefore has failures; `rotari retry`
-reruns only the failed array task and job, while carrying the successful work
-forward.
-
-To run the array job through Slurm instead, pass the optional flag. The local
-`prepare` and `failing-job` jobs remain local:
-
-```sh
-./scripts/example.sh --slurm
-```
-
-The first positional argument selects the project name, for example
-`./scripts/example.sh --slurm scheduler-demo`.
-
-For the workflow manifest flow, run:
-
-```sh
-./scripts/example-workflow.sh
-```
-
-It imports a small manifest with a stage, a matrix, and two failing jobs, then
-exports the finished run, fixes one job's command and accepts the other's
-failed result in the exported file, and imports it again. The second run
-executes only the fixed job; the others are reused or recorded as
-`success (accepted)`. See [Workflow manifests](WORKFLOW_MANIFESTS.md).
+The [examples guide](../examples/README.md) has independent, no-argument
+scripts for arrays, retrying failed work, async runs, Slurm, workflow
+manifests, and diagnosis. All examples use `.example-state` in the current
+working directory, with a separate project for each. Slurm needs a configured
+cluster; LLM diagnosis needs API credentials. To fix a failed job and accept
+another job's result in an exported workflow, run
+`./examples/workflow-reconcile.sh`. See
+[Workflow manifests](WORKFLOW_MANIFESTS.md) for the details.
 
 ## Local web UI
 

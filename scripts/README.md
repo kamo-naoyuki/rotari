@@ -1,14 +1,8 @@
 # Repository scripts
 
-These scripts support development, testing, documentation, releases, and
-examples. They are not part of the `rotari` command-line interface.
-
-## Examples
-
-- `example.sh`: run a local example batch with dependencies, an array, and a
-  deliberate failure.
-- `example-workflow.sh`: exercise workflow manifest import and export.
-- `example-diagnose.sh`: demonstrate failure diagnosis.
+These scripts support development, testing, documentation, and releases. They
+are not part of the `rotari` command-line interface. Runnable samples are in
+[examples](../examples/README.md).
 
 ## Documentation and generated assets
 

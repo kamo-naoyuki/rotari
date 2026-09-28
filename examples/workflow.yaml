@@ -1,0 +1,11 @@
+version: 1
+
+jobs:
+  - name: prepare
+    stage: inputs
+    command: [sh, -c, "echo preparing inputs"]
+
+  - name: train
+    command: [sh, -c, 'echo "training with SEED=${SEED}"']
+    depends_on: [inputs]
+    matrix: ["SEED=1,2"]

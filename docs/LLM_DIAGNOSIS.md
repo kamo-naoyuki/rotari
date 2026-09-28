@@ -41,12 +41,15 @@ Use `unset ROTARI_LLM_API_KEY` when finished.
 ## 3. Run the sample
 
 ```sh
-./scripts/example-diagnose.sh
+./examples/diagnose-llm.sh
 ```
 
-The sample creates an isolated temporary rotari state directory, runs a Python
-job that intentionally fails with `ModuleNotFoundError`, and asks the model to
+The sample uses the `diagnose-llm-example` project under `.example-state` in
+the current working directory, and runs a Python job that intentionally fails with
+`ModuleNotFoundError`, and asks the model to
 diagnose that log. It prints the state directory afterward for inspection.
+To try local diagnosis without an API key, run
+[`examples/diagnose-rules.sh`](../examples/diagnose-rules.sh).
 
 ## 4. Diagnose your own job
 

@@ -1,0 +1,19 @@
+version: 1
+
+jobs:
+  - name: prepare
+    stage: inputs
+    command: [sh, -c, "echo preparing inputs"]
+
+  - name: train
+    command: [sh, -c, 'echo "training with SEED=${SEED}"']
+    depends_on: [inputs]
+    matrix: ["SEED=1,2"]
+
+  - name: evaluate
+    command: [sh, -c, "echo evaluating; exit 1"]
+    depends_on: [train]
+
+  - name: report
+    command: [sh, -c, "echo report written with warnings; exit 3"]
+    depends_on: [train]
