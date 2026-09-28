@@ -59,3 +59,8 @@ jobs:
 
       - name: Build
         run: go build ./cmd/rotari
+
+      - name: Check example scripts
+        run: |
+          bash -n scripts/example.sh
+          bash -n scripts/example-workflow.sh
