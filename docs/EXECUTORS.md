@@ -75,6 +75,11 @@ command-line tools. Each remote job runs in its own process group;
 cancellation reconnects over SSH and sends `SIGTERM` only when the recorded PID
 still has the same process start time, so a reused PID is never signalled.
 
+CI also tests execution and remote cancellation over a real, loopback-only
+OpenSSH server with a disposable key. These tests verify SSH transport and
+authentication in addition to the ordinary executor tests that replace the
+`ssh` command with a local stub.
+
 ```sh
 rotari add -p sweep \
   -e ssh \

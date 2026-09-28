@@ -60,6 +60,78 @@ jobs:
       - name: Build
         run: go build ./cmd/rotari
 
+  ssh-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install SSH server
+        run: sudo apt-get update && sudo apt-get install -y openssh-server
+
+      - name: Start loopback SSH server
+        shell: bash
+        run: |
+          set -euo pipefail
+          test_dir="$RUNNER_TEMP/rotari-ssh-integration"
+          mkdir -m 700 "$test_dir"
+          echo "SSH_TEST_DIR=$test_dir" >> "$GITHUB_ENV"
+          ssh-keygen -q -t ed25519 -N '' -f "$test_dir/client_key"
+          ssh-keygen -q -t ed25519 -N '' -f "$test_dir/host_key"
+          cp "$test_dir/client_key.pub" "$test_dir/authorized_keys"
+          chmod 600 "$test_dir/authorized_keys"
+          port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')
+          printf '[127.0.0.1]:%s %s\n' "$port" "$(cat "$test_dir/host_key.pub")" > "$test_dir/known_hosts"
+          cat > "$test_dir/sshd_config" <<EOF
+          Port $port
+          ListenAddress 127.0.0.1
+          HostKey $test_dir/host_key
+          PidFile $test_dir/sshd.pid
+          AuthorizedKeysFile $test_dir/authorized_keys
+          PubkeyAuthentication yes
+          PasswordAuthentication no
+          KbdInteractiveAuthentication no
+          PermitRootLogin no
+          UsePAM yes
+          AllowUsers $(id -un)
+          EOF
+          cat > "$test_dir/client_config" <<EOF
+          Host rotari-ssh-test
+            HostName 127.0.0.1
+            Port $port
+            User $(id -un)
+            IdentityFile $test_dir/client_key
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking yes
+            UserKnownHostsFile $test_dir/known_hosts
+            GlobalKnownHostsFile /dev/null
+            ConnectTimeout 5
+          EOF
+          chmod 600 "$test_dir/client_config"
+          sudo install -d -m 755 /run/sshd
+          sudo /usr/sbin/sshd -t -f "$test_dir/sshd_config"
+          sudo /usr/sbin/sshd -f "$test_dir/sshd_config" -E "$test_dir/sshd.log"
+          ssh -F "$test_dir/client_config" rotari-ssh-test true
+          echo "ROTARI_SSH_INTEGRATION_CONFIG=$test_dir/client_config" >> "$GITHUB_ENV"
+
+      - name: Run real SSH integration tests
+        run: go test ./internal/executor -run '^TestSSHIntegration' -count=1 -v
+
+      - name: Show SSH server log on failure
+        if: failure()
+        run: if [[ -f "$SSH_TEST_DIR/sshd.log" ]]; then sudo cat "$SSH_TEST_DIR/sshd.log"; fi
+
+      - name: Stop SSH server
+        if: always()
+        run: if [[ -f "$SSH_TEST_DIR/sshd.pid" ]]; then sudo kill "$(cat "$SSH_TEST_DIR/sshd.pid")"; fi
+
   example-scripts:
     runs-on: ubuntu-latest
     steps:
