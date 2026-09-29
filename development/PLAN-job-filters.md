@@ -10,7 +10,7 @@
 - command の正規表現マッチ
 - 実行ホスト、開始・終了時刻、継続時間
 - ジョブ定義の変更（fingerprint）
-- 宣言した入出力ファイルの鮮度（make 的な判定）
+- 宣言したファイル（`--require-file`、`--produce-file`）の鮮度（make 的な判定）
 - 否定（`--filter-not-*`）
 - `cancel`、`suspend`、`resume` へのフィルター適用
 
@@ -124,7 +124,7 @@ Direct selector は result filter と scope のどちらとも組み合わせら
 
 - `--filter-not-<key>` があるのは次のオプション。
   - `stage`、`matrix`、`command`、`exit-code`、`failure-kind`、`diagnosis`、`host`、`state`
-  - `changed`、`new`、`outdated`、`missing-output`（真偽の条件。例: `--filter-not-outdated`）
+  - `changed`、`new`、`outdated`、`unproduced`（真偽の条件。例: `--filter-not-outdated`）
 - `result` と時刻・継続時間には否定を設けない。
   - `result` は値の組み合わせで表せる。時刻と継続時間は after / before などの対がある。
 
@@ -134,7 +134,7 @@ Direct selector は result filter と scope のどちらとも組み合わせら
 
 - success のジョブには diagnosis がないので、`--filter-diagnosis cuda-oom` にも `--filter-not-diagnosis cuda-oom` にも一致しない。`--filter-not-diagnosis cuda-oom` は、そう診断されなかった**失敗**ジョブだけを選ぶ。
 - 投入されていないジョブには host と開始時刻がないので、`--filter-host` にも時刻の条件にも一致しない。
-- 出力を宣言していないジョブは、`--filter-outdated` にも `--filter-not-outdated` にも一致しない。
+- produce-file を宣言していないジョブは、`--filter-outdated` にも `--filter-not-outdated` にも一致しない。
 
 ### どの attempt で判定するか
 
@@ -218,25 +218,27 @@ Direct selector は result filter と scope のどちらとも組み合わせら
 - 使えるコマンドは `run`、`retry`、`show`（queue の表示）。
   - `copy` は run から選ぶコマンドなので対象外。
 
-### 入出力ファイルの鮮度
+### ファイルの鮮度
 
-- `add --input PATH` と `add --output PATH` で、ジョブの入出力を宣言する。
+- `add --require-file PATH` と `add --produce-file PATH` で、ジョブが読むファイルと作るファイルを宣言する。
   - 繰り返し指定できる。
   - `change` でも編集できる。編集の書式は、既存の `change --env` の形に合わせる。
+  - `--input` / `--output` は使わない。`add --output` は既に stdout の出力先であり、stdin / stdout とも紛らわしいためである。
+  - 内部のフィールド名は `RequireFiles`、`ProduceFiles`。
+  - `--require-file` はフィルターの判定にだけ使い、ジョブの実行前に存在を検査しない。名前から検査されると誤解されないよう、help と文書に明記する。
 - パスの解釈:
   - ジョブの working directory からの相対パス
   - `${VAR}` を、明示された env、matrix の値、`ROTARI_ARRAY_TASK_ID` で展開する。
   - 展開後に glob を適用する。
 - 判定は mtime で行う（make と同じ）。
-  - `--filter-outdated`: 出力が 1 つも存在しない、または最も古い出力より新しい入力がある。
-  - `--filter-missing-output`: 宣言した出力のどれかが存在しない。
-  - `add --input` と `add --output` はジョブの設定であり、フィルターではないので `--filter-` を付けない。
-  - 入力が 0 件（パスが存在しない、または glob が何にも一致しない）ならエラーにする。
+  - `--filter-outdated`: produce-file が 1 つも存在しない、または最も古い produce-file より新しい require-file がある。
+  - `--filter-unproduced`: 宣言した produce-file のどれかが存在しない。
+  - require-file が 0 件（パスが存在しない、または glob が何にも一致しない）なら、フィルターの評価をエラーにする。
 - 評価は呼び出し元のホストで行う。
   - SSH や scheduler の executor では、ファイルが共有 FS で見えることが前提となる。この前提は文書に明記する。
-- 入出力の宣言は fingerprint に含める。
+- require-file と produce-file の宣言は fingerprint に含める。
   - 宣言が空のジョブでは含めない。こうすると既存の fingerprint は変わらない。
-- 入出力の宣言から依存関係を推論することはしない。宣言はジョブを選ぶためだけに使う。
+- 宣言から依存関係を推論することはしない。宣言はジョブを選ぶためだけに使う。
   - [TODO.md](TODO.md) で「ジョブ間の出力受け渡し」をスコープ外にしているのと整合させる。
 
 ### cancel、suspend、resume
@@ -273,7 +275,7 @@ Direct selector は result filter と scope のどちらとも組み合わせら
 | `started-*`、`longer-than`、`shorter-than` | ○ | ○ | ○ | – | ○ | ○ |
 | `finished-*` | ○ | ○ | ○ | – | – | – |
 | `changed`、`new` | ○（queue の表示） | – | ○ | – | – | – |
-| `outdated`、`missing-output` | ○ | ○ | ○ | – | – | – |
+| `outdated`、`unproduced` | ○ | ○ | ○ | – | – | – |
 | `state` | – | – | – | – | ○ | `running` のみ |
 
 Direct selector の `--job-name` は、この表のすべてのコマンドで使える（`cancel`、`suspend`、`resume` では新規）。
@@ -298,7 +300,7 @@ cmd/rotari ──> internal/run, internal/queueedit, internal/jobcontrol ──>
   - 評価の前に組み合わせを検証する（Direct selector との排他、繰り返しの禁止など）。
 - `Facts`
   - ジョブ単位（array のタスク単位）の属性。
-  - 定義（command、env、working directory、stage、matrix、入出力の宣言）
+  - 定義（command、env、working directory、stage、matrix、require-file と produce-file の宣言）
   - 結果（finished、exit code、失敗の種類）
   - 実行（hosts、開始・終了時刻、実行状態）
   - 高価な属性（diagnosis の再計算、ファイルの stat）は遅延して読み込む。
@@ -357,10 +359,10 @@ Web の `/api/copy` はこの計画では変えず、今の `selection` の値�
 
 15. `cancel`、`suspend`、`resume` に `--job-name`、フィルター、`--filter-state`、`--yes`、確認プロンプトを追加する。
 
-### Phase 8: 入出力の宣言
+### Phase 8: ファイルの宣言
 
-16. `QueuedCommand` と `JobSpec` に入出力を追加し、`add` と `change` のオプション、fingerprint への反映を実装する。
-17. `--filter-outdated` と `--filter-missing-output` を追加する。
+16. `QueuedCommand` と `JobSpec` に `RequireFiles` と `ProduceFiles` を追加し、`add` と `change` の `--require-file`、`--produce-file`、fingerprint への反映を実装する。
+17. `--filter-outdated` と `--filter-unproduced` を追加する。
 
 ### 各 phase で行うこと
 
@@ -388,7 +390,7 @@ Web の `/api/copy` はこの計画では変えず、今の `selection` の値�
 - conformance
   - [conformance/06-selectors/selector_cases_test.go](../conformance/06-selectors/selector_cases_test.go) に行を追加し、`covers(t, "SEL-n")` で契約の ID と対応させる。
   - [conformance/06-selectors/job_control_test.go](../conformance/06-selectors/job_control_test.go) に、フィルター付きの cancel、確認、`--yes` のテストを追加する。一致が 0 件のときに run 全体を cancel しないことのテストは必須。
-- `--filter-outdated` と `--filter-missing-output` は、一時ディレクトリで mtime を操作する単体テストで確認する。
+- `--filter-outdated` と `--filter-unproduced` は、一時ディレクトリで mtime を操作する単体テストで確認する。
 - 省略形と `--filter-*` の形が同じ結果になることを確認する。
 - help に「Filters」の見出しが出て、そのコマンドで使えるフィルターだけが載ることを確認する。
 - 仕上げに pre-commit、`scripts/check.sh --short`、`scripts/check.sh` の順に実行する。
@@ -398,9 +400,10 @@ Web の `/api/copy` はこの計画では変えず、今の `selection` の値�
 - Web UI / Web API へのフィルターの反映（別計画）
 - cron scheduling
 - `--active-during`
-- 入出力の宣言からの依存関係の推論
+- require-file と produce-file の宣言からの依存関係の推論
+- ジョブの実行前に require-file の存在を検査すること
 - result filter と時刻・継続時間のオプションの否定
 - 汎用の `--not`。直後の条件を反転する案だったが、引数の順序に依存し、Python の kwargs で表せないため `--filter-not-*` にした。
 - `--filter KEY=VALUE` のような 1 つのオプションへの集約。オプションが探しにくく、`>` や `!` の quote が必要になるため `--filter-*` にした。
 - 保存済みの diagnosis による判定
-- ユーザー定義の述語コマンド（`--where-cmd`）。ジョブごとにシェルコマンドを実行して exit code で選ぶ案だったが、quoting がわかりにくく、ジョブ数だけプロセスを起動して遅く、入出力の宣言と用途が重なるため見送った。
+- ユーザー定義の述語コマンド（`--where-cmd`）。ジョブごとにシェルコマンドを実行して exit code で選ぶ案だったが、quoting がわかりにくく、ジョブ数だけプロセスを起動して遅く、ファイルの宣言と用途が重なるため見送った。
