@@ -424,12 +424,7 @@ function orderJobActions() {
     const cell = row.firstElementChild;
     if (!cell) return;
     const buttons = [...cell.querySelectorAll("button")];
-    const order = [
-      "view-log",
-      "job-ai",
-      "diagnosis",
-      "show-path",
-    ];
+    const order = ["view-log", "job-ai", "diagnosis", "show-path"];
     const ordered = [];
     order.forEach((className) => {
       buttons
