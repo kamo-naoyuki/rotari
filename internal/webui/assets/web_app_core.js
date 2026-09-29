@@ -116,7 +116,18 @@ function selectedNotificationBasedirIDs() {
   return selectedNotificationBasedirIDsState;
 }
 function restoreNotificationBasedirs() {
-  const selected = selectedNotificationBasedirIDs();
+  const activeID =
+    mountedBasedirID || registeredBasedirs.find((entry) => entry.current)?.id;
+  let selected = selectedNotificationBasedirIDs();
+  if (selected && activeID) {
+    selected = new Set(selected);
+    selected.add(activeID);
+    selectedNotificationBasedirIDsState = selected;
+    localStorage.setItem(
+      notificationBasedirsKey,
+      JSON.stringify([...selected]),
+    );
+  }
   document
     .querySelectorAll(".basedir-notification-toggle")
     .forEach((checkbox) => {

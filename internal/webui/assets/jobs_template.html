@@ -318,7 +318,17 @@
 
       function restoreJobsNotificationTargets() {
         const stored = localStorage.getItem(jobsNotificationBasedirsKey);
-        const selected = stored === null ? null : new Set(JSON.parse(stored));
+        let selected = stored === null ? null : new Set(JSON.parse(stored));
+        const activeCheckbox = jobsNotificationCheckboxes().find((checkbox) =>
+          checkbox.closest(".basedir-entry").classList.contains("expanded"),
+        );
+        if (selected && activeCheckbox) {
+          selected.add(activeCheckbox.dataset.basedirId);
+          localStorage.setItem(
+            jobsNotificationBasedirsKey,
+            JSON.stringify([...selected]),
+          );
+        }
         jobsNotificationCheckboxes().forEach((checkbox) => {
           checkbox.checked =
             selected === null
