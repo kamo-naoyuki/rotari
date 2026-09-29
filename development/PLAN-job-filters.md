@@ -10,7 +10,7 @@
 - command の正規表現マッチ
 - 実行ホスト、開始・終了時刻、継続時間
 - ジョブ定義の変更（fingerprint）
-- 宣言した入出力ファイルの鮮度（make 的な判定）とユーザー定義の述語コマンド
+- 宣言した入出力ファイルの鮮度（make 的な判定）
 - 汎用の否定 `--not`
 - `cancel`、`suspend`、`resume` へのフィルター適用
 
@@ -210,17 +210,6 @@ Direct selector は result filter と scope のどちらとも組み合わせら
 - 入出力の宣言から依存関係を推論することはしない。宣言はジョブを選ぶためだけに使う。
   - [TODO.md](TODO.md) で「ジョブ間の出力受け渡し」をスコープ外にしているのと整合させる。
 
-### 述語コマンド
-
-- `--where-cmd CMD`
-  - ジョブごとに、呼び出し元のホストで `sh -c CMD` を実行する。
-  - array はタスクごとに実行する。
-  - working directory はジョブの working directory。
-  - 環境変数: 呼び出し元の env に、ジョブで明示された env、matrix の値、`ROTARI_JOB_ID`、`ROTARI_JOB_NAME`、`ROTARI_ARRAY_TASK_ID` を加えたもの。
-  - 判定: exit 0 なら一致、1 なら不一致、それ以外ならエラーでコマンドを中断する。
-  - ジョブを 1 つずつ実行し、タイムアウトは設けない。コマンドの stdout と stderr は呼び出し元の stderr に流す。
-- 評価のコストが高いので、ほかの条件で絞り込んだ後のジョブにだけ実行する。
-
 ### cancel、suspend、resume
 
 - 受け付けるフィルター:
@@ -228,7 +217,6 @@ Direct selector は result filter と scope のどちらとも組み合わせら
   - `--command-regex`、`--host`
   - `--started-after`、`--started-before`、`--longer-than`、`--shorter-than`
   - `--pending`、`--running`（互いに OR）
-  - `--where-cmd`
   - `--not`
 - `suspend` と `resume` は実行中のジョブしか扱わないので、`--pending` を受け付けない。
 - 一致が 0 件ならエラーにする。run 全体の cancel にはしない。
@@ -255,7 +243,6 @@ Direct selector は result filter と scope のどちらとも組み合わせら
 | `--finished-*` | ○ | ○ | ○ | – | – | – |
 | `--changed`、`--new` | ○（queue の表示） | – | ○ | – | – | – |
 | `--outdated`、`--missing-output` | ○ | ○ | ○ | – | – | – |
-| `--where-cmd` | ○ | ○ | ○ | – | ○ | ○ |
 | `--pending`、`--running` | – | – | – | – | ○ | `--running` のみ |
 
 `show` は、run の結果を見るフィルターが指定されると、`--failed` と同じように queue を読み飛ばす。
@@ -281,8 +268,8 @@ cmd/rotari ──> internal/run, internal/queueedit, internal/jobcontrol ──>
   - 定義（command、env、working directory、stage、matrix、入出力の宣言）
   - 結果（finished、exit code、失敗の種類）
   - 実行（hosts、開始・終了時刻、実行状態）
-  - 高価な属性（diagnosis の再計算、ファイルの stat、述語コマンド）は遅延して読み込む。
-- 評価の順序: 安い述語 → diagnosis → ファイル → `--where-cmd`。
+  - 高価な属性（diagnosis の再計算、ファイルの stat）は遅延して読み込む。
+- 評価の順序: 安い述語 → diagnosis → ファイル。
 - `jobfilter` は `state` や `executor` に依存しない。`Facts` は `jobstatus` と `state` の側の adapter が作る。
 
 既存の `model.ResultSelection`、`ResultSelectionMatches`、`CommandSelector` は `jobfilter` に移すか、`jobfilter` を呼ぶ薄い wrapper にする。
@@ -341,10 +328,6 @@ Web の `/api/copy` はこの計画では変えず、今の `selection` の値�
 15. `QueuedCommand` と `JobSpec` に入出力を追加し、`add` と `change` のオプション、fingerprint への反映を実装する。
 16. `--outdated` と `--missing-output` を追加する。
 
-### Phase 9: 述語コマンド
-
-17. `--where-cmd` を追加する。
-
 ### 各 phase で行うこと
 
 - [contracts/06-selectors.md](../contracts/06-selectors.md) を更新する。
@@ -371,7 +354,7 @@ Web の `/api/copy` はこの計画では変えず、今の `selection` の値�
 - conformance
   - [conformance/06-selectors/selector_cases_test.go](../conformance/06-selectors/selector_cases_test.go) に行を追加し、`covers(t, "SEL-n")` で契約の ID と対応させる。
   - [conformance/06-selectors/job_control_test.go](../conformance/06-selectors/job_control_test.go) に、フィルター付きの cancel、確認、`--yes` のテストを追加する。一致が 0 件のときに run 全体を cancel しないことのテストは必須。
-- `--outdated`、`--missing-output`、`--where-cmd` は、一時ディレクトリで mtime や exit code を操作する単体テストで確認する。
+- `--outdated` と `--missing-output` は、一時ディレクトリで mtime を操作する単体テストで確認する。
 - 仕上げに pre-commit、`scripts/check.sh --short`、`scripts/check.sh` の順に実行する。
 
 ## スコープ外
@@ -382,3 +365,4 @@ Web の `/api/copy` はこの計画では変えず、今の `selection` の値�
 - 入出力の宣言からの依存関係の推論
 - result filter と時刻・継続時間のオプションの否定
 - 保存済みの diagnosis による判定
+- ユーザー定義の述語コマンド（`--where-cmd`）。ジョブごとにシェルコマンドを実行して exit code で選ぶ案だったが、quoting がわかりにくく、ジョブ数だけプロセスを起動して遅く、入出力の宣言と用途が重なるため見送った。
