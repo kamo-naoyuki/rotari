@@ -38,6 +38,42 @@ func TestDecodeFormatsCompileEquivalentQueues(t *testing.T) {
 	}
 }
 
+func TestDecodeYAMLMatrixMappingWithArray(t *testing.T) {
+	input := `version: 1
+jobs:
+  - name: train
+    command: [train]
+    matrix:
+      SEED: [1, 2]
+      MODEL: [small, large]
+    array: 1-10
+`
+	queue := compileFormatFixture(t, "yaml", input)
+	if len(queue.Commands) != 4 {
+		t.Fatalf("Compile(yaml) produced %d matrix jobs, want 4", len(queue.Commands))
+	}
+	if queue.Commands[0].Name != "train-SEED1-MODELsmall" || queue.Commands[3].Name != "train-SEED2-MODELlarge" {
+		t.Fatalf("matrix order/names = %q ... %q", queue.Commands[0].Name, queue.Commands[3].Name)
+	}
+	if queue.Commands[0].Array == nil || queue.Commands[0].Array.First != 1 || queue.Commands[0].Array.Last != 10 {
+		t.Fatalf("array = %#v, want tasks 1 through 10", queue.Commands[0].Array)
+	}
+}
+
+func TestDecodeRejectsMalformedYAMLMatrixMapping(t *testing.T) {
+	for _, matrix := range []string{
+		"SEED: 1",
+		"SEED: [1, null]",
+		"SEED: [[1, 2]]",
+		"SEED: ['a,b']",
+	} {
+		input := "version: 1\njobs:\n  - command: [true]\n    matrix:\n      " + matrix + "\n"
+		if _, err := Decode(strings.NewReader(input), "yaml"); err == nil {
+			t.Errorf("Decode accepted malformed matrix mapping %q", matrix)
+		}
+	}
+}
+
 func compileFormatFixture(t *testing.T, format, input string) model.Queue {
 	t.Helper()
 	manifest, err := Decode(strings.NewReader(input), format)

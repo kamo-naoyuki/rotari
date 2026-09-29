@@ -8,7 +8,8 @@ jobs:
   - name: train
     command: [sh, -c, 'echo "training with SEED=${SEED}"']
     depends_on: [inputs]
-    matrix: ["SEED=1,2"]
+    matrix:
+      SEED: [1, 2]
 
   - name: evaluate
     command: [sh, -c, "echo evaluating; exit 1"]

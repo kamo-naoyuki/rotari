@@ -40,8 +40,11 @@ jobs:
     # array: "1-10"
     # array: "1,3,4"
 
-    # Cartesian expansion, with the same syntax as rotari add --matrix.
-    # matrix: ["SEED=1,2,3", "MODEL=small,large"]
+    # Cartesian expansion across dimensions.
+    # matrix:
+    #   SEED: [1, 2, 3]
+    #   MODEL: [small, large]
+    # The compact form matrix: ["SEED=1,2,3"] is also accepted.
 `
 
 const workflowTemplateTOML = `version = 1

@@ -89,16 +89,19 @@ func Decode(reader io.Reader, format string) (Manifest, error) {
 		if err := rejectYAMLFeatures(&root); err != nil {
 			return Manifest{}, err
 		}
-		decoder := yaml.NewDecoder(bytes.NewReader(data))
-		decoder.KnownFields(true)
-		if err := decoder.Decode(&manifest); err != nil {
+		if err := rejectYAMLDocuments(data); err != nil {
+			return Manifest{}, err
+		}
+		if err := normalizeYAMLMatrix(&root); err != nil {
+			return Manifest{}, err
+		}
+		normalized, err := yaml.Marshal(&root)
+		if err != nil {
 			return Manifest{}, fmt.Errorf("decode YAML manifest: %w", err)
 		}
-		var extra any
-		if err := decoder.Decode(&extra); err != io.EOF {
-			if err == nil {
-				return Manifest{}, errors.New("decode YAML manifest: multiple documents are not allowed")
-			}
+		decoder := yaml.NewDecoder(bytes.NewReader(normalized))
+		decoder.KnownFields(true)
+		if err := decoder.Decode(&manifest); err != nil {
 			return Manifest{}, fmt.Errorf("decode YAML manifest: %w", err)
 		}
 	case "toml":
@@ -116,6 +119,22 @@ func Decode(reader io.Reader, format string) (Manifest, error) {
 		return Manifest{}, err
 	}
 	return manifest, nil
+}
+
+func rejectYAMLDocuments(data []byte) error {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	var document yaml.Node
+	if err := decoder.Decode(&document); err != nil {
+		return fmt.Errorf("decode YAML manifest: %w", err)
+	}
+	var extra yaml.Node
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return errors.New("decode YAML manifest: multiple documents are not allowed")
+		}
+		return fmt.Errorf("decode YAML manifest: %w", err)
+	}
+	return nil
 }
 
 func requireEOF(decoder *json.Decoder) error {
@@ -146,6 +165,89 @@ func rejectYAMLFeatures(node *yaml.Node) error {
 		}
 	}
 	return nil
+}
+
+func normalizeYAMLMatrix(root *yaml.Node) error {
+	if root.Kind != yaml.DocumentNode || len(root.Content) != 1 {
+		return nil
+	}
+	jobs := yamlMappingValue(root.Content[0], "jobs")
+	if jobs == nil || jobs.Kind != yaml.SequenceNode {
+		return nil
+	}
+	for _, job := range jobs.Content {
+		if err := normalizeYAMLJobMatrix(job); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func yamlMappingValue(mapping *yaml.Node, key string) *yaml.Node {
+	if mapping.Kind != yaml.MappingNode {
+		return nil
+	}
+	for index := 0; index+1 < len(mapping.Content); index += 2 {
+		if mapping.Content[index].Value == key {
+			return mapping.Content[index+1]
+		}
+	}
+	return nil
+}
+
+func normalizeYAMLJobMatrix(job *yaml.Node) error {
+	if job.Kind != yaml.MappingNode {
+		return nil
+	}
+	for index := 0; index+1 < len(job.Content); index += 2 {
+		matrix := job.Content[index+1]
+		if job.Content[index].Value != "matrix" || matrix.Kind != yaml.MappingNode {
+			continue
+		}
+		dimensions, err := normalizeYAMLMatrixMapping(matrix)
+		if err != nil {
+			return err
+		}
+		job.Content[index+1] = dimensions
+	}
+	return nil
+}
+
+func normalizeYAMLMatrixMapping(matrix *yaml.Node) (*yaml.Node, error) {
+	dimensions := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+	for index := 0; index+1 < len(matrix.Content); index += 2 {
+		dimension, err := normalizeYAMLMatrixDimension(matrix.Content[index], matrix.Content[index+1])
+		if err != nil {
+			return nil, err
+		}
+		dimensions.Content = append(dimensions.Content, dimension)
+	}
+	return dimensions, nil
+}
+
+func normalizeYAMLMatrixDimension(key, values *yaml.Node) (*yaml.Node, error) {
+	if key.Kind != yaml.ScalarNode || values.Kind != yaml.SequenceNode {
+		return nil, errors.New("decode YAML manifest: matrix dimensions must map names to value sequences")
+	}
+	items := make([]string, 0, len(values.Content))
+	for _, value := range values.Content {
+		item, err := normalizeYAMLMatrixValue(value)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key.Value + "=" + strings.Join(items, ",")}, nil
+}
+
+func normalizeYAMLMatrixValue(value *yaml.Node) (string, error) {
+	if value.Kind != yaml.ScalarNode || value.Tag == "!!null" {
+		return "", errors.New("decode YAML manifest: matrix values must be non-null scalars")
+	}
+	if strings.Contains(value.Value, ",") {
+		return "", fmt.Errorf("decode YAML manifest: matrix value %q cannot contain a comma", value.Value)
+	}
+	return value.Value, nil
 }
 
 func Validate(manifest Manifest) error {

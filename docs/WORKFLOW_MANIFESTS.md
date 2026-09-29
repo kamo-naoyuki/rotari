@@ -51,7 +51,9 @@ jobs:
     executor_options: ["--partition=gpu"]
     environment: ["EPOCHS=20"]
     array: "1-3"
-    matrix: ["SEED=1,2", "MODEL=small,large"]
+    matrix:
+      SEED: [1, 2]
+      MODEL: [small, large]
   - name: collect
     command: [python, collect.py]
     depends_on_finished: [train]
@@ -60,6 +62,10 @@ jobs:
 `depends_on` and `depends_on_finished` correspond to `add --depends-on` and
 `--depends-on-finished`; `timeout`, `retry`, `retry_delay`, `retry_backoff`,
 and `retry_max_delay` correspond to the `add` options of the same names.
+Each YAML `matrix` key defines one dimension, and its sequence lists that
+dimension's values. The previous YAML sequence form, such as
+`matrix: ["SEED=1,2"]`, remains accepted. `array` keeps its string range syntax,
+such as `array: "1-10"`.
 
 Use `rotari import --dry-run FILE` to validate and preview `execute`, `reuse`,
 and `accept` decisions without changing the queue. Jobs with provenance also
