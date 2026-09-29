@@ -1,9 +1,10 @@
-# 計画: ジョブフィルターの一般化
+# 計画: ジョブフィルターの強化
 
 ## 位置づけ
 
 現在の rotari がジョブを結果で選ぶ手段は、終了状態の result filter（`--failed`、`--unfinished`、`--success`）だけである。
-この計画では、ジョブを選ぶ条件を「述語の集合」として一般化し、次を追加する。
+この計画は**フィルター機能の強化**である。ジョブを選ぶ条件を「述語の集合」として一般化し、次を追加する。
+どのジョブを実行するかは引き続き利用者が選び、rotari が自動で決めたり、依存関係を推論したりはしない。
 
 - 結果の細分化（exit code、失敗の種類）
 - rule-based diagnosis による分類
@@ -240,6 +241,7 @@ Direct selector は result filter と scope のどちらとも組み合わせら
   - 宣言が空のジョブでは含めない。こうすると既存の fingerprint は変わらない。
 - 宣言から依存関係を推論することはしない。宣言はジョブを選ぶためだけに使う。
   - [TODO.md](TODO.md) で「ジョブ間の出力受け渡し」をスコープ外にしているのと整合させる。
+  - 古いジョブの下流は、既存の `expandDownstream` が `--depends-on` をたどって実行対象に加える。`run --filter-outdated` だけで、更新されたデータに影響するジョブとその下流が再実行される。
 
 ### cancel、suspend、resume
 
@@ -401,6 +403,9 @@ Web の `/api/copy` はこの計画では変えず、今の `selection` の値�
 - cron scheduling
 - `--active-during`
 - require-file と produce-file の宣言からの依存関係の推論
+- make 的な機能のうち、この計画で入れるのは「古いジョブを選ぶフィルター」だけである。その先の段階は次のとおり扱う。
+  - 宣言したファイルと `--depends-on` の食い違い（B の require-file が A の produce-file と一致するのに依存がない）を警告する検査。将来の候補として [TODO.md](TODO.md) に記録する。
+  - 宣言したファイルから依存関係を推論すること、`run` が既定で古いジョブだけを実行すること、ターゲットの指定やパターンルール。rotari を workflow 言語にするものなので扱わない。
 - ジョブの実行前に require-file の存在を検査すること
 - result filter と時刻・継続時間のオプションの否定
 - 汎用の `--not`。直後の条件を反転する案だったが、引数の順序に依存し、Python の kwargs で表せないため `--filter-not-*` にした。

@@ -53,6 +53,12 @@ belong to operating workflows that are already settled. Resource allocation
 (GPUs, memory, nodes) is out of scope too: it belongs to the scheduler or other
 middleware, and rotari only limits how many jobs it runs or submits at once.
 
+Files declared with `--require-file` and `--produce-file` (see
+[PLAN-job-filters.md](PLAN-job-filters.md)) only select jobs; inferring
+dependencies from them, running only outdated jobs by default, and targets or
+pattern rules are out of scope for the same reason. Consider a check that warns
+when a job requires a file another job produces but does not depend on it.
+
 ### Runs as experiment versions
 
 What is missing today: `show RUN` describes a run on its own, so whether the
