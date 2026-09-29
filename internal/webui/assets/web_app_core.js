@@ -31,6 +31,9 @@ let selectedOutput = "";
 let selectedLog = null;
 let selectedReportContext = null;
 let followTimer = null;
+let sidebarScrollActive = false;
+let sidebarRenderDeferred = false;
+let sidebarScrollTimer = 0;
 const selectedAttemptByJob = {};
 const openAttemptMenuByJob = {};
 let sortState = {
@@ -72,6 +75,10 @@ async function refresh() {
   if (nextStateJSON === stateJSON) return;
   stateJSON = nextStateJSON;
   state = nextState;
+  if (sidebarScrollActive) {
+    sidebarRenderDeferred = true;
+    return;
+  }
   render();
   if (typeof rewriteStaticLinks === "function") rewriteStaticLinks();
 }
@@ -394,7 +401,19 @@ function renderSidebar(queues) {
     sidebar.dataset.scrollStored = "true";
     sidebar.addEventListener(
       "scroll",
-      () => sessionStorage.setItem(sidebarScrollKey, String(sidebar.scrollTop)),
+      () => {
+        sidebarScrollActive = true;
+        sessionStorage.setItem(sidebarScrollKey, String(sidebar.scrollTop));
+        clearTimeout(sidebarScrollTimer);
+        sidebarScrollTimer = setTimeout(() => {
+          sidebarScrollActive = false;
+          if (sidebarRenderDeferred) {
+            sidebarRenderDeferred = false;
+            render();
+            if (typeof rewriteStaticLinks === "function") rewriteStaticLinks();
+          }
+        }, 180);
+      },
       { passive: true },
     );
   }
