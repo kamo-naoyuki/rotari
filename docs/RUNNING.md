@@ -270,13 +270,13 @@ flowchart LR
   StatusB --> RunCmd
   StatusC --> RunCmd
 
-  classDef source fill:#f1f5f9,stroke:#64748b,color:#0f172a
+  classDef source fill:#fffbeb,stroke:#d97706,color:#78350f
   classDef queue fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
   classDef origin fill:#ccfbf1,stroke:#0f766e,color:#134e4a
   classDef filter fill:#fef3c7,stroke:#d97706,color:#78350f
   classDef execute fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
   classDef carried fill:#dcfce7,stroke:#16a34a,color:#14532d
-  classDef unfinished fill:#e2e8f0,stroke:#64748b,color:#334155
+  classDef unfinished fill:#fffbeb,stroke:#d97706,color:#78350f
   classDef command fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
   classDef success fill:#dcfce7,stroke:#16a34a,color:#14532d
   classDef failed fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
@@ -343,13 +343,13 @@ flowchart LR
     Filter -->|"no result"| Unfinished["unfinished"]
   end
 
-  classDef source fill:#f1f5f9,stroke:#64748b,color:#0f172a
+  classDef source fill:#fffbeb,stroke:#d97706,color:#78350f
   classDef queue fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
   classDef origin fill:#ccfbf1,stroke:#0f766e,color:#134e4a
   classDef filter fill:#fef3c7,stroke:#d97706,color:#78350f
   classDef execute fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
   classDef carried fill:#dcfce7,stroke:#16a34a,color:#14532d
-  classDef unfinished fill:#e2e8f0,stroke:#64748b,color:#334155
+  classDef unfinished fill:#fffbeb,stroke:#d97706,color:#78350f
   classDef command fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
   classDef success fill:#dcfce7,stroke:#16a34a,color:#14532d
   classDef failed fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
