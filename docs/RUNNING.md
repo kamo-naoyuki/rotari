@@ -176,6 +176,21 @@ flowchart LR
   Filter -->|"selected"| Execute["Execute in new run"]
   Filter -->|"completed, not selected"| Carry["Carry result and output link"]
   Filter -->|"no completed result"| Unfinished["Remain unfinished"]
+
+  classDef source fill:#f1f5f9,stroke:#64748b,color:#0f172a
+  classDef queue fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+  classDef origin fill:#ccfbf1,stroke:#0f766e,color:#134e4a
+  classDef filter fill:#fef3c7,stroke:#d97706,color:#78350f
+  classDef execute fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+  classDef carried fill:#dcfce7,stroke:#16a34a,color:#14532d
+  classDef unfinished fill:#e2e8f0,stroke:#64748b,color:#334155
+  class SavedRun source
+  class Copy,CopiedQueue queue
+  class Origin origin
+  class Filter filter
+  class Execute execute
+  class Carry carried
+  class Unfinished unfinished
 ```
 
 If you create a new queue whose job IDs differ from those in the latest run,
@@ -198,6 +213,23 @@ flowchart LR
   Filter -->|"selected"| Execute["Execute in new run"]
   Filter -->|"completed, not selected"| Carry["Carry result and output link"]
   Filter -->|"no completed result"| Unfinished["Remain unfinished"]
+
+  classDef source fill:#f1f5f9,stroke:#64748b,color:#0f172a
+  classDef queue fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+  classDef match fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+  classDef origin fill:#ccfbf1,stroke:#0f766e,color:#134e4a
+  classDef filter fill:#fef3c7,stroke:#d97706,color:#78350f
+  classDef execute fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+  classDef carried fill:#dcfce7,stroke:#16a34a,color:#14532d
+  classDef unfinished fill:#e2e8f0,stroke:#64748b,color:#334155
+  class NewQueue queue
+  class Reference source
+  class Match match
+  class Origin origin
+  class Filter filter
+  class Execute execute
+  class Carry carried
+  class Unfinished unfinished
 ```
 
 `retry` is `run --failed --unfinished` by default, but not an alias of it:
