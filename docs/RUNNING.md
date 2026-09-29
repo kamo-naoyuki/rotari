@@ -185,12 +185,10 @@ rotari run -p sweep --failed --unfinished --match-by fingerprint
 
 ```mermaid
 flowchart LR
-  NewQueue["Newly created queue"] --> Match["Match against reference run<br/>--match-by fingerprint<br/>(default: Job ID, then fingerprint)"]
+  NewQueue["New queue<br/>no Origin IDs"] --> Match["Match against reference run<br/>--match-by fingerprint<br/>(default: Job ID, then fingerprint)"]
   Reference["Reference run<br/>commands.json + results"] --> Match
   Match -->|"fingerprint match"| Origin["Create Origin link<br/>source Run ID + Job ID + Attempt ID"]
-  Match -->|"no fingerprint match"| NoOrigin["No fingerprint Origin<br/>same Job ID may still resolve via fallback"]
   Origin --> Filter["run selection / result filter"]
-  NoOrigin --> Filter
   Filter -->|"selected"| Execute["Execute in new run"]
   Filter -->|"completed, not selected"| Carry["Carry result and output link"]
   Filter -->|"no completed result"| Unfinished["Remain unfinished"]
