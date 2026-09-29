@@ -57,7 +57,7 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (rundiff
 			diagnoses = append(diagnoses, diagnosis.Name)
 		}
 		run.Jobs = append(run.Jobs, rundiff.Job{
-			Spec: spec, Status: status, Carried: carried,
+			Spec: spec, Status: status, Origin: origin, Carried: carried,
 			DiagnosisStatus: summaryResult.DiagnosisStatus, Diagnoses: diagnoses,
 		})
 	}

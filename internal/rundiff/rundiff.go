@@ -36,6 +36,7 @@ const (
 type Job struct {
 	Spec            model.JobSpec
 	Status          string
+	Origin          *model.JobOrigin
 	DiagnosisStatus string
 	Diagnoses       []string
 	// Carried reports that the run reused an earlier result instead of
@@ -106,15 +107,22 @@ type Result struct {
 func Compare(from, to Run) Result {
 	result := Result{From: runInfo(from), To: runInfo(to), Jobs: []JobDiff{}}
 	fromByKey := make(map[string]Job, len(from.Jobs))
+	fromByID := make(map[string]Job, len(from.Jobs))
 	for _, job := range from.Jobs {
 		fromByKey[jobKey(job.Spec)] = job
+		fromByID[job.Spec.ID] = job
 	}
 	seen := make(map[string]bool, len(to.Jobs))
 	for _, job := range to.Jobs {
 		key := jobKey(job.Spec)
-		seen[key] = true
+		old, matched := matchingJob(from, fromByKey, fromByID, job)
+		if matched {
+			seen[old.Spec.ID] = true
+		} else if job.Origin == nil {
+			seen[key] = true
+		}
 		diff := JobDiff{Name: displayName(job.Spec), ToID: job.Spec.ID, ToStatus: job.Status, Carried: job.Carried}
-		if old, ok := fromByKey[key]; ok {
+		if matched {
 			diff.FromID = old.Spec.ID
 			diff.FromStatus = old.Status
 			diff.Changes = SpecChanges(old.Spec, job.Spec)
@@ -125,7 +133,7 @@ func Compare(from, to Run) Result {
 		result.Jobs = append(result.Jobs, diff)
 	}
 	for _, job := range from.Jobs {
-		if seen[jobKey(job.Spec)] {
+		if seen[job.Spec.ID] || seen[jobKey(job.Spec)] {
 			continue
 		}
 		result.Jobs = append(result.Jobs, JobDiff{
@@ -153,6 +161,18 @@ func Compare(from, to Run) Result {
 		}
 	}
 	return result
+}
+
+func matchingJob(from Run, byKey map[string]Job, byID map[string]Job, job Job) (Job, bool) {
+	if job.Origin != nil {
+		if job.Origin.RunID != from.ID {
+			return Job{}, false
+		}
+		old, ok := byID[job.Origin.JobID]
+		return old, ok
+	}
+	old, ok := byKey[jobKey(job.Spec)]
+	return old, ok
 }
 
 func runInfo(run Run) RunInfo {

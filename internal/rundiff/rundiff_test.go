@@ -84,6 +84,30 @@ func TestCompareMatchesUnnamedJobsByID(t *testing.T) {
 	}
 }
 
+func TestComparePrefersOriginAndDoesNotGuessAcrossRuns(t *testing.T) {
+	from := Run{ID: "run-1", Jobs: []Job{
+		job("same", StatusFailed, "old"),
+		job("other", StatusFailed, "false"),
+	}}
+	matched := job("renamed", StatusSuccess, "new")
+	matched.Origin = &model.JobOrigin{RunID: "run-1", JobID: "same-id"}
+	foreign := job("other", StatusSuccess, "new")
+	foreign.Origin = &model.JobOrigin{RunID: "run-0", JobID: "other-id"}
+	result := Compare(from, Run{ID: "run-2", Jobs: []Job{matched, foreign}})
+	if result.Summary.Fixed != 1 || result.Summary.Added != 1 || result.Summary.Removed != 1 {
+		t.Fatalf("summary = %+v, jobs = %+v", result.Summary, result.Jobs)
+	}
+	if result.Jobs[0].FromID != "same-id" || result.Jobs[0].Transition != TransitionFixed {
+		t.Fatalf("origin match = %+v", result.Jobs[0])
+	}
+	if result.Jobs[1].Transition != TransitionAdded || result.Jobs[1].Name != "other" {
+		t.Fatalf("foreign origin match = %+v", result.Jobs[1])
+	}
+	if result.Jobs[2].Transition != TransitionRemoved || result.Jobs[2].Name != "other" {
+		t.Fatalf("removed old job = %+v", result.Jobs[2])
+	}
+}
+
 func TestSummarizeCountsResolvedStatuses(t *testing.T) {
 	run := Run{Jobs: []Job{
 		job("success", StatusSuccess, "true"),
