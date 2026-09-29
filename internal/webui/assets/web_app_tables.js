@@ -324,7 +324,7 @@ function addRunningOutputButtons() {
   if (!run || !table) return;
   table.querySelectorAll("tbody tr").forEach((row, index) => {
     const cell = row.children[row.children.length - 2];
-    if (cell && cell.textContent.trim() === "-") {
+    if (cell && !cell.querySelector(".view-log")) {
       const job = run.jobs[index];
       if (job) {
         const started = !!job.submitted_at || !!job.result || run.running;
@@ -342,8 +342,8 @@ function addRunningOutputButtons() {
             "stdout",
             job.log_mode,
           );
-        cell.textContent = "";
-        cell.append(button);
+        if (cell.textContent.trim() === "-") cell.textContent = "";
+        cell.append(" ", button);
       }
     }
   });

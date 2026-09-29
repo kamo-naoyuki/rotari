@@ -272,9 +272,13 @@ function addRunEnvironment() {
     '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><h2 style="margin:0">Load average</h2><span class="meta">' +
     esc(runLoadSummary(run)) +
     "</span></div>";
-  const stats = app.querySelector(".run-statistics");
-  if (stats) stats.after(section);
-  else app.prepend(section);
+  const load = app.querySelector(".run-environment");
+  if (load) load.after(section);
+  else {
+    const stats = app.querySelector(".run-statistics");
+    if (stats) stats.after(section);
+    else app.prepend(section);
+  }
 }
 function addJobTimeline() {
   const parts = pageParts();
@@ -342,6 +346,121 @@ function addJobTimeline() {
   const env = app.querySelector(".run-environment");
   if (env) env.after(section);
   else app.prepend(section);
+}
+
+let outputWordCloudData = null;
+let outputWordCloudKey = "";
+let outputWordCloudRequestedKey = "";
+
+function renderOutputWordCloud(details, cloud) {
+  const content = details.querySelector(".output-word-cloud-content");
+  const status = details.querySelector(".output-word-cloud-status");
+  const terms = cloud.terms || [];
+  content.textContent = "";
+  if (!terms.length) {
+    content.textContent = "No output words found.";
+  } else {
+    const maxCount = Math.max(...terms.map((term) => term.count), 1);
+    const colors = ["#f3c969", "#63d297", "#7dc4ff", "#ff9f68", "#d6a8ff"];
+    terms.forEach((term, index) => {
+      const word = document.createElement("span");
+      word.textContent = term.word;
+      word.title = term.count + " occurrences in " + term.jobs + " jobs";
+      word.style.fontSize = 14 + Math.round((term.count / maxCount) * 28) + "px";
+      word.style.color = colors[index % colors.length];
+      word.style.lineHeight = "1.15";
+      word.style.margin = "4px 7px";
+      word.style.display = "inline-block";
+      content.append(word);
+    });
+  }
+  status.textContent =
+    cloud.total_jobs +
+    " jobs / " +
+    cloud.total_bytes.toLocaleString() +
+    " bytes / generated " +
+    new Date(cloud.generated_at).toLocaleString();
+}
+
+async function loadOutputWordCloud(details, projectName, runID, refresh) {
+  const status = details.querySelector(".output-word-cloud-status");
+  const content = details.querySelector(".output-word-cloud-content");
+  const button = details.querySelector(".output-word-cloud-regenerate");
+  status.textContent = refresh ? "Regenerating..." : "Loading...";
+  button.disabled = true;
+  try {
+    const query =
+      "/api/output-word-cloud?project_name=" +
+      encodeURIComponent(projectName) +
+      "&run_id=" +
+      encodeURIComponent(runID) +
+      (refresh ? "&refresh=1" : "");
+    const response = await fetch(query);
+    if (!response.ok) throw new Error(await response.text());
+    outputWordCloudData = await response.json();
+    outputWordCloudKey = projectName + "/" + runID;
+    renderOutputWordCloud(details, outputWordCloudData);
+  } catch (error) {
+    content.textContent = "Unable to generate output word cloud.";
+    status.textContent = String(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function addOutputWordCloud() {
+  if (typeof window.__ROTARI_STATIC_STATE__ !== "undefined") return;
+  const parts = pageParts();
+  if (parts[0] !== "project" || parts[2] !== "run") return;
+  const queue = state.projects.find(
+    (item) => item.project_name === decodeURIComponent(parts[1]),
+  );
+  const runID = decodeURIComponent(parts[3]);
+  const run = queue && queue.runs.find((item) => item.run_id === runID);
+  const app = document.getElementById("app");
+  if (!run || !app || app.querySelector(".output-word-cloud")) return;
+  const wordCloudKey = queue.project_name + "/" + runID;
+  const section = document.createElement("section");
+  section.className = "output-word-cloud";
+  section.dataset.wordCloudProject = queue.project_name;
+  section.dataset.wordCloudRun = runID;
+  section.style.background =
+    "linear-gradient(135deg,rgba(30,48,58,.95),rgba(24,33,43,.92))";
+  section.style.border = "1px solid #385160";
+  section.style.padding = "18px";
+  section.style.margin = "16px 0 20px";
+  const heading = document.createElement("div");
+  const title = document.createElement("h2");
+  title.textContent = "Output word cloud";
+  title.style.margin = "0";
+  const status = document.createElement("div");
+  status.className = "output-word-cloud-status meta";
+  status.textContent = "Not generated";
+  heading.append(title, status);
+  const body = document.createElement("div");
+  const regenerate = document.createElement("button");
+  regenerate.className = "output-word-cloud-regenerate";
+  regenerate.textContent = "Regenerate";
+  regenerate.type = "button";
+  regenerate.onclick = () =>
+    loadOutputWordCloud(section, queue.project_name, runID, true);
+  const content = document.createElement("div");
+  content.className = "output-word-cloud-content";
+  content.style.margin = "16px -4px 0";
+  content.style.textAlign = "center";
+  body.append(regenerate, content);
+  section.append(heading, body);
+  if (outputWordCloudData && outputWordCloudKey === wordCloudKey) {
+    section.dataset.wordCloudLoaded = "true";
+    renderOutputWordCloud(section, outputWordCloudData);
+  }
+  const load = app.querySelector(".run-environment");
+  if (load) load.after(section);
+  else {
+    const stats = app.querySelector(".run-statistics");
+    if (stats) stats.after(section);
+    else app.prepend(section);
+  }
 }
 function addJobTimeline() {
   const parts = pageParts();
@@ -625,7 +744,9 @@ function collapseRunGraphics() {
     }
   });
   document
-    .querySelectorAll(".run-statistics,.run-environment,.job-timeline")
+    .querySelectorAll(
+      ".run-statistics,.run-environment,.job-timeline,.output-word-cloud",
+    )
     .forEach((section) => {
       if (section.dataset.collapsible) return;
       section.dataset.collapsible = "true";
@@ -651,8 +772,30 @@ function collapseRunGraphics() {
         button.setAttribute("aria-expanded", String(expanded));
         button.textContent = expanded ? "-" : "+";
         expandedRunGraphics[key] = expanded;
+        if (
+          expanded &&
+          section.classList.contains("output-word-cloud") &&
+          outputWordCloudRequestedKey ===
+            section.dataset.wordCloudProject + "/" + section.dataset.wordCloudRun &&
+          !section.dataset.wordCloudLoaded
+        ) {
+          section.dataset.wordCloudLoaded = "true";
+          loadOutputWordCloud(
+            section,
+            section.dataset.wordCloudProject,
+            section.dataset.wordCloudRun,
+            false,
+          );
+        }
       };
-      button.onclick = () => apply(!expandedRunGraphics[key]);
+      button.onclick = () => {
+        const expanded = !expandedRunGraphics[key];
+        if (expanded && section.classList.contains("output-word-cloud")) {
+          outputWordCloudRequestedKey =
+            section.dataset.wordCloudProject + "/" + section.dataset.wordCloudRun;
+        }
+        apply(expanded);
+      };
       heading.style.display = "flex";
       heading.style.alignItems = "center";
       heading.insertBefore(button, heading.firstChild);
@@ -1120,7 +1263,7 @@ function alignTimelineHeading() {
 function alignGraphicHeadings() {
   document
     .querySelectorAll(
-      ".run-statistics>div:first-child,.run-environment>div:first-child,.job-timeline>div:first-child",
+      ".run-statistics>div:first-child,.run-environment>div:first-child,.job-timeline>div:first-child,.output-word-cloud>div:first-child",
     )
     .forEach((heading) => {
       heading.style.display = "flex";

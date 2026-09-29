@@ -696,7 +696,7 @@ func TestWebProjectAndOverviewPagesCopyConfigPaths(t *testing.T) {
 
 func TestWebHTMLContainsFinalProjectHooks(t *testing.T) {
 	html := testSite().webHTML()
-	for _, marker := range []string{"function rowCell(row,key)", "function copySelectedJobs(queue,run,append)", "function arrangeRunControls()", "function orderJobActions()"} {
+	for _, marker := range []string{"function rowCell(row,key)", "function copySelectedJobs(queue,run,append)", "function arrangeRunControls()", "function orderJobActions()", "function addOutputWordCloud()", "addOutputWordCloud();"} {
 		if !webContains(html, marker) {
 			t.Fatalf("web HTML is missing required generated hook %q", marker)
 		}
@@ -752,7 +752,7 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 	if !strings.Contains(jobsHTML, `class="sidebar-project-row"><span class="sidebar-toggle-placeholder"`) {
 		t.Fatal("Job activity project links do not use the shared sidebar row layout")
 	}
-	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-resizer {", ".basedir-notification-toggle {", ".basedir-notification-control {", ".basedir-notification-tooltip {", "width: 14px !important;", "height: 14px !important;", "padding: 0;", ".basedir-contents {", "margin-left: 42px;", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "text-overflow: ellipsis;"} {
+	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-resizer {", ".basedir-notification-toggle {", ".basedir-notification-control {", ".basedir-notification-tooltip {", "width: 14px !important;", "height: 14px !important;", "padding: 0;", ".basedir-contents {", "margin-left: 42px;", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "overscroll-behavior: contain;", "overflow-anchor: none;", "text-overflow: ellipsis;"} {
 		if !strings.Contains(webSidebarStylesCSS, marker) {
 			t.Fatalf("shared sidebar style is missing %q", marker)
 		}
@@ -1911,6 +1911,72 @@ func TestWebLogReadsSelectedAttempt(t *testing.T) {
 	Handler(testOptions(baseDir, false)).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK || recorder.Body.String() != "selected stderr\n" {
 		t.Fatalf("selected stderr log = (%d, %q)", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestWebOutputWordCloudCachesAndRefreshes(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "20260922-070308-0d83bd39"
+	runDir := filepath.Join(paths.RunsDir, runID)
+	jobDir := filepath.Join(runDir, "job-1")
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := stateinternal.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"echo"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := stateinternal.WriteJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Results: []model.JobResult{{ID: "job-1", ExitCode: 0}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(jobDir, "output"), []byte("alpha alpha beta\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/output-word-cloud?project_name=default&run_id="+runID, nil)
+	recorder := httptest.NewRecorder()
+	Handler(testOptions(baseDir, false)).ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("initial word cloud status = %d, body = %q", recorder.Code, recorder.Body.String())
+	}
+	var cloud outputWordCloud
+	if err := json.Unmarshal(recorder.Body.Bytes(), &cloud); err != nil {
+		t.Fatal(err)
+	}
+	if len(cloud.Terms) < 2 || cloud.Terms[0].Word != "alpha" || cloud.Terms[0].Count != 2 {
+		t.Fatalf("initial word cloud = %#v", cloud)
+	}
+	cachePath := filepath.Join(runDir, outputWordCloudCacheFile)
+	if _, err := os.Stat(cachePath); err != nil {
+		t.Fatalf("word cloud cache was not written: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(jobDir, "output"), []byte("gamma gamma gamma\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/api/output-word-cloud?project_name=default&run_id="+runID, nil)
+	recorder = httptest.NewRecorder()
+	Handler(testOptions(baseDir, false)).ServeHTTP(recorder, request)
+	var cached outputWordCloud
+	if err := json.Unmarshal(recorder.Body.Bytes(), &cached); err != nil {
+		t.Fatal(err)
+	}
+	if len(cached.Terms) == 0 || cached.Terms[0].Word != "alpha" {
+		t.Fatalf("cached word cloud was not reused: %#v", cached)
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/api/output-word-cloud?project_name=default&run_id="+runID+"&refresh=1", nil)
+	recorder = httptest.NewRecorder()
+	Handler(testOptions(baseDir, false)).ServeHTTP(recorder, request)
+	var refreshed outputWordCloud
+	if err := json.Unmarshal(recorder.Body.Bytes(), &refreshed); err != nil {
+		t.Fatal(err)
+	}
+	if recorder.Code != http.StatusOK || len(refreshed.Terms) == 0 || refreshed.Terms[0].Word != "gamma" {
+		t.Fatalf("refreshed word cloud = (%d, %#v)", recorder.Code, refreshed)
 	}
 }
 

@@ -529,6 +529,49 @@ func (s site) baseHandler() http.Handler {
 		writer.Header().Set(headerContentType, "text/plain; charset=utf-8")
 		_, _ = writer.Write(data)
 	})
+	mux.HandleFunc("/api/output-word-cloud", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			methodNotAllowed(writer)
+			return
+		}
+		projectName := request.URL.Query().Get("project_name")
+		runID := request.URL.Query().Get("run_id")
+		if !stateinternal.IsValidPathElement(projectName) || !stateinternal.IsValidPathElement(runID) {
+			writeWebError(writer, fmt.Errorf("project_name and run_id are required"))
+			return
+		}
+		paths, err := stateinternal.ResolveProjectPaths(baseDir, projectName)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		runDir, err := stateinternal.SafeJoin(paths.RunsDir, runID)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		summaryPath, err := stateinternal.ValidatedStateFile(runDir, "summary.json")
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		summary, err := stateinternal.LoadRunSummary(summaryPath)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		jobs, err := webprojection.LoadRunJobs(s.Store, runDir, summary, "")
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		cloud, err := loadOutputWordCloud(runDir, paths.RunsDir, runID, jobs, request.URL.Query().Get("refresh") == "1")
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writeWebJSON(writer, cloud)
+	})
 	mux.HandleFunc("/api/copy", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
 			methodNotAllowed(writer)

@@ -334,6 +334,19 @@ function addAIButtons() {
     actions.append(" ", button);
   });
 }
+function equalizeRunControlHeights() {
+  const controls = document.querySelector(".web-copy-controls");
+  if (!controls) return;
+  const buttons = [...controls.querySelectorAll(":scope > button")];
+  buttons.forEach((button) => (button.style.height = ""));
+  const height = Math.max(...buttons.map((button) => button.offsetHeight), 0);
+  if (!height) return;
+  buttons.forEach((button) => (button.style.height = height + "px"));
+  if (!window.__rotariRunControlResizeHandler) {
+    window.__rotariRunControlResizeHandler = true;
+    window.addEventListener("resize", equalizeRunControlHeights);
+  }
+}
 function arrangeRunControls() {
   const parts = pageParts();
   if (parts[0] !== "project" || parts[2] !== "run") return;
@@ -407,11 +420,14 @@ function arrangeRunControls() {
     ].filter(Boolean),
   );
   const load = document.querySelector(".run-environment");
-  if (load) load.after(controls);
+  const wordCloud = document.querySelector(".output-word-cloud");
+  if (wordCloud) wordCloud.after(controls);
+  else if (load) load.after(controls);
   else table.before(controls);
   const headerSelect = document.getElementById("select-all-jobs");
   if (headerSelect) headerSelect.remove();
   updateSelectedRunJobs();
+  equalizeRunControlHeights();
 }
 function orderJobActions() {
   document.querySelectorAll("#app table.runs tbody tr").forEach((row) => {

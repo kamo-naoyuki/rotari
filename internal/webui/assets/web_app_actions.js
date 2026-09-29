@@ -410,7 +410,7 @@ function addRunHostLine() {
   );
   if (!workingDirectory) return;
   const host = document.createElement("p");
-  host.className = "meta";
+  host.className = "meta run-detail";
   host.textContent = "Host: " + hostname;
   workingDirectory.before(host);
 }

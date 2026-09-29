@@ -236,6 +236,9 @@ h2 {
   color: var(--muted);
   font-size: 13px;
 }
+.run-detail {
+  text-align: left;
+}
 .toolbar {
   display: flex;
   gap: 8px;

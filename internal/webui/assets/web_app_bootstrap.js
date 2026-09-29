@@ -12,6 +12,7 @@ enhancePage = function () {
   simplifyRunStatistics();
   fixTimelineBarWidths();
   syncTimelineBar();
+  addOutputWordCloud();
   collapseRunGraphics();
   alignTimelineHeading();
   alignGraphicHeadings();

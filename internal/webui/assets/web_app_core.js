@@ -1019,13 +1019,13 @@ function renderRun(q, runID) {
     encodeURIComponent(q.project_name) +
     '">Back to ' +
     esc(q.project_name) +
-    '</a></div><p class="meta">Started: ' +
+    '</a></div><p class="meta run-detail">Started: ' +
     esc(run.started_at || "-") +
     " | Finished: " +
     esc(run.finished_at || "-") +
     " | Jobs: " +
     (run.jobs || []).length +
-    "</p><p>Working directory: " +
+    "</p><p class=\"meta run-detail\">Working directory: " +
     "<code>" +
     esc(cwd) +
     "</code>" +
