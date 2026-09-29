@@ -365,7 +365,8 @@ function renderOutputWordCloud(details, cloud) {
       const word = document.createElement("span");
       word.textContent = term.word;
       word.title = term.count + " occurrences in " + term.jobs + " jobs";
-      word.style.fontSize = 14 + Math.round((term.count / maxCount) * 28) + "px";
+      word.style.fontSize =
+        14 + Math.round((term.count / maxCount) * 28) + "px";
       word.style.color = colors[index % colors.length];
       word.style.lineHeight = "1.15";
       word.style.margin = "4px 7px";

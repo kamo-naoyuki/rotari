@@ -1025,7 +1025,7 @@ function renderRun(q, runID) {
     esc(run.finished_at || "-") +
     " | Jobs: " +
     (run.jobs || []).length +
-    "</p><p class=\"meta run-detail\">Working directory: " +
+    '</p><p class="meta run-detail">Working directory: ' +
     "<code>" +
     esc(cwd) +
     "</code>" +
