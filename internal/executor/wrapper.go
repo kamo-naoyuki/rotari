@@ -11,7 +11,7 @@ import (
 
 // TimeoutExitCode is the exit code recorded for a job stopped by its timeout,
 // matching GNU timeout.
-const TimeoutExitCode = 124
+const TimeoutExitCode = model.TimeoutExitCode
 
 // timeoutGraceSeconds is how long a timed-out job may take to exit after
 // SIGTERM, for example to save a checkpoint, before it is killed. Tests

@@ -33,8 +33,11 @@ type OriginAttributes interface {
 	Attributes(origin model.JobOrigin) (jobfilter.Attributes, error)
 }
 
-type OriginLogs interface {
-	Log(origin model.JobOrigin) (string, error)
+// OriginDiagnoses optionally reports whether an origin's result, diagnosed
+// with the current rules from its latest attempt's log, matches any of
+// selectors. Without it a diagnosis filter matches no job.
+type OriginDiagnoses interface {
+	DiagnosisMatches(origin model.JobOrigin, result model.JobResult, selectors []string) (bool, error)
 }
 
 // PlanRerun decides which of the queue's jobs a new run executes.
@@ -189,15 +192,15 @@ func (resolver *originResolver) diagnosisMatches(filter jobfilter.Filter, result
 	if len(filter.Diagnoses) == 0 {
 		return true
 	}
-	provider, ok := resolver.source.(OriginLogs)
+	provider, ok := resolver.source.(OriginDiagnoses)
 	if !ok {
 		return false
 	}
 	if origin == nil {
 		origin = &model.JobOrigin{RunID: resolver.fallbackRunID, JobID: jobID}
 	}
-	log, err := provider.Log(*origin)
-	return err == nil && filter.MatchesDiagnosis(result, log)
+	matched, err := provider.DiagnosisMatches(*origin, result, filter.Diagnoses)
+	return err == nil && matched
 }
 
 // jobResult returns the result of a job or task of command: the one its

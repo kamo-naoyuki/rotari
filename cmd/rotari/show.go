@@ -912,7 +912,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 		if len(filter.filter.Diagnoses) > 0 {
 			log, err := readJobDiagnosisLog(jobDir)
-			if err != nil || !hasJobResult || !filter.filter.MatchesDiagnosis(jobResult, log) {
+			if err != nil || !hasJobResult || !diagnose.MatchesResultSelectors(filter.filter.Diagnoses, jobResult, log) {
 				continue
 			}
 		}

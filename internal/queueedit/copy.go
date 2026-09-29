@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
@@ -204,7 +205,7 @@ func selectCommands(source Run, selection string, inScope func(model.QueuedComma
 			} else {
 				logErr = errors.New("job log unavailable")
 			}
-			if logErr != nil || !filter.MatchesDiagnosis(result, log) {
+			if logErr != nil || !diagnose.MatchesResultSelectors(filter.Diagnoses, result, log) {
 				include = false
 			}
 		}

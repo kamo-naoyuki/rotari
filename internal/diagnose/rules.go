@@ -65,6 +65,17 @@ func ResolveRuleSelectors(values []string) error {
 	return nil
 }
 
+// MatchesResultSelectors reports whether a failed result, diagnosed with the
+// current rules from its error and log, matches any selector. Saved
+// diagnoses are ignored, and a success never matches.
+func MatchesResultSelectors(selectors []string, result model.JobResult, log string) bool {
+	if result.ExitCode == 0 {
+		return false
+	}
+	exitCode := result.ExitCode
+	return MatchesRuleSelectors(selectors, Job{ExitCode: &exitCode, Error: result.Error, Log: log})
+}
+
 // MatchesRuleSelectors recomputes diagnosis using the current default rules
 // and reports whether any diagnosis matches a requested selector.
 func MatchesRuleSelectors(selectors []string, job Job) bool {

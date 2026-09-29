@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -244,7 +245,17 @@ func (source originResults) Attributes(origin model.JobOrigin) (jobfilter.Attrib
 	return jobfilter.Attributes{Hosts: status.Hosts, StartedAt: startedAt, FinishedAt: finishedAt, Now: time.Now()}, nil
 }
 
-func (source originResults) Log(origin model.JobOrigin) (string, error) {
+// DiagnosisMatches diagnoses the origin attempt's log with the current rules;
+// see run.OriginDiagnoses.
+func (source originResults) DiagnosisMatches(origin model.JobOrigin, result model.JobResult, selectors []string) (bool, error) {
+	log, err := source.log(origin)
+	if err != nil {
+		return false, err
+	}
+	return diagnose.MatchesResultSelectors(selectors, result, log), nil
+}
+
+func (source originResults) log(origin model.JobOrigin) (string, error) {
 	runDir, err := state.SafeJoin(source.paths.RunsDir, origin.RunID)
 	if err != nil {
 		return "", err

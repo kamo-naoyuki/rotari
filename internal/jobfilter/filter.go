@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/diagnose"
-	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
@@ -77,16 +75,6 @@ func (filter Filter) MatchesDefinition(id string) bool {
 		return false
 	}
 	return true
-}
-
-// MatchesDiagnosis recomputes the current diagnosis rules against a failed
-// result's log. Saved diagnoses are intentionally ignored.
-func (filter Filter) MatchesDiagnosis(result model.JobResult, log string) bool {
-	if len(filter.Diagnoses) == 0 || result.ExitCode == 0 {
-		return false
-	}
-	exitCode := result.ExitCode
-	return diagnose.MatchesRuleSelectors(filter.Diagnoses, diagnose.Job{ExitCode: &exitCode, Error: result.Error, Log: log})
 }
 
 // MatchesAttributes reports whether execution attributes satisfy the filter.
@@ -157,7 +145,7 @@ func (filter Filter) MatchesResult(result model.JobResult, finished bool) bool {
 	}
 	if len(filter.FailureKinds) > 0 {
 		matched := false
-		for _, kind := range jobstatus.FailureKinds(result) {
+		for _, kind := range model.FailureKinds(result) {
 			if slices.Contains(filter.FailureKinds, kind) {
 				matched = true
 				break

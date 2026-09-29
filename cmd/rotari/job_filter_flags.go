@@ -11,7 +11,6 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
-	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
@@ -41,7 +40,7 @@ func jobFilterFlagSpecs(set jobFilterSet) []cliFlagSpec {
 		specs = append(specs,
 			cliFlagSpec{Name: "filter-result", Description: "select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms", ValueName: "RESULT", Values: resultFilterValues, Repeated: true, CommandLineOnly: true},
 			cliFlagSpec{Name: "filter-exit-code", Description: "select jobs with this exit code; may be repeated", ValueName: "N", Repeated: true, CommandLineOnly: true},
-			cliFlagSpec{Name: "filter-failure-kind", Description: "select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error", ValueName: "KIND", Values: jobstatus.FailureKindValues(), Repeated: true, CommandLineOnly: true},
+			cliFlagSpec{Name: "filter-failure-kind", Description: "select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error", ValueName: "KIND", Values: model.FailureKindValues(), Repeated: true, CommandLineOnly: true},
 			cliFlagSpec{Name: "filter-diagnosis", Description: "select failed jobs matching a current diagnosis rule; may be repeated", ValueName: "VALUE", Repeated: true, CommandLineOnly: true},
 		)
 	}
@@ -328,7 +327,7 @@ func parseFilterTime(value string, now time.Time) (time.Time, error) {
 }
 
 func (flag *failureKindFlag) Set(value string) error {
-	valid := jobstatus.FailureKindValues()
+	valid := model.FailureKindValues()
 	if !slices.Contains(valid, value) {
 		return fmt.Errorf("invalid choice %q (choose from %s)", value, strings.Join(valid, ", "))
 	}

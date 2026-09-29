@@ -1,12 +1,12 @@
-package jobstatus
+package model
 
-import (
-	"strings"
+import "strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-)
+// TimeoutExitCode is the exit code recorded for a job stopped by its timeout,
+// matching GNU timeout.
+const TimeoutExitCode = 124
 
+// Failure kinds that --filter-failure-kind selects.
 const (
 	FailureKindTimeout   = "timeout"
 	FailureKindCancelled = "cancelled"
@@ -18,22 +18,23 @@ const (
 
 var failureKinds = []string{FailureKindTimeout, FailureKindCancelled, FailureKindBlocked, FailureKindOOM, FailureKindSignal, FailureKindError}
 
-// FailureKindValues returns the supported failure kinds, ordered by the CLI help.
+// FailureKindValues returns the failure kinds in the order the CLI lists them.
 func FailureKindValues() []string {
 	return append([]string(nil), failureKinds...)
 }
 
-// FailureKinds classifies a finished failed job by the kinds that apply.
-func FailureKinds(result model.JobResult) []string {
+// FailureKinds returns the kinds a failed result falls into, error when no
+// other applies, and none for a success.
+func FailureKinds(result JobResult) []string {
 	if result.ExitCode == 0 {
 		return nil
 	}
 	kinds := make([]string, 0, 3)
 	text := strings.ToLower(strings.TrimSpace(result.Error))
-	if result.ExitCode == executor.TimeoutExitCode || strings.Contains(text, "timed out") || strings.Contains(text, "timeout") {
+	if result.ExitCode == TimeoutExitCode || strings.Contains(text, "timed out") || strings.Contains(text, "timeout") {
 		kinds = append(kinds, FailureKindTimeout)
 	}
-	if model.IsCancelledError(result.Error) {
+	if IsCancelledError(result.Error) {
 		kinds = append(kinds, FailureKindCancelled)
 	}
 	if strings.HasPrefix(text, "blocked") {

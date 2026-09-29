@@ -160,7 +160,7 @@ Direct selector は result filter と scope のどちらとも組み合わせら
     | `signal` | exit code が 128 を超える |
     | `error` | 上のどれにも該当しない失敗 |
 
-  - 判定する関数は `internal/jobstatus` に置き、`show` の表示と共有できるようにする。
+  - 判定する関数は `internal/model` の `FailureKinds` に置く（I/O を持たない規則であり、`jobfilter` は `model` 以外を import できないため）。`show` の表示とも共有できる。
 
 ### diagnosis
 
