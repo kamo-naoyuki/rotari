@@ -19,7 +19,7 @@ func parseJobFilterOptions(t *testing.T, command string, args ...string) (*jobFi
 	t.Helper()
 	fs := flag.NewFlagSet(command, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	options := cliJobFilterOptions(fs, true)
+	options := cliJobFilterOptions(fs, queueRunJobFilters)
 	return options, cliParse(fs, args)
 }
 
@@ -129,12 +129,58 @@ func TestFilterDiagnosisIsParsedAndValidated(t *testing.T) {
 	}
 }
 
+func TestDefinitionFiltersAreParsed(t *testing.T) {
+	options, err := parseJobFilterOptions(t, "run", "--filter-changed", "--filter-new")
+	if err != nil {
+		t.Fatal(err)
+	}
+	filter := options.filter()
+	if !filter.Changed || !filter.New {
+		t.Fatalf("filter() = %+v, want changed and new", filter)
+	}
+}
+
+func TestEachCommandAcceptsOnlyItsFilterSet(t *testing.T) {
+	parse := func(set jobFilterSet, args ...string) error {
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		options := cliJobFilterOptions(fs, set)
+		if err := cliParse(fs, args); err != nil {
+			return err
+		}
+		options.filter()
+		return nil
+	}
+	for _, test := range []struct {
+		set  jobFilterSet
+		args []string
+		ok   bool
+	}{
+		{definitionJobFilters, []string{"--filter-command", "x", "--filter-not-stage", "s"}, true},
+		{definitionJobFilters, []string{"--filter-exit-code", "1"}, false},
+		{definitionJobFilters, []string{"--filter-host", "h"}, false},
+		{definitionJobFilters, []string{"--failed"}, false},
+		{runJobFilters, []string{"--filter-host", "h", "--filter-exit-code", "1"}, true},
+		{runJobFilters, []string{"--filter-changed"}, false},
+		{queueRunJobFilters, []string{"--filter-new", "--filter-host", "h"}, true},
+	} {
+		if err := parse(test.set, test.args...); (err == nil) != test.ok {
+			t.Errorf("set %d %v: error = %v, want ok %t", test.set, test.args, err, test.ok)
+		}
+	}
+	for _, spec := range jobFilterFlagSpecs(runJobFilters) {
+		if spec.Name == "filter-changed" || spec.Name == "filter-new" {
+			t.Fatalf("copy spec lists %s", spec.Name)
+		}
+	}
+}
+
 func TestHelpListsFilterOptionsUnderTheirOwnHeading(t *testing.T) {
 	fs := flag.NewFlagSet("show", flag.ContinueOnError)
 	var output strings.Builder
 	fs.SetOutput(&output)
 	cliString(fs, "basedir", "")
-	cliJobFilterOptions(fs, true)
+	cliJobFilterOptions(fs, queueRunJobFilters)
 	if err := cliParse(fs, []string{"--help"}); err != flag.ErrHelp {
 		t.Fatalf("cliParse(--help) error = %v", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -107,5 +108,41 @@ func TestMatchFingerprintQueueProtectsExistingOrigin(t *testing.T) {
 	}
 	if matched.Commands[0].Origin.JobID != "source" || matched.Commands[1].Origin == nil || matched.Commands[1].Origin.JobID != "other" {
 		t.Fatalf("origins = %#v", matched.Commands)
+	}
+}
+
+func TestClassifyDefinitionsComparesQueueWithReferenceRun(t *testing.T) {
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(filepath.Join(paths.RunsDir, "ref", "commands.json"), model.Queue{Commands: []model.QueuedCommand{
+		{ID: "same", Command: []string{"true"}},
+		{ID: "edited", Command: []string{"old"}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "same", Command: []string{"true"}},
+		{ID: "edited", Command: []string{"new"}},
+		{ID: "added", Command: []string{"added"}},
+	}}
+	filter, err := ClassifyDefinitions(paths, queue, jobfilter.Filter{Changed: true}, "ref", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !filter.MatchesDefinition("edited") || filter.MatchesDefinition("same") || filter.MatchesDefinition("added") {
+		t.Fatalf("changed = %#v", filter.ChangedIDs)
+	}
+	filter, err = ClassifyDefinitions(paths, queue, jobfilter.Filter{New: true}, "ref", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !filter.MatchesDefinition("added") || filter.MatchesDefinition("same") || filter.MatchesDefinition("edited") {
+		t.Fatalf("new = %#v", filter.NewIDs)
+	}
+	filter, err = ClassifyDefinitions(paths, queue, jobfilter.Filter{New: true}, "", "")
+	if err != nil || !filter.MatchesDefinition("same") {
+		t.Fatalf("without a reference run every job is new: %#v, %v", filter.NewIDs, err)
 	}
 }

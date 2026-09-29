@@ -17,7 +17,7 @@ import (
 func cmdChange(args []string) int {
 	fs := flag.NewFlagSet("change", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
-	filterOptions := cliJobFilterOptions(fs, false)
+	filterOptions := cliJobFilterOptions(fs, definitionJobFilters)
 	basedir := cliString(fs, "basedir", "")
 	queueNameOption := cliString(fs, "project-name", "")
 	runID := cliString(fs, "run-id", "")

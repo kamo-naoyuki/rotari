@@ -212,7 +212,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "status", Description: "mark the job with a status that result filters of the next run read in place of its recorded result", ValueName: "STATUS", Values: []string{"success", "failed", "cancelled", "unfinished"}, CommandLineOnly: true},
 			cliFlagSpec{Name: "clear-status", Description: "remove the job's status mark"},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
-		), jobFilterFlagSpecs(false)...),
+		), jobFilterFlagSpecs(definitionJobFilters)...),
 		Positional: "<command ...>",
 	},
 	{
@@ -247,7 +247,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "matrix", Description: "remove every job of a matrix, named by its base job name", ValueName: "NAME"},
 			cliFlagSpec{Name: "all", Description: "remove every job", CommandLineOnly: true},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
-		), jobFilterFlagSpecs(false)...),
+		), jobFilterFlagSpecs(definitionJobFilters)...),
 		Positional: "[JOB_ID ...]",
 	},
 	{
@@ -273,7 +273,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "basedirs", Description: "list state directories known to the master registry"},
 			cliFlagSpec{Name: "json", Description: "print machine-readable JSON for a run"},
 			cliFlagSpec{Name: "report", Description: "print an AI-ready Markdown report"},
-		), jobFilterFlagSpecs(true)...),
+		), jobFilterFlagSpecs(queueRunJobFilters)...),
 		Positional: "[SELECTOR]",
 	},
 	{
@@ -363,7 +363,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "append", Description: "append to a non-empty queue"},
 			cliFlagSpec{Name: "overwrite", Description: "replace a non-empty queue"},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
-		), jobFilterFlagSpecs(true)...),
+		), jobFilterFlagSpecs(runJobFilters)...),
 		Positional: "[RUN_ID]",
 	},
 	{
@@ -404,7 +404,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "lsf-options", Description: "LSF executor dispatch options; may be repeated", ValueName: "OPTION"},
 			cliFlagSpec{Name: "lsf-submit-interval", Description: "minimum LSF submission interval", ValueName: "DURATION"},
 			cliFlagSpec{Name: "lsf-submit-retry-limit", Description: "maximum retries for transient LSF submission failures", ValueName: "N"},
-		), jobFilterFlagSpecs(true)...),
+		), jobFilterFlagSpecs(queueRunJobFilters)...),
 		Positional: "[RUN_ID]",
 	},
 	{
@@ -439,7 +439,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "lsf-options", Description: "LSF executor dispatch options; may be repeated", ValueName: "OPTION"},
 			cliFlagSpec{Name: "lsf-submit-interval", Description: "minimum LSF submission interval", ValueName: "DURATION"},
 			cliFlagSpec{Name: "lsf-submit-retry-limit", Description: "maximum retries for transient LSF submission failures", ValueName: "N"},
-		), jobFilterFlagSpecs(true)...),
+		), jobFilterFlagSpecs(queueRunJobFilters)...),
 		Positional: "[RUN_ID]",
 	},
 	{

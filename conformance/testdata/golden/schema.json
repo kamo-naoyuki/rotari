@@ -326,54 +326,6 @@
           "name": "quiet"
         },
         {
-          "name": "filter-exit-code",
-          "value_name": "N"
-        },
-        {
-          "name": "filter-failure-kind",
-          "value_name": "KIND",
-          "values": [
-            "timeout",
-            "cancelled",
-            "blocked",
-            "oom",
-            "signal",
-            "error"
-          ]
-        },
-        {
-          "name": "filter-diagnosis",
-          "value_name": "VALUE"
-        },
-        {
-          "name": "filter-host",
-          "value_name": "PATTERN"
-        },
-        {
-          "name": "filter-started-after",
-          "value_name": "TIME"
-        },
-        {
-          "name": "filter-started-before",
-          "value_name": "TIME"
-        },
-        {
-          "name": "filter-finished-after",
-          "value_name": "TIME"
-        },
-        {
-          "name": "filter-finished-before",
-          "value_name": "TIME"
-        },
-        {
-          "name": "filter-longer-than",
-          "value_name": "DURATION"
-        },
-        {
-          "name": "filter-shorter-than",
-          "value_name": "DURATION"
-        },
-        {
           "name": "filter-command",
           "value_name": "RE"
         },
@@ -496,54 +448,6 @@
         },
         {
           "name": "quiet"
-        },
-        {
-          "name": "filter-exit-code",
-          "value_name": "N"
-        },
-        {
-          "name": "filter-failure-kind",
-          "value_name": "KIND",
-          "values": [
-            "timeout",
-            "cancelled",
-            "blocked",
-            "oom",
-            "signal",
-            "error"
-          ]
-        },
-        {
-          "name": "filter-diagnosis",
-          "value_name": "VALUE"
-        },
-        {
-          "name": "filter-host",
-          "value_name": "PATTERN"
-        },
-        {
-          "name": "filter-started-after",
-          "value_name": "TIME"
-        },
-        {
-          "name": "filter-started-before",
-          "value_name": "TIME"
-        },
-        {
-          "name": "filter-finished-after",
-          "value_name": "TIME"
-        },
-        {
-          "name": "filter-finished-before",
-          "value_name": "TIME"
-        },
-        {
-          "name": "filter-longer-than",
-          "value_name": "DURATION"
-        },
-        {
-          "name": "filter-shorter-than",
-          "value_name": "DURATION"
         },
         {
           "name": "filter-command",
@@ -674,6 +578,12 @@
         {
           "name": "filter-diagnosis",
           "value_name": "VALUE"
+        },
+        {
+          "name": "filter-changed"
+        },
+        {
+          "name": "filter-new"
         },
         {
           "name": "filter-host",
@@ -1292,6 +1202,12 @@
           "value_name": "VALUE"
         },
         {
+          "name": "filter-changed"
+        },
+        {
+          "name": "filter-new"
+        },
+        {
           "name": "filter-host",
           "value_name": "PATTERN"
         },
@@ -1505,6 +1421,12 @@
         {
           "name": "filter-diagnosis",
           "value_name": "VALUE"
+        },
+        {
+          "name": "filter-changed"
+        },
+        {
+          "name": "filter-new"
         },
         {
           "name": "filter-host",

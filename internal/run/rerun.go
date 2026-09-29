@@ -283,7 +283,7 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 				default:
 					matchSelection = model.ResultSelectionMatches(selection, finished, result.ExitCode)
 				}
-				if matchTasks && scoped && matchSelection && filter.MatchesAttributes(attributes) && resolver.diagnosisMatches(filter, result, origin, id) {
+				if matchTasks && scoped && matchSelection && filter.MatchesDefinition(id) && filter.MatchesAttributes(attributes) && resolver.diagnosisMatches(filter, result, origin, id) {
 					plan.Execute[id] = true
 					continue
 				}
@@ -315,7 +315,7 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 			default:
 				matchSelection = model.ResultSelectionMatches(selection, finished, result.ExitCode)
 			}
-			include = include || (scoped && matchSelection && filter.MatchesAttributes(attributes) && resolver.diagnosisMatches(filter, result, command.Origin, command.ID))
+			include = include || (scoped && matchSelection && filter.MatchesDefinition(command.ID) && filter.MatchesAttributes(attributes) && resolver.diagnosisMatches(filter, result, command.Origin, command.ID))
 		}
 		if hasResultFilters && !filter.MatchesResult(result, finished) {
 			include = false

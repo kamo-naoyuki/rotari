@@ -21,19 +21,23 @@ import (
 // Filter narrows a job selection. A negated list excludes a job that
 // matches any of its values.
 type Filter struct {
-	NotStages      []string      `json:"not_stages,omitempty"`
-	NotMatrices    []string      `json:"not_matrices,omitempty"`
-	Command        string        `json:"command,omitempty"`
-	ExitCodes      []int         `json:"exit_codes,omitempty"`
-	FailureKinds   []string      `json:"failure_kinds,omitempty"`
-	Diagnoses      []string      `json:"diagnoses,omitempty"`
-	Hosts          []string      `json:"hosts,omitempty"`
-	StartedAfter   *time.Time    `json:"started_after,omitempty"`
-	StartedBefore  *time.Time    `json:"started_before,omitempty"`
-	FinishedAfter  *time.Time    `json:"finished_after,omitempty"`
-	FinishedBefore *time.Time    `json:"finished_before,omitempty"`
-	LongerThan     time.Duration `json:"longer_than,omitempty"`
-	ShorterThan    time.Duration `json:"shorter_than,omitempty"`
+	NotStages      []string        `json:"not_stages,omitempty"`
+	NotMatrices    []string        `json:"not_matrices,omitempty"`
+	Command        string          `json:"command,omitempty"`
+	ExitCodes      []int           `json:"exit_codes,omitempty"`
+	FailureKinds   []string        `json:"failure_kinds,omitempty"`
+	Diagnoses      []string        `json:"diagnoses,omitempty"`
+	Changed        bool            `json:"changed,omitempty"`
+	New            bool            `json:"new,omitempty"`
+	ChangedIDs     map[string]bool `json:"-"`
+	NewIDs         map[string]bool `json:"-"`
+	Hosts          []string        `json:"hosts,omitempty"`
+	StartedAfter   *time.Time      `json:"started_after,omitempty"`
+	StartedBefore  *time.Time      `json:"started_before,omitempty"`
+	FinishedAfter  *time.Time      `json:"finished_after,omitempty"`
+	FinishedBefore *time.Time      `json:"finished_before,omitempty"`
+	LongerThan     time.Duration   `json:"longer_than,omitempty"`
+	ShorterThan    time.Duration   `json:"shorter_than,omitempty"`
 }
 
 // Attributes are the execution details used by host and time filters.
@@ -61,7 +65,18 @@ func ParseTimestamp(value string) (time.Time, error) {
 
 // Empty reports whether no condition is set.
 func (filter Filter) Empty() bool {
-	return len(filter.NotStages) == 0 && len(filter.NotMatrices) == 0 && filter.Command == "" && len(filter.ExitCodes) == 0 && len(filter.FailureKinds) == 0 && len(filter.Diagnoses) == 0 && len(filter.Hosts) == 0 && filter.StartedAfter == nil && filter.StartedBefore == nil && filter.FinishedAfter == nil && filter.FinishedBefore == nil && filter.LongerThan == 0 && filter.ShorterThan == 0
+	return len(filter.NotStages) == 0 && len(filter.NotMatrices) == 0 && filter.Command == "" && len(filter.ExitCodes) == 0 && len(filter.FailureKinds) == 0 && len(filter.Diagnoses) == 0 && !filter.Changed && !filter.New && len(filter.Hosts) == 0 && filter.StartedAfter == nil && filter.StartedBefore == nil && filter.FinishedAfter == nil && filter.FinishedBefore == nil && filter.LongerThan == 0 && filter.ShorterThan == 0
+}
+
+// MatchesDefinition reports whether an ID satisfies changed/new conditions.
+func (filter Filter) MatchesDefinition(id string) bool {
+	if filter.Changed && !filter.ChangedIDs[id] {
+		return false
+	}
+	if filter.New && !filter.NewIDs[id] {
+		return false
+	}
+	return true
 }
 
 // MatchesDiagnosis recomputes the current diagnosis rules against a failed

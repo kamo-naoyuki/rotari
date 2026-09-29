@@ -21,24 +21,48 @@ const filterFlagPrefix = "filter-"
 
 var resultFilterValues = []string{"failed", "unfinished", "success"}
 
-// jobFilterFlagSpecs returns the --filter-* options of a command that
-// selects jobs by definition, and by result when results is set.
-func jobFilterFlagSpecs(results bool) []cliFlagSpec {
+// jobFilterSet names which filters a command accepts.
+type jobFilterSet int
+
+const (
+	// definitionJobFilters look only at the job definition (change, remove).
+	definitionJobFilters jobFilterSet = iota
+	// runJobFilters add result and execution filters (copy).
+	runJobFilters
+	// queueRunJobFilters add --filter-changed and --filter-new, which compare
+	// the queue with the reference run (show, run, retry).
+	queueRunJobFilters
+)
+
+// jobFilterFlagSpecs returns the --filter-* options of a command accepting set.
+func jobFilterFlagSpecs(set jobFilterSet) []cliFlagSpec {
 	var specs []cliFlagSpec
-	if results {
-		specs = append(specs, cliFlagSpec{Name: "filter-result", Description: "select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms", ValueName: "RESULT", Values: resultFilterValues, Repeated: true, CommandLineOnly: true})
+	if set >= runJobFilters {
+		specs = append(specs,
+			cliFlagSpec{Name: "filter-result", Description: "select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms", ValueName: "RESULT", Values: resultFilterValues, Repeated: true, CommandLineOnly: true},
+			cliFlagSpec{Name: "filter-exit-code", Description: "select jobs with this exit code; may be repeated", ValueName: "N", Repeated: true, CommandLineOnly: true},
+			cliFlagSpec{Name: "filter-failure-kind", Description: "select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error", ValueName: "KIND", Values: jobstatus.FailureKindValues(), Repeated: true, CommandLineOnly: true},
+			cliFlagSpec{Name: "filter-diagnosis", Description: "select failed jobs matching a current diagnosis rule; may be repeated", ValueName: "VALUE", Repeated: true, CommandLineOnly: true},
+		)
+	}
+	if set >= queueRunJobFilters {
+		specs = append(specs,
+			cliFlagSpec{Name: "filter-changed", Description: "select queued jobs whose definition changed from the reference run", CommandLineOnly: true},
+			cliFlagSpec{Name: "filter-new", Description: "select queued jobs with no matching job in the reference run", CommandLineOnly: true},
+		)
+	}
+	if set >= runJobFilters {
+		specs = append(specs,
+			cliFlagSpec{Name: "filter-host", Description: "select jobs run on a matching host; may be repeated", ValueName: "PATTERN", Repeated: true, CommandLineOnly: true},
+			cliFlagSpec{Name: "filter-started-after", Description: "select jobs started at or after this time", ValueName: "TIME", CommandLineOnly: true},
+			cliFlagSpec{Name: "filter-started-before", Description: "select jobs started before this time", ValueName: "TIME", CommandLineOnly: true},
+			cliFlagSpec{Name: "filter-finished-after", Description: "select jobs finished at or after this time", ValueName: "TIME", CommandLineOnly: true},
+			cliFlagSpec{Name: "filter-finished-before", Description: "select jobs finished before this time", ValueName: "TIME", CommandLineOnly: true},
+			cliFlagSpec{Name: "filter-longer-than", Description: "select jobs running at least this long", ValueName: "DURATION", CommandLineOnly: true},
+			cliFlagSpec{Name: "filter-shorter-than", Description: "select jobs running less than this long", ValueName: "DURATION", CommandLineOnly: true},
+		)
 	}
 	return append(specs,
-		cliFlagSpec{Name: "filter-exit-code", Description: "select jobs with this exit code; may be repeated", ValueName: "N", Repeated: true, CommandLineOnly: true},
-		cliFlagSpec{Name: "filter-failure-kind", Description: "select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error", ValueName: "KIND", Values: jobstatus.FailureKindValues(), Repeated: true, CommandLineOnly: true},
-		cliFlagSpec{Name: "filter-diagnosis", Description: "select failed jobs matching a current diagnosis rule; may be repeated", ValueName: "VALUE", Repeated: true, CommandLineOnly: true},
-		cliFlagSpec{Name: "filter-host", Description: "select jobs run on a matching host; may be repeated", ValueName: "PATTERN", Repeated: true, CommandLineOnly: true},
-		cliFlagSpec{Name: "filter-started-after", Description: "select jobs started at or after this time", ValueName: "TIME", CommandLineOnly: true},
-		cliFlagSpec{Name: "filter-started-before", Description: "select jobs started before this time", ValueName: "TIME", CommandLineOnly: true},
-		cliFlagSpec{Name: "filter-finished-after", Description: "select jobs finished at or after this time", ValueName: "TIME", CommandLineOnly: true},
-		cliFlagSpec{Name: "filter-finished-before", Description: "select jobs finished before this time", ValueName: "TIME", CommandLineOnly: true},
-		cliFlagSpec{Name: "filter-longer-than", Description: "select jobs running at least this long", ValueName: "DURATION", CommandLineOnly: true},
-		cliFlagSpec{Name: "filter-shorter-than", Description: "select jobs running less than this long", ValueName: "DURATION", CommandLineOnly: true},
 		cliFlagSpec{Name: "filter-command", Description: "select jobs whose argv matches this Go regexp", ValueName: "RE", CommandLineOnly: true},
 		cliFlagSpec{Name: "filter-stage", Description: "select jobs in this stage; same as --stage", ValueName: "NAME", CommandLineOnly: true},
 		cliFlagSpec{Name: "filter-not-stage", Description: "exclude jobs in this stage; may be repeated", ValueName: "NAME", Repeated: true, CommandLineOnly: true},
@@ -58,6 +82,7 @@ type jobFilterOptions struct {
 	exitCodes                     *intSliceFlag
 	failureKinds                  *failureKindFlag
 	diagnoses                     diagnosisFlag
+	changed, new                  *bool
 	hosts                         stringSliceFlag
 	startedAfter, startedBefore   *timeFlag
 	finishedAfter, finishedBefore *timeFlag
@@ -65,38 +90,41 @@ type jobFilterOptions struct {
 	notStages, notMatrices        stringSliceFlag
 }
 
-// cliJobFilterOptions registers the job filter options on fs: the result
-// filters and --filter-result when results is set, and the scope and
-// definition filters always.
-func cliJobFilterOptions(fs *flag.FlagSet, results bool) *jobFilterOptions {
+// cliJobFilterOptions registers the job filter options of set on fs; see
+// jobFilterFlagSpecs.
+func cliJobFilterOptions(fs *flag.FlagSet, set jobFilterSet) *jobFilterOptions {
 	options := &jobFilterOptions{}
-	if results {
+	if set >= runJobFilters {
 		options.failed = cliBool(fs, "failed", false)
 		options.unfinished = cliBool(fs, "unfinished", false)
 		options.success = cliBool(fs, "success", false)
 		options.results.choices = resultFilterValues
 		cliValue(fs, &options.results, "filter-result")
+		options.exitCodes = new(intSliceFlag)
+		fs.Var(options.exitCodes, "filter-exit-code", "select jobs with this exit code; may be repeated")
+		options.failureKinds = new(failureKindFlag)
+		fs.Var(options.failureKinds, "filter-failure-kind", "select jobs of this failure kind; may be repeated")
+		cliValue(fs, &options.diagnoses, "filter-diagnosis")
+		cliValue(fs, &options.hosts, "filter-host")
+		options.startedAfter = new(timeFlag)
+		fs.Var(options.startedAfter, "filter-started-after", "select jobs started at or after this time")
+		options.startedBefore = new(timeFlag)
+		fs.Var(options.startedBefore, "filter-started-before", "select jobs started before this time")
+		options.finishedAfter = new(timeFlag)
+		fs.Var(options.finishedAfter, "filter-finished-after", "select jobs finished at or after this time")
+		options.finishedBefore = new(timeFlag)
+		fs.Var(options.finishedBefore, "filter-finished-before", "select jobs finished before this time")
+		options.longerThan = new(durationFlag)
+		fs.Var(options.longerThan, "filter-longer-than", "select jobs running at least this long")
+		options.shorterThan = new(durationFlag)
+		fs.Var(options.shorterThan, "filter-shorter-than", "select jobs running less than this long")
+	}
+	if set >= queueRunJobFilters {
+		options.changed = cliBool(fs, "filter-changed", false)
+		options.new = cliBool(fs, "filter-new", false)
 	}
 	options.command = new(string)
 	fs.Var(&regexFlag{value: options.command}, "filter-command", "select jobs whose argv matches this Go regexp")
-	options.exitCodes = new(intSliceFlag)
-	fs.Var(options.exitCodes, "filter-exit-code", "select jobs with this exit code; may be repeated")
-	options.failureKinds = new(failureKindFlag)
-	fs.Var(options.failureKinds, "filter-failure-kind", "select jobs of this failure kind; may be repeated")
-	cliValue(fs, &options.diagnoses, "filter-diagnosis")
-	cliValue(fs, &options.hosts, "filter-host")
-	options.startedAfter = new(timeFlag)
-	fs.Var(options.startedAfter, "filter-started-after", "select jobs started at or after this time")
-	options.startedBefore = new(timeFlag)
-	fs.Var(options.startedBefore, "filter-started-before", "select jobs started before this time")
-	options.finishedAfter = new(timeFlag)
-	fs.Var(options.finishedAfter, "filter-finished-after", "select jobs finished at or after this time")
-	options.finishedBefore = new(timeFlag)
-	fs.Var(options.finishedBefore, "filter-finished-before", "select jobs finished before this time")
-	options.longerThan = new(durationFlag)
-	fs.Var(options.longerThan, "filter-longer-than", "select jobs running at least this long")
-	options.shorterThan = new(durationFlag)
-	fs.Var(options.shorterThan, "filter-shorter-than", "select jobs running less than this long")
 	options.stage = cliString(fs, "stage", "")
 	options.filterStage = cliString(fs, "filter-stage", "")
 	cliValue(fs, &options.notStages, "filter-not-stage")
@@ -161,23 +189,23 @@ func (options *jobFilterOptions) filter() jobfilter.Filter {
 	if options.failureKinds != nil {
 		failureKinds = append([]string(nil), (*options.failureKinds)...)
 	}
-	filter := jobfilter.Filter{NotStages: options.notStages, NotMatrices: options.notMatrices, Command: pattern, ExitCodes: exitCodes, FailureKinds: failureKinds, Diagnoses: append([]string(nil), options.diagnoses...), Hosts: append([]string(nil), options.hosts...)}
-	if options.startedAfter.set {
+	filter := jobfilter.Filter{NotStages: options.notStages, NotMatrices: options.notMatrices, Command: pattern, ExitCodes: exitCodes, FailureKinds: failureKinds, Diagnoses: append([]string(nil), options.diagnoses...), Changed: options.changed != nil && *options.changed, New: options.new != nil && *options.new, Hosts: append([]string(nil), options.hosts...)}
+	if options.startedAfter != nil && options.startedAfter.set {
 		filter.StartedAfter = &options.startedAfter.value
 	}
-	if options.startedBefore.set {
+	if options.startedBefore != nil && options.startedBefore.set {
 		filter.StartedBefore = &options.startedBefore.value
 	}
-	if options.finishedAfter.set {
+	if options.finishedAfter != nil && options.finishedAfter.set {
 		filter.FinishedAfter = &options.finishedAfter.value
 	}
-	if options.finishedBefore.set {
+	if options.finishedBefore != nil && options.finishedBefore.set {
 		filter.FinishedBefore = &options.finishedBefore.value
 	}
-	if options.longerThan.set {
+	if options.longerThan != nil && options.longerThan.set {
 		filter.LongerThan = options.longerThan.value
 	}
-	if options.shorterThan.set {
+	if options.shorterThan != nil && options.shorterThan.set {
 		filter.ShorterThan = options.shorterThan.value
 	}
 	return filter

@@ -84,6 +84,8 @@ Execute queued commands, optionally selecting jobs from a run.
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
 | `filter_diagnosis` | `Sequence[str]` | select failed jobs matching a current diagnosis rule; may be repeated |
+| `filter_changed` | `bool` | select queued jobs whose definition changed from the reference run |
+| `filter_new` | `bool` | select queued jobs with no matching job in the reference run |
 | `filter_host` | `Sequence[str]` | select jobs run on a matching host; may be repeated |
 | `filter_started_after` | `str` | select jobs started at or after this time |
 | `filter_started_before` | `str` | select jobs started before this time |
@@ -139,6 +141,8 @@ Run failed and unfinished jobs; with --job-id, run those jobs.
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
 | `filter_diagnosis` | `Sequence[str]` | select failed jobs matching a current diagnosis rule; may be repeated |
+| `filter_changed` | `bool` | select queued jobs whose definition changed from the reference run |
+| `filter_new` | `bool` | select queued jobs with no matching job in the reference run |
 | `filter_host` | `Sequence[str]` | select jobs run on a matching host; may be repeated |
 | `filter_started_after` | `str` | select jobs started at or after this time |
 | `filter_started_before` | `str` | select jobs started before this time |
@@ -212,6 +216,8 @@ Show queue or run status.
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
 | `filter_diagnosis` | `Sequence[str]` | select failed jobs matching a current diagnosis rule; may be repeated |
+| `filter_changed` | `bool` | select queued jobs whose definition changed from the reference run |
+| `filter_new` | `bool` | select queued jobs with no matching job in the reference run |
 | `filter_host` | `Sequence[str]` | select jobs run on a matching host; may be repeated |
 | `filter_started_after` | `str` | select jobs started at or after this time |
 | `filter_started_before` | `str` | select jobs started before this time |

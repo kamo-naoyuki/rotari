@@ -39,6 +39,43 @@ type FingerprintMatch struct {
 	Method    string
 }
 
+// ClassifyFingerprintJobs identifies current execution units that are new or
+// changed relative to a source queue using the selected matching mode.
+func ClassifyFingerprintJobs(current, source []FingerprintJob, mode string) (changed, newJobs map[string]bool) {
+	changed = make(map[string]bool)
+	newJobs = make(map[string]bool)
+	matches := MatchFingerprintJobsByMode(current, source, mode)
+	sourceByID := make(map[string]FingerprintJob, len(source))
+	for _, job := range source {
+		sourceByID[job.ID] = job
+	}
+	matched := make(map[string]bool, len(matches))
+	for _, match := range matches {
+		matched[match.CurrentID] = true
+		if sourceJob, ok := sourceByID[match.SourceID]; ok {
+			currentJob := findFingerprintJob(current, match.CurrentID)
+			if currentJob.Fingerprint != sourceJob.Fingerprint {
+				changed[match.CurrentID] = true
+			}
+		}
+	}
+	for _, job := range current {
+		if !matched[job.ID] {
+			newJobs[job.ID] = true
+		}
+	}
+	return changed, newJobs
+}
+
+func findFingerprintJob(jobs []FingerprintJob, id string) FingerprintJob {
+	for _, job := range jobs {
+		if job.ID == id {
+			return job
+		}
+	}
+	return FingerprintJob{}
+}
+
 const (
 	MatchByJobID            = "job-id"
 	MatchByFingerprint      = "fingerprint"

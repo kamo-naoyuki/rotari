@@ -22,6 +22,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	"github.com/kamo-naoyuki/rotari/internal/report"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/rundiff"
@@ -98,7 +99,7 @@ func cmdShow(args []string) int {
 	showQueueOption := cliBool(fs, "queue", false)
 	jobIDOption := cliString(fs, "job-id", "")
 	jobNameOption := cliString(fs, "job-name", "")
-	filterOptions := cliJobFilterOptions(fs, true)
+	filterOptions := cliJobFilterOptions(fs, queueRunJobFilters)
 	lineage := cliBool(fs, "lineage", false)
 	showBaseDirsList := cliBool(fs, "basedirs", false)
 	masterdir := cliString(fs, "masterdir", "")
@@ -541,7 +542,9 @@ func scopedJobIDs(commands []model.QueuedCommand, scope model.CommandSelector, f
 			continue
 		}
 		for _, job := range model.QueueToJobs(commands[index : index+1]) {
-			ids[job.ID] = true
+			if filter.MatchesDefinition(job.ID) {
+				ids[job.ID] = true
+			}
 		}
 	}
 	return ids, nil
@@ -761,6 +764,10 @@ func printInterruptedRunNotice(paths state.ProjectPaths, runID string) {
 }
 
 func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
+	if filter.filter.Changed || filter.filter.New {
+		printError("--filter-changed and --filter-new apply to the queue view; drop --run-id or use --queue")
+		return 1
+	}
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		printErrorf(runNotFoundMessage, runID)
@@ -1031,6 +1038,16 @@ func printChangeHints(paths state.ProjectPaths, runID string, queue model.Queue,
 
 func showQueue(paths state.ProjectPaths, queue model.Queue, scope model.CommandSelector, filter jobfilter.Filter) int {
 	jobs := model.QueueToJobs(queue.Commands)
+	if filter.Changed || filter.New {
+		referenceRunID, err := projectrun.FingerprintReferenceRun(paths, "")
+		if err == nil {
+			filter, err = projectrun.ClassifyDefinitions(paths, queue, filter, referenceRunID, "")
+		}
+		if err != nil {
+			printErrorf("current queue: %v", err)
+			return 1
+		}
+	}
 	scoped, err := scopedJobIDs(queue.Commands, scope, filter)
 	if err != nil {
 		printErrorf("current queue: %v", err)

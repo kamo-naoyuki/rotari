@@ -166,7 +166,10 @@ hold:
 Every option that filters jobs is named `--filter-*`, so filters are told
 apart from other options at a glance and never collide with a job setting of
 the same name. `show`, `copy`, `run`, and `retry` list them under their own
-heading in `--help`.
+heading in `--help`. `change` and `remove` take only the definition filters
+(`--filter-command`, `--filter-stage`, `--filter-matrix`, and their
+`--filter-not-*` forms); `--filter-changed` and `--filter-new` are taken by
+`show`, `run`, and `retry` only.
 
 **SEL-11** The `--filter-*` options select jobs as follows:
 
@@ -180,6 +183,13 @@ heading in `--help`.
   otherwise VALUE is a case-insensitive substring of the rule name. Repeated
   values combine with OR. Saved diagnoses and unavailable/no-match outcomes do
   not match.
+- `--filter-changed` matches queued jobs whose fingerprint differs from the
+  matching job in the reference run; `--filter-new` matches queued jobs with
+  no matching job in that run, and every job when there is no reference run.
+  The reference run is `--run-id` or else the project's last run, resolved
+  before the new run is recorded; matching follows `--match-by` (`show` uses
+  `id-and-fingerprint`). Given together, a job must satisfy both. `show`
+  applies them to the queue view only and rejects them for a run view.
 - `--filter-host PATTERN` matches jobs whose latest attempt ran on a host
   matching the `path.Match` glob; repeated patterns combine with OR.
 - `--filter-started-after`, `--filter-started-before`,

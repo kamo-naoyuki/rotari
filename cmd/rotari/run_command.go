@@ -43,7 +43,7 @@ func runJobs(args []string, defaultSelection string) int {
 	batchConcurrency := cliInt(fs, "batch-concurrency", 8)
 	executorSettings := cliExecutorRunSettings(fs)
 	retry := cliInt(fs, "retry", 0)
-	filterOptions := cliJobFilterOptions(fs, true)
+	filterOptions := cliJobFilterOptions(fs, queueRunJobFilters)
 	var jobIDs stringSliceFlag
 	cliValue(fs, &jobIDs, "job-id")
 	partialArray := cliBool(fs, "partial-array", true)

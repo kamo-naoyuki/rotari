@@ -67,6 +67,10 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 	if len(jobs) == 0 {
 		return 1, fmt.Errorf("queue '%s' has no valid commands", paths.ProjectName)
 	}
+	options.Filter, err = ClassifyDefinitions(paths, queue, options.Filter, options.SourceRunID, options.MatchBy)
+	if err != nil {
+		return 1, err
+	}
 	if options.MatchBy != "" {
 		queue, err = runner.MatchFingerprintQueue(paths, queue, options.MatchBy, options.SourceRunID)
 		if err != nil {
@@ -179,6 +183,41 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 		return 1, fmt.Errorf("failed to save run summary: %w", err)
 	}
 	return summary.ExitCode, nil
+}
+
+// ClassifyDefinitions sets filter's changed and new job IDs by comparing
+// queue with the command snapshot of referenceRunID, matched by mode (the
+// --match-by modes; empty means id-and-fingerprint). Without a reference run
+// every job is new. It returns filter unchanged when neither --filter-changed
+// nor --filter-new is set. Callers resolve referenceRunID before Begin makes
+// the new run the project's last run.
+func ClassifyDefinitions(paths state.ProjectPaths, queue model.Queue, filter jobfilter.Filter, referenceRunID, mode string) (jobfilter.Filter, error) {
+	if !filter.Changed && !filter.New {
+		return filter, nil
+	}
+	currentJobs, err := model.QueueFingerprintJobs(queue)
+	if err != nil {
+		return filter, err
+	}
+	var sourceJobs []model.FingerprintJob
+	if referenceRunID != "" {
+		runDir, err := state.SafeJoin(paths.RunsDir, referenceRunID)
+		if err != nil {
+			return filter, err
+		}
+		sourceQueue, err := state.LoadQueue(filepath.Join(runDir, "commands.json"))
+		if err != nil {
+			return filter, fmt.Errorf("failed to load reference run %q: %w", referenceRunID, err)
+		}
+		if sourceJobs, err = model.QueueFingerprintJobs(sourceQueue); err != nil {
+			return filter, err
+		}
+	}
+	if mode == "" {
+		mode = model.MatchByIDAndFingerprint
+	}
+	filter.ChangedIDs, filter.NewIDs = model.ClassifyFingerprintJobs(currentJobs, sourceJobs, mode)
+	return filter, nil
 }
 
 // WasExplicitlyCancelled reports whether a job's latest attempt was cancelled

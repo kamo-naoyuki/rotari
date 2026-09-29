@@ -158,21 +158,28 @@ func (ops Operations) prepareRun(request server.Request) (preparedRun, error) {
 		release()
 		return preparedRun{}, err
 	}
-	if request.MatchBy != "" {
+	if request.MatchBy != "" || request.Filter.Changed || request.Filter.New {
 		sourceRunID, err = projectrun.FingerprintReferenceRun(paths, sourceRunID)
 		if err != nil {
 			release()
 			return preparedRun{}, err
 		}
+	}
+	if request.MatchBy != "" {
 		queue, err = ops.Runner.MatchFingerprintQueue(paths, queue, request.MatchBy, sourceRunID)
 		if err != nil {
 			release()
 			return preparedRun{}, err
 		}
 	}
+	filter, err := projectrun.ClassifyDefinitions(paths, queue, request.Filter, sourceRunID, request.MatchBy)
+	if err != nil {
+		release()
+		return preparedRun{}, err
+	}
 	// Resolve the reference and plan under the state lock, before Begin changes
 	// the project's last run. A planning error must not create an incomplete run.
-	plan, err := ops.Runner.PlanSelection(paths, queue, request.Selection, request.JobIDs, requestScope(request), request.Filter, sourceRunID, request.PartialArray)
+	plan, err := ops.Runner.PlanSelection(paths, queue, request.Selection, request.JobIDs, requestScope(request), filter, sourceRunID, request.PartialArray)
 	if err != nil {
 		release()
 		return preparedRun{}, err

@@ -158,16 +158,6 @@ Usage: `rotari change <command ...>`
 | `--status` | `STATUS` | `` | mark the job with a status that result filters of the next run read in place of its recorded result |
 | `--clear-status` | `` | `` | remove the job's status mark |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
-| `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
-| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
-| `--filter-diagnosis` | `VALUE (repeatable)` | `` | select failed jobs matching a current diagnosis rule; may be repeated |
-| `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
-| `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
-| `--filter-started-before` | `TIME` | `` | select jobs started before this time |
-| `--filter-finished-after` | `TIME` | `` | select jobs finished at or after this time |
-| `--filter-finished-before` | `TIME` | `` | select jobs finished before this time |
-| `--filter-longer-than` | `DURATION` | `` | select jobs running at least this long |
-| `--filter-shorter-than` | `DURATION` | `` | select jobs running less than this long |
 | `--filter-command` | `RE` | `` | select jobs whose argv matches this Go regexp |
 | `--filter-stage` | `NAME` | `` | select jobs in this stage; same as --stage |
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
@@ -220,16 +210,6 @@ Usage: `rotari remove [JOB_ID ...]`
 | `--matrix` | `NAME` | `` | remove every job of a matrix, named by its base job name |
 | `--all` | `` | `` | remove every job |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
-| `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
-| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
-| `--filter-diagnosis` | `VALUE (repeatable)` | `` | select failed jobs matching a current diagnosis rule; may be repeated |
-| `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
-| `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
-| `--filter-started-before` | `TIME` | `` | select jobs started before this time |
-| `--filter-finished-after` | `TIME` | `` | select jobs finished at or after this time |
-| `--filter-finished-before` | `TIME` | `` | select jobs finished before this time |
-| `--filter-longer-than` | `DURATION` | `` | select jobs running at least this long |
-| `--filter-shorter-than` | `DURATION` | `` | select jobs running less than this long |
 | `--filter-command` | `RE` | `` | select jobs whose argv matches this Go regexp |
 | `--filter-stage` | `NAME` | `` | select jobs in this stage; same as --stage |
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
@@ -269,6 +249,8 @@ Usage: `rotari show [SELECTOR]`
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
 | `--filter-diagnosis` | `VALUE (repeatable)` | `` | select failed jobs matching a current diagnosis rule; may be repeated |
+| `--filter-changed` | `` | `` | select queued jobs whose definition changed from the reference run |
+| `--filter-new` | `` | `` | select queued jobs with no matching job in the reference run |
 | `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
 | `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
 | `--filter-started-before` | `TIME` | `` | select jobs started before this time |
@@ -460,6 +442,8 @@ Usage: `rotari run [RUN_ID]`
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
 | `--filter-diagnosis` | `VALUE (repeatable)` | `` | select failed jobs matching a current diagnosis rule; may be repeated |
+| `--filter-changed` | `` | `` | select queued jobs whose definition changed from the reference run |
+| `--filter-new` | `` | `` | select queued jobs with no matching job in the reference run |
 | `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
 | `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
 | `--filter-started-before` | `TIME` | `` | select jobs started before this time |
@@ -515,6 +499,8 @@ Usage: `rotari retry [RUN_ID]`
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
 | `--filter-diagnosis` | `VALUE (repeatable)` | `` | select failed jobs matching a current diagnosis rule; may be repeated |
+| `--filter-changed` | `` | `` | select queued jobs whose definition changed from the reference run |
+| `--filter-new` | `` | `` | select queued jobs with no matching job in the reference run |
 | `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
 | `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
 | `--filter-started-before` | `TIME` | `` | select jobs started before this time |

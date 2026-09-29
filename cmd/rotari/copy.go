@@ -51,7 +51,7 @@ func cmdCopy(args []string) int {
 	queueNameOption := cliString(fs, "project-name", "")
 	runID := cliString(fs, "run-id", "")
 	jobName := cliString(fs, "job-name", "")
-	filterOptions := cliJobFilterOptions(fs, true)
+	filterOptions := cliJobFilterOptions(fs, runJobFilters)
 	var jobIDs stringSliceFlag
 	cliValue(fs, &jobIDs, "job-id")
 	appendJobs := cliBool(fs, "append", false)

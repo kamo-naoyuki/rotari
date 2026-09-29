@@ -99,6 +99,26 @@ func TestMatchFingerprintJobsMakesCountMismatchNew(t *testing.T) {
 	}
 }
 
+func TestClassifyFingerprintJobs(t *testing.T) {
+	current := []FingerprintJob{
+		{ID: "same", Fingerprint: "a"},
+		{ID: "changed", Fingerprint: "new"},
+		{ID: "new", Fingerprint: "c"},
+	}
+	source := []FingerprintJob{
+		{ID: "same", Fingerprint: "a"},
+		{ID: "changed", Fingerprint: "old"},
+		{ID: "removed", Fingerprint: "d"},
+	}
+	changed, newJobs := ClassifyFingerprintJobs(current, source, MatchByIDAndFingerprint)
+	if !changed["changed"] || changed["same"] || changed["new"] {
+		t.Fatalf("changed = %#v", changed)
+	}
+	if !newJobs["new"] || newJobs["same"] || newJobs["changed"] {
+		t.Fatalf("new = %#v", newJobs)
+	}
+}
+
 func intPointer(value int) *int { return &value }
 
 func TestParseAndValidateArrayRange(t *testing.T) {
