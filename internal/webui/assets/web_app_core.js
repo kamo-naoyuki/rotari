@@ -586,7 +586,7 @@ function renderRun(q, runID) {
         ? '<div class="meta">carried from ' + esc(j.origin.run_id) + "</div>"
         : "";
       const copyIcon = (value, label) =>
-        '<button class="command-guide-copy identity-copy" type="button" title="Copy ' +
+        '<button class="table-copy identity-copy" type="button" title="Copy ' +
         label +
         '" aria-label="Copy ' +
         label +
@@ -640,22 +640,18 @@ function renderRun(q, runID) {
         esc(j.id) +
         '"><td><input class="job-selection" type="checkbox" aria-label="Select ' +
         esc(j.id) +
-        '"> <strong>' +
-        '<span class="identity-line">' +
+        '"></td><td><strong>' +
         jobName +
         jobNameCopy +
-        "</span>" +
-        '<span class="identity-line">' +
+        carriedFrom +
+        "</strong></td><td>" +
         esc(j.id) +
         jobIDCopy +
-        "</span>" +
-        '<span class="identity-line">' +
+        "</td><td>" +
         esc(j.attempt_id || "-") +
         attemptCopy +
         attemptMenu +
-        "</span>" +
-        carriedFrom +
-        "</strong></td><td>" +
+        "</td><td>" +
         esc(j.executor || "default") +
         "</td><td>" +
         esc(options || "-") +
@@ -706,7 +702,7 @@ function renderRun(q, runID) {
     esc(copy) +
     "</pre>" +
     (jobs
-      ? '<table class="runs"><thead><tr><th data-sort="name"><input id="select-all-jobs" type="checkbox" aria-label="Select all jobs"> job_name / job_id / attempt_id</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="exit">Exit / error</th><th data-sort="output"></th></tr></thead><tbody>' +
+      ? '<table class="runs"><thead><tr><th><input id="select-all-jobs" type="checkbox" aria-label="Select all jobs"></th><th data-sort="name">Job name</th><th data-sort="id">Job ID</th><th data-sort="attempt">Attempt ID</th><th data-sort="executor">Executor</th><th data-sort="options">Executor options</th><th data-sort="stage">Stage</th><th data-sort="depends">Dependencies</th><th data-sort="working_directory">Working directory</th><th data-sort="command">Command</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="exit">Exit / error</th><th data-sort="output"></th></tr></thead><tbody>' +
         jobs +
         "</tbody></table>"
       : '<div class="empty">No job definitions yet.</div>') +

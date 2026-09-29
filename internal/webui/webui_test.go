@@ -456,6 +456,15 @@ setTimeout(async () => {
   const assert = (condition, message) => { if (!condition) throw new Error(message); };
   try {
     assert(row(), 'job row was not rendered');
+	const headers = [...row().closest('table').querySelectorAll('thead th')];
+	const identityIndexes = ['name', 'id', 'attempt'].map(key => headers.findIndex(header => header.dataset.sort === key));
+	assert(identityIndexes[0] >= 0 && identityIndexes[1] === identityIndexes[0] + 1 && identityIndexes[2] === identityIndexes[1] + 1, 'job identity columns are not separated');
+	assert(row().children.length === headers.length, 'job row does not match separated identity columns');
+	assert(row().querySelector('[title="Copy job name"]'), 'job name copy button is missing');
+	assert(row().querySelector('[title="Copy job ID"]'), 'job ID copy button is missing');
+	assert(row().querySelector('[title="Copy attempt ID"]'), 'attempt ID copy button is missing');
+	assert(row().querySelector('[title="Copy command"]'), 'command copy button is missing');
+	assert(row().querySelectorAll('.table-copy').length >= 4, 'table copy buttons are not styled as table controls');
     assert(row().textContent.includes('attempt-1'), 'latest attempt is not displayed');
     const statusPill = () => row().querySelector('.status-value');
     assert(statusPill().tagName === 'SPAN' && statusPill().classList.contains('status-failed'), 'failed job status is not rendered as a pill');
@@ -1365,6 +1374,26 @@ func TestJobsHTMLStylesStates(t *testing.T) {
 	}
 }
 
+func TestJobsHTMLSupportsSortingAndTimezoneTimestamps(t *testing.T) {
+	started := time.Date(2026, 9, 29, 1, 2, 3, 0, time.UTC)
+	finished := started.Add(time.Minute)
+	html := jobsHTML("/", nil, []joblist.Row{{State: "success", Project: "p", RunID: "r", JobName: "j", StartedAt: started, FinishedAt: finished}}, joblist.DefaultSinceText, false)
+	for _, want := range []string{
+		`class="jobs-table"`,
+		`data-sort="started"`,
+		`data-sort="finished"`,
+		`data-sort-value="2026-09-29T01:02:03Z"`,
+		`data-sort-value="2026-09-29T01:03:03Z"`,
+		"function sortJobsTable(table, key, direction)",
+		`header.textContent = header.dataset.label + " ↕"`,
+		`header.dataset.label + " ↕"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("jobs HTML does not contain %q", want)
+		}
+	}
+}
+
 func TestGenerateStaticWebIncludesJobsPage(t *testing.T) {
 	baseDir := t.TempDir()
 	runID := "20260922-090000-00000001"
@@ -1387,9 +1416,23 @@ func TestGenerateStaticWebIncludesJobsPage(t *testing.T) {
 
 func TestWebSeparatesLogsFromActions(t *testing.T) {
 	html := testSite().webHTML()
-	for _, want := range []string{"function mergeActionColumns(){}", "function orderJobActions()", "view-log", "show-path", "delete-run", "Job log", "Job log — merged", `logMode === "separate"`, "changeLogStream", `id="log-stream"`, "View log", "Source log", "Logs", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const buttons=[...logCell.querySelectorAll('button')]", "const diagnosisControl=canDiagnose", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", "dataset.view!=='path'", "cell.style.display='table-cell'", "button.style.margin='0 6px 6px 0'", "cell.style.width='170px'"} {
+	for _, want := range []string{"function mergeActionColumns(){}", "function orderJobActions()", "view-log", "show-path", "delete-run", "Job log", "Job log — merged", `logMode === "separate"`, "changeLogStream", `id="log-stream"`, "View log", "Source log", "Logs", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const buttons=[...logCell.querySelectorAll('button')]", "const diagnosisControl=canDiagnose", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", "dataset.view!=='path'", "cell.style.display='table-cell'", "buttonGrid.className='action-buttons'", "buttonGrid.style.gridTemplateColumns='repeat(2, max-content)'", "cell.querySelector(\":scope > .action-buttons\")", "button.style.width='auto'", "cell.style.width='max-content'"} {
 		if !webContains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
+		}
+	}
+}
+
+func TestWebRunGraphicsShowLoadSummary(t *testing.T) {
+	html := testSite().webHTML()
+	for _, want := range []string{
+		"function runLoadSummary(run)",
+		"context.load_samples",
+		"context.started_load",
+		"load \" +",
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("run graphics are missing load summary support %q", want)
 		}
 	}
 }
@@ -1418,26 +1461,20 @@ func TestWebProvidesCopyAndAIReports(t *testing.T) {
 		`Markdown report for pasting into an AI assistant. Nothing is sent to external services automatically.`,
 		`fetch('/api/report?'+params)`,
 		`function addAIButtons()`,
-		`button.dataset.copyTitle ||= button.textContent.trim()`,
-		`button.dataset.copyIcon ||= button.innerHTML`,
 		`const actions=row.children[actionIndex]`,
 		`button.textContent='Report'`,
 		`Prepare run report`,
 		`Prepare job report`,
 		`dataset.view!=='ai'`,
-		`Open Gemini`,
-		`Open ChatGPT`,
-		`Open Claude`,
-		`https://gemini.google.com/app`,
-		`https://chatgpt.com/`,
-		`https://claude.ai/new`,
 	} {
 		if !webContains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
 		}
 	}
-	if strings.Index(html, `Open ChatGPT`) > strings.Index(html, `Open Gemini`) || strings.Index(html, `Open Gemini`) > strings.Index(html, `Open Claude`) {
-		t.Fatal("AI service buttons are not ordered ChatGPT, Gemini, Claude")
+	for _, removed := range []string{`Open ChatGPT`, `Open Gemini`, `Open Claude`, `openAI(`, `chatgpt.com`, `gemini.google.com`, `claude.ai`} {
+		if strings.Contains(html, removed) {
+			t.Fatalf("removed AI button content is still present: %q", removed)
+		}
 	}
 }
 

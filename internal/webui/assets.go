@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
 )
@@ -99,7 +100,7 @@ func jobsHTML(homePath string, projects []string, rows []joblist.Row, since stri
 		builder.WriteString(`<p class="meta">No running or recently finished jobs found.</p>`)
 		return composeInfoHTML(template, homePath, builder.String())
 	}
-	builder.WriteString(`<section><table><thead><tr><th>State</th><th>Project</th><th>Job</th><th>Command</th><th>Attempt</th><th>Started</th><th>Finished</th><th>Elapsed</th></tr></thead><tbody>`)
+	builder.WriteString(`<section><table class="jobs-table"><thead><tr><th data-sort="state">State</th><th data-sort="project">Project</th><th data-sort="job">Job</th><th data-sort="command">Command</th><th data-sort="attempt">Attempt</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="elapsed">Elapsed</th></tr></thead><tbody>`)
 	for _, row := range rows {
 		builder.WriteString(`<tr><td class="jobs-state jobs-state-`)
 		builder.WriteString(jobsStateClass(row.State))
@@ -128,9 +129,15 @@ func jobsHTML(homePath string, projects []string, rows []joblist.Row, since stri
 		builder.WriteString(html.EscapeString(row.AttemptID))
 		builder.WriteString(`</code>`)
 		writeJobsCopyButton(&builder, row.AttemptID, "attempt ID")
-		builder.WriteString(`</td><td>`)
+		builder.WriteString(`</td><td data-sort-value="`)
+		builder.WriteString(html.EscapeString(row.StartedAt.Format(time.RFC3339Nano)))
+		builder.WriteString(`">`)
 		builder.WriteString(html.EscapeString(joblist.FormatTimestamp(row.StartedAt)))
-		builder.WriteString(`</td><td>`)
+		builder.WriteString(`</td><td data-sort-value="`)
+		if row.State != "running" {
+			builder.WriteString(html.EscapeString(row.FinishedAt.Format(time.RFC3339Nano)))
+		}
+		builder.WriteString(`">`)
 		if row.State == "running" {
 			builder.WriteString(`-`)
 		} else {

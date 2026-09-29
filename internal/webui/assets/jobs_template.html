@@ -95,6 +95,39 @@
         button.setAttribute("aria-expanded", String(expanded));
         projects.hidden = !expanded;
       }
+
+      function sortJobsTable(table, key, direction) {
+        const headers = [...table.querySelectorAll("thead th")];
+        const index = headers.findIndex((header) => header.dataset.sort === key);
+        if (index < 0) return;
+        const rows = [...table.querySelectorAll("tbody tr")];
+        rows.sort((left, right) => {
+          const a = left.children[index].dataset.sortValue || left.children[index].textContent.trim();
+          const b = right.children[index].dataset.sortValue || right.children[index].textContent.trim();
+          return a.localeCompare(b, undefined, { numeric: true }) * direction;
+        });
+        rows.forEach((row) => table.querySelector("tbody").append(row));
+        headers.forEach((header) => {
+          header.textContent =
+            header.dataset.label +
+            (header.dataset.sort !== key
+              ? " ↕"
+              : direction === 1
+                ? " ↑"
+                : " ↓");
+        });
+      }
+
+      document.querySelectorAll(".jobs-table th[data-sort]").forEach((header) => {
+        header.dataset.label = header.textContent.trim();
+        header.textContent = header.dataset.label + " ↕";
+        header.title = "Sort by " + header.dataset.label;
+        header.addEventListener("click", () => {
+          const direction = header.dataset.direction === "1" ? -1 : 1;
+          header.dataset.direction = String(direction);
+          sortJobsTable(header.closest("table"), header.dataset.sort, direction);
+        });
+      });
     </script>
   </body>
 </html>

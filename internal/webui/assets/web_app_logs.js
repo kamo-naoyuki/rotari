@@ -243,12 +243,6 @@ function updateModalActions() {
   const redactToggle = document.getElementById("report-redact-toggle");
   redactToggle.hidden =
     view !== "ai" || typeof window.__ROTARI_STATIC_STATE__ !== "undefined";
-  ["open-gemini", "open-chatgpt", "open-claude"].forEach((id) => {
-    const button = document.getElementById(id);
-    button.hidden = view !== "ai";
-    button.dataset.copyTitle ||= button.textContent.trim();
-    button.dataset.copyIcon ||= button.innerHTML;
-  });
   const copyButton = document.getElementById("copy-modal");
   copyButton.hidden =
     view === "generate-config" || modal.dataset.editing === "true";
@@ -257,11 +251,6 @@ function updateModalActions() {
   copyButton.setAttribute("aria-label", copyTitle);
   copyButton.dataset.copyTitle = copyTitle;
   copyButton.dataset.copyIcon ||= copyButton.innerHTML;
-}
-async function openAI(url, button) {
-  window.open(url, "_blank", "noopener");
-  await copyText(selectedOutput);
-  copied(button);
 }
 async function showAIReport(project, run, job, jobIDs) {
   const modal = document.getElementById("output-modal");
@@ -425,10 +414,15 @@ function orderJobActions() {
       .filter((button) => !ordered.includes(button))
       .forEach((button) => ordered.push(button));
     if (!ordered.length) return;
-    cell.replaceChildren();
+    const buttonGrid =
+      cell.querySelector(":scope > .action-buttons") ||
+      Object.assign(document.createElement("div"), {
+        className: "action-buttons",
+      });
+    cell.replaceChildren(buttonGrid);
     ordered.forEach((button, index) => {
-      if (index) cell.append(" ");
-      cell.append(button);
+      if (index) buttonGrid.append(" ");
+      buttonGrid.append(button);
     });
   });
 }

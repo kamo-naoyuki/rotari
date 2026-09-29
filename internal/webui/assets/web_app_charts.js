@@ -1,3 +1,22 @@
+function runLoadSummary(run) {
+  const context = run && run.context;
+  const samples = (context && context.load_samples) || [];
+  const load =
+    samples.length > 0
+      ? samples[samples.length - 1]
+      : context && context.started_load;
+  if (!load) return "";
+  const format = (value) => Number(value).toFixed(2);
+  return (
+    "load " +
+    format(load.one) +
+    " / " +
+    format(load.five) +
+    " / " +
+    format(load.fifteen)
+  );
+}
+
 function addRunHeatmap() {
   const parts = pageParts();
   if (parts[0] !== "project" || parts[2] !== "run") return;
@@ -250,7 +269,9 @@ function addRunEnvironment() {
   section.style.padding = "18px";
   section.style.margin = "16px 0 20px";
   section.innerHTML =
-    '<div style="display:flex;align-items:baseline;gap:12px"><h2 style="margin:0">Load average</h2></div>';
+    '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><h2 style="margin:0">Load average</h2><span class="meta">' +
+    esc(runLoadSummary(run)) +
+    "</span></div>";
   const stats = app.querySelector(".run-statistics");
   if (stats) stats.after(section);
   else app.prepend(section);

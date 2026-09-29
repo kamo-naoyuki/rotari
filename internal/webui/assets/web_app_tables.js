@@ -297,7 +297,8 @@ function addRunJobStatusColumn() {
   header.textContent = "Status";
   table
     .querySelector("thead tr")
-    .insertBefore(header, table.querySelector("thead tr").children[1]);
+    .querySelector('[data-sort="attempt"]')
+    .after(header);
   const rows = table.querySelectorAll("tbody tr");
   (run.jobs || []).forEach((job, index) => {
     if (!rows[index]) return;
@@ -307,7 +308,7 @@ function addRunJobStatusColumn() {
     pill.className = "status-value " + jobStatusClass(label);
     pill.textContent = label;
     status.append(pill);
-    rows[index].insertBefore(status, rows[index].children[1]);
+    rows[index].children[3].after(status);
   });
 }
 function addRunningOutputButtons() {
@@ -498,7 +499,7 @@ function styleActionColumns() {
     .querySelectorAll("#app table.runs th:first-child")
     .forEach((cell) => {
       if (cell.textContent.trim() === "Actions") {
-        cell.style.width = "170px";
+        cell.style.width = "max-content";
         cell.style.textAlign = "left";
       }
     });
@@ -506,15 +507,29 @@ function styleActionColumns() {
     .querySelectorAll("#app table.runs td:first-child")
     .forEach((cell) => {
       if (!cell.querySelector("button")) return;
-      cell.style.width = "170px";
-      cell.style.minWidth = "170px";
+      cell.style.width = "max-content";
+      cell.style.minWidth = "0";
       cell.style.whiteSpace = "normal";
       cell.style.textAlign = "left";
       cell.style.display = "table-cell";
-      cell.style.verticalAlign = "top";
+      cell.style.verticalAlign = "middle";
+      let buttonGrid = cell.querySelector(":scope > .action-buttons");
+      if (!buttonGrid) {
+        buttonGrid = document.createElement("div");
+        buttonGrid.className = "action-buttons";
+        cell.append(buttonGrid);
+      }
       cell
-        .querySelectorAll("button")
-        .forEach((button) => (button.style.margin = "0 6px 6px 0"));
+        .querySelectorAll(":scope > button")
+        .forEach((button) => buttonGrid.append(button));
+      buttonGrid.style.display = "grid";
+      buttonGrid.style.gridTemplateColumns = "repeat(2, max-content)";
+      buttonGrid.style.gap = "4px";
+      buttonGrid.querySelectorAll("button").forEach((button) => {
+        button.style.width = "auto";
+        button.style.margin = "0";
+        button.style.verticalAlign = "top";
+      });
     });
 }
 function mergeLogButtonIntoActions() {

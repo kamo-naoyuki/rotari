@@ -104,6 +104,15 @@ th {
   text-transform: uppercase;
 }
 
+.jobs-table th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.jobs-table th[data-sort]:hover {
+  color: var(--text);
+}
+
 code {
   color: var(--text);
 }
@@ -157,7 +166,7 @@ code {
   border: 1px solid var(--line);
   border-radius: 4px;
   background: transparent;
-  color: var(--accent);
+  color: var(--text);
   cursor: pointer;
   vertical-align: middle;
 }
