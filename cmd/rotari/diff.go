@@ -289,7 +289,7 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 			changeColumns[0], changeColumns[1], changeColumns[2], changeColumns[3], changeColumns[4], changeColumns[5],
 			firstNonEmpty(entry.Run.Elapsed, "-"))
 	}
-	fmt.Printf("\n%s\n  rotari lineage --basedir %s --project-name %s RUN_A RUN_B\n", cyan("To compare runs:"), paths.BaseDir, paths.ProjectName)
+	fmt.Printf("\n%s\n  rotari lineage -b %s -p %s RUN_A RUN_B\n", cyan("To compare runs:"), paths.BaseDir, paths.ProjectName)
 	return 0
 }
 
