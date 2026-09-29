@@ -82,84 +82,13 @@
       }
       applyJobsSidebarWidth();
       window.addEventListener("resize", applyJobsSidebarWidth);
-      const jobsPathTextCache = new Map();
-      const jobsPathCanvas = document.createElement("canvas");
-      const jobsPathContext =
-        typeof CanvasRenderingContext2D === "undefined"
-          ? null
-          : jobsPathCanvas.getContext("2d");
       function fitJobsBasedirPaths() {
-        const links = [
-          ...jobsSidebar.querySelectorAll(".basedir-path[data-full-path]"),
-        ];
-        const measurements = links.map((link) => {
-          const style = getComputedStyle(link);
-          return {
-            link,
-            path: link.dataset.fullPath,
-            width:
-              link.clientWidth -
-              (parseFloat(style.paddingLeft) || 0) -
-              (parseFloat(style.paddingRight) || 0),
-            font: `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`,
-          };
-        });
-        const results = measurements.map(({ link, path, width, font }) => {
-          const cacheKey = JSON.stringify([path, width, font]);
-          let text = jobsPathTextCache.get(cacheKey);
-          if (text === undefined) {
-            if (jobsPathContext) {
-              jobsPathContext.font = font;
-              if (jobsPathContext.measureText(path).width <= width) text = path;
-              else {
-                let low = 0;
-                let high = path.length;
-                text = "…";
-                while (low <= high) {
-                  const kept = Math.floor((low + high) / 2);
-                  const start = Math.ceil(kept / 2);
-                  const end = Math.floor(kept / 2);
-                  const candidate =
-                    path.slice(0, start) + "…" + (end ? path.slice(-end) : "");
-                  if (jobsPathContext.measureText(candidate).width <= width) {
-                    text = candidate;
-                    low = kept + 1;
-                  } else {
-                    high = kept - 1;
-                  }
-                }
-              }
-            } else {
-              link.textContent = path;
-              if (link.scrollWidth <= link.clientWidth) text = path;
-              else {
-                let low = 0;
-                let high = path.length;
-                text = "…";
-                while (low <= high) {
-                  const kept = Math.floor((low + high) / 2);
-                  const start = Math.ceil(kept / 2);
-                  const end = Math.floor(kept / 2);
-                  const candidate =
-                    path.slice(0, start) + "…" + (end ? path.slice(-end) : "");
-                  link.textContent = candidate;
-                  if (link.scrollWidth <= link.clientWidth) {
-                    text = candidate;
-                    low = kept + 1;
-                  } else {
-                    high = kept - 1;
-                  }
-                }
-              }
-            }
-            if (jobsPathTextCache.size > 512) jobsPathTextCache.clear();
-            jobsPathTextCache.set(cacheKey, text);
-          }
-          return { link, text };
-        });
-        results.forEach(({ link, text }) => {
-          if (link.textContent !== text) link.textContent = text;
-        });
+        jobsSidebar
+          .querySelectorAll(".basedir-path[data-full-path]")
+          .forEach((link) => {
+            if (link.textContent !== link.dataset.fullPath)
+              link.textContent = link.dataset.fullPath;
+          });
       }
       new ResizeObserver(fitJobsBasedirPaths).observe(jobsSidebar);
       jobsResizeHandle.addEventListener("pointerdown", (event) => {

@@ -100,8 +100,8 @@ The basedir list is introduced by a `Registered basedirs` heading so the tree
 is self-describing. Each basedir entry is collapsible and only the basedir
 currently mounted starts expanded; collapsing or expanding another entry is a
 user choice the sidebar keeps. An entry labels itself with the basedir's
-absolute path, shortened in the middle with the full path in its tooltip,
-because basedir names alone are ambiguous. `All projects` and `Job activity` are nested
+absolute path, shortened at the end with the full path in its tooltip, because
+basedir names alone are ambiguous. `All projects` and `Job activity` are nested
 inside each basedir entry rather than offered once at the top level, since both
 pages describe a single basedir. `All projects` has its own disclosure control;
 its project list is nested beneath it, and `Job activity` follows the project
@@ -109,7 +109,7 @@ tree. The sidebar scrolls independently of the page body, preserves its
 manually selected position during background refreshes, and remembers the
 position per basedir. A separator at the sidebar/content boundary is shown on
 hover and can be dragged to resize the sidebar; basedir paths keep their
-beginning and end around an ellipsis, recalculated as the width changes. These
+end with an ellipsis through CSS as the width changes. These
 rules apply to both the application page and the server-rendered Job activity
 page.
 

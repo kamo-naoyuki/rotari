@@ -238,82 +238,10 @@ function sidebarBasedirHTML(
     '">Job activity</a></div></div>'
   );
 }
-const basedirPathTextCache = new Map();
-const basedirPathCanvas = document.createElement("canvas");
-const basedirPathContext =
-  typeof CanvasRenderingContext2D === "undefined"
-    ? null
-    : basedirPathCanvas.getContext("2d");
 function fitBasedirPaths(sidebar) {
-  const links = [...sidebar.querySelectorAll(".basedir-path[data-full-path]")];
-  const measurements = links.map((link) => {
-    const style = getComputedStyle(link);
-    return {
-      link,
-      path: link.dataset.fullPath,
-      width:
-        link.clientWidth -
-        (parseFloat(style.paddingLeft) || 0) -
-        (parseFloat(style.paddingRight) || 0),
-      font: `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`,
-    };
-  });
-  const results = measurements.map(({ link, path, width, font }) => {
-    const cacheKey = JSON.stringify([path, width, font]);
-    let text = basedirPathTextCache.get(cacheKey);
-    if (text === undefined) {
-      if (basedirPathContext) {
-        basedirPathContext.font = font;
-        if (basedirPathContext.measureText(path).width <= width) text = path;
-        else {
-          let low = 0;
-          let high = path.length;
-          text = "…";
-          while (low <= high) {
-            const kept = Math.floor((low + high) / 2);
-            const start = Math.ceil(kept / 2);
-            const end = Math.floor(kept / 2);
-            const candidate =
-              path.slice(0, start) + "…" + (end ? path.slice(-end) : "");
-            if (basedirPathContext.measureText(candidate).width <= width) {
-              text = candidate;
-              low = kept + 1;
-            } else {
-              high = kept - 1;
-            }
-          }
-        }
-      } else {
-        // Older browsers without canvas support use the DOM as a fallback.
-        link.textContent = path;
-        if (link.scrollWidth <= link.clientWidth) text = path;
-        else {
-          let low = 0;
-          let high = path.length;
-          text = "…";
-          while (low <= high) {
-            const kept = Math.floor((low + high) / 2);
-            const start = Math.ceil(kept / 2);
-            const end = Math.floor(kept / 2);
-            const candidate =
-              path.slice(0, start) + "…" + (end ? path.slice(-end) : "");
-            link.textContent = candidate;
-            if (link.scrollWidth <= link.clientWidth) {
-              text = candidate;
-              low = kept + 1;
-            } else {
-              high = kept - 1;
-            }
-          }
-        }
-      }
-      if (basedirPathTextCache.size > 512) basedirPathTextCache.clear();
-      basedirPathTextCache.set(cacheKey, text);
-    }
-    return { link, path, text };
-  });
-  results.forEach(({ link, text }) => {
-    if (link.textContent !== text) link.textContent = text;
+  sidebar.querySelectorAll(".basedir-path[data-full-path]").forEach((link) => {
+    if (link.textContent !== link.dataset.fullPath)
+      link.textContent = link.dataset.fullPath;
   });
 }
 function initSidebarResizer() {

@@ -848,7 +848,7 @@ setTimeout(async () => {
 		Object.defineProperty(pathLink, 'clientWidth', {configurable: true, value: 48});
 		Object.defineProperty(pathLink, 'scrollWidth', {configurable: true, get() { return this.textContent.length * 8; }});
 		dom.window.fitBasedirPaths(dom.window.document.querySelector('.sidebar'));
-		assert(pathLink.textContent.startsWith('/v') && pathLink.textContent.endsWith('ng') && pathLink.textContent.includes('…'), 'basedir path should preserve both ends when shortened');
+		assert(pathLink.textContent === pathLink.dataset.fullPath, 'basedir path should keep its full value for CSS ellipsis');
 		const other = [...dom.window.document.querySelectorAll('#sidebar-basedirs > .basedir-entry')].find(base => base.dataset.basedirId === process.argv[3]);
 		assert(other && other.querySelector(':scope > .sidebar-projects').hidden, 'other basedir should start collapsed');
 		other.querySelector('.sidebar-toggle').click();
