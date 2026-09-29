@@ -246,9 +246,9 @@ function sidebarBasedirHTML(
     (isExpanded ? " expanded" : "") +
     '" data-basedir-id="' +
     entry.id +
-    '"><div class="sidebar-project-row basedir-row"><input class="basedir-notification-toggle" type="checkbox" data-basedir-id="' +
+    '"><div class="basedir-notification-row"><label><input class="basedir-notification-toggle" type="checkbox" data-basedir-id="' +
     entry.id +
-    '" aria-label="Monitor notifications for basedir" onchange="toggleNotificationBasedir(this)" /><button type="button" class="sidebar-toggle" aria-expanded="' +
+    '" aria-label="Monitor notifications for basedir" onchange="toggleNotificationBasedir(this)" />Monitor notifications</label></div><div class="sidebar-project-row basedir-row"><button type="button" class="sidebar-toggle" aria-expanded="' +
     (isExpanded ? "true" : "false") +
     '" aria-label="Toggle projects" onclick="toggleSidebarBasedir(this)"></button><a class="sidebar-project-link' +
     (isActive ? " active" : "") +
