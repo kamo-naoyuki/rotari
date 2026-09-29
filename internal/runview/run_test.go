@@ -24,7 +24,7 @@ func TestLoadRunResolvesSummaryStatuses(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := store.WriteJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{
-		RunID: "run-1",
+		RunID:   "run-1",
 		RunName: "experiment",
 		Results: []model.JobResult{
 			{ID: "failed", ExitCode: 1},

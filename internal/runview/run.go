@@ -52,7 +52,14 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (rundiff
 		attemptID, _ := state.LatestAttemptID(runDir, spec.ID)
 		origin := origins[spec.ID]
 		carried := origin != nil && (attemptID == "" || attemptID == origin.AttemptID)
-		run.Jobs = append(run.Jobs, rundiff.Job{Spec: spec, Status: status, Carried: carried})
+		diagnoses := make([]string, 0, len(summaryResult.Diagnoses))
+		for _, diagnosis := range summaryResult.Diagnoses {
+			diagnoses = append(diagnoses, diagnosis.Name)
+		}
+		run.Jobs = append(run.Jobs, rundiff.Job{
+			Spec: spec, Status: status, Carried: carried,
+			DiagnosisStatus: summaryResult.DiagnosisStatus, Diagnoses: diagnoses,
+		})
 	}
 	return run, nil
 }

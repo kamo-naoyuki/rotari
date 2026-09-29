@@ -96,6 +96,21 @@ func TestSummarizeCountsResolvedStatuses(t *testing.T) {
 	}
 }
 
+func TestSummarizeDiagnosesGroupsFailureReasons(t *testing.T) {
+	matched := job("matched", StatusFailed, "false")
+	matched.Diagnoses = []string{"OOM", "GPU"}
+	noMatch := job("no-match", StatusFailed, "false")
+	noMatch.DiagnosisStatus = model.DiagnosisNoMatch
+	success := job("success", StatusSuccess, "true")
+	success.Diagnoses = []string{"ignored"}
+	run := Run{Jobs: []Job{matched, noMatch, success}}
+	got := SummarizeDiagnoses(run)
+	want := []DiagnosisCount{{Name: "GPU", Count: 1}, {Name: "OOM", Count: 1}, {Name: model.DiagnosisNoMatch, Count: 1}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("diagnoses = %+v, want %+v", got, want)
+	}
+}
+
 func TestLineageCountsRunsAndChangesFromPrevious(t *testing.T) {
 	first := Run{ID: "run-1", Jobs: []Job{job("a", StatusFailed, "false"), job("b", StatusBlocked, "true")}}
 	second := Run{ID: "run-2", Jobs: []Job{job("a", StatusSuccess, "true"), job("b", StatusSuccess, "true"), job("c", StatusUnfinished, "true")}}

@@ -34,8 +34,10 @@ const (
 
 // Job is one expanded job of a run with its resolved result.
 type Job struct {
-	Spec   model.JobSpec
-	Status string
+	Spec            model.JobSpec
+	Status          string
+	DiagnosisStatus string
+	Diagnoses       []string
 	// Carried reports that the run reused an earlier result instead of
 	// executing the job.
 	Carried bool
@@ -271,8 +273,41 @@ type Counts struct {
 
 // RunSummary describes one run without comparing it to another run.
 type RunSummary struct {
-	Run    RunInfo `json:"run"`
-	Counts Counts  `json:"counts"`
+	Run       RunInfo          `json:"run"`
+	Counts    Counts           `json:"counts"`
+	Diagnoses []DiagnosisCount `json:"diagnoses,omitempty"`
+}
+
+// DiagnosisCount counts jobs grouped by their saved diagnosis name or status.
+type DiagnosisCount struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
+// SummarizeDiagnoses groups failed-job diagnoses, preserving no-match and
+// unavailable as explicit categories.
+func SummarizeDiagnoses(run Run) []DiagnosisCount {
+	counts := make(map[string]int)
+	for _, job := range run.Jobs {
+		if job.Status != StatusFailed && job.Status != StatusBlocked {
+			continue
+		}
+		if len(job.Diagnoses) > 0 {
+			for _, diagnosis := range job.Diagnoses {
+				counts[diagnosis]++
+			}
+			continue
+		}
+		if job.DiagnosisStatus != "" {
+			counts[job.DiagnosisStatus]++
+		}
+	}
+	result := make([]DiagnosisCount, 0, len(counts))
+	for name, count := range counts {
+		result = append(result, DiagnosisCount{Name: name, Count: count})
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return result
 }
 
 // LineageEntry describes one run in a project's run sequence. Changes
