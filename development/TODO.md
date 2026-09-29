@@ -68,6 +68,18 @@ followed across runs; and runs are listed twice, by `show -p` (status and
 times) and by `show --lineage` (counts and changes). The first two matter
 most.
 
+#### Integration plan
+
+| Phase | Scope | Deliverables | Exit criteria | Status |
+| --- | --- | --- | --- | --- |
+| 0. Shared summary | Make one-run counts reusable by both lineage and comparison views. | Export `rundiff.Summarize`; keep `Lineage` on that path; add unit coverage. | Existing `diff` and `show --lineage` tests pass without output changes. | Done (`bfd47f8`) |
+| 1. Run view model | Separate run loading, one-run summary, and adjacent-run comparison from CLI rendering. | A shared loaded-run/summary boundary in `internal/rundiff` or a small read-side package; explicit handling for missing or active runs. | `diff` and lineage use the same loaded data and summary objects; no duplicated status resolution. | Next |
+| 2. Command shape | Decide the replacement command and compatibility period before changing the CLI. | Specify project, one-run, and two-run forms; retain `diff` and `show --lineage` as compatibility aliases during migration. | CLI help, positional ambiguity, `--json`, and error cases are covered by tests. | Planned |
+| 3. Unified human/JSON output | Present one-run improvement and two-run comparison from the same result model. | Result counts, elapsed time, fixed/still failing/newly failing/changed/carried counts, and stable JSON fields. | One command can list generations, summarize one run, and compare two runs; old aliases produce equivalent results. | Planned |
+| 4. Provenance and diagnosis | Add origin-aware comparison and aggregate failure diagnoses. | Per-job origin breakdown; diagnosis rows crossed with transition classification; explicit no-match/unavailable rows. | Mixed-origin `copy --append`, missing origins, and unavailable diagnoses do not invent a parent or a match. | Planned |
+| 5. Run lifecycle and Web | Reuse the summary after `run`/`wait` and on the Web run page. | Shared summary projection and focused CLI/Web tests. | Finished runs show the same summary in CLI and Web; active/interrupted runs remain well-defined. | Planned |
+| 6. Contract and docs | Make the new semantics durable and document migration. | Contract IDs, conformance coverage, `docs/INSPECT.md`, CLI reference, and removal criteria for aliases. | Conformance, generated docs, and full checks pass before aliases are removed. | Planned |
+
 - Consider one command for runs as generations, replacing `show --lineage`
   and absorbing `diff`, which share `internal/rundiff`: with a project it
   lists the generations, one summary line per run; with one run it prints
