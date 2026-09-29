@@ -1,6 +1,9 @@
 package diagnose
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestDiagnoseDefaultNormalizesAndMatchesKnownErrors(t *testing.T) {
 	tests := []struct {
@@ -147,5 +150,35 @@ func TestDiagnoseDefaultCitesLatestMatchingLine(t *testing.T) {
 	diagnoses := DiagnoseDefault(Job{Log: "dial tcp 10.0.0.1:80: connection refused\nretrying\ndial tcp 10.0.0.2:80: connection refused"})
 	if len(diagnoses) != 1 || diagnoses[0].Evidence != "dial tcp 10.0.0.2:80: connection refused" {
 		t.Fatalf("DiagnoseDefault() = %#v, want latest matching line as evidence", diagnoses)
+	}
+}
+
+func TestDefaultRuleIDsAreUnique(t *testing.T) {
+	seen := make(map[string]string)
+	for _, rule := range DefaultRules() {
+		id := RuleID(rule)
+		if id == "" {
+			t.Fatalf("rule %q has an empty ID", rule.Name)
+		}
+		if previous, ok := seen[id]; ok {
+			t.Fatalf("rules %q and %q share ID %q", previous, rule.Name, id)
+		}
+		seen[id] = rule.Name
+	}
+}
+
+func TestResolveAndMatchRuleSelectors(t *testing.T) {
+	if err := ResolveRuleSelectors([]string{"cuda-gpu-memory-exhausted", "python IMPORT"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ResolveRuleSelectors([]string{"not-a-diagnosis"}); err == nil {
+		t.Fatal("unknown diagnosis was accepted")
+	}
+	exitCode := 1
+	if !MatchesRuleSelectors([]string{"cuda-gpu-memory-exhausted"}, Job{ExitCode: &exitCode, Log: "CUDA out of memory"}) {
+		t.Fatal("diagnosis slug did not match current rules")
+	}
+	if !MatchesRuleSelectors([]string{strings.ToLower("memory exhausted")}, Job{ExitCode: &exitCode, Log: "CUDA out of memory"}) {
+		t.Fatal("diagnosis name substring did not match")
 	}
 }

@@ -897,9 +897,15 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		if filter.selection != "" && !model.ResultSelectionMatches(filter.selection, statusOK, status) {
 			continue
 		}
+		jobResult, hasJobResult := resolved.Result(jobSpec)
 		if len(filter.filter.ExitCodes) > 0 || len(filter.filter.FailureKinds) > 0 {
-			jobResult, ok := resolved.Result(jobSpec)
-			if !ok || !filter.filter.MatchesResult(jobResult, statusOK) {
+			if !hasJobResult || !filter.filter.MatchesResult(jobResult, statusOK) {
+				continue
+			}
+		}
+		if len(filter.filter.Diagnoses) > 0 {
+			log, err := readJobDiagnosisLog(jobDir)
+			if err != nil || !hasJobResult || !filter.filter.MatchesDiagnosis(jobResult, log) {
 				continue
 			}
 		}
@@ -952,6 +958,16 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	printFailedLogHints(runID, changeHints, resultByID)
 	fmt.Printf("\n%s\n  rotari delete -r %s\n", cyan("To delete this run's saved logs:"), runID)
 	return 0
+}
+
+func readJobDiagnosisLog(jobDir string) (string, error) {
+	for _, name := range []string{"output", state.StdoutFileName, state.StderrFileName} {
+		data, err := os.ReadFile(filepath.Join(jobDir, name))
+		if err == nil {
+			return string(data), nil
+		}
+	}
+	return "", os.ErrNotExist
 }
 
 func printFailedLogHints(runID string, failedJobs []model.JobSpec, results map[string]model.JobResult) {

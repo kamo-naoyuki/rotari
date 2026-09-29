@@ -19,6 +19,7 @@ type Run struct {
 	// Timestamps returns a job's submitted and finished times in the run.
 	Timestamps func(jobID string) (submittedAt, finishedAt string)
 	Attributes func(jobID string) jobfilter.Attributes
+	Log        func(jobID string) (string, error)
 }
 
 // Attempt selects one attempt of a job in the source run. Callers check that
@@ -194,6 +195,18 @@ func selectCommands(source Run, selection string, inScope func(model.QueuedComma
 		}
 		if !filter.MatchesAttributes(attributes) {
 			include = false
+		}
+		if len(filter.Diagnoses) > 0 {
+			log := ""
+			var logErr error
+			if source.Log != nil {
+				log, logErr = source.Log(command.ID)
+			} else {
+				logErr = errors.New("job log unavailable")
+			}
+			if logErr != nil || !filter.MatchesDiagnosis(result, log) {
+				include = false
+			}
 		}
 		include = include && inScope(command)
 		if requested[command.ID] {

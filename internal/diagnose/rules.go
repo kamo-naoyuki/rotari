@@ -1,6 +1,7 @@
 package diagnose
 
 import (
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -13,6 +14,84 @@ type Rule struct {
 	Patterns   []*regexp.Regexp
 	Excludes   []*regexp.Regexp
 	Suggestion string
+}
+
+// RuleID returns a stable selector ID derived from the public rule name.
+func RuleID(rule Rule) string {
+	value := strings.ToLower(rule.Name)
+	var builder strings.Builder
+	separator := false
+	for _, character := range value {
+		if character >= 'a' && character <= 'z' || character >= '0' && character <= '9' {
+			builder.WriteRune(character)
+			separator = false
+			continue
+		}
+		if builder.Len() > 0 {
+			separator = true
+		}
+		if separator && !strings.HasSuffix(builder.String(), "-") {
+			builder.WriteByte('-')
+		}
+	}
+	return strings.Trim(builder.String(), "-")
+}
+
+// ResolveRuleSelectors validates diagnosis filter values. A slug ID is
+// preferred; otherwise the display name is matched case-insensitively as a
+// substring.
+func ResolveRuleSelectors(values []string) error {
+	rules := DefaultRules()
+	ids := map[string]bool{"python-exception": true}
+	for _, rule := range rules {
+		ids[RuleID(rule)] = true
+	}
+	for _, value := range values {
+		lower := strings.ToLower(value)
+		if lower == "" {
+			return fmt.Errorf("diagnosis cannot be empty")
+		}
+		if ids[lower] {
+			continue
+		}
+		matched := lower == "python exception"
+		for _, rule := range rules {
+			matched = matched || strings.Contains(strings.ToLower(rule.Name), lower)
+		}
+		if !matched {
+			return fmt.Errorf("unknown diagnosis %q", value)
+		}
+	}
+	return nil
+}
+
+// MatchesRuleSelectors recomputes diagnosis using the current default rules
+// and reports whether any diagnosis matches a requested selector.
+func MatchesRuleSelectors(selectors []string, job Job) bool {
+	if job.ExitCode == nil || *job.ExitCode == 0 || len(selectors) == 0 {
+		return false
+	}
+	for _, diagnosis := range DiagnoseDefault(job) {
+		name := strings.ToLower(diagnosis.Name)
+		id := name
+		if name == "python exception" {
+			id = "python-exception"
+		} else {
+			for _, rule := range DefaultRules() {
+				if strings.EqualFold(rule.Name, diagnosis.Name) {
+					id = RuleID(rule)
+					break
+				}
+			}
+		}
+		for _, selector := range selectors {
+			lower := strings.ToLower(selector)
+			if lower == id || strings.Contains(name, lower) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 var (

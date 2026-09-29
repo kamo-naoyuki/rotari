@@ -83,6 +83,7 @@ Execute queued commands, optionally selecting jobs from a run.
 | `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `filter_diagnosis` | `Sequence[str]` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `filter_host` | `Sequence[str]` | select jobs run on a matching host; may be repeated |
 | `filter_started_after` | `str` | select jobs started at or after this time |
 | `filter_started_before` | `str` | select jobs started before this time |
@@ -137,6 +138,7 @@ Run failed and unfinished jobs; with --job-id, run those jobs.
 | `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `filter_diagnosis` | `Sequence[str]` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `filter_host` | `Sequence[str]` | select jobs run on a matching host; may be repeated |
 | `filter_started_after` | `str` | select jobs started at or after this time |
 | `filter_started_before` | `str` | select jobs started before this time |
@@ -209,6 +211,7 @@ Show queue or run status.
 | `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `filter_diagnosis` | `Sequence[str]` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `filter_host` | `Sequence[str]` | select jobs run on a matching host; may be repeated |
 | `filter_started_after` | `str` | select jobs started at or after this time |
 | `filter_started_before` | `str` | select jobs started before this time |

@@ -175,6 +175,11 @@ heading in `--help`.
   together with them, the results combine with OR.
 - `--filter-exit-code N` matches jobs whose resolved exit code equals N; repeated values combine with OR.
 - `--filter-failure-kind KIND` matches jobs whose result falls into one of the failure kinds (`timeout`, `cancelled`, `blocked`, `oom`, `signal`, `error`); repeated values combine with OR.
+- `--filter-diagnosis VALUE` recomputes the latest attempt's diagnosis with
+  the current rules and matches failed jobs. A rule slug ID is matched first;
+  otherwise VALUE is a case-insensitive substring of the rule name. Repeated
+  values combine with OR. Saved diagnoses and unavailable/no-match outcomes do
+  not match.
 - `--filter-host PATTERN` matches jobs whose latest attempt ran on a host
   matching the `path.Match` glob; repeated patterns combine with OR.
 - `--filter-started-after`, `--filter-started-before`,

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -30,6 +31,7 @@ func jobFilterFlagSpecs(results bool) []cliFlagSpec {
 	return append(specs,
 		cliFlagSpec{Name: "filter-exit-code", Description: "select jobs with this exit code; may be repeated", ValueName: "N", Repeated: true, CommandLineOnly: true},
 		cliFlagSpec{Name: "filter-failure-kind", Description: "select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error", ValueName: "KIND", Values: jobstatus.FailureKindValues(), Repeated: true, CommandLineOnly: true},
+		cliFlagSpec{Name: "filter-diagnosis", Description: "select failed jobs matching a current diagnosis rule; may be repeated", ValueName: "VALUE", Repeated: true, CommandLineOnly: true},
 		cliFlagSpec{Name: "filter-host", Description: "select jobs run on a matching host; may be repeated", ValueName: "PATTERN", Repeated: true, CommandLineOnly: true},
 		cliFlagSpec{Name: "filter-started-after", Description: "select jobs started at or after this time", ValueName: "TIME", CommandLineOnly: true},
 		cliFlagSpec{Name: "filter-started-before", Description: "select jobs started before this time", ValueName: "TIME", CommandLineOnly: true},
@@ -55,6 +57,7 @@ type jobFilterOptions struct {
 	command                       *string
 	exitCodes                     *intSliceFlag
 	failureKinds                  *failureKindFlag
+	diagnoses                     diagnosisFlag
 	hosts                         stringSliceFlag
 	startedAfter, startedBefore   *timeFlag
 	finishedAfter, finishedBefore *timeFlag
@@ -80,6 +83,7 @@ func cliJobFilterOptions(fs *flag.FlagSet, results bool) *jobFilterOptions {
 	fs.Var(options.exitCodes, "filter-exit-code", "select jobs with this exit code; may be repeated")
 	options.failureKinds = new(failureKindFlag)
 	fs.Var(options.failureKinds, "filter-failure-kind", "select jobs of this failure kind; may be repeated")
+	cliValue(fs, &options.diagnoses, "filter-diagnosis")
 	cliValue(fs, &options.hosts, "filter-host")
 	options.startedAfter = new(timeFlag)
 	fs.Var(options.startedAfter, "filter-started-after", "select jobs started at or after this time")
@@ -157,7 +161,7 @@ func (options *jobFilterOptions) filter() jobfilter.Filter {
 	if options.failureKinds != nil {
 		failureKinds = append([]string(nil), (*options.failureKinds)...)
 	}
-	filter := jobfilter.Filter{NotStages: options.notStages, NotMatrices: options.notMatrices, Command: pattern, ExitCodes: exitCodes, FailureKinds: failureKinds, Hosts: append([]string(nil), options.hosts...)}
+	filter := jobfilter.Filter{NotStages: options.notStages, NotMatrices: options.notMatrices, Command: pattern, ExitCodes: exitCodes, FailureKinds: failureKinds, Diagnoses: append([]string(nil), options.diagnoses...), Hosts: append([]string(nil), options.hosts...)}
 	if options.startedAfter.set {
 		filter.StartedAfter = &options.startedAfter.value
 	}
@@ -208,6 +212,23 @@ func (flag *failureKindFlag) String() string {
 		return ""
 	}
 	return strings.Join(*flag, ",")
+}
+
+type diagnosisFlag []string
+
+func (flag *diagnosisFlag) String() string {
+	if flag == nil {
+		return ""
+	}
+	return strings.Join(*flag, ",")
+}
+
+func (flag *diagnosisFlag) Set(value string) error {
+	if err := diagnose.ResolveRuleSelectors([]string{value}); err != nil {
+		return err
+	}
+	*flag = append(*flag, value)
+	return nil
 }
 
 type timeFlag struct {

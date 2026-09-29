@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
@@ -25,6 +26,7 @@ type Filter struct {
 	Command        string        `json:"command,omitempty"`
 	ExitCodes      []int         `json:"exit_codes,omitempty"`
 	FailureKinds   []string      `json:"failure_kinds,omitempty"`
+	Diagnoses      []string      `json:"diagnoses,omitempty"`
 	Hosts          []string      `json:"hosts,omitempty"`
 	StartedAfter   *time.Time    `json:"started_after,omitempty"`
 	StartedBefore  *time.Time    `json:"started_before,omitempty"`
@@ -59,7 +61,17 @@ func ParseTimestamp(value string) (time.Time, error) {
 
 // Empty reports whether no condition is set.
 func (filter Filter) Empty() bool {
-	return len(filter.NotStages) == 0 && len(filter.NotMatrices) == 0 && filter.Command == "" && len(filter.ExitCodes) == 0 && len(filter.FailureKinds) == 0 && len(filter.Hosts) == 0 && filter.StartedAfter == nil && filter.StartedBefore == nil && filter.FinishedAfter == nil && filter.FinishedBefore == nil && filter.LongerThan == 0 && filter.ShorterThan == 0
+	return len(filter.NotStages) == 0 && len(filter.NotMatrices) == 0 && filter.Command == "" && len(filter.ExitCodes) == 0 && len(filter.FailureKinds) == 0 && len(filter.Diagnoses) == 0 && len(filter.Hosts) == 0 && filter.StartedAfter == nil && filter.StartedBefore == nil && filter.FinishedAfter == nil && filter.FinishedBefore == nil && filter.LongerThan == 0 && filter.ShorterThan == 0
+}
+
+// MatchesDiagnosis recomputes the current diagnosis rules against a failed
+// result's log. Saved diagnoses are intentionally ignored.
+func (filter Filter) MatchesDiagnosis(result model.JobResult, log string) bool {
+	if len(filter.Diagnoses) == 0 || result.ExitCode == 0 {
+		return false
+	}
+	exitCode := result.ExitCode
+	return diagnose.MatchesRuleSelectors(filter.Diagnoses, diagnose.Job{ExitCode: &exitCode, Error: result.Error, Log: log})
 }
 
 // MatchesAttributes reports whether execution attributes satisfy the filter.

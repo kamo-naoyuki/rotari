@@ -116,6 +116,19 @@ func TestExecutionFiltersAreParsed(t *testing.T) {
 	}
 }
 
+func TestFilterDiagnosisIsParsedAndValidated(t *testing.T) {
+	options, err := parseJobFilterOptions(t, "show", "--filter-diagnosis", "cuda-gpu-memory-exhausted", "--filter-diagnosis", "Python IMPORT")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := options.filter().Diagnoses; !reflect.DeepEqual(got, []string{"cuda-gpu-memory-exhausted", "Python IMPORT"}) {
+		t.Fatalf("diagnoses = %#v", got)
+	}
+	if _, err := parseJobFilterOptions(t, "show", "--filter-diagnosis", "unknown-rule"); err == nil {
+		t.Fatal("unknown diagnosis was accepted")
+	}
+}
+
 func TestHelpListsFilterOptionsUnderTheirOwnHeading(t *testing.T) {
 	fs := flag.NewFlagSet("show", flag.ContinueOnError)
 	var output strings.Builder

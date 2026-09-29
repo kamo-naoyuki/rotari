@@ -12,7 +12,10 @@ whole words, and status codes only in an HTTP or status context such as
 names do not match. Rules are deliberately narrow: no match means rotari has no
 rule-based conclusion, not that the job has no diagnosable cause.
 
-Each recognized diagnosis cites the latest line that matches it as evidence.
+Each recognized diagnosis has a stable selector ID formed from its name as a
+lowercase hyphenated slug (for example, `cuda-gpu-memory-exhausted`). The ID
+is used by `--filter-diagnosis`; the display name remains the human-facing
+label. Each recognized diagnosis cites the latest line that matches it as evidence.
 Diagnoses are listed from the latest evidence to the earliest, so the first one
 is usually closest to the failure; earlier entries may come from warnings the
 job recovered from. The scheduler error is recorded after the job output and is

@@ -342,6 +342,10 @@
           ]
         },
         {
+          "name": "filter-diagnosis",
+          "value_name": "VALUE"
+        },
+        {
           "name": "filter-host",
           "value_name": "PATTERN"
         },
@@ -510,6 +514,10 @@
           ]
         },
         {
+          "name": "filter-diagnosis",
+          "value_name": "VALUE"
+        },
+        {
           "name": "filter-host",
           "value_name": "PATTERN"
         },
@@ -662,6 +670,10 @@
             "signal",
             "error"
           ]
+        },
+        {
+          "name": "filter-diagnosis",
+          "value_name": "VALUE"
         },
         {
           "name": "filter-host",
@@ -1036,6 +1048,10 @@
           ]
         },
         {
+          "name": "filter-diagnosis",
+          "value_name": "VALUE"
+        },
+        {
           "name": "filter-host",
           "value_name": "PATTERN"
         },
@@ -1272,6 +1288,10 @@
           ]
         },
         {
+          "name": "filter-diagnosis",
+          "value_name": "VALUE"
+        },
+        {
           "name": "filter-host",
           "value_name": "PATTERN"
         },
@@ -1481,6 +1501,10 @@
             "signal",
             "error"
           ]
+        },
+        {
+          "name": "filter-diagnosis",
+          "value_name": "VALUE"
         },
         {
           "name": "filter-host",

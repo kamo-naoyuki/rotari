@@ -160,6 +160,7 @@ Usage: `rotari change <command ...>`
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-diagnosis` | `VALUE (repeatable)` | `` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
 | `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
 | `--filter-started-before` | `TIME` | `` | select jobs started before this time |
@@ -221,6 +222,7 @@ Usage: `rotari remove [JOB_ID ...]`
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-diagnosis` | `VALUE (repeatable)` | `` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
 | `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
 | `--filter-started-before` | `TIME` | `` | select jobs started before this time |
@@ -266,6 +268,7 @@ Usage: `rotari show [SELECTOR]`
 | `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-diagnosis` | `VALUE (repeatable)` | `` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
 | `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
 | `--filter-started-before` | `TIME` | `` | select jobs started before this time |
@@ -395,6 +398,7 @@ Usage: `rotari copy [RUN_ID]`
 | `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-diagnosis` | `VALUE (repeatable)` | `` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
 | `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
 | `--filter-started-before` | `TIME` | `` | select jobs started before this time |
@@ -455,6 +459,7 @@ Usage: `rotari run [RUN_ID]`
 | `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-diagnosis` | `VALUE (repeatable)` | `` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
 | `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
 | `--filter-started-before` | `TIME` | `` | select jobs started before this time |
@@ -509,6 +514,7 @@ Usage: `rotari retry [RUN_ID]`
 | `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-diagnosis` | `VALUE (repeatable)` | `` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
 | `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
 | `--filter-started-before` | `TIME` | `` | select jobs started before this time |

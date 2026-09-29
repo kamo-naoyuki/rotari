@@ -33,6 +33,10 @@ type OriginAttributes interface {
 	Attributes(origin model.JobOrigin) (jobfilter.Attributes, error)
 }
 
+type OriginLogs interface {
+	Log(origin model.JobOrigin) (string, error)
+}
+
 // PlanRerun decides which of the queue's jobs a new run executes.
 //
 // Without a selection every command executes. With a selection only
@@ -181,6 +185,21 @@ func (resolver *originResolver) attributes(origin *model.JobOrigin, jobID string
 	return provider.Attributes(*origin)
 }
 
+func (resolver *originResolver) diagnosisMatches(filter jobfilter.Filter, result model.JobResult, origin *model.JobOrigin, jobID string) bool {
+	if len(filter.Diagnoses) == 0 {
+		return true
+	}
+	provider, ok := resolver.source.(OriginLogs)
+	if !ok {
+		return false
+	}
+	if origin == nil {
+		origin = &model.JobOrigin{RunID: resolver.fallbackRunID, JobID: jobID}
+	}
+	log, err := provider.Log(*origin)
+	return err == nil && filter.MatchesDiagnosis(result, log)
+}
+
 // jobResult returns the result of a job or task of command: the one its
 // origin or the reference run records, as its marked status leaves it.
 func (resolver *originResolver) jobResult(command model.QueuedCommand, origin *model.JobOrigin, id string) (model.JobResult, bool, error) {
@@ -264,7 +283,7 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 				default:
 					matchSelection = model.ResultSelectionMatches(selection, finished, result.ExitCode)
 				}
-				if matchTasks && scoped && matchSelection && filter.MatchesAttributes(attributes) {
+				if matchTasks && scoped && matchSelection && filter.MatchesAttributes(attributes) && resolver.diagnosisMatches(filter, result, origin, id) {
 					plan.Execute[id] = true
 					continue
 				}
@@ -296,7 +315,7 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 			default:
 				matchSelection = model.ResultSelectionMatches(selection, finished, result.ExitCode)
 			}
-			include = include || (scoped && matchSelection && filter.MatchesAttributes(attributes))
+			include = include || (scoped && matchSelection && filter.MatchesAttributes(attributes) && resolver.diagnosisMatches(filter, result, command.Origin, command.ID))
 		}
 		if hasResultFilters && !filter.MatchesResult(result, finished) {
 			include = false

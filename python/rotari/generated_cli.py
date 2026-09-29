@@ -297,6 +297,11 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'generate a config fi
                                      'oom',
                                      'signal',
                                      'error']},
+                         {'description': 'select failed jobs matching a current '
+                                         'diagnosis rule; may be repeated',
+                          'name': 'filter-diagnosis',
+                          'repeated': True,
+                          'value_name': 'VALUE'},
                          {'description': 'select jobs run on a matching host; may be '
                                          'repeated',
                           'name': 'filter-host',
@@ -446,6 +451,11 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'generate a config fi
                                      'oom',
                                      'signal',
                                      'error']},
+                         {'description': 'select failed jobs matching a current '
+                                         'diagnosis rule; may be repeated',
+                          'name': 'filter-diagnosis',
+                          'repeated': True,
+                          'value_name': 'VALUE'},
                          {'description': 'select jobs run on a matching host; may be '
                                          'repeated',
                           'name': 'filter-host',
@@ -586,6 +596,11 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'generate a config fi
                                      'oom',
                                      'signal',
                                      'error']},
+                         {'description': 'select failed jobs matching a current '
+                                         'diagnosis rule; may be repeated',
+                          'name': 'filter-diagnosis',
+                          'repeated': True,
+                          'value_name': 'VALUE'},
                          {'description': 'select jobs run on a matching host; may be '
                                          'repeated',
                           'name': 'filter-host',
@@ -934,6 +949,11 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'generate a config fi
                                      'oom',
                                      'signal',
                                      'error']},
+                         {'description': 'select failed jobs matching a current '
+                                         'diagnosis rule; may be repeated',
+                          'name': 'filter-diagnosis',
+                          'repeated': True,
+                          'value_name': 'VALUE'},
                          {'description': 'select jobs run on a matching host; may be '
                                          'repeated',
                           'name': 'filter-host',
@@ -1173,6 +1193,11 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'generate a config fi
                                      'oom',
                                      'signal',
                                      'error']},
+                         {'description': 'select failed jobs matching a current '
+                                         'diagnosis rule; may be repeated',
+                          'name': 'filter-diagnosis',
+                          'repeated': True,
+                          'value_name': 'VALUE'},
                          {'description': 'select jobs run on a matching host; may be '
                                          'repeated',
                           'name': 'filter-host',
@@ -1384,6 +1409,11 @@ CLI_SCHEMA: dict[str, Any] = {'commands': [{'description': 'generate a config fi
                                      'oom',
                                      'signal',
                                      'error']},
+                         {'description': 'select failed jobs matching a current '
+                                         'diagnosis rule; may be repeated',
+                          'name': 'filter-diagnosis',
+                          'repeated': True,
+                          'value_name': 'VALUE'},
                          {'description': 'select jobs run on a matching host; may be '
                                          'repeated',
                           'name': 'filter-host',

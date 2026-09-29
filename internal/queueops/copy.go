@@ -63,6 +63,19 @@ func (editor Editor) Copy(baseDir, projectName, runID string, request queueedit.
 				finishedAt, _ := jobfilter.ParseTimestamp(state.ReadJobTimestamp(sourceRunDir, jobID, "finished_at"))
 				return jobfilter.Attributes{Hosts: status.Hosts, StartedAt: startedAt, FinishedAt: finishedAt, Now: time.Now()}
 			},
+			Log: func(jobID string) (string, error) {
+				jobDir, err := state.LatestAttemptJobDir(sourceRunDir, jobID)
+				if err != nil {
+					return "", err
+				}
+				for _, name := range []string{"output", state.StdoutFileName, state.StderrFileName} {
+					data, readErr := os.ReadFile(filepath.Join(jobDir, name))
+					if readErr == nil {
+						return string(data), nil
+					}
+				}
+				return "", os.ErrNotExist
+			},
 		}
 		if context, contextErr := state.LoadContext(editor.Store, sourceRunDir); contextErr == nil {
 			source.CWD = context.CWD
