@@ -19,7 +19,7 @@
   environment variable or requesting a larger GPU through executor options
   after `CUDA out of memory`; or do not retry deterministic failures such as
   `ImportError`. rotari should not guess the changed settings. Each attempt's
-  settings must be recorded so `show`, `diff`, and the Web UI's per-job
+  settings must be recorded so `show`, `lineage`, and the Web UI's per-job
   attempt history can show what changed between attempts.
 - Consider concurrency limits for a named group of jobs (for example "at most
   four GPU jobs at once"). Limits are per executor today.
@@ -62,28 +62,27 @@ when a job requires a file another job produces but does not depend on it.
 ### Runs as experiment versions
 
 What is missing today: `show RUN` describes a run on its own, so whether the
-last fix worked needs a separate `diff`; rule-based diagnoses are per attempt,
+last fix worked needs a separate `lineage` comparison; rule-based diagnoses are per attempt,
 so the causes of a run's failures cannot be seen together; one job cannot be
 followed across runs; and runs are listed twice, by `show -p` (status and
-times) and by `show --lineage` (counts and changes). The first two matter
+times) and by `lineage` (counts and changes). The first two matter
 most.
 
 #### Integration plan
 
 | Phase | Scope | Deliverables | Exit criteria | Status |
 | --- | --- | --- | --- | --- |
-| 0. Shared summary | Make one-run counts reusable by both lineage and comparison views. | Export `rundiff.Summarize`; keep `Lineage` on that path; add unit coverage. | Existing `diff` and `show --lineage` tests pass without output changes. | Done (`bfd47f8`) |
+| 0. Shared summary | Make one-run counts reusable by both lineage and comparison views. | Export `rundiff.Summarize`; keep `Lineage` on that path; add unit coverage. | Existing comparison and lineage tests pass. | Done (`bfd47f8`) |
 | 1. Run view model | Separate run loading, one-run summary, and adjacent-run comparison from CLI rendering. | `internal/runview.LoadRun` owns persisted snapshot loading and status resolution; `internal/rundiff` remains file-free. | `diff` and lineage use the same loader and summary objects; no duplicated status resolution. | Done |
-| 2. Command shape | Make one command the entry point for history, one-run summaries, and comparisons. | `show --lineage`, with zero, one, or two run IDs; `diff` remains only as a temporary old entry point. | CLI help, positional ambiguity, `--json`, and error cases are covered by tests. | In progress |
-| 3. Unified human/JSON output | Present one-run improvement and two-run comparison from the same result model. | Result counts, elapsed time, fixed/still failing/newly failing/changed/carried counts, and stable JSON fields. | One command can list generations, summarize one run, and compare two runs; old aliases produce equivalent results. | Planned |
+| 2. Command shape | Make one command the entry point for history, one-run summaries, and comparisons. | `lineage`, with zero, one, or two run IDs; `show` remains the current-state view. | CLI help, positional ambiguity, `--json`, and error cases are covered by tests. | Done |
+| 3. Unified human/JSON output | Present one-run improvement and two-run comparison from the same result model. | Result counts, elapsed time, fixed/still failing/newly failing/changed/carried counts, and stable JSON fields. | `lineage` lists generations, summarizes one run, and compares two runs. | Done |
 | 4. Provenance and diagnosis | Add origin-aware comparison and aggregate failure diagnoses. | Per-job origin breakdown; diagnosis rows crossed with transition classification; explicit no-match/unavailable rows. | Mixed-origin `copy --append`, missing origins, and unavailable diagnoses do not invent a parent or a match. | Planned |
 | 5. Run lifecycle and Web | Reuse the summary after `run`/`wait` and on the Web run page. | Shared summary projection and focused CLI/Web tests. | Finished runs show the same summary in CLI and Web; active/interrupted runs remain well-defined. | Planned |
 | 6. Contract and docs | Make the new semantics durable and document migration. | Contract IDs, conformance coverage, `docs/INSPECT.md`, CLI reference, and removal criteria for aliases. | Conformance, generated docs, and full checks pass before aliases are removed. | Planned |
 
-- Consider one command for runs as generations, replacing `show --lineage`
-  and absorbing `diff`, which share `internal/rundiff`: with a project it
+- Consider expanding `lineage`, which shares `internal/rundiff`: with a project it
   lists the generations, one summary line per run; with one run it prints
-  that run's summary; with two runs it compares them as `diff` does. `show`
+  that run's summary; with two runs it compares them. `show`
   stays the view of current state. Avoid the name `log`, which clashes with
   `show --logs`.
 - The run summary should answer "did this generation improve on the last?"
@@ -96,7 +95,7 @@ most.
   `show RUN --failed` and the comparison view.
 - A run has no unique parent. `JobOrigin` is per job and is set by `copy` and
   `retry`, not `add`; `copy --append` from two runs mixes origins, and
-  `SourceRunID` is not saved. `diff` and `show --lineage` compare with the run
+  `SourceRunID` is not saved. `lineage` compares with the run
   that started just before, matching jobs by name. Prefer comparing each job
   with its origin job and treating jobs without one as new, so the summary is
   consistent without a run-level parent; show the origin breakdown (`from r4:
@@ -352,8 +351,8 @@ or may turn out not to be; decide before starting any of them.
   `ROTARI_CWD`). Candidates: the git commit and dirty state of that
   directory, the active conda or virtualenv, the host, and an allowlist of
   variables (for example `CUDA_VISIBLE_DEVICES`, `PYTHONPATH`). A hash of the
-  whole environment would let `diff` say that it changed without storing
-  secrets. Show differences between runs in `diff` and the run summary.
+  whole environment would let `lineage` say that it changed without storing
+  secrets. Show differences between runs in `lineage` and the run summary.
 - **Keep the script the center.** The normal use is to run a script of
   `rotari add` lines and read the history and logs afterwards; the queue is
   emptied after each run, so rerunning the script starts the next run.

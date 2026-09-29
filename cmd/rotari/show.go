@@ -100,7 +100,6 @@ func cmdShow(args []string) int {
 	jobIDOption := cliString(fs, "job-id", "")
 	jobNameOption := cliString(fs, "job-name", "")
 	filterOptions := cliJobFilterOptions(fs, queueRunJobFilters)
-	lineage := cliBool(fs, "lineage", false)
 	showBaseDirsList := cliBool(fs, "basedirs", false)
 	masterdir := cliString(fs, "masterdir", "")
 	showLogs := cliBool(fs, "logs", false)
@@ -133,28 +132,6 @@ func cmdShow(args []string) int {
 	failedOnly, unfinishedOnly, successOnly := filterOptions.resultFilters()
 	resultSelection := filterOptions.resultSelection()
 	resultFilter := resultSelection != ""
-	if *lineage {
-		if len(fs.Args()) > 2 {
-			printError("usage: " + cliUsage("show") + " [RUN_A] [RUN_B]")
-			return 1
-		}
-		if *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || resultFilter || narrowed ||
-			*showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *reportOutput {
-			printError("--lineage cannot be combined with run, job, queue, filter, list, log, follow, or report options")
-			return 1
-		}
-		baseDir, projectName, err := resolve.ExistingRun(*basedir, *queueNameOption, "")
-		if err != nil {
-			printError(err)
-			return 1
-		}
-		paths, err := state.ResolveProjectPaths(baseDir, projectName)
-		if err != nil {
-			printErrorf("failed to resolve paths: %v", err)
-			return 1
-		}
-		return showLineage(paths, fs.Args(), *jsonOutput)
-	}
 	if (unfinishedOnly || successOnly) && (*showLogs || *showFailedLogs || *followLogs || *reportOutput || *jsonOutput) {
 		printError("--unfinished and --success filter the job table; logs, reports, and JSON take --failed only")
 		return 1

@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +13,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-func TestCmdDiffComparesRunWithItsPredecessor(t *testing.T) {
+func TestCmdLineageListsSummarizesAndComparesRuns(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
@@ -48,40 +47,41 @@ func TestCmdDiffComparesRunWithItsPredecessor(t *testing.T) {
 	args := []string{"--basedir", baseDir, "--project-name", "demo"}
 
 	var output bytes.Buffer
-	code := captureShowStdout(t, &output, func() int { return cmdDiff(append(args, second)) })
+	code := captureShowStdout(t, &output, func() int { return cmdLineage(append(args, second)) })
 	text := output.String()
 	if code != 0 {
-		t.Fatalf("cmdDiff exit = %d, output:\n%s", code, text)
+		t.Fatalf("lineage summary exit = %d, output:\n%s", code, text)
 	}
-	for _, want := range []string{first + " -> " + second, "fixed 1", "train", "command: false -> true", "1 unchanged job(s) hidden"} {
+	for _, want := range []string{"Run: " + second, "Summary: jobs 2, succeeded 2"} {
 		if !strings.Contains(text, want) {
-			t.Fatalf("diff output does not contain %q:\n%s", want, text)
+			t.Fatalf("lineage output does not contain %q:\n%s", want, text)
 		}
 	}
 
 	output.Reset()
-	if code := captureShowStdout(t, &output, func() int { return cmdDiff(append(args, "--json", first, second)) }); code != 0 {
-		t.Fatalf("cmdDiff --json exit = %d", code)
+	code = captureShowStdout(t, &output, func() int { return cmdLineage(append(args, first, second)) })
+	text = output.String()
+	if code != 0 {
+		t.Fatalf("lineage comparison exit = %d, output:\n%s", code, text)
 	}
-	var result rundiff.Result
-	if err := json.Unmarshal(output.Bytes(), &result); err != nil {
-		t.Fatalf("diff JSON: %v\n%s", err, output.String())
-	}
-	if result.From.ID != first || result.To.ID != second || result.Summary.Fixed != 1 || len(result.Jobs) != 2 {
-		t.Fatalf("diff JSON = %+v", result)
+	for _, want := range []string{first + " -> " + second, "fixed 1", "train", "command: false -> true", "1 unchanged job(s) hidden"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("lineage comparison does not contain %q:\n%s", want, text)
+		}
 	}
 
 	output.Reset()
-	if code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--lineage")) }); code != 0 {
-		t.Fatalf("show --lineage exit = %d", code)
+	output.Reset()
+	if code := captureShowStdout(t, &output, func() int { return cmdLineage(args) }); code != 0 {
+		t.Fatalf("lineage exit = %d", code)
 	}
 	lineage := output.String()
 	if firstAt, secondAt := strings.Index(lineage, first), strings.Index(lineage, second); firstAt < 0 || secondAt < firstAt {
 		t.Fatalf("lineage does not list runs oldest first:\n%s", lineage)
 	}
 	output.Reset()
-	if code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--lineage", "--json")) }); code != 0 {
-		t.Fatalf("show --lineage --json exit = %d", code)
+	if code := captureShowStdout(t, &output, func() int { return cmdLineage(append(args, "--json")) }); code != 0 {
+		t.Fatalf("lineage --json exit = %d", code)
 	}
 	var entries []rundiff.LineageEntry
 	if err := json.Unmarshal(output.Bytes(), &entries); err != nil {
@@ -93,8 +93,8 @@ func TestCmdDiffComparesRunWithItsPredecessor(t *testing.T) {
 	}
 
 	output.Reset()
-	if code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--lineage", "--json", second)) }); code != 0 {
-		t.Fatalf("show --lineage RUN exit = %d", code)
+	if code := captureShowStdout(t, &output, func() int { return cmdLineage(append(args, "--json", second)) }); code != 0 {
+		t.Fatalf("lineage RUN exit = %d", code)
 	}
 	var single rundiff.RunSummary
 	if err := json.Unmarshal(output.Bytes(), &single); err != nil {
@@ -105,8 +105,8 @@ func TestCmdDiffComparesRunWithItsPredecessor(t *testing.T) {
 	}
 
 	output.Reset()
-	if code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--lineage", "--json", first, second)) }); code != 0 {
-		t.Fatalf("show --lineage RUN_A RUN_B exit = %d", code)
+	if code := captureShowStdout(t, &output, func() int { return cmdLineage(append(args, "--json", first, second)) }); code != 0 {
+		t.Fatalf("lineage RUN_A RUN_B exit = %d", code)
 	}
 	var unified rundiff.Result
 	if err := json.Unmarshal(output.Bytes(), &unified); err != nil {
@@ -116,19 +116,6 @@ func TestCmdDiffComparesRunWithItsPredecessor(t *testing.T) {
 		t.Fatalf("unified comparison = %+v", unified)
 	}
 
-	oldStderr := os.Stderr
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	os.Stderr = writer
-	code = cmdDiff(append(args, first))
-	os.Stderr = oldStderr
-	_ = writer.Close()
-	stderr, _ := io.ReadAll(reader)
-	if code != 1 || !strings.Contains(string(stderr), "no earlier run") {
-		t.Fatalf("diff of the first run exit = %d, stderr = %q", code, stderr)
-	}
 }
 
 func TestFirstNonEmpty(t *testing.T) {

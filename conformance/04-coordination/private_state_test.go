@@ -345,7 +345,7 @@ func TestReadingHistoryDoesNotRewriteIt(t *testing.T) {
 		{"show", attemptID},
 		{"show", "-p", "p", "--run-id", first, "--report"},
 		{"jobs", "p"},
-		{"diff", first, second},
+		{"lineage", first, second},
 		{"export", first},
 		{"wait", first},
 		{"copy", "-p", "p", "--run-id", first, "--overwrite"},

@@ -70,36 +70,26 @@ When output is a terminal, log views (including `--job-id/-j`) longer than 24
 lines open in `$PAGER` (or `less -R` by default). Use `--no-pager` to print
 directly; piped and redirected output is always printed directly.
 
-### Compare runs
+### Run lineage
 
-Use `diff` after a fix-and-rerun cycle to see what changed and whether it
-worked:
-
-```sh
-rotari diff -p sweep            # the latest run against the one before it
-rotari diff -p sweep RUN_ID     # RUN_ID against the run before it
-rotari diff RUN_A RUN_B         # two specific runs of one project
-rotari diff -p sweep --json     # machine-readable comparison
-```
-
-Use `show --lineage` as the run history and comparison view. With no run IDs,
-it shows the whole sequence oldest first:
+Use `lineage` as the run history and comparison view. With no run IDs, it
+shows the whole sequence oldest first:
 
 ```sh
-rotari show -p sweep --lineage
-rotari show -p sweep --lineage --json
+rotari lineage -p sweep
+rotari lineage -p sweep --json
 ```
 
 With one run ID it shows that run's summary. With two run IDs it compares
 them:
 
 ```sh
-rotari show -p sweep --lineage RUN_ID
-rotari show -p sweep --lineage RUN_A RUN_B
-rotari show -p sweep --lineage --json RUN_A RUN_B
+rotari lineage -p sweep RUN_ID
+rotari lineage -p sweep RUN_A RUN_B
+rotari lineage -p sweep --json RUN_A RUN_B
 ```
 
-`diff` summarizes jobs that were fixed, are still failing, or newly fail; jobs
+`lineage` summarizes jobs that were fixed, are still failing, or newly fail; jobs
 added or removed; jobs whose command, executor, executor options, environment,
 working directory, stage, or dependencies changed; and jobs whose result was
 carried forward instead of re-executed. Jobs are matched by name, or by job ID

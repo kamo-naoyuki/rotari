@@ -710,9 +710,6 @@
           "value_name": "NAME"
         },
         {
-          "name": "lineage"
-        },
-        {
           "name": "logs"
         },
         {
@@ -837,12 +834,9 @@
         },
         {
           "name": "json"
-        },
-        {
-          "name": "unchanged"
         }
       ],
-      "name": "diff"
+      "name": "lineage"
     },
     {
       "flags": [

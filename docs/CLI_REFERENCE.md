@@ -281,7 +281,6 @@ Usage: `rotari show [SELECTOR]`
 | `--success` | `` | `` | show successful jobs; may be combined with the other result filters |
 | `--stage` | `NAME` | `` | show jobs in this stage only |
 | `--matrix` | `NAME` | `` | show jobs of this matrix only, named by its base job name |
-| `--lineage` | `` | `` | list the project's runs oldest first with result counts and changes since the previous run |
 | `--logs` | `` | `` | print output logs for all jobs |
 | `--failed-logs` | `` | `` | print output logs for failed jobs |
 | `--stream` | `STREAM` | `` | show both streams or select stdout/stderr |
@@ -309,18 +308,17 @@ Usage: `rotari show [SELECTOR]`
 | `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
 | `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
 
-### `rotari diff`
+### `rotari lineage`
 
-compare job results and definitions between two runs
+list runs, summarize one run, or compare two runs
 
-Usage: `rotari diff [[RUN_A] RUN_B]`
+Usage: `rotari lineage [[RUN_A] RUN_B]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
-| `--json` | `` | `` | print the comparison as JSON |
-| `--unchanged` | `` | `` | also list jobs whose result and definition did not change |
+| `--json` | `` | `` | print the lineage, summary, or comparison as JSON |
 
 ### `rotari jobs`
 

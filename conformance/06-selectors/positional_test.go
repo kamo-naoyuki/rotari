@@ -46,7 +46,7 @@ const (
 var positionalCases = []positionalCase{
 	// General rules.
 	{name: "option after a positional", args: "copy {run:remote-run} --overwrite", want: "copied jobs=1 from run={run:remote-run} to queue=remote"},
-	{name: "option between positionals", args: "diff {run:sweep-first} --unchanged {run:sweep-second}", want: "train-SEED1"},
+	{name: "option between positionals", args: "lineage {run:sweep-first} --json {run:sweep-second}", want: `"run_id": "{run:sweep-second}"`},
 	{name: "positional after --", args: "show -b {B} -p sweep -- --job-id", fail: true, want: `selector "--job-id" not found`},
 	{name: "job command after its first word", args: "add -b {B} -p other echo --retry 3", check: hasQueuedCommand("other", "echo --retry 3")},
 	{name: "two runs", args: "run -b {B} -p sweep {run:sweep-first} {run:sweep-second}", fail: true, want: "usage"},
@@ -109,14 +109,13 @@ var positionalCases = []positionalCase{
 	{name: "run ID and every run", args: "delete -b {B} -p sweep --all {run:sweep-first}", fail: true, want: "or --all to delete every run"},
 	{name: "run ID and option", args: "copy -b {B} -p sweep --run-id {run:sweep-first} {run:sweep-first}", fail: true, want: "usage"},
 
-	// diff: none, one, or two runs.
-	{name: "no run", args: "diff -b {B} -p sweep", want: "first ({run:sweep-first}) -> second ({run:sweep-second})"},
-	{name: "one run", args: "diff {run:sweep-second}", want: "first ({run:sweep-first}) -> second ({run:sweep-second})"},
-	{name: "one run without an earlier one", args: "diff {run:sweep-first}", fail: true, want: "no earlier run"},
-	{name: "two runs", args: "diff {run:sweep-first} {run:sweep-second}", want: "first ({run:sweep-first}) -> second ({run:sweep-second})"},
-	{name: "runs of two projects", args: "diff {run:other-first} {run:sweep-second}", fail: true, want: "runs {run:other-first} and {run:sweep-second} belong to different projects (other and sweep)"},
-	{name: "three runs", args: "diff {run:sweep-first} {run:sweep-second} {run:other-first}", fail: true, want: "usage"},
-	{name: "old --all", args: "diff {run:sweep-second} --all", fail: true, want: "flag provided but not defined: -all"},
+	// lineage: none, one, or two runs.
+	{name: "no run", args: "lineage -b {B} -p sweep", want: "first ({run:sweep-first})"},
+	{name: "one run", args: "lineage {run:sweep-second}", want: "Run: second ({run:sweep-second})"},
+	{name: "two runs", args: "lineage {run:sweep-first} {run:sweep-second}", want: "first ({run:sweep-first}) -> second ({run:sweep-second})"},
+	{name: "runs of two projects", args: "lineage {run:other-first} {run:sweep-second}", fail: true, want: `run "{run:sweep-second}" not found`},
+	{name: "three runs", args: "lineage {run:sweep-first} {run:sweep-second} {run:other-first}", fail: true, want: "usage"},
+	{name: "old --all", args: "lineage {run:sweep-second} --all", fail: true, want: "flag provided but not defined: -all"},
 	{name: "old --all", args: "jobs -b {B} --all", fail: true, want: "flag provided but not defined: -all"},
 
 	// export: a run or a project, and a file.
@@ -151,7 +150,7 @@ var positionalCases = []positionalCase{
 	{name: "latest run", args: "wait -b {B} -p sweep latest", fail: true, want: "Run: second ({run:sweep-second})"},
 	{name: "latest run option", args: "wait -b {B} -p sweep --run-id latest", fail: true, want: "Run: second ({run:sweep-second})"},
 	{name: "latest run", args: "show -b {B} -p sweep latest", want: "Run: second ({run:sweep-second})"},
-	{name: "latest run", args: "diff -b {B} -p sweep latest", want: "first ({run:sweep-first}) -> second ({run:sweep-second})"},
+	{name: "latest run", args: "lineage -b {B} -p sweep latest", want: "Run: second ({run:sweep-second})"},
 	{name: "reserved job name", args: "add -b {B} -p other --job-name latest true", fail: true, want: `job name "latest" is reserved`},
 	{name: "reserved stage", args: "add -b {B} -p other --stage latest true", fail: true, want: `stage "latest" is reserved`},
 	{name: "reserved matrix name", args: "add -b {B} -p other --job-name latest --matrix X=1,2 true", fail: true, want: `"latest" is reserved`},
@@ -170,7 +169,7 @@ var positionalCases = []positionalCase{
 	{name: "complete run ID", args: "change --run-id {run:remote-run} --all --timeout 1m", want: "changed queue=remote"},
 	{name: "complete run ID", args: "remove --run-id {run:remote-run} --all", want: "removed 1 job(s) from queue=remote"},
 	{name: "complete run ID", args: "delete {run:remote-run}", want: "cleared logs project=remote run={run:remote-run}"},
-	{name: "complete run ID", args: "diff {run:sweep-second}", want: "first ({run:sweep-first}) -> second ({run:sweep-second})"},
+	{name: "complete run ID", args: "lineage {run:sweep-second}", want: "Run: second ({run:sweep-second})"},
 	{name: "complete run ID", args: "diagnose --rules --run-id {run:sweep-first} --job-name train-SEED2", want: "No known rule-based diagnosis"},
 	{name: "complete attempt ID", args: "diagnose --rules {att:train-SEED2/0}", want: "No known rule-based diagnosis"},
 	{name: "complete run ID", args: "export {run:remote-run}", want: "- {run:remote-run}"},
@@ -187,7 +186,7 @@ var positionalCases = []positionalCase{
 	{name: "project that does not exist", args: "remove -b {B} -p nope --all", fail: true, want: `project "nope" does not exist`},
 	{name: "project that does not exist", args: "delete -b {B} -p nope --all", fail: true, want: `project "nope" does not exist`},
 	{name: "project that does not exist", args: "run -b {B} -p nope", fail: true, want: `project "nope" does not exist`},
-	{name: "project that does not exist", args: "diff -b {B} -p nope", fail: true, want: `project "nope" does not exist`},
+	{name: "project that does not exist", args: "lineage -b {B} -p nope", fail: true, want: `project "nope" does not exist`},
 	{name: "project that does not exist", args: "export -b {B} nope", fail: true, want: `project "nope" does not exist`},
 	{name: "missing project", args: "wait -b {B} -p nope"},
 	{name: "project that does not exist", args: "wait -b {B} -p nope --run-id latest", fail: true, want: `project "nope" does not exist`},

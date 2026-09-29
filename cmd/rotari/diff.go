@@ -19,83 +19,31 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-// cmdDiff compares two runs of a project: with no run IDs the latest run and
-// the one before it, with one run ID that run and the one before it.
-func cmdDiff(args []string) int {
-	fs := flag.NewFlagSet("diff", flag.ContinueOnError)
+// cmdLineage lists runs, summarizes one run, or compares two runs.
+func cmdLineage(args []string) int {
+	fs := flag.NewFlagSet("lineage", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	basedir := cliString(fs, "basedir", "")
 	projectName := cliString(fs, "project-name", "")
 	jsonOutput := cliBool(fs, "json", false)
-	showAll := cliBool(fs, "unchanged", false)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
 	if len(fs.Args()) > 2 {
-		printError("usage: " + cliUsage("diff"))
+		printError("usage: " + cliUsage("lineage"))
 		return 1
 	}
-	fromID, toID := "", ""
-	switch len(fs.Args()) {
-	case 1:
-		toID = fs.Args()[0]
-	case 2:
-		fromID, toID = fs.Args()[0], fs.Args()[1]
-	}
-	baseDir, project, err := resolve.ExistingRun(*basedir, *projectName, firstNonEmpty(toID, fromID))
+	baseDir, project, err := resolve.ExistingRun(*basedir, *projectName, firstNonEmpty(fs.Args()...))
 	if err != nil {
 		printError(err)
 		return 1
-	}
-	if fromID != "" && fromID != "latest" {
-		// Both runs must belong to one project; say so rather than report
-		// the other project's run as missing.
-		fromBaseDir, fromProject, err := resolve.ExistingRun(*basedir, *projectName, fromID)
-		if err == nil && (fromBaseDir != baseDir || fromProject != project) {
-			printErrorf("runs %s and %s belong to different projects (%s and %s)", fromID, toID, fromProject, project)
-			return 1
-		}
 	}
 	paths, err := state.ResolveProjectPaths(baseDir, project)
 	if err != nil {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	if toID, err = resolve.RunID(paths, toID); err != nil {
-		printError(err)
-		return 1
-	}
-	if fromID == "" {
-		if fromID, err = previousRunID(paths, toID); err != nil {
-			printError(err)
-			return 1
-		}
-	} else if fromID, err = resolve.RunID(paths, fromID); err != nil {
-		printError(err)
-		return 1
-	}
-	from, err := runview.LoadRun(paths, fromID, jsonStore())
-	if err != nil {
-		printError(err)
-		return 1
-	}
-	to, err := runview.LoadRun(paths, toID, jsonStore())
-	if err != nil {
-		printError(err)
-		return 1
-	}
-	result := rundiff.Compare(from, to)
-	if *jsonOutput {
-		encoder := json.NewEncoder(os.Stdout)
-		encoder.SetIndent("", "  ")
-		if err := encoder.Encode(result); err != nil {
-			printErrorf("failed to encode diff: %v", err)
-			return 1
-		}
-		return 0
-	}
-	writeRunDiff(os.Stdout, paths, result, *showAll)
-	return 0
+	return showLineage(paths, fs.Args(), *jsonOutput)
 }
 
 // previousRunID returns the run of the project that started just before
@@ -337,7 +285,7 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 			changeColumns[0], changeColumns[1], changeColumns[2], changeColumns[3], changeColumns[4], changeColumns[5],
 			firstNonEmpty(entry.Run.Elapsed, "-"))
 	}
-	fmt.Printf("\n%s\n  rotari diff -p %s RUN_ID\n", cyan("To compare a run with the one before it:"), paths.ProjectName)
+	fmt.Printf("\n%s\n  rotari lineage -p %s RUN_A RUN_B\n", cyan("To compare runs:"), paths.ProjectName)
 	return 0
 }
 
