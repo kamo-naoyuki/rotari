@@ -202,6 +202,36 @@ rotari copy -p sweep RUN_ID
 rotari run -p sweep --failed --unfinished
 ```
 
+When the copied queue is run, each `Origin` resolves its saved result. The
+result filter determines which jobs execute and which completed results carry
+forward:
+
+```mermaid
+flowchart LR
+  SavedRun["Saved run<br/>queue + results"] --> Copy["rotari copy RUN_ID"]
+  Copy --> CopiedQueue["Copy job definitions<br/>into current queue"]
+  CopiedQueue --> Origin["Attach Origin per job / task<br/>source Run ID + Job ID + Attempt ID"]
+  Origin --> Filter["run selection / result filter"]
+  Filter -->|"selected"| Execute["Execute in new run"]
+  Filter -->|"completed, not selected"| Carry["Carry result and output link"]
+  Filter -->|"no completed result"| Unfinished["Remain unfinished"]
+
+  classDef source fill:#f1f5f9,stroke:#64748b,color:#0f172a
+  classDef queue fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+  classDef origin fill:#ccfbf1,stroke:#0f766e,color:#134e4a
+  classDef filter fill:#fef3c7,stroke:#d97706,color:#78350f
+  classDef execute fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+  classDef carried fill:#dcfce7,stroke:#16a34a,color:#14532d
+  classDef unfinished fill:#e2e8f0,stroke:#64748b,color:#334155
+  class SavedRun source
+  class Copy,CopiedQueue queue
+  class Origin origin
+  class Filter filter
+  class Execute execute
+  class Carry carried
+  class Unfinished unfinished
+```
+
 If you create a new queue whose job IDs differ from those in the latest run,
 use fingerprint matching to find equivalent jobs:
 
