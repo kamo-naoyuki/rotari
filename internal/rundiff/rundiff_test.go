@@ -135,6 +135,18 @@ func TestSummarizeDiagnosesGroupsFailureReasons(t *testing.T) {
 	}
 }
 
+func TestSummarizeOriginsKeepsNewJobsExplicit(t *testing.T) {
+	fromOne := job("one", StatusSuccess, "true")
+	fromOne.Origin = &model.JobOrigin{RunID: "run-1"}
+	fromTwo := job("two", StatusSuccess, "true")
+	fromTwo.Origin = &model.JobOrigin{RunID: "run-2"}
+	got := SummarizeOrigins(Run{Jobs: []Job{fromOne, fromTwo, job("new", StatusUnfinished, "true")}})
+	want := []OriginCount{{Count: 1}, {RunID: "run-1", Count: 1}, {RunID: "run-2", Count: 1}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("origins = %+v, want %+v", got, want)
+	}
+}
+
 func TestLineageCountsRunsAndChangesFromPrevious(t *testing.T) {
 	first := Run{ID: "run-1", Jobs: []Job{job("a", StatusFailed, "false"), job("b", StatusBlocked, "true")}}
 	second := Run{ID: "run-2", Jobs: []Job{job("a", StatusSuccess, "true"), job("b", StatusSuccess, "true"), job("c", StatusUnfinished, "true")}}

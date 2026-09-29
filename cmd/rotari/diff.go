@@ -214,6 +214,7 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 			summary := rundiff.RunSummary{
 				Run: rundiff.RunInfo{ID: run.ID, Name: run.Name}, Counts: rundiff.Summarize(run),
 				Diagnoses: rundiff.SummarizeDiagnoses(run),
+				Origins:   rundiff.SummarizeOrigins(run),
 			}
 			if jsonOutput {
 				return encodeJSON(summary, "run summary")
@@ -302,6 +303,13 @@ func writeRunSummary(writer io.Writer, paths state.ProjectPaths, summary rundiff
 		fmt.Fprintln(writer, cyan("Diagnoses:"))
 		for _, diagnosis := range summary.Diagnoses {
 			fmt.Fprintf(writer, "  %s %d\n", diagnosis.Name, diagnosis.Count)
+		}
+	}
+	if len(summary.Origins) > 0 {
+		fmt.Fprintln(writer, cyan("Origins:"))
+		for _, origin := range summary.Origins {
+			label := firstNonEmpty(origin.RunID, "new")
+			fmt.Fprintf(writer, "  %s %d\n", label, origin.Count)
 		}
 	}
 }

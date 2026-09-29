@@ -296,12 +296,51 @@ type RunSummary struct {
 	Run       RunInfo          `json:"run"`
 	Counts    Counts           `json:"counts"`
 	Diagnoses []DiagnosisCount `json:"diagnoses,omitempty"`
+	Origins   []OriginCount    `json:"origins,omitempty"`
 }
 
 // DiagnosisCount counts jobs grouped by their saved diagnosis name or status.
 type DiagnosisCount struct {
 	Name  string `json:"name"`
 	Count int    `json:"count"`
+}
+
+// OriginCount describes how many jobs came from one source run.
+type OriginCount struct {
+	RunID string `json:"run_id,omitempty"`
+	Count int    `json:"count"`
+}
+
+// SummarizeOrigins groups jobs by their recorded source run. Jobs without an
+// origin are reported under the explicit "new" category.
+func SummarizeOrigins(run Run) []OriginCount {
+	counts := make(map[string]int)
+	for _, job := range run.Jobs {
+		name := "new"
+		if job.Origin != nil && job.Origin.RunID != "" {
+			name = job.Origin.RunID
+		}
+		counts[name]++
+	}
+	result := make([]OriginCount, 0, len(counts))
+	for runID, count := range counts {
+		entry := OriginCount{Count: count}
+		if runID != "new" {
+			entry.RunID = runID
+		}
+		result = append(result, entry)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		left, right := result[i].RunID, result[j].RunID
+		if left == "" {
+			left = "new"
+		}
+		if right == "" {
+			right = "new"
+		}
+		return left < right
+	})
+	return result
 }
 
 // SummarizeDiagnoses groups failed-job diagnoses, preserving no-match and
