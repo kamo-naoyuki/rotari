@@ -84,6 +84,18 @@ func TestCompareMatchesUnnamedJobsByID(t *testing.T) {
 	}
 }
 
+func TestSummarizeCountsResolvedStatuses(t *testing.T) {
+	run := Run{Jobs: []Job{
+		job("success", StatusSuccess, "true"),
+		job("failed", StatusFailed, "false"),
+		job("blocked", StatusBlocked, "true"),
+		job("unfinished", StatusUnfinished, "true"),
+	}}
+	if got, want := Summarize(run), (Counts{Jobs: 4, Succeeded: 1, Failed: 1, Blocked: 1, Unfinished: 1}); got != want {
+		t.Fatalf("summary = %+v, want %+v", got, want)
+	}
+}
+
 func TestLineageCountsRunsAndChangesFromPrevious(t *testing.T) {
 	first := Run{ID: "run-1", Jobs: []Job{job("a", StatusFailed, "false"), job("b", StatusBlocked, "true")}}
 	second := Run{ID: "run-2", Jobs: []Job{job("a", StatusSuccess, "true"), job("b", StatusSuccess, "true"), job("c", StatusUnfinished, "true")}}

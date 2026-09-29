@@ -283,7 +283,7 @@ type LineageEntry struct {
 func Lineage(runs []Run) []LineageEntry {
 	entries := make([]LineageEntry, 0, len(runs))
 	for index, run := range runs {
-		entry := LineageEntry{Run: runInfo(run), Counts: countJobs(run)}
+		entry := LineageEntry{Run: runInfo(run), Counts: Summarize(run)}
 		if index > 0 {
 			summary := Compare(runs[index-1], run).Summary
 			entry.Changes = &summary
@@ -293,7 +293,8 @@ func Lineage(runs []Run) []LineageEntry {
 	return entries
 }
 
-func countJobs(run Run) Counts {
+// Summarize tallies one run's jobs by resolved status.
+func Summarize(run Run) Counts {
 	counts := Counts{Jobs: len(run.Jobs)}
 	for _, job := range run.Jobs {
 		switch job.Status {
