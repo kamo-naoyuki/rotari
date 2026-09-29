@@ -157,21 +157,17 @@ points to the source run and job, and (when available) the attempt. Result
 filters use the source result to decide whether to execute a job or carry its
 result forward.
 
-When you want to retry selected jobs from a saved run, copy its queue first.
-The copied jobs keep links to their original results:
-
-```sh
-rotari add -p sweep ...
-rotari run -p sweep # Run finished with some failed jobs.
-rotari copy -p sweep RUN_ID
-rotari run -p sweep --failed --unfinished
-```
+Copying a saved run restores its jobs to the current queue and attaches an
+`Origin` link to each copied job or task. The job definitions are copied; the
+previous results remain in the saved run and are looked up through those links
+when the new run is planned. Selected jobs execute, while completed jobs that
+are not selected carry their results forward.
 
 ```mermaid
 flowchart LR
   SavedRun["Saved run<br/>queue + results"] --> Copy["rotari copy RUN_ID"]
-  Copy --> CopiedQueue["Copied queue"]
-  CopiedQueue --> Origin["Origin per job / task<br/>source Run ID + Job ID + Attempt ID"]
+  Copy --> CopiedQueue["Copy job definitions<br/>into current queue"]
+  CopiedQueue --> Origin["Attach Origin per job / task<br/>source Run ID + Job ID + Attempt ID"]
   Origin --> Filter["run selection / result filter"]
   Filter -->|"selected"| Execute["Execute in new run"]
   Filter -->|"completed, not selected"| Carry["Carry result and output link"]
@@ -191,6 +187,15 @@ flowchart LR
   class Execute execute
   class Carry carried
   class Unfinished unfinished
+```
+
+For example, to retry selected jobs from a saved run, copy its queue first:
+
+```sh
+rotari add -p sweep ...
+rotari run -p sweep # Run finished with some failed jobs.
+rotari copy -p sweep RUN_ID
+rotari run -p sweep --failed --unfinished
 ```
 
 If you create a new queue whose job IDs differ from those in the latest run,
