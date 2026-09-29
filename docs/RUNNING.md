@@ -157,36 +157,40 @@ points to the source run and job, and (when available) the attempt. Result
 filters use the source result to decide whether to execute a job or carry its
 result forward.
 
-Copying a saved run restores its jobs to the current queue and attaches an
-`Origin` link to each copied job or task. The job definitions are copied; the
-previous results remain in the saved run and are looked up through those links
-when the new run is planned. Selected jobs execute, while completed jobs that
-are not selected carry their results forward.
+`copy` copies jobs individually from a saved run into the current queue. Each
+copied job records an `Origin` that points back to its source run, job, and
+(when available) attempt. The source job ID is kept unless it conflicts with
+an ID already in the queue.
 
 ```mermaid
 flowchart LR
-  SavedRun["Saved run<br/>queue + results"] --> Copy["rotari copy RUN_ID"]
-  Copy --> CopiedQueue["Copy job definitions<br/>into current queue"]
-  CopiedQueue --> Origin["Attach Origin per job / task<br/>source Run ID + Job ID + Attempt ID"]
-  Origin --> Filter["run selection / result filter"]
-  Filter -->|"selected"| Execute["Execute in new run"]
-  Filter -->|"completed, not selected"| Carry["Carry result and output link"]
-  Filter -->|"no completed result"| Unfinished["Remain unfinished"]
+  subgraph SavedRun["Saved run: RUN_ID"]
+    SourceA["Job A<br/>Job ID: job-a"]
+    SourceB["Job B<br/>Job ID: job-b"]
+  end
+
+  subgraph CurrentQueue["Queue after rotari copy RUN_ID"]
+    CopiedA["Copied job A<br/>Queue ID: job-a*"]
+    OriginA["Origin A<br/>Run ID: RUN_ID<br/>Job ID: job-a<br/>Attempt ID: attempt-a"]
+    CopiedB["Copied job B<br/>Queue ID: job-b*"]
+    OriginB["Origin B<br/>Run ID: RUN_ID<br/>Job ID: job-b<br/>Attempt ID: attempt-b"]
+    CopiedA --> OriginA
+    CopiedB --> OriginB
+  end
+
+  SourceA -->|"copy job A"| CopiedA
+  SourceB -->|"copy job B"| CopiedB
+
+  Note["* Source job ID is preserved unless it conflicts with an ID in the queue.<br/>Attempt ID is recorded when available."]
 
   classDef source fill:#f1f5f9,stroke:#64748b,color:#0f172a
   classDef queue fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
   classDef origin fill:#ccfbf1,stroke:#0f766e,color:#134e4a
-  classDef filter fill:#fef3c7,stroke:#d97706,color:#78350f
-  classDef execute fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
-  classDef carried fill:#dcfce7,stroke:#16a34a,color:#14532d
-  classDef unfinished fill:#e2e8f0,stroke:#64748b,color:#334155
-  class SavedRun source
-  class Copy,CopiedQueue queue
-  class Origin origin
-  class Filter filter
-  class Execute execute
-  class Carry carried
-  class Unfinished unfinished
+  classDef note fill:#fef3c7,stroke:#d97706,color:#78350f
+  class SourceA,SourceB source
+  class CopiedA,CopiedB queue
+  class OriginA,OriginB origin
+  class Note note
 ```
 
 For example, to retry selected jobs from a saved run, copy its queue first:
