@@ -27,9 +27,6 @@
         <div class="sidebar-section-note">
           State directories known to rotari
         </div>
-        <div class="sidebar-notification-heading">
-          Select basedirs to monitor notifications
-        </div>
         __ROTARI_JOBS_PROJECTS__
       </nav>
       <div
@@ -329,6 +326,9 @@
                   .closest(".basedir-entry")
                   .classList.contains("expanded")
               : selected.has(checkbox.dataset.basedirId);
+          checkbox.title = checkbox.checked
+            ? "Disable notifications"
+            : "Enable notifications";
         });
       }
 
@@ -388,6 +388,9 @@
       }
 
       async function toggleJobsNotificationBasedir(checkbox) {
+        checkbox.title = checkbox.checked
+          ? "Disable notifications"
+          : "Enable notifications";
         saveJobsNotificationTargets();
         const target = jobsNotificationTargets().find(
           (item) => item.id === checkbox.dataset.basedirId,

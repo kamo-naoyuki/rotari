@@ -124,6 +124,9 @@ function restoreNotificationBasedirs() {
         selected === null
           ? checkbox.closest(".basedir-entry").classList.contains("expanded")
           : selected.has(checkbox.dataset.basedirId);
+      checkbox.title = checkbox.checked
+        ? "Disable notifications"
+        : "Enable notifications";
     });
 }
 function toggleNotificationBasedir(checkbox) {
@@ -138,6 +141,9 @@ function toggleNotificationBasedir(checkbox) {
   else selected.delete(checkbox.dataset.basedirId);
   selectedNotificationBasedirIDsState = selected;
   localStorage.setItem(notificationBasedirsKey, JSON.stringify([...selected]));
+  checkbox.title = checkbox.checked
+    ? "Disable notifications"
+    : "Enable notifications";
   if (typeof refreshOtherBasedirNotifications === "function")
     refreshOtherBasedirNotifications();
 }
@@ -248,7 +254,7 @@ function sidebarBasedirHTML(
     entry.id +
     '"><div class="sidebar-project-row basedir-row"><input class="basedir-notification-toggle" type="checkbox" data-basedir-id="' +
     entry.id +
-    '" aria-label="Monitor notifications for basedir" onchange="toggleNotificationBasedir(this)" /><button type="button" class="sidebar-toggle" aria-expanded="' +
+    '" aria-label="Monitor notifications for basedir" title="Enable notifications" onchange="toggleNotificationBasedir(this)" /><button type="button" class="sidebar-toggle" aria-expanded="' +
     (isExpanded ? "true" : "false") +
     '" aria-label="Toggle projects" onclick="toggleSidebarBasedir(this)"></button><a class="sidebar-project-link' +
     (isActive ? " active" : "") +

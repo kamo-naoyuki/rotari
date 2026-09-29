@@ -145,14 +145,6 @@
   cursor: pointer;
 }
 
-.sidebar-notification-heading {
-  margin: 0 8px 2px;
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.2;
-  text-align: left;
-}
-
 .basedir-row .sidebar-toggle {
   margin-left: 0;
 }

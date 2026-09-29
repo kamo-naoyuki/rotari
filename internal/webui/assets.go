@@ -244,7 +244,7 @@ func writeJobsBasedirEntry(builder *strings.Builder, homePath string, currentPro
 	builder.WriteString(html.EscapeString(entry.ID))
 	builder.WriteString(`" data-jobs-url="`)
 	builder.WriteString(html.EscapeString(basePath + "jobs/"))
-	builder.WriteString(`" aria-label="Monitor notifications for basedir" onchange="toggleJobsNotificationBasedir(this)" /><button type="button" class="sidebar-toggle" aria-expanded="`)
+	builder.WriteString(`" aria-label="Monitor notifications for basedir" title="Enable notifications" onchange="toggleJobsNotificationBasedir(this)" /><button type="button" class="sidebar-toggle" aria-expanded="`)
 	builder.WriteString(strconv.FormatBool(active))
 	builder.WriteString(`" aria-label="Toggle projects" onclick="toggleJobsSidebar(this)"></button><a class="sidebar-project-link basedir-path" data-full-path="`)
 	builder.WriteString(html.EscapeString(entry.Path))
