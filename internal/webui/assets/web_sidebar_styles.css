@@ -136,6 +136,7 @@
 
 .basedir-notification-toggle {
   flex: 0 0 auto;
+  display: block;
   width: 14px !important;
   height: 14px !important;
   min-width: 14px !important;
@@ -147,11 +148,15 @@
 
 .basedir-notification-control {
   position: relative;
-  display: block;
+  display: flex;
   flex: 0 0 14px;
   width: 14px;
   height: 14px;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
   margin-right: 4px;
+  line-height: 0;
 }
 
 .basedir-notification-tooltip {
