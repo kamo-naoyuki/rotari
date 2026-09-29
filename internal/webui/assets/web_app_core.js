@@ -840,6 +840,25 @@ function renderRun(q, runID) {
     "</span><span>Exit: " +
     (run.finished_at ? esc(run.exit_code) : "-") +
     "</span>";
+  if (run.lineage_summary) {
+    const lineage = run.lineage_summary;
+    const diagnosisText = (lineage.diagnoses || [])
+      .map((item) => item.name + " " + item.count)
+      .join(", ");
+    const originText = (lineage.origins || [])
+      .map((item) => (item.run_id || "new") + " " + item.count)
+      .join(", ");
+    document.getElementById("summary").innerHTML +=
+      "<span>Jobs: " +
+      esc(lineage.counts.jobs) +
+      " (ok " +
+      esc(lineage.counts.succeeded) +
+      ", failed " +
+      esc(lineage.counts.failed) +
+      ")</span>" +
+      (diagnosisText ? "<span>Diagnoses: " + esc(diagnosisText) + "</span>" : "") +
+      (originText ? "<span>Origins: " + esc(originText) + "</span>" : "");
+  }
   if (run.unreadable) {
     // The run's files come from a newer rotari; only the reason is known.
     document.getElementById("app").innerHTML =

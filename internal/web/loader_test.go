@@ -45,6 +45,9 @@ func TestLoadQueueStateBuildsRunsFromCallbacks(t *testing.T) {
 	if state.Runs[1].RunID != "run-1" || len(state.Runs[1].Jobs) != 1 {
 		t.Fatalf("sorted runs = %#v", state.Runs)
 	}
+	if got := state.Runs[1].LineageSummary.Counts.Succeeded; got != 1 {
+		t.Fatalf("lineage summary counts = %#v", state.Runs[1].LineageSummary)
+	}
 }
 
 func TestLoadQueueStateMarksRunsFromNewerRotariUnreadable(t *testing.T) {
