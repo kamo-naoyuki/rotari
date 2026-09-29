@@ -454,9 +454,8 @@ function addOutputWordCloud() {
   section.append(heading, body);
   if (isStatic) {
     regenerate.hidden = true;
-    const cloud = window.__ROTARI_STATIC_WORD_CLOUDS__[
-      queue.project_name + "/" + runID
-    ];
+    const cloud =
+      window.__ROTARI_STATIC_WORD_CLOUDS__[queue.project_name + "/" + runID];
     if (cloud) {
       section.dataset.wordCloudLoaded = "true";
       renderOutputWordCloud(section, cloud);
