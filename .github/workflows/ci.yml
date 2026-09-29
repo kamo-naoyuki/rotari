@@ -58,7 +58,42 @@ jobs:
           fail_ci_if_error: false
 
       - name: Build
-        run: go build ./cmd/rotari
+        run: go build -o "$RUNNER_TEMP/rotari" ./cmd/rotari
 
       - name: Check example scripts
         run: find examples -name '*.sh' -exec bash -n {} \;
+
+      - name: Run local examples
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$RUNNER_TEMP:$PATH"
+          workdir=$(mktemp -d)
+          trap 'rm -rf "$workdir"' EXIT
+
+          run_example() {
+            local script="$1" expected="$2" run_dir="$workdir/${1%.sh}" output="$workdir/${1%.sh}.log"
+            shift 2
+            mkdir -p "$run_dir"
+            (cd "$run_dir" && ROTARI_MASTERDIR="$run_dir/master" bash "$GITHUB_WORKSPACE/examples/$script") | tee "$output"
+            grep -Fq -- "$expected" "$output" || {
+              echo "$script did not produce expected output: $expected" >&2
+              return 1
+            }
+            local artifact
+            for artifact in "$@"; do
+              [[ -s "$run_dir/.example-state/$artifact" ]] || {
+                echo "$script did not produce non-empty artifact: $artifact" >&2
+                return 1
+              }
+            done
+          }
+
+          run_example basic.sh "Success: 2"
+          run_example array.sh "Success: 3"
+          run_example matrix.sh "Success: 4"
+          run_example retry.sh "Success: 1"
+          run_example async.sh "Success: 1"
+          run_example workflow.sh "Exported workflow:" exported.yaml
+          run_example workflow-reconcile.sh "Example state:" exported.yaml reconciled.yaml
+          run_example diagnose-rules.sh "Python import or module missing"
