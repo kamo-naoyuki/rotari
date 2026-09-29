@@ -37,6 +37,10 @@ const (
 	basedirRoutePrefix = "/_basedir/"
 )
 
+func newNotificationSession() string {
+	return strconv.FormatInt(time.Now().UnixNano(), 36)
+}
+
 type webGenerateConfigRequest struct {
 	QueueName string `json:"project_name"`
 	Location  string `json:"location"`
@@ -317,7 +321,7 @@ func (s site) baseHandler() http.Handler {
 		}
 		joblist.Sort(rows)
 		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
-		_, _ = writer.Write([]byte(jobsHTML(s.currentBasePrefix()+"/", projects, rows, sinceText, true, s.Notifications, s.basedirEntries())))
+		_, _ = writer.Write([]byte(jobsHTMLWithSession(s.currentBasePrefix()+"/", projects, rows, sinceText, true, s.Notifications, s.notificationSession, s.basedirEntries())))
 	})
 	mux.HandleFunc("/jobs", func(writer http.ResponseWriter, request *http.Request) {
 		http.Redirect(writer, request, s.currentBasePrefix()+"/jobs/", http.StatusMovedPermanently)
@@ -1163,7 +1167,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 			break
 		}
 	}
-	if err := writeStaticWebPage(filepath.Join(outputDir, "jobs", "index.html"), jobsHTML("../", projects, jobs, joblist.DefaultSinceText, false, false, staticBaseDirs)); err != nil {
+	if err := writeStaticWebPage(filepath.Join(outputDir, "jobs", "index.html"), jobsHTMLWithSession("../", projects, jobs, joblist.DefaultSinceText, false, false, s.notificationSession, staticBaseDirs)); err != nil {
 		return err
 	}
 	if err := writeStaticStylesheet(filepath.Join(outputDir, "jobs")); err != nil {
@@ -1357,7 +1361,7 @@ func (s site) webHTMLWithStaticBootstrap(bootstrap string) string {
 			}
 		}
 	}
-	return composeWebHTML(s.Executors, s.Notifications, bootstrap, basedirs)
+	return composeWebHTMLWithSession(s.Executors, s.Notifications, bootstrap, s.notificationSession, basedirs)
 }
 
 func methodNotAllowed(writer http.ResponseWriter) {

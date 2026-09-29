@@ -38,6 +38,7 @@ type Options struct {
 // site serves one Options.
 type site struct {
 	Options
+	notificationSession string
 }
 
 func (s site) environments() []web.EnvironmentDefinition {
@@ -46,11 +47,11 @@ func (s site) environments() []web.EnvironmentDefinition {
 
 // Handler serves the Web UI and its JSON API.
 func Handler(options Options) http.Handler {
-	return site{options}.handler()
+	return site{Options: options, notificationSession: newNotificationSession()}.handler()
 }
 
 // GenerateStatic writes a read-only static export of the Web UI to
 // outputDir, replacing what is there.
 func GenerateStatic(outputDir string, options Options) error {
-	return site{options}.generateStaticWeb(outputDir)
+	return site{Options: options, notificationSession: newNotificationSession()}.generateStaticWeb(outputDir)
 }

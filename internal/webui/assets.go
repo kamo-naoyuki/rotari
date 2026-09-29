@@ -62,6 +62,10 @@ type webBaseDir struct {
 }
 
 func composeWebHTML(executors []string, notifications bool, bootstrap string, basedirLists ...[]webBaseDir) string {
+	return composeWebHTMLWithSession(executors, notifications, bootstrap, "", basedirLists...)
+}
+
+func composeWebHTMLWithSession(executors []string, notifications bool, bootstrap, notificationSession string, basedirLists ...[]webBaseDir) string {
 	executorJSON, _ := json.Marshal(executors)
 	basedirs := []webBaseDir{}
 	if len(basedirLists) > 0 {
@@ -75,6 +79,7 @@ func composeWebHTML(executors []string, notifications bool, bootstrap string, ba
 	template = strings.ReplaceAll(template, "__ROTARI_BRAND_ICON__", brandIcon())
 	template = strings.Replace(template, "__ROTARI_NOTIFICATION_ICON__", faviconDataURL(webFaviconDarkSVG), 1)
 	template = strings.Replace(template, "__ROTARI_NOTIFICATION_DEFAULT__", strconv.FormatBool(notifications), 1)
+	template = strings.Replace(template, "__ROTARI_NOTIFICATION_SESSION__", notificationSession, 1)
 	template = strings.Replace(template, "__ROTARI_STATIC_BOOTSTRAP__", bootstrap, 1)
 	return template
 }
@@ -99,6 +104,10 @@ func composeInfoHTML(template, homePath, content string) string {
 }
 
 func jobsHTML(homePath string, projects []string, rows []joblist.Row, since string, canFilter, notifications bool, basedirLists ...[]webBaseDir) string {
+	return jobsHTMLWithSession(homePath, projects, rows, since, canFilter, notifications, "", basedirLists...)
+}
+
+func jobsHTMLWithSession(homePath string, projects []string, rows []joblist.Row, since string, canFilter, notifications bool, notificationSession string, basedirLists ...[]webBaseDir) string {
 	var builder strings.Builder
 	if canFilter {
 		builder.WriteString(`<form class="jobs-filter" method="get"><label for="jobs-since">Since</label><input id="jobs-since" name="since" value="`)
@@ -124,6 +133,7 @@ func jobsHTML(homePath string, projects []string, rows []joblist.Row, since stri
 	template = strings.Replace(template, "__ROTARI_JOBS_TOOLBAR__", toolbar, 1)
 	template = strings.Replace(template, "__ROTARI_JOBS_LIVE__", strconv.FormatBool(canFilter), 1)
 	template = strings.Replace(template, "__ROTARI_NOTIFICATION_DEFAULT__", strconv.FormatBool(notifications), 1)
+	template = strings.Replace(template, "__ROTARI_NOTIFICATION_SESSION__", notificationSession, 1)
 	template = strings.Replace(template, "__ROTARI_NOTIFICATION_ICON__", faviconDataURL(webFaviconDarkSVG), 1)
 	if len(rows) == 0 {
 		builder.WriteString(`<p class="meta">No running or recently finished jobs found.</p>`)

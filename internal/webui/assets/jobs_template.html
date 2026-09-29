@@ -231,7 +231,8 @@
       const jobsNotificationsDefaultOn = __ROTARI_NOTIFICATION_DEFAULT__;
       const jobsNotificationIcon = "__ROTARI_NOTIFICATION_ICON__";
       const jobsNotificationsEnabledKey = "rotari-notifications-enabled";
-      const jobsNotificationBasedirsKey = "rotari-notification-basedirs";
+      const jobsNotificationBasedirsKey =
+        "rotari-notification-basedirs:" + "__ROTARI_NOTIFICATION_SESSION__";
       function jobsNotificationsEnabled() {
         const stored = localStorage.getItem(jobsNotificationsEnabledKey);
         return stored === null

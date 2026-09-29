@@ -100,14 +100,20 @@ const expandedSidebarProjects = {};
 const expandedSidebarBasedirs = {};
 const expandedSidebarAllProjects = {};
 const remoteProjectsByBasedir = {};
-const notificationBasedirsKey = "rotari-notification-basedirs";
+const notificationBasedirsKey =
+  "rotari-notification-basedirs:" + "__ROTARI_NOTIFICATION_SESSION__";
+let selectedNotificationBasedirIDsState;
 function selectedNotificationBasedirIDs() {
+  if (selectedNotificationBasedirIDsState)
+    return selectedNotificationBasedirIDsState;
   try {
     const stored = localStorage.getItem(notificationBasedirsKey);
-    return stored === null ? null : new Set(JSON.parse(stored));
+    selectedNotificationBasedirIDsState =
+      stored === null ? null : new Set(JSON.parse(stored));
   } catch (error) {
-    return null;
+    selectedNotificationBasedirIDsState = null;
   }
+  return selectedNotificationBasedirIDsState;
 }
 function restoreNotificationBasedirs() {
   const selected = selectedNotificationBasedirIDs();
@@ -130,6 +136,7 @@ function toggleNotificationBasedir(checkbox) {
     );
   if (checkbox.checked) selected.add(checkbox.dataset.basedirId);
   else selected.delete(checkbox.dataset.basedirId);
+  selectedNotificationBasedirIDsState = selected;
   localStorage.setItem(notificationBasedirsKey, JSON.stringify([...selected]));
   if (typeof refreshOtherBasedirNotifications === "function")
     refreshOtherBasedirNotifications();

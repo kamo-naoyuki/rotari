@@ -114,7 +114,9 @@ rules apply to both the application page and the server-rendered Job activity
 page.
 
 Each basedir row has a notification monitor checkbox. The selected basedir IDs
-are stored in browser local storage. The application page polls the state
+are stored in browser local storage under a key scoped to the current Web
+server session. Restarting `rotari web` therefore discards the extra selected
+basedirs and returns monitoring to the current basedir. The application page polls the state
 endpoint for every selected basedir, while the server-rendered Job activity
 page polls the Job activity endpoint for every selected basedir. A newly
 selected basedir is initialized from its current state, so existing completed

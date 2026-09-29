@@ -75,7 +75,7 @@ func writeSchedulerStatus(jobDir, state string) {
 }
 
 func siteFor(baseDir string) site {
-	return site{testOptions(baseDir, true)}
+	return site{Options: testOptions(baseDir, true), notificationSession: newNotificationSession()}
 }
 
 func testSite() site {
@@ -768,7 +768,7 @@ func TestWebSidebarLazilyListsProjectsInOtherBasedirs(t *testing.T) {
 	options.BaseDirs = []string{otherBaseDir}
 	pagePath := filepath.Join(t.TempDir(), "index.html")
 	statePath := filepath.Join(t.TempDir(), "state.json")
-	if err := os.WriteFile(pagePath, []byte((site{options}).webHTML()), 0o600); err != nil {
+	if err := os.WriteFile(pagePath, []byte((site{Options: options, notificationSession: newNotificationSession()}).webHTML()), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	data, err := json.Marshal(webprojection.State{BaseDir: rootBaseDir, Queues: []webprojection.QueueState{{QueueName: "root-project", Runs: []webprojection.Run{}}}})
