@@ -73,18 +73,16 @@ most.
 | Phase | Scope | Deliverables | Exit criteria | Status |
 | --- | --- | --- | --- | --- |
 | 0. Shared summary | Make one-run counts reusable by both lineage and comparison views. | Export `rundiff.Summarize`; keep `Lineage` on that path; add unit coverage. | Existing comparison and lineage tests pass. | Done (`bfd47f8`) |
-| 1. Run view model | Separate run loading, one-run summary, and adjacent-run comparison from CLI rendering. | `internal/runview.LoadRun` owns persisted snapshot loading and status resolution; `internal/rundiff` remains file-free. | `diff` and lineage use the same loader and summary objects; no duplicated status resolution. | Done |
+| 1. Run view model | Separate run loading, one-run summary, and adjacent-run comparison from CLI rendering. | `internal/runview.LoadRun` owns persisted snapshot loading and status resolution; `internal/rundiff` remains file-free. | `lineage` uses the shared loader and summary objects; no duplicated status resolution. | Done |
 | 2. Command shape | Make one command the entry point for history, one-run summaries, and comparisons. | `lineage`, with zero, one, or two run IDs; `show` remains the current-state view. | CLI help, positional ambiguity, `--json`, and error cases are covered by tests. | Done |
 | 3. Unified human/JSON output | Present one-run improvement and two-run comparison from the same result model. | Result counts, elapsed time, fixed/still failing/newly failing/changed/carried counts, and stable JSON fields. | `lineage` lists generations, summarizes one run, and compares two runs. | Done |
 | 4. Provenance and diagnosis | Add origin-aware comparison and aggregate failure diagnoses. | Run summaries preserve diagnosis names/statuses and source-run counts; comparisons prefer `JobOrigin` and reject cross-run name guesses. | Mixed-origin `copy --append`, missing origins, and unavailable diagnoses do not invent a parent or a match. | Done |
 | 5. Run lifecycle and Web | Reuse the summary after `run`/`wait` and on the Web run page. | Web run projections, `run`, and `wait` completion output expose the shared lineage counts, diagnoses, and origins. | Finished runs show the same summary in CLI and Web; active/interrupted runs remain well-defined. | Done |
-| 6. Contract and docs | Make the new semantics durable and document migration. | Contract IDs, conformance coverage, `docs/INSPECT.md`, CLI reference, and removal criteria for aliases. | Conformance, generated docs, and full checks pass before aliases are removed. | Planned |
+| 6. Contract and docs | Make the new semantics durable and document migration. | Contract command tables, conformance coverage, `docs/INSPECT.md`, CLI reference, and removal of the old aliases. | Conformance, generated docs, and full checks pass with `lineage` as the only history/comparison command. | Done |
 
-- Consider expanding `lineage`, which shares `internal/rundiff`: with a project it
-  lists the generations, one summary line per run; with one run it prints
-  that run's summary; with two runs it compares them. `show`
-  stays the view of current state. Avoid the name `log`, which clashes with
-  `show --logs`.
+- `lineage` is the history and comparison command: with a project it lists the
+  generations, with one run it prints that run's summary, and with two runs it
+  compares them. `show` stays the view of current state.
 - The run summary should answer "did this generation improve on the last?"
   and "why did the remaining jobs fail?" together: result counts with their
   change, fixed / still failing / newly failing / changed / carried forward,
@@ -365,7 +363,7 @@ or may turn out not to be; decide before starting any of them.
   commands (`add`, `run`, `show`, `retry`) first and the rest under an
   advanced heading, and check each new feature against whether a first-time
   user has to learn it.
-- **Treat coding agents as a primary user.** A stateful CLI with `diff`,
+- **Treat coding agents as a primary user.** A stateful CLI with `lineage`,
   `guide`, and `--json` output fits an agent running and retrying batches.
   Consider a worked example of an agent-driven sweep in the docs, and a
   stable, documented JSON schema for the outputs an agent reads.

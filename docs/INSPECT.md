@@ -92,9 +92,10 @@ rotari lineage -p sweep --json RUN_A RUN_B
 `lineage` summarizes jobs that were fixed, are still failing, or newly fail; jobs
 added or removed; jobs whose command, executor, executor options, environment,
 working directory, stage, or dependencies changed; and jobs whose result was
-carried forward instead of re-executed. Jobs are matched by name, or by job ID
-when they have none. Jobs whose result and definition did not change are
-hidden unless `--unchanged` is given; `--json` always lists every job.
+carried forward instead of re-executed. Jobs are matched by origin when the
+origin points to the compared run; otherwise named jobs are matched by name.
+The one-run summary also groups failed jobs by diagnosis and reports their
+source-run origins, including `new` for jobs without an origin.
 
 ### Check run readiness
 

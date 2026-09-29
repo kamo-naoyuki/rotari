@@ -28,7 +28,7 @@ whichever backend it ran, and can rerun only the jobs that failed.
 | task-spooler | a task in a per-user server's queue | one machine, GPU-aware | add the command again | finished-task list, capped |
 | submitit | a Python function call | Slurm, local | resubmit from Python | job folders |
 | `sbatch --array`, `queue.pl` | a script and an index | one scheduler | resubmit chosen indices | scheduler accounting |
-| rotari | a job in a queue, run as a batch | local, SSH, Slurm, PBS, LSF | `retry` starts a new run of only the failed and unfinished jobs | every run, with `diff` between runs |
+| rotari | a job in a queue, run as a batch | local, SSH, Slurm, PBS, LSF | `retry` starts a new run of only the failed and unfinished jobs | every run, with `lineage` between runs |
 
 ## Tool by tool
 
@@ -103,7 +103,7 @@ tied to one scheduler.
 
 - **The run is the unit of history.** Every run keeps its commands and each
   job's status and logs, so `show` answers what ran and what failed long
-  after the terminal is gone, and `diff` compares two runs. The other tools
+  after the terminal is gone, and `lineage` compares two runs. The other tools
   track individual tasks or one invocation.
 - **Rerunning only what failed.** Across many hosts, a correct command can
   still fail because one node misbehaved. `run --retry N` retries a failed
