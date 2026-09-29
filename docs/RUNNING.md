@@ -247,7 +247,10 @@ flowchart LR
 ```
 
 If you create a new queue whose job IDs differ from those in the latest run,
-use fingerprint matching to find equivalent jobs:
+`--match-by fingerprint` matches equivalent jobs by their command and saved
+inputs. A successful match creates an `Origin` to the corresponding job in
+the reference run, so the same result filter can decide what to execute or
+carry forward.
 
 ```sh
 rotari add -p sweep ...
@@ -259,26 +262,56 @@ rotari run -p sweep --failed --unfinished --match-by fingerprint
 
 ```mermaid
 flowchart LR
-  NewQueue["New queue<br/>without Origin links"] --> Match["Match against reference run<br/>--match-by fingerprint<br/>(default: Job ID, then fingerprint)"]
-  Reference["Reference run<br/>commands.json + results"] --> Match
-  Match -->|"fingerprint match"| Origin["Create Origin link<br/>source Run ID + Job ID + Attempt ID"]
-  Origin --> Filter["run selection / result filter"]
-  Filter -->|"selected"| Execute["Execute in new run"]
-  Filter -->|"completed, not selected"| Carry["Carry result and output link"]
-  Filter -->|"no completed result"| Unfinished["Remain unfinished"]
+  subgraph ReferenceRun["Reference run: RUN_ID"]
+    SourceA["Job A<br/>Job ID: old-a<br/>Fingerprint: fp-1<br/>Status: success"]
+    SourceB["Job B<br/>Job ID: old-b<br/>Fingerprint: fp-2<br/>Status: failed"]
+  end
+
+  RunCmd["rotari run --failed --unfinished<br/>--match-by fingerprint"]
+
+  subgraph NewQueue["New queue: different Job IDs"]
+    NewA["Job A<br/>Job ID: new-a<br/>Fingerprint: fp-1"]
+    NewB["Job B<br/>Job ID: new-b<br/>Fingerprint: fp-2"]
+    OriginA["Origin A<br/>Run ID: RUN_ID<br/>Job ID: old-a"]
+    OriginB["Origin B<br/>Run ID: RUN_ID<br/>Job ID: old-b"]
+    StatusA["Status: success"]
+    StatusB["Status: failed"]
+    NewA --> OriginA --> StatusA
+    NewB --> OriginB --> StatusB
+  end
+
+  SourceA --> RunCmd
+  SourceB --> RunCmd
+  NewA --> RunCmd
+  NewB --> RunCmd
+  RunCmd -->|"fingerprint match"| OriginA
+  RunCmd -->|"fingerprint match"| OriginB
+  StatusA --> Filter
+  StatusB --> Filter
+
+  subgraph NewRun["New run"]
+    Filter["Apply result filter"]
+    Filter -->|"selected"| Execute["Execute in new run"]
+    Filter -->|"completed, not selected"| Carry["Carry result and output link"]
+    Filter -->|"no completed result"| Unfinished["Remain unfinished"]
+  end
 
   classDef source fill:#f1f5f9,stroke:#64748b,color:#0f172a
   classDef queue fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
-  classDef match fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
   classDef origin fill:#ccfbf1,stroke:#0f766e,color:#134e4a
   classDef filter fill:#fef3c7,stroke:#d97706,color:#78350f
   classDef execute fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
   classDef carried fill:#dcfce7,stroke:#16a34a,color:#14532d
   classDef unfinished fill:#e2e8f0,stroke:#64748b,color:#334155
-  class NewQueue queue
-  class Reference source
-  class Match match
-  class Origin origin
+  classDef command fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+  classDef success fill:#dcfce7,stroke:#16a34a,color:#14532d
+  classDef failed fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+  class SourceA,SourceB source
+  class NewA,NewB queue
+  class OriginA,OriginB origin
+  class StatusA success
+  class StatusB failed
+  class RunCmd command
   class Filter filter
   class Execute execute
   class Carry carried
