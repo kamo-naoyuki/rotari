@@ -14,8 +14,8 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	"github.com/kamo-naoyuki/rotari/internal/runview"
 	"github.com/kamo-naoyuki/rotari/internal/rundiff"
+	"github.com/kamo-naoyuki/rotari/internal/runview"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -244,9 +244,49 @@ func colorTransition(text, transition string) string {
 	return text
 }
 
-// showLineage lists a project's runs oldest first, with each run's result
-// counts and what changed since the run before it.
-func showLineage(paths state.ProjectPaths, jsonOutput bool) int {
+// showLineage lists a project's runs oldest first, summarizes one selected run,
+// or compares two selected runs.
+func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int {
+	if len(runIDs) > 0 {
+		resolvedIDs := make([]string, len(runIDs))
+		for index, runID := range runIDs {
+			resolved, err := resolve.RunID(paths, runID)
+			if err != nil {
+				printError(err)
+				return 1
+			}
+			resolvedIDs[index] = resolved
+		}
+		if len(resolvedIDs) == 1 {
+			run, err := runview.LoadRun(paths, resolvedIDs[0], jsonStore())
+			if err != nil {
+				printError(err)
+				return 1
+			}
+			summary := rundiff.RunSummary{Run: rundiff.RunInfo{ID: run.ID, Name: run.Name}, Counts: rundiff.Summarize(run)}
+			if jsonOutput {
+				return encodeJSON(summary, "run summary")
+			}
+			writeRunSummary(os.Stdout, paths, summary)
+			return 0
+		}
+		from, err := runview.LoadRun(paths, resolvedIDs[0], jsonStore())
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		to, err := runview.LoadRun(paths, resolvedIDs[1], jsonStore())
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		result := rundiff.Compare(from, to)
+		if jsonOutput {
+			return encodeJSON(result, "comparison")
+		}
+		writeRunDiff(os.Stdout, paths, result, false)
+		return 0
+	}
 	runIDs, err := projectRunsByStart(paths)
 	if err != nil {
 		printError(err)
@@ -267,13 +307,7 @@ func showLineage(paths state.ProjectPaths, jsonOutput bool) int {
 	}
 	entries := rundiff.Lineage(runs)
 	if jsonOutput {
-		encoder := json.NewEncoder(os.Stdout)
-		encoder.SetIndent("", "  ")
-		if err := encoder.Encode(entries); err != nil {
-			printErrorf("failed to encode lineage: %v", err)
-			return 1
-		}
-		return 0
+		return encodeJSON(entries, "lineage")
 	}
 	writeShowTargetHeaderWithMode(os.Stdout, paths, "lineage")
 	fmt.Println("\n" + cyan("Runs (oldest first):"))
@@ -304,6 +338,24 @@ func showLineage(paths state.ProjectPaths, jsonOutput bool) int {
 			firstNonEmpty(entry.Run.Elapsed, "-"))
 	}
 	fmt.Printf("\n%s\n  rotari diff -p %s RUN_ID\n", cyan("To compare a run with the one before it:"), paths.ProjectName)
+	return 0
+}
+
+func writeRunSummary(writer io.Writer, paths state.ProjectPaths, summary rundiff.RunSummary) {
+	fmt.Fprintf(writer, "%s %s\n", cyan("Project:"), paths.ProjectName)
+	fmt.Fprintf(writer, "%s %s\n", cyan("Run:"), model.RunLabel(summary.Run.ID, summary.Run.Name))
+	counts := summary.Counts
+	fmt.Fprintf(writer, "%s jobs %d, succeeded %d, failed %d, blocked %d, unfinished %d\n", cyan("Summary:"),
+		counts.Jobs, counts.Succeeded, counts.Failed, counts.Blocked, counts.Unfinished)
+}
+
+func encodeJSON(value any, description string) int {
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(value); err != nil {
+		printErrorf("failed to encode %s: %v", description, err)
+		return 1
+	}
 	return 0
 }
 

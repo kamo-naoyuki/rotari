@@ -269,6 +269,12 @@ type Counts struct {
 	Unfinished int `json:"unfinished"`
 }
 
+// RunSummary describes one run without comparing it to another run.
+type RunSummary struct {
+	Run    RunInfo `json:"run"`
+	Counts Counts  `json:"counts"`
+}
+
 // LineageEntry describes one run in a project's run sequence. Changes
 // compares it with the run before it and is nil for the first run.
 type LineageEntry struct {

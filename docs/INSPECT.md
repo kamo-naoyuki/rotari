@@ -82,12 +82,21 @@ rotari diff RUN_A RUN_B         # two specific runs of one project
 rotari diff -p sweep --json     # machine-readable comparison
 ```
 
-To see the whole sequence of runs of a project, oldest first, with each run's
-result counts and what changed since the run before it:
+Use `show --lineage` as the run history and comparison view. With no run IDs,
+it shows the whole sequence oldest first:
 
 ```sh
 rotari show -p sweep --lineage
 rotari show -p sweep --lineage --json
+```
+
+With one run ID it shows that run's summary. With two run IDs it compares
+them:
+
+```sh
+rotari show -p sweep --lineage RUN_ID
+rotari show -p sweep --lineage RUN_A RUN_B
+rotari show -p sweep --lineage --json RUN_A RUN_B
 ```
 
 `diff` summarizes jobs that were fixed, are still failing, or newly fail; jobs

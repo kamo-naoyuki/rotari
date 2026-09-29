@@ -92,6 +92,30 @@ func TestCmdDiffComparesRunWithItsPredecessor(t *testing.T) {
 		t.Fatalf("lineage entries = %+v", entries)
 	}
 
+	output.Reset()
+	if code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--lineage", "--json", second)) }); code != 0 {
+		t.Fatalf("show --lineage RUN exit = %d", code)
+	}
+	var single rundiff.RunSummary
+	if err := json.Unmarshal(output.Bytes(), &single); err != nil {
+		t.Fatalf("single run JSON: %v\n%s", err, output.String())
+	}
+	if single.Run.ID != second || single.Counts.Succeeded != 2 {
+		t.Fatalf("single run summary = %+v", single)
+	}
+
+	output.Reset()
+	if code := captureShowStdout(t, &output, func() int { return cmdShow(append(args, "--lineage", "--json", first, second)) }); code != 0 {
+		t.Fatalf("show --lineage RUN_A RUN_B exit = %d", code)
+	}
+	var unified rundiff.Result
+	if err := json.Unmarshal(output.Bytes(), &unified); err != nil {
+		t.Fatalf("unified comparison JSON: %v\n%s", err, output.String())
+	}
+	if unified.From.ID != first || unified.To.ID != second || unified.Summary.Fixed != 1 {
+		t.Fatalf("unified comparison = %+v", unified)
+	}
+
 	oldStderr := os.Stderr
 	reader, writer, err := os.Pipe()
 	if err != nil {

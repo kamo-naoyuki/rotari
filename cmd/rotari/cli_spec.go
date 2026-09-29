@@ -276,7 +276,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "success", Description: "show successful jobs; may be combined with the other result filters"},
 			cliFlagSpec{Name: "stage", Description: "show jobs in this stage only", ValueName: "NAME"},
 			cliFlagSpec{Name: "matrix", Description: "show jobs of this matrix only, named by its base job name", ValueName: "NAME"},
-			cliFlagSpec{Name: "lineage", Description: "list the project's runs oldest first with result counts and changes since the previous run"},
+			cliFlagSpec{Name: "lineage", Description: "list runs, summarize one run, or compare two runs"},
 			cliFlagSpec{Name: "logs", Description: "print output logs for all jobs"},
 			cliFlagSpec{Name: "failed-logs", Description: "print output logs for failed jobs"},
 			cliFlagSpec{Name: "stream", Description: "show both streams or select stdout/stderr", ValueName: "STREAM"},
@@ -286,7 +286,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "json", Description: "print machine-readable JSON for a run"},
 			cliFlagSpec{Name: "report", Description: "print an AI-ready Markdown report"},
 		), jobFilterFlagSpecs(queueRunJobFilters)...),
-		Positional: "[SELECTOR]",
+		Positional: "[SELECTOR [RUN_B]]",
 	},
 	{
 		Name:        "diff",
