@@ -17,6 +17,6 @@ rotari change --job-name train -- true
 rotari run --failed
 
 # Compare the generations, or use a run ID to inspect one generation.
-rotari lineage
+rotari lineage --basedir "$ROTARI_BASEDIR" --project-name "$ROTARI_PROJECT_NAME"
 
 echo "Example state: $ROTARI_BASEDIR"
