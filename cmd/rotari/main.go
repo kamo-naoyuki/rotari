@@ -112,13 +112,12 @@ func run(args []string) int {
 	case "__server":
 		return cmdServerProcess(args[1:])
 	default:
-		if args[0] == "lieneage" {
-			printError("unknown subcommand: lieneage; did you mean lineage?")
-			printError("usage: " + cliUsage("lineage"))
+		if suggestion := cliSimilarCommand(args[0]); suggestion != "" {
+			printErrorf("unknown subcommand: %s; did you mean %s?", args[0], suggestion)
+			printError("usage: " + cliUsage(suggestion))
 			return 1
 		}
 		printErrorf("unknown subcommand: %s", args[0])
-		printUsage()
 		return 1
 	}
 }

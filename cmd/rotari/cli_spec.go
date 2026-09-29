@@ -514,6 +514,43 @@ func cliCommandNames() []string {
 	return names
 }
 
+// cliSimilarCommand returns one unambiguous nearby command name for a typo.
+// Commands are short ASCII words, so a small rune-based edit distance is
+// sufficient and avoids suggesting an unrelated command.
+func cliSimilarCommand(input string) string {
+	best, bestDistance := "", 3
+	for _, name := range cliCommandNames() {
+		distance := cliEditDistance(input, name)
+		if distance < bestDistance {
+			best, bestDistance = name, distance
+		} else if distance == bestDistance {
+			best = ""
+		}
+	}
+	return best
+}
+
+func cliEditDistance(left, right string) int {
+	leftRunes, rightRunes := []rune(left), []rune(right)
+	previous := make([]int, len(rightRunes)+1)
+	for index := range previous {
+		previous[index] = index
+	}
+	for leftIndex, leftRune := range leftRunes {
+		current := make([]int, len(rightRunes)+1)
+		current[0] = leftIndex + 1
+		for rightIndex, rightRune := range rightRunes {
+			cost := 0
+			if leftRune != rightRune {
+				cost = 1
+			}
+			current[rightIndex+1] = min(previous[rightIndex+1]+1, current[rightIndex]+1, previous[rightIndex]+cost)
+		}
+		previous = current
+	}
+	return previous[len(rightRunes)]
+}
+
 func cliUsage(name string) string {
 	for _, command := range cliCommandSpecs {
 		if command.Name == name {
