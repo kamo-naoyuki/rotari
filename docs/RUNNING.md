@@ -156,7 +156,13 @@ reference run. A fingerprint is a matching key, not a stored ID; an `Origin`
 points to the source run, job, and (when available) attempt. Result filters use
 that source result to decide whether to execute or carry it forward.
 
-Copying a saved run preserves direct `Origin` links:
+When you want to retry selected jobs from a saved run, copy its queue first.
+The copied jobs keep links to their original results:
+
+```sh
+rotari copy -p sweep RUN_ID
+rotari run -p sweep --failed --unfinished
+```
 
 ```mermaid
 flowchart LR
@@ -169,7 +175,13 @@ flowchart LR
   Filter -->|"no completed result"| Unfinished["Remain unfinished"]
 ```
 
-A newly created queue is matched to the reference run by fingerprint:
+When you have created a new queue whose job IDs may differ from the latest
+run, use fingerprint matching to find equivalent jobs:
+
+```sh
+rotari add -p sweep -- ./train.sh --seed 42
+rotari run -p sweep --failed --unfinished --match-by fingerprint
+```
 
 ```mermaid
 flowchart LR
