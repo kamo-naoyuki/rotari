@@ -185,3 +185,4 @@ the IDs, this table, and those calls disagree.
 | SEL-9 | `cancel`, `suspend`, and `resume` resolve each form as the job control table says | conformance | `TestJobControlSelectors` |
 | SEL-10 | Each command takes its positional arguments with their meaning and exclusions | conformance | `TestPositionalArguments` |
 | SEL-11 | The `--filter-*` options select jobs as the Filters section says | conformance | `TestSelectorTable` |
+| SEL-12 | `--job-name` and filters choose unfinished jobs for `cancel`, `suspend`, and `resume`, confirmed before acting | pending | package tests in `internal/jobcontrol` and `cmd/rotari` |

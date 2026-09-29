@@ -219,7 +219,8 @@ Covered by the filter rows of `TestSelectorTable`.
 
 `cancel`, `suspend`, and `resume` act on the running jobs of a project's
 active run. They take job IDs and attempt IDs, positionally or as repeated
-`--job-id`, and no job name, group, or result filter. Resolution is
+`--job-id`, job names as repeated `--job-name`, or filters, and no result
+filter. Resolution is
 `resolve.JobSelection`; the running-run check and the signalling are
 `jobcontrol.Controller` in
 [internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go),
@@ -243,6 +244,31 @@ open on a finished run cannot act on the same job ID in the active run
 
 **SEL-9** `cancel`, `suspend`, and `resume` resolve each form as the table
 says.
+
+**SEL-12** `--job-name` and the filters choose unfinished jobs of the
+active run, array tasks one by one, through `jobcontrol.Controller.Select`:
+
+- `--job-name NAME` selects the jobs, or array command, with that name;
+  repeated, names combine with OR. A name no job of the run has is an error.
+- The filters are `--stage`, `--matrix`, `--filter-command`, `--filter-host`,
+  `--filter-started-after`, `--filter-started-before`,
+  `--filter-longer-than`, `--filter-shorter-than`, the `--filter-not-*` forms
+  of stage and matrix, and `--filter-state running|pending` (repeated, OR).
+  A job is running once its executor owns it and pending before; a running
+  job's duration ends now. `suspend` and `resume` accept only `running`.
+- Job IDs, `--job-name`, and the filters exclude one another, and all exclude
+  `cancel --wait`; a bare run ID may still name the run.
+- Without `--filter-state`, `cancel` selects running and pending jobs and
+  `suspend` and `resume` running ones.
+- A selection matching no job is an error, never a whole-run cancel.
+- A filtered selection lists its jobs on a terminal and asks before acting;
+  `--yes` skips the question and is required without a terminal. The jobs
+  listed are the ones acted on; the filters are not evaluated again.
+
+Covered by `TestSelectJobsFiltersUnfinishedJobs` in
+[internal/jobcontrol/jobcontrol_test.go](../internal/jobcontrol/jobcontrol_test.go)
+and the job-control tests in
+[cmd/rotari/job_control_test.go](../cmd/rotari/job_control_test.go).
 
 `cancel --wait` takes no job selection. Unlike `show` and `wait`, these
 commands take no run name or positional project: they act on running jobs, so

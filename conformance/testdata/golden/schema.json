@@ -95,7 +95,70 @@
           "value_name": "ID"
         },
         {
+          "name": "job-name",
+          "value_name": "NAME"
+        },
+        {
+          "name": "stage",
+          "value_name": "STAGE"
+        },
+        {
+          "name": "matrix",
+          "value_name": "NAME"
+        },
+        {
           "name": "wait"
+        },
+        {
+          "name": "yes"
+        },
+        {
+          "name": "filter-state",
+          "value_name": "STATE",
+          "values": [
+            "running",
+            "pending"
+          ]
+        },
+        {
+          "name": "filter-host",
+          "value_name": "PATTERN"
+        },
+        {
+          "name": "filter-started-after",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-started-before",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-longer-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-shorter-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-command",
+          "value_name": "RE"
+        },
+        {
+          "name": "filter-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-matrix",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-matrix",
+          "value_name": "NAME"
         }
       ],
       "name": "cancel"
@@ -116,6 +179,68 @@
           "name": "job-id",
           "short": "j",
           "value_name": "ID"
+        },
+        {
+          "name": "job-name",
+          "value_name": "NAME"
+        },
+        {
+          "name": "stage",
+          "value_name": "STAGE"
+        },
+        {
+          "name": "matrix",
+          "value_name": "NAME"
+        },
+        {
+          "name": "yes"
+        },
+        {
+          "name": "filter-state",
+          "value_name": "STATE",
+          "values": [
+            "running"
+          ]
+        },
+        {
+          "name": "filter-host",
+          "value_name": "PATTERN"
+        },
+        {
+          "name": "filter-started-after",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-started-before",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-longer-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-shorter-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-command",
+          "value_name": "RE"
+        },
+        {
+          "name": "filter-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-matrix",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-matrix",
+          "value_name": "NAME"
         }
       ],
       "name": "suspend"
@@ -136,6 +261,68 @@
           "name": "job-id",
           "short": "j",
           "value_name": "ID"
+        },
+        {
+          "name": "job-name",
+          "value_name": "NAME"
+        },
+        {
+          "name": "stage",
+          "value_name": "STAGE"
+        },
+        {
+          "name": "matrix",
+          "value_name": "NAME"
+        },
+        {
+          "name": "yes"
+        },
+        {
+          "name": "filter-state",
+          "value_name": "STATE",
+          "values": [
+            "running"
+          ]
+        },
+        {
+          "name": "filter-host",
+          "value_name": "PATTERN"
+        },
+        {
+          "name": "filter-started-after",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-started-before",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-longer-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-shorter-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-command",
+          "value_name": "RE"
+        },
+        {
+          "name": "filter-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-matrix",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-matrix",
+          "value_name": "NAME"
         }
       ],
       "name": "resume"

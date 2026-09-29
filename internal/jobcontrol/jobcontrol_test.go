@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -106,6 +107,66 @@ func TestCancelJobsCancelsOwnedAndMarksUnsubmittedJobs(t *testing.T) {
 	}
 	if _, err := controller.CancelJobs(runDir, "demo", testRunID, []string{"unknown"}); err == nil || err.Error() != `job "unknown" is not found` {
 		t.Fatalf("unknown job error = %v", err)
+	}
+}
+
+func TestSelectJobsFiltersUnfinishedJobs(t *testing.T) {
+	controller, _ := testController()
+	runDir := filepath.Join(t.TempDir(), testRunID)
+	if err := os.MkdirAll(runDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "commands.json"), []byte(`{"commands":[
+		{"id":"train-a","name":"train","stage":"fit","command":["python","train.py"]},
+		{"id":"train-b","name":"train","stage":"fit","command":["python","train.py"]},
+		{"id":"eval","name":"eval","stage":"score","command":["python","eval.py"]},
+		{"id":"done","name":"done","stage":"fit","command":["true"]},
+		{"id":"waiting","name":"waiting","stage":"fit","command":["sh","wait.sh"]}
+	]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	started := time.Date(2026, 9, 30, 10, 0, 0, 0, time.UTC)
+	writeRunning := func(jobID, host string, start time.Time) {
+		dir := filepath.Join(runDir, jobID)
+		writeJobJSON(t, dir, "slurm")
+		status := fmt.Sprintf(`{"phase":"running","hosts":[%q],"started_at":%q}`, host, start.Format(time.RFC3339))
+		if err := os.WriteFile(filepath.Join(dir, "status.json"), []byte(status), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeRunning("train-a", "gpu-1", started)
+	writeRunning("train-b", "cpu-1", started.Add(time.Hour))
+	writeRunning("eval", "gpu-2", started)
+	writeRunning("done", "gpu-1", started)
+	if err := os.WriteFile(filepath.Join(runDir, "done", "finished_at"), []byte(now()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	now := started.Add(3 * time.Hour)
+	for _, test := range []struct {
+		name      string
+		selection Selection
+		want      string
+	}{
+		{"by name", Selection{Names: []string{"train"}}, "train-a,train-b"},
+		{"by stage includes pending", Selection{Scope: model.CommandSelector{Stage: "fit"}}, "train-a,train-b,waiting"},
+		{"running only", Selection{Scope: model.CommandSelector{Stage: "fit"}, States: []string{StateRunning}}, "train-a,train-b"},
+		{"pending only", Selection{States: []string{StatePending}}, "waiting"},
+		{"command", Selection{Filter: jobfilter.Filter{Command: `eval\.py`}}, "eval"},
+		{"host", Selection{Filter: jobfilter.Filter{Hosts: []string{"gpu-*"}}}, "eval,train-a"},
+		{"longer than", Selection{Filter: jobfilter.Filter{LongerThan: 150 * time.Minute}}, "eval,train-a"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := controller.selectJobs(runDir, test.selection, now)
+			if err != nil || strings.Join(got, ",") != test.want {
+				t.Fatalf("selectJobs() = %v, %v, want %s", got, err, test.want)
+			}
+		})
+	}
+	if _, err := controller.selectJobs(runDir, Selection{Names: []string{"missing"}}, now); err == nil || err.Error() != `job name "missing" not found` {
+		t.Fatalf("unknown name error = %v", err)
+	}
+	if _, err := controller.selectJobs(runDir, Selection{Names: []string{"done"}}, now); err == nil || err.Error() != "no unfinished jobs match the selection" {
+		t.Fatalf("finished-only selection error = %v", err)
 	}
 }
 

@@ -361,7 +361,7 @@ cmd/rotari ──> internal/run, internal/queueedit, internal/jobcontrol ──>
 
 14. `--filter-changed` と `--filter-new` を追加する。
 
-### Phase 7: ジョブ制御
+### Phase 7: ジョブ制御（実装済み）
 
 15. `cancel`、`suspend`、`resume` に `--job-name`、フィルター、`--filter-state`、`--yes`、確認プロンプトを追加する。
 

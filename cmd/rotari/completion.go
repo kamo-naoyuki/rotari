@@ -284,6 +284,53 @@ func appendCompletionBlock(path, shell, block string) error {
 	return nil
 }
 
+// writeBashOptionValues writes the "$prev" cases that complete fixed option
+// values, one per option name in first-use order. An option whose values
+// differ between commands branches on "$command".
+func writeBashOptionValues(builder *strings.Builder) {
+	type commandValues struct {
+		commands []string
+		values   string
+	}
+	var names []string
+	byName := make(map[string][]commandValues)
+	for _, command := range cliCommandSpecs {
+		for _, option := range command.Flags {
+			if len(option.Values) == 0 {
+				continue
+			}
+			values := strings.Join(option.Values, " ")
+			groups, seen := byName[option.Name]
+			if !seen {
+				names = append(names, option.Name)
+			}
+			found := false
+			for index := range groups {
+				if groups[index].values == values {
+					groups[index].commands = append(groups[index].commands, command.Name)
+					found = true
+				}
+			}
+			if !found {
+				groups = append(groups, commandValues{commands: []string{command.Name}, values: values})
+			}
+			byName[option.Name] = groups
+		}
+	}
+	for _, name := range names {
+		groups := byName[name]
+		if len(groups) == 1 {
+			fmt.Fprintf(builder, "        %s)\n            COMPREPLY=($(compgen -W \"%s\" -- \"$cur\"))\n            return\n            ;;\n", shellOptionPattern(name), groups[0].values)
+			continue
+		}
+		fmt.Fprintf(builder, "        %s)\n            case \"$command\" in\n", shellOptionPattern(name))
+		for _, group := range groups {
+			fmt.Fprintf(builder, "                %s) COMPREPLY=($(compgen -W \"%s\" -- \"$cur\")) ;;\n", strings.Join(group.commands, "|"), group.values)
+		}
+		builder.WriteString("            esac\n            return\n            ;;\n")
+	}
+}
+
 func generateBashCompletion() string {
 	var builder strings.Builder
 	builder.WriteString("# bash completion for rotari\n_rotari_completion() {\n")
@@ -293,14 +340,7 @@ func generateBashCompletion() string {
 	fmt.Fprintf(&builder, "        COMPREPLY=($(compgen -W \"%s\" -- \"$cur\"))\n", strings.Join(cliCommandNames(), " "))
 	builder.WriteString("        return\n    fi\n\n    case \"$prev\" in\n")
 	builder.WriteString("        --project-name|-p)\n            local -a __rotari_completion_args=()\n            local __i\n            for (( __i = 2; __i < ${#COMP_WORDS[@]}; __i++ )); do\n                case \"${COMP_WORDS[__i]}\" in\n                    --basedir|-b)\n                        if (( __i + 1 < ${#COMP_WORDS[@]} )); then\n                            __rotari_completion_args+=(\"${COMP_WORDS[__i]}\" \"${COMP_WORDS[__i+1]}\")\n                            (( __i++ ))\n                        fi\n                        ;;\n                esac\n            done\n            COMPREPLY=($(compgen -W \"$(rotari __complete project-name \"${__rotari_completion_args[@]}\" 2>/dev/null)\" -- \"$cur\"))\n            return\n            ;;\n")
-	for _, command := range cliCommandSpecs {
-		for _, option := range command.Flags {
-			if len(option.Values) == 0 {
-				continue
-			}
-			fmt.Fprintf(&builder, "        %s)\n            COMPREPLY=($(compgen -W \"%s\" -- \"$cur\"))\n            return\n            ;;\n", shellOptionPattern(option.Name), strings.Join(option.Values, " "))
-		}
-	}
+	writeBashOptionValues(&builder)
 	builder.WriteString("        --run-id|-r)\n            local -a __rotari_completion_args=()\n            local __i\n            for (( __i = 2; __i < ${#COMP_WORDS[@]}; __i++ )); do\n                case \"${COMP_WORDS[__i]}\" in\n                    --basedir|-b|--project-name|-p)\n                        if (( __i + 1 < ${#COMP_WORDS[@]} )); then\n                            __rotari_completion_args+=(\"${COMP_WORDS[__i]}\" \"${COMP_WORDS[__i+1]}\")\n                            (( __i++ ))\n                        fi\n                        ;;\n                esac\n            done\n            COMPREPLY=($(compgen -W \"$(rotari __complete run-id \"${__rotari_completion_args[@]}\" 2>/dev/null)\" -- \"$cur\"))\n            return\n            ;;\n        --job-id|-j)\n            local -a __rotari_completion_args=()\n            local __i\n            for (( __i = 2; __i < ${#COMP_WORDS[@]}; __i++ )); do\n                case \"${COMP_WORDS[__i]}\" in\n                    --basedir|-b|--project-name|-p)\n                        if (( __i + 1 < ${#COMP_WORDS[@]} )); then\n                            __rotari_completion_args+=(\"${COMP_WORDS[__i]}\" \"${COMP_WORDS[__i+1]}\")\n                            (( __i++ ))\n                        fi\n                        ;;\n                esac\n            done\n            COMPREPLY=($(compgen -W \"$(rotari __complete job-id \"${__rotari_completion_args[@]}\" 2>/dev/null)\" -- \"$cur\"))\n            return\n            ;;\n")
 	completionValues := cliSubcommandNames("completion")
 	fmt.Fprintf(&builder, "        completion)\n            COMPREPLY=($(compgen -W \"%s\" -- \"$cur\"))\n            return\n            ;;\n    esac\n\n    case \"$command\" in\n", strings.Join(completionValues, " "))

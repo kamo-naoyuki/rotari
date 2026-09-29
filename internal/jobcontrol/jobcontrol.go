@@ -13,10 +13,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -233,6 +236,137 @@ func (controller Controller) CancelJobs(runDir, project, runID string, jobIDs []
 		cancelled++
 	}
 	return fmt.Sprintf("Cancel requested\n  Project: %s\n  Run: %s\n  Jobs: %d", project, runID, cancelled), nil
+}
+
+// Job states that Selection.States names.
+const (
+	StateRunning = "running"
+	StatePending = "pending"
+)
+
+// Selection chooses unfinished jobs of a run by job name or by filters. Names
+// select jobs whose name, or whose command's name, is one of them. Scope,
+// Filter, and States narrow further; a job is running once its executor owns
+// it and pending before, and empty States allow both.
+type Selection struct {
+	Names  []string
+	Scope  model.CommandSelector
+	Filter jobfilter.Filter
+	States []string
+}
+
+// Select resolves project's active run, which must be runID when runID is not
+// empty, and returns its ID and the sorted IDs of its unfinished jobs, array
+// tasks one by one, that selection chooses. Durations of running jobs end at
+// now. It fails when a name matches no job of the run or no job matches.
+func (controller Controller) Select(baseDir, project, runID string, selection Selection, now time.Time) (string, []string, error) {
+	paths, err := state.ResolveProjectPaths(baseDir, project)
+	if err != nil {
+		return "", nil, err
+	}
+	lock, err := activeLock(paths, project, runID)
+	if err != nil {
+		return "", nil, err
+	}
+	runDir, err := runDirectory(paths, lock)
+	if err != nil {
+		return "", nil, err
+	}
+	jobIDs, err := controller.selectJobs(runDir, selection, now)
+	if err != nil {
+		return "", nil, fmt.Errorf("run %s: %w", lock.RunID, err)
+	}
+	return lock.RunID, jobIDs, nil
+}
+
+func (controller Controller) selectJobs(runDir string, selection Selection, now time.Time) ([]string, error) {
+	snapshot, err := loadCommandSnapshot(runDir)
+	if err != nil {
+		return nil, err
+	}
+	commands := snapshot.Commands
+	inScope := make(map[int]bool, len(commands))
+	if selection.Scope.Kinds() > 0 {
+		indexes, err := model.SelectCommands(commands, selection.Scope)
+		if err != nil {
+			return nil, err
+		}
+		for _, index := range indexes {
+			inScope[index] = true
+		}
+	}
+	names := make(map[string]bool, len(selection.Names))
+	for _, name := range selection.Names {
+		names[name] = false
+	}
+	var jobIDs []string
+	for index, command := range commands {
+		if selection.Scope.Kinds() > 0 && !inScope[index] {
+			continue
+		}
+		if !selection.Filter.MatchesCommand(command) {
+			continue
+		}
+		for _, job := range model.QueueToJobs(commands[index : index+1]) {
+			if len(names) > 0 {
+				_, byJob := names[job.Name]
+				_, byCommand := names[command.Name]
+				if !byJob && !byCommand {
+					continue
+				}
+				if byJob {
+					names[job.Name] = true
+				}
+				if byCommand {
+					names[command.Name] = true
+				}
+			}
+			jobDir, err := state.LatestAttemptJobDir(runDir, job.ID)
+			if err != nil {
+				return nil, err
+			}
+			if controller.jobFinished(jobDir) {
+				continue
+			}
+			jobState := StatePending
+			if _, err := controller.Executors.Owner(controller.Store, jobDir); err == nil {
+				jobState = StateRunning
+			}
+			if len(selection.States) > 0 && !slices.Contains(selection.States, jobState) {
+				continue
+			}
+			if !selection.Filter.MatchesAttributes(controller.attributes(jobDir, now)) {
+				continue
+			}
+			jobIDs = append(jobIDs, job.ID)
+		}
+	}
+	for _, name := range selection.Names {
+		if !names[name] {
+			return nil, fmt.Errorf("job name %q not found", name)
+		}
+	}
+	if len(jobIDs) == 0 {
+		return nil, errors.New("no unfinished jobs match the selection")
+	}
+	sort.Strings(jobIDs)
+	return jobIDs, nil
+}
+
+// attributes returns the hosts and start time of an unfinished attempt: the
+// wrapper's start, or its submission when it has not started.
+func (controller Controller) attributes(jobDir string, now time.Time) jobfilter.Attributes {
+	attributes := jobfilter.Attributes{Now: now}
+	if path, err := state.ValidatedStateFile(jobDir, "status.json"); err == nil {
+		if status, ok := executor.LoadWrapperStatus(controller.Store, path); ok {
+			attributes.Hosts = status.Hosts
+			attributes.StartedAt, _ = jobfilter.ParseTimestamp(status.StartedAt)
+		}
+	}
+	if attributes.StartedAt.IsZero() {
+		attributes.StartedAt, _ = jobfilter.ParseTimestamp(state.ReadAttemptTimestamp(jobDir, "submitted_at"))
+	}
+	return attributes
 }
 
 // activeLock loads the lock of project's active run, which must be runID

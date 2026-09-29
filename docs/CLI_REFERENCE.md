@@ -58,7 +58,22 @@ Usage: `rotari cancel [JOB_ID|ATTEMPT_ID|RUN_ID ...]`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | cancel a running job; may be repeated |
+| `--job-name` | `NAME (repeatable)` | `ROTARI_JOB_NAME` | cancel the unfinished jobs with this name; may be repeated |
+| `--stage` | `STAGE` | `` | cancel the unfinished jobs of this stage |
+| `--matrix` | `NAME` | `` | cancel the unfinished jobs of this matrix |
 | `--wait` | `` | `` | wait until cancellation is complete |
+| `--yes` | `` | `` | cancel the jobs that filters select without asking |
+| `--filter-state` | `STATE (repeatable)` | `` | select jobs in this state; may be repeated |
+| `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
+| `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
+| `--filter-started-before` | `TIME` | `` | select jobs started before this time |
+| `--filter-longer-than` | `DURATION` | `` | select jobs running at least this long |
+| `--filter-shorter-than` | `DURATION` | `` | select jobs running less than this long |
+| `--filter-command` | `RE` | `` | select jobs whose argv matches this Go regexp |
+| `--filter-stage` | `NAME` | `` | select jobs in this stage; same as --stage |
+| `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
+| `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
+| `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
 
 ### `rotari suspend`
 
@@ -71,6 +86,21 @@ Usage: `rotari suspend [JOB_ID|ATTEMPT_ID|RUN_ID ...]`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | suspend a running job; may be repeated |
+| `--job-name` | `NAME (repeatable)` | `ROTARI_JOB_NAME` | suspend the running jobs with this name; may be repeated |
+| `--stage` | `STAGE` | `` | suspend the running jobs of this stage |
+| `--matrix` | `NAME` | `` | suspend the running jobs of this matrix |
+| `--yes` | `` | `` | suspend the jobs that filters select without asking |
+| `--filter-state` | `STATE (repeatable)` | `` | select jobs in this state; may be repeated |
+| `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
+| `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
+| `--filter-started-before` | `TIME` | `` | select jobs started before this time |
+| `--filter-longer-than` | `DURATION` | `` | select jobs running at least this long |
+| `--filter-shorter-than` | `DURATION` | `` | select jobs running less than this long |
+| `--filter-command` | `RE` | `` | select jobs whose argv matches this Go regexp |
+| `--filter-stage` | `NAME` | `` | select jobs in this stage; same as --stage |
+| `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
+| `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
+| `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
 
 ### `rotari resume`
 
@@ -83,6 +113,21 @@ Usage: `rotari resume [JOB_ID|ATTEMPT_ID|RUN_ID ...]`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | resume a suspended job; may be repeated |
+| `--job-name` | `NAME (repeatable)` | `ROTARI_JOB_NAME` | resume the suspended jobs with this name; may be repeated |
+| `--stage` | `STAGE` | `` | resume the suspended jobs of this stage |
+| `--matrix` | `NAME` | `` | resume the suspended jobs of this matrix |
+| `--yes` | `` | `` | resume the jobs that filters select without asking |
+| `--filter-state` | `STATE (repeatable)` | `` | select jobs in this state; may be repeated |
+| `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
+| `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
+| `--filter-started-before` | `TIME` | `` | select jobs started before this time |
+| `--filter-longer-than` | `DURATION` | `` | select jobs running at least this long |
+| `--filter-shorter-than` | `DURATION` | `` | select jobs running less than this long |
+| `--filter-command` | `RE` | `` | select jobs whose argv matches this Go regexp |
+| `--filter-stage` | `NAME` | `` | select jobs in this stage; same as --stage |
+| `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
+| `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
+| `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
 
 ### `rotari delete`
 
