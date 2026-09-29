@@ -149,6 +149,35 @@ calculated from the command, explicitly saved job inputs, and expanded array
 or matrix parameters; they are recalculated for each comparison rather than
 stored in queue or run files.
 
+These are different roles, not two interchangeable IDs: a fingerprint is a
+matching key, while an `Origin` is a link to the source run, job, and (when
+available) attempt. The `Origin` lets a new run find the exact old result to
+carry forward or use when applying a result filter. Job IDs identify queued
+jobs; attempt IDs identify individual executions within a run.
+
+```mermaid
+flowchart TB
+  subgraph AcrossRuns["run / retry: 新しい run を作る"]
+    Queue["今回の queue"] --> Match["参照 run と対応付け<br/>Job ID / fingerprint"]
+    History["参照 run<br/>commands.json + results"] --> Match
+    Match -->|"対応あり"| Origin["Origin link<br/>Run ID + Job ID + Attempt ID"]
+    Match -->|"対応なし"| NoOrigin["Origin なし<br/>同じ Job ID は参照 run から解決"]
+    Origin --> Filter["selection / result filter<br/>retry default: failed + unfinished<br/>--job-id selects directly; stage / matrix narrows scope"]
+    NoOrigin --> Filter
+    Filter -->|"filter に一致"| Execute["次の run で実行"]
+    Filter -->|"不一致・完了結果あり"| Carry["結果を引き継ぐ<br/>元の出力へのリンクを保持"]
+    Filter -->|"不一致・完了結果なし"| Unfinished["実行せず unfinished のまま"]
+    Execute --> Downstream["依存する下流 job も実行"]
+  end
+
+  subgraph WithinRun["--retry N: 同じ run の中"]
+    Downstream --> RetryCheck{"失敗し、retry が残っている?"}
+    RetryCheck -->|"はい"| Attempt["新しい Attempt ID で再試行"]
+    RetryCheck -->|"いいえ"| Result["結果を確定"]
+    Attempt --> RetryCheck
+  end
+```
+
 `retry` is `run --failed --unfinished` by default, but not an alias of it:
 `--failed --unfinished` applies only when no result filter or job is given. It selects failed and
 unfinished jobs from the reference run, copies them into the next run with
