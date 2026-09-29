@@ -161,46 +161,10 @@ result forward.
 copied job records an `Origin` that points back to its source run, job, and
 (when available) attempt, and preserves the source status. The copied queue
 entry remains pending until a later `run` applies its selection. The source
-job ID is kept unless it conflicts with an ID already in the queue.
-
-```mermaid
-flowchart LR
-  subgraph SavedRun["Saved run: RUN_ID"]
-    SourceA["Job A<br/>Job ID: job-a"]
-    SourceB["Job B<br/>Job ID: job-b"]
-  end
-
-  subgraph CurrentQueue["Queue after rotari copy RUN_ID"]
-    CopiedA["Copied job A<br/>Queue ID: job-a*"]
-    OriginA["Origin A<br/>Run ID: RUN_ID<br/>Job ID: job-a<br/>Attempt ID: attempt-a"]
-    StatusA["Status: success"]
-    CopiedB["Copied job B<br/>Queue ID: job-b*"]
-    OriginB["Origin B<br/>Run ID: RUN_ID<br/>Job ID: job-b<br/>Attempt ID: attempt-b"]
-    StatusB["Status: failed"]
-    CopiedA --> OriginA
-    OriginA --> StatusA
-    CopiedB --> OriginB
-    OriginB --> StatusB
-  end
-
-  SourceA -->|"copy job A"| CopiedA
-  SourceB -->|"copy job B"| CopiedB
-
-  Note["* Source job ID is preserved unless it conflicts with an ID in the queue.<br/>Attempt ID is recorded when available."]
-
-  classDef source fill:#f1f5f9,stroke:#64748b,color:#0f172a
-  classDef queue fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
-  classDef origin fill:#ccfbf1,stroke:#0f766e,color:#134e4a
-  classDef note fill:#fef3c7,stroke:#d97706,color:#78350f
-  classDef success fill:#dcfce7,stroke:#16a34a,color:#14532d
-  classDef failed fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
-  class SourceA,SourceB source
-  class CopiedA,CopiedB queue
-  class OriginA,OriginB origin
-  class StatusA success
-  class StatusB failed
-  class Note note
-```
+job ID is kept unless it conflicts with an ID already in the queue. During
+that `run`, the result filter uses each `Origin` to resolve the saved result;
+matching jobs execute, while completed non-matching jobs carry their results
+forward.
 
 For example, to retry selected jobs from a saved run, copy its queue first:
 
@@ -211,19 +175,37 @@ rotari copy -p sweep RUN_ID
 rotari run -p sweep --failed --unfinished
 ```
 
-When the copied queue is run, each `Origin` resolves its saved result. The
-result filter determines which jobs execute and which completed results carry
-forward:
-
 ```mermaid
 flowchart LR
-  SavedRun["Saved run<br/>queue + results"] --> Copy["rotari copy RUN_ID"]
-  Copy --> CopiedQueue["Copy job definitions<br/>into current queue"]
-  CopiedQueue --> Origin["Attach Origin per job / task<br/>source Run ID + Job ID + Attempt ID"]
-  Origin --> Filter["run selection / result filter"]
-  Filter -->|"selected"| Execute["Execute in new run"]
-  Filter -->|"completed, not selected"| Carry["Carry result and output link"]
-  Filter -->|"no completed result"| Unfinished["Remain unfinished"]
+  subgraph SavedRun["Saved run: RUN_ID"]
+    SourceA["Job A<br/>Job ID: job-a<br/>Status: success"]
+    SourceB["Job B<br/>Job ID: job-b<br/>Status: failed"]
+  end
+
+  subgraph CurrentQueue["Queue after rotari copy RUN_ID"]
+    CopiedA["Copied job A<br/>Queue ID: job-a*"]
+    OriginA["Origin A<br/>Run ID: RUN_ID<br/>Job ID: job-a<br/>Attempt ID: attempt-a"]
+    StatusA["Status: success"]
+    CopiedB["Copied job B<br/>Queue ID: job-b*"]
+    OriginB["Origin B<br/>Run ID: RUN_ID<br/>Job ID: job-b<br/>Attempt ID: attempt-b"]
+    StatusB["Status: failed"]
+    CopiedA --> OriginA --> StatusA
+    CopiedB --> OriginB --> StatusB
+  end
+
+  SourceA -->|"copy job A"| CopiedA
+  SourceB -->|"copy job B"| CopiedB
+
+  subgraph NewRun["rotari run --failed --unfinished"]
+    Filter["Apply result filter"]
+    Filter -->|"selected"| Execute["Execute in new run"]
+    Filter -->|"completed, not selected"| Carry["Carry result and output link"]
+    Filter -->|"no completed result"| Unfinished["Remain unfinished"]
+  end
+  StatusA --> Filter
+  StatusB --> Filter
+
+  Note["* Source job ID is preserved unless it conflicts with an ID in the queue.<br/>Attempt ID is recorded when available."]
 
   classDef source fill:#f1f5f9,stroke:#64748b,color:#0f172a
   classDef queue fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
@@ -232,9 +214,15 @@ flowchart LR
   classDef execute fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
   classDef carried fill:#dcfce7,stroke:#16a34a,color:#14532d
   classDef unfinished fill:#e2e8f0,stroke:#64748b,color:#334155
-  class SavedRun source
-  class Copy,CopiedQueue queue
-  class Origin origin
+  classDef note fill:#fef3c7,stroke:#d97706,color:#78350f
+  classDef success fill:#dcfce7,stroke:#16a34a,color:#14532d
+  classDef failed fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+  class SourceA,SourceB source
+  class CopiedA,CopiedB queue
+  class OriginA,OriginB origin
+  class StatusA success
+  class StatusB failed
+  class Note note
   class Filter filter
   class Execute execute
   class Carry carried
