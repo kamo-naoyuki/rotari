@@ -106,7 +106,7 @@ A user-visible behavior change may require updates to:
   describes changes
 
 When an unrelated bug, design concern, or technical debt is discovered during
-work, record it in `ISSUES.md`. Remove the item when it is resolved, or move it
+work, record it in `development/ISSUES.md`. Remove the item when it is resolved, or move it
 to the `Resolved` section when a short record is useful.
 
 Examples include changes to:

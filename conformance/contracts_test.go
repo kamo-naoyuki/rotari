@@ -29,7 +29,7 @@ var (
 // contractStatuses are the statuses a row may have. "conformance" means the
 // listed tests check the whole rule, "partial" that they check part of it,
 // "pending" that no conformance test checks it yet, and "deviation" that
-// rotari knowingly breaks it, as recorded in ISSUES.md.
+// rotari knowingly breaks it, as recorded in development/ISSUES.md.
 var contractStatuses = []string{"conformance", "partial", "pending", "deviation"}
 
 type contractStatusRow struct {
@@ -42,7 +42,7 @@ func TestContractStatus(t *testing.T) {
 	contractDocuments := contractDocumentPrefixes(t)
 	rows := contractStatusRows(t)
 	coveredBy := coveringTests(t)
-	issues := readRepoFile(t, "ISSUES.md")
+	issues := readRepoFile(t, "development/ISSUES.md")
 
 	for id, file := range defined {
 		if _, ok := rows[id]; !ok {
@@ -75,7 +75,7 @@ func TestContractStatus(t *testing.T) {
 			}
 		case "deviation":
 			if !strings.Contains(issues, id) {
-				t.Errorf("%s: status deviation needs an ISSUES.md entry that names it", id)
+				t.Errorf("%s: status deviation needs a development/ISSUES.md entry that names it", id)
 			}
 		default:
 			t.Errorf("%s: unknown status %q; use one of %q", id, row.status, contractStatuses)
