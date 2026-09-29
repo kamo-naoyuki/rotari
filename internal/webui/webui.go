@@ -86,15 +86,17 @@ type webRemoveRequest struct {
 }
 
 type webCancelRequest struct {
-	QueueName string `json:"project_name"`
-	RunID     string `json:"run_id"`
-	JobID     string `json:"job_id"`
+	QueueName string   `json:"project_name"`
+	RunID     string   `json:"run_id"`
+	JobID     string   `json:"job_id"`
+	JobIDs    []string `json:"job_ids,omitempty"`
 }
 
 type webJobControlRequest struct {
-	QueueName string `json:"project_name"`
-	RunID     string `json:"run_id"`
-	JobID     string `json:"job_id"`
+	QueueName string   `json:"project_name"`
+	RunID     string   `json:"run_id"`
+	JobID     string   `json:"job_id"`
+	JobIDs    []string `json:"job_ids,omitempty"`
 }
 
 type webCancelRunRequest struct {
@@ -157,6 +159,24 @@ func Listen(host string, port int, fallback bool) (net.Listener, error) {
 	}
 }
 
+func webJobIDs(single string, multiple []string) ([]string, error) {
+	if single != "" && len(multiple) > 0 {
+		return nil, fmt.Errorf("job_id and job_ids cannot both be provided")
+	}
+	if single != "" {
+		multiple = []string{single}
+	}
+	if len(multiple) == 0 {
+		return nil, fmt.Errorf("job_id or job_ids are required")
+	}
+	for _, jobID := range multiple {
+		if !stateinternal.IsValidPathElement(jobID) {
+			return nil, fmt.Errorf("invalid job_id %q", jobID)
+		}
+	}
+	return multiple, nil
+}
+
 func (s site) handler() http.Handler {
 	baseDir, queueFilter, allowControl := s.BaseDir, s.ProjectFilter, s.AllowControl
 	mux := http.NewServeMux()
@@ -194,7 +214,7 @@ func (s site) handler() http.Handler {
 		}
 		joblist.Sort(rows)
 		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
-		_, _ = writer.Write([]byte(jobsHTML("/", projects, rows, sinceText, true)))
+		_, _ = writer.Write([]byte(jobsHTML("/", projects, rows, sinceText, true, s.Notifications)))
 	})
 	mux.HandleFunc("/jobs", func(writer http.ResponseWriter, request *http.Request) {
 		http.Redirect(writer, request, "/jobs/", http.StatusMovedPermanently)
@@ -546,11 +566,15 @@ func (s site) handler() http.Handler {
 			writeWebError(writer, err)
 			return
 		}
-		if !stateinternal.IsValidPathElement(cancel.QueueName) || !stateinternal.IsValidPathElement(cancel.RunID) || !stateinternal.IsValidPathElement(cancel.JobID) {
-			writeWebError(writer, fmt.Errorf("project_name, run_id and job_id are required"))
+		jobIDs, err := webJobIDs(cancel.JobID, cancel.JobIDs)
+		if err != nil || !stateinternal.IsValidPathElement(cancel.QueueName) || !stateinternal.IsValidPathElement(cancel.RunID) {
+			if err == nil {
+				err = fmt.Errorf("project_name and run_id are required")
+			}
+			writeWebError(writer, err)
 			return
 		}
-		message, err := s.Controller.Cancel(baseDir, cancel.QueueName, cancel.RunID, []string{cancel.JobID}, false)
+		message, err := s.Controller.Cancel(baseDir, cancel.QueueName, cancel.RunID, jobIDs, false)
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -571,11 +595,15 @@ func (s site) handler() http.Handler {
 			writeWebError(writer, err)
 			return
 		}
-		if !stateinternal.IsValidPathElement(control.QueueName) || !stateinternal.IsValidPathElement(control.RunID) || !stateinternal.IsValidPathElement(control.JobID) {
-			writeWebError(writer, fmt.Errorf("project_name, run_id and job_id are required"))
+		jobIDs, err := webJobIDs(control.JobID, control.JobIDs)
+		if err != nil || !stateinternal.IsValidPathElement(control.QueueName) || !stateinternal.IsValidPathElement(control.RunID) {
+			if err == nil {
+				err = fmt.Errorf("project_name and run_id are required")
+			}
+			writeWebError(writer, err)
 			return
 		}
-		message, err := s.Controller.Control(baseDir, control.QueueName, control.RunID, []string{control.JobID}, "suspend")
+		message, err := s.Controller.Control(baseDir, control.QueueName, control.RunID, jobIDs, "suspend")
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -596,11 +624,15 @@ func (s site) handler() http.Handler {
 			writeWebError(writer, err)
 			return
 		}
-		if !stateinternal.IsValidPathElement(control.QueueName) || !stateinternal.IsValidPathElement(control.RunID) || !stateinternal.IsValidPathElement(control.JobID) {
-			writeWebError(writer, fmt.Errorf("project_name, run_id and job_id are required"))
+		jobIDs, err := webJobIDs(control.JobID, control.JobIDs)
+		if err != nil || !stateinternal.IsValidPathElement(control.QueueName) || !stateinternal.IsValidPathElement(control.RunID) {
+			if err == nil {
+				err = fmt.Errorf("project_name and run_id are required")
+			}
+			writeWebError(writer, err)
 			return
 		}
-		message, err := s.Controller.Control(baseDir, control.QueueName, control.RunID, []string{control.JobID}, "resume")
+		message, err := s.Controller.Control(baseDir, control.QueueName, control.RunID, jobIDs, "resume")
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -994,7 +1026,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 		return err
 	}
 	joblist.Sort(jobs)
-	if err := writeStaticWebPage(filepath.Join(outputDir, "jobs", "index.html"), jobsHTML("../", projects, jobs, joblist.DefaultSinceText, false)); err != nil {
+	if err := writeStaticWebPage(filepath.Join(outputDir, "jobs", "index.html"), jobsHTML("../", projects, jobs, joblist.DefaultSinceText, false, false)); err != nil {
 		return err
 	}
 	if err := writeStaticStylesheet(filepath.Join(outputDir, "jobs")); err != nil {

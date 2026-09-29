@@ -359,6 +359,32 @@ function arrangeRunControls() {
   const create = controls.querySelector(".create-selected");
   const append = controls.querySelector(".append-selected");
   const report = controls.querySelector(".run-ai");
+  const selectedControl = (className, label, operation) => {
+    let button = controls.querySelector("." + className);
+    if (!button) {
+      button = document.createElement("button");
+      button.className = className;
+    }
+    button.textContent = label;
+    button.disabled = true;
+    button.onclick = () => controlSelectedRunJobs(operation);
+    return button;
+  };
+  const cancelSelected = selectedControl(
+    "cancel-selected-jobs",
+    "Cancel selected",
+    "cancel",
+  );
+  const suspendSelected = selectedControl(
+    "suspend-selected-jobs",
+    "Suspend selected",
+    "suspend",
+  );
+  const resumeSelected = selectedControl(
+    "resume-selected-jobs",
+    "Resume selected",
+    "resume",
+  );
   const deleteButton = [...controls.querySelectorAll("button")].find((button) =>
     button.classList.contains("delete-run"),
   );
@@ -379,6 +405,9 @@ function arrangeRunControls() {
       create,
       append,
       report,
+      cancelSelected,
+      suspendSelected,
+      resumeSelected,
       deleteButton,
       cancel,
     ].filter(Boolean),
@@ -400,9 +429,6 @@ function orderJobActions() {
       "job-ai",
       "diagnosis",
       "show-path",
-      "suspend-job",
-      "resume-job",
-      "cancel-job",
     ];
     const ordered = [];
     order.forEach((className) => {

@@ -524,6 +524,96 @@ setTimeout(async () => {
 	}
 }
 
+func TestRunBulkControlsOperateOnSelectedJobs(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	pagePath := filepath.Join(t.TempDir(), "index.html")
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	if err := os.WriteFile(pagePath, []byte(testSite().webHTML()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state := webprojection.State{Queues: []webprojection.QueueState{{
+		QueueName: "demo",
+		Runs: []webprojection.Run{{
+			RunSummary: model.RunSummary{RunID: "run-1", Status: "running"},
+			Running:    true,
+			Jobs: []webprojection.Job{
+				{ID: "running-1", Name: "active", SchedulerState: "running"},
+				{ID: "suspended-1", Name: "paused", SchedulerState: "suspended"},
+				{ID: "pending-1", Name: "waiting", SchedulerState: "pending"},
+			},
+		}},
+	}}}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := `
+const fs = require('fs');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const html = fs.readFileSync(process.argv[1], 'utf8');
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const requests = [];
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+const dom = new JSDOM(html, {
+	runScripts: 'dangerously',
+	url: 'http://127.0.0.1/project/demo/run/run-1',
+	virtualConsole,
+	beforeParse(window) {
+		window.fetch = async (url, options = {}) => {
+			if (url === '/api/state') return {ok: true, json: async () => state};
+			requests.push({url, body: JSON.parse(options.body)});
+			return {ok: true, text: async () => '{"message":"ok"}'};
+		};
+		window.confirm = () => true;
+		window.alert = message => { throw new Error(String(message)); };
+		window.setInterval = () => 1;
+	},
+});
+setTimeout(async () => {
+	const assert = (condition, message) => { if (!condition) throw new Error(message); };
+	const button = selector => dom.window.document.querySelector(selector);
+	const select = id => {
+		const input = dom.window.document.querySelector('tr[data-job-id="' + id + '"] .job-selection');
+		input.checked = true;
+		input.dispatchEvent(new dom.window.Event('change', {bubbles: true}));
+	};
+	try {
+		const controls = [...dom.window.document.querySelectorAll('.web-copy-controls button')];
+		const labels = controls.map(control => control.textContent.trim());
+		const positions = ['Report', 'Cancel selected', 'Suspend selected', 'Resume selected', 'Delete run'].map(label => labels.indexOf(label));
+		assert(positions.every(index => index >= 0) && positions.every((index, i) => i === 0 || positions[i - 1] < index), 'bulk job actions are not between Report and Delete run');
+		assert(button('.cancel-selected-jobs').disabled && button('.suspend-selected-jobs').disabled, 'control buttons should start disabled');
+		select('suspended-1');
+		assert(button('.cancel-selected-jobs').disabled && button('.suspend-selected-jobs').disabled, 'Cancel and Suspend should stay disabled without a selected running job');
+		assert(!button('.resume-selected-jobs').disabled, 'Resume should be enabled for a selected suspended job');
+		await dom.window.controlSelectedRunJobs('resume');
+		assert(requests[0].url === '/api/resume-job' && requests[0].body.job_ids.join() === 'suspended-1', 'Resume did not target the checked suspended job');
+		select('running-1');
+		assert(!button('.cancel-selected-jobs').disabled && !button('.suspend-selected-jobs').disabled, 'control buttons should enable when a checked job is running');
+		await dom.window.controlSelectedRunJobs('suspend');
+		assert(requests[1].url === '/api/suspend-job' && requests[1].body.job_ids.join() === 'running-1', 'Suspend did not target only the checked running job');
+		await dom.window.controlSelectedRunJobs('cancel');
+		assert(requests[2].url === '/api/cancel-job' && requests[2].body.job_ids.join() === 'running-1,suspended-1', 'Cancel did not target checked unfinished jobs');
+		assert(!dom.window.document.querySelector('tr[data-job-id="running-1"] .cancel-job'), 'per-row Cancel action should be removed');
+		if (errors.length) throw new Error(errors.join('\n'));
+	} catch (error) {
+		console.error(error.stack || String(error));
+		process.exit(1);
+	}
+}, 50);
+`
+	if output, err := exec.Command("node", "-e", script, pagePath, statePath).CombinedOutput(); err != nil {
+		t.Fatalf("bulk run controls check failed: %v\n%s", err, output)
+	}
+}
+
 func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 	html := testSite().webHTML()
 	if !webContains(html, "rotari run'+basedir+' --project-name '+shellQuote(queueName)") {
@@ -543,7 +633,7 @@ func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 			t.Fatalf("web command guidance is missing copy control %q", marker)
 		}
 	}
-	for _, marker := range []string{"select-all-jobs", "job-selection", "copySelectedJobs", "Select failed", "selectFailedJobs", "Select failed + unfinished", "Unselect all", `querySelectorAll(".unselect-all")`, "unselectAll.className = \"unselect-all\"", "unselectAll.disabled = true", ">Create</button>", ">Append</button>"} {
+	for _, marker := range []string{"select-all-jobs", "job-selection", "copySelectedJobs", "Select failed", "selectFailedJobs", "Select failed + unfinished", "Unselect all", `querySelectorAll(".unselect-all")`, "unselectAll.className = \"unselect-all\"", "unselectAll.disabled = true", ">Create</button>", ">Append</button>", "Cancel selected", "Suspend selected", "Resume selected", "controlSelectedRunJobs", "job_ids:targets.map"} {
 		if !webContains(html, marker) {
 			t.Fatalf("web run page is missing job queue selection control %q", marker)
 		}
@@ -646,7 +736,7 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 			t.Fatalf("page-specific stylesheets duplicate shared sidebar selector %q", selector)
 		}
 	}
-	jobsHTML := jobsHTML("/", []string{"demo"}, nil, joblist.DefaultSinceText, true)
+	jobsHTML := jobsHTML("/", []string{"demo"}, nil, joblist.DefaultSinceText, true, true)
 	for _, marker := range []string{".sidebar-brand {", ".sidebar-project-row {", ".sidebar-link.active {"} {
 		if !strings.Contains(jobsHTML, marker) || !strings.Contains(webSidebarStylesCSS, marker) {
 			t.Fatalf("Job activity page is missing shared sidebar style %q", marker)
@@ -803,15 +893,20 @@ func TestWebJobControlRejectsStaleRunID(t *testing.T) {
 	}
 	for _, path := range []string{"/api/cancel-job", "/api/suspend-job", "/api/resume-job"} {
 		t.Run(path, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"project_name":"default","run_id":"run-old","job_id":"job-1"}`))
-			recorder := httptest.NewRecorder()
-			Handler(testOptions(baseDir, "", true)).ServeHTTP(recorder, request)
-			if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), `run "run-old" is not running; the active run of project "default" is "run-current"`) {
-				t.Fatalf("status = %d, body = %q; want stale run rejection", recorder.Code, recorder.Body.String())
+			for _, body := range []string{
+				`{"project_name":"default","run_id":"run-old","job_id":"job-1"}`,
+				`{"project_name":"default","run_id":"run-old","job_ids":["job-1","job-2"]}`,
+			} {
+				request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+				recorder := httptest.NewRecorder()
+				Handler(testOptions(baseDir, "", true)).ServeHTTP(recorder, request)
+				if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), `run "run-old" is not running; the active run of project "default" is "run-current"`) {
+					t.Fatalf("body %s: status = %d, body = %q; want stale run rejection", body, recorder.Code, recorder.Body.String())
+				}
 			}
 
-			request = httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"project_name":"default","job_id":"job-1"}`))
-			recorder = httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"project_name":"default","job_id":"job-1"}`))
+			recorder := httptest.NewRecorder()
 			Handler(testOptions(baseDir, "", true)).ServeHTTP(recorder, request)
 			if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), "run_id") {
 				t.Fatalf("status = %d, body = %q; want run_id to be required", recorder.Code, recorder.Body.String())
@@ -1323,6 +1418,10 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 		`title="Copy command"`,
 		`title="Copy attempt ID"`,
 		`data-copy-value="true"`,
+		`id="notify-toggle"`,
+		`onclick="toggleJobsNotifications()"`,
+		`onclick="location.reload()">Refresh</button>`,
+		`setInterval(pollJobsActivity, 2000)`,
 	} {
 		if !strings.Contains(response.Body.String(), want) {
 			t.Fatalf("GET /jobs/ response does not contain %q: %s", want, response.Body.String())
@@ -1359,7 +1458,7 @@ func TestWebJobsPageRejectsInvalidSince(t *testing.T) {
 }
 
 func TestJobsHTMLStylesStates(t *testing.T) {
-	html := jobsHTML("/", nil, []joblist.Row{{State: "success"}, {State: "failed"}, {State: "running"}}, joblist.DefaultSinceText, true)
+	html := jobsHTML("/", nil, []joblist.Row{{State: "success"}, {State: "failed"}, {State: "running"}}, joblist.DefaultSinceText, true, true)
 	for _, want := range []string{
 		`class="jobs-state jobs-state-success"`,
 		`class="jobs-state jobs-state-failed"`,
@@ -1377,7 +1476,7 @@ func TestJobsHTMLStylesStates(t *testing.T) {
 func TestJobsHTMLSupportsSortingAndTimezoneTimestamps(t *testing.T) {
 	started := time.Date(2026, 9, 29, 1, 2, 3, 0, time.UTC)
 	finished := started.Add(time.Minute)
-	html := jobsHTML("/", nil, []joblist.Row{{State: "success", Project: "p", RunID: "r", JobName: "j", StartedAt: started, FinishedAt: finished}}, joblist.DefaultSinceText, false)
+	html := jobsHTML("/", nil, []joblist.Row{{State: "success", Project: "p", RunID: "r", JobName: "j", StartedAt: started, FinishedAt: finished}}, joblist.DefaultSinceText, false, false)
 	for _, want := range []string{
 		`class="jobs-table"`,
 		`data-sort="started"`,
@@ -2064,7 +2163,7 @@ func TestJobsPageCopyButtonShowsFeedback(t *testing.T) {
 		t.Skip("node is not installed")
 	}
 	htmlPath := filepath.Join(t.TempDir(), "jobs.html")
-	page := jobsHTML("/", nil, []joblist.Row{{State: "success", Project: "p", RunID: "r", JobName: "j", Command: "echo hi", FullCommand: "echo hi", AttemptID: "att_1"}}, joblist.DefaultSinceText, false)
+	page := jobsHTML("/", nil, []joblist.Row{{State: "success", Project: "p", RunID: "r", JobName: "j", Command: "echo hi", FullCommand: "echo hi", AttemptID: "att_1"}}, joblist.DefaultSinceText, false, false)
 	if err := os.WriteFile(htmlPath, []byte(page), 0o600); err != nil {
 		t.Fatal(err)
 	}

@@ -58,7 +58,6 @@ render = function () {
   addRunJobStatusColumn();
   addRunHostsColumn();
   addRunningOutputButtons();
-  addRunningCancelButtons();
   addRunJobSelection();
   arrangeRunControls();
   mergeActionColumns();

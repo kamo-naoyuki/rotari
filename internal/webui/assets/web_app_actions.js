@@ -1,4 +1,5 @@
 const selectedRunJobsByRun = {};
+let runJobControlBusy = false;
 function selectedRunKey() {
   const parts = pageParts();
   return parts[0] === "project" && parts[2] === "run"
@@ -9,6 +10,82 @@ function selectedRunJobIDs() {
   return [...document.querySelectorAll(".job-selection:checked")].map(
     (input) => input.closest("tr").dataset.jobId,
   );
+}
+function selectedRunJobs() {
+  const parts = pageParts();
+  if (parts[0] !== "project" || parts[2] !== "run") return [];
+  const project = state.projects.find(
+    (item) => item.project_name === decodeURIComponent(parts[1]),
+  );
+  const run =
+    project &&
+    project.runs.find((item) => item.run_id === decodeURIComponent(parts[3]));
+  if (!run) return [];
+  const selected = new Set(selectedRunJobIDs());
+  return (run.jobs || [])
+    .filter((job) => selected.has(job.id))
+    .map((job) => ({
+      job,
+      status: jobDisplayStatus(job, run),
+      run,
+      project,
+    }));
+}
+function updateSelectedRunControlButtons() {
+  const selected = selectedRunJobs();
+  const hasRunning = selected.some((item) => item.status === "running");
+  const hasSuspended = selected.some((item) => item.status === "suspended");
+  const cancel = document.querySelector(".cancel-selected-jobs");
+  const suspend = document.querySelector(".suspend-selected-jobs");
+  const resume = document.querySelector(".resume-selected-jobs");
+  if (cancel) cancel.disabled = runJobControlBusy || !hasRunning;
+  if (suspend) suspend.disabled = runJobControlBusy || !hasRunning;
+  if (resume) resume.disabled = runJobControlBusy || !hasSuspended;
+}
+async function controlSelectedRunJobs(operation) {
+  if (runJobControlBusy) return;
+  const selected = selectedRunJobs();
+  const hasRunning = selected.some((item) => item.status === "running");
+  let targets;
+  let endpoint;
+  if (operation === "cancel") {
+    if (!hasRunning) return;
+    targets = selected.filter((item) =>
+      ["pending", "running", "suspended"].includes(item.status),
+    );
+    endpoint = "/api/cancel-job";
+    if (!confirm("Cancel " + targets.length + " selected jobs?")) return;
+  } else if (operation === "suspend") {
+    if (!hasRunning) return;
+    targets = selected.filter((item) => item.status === "running");
+    endpoint = "/api/suspend-job";
+  } else if (operation === "resume") {
+    targets = selected.filter((item) => item.status === "suspended");
+    endpoint = "/api/resume-job";
+  } else {
+    return;
+  }
+  if (!targets.length) return;
+  runJobControlBusy = true;
+  updateSelectedRunControlButtons();
+  const { project, run } = targets[0];
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project_name: project.project_name,
+        run_id: run.run_id,
+        job_ids: targets.map((item) => item.job.id),
+      }),
+    });
+    const text = await response.text();
+    if (!response.ok) alert(text);
+    await refresh();
+  } finally {
+    runJobControlBusy = false;
+    updateSelectedRunControlButtons();
+  }
 }
 function restoreSelectedRunJobs() {
   const selected = selectedRunJobsByRun[selectedRunKey()];
@@ -34,6 +111,7 @@ function updateSelectedRunJobs() {
   document
     .querySelectorAll(".run-ai")
     .forEach((button) => (button.disabled = selected.length === 0));
+  updateSelectedRunControlButtons();
   const failed = document.querySelector(".select-failed");
   const failedUnfinished = document.querySelector(".select-failed-unfinished");
   if (failed || failedUnfinished) {

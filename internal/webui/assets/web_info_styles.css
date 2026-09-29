@@ -248,6 +248,12 @@ main {
   border-bottom: 1px solid rgba(83, 105, 125, 0.28);
 }
 
+.toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
 h1 {
   gap: 11px;
   font-size: clamp(23px, 2vw, 29px);

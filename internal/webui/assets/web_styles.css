@@ -915,7 +915,7 @@ section h2 {
 .run-id {
   color: #b4cce2;
   font-size: 12px;
-  text-decoration: none;
+  text-decoration: underline;
 }
 
 .latest-run .run-id {

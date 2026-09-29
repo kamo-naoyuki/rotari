@@ -86,7 +86,7 @@ func composeInfoHTML(template, homePath, content string) string {
 	return template
 }
 
-func jobsHTML(homePath string, projects []string, rows []joblist.Row, since string, canFilter bool) string {
+func jobsHTML(homePath string, projects []string, rows []joblist.Row, since string, canFilter, notifications bool) string {
 	var builder strings.Builder
 	if canFilter {
 		builder.WriteString(`<form class="jobs-filter" method="get"><label for="jobs-since">Since</label><input id="jobs-since" name="since" value="`)
@@ -96,13 +96,29 @@ func jobsHTML(homePath string, projects []string, rows []joblist.Row, since stri
 	var sidebar strings.Builder
 	writeJobsSidebarProjects(&sidebar, homePath, projects)
 	template := strings.Replace(jobsTemplateHTML, "__ROTARI_JOBS_PROJECTS__", sidebar.String(), 1)
+	var toolbar string
+	if canFilter {
+		toolbar = `<div class="toolbar"><button id="notify-toggle" type="button" onclick="toggleJobsNotifications()">Notification off</button><button type="button" onclick="location.reload()">Refresh</button></div>`
+	}
+	template = strings.Replace(template, "__ROTARI_JOBS_TOOLBAR__", toolbar, 1)
+	template = strings.Replace(template, "__ROTARI_JOBS_LIVE__", strconv.FormatBool(canFilter), 1)
+	template = strings.Replace(template, "__ROTARI_NOTIFICATION_DEFAULT__", strconv.FormatBool(notifications), 1)
+	template = strings.Replace(template, "__ROTARI_NOTIFICATION_ICON__", faviconDataURL(webFaviconDarkSVG), 1)
 	if len(rows) == 0 {
 		builder.WriteString(`<p class="meta">No running or recently finished jobs found.</p>`)
 		return composeInfoHTML(template, homePath, builder.String())
 	}
 	builder.WriteString(`<section><table class="jobs-table"><thead><tr><th data-sort="state">State</th><th data-sort="project">Project</th><th data-sort="job">Job</th><th data-sort="command">Command</th><th data-sort="attempt">Attempt</th><th data-sort="started">Started</th><th data-sort="finished">Finished</th><th data-sort="elapsed">Elapsed</th></tr></thead><tbody>`)
 	for _, row := range rows {
-		builder.WriteString(`<tr><td class="jobs-state jobs-state-`)
+		builder.WriteString(`<tr data-notification-key="`)
+		builder.WriteString(html.EscapeString(row.Project + "/" + row.RunID + "/" + row.AttemptID))
+		builder.WriteString(`" data-project="`)
+		builder.WriteString(html.EscapeString(row.Project))
+		builder.WriteString(`" data-job="`)
+		builder.WriteString(html.EscapeString(row.JobName))
+		builder.WriteString(`" data-run-url="`)
+		builder.WriteString(html.EscapeString(homePath + "project/" + url.PathEscape(row.Project) + "/run/" + url.PathEscape(row.RunID)))
+		builder.WriteString(`"><td class="jobs-state jobs-state-`)
 		builder.WriteString(jobsStateClass(row.State))
 		builder.WriteString(`">`)
 		builder.WriteString(html.EscapeString(row.State))

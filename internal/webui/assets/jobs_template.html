@@ -36,6 +36,7 @@
               Running jobs and jobs finished in the last 24 hours
             </div>
           </div>
+          __ROTARI_JOBS_TOOLBAR__
         </header>
         __ROTARI_CONTENT__
       </div>
@@ -140,6 +141,98 @@
             );
           });
         });
+
+      const jobsNotificationsDefaultOn = __ROTARI_NOTIFICATION_DEFAULT__;
+      const jobsNotificationIcon = "__ROTARI_NOTIFICATION_ICON__";
+      const jobsNotificationsEnabledKey = "rotari-notifications-enabled";
+      function jobsNotificationsEnabled() {
+        const stored = localStorage.getItem(jobsNotificationsEnabledKey);
+        return stored === null ? jobsNotificationsDefaultOn : stored !== "false";
+      }
+
+      function updateJobsNotifyToggleLabel() {
+        const button = document.getElementById("notify-toggle");
+        if (!button) return;
+        if (typeof Notification === "undefined") {
+          button.hidden = true;
+          return;
+        }
+        button.disabled = Notification.permission === "denied";
+        button.textContent =
+          Notification.permission === "granted" && jobsNotificationsEnabled()
+            ? "Notification on"
+            : "Notification off";
+      }
+
+      async function toggleJobsNotifications() {
+        if (typeof Notification === "undefined") return;
+        if (Notification.permission === "default") {
+          await Notification.requestPermission();
+        } else if (Notification.permission === "granted") {
+          localStorage.setItem(
+            jobsNotificationsEnabledKey,
+            jobsNotificationsEnabled() ? "false" : "true",
+          );
+        }
+        updateJobsNotifyToggleLabel();
+      }
+
+      function jobsNotificationSnapshot(documentNode) {
+        const rows = new Map();
+        documentNode.querySelectorAll("tr[data-notification-key]").forEach((row) => {
+          rows.set(row.dataset.notificationKey, {
+            state: row.querySelector(".jobs-state").textContent.trim(),
+            project: row.dataset.project,
+            job: row.dataset.job,
+            runURL: row.dataset.runUrl,
+          });
+        });
+        return rows;
+      }
+
+      function notifyJobsActivity(job) {
+        if (
+          typeof Notification === "undefined" ||
+          Notification.permission !== "granted" ||
+          !jobsNotificationsEnabled()
+        ) return;
+        const failed = job.state === "failed";
+        const notification = new Notification(
+          failed ? "rotari: job failed" : "rotari: job finished",
+          {
+            body: job.project + " / " + job.job,
+            icon: jobsNotificationIcon,
+          },
+        );
+        notification.onclick = () => {
+          window.focus();
+          location.href = job.runURL;
+        };
+      }
+
+      let previousJobsActivity = jobsNotificationSnapshot(document);
+      async function pollJobsActivity() {
+        try {
+          const response = await fetch(location.href, { cache: "no-store" });
+          if (!response.ok) return;
+          const html = await response.text();
+          const nextDocument = new DOMParser().parseFromString(html, "text/html");
+          const nextJobs = jobsNotificationSnapshot(nextDocument);
+          nextJobs.forEach((job, key) => {
+            const previous = previousJobsActivity.get(key);
+            if (
+              (job.state === "failed" || job.state === "success") &&
+              (!previous || previous.state === "running")
+            ) notifyJobsActivity(job);
+          });
+          previousJobsActivity = nextJobs;
+        } catch (error) {
+          // Keep polling after temporary network or parsing failures.
+        }
+      }
+
+      updateJobsNotifyToggleLabel();
+      setInterval(pollJobsActivity, 2000);
     </script>
   </body>
 </html>

@@ -161,6 +161,20 @@ independently display a prior attempt's result, timestamps, and log. The log
 endpoint validates that an optional attempt ID belongs to its requested run and
 job before reading that attempt directory.
 
+The run page keeps Cancel and Suspend/Resume out of individual job rows.
+The toolbar actions between Report and Delete run operate on the checked jobs:
+Cancel includes selected pending, running, and suspended jobs; Suspend targets
+selected running jobs; Resume targets selected suspended jobs. Cancel and
+Suspend stay disabled unless at least one checked job is running, while Resume
+is enabled when a checked job is suspended. The Web API accepts one `job_id`
+for existing callers or a `job_ids` list for these bulk actions. The browser
+selection and action state are implemented in
+[`web_app_actions.js`](../internal/webui/assets/web_app_actions.js) and
+[`web_app_logs.js`](../internal/webui/assets/web_app_logs.js); the API validates
+IDs in [`webui.go`](../internal/webui/webui.go). Covered by
+[`TestRunBulkControlsOperateOnSelectedJobs`](../internal/webui/webui_test.go)
+and [`TestWebJobControlRejectsStaleRunID`](../internal/webui/webui_test.go).
+
 A run page adds one collapsible section per matrix group, collapsed by default,
 between the run graphics and the job table controls
 ([web_app_matrix.js](../internal/webui/assets/web_app_matrix.js)).
