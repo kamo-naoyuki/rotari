@@ -177,49 +177,47 @@ rotari run -p sweep --failed --unfinished
 
 ```mermaid
 flowchart LR
-  subgraph SavedRun["Saved run: RUN_ID"]
-    SourceA["Job A<br/>Job ID: job-a<br/>Status: success"]
-    SourceB["Job B<br/>Job ID: job-b<br/>Status: failed"]
-    SourceC["Job C<br/>Job ID: job-c<br/>Status: unfinished"]
+  subgraph SavedRun["Saved run RUN_ID"]
+    SourceA["A · job-a"]
+    SourceB["B · job-b"]
+    SourceC["C · job-c"]
   end
 
   CopyCmd["rotari copy RUN_ID"]
 
-  subgraph CurrentQueue["Queue after rotari copy RUN_ID"]
-    CopiedA["Copied job A<br/>Queue ID: job-a*"]
-    OriginA["Origin A<br/>Run ID: RUN_ID<br/>Job ID: job-a<br/>Attempt ID: attempt-a"]
-    StatusA["Status: success"]
-    CopiedB["Copied job B<br/>Queue ID: job-b*"]
-    OriginB["Origin B<br/>Run ID: RUN_ID<br/>Job ID: job-b<br/>Attempt ID: attempt-b"]
-    StatusB["Status: failed"]
-    CopiedC["Copied job C<br/>Queue ID: job-c*"]
-    OriginC["Origin C<br/>Run ID: RUN_ID<br/>Job ID: job-c"]
-    StatusC["Status: unfinished"]
+  subgraph CurrentQueue["Copied queue"]
+    CopiedA["A · job-a*"]
+    OriginA["origin<br/>RUN_ID/job-a<br/>attempt-a"]
+    StatusA["success"]
+    CopiedB["B · job-b*"]
+    OriginB["origin<br/>RUN_ID/job-b<br/>attempt-b"]
+    StatusB["failed"]
+    CopiedC["C · job-c*"]
+    OriginC["origin<br/>RUN_ID/job-c"]
+    StatusC["unfinished"]
     CopiedA --> OriginA --> StatusA
     CopiedB --> OriginB --> StatusB
     CopiedC --> OriginC --> StatusC
   end
 
-  SourceA -->|"copy job A"| CopyCmd
-  SourceB -->|"copy job B"| CopyCmd
-  SourceC -->|"copy job C"| CopyCmd
+  SourceA --> CopyCmd
+  SourceB --> CopyCmd
+  SourceC --> CopyCmd
   CopyCmd --> CopiedA
   CopyCmd --> CopiedB
   CopyCmd --> CopiedC
 
   subgraph NewRun["New run"]
     RunCmd["rotari run --failed --unfinished"]
-    Filter["Apply result filter"]
+    Filter["filter"]
     RunCmd --> Filter
-    Filter -->|"selected"| Execute["Execute in new run"]
-    Filter -->|"completed, not selected"| Carry["Carry result and output link"]
-    Filter -->|"no completed result"| Unfinished["Remain unfinished"]
+    Filter -->|"selected"| Execute["execute"]
+    Filter -->|"done, not selected"| Carry["carry result"]
+    Filter -->|"no result"| Unfinished["unfinished"]
   end
   StatusA --> RunCmd
   StatusB --> RunCmd
   StatusC --> RunCmd
-
-  Note["* Source job ID is preserved unless it conflicts with an ID in the queue.<br/>Attempt ID is recorded when available."]
 
   classDef source fill:#f1f5f9,stroke:#64748b,color:#0f172a
   classDef queue fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
@@ -228,17 +226,15 @@ flowchart LR
   classDef execute fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
   classDef carried fill:#dcfce7,stroke:#16a34a,color:#14532d
   classDef unfinished fill:#e2e8f0,stroke:#64748b,color:#334155
-  classDef note fill:#fef3c7,stroke:#d97706,color:#78350f
+  classDef command fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
   classDef success fill:#dcfce7,stroke:#16a34a,color:#14532d
   classDef failed fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
-  classDef command fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
   class SourceA,SourceB,SourceC source
   class CopiedA,CopiedB,CopiedC queue
   class OriginA,OriginB,OriginC origin
   class StatusA success
   class StatusB failed
   class StatusC unfinished
-  class Note note
   class CopyCmd,RunCmd command
   class Filter filter
   class Execute execute
@@ -262,20 +258,20 @@ rotari run -p sweep --failed --unfinished --match-by fingerprint
 
 ```mermaid
 flowchart LR
-  subgraph ReferenceRun["Reference run: RUN_ID"]
-    SourceA["Job A<br/>Job ID: old-a<br/>Fingerprint: fp-1<br/>Status: success"]
-    SourceB["Job B<br/>Job ID: old-b<br/>Fingerprint: fp-2<br/>Status: failed"]
+  subgraph ReferenceRun["Reference RUN_ID"]
+    SourceA["A · old-a · fp-1<br/>success"]
+    SourceB["B · old-b · fp-2<br/>failed"]
   end
 
   RunCmd["rotari run --failed --unfinished<br/>--match-by fingerprint"]
 
-  subgraph NewQueue["New queue: different Job IDs"]
-    NewA["Job A<br/>Job ID: new-a<br/>Fingerprint: fp-1"]
-    NewB["Job B<br/>Job ID: new-b<br/>Fingerprint: fp-2"]
-    OriginA["Origin A<br/>Run ID: RUN_ID<br/>Job ID: old-a"]
-    OriginB["Origin B<br/>Run ID: RUN_ID<br/>Job ID: old-b"]
-    StatusA["Status: success"]
-    StatusB["Status: failed"]
+  subgraph NewQueue["New queue"]
+    NewA["A · new-a · fp-1"]
+    NewB["B · new-b · fp-2"]
+    OriginA["origin: RUN_ID/old-a"]
+    OriginB["origin: RUN_ID/old-b"]
+    StatusA["success"]
+    StatusB["failed"]
     NewA --> OriginA --> StatusA
     NewB --> OriginB --> StatusB
   end
@@ -284,16 +280,16 @@ flowchart LR
   SourceB --> RunCmd
   NewA --> RunCmd
   NewB --> RunCmd
-  RunCmd -->|"fingerprint match"| OriginA
-  RunCmd -->|"fingerprint match"| OriginB
+  RunCmd -->|"fp match"| OriginA
+  RunCmd -->|"fp match"| OriginB
   StatusA --> Filter
   StatusB --> Filter
 
   subgraph NewRun["New run"]
-    Filter["Apply result filter"]
-    Filter -->|"selected"| Execute["Execute in new run"]
-    Filter -->|"completed, not selected"| Carry["Carry result and output link"]
-    Filter -->|"no completed result"| Unfinished["Remain unfinished"]
+    Filter["filter"]
+    Filter -->|"selected"| Execute["execute"]
+    Filter -->|"done, not selected"| Carry["carry result"]
+    Filter -->|"no result"| Unfinished["unfinished"]
   end
 
   classDef source fill:#f1f5f9,stroke:#64748b,color:#0f172a
