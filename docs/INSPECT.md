@@ -97,40 +97,6 @@ origin points to the compared run; otherwise named jobs are matched by name.
 The one-run summary also groups failed jobs by diagnosis and reports their
 source-run origins, including `new` for jobs without an origin.
 
-#### Example: check a fix-and-rerun cycle
-
-Suppose the first run has one failed training job and one successful
-evaluation job. After fixing the training command and rerunning the batch,
-compare the two generations directly:
-
-```sh
-rotari lineage -p sweep 20260930-101500-a1b2c3d4 20260930-104200-e5f6a7b8
-```
-
-The comparison is intentionally focused on what changed:
-
-```text
-Runs: first (20260930-101500-a1b2c3d4) -> fixed (20260930-104200-e5f6a7b8)
-Summary: fixed 1, still failing 0, newly failing 0, added 0, removed 0, changed 1, carried 1
-
-JOB       FROM     TO       RESULT          CHANGES
-train     failed   success  fixed           command (carried)
-eval      success  success  unchanged       - (carried)
-```
-
-Use one run ID when the question is "what remains in this generation?":
-
-```sh
-rotari lineage -p sweep 20260930-104200-e5f6a7b8
-```
-
-The JSON form is useful when an agent needs the complete job list or stable
-counts rather than the human-oriented table:
-
-```sh
-rotari lineage -p sweep --json 20260930-101500-a1b2c3d4 20260930-104200-e5f6a7b8
-```
-
 ### Check run readiness
 
 To check whether a project can start its queued run without changing any
