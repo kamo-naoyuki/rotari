@@ -180,6 +180,7 @@ flowchart LR
   subgraph SavedRun["Saved run: RUN_ID"]
     SourceA["Job A<br/>Job ID: job-a<br/>Status: success"]
     SourceB["Job B<br/>Job ID: job-b<br/>Status: failed"]
+    SourceC["Job C<br/>Job ID: job-c<br/>Status: unfinished"]
   end
 
   subgraph CurrentQueue["Queue after rotari copy RUN_ID"]
@@ -189,12 +190,17 @@ flowchart LR
     CopiedB["Copied job B<br/>Queue ID: job-b*"]
     OriginB["Origin B<br/>Run ID: RUN_ID<br/>Job ID: job-b<br/>Attempt ID: attempt-b"]
     StatusB["Status: failed"]
+    CopiedC["Copied job C<br/>Queue ID: job-c*"]
+    OriginC["Origin C<br/>Run ID: RUN_ID<br/>Job ID: job-c"]
+    StatusC["Status: unfinished"]
     CopiedA --> OriginA --> StatusA
     CopiedB --> OriginB --> StatusB
+    CopiedC --> OriginC --> StatusC
   end
 
   SourceA -->|"copy job A"| CopiedA
   SourceB -->|"copy job B"| CopiedB
+  SourceC -->|"copy job C"| CopiedC
 
   subgraph NewRun["rotari run --failed --unfinished"]
     Filter["Apply result filter"]
@@ -204,6 +210,7 @@ flowchart LR
   end
   StatusA --> Filter
   StatusB --> Filter
+  StatusC --> Filter
 
   Note["* Source job ID is preserved unless it conflicts with an ID in the queue.<br/>Attempt ID is recorded when available."]
 
@@ -217,11 +224,12 @@ flowchart LR
   classDef note fill:#fef3c7,stroke:#d97706,color:#78350f
   classDef success fill:#dcfce7,stroke:#16a34a,color:#14532d
   classDef failed fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
-  class SourceA,SourceB source
-  class CopiedA,CopiedB queue
-  class OriginA,OriginB origin
+  class SourceA,SourceB,SourceC source
+  class CopiedA,CopiedB,CopiedC queue
+  class OriginA,OriginB,OriginC origin
   class StatusA success
   class StatusB failed
+  class StatusC unfinished
   class Note note
   class Filter filter
   class Execute execute
