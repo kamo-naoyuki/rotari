@@ -27,7 +27,7 @@ jobs:
           cache: true
 
       - name: Build rotari
-        run: go build -o "$RUNNER_TEMP/rotari" ./cmd/rotari
+        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/rotari" ./cmd/rotari
 
       - name: Check example scripts
         run: find examples -name '*.sh' -exec bash -n {} \;
@@ -66,3 +66,50 @@ jobs:
           run_example workflow.sh "Exported workflow:" exported.yaml
           run_example workflow-reconcile.sh "Example state:" exported.yaml reconciled.yaml
           run_example diagnose-rules.sh "Python import or module missing"
+
+      - name: Run Slurm example in a container
+        shell: bash
+        run: |
+          set -euo pipefail
+          container="rotari-slurm-example-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          volume="rotari-slurm-example-state-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup() {
+            docker rm --force "$container" >/dev/null 2>&1 || true
+            docker volume rm "$volume" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          docker volume create "$volume" >/dev/null
+
+          docker run --detach --name "$container" --hostname slurmctl \
+            --interactive --tty \
+            --cap-add SYS_ADMIN \
+            --volume "$GITHUB_WORKSPACE/examples:/workspace/examples:ro" \
+            --volume "$RUNNER_TEMP/rotari:/usr/local/bin/rotari:ro" \
+            --volume "$volume:/state" \
+            giovtorres/docker-centos7-slurm:latest
+
+          ready=0
+          for attempt in {1..60}; do
+            if docker exec "$container" sinfo >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [[ "$ready" == 0 ]]; then
+            docker logs "$container"
+            exit 1
+          fi
+
+          docker exec --user root "$container" chown -R slurm:slurm /state
+          if output=$(docker exec --user slurm --workdir /state --env HOME=/home/slurm \
+            --env ROTARI_MASTERDIR=/state/master "$container" \
+            bash /workspace/examples/slurm.sh 2>&1); then
+            printf '%s\n' "$output"
+          else
+            status=$?
+            printf '%s\n' "$output" >&2
+            exit "$status"
+          fi
+          grep -Fq -- "Success: 2" <<< "$output"
