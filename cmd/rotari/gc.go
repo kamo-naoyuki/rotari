@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/runregistry"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -18,6 +19,7 @@ const runRegistryGCCacheTTL = 10 * time.Minute
 type runRegistryGCCache struct {
 	CreatedAt string                 `json:"created_at"`
 	Entries   []runregistry.Location `json:"entries"`
+	Basedirs  []string               `json:"basedirs,omitempty"`
 }
 
 // cmdGC removes stale run registry entries from the master registry.
@@ -51,7 +53,12 @@ func scanRunRegistryGC(masterDir string) int {
 		printErrorf("failed to scan run registry: %v", err)
 		return 1
 	}
-	cache := runRegistryGCCache{CreatedAt: nowRFC3339(), Entries: entries}
+	missingBasedirs, err := basedirregistry.Open(masterDir).Missing()
+	if err != nil {
+		printErrorf("failed to scan basedir registry: %v", err)
+		return 1
+	}
+	cache := runRegistryGCCache{CreatedAt: nowRFC3339(), Entries: entries, Basedirs: missingBasedirs}
 	cachePath := filepath.Join(masterDir, "gc.json")
 	if err := os.MkdirAll(masterDir, state.DirectoryMode()); err != nil {
 		printErrorf("failed to create master directory: %v", err)
@@ -64,6 +71,10 @@ func scanRunRegistryGC(masterDir string) int {
 	fmt.Printf("found %d orphan run registry entr%s\n", len(entries), pluralSuffix(len(entries)))
 	for _, entry := range entries {
 		fmt.Printf("  %s -> %s/projects/%s/runs/%s\n", entry.RunID, entry.BaseDir, entry.ProjectName, entry.RunID)
+	}
+	fmt.Printf("found %d missing basedir registr%s\n", len(missingBasedirs), pluralSuffix(len(missingBasedirs)))
+	for _, baseDir := range missingBasedirs {
+		fmt.Printf("  %s\n", baseDir)
 	}
 	if len(skipped) > 0 {
 		fmt.Printf("skipped %d invalid run registry entr%s; no automatic changes made\n", len(skipped), pluralSuffix(len(skipped)))
@@ -119,7 +130,26 @@ func applyRunRegistryGC(masterDir string) int {
 			removed++
 		}
 	}
+	basedirRegistry := basedirregistry.Open(masterDir)
+	removedBasedirs := 0
+	for _, baseDir := range cache.Basedirs {
+		if _, err := os.Stat(baseDir); err == nil {
+			continue
+		} else if !os.IsNotExist(err) {
+			printError(err)
+			return 1
+		}
+		removed, err := basedirRegistry.Remove(baseDir)
+		if err != nil {
+			printError(err)
+			return 1
+		}
+		if removed {
+			removedBasedirs++
+		}
+	}
 	_ = os.Remove(cachePath)
 	fmt.Printf("removed %d orphan run registry entr%s\n", removed, pluralSuffix(removed))
+	fmt.Printf("removed %d missing basedir registr%s\n", removedBasedirs, pluralSuffix(removedBasedirs))
 	return 0
 }

@@ -6,13 +6,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
 	"github.com/kamo-naoyuki/rotari/internal/runregistry"
 )
 
 func TestRunRegistryGCFindsAndAppliesOnlyOrphans(t *testing.T) {
 	masterDir := t.TempDir()
 	baseDir := t.TempDir()
+	missingBaseDir := filepath.Join(t.TempDir(), "removed-basedir")
 	t.Setenv("ROTARI_MASTERDIR", masterDir)
+	if err := basedirregistry.Open(masterDir).Register(missingBaseDir); err != nil {
+		t.Fatal(err)
+	}
 	locations := []runLocation{
 		{BaseDir: baseDir, ProjectName: "demo", RunID: "missing"},
 		{BaseDir: baseDir, ProjectName: "demo", RunID: "live"},
@@ -36,7 +41,7 @@ func TestRunRegistryGCFindsAndAppliesOnlyOrphans(t *testing.T) {
 	if len(skipped) != 0 {
 		t.Fatalf("skipped = %v, want none", skipped)
 	}
-	cache := runRegistryGCCache{CreatedAt: nowRFC3339(), Entries: orphans}
+	cache := runRegistryGCCache{CreatedAt: nowRFC3339(), Entries: orphans, Basedirs: []string{missingBaseDir}}
 	if err := writeJSON(filepath.Join(masterDir, "gc.json"), cache); err != nil {
 		t.Fatal(err)
 	}
@@ -49,6 +54,13 @@ func TestRunRegistryGCFindsAndAppliesOnlyOrphans(t *testing.T) {
 	}
 	if _, found, err := resolveRunLocation("live"); err != nil || !found {
 		t.Fatalf("live entry: found=%v, err=%v; want retained", found, err)
+	}
+	baseDirs, err := basedirregistry.Open(masterDir).BaseDirs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(baseDirs) != 0 {
+		t.Fatalf("basedir registry after GC = %v, want empty", baseDirs)
 	}
 }
 

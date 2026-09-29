@@ -49,3 +49,30 @@ func TestBaseDirsSkipsMalformedRecords(t *testing.T) {
 		t.Fatalf("BaseDirs() = %v, want empty", baseDirs)
 	}
 }
+
+func TestMissingAndRemove(t *testing.T) {
+	masterDir := t.TempDir()
+	registry := Open(masterDir)
+	missing := filepath.Join(t.TempDir(), "removed")
+	if err := registry.Register(missing); err != nil {
+		t.Fatal(err)
+	}
+	missingDirs, err := registry.Missing()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(missingDirs) != 1 || missingDirs[0] != missing {
+		t.Fatalf("Missing() = %v, want [%s]", missingDirs, missing)
+	}
+	removed, err := registry.Remove(missing)
+	if err != nil || !removed {
+		t.Fatalf("Remove() = (%v, %v), want (true, nil)", removed, err)
+	}
+	missingDirs, err = registry.Missing()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(missingDirs) != 0 {
+		t.Fatalf("Missing() after Remove = %v, want empty", missingDirs)
+	}
+}

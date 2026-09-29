@@ -83,3 +83,46 @@ func (registry Registry) BaseDirs() ([]string, error) {
 	}
 	return baseDirs, nil
 }
+
+// Missing returns registered basedirs whose directories no longer exist.
+func (registry Registry) Missing() ([]string, error) {
+	baseDirs, err := registry.BaseDirs()
+	if err != nil {
+		return nil, err
+	}
+	missing := make([]string, 0)
+	for _, baseDir := range baseDirs {
+		if _, err := os.Stat(baseDir); os.IsNotExist(err) {
+			missing = append(missing, baseDir)
+		} else if err != nil {
+			return nil, err
+		}
+	}
+	return missing, nil
+}
+
+// Remove unregisters baseDir if its record still refers to that exact path.
+func (registry Registry) Remove(baseDir string) (bool, error) {
+	baseDir, err := filepath.Abs(baseDir)
+	if err != nil {
+		return false, err
+	}
+	path := recordPath(registry.dir, baseDir)
+	var existing record
+	if err := state.NewStore(state.DirectoryMode(), state.FileMode()).ReadJSON(path, &existing); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if existing.BaseDir != baseDir {
+		return false, fmt.Errorf("basedir registry hash collision for %q", baseDir)
+	}
+	if err := os.Remove(path); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
