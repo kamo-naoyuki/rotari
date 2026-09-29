@@ -159,8 +159,9 @@ result forward.
 
 `copy` copies jobs individually from a saved run into the current queue. Each
 copied job records an `Origin` that points back to its source run, job, and
-(when available) attempt. The source job ID is kept unless it conflicts with
-an ID already in the queue.
+(when available) attempt, and preserves the source status. The copied queue
+entry remains pending until a later `run` applies its selection. The source
+job ID is kept unless it conflicts with an ID already in the queue.
 
 ```mermaid
 flowchart LR
@@ -171,9 +172,9 @@ flowchart LR
 
   subgraph CurrentQueue["Queue after rotari copy RUN_ID"]
     CopiedA["Copied job A<br/>Queue ID: job-a*"]
-    OriginA["Origin A<br/>Run ID: RUN_ID<br/>Job ID: job-a<br/>Attempt ID: attempt-a"]
+    OriginA["Origin A<br/>Run ID: RUN_ID<br/>Job ID: job-a<br/>Attempt ID: attempt-a<br/>Status: success"]
     CopiedB["Copied job B<br/>Queue ID: job-b*"]
-    OriginB["Origin B<br/>Run ID: RUN_ID<br/>Job ID: job-b<br/>Attempt ID: attempt-b"]
+    OriginB["Origin B<br/>Run ID: RUN_ID<br/>Job ID: job-b<br/>Attempt ID: attempt-b<br/>Status: failed"]
     CopiedA --> OriginA
     CopiedB --> OriginB
   end
