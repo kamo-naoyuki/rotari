@@ -149,33 +149,39 @@ calculated from the command, explicitly saved job inputs, and expanded array
 or matrix parameters; they are recalculated for each comparison rather than
 stored in queue or run files.
 
-These are different roles, not two interchangeable IDs: a fingerprint is a
-matching key, while an `Origin` is a link to the source run, job, and (when
-available) attempt. The `Origin` lets a new run find the exact old result to
-carry forward or use when applying a result filter. Job IDs identify queued
-jobs; attempt IDs identify individual executions within a run.
+The two workflows establish the source link differently. Copying a saved run
+records an `Origin` for each copied job or task. A newly created queue has no
+such links, so `--match-by fingerprint` can match its execution units to a
+reference run. A fingerprint is a matching key, not a stored ID; an `Origin`
+points to the source run, job, and (when available) attempt. Result filters use
+that source result to decide whether to execute or carry it forward.
+
+Copying a saved run preserves direct `Origin` links:
 
 ```mermaid
-flowchart TB
-  subgraph AcrossRuns["run / retry: 新しい run を作る"]
-    Queue["今回の queue"] --> Match["参照 run と対応付け<br/>Job ID / fingerprint"]
-    History["参照 run<br/>commands.json + results"] --> Match
-    Match -->|"対応あり"| Origin["Origin link<br/>Run ID + Job ID + Attempt ID"]
-    Match -->|"対応なし"| NoOrigin["Origin なし<br/>同じ Job ID は参照 run から解決"]
-    Origin --> Filter["selection / result filter<br/>retry default: failed + unfinished<br/>--job-id selects directly; stage / matrix narrows scope"]
-    NoOrigin --> Filter
-    Filter -->|"filter に一致"| Execute["次の run で実行"]
-    Filter -->|"不一致・完了結果あり"| Carry["結果を引き継ぐ<br/>元の出力へのリンクを保持"]
-    Filter -->|"不一致・完了結果なし"| Unfinished["実行せず unfinished のまま"]
-    Execute --> Downstream["依存する下流 job も実行"]
-  end
+flowchart LR
+  SavedRun["Saved run<br/>queue + results"] --> Copy["rotari copy RUN_ID"]
+  Copy --> CopiedQueue["Copied queue"]
+  CopiedQueue --> Origin["Origin per job / task<br/>source Run ID + Job ID + Attempt ID"]
+  Origin --> Filter["run selection / result filter"]
+  Filter -->|"selected"| Execute["Execute in new run"]
+  Filter -->|"completed, not selected"| Carry["Carry result and output link"]
+  Filter -->|"no completed result"| Unfinished["Remain unfinished"]
+```
 
-  subgraph WithinRun["--retry N: 同じ run の中"]
-    Downstream --> RetryCheck{"失敗し、retry が残っている?"}
-    RetryCheck -->|"はい"| Attempt["新しい Attempt ID で再試行"]
-    RetryCheck -->|"いいえ"| Result["結果を確定"]
-    Attempt --> RetryCheck
-  end
+A newly created queue is matched to the reference run by fingerprint:
+
+```mermaid
+flowchart LR
+  NewQueue["Newly created queue"] --> Match["Match against reference run<br/>--match-by fingerprint<br/>(default: Job ID, then fingerprint)"]
+  Reference["Reference run<br/>commands.json + results"] --> Match
+  Match -->|"fingerprint match"| Origin["Create Origin link<br/>source Run ID + Job ID + Attempt ID"]
+  Match -->|"no fingerprint match"| NoOrigin["No fingerprint Origin<br/>same Job ID may still resolve via fallback"]
+  Origin --> Filter["run selection / result filter"]
+  NoOrigin --> Filter
+  Filter -->|"selected"| Execute["Execute in new run"]
+  Filter -->|"completed, not selected"| Carry["Carry result and output link"]
+  Filter -->|"no completed result"| Unfinished["Remain unfinished"]
 ```
 
 `retry` is `run --failed --unfinished` by default, but not an alias of it:
