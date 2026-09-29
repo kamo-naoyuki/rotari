@@ -1,6 +1,6 @@
 # rotari documentation
 
-rotari keeps track of experiment batches run from shell scripts: which jobs
+Rotari keeps track of experiment batches run from shell scripts: which jobs
 are running, which failed and why, their logs, and every earlier run.
 
 It runs the same batch on a workstation, over SSH, or on a shared Slurm, PBS,
