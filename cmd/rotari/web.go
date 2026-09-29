@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
 	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/webui"
 )
@@ -17,7 +18,6 @@ import (
 func cmdWeb(args []string) int {
 	fs := newFlagSet("web")
 	basedir := cliString(fs, "basedir", "")
-	queueNameOption := cliString(fs, "project-name", "")
 	host := cliString(fs, "host", "127.0.0.1")
 	port := cliInt(fs, "port", webui.DefaultPort)
 	staticDir := cliString(fs, "static-dir", "")
@@ -40,7 +40,19 @@ func cmdWeb(args []string) int {
 		printErrorf("failed to resolve state directory: %v", err)
 		return 1
 	}
-	options := webOptions(baseDir, *queueNameOption, *allowControl, *notifications)
+	options := webOptions(baseDir, *allowControl, *notifications)
+	if *staticDir == "" {
+		registry, err := basedirregistry.Default()
+		if err != nil {
+			printErrorf("failed to resolve base directory registry: %v", err)
+			return 1
+		}
+		options.BaseDirs, err = registry.BaseDirs()
+		if err != nil {
+			printErrorf("failed to list registered base directories: %v", err)
+			return 1
+		}
+	}
 	if *staticDir != "" {
 		if err := webui.GenerateStatic(*staticDir, options); err != nil {
 			printErrorf("failed to generate static web: %v", err)
@@ -49,9 +61,9 @@ func cmdWeb(args []string) int {
 		return 0
 	}
 	if !webui.IsLoopbackHost(*host) && *authToken == "" {
-		controlWarning := "job logs and environment variable names"
+		controlWarning := "registered basedir paths, job logs, and environment variable names"
 		if *allowControl {
-			controlWarning = "job logs, environment variable names, and job control (cancel/suspend/resume/change/remove/copy) operations"
+			controlWarning = "registered basedir paths, job logs, environment variable names, and job control (cancel/suspend/resume/change/remove/copy) operations"
 		}
 		printErrorf("WARNING: --host %s exposes %s over unauthenticated HTTP.", *host, controlWarning)
 	}
@@ -91,9 +103,9 @@ func interruptSignal() <-chan os.Signal {
 
 // webOptions wires the Web UI to this command's state, executors, and CLI
 // metadata.
-func webOptions(baseDir, projectFilter string, allowControl, notifications bool) webui.Options {
+func webOptions(baseDir string, allowControl, notifications bool) webui.Options {
 	return webui.Options{
-		BaseDir: baseDir, ProjectFilter: projectFilter, AllowControl: allowControl, Notifications: notifications,
+		BaseDir: baseDir, RootBaseDir: baseDir, AllowControl: allowControl, Notifications: notifications,
 		Store: jsonStore(), Editor: queueEditor(), Controller: jobController(),
 		Executors:      executorRegistry.Names(),
 		Environments:   environmentDefinitions(),

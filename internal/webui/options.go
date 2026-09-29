@@ -12,8 +12,12 @@ import (
 // Options configures the Web UI for one base directory.
 type Options struct {
 	BaseDir string
-	// ProjectFilter limits the UI to one project when not empty.
-	ProjectFilter string
+	// RootBaseDir is the Web process's original state directory and anchors
+	// the unprefixed routes while the browser switches to other basedirs.
+	RootBaseDir string
+	// BaseDirs are previously registered state directories available to switch
+	// to from the sidebar. BaseDir is always included.
+	BaseDirs []string
 	// AllowControl enables the endpoints that edit queues, configs, and runs.
 	AllowControl bool
 	// Notifications is the default of the desktop notification toggle.

@@ -103,7 +103,7 @@ function notifyRunEvent(info, failedJobNames, runFinished) {
   notification.onclick = () => {
     window.focus();
     location.href =
-      "/project/" +
+      appURL("/project/") +
       encodeURIComponent(info.projectName) +
       "/run/" +
       encodeURIComponent(info.runID);

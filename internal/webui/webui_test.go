@@ -34,11 +34,11 @@ const envRunID = "ROTARI_RUN_ID"
 
 // testOptions serves baseDir with the built-in executors and no CLI
 // metadata.
-func testOptions(baseDir, projectFilter string, allowControl bool) Options {
+func testOptions(baseDir string, allowControl bool) Options {
 	store := testStore()
 	executors := executor.NewRegistry(store, func(string, ...any) {})
 	return Options{
-		BaseDir: baseDir, ProjectFilter: projectFilter, AllowControl: allowControl, Notifications: true,
+		BaseDir: baseDir, RootBaseDir: baseDir, AllowControl: allowControl, Notifications: true,
 		Store:      store,
 		Editor:     queueops.Editor{Store: store, Executors: executors, NewJobID: func() string { return "new-job" }, UnregisterRun: func(string) error { return nil }},
 		Controller: jobcontrol.Controller{Store: store, Executors: executors},
@@ -74,12 +74,12 @@ func writeSchedulerStatus(jobDir, state string) {
 	executor.WriteSchedulerStatus(testStore(), jobDir, state, time.Now())
 }
 
-func siteFor(baseDir, projectFilter string) site {
-	return site{testOptions(baseDir, projectFilter, true)}
+func siteFor(baseDir string) site {
+	return site{testOptions(baseDir, true)}
 }
 
 func testSite() site {
-	return siteFor("", "")
+	return siteFor("")
 }
 
 func compactWebHTML(value string) string {
@@ -191,7 +191,7 @@ setTimeout(() => {
 	if err := stateinternal.WriteJSON(paths.QueueFile, model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
-	state, err := siteFor(baseDir, "default").loadWebState(baseDir, "default")
+	state, err := siteFor(baseDir).loadWebState(baseDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestWebHTMLRendersUnreadableRun(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(runDir, "summary.json"), []byte(`{"state_version": 99}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	state, err := siteFor(baseDir, "default").loadWebState(baseDir, "default")
+	state, err := siteFor(baseDir).loadWebState(baseDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -347,7 +347,7 @@ func TestStaticWebUsesGenerateConfigReadOnlyFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 	outputDir := filepath.Join(t.TempDir(), "web")
-	if err := siteFor(baseDir, "").generateStaticWeb(outputDir); err != nil {
+	if err := siteFor(baseDir).generateStaticWeb(outputDir); err != nil {
 		t.Fatal(err)
 	}
 	script := `
@@ -587,17 +587,17 @@ setTimeout(async () => {
 	try {
 		const controls = [...dom.window.document.querySelectorAll('.web-copy-controls button')];
 		const labels = controls.map(control => control.textContent.trim());
-		const positions = ['Report', 'Cancel selected', 'Suspend selected', 'Resume selected', 'Delete run'].map(label => labels.indexOf(label));
-		assert(positions.every(index => index >= 0) && positions.every((index, i) => i === 0 || positions[i - 1] < index), 'bulk job actions are not between Report and Delete run');
-		assert(button('.cancel-selected-jobs').disabled && button('.suspend-selected-jobs').disabled, 'control buttons should start disabled');
+		const positions = ['Report', 'Cancel selected', 'Suspend selected', 'Delete run'].map(label => labels.indexOf(label));
+		assert(positions.every(index => index >= 0) && positions.every((index, i) => i === 0 || positions[i - 1] < index), 'bulk job actions are not between Report and Delete run: ' + labels.join(' | '));
+		assert(button('.cancel-selected-jobs').disabled && button('.suspend-resume-selected-jobs').disabled, 'control buttons should start disabled');
 		select('suspended-1');
-		assert(button('.cancel-selected-jobs').disabled && button('.suspend-selected-jobs').disabled, 'Cancel and Suspend should stay disabled without a selected running job');
-		assert(!button('.resume-selected-jobs').disabled, 'Resume should be enabled for a selected suspended job');
-		await dom.window.controlSelectedRunJobs('resume');
+		assert(button('.cancel-selected-jobs').disabled, 'Cancel should stay disabled without a selected running job');
+		assert(!button('.suspend-resume-selected-jobs').disabled && button('.suspend-resume-selected-jobs').textContent === 'Resume selected', 'toggle should switch to Resume for a selected suspended job');
+		await dom.window.controlSelectedRunJobs('suspend-resume');
 		assert(requests[0].url === '/api/resume-job' && requests[0].body.job_ids.join() === 'suspended-1', 'Resume did not target the checked suspended job');
 		select('running-1');
-		assert(!button('.cancel-selected-jobs').disabled && !button('.suspend-selected-jobs').disabled, 'control buttons should enable when a checked job is running');
-		await dom.window.controlSelectedRunJobs('suspend');
+		assert(!button('.cancel-selected-jobs').disabled && !button('.suspend-resume-selected-jobs').disabled && button('.suspend-resume-selected-jobs').textContent === 'Suspend selected', 'toggle should switch to Suspend when any checked job is running');
+		await dom.window.controlSelectedRunJobs('suspend-resume');
 		assert(requests[1].url === '/api/suspend-job' && requests[1].body.job_ids.join() === 'running-1', 'Suspend did not target only the checked running job');
 		await dom.window.controlSelectedRunJobs('cancel');
 		assert(requests[2].url === '/api/cancel-job' && requests[2].body.job_ids.join() === 'running-1,suspended-1', 'Cancel did not target checked unfinished jobs');
@@ -633,7 +633,7 @@ func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 			t.Fatalf("web command guidance is missing copy control %q", marker)
 		}
 	}
-	for _, marker := range []string{"select-all-jobs", "job-selection", "copySelectedJobs", "Select failed", "selectFailedJobs", "Select failed + unfinished", "Unselect all", `querySelectorAll(".unselect-all")`, "unselectAll.className = \"unselect-all\"", "unselectAll.disabled = true", ">Create</button>", ">Append</button>", "Cancel selected", "Suspend selected", "Resume selected", "controlSelectedRunJobs", "job_ids:targets.map"} {
+	for _, marker := range []string{"select-all-jobs", "job-selection", "copySelectedJobs", "Select failed", "selectFailedJobs", "Select failed + unfinished", "Unselect all", `querySelectorAll(".unselect-all")`, "unselectAll.className = \"unselect-all\"", "unselectAll.disabled = true", ">Create</button>", ">Append</button>", "Cancel selected", "Suspend selected", "Resume selected", "suspend-resume-selected-jobs", "controlSelectedRunJobs", "job_ids:targets.map"} {
 		if !webContains(html, marker) {
 			t.Fatalf("web run page is missing job queue selection control %q", marker)
 		}
@@ -657,6 +657,12 @@ func TestRunSelectionCheckboxesUseCompactDimensions(t *testing.T) {
 		if !strings.Contains(webStylesCSS, marker) {
 			t.Fatalf("run selection checkbox styling is missing %q", marker)
 		}
+	}
+}
+
+func TestRunToolbarButtonsUseConsistentMinimumWidth(t *testing.T) {
+	if !strings.Contains(webStylesCSS, ".web-copy-controls > button {\n  min-width: 100px;\n}") {
+		t.Fatal("run toolbar buttons do not share a minimum width")
 	}
 }
 
@@ -724,7 +730,7 @@ func TestWebIndexTemplateUsesProjectVocabulary(t *testing.T) {
 func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/web_sidebar_styles.css", nil)
 	response := httptest.NewRecorder()
-	Handler(testOptions(t.TempDir(), "", false)).ServeHTTP(response, request)
+	Handler(testOptions(t.TempDir(), false)).ServeHTTP(response, request)
 	if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "text/css; charset=utf-8" {
 		t.Fatalf("GET /web_sidebar_styles.css = %d (%q), want CSS response", response.Code, response.Header().Get("Content-Type"))
 	}
@@ -744,6 +750,74 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 	}
 	if !strings.Contains(jobsHTML, `class="sidebar-project-row"><span class="sidebar-toggle-placeholder"`) {
 		t.Fatal("Job activity project links do not use the shared sidebar row layout")
+	}
+}
+
+func TestWebSidebarLazilyListsProjectsInOtherBasedirs(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	rootBaseDir, otherBaseDir := t.TempDir(), t.TempDir()
+	options := testOptions(rootBaseDir, false)
+	options.BaseDirs = []string{otherBaseDir}
+	pagePath := filepath.Join(t.TempDir(), "index.html")
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	if err := os.WriteFile(pagePath, []byte((site{options}).webHTML()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(webprojection.State{BaseDir: rootBaseDir, Queues: []webprojection.QueueState{{QueueName: "root-project", Runs: []webprojection.Run{}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	otherID := basedirID(otherBaseDir)
+	script := `
+const fs = require('fs');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const html = fs.readFileSync(process.argv[1], 'utf8');
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const requests = [];
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+const dom = new JSDOM(html, {
+	runScripts: 'dangerously',
+	url: 'http://127.0.0.1/',
+	virtualConsole,
+	beforeParse(window) {
+		window.fetch = async url => {
+			requests.push(String(url));
+			if (url === '/api/state') return {ok: true, json: async () => state};
+			if (url === '/api/projects?basedir_id=' + process.argv[3]) return {ok: true, json: async () => ({projects: ['other-project']})};
+			throw new Error('unexpected fetch: ' + url);
+		};
+		window.setInterval = () => 1;
+	},
+});
+setTimeout(async () => {
+	const assert = (condition, message) => { if (!condition) throw new Error(message); };
+	try {
+		const bases = [...dom.window.document.querySelectorAll('#sidebar-basedirs > .basedir-entry')];
+		assert(bases.length === 2, 'sidebar does not show both registered basedirs');
+		const other = bases.find(base => base.dataset.basedirId === process.argv[3]);
+		assert(other && other.querySelector('.sidebar-projects').hidden, 'other basedir should start collapsed');
+		other.querySelector('.sidebar-toggle').click();
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const link = [...dom.window.document.querySelectorAll('#sidebar-basedirs a')].find(anchor => anchor.textContent.trim() === 'other-project');
+		assert(link && link.getAttribute('href') === '/_basedir/' + process.argv[3] + '/project/other-project', 'other project link does not target its basedir');
+		assert(requests.filter(url => url === '/api/state').length === 1, 'opening another basedir scanned its full Web state');
+		assert(requests.includes('/api/projects?basedir_id=' + process.argv[3]), 'opening the basedir did not request its lightweight project list');
+		if (errors.length) throw new Error(errors.join('\n'));
+	} catch (error) {
+		console.error(error.stack || String(error));
+		process.exit(1);
+	}
+}, 50);
+`
+	if output, err := exec.Command("node", "-e", script, pagePath, statePath, otherID).CombinedOutput(); err != nil {
+		t.Fatalf("basedir sidebar check failed: %v\n%s", err, output)
 	}
 }
 
@@ -814,7 +888,7 @@ func TestWebReadOnlyControlEndpointsRejectMutations(t *testing.T) {
 		t.Run(endpoint.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, endpoint.path, strings.NewReader(endpoint.body))
 			recorder := httptest.NewRecorder()
-			Handler(testOptions(baseDir, "", false)).ServeHTTP(recorder, request)
+			Handler(testOptions(baseDir, false)).ServeHTTP(recorder, request)
 			if recorder.Code != http.StatusForbidden {
 				t.Fatalf("endpoint %s status = %d, want %d; body=%s", endpoint.path, recorder.Code, http.StatusForbidden, recorder.Body.String())
 			}
@@ -871,7 +945,7 @@ func TestWebCancelRunRejectsStaleRunID(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodPost, "/api/cancel-run", strings.NewReader(`{"project_name":"default","run_id":"run-old"}`))
 	recorder := httptest.NewRecorder()
-	Handler(testOptions(baseDir, "", true)).ServeHTTP(recorder, request)
+	Handler(testOptions(baseDir, true)).ServeHTTP(recorder, request)
 	if recorder.Code == http.StatusOK {
 		t.Fatalf("status = %d, want stale run rejection", recorder.Code)
 	}
@@ -899,7 +973,7 @@ func TestWebJobControlRejectsStaleRunID(t *testing.T) {
 			} {
 				request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
 				recorder := httptest.NewRecorder()
-				Handler(testOptions(baseDir, "", true)).ServeHTTP(recorder, request)
+				Handler(testOptions(baseDir, true)).ServeHTTP(recorder, request)
 				if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), `run "run-old" is not running; the active run of project "default" is "run-current"`) {
 					t.Fatalf("body %s: status = %d, body = %q; want stale run rejection", body, recorder.Code, recorder.Body.String())
 				}
@@ -907,7 +981,7 @@ func TestWebJobControlRejectsStaleRunID(t *testing.T) {
 
 			request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"project_name":"default","job_id":"job-1"}`))
 			recorder := httptest.NewRecorder()
-			Handler(testOptions(baseDir, "", true)).ServeHTTP(recorder, request)
+			Handler(testOptions(baseDir, true)).ServeHTTP(recorder, request)
 			if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), "run_id") {
 				t.Fatalf("status = %d, body = %q; want run_id to be required", recorder.Code, recorder.Body.String())
 			}
@@ -930,7 +1004,7 @@ func TestLoadWebStateIncludesAllQueues(t *testing.T) {
 		}
 	}
 
-	state, err := siteFor(baseDir, "").loadWebState(baseDir, "")
+	state, err := siteFor(baseDir).loadWebState(baseDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -938,7 +1012,7 @@ func TestLoadWebStateIncludesAllQueues(t *testing.T) {
 		t.Fatalf("queues = %#v, want build and test", state.Queues)
 	}
 	t.Setenv(envRunID, "web-run")
-	state, err = siteFor(baseDir, "").loadWebState(baseDir, "")
+	state, err = siteFor(baseDir).loadWebState(baseDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -953,13 +1027,6 @@ func TestLoadWebStateIncludesAllQueues(t *testing.T) {
 		t.Fatalf("web environments missing current run ID: %#v", state.Environments)
 	}
 
-	filtered, err := siteFor(baseDir, "test").loadWebState(baseDir, "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(filtered.Queues) != 1 || filtered.Queues[0].QueueName != "test" {
-		t.Fatalf("filtered queues = %#v, want test", filtered.Queues)
-	}
 }
 
 func TestLoadWebStateIncludesConfigPaths(t *testing.T) {
@@ -991,7 +1058,7 @@ func TestLoadWebStateIncludesConfigPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	state, err := siteFor(baseDir, "demo").loadWebState(baseDir, "demo")
+	state, err := siteFor(baseDir).loadWebState(baseDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1033,7 +1100,7 @@ func TestWebConfigAPIReadsResolvedFiles(t *testing.T) {
 	if err := stateinternal.WriteJSON(filepath.Join(runDir, "context.json"), model.RunContext{ConfigPaths: config.PathsForRun(baseDir, "demo")}); err != nil {
 		t.Fatal(err)
 	}
-	handler := Handler(testOptions(baseDir, "", false))
+	handler := Handler(testOptions(baseDir, false))
 	for _, test := range []struct {
 		query string
 		want  []string
@@ -1098,7 +1165,7 @@ func TestWebConfigAPIReadsRunConfigSnapshots(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/api/config?project_name=demo&run_id=run-1", nil)
 	recorder := httptest.NewRecorder()
-	Handler(testOptions(baseDir, "", false)).ServeHTTP(recorder, request)
+	Handler(testOptions(baseDir, false)).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("config snapshot status = %d, body = %q", recorder.Code, recorder.Body.String())
 	}
@@ -1134,7 +1201,7 @@ func TestWebSaveConfigWritesOnlyTheResolvedCurrentConfig(t *testing.T) {
 	if err := os.WriteFile(projectPath, []byte("project = true\n"), stateinternal.FileMode()); err != nil {
 		t.Fatal(err)
 	}
-	handler := Handler(testOptions(baseDir, "", true))
+	handler := Handler(testOptions(baseDir, true))
 	request := httptest.NewRequest(http.MethodPost, "/api/save-config", strings.NewReader(`{"project_name":"demo","content":"project = false\n"}`))
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
@@ -1161,7 +1228,7 @@ func TestWebSaveConfigWritesOnlyTheResolvedCurrentConfig(t *testing.T) {
 func TestWebSaveConfigRejectsReadOnlyMode(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/api/save-config", strings.NewReader(`{"content":"value = true\n"}`))
 	recorder := httptest.NewRecorder()
-	Handler(testOptions(t.TempDir(), "", false)).ServeHTTP(recorder, request)
+	Handler(testOptions(t.TempDir(), false)).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("read-only save status = %d, want %d", recorder.Code, http.StatusForbidden)
 	}
@@ -1186,7 +1253,7 @@ func TestWebSaveConfigRejectsInvalidFormatWithoutWriting(t *testing.T) {
 			}
 			request := httptest.NewRequest(http.MethodPost, "/api/save-config", strings.NewReader(`{"content":`+strconv.Quote(test.invalid)+`}`))
 			recorder := httptest.NewRecorder()
-			Handler(testOptions(baseDir, "", true)).ServeHTTP(recorder, request)
+			Handler(testOptions(baseDir, true)).ServeHTTP(recorder, request)
 			if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), "invalid "+test.name+" config") {
 				t.Fatalf("save status = %d, body = %q", recorder.Code, recorder.Body.String())
 			}
@@ -1202,7 +1269,7 @@ func TestWebGenerateConfigCreatesAndOverwritesTOMLAtSelectedLocation(t *testing.
 	configHome := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 	baseDir := t.TempDir()
-	handler := Handler(testOptions(baseDir, "", true))
+	handler := Handler(testOptions(baseDir, true))
 
 	request := httptest.NewRequest(http.MethodPost, "/api/generate-config", strings.NewReader(`{"location":"basedir"}`))
 	request.Header.Set("Content-Type", "application/json")
@@ -1239,14 +1306,14 @@ func TestWebGenerateConfigCreatesAndOverwritesTOMLAtSelectedLocation(t *testing.
 func TestWebGenerateConfigRejectsReadOnlyAndUnsafeProject(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/api/generate-config", strings.NewReader(`{"location":"basedir"}`))
 	recorder := httptest.NewRecorder()
-	Handler(testOptions(t.TempDir(), "", false)).ServeHTTP(recorder, request)
+	Handler(testOptions(t.TempDir(), false)).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("read-only generate status = %d, want %d", recorder.Code, http.StatusForbidden)
 	}
 
 	request = httptest.NewRequest(http.MethodPost, "/api/generate-config", strings.NewReader(`{"project_name":"../outside","location":"project"}`))
 	recorder = httptest.NewRecorder()
-	Handler(testOptions(t.TempDir(), "", true)).ServeHTTP(recorder, request)
+	Handler(testOptions(t.TempDir(), true)).ServeHTTP(recorder, request)
 	if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), "invalid project_name") {
 		t.Fatalf("unsafe project status = %d, body = %q", recorder.Code, recorder.Body.String())
 	}
@@ -1296,7 +1363,7 @@ func TestLoadWebStateIncludesRuntimeRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	state, err := siteFor(baseDir, "default").loadWebState(baseDir, "default")
+	state, err := siteFor(baseDir).loadWebState(baseDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1325,7 +1392,7 @@ func TestGenerateStaticWebWritesProjectPages(t *testing.T) {
 		t.Fatal(err)
 	}
 	outputDir := filepath.Join(t.TempDir(), "web")
-	if err := siteFor(baseDir, "").generateStaticWeb(outputDir); err != nil {
+	if err := siteFor(baseDir).generateStaticWeb(outputDir); err != nil {
 		t.Fatal(err)
 	}
 	index, err := os.ReadFile(filepath.Join(outputDir, "index.html"))
@@ -1400,14 +1467,14 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/jobs/", nil)
 	response := httptest.NewRecorder()
-	Handler(testOptions(baseDir, "", false)).ServeHTTP(response, request)
+	Handler(testOptions(baseDir, false)).ServeHTTP(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("GET /jobs/ status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
 	}
 	for _, want := range []string{
 		"rotari Job activity",
-		`aria-label="Toggle all projects"`,
+		`aria-label="Toggle projects"`,
 		`onclick="toggleJobsSidebar(this)"`,
 		`href="/project/demo"`,
 		`class="brand-icon"`,
@@ -1429,6 +1496,70 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 	}
 }
 
+func TestWebSwitchesBetweenRegisteredBasedirs(t *testing.T) {
+	rootBaseDir := t.TempDir()
+	otherBaseDir := t.TempDir()
+	for baseDir, projectName := range map[string]string{rootBaseDir: "root-project", otherBaseDir: "other-project"} {
+		paths, err := stateinternal.ResolveProjectPaths(baseDir, projectName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := stateinternal.WriteJSON(paths.QueueFile, model.Queue{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	options := testOptions(rootBaseDir, false)
+	options.BaseDirs = []string{otherBaseDir}
+	handler := Handler(options)
+	otherID := basedirID(otherBaseDir)
+	assertWebStateBasedir(t, handler, "/api/state", rootBaseDir)
+	assertWebStateBasedir(t, handler, "/_basedir/"+otherID+"/api/state", otherBaseDir)
+	response := serveWebGet(t, handler, "/api/projects?basedir_id="+otherID)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "other-project") {
+		t.Fatalf("GET /api/projects for registered basedir = (%d, %q)", response.Code, response.Body.String())
+	}
+	response = serveWebGet(t, handler, "/_basedir/not-registered/api/state")
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("GET unregistered basedir status = %d, want 404", response.Code)
+	}
+	response = serveWebGet(t, handler, "/_basedir/"+otherID+"/jobs/")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `href="/_basedir/`+otherID+`/project/other-project"`) {
+		t.Fatalf("GET basedir Job activity page = (%d, %q), want links scoped to selected basedir", response.Code, response.Body.String())
+	}
+	response = serveWebGet(t, handler, "/_basedir/"+otherID+"/jobs")
+	if response.Code != http.StatusMovedPermanently || response.Header().Get("Location") != "/_basedir/"+otherID+"/jobs/" {
+		t.Fatalf("GET basedir /jobs redirect = (%d, %q), want selected basedir path", response.Code, response.Header().Get("Location"))
+	}
+	response = serveWebGet(t, handler, "/")
+	for _, marker := range []string{`id="sidebar-basedirs"`, otherID, rootBaseDir, `"current":true`} {
+		if !strings.Contains(response.Body.String(), marker) {
+			t.Fatalf("Web app HTML is missing basedir navigation data %q", marker)
+		}
+	}
+}
+
+func serveWebGet(t *testing.T, handler http.Handler, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+	return response
+}
+
+func assertWebStateBasedir(t *testing.T, handler http.Handler, path, basedir string) {
+	t.Helper()
+	response := serveWebGet(t, handler, path)
+	if response.Code != http.StatusOK {
+		t.Fatalf("GET %s status = %d, body %q", path, response.Code, response.Body.String())
+	}
+	var state webprojection.State
+	if err := json.Unmarshal(response.Body.Bytes(), &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.BaseDir != basedir || len(state.Queues) != 1 {
+		t.Fatalf("GET %s state = %#v, want basedir %q and one project", path, state, basedir)
+	}
+}
+
 func TestWebJobsPageFiltersBySince(t *testing.T) {
 	baseDir := t.TempDir()
 	runID := "20260922-090000-00000001"
@@ -1437,7 +1568,7 @@ func TestWebJobsPageFiltersBySince(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/jobs/?since=30m", nil)
 	response := httptest.NewRecorder()
-	Handler(testOptions(baseDir, "", false)).ServeHTTP(response, request)
+	Handler(testOptions(baseDir, false)).ServeHTTP(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("GET /jobs/?since=30m status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
@@ -1450,7 +1581,7 @@ func TestWebJobsPageFiltersBySince(t *testing.T) {
 func TestWebJobsPageRejectsInvalidSince(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/jobs/?since=invalid", nil)
 	response := httptest.NewRecorder()
-	Handler(testOptions(t.TempDir(), "", false)).ServeHTTP(response, request)
+	Handler(testOptions(t.TempDir(), false)).ServeHTTP(response, request)
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("GET /jobs/?since=invalid status = %d, want %d: %s", response.Code, http.StatusBadRequest, response.Body.String())
@@ -1499,14 +1630,14 @@ func TestGenerateStaticWebIncludesJobsPage(t *testing.T) {
 	now := time.Now().UTC()
 	writeTestJobsRun(t, baseDir, "demo", runID, "job-1", now.Add(-time.Minute), now, 0)
 	outputDir := filepath.Join(t.TempDir(), "web")
-	if err := siteFor(baseDir, "").generateStaticWeb(outputDir); err != nil {
+	if err := siteFor(baseDir).generateStaticWeb(outputDir); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(filepath.Join(outputDir, "jobs", "index.html"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"rotari Job activity", `aria-label="Toggle all projects"`, `href="../project/demo"`, `class="brand-icon"`, "job-1", `href="../project/demo/run/` + runID + `"`} {
+	for _, want := range []string{"rotari Job activity", `aria-label="Toggle projects"`, `href="../project/demo"`, `class="brand-icon"`, "job-1", `href="../project/demo/run/` + runID + `"`} {
 		if !strings.Contains(string(data), want) {
 			t.Fatalf("static jobs page does not contain %q: %s", want, string(data))
 		}
@@ -1704,13 +1835,13 @@ func TestWebLogReadsSelectedAttempt(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/api/log?project_name=default&run_id="+runID+"&job_id=job-1&attempt_id="+attemptID+"&stream=stdout", nil)
 	recorder := httptest.NewRecorder()
-	Handler(testOptions(baseDir, "", false)).ServeHTTP(recorder, request)
+	Handler(testOptions(baseDir, false)).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK || recorder.Body.String() != "selected stdout\n" {
 		t.Fatalf("selected stdout log = (%d, %q)", recorder.Code, recorder.Body.String())
 	}
 	request = httptest.NewRequest(http.MethodGet, "/api/log?project_name=default&run_id="+runID+"&job_id=job-1&attempt_id="+attemptID+"&stream=stderr", nil)
 	recorder = httptest.NewRecorder()
-	Handler(testOptions(baseDir, "", false)).ServeHTTP(recorder, request)
+	Handler(testOptions(baseDir, false)).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK || recorder.Body.String() != "selected stderr\n" {
 		t.Fatalf("selected stderr log = (%d, %q)", recorder.Code, recorder.Body.String())
 	}
@@ -1728,7 +1859,7 @@ func TestWebLogRejectsAttemptForAnotherJobOrRun(t *testing.T) {
 		t.Run(attemptID, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, "/api/log?project_name=default&run_id="+runID+"&job_id=job-1&attempt_id="+attemptID, nil)
 			recorder := httptest.NewRecorder()
-			Handler(testOptions(baseDir, "", false)).ServeHTTP(recorder, request)
+			Handler(testOptions(baseDir, false)).ServeHTTP(recorder, request)
 			if recorder.Code == http.StatusOK {
 				t.Fatalf("mismatched attempt %q was accepted", attemptID)
 			}
@@ -1883,7 +2014,7 @@ func TestLoadWebStateIncludesRunContextAndTimeline(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	state, err := siteFor(baseDir, "default").loadWebState(baseDir, "default")
+	state, err := siteFor(baseDir).loadWebState(baseDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1995,7 +2126,7 @@ func TestWebControlEndpointsRejectedWhenControlDisabled(t *testing.T) {
 	for _, path := range []string{"/api/copy", "/api/change", "/api/remove", "/api/clear-run", "/api/cancel-job", "/api/cancel-run"} {
 		request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"project_name":"default"}`))
 		recorder := httptest.NewRecorder()
-		Handler(testOptions(baseDir, "", false)).ServeHTTP(recorder, request)
+		Handler(testOptions(baseDir, false)).ServeHTTP(recorder, request)
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("%s status = %d, want %d (rejected with --allow-control=false)", path, recorder.Code, http.StatusForbidden)
 		}
@@ -2018,7 +2149,7 @@ func TestWebCopyEndpointCopiesWithoutRunner(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodPost, "/api/copy", strings.NewReader(`{"project_name":"default","run_id":"run-1","selection":"failed"}`))
 	recorder := httptest.NewRecorder()
-	Handler(testOptions(baseDir, "", true)).ServeHTTP(recorder, request)
+	Handler(testOptions(baseDir, true)).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
@@ -2053,7 +2184,7 @@ func TestWebCopyEndpointQueuesOneJobWithoutRunner(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodPost, "/api/copy", strings.NewReader(`{"project_name":"default","run_id":"run-1","job_id":"job-1"}`))
 	recorder := httptest.NewRecorder()
-	Handler(testOptions(baseDir, "", true)).ServeHTTP(recorder, request)
+	Handler(testOptions(baseDir, true)).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
@@ -2077,7 +2208,7 @@ func TestWebChangeEndpointUpdatesQueueJob(t *testing.T) {
 	}
 	request := httptest.NewRequest(http.MethodPost, "/api/change", strings.NewReader(`{"project_name":"default","job_id":"job-1","command":["new","arg"],"executor_options":["-p","gpu"]}`))
 	recorder := httptest.NewRecorder()
-	Handler(testOptions(baseDir, "", true)).ServeHTTP(recorder, request)
+	Handler(testOptions(baseDir, true)).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
@@ -2102,7 +2233,7 @@ func TestWebChangeEndpointRejectsUnknownExecutor(t *testing.T) {
 	}
 	request := httptest.NewRequest(http.MethodPost, "/api/change", strings.NewReader(`{"project_name":"default","job_id":"job-1","command":["old"],"executor":"nosuch"}`))
 	recorder := httptest.NewRecorder()
-	Handler(testOptions(baseDir, "", true)).ServeHTTP(recorder, request)
+	Handler(testOptions(baseDir, true)).ServeHTTP(recorder, request)
 	if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), "unsupported executor") {
 		t.Fatalf("status = %d, body = %s, want unsupported executor error", recorder.Code, recorder.Body.String())
 	}
@@ -2119,7 +2250,7 @@ func TestMethodNotAllowedRejectsNonGetOnAPIState(t *testing.T) {
 	baseDir := t.TempDir()
 	request := httptest.NewRequest(http.MethodPost, "/api/state", nil)
 	recorder := httptest.NewRecorder()
-	Handler(testOptions(baseDir, "", false)).ServeHTTP(recorder, request)
+	Handler(testOptions(baseDir, false)).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusMethodNotAllowed)
 	}

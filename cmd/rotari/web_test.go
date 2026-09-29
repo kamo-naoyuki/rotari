@@ -80,6 +80,12 @@ func TestCmdWebRejectsPositionalArguments(t *testing.T) {
 	}
 }
 
+func TestCmdWebDoesNotAcceptProjectFilter(t *testing.T) {
+	if code := cmdWeb([]string{"--basedir", t.TempDir(), "--project-name", "demo"}); code != 1 {
+		t.Fatalf("cmdWeb exit code = %d, want 1 because web project filtering was removed", code)
+	}
+}
+
 func TestWebRunViewDrawsMatrixGrid(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -102,7 +108,7 @@ func TestWebRunViewDrawsMatrixGrid(t *testing.T) {
 	if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
-	data := []byte(webGet(t, baseDir, "default", "/api/state"))
+	data := []byte(webGet(t, baseDir, "/api/state"))
 	if strings.Contains(string(data), `"base_environment"`) {
 		t.Fatal("web state exposes the matrix base environment")
 	}
@@ -111,7 +117,7 @@ func TestWebRunViewDrawsMatrixGrid(t *testing.T) {
 		t.Fatal(err)
 	}
 	htmlPath := filepath.Join(t.TempDir(), "index.html")
-	if err := os.WriteFile(htmlPath, []byte(webGet(t, baseDir, "default", "/")), 0o600); err != nil {
+	if err := os.WriteFile(htmlPath, []byte(webGet(t, baseDir, "/")), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	script := `
@@ -196,13 +202,13 @@ func TestWebRunViewClampsLongCells(t *testing.T) {
 	if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
-	data := []byte(webGet(t, baseDir, "default", "/api/state"))
+	data := []byte(webGet(t, baseDir, "/api/state"))
 	statePath := filepath.Join(t.TempDir(), "state.json")
 	htmlPath := filepath.Join(t.TempDir(), "index.html")
 	if err := os.WriteFile(statePath, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(htmlPath, []byte(webGet(t, baseDir, "default", "/")), 0o600); err != nil {
+	if err := os.WriteFile(htmlPath, []byte(webGet(t, baseDir, "/")), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	script := `
@@ -251,10 +257,10 @@ setTimeout(() => {
 
 // webGet returns the Web UI's response to a GET of path, failing t unless it
 // is 200 OK.
-func webGet(t *testing.T, baseDir, projectFilter, path string) string {
+func webGet(t *testing.T, baseDir, path string) string {
 	t.Helper()
 	recorder := httptest.NewRecorder()
-	webui.Handler(webOptions(baseDir, projectFilter, false, true)).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+	webui.Handler(webOptions(baseDir, false, true)).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("GET %s status = %d, body %q", path, recorder.Code, recorder.Body.String())
 	}

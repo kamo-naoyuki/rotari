@@ -396,6 +396,16 @@ Set `ROTARI_WEB_AUTH_TOKEN` (or `--auth-token`) and use HTTPS or a trusted netwo
 
 Yes. `--allow-control=false` (or `ROTARI_WEB_ALLOW_CONTROL=false`) keeps state, logs, job activity, and docs pages available and returns `403 Forbidden` for control and file-write APIs.
 
+### Can I switch projects or state directories in the Web UI?
+
+Yes. The sidebar groups projects under the startup basedir and other basedirs
+registered in rotari's master registry. Expand a basedir to see its project
+names, then select a project to load its runs and jobs. The Web UI reads full
+state for only the selected basedir; expanding another one lists directory
+names without scanning its run history. `rotari web --project-name` is not
+supported; choose the project from the sidebar instead. Static exports remain
+limited to the basedir used to generate them.
+
 ## Background server (supervisor)
 
 ### Do I need to start a server manually?

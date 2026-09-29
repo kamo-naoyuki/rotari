@@ -83,6 +83,19 @@ and `TestGenerateStaticWebWritesProjectPages` in
 [internal/webui/webui_test.go](../internal/webui/webui_test.go) cover the shared
 asset and static copies.
 
+The live Web UI sidebar is hierarchical: registered basedirs (plus the
+startup `--basedir`) contain projects, and projects contain runs. `rotari web`
+does not offer a project-only filter; users choose a project from the selected
+basedir's tree. Expanding another basedir reads only its project directory
+names; the expensive state projection, including runs and jobs, is loaded only
+after navigating into that basedir. `/api/state` and control routes are bound
+to the basedir in the URL mount. The mount identifier resolves only to the
+startup basedir or a basedir in the read-only registry list; unlisted IDs are
+not accepted. The static export remains a single-basedir snapshot and has no
+basedir switching. Covered by
+[`TestWebSwitchesBetweenRegisteredBasedirs`](../internal/webui/webui_test.go)
+and [`TestWebSidebarLazilyListsProjectsInOtherBasedirs`](../internal/webui/webui_test.go).
+
 ## Web server and control-plane security
 
 - `web` binds `--host`/`--port`, defaulting to `127.0.0.1:8787`.
@@ -94,6 +107,8 @@ asset and static copies.
   `Authorization: Bearer TOKEN`, `X-Rotari-Token: TOKEN`, or Basic
   authentication with username `rotari` and the token as the password; this is
   authentication only and does not encrypt HTTP traffic.
+- A non-loopback listener also exposes registered basedir paths; the warning
+  without an auth token includes that path information.
 - `loadWebState` ([internal/webui/webui.go](../internal/webui/webui.go)) exposes persisted runtime metadata for each project: `running.lock` fields and,
   in the project's `server`, whether its supervisor's `server.pid` exists and the PID it records. The panel does not query process
   liveness or infer that `state.lock` is held from the file's existence.

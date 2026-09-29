@@ -76,6 +76,7 @@ render = function () {
   orderJobActions();
   clampLongTableCells();
   addMatrixPanels();
+  applyBasedirLinks();
 };
 window.addEventListener("popstate", render);
 refresh();

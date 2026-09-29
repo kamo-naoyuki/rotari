@@ -36,16 +36,23 @@ function updateSelectedRunControlButtons() {
   const hasRunning = selected.some((item) => item.status === "running");
   const hasSuspended = selected.some((item) => item.status === "suspended");
   const cancel = document.querySelector(".cancel-selected-jobs");
-  const suspend = document.querySelector(".suspend-selected-jobs");
-  const resume = document.querySelector(".resume-selected-jobs");
+  const suspendResume = document.querySelector(".suspend-resume-selected-jobs");
   if (cancel) cancel.disabled = runJobControlBusy || !hasRunning;
-  if (suspend) suspend.disabled = runJobControlBusy || !hasRunning;
-  if (resume) resume.disabled = runJobControlBusy || !hasSuspended;
+  if (suspendResume) {
+    suspendResume.disabled =
+      runJobControlBusy || (!hasRunning && !hasSuspended);
+    const operation = hasRunning || !hasSuspended ? "suspend" : "resume";
+    suspendResume.textContent =
+      operation === "suspend" ? "Suspend selected" : "Resume selected";
+    suspendResume.dataset.operation = operation;
+  }
 }
 async function controlSelectedRunJobs(operation) {
   if (runJobControlBusy) return;
   const selected = selectedRunJobs();
   const hasRunning = selected.some((item) => item.status === "running");
+  if (operation === "suspend-resume")
+    operation = hasRunning ? "suspend" : "resume";
   let targets;
   let endpoint;
   if (operation === "cancel") {
@@ -60,6 +67,7 @@ async function controlSelectedRunJobs(operation) {
     targets = selected.filter((item) => item.status === "running");
     endpoint = "/api/suspend-job";
   } else if (operation === "resume") {
+    if (hasRunning) return;
     targets = selected.filter((item) => item.status === "suspended");
     endpoint = "/api/resume-job";
   } else {
@@ -182,7 +190,7 @@ async function copySelectedJobs(queue, run, append) {
     return;
   }
   alert(JSON.parse(text).message);
-  window.location.href = "/project/" + encodeURIComponent(queue);
+  window.location.href = appURL("/project/" + encodeURIComponent(queue));
 }
 function selectJobsByStatus(statuses) {
   const parts = pageParts();
@@ -280,7 +288,7 @@ async function copyRun(queue, run, selection) {
     return;
   }
   alert(JSON.parse(text).message);
-  window.location.href = "/project/" + encodeURIComponent(queue);
+  window.location.href = appURL("/project/" + encodeURIComponent(queue));
 }
 async function cancelRun(queue, run) {
   if (!confirm("Cancel this run and all running jobs?")) return;
@@ -550,7 +558,7 @@ async function deleteRun(queue, run) {
     alert(text);
     return;
   }
-  window.location.href = "/project/" + encodeURIComponent(queue);
+  window.location.href = appURL("/project/" + encodeURIComponent(queue));
 }
 function isCompactOutput(value) {
   return value.length < 1200 && value.split("\n").length <= 18;

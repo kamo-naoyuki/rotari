@@ -897,6 +897,12 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		if filter.selection != "" && !model.ResultSelectionMatches(filter.selection, statusOK, status) {
 			continue
 		}
+		if len(filter.filter.ExitCodes) > 0 || len(filter.filter.FailureKinds) > 0 {
+			jobResult, ok := resolved.Result(jobSpec)
+			if !ok || !filter.filter.MatchesResult(jobResult, statusOK) {
+				continue
+			}
+		}
 		if statusOK && status != 0 {
 			changeHints = append(changeHints, jobSpec)
 		}
@@ -909,6 +915,20 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 			command = strings.Join(jobSpec.Command, " ")
 		}
 		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobID, originByID[jobID])
+		startedText := submittedAt
+		if resolved.Attempt.HasWrapper && resolved.Attempt.Wrapper.StartedAt != "" {
+			startedText = resolved.Attempt.Wrapper.StartedAt
+		}
+		startedTime, _ := jobfilter.ParseTimestamp(startedText)
+		finishedTime, _ := jobfilter.ParseTimestamp(finishedAt)
+		if !filter.filter.MatchesAttributes(jobfilter.Attributes{
+			Hosts:      resolved.Hosts(),
+			StartedAt:  startedTime,
+			FinishedAt: finishedTime,
+			Now:        time.Now(),
+		}) {
+			continue
+		}
 		submittedAt = model.FormatDisplayTimestamp(submittedAt)
 		finishedAt = model.FormatDisplayTimestamp(finishedAt)
 		if statusOK {

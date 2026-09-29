@@ -3,6 +3,7 @@ package webui
 import (
 	"bytes"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,10 +30,11 @@ import (
 
 const (
 	// DefaultPort is the port the Web UI listens on unless told otherwise.
-	DefaultPort       = 8787
-	webConfigFileName = "config.toml"
-	authBearerPrefix  = "Bearer "
-	headerContentType = "Content-Type"
+	DefaultPort        = 8787
+	webConfigFileName  = "config.toml"
+	authBearerPrefix   = "Bearer "
+	headerContentType  = "Content-Type"
+	basedirRoutePrefix = "/_basedir/"
 )
 
 type webGenerateConfigRequest struct {
@@ -178,7 +180,108 @@ func webJobIDs(single string, multiple []string) ([]string, error) {
 }
 
 func (s site) handler() http.Handler {
-	baseDir, queueFilter, allowControl := s.BaseDir, s.ProjectFilter, s.AllowControl
+	baseDirs := make(map[string]string)
+	for _, entry := range s.basedirEntries() {
+		baseDirs[entry.ID] = entry.Path
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc(basedirRoutePrefix, func(writer http.ResponseWriter, request *http.Request) {
+		value := strings.TrimPrefix(request.URL.Path, basedirRoutePrefix)
+		id, remainder, _ := strings.Cut(value, "/")
+		baseDir, ok := baseDirs[id]
+		if !ok {
+			http.NotFound(writer, request)
+			return
+		}
+		child := s
+		child.BaseDir = baseDir
+		clone := request.Clone(request.Context())
+		urlCopy := *request.URL
+		urlCopy.Path = "/" + remainder
+		if remainder == "" {
+			urlCopy.Path = "/"
+		}
+		urlCopy.RawPath = ""
+		clone.URL = &urlCopy
+		child.baseHandler().ServeHTTP(writer, clone)
+	})
+	mux.Handle("/", s.baseHandler())
+	return mux
+}
+
+func (s site) basedirEntries() []webBaseDir {
+	byPath := make(map[string]bool)
+	candidates := append([]string(nil), s.BaseDirs...)
+	candidates = append(candidates, s.RootBaseDir, s.BaseDir)
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		absolute, err := filepath.Abs(candidate)
+		if err != nil {
+			continue
+		}
+		byPath[filepath.Clean(absolute)] = true
+	}
+	paths := make([]string, 0, len(byPath))
+	for path := range byPath {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	entries := make([]webBaseDir, 0, len(paths))
+	rootBaseDir := s.RootBaseDir
+	if rootBaseDir == "" {
+		rootBaseDir = s.BaseDir
+	}
+	currentDir, currentErr := filepath.Abs(rootBaseDir)
+	currentDir = filepath.Clean(currentDir)
+	for _, path := range paths {
+		entries = append(entries, webBaseDir{
+			ID:      basedirID(path),
+			Path:    path,
+			Current: currentErr == nil && path == currentDir,
+		})
+	}
+	return entries
+}
+
+func basedirID(path string) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(path))
+}
+
+func (s site) currentBasePrefix() string {
+	baseDir, err := filepath.Abs(s.BaseDir)
+	if err != nil {
+		return ""
+	}
+	baseDir = filepath.Clean(baseDir)
+	for _, entry := range s.basedirEntries() {
+		if entry.Path == baseDir {
+			if entry.Current {
+				return ""
+			}
+			return basedirRoutePrefix + entry.ID
+		}
+	}
+	return ""
+}
+
+func (s site) currentBaseID() string {
+	baseDir, err := filepath.Abs(s.BaseDir)
+	if err != nil {
+		return ""
+	}
+	baseDir = filepath.Clean(baseDir)
+	for _, entry := range s.basedirEntries() {
+		if entry.Path == baseDir {
+			return entry.ID
+		}
+	}
+	return ""
+}
+
+func (s site) baseHandler() http.Handler {
+	baseDir, allowControl := s.BaseDir, s.AllowControl
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
@@ -202,7 +305,7 @@ func (s site) handler() http.Handler {
 		if sinceText == "" {
 			sinceText = joblist.DefaultSinceText
 		}
-		projects, err := joblist.Projects(baseDir, queueFilter)
+		projects, err := joblist.Projects(baseDir, "")
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -214,22 +317,25 @@ func (s site) handler() http.Handler {
 		}
 		joblist.Sort(rows)
 		writer.Header().Set(headerContentType, "text/html; charset=utf-8")
-		_, _ = writer.Write([]byte(jobsHTML("/", projects, rows, sinceText, true, s.Notifications)))
+		_, _ = writer.Write([]byte(jobsHTML(s.currentBasePrefix()+"/", projects, rows, sinceText, true, s.Notifications, s.basedirEntries())))
 	})
 	mux.HandleFunc("/jobs", func(writer http.ResponseWriter, request *http.Request) {
-		http.Redirect(writer, request, "/jobs/", http.StatusMovedPermanently)
+		http.Redirect(writer, request, s.currentBasePrefix()+"/jobs/", http.StatusMovedPermanently)
 	})
 	mux.HandleFunc("/api/state", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			methodNotAllowed(writer)
 			return
 		}
-		state, err := s.loadWebState(baseDir, queueFilter)
+		state, err := s.loadWebState(baseDir)
 		if err != nil {
 			writeWebError(writer, err)
 			return
 		}
 		writeWebJSON(writer, state)
+	})
+	mux.HandleFunc("/api/projects", func(writer http.ResponseWriter, request *http.Request) {
+		s.handleWebProjects(writer, request, baseDir)
 	})
 	mux.HandleFunc("/api/config", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
@@ -667,6 +773,34 @@ func (s site) handler() http.Handler {
 	return mux
 }
 
+func (s site) handleWebProjects(writer http.ResponseWriter, request *http.Request, defaultBaseDir string) {
+	if request.Method != http.MethodGet {
+		methodNotAllowed(writer)
+		return
+	}
+	targetBaseDir := defaultBaseDir
+	if id := request.URL.Query().Get("basedir_id"); id != "" {
+		found := false
+		for _, entry := range s.basedirEntries() {
+			if entry.ID == id {
+				targetBaseDir = entry.Path
+				found = true
+				break
+			}
+		}
+		if !found {
+			http.NotFound(writer, request)
+			return
+		}
+	}
+	projects, err := joblist.Projects(targetBaseDir, "")
+	if err != nil {
+		writeWebError(writer, err)
+		return
+	}
+	writeWebJSON(writer, map[string][]string{"projects": projects})
+}
+
 func (s site) loadWebConfigFiles(baseDir, projectName, runID string) ([]webprojection.ConfigFile, error) {
 	var paths []string
 	if projectName == "" {
@@ -845,27 +979,23 @@ func loadLegacyRunConfigFiles(baseDir, projectName string, configPaths []string)
 
 // loadWebState projects persisted server and project state into the Web API
 // model consumed by the embedded and static Web UIs.
-func (s site) loadWebState(baseDir, queueFilter string) (webprojection.State, error) {
+func (s site) loadWebState(baseDir string) (webprojection.State, error) {
 	state := webprojection.State{BaseDir: baseDir, ConfigPath: config.EffectivePath(baseDir, ""), Environments: s.environments(), UpdatedAt: time.Now().UTC().Format(time.RFC3339)}
 	for index := range state.Environments {
 		// Only expose whether the variable is set, never its value: it may hold secrets (API keys, tokens).
 		_, state.Environments[index].Set = os.LookupEnv(state.Environments[index].Name)
 	}
 	queueNames := []string{}
-	if queueFilter != "" {
-		queueNames = append(queueNames, queueFilter)
-	} else {
-		entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
-		if err != nil && !os.IsNotExist(err) {
-			return webprojection.State{}, err
-		}
-		for _, entry := range entries {
-			if entry.IsDir() {
-				queueNames = append(queueNames, entry.Name())
-			}
-		}
-		sort.Strings(queueNames)
+	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
+	if err != nil && !os.IsNotExist(err) {
+		return webprojection.State{}, err
 	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			queueNames = append(queueNames, entry.Name())
+		}
+	}
+	sort.Strings(queueNames)
 	for _, queueName := range queueNames {
 		paths, err := stateinternal.ResolveProjectPaths(baseDir, queueName)
 		if err != nil {
@@ -900,8 +1030,8 @@ func loadWebServerState(projectDir string) webprojection.ServerState {
 }
 
 func (s site) generateStaticWeb(outputDir string) error {
-	baseDir, queueFilter := s.BaseDir, s.ProjectFilter
-	state, err := s.loadWebState(baseDir, queueFilter)
+	baseDir := s.BaseDir
+	state, err := s.loadWebState(baseDir)
 	if err != nil {
 		return err
 	}
@@ -1017,7 +1147,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 	if err := writeStaticStylesheet(outputDir); err != nil {
 		return err
 	}
-	projects, err := joblist.Projects(baseDir, queueFilter)
+	projects, err := joblist.Projects(baseDir, "")
 	if err != nil {
 		return err
 	}
@@ -1026,7 +1156,14 @@ func (s site) generateStaticWeb(outputDir string) error {
 		return err
 	}
 	joblist.Sort(jobs)
-	if err := writeStaticWebPage(filepath.Join(outputDir, "jobs", "index.html"), jobsHTML("../", projects, jobs, joblist.DefaultSinceText, false, false)); err != nil {
+	var staticBaseDirs []webBaseDir
+	for _, entry := range s.basedirEntries() {
+		if entry.Current {
+			staticBaseDirs = []webBaseDir{entry}
+			break
+		}
+	}
+	if err := writeStaticWebPage(filepath.Join(outputDir, "jobs", "index.html"), jobsHTML("../", projects, jobs, joblist.DefaultSinceText, false, false, staticBaseDirs)); err != nil {
 		return err
 	}
 	if err := writeStaticStylesheet(filepath.Join(outputDir, "jobs")); err != nil {
@@ -1211,7 +1348,16 @@ func (s site) webHTML() string {
 }
 
 func (s site) webHTMLWithStaticBootstrap(bootstrap string) string {
-	return composeWebHTML(s.Executors, s.Notifications, bootstrap)
+	basedirs := s.basedirEntries()
+	if bootstrap != "" {
+		for _, entry := range basedirs {
+			if entry.Current {
+				basedirs = []webBaseDir{entry}
+				break
+			}
+		}
+	}
+	return composeWebHTML(s.Executors, s.Notifications, bootstrap, basedirs)
 }
 
 func methodNotAllowed(writer http.ResponseWriter) {

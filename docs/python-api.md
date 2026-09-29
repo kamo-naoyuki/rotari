@@ -80,6 +80,21 @@ Execute queued commands, optionally selecting jobs from a run.
 | `lsf_options` | `Sequence[str]` | LSF executor dispatch options; may be repeated |
 | `lsf_submit_interval` | `str` | minimum LSF submission interval |
 | `lsf_submit_retry_limit` | `str` | maximum retries for transient LSF submission failures |
+| `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
+| `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `filter_host` | `Sequence[str]` | select jobs run on a matching host; may be repeated |
+| `filter_started_after` | `str` | select jobs started at or after this time |
+| `filter_started_before` | `str` | select jobs started before this time |
+| `filter_finished_after` | `str` | select jobs finished at or after this time |
+| `filter_finished_before` | `str` | select jobs finished before this time |
+| `filter_longer_than` | `str` | select jobs running at least this long |
+| `filter_shorter_than` | `str` | select jobs running less than this long |
+| `filter_command` | `str` | select jobs whose argv matches this Go regexp |
+| `filter_stage` | `str` | select jobs in this stage; same as --stage |
+| `filter_not_stage` | `Sequence[str]` | exclude jobs in this stage; may be repeated |
+| `filter_matrix` | `str` | select jobs of this matrix, named by its base job name; same as --matrix |
+| `filter_not_matrix` | `Sequence[str]` | exclude jobs of this matrix, named by its base job name; may be repeated |
 
 ## `Rotari.retry`
 
@@ -119,6 +134,21 @@ Run failed and unfinished jobs; with --job-id, run those jobs.
 | `lsf_options` | `Sequence[str]` | LSF executor dispatch options; may be repeated |
 | `lsf_submit_interval` | `str` | minimum LSF submission interval |
 | `lsf_submit_retry_limit` | `str` | maximum retries for transient LSF submission failures |
+| `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
+| `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `filter_host` | `Sequence[str]` | select jobs run on a matching host; may be repeated |
+| `filter_started_after` | `str` | select jobs started at or after this time |
+| `filter_started_before` | `str` | select jobs started before this time |
+| `filter_finished_after` | `str` | select jobs finished at or after this time |
+| `filter_finished_before` | `str` | select jobs finished before this time |
+| `filter_longer_than` | `str` | select jobs running at least this long |
+| `filter_shorter_than` | `str` | select jobs running less than this long |
+| `filter_command` | `str` | select jobs whose argv matches this Go regexp |
+| `filter_stage` | `str` | select jobs in this stage; same as --stage |
+| `filter_not_stage` | `Sequence[str]` | exclude jobs in this stage; may be repeated |
+| `filter_matrix` | `str` | select jobs of this matrix, named by its base job name; same as --matrix |
+| `filter_not_matrix` | `Sequence[str]` | exclude jobs of this matrix, named by its base job name; may be repeated |
 
 ## `Rotari.reset`
 
@@ -176,6 +206,21 @@ Show queue or run status.
 | `basedirs` | `bool` | list state directories known to the master registry |
 | `json` | `bool` | print machine-readable JSON for a run |
 | `report` | `bool` | print an AI-ready Markdown report |
+| `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
+| `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `filter_host` | `Sequence[str]` | select jobs run on a matching host; may be repeated |
+| `filter_started_after` | `str` | select jobs started at or after this time |
+| `filter_started_before` | `str` | select jobs started before this time |
+| `filter_finished_after` | `str` | select jobs finished at or after this time |
+| `filter_finished_before` | `str` | select jobs finished before this time |
+| `filter_longer_than` | `str` | select jobs running at least this long |
+| `filter_shorter_than` | `str` | select jobs running less than this long |
+| `filter_command` | `str` | select jobs whose argv matches this Go regexp |
+| `filter_stage` | `str` | select jobs in this stage; same as --stage |
+| `filter_not_stage` | `Sequence[str]` | exclude jobs in this stage; may be repeated |
+| `filter_matrix` | `str` | select jobs of this matrix, named by its base job name; same as --matrix |
+| `filter_not_matrix` | `Sequence[str]` | exclude jobs of this matrix, named by its base job name; may be repeated |
 
 <!-- END GENERATED CLI OPTIONS -->
 

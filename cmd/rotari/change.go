@@ -17,13 +17,12 @@ import (
 func cmdChange(args []string) int {
 	fs := flag.NewFlagSet("change", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
+	filterOptions := cliJobFilterOptions(fs, false)
 	basedir := cliString(fs, "basedir", "")
 	queueNameOption := cliString(fs, "project-name", "")
 	runID := cliString(fs, "run-id", "")
 	jobID := cliString(fs, "job-id", "")
 	jobName := cliString(fs, "job-name", "")
-	stage := cliString(fs, "stage", "")
-	matrixName := cliString(fs, "matrix", "")
 	allJobs := cliBool(fs, "all", false)
 	executor := cliString(fs, "executor", "")
 	workingDirectory := cliString(fs, "working-directory", "")
@@ -54,7 +53,18 @@ func cmdChange(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	selector := model.CommandSelector{Name: *jobName, Stage: *stage, Matrix: *matrixName, All: *allJobs}
+	scope, err := filterOptions.scope()
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	selector := model.CommandSelector{Name: *jobName, Stage: *filterOptions.stage, Matrix: *filterOptions.matrix, All: *allJobs}
+	if scope.Stage != "" {
+		selector.Stage = scope.Stage
+	}
+	if scope.Matrix != "" {
+		selector.Matrix = scope.Matrix
+	}
 	if *jobID != "" {
 		selector.IDs = []string{*jobID}
 	}
@@ -74,6 +84,7 @@ func cmdChange(args []string) int {
 		printErrorf("invalid --env: %v", err)
 		return 1
 	}
+	filter := filterOptions.filter()
 	retryBackoff, err := parseRetryBackoff(*retryBackoffText)
 	if err == nil {
 		err = model.ValidateRetryBackoff(*retryDelay, retryBackoff, *retryMaxDelay)
@@ -96,7 +107,7 @@ func cmdChange(args []string) int {
 		printError(err)
 		return 1
 	}
-	message, err := queueEditor().Change(baseDir, queueName, *runID, selector, queueops.Mutation{
+	message, err := queueEditor().ChangeWithFilter(baseDir, queueName, *runID, selector, filter, queueops.Mutation{
 		Executor: *executor, ExecutorOptions: executorOptions, ClearExecutorOptions: *clearExecutorOptions,
 		Environment: environment, ClearEnvironment: *clearEnvironment,
 		WorkingDirectory: *workingDirectory, ClearWorkingDirectory: *clearWorkingDirectory, SetJobName: *setJobName,

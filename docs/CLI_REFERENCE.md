@@ -158,6 +158,20 @@ Usage: `rotari change <command ...>`
 | `--status` | `STATUS` | `` | mark the job with a status that result filters of the next run read in place of its recorded result |
 | `--clear-status` | `` | `` | remove the job's status mark |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
+| `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
+| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
+| `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
+| `--filter-started-before` | `TIME` | `` | select jobs started before this time |
+| `--filter-finished-after` | `TIME` | `` | select jobs finished at or after this time |
+| `--filter-finished-before` | `TIME` | `` | select jobs finished before this time |
+| `--filter-longer-than` | `DURATION` | `` | select jobs running at least this long |
+| `--filter-shorter-than` | `DURATION` | `` | select jobs running less than this long |
+| `--filter-command` | `RE` | `` | select jobs whose argv matches this Go regexp |
+| `--filter-stage` | `NAME` | `` | select jobs in this stage; same as --stage |
+| `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
+| `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
+| `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
 
 ### `rotari export`
 
@@ -205,6 +219,20 @@ Usage: `rotari remove [JOB_ID ...]`
 | `--matrix` | `NAME` | `` | remove every job of a matrix, named by its base job name |
 | `--all` | `` | `` | remove every job |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
+| `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
+| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
+| `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
+| `--filter-started-before` | `TIME` | `` | select jobs started before this time |
+| `--filter-finished-after` | `TIME` | `` | select jobs finished at or after this time |
+| `--filter-finished-before` | `TIME` | `` | select jobs finished before this time |
+| `--filter-longer-than` | `DURATION` | `` | select jobs running at least this long |
+| `--filter-shorter-than` | `DURATION` | `` | select jobs running less than this long |
+| `--filter-command` | `RE` | `` | select jobs whose argv matches this Go regexp |
+| `--filter-stage` | `NAME` | `` | select jobs in this stage; same as --stage |
+| `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
+| `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
+| `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
 
 ### `rotari show`
 
@@ -236,6 +264,16 @@ Usage: `rotari show [SELECTOR]`
 | `--json` | `` | `` | print machine-readable JSON for a run |
 | `--report` | `` | `` | print an AI-ready Markdown report |
 | `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
+| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
+| `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
+| `--filter-started-before` | `TIME` | `` | select jobs started before this time |
+| `--filter-finished-after` | `TIME` | `` | select jobs finished at or after this time |
+| `--filter-finished-before` | `TIME` | `` | select jobs finished before this time |
+| `--filter-longer-than` | `DURATION` | `` | select jobs running at least this long |
+| `--filter-shorter-than` | `DURATION` | `` | select jobs running less than this long |
+| `--filter-command` | `RE` | `` | select jobs whose argv matches this Go regexp |
 | `--filter-stage` | `NAME` | `` | select jobs in this stage; same as --stage |
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
 | `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
@@ -355,6 +393,16 @@ Usage: `rotari copy [RUN_ID]`
 | `--overwrite` | `` | `` | replace a non-empty queue |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
 | `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
+| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
+| `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
+| `--filter-started-before` | `TIME` | `` | select jobs started before this time |
+| `--filter-finished-after` | `TIME` | `` | select jobs finished at or after this time |
+| `--filter-finished-before` | `TIME` | `` | select jobs finished before this time |
+| `--filter-longer-than` | `DURATION` | `` | select jobs running at least this long |
+| `--filter-shorter-than` | `DURATION` | `` | select jobs running less than this long |
+| `--filter-command` | `RE` | `` | select jobs whose argv matches this Go regexp |
 | `--filter-stage` | `NAME` | `` | select jobs in this stage; same as --stage |
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
 | `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
@@ -405,6 +453,16 @@ Usage: `rotari run [RUN_ID]`
 | `--lsf-submit-interval` | `DURATION` | `ROTARI_RUN_LSF_SUBMIT_INTERVAL` | minimum LSF submission interval |
 | `--lsf-submit-retry-limit` | `N` | `ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT` | maximum retries for transient LSF submission failures |
 | `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
+| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
+| `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
+| `--filter-started-before` | `TIME` | `` | select jobs started before this time |
+| `--filter-finished-after` | `TIME` | `` | select jobs finished at or after this time |
+| `--filter-finished-before` | `TIME` | `` | select jobs finished before this time |
+| `--filter-longer-than` | `DURATION` | `` | select jobs running at least this long |
+| `--filter-shorter-than` | `DURATION` | `` | select jobs running less than this long |
+| `--filter-command` | `RE` | `` | select jobs whose argv matches this Go regexp |
 | `--filter-stage` | `NAME` | `` | select jobs in this stage; same as --stage |
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
 | `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
@@ -449,6 +507,16 @@ Usage: `rotari retry [RUN_ID]`
 | `--lsf-submit-interval` | `DURATION` | `ROTARI_RUN_LSF_SUBMIT_INTERVAL` | minimum LSF submission interval |
 | `--lsf-submit-retry-limit` | `N` | `ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT` | maximum retries for transient LSF submission failures |
 | `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
+| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
+| `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
+| `--filter-started-before` | `TIME` | `` | select jobs started before this time |
+| `--filter-finished-after` | `TIME` | `` | select jobs finished at or after this time |
+| `--filter-finished-before` | `TIME` | `` | select jobs finished before this time |
+| `--filter-longer-than` | `DURATION` | `` | select jobs running at least this long |
+| `--filter-shorter-than` | `DURATION` | `` | select jobs running less than this long |
+| `--filter-command` | `RE` | `` | select jobs whose argv matches this Go regexp |
 | `--filter-stage` | `NAME` | `` | select jobs in this stage; same as --stage |
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
 | `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
@@ -476,7 +544,6 @@ serve the web status UI
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
-| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--host` | `HOST` | `ROTARI_WEB_HOST` | HTTP listen host |
 | `--port` | `PORT` | `ROTARI_WEB_PORT` | HTTP listen port |
 | `--static-dir` | `DIR` | `ROTARI_WEB_STATIC_DIR` | generate a static web UI |

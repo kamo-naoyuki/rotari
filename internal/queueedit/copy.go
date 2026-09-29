@@ -18,6 +18,7 @@ type Run struct {
 	CWD      string
 	// Timestamps returns a job's submitted and finished times in the run.
 	Timestamps func(jobID string) (submittedAt, finishedAt string)
+	Attributes func(jobID string) jobfilter.Attributes
 }
 
 // Attempt selects one attempt of a job in the source run. Callers check that
@@ -118,7 +119,7 @@ func Copy(destination model.Queue, project string, source Run, request CopyReque
 			return request.Scope.Matches(command) && request.Filter.MatchesCommand(command)
 		}
 	}
-	selected, selectedNames, err := selectCommands(source, request.Selection, inScope, requested, requestedTasks)
+	selected, selectedNames, err := selectCommands(source, request.Selection, inScope, request.Filter, requested, requestedTasks)
 	if err != nil {
 		return model.Queue{}, 0, err
 	}
@@ -169,19 +170,30 @@ func Copy(destination model.Queue, project string, source Run, request CopyReque
 	return destination, len(selected), nil
 }
 
-func selectCommands(source Run, selection string, inScope func(model.QueuedCommand) bool, requested map[string]bool, requestedTasks map[string]map[string]bool) ([]model.QueuedCommand, map[string]bool, error) {
+func selectCommands(source Run, selection string, inScope func(model.QueuedCommand) bool, filter jobfilter.Filter, requested map[string]bool, requestedTasks map[string]map[string]bool) ([]model.QueuedCommand, map[string]bool, error) {
 	selected := make([]model.QueuedCommand, 0, len(source.Snapshot.Commands))
 	selectedNames := make(map[string]bool)
 	for _, command := range source.Snapshot.Commands {
 		result, finished := model.AggregatedJobResult(command.ID, command.Array, source.Results)
 		include := false
+		hasResultFilters := len(filter.ExitCodes) > 0 || len(filter.FailureKinds) > 0
 		switch selection {
 		case "all":
-			include = true
+			include = !hasResultFilters || filter.MatchesResult(result, finished)
 		case "job-id":
 			include = requested[command.ID]
 		default:
 			include = model.ResultSelectionMatches(selection, finished, result.ExitCode)
+		}
+		if hasResultFilters && !filter.MatchesResult(result, finished) {
+			include = false
+		}
+		attributes := jobfilter.Attributes{}
+		if source.Attributes != nil {
+			attributes = source.Attributes(command.ID)
+		}
+		if !filter.MatchesAttributes(attributes) {
+			include = false
 		}
 		include = include && inScope(command)
 		if requested[command.ID] {

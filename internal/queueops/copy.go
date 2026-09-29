@@ -6,7 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
@@ -46,6 +49,19 @@ func (editor Editor) Copy(baseDir, projectName, runID string, request queueedit.
 			ID: runID, Snapshot: snapshot, Results: model.ResultsByID(summary.Results),
 			Timestamps: func(jobID string) (string, string) {
 				return state.ReadJobTimestamp(sourceRunDir, jobID, "submitted_at"), state.ReadJobTimestamp(sourceRunDir, jobID, "finished_at")
+			},
+			Attributes: func(jobID string) jobfilter.Attributes {
+				jobDir, err := state.LatestAttemptJobDir(sourceRunDir, jobID)
+				if err != nil {
+					return jobfilter.Attributes{}
+				}
+				status, _ := executor.LoadWrapperStatus(editor.Store, filepath.Join(jobDir, "status.json"))
+				startedAt, _ := jobfilter.ParseTimestamp(status.StartedAt)
+				if startedAt.IsZero() {
+					startedAt, _ = jobfilter.ParseTimestamp(state.ReadJobTimestamp(sourceRunDir, jobID, "submitted_at"))
+				}
+				finishedAt, _ := jobfilter.ParseTimestamp(state.ReadJobTimestamp(sourceRunDir, jobID, "finished_at"))
+				return jobfilter.Attributes{Hosts: status.Hosts, StartedAt: startedAt, FinishedAt: finishedAt, Now: time.Now()}
 			},
 		}
 		if context, contextErr := state.LoadContext(editor.Store, sourceRunDir); contextErr == nil {

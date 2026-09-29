@@ -14,14 +14,13 @@ import (
 func cmdRemove(args []string) int {
 	fs := flag.NewFlagSet("remove", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
+	filterOptions := cliJobFilterOptions(fs, false)
 	basedir := cliString(fs, "basedir", "")
 	queueNameOption := cliString(fs, "project-name", "")
 	runID := cliString(fs, "run-id", "")
 	jobName := cliString(fs, "job-name", "")
 	var jobIDs stringSliceFlag
 	cliValue(fs, &jobIDs, "job-id")
-	stage := cliString(fs, "stage", "")
-	matrixName := cliString(fs, "matrix", "")
 	allJobs := cliBool(fs, "all", false)
 	quiet := cliBool(fs, "quiet", false)
 	if err := cliParse(fs, args); err != nil {
@@ -32,7 +31,18 @@ func cmdRemove(args []string) int {
 		return 1
 	}
 	jobIDs = append(jobIDs, fs.Args()...)
-	selector := model.CommandSelector{IDs: jobIDs, Name: *jobName, Stage: *stage, Matrix: *matrixName, All: *allJobs}
+	scope, err := filterOptions.scope()
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	selector := model.CommandSelector{IDs: jobIDs, Name: *jobName, Stage: *filterOptions.stage, Matrix: *filterOptions.matrix, All: *allJobs}
+	if scope.Stage != "" {
+		selector.Stage = scope.Stage
+	}
+	if scope.Matrix != "" {
+		selector.Matrix = scope.Matrix
+	}
 	if selector.Kinds() != 1 {
 		printError("usage: " + cliUsage("remove"))
 		return 1
@@ -51,7 +61,7 @@ func cmdRemove(args []string) int {
 		printError(err)
 		return 1
 	}
-	message, err := queueEditor().Remove(baseDir, queueName, *runID, selector)
+	message, err := queueEditor().RemoveWithFilter(baseDir, queueName, *runID, selector, filterOptions.filter())
 	if err != nil {
 		printError(err)
 		return 1

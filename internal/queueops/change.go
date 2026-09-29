@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
@@ -51,6 +52,12 @@ type Mutation struct {
 // the batch restored from requestedRunID. It returns one line per changed
 // job.
 func (editor Editor) Change(baseDir, projectName, requestedRunID string, selector model.CommandSelector, mutation Mutation) (string, error) {
+	return editor.ChangeWithFilter(baseDir, projectName, requestedRunID, selector, jobfilter.Filter{}, mutation)
+}
+
+// ChangeWithFilter applies mutation to the selected jobs, narrowing the
+// selector with a filter before writing the queue.
+func (editor Editor) ChangeWithFilter(baseDir, projectName, requestedRunID string, selector model.CommandSelector, filter jobfilter.Filter, mutation Mutation) (string, error) {
 	if mutation.Executor != "" && !editor.Executors.Known(mutation.Executor) {
 		return "", fmt.Errorf("unsupported executor: %s", mutation.Executor)
 	}
@@ -78,6 +85,15 @@ func (editor Editor) Change(baseDir, projectName, requestedRunID string, selecto
 		indexes, err := model.SelectCommands(queue.Commands, selector)
 		if err != nil {
 			return err
+		}
+		if !filter.Empty() {
+			filtered := make([]int, 0, len(indexes))
+			for _, jobIndex := range indexes {
+				if filter.MatchesCommand(queue.Commands[jobIndex]) {
+					filtered = append(filtered, jobIndex)
+				}
+			}
+			indexes = filtered
 		}
 		var groupIDs []string
 		for _, jobIndex := range indexes {

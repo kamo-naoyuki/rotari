@@ -324,6 +324,70 @@
         },
         {
           "name": "quiet"
+        },
+        {
+          "name": "filter-exit-code",
+          "value_name": "N"
+        },
+        {
+          "name": "filter-failure-kind",
+          "value_name": "KIND",
+          "values": [
+            "timeout",
+            "cancelled",
+            "blocked",
+            "oom",
+            "signal",
+            "error"
+          ]
+        },
+        {
+          "name": "filter-host",
+          "value_name": "PATTERN"
+        },
+        {
+          "name": "filter-started-after",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-started-before",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-finished-after",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-finished-before",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-longer-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-shorter-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-command",
+          "value_name": "RE"
+        },
+        {
+          "name": "filter-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-matrix",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-matrix",
+          "value_name": "NAME"
         }
       ],
       "name": "change"
@@ -428,6 +492,70 @@
         },
         {
           "name": "quiet"
+        },
+        {
+          "name": "filter-exit-code",
+          "value_name": "N"
+        },
+        {
+          "name": "filter-failure-kind",
+          "value_name": "KIND",
+          "values": [
+            "timeout",
+            "cancelled",
+            "blocked",
+            "oom",
+            "signal",
+            "error"
+          ]
+        },
+        {
+          "name": "filter-host",
+          "value_name": "PATTERN"
+        },
+        {
+          "name": "filter-started-after",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-started-before",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-finished-after",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-finished-before",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-longer-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-shorter-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-command",
+          "value_name": "RE"
+        },
+        {
+          "name": "filter-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-matrix",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-matrix",
+          "value_name": "NAME"
         }
       ],
       "name": "remove"
@@ -518,6 +646,54 @@
             "unfinished",
             "success"
           ]
+        },
+        {
+          "name": "filter-exit-code",
+          "value_name": "N"
+        },
+        {
+          "name": "filter-failure-kind",
+          "value_name": "KIND",
+          "values": [
+            "timeout",
+            "cancelled",
+            "blocked",
+            "oom",
+            "signal",
+            "error"
+          ]
+        },
+        {
+          "name": "filter-host",
+          "value_name": "PATTERN"
+        },
+        {
+          "name": "filter-started-after",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-started-before",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-finished-after",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-finished-before",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-longer-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-shorter-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-command",
+          "value_name": "RE"
         },
         {
           "name": "filter-stage",
@@ -844,6 +1020,54 @@
           ]
         },
         {
+          "name": "filter-exit-code",
+          "value_name": "N"
+        },
+        {
+          "name": "filter-failure-kind",
+          "value_name": "KIND",
+          "values": [
+            "timeout",
+            "cancelled",
+            "blocked",
+            "oom",
+            "signal",
+            "error"
+          ]
+        },
+        {
+          "name": "filter-host",
+          "value_name": "PATTERN"
+        },
+        {
+          "name": "filter-started-after",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-started-before",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-finished-after",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-finished-before",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-longer-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-shorter-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-command",
+          "value_name": "RE"
+        },
+        {
           "name": "filter-stage",
           "value_name": "NAME"
         },
@@ -1032,6 +1256,54 @@
           ]
         },
         {
+          "name": "filter-exit-code",
+          "value_name": "N"
+        },
+        {
+          "name": "filter-failure-kind",
+          "value_name": "KIND",
+          "values": [
+            "timeout",
+            "cancelled",
+            "blocked",
+            "oom",
+            "signal",
+            "error"
+          ]
+        },
+        {
+          "name": "filter-host",
+          "value_name": "PATTERN"
+        },
+        {
+          "name": "filter-started-after",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-started-before",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-finished-after",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-finished-before",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-longer-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-shorter-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-command",
+          "value_name": "RE"
+        },
+        {
           "name": "filter-stage",
           "value_name": "NAME"
         },
@@ -1195,6 +1467,54 @@
           ]
         },
         {
+          "name": "filter-exit-code",
+          "value_name": "N"
+        },
+        {
+          "name": "filter-failure-kind",
+          "value_name": "KIND",
+          "values": [
+            "timeout",
+            "cancelled",
+            "blocked",
+            "oom",
+            "signal",
+            "error"
+          ]
+        },
+        {
+          "name": "filter-host",
+          "value_name": "PATTERN"
+        },
+        {
+          "name": "filter-started-after",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-started-before",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-finished-after",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-finished-before",
+          "value_name": "TIME"
+        },
+        {
+          "name": "filter-longer-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-shorter-than",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "filter-command",
+          "value_name": "RE"
+        },
+        {
           "name": "filter-stage",
           "value_name": "NAME"
         },
@@ -1244,11 +1564,6 @@
           "name": "basedir",
           "short": "b",
           "value_name": "DIR"
-        },
-        {
-          "name": "project-name",
-          "short": "p",
-          "value_name": "NAME"
         },
         {
           "name": "host",

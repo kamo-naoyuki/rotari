@@ -58,9 +58,10 @@ flowchart LR
 - **Run execution.** Every run, sync or async, executes inside its
   supervisor; see [Sync and async runs](#sync-and-async-runs).
 - **Web server.** `rotari web` ([cmd/rotari/web.go](../cmd/rotari/web.go) parses flags; [internal/webui](../internal/webui/) serves).
-  It reads project files to build JSON for the browser UI, and its control
-  endpoints (`/api/copy`, `/api/cancel-job`, ...) call the same `cmd/rotari`
-  functions the CLI uses.
+   It lists registered basedirs in the sidebar, but loads full project/run/job
+   state only for the basedir selected in the URL. Expanding another basedir
+   reads only its project directory names. Its control endpoints (`/api/copy`,
+   `/api/cancel-job`, ...) call the same internal operations as the CLI.
 - **Jobs and wrappers.** Local jobs are child processes of the supervisor.
   Scheduler jobs run elsewhere through a generated wrapper script that writes
   the attempt's `status.json`, which the supervisor polls.
@@ -117,7 +118,7 @@ flowchart TB
     queueedit
     rundiff
     diagnose
-    jobfilter
+      jobfilter
   end
   subgraph l1["adapters"]
     executor
@@ -160,15 +161,15 @@ flowchart TB
   project --> jobstatus
   project --> executor
   project --> state
+   run --> jobfilter
+   queueedit --> jobfilter
+   server --> jobfilter
   cmd --> l2
   projectrun --> run
   projectrun --> executor
   projectrun --> state
   server --> executor
   run --> executor
-  run --> jobfilter
-  queueedit --> jobfilter
-  server --> jobfilter
   jobcontrol --> executor
   jobcontrol --> state
   web --> jobstatus

@@ -26,6 +26,13 @@ type OriginResults interface {
 	Origin(runID, jobID string, result model.JobResult) *model.JobOrigin
 }
 
+// OriginAttributes optionally supplies execution attributes for an origin.
+// Older in-memory sources may omit it; filters requiring these attributes then
+// simply do not match.
+type OriginAttributes interface {
+	Attributes(origin model.JobOrigin) (jobfilter.Attributes, error)
+}
+
 // PlanRerun decides which of the queue's jobs a new run executes.
 //
 // Without a selection every command executes. With a selection only
@@ -54,7 +61,7 @@ func PlanRerun(queue model.Queue, selection string, jobIDs []string, scope model
 	if len(jobIDs) > 0 && !filter.Empty() {
 		return Plan{}, errors.New("job IDs cannot be combined with a job filter")
 	}
-	if selection == "" {
+	if selection == "" && scope.Kinds() == 0 && filter.Empty() {
 		plan := Plan{Execute: make(map[string]bool, len(queue.Commands))}
 		for _, command := range queue.Commands {
 			plan.Execute[command.ID] = true
@@ -70,7 +77,7 @@ func PlanRerun(queue model.Queue, selection string, jobIDs []string, scope model
 			return scope.Matches(command) && filter.MatchesCommand(command)
 		}
 	}
-	plan, err := planByOrigin(queue, selection, jobIDs, inScope, referenceRunID, partialArray, source)
+	plan, err := planByOrigin(queue, selection, jobIDs, inScope, filter, referenceRunID, partialArray, source)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -163,6 +170,17 @@ func (resolver *originResolver) fallbackOrigin(jobID string, result model.JobRes
 	return resolver.source.Origin(resolver.fallbackRunID, jobID, result)
 }
 
+func (resolver *originResolver) attributes(origin *model.JobOrigin, jobID string) (jobfilter.Attributes, error) {
+	provider, ok := resolver.source.(OriginAttributes)
+	if !ok {
+		return jobfilter.Attributes{}, nil
+	}
+	if origin == nil {
+		origin = &model.JobOrigin{RunID: resolver.fallbackRunID, JobID: jobID}
+	}
+	return provider.Attributes(*origin)
+}
+
 // jobResult returns the result of a job or task of command: the one its
 // origin or the reference run records, as its marked status leaves it.
 func (resolver *originResolver) jobResult(command model.QueuedCommand, origin *model.JobOrigin, id string) (model.JobResult, bool, error) {
@@ -199,7 +217,8 @@ func (resolver *originResolver) commandResult(command model.QueuedCommand) (mode
 // planByOrigin applies a selection to the result recorded by each command's
 // origin. Commands added directly to the queue have no origin and fall back
 // to the reference run. Commands outside inScope never match the selection.
-func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope func(model.QueuedCommand) bool, referenceRunID string, partialArray bool, source OriginResults) (Plan, error) {
+func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope func(model.QueuedCommand) bool, filter jobfilter.Filter, referenceRunID string, partialArray bool, source OriginResults) (Plan, error) {
+	hasResultFilters := len(filter.ExitCodes) > 0 || len(filter.FailureKinds) > 0
 	requested := make(map[string]bool, len(jobIDs))
 	for _, jobID := range jobIDs {
 		requested[jobID] = true
@@ -229,12 +248,23 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 				if err != nil {
 					return Plan{}, err
 				}
+				attributes, err := resolver.attributes(origin, id)
+				if err != nil {
+					return Plan{}, err
+				}
 				if requested[id] {
 					delete(requested, id)
 					plan.Execute[id] = true
 					continue
 				}
-				if matchTasks && scoped && model.ResultSelectionMatches(selection, finished, result.ExitCode) {
+				matchSelection := false
+				switch selection {
+				case "":
+					matchSelection = !hasResultFilters || filter.MatchesResult(result, finished)
+				default:
+					matchSelection = model.ResultSelectionMatches(selection, finished, result.ExitCode)
+				}
+				if matchTasks && scoped && matchSelection && filter.MatchesAttributes(attributes) {
 					plan.Execute[id] = true
 					continue
 				}
@@ -253,9 +283,23 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 		if err != nil {
 			return Plan{}, err
 		}
+		attributes, err := resolver.attributes(command.Origin, command.ID)
+		if err != nil {
+			return Plan{}, err
+		}
 		include := requested[command.ID]
 		if selection != "job-id" {
-			include = include || (scoped && model.ResultSelectionMatches(selection, finished, result.ExitCode))
+			matchSelection := false
+			switch selection {
+			case "":
+				matchSelection = !hasResultFilters || filter.MatchesResult(result, finished)
+			default:
+				matchSelection = model.ResultSelectionMatches(selection, finished, result.ExitCode)
+			}
+			include = include || (scoped && matchSelection && filter.MatchesAttributes(attributes))
+		}
+		if hasResultFilters && !filter.MatchesResult(result, finished) {
+			include = false
 		}
 		delete(requested, command.ID)
 		if include {

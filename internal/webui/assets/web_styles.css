@@ -248,6 +248,11 @@ button {
   border-radius: 5px;
   cursor: pointer;
 }
+
+.web-copy-controls > button {
+  min-width: 100px;
+}
+
 button:hover {
   border-color: #7190a8;
 }

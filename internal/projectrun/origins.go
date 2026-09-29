@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
@@ -220,6 +221,27 @@ func (source originResults) RunResults(runID string) (map[string]model.JobResult
 
 func (source originResults) AttemptResult(origin model.JobOrigin) (model.JobResult, bool, error) {
 	return LoadOriginAttemptResult(source.store, source.paths, origin)
+}
+
+func (source originResults) Attributes(origin model.JobOrigin) (jobfilter.Attributes, error) {
+	runDir, err := state.SafeJoin(source.paths.RunsDir, origin.RunID)
+	if err != nil {
+		return jobfilter.Attributes{}, err
+	}
+	jobDir, err := state.LatestAttemptJobDir(runDir, origin.JobID)
+	if origin.AttemptID != "" {
+		jobDir, err = state.SpecificAttemptJobDir(runDir, origin.JobID, origin.AttemptID)
+	}
+	if err != nil {
+		return jobfilter.Attributes{}, err
+	}
+	status, _ := executor.LoadWrapperStatus(source.store, filepath.Join(jobDir, "status.json"))
+	startedAt, _ := jobfilter.ParseTimestamp(status.StartedAt)
+	if startedAt.IsZero() {
+		startedAt, _ = jobfilter.ParseTimestamp(state.ReadJobTimestamp(runDir, origin.JobID, "submitted_at"))
+	}
+	finishedAt, _ := jobfilter.ParseTimestamp(state.ReadJobTimestamp(runDir, origin.JobID, "finished_at"))
+	return jobfilter.Attributes{Hosts: status.Hosts, StartedAt: startedAt, FinishedAt: finishedAt, Now: time.Now()}, nil
 }
 
 func (source originResults) Origin(runID, jobID string, result model.JobResult) *model.JobOrigin {

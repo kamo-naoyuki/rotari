@@ -3,6 +3,7 @@ package queueops
 import (
 	"fmt"
 
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -12,6 +13,12 @@ import (
 // restored from requestedRunID. A job that a remaining job depends on is not
 // removed.
 func (Editor) Remove(baseDir, projectName, requestedRunID string, selector model.CommandSelector) (string, error) {
+	return Editor{}.RemoveWithFilter(baseDir, projectName, requestedRunID, selector, jobfilter.Filter{})
+}
+
+// RemoveWithFilter removes the jobs selected by selector and further narrowed by
+// filter from the current queue or from the batch restored from requestedRunID.
+func (Editor) RemoveWithFilter(baseDir, projectName, requestedRunID string, selector model.CommandSelector, filter jobfilter.Filter) (string, error) {
 	paths, err := state.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
 		return "", err
@@ -29,6 +36,15 @@ func (Editor) Remove(baseDir, projectName, requestedRunID string, selector model
 		if err != nil {
 			return err
 		}
+		if !filter.Empty() {
+			filtered := make([]int, 0, len(indexes))
+			for _, index := range indexes {
+				if filter.MatchesCommand(queue.Commands[index]) {
+					filtered = append(filtered, index)
+				}
+			}
+			indexes = filtered
+		}
 		removed = make([]model.QueuedCommand, 0, len(indexes))
 		for _, index := range indexes {
 			removed = append(removed, queue.Commands[index])
@@ -39,9 +55,13 @@ func (Editor) Remove(baseDir, projectName, requestedRunID string, selector model
 				removedNames[job.Name] = true
 			}
 		}
+		selected := make(map[int]bool, len(indexes))
+		for _, index := range indexes {
+			selected[index] = true
+		}
 		remaining := make([]model.QueuedCommand, 0, len(queue.Commands)-len(removed))
-		for _, job := range queue.Commands {
-			if selector.Matches(job) {
+		for index, job := range queue.Commands {
+			if selected[index] {
 				continue
 			}
 			for _, dependency := range job.AllDependencies() {

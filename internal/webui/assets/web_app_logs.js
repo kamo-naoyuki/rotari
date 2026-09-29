@@ -375,15 +375,10 @@ function arrangeRunControls() {
     "Cancel selected",
     "cancel",
   );
-  const suspendSelected = selectedControl(
-    "suspend-selected-jobs",
+  const suspendResumeSelected = selectedControl(
+    "suspend-resume-selected-jobs",
     "Suspend selected",
-    "suspend",
-  );
-  const resumeSelected = selectedControl(
-    "resume-selected-jobs",
-    "Resume selected",
-    "resume",
+    "suspend-resume",
   );
   const deleteButton = [...controls.querySelectorAll("button")].find((button) =>
     button.classList.contains("delete-run"),
@@ -406,8 +401,7 @@ function arrangeRunControls() {
       append,
       report,
       cancelSelected,
-      suspendSelected,
-      resumeSelected,
+      suspendResumeSelected,
       deleteButton,
       cancel,
     ].filter(Boolean),

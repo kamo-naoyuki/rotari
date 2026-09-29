@@ -173,6 +173,16 @@ heading in `--help`.
 - `--filter-result RESULT` (`failed`, `unfinished`, or `success`) is the
   long form of `--failed`, `--unfinished`, and `--success`; repeated, and
   together with them, the results combine with OR.
+- `--filter-exit-code N` matches jobs whose resolved exit code equals N; repeated values combine with OR.
+- `--filter-failure-kind KIND` matches jobs whose result falls into one of the failure kinds (`timeout`, `cancelled`, `blocked`, `oom`, `signal`, `error`); repeated values combine with OR.
+- `--filter-host PATTERN` matches jobs whose latest attempt ran on a host
+  matching the `path.Match` glob; repeated patterns combine with OR.
+- `--filter-started-after`, `--filter-started-before`,
+  `--filter-finished-after`, and `--filter-finished-before` compare the latest
+  attempt's timestamps. `after` is inclusive and `before` is exclusive.
+- `--filter-longer-than` and `--filter-shorter-than` compare execution
+  duration. The former is inclusive and the latter is exclusive. A running
+  job uses the current time as its end; a missing timestamp does not match.
 - `--filter-stage` and `--filter-matrix` are the long forms of `--stage` and
   `--matrix`, which name one stage or matrix: given together with its short
   form, the value must be the same.

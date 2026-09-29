@@ -101,7 +101,7 @@ func TestShowReportAndWebAPIUseCommonReport(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/api/report?project_name=demo&run_id="+runID+"&job_id="+jobID, nil)
 	recorder := httptest.NewRecorder()
-	webui.Handler(webOptions(baseDir, "", false, true)).ServeHTTP(recorder, request)
+	webui.Handler(webOptions(baseDir, false, true)).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK || recorder.Body.String() != want {
 		t.Fatalf("report API status=%d body=%q, want %q", recorder.Code, recorder.Body.String(), want)
 	}
@@ -169,7 +169,7 @@ func TestWebAPISelectedJobsUsesRunReport(t *testing.T) {
 	baseDir, _, runID, jobID := createAIReportFixture(t)
 	request := httptest.NewRequest(http.MethodGet, "/api/report?project_name=demo&run_id="+runID+"&job_ids="+jobID, nil)
 	recorder := httptest.NewRecorder()
-	webui.Handler(webOptions(baseDir, "", false, true)).ServeHTTP(recorder, request)
+	webui.Handler(webOptions(baseDir, false, true)).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("selected report API status=%d body=%q", recorder.Code, recorder.Body.String())
 	}
@@ -183,14 +183,14 @@ func TestWebAPIReportRedactToggle(t *testing.T) {
 
 	redacted := httptest.NewRequest(http.MethodGet, "/api/report?project_name=demo&run_id="+runID+"&job_id="+jobID, nil)
 	redactedRecorder := httptest.NewRecorder()
-	webui.Handler(webOptions(baseDir, "", false, true)).ServeHTTP(redactedRecorder, redacted)
+	webui.Handler(webOptions(baseDir, false, true)).ServeHTTP(redactedRecorder, redacted)
 	if redactedRecorder.Code != http.StatusOK || !strings.Contains(redactedRecorder.Body.String(), "[REDACTED_PATH]") {
 		t.Fatalf("redacted report status=%d body=%q, want [REDACTED_PATH]", redactedRecorder.Code, redactedRecorder.Body.String())
 	}
 
 	unredacted := httptest.NewRequest(http.MethodGet, "/api/report?project_name=demo&run_id="+runID+"&job_id="+jobID+"&redact=false", nil)
 	unredactedRecorder := httptest.NewRecorder()
-	webui.Handler(webOptions(baseDir, "", false, true)).ServeHTTP(unredactedRecorder, unredacted)
+	webui.Handler(webOptions(baseDir, false, true)).ServeHTTP(unredactedRecorder, unredacted)
 	if unredactedRecorder.Code != http.StatusOK {
 		t.Fatalf("unredacted report status=%d body=%q", unredactedRecorder.Code, unredactedRecorder.Body.String())
 	}
@@ -203,7 +203,7 @@ func TestWebAPIReportRedactToggle(t *testing.T) {
 
 	unredactedSelected := httptest.NewRequest(http.MethodGet, "/api/report?project_name=demo&run_id="+runID+"&job_ids="+jobID+"&redact=false", nil)
 	unredactedSelectedRecorder := httptest.NewRecorder()
-	webui.Handler(webOptions(baseDir, "", false, true)).ServeHTTP(unredactedSelectedRecorder, unredactedSelected)
+	webui.Handler(webOptions(baseDir, false, true)).ServeHTTP(unredactedSelectedRecorder, unredactedSelected)
 	if unredactedSelectedRecorder.Code != http.StatusOK || strings.Contains(unredactedSelectedRecorder.Body.String(), "[REDACTED_PATH]") {
 		t.Fatalf("unredacted selected-jobs report status=%d body=%q, want no [REDACTED_PATH]", unredactedSelectedRecorder.Code, unredactedSelectedRecorder.Body.String())
 	}

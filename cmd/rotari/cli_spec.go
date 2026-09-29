@@ -183,7 +183,7 @@ var cliCommandSpecs = []cliCommandSpec{
 	{
 		Name:        "change",
 		Description: "change jobs in the current or previous batch",
-		Flags: append(commonCLIFlags(),
+		Flags: append(append(commonCLIFlags(),
 			cliFlagSpec{Name: "run-id", Description: "run ID to use when restoring a batch", ValueName: "ID"},
 			cliFlagSpec{Name: "job-id", Description: "target job ID", ValueName: "ID"},
 			cliFlagSpec{Name: "job-name", Description: "target job name", ValueName: "NAME"},
@@ -212,7 +212,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "status", Description: "mark the job with a status that result filters of the next run read in place of its recorded result", ValueName: "STATUS", Values: []string{"success", "failed", "cancelled", "unfinished"}, CommandLineOnly: true},
 			cliFlagSpec{Name: "clear-status", Description: "remove the job's status mark"},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
-		),
+		), jobFilterFlagSpecs(false)...),
 		Positional: "<command ...>",
 	},
 	{
@@ -239,7 +239,7 @@ var cliCommandSpecs = []cliCommandSpec{
 	{
 		Name:        "remove",
 		Description: "remove jobs from the current or previous batch",
-		Flags: append(commonCLIFlags(),
+		Flags: append(append(commonCLIFlags(),
 			cliFlagSpec{Name: "run-id", Description: "run ID to use when restoring a batch", ValueName: "ID"},
 			cliFlagSpec{Name: "job-id", Description: "remove a job; may be repeated", ValueName: "ID"},
 			cliFlagSpec{Name: "job-name", Description: "remove a job by name", ValueName: "NAME"},
@@ -247,7 +247,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "matrix", Description: "remove every job of a matrix, named by its base job name", ValueName: "NAME"},
 			cliFlagSpec{Name: "all", Description: "remove every job", CommandLineOnly: true},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
-		),
+		), jobFilterFlagSpecs(false)...),
 		Positional: "[JOB_ID ...]",
 	},
 	{
@@ -458,7 +458,7 @@ var cliCommandSpecs = []cliCommandSpec{
 	{
 		Name:        "web",
 		Description: "serve the web status UI",
-		Flags: append(commonCLIFlags(),
+		Flags: append([]cliFlagSpec{{Name: "basedir", Description: "state directory", ValueName: "DIR"}},
 			cliFlagSpec{Name: "host", Description: "HTTP listen host", ValueName: "HOST"},
 			cliFlagSpec{Name: "port", Description: "HTTP listen port", ValueName: "PORT"},
 			cliFlagSpec{Name: "static-dir", Description: "generate a static web UI", ValueName: "DIR"},

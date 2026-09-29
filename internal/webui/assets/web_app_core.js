@@ -1,4 +1,25 @@
 const executorNames = __ROTARI_EXECUTORS__;
+const registeredBasedirs = __ROTARI_BASEDIRS__;
+const mountedBasedirID = (() => {
+  const parts = location.pathname.split("/").filter(Boolean);
+  return parts[0] === "_basedir" ? parts[1] : "";
+})();
+function basedirURL(id, path) {
+  const entry = registeredBasedirs.find((item) => item.id === id);
+  const prefix = entry?.current ? "" : "/_basedir/" + id;
+  return prefix + (path.startsWith("/") ? path : "/" + path);
+}
+function appURL(path) {
+  if (!path.startsWith("/")) path = "/" + path;
+  return mountedBasedirID && !path.startsWith("/_basedir/")
+    ? "/_basedir/" + mountedBasedirID + path
+    : path;
+}
+const nativeFetch = window.fetch.bind(window);
+window.fetch = function (input, options) {
+  if (typeof input === "string" && input.startsWith("/")) input = appURL(input);
+  return nativeFetch(input, options);
+};
 let state;
 let projectRuntimeDetailsOpen = false;
 let stateJSON = "";
@@ -16,9 +37,12 @@ let sortState = {
   queueJobs: { key: "name", direction: 1 },
 };
 function pageParts() {
-  return typeof routeParts === "function"
-    ? routeParts()
-    : location.pathname.split("/").filter(Boolean);
+  const parts =
+    typeof routeParts === "function"
+      ? routeParts()
+      : location.pathname.split("/").filter(Boolean);
+  if (parts[0] === "_basedir") parts.splice(0, 2);
+  return parts;
 }
 async function refresh() {
   if (
@@ -70,19 +94,25 @@ function render() {
   renderQueue(queue);
 }
 const expandedSidebarProjects = {};
-function sidebarRunLinksHTML(q, isActive, activeRun) {
+const expandedSidebarBasedirs = {};
+const remoteProjectsByBasedir = {};
+function sidebarRunLinksHTML(q, isActive, activeRun, basedirID) {
   const runs = (q.runs || [])
     .slice()
-    .sort((a, b) => (a.run_id < b.run_id ? 1 : a.run_id > b.run_id ? -1 : 0));
+    .sort((a, b) => b.run_id.localeCompare(a.run_id));
   const runLinks = runs
     .map(
       (r) =>
         '<a class="sidebar-run' +
         (isActive && r.run_id === activeRun ? " active" : "") +
-        '" href="/project/' +
-        encodeURIComponent(q.project_name) +
-        "/run/" +
-        encodeURIComponent(r.run_id) +
+        '" href="' +
+        basedirURL(
+          basedirID,
+          "/project/" +
+            encodeURIComponent(q.project_name) +
+            "/run/" +
+            encodeURIComponent(r.run_id),
+        ) +
         '">' +
         esc(r.run_name || r.run_id) +
         "</a>",
@@ -90,38 +120,47 @@ function sidebarRunLinksHTML(q, isActive, activeRun) {
     .join("");
   return runLinks || '<span class="sidebar-run">No runs</span>';
 }
-function renderSidebar(queues) {
-  const container = document.getElementById("sidebar-projects");
-  if (!container) return;
-  const parts = pageParts();
-  const activeProject =
-    parts[0] === "project" ? decodeURIComponent(parts[1]) : "";
-  const activeRun = parts[2] === "run" ? decodeURIComponent(parts[3]) : "";
-  container.innerHTML = queues
-    .map((q) => {
-      const isActive = q.project_name === activeProject;
-      if (isActive) expandedSidebarProjects[q.project_name] = true;
-      const isExpanded = !!expandedSidebarProjects[q.project_name];
-      // Only build the run list when expanded; a collapsed project stays cheap.
-      const runsHTML = isExpanded
-        ? sidebarRunLinksHTML(q, isActive, activeRun)
+function sidebarProjectLink(name, basedirID, active) {
+  return (
+    '<div class="sidebar-project-row"><span class="sidebar-toggle-placeholder" aria-hidden="true"></span><a class="sidebar-project-link basedir-switch' +
+    (active ? " active" : "") +
+    '" href="' +
+    basedirURL(basedirID, "/project/" + encodeURIComponent(name)) +
+    '">' +
+    esc(name) +
+    "</a></div>"
+  );
+}
+function activeSidebarProjectsHTML(entry, queues, activeProject, activeRun) {
+  return queues
+    .map((project) => {
+      const projectName = project.project_name;
+      const key = entry.id + "/" + projectName;
+      const projectActive = projectName === activeProject;
+      if (projectActive) expandedSidebarProjects[key] = true;
+      const expanded = projectActive || !!expandedSidebarProjects[key];
+      let currentRun = "";
+      if (projectActive) currentRun = activeRun;
+      const runsHTML = expanded
+        ? sidebarRunLinksHTML(project, projectActive, currentRun, entry.id)
         : "";
       return (
         '<div class="sidebar-project' +
-        (isExpanded ? " expanded" : "") +
+        (expanded ? " expanded" : "") +
+        '" data-basedir-id="' +
+        entry.id +
         '" data-project-name="' +
-        esc(q.project_name) +
+        esc(projectName) +
         '"><div class="sidebar-project-row"><button type="button" class="sidebar-toggle" aria-expanded="' +
-        (isExpanded ? "true" : "false") +
+        (expanded ? "true" : "false") +
         '" aria-label="Toggle runs" onclick="toggleSidebarProject(this)"></button><a class="sidebar-project-link' +
-        (isActive ? " active" : "") +
-        '" href="/project/' +
-        encodeURIComponent(q.project_name) +
+        (projectActive ? " active" : "") +
+        ' basedir-switch" href="' +
+        basedirURL(entry.id, "/project/" + encodeURIComponent(projectName)) +
         '">' +
-        esc(q.project_name) +
-        "</a></div>" +
-        '<div class="sidebar-runs"' +
-        (isExpanded ? "" : " hidden") +
+        esc(projectName) +
+        '</a></div><div class="sidebar-runs"' +
+        (expanded ? "" : " hidden") +
         ">" +
         runsHTML +
         "</div></div>"
@@ -129,38 +168,126 @@ function renderSidebar(queues) {
     })
     .join("");
 }
+function sidebarBasedirHTML(
+  entry,
+  activeID,
+  projects,
+  activeProject,
+  activeRun,
+) {
+  const isActive = entry.id === activeID;
+  const isExpanded = isActive || !!expandedSidebarBasedirs[entry.id];
+  let projectLinks = "";
+  if (isExpanded && isActive) {
+    projectLinks = activeSidebarProjectsHTML(
+      entry,
+      projects,
+      activeProject,
+      activeRun,
+    );
+  } else if (isExpanded) {
+    projectLinks = (remoteProjectsByBasedir[entry.id] || [])
+      .map((name) => sidebarProjectLink(name, entry.id, false))
+      .join("");
+  }
+  const pathParts = entry.path.split("/").filter(Boolean);
+  const title = pathParts.length ? pathParts[pathParts.length - 1] : entry.path;
+  return (
+    '<div class="sidebar-project basedir-entry' +
+    (isExpanded ? " expanded" : "") +
+    '" data-basedir-id="' +
+    entry.id +
+    '"><div class="sidebar-project-row"><button type="button" class="sidebar-toggle" aria-expanded="' +
+    (isExpanded ? "true" : "false") +
+    '" aria-label="Toggle projects" onclick="toggleSidebarBasedir(this)"></button><a class="sidebar-project-link' +
+    (isActive ? " active" : "") +
+    ' basedir-switch" title="' +
+    esc(entry.path) +
+    '" href="' +
+    basedirURL(entry.id, "/") +
+    '">' +
+    esc(title) +
+    '</a></div><div class="sidebar-projects"' +
+    (isExpanded ? "" : " hidden") +
+    '><a class="sidebar-run' +
+    (isActive && !activeProject ? " active" : "") +
+    ' basedir-switch" href="' +
+    basedirURL(entry.id, "/") +
+    '">All projects</a>' +
+    projectLinks +
+    "</div></div>"
+  );
+}
+function renderSidebar(queues) {
+  const container = document.getElementById("sidebar-basedirs");
+  if (!container) return;
+  const parts = pageParts();
+  const activeProject =
+    parts[0] === "project" ? decodeURIComponent(parts[1]) : "";
+  const activeRun = parts[2] === "run" ? decodeURIComponent(parts[3]) : "";
+  const activeBaseID =
+    mountedBasedirID ||
+    registeredBasedirs.find((item) => item.current)?.id ||
+    "";
+  container.innerHTML = registeredBasedirs
+    .map((entry) =>
+      sidebarBasedirHTML(
+        entry,
+        activeBaseID,
+        queues || [],
+        activeProject,
+        activeRun,
+      ),
+    )
+    .join("");
+  registeredBasedirs.forEach((entry) => {
+    if (
+      entry.id !== activeBaseID &&
+      expandedSidebarBasedirs[entry.id] &&
+      !remoteProjectsByBasedir[entry.id]
+    )
+      loadBasedirProjects(entry.id);
+  });
+}
+async function loadBasedirProjects(id) {
+  try {
+    const response = await fetch(
+      "/api/projects?basedir_id=" + encodeURIComponent(id),
+    );
+    if (!response.ok) return;
+    const data = await response.json();
+    remoteProjectsByBasedir[id] = data.projects || [];
+    renderSidebar(state ? state.projects || [] : []);
+  } catch (error) {
+    // Leave the expanded basedir without projects when its directory is unavailable.
+  }
+}
+function toggleSidebarBasedir(button) {
+  const base = button.closest(".basedir-entry");
+  const id = base.dataset.basedirId;
+  expandedSidebarBasedirs[id] = button.getAttribute("aria-expanded") !== "true";
+  renderSidebar(state ? state.projects || [] : []);
+}
 function toggleSidebarProject(button) {
   const project = button.closest(".sidebar-project");
-  const runs = project.querySelector(".sidebar-runs");
-  const expanded = button.getAttribute("aria-expanded") === "true";
-  const projectName = project.dataset.projectName;
-  expandedSidebarProjects[projectName] = !expanded;
-  button.setAttribute("aria-expanded", String(!expanded));
-  project.classList.toggle("expanded", !expanded);
-  if (expanded) {
-    // Collapsing: drop the built run list so it isn't kept around unused.
-    runs.hidden = true;
-    runs.innerHTML = "";
-    return;
-  }
-  const q = (state.projects || []).find((p) => p.project_name === projectName);
-  if (q) {
-    const parts = pageParts();
-    const isActive =
-      parts[0] === "project" && decodeURIComponent(parts[1]) === projectName;
-    const activeRun =
-      isActive && parts[2] === "run" ? decodeURIComponent(parts[3]) : "";
-    runs.innerHTML = sidebarRunLinksHTML(q, isActive, activeRun);
-  }
-  runs.hidden = false;
+  const key = project.dataset.basedirId + "/" + project.dataset.projectName;
+  expandedSidebarProjects[key] =
+    button.getAttribute("aria-expanded") !== "true";
+  renderSidebar(state ? state.projects || [] : []);
 }
-function toggleSidebarRoot(button) {
-  const root = button.closest(".sidebar-project");
-  const projects = root.querySelector(".sidebar-projects");
-  const expanded = button.getAttribute("aria-expanded") === "true";
-  button.setAttribute("aria-expanded", String(!expanded));
-  root.classList.toggle("expanded", !expanded);
-  projects.hidden = expanded;
+function applyBasedirLinks() {
+  if (!mountedBasedirID) return;
+  const prefix = "/_basedir/" + mountedBasedirID;
+  document.querySelectorAll('a[href^="/"]').forEach((link) => {
+    const href = link.getAttribute("href");
+    if (
+      link.classList.contains("basedir-switch") ||
+      href.startsWith("/_basedir/") ||
+      href.startsWith(prefix + "/")
+    )
+      return;
+    link.setAttribute("href", prefix + href);
+  });
 }
 function setLocation(base, paths) {
   const location = document.getElementById("location");

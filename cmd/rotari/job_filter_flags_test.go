@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -64,6 +65,57 @@ func TestFilterStageIsTheLongFormOfStage(t *testing.T) {
 	}
 }
 
+func TestFilterCommandIsParsedAndMatchesTheJobCommand(t *testing.T) {
+	options, err := parseJobFilterOptions(t, "change", "--filter-command", `python .*\.py`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := options.filter(); got.Command != `python .*\.py` {
+		t.Fatalf("filter() = %+v, want command regex %q", got, `python .*\.py`)
+	}
+	if !options.filter().MatchesCommand(model.QueuedCommand{Command: []string{"python", "train.py"}}) {
+		t.Fatal("filter().MatchesCommand did not match the job command")
+	}
+	if options.filter().MatchesCommand(model.QueuedCommand{Command: []string{"bash", "train.sh"}}) {
+		t.Fatal("filter().MatchesCommand matched the wrong job command")
+	}
+}
+
+func TestFilterExitCodeAndFailureKindAreParsed(t *testing.T) {
+	options, err := parseJobFilterOptions(t, "show", "--filter-exit-code", "1", "--filter-exit-code", "2", "--filter-failure-kind", "timeout", "--filter-failure-kind", "oom")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := options.filter(); !reflect.DeepEqual(got.ExitCodes, []int{1, 2}) || !reflect.DeepEqual(got.FailureKinds, []string{"timeout", "oom"}) {
+		t.Fatalf("filter() = %+v, want exit codes [1 2] and failure kinds [timeout oom]", got)
+	}
+	if _, err := parseJobFilterOptions(t, "show", "--filter-failure-kind", "bogus"); err == nil {
+		t.Fatal("--filter-failure-kind bogus accepted an invalid kind")
+	}
+}
+
+func TestExecutionFiltersAreParsed(t *testing.T) {
+	options, err := parseJobFilterOptions(t, "show",
+		"--filter-host", "worker-*",
+		"--filter-started-after", "2026-09-30T10:00:00Z",
+		"--filter-finished-before", "2026-09-30T12:00:00Z",
+		"--filter-longer-than", "2h",
+		"--filter-shorter-than", "3h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	filter := options.filter()
+	if !reflect.DeepEqual(filter.Hosts, []string{"worker-*"}) || filter.StartedAfter == nil || filter.FinishedBefore == nil || filter.LongerThan != 2*time.Hour || filter.ShorterThan != 3*time.Hour {
+		t.Fatalf("filter() = %+v, want execution filters", filter)
+	}
+	if _, err := parseJobFilterOptions(t, "show", "--filter-started-after", "not-a-time"); err == nil {
+		t.Fatal("invalid started time was accepted")
+	}
+	if _, err := parseJobFilterOptions(t, "show", "--filter-longer-than", "0s"); err == nil {
+		t.Fatal("zero duration was accepted")
+	}
+}
+
 func TestHelpListsFilterOptionsUnderTheirOwnHeading(t *testing.T) {
 	fs := flag.NewFlagSet("show", flag.ContinueOnError)
 	var output strings.Builder
@@ -81,7 +133,7 @@ func TestHelpListsFilterOptionsUnderTheirOwnHeading(t *testing.T) {
 	if strings.Contains(general, "-filter-") || !strings.Contains(general, "-basedir") || !strings.Contains(general, "-stage") {
 		t.Fatalf("general options = %q, want every option except --filter-*", general)
 	}
-	for _, name := range []string{"-filter-result", "-filter-stage", "-filter-not-stage", "-filter-matrix", "-filter-not-matrix"} {
+	for _, name := range []string{"-filter-result", "-filter-stage", "-filter-command", "-filter-not-stage", "-filter-matrix", "-filter-not-matrix"} {
 		if !strings.Contains(filters, name) {
 			t.Fatalf("filters = %q, want %s", filters, name)
 		}
