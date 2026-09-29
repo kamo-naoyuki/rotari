@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/rundiff"
+	"github.com/kamo-naoyuki/rotari/internal/runview"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -29,6 +31,21 @@ func CompletionMessage(paths state.ProjectPaths, runID string, summary model.Run
 	}
 	message := title + "\n" + fmt.Sprintf("  Project: %s\n  Run: %s\n  Status: %s\n  Exit code: %d\n  Success: %d\n  Failed: %d\n  Directory: %s\n",
 		paths.ProjectName, model.RunLabel(runID, summary.RunName), summary.Status, summary.ExitCode, successCount, failedCount, runDir)
+	if run, err := runview.LoadRun(paths, runID, state.NewStore(state.DirectoryMode(), state.FileMode())); err == nil {
+		counts := rundiff.Summarize(run)
+		message += fmt.Sprintf("  Summary: jobs %d, succeeded %d, failed %d, blocked %d, unfinished %d\n",
+			counts.Jobs, counts.Succeeded, counts.Failed, counts.Blocked, counts.Unfinished)
+		for _, diagnosis := range rundiff.SummarizeDiagnoses(run) {
+			message += fmt.Sprintf("  Diagnosis: %s %d\n", diagnosis.Name, diagnosis.Count)
+		}
+		for _, origin := range rundiff.SummarizeOrigins(run) {
+			label := origin.RunID
+			if label == "" {
+				label = "new"
+			}
+			message += fmt.Sprintf("  Origin: %s %d\n", label, origin.Count)
+		}
+	}
 	if failedCount > 0 {
 		message += fmt.Sprintf("\nInspect run:\n  rotari show --run-id %s\n\nSee failed job output below.\n\nFailed job output:\n%s\nRerun failed jobs:\n  rotari retry --basedir %s --project-name %s\n",
 			runID, failedJobHints(runID, summary.Results), paths.BaseDir, paths.ProjectName)
