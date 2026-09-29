@@ -76,6 +76,12 @@
   with that fingerprint are new work. A missing historical input makes that
   historical unit ineligible rather than using a weaker fallback.
 
+- **RUN-5** Importing a manifest job without source provenance creates new
+  work. The next `run` executes that job without looking up a previous-run
+  result. Implemented in [internal/run/rerun.go](../internal/run/rerun.go) and
+  covered by `TestImportedWorkflowRunsFreshJobs` in
+  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
+
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,
   and its scheduling fields. The working directory and environment a run uses
@@ -249,8 +255,7 @@
   provenance. Import validates source attempts, writes explicit carry, force,
   and manual-acceptance dispositions into the queue, and leaves execution to
   the normal run path. Unchanged successes carry forward; failed, unfinished,
-  changed, and downstream jobs execute. Imported jobs without an origin are
-  planned as new work and never fall back to a reference run. Matrix combinations and array tasks
+  changed, and downstream jobs execute. Matrix combinations and array tasks
   retain independent dispositions. A leaf without its own manifest attempt is
   recovered from the listed source run that supplied its command (the same
   latest-run rule as export), and a result carried into that run resolves to

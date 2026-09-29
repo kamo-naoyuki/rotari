@@ -111,6 +111,28 @@ func TestRunRetrySucceedsWithinOneRun(t *testing.T) {
 	}
 }
 
+func TestImportedWorkflowRunsFreshJobs(t *testing.T) {
+	covers(t, "RUN-5")
+	e := support.NewEnv(t)
+	manifestPath := filepath.Join(e.Root, "fresh.json")
+	manifest := `{"version":1,"jobs":[{"name":"fresh","command":["touch","imported-job-ran"]}]}`
+	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.MustRotari("import", manifestPath, "imported")
+	e.MustRotari("run", "-p", "imported", "--quiet")
+	if _, err := os.Stat(filepath.Join(e.Root, "imported-job-ran")); err != nil {
+		t.Fatalf("imported fresh job did not execute: %v", err)
+	}
+	summary := readSummary(t, e, "imported")
+	if len(summary.Results) != 1 {
+		t.Fatalf("imported run results = %#v, want one result", summary.Results)
+	}
+	if _, exit := summaryResult(t, summary, summary.Results[0].ID); exit != 0 {
+		t.Fatalf("imported job exit code = %d, want 0", exit)
+	}
+}
+
 func TestJobStreamsPersistSeparately(t *testing.T) {
 	covers(t, "LOG-1")
 	e := support.NewEnv(t)
