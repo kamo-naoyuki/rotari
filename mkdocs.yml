@@ -24,12 +24,11 @@ nav:
       - Inspecting and diagnosing: INSPECT.md
       - Configuration: CONFIGURATION.md
       - Environment variables: ENVIRONMENT_VARIABLES.md
-      - Environment variables: ENVIRONMENT_VARIABLES.md
       - Operations: OPERATIONS.md
       - Workflow manifests: WORKFLOW_MANIFESTS.md
-      - FAQ: FAQ.md
       - Comparison with other tools: TOOL_COMPARISON.md
       - Docker: DOCKER.md
+      - FAQ: FAQ.md
   - Integrations:
       - Webhook notifications: WEBHOOK_NOTIFICATIONS.md
       - Browser notifications: WEB_BROWSER_NOTIFICATIONS.md
