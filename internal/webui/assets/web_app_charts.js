@@ -350,7 +350,6 @@ function addJobTimeline() {
 
 let outputWordCloudData = null;
 let outputWordCloudKey = "";
-let outputWordCloudRequestedKey = "";
 
 function renderOutputWordCloud(details, cloud) {
   const content = details.querySelector(".output-word-cloud-content");
@@ -380,6 +379,8 @@ function renderOutputWordCloud(details, cloud) {
     cloud.total_bytes.toLocaleString() +
     " bytes / generated " +
     new Date(cloud.generated_at).toLocaleString();
+  const button = details.querySelector(".output-word-cloud-regenerate");
+  if (button) button.textContent = "Regenerate";
 }
 
 async function loadOutputWordCloud(details, projectName, runID, refresh) {
@@ -440,7 +441,7 @@ function addOutputWordCloud() {
   const body = document.createElement("div");
   const regenerate = document.createElement("button");
   regenerate.className = "output-word-cloud-regenerate";
-  regenerate.textContent = "Regenerate";
+  regenerate.textContent = "Generate";
   regenerate.type = "button";
   regenerate.onclick = () =>
     loadOutputWordCloud(section, queue.project_name, runID, true);
@@ -772,28 +773,9 @@ function collapseRunGraphics() {
         button.setAttribute("aria-expanded", String(expanded));
         button.textContent = expanded ? "-" : "+";
         expandedRunGraphics[key] = expanded;
-        if (
-          expanded &&
-          section.classList.contains("output-word-cloud") &&
-          outputWordCloudRequestedKey ===
-            section.dataset.wordCloudProject + "/" + section.dataset.wordCloudRun &&
-          !section.dataset.wordCloudLoaded
-        ) {
-          section.dataset.wordCloudLoaded = "true";
-          loadOutputWordCloud(
-            section,
-            section.dataset.wordCloudProject,
-            section.dataset.wordCloudRun,
-            false,
-          );
-        }
       };
       button.onclick = () => {
         const expanded = !expandedRunGraphics[key];
-        if (expanded && section.classList.contains("output-word-cloud")) {
-          outputWordCloudRequestedKey =
-            section.dataset.wordCloudProject + "/" + section.dataset.wordCloudRun;
-        }
         apply(expanded);
       };
       heading.style.display = "flex";
