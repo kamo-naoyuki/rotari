@@ -139,22 +139,35 @@
   width: 12px;
   height: 12px;
   margin: 0 4px 0 0;
-  accent-color: #f08b70;
+  appearance: none;
+  border: 1px solid #718295;
+  border-radius: 2px;
+  background: transparent;
   cursor: pointer;
 }
 
-.basedir-notification-row {
-  min-height: 24px;
-  padding: 0 8px;
+.basedir-notification-toggle:checked {
+  border-color: #f08b70;
+  background: #f08b70;
+}
+
+.basedir-notification-toggle:checked::after {
+  display: block;
+  width: 3px;
+  height: 6px;
+  margin: 1px 0 0 3px;
+  border: solid #182733;
+  border-width: 0 1px 1px 0;
+  content: "";
+  transform: rotate(45deg);
+}
+
+.sidebar-notification-heading {
+  margin: 0 8px 2px;
   color: var(--muted);
   font-size: 10px;
   line-height: 1.2;
-}
-
-.basedir-notification-row label {
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
+  text-align: left;
 }
 
 .basedir-row .sidebar-toggle {

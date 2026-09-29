@@ -813,7 +813,7 @@ setTimeout(async () => {
 		assert(bases.length === 2, 'sidebar does not show both registered basedirs');
 		assert(dom.window.document.querySelector('.sidebar-section-heading')?.textContent.trim() === 'Registered basedirs', 'sidebar does not explain what the basedir list contains');
 		assert(rootID && dom.window.document.querySelector('.basedir-notification-toggle'), 'basedir notification checkbox is missing');
-		assert(dom.window.document.querySelector('.basedir-notification-row')?.textContent.includes('Monitor notifications'), 'basedir notification checkbox is not explained');
+		assert(dom.window.document.querySelector('.sidebar-notification-heading')?.textContent.trim() === 'Monitor notifications', 'basedir notification column is not explained');
 		const rootSelector = '#sidebar-basedirs > [data-basedir-id="' + rootID + '"]';
 		let root = dom.window.document.querySelector(rootSelector);
 		assert(root && !root.querySelector(':scope > .basedir-contents').hidden, 'startup basedir should start expanded');
