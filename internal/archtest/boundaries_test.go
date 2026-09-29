@@ -47,9 +47,15 @@ var boundaryRules = []boundaryRule{
 		allowed: []string{"internal/model", "internal/state"},
 	},
 	{
+		pkg:       "internal/jobfilter",
+		reason:    "jobfilter evaluates job filters from facts its callers supply, without file access",
+		allowed:   []string{"internal/model"},
+		forbidden: fileAccess,
+	},
+	{
 		pkg:       "internal/run",
 		reason:    "run owns run rules without file access",
-		allowed:   []string{"internal/model", "internal/executor"},
+		allowed:   []string{"internal/model", "internal/executor", "internal/jobfilter"},
 		forbidden: fileAccess,
 	},
 	{

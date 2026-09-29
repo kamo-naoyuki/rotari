@@ -253,7 +253,7 @@ var cliCommandSpecs = []cliCommandSpec{
 	{
 		Name:        "show",
 		Description: "show queue or run status",
-		Flags: append(commonCLIFlags(),
+		Flags: append(append(commonCLIFlags(),
 			cliFlagSpec{Name: "masterdir", Description: "master registry directory", ValueName: "DIR"},
 			cliFlagSpec{Name: "run-id", Description: "run ID or latest", ValueName: "ID"},
 			cliFlagSpec{Name: "queue", Description: "show the current queue even when a run is selected"},
@@ -273,7 +273,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "basedirs", Description: "list state directories known to the master registry"},
 			cliFlagSpec{Name: "json", Description: "print machine-readable JSON for a run"},
 			cliFlagSpec{Name: "report", Description: "print an AI-ready Markdown report"},
-		),
+		), jobFilterFlagSpecs(true)...),
 		Positional: "[SELECTOR]",
 	},
 	{
@@ -351,7 +351,7 @@ var cliCommandSpecs = []cliCommandSpec{
 	{
 		Name:        "copy",
 		Description: "copy the latest run's jobs into the queue",
-		Flags: append(commonCLIFlags(),
+		Flags: append(append(commonCLIFlags(),
 			cliFlagSpec{Name: "run-id", Description: "source run ID; defaults to the latest run", ValueName: "ID"},
 			cliFlagSpec{Name: "failed", Description: "include failed jobs; may be combined with result filters"},
 			cliFlagSpec{Name: "unfinished", Description: "include unfinished jobs; may be combined with result filters"},
@@ -363,13 +363,13 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "append", Description: "append to a non-empty queue"},
 			cliFlagSpec{Name: "overwrite", Description: "replace a non-empty queue"},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
-		),
+		), jobFilterFlagSpecs(true)...),
 		Positional: "[RUN_ID]",
 	},
 	{
 		Name:        "run",
 		Description: "execute queued commands, optionally selecting jobs from a run",
-		Flags: append(commonCLIFlags(),
+		Flags: append(append(commonCLIFlags(),
 			cliFlagSpec{Name: "run-id", Description: "repopulate the queue from this run before executing (copy --run-id + run); defaults to the latest run when a result filter is used", ValueName: "ID"},
 			cliFlagSpec{Name: "overwrite", Description: "replace a non-empty queue without prompting; requires --run-id"},
 			cliFlagSpec{Name: "run-name", Description: "run name label", ValueName: "NAME"},
@@ -404,13 +404,13 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "lsf-options", Description: "LSF executor dispatch options; may be repeated", ValueName: "OPTION"},
 			cliFlagSpec{Name: "lsf-submit-interval", Description: "minimum LSF submission interval", ValueName: "DURATION"},
 			cliFlagSpec{Name: "lsf-submit-retry-limit", Description: "maximum retries for transient LSF submission failures", ValueName: "N"},
-		),
+		), jobFilterFlagSpecs(true)...),
 		Positional: "[RUN_ID]",
 	},
 	{
 		Name:        "retry",
 		Description: "run failed and unfinished jobs; with --job-id, run those jobs",
-		Flags: append(commonCLIFlags(),
+		Flags: append(append(commonCLIFlags(),
 			cliFlagSpec{Name: "run-id", Description: "repopulate the queue from this run before executing; defaults to the latest run", ValueName: "ID"},
 			cliFlagSpec{Name: "overwrite", Description: "replace a non-empty queue without prompting; requires --run-id"},
 			cliFlagSpec{Name: "run-name", Description: "run name label", ValueName: "NAME"},
@@ -439,7 +439,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "lsf-options", Description: "LSF executor dispatch options; may be repeated", ValueName: "OPTION"},
 			cliFlagSpec{Name: "lsf-submit-interval", Description: "minimum LSF submission interval", ValueName: "DURATION"},
 			cliFlagSpec{Name: "lsf-submit-retry-limit", Description: "maximum retries for transient LSF submission failures", ValueName: "N"},
-		),
+		), jobFilterFlagSpecs(true)...),
 		Positional: "[RUN_ID]",
 	},
 	{
@@ -642,6 +642,9 @@ func cliString(fs *flag.FlagSet, name, defaultValue string) *string {
 // positional. add and change call fs.Parse instead: their positional
 // arguments are a job command, whose own options must reach the job.
 func cliParse(fs *flag.FlagSet, args []string) error {
+	if fs.Lookup(filterFlagPrefix+"stage") != nil {
+		fs.Usage = func() { printFlagUsage(fs) }
+	}
 	var positional []string
 	for {
 		if err := fs.Parse(args); err != nil {
@@ -659,6 +662,31 @@ func cliParse(fs *flag.FlagSet, args []string) error {
 		args = rest[1:]
 	}
 	return fs.Parse(append([]string{"--"}, positional...))
+}
+
+// printFlagUsage writes the flag package's help for fs, with the --filter-*
+// options under their own heading.
+func printFlagUsage(fs *flag.FlagSet) {
+	var defaults strings.Builder
+	output := fs.Output()
+	fs.SetOutput(&defaults)
+	fs.PrintDefaults()
+	fs.SetOutput(output)
+	var general, filters strings.Builder
+	target := &general
+	for _, line := range strings.SplitAfter(defaults.String(), "\n") {
+		if name, ok := strings.CutPrefix(line, "  -"); ok {
+			target = &general
+			if strings.HasPrefix(name, filterFlagPrefix) {
+				target = &filters
+			}
+		}
+		target.WriteString(line)
+	}
+	fmt.Fprintf(output, "Usage of %s:\n%s", fs.Name(), general.String())
+	if filters.Len() > 0 {
+		fmt.Fprintf(output, "\nFilters:\n%s", filters.String())
+	}
 }
 
 func cliOptionSet(fs *flag.FlagSet, name string) bool {

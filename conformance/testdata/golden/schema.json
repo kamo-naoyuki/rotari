@@ -509,6 +509,31 @@
         },
         {
           "name": "report"
+        },
+        {
+          "name": "filter-result",
+          "value_name": "RESULT",
+          "values": [
+            "failed",
+            "unfinished",
+            "success"
+          ]
+        },
+        {
+          "name": "filter-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-matrix",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-matrix",
+          "value_name": "NAME"
         }
       ],
       "name": "show"
@@ -808,6 +833,31 @@
         },
         {
           "name": "quiet"
+        },
+        {
+          "name": "filter-result",
+          "value_name": "RESULT",
+          "values": [
+            "failed",
+            "unfinished",
+            "success"
+          ]
+        },
+        {
+          "name": "filter-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-matrix",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-matrix",
+          "value_name": "NAME"
         }
       ],
       "name": "copy"
@@ -971,6 +1021,31 @@
         {
           "name": "lsf-submit-retry-limit",
           "value_name": "N"
+        },
+        {
+          "name": "filter-result",
+          "value_name": "RESULT",
+          "values": [
+            "failed",
+            "unfinished",
+            "success"
+          ]
+        },
+        {
+          "name": "filter-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-matrix",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-matrix",
+          "value_name": "NAME"
         }
       ],
       "name": "run"
@@ -1109,6 +1184,31 @@
         {
           "name": "lsf-submit-retry-limit",
           "value_name": "N"
+        },
+        {
+          "name": "filter-result",
+          "value_name": "RESULT",
+          "values": [
+            "failed",
+            "unfinished",
+            "success"
+          ]
+        },
+        {
+          "name": "filter-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-stage",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-matrix",
+          "value_name": "NAME"
+        },
+        {
+          "name": "filter-not-matrix",
+          "value_name": "NAME"
         }
       ],
       "name": "retry"

@@ -18,6 +18,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
@@ -97,11 +98,7 @@ func cmdShow(args []string) int {
 	showQueueOption := cliBool(fs, "queue", false)
 	jobIDOption := cliString(fs, "job-id", "")
 	jobNameOption := cliString(fs, "job-name", "")
-	failedOnly := cliBool(fs, "failed", false)
-	unfinishedOnly := cliBool(fs, "unfinished", false)
-	successOnly := cliBool(fs, "success", false)
-	stageOption := cliString(fs, "stage", "")
-	matrixOption := cliString(fs, "matrix", "")
+	filterOptions := cliJobFilterOptions(fs, true)
 	lineage := cliBool(fs, "lineage", false)
 	showBaseDirsList := cliBool(fs, "basedirs", false)
 	masterdir := cliString(fs, "masterdir", "")
@@ -123,12 +120,19 @@ func cmdShow(args []string) int {
 		printError("--follow requires --stream stdout or --stream stderr")
 		return 1
 	}
-	scope := model.CommandSelector{Stage: *stageOption, Matrix: *matrixOption}
+	scope, err := filterOptions.scope()
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	filter := filterOptions.filter()
+	narrowed := scope.Kinds() > 0 || !filter.Empty()
 	// resultSelection filters the job table by result, like copy and run;
 	// logs and reports only know --failed.
-	resultSelection := model.ResultSelection(*failedOnly, *unfinishedOnly, *successOnly)
+	failedOnly, unfinishedOnly, successOnly := filterOptions.resultFilters()
+	resultSelection := filterOptions.resultSelection()
 	resultFilter := resultSelection != ""
-	if (*unfinishedOnly || *successOnly) && (*showLogs || *showFailedLogs || *followLogs || *reportOutput || *jsonOutput) {
+	if (unfinishedOnly || successOnly) && (*showLogs || *showFailedLogs || *followLogs || *reportOutput || *jsonOutput) {
 		printError("--unfinished and --success filter the job table; logs, reports, and JSON take --failed only")
 		return 1
 	}
@@ -255,7 +259,7 @@ func cmdShow(args []string) int {
 		return 1
 	}
 	if *lineage {
-		if selector != "" || *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || resultFilter || scope.Kinds() > 0 ||
+		if selector != "" || *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || resultFilter || narrowed ||
 			*showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *reportOutput {
 			printError("--lineage cannot be combined with run, job, queue, filter, list, log, follow, or report options")
 			return 1
@@ -274,6 +278,10 @@ func cmdShow(args []string) int {
 	}
 	if scope.Kinds() > 0 && (*jobIDOption != "" || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
 		printError("--stage and --matrix cannot be combined with job, list, log, follow, JSON, or report options")
+		return 1
+	}
+	if !filter.Empty() && (*jobIDOption != "" || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
+		printError("--filter-* options cannot be combined with job, list, log, follow, JSON, or report options")
 		return 1
 	}
 	if *reportOutput && (*showQueueOption || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput) {
@@ -296,7 +304,7 @@ func cmdShow(args []string) int {
 		}
 		return showBaseDirs(masterDir)
 	}
-	if *queueNameOption == "" && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && scope.Kinds() == 0 &&
+	if *queueNameOption == "" && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && !narrowed &&
 		!(*showQueueOption || *showBaseDirsList || resultFilter || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
 		return showAllProjects(*basedir, *masterdir)
 	}
@@ -310,7 +318,7 @@ func cmdShow(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	projectOverview := (*queueNameOption != "") && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && scope.Kinds() == 0 && !*showQueueOption && !*showBaseDirsList && !*showLogs && !*showFailedLogs && !*followLogs && !*jsonOutput && !*reportOutput && !resultFilter
+	projectOverview := (*queueNameOption != "") && *runIDOption == "" && *jobIDOption == "" && *jobNameOption == "" && !narrowed && !*showQueueOption && !*showBaseDirsList && !*showLogs && !*showFailedLogs && !*followLogs && !*jsonOutput && !*reportOutput && !resultFilter
 	if projectOverview {
 		return showProjectOverview(paths)
 	}
@@ -325,7 +333,7 @@ func cmdShow(args []string) int {
 			return 1
 		}
 		if arrayScope, ok := arrayCommandScope(queue.Commands, *jobIDOption); ok {
-			return showQueue(paths, queue, arrayScope)
+			return showQueue(paths, queue, arrayScope, jobfilter.Filter{})
 		}
 		if *jobIDOption != "" {
 			if *jsonOutput {
@@ -337,7 +345,7 @@ func cmdShow(args []string) int {
 		if *jsonOutput {
 			return showQueueJSON(paths, queue)
 		}
-		return showQueue(paths, queue, scope)
+		return showQueue(paths, queue, scope, filter)
 	}
 	selectedRunID := *runIDOption
 	if selectedRunID == "" {
@@ -363,7 +371,7 @@ func cmdShow(args []string) int {
 			runOnly := *showLogs || *showFailedLogs || *followLogs || resultFilter || *reportOutput || cliOptionSet(fs, "stream")
 			if len(queue.Commands) > 0 && !runOnly {
 				if arrayScope, ok := arrayCommandScope(queue.Commands, *jobIDOption); ok {
-					return showQueue(paths, queue, arrayScope)
+					return showQueue(paths, queue, arrayScope, jobfilter.Filter{})
 				}
 				if *jobIDOption != "" {
 					return showQueueJob(paths, queue, *jobIDOption)
@@ -371,7 +379,7 @@ func cmdShow(args []string) int {
 				if *jsonOutput {
 					return showQueueJSON(paths, queue)
 				}
-				return showQueue(paths, queue, scope)
+				return showQueue(paths, queue, scope, filter)
 			}
 			if countProjectRuns(paths.RunsDir) == 0 && runOnly {
 				printErrorf("project %q has no runs; logs, failed filters, and reports need one", paths.ProjectName)
@@ -439,7 +447,7 @@ func cmdShow(args []string) int {
 		})
 	}
 	if *reportOutput {
-		report, err := report.Build(jsonStore(), paths, runID, "", *failedOnly, "", true)
+		report, err := report.Build(jsonStore(), paths, runID, "", failedOnly, "", true)
 		if err != nil {
 			printError(err)
 			return 1
@@ -450,7 +458,7 @@ func cmdShow(args []string) int {
 	if *jsonOutput {
 		return showRunJSON(paths, runID)
 	}
-	return showRun(paths, runID, showJobFilter{selection: resultSelection, scope: scope})
+	return showRun(paths, runID, showJobFilter{selection: resultSelection, scope: scope, filter: filter})
 }
 
 func hasMultipleProjects(baseDir string) (bool, error) {
@@ -494,6 +502,8 @@ type showJobFilter struct {
 	selection string
 	// scope, when set, keeps only the jobs of one stage or matrix.
 	scope model.CommandSelector
+	// filter keeps only the jobs that pass its conditions.
+	filter jobfilter.Filter
 }
 
 // arrayCommandScope reports whether jobID names an array command, whose
@@ -508,17 +518,28 @@ func arrayCommandScope(commands []model.QueuedCommand, jobID string) (model.Comm
 }
 
 // scopedJobIDs returns the IDs of the jobs, array tasks included, of the
-// commands that scope selects, or nil when scope is not set.
-func scopedJobIDs(commands []model.QueuedCommand, scope model.CommandSelector) (map[string]bool, error) {
-	if scope.Kinds() == 0 {
+// commands that scope selects and filter keeps, or nil when neither is set.
+func scopedJobIDs(commands []model.QueuedCommand, scope model.CommandSelector, filter jobfilter.Filter) (map[string]bool, error) {
+	if scope.Kinds() == 0 && filter.Empty() {
 		return nil, nil
 	}
-	indexes, err := model.SelectCommands(commands, scope)
-	if err != nil {
-		return nil, err
+	indexes := make([]int, 0, len(commands))
+	if scope.Kinds() > 0 {
+		selected, err := model.SelectCommands(commands, scope)
+		if err != nil {
+			return nil, err
+		}
+		indexes = selected
+	} else {
+		for index := range commands {
+			indexes = append(indexes, index)
+		}
 	}
 	ids := make(map[string]bool)
 	for _, index := range indexes {
+		if !filter.MatchesCommand(commands[index]) {
+			continue
+		}
 		for _, job := range model.QueueToJobs(commands[index : index+1]) {
 			ids[job.ID] = true
 		}
@@ -756,7 +777,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		return 1
 	}
 	jobSpecs := loadRunJobSpecs(runDir)
-	scoped, err := scopedJobIDs(runScopeCommands(runDir, jobSpecs), filter.scope)
+	scoped, err := scopedJobIDs(runScopeCommands(runDir, jobSpecs), filter.scope, filter.filter)
 	if err != nil {
 		printErrorf("run %s: %v", runID, err)
 		return 1
@@ -972,9 +993,9 @@ func printChangeHints(paths state.ProjectPaths, runID string, queue model.Queue,
 	fmt.Printf("    rotari retry --basedir %s --project-name %s\n", paths.BaseDir, paths.ProjectName)
 }
 
-func showQueue(paths state.ProjectPaths, queue model.Queue, scope model.CommandSelector) int {
+func showQueue(paths state.ProjectPaths, queue model.Queue, scope model.CommandSelector, filter jobfilter.Filter) int {
 	jobs := model.QueueToJobs(queue.Commands)
-	scoped, err := scopedJobIDs(queue.Commands, scope)
+	scoped, err := scopedJobIDs(queue.Commands, scope, filter)
 	if err != nil {
 		printErrorf("current queue: %v", err)
 		return 1

@@ -12,6 +12,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -1009,7 +1010,7 @@ func TestShowQueueDisplaysArrayTaskColumn(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
-	code := showQueue(paths, queue, model.CommandSelector{})
+	code := showQueue(paths, queue, model.CommandSelector{}, jobfilter.Filter{})
 	os.Stdout = oldStdout
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)

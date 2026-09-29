@@ -455,6 +455,23 @@ rotari run -p sweep --matrix train         # every job of matrix train
 rotari copy -p sweep --stage eval --failed # restore only failed jobs in stage eval
 ```
 
+Every option that filters jobs is also available as `--filter-*`, and the
+options without a short form exist only in that form. `--help` lists them under
+"Filters". `--filter-result RESULT` is the long form of `--failed`,
+`--unfinished`, and `--success`, and `--filter-stage` and `--filter-matrix` are
+the long forms of `--stage` and `--matrix`. `--filter-not-stage NAME` and
+`--filter-not-matrix NAME` exclude a stage or matrix; they may be repeated, and
+jobs without a stage or matrix are kept:
+
+```sh
+rotari retry -p sweep --filter-not-stage report   # failed or unfinished jobs outside stage report
+rotari show -p sweep --failed --filter-not-matrix train
+```
+
+A `--filter-*` option narrows the result filter and the stage or matrix, and
+like them cannot be combined with `--job-id` or `--job-name`. The full rules are
+in [contracts/06-selectors.md](../contracts/06-selectors.md#filters).
+
 `--run-id/-r ID` selects a saved run as both the queue snapshot and filter
 reference. A non-empty queue requires confirmation; add `--overwrite` to
 replace it without asking:

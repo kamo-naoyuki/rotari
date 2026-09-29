@@ -235,6 +235,11 @@ Usage: `rotari show [SELECTOR]`
 | `--basedirs` | `` | `` | list state directories known to the master registry |
 | `--json` | `` | `` | print machine-readable JSON for a run |
 | `--report` | `` | `` | print an AI-ready Markdown report |
+| `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `--filter-stage` | `NAME` | `` | select jobs in this stage; same as --stage |
+| `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
+| `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
+| `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
 
 ### `rotari diff`
 
@@ -349,6 +354,11 @@ Usage: `rotari copy [RUN_ID]`
 | `--append` | `` | `` | append to a non-empty queue |
 | `--overwrite` | `` | `` | replace a non-empty queue |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
+| `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `--filter-stage` | `NAME` | `` | select jobs in this stage; same as --stage |
+| `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
+| `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
+| `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
 
 ### `rotari run`
 
@@ -394,6 +404,11 @@ Usage: `rotari run [RUN_ID]`
 | `--lsf-options` | `OPTION (repeatable)` | `ROTARI_RUN_LSF_OPTIONS` | LSF executor dispatch options; may be repeated |
 | `--lsf-submit-interval` | `DURATION` | `ROTARI_RUN_LSF_SUBMIT_INTERVAL` | minimum LSF submission interval |
 | `--lsf-submit-retry-limit` | `N` | `ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT` | maximum retries for transient LSF submission failures |
+| `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `--filter-stage` | `NAME` | `` | select jobs in this stage; same as --stage |
+| `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
+| `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
+| `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
 
 ### `rotari retry`
 
@@ -433,6 +448,11 @@ Usage: `rotari retry [RUN_ID]`
 | `--lsf-options` | `OPTION (repeatable)` | `ROTARI_RUN_LSF_OPTIONS` | LSF executor dispatch options; may be repeated |
 | `--lsf-submit-interval` | `DURATION` | `ROTARI_RUN_LSF_SUBMIT_INTERVAL` | minimum LSF submission interval |
 | `--lsf-submit-retry-limit` | `N` | `ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT` | maximum retries for transient LSF submission failures |
+| `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `--filter-stage` | `NAME` | `` | select jobs in this stage; same as --stage |
+| `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
+| `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
+| `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
 
 ### `rotari server`
 

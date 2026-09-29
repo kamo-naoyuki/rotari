@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 )
 
 // OpRun is the only request: the run a supervisor was started for.
@@ -27,12 +28,14 @@ type Request struct {
 	EnvMode          string                  `json:"env_mode,omitempty"`
 	JobIDs           []string                `json:"job_ids,omitempty"`
 	Selection        string                  `json:"selection,omitempty"`
-	// ScopeStage and ScopeMatrix narrow Selection to one stage or matrix.
-	ScopeStage   string `json:"scope_stage,omitempty"`
-	ScopeMatrix  string `json:"scope_matrix,omitempty"`
-	SourceRunID  string `json:"source_run_id,omitempty"`
-	PartialArray bool   `json:"partial_array,omitempty"`
-	MatchBy      string `json:"match_by,omitempty"`
+	// ScopeStage and ScopeMatrix narrow Selection to one stage or matrix, and
+	// Filter narrows it further.
+	ScopeStage   string           `json:"scope_stage,omitempty"`
+	ScopeMatrix  string           `json:"scope_matrix,omitempty"`
+	Filter       jobfilter.Filter `json:"filter"`
+	SourceRunID  string           `json:"source_run_id,omitempty"`
+	PartialArray bool             `json:"partial_array,omitempty"`
+	MatchBy      string           `json:"match_by,omitempty"`
 }
 
 type Response struct {

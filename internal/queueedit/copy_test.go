@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
@@ -214,6 +215,24 @@ func TestCopyScopeNarrowsSelection(t *testing.T) {
 	}
 	if _, _, err := Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "all", Scope: model.CommandSelector{Matrix: "train"}}, sequentialIDs()); err == nil || !strings.Contains(err.Error(), "no matrix") {
 		t.Fatalf("copy of a missing matrix error = %v", err)
+	}
+}
+
+func TestCopyFilterNarrowsSelection(t *testing.T) {
+	source := testRun([]model.QueuedCommand{
+		{ID: "a", Command: []string{"false"}, Stage: "train"},
+		{ID: "b", Command: []string{"false"}, Stage: "eval"},
+		{ID: "c", Command: []string{"false"}},
+	}, model.JobResult{ID: "a", ExitCode: 1}, model.JobResult{ID: "b", ExitCode: 1}, model.JobResult{ID: "c", ExitCode: 1})
+	queue, _, err := Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "failed", Filter: jobfilter.Filter{NotStages: []string{"train"}}}, sequentialIDs())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(commandIDs(queue), []string{"b", "c"}) {
+		t.Fatalf("copied = %v, want the failed jobs outside stage train", commandIDs(queue))
+	}
+	if _, _, err := Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "job-id", JobIDs: []string{"a"}, Filter: jobfilter.Filter{NotStages: []string{"train"}}}, sequentialIDs()); err == nil || err.Error() != "job IDs cannot be combined with a job filter" {
+		t.Fatalf("copy of a job ID with a filter error = %v", err)
 	}
 }
 

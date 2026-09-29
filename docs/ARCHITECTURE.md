@@ -117,6 +117,7 @@ flowchart TB
     queueedit
     rundiff
     diagnose
+    jobfilter
   end
   subgraph l1["adapters"]
     executor
@@ -165,6 +166,9 @@ flowchart TB
   projectrun --> state
   server --> executor
   run --> executor
+  run --> jobfilter
+  queueedit --> jobfilter
+  server --> jobfilter
   jobcontrol --> executor
   jobcontrol --> state
   web --> jobstatus
@@ -213,6 +217,7 @@ are checked against this graph by
 | [internal/joblist](../internal/joblist/) | Recent job attempts across a base directory's projects for `rotari jobs` and the Web UI's jobs page: which attempts are listed, their order, and how their times read. | `joblist.go` (`Collect`) |
 | [internal/report](../internal/report/) | The redacted evidence report for AI-assisted diagnosis, shared by `show --report` and the Web UI. Reads jobs through `internal/web`'s projection. | `report.go` (`Build`) |
 | [internal/rundiff](../internal/rundiff/) | Comparison of two loaded runs for `diff` and `show --lineage`. | `rundiff.go` |
+| [internal/jobfilter](../internal/jobfilter/) | The conditions of the `--filter-*` options that narrow a job selection, evaluated without file access; callers supply what a condition needs about each job. | `filter.go` (`Filter`) |
 | [internal/diagnose](../internal/diagnose/) | Rule-based and provider-backed failure diagnosis. | `analysis.go` |
 | [internal/archtest](../internal/archtest/) | Tests only: the package boundary rules checked against the import graph. | `boundaries_test.go` |
 | [internal/doclinks](../internal/doclinks/) | Tests only: relative links and `#anchor` links in the root Markdown files, `contracts/`, and `docs/`. | `links_test.go` |

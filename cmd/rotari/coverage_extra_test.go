@@ -33,13 +33,16 @@ func TestCmdSchemaValidAndInvalidArguments(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = writer
+	// The schema is larger than a pipe buffer, so read while it is written.
+	output := make(chan []byte)
+	go func() {
+		data, _ := io.ReadAll(reader)
+		output <- data
+	}()
 	code := cmdSchema([]string{"--json"})
 	_ = writer.Close()
 	os.Stdout = oldStdout
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := <-output
 	if code != 0 || !strings.Contains(string(data), `"commands"`) || !strings.Contains(string(data), `"project-name"`) || !strings.Contains(string(data), `"slurm-submit-interval"`) {
 		t.Fatalf("cmdSchema(--json) = %d, output = %s", code, data)
 	}

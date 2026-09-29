@@ -50,7 +50,7 @@ type selectorResult struct {
 }
 
 func TestSelectorTable(t *testing.T) {
-	covers(t, "SEL-1", "SEL-2", "SEL-3", "SEL-4", "SEL-5", "SEL-6", "SEL-7", "SEL-8")
+	covers(t, "SEL-1", "SEL-2", "SEL-3", "SEL-4", "SEL-5", "SEL-6", "SEL-7", "SEL-8", "SEL-11")
 	for _, tc := range selectorCases {
 		t.Run(tc.cmd+"/"+tc.name, func(t *testing.T) {
 			t.Parallel()

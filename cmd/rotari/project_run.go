@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 
 	"github.com/kamo-naoyuki/rotari/internal/config"
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
@@ -46,7 +47,7 @@ func planRerunSelection(paths state.ProjectPaths, queue model.Queue, selection s
 	if err != nil {
 		return runcontract.Plan{}, err
 	}
-	return projectRunner().PlanSelection(paths, queue, selection, jobIDs, model.CommandSelector{}, referenceRunID, partialArray)
+	return projectRunner().PlanSelection(paths, queue, selection, jobIDs, model.CommandSelector{}, jobfilter.Filter{}, referenceRunID, partialArray)
 }
 
 // finishRun finalizes a run whose jobs have ended; see

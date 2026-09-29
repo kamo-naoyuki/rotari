@@ -35,6 +35,7 @@ var selectorCases = []selectorCase{
 	{name: "failed filter", cmd: "show", args: "-b {B} -p sweep --failed", table: true, jobs: []string{"eval-2", "train-SEED2"}},
 	{name: "success filter", cmd: "show", args: "-b {B} -p sweep --success", table: true, jobs: []string{"eval-1", "eval-3", "prep", "report", "train-SEED1"}},
 	{name: "unfinished filter", cmd: "show", args: "-b {B} -p sweep --unfinished", table: true, jobs: []string{"late"}},
+	{name: "failed filter without a stage", cmd: "show", args: "-b {B} -p sweep --failed --filter-not-stage training", table: true, jobs: []string{"eval-2"}},
 
 	// copy: which commands are restored, and from which run.
 	{name: "latest run", cmd: "copy", args: "-b {B} -p sweep", jobs: []string{"eval", "late", "prep", "report", "train-SEED1", "train-SEED2"}},
@@ -62,6 +63,10 @@ var selectorCases = []selectorCase{
 	{name: "job ID and failed", cmd: "copy", args: "-b {B} -p sweep --failed --job-id {job:prep}", err: "--job-id or --job-name cannot be combined with --failed, --unfinished, or --success"},
 	{name: "job name and success", cmd: "copy", args: "-b {B} -p sweep --success --job-name prep", err: "cannot be combined with --failed, --unfinished, or --success"},
 	{name: "failed and success", cmd: "copy", args: "-b {B} -p sweep --failed --success", jobs: []string{"eval", "prep", "report", "train-SEED1", "train-SEED2"}},
+	{name: "long forms of failed and stage", cmd: "copy", args: "-b {B} -p sweep --filter-result failed --filter-stage training", jobs: []string{"train-SEED2"}},
+	{name: "failed without a matrix", cmd: "copy", args: "-b {B} -p sweep --failed --filter-not-matrix train", jobs: []string{"eval"}},
+	{name: "stage and a different long form", cmd: "copy", args: "-b {B} -p sweep --stage training --filter-stage evaluation", err: `--stage "training" and --filter-stage "evaluation" differ`},
+	{name: "job ID and filter", cmd: "copy", args: "-b {B} -p sweep --filter-not-stage training --job-id {job:prep}", err: "cannot be combined with --filter-* options"},
 
 	// change: which commands get the new setting.
 	{name: "empty queue", cmd: "change", args: "-b {B} -p sweep --job-name prep", err: "no queued jobs"},
@@ -102,6 +107,7 @@ var selectorCases = []selectorCase{
 	{name: "failed instead of failed and unfinished", cmd: "retry", args: "-b {B} -p sweep --failed", jobs: []string{"eval-2", "train-SEED2"}},
 	{name: "unfinished instead of failed and unfinished", cmd: "retry", args: "-b {B} -p sweep --unfinished", jobs: []string{"late"}},
 	{name: "stage", cmd: "retry", args: "-b {B} -p sweep --stage training", jobs: []string{"train-SEED2"}},
+	{name: "filter narrows failed and unfinished", cmd: "retry", args: "-b {B} -p sweep --filter-not-stage training", jobs: []string{"eval-2", "late"}},
 	{name: "job ID instead of failed and unfinished", cmd: "retry", args: "-b {B} -p sweep --job-id {job:prep}", jobs: []string{"prep"}},
 	{name: "array command ID", cmd: "retry", args: "-b {B} -p sweep --job-id {job:eval}", jobs: []string{"eval-1", "eval-2", "eval-3"}},
 	{name: "array task ID", cmd: "retry", args: "-b {B} -p sweep --job-id {job:eval}-2", jobs: []string{"eval-2"}},

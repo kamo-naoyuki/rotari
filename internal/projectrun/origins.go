@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -19,8 +20,8 @@ var ErrNoPreviousRun = run.ErrNoReferenceRun
 // PlanSelection decides which of the queue's jobs a run executes, reading
 // earlier results from the project's runs; see run.PlanRerun. referenceRunID
 // comes from ReferenceRun.
-func (runner Runner) PlanSelection(paths state.ProjectPaths, queue model.Queue, selection string, jobIDs []string, scope model.CommandSelector, referenceRunID string, partialArray bool) (run.Plan, error) {
-	plan, err := run.PlanRerun(queue, selection, jobIDs, scope, referenceRunID, partialArray, originResults{paths: paths, store: runner.Store})
+func (runner Runner) PlanSelection(paths state.ProjectPaths, queue model.Queue, selection string, jobIDs []string, scope model.CommandSelector, filter jobfilter.Filter, referenceRunID string, partialArray bool) (run.Plan, error) {
+	plan, err := run.PlanRerun(queue, selection, jobIDs, scope, filter, referenceRunID, partialArray, originResults{paths: paths, store: runner.Store})
 	if errors.Is(err, ErrNoPreviousRun) {
 		return run.Plan{}, fmt.Errorf("project '%s' has no previous run: %w", paths.ProjectName, err)
 	}

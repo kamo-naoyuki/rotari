@@ -51,8 +51,7 @@ Covered by the "complete" rows of `TestPositionalArguments` in
 | Job name | `--job-name NAME` | a named command |
 | Array task name | `NAME[2]` | one task of a named array command |
 | Group | `--stage STAGE`, `--matrix NAME`, `--all` | every command of a stage, of a matrix (by base job name), or of the queue |
-| Result filter | `--failed`, `--unfinished`, `--success` | jobs by their result in the reference run |
-| Run name | positional `NAME` of `show` and `wait` | a run by its `--run-name` label |
+| Result filter | `--failed`, `--unfinished`, `--success` | jobs by their result in the reference run || Filter | `--filter-*` | narrows a result filter or a group; see [Filters](#filters) || Run name | positional `NAME` of `show` and `wait` | a run by its `--run-name` label |
 
 A command, not a task, is the unit of queue edits: an array command is
 selected as a whole by its job ID or name. Commands that act on results or
@@ -114,8 +113,9 @@ combine:
 | Kind | Options | Combination |
 | --- | --- | --- |
 | Direct | `--job-id` (job, task, or attempt ID), `--job-name`, positional job IDs | the named jobs, and nothing else |
-| Result filter | `--failed`, `--unfinished`, `--success` | with each other: any of them (OR) |
-| Scope | `--stage`, `--matrix` | narrows a result filter (AND); alone, every job in it |
+| Result filter | `--failed`, `--unfinished`, `--success`, `--filter-result` | with each other: any of them (OR) |
+| Scope | `--stage`, `--matrix`, `--filter-stage`, `--filter-matrix` | narrows a result filter (AND); alone, every job in it |
+| Filter | `--filter-not-stage`, `--filter-not-matrix` | narrows a result filter and a scope (AND); alone, every job it keeps |
 
 This follows the usual command-line convention, as in `git log`, that repeated
 options of one kind widen the match and options of different kinds narrow it
@@ -154,9 +154,41 @@ hold:
 - Job selectors exclude result filters in `copy`, `run`, and `retry`, and
   `run.PlanRerun` and `queueedit.Copy` reject the combination from any caller.
   The Web UI's copy endpoint rejects `job_id` with a `selection` the same way.
+- `--filter-*` options exclude job selectors in `copy`, `run`, and `retry`,
+  and `--job-id` in `show`, like `--stage` and `--matrix`; `run.PlanRerun` and
+  `queueedit.Copy` reject a job filter with job IDs.
 - An attempt ID fixes the run; a `--run-id` naming another run is an error.
 - `change` and `remove` edit commands, so a new command or `--set-job-name`
   needs a single job.
+
+### Filters
+
+Every option that filters jobs is named `--filter-*`, so filters are told
+apart from other options at a glance and never collide with a job setting of
+the same name. `show`, `copy`, `run`, and `retry` list them under their own
+heading in `--help`.
+
+**SEL-11** The `--filter-*` options select jobs as follows:
+
+- `--filter-result RESULT` (`failed`, `unfinished`, or `success`) is the
+  long form of `--failed`, `--unfinished`, and `--success`; repeated, and
+  together with them, the results combine with OR.
+- `--filter-stage` and `--filter-matrix` are the long forms of `--stage` and
+  `--matrix`, which name one stage or matrix: given together with its short
+  form, the value must be the same.
+- `--filter-not-stage NAME` and `--filter-not-matrix NAME` exclude the jobs
+  of a stage or of a matrix, by base job name; repeated, a job matching any
+  value is excluded. A job without a stage or matrix is not excluded.
+- A filter narrows a result filter and a scope. Alone, it keeps every job it
+  does not exclude: `run` executes them whatever their result, and `retry`
+  narrows its default failed and unfinished jobs.
+
+The conditions are `jobfilter.Filter` in
+[internal/jobfilter/filter.go](../internal/jobfilter/filter.go), which
+`run.PlanRerun`, `queueedit.Copy`, and `show` apply; the options are
+`cliJobFilterOptions` in
+[cmd/rotari/job_filter_flags.go](../cmd/rotari/job_filter_flags.go).
+Covered by the filter rows of `TestSelectorTable`.
 
 ### Job control
 

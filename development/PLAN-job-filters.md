@@ -309,29 +309,33 @@ cmd/rotari ──> internal/run, internal/queueedit, internal/jobcontrol ──>
 - 評価の順序: 安い述語 → diagnosis → ファイル。
 - `jobfilter` は `state` や `executor` に依存しない。`Facts` は `jobstatus` と `state` の側の adapter が作る。
 
-既存の `model.ResultSelection`、`ResultSelectionMatches`、`CommandSelector` は `jobfilter` に移すか、`jobfilter` を呼ぶ薄い wrapper にする。
-`CopyRequest.Selection` などの文字列 selection は `jobfilter.Filter` に置き換える。
-Web の `/api/copy` はこの計画では変えず、今の `selection` の値を adapter で `Filter` に変換する。
+既存の result selection（文字列）と scope（`model.CommandSelector`）はそのまま残し、`jobfilter.Filter` はその上に AND で重なる条件だけを持つ（Phase 1 で実装）。
+
+- `run.PlanRerun`、`projectrun.Runner.PlanSelection`、`projectrun.Options`、`server.Request`、`queueedit.CopyRequest` に `Filter` を追加した。
+- `--filter-stage` と `--filter-matrix` は既存の scope と同じく 1 つの値だけを取る。`--stage` と両方指定するときは同じ値でなければならない。
+- stage や matrix を持たないジョブは、`--filter-not-stage` と `--filter-not-matrix` で除外されない。定義の属性では「ない」ことも 1 つの値として扱う。
+- Web の `/api/copy` はこの計画では変えない。
 
 ### CLI への登録
 
-- `jobfilter` にキーの表を持たせる。各キーは、名前、値の形、否定できるか、繰り返せるか、使えるコマンド、help の説明を持つ。
-- `cmd/rotari` はこの表から、各コマンドに `--filter-<key>` と `--filter-not-<key>` を登録する。
-  - help、CLI reference、shell 補完、Python 用の schema は、すべてこの登録から生成される。
-  - 省略形（`--failed`、`--stage` など）は、対応する `--filter-*` と同じ値に書き込む。
-- 将来の Web API も同じ表を使える。
+- オプションの表（名前、値の形、説明、使えるコマンド）は CLI の関心なので `cmd/rotari/job_filter_flags.go` に置き、`jobfilter` は条件の意味だけを持つ。
+- 各コマンドは `cliJobFilterOptions` で省略形と `--filter-*` をまとめて登録する。
+  - help、CLI reference、shell 補完、Python 用の schema は、すべて CLI spec から生成される。
+  - `--help` は `filter-` で始まるオプションを「Filters」の見出しの下に表示する。
 
 ## 実装の手順
 
 各 phase は独立してコミットし、コミットごとにテストが通る状態を保つ。
 
-### Phase 1: 土台（外から見える動作は変えない）
+### Phase 1: 土台（実装済み）
 
-1. `internal/jobfilter` を新設し、`Filter`、`Facts`、評価関数、組み合わせの検証を実装する。
-2. `showJobFilter`、`PlanRerun`、`CopyRequest`、`planRerunSelection` を `jobfilter.Filter` に置き換える。
-3. `jobfilter` のキーの表と、そこから `--filter-*` と `--filter-not-*` を登録する仕組みを実装する。help の「Filters」の見出しもここで追加する。
-4. `--filter-result`、`--filter-stage`、`--filter-matrix`、`--filter-not-stage`、`--filter-not-matrix` を追加し、既存のオプションをその省略形にする。
-5. `go test ./conformance` が、テストを変更せずに通ることを確認する。
+1. `internal/jobfilter` を新設し、`Filter` と評価関数を実装する。
+2. `PlanRerun`、`CopyRequest`、`show` の表示に `jobfilter.Filter` を通す。
+3. `--filter-*` を登録する仕組みと、help の「Filters」の見出しを追加する。
+4. `--filter-result`、`--filter-stage`、`--filter-matrix`、`--filter-not-stage`、`--filter-not-matrix` を追加し、既存のオプションをその省略形にする（`show`、`copy`、`run`、`retry`）。
+5. 既存の conformance テストが変更なしで通り、新しい行（SEL-11）も通ることを確認する。
+
+`change` と `remove` への `--filter-*` は、`queueops.Editor.Change` と `Remove` の選択の受け取り方を変える必要があるので Phase 2 で扱う。
 
 ### Phase 2: 定義系
 

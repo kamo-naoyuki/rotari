@@ -172,7 +172,7 @@ func (ops Operations) prepareRun(request server.Request) (preparedRun, error) {
 	}
 	// Resolve the reference and plan under the state lock, before Begin changes
 	// the project's last run. A planning error must not create an incomplete run.
-	plan, err := ops.Runner.PlanSelection(paths, queue, request.Selection, request.JobIDs, requestScope(request), sourceRunID, request.PartialArray)
+	plan, err := ops.Runner.PlanSelection(paths, queue, request.Selection, request.JobIDs, requestScope(request), request.Filter, sourceRunID, request.PartialArray)
 	if err != nil {
 		release()
 		return preparedRun{}, err
@@ -230,7 +230,7 @@ func runRequestOptions(request server.Request, runID string) projectrun.Options 
 		LocalConcurrency: request.LocalConcurrency, BatchMaxActive: request.BatchMaxActive, Retry: request.Retry,
 		Executor: request.Executor, ExecutorOptions: request.ExecutorOptions, Settings: request.ExecutorSettings,
 		EnvMode:   envMode,
-		Selection: request.Selection, JobIDs: request.JobIDs, Scope: requestScope(request),
+		Selection: request.Selection, JobIDs: request.JobIDs, Scope: requestScope(request), Filter: request.Filter,
 		SourceRunID: request.SourceRunID, PartialArray: request.PartialArray,
 		MatchBy: request.MatchBy,
 	}
@@ -267,8 +267,8 @@ func runObserver(request server.Request, runID string, progress func(server.Resp
 			if name == "" {
 				name = "-"
 			}
-			message := fmt.Sprintf("Job running:\n  ID: %s\n  Attempt ID: %s\n  Name: %s\n  Show:\n    rotari show --run-id %s --job-id %s",
-				job.ID, job.AttemptID, name, runID, job.AttemptID)
+			message := fmt.Sprintf("Job running:\n  ID: %s\n  Attempt ID: %s\n  Name: %s\n  Show:\n    rotari show -j %s",
+				job.ID, job.AttemptID, name, job.AttemptID)
 			progress(server.Response{OK: true, Progress: true, Message: message, JobID: job.ID})
 		},
 	}

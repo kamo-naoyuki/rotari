@@ -24,6 +24,10 @@ func cmdRun(args []string) int {
 // filter: naming the job already says what to execute.
 const errJobsWithResultFilter = "--job-id or --job-name cannot be combined with --failed, --unfinished, or --success"
 
+// errJobsWithFilter rejects a job named directly together with a --filter-*
+// condition, for the same reason.
+const errJobsWithFilter = "--job-id or --job-name cannot be combined with --filter-* options"
+
 // runJobs is run, and retry with defaultSelection: the result selection used
 // when neither a result filter nor a job is given.
 func runJobs(args []string, defaultSelection string) int {
@@ -39,13 +43,9 @@ func runJobs(args []string, defaultSelection string) int {
 	batchConcurrency := cliInt(fs, "batch-concurrency", 8)
 	executorSettings := cliExecutorRunSettings(fs)
 	retry := cliInt(fs, "retry", 0)
-	failed := cliBool(fs, "failed", false)
-	unfinished := cliBool(fs, "unfinished", false)
-	success := cliBool(fs, "success", false)
+	filterOptions := cliJobFilterOptions(fs, true)
 	var jobIDs stringSliceFlag
 	cliValue(fs, &jobIDs, "job-id")
-	stage := cliString(fs, "stage", "")
-	matrixName := cliString(fs, "matrix", "")
 	partialArray := cliBool(fs, "partial-array", true)
 	async := cliBool(fs, "async", false)
 	quiet := cliBool(fs, "quiet", false)
@@ -62,7 +62,7 @@ func runJobs(args []string, defaultSelection string) int {
 		return 1
 	}
 	left := fs.Args()
-	selection := model.ResultSelection(*failed, *unfinished, *success)
+	selection := filterOptions.resultSelection()
 	if len(left) > 1 || (len(left) == 1 && *runIDOption != "") || *localConcurrency < 1 || *batchConcurrency < 1 || *retry < -1 {
 		printError("usage: " + cliUsage("run"))
 		return 1
@@ -78,21 +78,31 @@ func runJobs(args []string, defaultSelection string) int {
 		printError(err)
 		return 1
 	}
-	scope := model.CommandSelector{Stage: *stage, Matrix: *matrixName}
-	if scope.Kinds() > 1 || (scope.Kinds() > 0 && (*jobNameOption != "" || len(jobIDs) > 0)) {
+	scope, err := filterOptions.scope()
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	filter := filterOptions.filter()
+	directJobs := *jobNameOption != "" || len(jobIDs) > 0
+	if scope.Kinds() > 1 || (scope.Kinds() > 0 && directJobs) {
 		printError("--stage, --matrix, and --job-id or --job-name cannot be combined")
 		return 1
 	}
-	directJobs := *jobNameOption != "" || len(jobIDs) > 0
 	if selection != "" && directJobs {
 		printError(errJobsWithResultFilter)
+		return 1
+	}
+	if !filter.Empty() && directJobs {
+		printError(errJobsWithFilter)
 		return 1
 	}
 	if selection == "" && !directJobs {
 		selection = defaultSelection
 	}
-	if scope.Kinds() > 0 && selection == "" {
-		// A scope alone re-executes every job in it, whatever its result.
+	if (scope.Kinds() > 0 || !filter.Empty()) && selection == "" {
+		// A scope or filter alone re-executes every job it keeps, whatever its
+		// result.
 		selection = model.ResultSelection(true, true, true)
 	}
 	if *jobNameOption != "" {
@@ -270,7 +280,7 @@ func runJobs(args []string, defaultSelection string) int {
 	request := serverinternal.Request{
 		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings(), Retry: *retry, Async: *async, Quiet: *quiet,
 		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, EnvMode: *envMode, CWD: cwd,
-		Selection: selection, JobIDs: jobIDs, ScopeStage: scope.Stage, ScopeMatrix: scope.Matrix, SourceRunID: sourceRunID, PartialArray: *partialArray, MatchBy: *matchBy,
+		Selection: selection, JobIDs: jobIDs, ScopeStage: scope.Stage, ScopeMatrix: scope.Matrix, Filter: filter, SourceRunID: sourceRunID, PartialArray: *partialArray, MatchBy: *matchBy,
 	}
 	var response serverinternal.Response
 	if *async {

@@ -148,6 +148,8 @@ The package map, process roles, and per-command walkthroughs are in
   lifecycle that starts, executes, and finishes a project's run on disk, and
   `internal/project` owns the project state machine and the idle-edit
   sequence.
+  `internal/jobfilter` evaluates job filters without file access; callers
+  supply what a condition needs about each job.
   Executors implement job execution only.
 - Renderers do not read status files themselves: `show`, `jobs`, `report`,
   and the Web UI resolve outcomes through `internal/jobstatus` so they cannot
@@ -156,7 +158,8 @@ The package map, process roles, and per-command walkthroughs are in
   CLI or Web path, so no interface silently reimplements run semantics.
 
 The import-level parts of these rules (what `internal/model`, `internal/state`,
-`internal/executor`, `internal/run`, and `internal/rundiff` may import, no
+`internal/executor`, `internal/run`, `internal/rundiff`, and
+`internal/jobfilter` may import, no
 `internal` package importing `cmd/`, and `conformance` importing only the
 standard library) are enforced by
 [`internal/archtest/boundaries_test.go`](../internal/archtest/boundaries_test.go).

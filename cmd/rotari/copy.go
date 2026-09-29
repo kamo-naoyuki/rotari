@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -52,13 +51,9 @@ func cmdCopy(args []string) int {
 	queueNameOption := cliString(fs, "project-name", "")
 	runID := cliString(fs, "run-id", "")
 	jobName := cliString(fs, "job-name", "")
-	failed := cliBool(fs, "failed", false)
-	unfinished := cliBool(fs, "unfinished", false)
-	success := cliBool(fs, "success", false)
+	filterOptions := cliJobFilterOptions(fs, true)
 	var jobIDs stringSliceFlag
 	cliValue(fs, &jobIDs, "job-id")
-	stage := cliString(fs, "stage", "")
-	matrixName := cliString(fs, "matrix", "")
 	appendJobs := cliBool(fs, "append", false)
 	overwriteJobs := cliBool(fs, "overwrite", false)
 	quiet := cliBool(fs, "quiet", false)
@@ -76,14 +71,23 @@ func cmdCopy(args []string) int {
 		printError("--job-name cannot be combined with --job-id")
 		return 1
 	}
-	scope := model.CommandSelector{Stage: *stage, Matrix: *matrixName}
+	scope, err := filterOptions.scope()
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	filter := filterOptions.filter()
 	if scope.Kinds() > 1 || (scope.Kinds() > 0 && (*jobName != "" || len(jobIDs) > 0)) {
 		printError("--stage, --matrix, and --job-id or --job-name cannot be combined")
 		return 1
 	}
-	selection := model.ResultSelection(*failed, *unfinished, *success)
+	selection := filterOptions.resultSelection()
 	if selection != "" && (*jobName != "" || len(jobIDs) > 0) {
 		printError(errJobsWithResultFilter)
+		return 1
+	}
+	if !filter.Empty() && (*jobName != "" || len(jobIDs) > 0) {
+		printError(errJobsWithFilter)
 		return 1
 	}
 	if *jobName != "" {
@@ -190,7 +194,7 @@ func cmdCopy(args []string) int {
 		return 1
 	}
 	message, err := queueEditor().Copy(baseDir, queueName, *runID, queueedit.CopyRequest{
-		Selection: selection, JobIDs: jobIDs, Scope: scope, Append: *appendJobs, Overwrite: overwriteConfirmed,
+		Selection: selection, JobIDs: jobIDs, Scope: scope, Filter: filter, Append: *appendJobs, Overwrite: overwriteConfirmed,
 	})
 	if err != nil {
 		printError(err)

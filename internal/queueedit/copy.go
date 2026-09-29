@@ -1,10 +1,12 @@
 package queueedit
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
@@ -33,6 +35,8 @@ type CopyRequest struct {
 	JobIDs []string
 	// Scope, when set, narrows Selection to one stage or matrix.
 	Scope model.CommandSelector
+	// Filter narrows Selection further.
+	Filter jobfilter.Filter
 	// Attempts are attempts to copy, with Selection "job-id". Selecting an
 	// attempt of an array task narrows the copied array to the selected tasks.
 	Attempts []Attempt
@@ -48,6 +52,9 @@ type CopyRequest struct {
 func Copy(destination model.Queue, project string, source Run, request CopyRequest, newID func() string) (model.Queue, int, error) {
 	if len(request.JobIDs)+len(request.Attempts) > 0 && request.Selection != "job-id" {
 		return model.Queue{}, 0, fmt.Errorf("job IDs cannot be combined with selection %q", request.Selection)
+	}
+	if len(request.JobIDs)+len(request.Attempts) > 0 && !request.Filter.Empty() {
+		return model.Queue{}, 0, errors.New("job IDs cannot be combined with a job filter")
 	}
 	requested := make(map[string]bool, len(request.JobIDs)+len(request.Attempts))
 	requestedAttempts := make(map[string]string, len(request.Attempts))
@@ -102,12 +109,14 @@ func Copy(destination model.Queue, project string, source Run, request CopyReque
 		delete(requestedTasks, commandID)
 	}
 
-	inScope := func(model.QueuedCommand) bool { return true }
+	inScope := request.Filter.MatchesCommand
 	if request.Scope.Kinds() > 0 {
 		if _, err := model.SelectCommands(source.Snapshot.Commands, request.Scope); err != nil {
 			return model.Queue{}, 0, fmt.Errorf("run %s: %w", source.ID, err)
 		}
-		inScope = request.Scope.Matches
+		inScope = func(command model.QueuedCommand) bool {
+			return request.Scope.Matches(command) && request.Filter.MatchesCommand(command)
+		}
 	}
 	selected, selectedNames, err := selectCommands(source, request.Selection, inScope, requested, requestedTasks)
 	if err != nil {

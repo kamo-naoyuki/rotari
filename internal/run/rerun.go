@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
@@ -41,13 +42,17 @@ type OriginResults interface {
 // matching tasks execute and the rest carry their own results. When false,
 // the whole array executes if its aggregate result matches.
 //
-// A scope, when set, narrows a result selection to one stage or matrix: jobs
-// outside it do not execute and carry their results like non-matching jobs.
+// A scope, when set, narrows a result selection to one stage or matrix, and
+// filter narrows it further: jobs outside them do not execute and carry
+// their results like non-matching jobs.
 // jobIDs are the whole selection, and only with selection "job-id": jobs
-// named directly are not combined with a result selection.
-func PlanRerun(queue model.Queue, selection string, jobIDs []string, scope model.CommandSelector, referenceRunID string, partialArray bool, source OriginResults) (Plan, error) {
+// named directly are not combined with a result selection or a filter.
+func PlanRerun(queue model.Queue, selection string, jobIDs []string, scope model.CommandSelector, filter jobfilter.Filter, referenceRunID string, partialArray bool, source OriginResults) (Plan, error) {
 	if len(jobIDs) > 0 && selection != "job-id" {
 		return Plan{}, fmt.Errorf("job IDs cannot be combined with result selection %q", selection)
+	}
+	if len(jobIDs) > 0 && !filter.Empty() {
+		return Plan{}, errors.New("job IDs cannot be combined with a job filter")
 	}
 	if selection == "" {
 		plan := Plan{Execute: make(map[string]bool, len(queue.Commands))}
@@ -56,12 +61,14 @@ func PlanRerun(queue model.Queue, selection string, jobIDs []string, scope model
 		}
 		return plan, nil
 	}
-	inScope := func(model.QueuedCommand) bool { return true }
+	inScope := filter.MatchesCommand
 	if scope.Kinds() > 0 {
 		if _, err := model.SelectCommands(queue.Commands, scope); err != nil {
 			return Plan{}, err
 		}
-		inScope = scope.Matches
+		inScope = func(command model.QueuedCommand) bool {
+			return scope.Matches(command) && filter.MatchesCommand(command)
+		}
 	}
 	plan, err := planByOrigin(queue, selection, jobIDs, inScope, referenceRunID, partialArray, source)
 	if err != nil {

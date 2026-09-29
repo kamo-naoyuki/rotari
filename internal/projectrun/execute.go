@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -24,11 +25,12 @@ type Options struct {
 	ExecutorOptions []string
 	EnvMode         string
 	Settings        executor.RunSettingsMap
-	// Selection, JobIDs, Scope, SourceRunID, and PartialArray choose which
-	// jobs execute and which carry a result forward; see run.PlanRerun.
+	// Selection, JobIDs, Scope, Filter, SourceRunID, and PartialArray choose
+	// which jobs execute and which carry a result forward; see run.PlanRerun.
 	Selection    string
 	JobIDs       []string
 	Scope        model.CommandSelector
+	Filter       jobfilter.Filter
 	SourceRunID  string
 	PartialArray bool
 	MatchBy      string
@@ -104,7 +106,7 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 		return 1, fmt.Errorf("failed to save run commands: %w", err)
 	}
 
-	plan, err := runner.PlanSelection(paths, queue, options.Selection, options.JobIDs, options.Scope, options.SourceRunID, options.PartialArray)
+	plan, err := runner.PlanSelection(paths, queue, options.Selection, options.JobIDs, options.Scope, options.Filter, options.SourceRunID, options.PartialArray)
 	if err != nil {
 		return 1, fmt.Errorf("failed to prepare job selection: %w", err)
 	}

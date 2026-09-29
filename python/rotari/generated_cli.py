@@ -659,6 +659,39 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "json",
                 },
                 {"description": "print an AI-ready Markdown report", "name": "report"},
+                {
+                    "description": "select jobs with this result; may be "
+                    "repeated; --failed, --unfinished, and "
+                    "--success are short forms",
+                    "name": "filter-result",
+                    "repeated": True,
+                    "value_name": "RESULT",
+                    "values": ["failed", "unfinished", "success"],
+                },
+                {
+                    "description": "select jobs in this stage; same as --stage",
+                    "name": "filter-stage",
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "exclude jobs in this stage; may be repeated",
+                    "name": "filter-not-stage",
+                    "repeated": True,
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "select jobs of this matrix, named by its "
+                    "base job name; same as --matrix",
+                    "name": "filter-matrix",
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "exclude jobs of this matrix, named by its "
+                    "base job name; may be repeated",
+                    "name": "filter-not-matrix",
+                    "repeated": True,
+                    "value_name": "NAME",
+                },
             ],
             "name": "show",
             "positional": "[SELECTOR]",
@@ -1075,6 +1108,39 @@ CLI_SCHEMA: dict[str, Any] = {
                     "environment": "ROTARI_QUIET",
                     "name": "quiet",
                 },
+                {
+                    "description": "select jobs with this result; may be "
+                    "repeated; --failed, --unfinished, and "
+                    "--success are short forms",
+                    "name": "filter-result",
+                    "repeated": True,
+                    "value_name": "RESULT",
+                    "values": ["failed", "unfinished", "success"],
+                },
+                {
+                    "description": "select jobs in this stage; same as --stage",
+                    "name": "filter-stage",
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "exclude jobs in this stage; may be repeated",
+                    "name": "filter-not-stage",
+                    "repeated": True,
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "select jobs of this matrix, named by its "
+                    "base job name; same as --matrix",
+                    "name": "filter-matrix",
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "exclude jobs of this matrix, named by its "
+                    "base job name; may be repeated",
+                    "name": "filter-not-matrix",
+                    "repeated": True,
+                    "value_name": "NAME",
+                },
             ],
             "name": "copy",
             "positional": "[RUN_ID]",
@@ -1318,6 +1384,39 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "lsf-submit-retry-limit",
                     "value_name": "N",
                 },
+                {
+                    "description": "select jobs with this result; may be "
+                    "repeated; --failed, --unfinished, and "
+                    "--success are short forms",
+                    "name": "filter-result",
+                    "repeated": True,
+                    "value_name": "RESULT",
+                    "values": ["failed", "unfinished", "success"],
+                },
+                {
+                    "description": "select jobs in this stage; same as --stage",
+                    "name": "filter-stage",
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "exclude jobs in this stage; may be repeated",
+                    "name": "filter-not-stage",
+                    "repeated": True,
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "select jobs of this matrix, named by its "
+                    "base job name; same as --matrix",
+                    "name": "filter-matrix",
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "exclude jobs of this matrix, named by its "
+                    "base job name; may be repeated",
+                    "name": "filter-not-matrix",
+                    "repeated": True,
+                    "value_name": "NAME",
+                },
             ],
             "name": "run",
             "positional": "[RUN_ID]",
@@ -1520,6 +1619,39 @@ CLI_SCHEMA: dict[str, Any] = {
                     "environment": "ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT",
                     "name": "lsf-submit-retry-limit",
                     "value_name": "N",
+                },
+                {
+                    "description": "select jobs with this result; may be "
+                    "repeated; --failed, --unfinished, and "
+                    "--success are short forms",
+                    "name": "filter-result",
+                    "repeated": True,
+                    "value_name": "RESULT",
+                    "values": ["failed", "unfinished", "success"],
+                },
+                {
+                    "description": "select jobs in this stage; same as --stage",
+                    "name": "filter-stage",
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "exclude jobs in this stage; may be repeated",
+                    "name": "filter-not-stage",
+                    "repeated": True,
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "select jobs of this matrix, named by its "
+                    "base job name; same as --matrix",
+                    "name": "filter-matrix",
+                    "value_name": "NAME",
+                },
+                {
+                    "description": "exclude jobs of this matrix, named by its "
+                    "base job name; may be repeated",
+                    "name": "filter-not-matrix",
+                    "repeated": True,
+                    "value_name": "NAME",
                 },
             ],
             "name": "retry",
