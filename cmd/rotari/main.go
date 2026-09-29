@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
@@ -118,6 +119,7 @@ func run(args []string) int {
 			return 1
 		}
 		printErrorf("unknown subcommand: %s", args[0])
+		printError("available subcommands: " + strings.Join(cliCommandNames(), ", "))
 		return 1
 	}
 }
