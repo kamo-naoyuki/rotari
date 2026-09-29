@@ -856,7 +856,9 @@ function renderRun(q, runID) {
       ", failed " +
       esc(lineage.counts.failed) +
       ")</span>" +
-      (diagnosisText ? "<span>Diagnoses: " + esc(diagnosisText) + "</span>" : "") +
+      (diagnosisText
+        ? "<span>Diagnoses: " + esc(diagnosisText) + "</span>"
+        : "") +
       (originText ? "<span>Origins: " + esc(originText) + "</span>" : "");
   }
   if (run.unreadable) {
