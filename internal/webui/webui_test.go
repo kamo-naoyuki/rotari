@@ -812,9 +812,11 @@ setTimeout(async () => {
 		const bases = [...dom.window.document.querySelectorAll('#sidebar-basedirs > .basedir-entry')];
 		assert(bases.length === 2, 'sidebar does not show both registered basedirs');
 		assert(dom.window.document.querySelector('.sidebar-section-heading')?.textContent.trim() === 'Registered basedirs', 'sidebar does not explain what the basedir list contains');
+		assert(rootID && dom.window.document.querySelector('.basedir-notification-toggle'), 'basedir notification checkbox is missing');
 		const rootSelector = '#sidebar-basedirs > [data-basedir-id="' + rootID + '"]';
 		let root = dom.window.document.querySelector(rootSelector);
 		assert(root && !root.querySelector(':scope > .basedir-contents').hidden, 'startup basedir should start expanded');
+		assert(root.querySelector('.basedir-notification-toggle')?.checked, 'startup basedir should be monitored by default');
 		assert(root.querySelector('.sidebar-project:not(.basedir-entry) .sidebar-project-link.active')?.textContent.trim() === 'root-project', 'selected project is not active in the sidebar');
 		root.querySelector(':scope > .basedir-row .sidebar-toggle').click();
 		root = dom.window.document.querySelector(rootSelector);
@@ -1526,6 +1528,10 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 		"State directories known to rotari",
 		`aria-label="Toggle projects"`,
 		`onclick="toggleJobsSidebar(this)"`,
+		`class="basedir-notification-toggle"`,
+		`data-jobs-url="/jobs/"`,
+		`onchange="toggleJobsNotificationBasedir(this)"`,
+		`rotari-notification-basedirs`,
 		`class="sidebar-project-link basedir-path"`,
 		`href="/project/demo"`,
 		`class="brand-icon"`,

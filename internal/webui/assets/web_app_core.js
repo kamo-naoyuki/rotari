@@ -100,6 +100,40 @@ const expandedSidebarProjects = {};
 const expandedSidebarBasedirs = {};
 const expandedSidebarAllProjects = {};
 const remoteProjectsByBasedir = {};
+const notificationBasedirsKey = "rotari-notification-basedirs";
+function selectedNotificationBasedirIDs() {
+  try {
+    const stored = localStorage.getItem(notificationBasedirsKey);
+    return stored === null ? null : new Set(JSON.parse(stored));
+  } catch (error) {
+    return null;
+  }
+}
+function restoreNotificationBasedirs() {
+  const selected = selectedNotificationBasedirIDs();
+  document
+    .querySelectorAll(".basedir-notification-toggle")
+    .forEach((checkbox) => {
+      checkbox.checked =
+        selected === null
+          ? checkbox.closest(".basedir-entry").classList.contains("expanded")
+          : selected.has(checkbox.dataset.basedirId);
+    });
+}
+function toggleNotificationBasedir(checkbox) {
+  const selected =
+    selectedNotificationBasedirIDs() ||
+    new Set(
+      [...document.querySelectorAll(".basedir-notification-toggle")]
+        .filter((item) => item.checked)
+        .map((item) => item.dataset.basedirId),
+    );
+  if (checkbox.checked) selected.add(checkbox.dataset.basedirId);
+  else selected.delete(checkbox.dataset.basedirId);
+  localStorage.setItem(notificationBasedirsKey, JSON.stringify([...selected]));
+  if (typeof refreshOtherBasedirNotifications === "function")
+    refreshOtherBasedirNotifications();
+}
 function sidebarRunLinksHTML(q, isActive, activeRun, basedirID) {
   const runs = (q.runs || [])
     .slice()
@@ -205,7 +239,9 @@ function sidebarBasedirHTML(
     (isExpanded ? " expanded" : "") +
     '" data-basedir-id="' +
     entry.id +
-    '"><div class="sidebar-project-row basedir-row"><button type="button" class="sidebar-toggle" aria-expanded="' +
+    '"><div class="sidebar-project-row basedir-row"><input class="basedir-notification-toggle" type="checkbox" data-basedir-id="' +
+    entry.id +
+    '" aria-label="Monitor notifications for basedir" onchange="toggleNotificationBasedir(this)" /><button type="button" class="sidebar-toggle" aria-expanded="' +
     (isExpanded ? "true" : "false") +
     '" aria-label="Toggle projects" onclick="toggleSidebarBasedir(this)"></button><a class="sidebar-project-link' +
     (isActive ? " active" : "") +
@@ -323,6 +359,7 @@ function renderSidebar(queues) {
       ),
     )
     .join("");
+  restoreNotificationBasedirs();
   if (!sidebar.dataset.scrollStored) {
     sidebar.dataset.scrollStored = "true";
     sidebar.addEventListener(

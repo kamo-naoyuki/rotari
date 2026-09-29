@@ -113,6 +113,14 @@ end with an ellipsis through CSS as the width changes. These
 rules apply to both the application page and the server-rendered Job activity
 page.
 
+Each basedir row has a notification monitor checkbox. The selected basedir IDs
+are stored in browser local storage. The application page polls the state
+endpoint for every selected basedir, while the server-rendered Job activity
+page polls the Job activity endpoint for every selected basedir. A newly
+selected basedir is initialized from its current state, so existing completed
+jobs do not produce retroactive notifications. Notifications remain controlled
+by the global notification permission and on/off toggle.
+
 ## Web server and control-plane security
 
 - `web` binds `--host`/`--port`, defaulting to `127.0.0.1:8787`.

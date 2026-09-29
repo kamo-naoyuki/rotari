@@ -231,6 +231,7 @@
       const jobsNotificationsDefaultOn = __ROTARI_NOTIFICATION_DEFAULT__;
       const jobsNotificationIcon = "__ROTARI_NOTIFICATION_ICON__";
       const jobsNotificationsEnabledKey = "rotari-notifications-enabled";
+      const jobsNotificationBasedirsKey = "rotari-notification-basedirs";
       function jobsNotificationsEnabled() {
         const stored = localStorage.getItem(jobsNotificationsEnabledKey);
         return stored === null
@@ -301,31 +302,101 @@
         };
       }
 
-      let previousJobsActivity = jobsNotificationSnapshot(document);
-      async function pollJobsActivity() {
+      function jobsNotificationCheckboxes() {
+        return [...document.querySelectorAll(".basedir-notification-toggle")];
+      }
+
+      function jobsNotificationTargets() {
+        return jobsNotificationCheckboxes()
+          .filter((checkbox) => checkbox.checked)
+          .map((checkbox) => ({
+            id: checkbox.dataset.basedirId,
+            url: checkbox.dataset.jobsUrl,
+          }));
+      }
+
+      function restoreJobsNotificationTargets() {
+        const stored = localStorage.getItem(jobsNotificationBasedirsKey);
+        const selected = stored === null ? null : new Set(JSON.parse(stored));
+        jobsNotificationCheckboxes().forEach((checkbox) => {
+          checkbox.checked =
+            selected === null
+              ? checkbox
+                  .closest(".basedir-entry")
+                  .classList.contains("expanded")
+              : selected.has(checkbox.dataset.basedirId);
+        });
+      }
+
+      function saveJobsNotificationTargets() {
+        localStorage.setItem(
+          jobsNotificationBasedirsKey,
+          JSON.stringify(jobsNotificationTargets().map((target) => target.id)),
+        );
+      }
+
+      const previousJobsActivity = new Map();
+      const currentNotificationCheckbox = jobsNotificationCheckboxes().find(
+        (checkbox) =>
+          checkbox.closest(".basedir-entry").classList.contains("expanded"),
+      );
+      if (currentNotificationCheckbox)
+        previousJobsActivity.set(
+          currentNotificationCheckbox.dataset.basedirId,
+          jobsNotificationSnapshot(document),
+        );
+
+      async function loadJobsNotificationSnapshot(target) {
         try {
-          const response = await fetch(location.href, { cache: "no-store" });
+          const response = await fetch(target.url, { cache: "no-store" });
           if (!response.ok) return;
           const html = await response.text();
           const nextDocument = new DOMParser().parseFromString(
             html,
             "text/html",
           );
-          const nextJobs = jobsNotificationSnapshot(nextDocument);
-          nextJobs.forEach((job, key) => {
-            const previous = previousJobsActivity.get(key);
-            if (
-              (job.state === "failed" || job.state === "success") &&
-              (!previous || previous.state === "running")
-            )
-              notifyJobsActivity(job);
-          });
-          previousJobsActivity = nextJobs;
+          return jobsNotificationSnapshot(nextDocument);
         } catch (error) {
-          // Keep polling after temporary network or parsing failures.
+          // Keep this target in the next poll after temporary failures.
         }
       }
 
+      async function pollJobsActivity() {
+        const targets = jobsNotificationTargets();
+        await Promise.all(
+          targets.map(async (target) => {
+            const nextJobs = await loadJobsNotificationSnapshot(target);
+            if (!nextJobs) return;
+            const previous = previousJobsActivity.get(target.id);
+            if (previous) {
+              nextJobs.forEach((job, key) => {
+                const before = previous.get(key);
+                if (
+                  (job.state === "failed" || job.state === "success") &&
+                  (!before || before.state === "running")
+                )
+                  notifyJobsActivity(job);
+              });
+            }
+            previousJobsActivity.set(target.id, nextJobs);
+          }),
+        );
+      }
+
+      async function toggleJobsNotificationBasedir(checkbox) {
+        saveJobsNotificationTargets();
+        const target = jobsNotificationTargets().find(
+          (item) => item.id === checkbox.dataset.basedirId,
+        );
+        if (!target) {
+          previousJobsActivity.delete(checkbox.dataset.basedirId);
+          return;
+        }
+        const snapshot = await loadJobsNotificationSnapshot(target);
+        if (snapshot) previousJobsActivity.set(target.id, snapshot);
+      }
+
+      restoreJobsNotificationTargets();
       updateJobsNotifyToggleLabel();
       setInterval(pollJobsActivity, 2000);
     </script>

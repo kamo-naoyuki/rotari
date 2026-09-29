@@ -146,10 +146,40 @@ function checkRunNotifications(previousState, nextState) {
     notifyRunEvent(event.info, event.failedJobNames, event.runFinished),
   );
 }
+const otherBasedirNotificationStates = new Map();
+async function refreshOtherBasedirNotifications() {
+  if (typeof registeredBasedirs === "undefined") return;
+  const selected = selectedNotificationBasedirIDs();
+  const activeID =
+    mountedBasedirID || registeredBasedirs.find((entry) => entry.current)?.id;
+  const targets = registeredBasedirs.filter(
+    (entry) => selected?.has(entry.id) && entry.id !== activeID,
+  );
+  await Promise.all(
+    targets.map(async (entry) => {
+      try {
+        const response = await fetch(basedirURL(entry.id, "/api/state"), {
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const nextState = await response.json();
+        const previousState = otherBasedirNotificationStates.get(entry.id);
+        if (previousState) checkRunNotifications(previousState, nextState);
+        otherBasedirNotificationStates.set(entry.id, nextState);
+      } catch (error) {
+        // Keep polling after temporary network failures.
+      }
+    }),
+  );
+  for (const id of otherBasedirNotificationStates.keys()) {
+    if (!selected?.has(id)) otherBasedirNotificationStates.delete(id);
+  }
+}
 const originalRefresh = refresh;
 refresh = async function () {
   const previousState = state;
   await originalRefresh();
   if (state !== previousState) checkRunNotifications(previousState, state);
+  await refreshOtherBasedirNotifications();
 };
 updateNotifyToggleLabel();

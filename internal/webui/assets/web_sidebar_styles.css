@@ -134,6 +134,19 @@
   border-radius: 8px;
 }
 
+.basedir-notification-toggle {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin: 0 2px 0 3px;
+  accent-color: #f08b70;
+  cursor: pointer;
+}
+
+.basedir-row .sidebar-toggle {
+  margin-left: 0;
+}
+
 .sidebar-toggle {
   display: flex;
   flex: 0 0 auto;
