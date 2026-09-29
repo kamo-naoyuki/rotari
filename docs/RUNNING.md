@@ -172,11 +172,15 @@ flowchart LR
 
   subgraph CurrentQueue["Queue after rotari copy RUN_ID"]
     CopiedA["Copied job A<br/>Queue ID: job-a*"]
-    OriginA["Origin A<br/>Run ID: RUN_ID<br/>Job ID: job-a<br/>Attempt ID: attempt-a<br/>Status: success"]
+    OriginA["Origin A<br/>Run ID: RUN_ID<br/>Job ID: job-a<br/>Attempt ID: attempt-a"]
+    StatusA["Status: success"]
     CopiedB["Copied job B<br/>Queue ID: job-b*"]
-    OriginB["Origin B<br/>Run ID: RUN_ID<br/>Job ID: job-b<br/>Attempt ID: attempt-b<br/>Status: failed"]
+    OriginB["Origin B<br/>Run ID: RUN_ID<br/>Job ID: job-b<br/>Attempt ID: attempt-b"]
+    StatusB["Status: failed"]
     CopiedA --> OriginA
+    OriginA --> StatusA
     CopiedB --> OriginB
+    OriginB --> StatusB
   end
 
   SourceA -->|"copy job A"| CopiedA
@@ -188,9 +192,13 @@ flowchart LR
   classDef queue fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
   classDef origin fill:#ccfbf1,stroke:#0f766e,color:#134e4a
   classDef note fill:#fef3c7,stroke:#d97706,color:#78350f
+  classDef success fill:#dcfce7,stroke:#16a34a,color:#14532d
+  classDef failed fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
   class SourceA,SourceB source
   class CopiedA,CopiedB queue
   class OriginA,OriginB origin
+  class StatusA success
+  class StatusB failed
   class Note note
 ```
 
