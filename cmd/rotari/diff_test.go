@@ -79,6 +79,9 @@ func TestCmdLineageListsSummarizesAndComparesRuns(t *testing.T) {
 	if firstAt, secondAt := strings.Index(lineage, first), strings.Index(lineage, second); firstAt < 0 || secondAt < firstAt {
 		t.Fatalf("lineage does not list runs oldest first:\n%s", lineage)
 	}
+	if want := "rotari lineage " + first + " " + second; !strings.Contains(lineage, want) {
+		t.Fatalf("lineage comparison hint does not contain %q:\n%s", want, lineage)
+	}
 	output.Reset()
 	if code := captureShowStdout(t, &output, func() int { return cmdLineage(append(args, "--json")) }); code != 0 {
 		t.Fatalf("lineage --json exit = %d", code)
