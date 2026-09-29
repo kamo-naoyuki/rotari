@@ -84,13 +84,14 @@ func composeWebHTMLWithSession(executors []string, notifications bool, bootstrap
 	return template
 }
 
-func composeStaticBootstrap(state, logs, reports, configTargets, configs string) string {
+func composeStaticBootstrap(state, logs, reports, configTargets, configs, wordClouds string) string {
 	bootstrap := webStaticBootstrapJS
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_STATE_DATA__", state, 1)
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_LOGS_DATA__", logs, 1)
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_REPORTS_DATA__", reports, 1)
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_CONFIG_TARGETS_DATA__", configTargets, 1)
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_CONFIGS_DATA__", configs, 1)
+	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_WORD_CLOUDS_DATA__", wordClouds, 1)
 	return bootstrap
 }
 

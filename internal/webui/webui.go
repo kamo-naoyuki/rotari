@@ -1084,6 +1084,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 	}
 	logs := map[string]string{}
 	reports := map[string]string{}
+	wordClouds := map[string]outputWordCloud{}
 	configTargets := map[string][]webConfigTarget{}
 	configs := map[string][]webprojection.ConfigFile{}
 	allTargets, err := webConfigTargets(baseDir, "")
@@ -1108,6 +1109,9 @@ func (s site) generateStaticWeb(outputDir string) error {
 			continue
 		}
 		for _, run := range queue.Runs {
+			if cloud, cloudErr := buildOutputWordCloud(paths.RunsDir, run.RunID, run.Jobs); cloudErr == nil {
+				wordClouds[staticWordCloudKey(queue.QueueName, run.RunID)] = cloud
+			}
 			if files, configErr := s.loadWebConfigFiles(baseDir, queue.QueueName, run.RunID); configErr == nil {
 				configs[staticConfigKey(queue.QueueName, run.RunID)] = files
 			}
@@ -1166,13 +1170,18 @@ func (s site) generateStaticWeb(outputDir string) error {
 	if err != nil {
 		return err
 	}
-	var escapedState, escapedLogs, escapedReports, escapedConfigTargets, escapedConfigs bytes.Buffer
+	wordCloudsJSON, err := json.Marshal(wordClouds)
+	if err != nil {
+		return err
+	}
+	var escapedState, escapedLogs, escapedReports, escapedConfigTargets, escapedConfigs, escapedWordClouds bytes.Buffer
 	json.HTMLEscape(&escapedState, stateJSON)
 	json.HTMLEscape(&escapedLogs, logsJSON)
 	json.HTMLEscape(&escapedReports, reportsJSON)
 	json.HTMLEscape(&escapedConfigTargets, configTargetsJSON)
 	json.HTMLEscape(&escapedConfigs, configsJSON)
-	bootstrap := "<script>\n" + composeStaticBootstrap(escapedState.String(), escapedLogs.String(), escapedReports.String(), escapedConfigTargets.String(), escapedConfigs.String()) + "\n</script>"
+	json.HTMLEscape(&escapedWordClouds, wordCloudsJSON)
+	bootstrap := "<script>\n" + composeStaticBootstrap(escapedState.String(), escapedLogs.String(), escapedReports.String(), escapedConfigTargets.String(), escapedConfigs.String(), escapedWordClouds.String()) + "\n</script>"
 	baseTemplate := s.webHTMLWithStaticBootstrap(bootstrap)
 	template := strings.Replace(baseTemplate, `href="/web_styles.css"`, `href="web_styles.css"`, 1)
 	template = strings.Replace(template, `href="/web_sidebar_styles.css"`, `href="web_sidebar_styles.css"`, 1)
@@ -1313,6 +1322,10 @@ func resolveWebLogJob(runsDir, runID, jobID string) (string, string, error) {
 
 func staticReportKey(projectName, runID, jobID string) string {
 	return projectName + "/" + runID + "/" + jobID
+}
+
+func staticWordCloudKey(projectName, runID string) string {
+	return projectName + "/" + runID
 }
 
 func writeStaticWebPage(path, contents string) error {

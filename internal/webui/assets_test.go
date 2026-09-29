@@ -24,7 +24,7 @@ func TestComposeWebHTMLAssemblesAssetBoundaries(t *testing.T) {
 }
 
 func TestComposeStaticBootstrapInjectsData(t *testing.T) {
-	bootstrap := composeStaticBootstrap("state", "logs", "reports", "targets", "configs")
+	bootstrap := composeStaticBootstrap("state", "logs", "reports", "targets", "configs", "word-clouds")
 	for _, want := range []string{
 		"window.__ROTARI_STATIC_STATE__ = state;",
 		"window.__ROTARI_STATIC_LOGS__ = logs;",

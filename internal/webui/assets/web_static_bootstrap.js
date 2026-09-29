@@ -3,6 +3,7 @@ window.__ROTARI_STATIC_LOGS__ = __ROTARI_STATIC_LOGS_DATA__;
 window.__ROTARI_STATIC_REPORTS__ = __ROTARI_STATIC_REPORTS_DATA__;
 window.__ROTARI_STATIC_CONFIG_TARGETS__ = __ROTARI_STATIC_CONFIG_TARGETS_DATA__;
 window.__ROTARI_STATIC_CONFIGS__ = __ROTARI_STATIC_CONFIGS_DATA__;
+window.__ROTARI_STATIC_WORD_CLOUDS__ = __ROTARI_STATIC_WORD_CLOUDS_DATA__;
 
 window.fetch = async function (input, init) {
   const request = new URL(input, window.location.href);
@@ -31,6 +32,17 @@ window.fetch = async function (input, init) {
     const configs = window.__ROTARI_STATIC_CONFIGS__[key];
     if (!configs) return new Response("Config not found", { status: 404 });
     return new Response(JSON.stringify({ configs }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (request.pathname.endsWith("/api/output-word-cloud")) {
+    const key = staticWordCloudKey(
+      request.searchParams.get("project_name"),
+      request.searchParams.get("run_id"),
+    );
+    const cloud = window.__ROTARI_STATIC_WORD_CLOUDS__[key];
+    return new Response(JSON.stringify(cloud || { terms: [] }), {
+      status: cloud ? 200 : 404,
       headers: { "Content-Type": "application/json" },
     });
   }
@@ -109,6 +121,10 @@ function staticReportKey(project, run, job) {
 }
 
 function staticConfigKey(project, run) {
+  return [project, run].join("/");
+}
+
+function staticWordCloudKey(project, run) {
   return [project, run].join("/");
 }
 

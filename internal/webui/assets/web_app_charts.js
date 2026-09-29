@@ -411,7 +411,7 @@ async function loadOutputWordCloud(details, projectName, runID, refresh) {
 }
 
 function addOutputWordCloud() {
-  if (typeof window.__ROTARI_STATIC_STATE__ !== "undefined") return;
+  const isStatic = typeof window.__ROTARI_STATIC_STATE__ !== "undefined";
   const parts = pageParts();
   if (parts[0] !== "project" || parts[2] !== "run") return;
   const queue = state.projects.find(
@@ -452,6 +452,18 @@ function addOutputWordCloud() {
   content.style.textAlign = "center";
   body.append(regenerate, content);
   section.append(heading, body);
+  if (isStatic) {
+    regenerate.hidden = true;
+    const cloud = window.__ROTARI_STATIC_WORD_CLOUDS__[
+      queue.project_name + "/" + runID
+    ];
+    if (cloud) {
+      section.dataset.wordCloudLoaded = "true";
+      renderOutputWordCloud(section, cloud);
+    } else {
+      status.textContent = "No output word cloud available";
+    }
+  }
   if (outputWordCloudData && outputWordCloudKey === wordCloudKey) {
     section.dataset.wordCloudLoaded = "true";
     renderOutputWordCloud(section, outputWordCloudData);
