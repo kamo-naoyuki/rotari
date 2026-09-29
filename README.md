@@ -36,6 +36,8 @@ Rotari deliberately stays out of the way. **You don't need a separate workflow l
 
 Rotari covers a narrow need, and other tools may fit yours better: [GNU Parallel](https://www.gnu.org/software/parallel/) for one command over many inputs, [pueue](https://github.com/Nukesor/pueue) or [task-spooler](https://github.com/justanhduc/task-spooler) for a personal queue on one machine, and a workflow engine such as [Snakemake](https://snakemake.github.io/), [Nextflow](https://www.nextflow.io/), [Dagu](https://dagu.sh/), or [Airflow](https://airflow.apache.org/) for a pipeline you share, rerun on new data, or run on a schedule. [Comparison with other tools](docs/TOOL_COMPARISON.md) explains what each one does and how rotari differs.
 
+<!-- Do not edit `README.md` directly. The `BEGIN GETTING STARTED` section is generated from `docs/GETTING_STARTED.md`; edit that source document and run `python3 scripts/sync_readme.py` instead.-->
+
 <!-- BEGIN GETTING STARTED -->
 
 ## Installation
@@ -56,7 +58,15 @@ Other options:
 
 ```sh
 brew install kamo-naoyuki/tap/rotari
+```
+
+```sh
+# bundles the rotari executable with the Python package
 python3 -m pip install --index-url https://kamo-naoyuki.github.io/rotari/simple/ rotari
+```
+
+```sh
+# With go installed
 go install github.com/kamo-naoyuki/rotari/cmd/rotari@latest
 ```
 

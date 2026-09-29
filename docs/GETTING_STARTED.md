@@ -18,7 +18,15 @@ Other options:
 
 ```sh
 brew install kamo-naoyuki/tap/rotari
+```
+
+```sh
+# bundles the rotari executable with the Python package
 python3 -m pip install --index-url https://kamo-naoyuki.github.io/rotari/simple/ rotari
+```
+
+```sh
+# With go installed
 go install github.com/kamo-naoyuki/rotari/cmd/rotari@latest
 ```
 
