@@ -752,7 +752,7 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 	if !strings.Contains(jobsHTML, `class="sidebar-project-row"><span class="sidebar-toggle-placeholder"`) {
 		t.Fatal("Job activity project links do not use the shared sidebar row layout")
 	}
-	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-resizer {", ".basedir-notification-toggle {", "min-width: 12px;", "padding: 0;", ".basedir-contents {", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "text-overflow: ellipsis;"} {
+	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-resizer {", ".basedir-notification-toggle {", "width: 14px !important;", "height: 14px !important;", "padding: 0;", ".basedir-contents {", "margin-left: 42px;", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "text-overflow: ellipsis;"} {
 		if !strings.Contains(webSidebarStylesCSS, marker) {
 			t.Fatalf("shared sidebar style is missing %q", marker)
 		}
@@ -813,7 +813,7 @@ setTimeout(async () => {
 		assert(bases.length === 2, 'sidebar does not show both registered basedirs');
 		assert(dom.window.document.querySelector('.sidebar-section-heading')?.textContent.trim() === 'Registered basedirs', 'sidebar does not explain what the basedir list contains');
 		assert(rootID && dom.window.document.querySelector('.basedir-notification-toggle'), 'basedir notification checkbox is missing');
-		assert(dom.window.document.querySelector('.sidebar-notification-heading')?.textContent.trim() === 'Monitor notifications', 'basedir notification column is not explained');
+		assert(dom.window.document.querySelector('.sidebar-notification-heading')?.textContent.trim() === 'Select basedirs to monitor notifications', 'basedir notification column is not explained');
 		const rootSelector = '#sidebar-basedirs > [data-basedir-id="' + rootID + '"]';
 		let root = dom.window.document.querySelector(rootSelector);
 		assert(root && !root.querySelector(':scope > .basedir-contents').hidden, 'startup basedir should start expanded');
@@ -1530,7 +1530,7 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 		`aria-label="Toggle projects"`,
 		`onclick="toggleJobsSidebar(this)"`,
 		`class="basedir-notification-toggle"`,
-		`Monitor notifications`,
+		`Select basedirs to monitor notifications`,
 		`data-jobs-url="/jobs/"`,
 		`onchange="toggleJobsNotificationBasedir(this)"`,
 		`rotari-notification-basedirs`,
