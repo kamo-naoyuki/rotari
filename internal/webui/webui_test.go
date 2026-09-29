@@ -752,7 +752,7 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 	if !strings.Contains(jobsHTML, `class="sidebar-project-row"><span class="sidebar-toggle-placeholder"`) {
 		t.Fatal("Job activity project links do not use the shared sidebar row layout")
 	}
-	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", "resize: horizontal;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "text-overflow: ellipsis;"} {
+	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-resizer {", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "text-overflow: ellipsis;"} {
 		if !strings.Contains(webSidebarStylesCSS, marker) {
 			t.Fatalf("shared sidebar style is missing %q", marker)
 		}
@@ -812,16 +812,28 @@ setTimeout(async () => {
 		assert(dom.window.document.querySelector('.sidebar-section-heading')?.textContent.trim() === 'Registered basedirs', 'sidebar does not explain what the basedir list contains');
 		const rootSelector = '#sidebar-basedirs > [data-basedir-id="' + rootID + '"]';
 		let root = dom.window.document.querySelector(rootSelector);
-		assert(root && !root.querySelector('.sidebar-projects').hidden, 'startup basedir should start expanded');
+		assert(root && !root.querySelector(':scope > .basedir-contents').hidden, 'startup basedir should start expanded');
 		assert(root.querySelector('.sidebar-project:not(.basedir-entry) .sidebar-project-link.active')?.textContent.trim() === 'root-project', 'selected project is not active in the sidebar');
-		root.querySelector('.sidebar-toggle').click();
+		root.querySelector(':scope > .basedir-row .sidebar-toggle').click();
 		root = dom.window.document.querySelector(rootSelector);
-		assert(root.querySelector('.sidebar-projects').hidden, 'expanded basedir cannot be collapsed');
-		root.querySelector('.sidebar-toggle').click();
+		assert(root.querySelector(':scope > .basedir-contents').hidden, 'expanded basedir cannot be collapsed');
+		root.querySelector(':scope > .basedir-row .sidebar-toggle').click();
 		root = dom.window.document.querySelector(rootSelector);
-		assert(!root.querySelector('.sidebar-projects').hidden, 'collapsed basedir cannot be reopened');
+		assert(!root.querySelector(':scope > .basedir-contents').hidden, 'collapsed basedir cannot be reopened');
 		assert(root.querySelector('.sidebar-project-link.basedir-path').title.startsWith('/'), 'basedir path tooltip is not absolute');
-		assert(root.querySelector('a[href="/jobs/"]'), 'Job activity is not nested under its basedir');
+		const jobActivity = root.querySelector('a[href="/jobs/"]');
+		const allProjects = [...root.querySelectorAll('.sidebar-project-link')].find(link => link.textContent.trim() === 'All projects');
+		assert(jobActivity && allProjects, 'Job activity or All projects is missing from its basedir');
+		assert(allProjects.compareDocumentPosition(jobActivity) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING, 'Job activity should appear after the All projects tree');
+		assert(allProjects.closest('.all-projects').querySelector('.project-list'), 'project list is not nested under All projects');
+		const allProjectsToggle = allProjects.closest('.sidebar-project-row').querySelector('.sidebar-toggle');
+		assert(allProjectsToggle && allProjectsToggle.getAttribute('aria-expanded') === 'true', 'All projects should have an expanded toggle');
+		allProjectsToggle.click();
+		root = dom.window.document.querySelector(rootSelector);
+		assert(root.querySelector('.all-projects > .sidebar-projects').hidden, 'All projects list cannot be collapsed');
+		root.querySelector('.all-projects .sidebar-toggle').click();
+		root = dom.window.document.querySelector(rootSelector);
+		assert(!root.querySelector('.all-projects > .sidebar-projects').hidden, 'All projects list cannot be reopened');
 		const sidebar = dom.window.document.querySelector('.sidebar');
 		sidebar.scrollTop = 87;
 		sidebar.dispatchEvent(new dom.window.Event('scroll'));
@@ -829,8 +841,14 @@ setTimeout(async () => {
 		sidebar.scrollTop = 0;
 		dom.window.renderSidebar(state.projects);
 		assert(dom.window.document.querySelector('.sidebar').scrollTop === 87, 'sidebar scroll position was not restored after rerender');
-		const other = bases.find(base => base.dataset.basedirId === process.argv[3]);
-		assert(other && other.querySelector('.sidebar-projects').hidden, 'other basedir should start collapsed');
+		const pathLink = dom.window.document.querySelector('.basedir-path');
+		pathLink.dataset.fullPath = '/very/long/base/directory/with/a/unique-ending';
+		Object.defineProperty(pathLink, 'clientWidth', {configurable: true, value: 48});
+		Object.defineProperty(pathLink, 'scrollWidth', {configurable: true, get() { return this.textContent.length * 8; }});
+		dom.window.fitBasedirPaths(dom.window.document.querySelector('.sidebar'));
+		assert(pathLink.textContent.startsWith('/v') && pathLink.textContent.endsWith('ng') && pathLink.textContent.includes('…'), 'basedir path should preserve both ends when shortened');
+		const other = [...dom.window.document.querySelectorAll('#sidebar-basedirs > .basedir-entry')].find(base => base.dataset.basedirId === process.argv[3]);
+		assert(other && other.querySelector(':scope > .sidebar-projects').hidden, 'other basedir should start collapsed');
 		other.querySelector('.sidebar-toggle').click();
 		await new Promise(resolve => setTimeout(resolve, 0));
 		const link = [...dom.window.document.querySelectorAll('#sidebar-basedirs a')].find(anchor => anchor.textContent.trim() === 'other-project');
@@ -1525,6 +1543,13 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 		if !strings.Contains(response.Body.String(), want) {
 			t.Fatalf("GET /jobs/ response does not contain %q: %s", want, response.Body.String())
 		}
+	}
+	body := response.Body.String()
+	allProjectsIndex := strings.Index(body, `>All projects</a>`)
+	projectListIndex := strings.Index(body, `class="sidebar-projects project-list"`)
+	jobActivityIndex := strings.Index(body, `href="/jobs/">Job activity</a>`)
+	if allProjectsIndex < 0 || projectListIndex <= allProjectsIndex || jobActivityIndex <= projectListIndex {
+		t.Fatalf("Job activity sidebar order is invalid: All projects=%d project list=%d Job activity=%d", allProjectsIndex, projectListIndex, jobActivityIndex)
 	}
 }
 

@@ -224,36 +224,39 @@ func writeJobsBasedirEntry(builder *strings.Builder, homePath string, currentPro
 	active := entry.ID == activeID
 	basePath := jobsBasedirHomePath(homePath, entry, active)
 	projectNames := jobsBasedirProjects(entry, active, currentProjects)
-	builder.WriteString(`<div class="sidebar-project`)
+	builder.WriteString(`<div class="sidebar-project basedir-entry`)
 	if active {
 		builder.WriteString(` expanded`)
 	}
-	builder.WriteString(`"><div class="sidebar-project-row"><button type="button" class="sidebar-toggle" aria-expanded="`)
+	builder.WriteString(`" data-basedir-id="`)
+	builder.WriteString(html.EscapeString(entry.ID))
+	builder.WriteString(`"><div class="sidebar-project-row basedir-row"><button type="button" class="sidebar-toggle" aria-expanded="`)
 	builder.WriteString(strconv.FormatBool(active))
-	builder.WriteString(`" aria-label="Toggle projects" onclick="toggleJobsSidebar(this)"></button><a class="sidebar-project-link basedir-path" title="`)
+	builder.WriteString(`" aria-label="Toggle projects" onclick="toggleJobsSidebar(this)"></button><a class="sidebar-project-link basedir-path" data-full-path="`)
+	builder.WriteString(html.EscapeString(entry.Path))
+	builder.WriteString(`" title="`)
 	builder.WriteString(html.EscapeString(entry.Path))
 	builder.WriteString(`" href="`)
 	builder.WriteString(html.EscapeString(basePath))
 	builder.WriteString(`">`)
 	builder.WriteString(html.EscapeString(entry.Path))
-	builder.WriteString(`</a></div><div class="sidebar-projects"`)
+	builder.WriteString(`</a></div><div class="sidebar-projects basedir-contents"`)
 	if !active {
 		builder.WriteString(` hidden`)
 	}
-	builder.WriteString(`><a class="sidebar-run" href="`)
+	builder.WriteString(`><div class="sidebar-project expanded all-projects"><div class="sidebar-project-row"><button type="button" class="sidebar-toggle" aria-expanded="true" aria-label="Toggle project list" onclick="toggleJobsSidebar(this)"></button><a class="sidebar-project-link" href="`)
 	builder.WriteString(html.EscapeString(basePath))
-	builder.WriteString(`">All projects</a>`)
-	builder.WriteString(`<a class="sidebar-run`)
+	builder.WriteString(`">All projects</a></div><div class="sidebar-projects project-list">`)
+	for _, project := range projectNames {
+		writeJobsBasedirProject(builder, basePath, project)
+	}
+	builder.WriteString(`</div></div><a class="sidebar-run`)
 	if active {
 		builder.WriteString(` active`)
 	}
 	builder.WriteString(`" href="`)
 	builder.WriteString(html.EscapeString(basePath))
-	builder.WriteString(`jobs/">Job activity</a>`)
-	for _, project := range projectNames {
-		writeJobsBasedirProject(builder, basePath, project)
-	}
-	builder.WriteString(`</div></div>`)
+	builder.WriteString(`jobs/">Job activity</a></div></div>`)
 }
 
 func jobsBasedirHomePath(homePath string, entry webBaseDir, active bool) string {

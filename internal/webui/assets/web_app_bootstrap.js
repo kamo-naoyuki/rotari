@@ -79,5 +79,6 @@ render = function () {
   applyBasedirLinks();
 };
 window.addEventListener("popstate", render);
+initSidebarResizer();
 refresh();
 setInterval(refresh, 2000);

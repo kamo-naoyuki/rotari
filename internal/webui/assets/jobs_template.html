@@ -10,7 +10,7 @@
     </style>
   </head>
   <body>
-    <main>
+    <main class="jobs-main">
       <nav class="sidebar" aria-label="Primary navigation">
         <a
           class="sidebar-brand"
@@ -29,6 +29,13 @@
         </div>
         __ROTARI_JOBS_PROJECTS__
       </nav>
+      <div
+        class="sidebar-resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        tabindex="0"
+      ></div>
       <div class="content">
         <header>
           <div>
@@ -60,6 +67,87 @@
           ),
         { passive: true },
       );
+      const jobsResizeHandle = document.querySelector(".sidebar-resizer");
+      function applyJobsSidebarWidth() {
+        if (window.innerWidth <= 760) {
+          jobsSidebar.style.width = "";
+          return;
+        }
+        const jobsSavedWidth = Number(
+          localStorage.getItem("rotari-sidebar-width"),
+        );
+        if (Number.isFinite(jobsSavedWidth) && jobsSavedWidth > 0)
+          jobsSidebar.style.width =
+            Math.max(190, Math.min(520, jobsSavedWidth)) + "px";
+      }
+      applyJobsSidebarWidth();
+      window.addEventListener("resize", applyJobsSidebarWidth);
+      function fitJobsBasedirPaths() {
+        jobsSidebar
+          .querySelectorAll(".basedir-path[data-full-path]")
+          .forEach((link) => {
+            const path = link.dataset.fullPath;
+            link.textContent = path;
+            if (link.scrollWidth <= link.clientWidth) return;
+            let low = 0;
+            let high = path.length;
+            let best = "…";
+            while (low <= high) {
+              const kept = Math.floor((low + high) / 2);
+              const start = Math.ceil(kept / 2);
+              const end = Math.floor(kept / 2);
+              const candidate =
+                path.slice(0, start) + "…" + (end ? path.slice(-end) : "");
+              link.textContent = candidate;
+              if (link.scrollWidth <= link.clientWidth) {
+                best = candidate;
+                low = kept + 1;
+              } else {
+                high = kept - 1;
+              }
+            }
+            link.textContent = best;
+          });
+      }
+      new ResizeObserver(fitJobsBasedirPaths).observe(jobsSidebar);
+      jobsResizeHandle.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        const startX = event.clientX;
+        const startWidth = jobsSidebar.getBoundingClientRect().width;
+        jobsResizeHandle.classList.add("dragging");
+        const move = (moveEvent) => {
+          const width = Math.max(
+            190,
+            Math.min(520, startWidth + moveEvent.clientX - startX),
+          );
+          jobsSidebar.style.width = width + "px";
+          localStorage.setItem("rotari-sidebar-width", String(width));
+          fitJobsBasedirPaths();
+        };
+        const end = () => {
+          jobsResizeHandle.classList.remove("dragging");
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", end);
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", end);
+      });
+      jobsResizeHandle.addEventListener("keydown", (event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        const direction = event.key === "ArrowRight" ? 1 : -1;
+        const width = Math.max(
+          190,
+          Math.min(
+            520,
+            jobsSidebar.getBoundingClientRect().width + direction * 12,
+          ),
+        );
+        jobsSidebar.style.width = width + "px";
+        localStorage.setItem("rotari-sidebar-width", String(width));
+        fitJobsBasedirPaths();
+      });
+      fitJobsBasedirPaths();
 
       function copyJobsValueFallback(value) {
         const input = document.createElement("textarea");

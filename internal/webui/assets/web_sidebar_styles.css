@@ -14,7 +14,7 @@
   min-height: 520px;
   overflow-x: hidden;
   overflow-y: auto;
-  resize: horizontal;
+  resize: none;
   padding: 26px 14px 22px;
   border-right: 1px solid rgba(83, 105, 125, 0.22);
   background: rgba(11, 17, 24, 0.76);
@@ -278,6 +278,10 @@
     display: none;
   }
 
+  .sidebar-resizer {
+    display: none;
+  }
+
   .sidebar-link {
     flex: 0 0 auto;
     white-space: nowrap;
@@ -293,4 +297,42 @@
   .sidebar-project-row {
     white-space: nowrap;
   }
+}
+
+.sidebar-resizer {
+  position: relative;
+  z-index: 4;
+  flex: 0 0 12px;
+  align-self: stretch;
+  margin-left: -14px;
+  margin-right: -14px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+main.web-main .sidebar-resizer {
+  margin-left: -6px;
+  margin-right: -6px;
+}
+
+.sidebar-resizer::after {
+  position: absolute;
+  top: 0;
+  right: 3px;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+  content: "";
+  transition: background 120ms ease;
+}
+
+.sidebar-resizer:hover::after,
+.sidebar-resizer:focus-visible::after,
+.sidebar-resizer.dragging::after {
+  background: rgba(240, 139, 112, 0.78);
+}
+
+.basedir-path {
+  direction: ltr;
+  text-align: left;
 }

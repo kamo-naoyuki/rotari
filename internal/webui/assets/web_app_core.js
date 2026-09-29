@@ -98,6 +98,7 @@ function render() {
 }
 const expandedSidebarProjects = {};
 const expandedSidebarBasedirs = {};
+const expandedSidebarAllProjects = {};
 const remoteProjectsByBasedir = {};
 function sidebarRunLinksHTML(q, isActive, activeRun, basedirID) {
   const runs = (q.runs || [])
@@ -196,38 +197,128 @@ function sidebarBasedirHTML(
       .map((name) => sidebarProjectLink(name, entry.id, false))
       .join("");
   }
-  const pathParts = entry.path.split("/").filter(Boolean);
-  const title = pathParts.length ? pathParts[pathParts.length - 1] : entry.path;
+  if (!Object.hasOwn(expandedSidebarAllProjects, entry.id))
+    expandedSidebarAllProjects[entry.id] = true;
+  const allProjectsExpanded = !!expandedSidebarAllProjects[entry.id];
   return (
     '<div class="sidebar-project basedir-entry' +
     (isExpanded ? " expanded" : "") +
     '" data-basedir-id="' +
     entry.id +
-    '"><div class="sidebar-project-row"><button type="button" class="sidebar-toggle" aria-expanded="' +
+    '"><div class="sidebar-project-row basedir-row"><button type="button" class="sidebar-toggle" aria-expanded="' +
     (isExpanded ? "true" : "false") +
     '" aria-label="Toggle projects" onclick="toggleSidebarBasedir(this)"></button><a class="sidebar-project-link' +
     (isActive ? " active" : "") +
-    ' basedir-path basedir-switch" title="' +
+    ' basedir-path basedir-switch" data-full-path="' +
+    esc(entry.path) +
+    '" title="' +
     esc(entry.path) +
     '" href="' +
     basedirURL(entry.id, "/") +
     '">' +
     esc(entry.path) +
-    '</a></div><div class="sidebar-projects"' +
-    (isExpanded ? "" : " hidden") +
-    '><a class="sidebar-run' +
-    (isActive && !activeProject ? " active" : "") +
-    ' basedir-switch" href="' +
+    '</a></div><div class="sidebar-projects basedir-contents"' +
+    (isExpanded ? ">" : " hidden>") +
+    '<div class="sidebar-project all-projects' +
+    (allProjectsExpanded ? " expanded" : "") +
+    '"><div class="sidebar-project-row"><button type="button" class="sidebar-toggle" aria-expanded="' +
+    (allProjectsExpanded ? "true" : "false") +
+    '" aria-label="Toggle project list" onclick="toggleSidebarAllProjects(this)"></button><a class="sidebar-project-link basedir-switch' +
+    (isActive && !activeProject && !isJobsPage ? " active" : "") +
+    '" href="' +
     basedirURL(entry.id, "/") +
-    '">All projects</a>' +
-    '<a class="sidebar-run' +
+    '">All projects</a></div><div class="sidebar-projects project-list"' +
+    (allProjectsExpanded ? "" : " hidden") +
+    ">" +
+    projectLinks +
+    '</div></div><a class="sidebar-run' +
     (isActive && isJobsPage ? " active" : "") +
     ' basedir-switch" href="' +
     basedirURL(entry.id, "/jobs/") +
-    '">Job activity</a>' +
-    projectLinks +
-    "</div></div>"
+    '">Job activity</a></div></div>'
   );
+}
+function fitBasedirPaths(sidebar) {
+  sidebar.querySelectorAll(".basedir-path[data-full-path]").forEach((link) => {
+    const path = link.dataset.fullPath;
+    link.textContent = path;
+    if (link.scrollWidth <= link.clientWidth) return;
+    let low = 0;
+    let high = path.length;
+    let best = "…";
+    while (low <= high) {
+      const kept = Math.floor((low + high) / 2);
+      const start = Math.ceil(kept / 2);
+      const end = Math.floor(kept / 2);
+      const candidate =
+        path.slice(0, start) + "…" + (end ? path.slice(-end) : "");
+      link.textContent = candidate;
+      if (link.scrollWidth <= link.clientWidth) {
+        best = candidate;
+        low = kept + 1;
+      } else {
+        high = kept - 1;
+      }
+    }
+    link.textContent = best;
+  });
+}
+function initSidebarResizer() {
+  const sidebar = document.querySelector(".sidebar");
+  const handle = document.querySelector(".sidebar-resizer");
+  if (!sidebar || !handle) return;
+  const applySavedWidth = () => {
+    if (window.innerWidth <= 760) {
+      sidebar.style.width = "";
+      return;
+    }
+    const savedWidth = Number(localStorage.getItem("rotari-sidebar-width"));
+    if (Number.isFinite(savedWidth) && savedWidth > 0)
+      sidebar.style.width = Math.max(190, Math.min(520, savedWidth)) + "px";
+  };
+  applySavedWidth();
+  window.addEventListener("resize", applySavedWidth);
+  const resizeObserver =
+    typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(() => fitBasedirPaths(sidebar));
+  if (resizeObserver) resizeObserver.observe(sidebar);
+  else window.addEventListener("resize", () => fitBasedirPaths(sidebar));
+  handle.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = sidebar.getBoundingClientRect().width;
+    handle.classList.add("dragging");
+    const move = (moveEvent) => {
+      const width = Math.max(
+        190,
+        Math.min(520, startWidth + moveEvent.clientX - startX),
+      );
+      sidebar.style.width = width + "px";
+      localStorage.setItem("rotari-sidebar-width", String(width));
+      fitBasedirPaths(sidebar);
+    };
+    const end = () => {
+      handle.classList.remove("dragging");
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+  });
+  handle.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const direction = event.key === "ArrowRight" ? 1 : -1;
+    const width = Math.max(
+      190,
+      Math.min(520, sidebar.getBoundingClientRect().width + direction * 12),
+    );
+    sidebar.style.width = width + "px";
+    localStorage.setItem("rotari-sidebar-width", String(width));
+    fitBasedirPaths(sidebar);
+  });
+  fitBasedirPaths(sidebar);
 }
 function renderSidebar(queues) {
   const container = document.getElementById("sidebar-basedirs");
@@ -261,15 +352,20 @@ function renderSidebar(queues) {
       { passive: true },
     );
   }
+  const savedLocationKey = sidebarScrollKey + ":location";
+  const previousLocation = sessionStorage.getItem(savedLocationKey);
+  const locationChanged = previousLocation !== location.pathname;
+  sessionStorage.setItem(savedLocationKey, location.pathname);
   const storedScroll = Number(sessionStorage.getItem(sidebarScrollKey));
   sidebar.scrollTop = Number.isFinite(storedScroll) ? storedScroll : scrollTop;
+  fitBasedirPaths(sidebar);
   const activeItem =
     sidebar.querySelector(".sidebar-run.active") ||
     sidebar.querySelector(
       ".sidebar-project:not(.basedir-entry) .sidebar-project-link.active",
     ) ||
     sidebar.querySelector(".sidebar-project-link.active");
-  if (activeItem) {
+  if (activeItem && locationChanged) {
     const sidebarBounds = sidebar.getBoundingClientRect();
     const itemBounds = activeItem.getBoundingClientRect();
     if (itemBounds.top < sidebarBounds.top)
@@ -309,6 +405,13 @@ function toggleSidebarProject(button) {
   const project = button.closest(".sidebar-project");
   const key = project.dataset.basedirId + "/" + project.dataset.projectName;
   expandedSidebarProjects[key] =
+    button.getAttribute("aria-expanded") !== "true";
+  renderSidebar(state ? state.projects || [] : []);
+}
+function toggleSidebarAllProjects(button) {
+  const basedir = button.closest(".basedir-entry");
+  const id = basedir.dataset.basedirId;
+  expandedSidebarAllProjects[id] =
     button.getAttribute("aria-expanded") !== "true";
   renderSidebar(state ? state.projects || [] : []);
 }
