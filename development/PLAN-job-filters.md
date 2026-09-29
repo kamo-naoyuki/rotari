@@ -11,8 +11,10 @@
 - 実行ホスト、開始・終了時刻、継続時間
 - ジョブ定義の変更（fingerprint）
 - 宣言した入出力ファイルの鮮度（make 的な判定）
-- 汎用の否定 `--not`
+- 否定（`--filter-not-*`）
 - `cancel`、`suspend`、`resume` へのフィルター適用
+
+フィルターのオプションはすべて `--filter-*` という名前にする。
 
 対象は CLI と、CLI の schema から生成される Python client である。
 Web UI / Web API への反映は別計画とする。
@@ -78,46 +80,72 @@ Direct selector は result filter と scope のどちらとも組み合わせら
 
 ## 決定事項
 
+### オプションの命名
+
+- フィルターのオプションはすべて `--filter-<key>` という名前にする。
+  - 将来 `--host` や `--timeout` のような設定用のオプションを足しても衝突しない。
+  - 接頭辞で、フィルターのオプションだとひと目でわかる。
+  - `>` や `!` を使わないので、シェルで quote する必要がない。
+  - 普通の flag なので、既存の補完と `--help` の仕組みがそのまま使える。
+  - Python client では `filter_exit_code=3` のように kwargs で書ける。
+- 否定は `--filter-not-<key>` とする。汎用の `--not` は設けない。
+  - 例: `--filter-not-host node12`、`--filter-not-diagnosis cuda-oom`
+  - Python client では `filter_not_host=`。
+- 既存の result filter と scope にも `--filter-*` の形を用意し、既存のオプションは省略形として残す。これで「フィルターはすべて `--filter-*` で書ける」という規則に例外がなくなる。
+
+  | 省略形（既存） | `--filter-*` |
+  | --- | --- |
+  | `--failed`、`--unfinished`、`--success` | `--filter-result failed\|unfinished\|success` |
+  | `--stage NAME` | `--filter-stage NAME` |
+  | `--matrix NAME` | `--filter-matrix NAME` |
+
+  - `--filter-not-stage` と `--filter-not-matrix` は `--filter-*` の形にだけ置く。
+  - 省略形と `--filter-*` の形を両方指定したときは、同じオプションを繰り返したものとして扱う。
+- Direct selector（`--job-id`、`--job-name`）はフィルターではないので、名前を変えない。
+
+### help
+
+- `--help` では、`--filter-*` を「Filters」という見出しにまとめて表示する。そのコマンドで使えるものだけを載せる。
+  - [cmd/rotari/cli_spec.go](../cmd/rotari/cli_spec.go) にオプションをグループ分けする仕組みがなければ追加する。
+- CLI reference と shell 補完は、同じ CLI spec から生成されるので自動的に対応する。
+  - CLI reference でも Filters をまとめて表示する。
+
 ### 組み合わせ
 
-- 同じオプションを繰り返したときは、肯定値の OR をとる。
-- 否定値（後述の `--not`）は、そのすべてに一致しないことを条件とする（AND NOT）。
-  - 例: `--diagnosis a --diagnosis b --not --diagnosis c` は「(a または b) かつ c でない」。
+- 同じオプションを繰り返したときは、値の OR をとる。
+- `--filter-not-<key>` の値は、そのすべてに一致しないことを条件とする（AND NOT）。
+  - 例: `--filter-diagnosis a --filter-diagnosis b --filter-not-diagnosis c` は「(a または b) かつ c でない」。
 - 異なるオプションどうしは AND で組み合わせる。
-- result filter どうしは従来どおり OR。
+  - 例外: result filter どうし（`--failed --unfinished`）は従来どおり OR。`--filter-result` の繰り返しと同じ意味である。
 - Direct selector は、この計画で追加するものを含むすべてのフィルターと排他にする（SEL-8 の延長）。
 - 時刻と継続時間のオプションは繰り返せない。繰り返すとエラーにする。
+
+### 否定できるオプション
+
+- `--filter-not-<key>` があるのは次のオプション。
+  - `stage`、`matrix`、`command`、`exit-code`、`failure-kind`、`diagnosis`、`host`、`state`
+  - `changed`、`new`、`outdated`、`missing-output`（真偽の条件。例: `--filter-not-outdated`）
+- `result` と時刻・継続時間には否定を設けない。
+  - `result` は値の組み合わせで表せる。時刻と継続時間は after / before などの対がある。
 
 ### 属性がないジョブ
 
 属性が定義されないジョブは、肯定の条件にも否定の条件にも一致しない。
 
-- success のジョブには diagnosis がないので、`--diagnosis oom` にも `--not --diagnosis oom` にも一致しない。`--not --diagnosis oom` は、OOM と診断されなかった**失敗**ジョブだけを選ぶ。
-- 投入されていないジョブには host と開始時刻がないので、`--host` にも時刻の条件にも一致しない。
-- 出力を宣言していないジョブは、`--outdated` にも `--missing-output` にも一致しない。
+- success のジョブには diagnosis がないので、`--filter-diagnosis cuda-oom` にも `--filter-not-diagnosis cuda-oom` にも一致しない。`--filter-not-diagnosis cuda-oom` は、そう診断されなかった**失敗**ジョブだけを選ぶ。
+- 投入されていないジョブには host と開始時刻がないので、`--filter-host` にも時刻の条件にも一致しない。
+- 出力を宣言していないジョブは、`--filter-outdated` にも `--filter-not-outdated` にも一致しない。
 
 ### どの attempt で判定するか
 
 - 最新の attempt で判定する。ジョブの結果と同じ attempt である。
 - 参照 run で実行されず引き継いだジョブは、元の run（`JobOrigin`）の attempt の時刻、host、ログで判定する。
 
-### 否定
-
-- 汎用の `--not` が、直後の 1 つの条件を反転する。
-  - 例: `--not --stage prepare`、`--not --diagnosis oom`
-- 同じ意味の `--not-<name>` 形式も受け付ける。
-  - 例: `--not-stage prepare`、`--not-diagnosis oom`
-  - help と CLI reference には `--not` と `--not-<name>` の両方を載せる。
-  - Python client は `--not-<name>` を `not_<name>=` として使う。kwargs では順序に依存する `--not` を表せないためである。
-- `--not` を付けられるのは、この計画で追加する属性フィルターと、既存の `--stage`、`--matrix` である。
-  - result filter と時刻・継続時間のオプションには付けられない。後者は after / before などの対があるため不要である。
-- `--not` の直後が否定できないオプションか、引数の末尾ならエラーにする。
-
 ### 結果の細分化
 
-- `--exit-code N`
+- `--filter-exit-code N`
   - 終了したジョブの、解決済みの exit code に一致する。繰り返すと OR。
-- `--failure-kind KIND`
+- `--filter-failure-kind KIND`
   - KIND は `timeout`、`cancelled`、`blocked`、`oom`、`signal`、`error`。
   - 失敗したジョブだけが対象。1 つのジョブが複数の種類に該当してよい（例: `signal` かつ `oom`）。
   - 判定:
@@ -135,7 +163,7 @@ Direct selector は result filter と scope のどちらとも組み合わせら
 
 ### diagnosis
 
-- `--diagnosis VALUE` は、**現行のルール**で最新 attempt のログから再計算した結果で判定する。
+- `--filter-diagnosis VALUE` は、**現行のルール**で最新 attempt のログから再計算した結果で判定する。
   - run に保存された diagnosis は使わない。
 - 失敗したジョブだけが対象。
   - ログがなく診断できない（unavailable）ジョブと、どのルールにも一致しない（no_match）ジョブは、属性がないものとして扱う。
@@ -152,15 +180,15 @@ Direct selector は result filter と scope のどちらとも組み合わせら
 
 ### command の正規表現
 
-- `--command-regex RE`
+- `--filter-command RE`
   - Go の `regexp`（RE2）で、argv を空白で連結した文字列に照合する。
 - ジョブの定義だけを見る条件なので、`show`、`copy`、`run`、`retry` に加えて `change`、`remove` でも使える。
-  - `change` と `remove` では `--stage`、`--matrix` と AND で組み合わせる。`--all` と job selector とは排他にする。
-  - `--stage` と `--matrix` が互いに排他であることは変えない。
+  - `change` と `remove` では stage、matrix の条件と AND で組み合わせる。`--all` と job selector とは排他にする。
+  - `change` と `remove` で stage と matrix が互いに排他であることは変えない。
 
 ### host
 
-- `--host PATTERN`
+- `--filter-host PATTERN`
   - glob（`path.Match`）で、最新 attempt の hosts のどれかに一致すればよい。
 
 ### 時刻と継続時間
@@ -170,21 +198,21 @@ Direct selector は result filter と scope のどちらとも組み合わせら
   - 終了: `finished_at`
   - 継続時間: 終了 − 開始。実行中のジョブは「現在時刻 − 開始」。
 - オプション:
-  - `--started-after`、`--started-before`
-  - `--finished-after`、`--finished-before`
-  - `--longer-than`、`--shorter-than`
+  - `--filter-started-after`、`--filter-started-before`
+  - `--filter-finished-after`、`--filter-finished-before`
+  - `--filter-longer-than`、`--filter-shorter-than`
 - 境界: after と longer-than は「以上」、before と shorter-than は「未満」。
 - 時刻の書式:
   - 絶対時刻: `2006-01-02`、`2006-01-02T15:04`、`2006-01-02T15:04:05`、RFC3339。タイムゾーンを省略するとローカル時刻。
-  - 相対時刻: Go の duration に `d`（24 時間）を加えたもの。現在時刻から遡った時刻を表す（例: `--finished-after 2d`）。
+  - 相対時刻: Go の duration に `d`（24 時間）を加えたもの。現在時刻から遡った時刻を表す（例: `--filter-finished-after 2d`）。
 - 現在時刻は、コマンドの開始時に 1 回だけ固定する。
-- 時間帯を表す `--active-during` は設けない。「22:00〜02:00 に動いていた」は `--started-before` と `--finished-after` の組み合わせで書く。
+- 時間帯を表す `--active-during` は設けない。「22:00〜02:00 に動いていた」は `--filter-started-before` と `--filter-finished-after` の組み合わせで書く。
 
 ### ジョブ定義の変更
 
-- `--changed`
+- `--filter-changed`
   - 参照 run に対応するジョブがあり、fingerprint が異なるジョブ。
-- `--new`
+- `--filter-new`
   - 参照 run に対応するジョブがないジョブ。
 - 対応付けと参照 run の決め方は、既存の `--match-by` と `FingerprintReferenceRun` に従う。
 - 使えるコマンドは `run`、`retry`、`show`（queue の表示）。
@@ -200,8 +228,9 @@ Direct selector は result filter と scope のどちらとも組み合わせら
   - `${VAR}` を、明示された env、matrix の値、`ROTARI_ARRAY_TASK_ID` で展開する。
   - 展開後に glob を適用する。
 - 判定は mtime で行う（make と同じ）。
-  - `--outdated`: 出力が 1 つも存在しない、または最も古い出力より新しい入力がある。
-  - `--missing-output`: 宣言した出力のどれかが存在しない。
+  - `--filter-outdated`: 出力が 1 つも存在しない、または最も古い出力より新しい入力がある。
+  - `--filter-missing-output`: 宣言した出力のどれかが存在しない。
+  - `add --input` と `add --output` はジョブの設定であり、フィルターではないので `--filter-` を付けない。
   - 入力が 0 件（パスが存在しない、または glob が何にも一致しない）ならエラーにする。
 - 評価は呼び出し元のホストで行う。
   - SSH や scheduler の executor では、ファイルが共有 FS で見えることが前提となる。この前提は文書に明記する。
@@ -212,13 +241,14 @@ Direct selector は result filter と scope のどちらとも組み合わせら
 
 ### cancel、suspend、resume
 
-- 受け付けるフィルター:
-  - `--stage`、`--matrix`、`--job-name`
-  - `--command-regex`、`--host`
-  - `--started-after`、`--started-before`、`--longer-than`、`--shorter-than`
-  - `--pending`、`--running`（互いに OR）
-  - `--not`
-- `suspend` と `resume` は実行中のジョブしか扱わないので、`--pending` を受け付けない。
+- 受け付けるオプション:
+  - Direct selector として `--job-name` を追加する。
+  - `--stage`、`--matrix`（省略形）と `--filter-stage`、`--filter-matrix`
+  - `--filter-command`、`--filter-host`
+  - `--filter-started-after`、`--filter-started-before`、`--filter-longer-than`、`--filter-shorter-than`
+  - `--filter-state running|pending`（繰り返すと OR）
+  - 上記のうち否定できるものの `--filter-not-*`
+- `suspend` と `resume` は実行中のジョブしか扱わないので、`--filter-state pending` を受け付けない。
 - 一致が 0 件ならエラーにする。run 全体の cancel にはしない。
 - 確認:
   - TTY では対象の一覧を表示して確認する。
@@ -230,20 +260,23 @@ Direct selector は result filter と scope のどちらとも組み合わせら
 
 ### 各コマンドで使えるフィルター
 
+表の `--filter-` は省略している。否定できるものは、同じコマンドで `--filter-not-*` も使える。
+
 | フィルター | `show` | `copy` | `run`、`retry` | `change`、`remove` | `cancel` | `suspend`、`resume` |
 | --- | --- | --- | --- | --- | --- | --- |
-| result filter（既存） | ○ | ○ | ○ | – | – | – |
-| `--stage`、`--matrix`（否定を追加） | ○ | ○ | ○ | ○ | ○ | ○ |
-| `--job-name`（Direct） | ○ | ○ | ○ | ○ | ○ | ○ |
-| `--command-regex` | ○ | ○ | ○ | ○ | ○ | ○ |
-| `--exit-code`、`--failure-kind` | ○ | ○ | ○ | – | – | – |
-| `--diagnosis` | ○ | ○ | ○ | – | – | – |
-| `--host` | ○ | ○ | ○ | – | ○ | ○ |
-| `--started-*`、`--longer-than`、`--shorter-than` | ○ | ○ | ○ | – | ○ | ○ |
-| `--finished-*` | ○ | ○ | ○ | – | – | – |
-| `--changed`、`--new` | ○（queue の表示） | – | ○ | – | – | – |
-| `--outdated`、`--missing-output` | ○ | ○ | ○ | – | – | – |
-| `--pending`、`--running` | – | – | – | – | ○ | `--running` のみ |
+| `result`（省略形 `--failed` など） | ○ | ○ | ○ | – | – | – |
+| `stage`、`matrix`（省略形 `--stage` など） | ○ | ○ | ○ | ○ | ○ | ○ |
+| `command` | ○ | ○ | ○ | ○ | ○ | ○ |
+| `exit-code`、`failure-kind` | ○ | ○ | ○ | – | – | – |
+| `diagnosis` | ○ | ○ | ○ | – | – | – |
+| `host` | ○ | ○ | ○ | – | ○ | ○ |
+| `started-*`、`longer-than`、`shorter-than` | ○ | ○ | ○ | – | ○ | ○ |
+| `finished-*` | ○ | ○ | ○ | – | – | – |
+| `changed`、`new` | ○（queue の表示） | – | ○ | – | – | – |
+| `outdated`、`missing-output` | ○ | ○ | ○ | – | – | – |
+| `state` | – | – | – | – | ○ | `running` のみ |
+
+Direct selector の `--job-name` は、この表のすべてのコマンドで使える（`cancel`、`suspend`、`resume` では新規）。
 
 `show` は、run の結果を見るフィルターが指定されると、`--failed` と同じように queue を読み飛ばす。
 
@@ -276,13 +309,13 @@ cmd/rotari ──> internal/run, internal/queueedit, internal/jobcontrol ──>
 `CopyRequest.Selection` などの文字列 selection は `jobfilter.Filter` に置き換える。
 Web の `/api/copy` はこの計画では変えず、今の `selection` の値を adapter で `Filter` に変換する。
 
-### CLI の否定
+### CLI への登録
 
-- `--not` を、次に解析される条件に反転を伝える共有状態を持つ `flag.Value` として実装する。
-- 否定できる各オプションに対応する `--not-<name>` を自動で登録する。
-- Go の `flag` package はオプションを出現順に `Set` するので、順序に依存する `--not` を実装できる。
-  - ただし、位置引数を並べ替える処理がある場合に出現順が保たれるかを、Phase 1 の最初に確認する。
-  - 保たれない場合は、`--not-<name>` の形だけにするかを相談する。
+- `jobfilter` にキーの表を持たせる。各キーは、名前、値の形、否定できるか、繰り返せるか、使えるコマンド、help の説明を持つ。
+- `cmd/rotari` はこの表から、各コマンドに `--filter-<key>` と `--filter-not-<key>` を登録する。
+  - help、CLI reference、shell 補完、Python 用の schema は、すべてこの登録から生成される。
+  - 省略形（`--failed`、`--stage` など）は、対応する `--filter-*` と同じ値に書き込む。
+- 将来の Web API も同じ表を使える。
 
 ## 実装の手順
 
@@ -292,41 +325,42 @@ Web の `/api/copy` はこの計画では変えず、今の `selection` の値�
 
 1. `internal/jobfilter` を新設し、`Filter`、`Facts`、評価関数、組み合わせの検証を実装する。
 2. `showJobFilter`、`PlanRerun`、`CopyRequest`、`planRerunSelection` を `jobfilter.Filter` に置き換える。
-3. `--not` と `--not-<name>` の仕組みを `cli_spec.go` に追加し、`--stage` と `--matrix` の否定を有効にする。
-4. `go test ./conformance` が、テストを変更せずに通ることを確認する。
+3. `jobfilter` のキーの表と、そこから `--filter-*` と `--filter-not-*` を登録する仕組みを実装する。help の「Filters」の見出しもここで追加する。
+4. `--filter-result`、`--filter-stage`、`--filter-matrix`、`--filter-not-stage`、`--filter-not-matrix` を追加し、既存のオプションをその省略形にする。
+5. `go test ./conformance` が、テストを変更せずに通ることを確認する。
 
 ### Phase 2: 定義系
 
-5. `--command-regex` を追加する（`show`、`copy`、`run`、`retry`、`change`、`remove`）。
+6. `--filter-command` を追加する（`show`、`copy`、`run`、`retry`、`change`、`remove`）。
 
 ### Phase 3: 結果の細分化
 
-6. `jobstatus` に失敗の種類を判定する関数を追加する。
-7. `--exit-code` と `--failure-kind` を追加する。
+7. `jobstatus` に失敗の種類を判定する関数を追加する。
+8. `--filter-exit-code` と `--filter-failure-kind` を追加する。
 
 ### Phase 4: 実行の属性
 
-8. `started_at` を読む関数を `state` か `jobstatus` に追加する（Origin への fallback を含む）。
-9. 時刻の解釈を `jobfilter` に実装する。
-10. `--host`、`--started-*`、`--finished-*`、`--longer-than`、`--shorter-than` を追加する。
+9. `started_at` を読む関数を `state` か `jobstatus` に追加する（Origin への fallback を含む）。
+10. 時刻の解釈を `jobfilter` に実装する。
+11. `--filter-host`、`--filter-started-*`、`--filter-finished-*`、`--filter-longer-than`、`--filter-shorter-than` を追加する。
 
 ### Phase 5: diagnosis
 
-11. ルールに slug ID を追加する。
-12. `--diagnosis` を追加する（現行のルールで再計算する）。
+12. ルールに slug ID を追加する。
+13. `--filter-diagnosis` を追加する（現行のルールで再計算する）。
 
 ### Phase 6: ジョブ定義の変更
 
-13. `--changed` と `--new` を追加する。
+14. `--filter-changed` と `--filter-new` を追加する。
 
 ### Phase 7: ジョブ制御
 
-14. `cancel`、`suspend`、`resume` にフィルター、`--pending`、`--running`、`--yes`、確認プロンプトを追加する。
+15. `cancel`、`suspend`、`resume` に `--job-name`、フィルター、`--filter-state`、`--yes`、確認プロンプトを追加する。
 
 ### Phase 8: 入出力の宣言
 
-15. `QueuedCommand` と `JobSpec` に入出力を追加し、`add` と `change` のオプション、fingerprint への反映を実装する。
-16. `--outdated` と `--missing-output` を追加する。
+16. `QueuedCommand` と `JobSpec` に入出力を追加し、`add` と `change` のオプション、fingerprint への反映を実装する。
+17. `--filter-outdated` と `--filter-missing-output` を追加する。
 
 ### 各 phase で行うこと
 
@@ -354,7 +388,9 @@ Web の `/api/copy` はこの計画では変えず、今の `selection` の値�
 - conformance
   - [conformance/06-selectors/selector_cases_test.go](../conformance/06-selectors/selector_cases_test.go) に行を追加し、`covers(t, "SEL-n")` で契約の ID と対応させる。
   - [conformance/06-selectors/job_control_test.go](../conformance/06-selectors/job_control_test.go) に、フィルター付きの cancel、確認、`--yes` のテストを追加する。一致が 0 件のときに run 全体を cancel しないことのテストは必須。
-- `--outdated` と `--missing-output` は、一時ディレクトリで mtime を操作する単体テストで確認する。
+- `--filter-outdated` と `--filter-missing-output` は、一時ディレクトリで mtime を操作する単体テストで確認する。
+- 省略形と `--filter-*` の形が同じ結果になることを確認する。
+- help に「Filters」の見出しが出て、そのコマンドで使えるフィルターだけが載ることを確認する。
 - 仕上げに pre-commit、`scripts/check.sh --short`、`scripts/check.sh` の順に実行する。
 
 ## スコープ外
@@ -364,5 +400,7 @@ Web の `/api/copy` はこの計画では変えず、今の `selection` の値�
 - `--active-during`
 - 入出力の宣言からの依存関係の推論
 - result filter と時刻・継続時間のオプションの否定
+- 汎用の `--not`。直後の条件を反転する案だったが、引数の順序に依存し、Python の kwargs で表せないため `--filter-not-*` にした。
+- `--filter KEY=VALUE` のような 1 つのオプションへの集約。オプションが探しにくく、`>` や `!` の quote が必要になるため `--filter-*` にした。
 - 保存済みの diagnosis による判定
 - ユーザー定義の述語コマンド（`--where-cmd`）。ジョブごとにシェルコマンドを実行して exit code で選ぶ案だったが、quoting がわかりにくく、ジョブ数だけプロセスを起動して遅く、入出力の宣言と用途が重なるため見送った。
