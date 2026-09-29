@@ -752,7 +752,7 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 	if !strings.Contains(jobsHTML, `class="sidebar-project-row"><span class="sidebar-toggle-placeholder"`) {
 		t.Fatal("Job activity project links do not use the shared sidebar row layout")
 	}
-	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-resizer {", ".basedir-notification-toggle {", "width: 14px !important;", "height: 14px !important;", "padding: 0;", ".basedir-contents {", "margin-left: 42px;", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "text-overflow: ellipsis;"} {
+	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-resizer {", ".basedir-notification-toggle {", ".basedir-notification-control {", ".basedir-notification-tooltip {", "width: 14px !important;", "height: 14px !important;", "padding: 0;", ".basedir-contents {", "margin-left: 42px;", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "text-overflow: ellipsis;"} {
 		if !strings.Contains(webSidebarStylesCSS, marker) {
 			t.Fatalf("shared sidebar style is missing %q", marker)
 		}
@@ -818,6 +818,7 @@ setTimeout(async () => {
 		assert(root && !root.querySelector(':scope > .basedir-contents').hidden, 'startup basedir should start expanded');
 		assert(root.querySelector('.basedir-notification-toggle')?.checked, 'startup basedir should be monitored by default');
 		assert(root.querySelector('.basedir-notification-toggle')?.title === 'Disable notifications', 'enabled basedir checkbox should explain how to disable notifications');
+		assert(root.querySelector('.basedir-notification-tooltip')?.textContent === 'Disable notifications', 'notification hover text is missing');
 		assert(root.querySelector('.sidebar-project:not(.basedir-entry) .sidebar-project-link.active')?.textContent.trim() === 'root-project', 'selected project is not active in the sidebar');
 		root.querySelector(':scope > .basedir-row .sidebar-toggle').click();
 		root = dom.window.document.querySelector(rootSelector);

@@ -145,6 +145,37 @@
   cursor: pointer;
 }
 
+.basedir-notification-control {
+  position: relative;
+  display: block;
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  margin-right: 4px;
+}
+
+.basedir-notification-tooltip {
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 0;
+  z-index: 10;
+  display: none;
+  padding: 4px 7px;
+  border: 1px solid rgba(137, 164, 188, 0.35);
+  border-radius: 4px;
+  background: #182733;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.basedir-notification-control:hover .basedir-notification-tooltip,
+.basedir-notification-control:focus-within .basedir-notification-tooltip {
+  display: block;
+}
+
 .basedir-row .sidebar-toggle {
   margin-left: 0;
 }

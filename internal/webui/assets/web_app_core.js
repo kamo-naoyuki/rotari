@@ -135,10 +135,18 @@ function restoreNotificationBasedirs() {
         selected === null
           ? checkbox.closest(".basedir-entry").classList.contains("expanded")
           : selected.has(checkbox.dataset.basedirId);
-      checkbox.title = checkbox.checked
-        ? "Disable notifications"
-        : "Enable notifications";
+      updateNotificationTooltip(checkbox);
     });
+}
+function updateNotificationTooltip(checkbox) {
+  const text = checkbox.checked
+    ? "Disable notifications"
+    : "Enable notifications";
+  checkbox.title = text;
+  const tooltip = checkbox.parentElement.querySelector(
+    ".basedir-notification-tooltip",
+  );
+  if (tooltip) tooltip.textContent = text;
 }
 function toggleNotificationBasedir(checkbox) {
   const selected =
@@ -152,9 +160,7 @@ function toggleNotificationBasedir(checkbox) {
   else selected.delete(checkbox.dataset.basedirId);
   selectedNotificationBasedirIDsState = selected;
   localStorage.setItem(notificationBasedirsKey, JSON.stringify([...selected]));
-  checkbox.title = checkbox.checked
-    ? "Disable notifications"
-    : "Enable notifications";
+  updateNotificationTooltip(checkbox);
   if (typeof refreshOtherBasedirNotifications === "function")
     refreshOtherBasedirNotifications();
 }
@@ -263,9 +269,9 @@ function sidebarBasedirHTML(
     (isExpanded ? " expanded" : "") +
     '" data-basedir-id="' +
     entry.id +
-    '"><div class="sidebar-project-row basedir-row"><input class="basedir-notification-toggle" type="checkbox" data-basedir-id="' +
+    '"><div class="sidebar-project-row basedir-row"><span class="basedir-notification-control"><input class="basedir-notification-toggle" type="checkbox" data-basedir-id="' +
     entry.id +
-    '" aria-label="Monitor notifications for basedir" title="Enable notifications" onchange="toggleNotificationBasedir(this)" /><button type="button" class="sidebar-toggle" aria-expanded="' +
+    '" aria-label="Monitor notifications for basedir" title="Enable notifications" onchange="toggleNotificationBasedir(this)" /><span class="basedir-notification-tooltip">Enable notifications</span></span><button type="button" class="sidebar-toggle" aria-expanded="' +
     (isExpanded ? "true" : "false") +
     '" aria-label="Toggle projects" onclick="toggleSidebarBasedir(this)"></button><a class="sidebar-project-link' +
     (isActive ? " active" : "") +

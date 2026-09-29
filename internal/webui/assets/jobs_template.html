@@ -316,6 +316,17 @@
           }));
       }
 
+      function updateJobsNotificationTooltip(checkbox) {
+        const text = checkbox.checked
+          ? "Disable notifications"
+          : "Enable notifications";
+        checkbox.title = text;
+        const tooltip = checkbox.parentElement.querySelector(
+          ".basedir-notification-tooltip",
+        );
+        if (tooltip) tooltip.textContent = text;
+      }
+
       function restoreJobsNotificationTargets() {
         const stored = localStorage.getItem(jobsNotificationBasedirsKey);
         let selected = stored === null ? null : new Set(JSON.parse(stored));
@@ -336,9 +347,7 @@
                   .closest(".basedir-entry")
                   .classList.contains("expanded")
               : selected.has(checkbox.dataset.basedirId);
-          checkbox.title = checkbox.checked
-            ? "Disable notifications"
-            : "Enable notifications";
+          updateJobsNotificationTooltip(checkbox);
         });
       }
 
@@ -398,9 +407,7 @@
       }
 
       async function toggleJobsNotificationBasedir(checkbox) {
-        checkbox.title = checkbox.checked
-          ? "Disable notifications"
-          : "Enable notifications";
+        updateJobsNotificationTooltip(checkbox);
         saveJobsNotificationTargets();
         const target = jobsNotificationTargets().find(
           (item) => item.id === checkbox.dataset.basedirId,
