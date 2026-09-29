@@ -58,7 +58,7 @@ flowchart LR
   run --> empty[(queue.json: empty)]
   empty -. next run .-> add
 
-  classDef command fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+  classDef command fill:#e0e7ff,stroke:#4f46e5,color:#1e1b4b
   class add,run command
 ```
 

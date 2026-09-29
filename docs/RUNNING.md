@@ -277,7 +277,7 @@ flowchart LR
   classDef execute fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
   classDef carried fill:#dcfce7,stroke:#16a34a,color:#14532d
   classDef unfinished fill:#fffbeb,stroke:#d97706,color:#78350f
-  classDef command fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+  classDef command fill:#e0e7ff,stroke:#4f46e5,color:#1e1b4b
   classDef success fill:#dcfce7,stroke:#16a34a,color:#14532d
   classDef failed fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
   class SourceA,SourceB,SourceC source
@@ -350,7 +350,7 @@ flowchart LR
   classDef execute fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
   classDef carried fill:#dcfce7,stroke:#16a34a,color:#14532d
   classDef unfinished fill:#fffbeb,stroke:#d97706,color:#78350f
-  classDef command fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+  classDef command fill:#e0e7ff,stroke:#4f46e5,color:#1e1b4b
   classDef success fill:#dcfce7,stroke:#16a34a,color:#14532d
   classDef failed fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
   class SourceA,SourceB source
@@ -635,9 +635,9 @@ flowchart LR
   resume([rotari resume]) -->|continue selected/all| active
   delete([rotari delete]) -->|delete saved runs| history
 
-  classDef edit fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
-  classDef control fill:#0f766e,stroke:#115e59,color:#ffffff
-  classDef destructive fill:#b91c1c,stroke:#7f1d1d,color:#ffffff
+  classDef edit fill:#e0e7ff,stroke:#4f46e5,color:#1e1b4b
+  classDef control fill:#ccfbf1,stroke:#0f766e,color:#134e4a
+  classDef destructive fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
   class add,change,run,copy edit
   class suspend,resume control
   class remove,cancel,delete destructive

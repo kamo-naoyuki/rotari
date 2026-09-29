@@ -36,7 +36,7 @@ flowchart LR
   webcli -->|"read, edit queue"| files
   nodes -->|write attempt status.json| files
 
-  classDef command fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+   classDef command fill:#e0e7ff,stroke:#4f46e5,color:#1e1b4b
   class runcli,direct,webcli command
 ```
 
