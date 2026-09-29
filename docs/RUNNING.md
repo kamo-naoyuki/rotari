@@ -149,17 +149,20 @@ calculated from the command, explicitly saved job inputs, and expanded array
 or matrix parameters; they are recalculated for each comparison rather than
 stored in queue or run files.
 
-The two workflows establish the source link differently. Copying a saved run
+The two workflows establish source links differently. Copying a saved run
 records an `Origin` for each copied job or task. A newly created queue has no
 such links, so `--match-by fingerprint` can match its execution units to a
 reference run. A fingerprint is a matching key, not a stored ID; an `Origin`
-points to the source run, job, and (when available) attempt. Result filters use
-that source result to decide whether to execute or carry it forward.
+points to the source run and job, and (when available) the attempt. Result
+filters use the source result to decide whether to execute a job or carry its
+result forward.
 
 When you want to retry selected jobs from a saved run, copy its queue first.
 The copied jobs keep links to their original results:
 
 ```sh
+rotari add -p sweep ...
+rotari run -p sweep # Run finished with some failed jobs.
 rotari copy -p sweep RUN_ID
 rotari run -p sweep --failed --unfinished
 ```
@@ -175,17 +178,20 @@ flowchart LR
   Filter -->|"no completed result"| Unfinished["Remain unfinished"]
 ```
 
-When you have created a new queue whose job IDs may differ from the latest
-run, use fingerprint matching to find equivalent jobs:
+If you create a new queue whose job IDs differ from those in the latest run,
+use fingerprint matching to find equivalent jobs:
 
 ```sh
-rotari add -p sweep -- ./train.sh --seed 42
+rotari add -p sweep ...
+rotari run -p sweep # Run finished with some failed jobs.
+# Add the same commands again to create a new queue with different job IDs.
+rotari add -p sweep ...
 rotari run -p sweep --failed --unfinished --match-by fingerprint
 ```
 
 ```mermaid
 flowchart LR
-  NewQueue["New queue<br/>no Origin IDs"] --> Match["Match against reference run<br/>--match-by fingerprint<br/>(default: Job ID, then fingerprint)"]
+  NewQueue["New queue<br/>without Origin links"] --> Match["Match against reference run<br/>--match-by fingerprint<br/>(default: Job ID, then fingerprint)"]
   Reference["Reference run<br/>commands.json + results"] --> Match
   Match -->|"fingerprint match"| Origin["Create Origin link<br/>source Run ID + Job ID + Attempt ID"]
   Origin --> Filter["run selection / result filter"]
