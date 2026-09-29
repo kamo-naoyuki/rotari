@@ -247,7 +247,7 @@ Add them with `--timeout DURATION`, for example `rotari add --timeout 2h -- pyth
 
 ### Can a job run after its prerequisites finish even if some failed?
 
-Yes. Use `--depends-on-finished NAME` instead of `--depends-on NAME`. The job starts once every listed job or stage member has a final result, including failed, blocked, or cancelled ones, which suits collecting partial sweep results or cleanup. A prerequisite that will still be retried by `run --retry` is not final yet. See [Dependencies and stages](CONCEPTS.md#dependencies-and-stages).
+Yes. Use `--depends-on-finished NAME` instead of `--depends-on NAME`. The job starts once every listed job or stage member has a final result, including failed, blocked, or cancelled ones, which suits collecting partial sweep results or cleanup. A prerequisite that will still be retried by `run --retry` is not final yet. See [Dependencies and stages](RUNNING.md#dependencies-and-stages).
 
 ### Can jobs wait for a whole stage instead of listing every prerequisite?
 

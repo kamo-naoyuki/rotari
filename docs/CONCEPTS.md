@@ -204,54 +204,12 @@ run of every project.
 
 ## Dependencies and stages
 
-Use `--depends-on NAME` to define prerequisites.
-Use a job's name as `NAME`; the job waits until that prerequisite succeeds.
-Repeat the option to require multiple prerequisites.
-
-For example, run `train.sh` only after `prepare.sh` completes successfully:
-
-```sh
-rotari add --job-name prepare -- ./prepare.sh
-rotari add --job-name train --depends-on prepare -- ./train.sh
-rotari run
-```
-
-For a barrier between batches of jobs, assign the jobs to a stage and depend on
-the stage name. Jobs in a stage run concurrently; a dependent job starts only
-after every job in the stage succeeds:
-
-```sh
-rotari add --stage prepare -- ./prepare-data.sh
-rotari add --stage prepare -- ./prepare-config.sh
-rotari add --job-name train --depends-on prepare -- ./train.sh
-rotari run
-```
-
-`--depends-on` accepts either a job name or a stage name. A job name and stage
-name cannot be the same within one queue.
-
-Use `--depends-on-finished NAME` for a job that should run once its
-prerequisites finish, whatever their result, like Slurm's `afterany`. It suits
-aggregation and cleanup jobs that must still run when part of a sweep fails:
-
-```sh
-rotari add --stage sweep --matrix LR=0.1,0.01 -- python train.py
-rotari add --job-name collect --depends-on-finished sweep -- python collect.py
-rotari run
-```
-
-`collect` waits while a failed prerequisite still has `run --retry` attempts
-left, and it also runs after a prerequisite is blocked or cancelled. A later
-`run --failed` or `retry` that re-executes a prerequisite re-executes such
-dependents too, so their output reflects the new results. A name cannot be
-listed in both `--depends-on` and `--depends-on-finished` of one job. `show`
-lists these prerequisites as `finished:NAME`. Use `change
---depends-on-finished` or `--clear-depends-on-finished` to edit them.
-
-Use `rotari show --stage NAME` to list only the jobs in one stage of the
-selected run or queue, and `rotari show --matrix NAME` for the jobs of one
-matrix. The same `--stage` and `--matrix` select jobs for `change`, `remove`,
-`copy`, `run`, and `retry`.
+Jobs can depend on other jobs or on a stage: a dependent job waits until its
+prerequisites succeed, or, with `--depends-on-finished`, until they finish
+regardless of result. Stages group jobs that may run concurrently and provide
+a convenient dependency barrier. See
+[Dependencies and stages](RUNNING.md#dependencies-and-stages) for usage and
+selection options.
 
 ## State and project resolution
 
