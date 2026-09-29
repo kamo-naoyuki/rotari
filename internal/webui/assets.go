@@ -112,6 +112,11 @@ func jobsHTML(homePath string, projects []string, rows []joblist.Row, since stri
 		writeJobsSidebarProjects(&sidebar, homePath, projects)
 	}
 	template := strings.Replace(jobsTemplateHTML, "__ROTARI_JOBS_PROJECTS__", sidebar.String(), 1)
+	if len(basedirLists) > 0 {
+		template = strings.Replace(template, "__ROTARI_BASEDIR_SCROLL_KEY__", currentBasedirScrollID(basedirLists[0]), 1)
+	} else {
+		template = strings.Replace(template, "__ROTARI_BASEDIR_SCROLL_KEY__", "", 1)
+	}
 	var toolbar string
 	if canFilter {
 		toolbar = `<div class="toolbar"><button id="notify-toggle" type="button" onclick="toggleJobsNotifications()">Notification off</button><button type="button" onclick="location.reload()">Refresh</button></div>`
@@ -183,6 +188,15 @@ func jobsHTML(homePath string, projects []string, rows []joblist.Row, since stri
 	return composeInfoHTML(template, homePath, builder.String())
 }
 
+func currentBasedirScrollID(basedirs []webBaseDir) string {
+	for _, entry := range basedirs {
+		if entry.Current {
+			return entry.ID
+		}
+	}
+	return ""
+}
+
 func writeJobsBasedirSidebar(builder *strings.Builder, homePath string, projects []string, basedirs []webBaseDir) {
 	if len(basedirs) == 0 {
 		writeJobsSidebarProjects(builder, homePath, projects)
@@ -216,7 +230,7 @@ func writeJobsBasedirEntry(builder *strings.Builder, homePath string, currentPro
 	}
 	builder.WriteString(`"><div class="sidebar-project-row"><button type="button" class="sidebar-toggle" aria-expanded="`)
 	builder.WriteString(strconv.FormatBool(active))
-	builder.WriteString(`" aria-label="Toggle projects" onclick="toggleJobsSidebar(this)"></button><a class="sidebar-project-link" title="`)
+	builder.WriteString(`" aria-label="Toggle projects" onclick="toggleJobsSidebar(this)"></button><a class="sidebar-project-link basedir-path" title="`)
 	builder.WriteString(html.EscapeString(entry.Path))
 	builder.WriteString(`" href="`)
 	builder.WriteString(html.EscapeString(basePath))
@@ -229,6 +243,13 @@ func writeJobsBasedirEntry(builder *strings.Builder, homePath string, currentPro
 	builder.WriteString(`><a class="sidebar-run" href="`)
 	builder.WriteString(html.EscapeString(basePath))
 	builder.WriteString(`">All projects</a>`)
+	builder.WriteString(`<a class="sidebar-run`)
+	if active {
+		builder.WriteString(` active`)
+	}
+	builder.WriteString(`" href="`)
+	builder.WriteString(html.EscapeString(basePath))
+	builder.WriteString(`jobs/">Job activity</a>`)
 	for _, project := range projectNames {
 		writeJobsBasedirProject(builder, basePath, project)
 	}

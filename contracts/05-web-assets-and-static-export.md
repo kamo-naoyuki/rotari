@@ -96,6 +96,18 @@ basedir switching. Covered by
 [`TestWebSwitchesBetweenRegisteredBasedirs`](../internal/webui/webui_test.go)
 and [`TestWebSidebarLazilyListsProjectsInOtherBasedirs`](../internal/webui/webui_test.go).
 
+The basedir list is introduced by a `Registered basedirs` heading so the tree
+is self-describing. Each basedir entry is collapsible and only the basedir
+currently mounted starts expanded; collapsing or expanding another entry is a
+user choice the sidebar keeps. An entry labels itself with the basedir's
+absolute path, truncated by CSS with the full path in its tooltip, because
+basedir names alone are ambiguous. `All projects` and `Job activity` are nested
+inside each basedir entry rather than offered once at the top level, since both
+pages describe a single basedir. The sidebar scrolls independently of the page
+body and its scroll position is remembered per basedir, and its width is
+user-resizable so truncation is recomputed as the width changes. These rules
+apply to both the application page and the server-rendered Job activity page.
+
 ## Web server and control-plane security
 
 - `web` binds `--host`/`--port`, defaulting to `127.0.0.1:8787`.

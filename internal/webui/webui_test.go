@@ -557,6 +557,7 @@ const fs = require('fs');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const html = fs.readFileSync(process.argv[1], 'utf8');
 const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const rootID = process.argv[4];
 const requests = [];
 const errors = [];
 const virtualConsole = new VirtualConsole();
@@ -751,6 +752,11 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 	if !strings.Contains(jobsHTML, `class="sidebar-project-row"><span class="sidebar-toggle-placeholder"`) {
 		t.Fatal("Job activity project links do not use the shared sidebar row layout")
 	}
+	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", "resize: horizontal;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "text-overflow: ellipsis;"} {
+		if !strings.Contains(webSidebarStylesCSS, marker) {
+			t.Fatalf("shared sidebar style is missing %q", marker)
+		}
+	}
 }
 
 func TestWebSidebarLazilyListsProjectsInOtherBasedirs(t *testing.T) {
@@ -773,18 +779,20 @@ func TestWebSidebarLazilyListsProjectsInOtherBasedirs(t *testing.T) {
 		t.Fatal(err)
 	}
 	otherID := basedirID(otherBaseDir)
+	rootID := basedirID(rootBaseDir)
 	script := `
 const fs = require('fs');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const html = fs.readFileSync(process.argv[1], 'utf8');
 const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const rootID = process.argv[4];
 const requests = [];
 const errors = [];
 const virtualConsole = new VirtualConsole();
 virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
 const dom = new JSDOM(html, {
 	runScripts: 'dangerously',
-	url: 'http://127.0.0.1/',
+	url: 'http://127.0.0.1/project/root-project',
 	virtualConsole,
 	beforeParse(window) {
 		window.fetch = async url => {
@@ -801,6 +809,26 @@ setTimeout(async () => {
 	try {
 		const bases = [...dom.window.document.querySelectorAll('#sidebar-basedirs > .basedir-entry')];
 		assert(bases.length === 2, 'sidebar does not show both registered basedirs');
+		assert(dom.window.document.querySelector('.sidebar-section-heading')?.textContent.trim() === 'Registered basedirs', 'sidebar does not explain what the basedir list contains');
+		const rootSelector = '#sidebar-basedirs > [data-basedir-id="' + rootID + '"]';
+		let root = dom.window.document.querySelector(rootSelector);
+		assert(root && !root.querySelector('.sidebar-projects').hidden, 'startup basedir should start expanded');
+		assert(root.querySelector('.sidebar-project:not(.basedir-entry) .sidebar-project-link.active')?.textContent.trim() === 'root-project', 'selected project is not active in the sidebar');
+		root.querySelector('.sidebar-toggle').click();
+		root = dom.window.document.querySelector(rootSelector);
+		assert(root.querySelector('.sidebar-projects').hidden, 'expanded basedir cannot be collapsed');
+		root.querySelector('.sidebar-toggle').click();
+		root = dom.window.document.querySelector(rootSelector);
+		assert(!root.querySelector('.sidebar-projects').hidden, 'collapsed basedir cannot be reopened');
+		assert(root.querySelector('.sidebar-project-link.basedir-path').title.startsWith('/'), 'basedir path tooltip is not absolute');
+		assert(root.querySelector('a[href="/jobs/"]'), 'Job activity is not nested under its basedir');
+		const sidebar = dom.window.document.querySelector('.sidebar');
+		sidebar.scrollTop = 87;
+		sidebar.dispatchEvent(new dom.window.Event('scroll'));
+		assert(dom.window.sessionStorage.getItem('rotari-sidebar-scroll:' + rootID) === '87', 'sidebar scroll position was not saved');
+		sidebar.scrollTop = 0;
+		dom.window.renderSidebar(state.projects);
+		assert(dom.window.document.querySelector('.sidebar').scrollTop === 87, 'sidebar scroll position was not restored after rerender');
 		const other = bases.find(base => base.dataset.basedirId === process.argv[3]);
 		assert(other && other.querySelector('.sidebar-projects').hidden, 'other basedir should start collapsed');
 		other.querySelector('.sidebar-toggle').click();
@@ -816,7 +844,7 @@ setTimeout(async () => {
 	}
 }, 50);
 `
-	if output, err := exec.Command("node", "-e", script, pagePath, statePath, otherID).CombinedOutput(); err != nil {
+	if output, err := exec.Command("node", "-e", script, pagePath, statePath, otherID, rootID).CombinedOutput(); err != nil {
 		t.Fatalf("basedir sidebar check failed: %v\n%s", err, output)
 	}
 }
@@ -1474,14 +1502,18 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 	}
 	for _, want := range []string{
 		"rotari Job activity",
+		"Registered basedirs",
+		"State directories known to rotari",
 		`aria-label="Toggle projects"`,
 		`onclick="toggleJobsSidebar(this)"`,
+		`class="sidebar-project-link basedir-path"`,
 		`href="/project/demo"`,
 		`class="brand-icon"`,
 		`name="since" value="24h"`,
 		"job-1",
 		`href="/project/demo"`,
 		`href="/project/demo/run/` + runID + `"`,
+		`href="/jobs/">Job activity</a>`,
 		`title="Copy command"`,
 		`title="Copy attempt ID"`,
 		`data-copy-value="true"`,

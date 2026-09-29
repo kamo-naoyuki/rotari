@@ -1,18 +1,40 @@
 /* Shared by the live All projects and Job activity pages. */
 .sidebar {
-  flex: 0 0 220px;
+  flex: 0 0 auto;
   position: sticky;
   top: 0;
   align-self: stretch;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  width: 260px;
+  min-width: 190px;
+  max-width: 520px;
   height: 100vh;
   min-height: 520px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  resize: horizontal;
   padding: 26px 14px 22px;
   border-right: 1px solid rgba(83, 105, 125, 0.22);
   background: rgba(11, 17, 24, 0.76);
   backdrop-filter: blur(18px);
+}
+
+.sidebar-section-heading {
+  margin: 0 8px 5px;
+  color: #8293a5;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.sidebar-section-note {
+  margin: -5px 8px 7px;
+  color: #718295;
+  font-size: 10px;
+  line-height: 1.35;
 }
 
 .sidebar-brand {
@@ -208,8 +230,11 @@
     top: auto;
     display: flex;
     width: 100%;
+    max-width: none;
     height: auto;
     min-height: 0;
+    overflow: visible;
+    resize: none;
     flex-direction: row;
     align-items: center;
     gap: 8px;
@@ -242,6 +267,17 @@
     min-width: 0;
   }
 
+  .sidebar-section-heading {
+    flex: 0 0 auto;
+    align-self: center;
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .sidebar-section-note {
+    display: none;
+  }
+
   .sidebar-link {
     flex: 0 0 auto;
     white-space: nowrap;
@@ -251,6 +287,7 @@
 @media (max-width: 520px) {
   .sidebar {
     overflow-x: auto;
+    overflow-y: visible;
   }
 
   .sidebar-project-row {

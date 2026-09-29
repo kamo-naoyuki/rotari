@@ -23,10 +23,11 @@
           <span class="brand-name">rotari</span>
           <span class="brand-caption">JOB CONTROL</span>
         </a>
+        <div class="sidebar-section-heading">Registered basedirs</div>
+        <div class="sidebar-section-note">
+          State directories known to rotari
+        </div>
         __ROTARI_JOBS_PROJECTS__
-        <a class="sidebar-link active" href="__ROTARI_HOME_PATH__jobs/"
-          >Job activity</a
-        >
       </nav>
       <div class="content">
         <header>
@@ -42,6 +43,24 @@
       </div>
     </main>
     <script>
+      const jobsSidebar = document.querySelector(".sidebar");
+      const jobsSidebarScrollKey =
+        "rotari-sidebar-scroll:" + "__ROTARI_BASEDIR_SCROLL_KEY__";
+      const jobsSidebarSavedScroll = Number(
+        sessionStorage.getItem(jobsSidebarScrollKey),
+      );
+      if (Number.isFinite(jobsSidebarSavedScroll))
+        jobsSidebar.scrollTop = jobsSidebarSavedScroll;
+      jobsSidebar.addEventListener(
+        "scroll",
+        () =>
+          sessionStorage.setItem(
+            jobsSidebarScrollKey,
+            String(jobsSidebar.scrollTop),
+          ),
+        { passive: true },
+      );
+
       function copyJobsValueFallback(value) {
         const input = document.createElement("textarea");
         input.value = value;

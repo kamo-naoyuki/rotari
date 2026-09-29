@@ -4,6 +4,9 @@ const mountedBasedirID = (() => {
   const parts = location.pathname.split("/").filter(Boolean);
   return parts[0] === "_basedir" ? parts[1] : "";
 })();
+const sidebarScrollKey =
+  "rotari-sidebar-scroll:" +
+  (registeredBasedirs.find((item) => item.current)?.id || mountedBasedirID);
 function basedirURL(id, path) {
   const entry = registeredBasedirs.find((item) => item.id === id);
   const prefix = entry?.current ? "" : "/_basedir/" + id;
@@ -176,7 +179,10 @@ function sidebarBasedirHTML(
   activeRun,
 ) {
   const isActive = entry.id === activeID;
-  const isExpanded = isActive || !!expandedSidebarBasedirs[entry.id];
+  const isJobsPage = pageParts()[0] === "jobs";
+  if (!Object.hasOwn(expandedSidebarBasedirs, entry.id))
+    expandedSidebarBasedirs[entry.id] = isActive;
+  const isExpanded = !!expandedSidebarBasedirs[entry.id];
   let projectLinks = "";
   if (isExpanded && isActive) {
     projectLinks = activeSidebarProjectsHTML(
@@ -201,12 +207,12 @@ function sidebarBasedirHTML(
     (isExpanded ? "true" : "false") +
     '" aria-label="Toggle projects" onclick="toggleSidebarBasedir(this)"></button><a class="sidebar-project-link' +
     (isActive ? " active" : "") +
-    ' basedir-switch" title="' +
+    ' basedir-path basedir-switch" title="' +
     esc(entry.path) +
     '" href="' +
     basedirURL(entry.id, "/") +
     '">' +
-    esc(title) +
+    esc(entry.path) +
     '</a></div><div class="sidebar-projects"' +
     (isExpanded ? "" : " hidden") +
     '><a class="sidebar-run' +
@@ -214,6 +220,11 @@ function sidebarBasedirHTML(
     ' basedir-switch" href="' +
     basedirURL(entry.id, "/") +
     '">All projects</a>' +
+    '<a class="sidebar-run' +
+    (isActive && isJobsPage ? " active" : "") +
+    ' basedir-switch" href="' +
+    basedirURL(entry.id, "/jobs/") +
+    '">Job activity</a>' +
     projectLinks +
     "</div></div>"
   );
@@ -221,6 +232,8 @@ function sidebarBasedirHTML(
 function renderSidebar(queues) {
   const container = document.getElementById("sidebar-basedirs");
   if (!container) return;
+  const sidebar = container.closest(".sidebar");
+  const scrollTop = sidebar.scrollTop;
   const parts = pageParts();
   const activeProject =
     parts[0] === "project" ? decodeURIComponent(parts[1]) : "";
@@ -240,6 +253,30 @@ function renderSidebar(queues) {
       ),
     )
     .join("");
+  if (!sidebar.dataset.scrollStored) {
+    sidebar.dataset.scrollStored = "true";
+    sidebar.addEventListener(
+      "scroll",
+      () => sessionStorage.setItem(sidebarScrollKey, String(sidebar.scrollTop)),
+      { passive: true },
+    );
+  }
+  const storedScroll = Number(sessionStorage.getItem(sidebarScrollKey));
+  sidebar.scrollTop = Number.isFinite(storedScroll) ? storedScroll : scrollTop;
+  const activeItem =
+    sidebar.querySelector(".sidebar-run.active") ||
+    sidebar.querySelector(
+      ".sidebar-project:not(.basedir-entry) .sidebar-project-link.active",
+    ) ||
+    sidebar.querySelector(".sidebar-project-link.active");
+  if (activeItem) {
+    const sidebarBounds = sidebar.getBoundingClientRect();
+    const itemBounds = activeItem.getBoundingClientRect();
+    if (itemBounds.top < sidebarBounds.top)
+      sidebar.scrollTop -= sidebarBounds.top - itemBounds.top;
+    else if (itemBounds.bottom > sidebarBounds.bottom)
+      sidebar.scrollTop += itemBounds.bottom - sidebarBounds.bottom;
+  }
   registeredBasedirs.forEach((entry) => {
     if (
       entry.id !== activeBaseID &&
