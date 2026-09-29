@@ -14,6 +14,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Keep only short records of resolved items when they may help prevent recurrence. -->
 
+- **`TestFollowJobLogReadsAppendedOutputUntilFinished` failed intermittently** (`cmd/rotari/show.go`, `followJobLog`): the loop read the log, then checked the finished marker, so output written between the two reads was dropped and follow returned early. It now re-reads the log once after observing the finished marker.
+
 - **`TestUnlockDerivesInterruptedRun` could kill a supervisor before its job started** (`conformance/01-resolution/export_target_test.go`): the fixture now waits for the job process before simulating interruption, so it reaches a consistent interrupted state.
 
 - **`TestJobControlSelectors` failed once under `scripts/check.sh`** (`conformance/06-selectors/job_control_test.go`): the selector observer now polls all command states until they settle, and the complete selector test passed in a subsequent run.

@@ -2019,6 +2019,14 @@ func followJobLog(writer io.Writer, paths state.ProjectPaths, runID, jobID strin
 			offset = int64(len(data))
 		}
 		if jobstatus.ReadAttempt(jsonStore(), jobDir).Finished() {
+			// The job can write its last output between the read above and
+			// its finished marker, so read once more before returning.
+			final, readErr := os.ReadFile(outputPath)
+			if readErr == nil && len(final) > int(offset) {
+				if _, err := writer.Write(final[offset:]); err != nil {
+					return 1
+				}
+			}
 			return 0
 		}
 		time.Sleep(250 * time.Millisecond)
