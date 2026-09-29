@@ -359,10 +359,16 @@ func TestFormatRunCompletionIncludesRunNameAndFailedJobHint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"false"}}}}); err != nil {
+		t.Fatal(err)
+	}
 	message := formatRunCompletion(paths, "run-1", model.RunSummary{
 		RunID: "run-1", RunName: "nightly", Status: "failed", ExitCode: 1,
 		Results: []model.JobResult{{ID: "job-1", ExitCode: 1, Hosts: []string{"compute-01"}}},
 	})
+	if !strings.Contains(message, "Summary: jobs") {
+		t.Fatalf("completion message lacks lineage summary: %s", message)
+	}
 	for _, want := range []string{"nightly (run-1)", "Failed: 1", "Hosts: compute-01", "rotari show", "rotari retry"} {
 		if !strings.Contains(message, want) {
 			t.Errorf("completion message missing %q: %s", want, message)
