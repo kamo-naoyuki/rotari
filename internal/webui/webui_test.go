@@ -795,6 +795,8 @@ const dom = new JSDOM(html, {
 	url: 'http://127.0.0.1/project/root-project',
 	virtualConsole,
 	beforeParse(window) {
+		window.CanvasRenderingContext2D = function () {};
+		window.HTMLCanvasElement.prototype.getContext = () => ({font: "", measureText: text => ({width: text.length * 8})});
 		window.fetch = async url => {
 			requests.push(String(url));
 			if (url === '/api/state') return {ok: true, json: async () => state};
