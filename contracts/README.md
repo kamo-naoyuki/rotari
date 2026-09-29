@@ -102,8 +102,7 @@ when a rule is removed, remove its row.
 Each ID has one row below. A status is `conformance` when the listed tests in
 [conformance/](../conformance/) check the whole rule, `partial` when they check
 part of it, `pending` when no conformance test checks it yet (package tests
-may), and `deviation` when rotari knowingly breaks it, with an
-[development/ISSUES.md](../development/ISSUES.md) entry naming the ID; a test of a deviation skips
+may), and `deviation` when rotari knowingly breaks it; a test of a deviation skips
 the failing cases with `knownDeviation(t, "ID")` until the fix removes it. A test declares what it checks
 with `covers(t, "ID")`, and `TestContractStatus` in
 [conformance/contracts_test.go](../conformance/contracts_test.go) fails when

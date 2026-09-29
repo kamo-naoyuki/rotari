@@ -50,11 +50,11 @@ func covers(t *testing.T, ids ...string) {
 }
 
 // knownDeviation skips the rest of a test of a contract that rotari
-// knowingly breaks. The contract's row has status deviation, and
-// development/ISSUES.md names the ID; remove the call with the fix.
+// knowingly breaks. The contract's row has status deviation; remove the call
+// with the fix.
 func knownDeviation(t *testing.T, id string) {
 	t.Helper()
-	t.Skipf("known deviation from %s; see development/ISSUES.md", id)
+	t.Skipf("known deviation from %s", id)
 }
 
 // env is one isolated rotari installation: a base directory, a master

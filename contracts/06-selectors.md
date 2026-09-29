@@ -252,7 +252,7 @@ which `TestJobControlSelectors` covers against a running run (see
 ## Known deviations
 
 None at present. A deviation found later is listed here and in
-[development/ISSUES.md](../development/ISSUES.md), marked with a † in the tables, and its test
+marked with a † in the tables, and its test
 row skips through `knownDeviation` until it is fixed.
 
 ## Fixture
