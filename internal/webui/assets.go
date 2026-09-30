@@ -337,7 +337,7 @@ func writeJobsCopyButton(builder *strings.Builder, value, label string) {
 	builder.WriteString(html.EscapeString(label))
 	builder.WriteString(`" data-copy-value="`)
 	builder.WriteString(html.EscapeString(value))
-	builder.WriteString(`" onclick="copyJobsValue(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg></button>`)
+	builder.WriteString(`" onclick="copyJobsValue(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4"></path><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg></button>`)
 }
 
 //go:embed assets/favicon-dark.svg

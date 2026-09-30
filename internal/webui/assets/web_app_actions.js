@@ -431,7 +431,7 @@ function addExecutionGuide() {
   copyButton.title = "Copy command";
   copyButton.setAttribute("aria-label", "Copy command");
   copyButton.innerHTML =
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg>';
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4"></path><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg>';
   copyButton.dataset.icon = copyButton.innerHTML;
   copyButton.onclick = () => copyCommandGuide(guide, copyButton);
   const basedir =

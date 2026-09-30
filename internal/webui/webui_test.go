@@ -1854,7 +1854,7 @@ func TestWebProvidesCopyAndAIReports(t *testing.T) {
 		`Copy last 100 lines</button`,
 		`class="command-guide-copy modal-copy"`,
 		`title="Copy last 100 lines"`,
-		`<rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect>`,
+		`<path d="M9 9H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4"></path><rect x="9" y="4" width="11" height="11" rx="1"></rect>`,
 		`id="report-note"`,
 		`Markdown report for pasting into an AI assistant. Nothing is sent to external services automatically.`,
 		`fetch('/api/report?'+params)`,

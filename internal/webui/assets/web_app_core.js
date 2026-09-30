@@ -1097,7 +1097,7 @@ function renderRun(q, runID) {
         esc(value) +
         '" data-copy-title="Copy ' +
         label +
-        '" onclick="copyIdentityValue(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg></button>';
+        '" onclick="copyIdentityValue(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4"></path><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg></button>';
       const jobNameCopy = j.name ? copyIcon(j.name, "job name") : "";
       const jobIDCopy = copyIcon(j.id, "job ID");
       const stageCopy = j.stage ? copyIcon(j.stage, "stage name") : "";
@@ -1246,7 +1246,7 @@ function copyIconForValue(value, label) {
     esc(value) +
     '" data-copy-title="Copy ' +
     label +
-    '" onclick="copyIdentityValue(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg></button>'
+    '" onclick="copyIdentityValue(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4"></path><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg></button>'
   );
 }
 async function copyAttemptID(button) {
@@ -1263,7 +1263,7 @@ async function copyAttemptID(button) {
       button.title = "Copy attempt ID";
       button.setAttribute("aria-label", "Copy attempt ID");
       button.innerHTML =
-        '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg>';
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4"></path><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg>';
     }, 1200);
   } catch (error) {
     alert(error.message);
@@ -1286,7 +1286,7 @@ async function copyIdentityValue(button) {
         button.dataset.copyTitle || "Copy value",
       );
       button.innerHTML =
-        '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="11" height="11" rx="1"></rect><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg>';
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-4"></path><rect x="9" y="4" width="11" height="11" rx="1"></rect></svg>';
     }, 1200);
   } catch (error) {
     alert(error.message);
