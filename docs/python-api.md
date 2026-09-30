@@ -203,7 +203,6 @@ Show queue or run status.
 | `success` | `bool` | show successful jobs; may be combined with the other result filters |
 | `stage` | `str` | show jobs in this stage only |
 | `matrix` | `str` | show jobs of this matrix only, named by its base job name |
-| `lineage` | `bool` | list the project's runs oldest first with result counts and changes since the previous run |
 | `logs` | `bool` | print output logs for all jobs |
 | `failed_logs` | `bool` | print output logs for failed jobs |
 | `stream` | `str` | show both streams or select stdout/stderr |
