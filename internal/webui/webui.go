@@ -217,7 +217,9 @@ func (s site) handler() http.Handler {
 			urlCopy.Path = "/"
 		}
 		urlCopy.RawPath = ""
-		clone.URL = &urlCopy
+		// clone is dispatched in-process to child.baseHandler(), not sent as an
+		// outbound request, so this is not an SSRF sink.
+		clone.URL = &urlCopy // NOSONAR
 		child.baseHandler().ServeHTTP(writer, clone)
 	})
 	mux.Handle("/", s.baseHandler())
