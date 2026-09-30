@@ -46,8 +46,8 @@ summary = project.wait(run)              # or project.wait(run.id)
 summaries = project.wait([run1, run2])   # input order; failed runs still have summaries
 run_info = project.show(run)
 run_infos = project.show([run1, run2])
-job_info = project.show(job, run=run)    # explicitly choose a run when needed
-infos = project.show([job1, job2], run=run)
+job_info = project.show(job)             # job in the latest saved run
+infos = project.show([job1, job2])      # jobs in the latest saved run
 
 project.cancel(job)                      # one job in the active run
 project.cancel([job1, job2])             # jobs in the same active run
@@ -66,13 +66,20 @@ cross-project selections should fail rather than select something else.
 `cancel([run1, run2])` is intentionally outside the initial scope. Without
 a project bound to `Rotari`, `cancel()` should require an explicit target.
 
-`show(job)` needs a defined choice between the queue and a particular run.
-For run-scoped results, prefer `show(job, run=run)`; current CLI `show --json`
-does not support `--job-id`, so structured job results need CLI support
-before this part can be implemented. Likewise, multiple-run `wait()` needs
-to decode every JSON result rather than just the first. The intended boundary
-is what the CLI can provide reliably, not a second Python implementation of
-job status resolution.
+`show(job)` and `show([job1, job2])` target the project's latest **saved run**
+when no run is specified, not the queue. A newly added job that is not in
+that run should fail rather than silently fall back to the queue. Use
+`show(job, run=run)` to inspect a specific run (including an active run).
+The current CLI `show --json` does not support `--job-id`, so structured job
+results need CLI support before this part can be implemented. Likewise,
+multiple-run `wait()` needs to decode every JSON result rather than just the
+first. The intended boundary is what the CLI can provide reliably, not a
+second Python implementation of job status resolution.
+
+Other small CLI-backed candidates: `check()` returning `check --json` as a
+dict for project readiness, and returning a `Run` from the existing `retry()`
+method (which currently returns `CommandResult`). Job logs can remain behind
+`command("show", ...)` until there is a clear need for a dedicated method.
 
 Searching for runs or jobs by name or command, listing a project's runs or a
 run's jobs, and exposing live job status are useful possible follow-ups, not
