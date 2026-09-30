@@ -2,28 +2,6 @@
 
 Rotari sends one JSON `POST` request when a run is finalized. Slack, Microsoft
 Teams, and Discord are supported directly with service-specific payloads.
-Other destinations can receive the generic JSON payload and transform it as
-needed.
-
-## Generic JSON payload
-
-The default `json` format sends fields like these:
-
-```json
-{
-  "event": "run.finished",
-  "project": "demo",
-  "run": "nightly (run-1)",
-  "status": "failed",
-  "exit_code": 1,
-  "success": 3,
-  "failed": 1,
-  "failed_jobs": ["train"],
-  "show_command": "rotari show --run-id 'run-1' --failed-logs --no-pager"
-}
-```
-
-`failed_jobs` and `show_command` are omitted for a successful run.
 
 ## Direct integrations
 
@@ -96,4 +74,21 @@ directory.
 For Make Custom Webhooks, Zapier Catch Hooks, Pipedream HTTP triggers, or a
 small internal HTTP service, leave `format` unset (the default `json`).
 Configure rotari with the receiver's URL, then transform the generic JSON
-payload into the destination service's required format.
+payload into the destination service's required format. The payload contains
+the run result and, for failed runs, failed-job details:
+
+```json
+{
+  "event": "run.finished",
+  "project": "demo",
+  "run": "nightly (run-1)",
+  "status": "failed",
+  "exit_code": 1,
+  "success": 3,
+  "failed": 1,
+  "failed_jobs": ["train"],
+  "show_command": "rotari show --run-id 'run-1' --failed-logs --no-pager"
+}
+```
+
+`failed_jobs` and `show_command` are omitted for a successful run.
