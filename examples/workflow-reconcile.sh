@@ -11,7 +11,7 @@ rotari export --run-id latest > "$ROTARI_BASEDIR/exported.yaml"
 
 # Fix evaluate and accept report's failed result after reviewing its log.
 sed -e 's/echo evaluating; exit 1/echo evaluating; exit 0/' \
-    -e '/    - name: report$/,/    - name: /s/^      status: failed$/      status: success/' \
+    -e '/^  - name: report$/,/^  - name: /s/^    status: failed$/    status: success/' \
     "$ROTARI_BASEDIR/exported.yaml" > "$ROTARI_BASEDIR/reconciled.yaml"
 
 rotari import --dry-run "$ROTARI_BASEDIR/reconciled.yaml"
