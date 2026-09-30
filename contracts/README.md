@@ -174,6 +174,7 @@ the IDs, this table, and those calls disagree.
 | RUN-5 | Imported manifest jobs without source provenance execute as new work without a previous-run lookup | conformance | `TestImportedWorkflowRunsFreshJobs` |
 | CLI-1 | `check --json` reports the same project state, run identifier, queue count, lock, and runnable result as the human-readable `check` output | partial | `TestCheckJSONMatchesText` |
 | CLI-2 | Human-readable `jobs` columns keep their visible start positions aligned across rows; ANSI color sequences do not count toward column width | conformance | `TestJobsTableKeepsVisibleColumnsAligned` |
+| CLI-3 | All command options shared by CLI, environment, and config use the same source precedence | conformance | `TestCLIOptionPrecedence` |
 | SEL-1 | A run ID or attempt ID alone resolves its location in every command | partial | `TestPositionalArguments`, `TestSelectorTable` |
 | SEL-2 | Each command reads the run or queue its row names | partial | `TestSelectorTable` |
 | SEL-3 | `show` resolves each selector form as its column says | conformance | `TestSelectorTable` |

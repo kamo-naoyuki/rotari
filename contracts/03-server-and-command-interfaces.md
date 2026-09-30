@@ -125,6 +125,18 @@ follows:
   column's width. The implementation is in
   [`cmd/rotari/jobs.go`](../cmd/rotari/jobs.go), with the end-to-end check in
   [`conformance/03-interfaces/jobs_presentation_test.go`](../conformance/03-interfaces/jobs_presentation_test.go).
+- **CLI-3** For every CLI option that can be supplied by the command line, its
+  matching environment variable, and configuration, precedence is explicit
+  command-line value, then environment, then configuration, then the built-in
+  default. Within configuration, the command-specific section takes precedence
+  over the root value. For `quiet`, a command-specific environment variable
+  takes precedence over `ROTARI_QUIET`. `--config FILE` selects the config
+  source; it does not change this value precedence. This applies to every
+  command exposing such options. The shared loaders are in
+  [`cmd/rotari/cli_spec.go`](../cmd/rotari/cli_spec.go) and
+  [`cmd/rotari/config.go`](../cmd/rotari/config.go); the external check
+  enumerates each command exposing `--config` in the CLI schema in
+  [`conformance/03-interfaces/options_test.go`](../conformance/03-interfaces/options_test.go).
 
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.

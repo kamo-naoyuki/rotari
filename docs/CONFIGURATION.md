@@ -28,10 +28,7 @@ The resolution order is:
 ```text
 CLI option (e.g., --retry)
 environment variable (e.g., ROTARI_RUN_RETRY)
-explicit --config FILE, when provided
-project config path (e.g., <basedir>/projects/demo/config.yaml)
-basedir config path (e.g., <basedir>/config.yaml)
-global config path (e.g., ~/.config/rotari/config.yaml)
+configuration value (from the selected file)
 built-in default
 ```
 
@@ -40,9 +37,13 @@ YAML, TOML, or JSON file instead of looking in the project, basedir, and global
 locations. Both `--config FILE` and `--config=FILE` are supported. An explicitly
 selected file must exist and parse successfully; `--config` itself cannot be
 set by an environment variable or another config file.
+This value precedence applies across commands; see the
+[CLI contract](../contracts/03-server-and-command-interfaces.md#cli-presentation).
 
-Output paths such as `export --output` are read only from the command line;
-config files and environment variables do not set them.
+Without `--config`, the selected configuration file is the first one found in
+the project, basedir, then global locations. Lower-priority files are not
+merged. Output paths such as `export --output` are read only from the command
+line; config files and environment variables do not set them.
 
 `rotari show` includes the highest-priority config path in its header when
 config files are present. The web UI uses the same project, basedir, then

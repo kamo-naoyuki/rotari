@@ -167,20 +167,14 @@ Implementation and tests for these rules:
   containing one supported file: `projects/<project>/`, then the resolved
   basedir, then `$XDG_CONFIG_HOME/rotari` (or `~/.config/rotari`). It loads only
   that config; lower-priority scopes are ignored rather than merged.
-- Commands that load config accept `--config FILE` to load a specific YAML,
-  TOML, or JSON file in place of automatic scope lookup. An explicit missing,
-  unreadable, or invalid file fails the command rather than falling back.
-  The flag itself is command-line-only. Implemented by
-  [`cmd/rotari/config.go`](../cmd/rotari/config.go) and
-  [`internal/config/config.go`](../internal/config/config.go), with tests in
-  [`cmd/rotari/config_test.go`](../cmd/rotari/config_test.go).
 - `rotari show` and the web UI display that selected config path.
 - Multiple supported config files in the same directory are an error; file
   formats have no implicit priority.
 - Common configuration keys (`basedir` and `project-name`) are at the root;
-  command-specific keys are nested under their command name. Explicit CLI values
-  take priority over environment defaults, which take priority over command
-  sections and root config values.
+  command-specific keys are nested under their command name. The precedence
+  among CLI values, environment defaults, and config is shared by every command;
+  see CLI-3 in
+  [03-server-and-command-interfaces.md](03-server-and-command-interfaces.md#cli-presentation).
 - `rotari config` generates a template from the union of all CLI metadata
   options. YAML and JSON use `null` for unset values; TOML uses comments because
   it has no null value. Null values are ignored during resolution.
