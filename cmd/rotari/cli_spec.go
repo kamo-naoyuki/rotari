@@ -631,10 +631,12 @@ func cliSubcommandNames(name string) []string {
 // commands that share a flag name keep their own descriptions. Internal
 // commands without metadata fall back to cliFlag.
 func cliCommandFlag(command, name string) cliFlagSpec {
+	commandFound := false
 	for _, commandSpec := range cliCommandSpecs {
 		if commandSpec.Name != command {
 			continue
 		}
+		commandFound = true
 		for _, flagSpec := range commandSpec.Flags {
 			if flagSpec.Name == name {
 				return flagSpec
@@ -643,6 +645,9 @@ func cliCommandFlag(command, name string) cliFlagSpec {
 	}
 	// Tests and internal callers may add a local flag directly to a FlagSet
 	// without adding public CLI metadata.
+	if !commandFound {
+		return cliFlag(name)
+	}
 	return cliFlagSpec{Name: name}
 }
 
