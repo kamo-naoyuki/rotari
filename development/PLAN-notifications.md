@@ -31,6 +31,9 @@
 14. blocked、cancelled、開始前 cancel は `job_failure` に含める。
 15. Webhook はリンクを載せない。ブラウザー通知だけが対象の Web 画面へ遷移できる。
 16. Webhook の永続的な送信台帳と自動再試行は初版では実装しない。
+17. 集約 window は最初のイベントから10秒とし、イベントが続いても延長しない。run 終了時は直ちに flush する。
+18. ブラウザー通知の本文は1000文字を上限とする。
+19. Web UI は notification 専用の構造化フォームにする。
 
 ## 設定ファイル
 
@@ -193,13 +196,13 @@ Webhook の HTTP 送信と各サービス固有の encoder は adapter として
 - 集約は project と run ごとに行い、異なる run のイベントは混ぜない。
 - 成功と失敗は同じ Batch に含め、通知本文の中で分類する。
 - `max_jobs` を超えたジョブは省略件数を表示する。
-- ブラウザー通知は本文を固定の文字数上限でも切り詰め、省略表示を末尾に付ける。Webhook は各 format のサービス上限を超えないよう adapter ごとに切り詰める。
+- ブラウザー通知は本文を1000文字で切り詰め、省略表示を末尾に付ける。Webhook は各 format のサービス上限を超えないよう adapter ごとに切り詰める。
 - run 終了時には pending Batch を直ちに flush し、run 完了を含む最後の通知を送る。
 - 通知失敗は run や job の結果を変更しない。
 - Webhook は scheduler を止めない送信キューを使い、run 終了前に pending 送信を flush する。
 - ブラウザーはポーリングで検出した最終結果を同じ Batch 表示モデルに変換する。
 
-集約時間は最初は固定値にする。具体的な値と、将来設定可能にするかは実装前に決める。
+最初のイベントで10秒の固定 window を開始し、その間のイベントをまとめる。後続イベントで期限を延長しないため、ジョブが連続して完了しても通知が無期限に遅れない。run 終了時には window の残り時間を待たず即座に flush する。
 
 ## Webhook
 
@@ -244,7 +247,7 @@ Webhook の HTTP 送信と各サービス固有の encoder は adapter として
 - `config.toml` と `notifications.toml` を切り替える tabs
 - global、basedir、project の保存先選択
 - `notifications.toml` がない場合の Generate ボタン
-- raw TOML editor または構造化フォーム
+- notification 専用の構造化フォーム
 - Save ボタン
 - 外部で変更されたファイルを再読込する Reload ボタン
 - 保存前の parse と validation
@@ -254,8 +257,7 @@ Webhook の HTTP 送信と各サービス固有の encoder は adapter として
 Webhook URL は secret として扱う。少なくとも次を満たす。
 
 - API response、HTML、ログへ不用意に URL を出さない。
-- 構造化フォームの場合は既存値をマスクし、変更時だけ新値を送る。
-- raw TOML editor を採用する場合は、認証済みかつ `--allow-control` の Web UI だけで表示・保存できるようにし、リスクを docs に明記する。
+- 既存値をマスクし、変更時だけ新値を送る。
 
 書き込み API は既存どおり `--allow-control` を要求する。読み取りについても URL を含むため、Web 認証なしで remote host に公開できないようにする。
 
@@ -381,14 +383,6 @@ CLI reference と environment variable docs は generator を使って更新す�
 
 各段階で focused tests を通してから次へ進む。作業ツリーにある今回と無関係な変更は stage しない。
 
-## 未決事項
-
-実装開始前に次を確定する。
-
-1. 集約 window の固定値。候補は2秒から5秒。
-2. Web UI を raw TOML editor にするか、通知専用の構造化フォームにするか。
-3. browser notification の固定本文長上限。候補は1000文字。
-
 ## 今回やらないこと
 
 - Service Worker や Web Push による、ページを閉じている間のブラウザー通知。
@@ -400,7 +394,7 @@ CLI reference と environment variable docs は generator を使って更新す�
 
 - [x] 要件整理
 - [x] 現行 Webhook とブラウザー通知の調査
-- [ ] 未決事項の確定
+- [x] 未決事項の確定
 - [ ] 共通 notification package
 - [ ] `notifications.toml` resolver と template
 - [ ] CLI generate/show/validate
