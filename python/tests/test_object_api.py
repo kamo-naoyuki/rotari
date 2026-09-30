@@ -46,7 +46,12 @@ def test_check_returns_json_even_when_not_runnable():
     ) as invoke:
         assert client.check(deep=True, quiet=True) == payload
     assert invoke.call_args.args[0] == [
-        "rotari", "check", "--project-name", "demo", "--json", "--deep"
+        "rotari",
+        "check",
+        "--project-name",
+        "demo",
+        "--json",
+        "--deep",
     ]
     with patch("subprocess.run", return_value=response("", 1)):
         try:
@@ -76,24 +81,35 @@ def test_retry_returns_new_run_and_object_methods_delegate():
     with patch("subprocess.run", return_value=response('{"job_id":"job-1"}')) as invoke:
         assert job.show(run=run)["job_id"] == "job-1"
     assert invoke.call_args.args[0][-5:] == [
-        "--run-id", "run-1", "--job-id", "job-1", "--json"
+        "--run-id",
+        "run-1",
+        "--job-id",
+        "job-1",
+        "--json",
     ]
 
 
 def test_wait_list_order_and_failure_and_single_compatibility():
     client, _, run = client_objects()
-    output = "\n".join(
-        json.dumps(item)
-        for item in (
-            {"run_id": "run-1", "exit_code": 2},
-            {"run_id": "run-2", "exit_code": 0},
+    output = (
+        "\n".join(
+            json.dumps(item)
+            for item in (
+                {"run_id": "run-1", "exit_code": 2},
+                {"run_id": "run-2", "exit_code": 0},
+            )
         )
-    ) + "\n"
+        + "\n"
+    )
     with patch("subprocess.run", return_value=response(output, 2)) as invoke:
         result = client.wait([run, "run-2"])
     assert [item["run_id"] for item in result] == ["run-1", "run-2"]
     assert invoke.call_args.args[0][-5:] == [
-        "--run-id", "run-1", "--run-id", "run-2", "--json"
+        "--run-id",
+        "run-1",
+        "--run-id",
+        "run-2",
+        "--json",
     ]
     with patch("subprocess.run", return_value=response('{"run_id":"run-2"}')) as invoke:
         assert client.wait("nightly")["run_id"] == "run-2"
@@ -136,8 +152,7 @@ def test_show_list_uses_latest_run_and_keeps_order():
         result = client.show([another, job])
     assert [item["job_id"] for item in result] == ["job-2", "job-1"]
     assert all(
-        call.args[0][-5:-3] == ["--run-id", "latest"]
-        for call in invoke.call_args_list
+        call.args[0][-5:-3] == ["--run-id", "latest"] for call in invoke.call_args_list
     )
 
     def get_run(argv, **kwargs):
@@ -146,7 +161,8 @@ def test_show_list_uses_latest_run_and_keeps_order():
     other_run = Run(run.args, 0, "", "", "run-2", None, client)
     with patch("subprocess.run", side_effect=get_run):
         assert [item["run_id"] for item in client.show([run, other_run])] == [
-            "run-1", "run-2"
+            "run-1",
+            "run-2",
         ]
 
 
@@ -172,9 +188,7 @@ def test_control_run_jobs_and_object_shortcuts():
 
     with patch("subprocess.run", return_value=response("ok")) as invoke:
         client.cancel(job_ids=["job-1", "job-2"])
-    assert invoke.call_args.args[0][-4:] == [
-        "--job-id", "job-1", "--job-id", "job-2"
-    ]
+    assert invoke.call_args.args[0][-4:] == ["--job-id", "job-1", "--job-id", "job-2"]
     with patch("subprocess.run", return_value=response("ok")) as invoke:
         client.suspend(stage="train", yes=True)
     assert invoke.call_args.args[0][-3:] == ["--stage", "train", "--yes"]

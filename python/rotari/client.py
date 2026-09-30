@@ -335,8 +335,13 @@ class Rotari:
             raise ValueError("rotari retry did not report a run ID")
         name = options.get("run_name")
         return Run(
-            result.args, result.returncode, result.stdout, result.stderr,
-            id=run_id, name=str(name) if name is not None else None, _client=self,
+            result.args,
+            result.returncode,
+            result.stdout,
+            result.stderr,
+            id=run_id,
+            name=str(name) if name is not None else None,
+            _client=self,
         )
 
     def export(
@@ -549,9 +554,7 @@ class Rotari:
         except json.JSONDecodeError:
             raise RotariError(result) from None
         if not isinstance(value, dict):
-            raise TypeError(
-                f"rotari {command} --json returned a non-object JSON value"
-            )
+            raise TypeError(f"rotari {command} --json returned a non-object JSON value")
         return value
 
     def _require_owner(self, target: Run | Job) -> None:
@@ -611,8 +614,10 @@ class Rotari:
             self._require_owner(target)
             return [target.id]
         if target is None:
-            if operation == "cancel" and self.project is None and not options.get(
-                "job_ids"
+            if (
+                operation == "cancel"
+                and self.project is None
+                and not options.get("job_ids")
             ):
                 raise ValueError("cancel() requires a project or explicit target")
             if operation != "cancel" and not self._has_job_selection(options):

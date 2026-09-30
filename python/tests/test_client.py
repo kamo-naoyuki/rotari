@@ -165,9 +165,7 @@ def test_quiet_does_not_hide_ids_and_matrix_does_not_claim_one_id():
         "subprocess.run",
         return_value=completed("added project=demo jobs=2 command=[true]\n"),
     ) as run:
-        job = Rotari().add(
-            ["true"], job_name="train", matrix=["SEED=1,2"], quiet=True
-        )
+        job = Rotari().add(["true"], job_name="train", matrix=["SEED=1,2"], quiet=True)
     assert job.id is None
     assert job.name is None
     assert job.command == ("true",)
