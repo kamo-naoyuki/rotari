@@ -6,7 +6,6 @@
 .gocache
 .gomodcache
 .nfs*
-dagu
 docs
 python
 scripts
