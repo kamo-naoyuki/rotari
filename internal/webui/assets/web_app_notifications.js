@@ -83,10 +83,10 @@ function collectJobStatuses(appState) {
   for (const project of appState.projects) {
     for (const run of project.runs || []) {
       for (const job of run.jobs || []) {
-        statuses.set(
-          project.project_name + "/" + run.run_id + "/" + job.id,
-          { status: jobDisplayStatus(job, run), final: !!job.final },
-        );
+        statuses.set(project.project_name + "/" + run.run_id + "/" + job.id, {
+          status: jobDisplayStatus(job, run),
+          final: !!job.final,
+        });
       }
     }
   }
@@ -129,17 +129,15 @@ function notifyRunEvent(info, succeededJobNames, failedJobNames, runFinished) {
   }
   const body = truncateNotificationBody(
     info.projectName +
-    " / " +
-    info.runID +
-    (runFinished
-      ? "\nstatus: " + (info.status === "failed" ? "failed" : "success")
-      : "") +
-    (failedJobNames.length
-      ? "\nfailed: " + failedJobNames.join(", ")
-      : "") +
-    (succeededJobNames.length
-      ? "\nsucceeded: " + succeededJobNames.join(", ")
-      : ""),
+      " / " +
+      info.runID +
+      (runFinished
+        ? "\nstatus: " + (info.status === "failed" ? "failed" : "success")
+        : "") +
+      (failedJobNames.length ? "\nfailed: " + failedJobNames.join(", ") : "") +
+      (succeededJobNames.length
+        ? "\nsucceeded: " + succeededJobNames.join(", ")
+        : ""),
   );
   const notification = new Notification(title, {
     body,
@@ -215,9 +213,7 @@ async function checkRunNotifications(previousState, nextState) {
           settings,
         };
         const target =
-          status === "failed"
-            ? event.failedJobNames
-            : event.succeededJobNames;
+          status === "failed" ? event.failedJobNames : event.succeededJobNames;
         if (target.length < settings.max_jobs) target.push(job.name || job.id);
         events.set(runKey, event);
       }
@@ -250,7 +246,8 @@ async function refreshOtherBasedirNotifications() {
         if (!response.ok) return;
         const nextState = await response.json();
         const previousState = otherBasedirNotificationStates.get(entry.id);
-        if (previousState) await checkRunNotifications(previousState, nextState);
+        if (previousState)
+          await checkRunNotifications(previousState, nextState);
         otherBasedirNotificationStates.set(entry.id, nextState);
       } catch (error) {
         // Keep polling after temporary network failures.
@@ -265,7 +262,8 @@ const originalRefresh = refresh;
 refresh = async function (forceProject = true) {
   const previousState = state;
   await originalRefresh(forceProject);
-  if (state !== previousState) await checkRunNotifications(previousState, state);
+  if (state !== previousState)
+    await checkRunNotifications(previousState, state);
   await refreshOtherBasedirNotifications();
 };
 updateNotifyToggleLabel();

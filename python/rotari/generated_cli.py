@@ -25,7 +25,8 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {"description": "list existing config files", "name": "list"},
                 {
-                    "description": "generate notifications.toml instead of command defaults",
+                    "description": "generate notifications.toml instead of "
+                    "command defaults",
                     "name": "notifications",
                 },
                 {
@@ -46,6 +47,11 @@ CLI_SCHEMA: dict[str, Any] = {
         {
             "description": "check whether a project is ready to run",
             "flags": [
+                {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
                 {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
@@ -78,6 +84,11 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "discard the current, not-yet-run queue",
             "flags": [
                 {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
                     "name": "basedir",
@@ -109,6 +120,11 @@ CLI_SCHEMA: dict[str, Any] = {
         {
             "description": "cancel the active run or running jobs",
             "flags": [
+                {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
                 {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
@@ -225,6 +241,11 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "suspend running jobs",
             "flags": [
                 {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
                     "name": "basedir",
@@ -340,6 +361,11 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "resume suspended jobs",
             "flags": [
                 {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
                     "name": "basedir",
@@ -454,6 +480,11 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "delete saved run history",
             "flags": [
                 {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
                     "name": "basedir",
@@ -483,6 +514,11 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "find and remove orphan run registry entries",
             "flags": [
                 {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
                     "description": "master registry directory",
                     "environment": "ROTARI_MASTERDIR",
                     "name": "masterdir",
@@ -496,6 +532,11 @@ CLI_SCHEMA: dict[str, Any] = {
         {
             "description": "remove a confirmed stale run lock",
             "flags": [
+                {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
                 {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
@@ -524,6 +565,11 @@ CLI_SCHEMA: dict[str, Any] = {
         {
             "description": "change jobs in the current or previous batch",
             "flags": [
+                {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
                 {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
@@ -713,6 +759,11 @@ CLI_SCHEMA: dict[str, Any] = {
             "manifest",
             "flags": [
                 {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
                     "name": "basedir",
@@ -758,6 +809,11 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "validate and replace a queue from a workflow manifest",
             "flags": [
                 {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
                     "name": "basedir",
@@ -784,6 +840,11 @@ CLI_SCHEMA: dict[str, Any] = {
         {
             "description": "remove jobs from the current or previous batch",
             "flags": [
+                {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
                 {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
@@ -872,6 +933,11 @@ CLI_SCHEMA: dict[str, Any] = {
         {
             "description": "show queue or run status",
             "flags": [
+                {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
                 {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
@@ -1093,6 +1159,11 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "list runs, summarize one run, or compare two runs",
             "flags": [
                 {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
                     "name": "basedir",
@@ -1117,6 +1188,11 @@ CLI_SCHEMA: dict[str, Any] = {
         {
             "description": "list running and recently finished jobs across projects",
             "flags": [
+                {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
                 {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
@@ -1161,6 +1237,11 @@ CLI_SCHEMA: dict[str, Any] = {
         {
             "description": "diagnose one job with an LLM or local error rules",
             "flags": [
+                {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
                 {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
@@ -1241,6 +1322,11 @@ CLI_SCHEMA: dict[str, Any] = {
             "run ID",
             "flags": [
                 {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
                     "name": "basedir",
@@ -1279,6 +1365,11 @@ CLI_SCHEMA: dict[str, Any] = {
         {
             "description": "add a command to a queue",
             "flags": [
+                {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
                 {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
@@ -1430,6 +1521,11 @@ CLI_SCHEMA: dict[str, Any] = {
         {
             "description": "copy the latest run's jobs into the queue",
             "flags": [
+                {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
                 {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
@@ -1611,6 +1707,11 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "execute queued commands, optionally selecting jobs from "
             "a run",
             "flags": [
+                {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
                 {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
@@ -1969,6 +2070,11 @@ CLI_SCHEMA: dict[str, Any] = {
             "those jobs",
             "flags": [
                 {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
                     "name": "basedir",
@@ -2285,6 +2391,11 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "manage the background server",
             "flags": [
                 {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
                     "name": "basedir",
@@ -2308,6 +2419,11 @@ CLI_SCHEMA: dict[str, Any] = {
         {
             "description": "serve the web status UI",
             "flags": [
+                {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
                 {
                     "description": "state directory",
                     "environment": "ROTARI_BASEDIR",
@@ -2797,25 +2913,9 @@ CLI_SCHEMA: dict[str, Any] = {
         {
             "array": False,
             "cli_default": False,
-            "description": "Run completion webhook URL.",
+            "description": "Webhook URL; overrides webhook.url in notifications.toml.",
             "job": False,
             "name": "ROTARI_WEBHOOK_URL",
-        },
-        {
-            "array": False,
-            "cli_default": False,
-            "description": "Run completion webhook events: always, success, or "
-            "failure.",
-            "job": False,
-            "name": "ROTARI_WEBHOOK_ON",
-        },
-        {
-            "array": False,
-            "cli_default": False,
-            "description": "Run completion webhook format: json, slack, teams, "
-            "or discord.",
-            "job": False,
-            "name": "ROTARI_WEBHOOK_FORMAT",
         },
         {
             "array": False,

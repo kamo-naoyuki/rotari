@@ -676,7 +676,9 @@ async function showConfig() {
   const modal = document.getElementById("output-modal");
   const generator = document.getElementById("config-generator");
   const editor = document.getElementById("config-editor");
-  const notificationEditor = document.getElementById("notification-config-editor");
+  const notificationEditor = document.getElementById(
+    "notification-config-editor",
+  );
   const output = ensureModalOutput();
   generator.hidden = true;
   editor.hidden = true;
@@ -764,7 +766,9 @@ function showGenerateConfig() {
   const output = ensureModalOutput();
   const generator = document.getElementById("config-generator");
   const editor = document.getElementById("config-editor");
-  const notificationEditor = document.getElementById("notification-config-editor");
+  const notificationEditor = document.getElementById(
+    "notification-config-editor",
+  );
   output.hidden = true;
   editor.hidden = true;
   notificationEditor.hidden = true;
@@ -892,9 +896,9 @@ function readNotificationChannel(form, name) {
     run_failure: checked("run_failure"),
     run_success: checked("run_success"),
     max_jobs: Number(form.elements[name + "-max-jobs"].value),
-    fields: [...form.querySelectorAll(`input[name="${name}-field"]:checked`)].map(
-      (input) => input.value,
-    ),
+    fields: [
+      ...form.querySelectorAll(`input[name="${name}-field"]:checked`),
+    ].map((input) => input.value),
   };
 }
 async function generateNotificationConfig(project, target, button) {
@@ -947,7 +951,8 @@ async function showNotificationConfig() {
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = "Generate " + target.location;
-      button.onclick = () => generateNotificationConfig(project, target, button);
+      button.onclick = () =>
+        generateNotificationConfig(project, target, button);
       targets.append(button);
     }
     form.append(targets);
@@ -958,7 +963,12 @@ async function showNotificationConfig() {
     const format = document.createElement("select");
     format.name = "webhook-format";
     for (const value of ["json", "slack", "teams", "discord"]) {
-      const option = new Option(value, value, false, value === settings.webhook.format);
+      const option = new Option(
+        value,
+        value,
+        false,
+        value === settings.webhook.format,
+      );
       format.add(option);
     }
     const url = document.createElement("input");
@@ -971,10 +981,16 @@ async function showNotificationConfig() {
     clear.name = "clear-webhook-url";
     clearLabel.append(clear, "Clear webhook URL");
     webhookExtras.append("Format ", format, " URL ", url, clearLabel);
-    const webhook = notificationChannelEditor("webhook", settings.webhook, payload.fields);
+    const webhook = notificationChannelEditor(
+      "webhook",
+      settings.webhook,
+      payload.fields,
+    );
     webhook.append(webhookExtras);
     form.append(webhook);
-    form.append(notificationChannelEditor("browser", settings.browser, payload.fields));
+    form.append(
+      notificationChannelEditor("browser", settings.browser, payload.fields),
+    );
     const actions = document.createElement("div");
     actions.className = "notification-config-actions";
     const save = document.createElement("button");

@@ -30,6 +30,7 @@ Add a command to a queue.
 
 | Option | Value | Description |
 | --- | --- | --- |
+| `config` | `str` | config file to use |
 | `executor` | `str` | job executor |
 | `executor_options` | `Sequence[str]` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
 | `output` | `Sequence[str]` | stdout destination; stderr also goes here unless --error is specified; may be repeated |
@@ -61,6 +62,7 @@ Execute queued commands, optionally selecting jobs from a run.
 
 | Option | Value | Description |
 | --- | --- | --- |
+| `config` | `str` | config file to use |
 | `run_id` | `str` | repopulate the queue from this run before executing (copy --run-id + run); defaults to the latest run when a result filter is used |
 | `overwrite` | `bool` | replace a non-empty queue without prompting; requires --run-id |
 | `run_name` | `str` | run name label |
@@ -124,6 +126,7 @@ Run failed and unfinished jobs; with --job-id, run those jobs.
 
 | Option | Value | Description |
 | --- | --- | --- |
+| `config` | `str` | config file to use |
 | `run_id` | `str` | repopulate the queue from this run before executing; defaults to the latest run |
 | `overwrite` | `bool` | replace a non-empty queue without prompting; requires --run-id |
 | `run_name` | `str` | run name label |
@@ -181,6 +184,7 @@ Discard the current, not-yet-run queue.
 
 | Option | Value | Description |
 | --- | --- | --- |
+| `config` | `str` | config file to use |
 | `recover` | `bool` | confirm an interrupted run has stopped without prompting |
 | `quiet` | `bool` | suppress success output |
 
@@ -194,6 +198,7 @@ Wait for an asynchronous run by project, run name, or run id.
 
 | Option | Value | Description |
 | --- | --- | --- |
+| `config` | `str` | config file to use |
 | `run_id` | `Sequence[str]` | run ID; may be repeated |
 | `timeout` | `str` | maximum wait duration |
 | `json` | `bool` | print each completed run as one JSON object |
@@ -208,6 +213,7 @@ Show queue or run status.
 
 | Option | Value | Description |
 | --- | --- | --- |
+| `config` | `str` | config file to use |
 | `masterdir` | `str` | master registry directory |
 | `run_id` | `str` | run ID or latest |
 | `queue` | `bool` | show the current queue even when a run is selected |

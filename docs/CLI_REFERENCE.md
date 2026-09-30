@@ -29,6 +29,7 @@ Usage: `rotari check [PROJECT]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--json` | `` | `` | print machine-readable JSON |
@@ -43,6 +44,7 @@ Usage: `rotari reset [PROJECT]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--recover` | `` | `ROTARI_RESET_RECOVER` | confirm an interrupted run has stopped without prompting |
@@ -56,6 +58,7 @@ Usage: `rotari cancel [JOB_ID|ATTEMPT_ID|RUN_ID ...]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | cancel a running job; may be repeated |
@@ -84,6 +87,7 @@ Usage: `rotari suspend [JOB_ID|ATTEMPT_ID|RUN_ID ...]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | suspend a running job; may be repeated |
@@ -111,6 +115,7 @@ Usage: `rotari resume [JOB_ID|ATTEMPT_ID|RUN_ID ...]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | resume a suspended job; may be repeated |
@@ -138,6 +143,7 @@ Usage: `rotari delete [RUN_ID]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run to delete |
@@ -151,6 +157,7 @@ Usage: `rotari gc [MASTERDIR]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
 | `--apply` | `` | `` | remove the cached orphan entries |
 
@@ -162,6 +169,7 @@ Usage: `rotari unlock [PROJECT]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | verify the run ID recorded in the stale lock |
@@ -174,6 +182,7 @@ Usage: `rotari change <command ...>`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run ID to use when restoring a batch |
@@ -218,6 +227,7 @@ Usage: `rotari export [TARGET] [FILE]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID (repeatable)` | `ROTARI_RUN_ID` | run ID to export; may be repeated |
@@ -233,6 +243,7 @@ Usage: `rotari import FILE [PROJECT]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--overwrite` | `` | `` | replace a non-empty queue |
@@ -247,6 +258,7 @@ Usage: `rotari remove [JOB_ID ...]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run ID to use when restoring a batch |
@@ -270,6 +282,7 @@ Usage: `rotari show [SELECTOR]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
@@ -317,6 +330,7 @@ Usage: `rotari lineage [RUN_ID ...]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--json` | `` | `` | print the lineage, summary, or comparison as JSON |
@@ -329,6 +343,7 @@ Usage: `rotari jobs [PROJECT]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory for --all |
@@ -344,6 +359,7 @@ Usage: `rotari diagnose [JOB_ID]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run ID |
@@ -363,6 +379,7 @@ Usage: `rotari wait [PROJECT_OR_RUN_NAME_OR_RUN_ID ...]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID (repeatable)` | `ROTARI_RUN_ID` | run ID; may be repeated |
@@ -377,6 +394,7 @@ Usage: `rotari add <command ...>`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | job executor |
@@ -408,6 +426,7 @@ Usage: `rotari copy [RUN_ID]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | source run ID; defaults to the latest run |
@@ -446,6 +465,7 @@ Usage: `rotari run [RUN_ID]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | repopulate the queue from this run before executing (copy --run-id + run); defaults to the latest run when a result filter is used |
@@ -509,6 +529,7 @@ Usage: `rotari retry [RUN_ID]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | repopulate the queue from this run before executing; defaults to the latest run |
@@ -570,6 +591,7 @@ manage the background server
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | server registry directory |
 
@@ -579,6 +601,7 @@ serve the web status UI
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `--host` | `HOST` | `ROTARI_WEB_HOST` | HTTP listen host |
 | `--port` | `PORT` | `ROTARI_WEB_PORT` | HTTP listen port |
