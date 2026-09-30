@@ -29,10 +29,6 @@ func cmdLineage(args []string) int {
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
-	if len(fs.Args()) > 2 {
-		printError("usage: " + cliUsage("lineage"))
-		return 1
-	}
 	baseDir, project, err := resolve.ExistingRun(*basedir, *projectName, firstNonEmpty(fs.Args()...))
 	if err != nil {
 		printError(err)
@@ -232,6 +228,23 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 			printError(err)
 			return 1
 		}
+		if len(resolvedIDs) > 2 {
+			runs := make([]rundiff.Run, 0, len(resolvedIDs))
+			for _, runID := range resolvedIDs {
+				run, loadErr := runview.LoadRun(paths, runID, jsonStore())
+				if loadErr != nil {
+					printError(loadErr)
+					return 1
+				}
+				runs = append(runs, run)
+			}
+			grid := rundiff.CompareGrid(runs)
+			if jsonOutput {
+				return encodeJSON(grid, "comparison grid")
+			}
+			writeRunGrid(os.Stdout, paths, grid)
+			return 0
+		}
 		result := rundiff.Compare(from, to)
 		if jsonOutput {
 			return encodeJSON(result, "comparison")
@@ -295,6 +308,35 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 		fmt.Printf("\n%s\n  rotari lineage %s %s\n", cyan("To compare the latest two runs:"), previous, current)
 	}
 	return 0
+}
+
+func writeRunGrid(writer io.Writer, paths state.ProjectPaths, grid rundiff.GridResult) {
+	fmt.Fprintf(writer, "%s %s\n", cyan("Project:"), paths.ProjectName)
+	labels := make([]string, len(grid.Runs))
+	for index, run := range grid.Runs {
+		labels[index] = model.RunLabel(run.ID, run.Name)
+	}
+	fmt.Fprintf(writer, "%s %s\n", cyan("Runs:"), strings.Join(labels, " | "))
+	width := len("JOB")
+	for _, job := range grid.Jobs {
+		width = max(width, len(job.Name))
+	}
+	header := fmt.Sprintf("%-*s", width, "JOB")
+	for index := range grid.Runs {
+		header += fmt.Sprintf("  %-12s", fmt.Sprintf("RUN_%d", index+1))
+	}
+	fmt.Fprintln(writer, cyan(header))
+	for _, job := range grid.Jobs {
+		line := fmt.Sprintf("%-*s", width, job.Name)
+		for index, status := range job.Statuses {
+			cell := firstNonEmpty(status, "-")
+			if index < len(job.DefinitionChanged) && job.DefinitionChanged[index] {
+				cell += " *"
+			}
+			line += fmt.Sprintf("  %-12s", cell)
+		}
+		fmt.Fprintln(writer, line)
+	}
 }
 
 func writeRunSummary(writer io.Writer, paths state.ProjectPaths, summary rundiff.RunSummary) {

@@ -81,12 +81,13 @@ rotari lineage -p sweep --json
 ```
 
 With one run ID it shows that run's summary. With two run IDs it compares
-them:
+them. With three or more run IDs it shows a job-by-run result grid:
 
 ```sh
 rotari lineage -p sweep RUN_ID
 rotari lineage -p sweep RUN_A RUN_B
 rotari lineage -p sweep --json RUN_A RUN_B
+rotari lineage -p sweep RUN_A RUN_B RUN_C
 ```
 
 `lineage` summarizes jobs that were fixed, are still failing, or newly fail; jobs

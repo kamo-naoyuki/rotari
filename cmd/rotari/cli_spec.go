@@ -293,7 +293,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "json", Description: "print the lineage, summary, or comparison as JSON"},
 		),
-		Positional: "[[RUN_A] RUN_B]",
+		Positional: "[RUN_ID ...]",
 	},
 	{
 		Name:        "jobs",
@@ -641,7 +641,9 @@ func cliCommandFlag(command, name string) cliFlagSpec {
 			}
 		}
 	}
-	return cliFlag(name)
+	// Tests and internal callers may add a local flag directly to a FlagSet
+	// without adding public CLI metadata.
+	return cliFlagSpec{Name: name}
 }
 
 // cliFlag returns the first metadata defined for flag name by any command.
@@ -689,12 +691,28 @@ func cliString(fs *flag.FlagSet, name, defaultValue string) *string {
 // positional. add and change call fs.Parse instead: their positional
 // arguments are a job command, whose own options must reach the job.
 func cliParse(fs *flag.FlagSet, args []string) error {
+	var parseOutput strings.Builder
+	originalOutput := fs.Output()
+	fs.SetOutput(&parseOutput)
+	defer fs.SetOutput(originalOutput)
+
 	if fs.Lookup(filterFlagPrefix+"stage") != nil {
 		fs.Usage = func() { printFlagUsage(fs) }
 	}
 	var positional []string
 	for {
 		if err := fs.Parse(args); err != nil {
+			output := parseOutput.String()
+			if err != flag.ErrHelp {
+				if newline := strings.IndexByte(output, '\n'); newline >= 0 {
+					printError(strings.TrimSuffix(output[:newline], "\n"))
+					fmt.Fprint(originalOutput, output[newline+1:])
+				} else if output != "" {
+					printError(strings.TrimSuffix(output, "\n"))
+				}
+			} else {
+				fmt.Fprint(originalOutput, output)
+			}
 			return err
 		}
 		rest := fs.Args()

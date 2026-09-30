@@ -147,6 +147,26 @@ func TestSummarizeOriginsKeepsNewJobsExplicit(t *testing.T) {
 	}
 }
 
+func TestCompareGridTracksStatusesAcrossRuns(t *testing.T) {
+	first := job("train", StatusFailed, "false")
+	second := job("train", StatusSuccess, "true")
+	third := job("train", StatusSuccess, "true")
+	got := CompareGrid([]Run{
+		{ID: "run-1", Jobs: []Job{first}},
+		{ID: "run-2", Jobs: []Job{second}},
+		{ID: "run-3", Jobs: []Job{third}},
+	})
+	if len(got.Runs) != 3 || len(got.Jobs) != 1 {
+		t.Fatalf("grid = %+v", got)
+	}
+	if want := []string{StatusFailed, StatusSuccess, StatusSuccess}; !reflect.DeepEqual(got.Jobs[0].Statuses, want) {
+		t.Fatalf("statuses = %v, want %v", got.Jobs[0].Statuses, want)
+	}
+	if !got.Jobs[0].DefinitionChanged[1] || got.Jobs[0].DefinitionChanged[2] {
+		t.Fatalf("definition changes = %v", got.Jobs[0].DefinitionChanged)
+	}
+}
+
 func TestLineageCountsRunsAndChangesFromPrevious(t *testing.T) {
 	first := Run{ID: "run-1", Jobs: []Job{job("a", StatusFailed, "false"), job("b", StatusBlocked, "true")}}
 	second := Run{ID: "run-2", Jobs: []Job{job("a", StatusSuccess, "true"), job("b", StatusSuccess, "true"), job("c", StatusUnfinished, "true")}}

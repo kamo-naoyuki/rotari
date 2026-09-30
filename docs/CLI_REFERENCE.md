@@ -312,7 +312,7 @@ Usage: `rotari show [SELECTOR]`
 
 list runs, summarize one run, or compare two runs
 
-Usage: `rotari lineage [[RUN_A] RUN_B]`
+Usage: `rotari lineage [RUN_ID ...]`
 
 | Option | Value | Environment | Description |
 | --- | --- | --- | --- |

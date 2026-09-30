@@ -101,14 +101,10 @@ most.
   Decide separately whether the generation list is a provenance tree or one
   time-ordered sequence, so runs exploring separate branches are not listed
   as one sequence.
-- Consider comparing three or more runs as a job-by-run grid of results,
-  marking where a job's definition changed. It separates flaky jobs from
-  persistently failing ones, which two runs cannot, and shows where each job
-  broke. The generation list is the same data aggregated per run instead of
-  per job. Decide whether marks are relative to the previous column or to a
-  fixed baseline, how runs are chosen (a list, a range, the last N, or N
-  generations up the origin chain), and how many columns the CLI shows before
-  leaving the rest to the Web UI.
+- `lineage RUN_A RUN_B RUN_C` and longer selections show a job-by-run result
+  grid. Definition-change marks are relative to the previous selected column;
+  run selection is an explicit ordered list, and the Web UI remains the better
+  view for a large number of columns.
 - Consider recording `state_version` in `meta.json`, `context.json`, and
   per-job files, as `queue.json`, `commands.json`, and `summary.json` already
   do. See "State load and write contracts" in

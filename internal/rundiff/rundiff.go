@@ -102,6 +102,63 @@ type Result struct {
 	Jobs    []JobDiff `json:"jobs"`
 }
 
+// GridResult compares three or more runs as a job-by-run result grid.
+type GridResult struct {
+	Runs []RunInfo `json:"runs"`
+	Jobs []GridJob `json:"jobs"`
+}
+
+// GridJob contains one job's status in each selected run. DefinitionChanged
+// marks columns whose definition differs from the previous occurrence.
+type GridJob struct {
+	Name              string   `json:"name"`
+	Statuses          []string `json:"statuses"`
+	DefinitionChanged []bool   `json:"definition_changed,omitempty"`
+}
+
+// CompareGrid compares three or more runs in the supplied order. Jobs are
+// matched by name, or by ID for unnamed jobs.
+func CompareGrid(runs []Run) GridResult {
+	result := GridResult{Runs: make([]RunInfo, 0, len(runs)), Jobs: []GridJob{}}
+	jobIndexes := make(map[string]int)
+	for _, run := range runs {
+		result.Runs = append(result.Runs, runInfo(run))
+	}
+	for runIndex, run := range runs {
+		seen := make(map[string]bool)
+		for _, job := range run.Jobs {
+			key := jobKey(job.Spec)
+			seen[key] = true
+			jobIndex, exists := jobIndexes[key]
+			if !exists {
+				jobIndex = len(result.Jobs)
+				jobIndexes[key] = jobIndex
+				result.Jobs = append(result.Jobs, GridJob{
+					Name: displayName(job.Spec), Statuses: make([]string, len(runs)), DefinitionChanged: make([]bool, len(runs)),
+				})
+			}
+			gridJob := &result.Jobs[jobIndex]
+			gridJob.Statuses[runIndex] = job.Status
+			if runIndex > 0 {
+				previousJob := findJob(runs[runIndex-1].Jobs, key)
+				if previousJob != nil && len(SpecChanges(previousJob.Spec, job.Spec)) > 0 {
+					gridJob.DefinitionChanged[runIndex] = true
+				}
+			}
+		}
+	}
+	return result
+}
+
+func findJob(jobs []Job, key string) *Job {
+	for index := range jobs {
+		if jobKey(jobs[index].Spec) == key {
+			return &jobs[index]
+		}
+	}
+	return nil
+}
+
 // Compare compares from with to. Jobs are listed in to's order, followed by
 // removed jobs in from's order.
 func Compare(from, to Run) Result {
