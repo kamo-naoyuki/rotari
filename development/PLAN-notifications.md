@@ -28,6 +28,9 @@
 11. ブラウザー通知は Web サーバーが保持する現在の設定を使い、`notifications.toml` の保存または reload 後に反映する。
 12. ブラウザー通知の権限、ON/OFF の localStorage、初回表示時に過去のイベントを通知しない挙動は維持する。
 13. Web UI では `notifications.toml` の生成、編集、保存、reload を提供する。
+14. blocked、cancelled、開始前 cancel は `job_failure` に含める。
+15. Webhook はリンクを載せない。ブラウザー通知だけが対象の Web 画面へ遷移できる。
+16. Webhook の永続的な送信台帳と自動再試行は初版では実装しない。
 
 ## 設定ファイル
 
@@ -41,7 +44,7 @@
 | basedir | `<basedir>/notifications.toml` |
 | project | `<basedir>/projects/<project>/notifications.toml` |
 
-解決順は project、basedir、global とする。継承・置換の詳細は「未決事項」で確定する。
+解決順は project、basedir、global とし、最初に見つかった1ファイルだけを丸ごと使う。階層間の merge は行わない。
 
 ### 形式
 
@@ -67,7 +70,6 @@ fields = [
   "duration",
   "diagnosis_name",
   "diagnosis_suggestion",
-  "link",
 ]
 max_jobs = 20
 
@@ -94,7 +96,7 @@ max_jobs = 10
 - `ROTARI_WEBHOOK_URL`: `notifications.toml` の Webhook URL を上書きする。
 - URL 以外のイベント条件、fields、件数上限などはファイルだけで設定する。
 - `ROTARI_WEBHOOK_ON` は削除する。
-- `ROTARI_WEBHOOK_FORMAT` を残すかは未決事項とする。
+- JSON、Slack、Teams、Discord を選ぶ既存の `ROTARI_WEBHOOK_FORMAT` は削除し、`format` は `notifications.toml` だけで設定する。
 
 ## 通知フィールド
 
@@ -148,8 +150,8 @@ max_jobs = 10
 ### 誘導情報
 
 - `link`
-  - ブラウザー通知では対象 run または job の URL。
-  - Webhook では Web URL が構成できれば URL、できなければ `rotari show` 相当のコマンド。
+  - ブラウザー通知で対象 run または job の URL を開くために使う。
+  - Webhook では出力しない。
 
 ### 常に含めるメタデータ
 
@@ -178,7 +180,7 @@ Webhook の HTTP 送信と各サービス固有の encoder は adapter として
 
 - ジョブが retry を終えて最終的に success または failed になった時点でイベントを生成する。
 - retry 待ちの attempt failure は生成しない。
-- blocked、開始前 cancel、明示的 cancel の分類は未決事項として確定する。
+- blocked、開始前 cancel、明示的 cancel は最終 failure としてイベントを生成する。
 - ジョブ名などは `JobSpec`、結果と diagnosis は最終 `JobResult`、時刻は attempt の状態から取得する。
 
 ### run イベント
@@ -191,6 +193,7 @@ Webhook の HTTP 送信と各サービス固有の encoder は adapter として
 - 集約は project と run ごとに行い、異なる run のイベントは混ぜない。
 - 成功と失敗は同じ Batch に含め、通知本文の中で分類する。
 - `max_jobs` を超えたジョブは省略件数を表示する。
+- ブラウザー通知は本文を固定の文字数上限でも切り詰め、省略表示を末尾に付ける。Webhook は各 format のサービス上限を超えないよう adapter ごとに切り詰める。
 - run 終了時には pending Batch を直ちに flush し、run 完了を含む最後の通知を送る。
 - 通知失敗は run や job の結果を変更しない。
 - Webhook は scheduler を止めない送信キューを使い、run 終了前に pending 送信を flush する。
@@ -205,7 +208,7 @@ Webhook の HTTP 送信と各サービス固有の encoder は adapter として
 - run 開始時に解決済みの Webhook 設定を作り、run の実行プロセスで保持する。
 - config file は run の既存 config snapshot と同様に snapshot する。
 - URL が環境変数由来の場合、URL 自体を run directory に保存しない。実行プロセス内だけで保持する。
-- 再送・重複防止は Batch 単位にする。既存の `webhook.sent` 1個ではジョブ中間通知を表せないため、イベントまたは Batch ID の台帳へ置き換える。
+- 初版では永続的な送信台帳と自動再試行を設けない。実行中の送信 queue だけが Batch を所有し、HTTP 送信に失敗したら警告を記録して破棄する。
 - supervisor 以外が cancellation を finalize する経路でも、run 開始時の設定を使える構造にする。
 
 ## ブラウザー通知
@@ -218,6 +221,7 @@ Webhook の HTTP 送信と各サービス固有の encoder は adapter として
 - API projection に、retry 待ちの attempt failure と最終 failure を区別できる情報を追加する。
 - localStorage の通知 ON/OFF は server 設定より利用者側の上書きとして維持する。
 - 初回 poll は baseline の構築だけを行い、既存の完了イベントを通知しない。
+- static export はサーバーが存在せず、ファイル保存、reload、状態ポーリングができないため、notification editor と live browser notifications を表示しない。
 
 ## CLI と Web UI での設定管理
 
@@ -297,7 +301,6 @@ Webhook は Web の manager を参照せず、run 開始時に同じ resolver �
 
 - 既存 encoder を Batch 対応へ移す。
 - 非同期 queue、固定集約 window、run 終了時 flush を実装する。
-- Batch 単位の重複防止を実装する。
 - `webhook.on` と旧環境変数を削除する。
 - run 開始時の config snapshot と環境変数 URL の扱いを実装する。
 - JSON、Slack、Teams、Discord のテストを更新する。
@@ -335,7 +338,7 @@ Webhook は Web の manager を参照せず、run 開始時に同じ resolver �
 - Batch の grouping、flush、`max_jobs`
 - diagnosis の複数件表示と選択 field
 - Webhook encoder の各 format
-- Webhook の送信失敗、重複防止、run 終了時 flush
+- Webhook の送信失敗と run 終了時 flush
 - Web manager の reload 成功、失敗時 rollback、revision
 - browser JS の success/failure、初回 baseline、localStorage、settings revision
 - Web API の Generate、Save、Reload、read-only rejection
@@ -382,15 +385,9 @@ CLI reference と environment variable docs は generator を使って更新す�
 
 実装開始前に次を確定する。
 
-1. 設定階層は「最初に見つかったファイルを丸ごと使う」か、「global → basedir → project で項目ごとに merge」か。
-2. 集約 window の固定値。候補は2秒から5秒。
-3. blocked、cancelled、開始前 cancel を `job_failure` に含めるか、別イベントにするか。
-4. `ROTARI_WEBHOOK_FORMAT` を残すか。
-5. `link` 用の Web base URL をどの設定で与えるか。
-6. Web UI を raw TOML editor にするか、通知専用の構造化フォームにするか。
-7. static export では notification editor と live browser notifications を提供しない方針でよいか。
-8. Webhook の Batch 台帳と再試行の具体的な形式。
-9. browser notification の本文長上限。`max_jobs` だけでなく文字数でも省略するか。
+1. 集約 window の固定値。候補は2秒から5秒。
+2. Web UI を raw TOML editor にするか、通知専用の構造化フォームにするか。
+3. browser notification の固定本文長上限。候補は1000文字。
 
 ## 今回やらないこと
 
