@@ -29,6 +29,14 @@ func init() {
 func loadCLIConfig(args []string) error {
 	cliConfig = nil
 	baseDir, projectName := configLocationArgs(args)
+	if path, specified := configFileArg(args); specified {
+		values, err := config.LoadPath(path)
+		if err != nil {
+			return err
+		}
+		cliConfig = values
+		return nil
+	}
 	if runID := configRunIDArg(args); runID != "" {
 		location, found, err := resolveRunLocation(runID)
 		if err != nil {
@@ -62,6 +70,29 @@ func loadCLIConfig(args []string) error {
 }
 
 func configProjectName(baseDir, requested string) (string, error) {
+func configFileArg(args []string) (string, bool) {
+	var path string
+	specified := false
+	for index := 0; index < len(args); index++ {
+		if args[index] == "--" {
+			break
+		}
+		name, value, hasValue := strings.Cut(args[index], "=")
+		if name != "--config" {
+			continue
+		}
+		if hasValue {
+			path, specified = value, true
+			continue
+		}
+		if index+1 < len(args) {
+			index++
+			path, specified = args[index], true
+		}
+	}
+	return path, specified
+}
+
 	if requested != "" {
 		if !state.IsValidPathElement(requested) {
 			return "", fmt.Errorf("invalid project name %q", requested)

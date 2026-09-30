@@ -475,6 +475,14 @@ func TestCLIUsageIncludesShortOptions(t *testing.T) {
 	}
 }
 
+func TestCLIUsageIncludesConfigOption(t *testing.T) {
+	for _, command := range []string{"add", "show", "server", "web"} {
+		if !strings.Contains(cliUsage(command), "--config FILE") {
+			t.Fatalf("usage for %s does not contain --config: %s", command, cliUsage(command))
+		}
+	}
+}
+
 func TestCLIStringRejectsValuesOutsideChoices(t *testing.T) {
 	for _, args := range [][]string{{"--executor", "invalid"}, {"-e", "invalid"}} {
 		fs := flag.NewFlagSet("test", flag.ContinueOnError)

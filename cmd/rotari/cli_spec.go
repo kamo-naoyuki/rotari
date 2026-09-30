@@ -97,6 +97,7 @@ var cliEnvironmentVariables = map[string]string{
 
 func commonCLIFlags() []cliFlagSpec {
 	return []cliFlagSpec{
+		{Name: "config", Description: "config file to use", ValueName: "FILE", CommandLineOnly: true},
 		{Name: "basedir", Description: "state directory", ValueName: "DIR"},
 		{Name: "project-name", Description: "project name", ValueName: "NAME"},
 	}
@@ -106,7 +107,7 @@ var cliCommandSpecs = []cliCommandSpec{
 	{
 		Name:        "config",
 		Description: "generate a config file template",
-		Flags: append(commonCLIFlags(),
+		Flags: append([]cliFlagSpec{{Name: "basedir", Description: "state directory", ValueName: "DIR"}, {Name: "project-name", Description: "project name", ValueName: "NAME"}},
 			cliFlagSpec{Name: "list", Description: "list existing config files"},
 			cliFlagSpec{Name: "format", Description: "config format: yaml, toml, or json", ValueName: "FORMAT", Values: []string{"yaml", "toml", "json"}},
 			cliFlagSpec{Name: "output", Description: "output config file path", ValueName: "FILE"},
@@ -182,6 +183,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Description: "find and remove orphan run registry entries",
 		Flags: []cliFlagSpec{
 			{Name: "masterdir", Description: "master registry directory", ValueName: "DIR"},
+			{Name: "config", Description: "config file to use", ValueName: "FILE", CommandLineOnly: true},
 			{Name: "apply", Description: "remove the cached orphan entries"},
 		},
 		Positional: "[MASTERDIR]",
@@ -457,6 +459,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Description: "manage the background server",
 		Flags: []cliFlagSpec{
 			{Name: "basedir", Description: "state directory", ValueName: "DIR"},
+			{Name: "config", Description: "config file to use", ValueName: "FILE", CommandLineOnly: true},
 			{Name: "masterdir", Description: "server registry directory", ValueName: "DIR"},
 		},
 		Subcommands: []cliSubcommandSpec{
@@ -468,7 +471,7 @@ var cliCommandSpecs = []cliCommandSpec{
 	{
 		Name:        "web",
 		Description: "serve the web status UI",
-		Flags: append([]cliFlagSpec{{Name: "basedir", Description: "state directory", ValueName: "DIR"}},
+		Flags: append([]cliFlagSpec{{Name: "config", Description: "config file to use", ValueName: "FILE", CommandLineOnly: true}, {Name: "basedir", Description: "state directory", ValueName: "DIR"}},
 			cliFlagSpec{Name: "host", Description: "HTTP listen host", ValueName: "HOST"},
 			cliFlagSpec{Name: "port", Description: "HTTP listen port", ValueName: "PORT"},
 			cliFlagSpec{Name: "static-dir", Description: "generate a static web UI", ValueName: "DIR"},
@@ -665,6 +668,10 @@ func cliFlag(name string) cliFlagSpec {
 
 func cliString(fs *flag.FlagSet, name, defaultValue string) *string {
 	spec := cliCommandFlag(fs.Name(), name)
+	if fs.Name() != "config" && fs.Lookup("config") == nil {
+		configSpec := cliCommandFlag(fs.Name(), "config")
+		fs.String(configSpec.Name, "", cliFlagDescription(configSpec))
+	}
 	if !spec.CommandLineOnly {
 		defaultValue = configString(name, defaultValue)
 		if envName := cliEnvironmentVariable(name); envName != "" {

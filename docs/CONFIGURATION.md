@@ -28,11 +28,18 @@ The resolution order is:
 ```text
 CLI option (e.g., --retry)
 environment variable (e.g., ROTARI_RUN_RETRY)
+explicit --config FILE, when provided
 project config path (e.g., <basedir>/projects/demo/config.yaml)
 basedir config path (e.g., <basedir>/config.yaml)
 global config path (e.g., ~/.config/rotari/config.yaml)
 built-in default
 ```
+
+Commands that load configuration accept `--config FILE` to use a specific
+YAML, TOML, or JSON file instead of looking in the project, basedir, and global
+locations. Both `--config FILE` and `--config=FILE` are supported. An explicitly
+selected file must exist and parse successfully; `--config` itself cannot be
+set by an environment variable or another config file.
 
 Output paths such as `export --output` are read only from the command line;
 config files and environment variables do not set them.

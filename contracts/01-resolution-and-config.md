@@ -167,6 +167,13 @@ Implementation and tests for these rules:
   containing one supported file: `projects/<project>/`, then the resolved
   basedir, then `$XDG_CONFIG_HOME/rotari` (or `~/.config/rotari`). It loads only
   that config; lower-priority scopes are ignored rather than merged.
+- Commands that load config accept `--config FILE` to load a specific YAML,
+  TOML, or JSON file in place of automatic scope lookup. An explicit missing,
+  unreadable, or invalid file fails the command rather than falling back.
+  The flag itself is command-line-only. Implemented by
+  [`cmd/rotari/config.go`](../cmd/rotari/config.go) and
+  [`internal/config/config.go`](../internal/config/config.go), with tests in
+  [`cmd/rotari/config_test.go`](../cmd/rotari/config_test.go).
 - `rotari show` and the web UI display that selected config path.
 - Multiple supported config files in the same directory are an error; file
   formats have no implicit priority.

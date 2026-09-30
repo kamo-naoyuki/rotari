@@ -34,6 +34,68 @@ func TestProjectConfigIgnoresLowerPriorityScopes(t *testing.T) {
 	}
 }
 
+func TestConfigOptionLoadsExplicitFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "selected.yaml")
+	if err := os.WriteFile(path, []byte("executor: slurm\nretry: 3\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	oldConfig := cliConfig
+	t.Cleanup(func() { cliConfig = oldConfig })
+	if err := loadCLIConfig([]string{"--config", path}); err != nil {
+		t.Fatal(err)
+	}
+	if got := configString("executor", ""); got != "slurm" || configInt("retry", 0) != 3 {
+		t.Fatalf("config = %#v", cliConfig)
+	}
+}
+
+func TestConfigOptionOverridesAutomaticConfigAndSupportsEquals(t *testing.T) {
+	baseDir := t.TempDir()
+	selected := filepath.Join(t.TempDir(), "selected.json")
+	if err := os.WriteFile(filepath.Join(baseDir, "config.yaml"), []byte("run: [invalid\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(selected, []byte(`{"project-name":"from-file"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	oldConfig := cliConfig
+	t.Cleanup(func() { cliConfig = oldConfig })
+	if err := loadCLIConfig([]string{"--basedir", baseDir, "--config=" + selected}); err != nil {
+		t.Fatal(err)
+	}
+	if got := configString("project-name", ""); got != "from-file" {
+		t.Fatalf("project name = %q, want from-file", got)
+	}
+	if err := loadCLIConfig([]string{"--config", filepath.Join(baseDir, "missing.yaml")}); err == nil {
+		t.Fatal("missing explicit config file was accepted")
+	}
+}
+
+func TestConfigOptionIgnoresJobArgumentsAfterSeparator(t *testing.T) {
+	if path, specified := configFileArg([]string{"--basedir", "/tmp", "--", "echo", "--config", "job.yaml"}); specified {
+		t.Fatalf("job flag was treated as a config file: %q", path)
+	}
+}
+
+func TestAddUsesExplicitConfigFile(t *testing.T) {
+	oldConfig, oldCommand := cliConfig, cliConfigCommand
+	t.Cleanup(func() {
+		cliConfig = oldConfig
+		cliConfigCommand = oldCommand
+	})
+	baseDir := t.TempDir()
+	selected := filepath.Join(t.TempDir(), "selected.toml")
+	if err := os.WriteFile(selected, []byte("project-name = 'selected'\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code := run([]string{"add", "--config", selected, "--basedir", baseDir, "--", "true"}); code != 0 {
+		t.Fatalf("add exit code = %d", code)
+	}
+	if _, err := os.Stat(filepath.Join(baseDir, "projects", "selected", "queue.json")); err != nil {
+		t.Fatalf("explicit config project was not created: %v", err)
+	}
+}
+
 func TestBasedirConfigIgnoresGlobalCommandSections(t *testing.T) {
 	configHome := t.TempDir()
 	baseDir := t.TempDir()

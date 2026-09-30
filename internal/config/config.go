@@ -58,6 +58,15 @@ func LoadFile(directory string) (map[string]any, error) {
 	return config, nil
 }
 
+// LoadPath parses the config file at path.
+func LoadPath(path string) (map[string]any, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return Parse(path, data)
+}
+
 // Parse parses config data in the format that path's extension names.
 func Parse(path string, data []byte) (map[string]any, error) {
 	config := make(map[string]any)

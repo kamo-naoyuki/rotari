@@ -37,6 +37,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -61,6 +65,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -82,6 +90,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -168,6 +180,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -250,6 +266,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -332,6 +352,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -355,6 +379,10 @@
         {
           "name": "masterdir",
           "value_name": "DIR"
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
         },
         {
           "name": "apply"
@@ -367,6 +395,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -387,6 +419,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -540,6 +576,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -577,6 +617,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -601,6 +645,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -664,6 +712,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -825,6 +877,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -843,6 +899,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -874,6 +934,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -929,6 +993,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -956,6 +1024,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -1066,6 +1138,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -1198,6 +1274,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -1444,6 +1524,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -1665,6 +1749,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
@@ -1690,6 +1778,10 @@
         {
           "name": "basedir",
           "short": "b",
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
           "value_name": "DIR"
         },
         {
