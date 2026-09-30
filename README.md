@@ -77,9 +77,24 @@ Run `rotari version` to check the installed version. Use
 For the published image, persistent state, and runtime requirements, see the
 [Docker guide](docs/DOCKER.md).
 
-## Quick start
+## Choose how to submit jobs
 
-Set the project once for the current shell, then add and run commands:
+All three approaches use the same rotari queue, run history, and status tools.
+Choose how you want to define the jobs:
+
+| Approach | Start here | Best for |
+| --- | --- | --- |
+| **Shell (recommended starting point)** | [Shell quick start](#shell-quick-start) | Adding commands interactively or keeping a batch in a shell script. No new workflow format needed. |
+| **Manifest** | [Manifest quick start](#manifest-quick-start) | Keeping a batch in an editable YAML file, or exporting a run to revise and import later. |
+| **Python** | [Python quick start](#python-quick-start) | Submitting jobs from Python code and reading results as Python objects. Jobs still run as commands, not Python functions. |
+
+You can switch approaches later: for example, export a run created from shell
+commands as a manifest, or import a manifest with the Python client.
+
+## Shell quick start
+
+Set the project once for the current shell, then add and run commands. You can
+also save these lines in a shell script to define a repeatable batch:
 
 ```sh
 # Set the project once for the current shell. The default state directory is
@@ -133,6 +148,49 @@ Use `--depends-on-finished NAME` for aggregation or cleanup jobs that should
 run once the prerequisite finishes, whatever its result. See
 [Dependencies and stages](docs/RUNNING.md#dependencies-and-stages) for stages and
 multiple prerequisites.
+
+## Manifest quick start
+
+If you prefer a file you can review and edit, save this as `experiment.yaml`:
+
+```yaml
+version: 1
+jobs:
+  - name: train-small
+    command: [python, train.py, --lr, "0.1"]
+  - name: train-large
+    command: [python, train.py, --lr, "0.01"]
+```
+
+Import the file into a project queue and run it:
+
+```sh
+rotari import -p sweep experiment.yaml
+rotari run -p sweep
+rotari show -p sweep
+```
+
+Use `rotari export --template` for a starter file, or export an existing run
+to edit and re-import it. See [Workflow manifests](docs/WORKFLOW_MANIFESTS.md) for
+export, import options, and result reuse.
+
+## Python quick start
+
+Install the [Python client](docs/PYTHON_CLIENT.md#installation), which includes the
+rotari executable on supported platforms. It submits command argument lists
+through the CLI:
+
+```python
+from rotari import Rotari
+
+rotari = Rotari(project="sweep")
+rotari.add(["python", "train.py", "--lr", "0.1"])
+rotari.run()
+result = rotari.show()
+```
+
+The client can also [exchange manifests as dictionaries](docs/PYTHON_CLIENT.md#usage).
+See the [Python API reference](docs/python-api.md) for available methods and options.
 
 ## Examples
 
