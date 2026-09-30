@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"bytes"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/notification"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	"github.com/kamo-naoyuki/rotari/internal/queueops"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
@@ -1352,6 +1354,68 @@ func TestWebGenerateConfigCreatesAndOverwritesTOMLAtSelectedLocation(t *testing.
 	handler.ServeHTTP(recorder, request)
 	if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), "invalid config location") {
 		t.Fatalf("invalid location status = %d, body = %q", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestWebNotificationConfigGenerateReadAndSave(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	baseDir := t.TempDir()
+	handler := Handler(testOptions(baseDir, true))
+
+	generate := httptest.NewRequest(http.MethodPost, "/api/generate-notification-config", strings.NewReader(`{"location":"basedir"}`))
+	generate.Header.Set("Content-Type", "application/json")
+	generated := httptest.NewRecorder()
+	handler.ServeHTTP(generated, generate)
+	if generated.Code != http.StatusOK {
+		t.Fatalf("generate status = %d, body = %q", generated.Code, generated.Body.String())
+	}
+	path := filepath.Join(baseDir, notification.FileName)
+	settings := notification.Defaults()
+	settings.Webhook.URL = "https://example.invalid/secret"
+	data, err := notification.Marshal(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, stateinternal.FileMode()); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded := httptest.NewRecorder()
+	handler.ServeHTTP(loaded, httptest.NewRequest(http.MethodGet, "/api/notification-config", nil))
+	if loaded.Code != http.StatusOK || strings.Contains(loaded.Body.String(), "secret") || !strings.Contains(loaded.Body.String(), `"url_set":true`) {
+		t.Fatalf("load status = %d, body = %q", loaded.Code, loaded.Body.String())
+	}
+
+	settings.Browser.JobSuccess = true
+	settings.Webhook.URL = ""
+	body, err := json.Marshal(webSaveNotificationConfigRequest{Settings: settings})
+	if err != nil {
+		t.Fatal(err)
+	}
+	save := httptest.NewRequest(http.MethodPost, "/api/save-notification-config", bytes.NewReader(body))
+	save.Header.Set("Content-Type", "application/json")
+	saved := httptest.NewRecorder()
+	handler.ServeHTTP(saved, save)
+	if saved.Code != http.StatusOK {
+		t.Fatalf("save status = %d, body = %q", saved.Code, saved.Body.String())
+	}
+	updated, err := notification.Load(baseDir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Settings.Webhook.URL != "https://example.invalid/secret" || !updated.Settings.Browser.JobSuccess {
+		t.Fatalf("updated settings = %#v", updated.Settings)
+	}
+}
+
+func TestWebNotificationConfigWriteRequiresControl(t *testing.T) {
+	handler := Handler(testOptions(t.TempDir(), false))
+	request := httptest.NewRequest(http.MethodPost, "/api/generate-notification-config", strings.NewReader(`{"location":"basedir"}`))
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, body = %q", recorder.Code, recorder.Body.String())
 	}
 }
 

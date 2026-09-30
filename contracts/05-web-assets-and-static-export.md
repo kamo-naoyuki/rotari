@@ -185,14 +185,28 @@ projections are polled as well:
 - A run is newly finished when it stops being `running` between two polls, or
   when it is seen for the first time already finished (covers runs shorter
   than the 2-second poll interval).
-- A job is newly failed when `jobDisplayStatus(job, run)` (`web_app_tables.js`)
-  becomes `"failed"` in an active-run detail and was not already `"failed"` on the previous poll.
-- Job failures and a run's own completion detected in the same poll tick are
+- A job is newly finished when `jobDisplayStatus(job, run)` (`web_app_tables.js`)
+  becomes `"failed"` or `"success"` in an active-run detail, the projection marks
+  the job's result final, and the previous poll did not already show that final
+  result. Retried attempts are not reported because a job's result becomes final
+  only after its retries end.
+- Job results and a run's own completion detected in the same poll tick are
   merged into one `Notification` per run; events from different ticks stay
   separate.
 - The very first poll after page load never notifies (there is no previous
   snapshot to diff against), so existing history never triggers a notification
   burst on open.
+
+Which events are shown comes from `notifications.toml`, whose `[browser]`
+section uses the same keys and field vocabulary as `[webhook]` but holds its
+own values. `rotari web` reads the settings for its own basedir at startup and
+serves per-project settings from `/api/notification-settings`, so a saved or
+reloaded file applies to open pages on their next poll without restarting the
+process. `browser.job_failure`, `browser.job_success`, `browser.run_failure`,
+and `browser.run_success` select the events, `browser.max_jobs` bounds the
+jobs listed per notification, and the body is truncated at 1000 characters.
+The static export has no server to read, save, or reload those files, so it
+offers neither the notification editor nor live notifications.
 
 The permission itself (`Notification.permission`) cannot be revoked from
 JavaScript once granted, so the toolbar's on/off toggle is a separate

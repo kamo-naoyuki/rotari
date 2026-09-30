@@ -201,6 +201,27 @@ func TestConfigCommandGeneratesFile(t *testing.T) {
 	}
 }
 
+func TestConfigCommandGeneratesNotificationFile(t *testing.T) {
+	output := filepath.Join(t.TempDir(), "notifications.toml")
+	if code := run([]string{"config", "--notifications", "--output", output}); code != 0 {
+		t.Fatalf("config exit code = %d", code)
+	}
+	data, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "[webhook]") || !strings.Contains(string(data), "[browser]") {
+		t.Fatalf("generated notification config = %q", data)
+	}
+}
+
+func TestConfigCommandRejectsNonTOMLNotificationFile(t *testing.T) {
+	output := filepath.Join(t.TempDir(), "notifications.json")
+	if code := run([]string{"config", "--notifications", "--output", output}); code == 0 {
+		t.Fatal("config succeeded")
+	}
+}
+
 func TestConfigListIncludesMixedFormatsAcrossScopes(t *testing.T) {
 	configHome := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", configHome)

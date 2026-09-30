@@ -70,9 +70,9 @@ Run `rotari config --list --basedir DIR`. It groups global and basedir paths und
 
 Run `rotari config`, or use `--output FILE` to save a template. The selected config is copied into each run directory so historical views retain the configuration used at that time.
 
-### How can I notify another service when a run finishes?
+### How can I notify another service when a run or job finishes?
 
-Set `webhook.url` or `ROTARI_WEBHOOK_URL`. Use `webhook.on` with `success`, `failure`, or `always` (the default). Slack, Teams, and Discord formats are supported; see [Webhook integrations](WEBHOOK_NOTIFICATIONS.md).
+Generate `notifications.toml` with `rotari config --notifications`, then set `webhook.url` there or `ROTARI_WEBHOOK_URL`. Use `job_failure`, `job_success`, `run_failure`, and `run_success` to choose the events; jobs are reported once, after their retries end. Slack, Teams, and Discord formats are supported; see [Webhook integrations](WEBHOOK_NOTIFICATIONS.md).
 
 ### How are concurrency and executor options selected?
 

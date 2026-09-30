@@ -74,6 +74,34 @@ func TestExecuteJobsRunsDependenciesAndReportsRetries(t *testing.T) {
 	}
 }
 
+func TestExecuteJobsReportsOnlyFinalResults(t *testing.T) {
+	jobs := []model.JobSpec{{ID: "flaky", Name: "flaky"}, {ID: "blocked", Name: "blocked", DependsOn: []string{"flaky"}}}
+	results := make(map[string]model.JobResult)
+	attempt := 0
+	var final []string
+	ExecuteJobs(jobs, map[string]model.JobSpec{"flaky": jobs[0], "blocked": jobs[1]}, results, EngineOptions{
+		RunRetry: 1,
+		Start: func(ready []model.JobSpec, done func(model.JobResult)) {
+			attempt++
+			go done(model.JobResult{ID: ready[0].ID, ExitCode: 1})
+		},
+		FinalResult: func(job model.JobSpec, result model.JobResult) model.JobResult {
+			final = append(final, job.ID)
+			result.DiagnosisStatus = "tested"
+			return result
+		},
+	})
+	if attempt != 2 {
+		t.Fatalf("attempts = %d, want 2", attempt)
+	}
+	if len(final) != 2 || final[0] != "flaky" || final[1] != "blocked" {
+		t.Fatalf("final results = %v", final)
+	}
+	if results["flaky"].DiagnosisStatus != "tested" || results["blocked"].DiagnosisStatus != "tested" {
+		t.Fatalf("results = %#v", results)
+	}
+}
+
 // gatedStart runs jobs on goroutines; a job listed in hold keeps running
 // until its channel is closed, and every job fails on its first attempt when
 // listed in failOnce.

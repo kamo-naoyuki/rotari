@@ -25,6 +25,9 @@ type EngineOptions struct {
 	// and jobs that have not started are recorded as cancelled.
 	Stopped  func() bool
 	Progress func(result model.JobResult, completed, total, succeeded, failed int)
+	// FinalResult is called exactly once when a job reaches its final result.
+	// It may enrich the result before it is stored, for example with diagnosis.
+	FinalResult func(job model.JobSpec, result model.JobResult) model.JobResult
 	// After runs f after d; it defaults to time.AfterFunc.
 	After func(d time.Duration, f func())
 }
@@ -112,6 +115,20 @@ func ExecuteJobs(pending []model.JobSpec, jobsByName map[string]model.JobSpec, r
 		}
 		options.Progress(result, completed, total, succeeded, failed)
 	}
+	finalize := func(job model.JobSpec, result model.JobResult, reportProgress bool) {
+		if options.FinalResult != nil {
+			result = options.FinalResult(job, result)
+		}
+		results[job.ID] = result
+		final[job.ID] = true
+		if reportProgress {
+			reported := result
+			if result.ExitCode != 0 {
+				reported.Error = "final-failure"
+			}
+			progress(reported)
+		}
+	}
 	// schedule starts every waiting job that is ready and blocks those whose
 	// DependsOn prerequisite failed for good, repeating while blocking one job
 	// may settle another.
@@ -123,12 +140,10 @@ func ExecuteJobs(pending []model.JobSpec, jobsByName map[string]model.JobSpec, r
 			for _, job := range waiting {
 				switch isReady, isBlocked := readiness(job); {
 				case isBlocked:
-					results[job.ID] = model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: "blocked by failed dependency"}
-					final[job.ID] = true
+					finalize(job, model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: "blocked by failed dependency"}, false)
 					changed = true
 				case isReady && stopped():
-					results[job.ID] = model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 143, Error: cancelledBeforeStart}
-					final[job.ID] = true
+					finalize(job, model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 143, Error: cancelledBeforeStart}, false)
 					changed = true
 				case isReady:
 					attempt := job
@@ -159,7 +174,7 @@ func ExecuteJobs(pending []model.JobSpec, jobsByName map[string]model.JobSpec, r
 		if event.retry != nil {
 			delayed--
 			if stopped() {
-				final[event.retry.ID] = true
+				finalize(*event.retry, results[event.retry.ID], false)
 			} else {
 				waiting = append(waiting, *event.retry)
 			}
@@ -181,18 +196,13 @@ func ExecuteJobs(pending []model.JobSpec, jobsByName map[string]model.JobSpec, r
 			retry := job
 			after(job.RetryDelayFor(used), func() { events <- engineEvent{retry: &retry} })
 		} else {
-			final[job.ID] = true
-			reported := result
-			if result.ExitCode != 0 {
-				reported.Error = "final-failure"
-			}
-			progress(reported)
+			finalize(job, result, true)
 		}
 		schedule()
 	}
 	if stopped() {
 		for _, job := range waiting {
-			results[job.ID] = model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 143, Error: cancelledBeforeStart}
+			finalize(job, model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 143, Error: cancelledBeforeStart}, false)
 		}
 		return nil
 	}

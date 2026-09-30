@@ -6,6 +6,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/notification"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	runcontract "github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -31,11 +32,16 @@ func projectRunner() projectrun.Runner {
 		AttemptIDName:       envAttemptID,
 		PropagatedVariables: propagatedEnvironmentVariables,
 		ConfigPaths: func(paths state.ProjectPaths) []string {
-			return config.PathsForRun(paths.BaseDir, paths.ProjectName)
+			pathsForRun := config.PathsForRun(paths.BaseDir, paths.ProjectName)
+			if loaded, err := notification.Load(paths.BaseDir, paths.ProjectName); err == nil && loaded.Path != "" {
+				pathsForRun = append(pathsForRun, loaded.Path)
+			}
+			return pathsForRun
 		},
 		RegisterRun: registerRun,
 		Diagnose:    diagnoseJobResult,
-		RunFinished: notifyRunWebhook,
+		JobFinished: webhookNotifications.JobFinished,
+		RunFinished: webhookNotifications.RunFinished,
 	}
 }
 

@@ -36,12 +36,14 @@ type Options struct {
 	MatchBy      string
 }
 
-// Observer receives run progress. Both fields are optional.
+// Observer receives run progress. All fields are optional.
 type Observer struct {
 	// Progress is called for every job result, including retries.
 	Progress func(result model.JobResult, completed, total, succeeded, failed int)
 	// Started is called when a job attempt starts.
 	Started func(job model.JobSpec)
+	// Finished is called once when a job reaches its final result.
+	Finished func(job model.JobSpec, result model.JobResult)
 }
 
 // Execute snapshots the queue into the run directory, plans the selected
@@ -170,15 +172,29 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 				observer.Progress(result, completed, total, succeeded, failed)
 			}
 		},
+		FinalResult: func(job model.JobSpec, result model.JobResult) model.JobResult {
+			if runner.Diagnose != nil {
+				result = runner.Diagnose(runDir, result)
+			}
+			if jobDir, err := state.LatestAttemptJobDir(runDir, job.ID); err == nil {
+				if err := os.MkdirAll(jobDir, state.DirectoryMode()); err == nil {
+					if err := state.WriteJSON(filepath.Join(jobDir, state.FinalResultFileName), result); err != nil {
+						runner.logf("WARNING: failed to record final result for job %s: %v", job.ID, err)
+					}
+				}
+			}
+			if runner.JobFinished != nil {
+				runner.JobFinished(paths, runID, options.RunName, job, result)
+			}
+			if observer.Finished != nil {
+				observer.Finished(job, result)
+			}
+			return result
+		},
 	})
 	run.FinalizePendingResults(pending, finalResults)
 
-	summary := run.BuildRunSummary(runID, options.RunName, runner.timestamp(), jobs, finalResults, func(result model.JobResult) model.JobResult {
-		if runner.Diagnose == nil {
-			return result
-		}
-		return runner.Diagnose(runDir, result)
-	})
+	summary := run.BuildRunSummary(runID, options.RunName, runner.timestamp(), jobs, finalResults, nil)
 	if err := state.WriteJSON(filepath.Join(runDir, "summary.json"), summary); err != nil {
 		return 1, fmt.Errorf("failed to save run summary: %w", err)
 	}

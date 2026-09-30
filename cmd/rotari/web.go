@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
+	"github.com/kamo-naoyuki/rotari/internal/notification"
 	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/webui"
 )
@@ -41,6 +42,12 @@ func cmdWeb(args []string) int {
 		return 1
 	}
 	options := webOptions(baseDir, *allowControl, *notifications)
+	loadedNotifications, err := notification.Load(baseDir, "")
+	if err != nil {
+		printErrorf("failed to load notification configuration: %v", err)
+		return 1
+	}
+	options.NotificationSettings = loadedNotifications.Settings.Browser
 	if *staticDir == "" {
 		registry, err := basedirregistry.Default()
 		if err != nil {

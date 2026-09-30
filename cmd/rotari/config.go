@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/config"
+	"github.com/kamo-naoyuki/rotari/internal/notification"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"gopkg.in/yaml.v3"
 )
@@ -28,7 +29,6 @@ func init() {
 
 func loadCLIConfig(args []string) error {
 	cliConfig = nil
-	baseDir, projectName := configLocationArgs(args)
 	if path, specified := configFileArg(args); specified {
 		values, err := config.LoadPath(path)
 		if err != nil {
@@ -37,6 +37,7 @@ func loadCLIConfig(args []string) error {
 		cliConfig = values
 		return nil
 	}
+	baseDir, projectName := configLocationArgs(args)
 	if runID := configRunIDArg(args); runID != "" {
 		location, found, err := resolveRunLocation(runID)
 		if err != nil {
@@ -69,7 +70,6 @@ func loadCLIConfig(args []string) error {
 	return nil
 }
 
-func configProjectName(baseDir, requested string) (string, error) {
 func configFileArg(args []string) (string, bool) {
 	var path string
 	specified := false
@@ -93,6 +93,7 @@ func configFileArg(args []string) (string, bool) {
 	return path, specified
 }
 
+func configProjectName(baseDir, requested string) (string, error) {
 	if requested != "" {
 		if !state.IsValidPathElement(requested) {
 			return "", fmt.Errorf("invalid project name %q", requested)
@@ -332,6 +333,7 @@ func cmdConfig(args []string) int {
 	basedir := cliString(fs, "basedir", "")
 	projectName := cliString(fs, "project-name", "")
 	list := cliBool(fs, "list", false)
+	notifications := cliBool(fs, "notifications", false)
 	format := cliString(fs, "format", "")
 	output := cliString(fs, "output", "")
 	if err := cliParse(fs, args); err != nil || len(fs.Args()) != 0 {
@@ -343,6 +345,21 @@ func cmdConfig(args []string) int {
 	selectedFormat := *format
 	if selectedFormat == "" {
 		selectedFormat = configFormatFromOutput(*output)
+	}
+	if *notifications {
+		if *list {
+			printError("--notifications cannot be combined with --list")
+			return 1
+		}
+		if *format != "" && *format != "toml" {
+			printError("notification configuration only supports TOML")
+			return 1
+		}
+		if *output != "" && *output != "-" && filepath.Ext(*output) != ".toml" {
+			printError("notification configuration output must use the .toml extension")
+			return 1
+		}
+		selectedFormat = "toml"
 	}
 	resolvedBaseDir, _, err := state.ResolveBaseDir(*basedir)
 	if err != nil {
@@ -382,13 +399,23 @@ func cmdConfig(args []string) int {
 		return 0
 	}
 	if *output == "" {
-		selectedOutput, ok := chooseConfigOutput(os.Stdin, os.Stderr, resolvedBaseDir, *projectName, selectedFormat)
+		var selectedOutput string
+		var ok bool
+		if *notifications {
+			selectedOutput, ok = chooseConfigOutputNamed(os.Stdin, os.Stderr, resolvedBaseDir, *projectName, "toml", notification.FileName)
+		} else {
+			selectedOutput, ok = chooseConfigOutput(os.Stdin, os.Stderr, resolvedBaseDir, *projectName, selectedFormat)
+		}
 		if !ok {
 			return 1
 		}
 		*output = selectedOutput
 	}
 	data, err := configTemplate(selectedFormat)
+	if *notifications {
+		data = notification.Template()
+		err = nil
+	}
 	if err != nil {
 		printError(err.Error())
 		return 1
@@ -416,7 +443,10 @@ func cmdConfig(args []string) int {
 }
 
 func chooseConfigOutput(reader io.Reader, writer io.Writer, baseDir, projectName, format string) (string, bool) {
-	extension := "." + format
+	return chooseConfigOutputNamed(reader, writer, baseDir, projectName, format, "config."+format)
+}
+
+func chooseConfigOutputNamed(reader io.Reader, writer io.Writer, baseDir, projectName, format, fileName string) (string, bool) {
 	configHome, err := config.HomeDir()
 	if err != nil {
 		printErrorf("failed to resolve config home: %v", err)
@@ -427,17 +457,17 @@ func chooseConfigOutput(reader io.Reader, writer io.Writer, baseDir, projectName
 		path  string
 	}
 	candidates := []candidate{
-		{label: "global", path: filepath.Join(configHome, "config"+extension)},
-		{label: "basedir", path: filepath.Join(baseDir, "config"+extension)},
+		{label: "global", path: filepath.Join(configHome, fileName)},
+		{label: "basedir", path: filepath.Join(baseDir, fileName)},
 	}
 	if projectName != "" {
 		if projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), projectName); err == nil {
-			candidates = append(candidates, candidate{label: "project " + projectName, path: filepath.Join(projectDir, "config"+extension)})
+			candidates = append(candidates, candidate{label: "project " + projectName, path: filepath.Join(projectDir, fileName)})
 		}
 	} else if entries, err := os.ReadDir(filepath.Join(baseDir, "projects")); err == nil {
 		for _, entry := range entries {
 			if entry.IsDir() && state.IsValidPathElement(entry.Name()) {
-				candidates = append(candidates, candidate{label: "project " + entry.Name(), path: filepath.Join(baseDir, "projects", entry.Name(), "config"+extension)})
+				candidates = append(candidates, candidate{label: "project " + entry.Name(), path: filepath.Join(baseDir, "projects", entry.Name(), fileName)})
 			}
 		}
 	}

@@ -2,102 +2,16 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/notification"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
-
-func TestNotifyRunWebhookSendsSummaryAndMarksRun(t *testing.T) {
-	var received runWebhookPayload
-	requests := 0
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		requests++
-		if err := json.NewDecoder(request.Body).Decode(&received); err != nil {
-			t.Errorf("decode webhook: %v", err)
-		}
-		writer.WriteHeader(http.StatusNoContent)
-	}))
-	defer server.Close()
-	t.Setenv(envWebhookURL, server.URL)
-	t.Setenv(envWebhookOn, "failure")
-	t.Setenv(envWebhookFormat, "")
-
-	paths := testWebhookPaths(t)
-	runID := "run-1"
-	runDir := filepath.Join(paths.RunsDir, runID)
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{
-		RunID: runID, RunName: "nightly", Status: "failed", ExitCode: 1,
-		Results: []model.JobResult{{ID: "ok", ExitCode: 0}, {ID: "bad", ExitCode: 1, Error: "command exited with status 2"}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	notifyRunWebhook(paths, runID, 1)
-	notifyRunWebhook(paths, runID, 1)
-	if requests != 1 {
-		t.Fatalf("webhook requests = %d, want 1", requests)
-	}
-	if received.Event != "run.finished" || received.Project != "demo" || received.Run != "nightly (run-1)" || received.Success != 1 || received.Failed != 1 || len(received.FailedJobs) != 1 || received.FailedJobs[0] != "bad" || received.ShowCommand != "rotari show --run-id 'run-1' --failed-logs --no-pager" {
-		t.Fatalf("webhook payload = %#v", received)
-	}
-	if _, err := os.Stat(filepath.Join(runDir, "webhook.sent")); err != nil {
-		t.Fatalf("webhook marker: %v", err)
-	}
-}
-
-func TestWebhookShouldSend(t *testing.T) {
-	tests := []struct {
-		exitCode int
-		setting  string
-		want     bool
-	}{
-		{0, "", true}, {1, "always", true}, {0, "success", true}, {1, "success", false}, {1, "failure", true}, {0, "failure", false},
-	}
-	for _, test := range tests {
-		if got := webhookShouldSend(test.exitCode, test.setting); got != test.want {
-			t.Errorf("webhookShouldSend(%d, %q) = %v, want %v", test.exitCode, test.setting, got, test.want)
-		}
-	}
-}
-
-func TestWebhookSettingsUseProjectConfigAndEnvironmentOverrides(t *testing.T) {
-	baseDir := t.TempDir()
-	projectDir := filepath.Join(baseDir, "projects", "demo")
-	if err := os.MkdirAll(projectDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(baseDir, "config.yaml"), []byte("webhook:\n  url: https://base.example/hook\n  on: success\n  format: slack\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(projectDir, "config.yaml"), []byte("webhook:\n  url: https://project.example/hook\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	paths, err := state.ResolveProjectPaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv(envWebhookURL, "")
-	t.Setenv(envWebhookOn, "")
-	config := webhookSettings(paths)
-	if config.URL != "https://project.example/hook" || config.On != "" || config.Format != "json" {
-		t.Fatalf("config webhook settings = %#v", config)
-	}
-	t.Setenv(envWebhookURL, "https://env.example/hook")
-	t.Setenv(envWebhookOn, "failure")
-	t.Setenv(envWebhookFormat, "slack")
-	config = webhookSettings(paths)
-	if config.URL != "https://env.example/hook" || config.On != "failure" || config.Format != "slack" {
-		t.Fatalf("environment webhook settings = %#v", config)
-	}
-}
 
 func TestSlackWebhookEncoder(t *testing.T) {
 	encoded, err := (slackWebhookEncoder{}).Encode(runWebhookPayload{
@@ -150,160 +64,67 @@ func TestDiscordWebhookEncoder(t *testing.T) {
 	}
 }
 
-func TestNotifyRunWebhookSendsSlackPayload(t *testing.T) {
+// testWebhookBatch builds a batch with one success, one failure, and the run's
+// own completion.
+func testWebhookBatch(t *testing.T, status string) notification.Batch {
+	t.Helper()
+	now := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	settings := notification.Defaults().Webhook.ChannelSettings
+	settings.JobSuccess = true
+	return notification.NewBatch([]notification.Event{
+		notification.NewJobEvent("demo", "run-1", "nightly", model.JobSpec{ID: "ok"}, model.JobResult{ID: "ok"}, now),
+		notification.NewJobEvent("demo", "run-1", "nightly", model.JobSpec{ID: "bad", Name: "train"}, model.JobResult{ID: "bad", ExitCode: 1}, now),
+		notification.NewRunEvent("demo", model.RunSummary{RunID: "run-1", RunName: "nightly", Status: status}, now),
+	}, settings, now)
+}
+
+func TestBatchWebhookPayloadSummarizesJobsAndRunStatus(t *testing.T) {
+	payload := batchWebhookPayload(testWebhookBatch(t, "failed"))
+	if payload.Event != string(notification.RunFinished) || payload.Status != "failed" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if payload.Success != 1 || payload.Failed != 1 || len(payload.FailedJobs) != 1 || payload.FailedJobs[0] != "train (bad)" {
+		t.Fatalf("payload counts = %#v", payload)
+	}
+}
+
+func TestSendWebhookBatchPostsEncodedPayload(t *testing.T) {
 	var received slackWebhookPayload
+	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requests++
 		if err := json.NewDecoder(request.Body).Decode(&received); err != nil {
 			t.Errorf("decode Slack webhook: %v", err)
 		}
 		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
-	t.Setenv(envWebhookURL, server.URL)
-	t.Setenv(envWebhookFormat, "slack")
 
-	paths := testWebhookPaths(t)
-	runID := "run-slack"
-	runDir := filepath.Join(paths.RunsDir, runID)
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{
-		RunID: runID, Status: "success", ExitCode: 0,
-		Results: []model.JobResult{{ID: "build", ExitCode: 0}},
-	}); err != nil {
-		t.Fatal(err)
-	}
+	settings := notification.Defaults().Webhook
+	settings.URL = server.URL
+	settings.Format = "slack"
+	sendWebhookBatch(settings, testWebhookBatch(t, "failed"))
 
-	notifyRunWebhook(paths, runID, 0)
-	if received.Text != "rotari demo: success (0 failed)" || len(received.Blocks) != 1 {
-		t.Fatalf("Slack webhook payload = %#v", received)
+	if requests != 1 || received.Text != "rotari demo: failed (1 failed)" {
+		t.Fatalf("requests = %d, payload = %#v", requests, received)
 	}
 }
 
-func TestNotifyRunWebhookSendsSlackFailureDetails(t *testing.T) {
-	var received slackWebhookPayload
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if err := json.NewDecoder(request.Body).Decode(&received); err != nil {
-			t.Errorf("decode Slack webhook: %v", err)
-		}
-		writer.WriteHeader(http.StatusNoContent)
-	}))
-	defer server.Close()
-	t.Setenv(envWebhookURL, server.URL)
-	t.Setenv(envWebhookFormat, "slack")
-
-	paths := testWebhookPaths(t)
-	runID := "run-slack-failed"
-	runDir := filepath.Join(paths.RunsDir, runID)
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{
-		RunID: runID, Status: "failed", ExitCode: 1,
-		Results: []model.JobResult{{ID: "train", ExitCode: 1}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	notifyRunWebhook(paths, runID, 1)
-	if received.Text != "rotari demo: failed (1 failed)" || len(received.Blocks) != 1 {
-		t.Fatalf("Slack webhook payload = %#v", received)
-	}
-	blockText := received.Blocks[0].Text.Text
-	if !strings.Contains(blockText, "failed jobs: `train`") || !strings.Contains(blockText, "show: `rotari show --run-id 'run-slack-failed' --failed-logs --no-pager`") {
-		t.Fatalf("Slack failure details = %q", blockText)
-	}
-}
-
-func TestNotifyRunWebhookSendsTeamsPayload(t *testing.T) {
-	var received teamsWebhookPayload
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if err := json.NewDecoder(request.Body).Decode(&received); err != nil {
-			t.Errorf("decode Teams webhook: %v", err)
-		}
-		writer.WriteHeader(http.StatusNoContent)
-	}))
-	defer server.Close()
-	t.Setenv(envWebhookURL, server.URL)
-	t.Setenv(envWebhookFormat, "teams")
-
-	paths := testWebhookPaths(t)
-	runID := "run-teams"
-	runDir := filepath.Join(paths.RunsDir, runID)
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{
-		RunID: runID, Status: "success", ExitCode: 0,
-		Results: []model.JobResult{{ID: "build", ExitCode: 0}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	notifyRunWebhook(paths, runID, 0)
-	if received.Type != "MessageCard" || received.Summary != "rotari demo: success" || len(received.Sections) != 1 {
-		t.Fatalf("Teams webhook payload = %#v", received)
-	}
-}
-
-func TestNotifyRunWebhookSendsDiscordPayload(t *testing.T) {
-	var received discordWebhookPayload
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if err := json.NewDecoder(request.Body).Decode(&received); err != nil {
-			t.Errorf("decode Discord webhook: %v", err)
-		}
-		writer.WriteHeader(http.StatusNoContent)
-	}))
-	defer server.Close()
-	t.Setenv(envWebhookURL, server.URL)
-	t.Setenv(envWebhookFormat, "discord")
-
-	paths := testWebhookPaths(t)
-	runID := "run-discord"
-	runDir := filepath.Join(paths.RunsDir, runID)
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{
-		RunID: runID, Status: "success", ExitCode: 0,
-		Results: []model.JobResult{{ID: "build", ExitCode: 0}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	notifyRunWebhook(paths, runID, 0)
-	if received.Content != "rotari demo: success" || len(received.Embeds) != 1 || received.Embeds[0].Color != 0x2e7d32 {
-		t.Fatalf("Discord webhook payload = %#v", received)
-	}
-}
-
-func TestNotifyRunWebhookRejectsUnsupportedFormat(t *testing.T) {
+func TestSendWebhookBatchRejectsUnsupportedFormat(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		requests++
 		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
-	t.Setenv(envWebhookURL, server.URL)
-	t.Setenv(envWebhookFormat, "unknown")
 
-	paths := testWebhookPaths(t)
-	runID := "run-unknown-format"
-	runDir := filepath.Join(paths.RunsDir, runID)
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "success"}); err != nil {
-		t.Fatal(err)
-	}
+	settings := notification.Defaults().Webhook
+	settings.URL = server.URL
+	settings.Format = "unknown"
+	sendWebhookBatch(settings, testWebhookBatch(t, "success"))
 
-	notifyRunWebhook(paths, runID, 0)
 	if requests != 0 {
 		t.Fatalf("unsupported format requests = %d, want 0", requests)
-	}
-	if _, err := os.Stat(filepath.Join(runDir, "webhook.sent")); !os.IsNotExist(err) {
-		t.Fatalf("unsupported format marker error = %v", err)
 	}
 }
 

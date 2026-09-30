@@ -1,15 +1,43 @@
 # Webhook integrations
 
-Rotari sends one JSON `POST` request when a run is finalized. Slack, Microsoft
-Teams, and Discord are supported directly with service-specific payloads.
+Rotari sends JSON `POST` requests for job results and run completions. Slack,
+Microsoft Teams, and Discord are supported directly with service-specific
+payloads.
+
+Webhooks are configured in `notifications.toml`, not in `config.toml`. Generate
+one with `rotari config --notifications`, or from the Web UI's **Notifications**
+button. Rotari uses the first file it finds in the project, the basedir, then
+the global config directory; scopes are not merged. Keep the URL out of the
+file by setting `ROTARI_WEBHOOK_URL` instead.
+
+## Choosing events
+
+Four settings select what is sent:
+
+```toml
+[webhook]
+url = "https://example.invalid/hook"
+format = "json"
+job_failure = true
+job_success = false
+run_failure = true
+run_success = true
+max_jobs = 20
+```
+
+A job is reported once, after its retries end, so a job that succeeds on a
+retry is reported only as a success. Blocked jobs and jobs cancelled before
+they start are reported as failures. Events that happen close together are
+combined: the first pending event opens a ten-second window, and a run's
+completion sends the pending batch immediately. `max_jobs` bounds how many
+jobs a single notification lists.
 
 ## Direct integrations
 
 Choose one of `slack`, `teams`, or `discord` for `webhook.format`. Each format
 posts directly to that service's incoming webhook; no adapter service is
-needed. The `url` is the service's webhook URL. Set `on` to `always`,
-`success`, or `failure`; comma-separated values are also accepted. A failed
-delivery is reported as a warning and does not change the run result.
+needed. The `url` is the service's webhook URL. A failed delivery is reported
+as a warning and does not change the run result.
 
 ### Slack
 
@@ -19,7 +47,6 @@ webhook for the target channel. Keep the resulting URL private.
 ```toml
 [webhook]
 url = "https://hooks.slack.com/services/T.../B.../..."
-on = "failure"
 format = "slack"
 ```
 
@@ -34,7 +61,6 @@ that webhook URL:
 ```toml
 [webhook]
 url = "https://example.webhook.office.com/..."
-on = "failure"
 format = "teams"
 ```
 
@@ -49,7 +75,6 @@ webhook URL:
 ```toml
 [webhook]
 url = "https://discord.com/api/webhooks/..."
-on = "failure"
 format = "discord"
 ```
 
@@ -58,16 +83,15 @@ failed-job details when present.
 
 ## Test a notification
 
-For any of the direct integrations, configure `on = "failure"` and run a small
+For any of the direct integrations, keep `run_failure = true` and run a small
 command that is expected to fail:
 
 ```sh
 rotari add --project-name demo -- false && rotari run --project-name demo
 ```
 
-Then check the configured destination. If the run was already notified,
-rotari will not send it again because it records `webhook.sent` in the run
-directory.
+Then check the configured destination. Rotari keeps no delivery record and
+does not retry, so a failed delivery is reported only as a warning.
 
 ## Other destinations
 

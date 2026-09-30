@@ -74,9 +74,7 @@ is currently set.
 | `ROTARI_LLM_ENDPOINT` | yes | no | no | LLM API endpoint; --endpoint default for diagnose. |
 | `ROTARI_LLM_MODEL` | yes | no | no | Model name; --model default for diagnose. |
 | `ROTARI_LLM_LANGUAGE` | yes | no | no | BCP 47 response language tag; --language default for diagnose. |
-| `ROTARI_WEBHOOK_URL` | no | no | no | Run completion webhook URL. |
-| `ROTARI_WEBHOOK_ON` | no | no | no | Run completion webhook events: always, success, or failure. |
-| `ROTARI_WEBHOOK_FORMAT` | no | no | no | Run completion webhook format: json, slack, teams, or discord. |
+| `ROTARI_WEBHOOK_URL` | no | no | no | Webhook URL; overrides webhook.url in notifications.toml. |
 | `ROTARI_PRIVATE_STATE` | no | no | no | set to true for 0700/0600 state directory permissions instead of the default 0755/0644 (shared state). |
 
 <!-- END GENERATED ENVIRONMENT REFERENCE -->

@@ -525,13 +525,23 @@ Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle
 
 ## External integrations
 
-- When `webhook.url` is configured, or `ROTARI_WEBHOOK_URL` is set, finalized
-  runs send one `POST` summary to that endpoint. The default format is the
-  generic rotari JSON payload; `webhook.format` or `ROTARI_WEBHOOK_FORMAT`
-  selects a supported service-specific payload. Event filters apply after
-  environment-over-config precedence. Delivery errors are warnings and do not
-  change run status; successful delivery is marked by `webhook.sent` in the run
-  directory.
+- Notifications are configured only by `notifications.toml`, resolved from the
+  first scope that has one: project, then basedir, then the global config
+  directory. Scopes are not merged. `ROTARI_WEBHOOK_URL` overrides
+  `webhook.url` so the endpoint can stay out of the file. A run resolves its
+  webhook settings when it starts and snapshots the file with its other
+  configs, so editing the file mid-run does not change that run.
+- `webhook.job_failure`, `webhook.job_success`, `webhook.run_failure`, and
+  `webhook.run_success` select which events are sent; jobs report only their
+  final result, so retried attempts, blocked jobs, and jobs cancelled before
+  they start are reported once. Events that occur within ten seconds of the
+  first pending event are sent as one `POST`, and a run's completion flushes
+  the pending batch immediately. `webhook.fields` selects the reported fields
+  from the shared vocabulary and `webhook.max_jobs` bounds the listed jobs;
+  `link` is browser-only. `webhook.format` selects the generic rotari JSON
+  payload or a supported service-specific payload. Delivery errors are warnings
+  and do not change run status; rotari keeps no delivery ledger and does not
+  retry.
 - `diagnose` is an explicitly invoked, stateless integration. It sends one job's
   command, recorded result, and at most the last 12,000 characters of its
   configured log; merged mode is sent as-is and separate mode labels the streams to

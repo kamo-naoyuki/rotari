@@ -36,6 +36,9 @@ type Runner struct {
 	// Diagnose attaches failure diagnoses to a result before the summary is
 	// written. Optional.
 	Diagnose func(runDir string, result model.JobResult) model.JobResult
+	// JobFinished is called once for each job's diagnosis-enriched final result.
+	// Optional.
+	JobFinished func(paths state.ProjectPaths, runID, runName string, job model.JobSpec, result model.JobResult)
 	// RunFinished is called after the project is finalized. Optional.
 	RunFinished func(paths state.ProjectPaths, runID string, exitCode int)
 

@@ -12,6 +12,9 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
 
+// FinalResultFileName marks an attempt whose job will not be retried.
+const FinalResultFileName = "final_result.json"
+
 const runIDLength = len("20060102-150405-00000000")
 
 type AttemptIDPayload struct {

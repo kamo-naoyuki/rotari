@@ -206,6 +206,7 @@ are checked against this graph by
 | [internal/project](../internal/project/) | A project's run state (idle, running, interrupted) from `running.lock` and `meta.json`, consistency checks, recovery, and the idle-edit sequence: state lock, idle check, load, edit, metadata-then-queue write. | `inspect.go` (`Inspect`, `EnsureIdle`), `edit.go` (`EditQueue`) |
 | [internal/resolve](../internal/resolve/) | Location rules shared by the commands that read existing state: a run ID through the run registry, an `att_` attempt ID, the latest-run fallback, run names, and job IDs or names looked up in the queue and latest runs. show's and wait's own selector orders build on it. | `resolve.go` (`ExistingRun`, `RunID`, `Jobs`) |
 | [internal/config](../internal/config/) | Config file locations (global, base directory, project), which scope applies, and parsing YAML, TOML, and JSON. What the keys mean stays in `cmd/rotari`. | `config.go` (`PathsForRun`, `LoadFile`) |
+| [internal/notification](../internal/notification/) | `notifications.toml`: its schema, scope lookup, validation, serialization, and the shared job/run event and batch model used by both webhook and browser notifications. Delivery stays in `cmd/rotari` and the Web assets. | `config.go` (`Load`, `Marshal`), `event.go` (`NewBatch`) |
 | [internal/runregistry](../internal/runregistry/) | The master directory's run index, `<masterdir>/runs/<run-id>.json`: register, look up, unregister, and find stale entries for `gc`. | `registry.go` |
 | [internal/projectrun](../internal/projectrun/) | One project's run against its files: `Begin` (context, run lock, registry, running metadata), `Execute` (snapshot, plan, dispatch, summary), and `Finish` (final context, queue and metadata finalization, lock removal). Shared by sync and async runs and by cancellation. Also checks that a queue can run with the known executors (`ValidateQueue`). | `lifecycle.go`, `execute.go`, `validate.go` |
 | [internal/run](../internal/run/) | Run rules without file access: which jobs execute or are carried forward, dependency unblocking, retries, per-executor lanes and concurrency, the summary contents. | `rerun.go` (`PlanRerun`), `engine.go` (`ExecuteJobs`), `dispatch.go` (`Dispatcher`) |
@@ -271,7 +272,7 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 | Reading results | `show.go`, `jobs.go`, `diff.go`, `diagnose.go`, `check.go` |
 | Workflow manifests | `export.go`, `import.go`, `workflow_source.go` |
 | `web` command and the Web UI's CLI metadata (`webOptions`) | `web.go` |
-| Notifications and terminal output | `webhook.go`, `color.go`, `terminal*.go` |
+| Notifications and terminal output | `webhook.go`, `webhook_batch.go`, `color.go`, `terminal*.go` |
 
 ## Walkthroughs
 
@@ -347,7 +348,8 @@ Finish, in `Runner.Finish`:
 1. Record the final load in `context.json`.
 2. `Finalize` clears the consumed queue and finalizes `meta.json`
    (`state.FinalizeRun`) after checking that the run lock is still this run's,
-   then calls the webhook hook.
+   then reports the finished run to the notification hook, which flushes any
+   pending job events with it.
 3. Remove the run lock.
 
 ### `rotari show` and the Web UI

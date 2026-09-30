@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
+	"github.com/kamo-naoyuki/rotari/internal/notification"
 )
 
 //go:embed assets/web_template.html
@@ -66,7 +67,12 @@ func composeWebHTML(executors []string, notifications bool, bootstrap string, ba
 }
 
 func composeWebHTMLWithSession(executors []string, notifications bool, bootstrap, notificationSession string, basedirLists ...[]webBaseDir) string {
+	return composeWebHTMLWithNotificationSettings(executors, notifications, notification.Defaults().Browser, bootstrap, notificationSession, basedirLists...)
+}
+
+func composeWebHTMLWithNotificationSettings(executors []string, notifications bool, settings notification.ChannelSettings, bootstrap, notificationSession string, basedirLists ...[]webBaseDir) string {
 	executorJSON, _ := json.Marshal(executors)
+	notificationSettingsJSON, _ := json.Marshal(settings)
 	basedirs := []webBaseDir{}
 	if len(basedirLists) > 0 {
 		basedirs = basedirLists[0]
@@ -79,6 +85,7 @@ func composeWebHTMLWithSession(executors []string, notifications bool, bootstrap
 	template = strings.ReplaceAll(template, "__ROTARI_BRAND_ICON__", brandIcon())
 	template = strings.Replace(template, "__ROTARI_NOTIFICATION_ICON__", faviconDataURL(webFaviconDarkSVG), 1)
 	template = strings.Replace(template, "__ROTARI_NOTIFICATION_DEFAULT__", strconv.FormatBool(notifications), 1)
+	template = strings.Replace(template, "__ROTARI_NOTIFICATION_SETTINGS__", string(notificationSettingsJSON), 1)
 	template = strings.Replace(template, "__ROTARI_NOTIFICATION_SESSION__", notificationSession, 1)
 	template = strings.Replace(template, "__ROTARI_STATIC_BOOTSTRAP__", bootstrap, 1)
 	return template

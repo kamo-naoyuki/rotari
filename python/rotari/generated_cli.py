@@ -25,6 +25,10 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {"description": "list existing config files", "name": "list"},
                 {
+                    "description": "generate notifications.toml instead of command defaults",
+                    "name": "notifications",
+                },
+                {
                     "description": "config format: yaml, toml, or json",
                     "name": "format",
                     "short": "o",

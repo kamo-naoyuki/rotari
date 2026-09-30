@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
+	"github.com/kamo-naoyuki/rotari/internal/notification"
 	"github.com/kamo-naoyuki/rotari/internal/queueops"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/web"
@@ -22,6 +23,8 @@ type Options struct {
 	AllowControl bool
 	// Notifications is the default of the desktop notification toggle.
 	Notifications bool
+	// NotificationSettings controls which browser events and fields are shown.
+	NotificationSettings notification.ChannelSettings
 
 	Store      state.Store
 	Editor     queueops.Editor

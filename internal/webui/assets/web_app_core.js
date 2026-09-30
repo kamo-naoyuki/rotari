@@ -676,9 +676,11 @@ async function showConfig() {
   const modal = document.getElementById("output-modal");
   const generator = document.getElementById("config-generator");
   const editor = document.getElementById("config-editor");
+  const notificationEditor = document.getElementById("notification-config-editor");
   const output = ensureModalOutput();
   generator.hidden = true;
   editor.hidden = true;
+  notificationEditor.hidden = true;
   output.hidden = false;
   const parts = pageParts();
   const params = new URLSearchParams();
@@ -762,8 +764,10 @@ function showGenerateConfig() {
   const output = ensureModalOutput();
   const generator = document.getElementById("config-generator");
   const editor = document.getElementById("config-editor");
+  const notificationEditor = document.getElementById("notification-config-editor");
   output.hidden = true;
   editor.hidden = true;
+  notificationEditor.hidden = true;
   generator.hidden = false;
   delete modal.dataset.editing;
   generator.replaceChildren();
@@ -831,6 +835,190 @@ function showGenerateConfig() {
   modal.dataset.view = "generate-config";
   openOutputModal(true);
 }
+function notificationFieldControl(channel, field, selected) {
+  const label = document.createElement("label");
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.name = channel + "-field";
+  input.value = field;
+  input.checked = selected.includes(field);
+  if (channel === "webhook" && field === "link") input.disabled = true;
+  label.append(input, field.replaceAll("_", " "));
+  return label;
+}
+function notificationChannelEditor(name, settings, fields) {
+  const fieldset = document.createElement("fieldset");
+  const legend = document.createElement("legend");
+  legend.textContent = name === "webhook" ? "Webhook" : "Browser";
+  fieldset.append(legend);
+  for (const [key, labelText] of [
+    ["job_failure", "Job failure"],
+    ["job_success", "Job success"],
+    ["run_failure", "Run failure"],
+    ["run_success", "Run success"],
+  ]) {
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.name = name + "-" + key;
+    input.checked = !!settings[key];
+    label.append(input, labelText);
+    fieldset.append(label);
+  }
+  const maxLabel = document.createElement("label");
+  maxLabel.textContent = "Maximum jobs ";
+  const maxInput = document.createElement("input");
+  maxInput.type = "number";
+  maxInput.name = name + "-max-jobs";
+  maxInput.min = "1";
+  maxInput.value = settings.max_jobs;
+  maxLabel.append(maxInput);
+  fieldset.append(maxLabel);
+  const fieldGroup = document.createElement("div");
+  fieldGroup.className = "notification-field-grid";
+  fields.forEach((field) =>
+    fieldGroup.append(
+      notificationFieldControl(name, field, settings.fields || []),
+    ),
+  );
+  fieldset.append(fieldGroup);
+  return fieldset;
+}
+function readNotificationChannel(form, name) {
+  const checked = (suffix) => form.elements[name + "-" + suffix].checked;
+  return {
+    job_failure: checked("job_failure"),
+    job_success: checked("job_success"),
+    run_failure: checked("run_failure"),
+    run_success: checked("run_success"),
+    max_jobs: Number(form.elements[name + "-max-jobs"].value),
+    fields: [...form.querySelectorAll(`input[name="${name}-field"]:checked`)].map(
+      (input) => input.value,
+    ),
+  };
+}
+async function generateNotificationConfig(project, target, button) {
+  button.disabled = true;
+  const response = await fetch("/api/generate-notification-config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      project_name: project,
+      location: target.location,
+    }),
+  });
+  const text = await response.text();
+  button.disabled = false;
+  if (!response.ok) {
+    alert(text);
+    return;
+  }
+  notificationSettingsByProject.delete(project);
+  await showNotificationConfig();
+}
+async function showNotificationConfig() {
+  const project = configGenerationProject();
+  if (project === null) return;
+  const modal = document.getElementById("output-modal");
+  const output = ensureModalOutput();
+  const configEditor = document.getElementById("config-editor");
+  const generator = document.getElementById("config-generator");
+  const form = document.getElementById("notification-config-editor");
+  output.hidden = true;
+  configEditor.hidden = true;
+  generator.hidden = true;
+  form.hidden = false;
+  form.replaceChildren();
+  const params = new URLSearchParams();
+  if (project) params.set("project_name", project);
+  const response = await fetch("/api/notification-config?" + params, {
+    cache: "no-store",
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    alert(text);
+    return;
+  }
+  const payload = JSON.parse(text);
+  if (!payload.path) {
+    const targets = document.createElement("div");
+    targets.className = "config-target-options";
+    for (const target of payload.targets || []) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = "Generate " + target.location;
+      button.onclick = () => generateNotificationConfig(project, target, button);
+      targets.append(button);
+    }
+    form.append(targets);
+  } else {
+    const settings = payload.settings;
+    const webhookExtras = document.createElement("div");
+    webhookExtras.className = "notification-webhook-settings";
+    const format = document.createElement("select");
+    format.name = "webhook-format";
+    for (const value of ["json", "slack", "teams", "discord"]) {
+      const option = new Option(value, value, false, value === settings.webhook.format);
+      format.add(option);
+    }
+    const url = document.createElement("input");
+    url.type = "password";
+    url.name = "webhook-url";
+    url.placeholder = payload.url_set ? "Webhook URL is set" : "Webhook URL";
+    const clearLabel = document.createElement("label");
+    const clear = document.createElement("input");
+    clear.type = "checkbox";
+    clear.name = "clear-webhook-url";
+    clearLabel.append(clear, "Clear webhook URL");
+    webhookExtras.append("Format ", format, " URL ", url, clearLabel);
+    const webhook = notificationChannelEditor("webhook", settings.webhook, payload.fields);
+    webhook.append(webhookExtras);
+    form.append(webhook);
+    form.append(notificationChannelEditor("browser", settings.browser, payload.fields));
+    const actions = document.createElement("div");
+    actions.className = "notification-config-actions";
+    const save = document.createElement("button");
+    save.type = "submit";
+    save.textContent = "Save";
+    const reload = document.createElement("button");
+    reload.type = "button";
+    reload.textContent = "Reload";
+    reload.onclick = showNotificationConfig;
+    actions.append(save, reload);
+    form.append(actions);
+    form.onsubmit = async (event) => {
+      event.preventDefault();
+      save.disabled = true;
+      const webhookSettings = readNotificationChannel(form, "webhook");
+      webhookSettings.format = format.value;
+      const saveResponse = await fetch("/api/save-notification-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_name: project,
+          settings: {
+            webhook: webhookSettings,
+            browser: readNotificationChannel(form, "browser"),
+          },
+          webhook_url: clear.checked ? "" : url.value,
+          change_webhook_url: clear.checked || url.value !== "",
+        }),
+      });
+      const saveText = await saveResponse.text();
+      save.disabled = false;
+      if (!saveResponse.ok) {
+        alert(saveText);
+        return;
+      }
+      notificationSettingsByProject.delete(project);
+      await showNotificationConfig();
+    };
+  }
+  modal.querySelector("strong").textContent = "Notifications";
+  modal.dataset.view = "notification-config";
+  modal.dataset.editing = "true";
+  openOutputModal(true);
+}
 function addConfigButton() {
   document
     .querySelectorAll(".config-button,.generate-config-button")
@@ -845,6 +1033,14 @@ function addConfigButton() {
   const toolbar = document.querySelector(".toolbar");
   toolbar.insertBefore(viewButton, document.getElementById("notify-toggle"));
   if (configGenerationProject() !== null) {
+    const notificationButton = document.createElement("button");
+    notificationButton.className = "notification-config-button";
+    notificationButton.textContent = "Notifications";
+    notificationButton.onclick = showNotificationConfig;
+    toolbar.insertBefore(
+      notificationButton,
+      document.getElementById("notify-toggle"),
+    );
     const generateButton = document.createElement("button");
     generateButton.className = "generate-config-button";
     generateButton.textContent = "Generate config";

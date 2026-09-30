@@ -17,6 +17,7 @@ generate a config file template
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--list` | `` | `` | list existing config files |
+| `--notifications` | `` | `` | generate notifications.toml instead of command defaults |
 | `-o` / `--format` | `FORMAT` | `` | config format: yaml, toml, or json |
 | `--output` | `FILE` | `` | output config file path |
 

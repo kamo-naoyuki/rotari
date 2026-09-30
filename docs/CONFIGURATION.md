@@ -69,11 +69,21 @@ See the [environment variable reference](ENVIRONMENT_VARIABLES.md) for the
 complete definitions and meanings. Use `rotari env` to print the same list with
 values from the current process.
 
-## Run completion webhook
+## Notifications
 
-Set `webhook.url` or `ROTARI_WEBHOOK_URL` to receive a JSON `POST` when a run
-finishes. For options, the payload, and Slack/Teams/Discord setup, see
-[Webhook integrations](WEBHOOK_NOTIFICATIONS.md).
+Webhook and browser notifications are configured in `notifications.toml`, which
+is separate from the command defaults above. Rotari uses the first one it finds
+in the project, the basedir, then the global config directory, without merging
+scopes. Generate one with:
+
+```sh
+rotari config --notifications
+```
+
+`ROTARI_WEBHOOK_URL` overrides `webhook.url` so the endpoint can stay out of the
+file. For the event settings, fields, and Slack/Teams/Discord setup, see
+[Webhook integrations](WEBHOOK_NOTIFICATIONS.md) and
+[Web browser notifications](WEB_BROWSER_NOTIFICATIONS.md).
 
 ## Shell completion
 

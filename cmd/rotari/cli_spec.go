@@ -109,6 +109,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Description: "generate a config file template",
 		Flags: append([]cliFlagSpec{{Name: "basedir", Description: "state directory", ValueName: "DIR"}, {Name: "project-name", Description: "project name", ValueName: "NAME"}},
 			cliFlagSpec{Name: "list", Description: "list existing config files"},
+			cliFlagSpec{Name: "notifications", Description: "generate notifications.toml instead of command defaults", CommandLineOnly: true},
 			cliFlagSpec{Name: "format", Description: "config format: yaml, toml, or json", ValueName: "FORMAT", Values: []string{"yaml", "toml", "json"}},
 			cliFlagSpec{Name: "output", Description: "output config file path", ValueName: "FILE"},
 		),
@@ -182,8 +183,8 @@ var cliCommandSpecs = []cliCommandSpec{
 		Name:        "gc",
 		Description: "find and remove orphan run registry entries",
 		Flags: []cliFlagSpec{
-			{Name: "masterdir", Description: "master registry directory", ValueName: "DIR"},
 			{Name: "config", Description: "config file to use", ValueName: "FILE", CommandLineOnly: true},
+			{Name: "masterdir", Description: "master registry directory", ValueName: "DIR"},
 			{Name: "apply", Description: "remove the cached orphan entries"},
 		},
 		Positional: "[MASTERDIR]",
@@ -458,8 +459,8 @@ var cliCommandSpecs = []cliCommandSpec{
 		Name:        "server",
 		Description: "manage the background server",
 		Flags: []cliFlagSpec{
-			{Name: "basedir", Description: "state directory", ValueName: "DIR"},
 			{Name: "config", Description: "config file to use", ValueName: "FILE", CommandLineOnly: true},
+			{Name: "basedir", Description: "state directory", ValueName: "DIR"},
 			{Name: "masterdir", Description: "server registry directory", ValueName: "DIR"},
 		},
 		Subcommands: []cliSubcommandSpec{
@@ -667,11 +668,11 @@ func cliFlag(name string) cliFlagSpec {
 }
 
 func cliString(fs *flag.FlagSet, name, defaultValue string) *string {
-	spec := cliCommandFlag(fs.Name(), name)
 	if fs.Name() != "config" && fs.Lookup("config") == nil {
 		configSpec := cliCommandFlag(fs.Name(), "config")
 		fs.String(configSpec.Name, "", cliFlagDescription(configSpec))
 	}
+	spec := cliCommandFlag(fs.Name(), name)
 	if !spec.CommandLineOnly {
 		defaultValue = configString(name, defaultValue)
 		if envName := cliEnvironmentVariable(name); envName != "" {

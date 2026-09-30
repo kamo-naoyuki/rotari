@@ -3,7 +3,7 @@ rotari: lightweight local job queue
 Coding agents: run `rotari guide` first for the recommended workflow and a command reference.
 
 Usage:
-  rotari config [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--list] [-o FORMAT|--format FORMAT] [--output FILE]
+  rotari config [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--list] [--notifications] [-o FORMAT|--format FORMAT] [--output FILE]
   rotari check [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--json] [--deep] [--quiet] [PROJECT]
   rotari reset [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--recover] [--quiet] [PROJECT]
   rotari cancel [--config FILE] [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [-j ID|--job-id ID] [--job-name NAME] [--stage STAGE] [--matrix NAME] [--wait] [--yes] [--filter-state STATE] [--filter-host PATTERN] [--filter-started-after TIME] [--filter-started-before TIME] [--filter-longer-than DURATION] [--filter-shorter-than DURATION] [--filter-command RE] [--filter-stage NAME] [--filter-not-stage NAME] [--filter-matrix NAME] [--filter-not-matrix NAME] [JOB_ID|ATTEMPT_ID|RUN_ID ...]

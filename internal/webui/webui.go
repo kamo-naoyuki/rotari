@@ -20,6 +20,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/notification"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/queueops"
 	"github.com/kamo-naoyuki/rotari/internal/report"
@@ -54,6 +55,13 @@ type webConfigTarget struct {
 type webSaveConfigRequest struct {
 	QueueName string `json:"project_name"`
 	Content   string `json:"content"`
+}
+
+type webSaveNotificationConfigRequest struct {
+	QueueName        string                `json:"project_name"`
+	Settings         notification.Settings `json:"settings"`
+	WebhookURL       string                `json:"webhook_url"`
+	ChangeWebhookURL bool                  `json:"change_webhook_url"`
 }
 
 type webCopyRequest struct {
@@ -373,6 +381,80 @@ func (s site) baseHandler() http.Handler {
 			return
 		}
 		writeWebJSON(writer, state)
+	})
+	mux.HandleFunc("/api/notification-settings", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			methodNotAllowed(writer)
+			return
+		}
+		projectName := request.URL.Query().Get("project_name")
+		if projectName != "" && !stateinternal.IsValidPathElement(projectName) {
+			writeWebError(writer, fmt.Errorf("invalid project_name %q", projectName))
+			return
+		}
+		loaded, err := notification.Load(baseDir, projectName)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writeWebJSON(writer, loaded.Settings.Browser)
+	})
+	mux.HandleFunc("/api/notification-config", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			methodNotAllowed(writer)
+			return
+		}
+		projectName := request.URL.Query().Get("project_name")
+		loaded, targets, err := loadWebNotificationConfig(baseDir, projectName)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		urlSet := loaded.Settings.Webhook.URL != ""
+		loaded.Settings.Webhook.URL = ""
+		writeWebJSON(writer, map[string]any{"settings": loaded.Settings, "path": loaded.Path, "url_set": urlSet, "targets": targets, "fields": notification.AvailableFields()})
+	})
+	mux.HandleFunc("/api/generate-notification-config", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost {
+			methodNotAllowed(writer)
+			return
+		}
+		if !allowControl {
+			forbiddenReadOnly(writer)
+			return
+		}
+		var generate webGenerateConfigRequest
+		if err := json.NewDecoder(request.Body).Decode(&generate); err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		path, err := generateWebNotificationConfig(baseDir, generate.QueueName, generate.Location)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writeWebJSON(writer, map[string]string{"message": "notification config generated", "path": path})
+	})
+	mux.HandleFunc("/api/save-notification-config", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost {
+			methodNotAllowed(writer)
+			return
+		}
+		if !allowControl {
+			forbiddenReadOnly(writer)
+			return
+		}
+		var save webSaveNotificationConfigRequest
+		if err := json.NewDecoder(request.Body).Decode(&save); err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		path, err := saveWebNotificationConfig(baseDir, save)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writeWebJSON(writer, map[string]string{"message": "notification config saved and reloaded", "path": path})
 	})
 	mux.HandleFunc("/api/projects", func(writer http.ResponseWriter, request *http.Request) {
 		s.handleWebProjects(writer, request, baseDir)
@@ -997,6 +1079,104 @@ func webConfigTargets(baseDir, projectName string) ([]webConfigTarget, error) {
 		return nil, err
 	}
 	return append(targets, webConfigTarget{Location: "project", Path: filepath.Join(paths.ProjectDir, webConfigFileName)}), nil
+}
+
+func webNotificationConfigTargets(baseDir, projectName string) ([]webConfigTarget, error) {
+	configHome, err := config.HomeDir()
+	if err != nil {
+		return nil, err
+	}
+	targets := []webConfigTarget{
+		{Location: "global", Path: filepath.Join(configHome, notification.FileName)},
+		{Location: "basedir", Path: filepath.Join(baseDir, notification.FileName)},
+	}
+	if projectName == "" {
+		return targets, nil
+	}
+	if !stateinternal.IsValidPathElement(projectName) {
+		return nil, fmt.Errorf("invalid project_name %q", projectName)
+	}
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, projectName)
+	if err != nil {
+		return nil, err
+	}
+	return append(targets, webConfigTarget{Location: "project", Path: filepath.Join(paths.ProjectDir, notification.FileName)}), nil
+}
+
+func loadWebNotificationConfig(baseDir, projectName string) (notification.Loaded, []webConfigTarget, error) {
+	if projectName != "" && !stateinternal.IsValidPathElement(projectName) {
+		return notification.Loaded{}, nil, fmt.Errorf("invalid project_name %q", projectName)
+	}
+	loaded, err := notification.Load(baseDir, projectName)
+	if err != nil {
+		return notification.Loaded{}, nil, err
+	}
+	targets, err := webNotificationConfigTargets(baseDir, projectName)
+	return loaded, targets, err
+}
+
+func generateWebNotificationConfig(baseDir, projectName, location string) (string, error) {
+	targets, err := webNotificationConfigTargets(baseDir, projectName)
+	if err != nil {
+		return "", err
+	}
+	for _, target := range targets {
+		if target.Location != location {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(target.Path), stateinternal.DirectoryMode()); err != nil {
+			return "", err
+		}
+		if err := atomicWriteNotificationConfig(target.Path, notification.Template()); err != nil {
+			return "", err
+		}
+		return target.Path, nil
+	}
+	return "", fmt.Errorf("invalid notification config location %q", location)
+}
+
+func saveWebNotificationConfig(baseDir string, request webSaveNotificationConfigRequest) (string, error) {
+	loaded, err := notification.Load(baseDir, request.QueueName)
+	if err != nil {
+		return "", err
+	}
+	if loaded.Path == "" {
+		return "", fmt.Errorf("no notifications.toml exists to edit")
+	}
+	if request.ChangeWebhookURL {
+		request.Settings.Webhook.URL = request.WebhookURL
+	} else {
+		request.Settings.Webhook.URL = loaded.Settings.Webhook.URL
+	}
+	data, err := notification.Marshal(request.Settings)
+	if err != nil {
+		return "", err
+	}
+	if err := atomicWriteNotificationConfig(loaded.Path, data); err != nil {
+		return "", err
+	}
+	return loaded.Path, nil
+}
+
+func atomicWriteNotificationConfig(path string, data []byte) error {
+	temporary, err := os.CreateTemp(filepath.Dir(path), ".notifications-*.toml")
+	if err != nil {
+		return err
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if err := temporary.Chmod(stateinternal.FileMode()); err != nil {
+		temporary.Close()
+		return err
+	}
+	if _, err := temporary.Write(data); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	return os.Rename(temporaryPath, path)
 }
 
 func (s site) generateWebConfig(baseDir, projectName, location string) (string, error) {
@@ -1655,7 +1835,11 @@ func (s site) webHTMLWithStaticBootstrap(bootstrap string) string {
 			}
 		}
 	}
-	return composeWebHTMLWithSession(s.Executors, s.Notifications, bootstrap, s.notificationSession, basedirs)
+	settings := s.NotificationSettings
+	if settings.MaxJobs == 0 {
+		settings = notification.Defaults().Browser
+	}
+	return composeWebHTMLWithNotificationSettings(s.Executors, s.Notifications, settings, bootstrap, s.notificationSession, basedirs)
 }
 
 func methodNotAllowed(writer http.ResponseWriter) {

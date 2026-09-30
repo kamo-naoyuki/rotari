@@ -16,6 +16,9 @@
           "name": "list"
         },
         {
+          "name": "notifications"
+        },
+        {
           "name": "format",
           "short": "o",
           "value_name": "FORMAT",
@@ -35,12 +38,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -63,12 +66,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -88,12 +91,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -178,12 +181,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -264,12 +267,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -350,12 +353,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -377,12 +380,12 @@
     {
       "flags": [
         {
-          "name": "masterdir",
-          "value_name": "DIR"
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "masterdir",
+          "value_name": "DIR"
         },
         {
           "name": "apply"
@@ -393,12 +396,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -417,12 +420,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -574,12 +577,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -615,12 +618,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -643,12 +646,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -710,12 +713,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -875,12 +878,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -897,12 +900,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -932,12 +935,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -991,12 +994,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -1022,12 +1025,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -1136,12 +1139,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -1272,12 +1275,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -1522,12 +1525,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -1747,12 +1750,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {
@@ -1776,12 +1779,12 @@
     {
       "flags": [
         {
-          "name": "basedir",
-          "short": "b",
-        {
           "name": "config",
           "value_name": "FILE"
         },
+        {
+          "name": "basedir",
+          "short": "b",
           "value_name": "DIR"
         },
         {

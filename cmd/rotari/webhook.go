@@ -1,20 +1,8 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
-	"time"
-
-	"github.com/kamo-naoyuki/rotari/internal/config"
-	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 type runWebhookPayload struct {
@@ -27,12 +15,6 @@ type runWebhookPayload struct {
 	Failed      int      `json:"failed"`
 	FailedJobs  []string `json:"failed_jobs,omitempty"`
 	ShowCommand string   `json:"show_command,omitempty"`
-}
-
-type webhookConfig struct {
-	URL    string
-	On     string
-	Format string
 }
 
 type webhookEncoder interface {
@@ -184,141 +166,10 @@ var webhookEncoders = map[string]webhookEncoder{
 	"teams":   teamsWebhookEncoder{},
 }
 
-// notifyRunWebhook sends a configured run-completion webhook after summary
-// state is available.
-func notifyRunWebhook(paths state.ProjectPaths, runID string, exitCode int) {
-	config := webhookSettings(paths)
-	if config.URL == "" || !webhookShouldSend(exitCode, config.On) {
-		return
-	}
-	parsed, err := url.Parse(config.URL)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		printErrorf("WARNING: invalid %s URL", envWebhookURL)
-		return
-	}
-	runDir, err := state.SafeJoin(paths.RunsDir, runID)
-	if err != nil {
-		printErrorf("WARNING: cannot prepare webhook notification: %v", err)
-		return
-	}
-	marker := filepath.Join(runDir, "webhook.sent")
-	if _, err := os.Stat(marker); err == nil {
-		return
-	} else if !os.IsNotExist(err) {
-		printErrorf("WARNING: cannot inspect webhook notification marker: %v", err)
-		return
-	}
-	summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
-	if err != nil {
-		printErrorf("WARNING: cannot load run summary for webhook: %v", err)
-		return
-	}
-	payload := makeRunWebhookPayload(paths.ProjectName, runID, summary)
-	encoder, ok := webhookEncoders[normalizeWebhookFormat(config.Format)]
-	if !ok {
-		printErrorf("WARNING: unsupported webhook format %q", config.Format)
-		return
-	}
-	encodedPayload, err := encoder.Encode(payload)
-	if err != nil {
-		printErrorf("WARNING: cannot prepare webhook notification: %v", err)
-		return
-	}
-	data, err := json.Marshal(encodedPayload)
-	if err != nil {
-		printErrorf("WARNING: cannot encode webhook notification: %v", err)
-		return
-	}
-	request, err := http.NewRequest(http.MethodPost, config.URL, bytes.NewReader(data))
-	if err != nil {
-		printErrorf("WARNING: cannot create webhook notification: %v", err)
-		return
-	}
-	request.Header.Set("Content-Type", "application/json")
-	response, err := (&http.Client{Timeout: 10 * time.Second}).Do(request)
-	if err != nil {
-		printErrorf("WARNING: webhook notification failed: %v", err)
-		return
-	}
-	defer response.Body.Close()
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		printErrorf("WARNING: webhook notification returned HTTP %d", response.StatusCode)
-		return
-	}
-	if err := os.WriteFile(marker, []byte(nowRFC3339()+"\n"), state.FileMode()); err != nil {
-		printErrorf("WARNING: cannot record webhook notification: %v", err)
-	}
-}
-
-func webhookSettings(paths state.ProjectPaths) webhookConfig {
-	settings := map[string]any{}
-	if configPaths := config.PathsForRun(paths.BaseDir, paths.ProjectName); len(configPaths) > 0 {
-		configPath := configPaths[0]
-		values, err := config.LoadFile(filepath.Dir(configPath))
-		if err == nil {
-			settings = values
-		}
-	}
-	webhook, _ := settings["webhook"].(map[string]any)
-	config := webhookConfig{Format: "json"}
-	config.URL, _ = webhook["url"].(string)
-	config.On, _ = webhook["on"].(string)
-	config.Format, _ = webhook["format"].(string)
-	if value := strings.TrimSpace(os.Getenv(envWebhookURL)); value != "" {
-		config.URL = value
-	}
-	if value := strings.TrimSpace(os.Getenv(envWebhookOn)); value != "" {
-		config.On = value
-	}
-	if value := strings.TrimSpace(os.Getenv(envWebhookFormat)); value != "" {
-		config.Format = value
-	}
-	config.URL = strings.TrimSpace(config.URL)
-	config.On = strings.TrimSpace(config.On)
-	config.Format = normalizeWebhookFormat(config.Format)
-	return config
-}
-
 func normalizeWebhookFormat(format string) string {
 	format = strings.ToLower(strings.TrimSpace(format))
 	if format == "" {
 		return "json"
 	}
 	return format
-}
-
-func webhookShouldSend(exitCode int, setting string) bool {
-	setting = strings.TrimSpace(strings.ToLower(setting))
-	if setting == "" || setting == "always" || setting == "all" {
-		return true
-	}
-	want := "success"
-	if exitCode != 0 {
-		want = "failure"
-	}
-	for _, value := range strings.Split(setting, ",") {
-		if strings.TrimSpace(value) == want {
-			return true
-		}
-	}
-	return false
-}
-
-func makeRunWebhookPayload(project, runID string, summary model.RunSummary) runWebhookPayload {
-	payload := runWebhookPayload{
-		Event: "run.finished", Project: project, Run: model.RunLabel(runID, summary.RunName),
-		Status: summary.Status, ExitCode: summary.ExitCode,
-	}
-	for _, result := range summary.Results {
-		if result.ExitCode == 0 {
-			payload.Success++
-		} else {
-			payload.Failed++
-			payload.FailedJobs = append(payload.FailedJobs, result.ID)
-		}
-	}
-	if payload.Failed > 0 {
-		payload.ShowCommand = fmt.Sprintf("rotari show --run-id %s --failed-logs --no-pager", executor.ShellQuote(runID))
-	}
-	return payload
 }

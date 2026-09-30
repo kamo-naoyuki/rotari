@@ -228,6 +228,38 @@ Implementation and tests for these rules:
   `TestStaticWebUsesGenerateConfigReadOnlyFlow` in
   [`internal/webui/webui_test.go`](../internal/webui/webui_test.go).
 
+## Notification configuration
+
+- Notification settings live in `notifications.toml`, which is separate from
+  the command-default config above and is never merged into it. `rotari config
+  --notifications` writes the template; the flag is command-line-only and the
+  file is TOML regardless of `--format`.
+- Lookup chooses the first `notifications.toml` found in
+  `projects/<project>/`, then the resolved basedir, then
+  `$XDG_CONFIG_HOME/rotari` (or `~/.config/rotari`). Lower-priority scopes are
+  ignored rather than merged, and an unknown or duplicated key fails parsing
+  instead of being ignored.
+- `[webhook]` and `[browser]` accept the same settings but hold independent
+  values: `job_failure`, `job_success`, `run_failure`, `run_success`, `fields`,
+  and `max_jobs`, plus `url` and `format` for webhooks. `link` is valid only
+  for `[browser]`. `ROTARI_WEBHOOK_URL` overrides `webhook.url`.
+- A run resolves its webhook settings when it starts and snapshots the file
+  with its other configs, so later edits do not change that run. `rotari web`
+  reads browser settings for its own basedir and serves per-project settings
+  from `/api/notification-settings`.
+- The Web UI's `notification-config`, `generate-notification-config`, and
+  `save-notification-config` endpoints are control-gated, accept a project name
+  rather than a filesystem path, validate content before writing, and write
+  atomically. Read responses mask the webhook URL and report only whether one
+  is set; a save keeps the stored URL unless the request explicitly changes it.
+  Implemented by [`internal/notification`](../internal/notification) and
+  `loadWebNotificationConfig`, `generateWebNotificationConfig`, and
+  `saveWebNotificationConfig` in
+  [`internal/webui/webui.go`](../internal/webui/webui.go), with tests in
+  [`internal/notification/config_test.go`](../internal/notification/config_test.go)
+  and `TestWebNotificationConfig*` in
+  [`internal/webui/webui_test.go`](../internal/webui/webui_test.go).
+
 ## Shell completion
 
 - Completion is generated from the same CLI metadata as command help. Each
