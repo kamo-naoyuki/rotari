@@ -83,8 +83,7 @@ rotari config --notifications
 
 `ROTARI_WEBHOOK_URL` overrides `webhook.url` so the endpoint can stay out of the
 file. For the event settings, fields, and Slack/Teams/Discord setup, see
-[Webhook integrations](WEBHOOK_NOTIFICATIONS.md) and
-[Web browser notifications](WEB_BROWSER_NOTIFICATIONS.md).
+[Notifications](NOTIFICATIONS.md).
 
 ## Shell completion
 

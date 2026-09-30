@@ -365,8 +365,7 @@ Webhook は Web の manager を参照せず、run 開始時に同じ resolver �
 - `contracts/README.md`
 - `docs/ARCHITECTURE.md`
 - `docs/CONFIGURATION.md`
-- `docs/WEBHOOK_NOTIFICATIONS.md`
-- `docs/WEB_BROWSER_NOTIFICATIONS.md`
+- `docs/NOTIFICATIONS.md`
 - `docs/ENVIRONMENT_VARIABLES.md`
 - `docs/CLI_REFERENCE.md`
 - `docs/FAQ.md`

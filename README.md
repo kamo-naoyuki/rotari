@@ -224,6 +224,6 @@ A run page summarizes each `--matrix` group in a collapsible grid colored by
 status, with selectable row and column parameters, so a failing parameter
 combination stands out. The UI can also show browser desktop notifications
 when a run finishes or a job fails; see
-[Web browser notifications](docs/WEB_BROWSER_NOTIFICATIONS.md).
+[Notifications](docs/NOTIFICATIONS.md#browser-notifications).
 
 <!-- END GETTING STARTED -->

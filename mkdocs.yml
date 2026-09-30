@@ -30,8 +30,7 @@ nav:
       - Docker: DOCKER.md
       - FAQ: FAQ.md
   - Integrations:
-      - Webhook notifications: WEBHOOK_NOTIFICATIONS.md
-      - Browser notifications: WEB_BROWSER_NOTIFICATIONS.md
+      - Notifications: NOTIFICATIONS.md
       - LLM diagnosis: LLM_DIAGNOSIS.md
       - Local diagnosis rules: LOCAL_DIAGNOSIS.md
   - Development:

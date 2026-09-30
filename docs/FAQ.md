@@ -72,7 +72,7 @@ Run `rotari config`, or use `--output FILE` to save a template. The selected con
 
 ### How can I notify another service when a run or job finishes?
 
-Generate `notifications.toml` with `rotari config --notifications`, then set `webhook.url` there or `ROTARI_WEBHOOK_URL`. Use `job_failure`, `job_success`, `run_failure`, and `run_success` to choose the events; jobs are reported once, after their retries end. Slack, Teams, and Discord formats are supported; see [Webhook integrations](WEBHOOK_NOTIFICATIONS.md).
+Generate `notifications.toml` with `rotari config --notifications`, then set `webhook.url` there or `ROTARI_WEBHOOK_URL`. Use `job_failure`, `job_success`, `run_failure`, and `run_success` to choose the events; jobs are reported once, after their retries end. Slack, Teams, and Discord formats are supported; see [Notifications](NOTIFICATIONS.md#webhook-notifications).
 
 ### How are concurrency and executor options selected?
 
@@ -378,7 +378,7 @@ Its `summary.json` or `commands.json` was written by a newer rotari, whose state
 
 ### Can the Web UI notify me when a run finishes?
 
-Yes. It uses browser notifications locally and sends nothing to an external service. See [Web browser notifications](WEB_BROWSER_NOTIFICATIONS.md).
+Yes. It uses browser notifications locally and sends nothing to an external service. See [Notifications](NOTIFICATIONS.md#browser-notifications).
 
 ### Does the Web UI send run details to an AI service?
 
