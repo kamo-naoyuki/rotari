@@ -244,7 +244,9 @@ class Rotari:
             return result
         value = result.json()
         if not isinstance(value, dict):
-            raise TypeError("rotari export --format json returned a non-object JSON value")
+            raise TypeError(
+                "rotari export --format json returned a non-object JSON value"
+            )
         return value
 
     def import_(
