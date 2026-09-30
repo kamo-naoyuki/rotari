@@ -49,10 +49,10 @@ jobs:
   - name: train
     command: [python, train.py]
     executor: slurm
-    executor_options: ["--partition=gpu"]
-    env:
-      EPOCHS: "20"
-    array: "1-3"
+    executor_options:
+      --partition: gpu
+    env: ["EPOCHS=20"]
+    array: [1, 2, 3]
     matrix:
       SEED: [1, 2]
       MODEL: [small, large]
@@ -65,12 +65,17 @@ jobs:
 `--depends-on-finished`; `timeout`, `retry`, `retry_delay`, `retry_backoff`,
 and `retry_max_delay` correspond to the `add` options of the same names.
 Each YAML `matrix` key defines one dimension, and its sequence lists that
-dimension's values. The previous YAML sequence form, such as
-`matrix: ["SEED=1,2"]`, remains accepted. `array` keeps its string range syntax,
-such as `array: "1-10"`. The previous YAML `environment` key is still accepted
-as an alias for `env`, including its `KEY=VALUE` sequence form; exported YAML
-uses `env` and emits a mapping when variable names are unique. JSON and TOML
-manifests keep the `environment` `KEY=VALUE` sequence field.
+dimension's values. The compact form `matrix: ["SEED=1,2,3"]` is also accepted.
+`env` accepts either a name-to-value mapping or a `KEY=VALUE` sequence, such as
+`env: ["EPOCHS=20", "DATA_ROOT=./data"]`. The previous YAML `environment` key
+is still accepted as an alias for `env`. `array` accepts either its string range
+syntax, such as `array: "1-10"`, or a task list such as `array: [1, 2, 4]`.
+`executor_options` accepts the compact string sequence and a mapping from
+option names to values; mapping entries such as `--partition: gpu` become
+`--partition=gpu`. Exported YAML uses mappings for `env` when names are unique,
+but keeps `executor_options` as a sequence. JSON and TOML manifests keep the
+`environment` and `executor_options` sequence fields and the string form of
+`array`.
 
 Use `rotari import --dry-run FILE` to validate and preview `execute`, `reuse`,
 and `accept` decisions without changing the queue. Jobs with provenance also

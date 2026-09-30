@@ -201,34 +201,96 @@ func normalizeYAMLJob(job *yaml.Node) error {
 	if job.Kind != yaml.MappingNode {
 		return nil
 	}
-	environmentSeen := false
+	if err := normalizeYAMLEnvironmentField(job); err != nil {
+		return err
+	}
 	for index := 0; index+1 < len(job.Content); index += 2 {
-		key, value := job.Content[index].Value, job.Content[index+1]
+		key := job.Content[index].Value
+		var err error
 		switch key {
 		case "matrix":
-			if value.Kind == yaml.MappingNode {
-				dimensions, err := normalizeYAMLMatrixMapping(value)
-				if err != nil {
-					return err
-				}
-				job.Content[index+1] = dimensions
-			}
-		case "env", "environment":
-			if environmentSeen {
-				return errors.New("decode YAML manifest: env and environment cannot both be set")
-			}
-			environmentSeen = true
-			if value.Kind == yaml.MappingNode {
-				entries, err := normalizeYAMLEnvironmentMapping(value)
-				if err != nil {
-					return err
-				}
-				job.Content[index+1] = entries
-			}
-			job.Content[index].Value = "env"
+			err = normalizeYAMLMappingField(job, index, normalizeYAMLMatrixMapping)
+		case "array":
+			err = normalizeYAMLSequenceField(job, index, normalizeYAMLArraySequence)
+		case "executor_options":
+			err = normalizeYAMLMappingField(job, index, normalizeYAMLExecutorOptionsMapping)
+		}
+		if err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func normalizeYAMLEnvironmentField(job *yaml.Node) error {
+	environmentSeen := false
+	for index := 0; index+1 < len(job.Content); index += 2 {
+		if !isYAMLEnvironmentKey(job.Content[index].Value) {
+			continue
+		}
+		if environmentSeen {
+			return errors.New("decode YAML manifest: env and environment cannot both be set")
+		}
+		environmentSeen = true
+		if err := normalizeYAMLMappingField(job, index, normalizeYAMLEnvironmentMapping); err != nil {
+			return err
+		}
+		job.Content[index].Value = "env"
+	}
+	return nil
+}
+
+func isYAMLEnvironmentKey(key string) bool {
+	return key == "env" || key == "environment"
+}
+
+func normalizeYAMLMappingField(job *yaml.Node, index int, normalize func(*yaml.Node) (*yaml.Node, error)) error {
+	return normalizeYAMLField(job, index, yaml.MappingNode, normalize)
+}
+
+func normalizeYAMLSequenceField(job *yaml.Node, index int, normalize func(*yaml.Node) (*yaml.Node, error)) error {
+	return normalizeYAMLField(job, index, yaml.SequenceNode, normalize)
+}
+
+func normalizeYAMLField(job *yaml.Node, index int, kind yaml.Kind, normalize func(*yaml.Node) (*yaml.Node, error)) error {
+	value := job.Content[index+1]
+	if value.Kind != kind {
+		return nil
+	}
+	normalized, err := normalize(value)
+	if err != nil {
+		return err
+	}
+	job.Content[index+1] = normalized
+	return nil
+}
+
+func normalizeYAMLArraySequence(array *yaml.Node) (*yaml.Node, error) {
+	values := make([]string, 0, len(array.Content))
+	for _, value := range array.Content {
+		if value.Kind != yaml.ScalarNode || value.Tag == yamlNullTag {
+			return nil, errors.New("decode YAML manifest: array must be a sequence of non-null scalar task indices")
+		}
+		values = append(values, value.Value)
+	}
+	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: strings.Join(values, ",")}, nil
+}
+
+func normalizeYAMLExecutorOptionsMapping(options *yaml.Node) (*yaml.Node, error) {
+	entries := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+	seen := make(map[string]bool, len(options.Content)/2)
+	for index := 0; index+1 < len(options.Content); index += 2 {
+		key, value := options.Content[index], options.Content[index+1]
+		if key.Kind != yaml.ScalarNode || key.Tag == yamlNullTag || value.Kind != yaml.ScalarNode || value.Tag == yamlNullTag {
+			return nil, errors.New("decode YAML manifest: executor_options must map option names to non-null scalar values")
+		}
+		if seen[key.Value] {
+			return nil, fmt.Errorf("decode YAML manifest: duplicate executor option %q", key.Value)
+		}
+		seen[key.Value] = true
+		entries.Content = append(entries.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key.Value + "=" + value.Value})
+	}
+	return entries, nil
 }
 
 func normalizeYAMLEnvironmentMapping(environment *yaml.Node) (*yaml.Node, error) {

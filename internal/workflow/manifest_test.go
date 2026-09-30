@@ -99,6 +99,47 @@ jobs:
 	}
 }
 
+func TestDecodeYAMLArrayListAndExecutorOptionsMapping(t *testing.T) {
+	input := `version: 1
+jobs:
+  - command: [train]
+    executor_options:
+      --partition: gpu
+      --gres: gpu:1
+    env: ["EPOCHS=20", "DATA_ROOT=./data"]
+    array: [1, 2, 4]
+`
+	queue := compileFormatFixture(t, "yaml", input)
+	if len(queue.Commands) != 1 {
+		t.Fatalf("Compile(yaml) produced %d commands, want 1", len(queue.Commands))
+	}
+	command := queue.Commands[0]
+	if !reflect.DeepEqual(command.ExecutorOptions, []string{"--partition=gpu", "--gres=gpu:1"}) {
+		t.Fatalf("executor options = %v", command.ExecutorOptions)
+	}
+	if !reflect.DeepEqual(command.Environment, []string{"EPOCHS=20", "DATA_ROOT=./data"}) {
+		t.Fatalf("environment = %v", command.Environment)
+	}
+	if command.Array == nil || !reflect.DeepEqual(command.Array.Tasks, []int{1, 2, 4}) {
+		t.Fatalf("array = %#v, want task list [1 2 4]", command.Array)
+	}
+}
+
+func TestDecodeRejectsMalformedYAMLArrayAndExecutorOptionsMappings(t *testing.T) {
+	inputs := []string{
+		"version: 1\njobs:\n  - command: [true]\n    array: [1, null]\n",
+		"version: 1\njobs:\n  - command: [true]\n    array: [[1, 2]]\n",
+		"version: 1\njobs:\n  - command: [true]\n    executor_options:\n      --partition: null\n",
+		"version: 1\njobs:\n  - command: [true]\n    executor_options:\n      --partition: [gpu]\n",
+		"version: 1\njobs:\n  - command: [true]\n    executor_options:\n      --partition: gpu\n      --partition: cpu\n",
+	}
+	for _, input := range inputs {
+		if _, err := Decode(strings.NewReader(input), "yaml"); err == nil {
+			t.Errorf("Decode accepted malformed array or executor_options:\n%s", input)
+		}
+	}
+}
+
 func TestDecodeRejectsMalformedYAMLMatrixMapping(t *testing.T) {
 	for _, matrix := range []string{
 		"SEED: 1",

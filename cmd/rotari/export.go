@@ -33,14 +33,19 @@ jobs:
     # retry_max_delay: 5m
     # executor: slurm
     # executor_options: ["--partition=gpu", "--gres=gpu:1"]
+    # Or use a mapping for options with values:
+    # executor_options:
+    #   --partition: gpu
     # working_directory: ./work
     # env:
     #   EPOCHS: "20"
     #   DATA_ROOT: ./data
+    # The compact form env: ["EPOCHS=20", "DATA_ROOT=./data"] is also accepted.
 
     # Same syntax as rotari add --array.
     # array: "1-10"
     # array: "1,3,4"
+    # Or list task IDs: array: [1, 3, 4]
 
     # Cartesian expansion across dimensions.
     # matrix:
