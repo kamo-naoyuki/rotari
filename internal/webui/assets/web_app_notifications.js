@@ -11,6 +11,17 @@ const defaultNotificationSettings = {
   job_success: false,
   run_failure: true,
   run_success: true,
+  fields: [
+    "project",
+    "run_name",
+    "run_status",
+    "job_name",
+    "job_status",
+    "exit_code",
+    "diagnosis_name",
+    "diagnosis_suggestion",
+    "link",
+  ],
   max_jobs: 10,
 };
 Object.assign(defaultNotificationSettings, initialNotificationSettings);
@@ -72,6 +83,7 @@ function collectRunStatuses(appState) {
         status: run.status,
         projectName: project.project_name,
         runID: run.run_id,
+        run,
       });
     }
   }
@@ -96,7 +108,129 @@ function truncateNotificationBody(body) {
   if (body.length <= 1000) return body;
   return body.slice(0, 997) + "...";
 }
-function notifyRunEvent(info, succeededJobNames, failedJobNames, runFinished) {
+function notificationDuration(startedAt, finishedAt) {
+  const milliseconds = Date.parse(finishedAt) - Date.parse(startedAt);
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) return "";
+  if (milliseconds < 1000) return milliseconds + "ms";
+  const seconds = milliseconds / 1000;
+  return (Number.isInteger(seconds) ? seconds : seconds.toFixed(3)) + "s";
+}
+function notificationFieldValues(name, info, job, jobStatus) {
+  const run = info.run || {};
+  const result = job && job.result;
+  const diagnoses = (result && result.diagnoses) || [];
+  const runJobs = run.jobs || [];
+  const value = (item) =>
+    item === undefined || item === null || item === "" ? [] : [item];
+  switch (name) {
+    case "project":
+      return value(info.projectName);
+    case "run_id":
+      return value(info.runID);
+    case "run_name":
+      return value(run.run_name);
+    case "run_status":
+      return job ? [] : value(info.status === "failed" ? "failed" : "success");
+    case "job_id":
+      return job ? value(job.id) : [];
+    case "job_name":
+      return job ? value(job.name) : [];
+    case "stage":
+      return job ? value(job.stage) : [];
+    case "array_task_id":
+      return job ? value(job.array_task_id) : [];
+    case "attempt_id":
+      return job ? value(job.attempt_id || (result && result.attempt_id)) : [];
+    case "job_status":
+      return job ? value(jobStatus) : [];
+    case "exit_code":
+      return value(job ? result && result.exit_code : run.exit_code);
+    case "error":
+      return job ? value(result && result.error) : [];
+    case "success_count":
+      return job
+        ? []
+        : value(
+            runJobs.filter(
+              (item) =>
+                item.final && jobDisplayStatus(item, run).startsWith("success"),
+            ).length,
+          );
+    case "failure_count":
+      return job
+        ? []
+        : value(
+            runJobs.filter(
+              (item) =>
+                item.final &&
+                !jobDisplayStatus(item, run).startsWith("success"),
+            ).length,
+          );
+    case "total_count":
+      return job ? [] : value(runJobs.filter((item) => item.final).length);
+    case "started_at":
+      return value(job ? job.submitted_at : run.started_at);
+    case "finished_at":
+      return value(job ? job.finished_at : run.finished_at);
+    case "duration":
+      return value(
+        notificationDuration(
+          job ? job.submitted_at : run.started_at,
+          job ? job.finished_at : run.finished_at,
+        ),
+      );
+    case "executor":
+      return job ? value(job.executor) : [];
+    case "hosts":
+      return job
+        ? value(result && result.hosts && result.hosts.join(", "))
+        : [];
+    case "working_directory":
+      return job ? value(job.working_directory) : [];
+    case "command":
+      return job
+        ? value(((result && result.command) || job.command || []).join(" "))
+        : [];
+    case "diagnosis_status":
+      return job ? value(result && result.diagnosis_status) : [];
+    case "diagnosis_name":
+      return job
+        ? diagnoses.map((diagnosis) => diagnosis.name).filter(Boolean)
+        : [];
+    case "diagnosis_evidence":
+      return job
+        ? diagnoses.map((diagnosis) => diagnosis.evidence).filter(Boolean)
+        : [];
+    case "diagnosis_suggestion":
+      return job
+        ? diagnoses.map((diagnosis) => diagnosis.suggestion).filter(Boolean)
+        : [];
+    case "diagnosis_rules":
+      return job ? value(result && result.diagnosis_rules) : [];
+    case "diagnosis_outdated":
+      return job && result && result.diagnosis_status
+        ? [!!job.diagnosis_outdated]
+        : [];
+    default:
+      return [];
+  }
+}
+function notificationEventLines(settings, info, job, jobStatus) {
+  const lines = [];
+  for (const name of settings.fields || []) {
+    if (name === "link") continue;
+    for (const value of notificationFieldValues(name, info, job, jobStatus))
+      lines.push(name.replaceAll("_", " ") + ": " + value);
+  }
+  return lines;
+}
+function notifyRunEvent(
+  info,
+  succeededJobs,
+  failedJobs,
+  runFinished,
+  settings,
+) {
   if (
     !notificationsSupported() ||
     Notification.permission !== "granted" ||
@@ -104,53 +238,50 @@ function notifyRunEvent(info, succeededJobNames, failedJobNames, runFinished) {
   )
     return;
   const jobCountText =
-    failedJobNames.length +
-    " job" +
-    (failedJobNames.length > 1 ? "s" : "") +
-    " failed";
+    failedJobs.length + " job" + (failedJobs.length > 1 ? "s" : "") + " failed";
   let title;
   if (runFinished) {
     const outcome = info.status === "failed" ? "failed" : "succeeded";
     title =
-      failedJobNames.length > 0
+      failedJobs.length > 0
         ? "rotari: run " + outcome + " (" + jobCountText + ")"
         : "rotari: run " + outcome;
-  } else if (failedJobNames.length > 0) {
+  } else if (failedJobs.length > 0) {
     title = "rotari: " + jobCountText;
-  } else if (succeededJobNames.length > 0) {
+  } else if (succeededJobs.length > 0) {
     title =
       "rotari: " +
-      succeededJobNames.length +
+      succeededJobs.length +
       " job" +
-      (succeededJobNames.length > 1 ? "s" : "") +
+      (succeededJobs.length > 1 ? "s" : "") +
       " succeeded";
   } else {
     return;
   }
-  const body = truncateNotificationBody(
-    info.projectName +
-      " / " +
-      info.runID +
-      (runFinished
-        ? "\nstatus: " + (info.status === "failed" ? "failed" : "success")
-        : "") +
-      (failedJobNames.length ? "\nfailed: " + failedJobNames.join(", ") : "") +
-      (succeededJobNames.length
-        ? "\nsucceeded: " + succeededJobNames.join(", ")
-        : ""),
-  );
+  const sections = [];
+  for (const job of [...failedJobs, ...succeededJobs]) {
+    const status = jobDisplayStatus(job, info.run);
+    const lines = notificationEventLines(settings, info, job, status);
+    if (lines.length) sections.push(lines.join("\n"));
+  }
+  if (runFinished) {
+    const lines = notificationEventLines(settings, info, null, "");
+    if (lines.length) sections.push(lines.join("\n"));
+  }
+  const body = truncateNotificationBody(sections.join("\n\n"));
   const notification = new Notification(title, {
     body,
     icon: notificationIconURL,
   });
-  notification.onclick = () => {
-    window.focus();
-    location.href =
-      appURL("/project/") +
-      encodeURIComponent(info.projectName) +
-      "/run/" +
-      encodeURIComponent(info.runID);
-  };
+  if ((settings.fields || []).includes("link"))
+    notification.onclick = () => {
+      window.focus();
+      location.href =
+        appURL("/project/") +
+        encodeURIComponent(info.projectName) +
+        "/run/" +
+        encodeURIComponent(info.runID);
+    };
 }
 // Job failures and a run's own completion that occur in the same poll are
 // merged into a single notification per run.
@@ -182,8 +313,8 @@ async function checkRunNotifications(previousState, nextState) {
       )
         events.set(runKey, {
           info,
-          succeededJobNames: [],
-          failedJobNames: [],
+          succeededJobs: [],
+          failedJobs: [],
           runFinished: true,
           settings,
         });
@@ -207,14 +338,14 @@ async function checkRunNotifications(previousState, nextState) {
           continue;
         const event = events.get(runKey) || {
           info: nextRuns.get(runKey),
-          succeededJobNames: [],
-          failedJobNames: [],
+          succeededJobs: [],
+          failedJobs: [],
           runFinished: false,
           settings,
         };
         const target =
-          status === "failed" ? event.failedJobNames : event.succeededJobNames;
-        if (target.length < settings.max_jobs) target.push(job.name || job.id);
+          status === "failed" ? event.failedJobs : event.succeededJobs;
+        if (target.length < settings.max_jobs) target.push(job);
         events.set(runKey, event);
       }
     }
@@ -222,9 +353,10 @@ async function checkRunNotifications(previousState, nextState) {
   events.forEach((event) =>
     notifyRunEvent(
       event.info,
-      event.succeededJobNames,
-      event.failedJobNames,
+      event.succeededJobs,
+      event.failedJobs,
       event.runFinished,
+      event.settings,
     ),
   );
 }

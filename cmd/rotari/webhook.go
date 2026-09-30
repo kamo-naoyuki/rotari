@@ -3,27 +3,17 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"github.com/kamo-naoyuki/rotari/internal/notification"
 )
 
-type runWebhookPayload struct {
-	Event       string   `json:"event"`
-	Project     string   `json:"project"`
-	Run         string   `json:"run"`
-	Status      string   `json:"status"`
-	ExitCode    int      `json:"exit_code"`
-	Success     int      `json:"success"`
-	Failed      int      `json:"failed"`
-	FailedJobs  []string `json:"failed_jobs,omitempty"`
-	ShowCommand string   `json:"show_command,omitempty"`
-}
-
 type webhookEncoder interface {
-	Encode(runWebhookPayload) (any, error)
+	Encode(notification.Payload) (any, error)
 }
 
 type genericWebhookEncoder struct{}
 
-func (genericWebhookEncoder) Encode(payload runWebhookPayload) (any, error) {
+func (genericWebhookEncoder) Encode(payload notification.Payload) (any, error) {
 	return payload, nil
 }
 
@@ -85,78 +75,100 @@ type discordField struct {
 	Inline bool   `json:"inline,omitempty"`
 }
 
-func (slackWebhookEncoder) Encode(payload runWebhookPayload) (any, error) {
-	text := fmt.Sprintf("rotari %s: %s (%d failed)", payload.Project, payload.Status, payload.Failed)
-	blockText := fmt.Sprintf("*rotari run %s*\nproject: `%s`\nrun: `%s`\nsuccess: %d, failed: %d", payload.Status, payload.Project, payload.Run, payload.Success, payload.Failed)
-	if len(payload.FailedJobs) > 0 {
-		blockText += fmt.Sprintf("\nfailed jobs: `%s`", strings.Join(payload.FailedJobs, "`, `"))
+func (slackWebhookEncoder) Encode(payload notification.Payload) (any, error) {
+	encoded := slackWebhookPayload{Text: payloadSummary(payload)}
+	for _, event := range payload.Events {
+		encoded.Blocks = append(encoded.Blocks, slackBlock{Type: "section", Text: slackText{Type: "mrkdwn", Text: markdownEvent(event)}})
 	}
-	if payload.ShowCommand != "" {
-		blockText += fmt.Sprintf("\nshow: `%s`", payload.ShowCommand)
+	if payload.OmittedJobs > 0 {
+		encoded.Blocks = append(encoded.Blocks, slackBlock{Type: "section", Text: slackText{Type: "mrkdwn", Text: fmt.Sprintf("*omitted jobs:* %d", payload.OmittedJobs)}})
 	}
-	return slackWebhookPayload{
-		Text: text,
-		Blocks: []slackBlock{{
-			Type: "section",
-			Text: slackText{Type: "mrkdwn", Text: blockText},
-		}},
-	}, nil
+	return encoded, nil
 }
 
-func (teamsWebhookEncoder) Encode(payload runWebhookPayload) (any, error) {
-	activityText := "Run completed successfully."
-	themeColor := "2E7D32"
-	if payload.Failed > 0 {
-		activityText = "Run completed with failed jobs."
-		themeColor = "C62828"
-	}
-	facts := []teamsFact{
-		{Name: "Project", Value: payload.Project},
-		{Name: "Run", Value: payload.Run},
-		{Name: "Success", Value: fmt.Sprintf("%d", payload.Success)},
-		{Name: "Failed", Value: fmt.Sprintf("%d", payload.Failed)},
-	}
-	if len(payload.FailedJobs) > 0 {
-		facts = append(facts, teamsFact{Name: "Failed jobs", Value: strings.Join(payload.FailedJobs, ", ")})
-	}
-	if payload.ShowCommand != "" {
-		facts = append(facts, teamsFact{Name: "Show command", Value: payload.ShowCommand})
-	}
-	return teamsWebhookPayload{
+func (teamsWebhookEncoder) Encode(payload notification.Payload) (any, error) {
+	encoded := teamsWebhookPayload{
 		Type: "MessageCard", Context: "http://schema.org/extensions",
-		Summary: fmt.Sprintf("rotari %s: %s", payload.Project, payload.Status), ThemeColor: themeColor,
-		Sections: []teamsSection{{
-			ActivityTitle: fmt.Sprintf("rotari run %s", payload.Status),
-			ActivityText:  activityText,
-			Facts:         facts,
-		}},
-	}, nil
+		Summary: payloadSummary(payload), ThemeColor: payloadColor(payload, "2E7D32", "C62828"),
+	}
+	for _, event := range payload.Events {
+		facts := make([]teamsFact, 0, len(event.Fields))
+		for _, field := range event.Fields {
+			facts = append(facts, teamsFact{Name: fieldLabel(field.Name), Value: notification.FormatValue(field.Value)})
+		}
+		encoded.Sections = append(encoded.Sections, teamsSection{ActivityTitle: eventTitle(event), Facts: facts})
+	}
+	if payload.OmittedJobs > 0 {
+		encoded.Sections = append(encoded.Sections, teamsSection{ActivityTitle: "rotari notification", Facts: []teamsFact{{Name: "Omitted jobs", Value: fmt.Sprint(payload.OmittedJobs)}}})
+	}
+	return encoded, nil
 }
 
-func (discordWebhookEncoder) Encode(payload runWebhookPayload) (any, error) {
-	color := 0x2e7d32
-	if payload.Failed > 0 {
-		color = 0xc62828
+func (discordWebhookEncoder) Encode(payload notification.Payload) (any, error) {
+	encoded := discordWebhookPayload{Content: payloadSummary(payload)}
+	color := payloadColor(payload, 0x2e7d32, 0xc62828)
+	for _, event := range payload.Events {
+		fields := make([]discordField, 0, len(event.Fields))
+		for _, field := range event.Fields {
+			fields = append(fields, discordField{Name: fieldLabel(field.Name), Value: notification.FormatValue(field.Value), Inline: true})
+		}
+		encoded.Embeds = append(encoded.Embeds, discordEmbed{Title: eventTitle(event), Color: color, Fields: fields})
 	}
-	fields := []discordField{
-		{Name: "Project", Value: payload.Project, Inline: true},
-		{Name: "Run", Value: payload.Run, Inline: true},
-		{Name: "Success", Value: fmt.Sprintf("%d", payload.Success), Inline: true},
-		{Name: "Failed", Value: fmt.Sprintf("%d", payload.Failed), Inline: true},
+	if payload.OmittedJobs > 0 {
+		encoded.Embeds = append(encoded.Embeds, discordEmbed{Title: "rotari notification", Color: color, Fields: []discordField{{Name: "Omitted jobs", Value: fmt.Sprint(payload.OmittedJobs)}}})
 	}
-	if len(payload.FailedJobs) > 0 {
-		fields = append(fields, discordField{Name: "Failed jobs", Value: strings.Join(payload.FailedJobs, ", ")})
+	return encoded, nil
+}
+
+func payloadSummary(payload notification.Payload) string {
+	if len(payload.Events) == 0 {
+		return "rotari notification"
 	}
-	if payload.ShowCommand != "" {
-		fields = append(fields, discordField{Name: "Show command", Value: fmt.Sprintf("`%s`", payload.ShowCommand)})
+	return eventTitle(payload.Events[len(payload.Events)-1])
+}
+
+func eventTitle(event notification.PayloadEvent) string {
+	title := "rotari " + strings.ReplaceAll(string(event.Event), ".", " ")
+	statusName := "job_status"
+	if event.Event == notification.RunFinished {
+		statusName = "run_status"
 	}
-	return discordWebhookPayload{
-		Content: fmt.Sprintf("rotari %s: %s", payload.Project, payload.Status),
-		Embeds: []discordEmbed{{
-			Title:       fmt.Sprintf("rotari run %s", payload.Status),
-			Description: "Run completed.", Color: color, Fields: fields,
-		}},
-	}, nil
+	if status, ok := fieldValue(event.Fields, statusName); ok {
+		title += ": " + notification.FormatValue(status)
+	}
+	return title
+}
+
+func markdownEvent(event notification.PayloadEvent) string {
+	lines := []string{"*" + eventTitle(event) + "*"}
+	for _, field := range event.Fields {
+		lines = append(lines, fmt.Sprintf("*%s:* %s", fieldLabel(field.Name), notification.FormatValue(field.Value)))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func fieldLabel(name string) string {
+	return strings.ReplaceAll(name, "_", " ")
+}
+
+func fieldValue(fields []notification.Field, name string) (any, bool) {
+	for _, field := range fields {
+		if field.Name == name {
+			return field.Value, true
+		}
+	}
+	return nil, false
+}
+
+func payloadColor[T ~string | ~int](payload notification.Payload, success, failure T) T {
+	for _, event := range payload.Events {
+		for _, name := range []string{"run_status", "job_status"} {
+			if status, ok := fieldValue(event.Fields, name); ok && notification.FormatValue(status) != "success" {
+				return failure
+			}
+		}
+	}
+	return success
 }
 
 var webhookEncoders = map[string]webhookEncoder{

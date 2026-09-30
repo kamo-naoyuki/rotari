@@ -537,7 +537,9 @@ Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle
   they start are reported once. Events that occur within ten seconds of the
   first pending event are sent as one `POST`, and a run's completion flushes
   the pending batch immediately. `webhook.fields` selects the reported fields
-  from the shared vocabulary and `webhook.max_jobs` bounds the listed jobs;
+  from the shared vocabulary ([implementation](../internal/notification/payload.go),
+  [tests](../internal/notification/event_test.go)) and `webhook.max_jobs`
+  bounds the listed jobs;
   `link` is browser-only. `webhook.format` selects the generic rotari JSON
   payload or a supported service-specific payload. Delivery errors are warnings
   and do not change run status; rotari keeps no delivery ledger and does not

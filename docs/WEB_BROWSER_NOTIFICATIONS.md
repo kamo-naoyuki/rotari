@@ -45,6 +45,7 @@ job_failure = true
 job_success = false
 run_failure = true
 run_success = true
+fields = ["project", "run_name", "run_status", "job_name", "job_status", "exit_code", "diagnosis_name", "diagnosis_suggestion", "link"]
 max_jobs = 10
 ```
 
@@ -53,6 +54,18 @@ Web UI's **Notifications** button, which saves the file and reloads the
 settings without restarting `rotari web`. Open pages pick the new settings up
 on their next poll. `max_jobs` bounds how many jobs one notification lists,
 and the notification body is truncated at 1000 characters.
+
+The shown `fields` are defaults, not the complete set of browser fields. The
+browser and Webhook use the same [available fields](WEBHOOK_NOTIFICATIONS.md#available-fields),
+except that `link` is browser-only. Add `run_id`, `job_id`, `attempt_id`, or
+other available fields when the notification body must carry those values.
+
+The browser defaults omit IDs because the corresponding names are easier to
+scan in a short desktop notification, and the default `link` opens the exact
+run page. This is a presentation default, not a browser limitation. Webhook
+defaults include IDs because external receivers need stable identifiers for
+correlation and cannot rely on a browser click. Browser defaults also use a
+lower `max_jobs` because desktop notification bodies have much less space.
 
 The static export has no server to read or save these files, so it offers
 neither the editor nor live notifications.

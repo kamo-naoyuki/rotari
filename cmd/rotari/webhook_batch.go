@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -12,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/notification"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -46,7 +46,12 @@ func newWebhookNotificationManager() *webhookNotificationManager {
 var webhookNotifications = newWebhookNotificationManager()
 
 func (manager *webhookNotificationManager) JobFinished(paths state.ProjectPaths, runID, runName string, job model.JobSpec, result model.JobResult) {
-	manager.add(paths, runID, notification.NewJobEvent(paths.ProjectName, runID, runName, job, result, manager.now()), false)
+	event := notification.NewJobEvent(paths.ProjectName, runID, runName, job, result, manager.now())
+	event.SetDiagnosisOutdated(diagnose.Outdated(result))
+	if runDir, err := state.SafeJoin(paths.RunsDir, runID); err == nil {
+		event.SetTimestamps(state.ReadJobTimestamp(runDir, job.ID, "submitted_at"), state.ReadJobTimestamp(runDir, job.ID, "finished_at"))
+	}
+	manager.add(paths, runID, event, false)
 }
 
 func (manager *webhookNotificationManager) RunFinished(paths state.ProjectPaths, runID string, _ int) {
@@ -149,7 +154,7 @@ func sendWebhookBatch(settings notification.WebhookSettings, batch notification.
 		printErrorf("WARNING: invalid %s URL", envWebhookURL)
 		return
 	}
-	payload := batchWebhookPayload(batch)
+	payload := notification.NewPayload(batch, settings.Fields)
 	encoder, ok := webhookEncoders[normalizeWebhookFormat(settings.Format)]
 	if !ok {
 		printErrorf("WARNING: unsupported webhook format %q", settings.Format)
@@ -180,35 +185,4 @@ func sendWebhookBatch(settings notification.WebhookSettings, batch notification.
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		printErrorf("WARNING: webhook notification returned HTTP %d", response.StatusCode)
 	}
-}
-
-func batchWebhookPayload(batch notification.Batch) runWebhookPayload {
-	payload := runWebhookPayload{Event: "jobs.finished", Project: batch.Project, Run: batch.RunID}
-	for _, event := range batch.Events {
-		if event.Kind == notification.RunFinished {
-			payload.Event = string(notification.RunFinished)
-			payload.Status = event.RunStatus
-			continue
-		}
-		if event.Result == nil || event.Job == nil {
-			continue
-		}
-		if event.Result.ExitCode == 0 {
-			payload.Success++
-		} else {
-			payload.Failed++
-			label := event.Job.ID
-			if event.Job.Name != "" {
-				label = fmt.Sprintf("%s (%s)", event.Job.Name, event.Job.ID)
-			}
-			payload.FailedJobs = append(payload.FailedJobs, label)
-		}
-	}
-	if payload.Status == "" {
-		payload.Status = "success"
-		if payload.Failed > 0 {
-			payload.Status = "failed"
-		}
-	}
-	return payload
 }

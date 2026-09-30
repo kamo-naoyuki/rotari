@@ -124,6 +124,44 @@ func TestWebHTMLJavaScriptSyntax(t *testing.T) {
 	}
 }
 
+func TestBrowserNotificationFields(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	start := strings.Index(webAppNotificationsJS, "function notificationDuration")
+	end := strings.Index(webAppNotificationsJS, "function notifyRunEvent")
+	if start < 0 || end <= start {
+		t.Fatal("browser notification field functions not found")
+	}
+	script := `
+function jobDisplayStatus(job) { return job.result.exit_code === 0 ? "success" : "failed"; }
+` + webAppNotificationsJS[start:end] + `
+const info = {projectName: "demo", runID: "run-1", status: "failed", run: {
+  run_name: "nightly", exit_code: 1,
+  jobs: [{id: "job-1", final: true, result: {exit_code: 1}}]
+}};
+const job = {id: "job-1", name: "train", result: {exit_code: 1, diagnoses: [
+  {name: "First", suggestion: "check logs"},
+  {name: "Second", suggestion: "check quota"}
+]}};
+const jobLines = notificationEventLines({fields: ["job_id", "job_name", "diagnosis_name", "diagnosis_suggestion"]}, info, job, "failed");
+const runLines = notificationEventLines({fields: ["run_id", "run_name", "failure_count", "job_id", "link"]}, info, null, "");
+const expectedJobs = ["job id: job-1", "job name: train", "diagnosis name: First", "diagnosis name: Second", "diagnosis suggestion: check logs", "diagnosis suggestion: check quota"];
+const expectedRun = ["run id: run-1", "run name: nightly", "failure count: 1"];
+if (JSON.stringify(jobLines) !== JSON.stringify(expectedJobs) || JSON.stringify(runLines) !== JSON.stringify(expectedRun)) {
+  console.error(JSON.stringify({jobLines, runLines}));
+  process.exit(1);
+}
+`
+	path := filepath.Join(t.TempDir(), "notification-fields.js")
+	if err := os.WriteFile(path, []byte(script), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if output, err := exec.Command("node", path).CombinedOutput(); err != nil {
+		t.Fatalf("browser notification fields failed: %v\n%s", err, output)
+	}
+}
+
 func TestWebHTMLRendersState(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")

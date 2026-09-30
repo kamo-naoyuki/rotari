@@ -22,6 +22,7 @@ job_failure = true
 job_success = false
 run_failure = true
 run_success = true
+fields = ["project", "run_id", "run_name", "run_status", "job_id", "job_name", "job_status", "exit_code", "success_count", "failure_count", "duration", "diagnosis_name", "diagnosis_suggestion"]
 max_jobs = 20
 ```
 
@@ -31,6 +32,31 @@ they start are reported as failures. Events that happen close together are
 combined: the first pending event opens a ten-second window, and a run's
 completion sends the pending batch immediately. `max_jobs` bounds how many
 jobs a single notification lists.
+
+`fields` selects the values reported for each event, in display order. A field
+that does not apply to an event is omitted; for example, `job_name` is omitted
+from a run event. Multiple diagnoses produce multiple diagnosis fields. The
+event type, payload schema version, and notification creation time are always
+included. The same selection controls generic JSON and the Slack, Teams, and
+Discord messages.
+
+## Available fields
+
+Webhook and browser notifications share the same field vocabulary. Only
+`link` is browser-only and is rejected in `[webhook].fields`.
+
+| Category | Fields |
+| --- | --- |
+| Identity | `project`, `run_id`, `run_name`, `job_id`, `job_name`, `stage`, `array_task_id`, `attempt_id` |
+| Result | `run_status`, `job_status`, `exit_code`, `error`, `success_count`, `failure_count`, `total_count` |
+| Time | `started_at`, `finished_at`, `duration` |
+| Execution | `executor`, `hosts`, `working_directory`, `command` |
+| Diagnosis | `diagnosis_status`, `diagnosis_name`, `diagnosis_evidence`, `diagnosis_suggestion`, `diagnosis_rules`, `diagnosis_outdated` |
+| Navigation | `link` (browser only) |
+
+`working_directory`, `command`, and `diagnosis_evidence` can contain sensitive
+or lengthy values, so they are available but disabled by default. Environment
+variables and executor options cannot be selected.
 
 ## Direct integrations
 
@@ -50,8 +76,7 @@ url = "https://hooks.slack.com/services/T.../B.../..."
 format = "slack"
 ```
 
-The message uses Slack Block Kit and includes the project, run, result counts,
-and failed-job details when present.
+The message uses Slack Block Kit and displays the configured `fields`.
 
 ### Microsoft Teams
 
@@ -64,8 +89,7 @@ url = "https://example.webhook.office.com/..."
 format = "teams"
 ```
 
-The message uses a MessageCard and includes the project, run, result counts,
-and failed-job details when present.
+The message uses a MessageCard and displays the configured `fields`.
 
 ### Discord
 
@@ -78,8 +102,7 @@ url = "https://discord.com/api/webhooks/..."
 format = "discord"
 ```
 
-The message uses an embed and includes the project, run, result counts, and
-failed-job details when present.
+The message uses embeds and displays the configured `fields`.
 
 ## Test a notification
 
@@ -98,21 +121,37 @@ does not retry, so a failed delivery is reported only as a warning.
 For Make Custom Webhooks, Zapier Catch Hooks, Pipedream HTTP triggers, or a
 small internal HTTP service, leave `format` unset (the default `json`).
 Configure rotari with the receiver's URL, then transform the generic JSON
-payload into the destination service's required format. The payload contains
-the run result and, for failed runs, failed-job details:
+payload into the destination service's required format. Each event contains
+the configured fields that are available for that event:
 
 ```json
 {
-  "event": "run.finished",
-  "project": "demo",
-  "run": "nightly (run-1)",
-  "status": "failed",
-  "exit_code": 1,
-  "success": 3,
-  "failed": 1,
-  "failed_jobs": ["train"],
-  "show_command": "rotari show --run-id 'run-1' --failed-logs --no-pager"
+  "schema_version": 1,
+  "created_at": "2026-09-30T17:41:02Z",
+  "events": [
+    {
+      "event": "job.finished",
+      "fields": [
+        {"name": "project", "value": "demo"},
+        {"name": "run_id", "value": "20260930-174102-9c8bb0d5"},
+        {"name": "job_name", "value": "train"},
+        {"name": "job_status", "value": "failed"},
+        {"name": "exit_code", "value": 1},
+        {"name": "diagnosis_name", "value": "Permission denied"},
+        {"name": "diagnosis_suggestion", "value": "Check file ownership and permissions."}
+      ]
+    },
+    {
+      "event": "run.finished",
+      "fields": [
+        {"name": "project", "value": "demo"},
+        {"name": "run_id", "value": "20260930-174102-9c8bb0d5"},
+        {"name": "run_status", "value": "failed"},
+        {"name": "exit_code", "value": 1},
+        {"name": "success_count", "value": 0},
+        {"name": "failure_count", "value": 1}
+      ]
+    }
+  ]
 }
 ```
-
-`failed_jobs` and `show_command` are omitted for a successful run.

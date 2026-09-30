@@ -14,16 +14,21 @@ const (
 )
 
 type Event struct {
-	Kind       EventKind        `json:"event"`
-	OccurredAt string           `json:"occurred_at"`
-	Project    string           `json:"project,omitempty"`
-	RunID      string           `json:"run_id,omitempty"`
-	RunName    string           `json:"run_name,omitempty"`
-	RunStatus  string           `json:"run_status,omitempty"`
-	Job        *model.JobSpec   `json:"job,omitempty"`
-	Result     *model.JobResult `json:"result,omitempty"`
-	StartedAt  string           `json:"started_at,omitempty"`
-	FinishedAt string           `json:"finished_at,omitempty"`
+	Kind              EventKind        `json:"event"`
+	OccurredAt        string           `json:"occurred_at"`
+	Project           string           `json:"project,omitempty"`
+	RunID             string           `json:"run_id,omitempty"`
+	RunName           string           `json:"run_name,omitempty"`
+	RunStatus         string           `json:"run_status,omitempty"`
+	JobStatus         string           `json:"job_status,omitempty"`
+	ExitCode          int              `json:"exit_code,omitempty"`
+	Successes         int              `json:"success_count,omitempty"`
+	Failures          int              `json:"failure_count,omitempty"`
+	DiagnosisOutdated bool             `json:"diagnosis_outdated,omitempty"`
+	Job               *model.JobSpec   `json:"job,omitempty"`
+	Result            *model.JobResult `json:"result,omitempty"`
+	StartedAt         string           `json:"started_at,omitempty"`
+	FinishedAt        string           `json:"finished_at,omitempty"`
 }
 
 type Batch struct {
@@ -41,22 +46,38 @@ func NewJobEvent(project, runID, runName string, job model.JobSpec, result model
 	if result.ExitCode != 0 {
 		status = "failed"
 	}
-	return Event{Kind: JobFinished, OccurredAt: occurredAt.UTC().Format(time.RFC3339Nano), Project: project, RunID: runID, RunName: runName, Job: &job, Result: &result, RunStatus: status}
+	return Event{Kind: JobFinished, OccurredAt: occurredAt.UTC().Format(time.RFC3339Nano), Project: project, RunID: runID, RunName: runName, Job: &job, Result: &result, JobStatus: status}
+}
+
+func (event *Event) SetTimestamps(startedAt, finishedAt string) {
+	event.StartedAt = startedAt
+	event.FinishedAt = finishedAt
+}
+
+func (event *Event) SetDiagnosisOutdated(outdated bool) {
+	event.DiagnosisOutdated = outdated
 }
 
 func NewRunEvent(project string, summary model.RunSummary, occurredAt time.Time) Event {
-	return Event{Kind: RunFinished, OccurredAt: occurredAt.UTC().Format(time.RFC3339Nano), Project: project, RunID: summary.RunID, RunName: summary.RunName, RunStatus: summary.Status, StartedAt: summary.StartedAt, FinishedAt: summary.FinishedAt}
+	event := Event{Kind: RunFinished, OccurredAt: occurredAt.UTC().Format(time.RFC3339Nano), Project: project, RunID: summary.RunID, RunName: summary.RunName, RunStatus: summary.Status, ExitCode: summary.ExitCode, StartedAt: summary.StartedAt, FinishedAt: summary.FinishedAt}
+	for _, result := range summary.Results {
+		if result.ExitCode == 0 {
+			event.Successes++
+		} else {
+			event.Failures++
+		}
+	}
+	return event
 }
 
 func (settings ChannelSettings) Includes(event Event) bool {
-	success := event.RunStatus == "success"
 	if event.Kind == JobFinished {
-		if success {
+		if event.JobStatus == model.StatusSuccess {
 			return settings.JobSuccess
 		}
 		return settings.JobFailure
 	}
-	if success {
+	if event.RunStatus == model.StatusSuccess {
 		return settings.RunSuccess
 	}
 	return settings.RunFailure
