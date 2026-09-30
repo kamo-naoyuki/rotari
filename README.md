@@ -9,11 +9,9 @@
 [![web demo](https://img.shields.io/website?url=https%3A%2F%2Fkamo-naoyuki.github.io%2Frotari%2F&label=web%20demo&style=flat)](https://kamo-naoyuki.github.io/rotari/) [![Documentation](https://img.shields.io/badge/docs-MkDocs%20Material-526CFE)](https://kamo-naoyuki.github.io/rotari/docs/) [![codecov](https://codecov.io/gh/kamo-naoyuki/rotari/graph/badge.svg)](https://codecov.io/gh/kamo-naoyuki/rotari) [![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=kamo-naoyuki_rotari&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kamo-naoyuki_rotari)
 
 
-**Rotari keeps track of the experiment batches you run from shell scripts**: which jobs are running, which failed and why, their logs, and every earlier run. When jobs fail, `rotari retry` reruns only those, keeping the work that already succeeded.
+**Rotari is a single-user, daemonless job queue and execution manager for command batches.** It runs jobs on a workstation or dispatches and tracks them over SSH or through Slurm, PBS, and LSF, keeping status, logs, and run history in the filesystem. On clusters, the scheduler allocates resources; on workstations, rotari limits local concurrency.
 
-Rotari is an **execution manager for researchers who run batches of experiments**, with commands and shell scripts as the building blocks and simple dependencies between them. It is a single binary with no daemon, database, or server to set up; state is kept in the filesystem.
-
-**The same batch runs on your workstation, over SSH, or on a shared Slurm, PBS, or LSF cluster.** Rotari submits and tracks scheduler jobs itself, supports array and matrix jobs, and keeps logs and status consistent across backends, so you do not need to containerize workloads or set up a separate cluster service just to use it. An optional Docker image is available for trying rotari locally. If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet/espnet)'s `run.pl`/`queue.pl`, the basic idea should feel familiar.
+Rotari is designed for researchers running experiment batches from shell scripts, and supports simple dependencies plus array and matrix jobs. If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet)'s `run.pl`/`queue.pl`, the basic idea should feel familiar. An optional Docker image is available for trying rotari locally.
 
 The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers installation, concepts, command reference, and running rotari on clusters.
 
