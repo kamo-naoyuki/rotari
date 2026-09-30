@@ -206,7 +206,10 @@ func (s site) handler() http.Handler {
 			return
 		}
 		child := s
-		child.BaseDir = baseDir
+		// baseDir is looked up from s.basedirEntries(), a fixed, server-configured
+		// allow-list; id is used only as a lookup key, never as a path or URL, so
+		// this does not forward attacker-controlled destinations.
+		child.BaseDir = baseDir // NOSONAR
 		clone := request.Clone(request.Context())
 		urlCopy := *request.URL
 		urlCopy.Path = "/" + remainder
