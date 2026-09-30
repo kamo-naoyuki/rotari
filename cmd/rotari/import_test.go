@@ -75,6 +75,30 @@ func TestCmdImportWritesFreshQueue(t *testing.T) {
 	}
 }
 
+func TestCmdImportReadsJSONManifestFromStdin(t *testing.T) {
+	baseDir := t.TempDir()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.WriteString(`{"version":1,"jobs":[{"name":"train","command":["true"]}]}`); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	originalStdin := os.Stdin
+	os.Stdin = reader
+	t.Cleanup(func() {
+		os.Stdin = originalStdin
+		reader.Close()
+	})
+
+	if code := cmdImport([]string{"--basedir", baseDir, "--project-name", "demo", "-"}); code != 0 {
+		t.Fatalf("cmdImport stdin exit code = %d, want 0", code)
+	}
+}
+
 func TestCmdImportAcceptsFileBeforeFlags(t *testing.T) {
 	baseDir := t.TempDir()
 	manifest := writeWorkflowFixture(t, "version: 1\njobs:\n  - command: [true]\n")

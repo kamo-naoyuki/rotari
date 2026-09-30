@@ -34,6 +34,19 @@ rotari.run(async_=True)
 summary = rotari.wait()
 ```
 
+Workflow manifests can be exchanged as Python dictionaries without creating
+an intermediate file. `export(as_dict=True)` returns a JSON-compatible dict,
+and `import_()` accepts one:
+
+```python
+manifest = rotari.export(as_dict=True)
+manifest["jobs"][0]["name"] = "updated-train"
+rotari.import_(manifest, overwrite=True)
+```
+
+The trailing underscore in `import_()` avoids Python's reserved `import`
+keyword. The client sends the manifest as JSON over stdin to the CLI.
+
 `wait()` and `show()` return decoded JSON objects. Other commands return a
 `CommandResult`; command failures raise `RotariError`.
 

@@ -73,7 +73,7 @@ def _python_option_name(name: str) -> str:
 def _install_cli_signatures() -> None:
     for command_spec in CLI_SCHEMA["commands"]:
         command = command_spec["name"]
-        method = getattr(Rotari, command, None)
+        method = getattr(Rotari, "import_" if command == "import" else command, None)
         if method is None:
             continue
         parameters = [
@@ -88,6 +88,21 @@ def _install_cli_signatures() -> None:
                 inspect.Parameter(
                     "selector", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None
                 )
+            )
+        elif command == "export":
+            parameters.append(
+                inspect.Parameter(
+                    "target", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None
+                )
+            )
+            parameters.append(
+                inspect.Parameter(
+                    "as_dict", inspect.Parameter.KEYWORD_ONLY, default=False
+                )
+            )
+        elif command == "import":
+            parameters.append(
+                inspect.Parameter("manifest", inspect.Parameter.POSITIONAL_OR_KEYWORD)
             )
         for flag in command_spec.get("flags", ()):
             if flag["name"] in {"basedir", "project-name"}:
@@ -160,7 +175,12 @@ class Rotari:
         self.cwd = os.fspath(cwd) if cwd is not None else None
         self.env = dict(env) if env is not None else None
 
-    def command(self, *arguments: str, check: bool = True) -> CommandResult:
+    def command(
+        self,
+        *arguments: str,
+        check: bool = True,
+        input_data: str | None = None,
+    ) -> CommandResult:
         """Run an arbitrary rotari subcommand with this client's location."""
 
         if not arguments:
@@ -171,7 +191,7 @@ class Rotari:
             *self._location_options(),
             *arguments[1:],
         ]
-        result = self._invoke(argv)
+        result = self._invoke(argv, input_data=input_data)
         if check and result.returncode != 0:
             raise RotariError(result)
         return result
@@ -200,6 +220,42 @@ class Rotari:
 
         arguments = build_command_arguments("retry", options)
         return self.command(*arguments)
+
+    def export(
+        self,
+        target: str | None = None,
+        *,
+        as_dict: bool = False,
+        **options: object,
+    ) -> CommandResult | dict[str, object]:
+        """Export a workflow manifest, optionally returning it as a dict.
+
+        ``as_dict=True`` selects the CLI's JSON format and decodes its stdout,
+        so no manifest file is created.
+        """
+
+        if as_dict:
+            options = {**options, "format": "json"}
+        arguments = build_command_arguments(
+            "export", options, [target] if target is not None else ()
+        )
+        result = self.command(*arguments)
+        if not as_dict:
+            return result
+        value = result.json()
+        if not isinstance(value, dict):
+            raise TypeError("rotari export --format json returned a non-object JSON value")
+        return value
+
+    def import_(
+        self,
+        manifest: Mapping[str, object],
+        **options: object,
+    ) -> CommandResult:
+        """Import a workflow manifest dict without creating a manifest file."""
+
+        arguments = build_command_arguments("import", options, ["-"])
+        return self.command(*arguments, input_data=json.dumps(manifest))
 
     def reset(self, *, recover: bool = False) -> CommandResult:
         """Clear the current queue, optionally recovering an interrupted run."""
@@ -247,13 +303,16 @@ class Rotari:
             arguments += ["--project-name", self.project]
         return arguments
 
-    def _invoke(self, argv: Sequence[str]) -> CommandResult:
+    def _invoke(
+        self, argv: Sequence[str], *, input_data: str | None = None
+    ) -> CommandResult:
         process = subprocess.run(
             list(argv),
             cwd=self.cwd,
             env=self.env,
             capture_output=True,
             text=True,
+            input=input_data,
             check=False,
         )
         return CommandResult(

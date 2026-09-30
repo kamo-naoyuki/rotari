@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -81,7 +82,13 @@ func cmdImport(args []string) int {
 	if len(positional) == 1 {
 		*projectName = positional[0]
 	}
-	data, err := os.ReadFile(manifestPath)
+	var data []byte
+	var err error
+	if manifestPath == "-" {
+		data, err = io.ReadAll(os.Stdin)
+	} else {
+		data, err = os.ReadFile(manifestPath)
+	}
 	if err != nil {
 		printErrorf("failed to read workflow manifest: %v", err)
 		return 1
@@ -253,6 +260,9 @@ func optionalField(key, value string) []string {
 }
 
 func workflowFormatFromPath(path string) (string, error) {
+	if path == "-" {
+		return "json", nil
+	}
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".yaml", ".yml":
 		return "yaml", nil

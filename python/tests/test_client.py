@@ -51,6 +51,45 @@ def test_show_decodes_machine_readable_output():
     assert result == payload
 
 
+def test_export_can_decode_a_manifest_without_writing_a_file():
+    payload = {"version": 1, "jobs": [{"name": "train", "command": ["./train.sh"]}]}
+    with patch("subprocess.run", return_value=completed(json.dumps(payload))) as run:
+        result = Rotari(basedir="state", project="demo").export(as_dict=True)
+
+    assert result == payload
+    assert run.call_args.args[0] == [
+        "rotari",
+        "export",
+        "--basedir",
+        "state",
+        "--project-name",
+        "demo",
+        "--format",
+        "json",
+    ]
+
+
+def test_import_accepts_a_manifest_dict_without_writing_a_file():
+    manifest = {"version": 1, "jobs": [{"name": "train", "command": ["true"]}]}
+    with patch("subprocess.run", return_value=completed()) as run:
+        Rotari(basedir="state", project="demo").import_(
+            manifest, overwrite=True, dry_run=True
+        )
+
+    assert run.call_args.args[0] == [
+        "rotari",
+        "import",
+        "--basedir",
+        "state",
+        "--project-name",
+        "demo",
+        "--overwrite",
+        "--dry-run",
+        "-",
+    ]
+    assert json.loads(run.call_args.kwargs["input"]) == manifest
+
+
 def test_reset_builds_location_aware_argv():
     with patch("subprocess.run", return_value=completed()) as run:
         Rotari("rotari", basedir="state", project="demo").reset(recover=True)
@@ -124,8 +163,12 @@ def test_cli_signatures_are_generated_from_schema():
     run_signature = inspect.signature(Rotari.run)
     add_signature = inspect.signature(Rotari.add)
     wait_signature = inspect.signature(Rotari.wait)
+    export_signature = inspect.signature(Rotari.export)
 
     assert "run_id" in run_signature.parameters
     assert "partial_array" in run_signature.parameters
     assert "executor_options" in add_signature.parameters
     assert "selector" in wait_signature.parameters
+    assert "target" in export_signature.parameters
+    assert "as_dict" in export_signature.parameters
+    assert "manifest" in inspect.signature(Rotari.import_).parameters
