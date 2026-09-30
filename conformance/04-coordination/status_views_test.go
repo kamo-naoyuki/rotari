@@ -39,6 +39,23 @@ func TestCLIAndWebAgreeOnJobResults(t *testing.T) {
 		if !ok || web.AttemptID != result.AttemptID || web.Result == nil || web.Result.ExitCode != result.ExitCode {
 			t.Errorf("job %s differs between CLI and Web: cli=%+v web=%+v", result.ID, result, web)
 		}
+		var selected struct {
+			RunID string `json:"run_id"`
+			JobID string `json:"job_id"`
+			Jobs  []struct {
+				Finished bool `json:"finished"`
+				Result   *struct {
+					ID       string `json:"id"`
+					ExitCode int    `json:"exit_code"`
+				} `json:"result"`
+			} `json:"jobs"`
+		}
+		if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", run.Project, "--run-id", run.RunID, "--job-id", result.ID, "--json").Stdout), &selected); err != nil {
+			t.Fatal(err)
+		}
+		if selected.RunID != run.RunID || selected.JobID != result.ID || len(selected.Jobs) != 1 || !selected.Jobs[0].Finished || selected.Jobs[0].Result == nil || selected.Jobs[0].Result.ID != result.ID || selected.Jobs[0].Result.ExitCode != result.ExitCode {
+			t.Errorf("job JSON view differs from run summary: %+v", selected)
+		}
 		wantState := "failed"
 		if result.ExitCode == 0 {
 			wantState = "success"

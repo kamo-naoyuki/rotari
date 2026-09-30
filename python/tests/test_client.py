@@ -43,6 +43,7 @@ def test_add_builds_safe_argv_with_location_options():
         "state",
         "--project-name",
         "demo",
+        "--quiet=false",
         "--env",
         "GPU=0",
         "--job-name",
@@ -136,6 +137,7 @@ def test_run_builds_options_from_schema():
     assert run.call_args.args[0] == [
         "rotari",
         "run",
+        "--quiet=false",
         "--run-id",
         "run-1",
         "--run-name",

@@ -58,6 +58,7 @@ def render() -> str:
         return_type = {
             "add": "Job",
             "run": "Run",
+            "retry": "Run",
             "wait": "dict[str, object]",
             "show": "dict[str, object]",
         }.get(name, "CommandResult")
@@ -68,8 +69,15 @@ def render() -> str:
             signature = "Rotari.reset(*, recover: bool = False) -> CommandResult"
         elif name == "wait":
             signature = (
-                "Rotari.wait(selector: str | None = None, **options: object) "
-                "-> dict[str, object]"
+                "Rotari.wait(selector: Run | str | Sequence[Run | str] | None = None, "
+                "**options: object) -> dict[str, object] | list[dict[str, object]]"
+            )
+        elif name == "show":
+            signature = (
+                "Rotari.show(target: Run | Job | Sequence[Run] | Sequence[Job] "
+                "| None = None, "
+                "*, run: Run | str | None = None, **options: object) "
+                "-> dict[str, object] | list[dict[str, object]]"
             )
         sections.extend(
             [

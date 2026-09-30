@@ -1,11 +1,22 @@
 # Python API
 
-`add()` returns `Job` and `run()` returns `Run`; both expose the CLI result
+`add()` returns `Job`; `run()` and `retry()` return `Run`. All expose the CLI result
 attributes (`args`, `returncode`, `stdout`, `stderr`). `Job` has `id`, `name`,
 and `command`; `Run` has `id` and `name`. For a matrix addition, `Job.id` and
 `Job.name` are `None` because the CLI returns only the job count. Other methods
 return `CommandResult` unless otherwise noted. Command options are generated
 from the rotari CLI schema.
+
+`Rotari.check(**options)` returns a JSON readiness dict even when the project
+is not runnable. `Rotari.wait(run)` and `Rotari.show(run_or_job)` return a JSON
+dict; a list of runs or jobs returns a list of dicts in input order. `Run`
+offers `wait()`, `show()`, and `cancel(wait=False)`; `Job` offers `show(run=None)`,
+`cancel()`, `suspend()`, and `resume()`. These methods delegate to the creating
+client and invoke the CLI only when called. `Rotari.cancel()` cancels its
+project's active run, while `Rotari.cancel(run)` and `Rotari.cancel(job)`
+select a specific run or job; job lists are accepted by `cancel`, `suspend`,
+and `resume`. All control methods return `CommandResult`. See the
+[Python client guide](PYTHON_CLIENT.md) for target and active-run restrictions.
 
 <!-- BEGIN GENERATED CLI OPTIONS -->
 
@@ -106,7 +117,7 @@ Execute queued commands, optionally selecting jobs from a run.
 ## `Rotari.retry`
 
 ```python
-Rotari.retry(**options: object) -> CommandResult
+Rotari.retry(**options: object) -> Run
 ```
 
 Run failed and unfinished jobs; with --job-id, run those jobs.
@@ -176,7 +187,7 @@ Discard the current, not-yet-run queue.
 ## `Rotari.wait`
 
 ```python
-Rotari.wait(selector: str | None = None, **options: object) -> dict[str, object]
+Rotari.wait(selector: Run | str | Sequence[Run | str] | None = None, **options: object) -> dict[str, object] | list[dict[str, object]]
 ```
 
 Wait for an asynchronous run by project, run name, or run id.
@@ -190,7 +201,7 @@ Wait for an asynchronous run by project, run name, or run id.
 ## `Rotari.show`
 
 ```python
-Rotari.show(**options: object) -> dict[str, object]
+Rotari.show(target: Run | Job | Sequence[Run] | Sequence[Job] | None = None, *, run: Run | str | None = None, **options: object) -> dict[str, object] | list[dict[str, object]]
 ```
 
 Show queue or run status.

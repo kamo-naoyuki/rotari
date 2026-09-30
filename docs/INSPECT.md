@@ -31,7 +31,14 @@ rotari show -p sweep --failed-logs --stream stderr # print stderr for failed job
 rotari show -p sweep --job-id JOB_ID --stream stdout --follow # follow only stdout
 rotari show ATTEMPT_ID --report # print an AI-ready Markdown report for one attempt
 rotari show RUN_ID --report # describe the whole run and include recent logs
+rotari show -p sweep --run-id latest --job-id JOB_ID --json # one run job (or all tasks of an array) as JSON
 ```
+
+The run/job JSON view includes the resolved run and project, a `jobs` array
+with each job's definition, a `finished` flag, and a `result` when available.
+For a running job, `finished` is false and no `result` is present. Passing
+`--run-id latest` selects the latest saved run even when the project has a
+non-empty queue; an unknown job ID fails instead of showing the queue.
 
 An older `ATTEMPT_ID` shows that attempt's own status, timestamps, and logs.
 Logs are merged by default; use `add --log-mode separate` when adding a job to

@@ -382,6 +382,9 @@ func cmdShow(args []string) int {
 	}
 	if runQueue, err := state.LoadQueue(filepath.Join(paths.RunsDir, runID, "commands.json")); err == nil && !*reportOutput {
 		if arrayScope, ok := arrayCommandScope(runQueue.Commands, *jobIDOption); ok {
+			if *jsonOutput {
+				return showRunJobJSON(paths, runID, *jobIDOption)
+			}
 			return showRun(paths, runID, showJobFilter{selection: resultSelection, scope: arrayScope})
 		}
 	}
@@ -396,8 +399,7 @@ func cmdShow(args []string) int {
 			return 0
 		}
 		if *jsonOutput {
-			printError("--json cannot be combined with --job-id")
-			return 1
+			return showRunJobJSON(paths, runID, *jobIDOption)
 		}
 		running, err := isRunning(paths.LockFile)
 		if err != nil {

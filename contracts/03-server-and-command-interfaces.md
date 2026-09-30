@@ -78,8 +78,13 @@ Representative implementation and tests:
   prints how to inspect and recover the run and exits 1 instead of waiting
   forever. A malformed summary is treated as still being written.
 - `show --json` emits one object with the resolved location, available run
-  summary, and saved commands. JSON modes are additive; default CLI output
-  remains human-facing.
+  summary, and saved commands. With `--run-id` and `--job-id`, it emits a job
+  view with the selected command's expanded jobs, whether each has finished,
+  and a resolved result when available, using the same fallback chain as
+  human-readable show. Array command IDs include all tasks. See
+  [implementation](../cmd/rotari/show_json_job.go) and
+  [tests](../cmd/rotari/show_json_job_test.go). JSON modes are additive;
+  default CLI output remains human-facing.
  - `show RUN` compares the current queue with that run's saved commands by job
   ID. Its changed count uses the same definition-field comparison as `lineage`,
   including environment, stage, timeout, and retry settings; see
@@ -130,6 +135,9 @@ follows:
 - `check --json` emits the same result as its text view. `queued` is a JSON
   number when known and `null` when an active or interrupted project's queue
   cannot be read; `run_id` is omitted when no run is associated with the state.
+  JSON output is emitted even if quiet is configured, including for a runnable
+  project; see [implementation](../cmd/rotari/check.go) and
+  [tests](../cmd/rotari/check_test.go).
 - `show` uses a lazy pager. `--no-pager` and non-TTY output go directly to
   stdout. On a TTY, output of at most 24 lines is direct; longer output uses
   `$PAGER`, defaulting to `less -R`. Pager failure falls back to stdout.
@@ -156,3 +164,4 @@ follows:
   is defined in [`internal/server/protocol.go`](../internal/server/protocol.go),
   with client behavior covered by
   [`cmd/rotari/server_test.go`](../cmd/rotari/server_test.go).
+  The machine-readable `check --json` output is not suppressed by quiet.

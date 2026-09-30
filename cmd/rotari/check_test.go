@@ -323,6 +323,18 @@ func TestCmdCheckJSON(t *testing.T) {
 	if decoded["project"] != "demo" || decoded["state"] != "ready" || decoded["runnable"] != true || decoded["queued"] != float64(1) {
 		t.Fatalf("JSON output = %#v", decoded)
 	}
+	for _, args := range [][]string{
+		{"--basedir", baseDir, "--project-name", "demo", "--json", "--quiet"},
+		{"--basedir", baseDir, "--project-name", "demo", "--json"},
+	} {
+		if len(args) == 5 {
+			t.Setenv(envQuiet, "true")
+		}
+		output, code := captureCheckStdout(t, args)
+		if code != 0 || json.Unmarshal(output, &decoded) != nil || decoded["runnable"] != true {
+			t.Fatalf("cmdCheck %v: code=%d output=%s", args, code, output)
+		}
+	}
 }
 
 func TestCmdCheckDeepFlag(t *testing.T) {

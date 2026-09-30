@@ -62,7 +62,7 @@ func cmdCheck(args []string) int {
 		return 1
 	}
 
-	if !*quiet || !result.Runnable {
+	if *jsonOutput || !*quiet || !result.Runnable {
 		if err := writeProjectCheck(os.Stdout, projectName, result, *jsonOutput); err != nil {
 			printErrorf("failed to print project check: %v", err)
 			return 1

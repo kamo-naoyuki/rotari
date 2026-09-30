@@ -5,11 +5,13 @@ import json
 import os
 import re
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Mapping, Sequence, overload
 
 from .generated_cli import CLI_SCHEMA
+
+_REQUIRE_OUTPUT = "--quiet=false"
 
 
 def _cli_option_name(name: str) -> str:
@@ -76,34 +78,7 @@ def _install_cli_signatures() -> None:
         method = getattr(Rotari, "import_" if command == "import" else command, None)
         if method is None:
             continue
-        parameters = [
-            inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)
-        ]
-        if command == "add":
-            parameters.append(
-                inspect.Parameter("command", inspect.Parameter.POSITIONAL_OR_KEYWORD)
-            )
-        elif command == "wait":
-            parameters.append(
-                inspect.Parameter(
-                    "selector", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None
-                )
-            )
-        elif command == "export":
-            parameters.append(
-                inspect.Parameter(
-                    "target", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None
-                )
-            )
-            parameters.append(
-                inspect.Parameter(
-                    "as_dict", inspect.Parameter.KEYWORD_ONLY, default=False
-                )
-            )
-        elif command == "import":
-            parameters.append(
-                inspect.Parameter("manifest", inspect.Parameter.POSITIONAL_OR_KEYWORD)
-            )
+        parameters = _signature_positionals(command)
         for flag in command_spec.get("flags", ()):
             if flag["name"] in {"basedir", "project-name"}:
                 continue
@@ -118,6 +93,31 @@ def _install_cli_signatures() -> None:
                 inspect.Parameter(name, inspect.Parameter.KEYWORD_ONLY, default=default)
             )
         method.__signature__ = inspect.Signature(parameters)
+
+
+def _signature_positionals(command: str) -> list[inspect.Parameter]:
+    parameters = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+    if command in {"add", "import"}:
+        name = "command" if command == "add" else "manifest"
+        parameters.append(
+            inspect.Parameter(name, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        )
+    elif command in {"wait", "show", "cancel", "suspend", "resume", "export"}:
+        name = "selector" if command == "wait" else "target"
+        parameters.append(
+            inspect.Parameter(
+                name, inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None
+            )
+        )
+    if command == "show":
+        parameters.append(
+            inspect.Parameter("run", inspect.Parameter.KEYWORD_ONLY, default=None)
+        )
+    if command == "export":
+        parameters.append(
+            inspect.Parameter("as_dict", inspect.Parameter.KEYWORD_ONLY, default=False)
+        )
+    return parameters
 
 
 @dataclass(frozen=True)
@@ -156,6 +156,7 @@ class Job(CommandResult):
     id: str | None
     name: str | None
     command: tuple[str, ...]
+    _client: Rotari | None = field(default=None, repr=False, compare=False)
 
     @property
     def job_id(self) -> str | None:
@@ -165,6 +166,23 @@ class Job(CommandResult):
     def job_name(self) -> str | None:
         return self.name
 
+    def show(self, *, run: Run | str | None = None) -> dict[str, object]:
+        return self._project().show(self, run=run)
+
+    def cancel(self) -> CommandResult:
+        return self._project().cancel(self)
+
+    def suspend(self) -> CommandResult:
+        return self._project().suspend(self)
+
+    def resume(self) -> CommandResult:
+        return self._project().resume(self)
+
+    def _project(self) -> Rotari:
+        if self._client is None:
+            raise ValueError("job is not bound to a Rotari client")
+        return self._client
+
 
 @dataclass(frozen=True)
 class Run(CommandResult):
@@ -172,6 +190,7 @@ class Run(CommandResult):
 
     id: str
     name: str | None
+    _client: Rotari | None = field(default=None, repr=False, compare=False)
 
     @property
     def run_id(self) -> str:
@@ -180,6 +199,20 @@ class Run(CommandResult):
     @property
     def run_name(self) -> str | None:
         return self.name
+
+    def wait(self, **options: object) -> dict[str, object]:
+        return self._project().wait(self, **options)
+
+    def show(self) -> dict[str, object]:
+        return self._project().show(self)
+
+    def cancel(self, *, wait: bool = False) -> CommandResult:
+        return self._project().cancel(self, wait=wait)
+
+    def _project(self) -> Rotari:
+        if self._client is None:
+            raise ValueError("run is not bound to a Rotari client")
+        return self._client
 
 
 class RotariError(RuntimeError):
@@ -248,6 +281,7 @@ class Rotari:
         # The subprocess output is captured, so CLI quiet mode would only
         # hide the ID that add needs to return.
         arguments = build_command_arguments("add", {**options, "quiet": False})
+        arguments.insert(1, _REQUIRE_OUTPUT)
         arguments += ["--", *command]
         result = self.command(*arguments)
         # CLI add prints one ID for a single job, but only a count for a matrix.
@@ -263,6 +297,7 @@ class Rotari:
             id=match.group(1) if match else None,
             name=str(name) if name is not None else None,
             command=tuple(command),
+            _client=self,
         )
 
     def run(self, **options: object) -> Run:
@@ -273,6 +308,7 @@ class Rotari:
         # Captured CLI output is the only source of the newly allocated run ID.
         # Do not suppress it, even if the caller requests quiet mode.
         arguments = build_command_arguments("run", {**options, "quiet": False})
+        arguments.insert(1, _REQUIRE_OUTPUT)
         result = self.command(*arguments)
         run_id = result.run_id
         if run_id is None:
@@ -285,13 +321,23 @@ class Rotari:
             result.stderr,
             id=run_id,
             name=str(name) if name is not None else None,
+            _client=self,
         )
 
-    def retry(self, **options: object) -> CommandResult:
+    def retry(self, **options: object) -> Run:
         """Retry failed and unfinished jobs using the CLI retry alias."""
 
-        arguments = build_command_arguments("retry", options)
-        return self.command(*arguments)
+        arguments = build_command_arguments("retry", {**options, "quiet": False})
+        arguments.insert(1, _REQUIRE_OUTPUT)
+        result = self.command(*arguments)
+        run_id = result.run_id
+        if run_id is None:
+            raise ValueError("rotari retry did not report a run ID")
+        name = options.get("run_name")
+        return Run(
+            result.args, result.returncode, result.stdout, result.stderr,
+            id=run_id, name=str(name) if name is not None else None, _client=self,
+        )
 
     def export(
         self,
@@ -337,37 +383,264 @@ class Rotari:
         arguments = build_command_arguments("reset", locals())
         return self.command(*arguments)
 
+    def check(self, **options: object) -> dict[str, object]:
+        """Return the CLI project readiness report, including non-runnable states."""
+
+        arguments = build_command_arguments(
+            "check", {**options, "json": True, "quiet": False}
+        )
+        result = self.command(*arguments, check=False)
+        return self._decode_object(result, "check")
+
+    @overload
+    def wait(
+        self, selector: Run | str | None = None, **options: object
+    ) -> dict[str, object]: ...
+
+    @overload
+    def wait(
+        self, selector: Sequence[Run | str], **options: object
+    ) -> list[dict[str, object]]: ...
+
     def wait(
         self,
-        selector: str | None = None,
+        selector: Run | str | Sequence[Run | str] | None = None,
         **options: object,
-    ) -> dict[str, object]:
-        """Wait for a run and return its decoded JSON summary."""
+    ) -> dict[str, object] | list[dict[str, object]]:
+        """Wait for one or more runs; return summaries in selector order."""
 
         if selector is not None and options.get("run_id") is not None:
             raise ValueError("selector and run_id cannot be used together")
-        options = {**options, "json": True}
-        arguments = build_command_arguments(
-            "wait", options, [selector] if selector is not None else ()
-        )
+        many, ids = self._wait_targets(selector)
+        if many or isinstance(selector, Run):
+            options = {**options, "run_id": ids, "json": True}
+            positional: Sequence[str] = ()
+        else:
+            options = {**options, "json": True}
+            positional = ids
+        arguments = build_command_arguments("wait", options, positional)
         result = self.command(*arguments, check=False)
+        summaries = self._wait_summaries(result, ids, many)
+        return summaries if many else summaries[0]
+
+    def _wait_targets(
+        self, selector: Run | str | Sequence[Run | str] | None
+    ) -> tuple[bool, list[str]]:
+        many = isinstance(selector, Sequence) and not isinstance(selector, str)
+        if many and not selector:
+            raise ValueError("wait requires at least one run")
+        if isinstance(selector, (Run, str)):
+            targets: list[Run | str] = [selector]
+        elif selector is None:
+            targets = []
+        elif isinstance(selector, Sequence):
+            targets = list(selector)
+        else:
+            raise TypeError("wait targets must be Run objects or non-empty strings")
+        ids = []
+        for target in targets:
+            if isinstance(target, Run):
+                self._require_owner(target)
+                ids.append(target.id)
+            elif isinstance(target, str) and target:
+                ids.append(target)
+            else:
+                raise TypeError("wait targets must be Run objects or non-empty strings")
+        return many, ids
+
+    @staticmethod
+    def _wait_summaries(
+        result: CommandResult, ids: list[str], many: bool
+    ) -> list[dict[str, object]]:
         try:
-            summary = result.json()
+            summaries = [
+                json.loads(line) for line in result.stdout.splitlines() if line.strip()
+            ]
         except json.JSONDecodeError:
             raise RotariError(result) from None
-        if not isinstance(summary, dict):
+        if not summaries or (many and len(summaries) != len(ids)):
+            raise RotariError(result)
+        if not all(isinstance(item, dict) for item in summaries):
             raise TypeError("rotari wait --json returned a non-object JSON value")
-        return summary
+        if many:
+            for expected, summary in zip(ids, summaries):
+                if summary.get("run_id") != expected:
+                    raise ValueError("rotari wait returned runs out of order")
+        return summaries
 
-    def show(self, **options: object) -> dict[str, object]:
-        """Return the decoded JSON view of a project, run, or job."""
+    @overload
+    def show(
+        self,
+        target: Run | Job | None = None,
+        *,
+        run: Run | str | None = None,
+        **options: object,
+    ) -> dict[str, object]: ...
 
+    @overload
+    def show(
+        self,
+        target: Sequence[Run] | Sequence[Job],
+        *,
+        run: Run | str | None = None,
+        **options: object,
+    ) -> list[dict[str, object]]: ...
+
+    def show(
+        self,
+        target: Run | Job | Sequence[Run] | Sequence[Job] | None = None,
+        *,
+        run: Run | str | None = None,
+        **options: object,
+    ) -> dict[str, object] | list[dict[str, object]]:
+        """Query the CLI for a run or a job in the latest saved run."""
+
+        if target is None:
+            if run is not None:
+                raise ValueError("run requires a job target")
+            return self._show_one(options)
+        if isinstance(target, (Run, Job)):
+            return self._show_target(target, run, options)
+        if isinstance(target, (str, bytes)) or not isinstance(target, Sequence):
+            raise TypeError("show target must be a Job, Run, or a list of them")
+        targets = list(target)
+        if not targets:
+            raise ValueError("show requires at least one target")
+        if len({type(item) for item in targets}) != 1:
+            raise ValueError("show targets must all be jobs or all be runs")
+        return [self._show_target(item, run, options) for item in targets]
+
+    def _show_target(
+        self, target: Run | Job, run: Run | str | None, options: Mapping[str, object]
+    ) -> dict[str, object]:
+        self._require_owner(target)
+        if isinstance(target, Run):
+            if run is not None or options.get("run_id") or options.get("job_ids"):
+                raise ValueError(
+                    "a run target cannot be combined with another selector"
+                )
+            return self._show_one({**options, "run_id": target.id})
+        if not isinstance(target, Job):
+            raise TypeError("show target must be a Job or Run")
+        if target.id is None:
+            raise ValueError("job has no single ID (matrix addition)")
+        if options.get("run_id") or options.get("job_ids"):
+            raise ValueError("use run= to select the run for a job")
+        if isinstance(run, Run):
+            self._require_owner(run)
+            run_id = run.id
+        elif run is None:
+            run_id = "latest"
+        elif isinstance(run, str) and run:
+            run_id = run
+        else:
+            raise TypeError("run must be a Run or non-empty run ID")
+        return self._show_one({**options, "run_id": run_id, "job_ids": target.id})
+
+    def _show_one(self, options: Mapping[str, object]) -> dict[str, object]:
         arguments = build_command_arguments("show", {**options, "json": True})
         result = self.command(*arguments)
-        value = result.json()
+        return self._decode_object(result, "show")
+
+    @staticmethod
+    def _decode_object(result: CommandResult, command: str) -> dict[str, object]:
+        try:
+            value = result.json()
+        except json.JSONDecodeError:
+            raise RotariError(result) from None
         if not isinstance(value, dict):
-            raise TypeError("rotari show --json returned a non-object JSON value")
+            raise TypeError(
+                f"rotari {command} --json returned a non-object JSON value"
+            )
         return value
+
+    def _require_owner(self, target: Run | Job) -> None:
+        if target._client is not None and target._client is not self:
+            raise ValueError("target belongs to a different Rotari client")
+
+    def cancel(
+        self,
+        target: Run | Job | str | Sequence[Job | str] | None = None,
+        **options: object,
+    ) -> CommandResult:
+        """Cancel the project's active run or selected active jobs."""
+
+        return self._control("cancel", target, options)
+
+    def suspend(
+        self, target: Job | str | Sequence[Job | str] | None = None, **options: object
+    ) -> CommandResult:
+        """Suspend selected running jobs."""
+
+        return self._control("suspend", target, options)
+
+    def resume(
+        self, target: Job | str | Sequence[Job | str] | None = None, **options: object
+    ) -> CommandResult:
+        """Resume selected suspended jobs."""
+
+        return self._control("resume", target, options)
+
+    def _control(
+        self, operation: str, target: object, options: Mapping[str, object]
+    ) -> CommandResult:
+        positional = self._control_targets(operation, target, options)
+        if (
+            operation == "cancel"
+            and positional
+            and not isinstance(target, Run)
+            and options.get("wait")
+        ):
+            raise ValueError("wait is only available for whole-run cancellation")
+        arguments = build_command_arguments(operation, options, positional)
+        return self.command(*arguments)
+
+    @staticmethod
+    def _has_job_selection(options: Mapping[str, object]) -> bool:
+        job_selectors = ("job_ids", "job_name", "stage", "matrix", "filter_state")
+        return any(options.get(key) for key in job_selectors) or any(
+            key.startswith("filter_") and value for key, value in options.items()
+        )
+
+    def _control_targets(
+        self, operation: str, target: object, options: Mapping[str, object]
+    ) -> list[str]:
+        if isinstance(target, Run):
+            if operation != "cancel" or self._has_job_selection(options):
+                raise ValueError("run selection only supports whole-run cancellation")
+            self._require_owner(target)
+            return [target.id]
+        if target is None:
+            if operation == "cancel" and self.project is None and not options.get(
+                "job_ids"
+            ):
+                raise ValueError("cancel() requires a project or explicit target")
+            if operation != "cancel" and not self._has_job_selection(options):
+                raise ValueError(f"{operation} requires a job selection")
+            return []
+        if self._has_job_selection(options):
+            raise ValueError("target cannot be combined with another job selector")
+        return self._job_ids(operation, target)
+
+    def _job_ids(self, operation: str, target: object) -> list[str]:
+        if isinstance(target, Sequence) and not isinstance(target, (str, bytes)):
+            if not target:
+                raise ValueError(f"{operation} requires at least one job")
+            targets = target
+        else:
+            targets = [target]
+        ids = []
+        for item in targets:
+            if isinstance(item, Job):
+                self._require_owner(item)
+                if item.id is None:
+                    raise ValueError("job has no single ID (matrix addition)")
+                ids.append(item.id)
+            elif isinstance(item, str) and item:
+                ids.append(item)
+            else:
+                raise TypeError("job control targets must be Job objects or IDs")
+        return ids
 
     def _location_options(self) -> list[str]:
         arguments: list[str] = []
