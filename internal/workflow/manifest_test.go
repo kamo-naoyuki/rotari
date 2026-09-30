@@ -11,7 +11,7 @@ import (
 
 func TestDecodeFormatsCompileEquivalentQueues(t *testing.T) {
 	inputs := map[string]string{
-		"yaml": "version: 1\njobs:\n  - name: train\n    command: [echo, hello]\n    environment:\n      BASE: yes\n    output: [logs/out-a, logs/out-b]\n    error: [logs/err]\n    log_mode: separate\n    open_mode: truncate\n    array: \"1,3\"\n    matrix: [\"SEED=1,2\"]\n",
+		"yaml": "version: 1\njobs:\n  - name: train\n    command: [echo, hello]\n    env:\n      BASE: yes\n    output: [logs/out-a, logs/out-b]\n    error: [logs/err]\n    log_mode: separate\n    open_mode: truncate\n    array: \"1,3\"\n    matrix: [\"SEED=1,2\"]\n",
 		"json": `{"version":1,"jobs":[{"name":"train","command":["echo","hello"],"environment":["BASE=yes"],"output":["logs/out-a","logs/out-b"],"error":["logs/err"],"log_mode":"separate","open_mode":"truncate","array":"1,3","matrix":["SEED=1,2"]}]}`,
 		"toml": "version = 1\n[[jobs]]\nname = \"train\"\ncommand = [\"echo\", \"hello\"]\nenvironment = [\"BASE=yes\"]\noutput = [\"logs/out-a\", \"logs/out-b\"]\nerror = [\"logs/err\"]\nlog_mode = \"separate\"\nopen_mode = \"truncate\"\narray = \"1,3\"\nmatrix = [\"SEED=1,2\"]\n",
 	}
@@ -41,7 +41,9 @@ func TestDecodeFormatsCompileEquivalentQueues(t *testing.T) {
 func TestDecodeYAMLEnvironmentMappingAndLegacySequence(t *testing.T) {
 	inputs := []string{
 		"version: 1\njobs:\n  - command: [true]\n    environment:\n      EPOCHS: 20\n      DATA_ROOT: ./data\n",
+		"version: 1\njobs:\n  - command: [true]\n    env:\n      EPOCHS: 20\n      DATA_ROOT: ./data\n",
 		"version: 1\njobs:\n  - command: [true]\n    environment: [EPOCHS=20, DATA_ROOT=./data]\n",
+		"version: 1\njobs:\n  - command: [true]\n    env: [EPOCHS=20, DATA_ROOT=./data]\n",
 	}
 	for _, input := range inputs {
 		manifest, err := Decode(strings.NewReader(input), "yaml")
@@ -63,6 +65,14 @@ func TestDecodeRejectsMalformedYAMLEnvironmentMapping(t *testing.T) {
 		input := "version: 1\njobs:\n  - command: [true]\n    environment:\n      " + environment + "\n"
 		if _, err := Decode(strings.NewReader(input), "yaml"); err == nil {
 			t.Errorf("Decode accepted malformed environment mapping %q", environment)
+		}
+	}
+	for _, input := range []string{
+		"version: 1\njobs:\n  - command: [true]\n    env: {EPOCHS: 20}\n    environment: [EPOCHS=20]\n",
+		"version: 1\njobs:\n  - command: [true]\n    env: [EPOCHS=20]\n    environment: [EPOCHS=20]\n",
+	} {
+		if _, err := Decode(strings.NewReader(input), "yaml"); err == nil {
+			t.Errorf("Decode accepted both env and environment fields:\n%s", input)
 		}
 	}
 }

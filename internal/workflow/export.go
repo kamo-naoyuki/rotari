@@ -258,7 +258,7 @@ func formatYAMLEnvironmentMappingInJob(job *yaml.Node) {
 		return
 	}
 	for index := 0; index+1 < len(job.Content); index += 2 {
-		if job.Content[index].Value != "environment" || job.Content[index+1].Kind != yaml.SequenceNode {
+		if job.Content[index].Value != "env" || job.Content[index+1].Kind != yaml.SequenceNode {
 			continue
 		}
 		mapping, ok := yamlEnvironmentMapping(job.Content[index+1])

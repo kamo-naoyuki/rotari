@@ -52,7 +52,7 @@ type Job struct {
 	LogMode          string     `json:"log_mode,omitempty" yaml:"log_mode,omitempty" toml:"log_mode,omitempty"`
 	OpenMode         string     `json:"open_mode,omitempty" yaml:"open_mode,omitempty" toml:"open_mode,omitempty"`
 	WorkingDirectory string     `json:"working_directory,omitempty" yaml:"working_directory,omitempty" toml:"working_directory,omitempty"`
-	Environment      []string   `json:"environment,omitempty" yaml:"environment,omitempty" toml:"environment,omitempty"`
+	Environment      []string   `json:"environment,omitempty" yaml:"env,omitempty" toml:"environment,omitempty"`
 	Array            string     `json:"array,omitempty" yaml:"array,omitempty" toml:"array,omitempty"`
 	Matrix           []string   `json:"matrix,omitempty" yaml:"matrix,omitempty" toml:"matrix,omitempty"`
 	Status           string     `json:"status,omitempty" yaml:"status,omitempty" toml:"status,omitempty"`
@@ -201,6 +201,7 @@ func normalizeYAMLJob(job *yaml.Node) error {
 	if job.Kind != yaml.MappingNode {
 		return nil
 	}
+	environmentSeen := false
 	for index := 0; index+1 < len(job.Content); index += 2 {
 		key, value := job.Content[index].Value, job.Content[index+1]
 		switch key {
@@ -212,7 +213,11 @@ func normalizeYAMLJob(job *yaml.Node) error {
 				}
 				job.Content[index+1] = dimensions
 			}
-		case "environment":
+		case "env", "environment":
+			if environmentSeen {
+				return errors.New("decode YAML manifest: env and environment cannot both be set")
+			}
+			environmentSeen = true
 			if value.Kind == yaml.MappingNode {
 				entries, err := normalizeYAMLEnvironmentMapping(value)
 				if err != nil {
@@ -220,6 +225,7 @@ func normalizeYAMLJob(job *yaml.Node) error {
 				}
 				job.Content[index+1] = entries
 			}
+			job.Content[index].Value = "env"
 		}
 	}
 	return nil

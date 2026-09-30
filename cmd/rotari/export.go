@@ -34,9 +34,9 @@ jobs:
     # executor: slurm
     # executor_options: ["--partition=gpu", "--gres=gpu:1"]
     # working_directory: ./work
-	# environment:
-	#   EPOCHS: "20"
-	#   DATA_ROOT: ./data
+    # env:
+    #   EPOCHS: "20"
+    #   DATA_ROOT: ./data
 
     # Same syntax as rotari add --array.
     # array: "1-10"
