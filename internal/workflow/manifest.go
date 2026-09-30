@@ -16,6 +16,8 @@ import (
 
 const Version = 1
 
+const yamlNullTag = "!!null"
+
 type Manifest struct {
 	Version int     `json:"version" yaml:"version" toml:"version"`
 	Source  *Source `json:"source,omitempty" yaml:"source,omitempty" toml:"source,omitempty"`
@@ -92,7 +94,7 @@ func Decode(reader io.Reader, format string) (Manifest, error) {
 		if err := rejectYAMLDocuments(data); err != nil {
 			return Manifest{}, err
 		}
-		if err := normalizeYAMLMatrix(&root); err != nil {
+		if err := normalizeYAMLJobMappings(&root); err != nil {
 			return Manifest{}, err
 		}
 		normalized, err := yaml.Marshal(&root)
@@ -167,7 +169,7 @@ func rejectYAMLFeatures(node *yaml.Node) error {
 	return nil
 }
 
-func normalizeYAMLMatrix(root *yaml.Node) error {
+func normalizeYAMLJobMappings(root *yaml.Node) error {
 	if root.Kind != yaml.DocumentNode || len(root.Content) != 1 {
 		return nil
 	}
@@ -176,7 +178,7 @@ func normalizeYAMLMatrix(root *yaml.Node) error {
 		return nil
 	}
 	for _, job := range jobs.Content {
-		if err := normalizeYAMLJobMatrix(job); err != nil {
+		if err := normalizeYAMLJob(job); err != nil {
 			return err
 		}
 	}
@@ -195,22 +197,49 @@ func yamlMappingValue(mapping *yaml.Node, key string) *yaml.Node {
 	return nil
 }
 
-func normalizeYAMLJobMatrix(job *yaml.Node) error {
+func normalizeYAMLJob(job *yaml.Node) error {
 	if job.Kind != yaml.MappingNode {
 		return nil
 	}
 	for index := 0; index+1 < len(job.Content); index += 2 {
-		matrix := job.Content[index+1]
-		if job.Content[index].Value != "matrix" || matrix.Kind != yaml.MappingNode {
-			continue
+		key, value := job.Content[index].Value, job.Content[index+1]
+		switch key {
+		case "matrix":
+			if value.Kind == yaml.MappingNode {
+				dimensions, err := normalizeYAMLMatrixMapping(value)
+				if err != nil {
+					return err
+				}
+				job.Content[index+1] = dimensions
+			}
+		case "environment":
+			if value.Kind == yaml.MappingNode {
+				entries, err := normalizeYAMLEnvironmentMapping(value)
+				if err != nil {
+					return err
+				}
+				job.Content[index+1] = entries
+			}
 		}
-		dimensions, err := normalizeYAMLMatrixMapping(matrix)
-		if err != nil {
-			return err
-		}
-		job.Content[index+1] = dimensions
 	}
 	return nil
+}
+
+func normalizeYAMLEnvironmentMapping(environment *yaml.Node) (*yaml.Node, error) {
+	entries := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+	seen := make(map[string]bool, len(environment.Content)/2)
+	for index := 0; index+1 < len(environment.Content); index += 2 {
+		key, value := environment.Content[index], environment.Content[index+1]
+		if key.Kind != yaml.ScalarNode || key.Tag == yamlNullTag || value.Kind != yaml.ScalarNode || value.Tag == yamlNullTag {
+			return nil, errors.New("decode YAML manifest: environment must map names to non-null scalar values")
+		}
+		if seen[key.Value] {
+			return nil, fmt.Errorf("decode YAML manifest: duplicate environment name %q", key.Value)
+		}
+		seen[key.Value] = true
+		entries.Content = append(entries.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key.Value + "=" + value.Value})
+	}
+	return entries, nil
 }
 
 func normalizeYAMLMatrixMapping(matrix *yaml.Node) (*yaml.Node, error) {

@@ -207,7 +207,25 @@ func formatArray(array *model.ArraySpec) string {
 func Encode(manifest Manifest, format string) ([]byte, error) {
 	switch strings.ToLower(format) {
 	case "yaml", "yml":
-		return yaml.Marshal(manifest)
+		data, err := yaml.Marshal(manifest)
+		if err != nil {
+			return nil, err
+		}
+		var root yaml.Node
+		if err := yaml.Unmarshal(data, &root); err != nil {
+			return nil, err
+		}
+		formatYAMLEnvironmentMappings(&root)
+		var buffer bytes.Buffer
+		encoder := yaml.NewEncoder(&buffer)
+		encoder.SetIndent(2)
+		if err := encoder.Encode(&root); err != nil {
+			return nil, err
+		}
+		if err := encoder.Close(); err != nil {
+			return nil, err
+		}
+		return buffer.Bytes(), nil
 	case "json":
 		data, err := json.MarshalIndent(manifest, "", "  ")
 		return append(data, '\n'), err
@@ -220,4 +238,52 @@ func Encode(manifest Manifest, format string) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("unsupported manifest format %q", format)
 	}
+}
+
+func formatYAMLEnvironmentMappings(root *yaml.Node) {
+	if root.Kind != yaml.DocumentNode || len(root.Content) != 1 {
+		return
+	}
+	jobs := yamlMappingValue(root.Content[0], "jobs")
+	if jobs == nil || jobs.Kind != yaml.SequenceNode {
+		return
+	}
+	for _, job := range jobs.Content {
+		formatYAMLEnvironmentMappingInJob(job)
+	}
+}
+
+func formatYAMLEnvironmentMappingInJob(job *yaml.Node) {
+	if job.Kind != yaml.MappingNode {
+		return
+	}
+	for index := 0; index+1 < len(job.Content); index += 2 {
+		if job.Content[index].Value != "environment" || job.Content[index+1].Kind != yaml.SequenceNode {
+			continue
+		}
+		mapping, ok := yamlEnvironmentMapping(job.Content[index+1])
+		if ok {
+			job.Content[index+1] = mapping
+		}
+	}
+}
+
+func yamlEnvironmentMapping(entries *yaml.Node) (*yaml.Node, bool) {
+	mapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	seen := make(map[string]bool, len(entries.Content))
+	for _, entry := range entries.Content {
+		if entry.Kind != yaml.ScalarNode || entry.Tag == yamlNullTag {
+			return nil, false
+		}
+		name, value, ok := strings.Cut(entry.Value, "=")
+		if !ok || name == "" || seen[name] {
+			return nil, false
+		}
+		seen[name] = true
+		mapping.Content = append(mapping.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: name},
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value},
+		)
+	}
+	return mapping, true
 }

@@ -86,6 +86,24 @@ func TestEncodeFormatsCanBeDecoded(t *testing.T) {
 	}
 }
 
+func TestEncodeYAMLUsesEnvironmentMappingWhenPossible(t *testing.T) {
+	manifest := Manifest{Version: 1, Jobs: []Job{{Name: "job", Command: []string{"run"}, Environment: []string{"EPOCHS=20", "DATA_ROOT=./data"}}}}
+	data, err := Encode(manifest, "yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "environment:\n      EPOCHS: \"20\"") || !strings.Contains(string(data), "      DATA_ROOT: ./data") {
+		t.Fatalf("Encode(yaml) did not use environment mapping:\n%s", data)
+	}
+	decoded, err := Decode(strings.NewReader(string(data)), "yaml")
+	if err != nil {
+		t.Fatalf("Decode(yaml): %v\n%s", err, data)
+	}
+	if !reflect.DeepEqual(decoded, manifest) {
+		t.Fatalf("round trip = %#v, want %#v", decoded, manifest)
+	}
+}
+
 func TestEncodeComplexManifestFormats(t *testing.T) {
 	task := 3
 	manifest := Manifest{

@@ -40,7 +40,8 @@ Create a commented starter file without reading project state:
 rotari export --template > experiment.yaml
 ```
 
-A manifest uses the same compact syntax as the CLI:
+A manifest uses the same job settings as the CLI. In YAML, environment
+variables use a name-to-value mapping, as in GitHub Actions:
 
 ```yaml
 version: 1
@@ -49,7 +50,8 @@ jobs:
     command: [python, train.py]
     executor: slurm
     executor_options: ["--partition=gpu"]
-    environment: ["EPOCHS=20"]
+    environment:
+      EPOCHS: "20"
     array: "1-3"
     matrix:
       SEED: [1, 2]
@@ -65,7 +67,10 @@ and `retry_max_delay` correspond to the `add` options of the same names.
 Each YAML `matrix` key defines one dimension, and its sequence lists that
 dimension's values. The previous YAML sequence form, such as
 `matrix: ["SEED=1,2"]`, remains accepted. `array` keeps its string range syntax,
-such as `array: "1-10"`.
+such as `array: "1-10"`. The previous YAML `environment` sequence form, such as
+`environment: ["EPOCHS=20"]`, remains accepted; exported YAML uses the mapping
+form when variable names are unique. JSON and TOML manifests keep the
+`KEY=VALUE` sequence form.
 
 Use `rotari import --dry-run FILE` to validate and preview `execute`, `reuse`,
 and `accept` decisions without changing the queue. Jobs with provenance also
