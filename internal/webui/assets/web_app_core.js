@@ -26,6 +26,8 @@ window.fetch = function (input, options) {
 let state;
 let projectRuntimeDetailsOpen = false;
 let stateJSON = "";
+const projectStateCache = new Map();
+const runDetailCache = new Map();
 const expandedRunGraphics = {};
 let selectedOutput = "";
 let selectedLog = null;
@@ -50,37 +52,164 @@ function pageParts() {
   if (parts[0] === "_basedir") parts.splice(0, 2);
   return parts;
 }
-async function refresh() {
-  if (
-    document.activeElement &&
-    document.activeElement.closest(
-      ".web-queue-commands input,.web-queue-commands select",
-    )
-  )
-    return;
-  let r;
+async function fetchWebJSON(path) {
   try {
-    r = await fetch("/api/state");
+    const response = await fetch(path);
+    return response.ok ? await response.json() : null;
   } catch (error) {
-    document.getElementById("disconnect-banner").classList.add("show");
-    return;
+    // Secondary detail routes may be unavailable in static exports or during a transient disconnect.
+    return null;
   }
+}
+function pruneProjectRunCache(projectName, project) {
+  const knownRuns = new Set((project.runs || []).map((run) => run.run_id));
+  const prefix = projectName + "/";
+  for (const [key, detail] of runDetailCache) {
+    if (key.startsWith(prefix) && !knownRuns.has(key.slice(prefix.length)))
+      runDetailCache.delete(key);
+  }
+}
+function projectNeedsRefresh(index, projectName, force) {
+  if (!projectName || typeof rewriteStaticLinks === "function") return false;
+  const indexed = (index.projects || []).find(
+    (project) => project.project_name === projectName,
+  );
+  const cached = projectStateCache.get(projectName);
+  const changed = !cached || cached.revision !== indexed?.revision;
+  return force || changed;
+}
+async function refreshProjectOverview(index, projectName, force) {
+  if (!projectNeedsRefresh(index, projectName, force)) return;
+  const project = await fetchWebJSON(
+    "/api/project?project_name=" + encodeURIComponent(projectName),
+  );
+  if (!project) return;
+  project._loaded = true;
+  projectStateCache.set(projectName, project);
+  pruneProjectRunCache(projectName, project);
+}
+async function refreshActiveRunDetails(index) {
+  const activeRunKeys = new Set();
+  for (const project of index.projects || []) {
+    for (const run of project.runs || []) {
+      const key = project.project_name + "/" + run.run_id;
+      if (run.running) activeRunKeys.add(key);
+      if (run.running || Array.isArray(run.jobs)) runDetailCache.set(key, run);
+    }
+  }
+  const finishedRuns = [...runDetailCache].filter(
+    ([key, run]) => run.running && !activeRunKeys.has(key),
+  );
+  await Promise.all(
+    finishedRuns.map(async ([key]) => {
+      const [projectName, runID] = key.split("/");
+      const detail = await fetchWebJSON(
+        "/api/run?project_name=" +
+          encodeURIComponent(projectName) +
+          "&run_id=" +
+          encodeURIComponent(runID),
+      );
+      if (detail) runDetailCache.set(key, detail);
+    }),
+  );
+  return activeRunKeys;
+}
+async function refreshSelectedRun(index, projectName, runID, activeRunKeys) {
+  if (!runID) return;
+  const key = projectName + "/" + runID;
+  const indexed = (index.projects || []).find(
+    (project) => project.project_name === projectName,
+  );
+  const isRunning = indexed?.running_run_id === runID;
+  const cached = runDetailCache.get(key);
+  if (
+    !cached ||
+    (isRunning && !activeRunKeys.has(key)) ||
+    (cached.running && !isRunning)
+  ) {
+    const detail = await fetchWebJSON(
+      "/api/run?project_name=" +
+        encodeURIComponent(projectName) +
+        "&run_id=" +
+        encodeURIComponent(runID),
+    );
+    if (detail) runDetailCache.set(key, detail);
+  }
+}
+function mergeWebIndex(index) {
+  return {
+    ...index,
+    projects: (index.projects || []).map((indexed) => {
+      const loaded = projectStateCache.get(indexed.project_name);
+      const project = loaded
+        ? { ...indexed, ...loaded, _loaded: true }
+        : { ...indexed, _loaded: typeof rewriteStaticLinks === "function" };
+      project.running_run_id = indexed.running_run_id;
+      project.runner_pid = indexed.runner_pid;
+      project.runner_host = indexed.runner_host;
+      project.runner_started_at = indexed.runner_started_at;
+      const runs = new Map(
+        (project.runs || []).map((run) => [run.run_id, run]),
+      );
+      for (const run of indexed.runs || [])
+        runs.set(run.run_id, { ...runs.get(run.run_id), ...run });
+      for (const [key, detail] of runDetailCache) {
+        const prefix = indexed.project_name + "/";
+        if (key.startsWith(prefix)) {
+          const runID = key.slice(prefix.length);
+          runs.set(runID, { ...runs.get(runID), ...detail });
+        }
+      }
+      project.runs = [...runs.values()].sort((a, b) =>
+        b.run_id.localeCompare(a.run_id),
+      );
+      return project;
+    }),
+  };
+}
+function renderRefreshedState(nextState, projectName, runID) {
   document.getElementById("disconnect-banner").classList.remove("show");
-  if (!r.ok) {
-    document.getElementById("app").textContent = await r.text();
-    return;
-  }
-  const nextState = await r.json();
   const nextStateJSON = JSON.stringify(nextState);
   if (nextStateJSON === stateJSON) return;
   stateJSON = nextStateJSON;
   state = nextState;
+  const selectedRunKey = runID ? projectName + "/" + runID : "";
+  for (const [key, detail] of runDetailCache) {
+    if (!detail.running && key !== selectedRunKey) runDetailCache.delete(key);
+  }
   if (sidebarScrollActive) {
     sidebarRenderDeferred = true;
     return;
   }
   render();
   if (typeof rewriteStaticLinks === "function") rewriteStaticLinks();
+}
+async function refresh(forceProject = true) {
+  if (
+    document.activeElement?.closest(
+      ".web-queue-commands input,.web-queue-commands select",
+    )
+  )
+    return;
+  try {
+    const response = await fetch("/api/state");
+    if (!response.ok) {
+      document.getElementById("app").textContent = await response.text();
+      return;
+    }
+    const index = await response.json();
+    const parts = pageParts();
+    const projectName =
+      parts[0] === "project" ? decodeURIComponent(parts[1]) : "";
+    const runID = parts[2] === "run" ? decodeURIComponent(parts[3]) : "";
+    const activeRunKeys = await refreshActiveRunDetails(index);
+    await refreshProjectOverview(index, projectName, forceProject);
+    await refreshSelectedRun(index, projectName, runID, activeRunKeys);
+    renderRefreshedState(mergeWebIndex(index), projectName, runID);
+  } catch (error) {
+    // The primary index request failed; keep the existing view and show its disconnected state.
+    document.getElementById("disconnect-banner").classList.add("show");
+  }
 }
 function render() {
   const queues = state.projects || [];
@@ -469,9 +598,29 @@ function toggleSidebarBasedir(button) {
 function toggleSidebarProject(button) {
   const project = button.closest(".sidebar-project");
   const key = project.dataset.basedirId + "/" + project.dataset.projectName;
-  expandedSidebarProjects[key] =
-    button.getAttribute("aria-expanded") !== "true";
+  const expanded = button.getAttribute("aria-expanded") !== "true";
+  expandedSidebarProjects[key] = expanded;
   renderSidebar(state ? state.projects || [] : []);
+  const activeID =
+    mountedBasedirID || registeredBasedirs.find((item) => item.current)?.id;
+  if (
+    expanded &&
+    project.dataset.basedirId === activeID &&
+    typeof rewriteStaticLinks !== "function"
+  )
+    void loadSidebarProject(project.dataset.projectName);
+}
+async function loadSidebarProject(projectName) {
+  if (!state || !projectNeedsRefresh(state, projectName, false)) return;
+  const project = await fetchWebJSON(
+    "/api/project?project_name=" + encodeURIComponent(projectName),
+  );
+  if (!project) return;
+  project._loaded = true;
+  projectStateCache.set(projectName, project);
+  pruneProjectRunCache(projectName, project);
+  state.projects = mergeWebIndex(state).projects;
+  renderSidebar(state.projects);
 }
 function toggleSidebarAllProjects(button) {
   const basedir = button.closest(".basedir-entry");
@@ -708,13 +857,11 @@ function addConfigButton() {
   }
 }
 function renderOverview(queues) {
-  let queued = 0,
-    runs = 0,
+  let runs = 0,
     running = 0;
   queues.forEach((q) => {
-    queued += (q.queue.commands || []).length;
-    runs += q.runs.length;
-    running += q.runs.filter((r) => r.running).length;
+    runs += q.run_count || q.runs.length;
+    running += q.running_run_id ? 1 : 0;
   });
   setLocation(
     state.base_dir + " / all projects",
@@ -725,8 +872,6 @@ function renderOverview(queues) {
     "<span>" +
     queues.length +
     " projects</span><span>" +
-    queued +
-    " queued</span><span>" +
     runs +
     " runs</span><span>" +
     running +
@@ -740,11 +885,11 @@ function renderOverview(queues) {
         '">' +
         esc(q.project_name) +
         "</a></td><td>" +
-        (q.queue.commands || []).length +
+        (q._loaded ? (q.queue.commands || []).length : "—") +
         "</td><td>" +
-        q.runs.length +
+        (q.run_count || q.runs.length) +
         "</td><td>" +
-        q.runs.filter((r) => r.running).length +
+        (q.running_run_id ? 1 : 0) +
         "</td><td>" +
         (latest
           ? '<a class="link" href="/project/' +
@@ -865,6 +1010,11 @@ function renderRun(q, runID) {
     // The run's files come from a newer rotari; only the reason is known.
     document.getElementById("app").innerHTML =
       '<div class="empty error">' + esc(run.unreadable) + "</div>";
+    return;
+  }
+  if (!Array.isArray(run.jobs)) {
+    document.getElementById("app").innerHTML =
+      '<div class="empty">Loading run details…</div>';
     return;
   }
   const attemptKey = (jobID) => q.project_name + "/" + runID + "/" + jobID;

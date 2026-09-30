@@ -58,9 +58,12 @@ flowchart LR
 - **Run execution.** Every run, sync or async, executes inside its
   supervisor; see [Sync and async runs](#sync-and-async-runs).
 - **Web server.** `rotari web` ([cmd/rotari/web.go](../cmd/rotari/web.go) parses flags; [internal/webui](../internal/webui/) serves).
-   It lists registered basedirs in the sidebar, but loads full project/run/job
-   state only for the basedir selected in the URL. Expanding another basedir
-   reads only its project directory names. Its control endpoints (`/api/copy`,
+   It lists registered basedirs and lightweight project/run metadata, checks
+   project locks across the selected basedir, and loads a project's queue and
+   run summaries only when that project is opened. Job/attempt details load
+   only for the selected run or active runs monitored for notifications.
+   Expanding another basedir reads only its project directory names. Static
+   export remains a complete snapshot. Its control endpoints (`/api/copy`,
    `/api/cancel-job`, ...) call the same internal operations as the CLI.
 - **Jobs and wrappers.** Local jobs are child processes of the supervisor.
   Scheduler jobs run elsewhere through a generated wrapper script that writes

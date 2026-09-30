@@ -79,7 +79,7 @@ render = function () {
   addMatrixPanels();
   applyBasedirLinks();
 };
-window.addEventListener("popstate", render);
+window.addEventListener("popstate", () => refresh(true));
 initSidebarResizer();
-refresh();
-setInterval(refresh, 2000);
+refresh(true);
+setInterval(() => refresh(false), 2000);

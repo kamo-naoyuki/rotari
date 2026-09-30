@@ -70,6 +70,8 @@ type QueueState struct {
 	ConfigPath      string      `json:"config_path,omitempty"`
 	Queue           model.Queue `json:"queue"`
 	Runs            []Run       `json:"runs"`
+	RunCount        int         `json:"run_count"`
+	Revision        string      `json:"revision,omitempty"`
 	RunnerPID       int         `json:"runner_pid,omitempty"`
 	RunningRunID    string      `json:"running_run_id,omitempty"`
 	RunnerHost      string      `json:"runner_host,omitempty"`

@@ -1627,6 +1627,107 @@ func assertWebStateBasedir(t *testing.T, handler http.Handler, path, basedir str
 	}
 }
 
+func TestWebStateLoadsProjectAndRunDetailsOnDemand(t *testing.T) {
+	baseDir := t.TempDir()
+	started := time.Date(2026, 9, 30, 10, 0, 0, 0, time.UTC)
+	writeTestJobsRun(t, baseDir, "demo", "run-1", "job-1", started, started.Add(time.Minute), 0)
+	writeTestJobsRun(t, baseDir, "demo", "run-2", "job-2", started.Add(time.Hour), started.Add(time.Hour+time.Minute), 0)
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stateinternal.WriteJSON(paths.QueueFile, model.Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	handler := Handler(testOptions(baseDir, false))
+
+	indexResponse := serveWebGet(t, handler, "/api/state")
+	var index webprojection.State
+	if indexResponse.Code != http.StatusOK || json.Unmarshal(indexResponse.Body.Bytes(), &index) != nil {
+		t.Fatalf("GET /api/state = (%d, %q)", indexResponse.Code, indexResponse.Body.String())
+	}
+	if len(index.Queues) != 1 || index.Queues[0].RunCount != 2 || len(index.Queues[0].Runs) != 2 || index.Queues[0].Runs[0].RunID != "run-2" || index.Queues[0].Runs[0].Jobs != nil || index.Queues[0].Runs[1].Jobs != nil {
+		t.Fatalf("lightweight index = %#v, want recent summaries without job details", index.Queues)
+	}
+
+	projectResponse := serveWebGet(t, handler, "/api/project?project_name=demo")
+	var project webprojection.QueueState
+	if projectResponse.Code != http.StatusOK || json.Unmarshal(projectResponse.Body.Bytes(), &project) != nil {
+		t.Fatalf("GET /api/project = (%d, %q)", projectResponse.Code, projectResponse.Body.String())
+	}
+	if project.RunCount != 2 || len(project.Runs) != 2 || project.Runs[0].Jobs != nil {
+		t.Fatalf("project overview = %#v, want two summaries without jobs", project)
+	}
+
+	runResponse := serveWebGet(t, handler, "/api/run?project_name=demo&run_id=run-1")
+	var run webprojection.Run
+	if runResponse.Code != http.StatusOK || json.Unmarshal(runResponse.Body.Bytes(), &run) != nil {
+		t.Fatalf("GET /api/run = (%d, %q)", runResponse.Code, runResponse.Body.String())
+	}
+	if run.RunID != "run-1" || len(run.Jobs) != 1 || run.Jobs[0].ID != "job-1" {
+		t.Fatalf("run detail = %#v, want only run-1 with job-1", run)
+	}
+
+	activePaths, err := stateinternal.ResolveProjectPaths(baseDir, "live")
+	if err != nil {
+		t.Fatal(err)
+	}
+	activeQueue := model.Queue{Commands: []model.QueuedCommand{{ID: "active-job", Command: []string{"true"}}}}
+	if err := stateinternal.WriteJSON(activePaths.QueueFile, activeQueue); err != nil {
+		t.Fatal(err)
+	}
+	if err := stateinternal.WriteJSON(filepath.Join(activePaths.RunsDir, "run-live", "commands.json"), activeQueue); err != nil {
+		t.Fatal(err)
+	}
+	if err := stateinternal.WriteJSON(activePaths.LockFile, model.LockInfo{RunID: "run-live", PID: 1234}); err != nil {
+		t.Fatal(err)
+	}
+	liveIndexResponse := serveWebGet(t, handler, "/api/state")
+	var liveIndex webprojection.State
+	if liveIndexResponse.Code != http.StatusOK || json.Unmarshal(liveIndexResponse.Body.Bytes(), &liveIndex) != nil {
+		t.Fatalf("GET /api/state with active run = (%d, %q)", liveIndexResponse.Code, liveIndexResponse.Body.String())
+	}
+	var foundInIndex bool
+	for _, project := range liveIndex.Queues {
+		for _, run := range project.Runs {
+			if run.RunID == "run-live" {
+				foundInIndex = run.Running && len(run.Jobs) == 1 && run.Jobs[0].ID == "active-job"
+			}
+		}
+	}
+	if !foundInIndex {
+		t.Fatalf("active run details missing from main index: %#v", liveIndex.Queues)
+	}
+	activeResponse := serveWebGet(t, handler, "/api/active-runs")
+	var active webprojection.State
+	if activeResponse.Code != http.StatusOK || json.Unmarshal(activeResponse.Body.Bytes(), &active) != nil {
+		t.Fatalf("GET /api/active-runs = (%d, %q)", activeResponse.Code, activeResponse.Body.String())
+	}
+	if len(active.Queues) != 2 {
+		t.Fatalf("active runs state = %#v, want both projects checked", active.Queues)
+	}
+	foundActive := false
+	for _, project := range active.Queues {
+		for _, run := range project.Runs {
+			if run.RunID == "run-live" {
+				foundActive = run.Running && len(run.Jobs) == 1 && run.Jobs[0].ID == "active-job"
+			}
+		}
+	}
+	if !foundActive {
+		t.Fatalf("active run details missing from all-project monitor: %#v", active.Queues)
+	}
+
+	for _, path := range []string{
+		"/api/project?project_name=../outside",
+		"/api/run?project_name=demo&run_id=../outside",
+	} {
+		if response := serveWebGet(t, handler, path); response.Code == http.StatusOK {
+			t.Errorf("GET %s unexpectedly succeeded", path)
+		}
+	}
+}
+
 func TestWebJobsPageFiltersBySince(t *testing.T) {
 	baseDir := t.TempDir()
 	runID := "20260922-090000-00000001"

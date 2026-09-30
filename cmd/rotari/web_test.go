@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
+	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 	"github.com/kamo-naoyuki/rotari/internal/webui"
 )
 
@@ -86,6 +88,29 @@ func TestCmdWebDoesNotAcceptProjectFilter(t *testing.T) {
 	}
 }
 
+func webTestRunState(t *testing.T, baseDir, projectName, runID string) []byte {
+	t.Helper()
+	var state webprojection.State
+	if err := json.Unmarshal([]byte(webGet(t, baseDir, "/api/state")), &state); err != nil {
+		t.Fatal(err)
+	}
+	var project webprojection.QueueState
+	if err := json.Unmarshal([]byte(webGet(t, baseDir, "/api/project?project_name="+projectName)), &project); err != nil {
+		t.Fatal(err)
+	}
+	var run webprojection.Run
+	if err := json.Unmarshal([]byte(webGet(t, baseDir, "/api/run?project_name="+projectName+"&run_id="+runID)), &run); err != nil {
+		t.Fatal(err)
+	}
+	project.Runs = []webprojection.Run{run}
+	state.Queues = []webprojection.QueueState{project}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
 func TestWebRunViewDrawsMatrixGrid(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -108,7 +133,7 @@ func TestWebRunViewDrawsMatrixGrid(t *testing.T) {
 	if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
-	data := []byte(webGet(t, baseDir, "/api/state"))
+	data := webTestRunState(t, baseDir, "default", "run-1")
 	if strings.Contains(string(data), `"base_environment"`) {
 		t.Fatal("web state exposes the matrix base environment")
 	}
@@ -133,7 +158,13 @@ const dom = new JSDOM(html, {
   url: 'http://127.0.0.1/project/default/run/run-1',
   virtualConsole,
   beforeParse(window) {
-    window.fetch = async () => ({ok: true, json: async () => state, text: async () => 'log text'});
+    window.fetch = async input => {
+      const path = new URL(input, window.location.href).pathname;
+      if (path.endsWith('/api/project')) return {ok: true, json: async () => state.projects[0]};
+      if (path.endsWith('/api/run')) return {ok: true, json: async () => state.projects[0].runs[0]};
+      if (path.endsWith('/api/active-runs')) return {ok: true, json: async () => ({projects: []})};
+      return {ok: true, json: async () => state, text: async () => 'log text'};
+    };
     window.setInterval = () => 1;
   },
 });
@@ -202,7 +233,7 @@ func TestWebRunViewClampsLongCells(t *testing.T) {
 	if err := writeJSON(paths.QueueFile, model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
-	data := []byte(webGet(t, baseDir, "/api/state"))
+	data := webTestRunState(t, baseDir, "default", "run-1")
 	statePath := filepath.Join(t.TempDir(), "state.json")
 	htmlPath := filepath.Join(t.TempDir(), "index.html")
 	if err := os.WriteFile(statePath, data, 0o600); err != nil {
@@ -223,7 +254,13 @@ const dom = new JSDOM(fs.readFileSync(process.argv[1], 'utf8'), {
   url: 'http://127.0.0.1/project/default/run/run-1',
   virtualConsole,
   beforeParse(window) {
-    window.fetch = async () => ({ok: true, json: async () => state, text: async () => ''});
+    window.fetch = async input => {
+      const path = new URL(input, window.location.href).pathname;
+      if (path.endsWith('/api/project')) return {ok: true, json: async () => state.projects[0]};
+      if (path.endsWith('/api/run')) return {ok: true, json: async () => state.projects[0].runs[0]};
+      if (path.endsWith('/api/active-runs')) return {ok: true, json: async () => ({projects: []})};
+      return {ok: true, json: async () => state, text: async () => ''};
+    };
     window.setInterval = () => 1;
   },
 });

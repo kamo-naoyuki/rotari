@@ -42,6 +42,7 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 	if err != nil {
 		return QueueState{}, err
 	}
+	state.RunCount = len(runIDs)
 	for _, runID := range runIDs {
 		summary, summaryErr := loader.Summary(runID)
 		if newerStateVersion(summaryErr) {

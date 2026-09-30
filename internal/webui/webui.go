@@ -331,7 +331,43 @@ func (s site) baseHandler() http.Handler {
 			methodNotAllowed(writer)
 			return
 		}
-		state, err := s.loadWebState(baseDir)
+		state, err := s.loadWebIndex(baseDir)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writeWebJSON(writer, state)
+	})
+	mux.HandleFunc("/api/project", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			methodNotAllowed(writer)
+			return
+		}
+		project, err := s.loadWebProjectOverview(baseDir, request.URL.Query().Get("project_name"))
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writeWebJSON(writer, project)
+	})
+	mux.HandleFunc("/api/run", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			methodNotAllowed(writer)
+			return
+		}
+		run, err := s.loadWebRunDetail(baseDir, request.URL.Query().Get("project_name"), request.URL.Query().Get("run_id"))
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writeWebJSON(writer, run)
+	})
+	mux.HandleFunc("/api/active-runs", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			methodNotAllowed(writer)
+			return
+		}
+		state, err := s.loadWebActiveRuns(baseDir)
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -1024,8 +1060,93 @@ func loadLegacyRunConfigFiles(baseDir, projectName string, configPaths []string)
 	return []webprojection.ConfigFile{{Path: path, Content: string(data)}}, nil
 }
 
-// loadWebState projects persisted server and project state into the Web API
-// model consumed by the embedded and static Web UIs.
+// loadWebIndex returns lightweight project/run metadata plus details for active runs.
+// Project queues and completed run details are fetched separately when needed.
+func (s site) loadWebIndex(baseDir string) (webprojection.State, error) {
+	state := webprojection.State{BaseDir: baseDir, ConfigPath: config.EffectivePath(baseDir, ""), Environments: s.environments(), UpdatedAt: time.Now().UTC().Format(time.RFC3339)}
+	for index := range state.Environments {
+		_, state.Environments[index].Set = os.LookupEnv(state.Environments[index].Name)
+	}
+	entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
+	if err != nil && !os.IsNotExist(err) {
+		return webprojection.State{}, err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		project, projectErr := s.loadWebIndexProject(baseDir, entry.Name())
+		if projectErr != nil {
+			return webprojection.State{}, projectErr
+		}
+		state.Queues = append(state.Queues, project)
+	}
+	sort.Slice(state.Queues, func(i, j int) bool { return state.Queues[i].QueueName < state.Queues[j].QueueName })
+	state.UpdatedAt = model.FormatDisplayTimestamp(state.UpdatedAt)
+	return state, nil
+}
+
+func (s site) loadWebIndexProject(baseDir, projectName string) (webprojection.QueueState, error) {
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, projectName)
+	if err != nil {
+		return webprojection.QueueState{}, err
+	}
+	project := webprojection.QueueState{QueueName: projectName, Queue: model.Queue{}, Runs: []webprojection.Run{}, Server: loadWebServerState(paths.ProjectDir), ConfigPath: config.EffectivePath(baseDir, projectName)}
+	if lock, lockErr := stateinternal.LoadLock(paths.LockFile); lockErr == nil {
+		project.RunningRunID = lock.RunID
+		project.RunnerPID = lock.PID
+		project.RunnerHost = lock.Host
+		project.RunnerStartedAt = lock.StartedAt
+	}
+	ids, err := webRunIDs(paths.RunsDir)
+	if err != nil {
+		return webprojection.QueueState{}, err
+	}
+	project.RunCount = len(ids)
+	project.Revision = webProjectRevision(paths)
+	selected := make(map[string]bool)
+	if len(ids) > 0 {
+		selected[ids[len(ids)-1]] = true
+	}
+	if len(ids) > 1 {
+		selected[ids[len(ids)-2]] = true
+	}
+	if project.RunningRunID != "" {
+		selected[project.RunningRunID] = true
+	}
+	for _, runID := range ids {
+		if !selected[runID] || runID == project.RunningRunID {
+			continue
+		}
+		run, loadErr := s.loadWebRunSummary(paths, runID, project)
+		if loadErr != nil {
+			return webprojection.QueueState{}, loadErr
+		}
+		project.Runs = append(project.Runs, run)
+	}
+	if project.RunningRunID != "" {
+		run, loadErr := s.loadWebRunDetail(baseDir, projectName, project.RunningRunID)
+		if loadErr != nil {
+			return webprojection.QueueState{}, loadErr
+		}
+		found := false
+		for index := range project.Runs {
+			if project.Runs[index].RunID == run.RunID {
+				project.Runs[index] = run
+				found = true
+				break
+			}
+		}
+		if !found {
+			project.Runs = append(project.Runs, run)
+		}
+	}
+	sort.Slice(project.Runs, func(i, j int) bool { return project.Runs[i].RunID > project.Runs[j].RunID })
+	webprojection.FormatQueueDisplayTimes(&project)
+	return project, nil
+}
+
+// loadWebState builds the full projection for static export.
 func (s site) loadWebState(baseDir string) (webprojection.State, error) {
 	state := webprojection.State{BaseDir: baseDir, ConfigPath: config.EffectivePath(baseDir, ""), Environments: s.environments(), UpdatedAt: time.Now().UTC().Format(time.RFC3339)}
 	for index := range state.Environments {
@@ -1062,6 +1183,123 @@ func (s site) loadWebState(baseDir string) (webprojection.State, error) {
 
 // loadWebServerState reads the files of the supervisor of projectDir without
 // contacting it.
+func (s site) loadWebProjectOverview(baseDir, projectName string) (webprojection.QueueState, error) {
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, projectName)
+	if err != nil {
+		return webprojection.QueueState{}, err
+	}
+	queue, err := stateinternal.LoadQueue(paths.QueueFile)
+	if err != nil {
+		return webprojection.QueueState{}, err
+	}
+	project := webprojection.QueueState{QueueName: projectName, ConfigPath: config.EffectivePath(baseDir, projectName), Queue: queue, Runs: []webprojection.Run{}, Server: loadWebServerState(paths.ProjectDir)}
+	if lock, lockErr := stateinternal.LoadLock(paths.LockFile); lockErr == nil {
+		project.RunningRunID = lock.RunID
+		project.RunnerPID = lock.PID
+		project.RunnerHost = lock.Host
+		project.RunnerStartedAt = lock.StartedAt
+	}
+	ids, err := webRunIDs(paths.RunsDir)
+	if err != nil {
+		return webprojection.QueueState{}, err
+	}
+	project.RunCount = len(ids)
+	project.Revision = webProjectRevision(paths)
+	for _, runID := range ids {
+		run, loadErr := s.loadWebRunSummary(paths, runID, project)
+		if loadErr != nil {
+			return webprojection.QueueState{}, loadErr
+		}
+		project.Runs = append(project.Runs, run)
+	}
+	formatWebQueueDisplayTimes(&project)
+	return project, nil
+}
+
+func (s site) loadWebRunSummary(paths stateinternal.ProjectPaths, runID string, project webprojection.QueueState) (webprojection.Run, error) {
+	summary, err := stateinternal.LoadRunSummary(filepath.Join(paths.RunsDir, runID, "summary.json"))
+	if errors.Is(err, stateinternal.ErrNewerStateVersion) {
+		return webprojection.Run{RunSummary: model.RunSummary{RunID: runID, Status: "unreadable"}, Unreadable: err.Error(), Running: runID == project.RunningRunID}, nil
+	}
+	if err != nil {
+		summary = model.RunSummary{RunID: runID, Status: "running", StartedAt: project.RunnerStartedAt}
+	}
+	if summary.RunID == "" {
+		summary.RunID = runID
+	}
+	return webprojection.Run{RunSummary: summary, Running: runID == project.RunningRunID}, nil
+}
+
+func (s site) loadWebRunDetail(baseDir, projectName, runID string) (webprojection.Run, error) {
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, projectName)
+	if err != nil {
+		return webprojection.Run{}, err
+	}
+	if _, err := stateinternal.SafeJoin(paths.RunsDir, runID); err != nil {
+		return webprojection.Run{}, err
+	}
+	loaded, err := webprojection.LoadQueueState(webprojection.QueueLoader{
+		ProjectName: projectName,
+		Queue:       func() (model.Queue, error) { return model.Queue{}, nil },
+		Lock:        func() (model.LockInfo, error) { return stateinternal.LoadLock(paths.LockFile) },
+		Runs:        func() ([]string, error) { return []string{runID}, nil },
+		Summary: func(id string) (model.RunSummary, error) {
+			return stateinternal.LoadRunSummary(filepath.Join(paths.RunsDir, id, "summary.json"))
+		},
+		Jobs: func(id string, summary model.RunSummary) ([]webprojection.Job, error) {
+			return webprojection.LoadRunJobs(s.Store, filepath.Join(paths.RunsDir, id), summary, "")
+		},
+		Context: func(id string) (model.RunContext, error) {
+			return stateinternal.LoadContext(s.Store, filepath.Join(paths.RunsDir, id))
+		},
+		Samples: func(id string) []model.LoadSample {
+			return stateinternal.ReadLoadSamples(loadSamplesPath(paths, id))
+		},
+	})
+	if err != nil {
+		return webprojection.Run{}, err
+	}
+	if len(loaded.Runs) == 0 {
+		return webprojection.Run{}, fmt.Errorf("run %q not found", runID)
+	}
+	project := webprojection.QueueState{Runs: loaded.Runs}
+	webprojection.FormatQueueDisplayTimes(&project)
+	return project.Runs[0], nil
+}
+
+func (s site) loadWebActiveRuns(baseDir string) (webprojection.State, error) {
+	return s.loadWebIndex(baseDir)
+}
+
+func webProjectRevision(paths stateinternal.ProjectPaths) string {
+	revision := func(path string) string {
+		info, err := os.Stat(path)
+		if err != nil {
+			return "-"
+		}
+		return fmt.Sprintf("%d:%d", info.ModTime().UnixNano(), info.Size())
+	}
+	return revision(paths.QueueFile) + "/" + revision(paths.RunsDir) + "/" + revision(paths.LockFile)
+}
+
+func webRunIDs(runsDir string) ([]string, error) {
+	entries, err := os.ReadDir(runsDir)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			ids = append(ids, entry.Name())
+		}
+	}
+	sort.Strings(ids)
+	return ids, nil
+}
+
 func loadWebServerState(projectDir string) webprojection.ServerState {
 	state := webprojection.ServerState{}
 	data, err := os.ReadFile(serverinternal.PIDPath(projectDir))

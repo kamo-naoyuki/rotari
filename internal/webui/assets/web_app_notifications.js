@@ -158,7 +158,7 @@ async function refreshOtherBasedirNotifications() {
   await Promise.all(
     targets.map(async (entry) => {
       try {
-        const response = await fetch(basedirURL(entry.id, "/api/state"), {
+        const response = await fetch(basedirURL(entry.id, "/api/active-runs"), {
           cache: "no-store",
         });
         if (!response.ok) return;
@@ -176,9 +176,9 @@ async function refreshOtherBasedirNotifications() {
   }
 }
 const originalRefresh = refresh;
-refresh = async function () {
+refresh = async function (forceProject = true) {
   const previousState = state;
-  await originalRefresh();
+  await originalRefresh(forceProject);
   if (state !== previousState) checkRunNotifications(previousState, state);
   await refreshOtherBasedirNotifications();
 };

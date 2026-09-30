@@ -86,14 +86,24 @@ asset and static copies.
 The live Web UI sidebar is hierarchical: registered basedirs (plus the
 startup `--basedir`) contain projects, and projects contain runs. `rotari web`
 does not offer a project-only filter; users choose a project from the selected
-basedir's tree. Expanding another basedir reads only its project directory
-names; the expensive state projection, including runs and jobs, is loaded only
-after navigating into that basedir. `/api/state` and control routes are bound
-to the basedir in the URL mount. The mount identifier resolves only to the
-startup basedir or a basedir in the read-only registry list; unlisted IDs are
-not accepted. The static export remains a single-basedir snapshot and has no
-basedir switching. Covered by
-[`TestWebSwitchesBetweenRegisteredBasedirs`](../internal/webui/webui_test.go)
+basedir's tree. `/api/state` is a lightweight index: it lists project names,
+run counts, the latest and immediately preceding run summaries, and running-lock
+metadata without loading project queues or completed run details. Keeping the
+preceding summary lets notification polling catch a fast run followed by a new
+run before the next tick. It includes full details only for
+currently running runs across the selected basedir, so completion and
+job-failure notifications work without scanning completed runs' jobs. Opening
+a project loads its queue and run summaries through `/api/project`; opening a
+completed run loads its jobs, attempts, context, and timeline through `/api/run`.
+`/api/active-runs` exposes the same index for notification monitoring of
+other basedirs. Completed run details are cached in the browser for that
+session and are not polled again. All these API routes are bound to the basedir
+in the URL mount. The mount identifier resolves
+only to the startup basedir or a basedir in the read-only registry list;
+unlisted IDs are not accepted. The static export remains a complete
+single-basedir snapshot and has no basedir switching. Covered by
+[`TestWebStateLoadsProjectAndRunDetailsOnDemand`](../internal/webui/webui_test.go),
+[`TestWebSwitchesBetweenRegisteredBasedirs`](../internal/webui/webui_test.go),
 and [`TestWebSidebarLazilyListsProjectsInOtherBasedirs`](../internal/webui/webui_test.go).
 
 The basedir list is introduced by a `Registered basedirs` heading so the tree
@@ -116,12 +126,13 @@ page.
 Each basedir row has a notification monitor checkbox. The selected basedir IDs
 are stored in browser local storage under a key scoped to the current Web
 server session. Restarting `rotari web` therefore discards the extra selected
-basedirs and returns monitoring to the current basedir. The application page polls the state
-endpoint for every selected basedir, while the server-rendered Job activity
-page polls the Job activity endpoint for every selected basedir. A newly
-selected basedir is initialized from its current state, so existing completed
-jobs do not produce retroactive notifications. Notifications remain controlled
-by the global notification permission and on/off toggle.
+basedirs and returns monitoring to the current basedir. The application page
+polls `/api/state` for its mounted basedir and `/api/active-runs` for each
+other selected basedir; the server-rendered Job activity page polls the Job
+activity endpoint. A newly selected basedir is
+initialized from its current state, so existing completed jobs do not produce
+retroactive notifications. Notifications remain controlled by the global
+notification permission and on/off toggle.
 
 ## Web server and control-plane security
 
@@ -166,13 +177,16 @@ directly; `rotari web` only re-reads persisted state from disk per request
 (see "Web UI model and reports" below), so there is no event to push from the
 runner side even if one were added. Instead this feature wraps the existing
 `refresh()` polling loop (`web_app_core.js`) and diffs the previous and next
-`/api/state` snapshots on every tick:
+`/api/state` index on every tick; that index includes lightweight summaries
+for each project's latest run and full details only for currently running
+runs. When other basedirs are selected for notifications, their `/api/active-runs`
+projections are polled as well:
 
 - A run is newly finished when it stops being `running` between two polls, or
   when it is seen for the first time already finished (covers runs shorter
   than the 2-second poll interval).
 - A job is newly failed when `jobDisplayStatus(job, run)` (`web_app_tables.js`)
-  becomes `"failed"` and was not already `"failed"` on the previous poll.
+  becomes `"failed"` in an active-run detail and was not already `"failed"` on the previous poll.
 - Job failures and a run's own completion detected in the same poll tick are
   merged into one `Notification` per run; events from different ticks stay
   separate.

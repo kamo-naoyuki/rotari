@@ -30,7 +30,7 @@ func TestCLIAndWebAgreeOnJobResults(t *testing.T) {
 		t.Fatal(err)
 	}
 	jobRows := parseJobsTable(t, e.MustRotari("jobs", run.Project, "--format", "%a %s %f").Stdout)
-	webJobs := loadWebJobs(t, e.HTTPGet(e.StartWeb()+"/api/state").Body, run.Project, run.RunID)
+	webJobs := loadWebJobs(t, e.HTTPGet(webRunURL(e.StartWeb(), run.Project, run.RunID)).Body, run.Project, run.RunID)
 	if len(shown.Summary.Results) != 2 {
 		t.Fatalf("show --json lists %d results, want 2", len(shown.Summary.Results))
 	}
@@ -66,6 +66,10 @@ func TestCLIAndWebAgreeOnJobResults(t *testing.T) {
 	}
 }
 
+func webRunURL(base, project, runID string) string {
+	return base + "/api/run?project_name=" + url.QueryEscape(project) + "&run_id=" + url.QueryEscape(runID)
+}
+
 type statusWebJob struct {
 	ID        string `json:"id"`
 	AttemptID string `json:"attempt_id"`
@@ -78,33 +82,21 @@ var jobsColumnGap = regexp.MustCompile(`\s{2,}`)
 
 func loadWebJobs(t *testing.T, body, project, runID string) map[string]statusWebJob {
 	t.Helper()
-	var state struct {
-		Projects []struct {
-			ProjectName string `json:"project_name"`
-			Runs        []struct {
-				RunID string         `json:"run_id"`
-				Jobs  []statusWebJob `json:"jobs"`
-			} `json:"runs"`
-		} `json:"projects"`
+	var run struct {
+		RunID string         `json:"run_id"`
+		Jobs  []statusWebJob `json:"jobs"`
 	}
-	if err := json.Unmarshal([]byte(body), &state); err != nil {
+	if err := json.Unmarshal([]byte(body), &run); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range state.Projects {
-		if p.ProjectName == project {
-			for _, run := range p.Runs {
-				if run.RunID == runID {
-					jobs := map[string]statusWebJob{}
-					for _, job := range run.Jobs {
-						jobs[job.ID] = job
-					}
-					return jobs
-				}
-			}
-		}
+	if run.RunID != runID {
+		t.Fatalf("Web API detail has run %q, want %q for project %q", run.RunID, runID, project)
 	}
-	t.Fatalf("Web API state has no run %s", runID)
-	return nil
+	jobs := map[string]statusWebJob{}
+	for _, job := range run.Jobs {
+		jobs[job.ID] = job
+	}
+	return jobs
 }
 
 func parseJobsTable(t *testing.T, output string) map[string]map[string]string {
@@ -179,7 +171,7 @@ func TestStatusFallbackChainAgreesAcrossViews(t *testing.T) {
 	}
 	jobRows := parseJobsTable(t, e.MustRotari("jobs", project, "--format", "%n %s").Stdout)
 	base := e.StartWeb()
-	webJobs := loadWebJobs(t, e.HTTPGet(base+"/api/state").Body, project, runID)
+	webJobs := loadWebJobs(t, e.HTTPGet(webRunURL(base, project, runID)).Body, project, runID)
 	for _, c := range cases {
 		id := ids[c.name]
 		web := webJobs[id]

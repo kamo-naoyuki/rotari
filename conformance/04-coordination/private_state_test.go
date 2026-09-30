@@ -419,24 +419,35 @@ func TestWebShowsNewerRunAsUnreadable(t *testing.T) {
 			readable, _ := e.FinishedJobRun("p")
 			newer, _ := e.FinishedJobRun("p")
 			setStateVersion(t, filepath.Join(e.Base, "projects", "p", "runs", newer, file), 99)
-			got := e.HTTPGet(e.StartWeb() + "/api/state")
+			base := e.StartWeb()
+			got := e.HTTPGet(base + "/api/project?project_name=p")
 			if got.Status != 200 {
-				t.Fatalf("Web state: status %d: %s", got.Status, got.Body)
+				t.Fatalf("Web project: status %d: %s", got.Status, got.Body)
 			}
-			var state struct {
-				Projects []struct {
-					Runs []struct {
-						RunID      string            `json:"run_id"`
-						Status     string            `json:"status"`
-						Unreadable string            `json:"unreadable"`
-						Jobs       []json.RawMessage `json:"jobs"`
-					} `json:"runs"`
-				} `json:"projects"`
+			var project struct {
+				Runs []struct {
+					RunID      string `json:"run_id"`
+					Status     string `json:"status"`
+					Unreadable string `json:"unreadable"`
+				} `json:"runs"`
 			}
-			if err := json.Unmarshal([]byte(got.Body), &state); err != nil || len(state.Projects) != 1 {
-				t.Fatalf("Web state: %v: %s", err, got.Body)
+			if err := json.Unmarshal([]byte(got.Body), &project); err != nil || len(project.Runs) != 2 {
+				t.Fatalf("Web project: %v: %s", err, got.Body)
 			}
-			for _, run := range state.Projects[0].Runs {
+			for _, summary := range project.Runs {
+				detailResponse := e.HTTPGet(base + "/api/run?project_name=p&run_id=" + summary.RunID)
+				if detailResponse.Status != 200 {
+					t.Fatalf("Web run %s: status %d: %s", summary.RunID, detailResponse.Status, detailResponse.Body)
+				}
+				var run struct {
+					RunID      string            `json:"run_id"`
+					Status     string            `json:"status"`
+					Unreadable string            `json:"unreadable"`
+					Jobs       []json.RawMessage `json:"jobs"`
+				}
+				if err := json.Unmarshal([]byte(detailResponse.Body), &run); err != nil {
+					t.Fatal(err)
+				}
 				switch run.RunID {
 				case newer:
 					if run.Status != "unreadable" || !strings.Contains(run.Unreadable, "upgrade rotari") || len(run.Jobs) != 0 {

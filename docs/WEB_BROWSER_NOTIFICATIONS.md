@@ -1,9 +1,10 @@
 # Web browser notifications
 
 The Web UI can show a browser desktop notification when a run finishes or a
-job fails. This is entirely local: it reuses the existing state polling that
-already renders the page, sends no extra network requests, and never talks to
-an external service. This is the local-only alternative to
+job fails. This is entirely local and never talks to an external service. The
+page polls lightweight project/run metadata and the details of active runs so
+it can monitor failures without repeatedly loading completed run histories.
+This is the local-only alternative to
 [Webhook integrations](WEBHOOK_NOTIFICATIONS.md) for anyone who cannot send run
 data outside their network.
 
@@ -20,11 +21,14 @@ browser permission (which the page cannot do itself once granted).
 - A run finishing, successfully or not.
 - A job newly failing, even before its run finishes.
 
-Job failures and a run's own completion detected in the same polling tick (the
-page polls `/api/state` every 2 seconds) are merged into one notification per
-run; events detected at different times stay separate. The very first poll
-after loading the page never triggers a notification, so existing run history
-never causes a notification burst when you open the page.
+Job failures and a run's own completion detected in the same polling tick
+(the current basedir's `/api/state` is checked every 2 seconds, and selected
+other basedirs use `/api/active-runs`) are merged into one notification per
+run; events detected at different times stay separate. Project queues and run
+summaries are loaded when a project is opened; run details are fetched when
+opened and active-run details are refreshed while those runs are executing. Completed run details are not repeatedly fetched.
+The very first poll after loading the page never triggers a notification, so
+existing run history never causes a notification burst when you open the page.
 
 Clicking a notification focuses the tab and opens the corresponding run page.
 
