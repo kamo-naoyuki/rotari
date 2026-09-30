@@ -55,14 +55,15 @@ def render() -> str:
     sections = [BEGIN, ""]
     for name in COMMANDS:
         command = next(item for item in CLI_SCHEMA["commands"] if item["name"] == name)
-        return_type = (
-            "dict[str, object]" if name in {"wait", "show"} else "CommandResult"
-        )
+        return_type = {
+            "add": "Job",
+            "run": "Run",
+            "wait": "dict[str, object]",
+            "show": "dict[str, object]",
+        }.get(name, "CommandResult")
         signature = f"Rotari.{name}(**options: object) -> {return_type}"
         if name == "add":
-            signature = (
-                "Rotari.add(command: Sequence[str], **options: object) -> CommandResult"
-            )
+            signature = "Rotari.add(command: Sequence[str], **options: object) -> Job"
         elif name == "reset":
             signature = "Rotari.reset(*, recover: bool = False) -> CommandResult"
         elif name == "wait":

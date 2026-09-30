@@ -1,14 +1,18 @@
 # Python API
 
-The client methods return `CommandResult` unless otherwise noted. Command
-options are generated from the Rotari CLI schema.
+`add()` returns `Job` and `run()` returns `Run`; both expose the CLI result
+attributes (`args`, `returncode`, `stdout`, `stderr`). `Job` has `id`, `name`,
+and `command`; `Run` has `id` and `name`. For a matrix addition, `Job.id` and
+`Job.name` are `None` because the CLI returns only the job count. Other methods
+return `CommandResult` unless otherwise noted. Command options are generated
+from the rotari CLI schema.
 
 <!-- BEGIN GENERATED CLI OPTIONS -->
 
 ## `Rotari.add`
 
 ```python
-Rotari.add(command: Sequence[str], **options: object) -> CommandResult
+Rotari.add(command: Sequence[str], **options: object) -> Job
 ```
 
 Add a command to a queue.
@@ -39,7 +43,7 @@ Add a command to a queue.
 ## `Rotari.run`
 
 ```python
-Rotari.run(**options: object) -> CommandResult
+Rotari.run(**options: object) -> Run
 ```
 
 Execute queued commands, optionally selecting jobs from a run.

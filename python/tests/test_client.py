@@ -2,7 +2,7 @@ import inspect
 import json
 from unittest.mock import patch
 
-from rotari import Rotari, RotariError
+from rotari import Job, Rotari, RotariError, Run
 from rotari.client import CommandResult
 
 
@@ -20,8 +20,21 @@ def completed(stdout="", stderr="", returncode=0):
 
 def test_add_builds_safe_argv_with_location_options():
     client = Rotari("rotari", basedir="state", project="demo")
-    with patch("subprocess.run", return_value=completed()) as run:
-        client.add(["./train.sh", "--epochs", "3"], job_name="train", env=["GPU=0"])
+    output = (
+        "added project=demo job_id=job-1 job_name=train "
+        "command=[./train.sh --epochs 3]\n"
+    )
+    with patch("subprocess.run", return_value=completed(output)) as run:
+        job = client.add(
+            ["./train.sh", "--epochs", "3"], job_name="train", env=["GPU=0"]
+        )
+
+    assert isinstance(job, Job)
+    assert job.id == job.job_id == "job-1"
+    assert job.name == job.job_name == "train"
+    assert job.command == ("./train.sh", "--epochs", "3")
+    assert job.args == tuple(run.call_args.args[0])
+    assert job.returncode == 0
 
     assert run.call_args.args[0] == [
         "rotari",
@@ -106,18 +119,97 @@ def test_reset_builds_location_aware_argv():
 
 
 def test_run_builds_options_from_schema():
-    with patch("subprocess.run", return_value=completed()) as run:
-        Rotari("rotari").run(run_id="run-1", async_=True, job_ids=["job-1"])
+    output = (
+        "=== Run started ===\n  Project: demo\n  Run: nightly (run-2)\n"
+        "\nCheck status:\n  rotari show --run-id run-2\n"
+    )
+    with patch("subprocess.run", return_value=completed(output)) as run:
+        result = Rotari("rotari").run(
+            run_id="run-1", run_name="nightly", async_=True, job_ids=["job-1"]
+        )
+
+    assert isinstance(result, Run)
+    assert result.id == result.run_id == "run-2"
+    assert result.name == result.run_name == "nightly"
+    assert result.args == tuple(run.call_args.args[0])
 
     assert run.call_args.args[0] == [
         "rotari",
         "run",
         "--run-id",
         "run-1",
+        "--run-name",
+        "nightly",
         "--job-id",
         "job-1",
         "--async",
     ]
+
+
+def test_sync_run_uses_new_run_id_from_progress_not_source_run():
+    output = (
+        "=== Run started ===\n  Project: demo\n  Run ID: run-2\n"
+        "=== Run finished ===\n  Run: nightly (run-2)\n"
+    )
+    with patch("subprocess.run", return_value=completed(output)):
+        result = Rotari().run(run_id="run-1", run_name="nightly")
+
+    assert result.run_id == "run-2"
+    assert result.stdout == output
+
+
+def test_quiet_does_not_hide_ids_and_matrix_does_not_claim_one_id():
+    with patch(
+        "subprocess.run",
+        return_value=completed("added project=demo jobs=2 command=[true]\n"),
+    ) as run:
+        job = Rotari().add(
+            ["true"], job_name="train", matrix=["SEED=1,2"], quiet=True
+        )
+    assert job.id is None
+    assert job.name is None
+    assert job.command == ("true",)
+    assert "--quiet" not in run.call_args.args[0]
+
+    output = (
+        "=== Run started ===\n  Run: run-3\n"
+        "\nCheck status:\n  rotari show --run-id run-3\n"
+    )
+    with patch("subprocess.run", return_value=completed(output)) as run:
+        result = Rotari().run(async_=True, quiet=True)
+    assert result.run_id == "run-3"
+    assert "--quiet" not in run.call_args.args[0]
+
+
+def test_failed_run_exposes_started_id_on_error_result():
+    with patch(
+        "subprocess.run",
+        return_value=completed("=== Run started ===\n  Run ID: run-3\n", returncode=1),
+    ):
+        try:
+            Rotari().run()
+        except RotariError as error:
+            assert error.result.run_id == "run-3"
+        else:
+            raise AssertionError("RotariError was not raised")
+
+
+def test_missing_ids_do_not_silently_produce_unidentified_objects():
+    with patch("subprocess.run", return_value=completed("no job ID")):
+        try:
+            Rotari().add(["true"])
+        except ValueError as error:
+            assert "job ID" in str(error)
+        else:
+            raise AssertionError("missing job ID was accepted")
+
+    with patch("subprocess.run", return_value=completed("no run ID")):
+        try:
+            Rotari().run()
+        except ValueError as error:
+            assert "run ID" in str(error)
+        else:
+            raise AssertionError("missing run ID was accepted")
 
 
 def test_wait_returns_failed_run_summary_instead_of_raising():

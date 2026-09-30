@@ -132,12 +132,54 @@ class CommandResult:
     @property
     def run_id(self) -> str | None:
         match = re.search(r"\brun_id=([^\s]+)", self.stdout)
+        if match:
+            return match.group(1)
+        match = re.search(r"(?m)^ {2}Run ID: ([^\s]+)$", self.stdout)
+        if match:
+            return match.group(1)
+        match = re.search(r"(?m)^ {2}rotari show --run-id ([^\s]+)$", self.stdout)
+        if match:
+            return match.group(1)
+        match = re.search(r"(?m)^ {2}Run: ([^\s(]+)$", self.stdout)
         return match.group(1) if match else None
 
     def json(self) -> object:
         """Decode the first JSON value printed by the command."""
 
         return json.loads(self.stdout)
+
+
+@dataclass(frozen=True)
+class Job(CommandResult):
+    """A queued command returned by add; matrix additions have no single ID."""
+
+    id: str | None
+    name: str | None
+    command: tuple[str, ...]
+
+    @property
+    def job_id(self) -> str | None:
+        return self.id
+
+    @property
+    def job_name(self) -> str | None:
+        return self.name
+
+
+@dataclass(frozen=True)
+class Run(CommandResult):
+    """A newly started run, whether synchronous or asynchronous."""
+
+    id: str
+    name: str | None
+
+    @property
+    def run_id(self) -> str:
+        return self.id
+
+    @property
+    def run_name(self) -> str | None:
+        return self.name
 
 
 class RotariError(RuntimeError):
@@ -200,20 +242,50 @@ class Rotari:
         self,
         command: Sequence[str],
         **options: object,
-    ) -> CommandResult:
+    ) -> Job:
         """Add an executable argument list to the current project queue."""
 
-        arguments = build_command_arguments("add", options)
+        # The subprocess output is captured, so CLI quiet mode would only
+        # hide the ID that add needs to return.
+        arguments = build_command_arguments("add", {**options, "quiet": False})
         arguments += ["--", *command]
-        return self.command(*arguments)
+        result = self.command(*arguments)
+        # CLI add prints one ID for a single job, but only a count for a matrix.
+        match = re.search(r"\bjob_id=([^\s]+)", result.stdout)
+        if match is None and not options.get("matrix"):
+            raise ValueError("rotari add did not report a job ID")
+        name = options.get("job_name") if not options.get("matrix") else None
+        return Job(
+            result.args,
+            result.returncode,
+            result.stdout,
+            result.stderr,
+            id=match.group(1) if match else None,
+            name=str(name) if name is not None else None,
+            command=tuple(command),
+        )
 
-    def run(self, **options: object) -> CommandResult:
+    def run(self, **options: object) -> Run:
         """Run the current queue with the supplied CLI options."""
 
         if options.get("partial_array") is not None:
             options["partial_array"] = str(options["partial_array"]).lower()
-        arguments = build_command_arguments("run", options)
-        return self.command(*arguments)
+        # Captured CLI output is the only source of the newly allocated run ID.
+        # Do not suppress it, even if the caller requests quiet mode.
+        arguments = build_command_arguments("run", {**options, "quiet": False})
+        result = self.command(*arguments)
+        run_id = result.run_id
+        if run_id is None:
+            raise ValueError("rotari run did not report a run ID")
+        name = options.get("run_name")
+        return Run(
+            result.args,
+            result.returncode,
+            result.stdout,
+            result.stderr,
+            id=run_id,
+            name=str(name) if name is not None else None,
+        )
 
     def retry(self, **options: object) -> CommandResult:
         """Retry failed and unfinished jobs using the CLI retry alias."""

@@ -29,10 +29,21 @@ JSON summary:
 from rotari import Rotari
 
 rotari = Rotari(basedir=".rotari-state", project="experiment")
-rotari.add(["./train.sh"], job_name="train")
-rotari.run(async_=True)
-summary = rotari.wait()
+job = rotari.add(["./train.sh"], job_name="train")
+print(job.id, job.name, job.command)
+run = rotari.run(async_=True, run_name="experiment-1")
+print(run.id, run.name)
+summary = rotari.wait(run.id)
 ```
+
+`add()` returns a `Job` with `id` (`job_id`), `name` (`job_name`), and the
+registered `command` argument tuple. `run()` returns a `Run` with the newly
+allocated `id` (`run_id`) and `name` (`run_name`). Both retain the invocation's `args`,
+`returncode`, `stdout`, and `stderr` as attributes; `args` are the full CLI
+arguments, whereas `command` is the job's executable argument list. A matrix
+`add()` creates multiple jobs, so its `Job.id` and `Job.name` are `None` (the
+CLI currently returns only a count). `quiet=True` does not suppress captured
+output for these two methods because they need it to obtain IDs.
 
 Workflow manifests can be exchanged as Python dictionaries without creating
 an intermediate file. `export(as_dict=True)` returns a JSON-compatible dict,
@@ -48,7 +59,9 @@ The trailing underscore in `import_()` avoids Python's reserved `import`
 keyword. The client sends the manifest as JSON over stdin to the CLI.
 
 `wait()` and `show()` return decoded JSON objects. Other commands return a
-`CommandResult`; command failures raise `RotariError`.
+`CommandResult`; command failures raise `RotariError`. For a failed synchronous
+`run()`, the exception's `result.run_id` is available when the run started and
+the CLI reported its ID.
 
 Command options are generated from the CLI schema. To inspect the complete
 schema and descriptions:
