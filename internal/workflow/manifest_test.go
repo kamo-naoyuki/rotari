@@ -56,6 +56,17 @@ func TestDecodeYAMLEnvironmentMappingAndLegacySequence(t *testing.T) {
 	}
 }
 
+func TestDecodeYAMLCommandStringifiesScalarArguments(t *testing.T) {
+	input := "version: 1\njobs:\n  - command: [python, train.py, --lr, 0.1]\n"
+	manifest, err := Decode(strings.NewReader(input), "yaml")
+	if err != nil {
+		t.Fatalf("Decode(yaml): %v", err)
+	}
+	if got, want := manifest.Jobs[0].Command, []string{"python", "train.py", "--lr", "0.1"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Command = %v, want %v", got, want)
+	}
+}
+
 func TestDecodeRejectsMalformedYAMLEnvironmentMapping(t *testing.T) {
 	for _, environment := range []string{
 		"EPOCHS: null",
