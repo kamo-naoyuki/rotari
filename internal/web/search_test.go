@@ -107,6 +107,25 @@ func TestSearchHistoryIgnoreCaseAndFuzzyOptions(t *testing.T) {
 	}
 }
 
+func TestSearchHistoryMatchesSavedDiagnosisNameExactly(t *testing.T) {
+	records := []HistorySearchRecord{
+		{BaseDirID: "base", ProjectName: "alpha", RunID: "run-1", JobID: "job-1", JobName: "train", Diagnosis: "Out of memory\nCUDA error"},
+	}
+	request := HistorySearchRequest{
+		Target:  HistorySearchJob,
+		Filters: []HistorySearchFilter{{Target: HistorySearchJob, Field: "diagnosis", Word: "Out of memory"}},
+	}
+	got, err := SearchHistory(records, request)
+	if err != nil || got.Total != 1 || got.Rows[0].JobID != "job-1" {
+		t.Fatalf("diagnosis search = (%#v, %v), want matching job", got, err)
+	}
+	request.Filters[0].Word = "Out of"
+	got, err = SearchHistory(records, request)
+	if err != nil || got.Total != 0 {
+		t.Fatalf("partial diagnosis search = (%#v, %v), want exact dropdown match", got, err)
+	}
+}
+
 func TestSearchHistoryDeduplicatesRunsAndPaginatesDeterministically(t *testing.T) {
 	records := []HistorySearchRecord{
 		{BaseDirID: "base", ProjectName: "alpha", RunID: "run-1", RunName: "nightly", RunStatus: "success", RunFinished: "2026-10-02T10:00:00Z", Timestamp: "2026-10-02T10:00:00Z"},

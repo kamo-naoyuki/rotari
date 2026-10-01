@@ -17,6 +17,7 @@ const historySearchFieldOptions = {
     { target: "run", value: "exit_code", label: "Run · Exit code" },
     { target: "job", value: "command", label: "Job · Command" },
     { target: "job", value: "status", label: "Job · Status" },
+    { target: "job", value: "diagnosis", label: "Job · Diagnosis" },
     { target: "job", value: "job_id", label: "Job · ID" },
     { target: "job", value: "job_name", label: "Job · Name" },
     { target: "job", value: "stage", label: "Job · Stage" },
@@ -28,6 +29,7 @@ const historySearchFieldOptions = {
 let historySearchLastRequest = null;
 let historySearchOffset = 0;
 let historySearchFocusedJobURL = "";
+let historySearchDiagnosisOptions = [];
 
 const historySearchStatusOptions = {
   run: ["running", "finished", "failed", "unreadable"],
@@ -67,24 +69,45 @@ function historySearchValueControl(target, field, selectedValue = "") {
   let options = [];
   if (field === "status") options = historySearchStatusOptions[target] || [];
   if (field === "executor") options = executorNames || [];
-  if (!options.length)
+  if (field === "diagnosis") options = historySearchDiagnosisOptions;
+  if (!options.length && field !== "diagnosis")
     return `<input class="history-search-word" type="search" maxlength="256" placeholder="Search word" aria-label="Search word" value="${esc(selectedValue)}" required />`;
-  const placeholder = field === "status" ? "Choose status" : "Choose executor";
-  const optionHTML = [""]
+  const placeholder =
+    field === "status"
+      ? "Choose status"
+      : field === "executor"
+        ? "Choose executor"
+        : "Choose diagnosis";
+  const optionHTML = historySearchSelectOptions(
+    options,
+    placeholder,
+    selectedValue,
+  );
+  const disabled =
+    field === "diagnosis" && options.length === 0 ? "disabled" : "";
+  return `<select class="history-search-word" aria-label="Search value" ${disabled} required>${optionHTML}</select>`;
+}
+
+function historySearchSelectOptions(options, placeholder, selectedValue = "") {
+  return [""]
     .concat(options)
     .map((value) => {
       const label = value || placeholder;
       return `<option value="${esc(value)}" ${value === selectedValue ? "selected" : ""}>${esc(label)}</option>`;
     })
     .join("");
-  return `<select class="history-search-word" aria-label="Search value" required>${optionHTML}</select>`;
 }
 
-function historySearchUpdateValueControl(select) {
+async function historySearchUpdateValueControl(select, resetDiagnosis = true) {
   const condition = select.closest(".history-search-condition");
   const current = condition.querySelector(".history-search-word");
   const [target, field] = select.value.split(":", 2);
-  current.outerHTML = historySearchValueControl(target, field);
+  const control = historySearchValueControl(target, field);
+  current.outerHTML = control;
+  if (field === "diagnosis") {
+    const diagnosisSelect = condition.querySelector(".history-search-word");
+    await historySearchLoadDiagnosisOptions(diagnosisSelect, resetDiagnosis);
+  }
 }
 
 function historySearchUpdateTarget(select) {
@@ -96,7 +119,7 @@ function historySearchUpdateTarget(select) {
       field.innerHTML = historySearchOptionsHTML(select.value, selected);
       if (field.value !== selected && field.options.length)
         field.selectedIndex = 0;
-      historySearchUpdateValueControl(field);
+      void historySearchUpdateValueControl(field);
     },
   );
 }
@@ -149,7 +172,7 @@ function historySearchScopeHTML() {
     <select class="history-search-scope-project" aria-label="Project" onchange="historySearchProjectChanged(this)" disabled>
       <option value="">All projects</option>
     </select>
-    <select class="history-search-scope-run" aria-label="Run" disabled>
+    <select class="history-search-scope-run" aria-label="Run" onchange="historySearchScopeChanged()" disabled>
       <option value="">All runs</option>
     </select>
     <button type="button" class="history-search-scope-remove" aria-label="Remove search range" onclick="historySearchRemoveScope(this)">−</button>
@@ -246,12 +269,16 @@ function historySearchAddScope() {
   if (!scopes) return;
   scopes.insertAdjacentHTML("beforeend", historySearchScopeHTML());
   historySearchUpdateScopeControls(scopes);
+  void historySearchRefreshDiagnosisOptions();
+  historySearchRefreshDiagnosisOptions();
 }
 
 function historySearchRemoveScope(button) {
   const scopes = document.getElementById("history-search-scopes");
   button.closest(".history-search-scope-row").remove();
   historySearchUpdateScopeControls(scopes);
+  void historySearchRefreshDiagnosisOptions();
+  historySearchRefreshDiagnosisOptions();
 }
 
 function historySearchUpdateScopeControls(scopes) {
@@ -274,7 +301,10 @@ async function historySearchBasedirChanged(select) {
   run.innerHTML = '<option value="">All runs</option>';
   project.disabled = !select.value;
   run.disabled = true;
-  if (!select.value) return;
+  if (!select.value) {
+    await historySearchRefreshDiagnosisOptions();
+    return;
+  }
   const selectedID = select.value;
   try {
     const response = await fetch(
@@ -295,6 +325,7 @@ async function historySearchBasedirChanged(select) {
   } catch (error) {
     // Keep the project selector empty if the selected basedir is unavailable.
   }
+  await historySearchRefreshDiagnosisOptions();
 }
 
 async function historySearchProjectChanged(select) {
@@ -303,7 +334,10 @@ async function historySearchProjectChanged(select) {
   const run = row.querySelector(".history-search-scope-run");
   run.innerHTML = '<option value="">All runs</option>';
   run.disabled = !select.value;
-  if (!select.value) return;
+  if (!select.value) {
+    await historySearchRefreshDiagnosisOptions();
+    return;
+  }
   const selectedProject = select.value;
   const selectedID = basedir.value;
   const query = new URLSearchParams({
@@ -335,10 +369,11 @@ async function historySearchProjectChanged(select) {
   } catch (error) {
     // Keep the run selector empty if the selected project is unavailable.
   }
+  await historySearchRefreshDiagnosisOptions();
 }
 
-function historySearchRequestFromForm() {
-  const scopes = [...document.querySelectorAll(".history-search-scope-row")]
+function historySearchSelectedScopes() {
+  return [...document.querySelectorAll(".history-search-scope-row")]
     .map((row) => ({
       basedir_id: row.querySelector(".history-search-scope-basedir").value,
       project_name: row.querySelector(".history-search-scope-project").value,
@@ -350,6 +385,66 @@ function historySearchRequestFromForm() {
       ...(scope.project_name ? { project_name: scope.project_name } : {}),
       ...(scope.run_id ? { run_id: scope.run_id } : {}),
     }));
+}
+
+async function historySearchLoadDiagnosisOptions(
+  select,
+  resetSelection = true,
+) {
+  const scopes = historySearchSelectedScopes();
+  const scopeKey = JSON.stringify(scopes);
+  const selectedValue = resetSelection ? "" : select.value;
+  if (!scopes.length) {
+    select.innerHTML = historySearchSelectOptions([], "Choose diagnosis");
+    select.disabled = true;
+    return;
+  }
+  select.dataset.scopeKey = scopeKey;
+  select.disabled = true;
+  try {
+    const response = await fetch("/api/history-search-diagnoses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scopes }),
+    });
+    if (
+      !response.ok ||
+      !select.isConnected ||
+      select.dataset.scopeKey !== scopeKey ||
+      JSON.stringify(historySearchSelectedScopes()) !== scopeKey
+    )
+      return;
+    const options = await response.json();
+    historySearchDiagnosisOptions = options.diagnoses || [];
+    select.innerHTML = historySearchSelectOptions(
+      historySearchDiagnosisOptions,
+      "Choose diagnosis",
+      selectedValue,
+    );
+    select.disabled = historySearchDiagnosisOptions.length === 0;
+  } catch (error) {
+    // Keep the diagnosis selector empty if reading saved diagnoses failed.
+    select.disabled = true;
+  }
+}
+
+async function historySearchRefreshDiagnosisOptions() {
+  const selectors = [
+    ...document.querySelectorAll(
+      ".history-search-condition .history-search-field",
+    ),
+  ].filter((field) => field.value === "job:diagnosis");
+  await Promise.all(
+    selectors.map((field) => historySearchUpdateValueControl(field, false)),
+  );
+}
+
+function historySearchScopeChanged() {
+  void historySearchRefreshDiagnosisOptions();
+}
+
+function historySearchRequestFromForm() {
+  const scopes = historySearchSelectedScopes();
   const filters = [
     ...document.querySelectorAll(".history-search-condition"),
   ].map((condition, index) => {

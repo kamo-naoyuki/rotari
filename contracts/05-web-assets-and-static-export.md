@@ -47,8 +47,9 @@ expose run and project attributes, and job results expose job, run, and
 project attributes. Ignore-case matching is on by default and can be disabled.
 Fuzzy matching is an independent, opt-in setting for free-text attributes; it
 allows a small edit distance and ignores terms shorter than four characters.
-Status and executor conditions use dropdowns and exact value matching. Other
-attributes accept search text and match substrings by default. Additional
+Status, executor, and saved job diagnosis conditions use dropdowns and exact
+value matching; diagnosis choices are loaded from saved result metadata in the
+selected search ranges. Other attributes accept search text and match substrings by default. Additional
 conditions are joined in displayed order with AND or OR, evaluated left-to-right.
 Results always remain at the selected level. Results are
 ordered by activity time with a

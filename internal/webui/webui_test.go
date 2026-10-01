@@ -180,6 +180,12 @@ const project = { value: '', disabled: true, innerHTML: '', optionsHTML: '', ins
 const run = { value: '', disabled: true, innerHTML: '', optionsHTML: '', insertAdjacentHTML(_where, html) { this.optionsHTML += html; } };
 const row = { querySelector(selector) { return selector === '.history-search-scope-project' ? project : run; } };
 const basedir = { value: 'base-a', closest() { return row; } };
+const scopeRun = run;
+row.querySelector = selector => selector === '.history-search-scope-project'
+	? project
+	: selector === '.history-search-scope-basedir'
+		? basedir
+		: scopeRun;
 const requests = [];
 const location = { textContent: 'loading...' };
 const app = { className: '', innerHTML: '' };
@@ -194,14 +200,37 @@ const resultContainer = { innerHTML: '' };
 const makeRemoveButton = () => ({ removed: false, remove() { this.removed = true; } });
 const firstScope = {
 	removeButton: makeRemoveButton(),
-	querySelector() { return this.removeButton && !this.removeButton.removed ? this.removeButton : null; },
+	querySelector(selector) {
+		if (selector === '.history-search-scope-remove') return this.removeButton && !this.removeButton.removed ? this.removeButton : null;
+		if (selector === '.history-search-scope-basedir') return basedir;
+		if (selector === '.history-search-scope-project') return project;
+		if (selector === '.history-search-scope-run') return scopeRun;
+		return null;
+	},
 };
 const secondScope = {
 	removeButton: makeRemoveButton(),
-	querySelector() { return this.removeButton && !this.removeButton.removed ? this.removeButton : null; },
+	querySelector(selector) {
+		if (selector === '.history-search-scope-remove') return this.removeButton && !this.removeButton.removed ? this.removeButton : null;
+		if (selector === '.history-search-scope-basedir') return basedir;
+		if (selector === '.history-search-scope-project') return project;
+		if (selector === '.history-search-scope-run') return scopeRun;
+		return null;
+	},
 	insertAdjacentHTML() { this.removeButton = makeRemoveButton(); },
 };
 const scopeContainer = { children: [firstScope, secondScope] };
+const diagnosisField = { value: 'job:diagnosis', closest() { return diagnosisCondition; } };
+const diagnosisValue = {
+	value: 'Old diagnosis', dataset: {}, disabled: false, isConnected: true, innerHTML: '',
+	set outerHTML(html) { this.innerHTML = html; this.value = ''; },
+	closest() { return diagnosisCondition; },
+};
+const diagnosisCondition = {
+	querySelector(selector) {
+		return selector === '.history-search-field' ? diagnosisField : diagnosisValue;
+	},
+};
 let scrolledJob = '';
 const runRows = Array.from({ length: 25 }, (_, index) => ({
 	dataset: { jobId: 'job-' + index },
@@ -243,13 +272,20 @@ const context = {
 			if (id === 'history-search-form') return ++formLookups === 1 ? null : form;
 			return null;
 		},
-		querySelectorAll(selector) { return selector === '#app table.runs' ? [runTable] : []; },
+		querySelectorAll(selector) {
+			if (selector === '#app table.runs') return [runTable];
+			if (selector === '.history-search-scope-row') return [firstScope, secondScope];
+			if (selector === '.history-search-condition .history-search-field') return [diagnosisField];
+			return [];
+		},
 	},
 	fetch: async url => {
 		requests.push(url);
 		return { ok: true, json: async () => String(url).includes('project_name=')
 			? { runs: [{ id: 'run-1', name: 'nightly', status: 'success' }] }
-			: { projects: ['project-a'] } };
+			: String(url).includes('/api/history-search-diagnoses')
+				? { diagnoses: ['New diagnosis'] }
+				: { projects: ['project-a'] } };
 	},
 	URLSearchParams,
 		decodeURIComponent,
@@ -267,7 +303,8 @@ vm.runInContext(code, context);
 	const jobFields = context.historySearchOptionsHTML('job');
 	if (!projectFields.includes('project:project_name')) throw new Error('project target is missing its attribute');
 	if (!runFields.includes('project:project_name') || !runFields.includes('run:run_name')) throw new Error('run target is missing project/run attributes');
-	if (!jobFields.includes('project:project_name') || !jobFields.includes('run:run_name') || !jobFields.includes('job:command')) throw new Error('job target is missing project/run/job attributes');
+	if (!jobFields.includes('project:project_name') || !jobFields.includes('run:run_name') || !jobFields.includes('job:command') || !jobFields.includes('job:diagnosis')) throw new Error('job target is missing project/run/job attributes');
+	if (!context.historySearchValueControl('job', 'diagnosis').startsWith('<select')) throw new Error('diagnosis is not a selectable job attribute');
 	const runStatus = context.historySearchValueControl('run', 'status');
 	const jobStatus = context.historySearchValueControl('job', 'status');
 	const executor = context.historySearchValueControl('job', 'executor');
@@ -301,7 +338,11 @@ vm.runInContext(code, context);
 	project.value = 'project-a';
 	await context.historySearchProjectChanged(project);
 	if (run.disabled || !run.optionsHTML.includes('run-1') || !run.optionsHTML.includes('nightly')) throw new Error('project did not load run options');
-	if (requests.length !== 2) throw new Error('expected one options request per hierarchy level');
+	diagnosisValue.value = 'Old diagnosis';
+	await context.historySearchRefreshDiagnosisOptions();
+	if (!requests.some(url => String(url).includes('/api/history-search-diagnoses'))) throw new Error('diagnosis candidate API was not called');
+	if (requests.filter(url => String(url).includes('/api/history-search-options')).length !== 2) throw new Error('expected one basedir/project options request per hierarchy level');
+	if (!diagnosisValue.innerHTML.includes('New diagnosis') || diagnosisValue.innerHTML.includes('Old diagnosis')) throw new Error('diagnosis options were not refreshed for the selected range: ' + diagnosisValue.innerHTML);
 })().catch(error => { console.error(error); process.exit(1); });
 `
 	if output, err := exec.Command("node", "-e", script).CombinedOutput(); err != nil {
@@ -351,13 +392,33 @@ func TestWebHistorySearchScopesAcrossSelectedBasedirs(t *testing.T) {
 		if err := stateinternal.WriteJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{
 			RunID: item.runID, RunName: "nightly", Status: "success",
 			StartedAt: "2026-10-01T10:00:00Z", FinishedAt: "2026-10-01T10:01:00Z",
-			Results: []model.JobResult{{ID: "job-1", ExitCode: 0}},
+			Results: []model.JobResult{{ID: "job-1", ExitCode: 1, Diagnoses: []model.RuleDiagnosis{{Name: "Out of memory", Evidence: "allocation failed"}}}},
 		}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	options := testOptions(baseA, false)
 	options.BaseDirs = []string{baseA, baseB}
+	diagnosisRequest, err := json.Marshal(map[string]any{
+		"scopes": []webprojection.HistorySearchScope{{BaseDirID: basedirID(baseA)}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	diagnosisRecorder := httptest.NewRecorder()
+	Handler(options).ServeHTTP(diagnosisRecorder, httptest.NewRequest(http.MethodPost, "/api/history-search-diagnoses", bytes.NewReader(diagnosisRequest)))
+	if diagnosisRecorder.Code != http.StatusOK {
+		t.Fatalf("diagnosis options status = %d, body = %s", diagnosisRecorder.Code, diagnosisRecorder.Body.String())
+	}
+	var diagnosisOptions struct {
+		Diagnoses []string `json:"diagnoses"`
+	}
+	if err := json.Unmarshal(diagnosisRecorder.Body.Bytes(), &diagnosisOptions); err != nil {
+		t.Fatal(err)
+	}
+	if len(diagnosisOptions.Diagnoses) != 1 || diagnosisOptions.Diagnoses[0] != "Out of memory" {
+		t.Fatalf("diagnosis options = %#v, want saved diagnosis names from selected range", diagnosisOptions.Diagnoses)
+	}
 	for _, test := range []struct {
 		query string
 		check func(*testing.T, []byte)
@@ -1373,7 +1434,7 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 	if !strings.Contains(jobsHTML, `class="sidebar-project-row"><span class="sidebar-toggle-placeholder"`) {
 		t.Fatal("Job activity project links do not use the shared sidebar row layout")
 	}
-	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-config-controls {", "flex-direction: column;", ".sidebar-config-controls > button,", ".sidebar-config-controls > .sidebar-config-action {", ".sidebar-search-link {", ".header-home {", "display: inline-flex;", "text-decoration: none;", "width: max-content;", "box-sizing: border-box;", "align-self: flex-start;", "max-width: 100%;", ".sidebar-resizer {", ".basedir-notification-toggle {", ".basedir-notification-control {", ".basedir-notification-tooltip {", "width: 14px !important;", "height: 14px !important;", "padding: 0;", ".basedir-contents {", "margin-left: 42px;", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "overscroll-behavior: contain;", "overflow-anchor: none;", "text-overflow: ellipsis;"} {
+	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-config-controls {", "flex-direction: column;", ".sidebar-config-controls > button,", ".sidebar-config-controls > .sidebar-config-action {", ".sidebar-search-link {", "width: max-content;", "box-sizing: border-box;", "align-self: flex-start;", "max-width: 100%;", ".sidebar-resizer {", ".basedir-notification-toggle {", ".basedir-notification-control {", ".basedir-notification-tooltip {", "width: 14px !important;", "height: 14px !important;", "padding: 0;", ".basedir-contents {", "margin-left: 42px;", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "overscroll-behavior: contain;", "overflow-anchor: none;", "text-overflow: ellipsis;"} {
 		if !strings.Contains(webSidebarStylesCSS, marker) {
 			t.Fatalf("shared sidebar style is missing %q", marker)
 		}

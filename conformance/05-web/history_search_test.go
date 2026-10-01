@@ -17,8 +17,26 @@ func covers(t *testing.T, _ ...string) { t.Helper() }
 func TestHistorySearchAcrossProjects(t *testing.T) {
 	covers(t, "WEB-2")
 	e := support.NewEnv(t)
-	e.FinishedJobRun("alpha")
+	alphaRunID, _ := e.FinishedJobRun("alpha")
 	e.FinishedJobRun("beta")
+	alphaSummaryPath := filepath.Join(e.Base, "projects", "alpha", "runs", alphaRunID, "summary.json")
+	alphaSummaryData, err := os.ReadFile(alphaSummaryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var alphaSummary map[string]any
+	if err := json.Unmarshal(alphaSummaryData, &alphaSummary); err != nil {
+		t.Fatal(err)
+	}
+	results := alphaSummary["results"].([]any)
+	results[0].(map[string]any)["diagnoses"] = []map[string]string{{"name": "Out of memory"}}
+	alphaSummaryData, err = json.Marshal(alphaSummary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(alphaSummaryPath, alphaSummaryData, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	base := e.StartWeb()
 	absBase, err := filepath.Abs(e.Base)
 	if err != nil {
@@ -87,5 +105,36 @@ func TestHistorySearchAcrossProjects(t *testing.T) {
 	}
 	if got := searchTotal("ture", false, false); got != 0 {
 		t.Errorf("exact typo total = %d, want 0", got)
+	}
+	searchRange := map[string]string{"basedir_id": base64.RawURLEncoding.EncodeToString([]byte(filepath.Clean(absBase)))}
+	diagnosisOptions := e.HTTPPostJSON(base+"/api/history-search-diagnoses", map[string]any{"scopes": []map[string]string{searchRange}})
+	if diagnosisOptions.Status != 200 {
+		t.Fatalf("diagnosis options: status %d: %s", diagnosisOptions.Status, diagnosisOptions.Body)
+	}
+	var options struct {
+		Diagnoses []string `json:"diagnoses"`
+	}
+	if err := json.Unmarshal([]byte(diagnosisOptions.Body), &options); err != nil {
+		t.Fatal(err)
+	}
+	if len(options.Diagnoses) != 1 || options.Diagnoses[0] != "Out of memory" {
+		t.Fatalf("diagnosis options = %#v, want saved diagnosis names", options.Diagnoses)
+	}
+	diagnosisSearch := e.HTTPPostJSON(base+"/api/history-search", map[string]any{
+		"scopes":  []map[string]string{searchRange},
+		"target":  "job",
+		"filters": []map[string]string{{"target": "job", "field": "diagnosis", "word": options.Diagnoses[0]}},
+	})
+	if diagnosisSearch.Status != 200 {
+		t.Fatalf("diagnosis search: status %d: %s", diagnosisSearch.Status, diagnosisSearch.Body)
+	}
+	var diagnosisResult struct {
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal([]byte(diagnosisSearch.Body), &diagnosisResult); err != nil {
+		t.Fatal(err)
+	}
+	if diagnosisResult.Total != 1 {
+		t.Errorf("diagnosis search total = %d, want 1", diagnosisResult.Total)
 	}
 }

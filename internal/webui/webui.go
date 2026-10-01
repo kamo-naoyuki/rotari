@@ -377,6 +377,7 @@ func (s site) baseHandler() http.Handler {
 	})
 	mux.HandleFunc("/api/history-search", s.handleHistorySearch)
 	mux.HandleFunc("/api/history-search-options", s.handleHistorySearchOptions)
+	mux.HandleFunc("/api/history-search-diagnoses", s.handleHistorySearchDiagnoses)
 	mux.HandleFunc("/api/active-runs", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			methodNotAllowed(writer)

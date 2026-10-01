@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
@@ -17,6 +18,10 @@ import (
 
 type historySearchAPIRequest struct {
 	webprojection.HistorySearchRequest
+	Scopes []webprojection.HistorySearchScope `json:"scopes"`
+}
+
+type historySearchDiagnosesRequest struct {
 	Scopes []webprojection.HistorySearchScope `json:"scopes"`
 }
 
@@ -93,6 +98,55 @@ func (s site) handleHistorySearchOptions(writer http.ResponseWriter, request *ht
 		runs = append(runs, historySearchRunOption{ID: runID, Name: summary.RunName, Status: status})
 	}
 	writeWebJSON(writer, historySearchOptionsResponse{Runs: runs})
+}
+
+func (s site) handleHistorySearchDiagnoses(writer http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodPost {
+		methodNotAllowed(writer)
+		return
+	}
+	request.Body = http.MaxBytesReader(writer, request.Body, 1<<20)
+	var input historySearchDiagnosesRequest
+	decoder := json.NewDecoder(request.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeWebError(writer, err)
+		return
+	}
+	if len(input.Scopes) == 0 {
+		writeWebError(writer, fmt.Errorf("diagnosis options require at least one search range"))
+		return
+	}
+	names := make(map[string]bool)
+	for _, scope := range input.Scopes {
+		entry, ok := s.registeredBasedir(scope.BaseDirID)
+		if !ok {
+			writeWebError(writer, fmt.Errorf("invalid basedir_id %q", scope.BaseDirID))
+			return
+		}
+		if scope.RunID != "" && scope.ProjectName == "" {
+			writeWebError(writer, fmt.Errorf("project_name is required with run_id"))
+			return
+		}
+		records, err := s.loadHistorySearchRecords(entry, scope.ProjectName, scope.RunID)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		for _, record := range records {
+			for _, name := range strings.Split(record.Diagnosis, "\n") {
+				if name != "" {
+					names[name] = true
+				}
+			}
+		}
+	}
+	options := make([]string, 0, len(names))
+	for name := range names {
+		options = append(options, name)
+	}
+	sort.Strings(options)
+	writeWebJSON(writer, map[string][]string{"diagnoses": options})
 }
 
 func containsHistorySearchValue(values []string, value string) bool {
@@ -327,5 +381,23 @@ func historySearchJobRecord(base webprojection.HistorySearchRecord, job webproje
 	base.JobStatus, base.JobStage = jobStatus, job.Stage
 	base.Command, base.Executor, base.AttemptID = strings.Join(job.Command, " "), job.Executor, job.AttemptID
 	base.JobExitCode, base.Timestamp = exitCode, timestamp
+	if job.Result != nil {
+		names := make([]string, 0, len(job.Result.Diagnoses))
+		for _, diagnosis := range job.Result.Diagnoses {
+			if diagnosis.Name != "" {
+				names = append(names, diagnosis.Name)
+			}
+		}
+		base.Diagnosis = strings.Join(names, "\n")
+	}
+	if job.Result != nil {
+		names := make([]string, 0, len(job.Result.Diagnoses))
+		for _, diagnosis := range job.Result.Diagnoses {
+			if diagnosis.Name != "" {
+				names = append(names, diagnosis.Name)
+			}
+		}
+		base.Diagnosis = strings.Join(names, "\n")
+	}
 	return base
 }

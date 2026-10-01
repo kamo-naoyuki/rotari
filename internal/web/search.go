@@ -56,6 +56,7 @@ type HistorySearchRecord struct {
 	JobStatus   string
 	JobStage    string
 	Command     string
+	Diagnosis   string
 	Executor    string
 	AttemptID   string
 	JobExitCode *int
@@ -153,7 +154,7 @@ func parseHistorySearchTime(value, label string) (time.Time, error) {
 var historySearchFields = map[string]map[string]bool{
 	HistorySearchProject: {"project_name": true},
 	HistorySearchRun:     {"run_id": true, "run_name": true, "status": true, "exit_code": true},
-	HistorySearchJob:     {"job_id": true, "job_name": true, "status": true, "command": true, "stage": true, "executor": true, "attempt_id": true, "exit_code": true},
+	HistorySearchJob:     {"job_id": true, "job_name": true, "status": true, "command": true, "diagnosis": true, "stage": true, "executor": true, "attempt_id": true, "exit_code": true},
 }
 
 // SearchHistory evaluates conditions against the selected hierarchy level.
@@ -313,6 +314,14 @@ func historySearchFilterMatchesWithOptions(record HistorySearchRecord, resultTar
 	if ignoreCase {
 		value, word = strings.ToLower(value), strings.ToLower(word)
 	}
+	if filter.Field == "diagnosis" {
+		for _, diagnosis := range strings.Split(value, "\n") {
+			if diagnosis == word {
+				return true
+			}
+		}
+		return false
+	}
 	if historySearchIsEnumeratedField(filter) {
 		return value == word
 	}
@@ -323,7 +332,7 @@ func historySearchFilterMatchesWithOptions(record HistorySearchRecord, resultTar
 }
 
 func historySearchIsEnumeratedField(filter HistorySearchFilter) bool {
-	return filter.Field == "status" || (filter.Target == HistorySearchJob && filter.Field == "executor")
+	return filter.Field == "status" || (filter.Target == HistorySearchJob && (filter.Field == "executor" || filter.Field == "diagnosis"))
 }
 
 func historySearchFuzzyMatch(value, word string) bool {
@@ -435,6 +444,8 @@ func historySearchFieldValue(record HistorySearchRecord, target, field string) s
 			return record.JobStatus
 		case "command":
 			return record.Command
+		case "diagnosis":
+			return record.Diagnosis
 		case "stage":
 			return record.JobStage
 		case "executor":
