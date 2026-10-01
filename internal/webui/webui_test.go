@@ -271,6 +271,8 @@ setTimeout(() => {
 	if (dom.window.document.getElementById('modal-log').hidden) process.exit(9);
 	if (modal.querySelector('strong').textContent !== 'Job path') process.exit(10);
 	dom.window.history.pushState({}, '', '/project/default/run/run-1');
+	dom.window.eval("state.projects = [{project_name: 'default', runs: [{run_id: 'run-1', context: {config_snapshot_paths: ['/state/projects/default/runs/run-1/configs/config.yaml', '/state/projects/default/runs/run-1/configs/notifications.toml']}}]}];");
+	if (JSON.stringify(dom.window.pageConfigPaths()) !== JSON.stringify(['/state/projects/default/runs/run-1/configs/config.yaml'])) process.exit(58);
 	dom.window.addConfigButton();
 	if (dom.window.document.querySelector('.notification-config-button') || dom.window.document.querySelector('.notification-generate-config-button')) process.exit(43);
 	let notificationConfigReads = 0;
@@ -279,7 +281,10 @@ setTimeout(() => {
 	dom.window.confirm = () => true;
 	dom.window.fetch = async (url, options = {}) => {
 		if (String(url).startsWith('/api/config?')) {
-			return {ok: true, text: async () => JSON.stringify({configs: [{path: '/state/projects/demo/config.yaml', content: 'run: {}\n'}]})};
+			return {ok: true, text: async () => JSON.stringify({configs: [
+				{path: '/state/projects/demo/runs/run-1/configs/config.yaml', content: 'run: {}\n'},
+				{path: '/state/projects/demo/runs/run-1/configs/notifications.toml', content: '[webhook]\nrun_failure = true\n'},
+			]})};
 		}
 		if (String(url).startsWith('/api/notification-config')) {
 			notificationConfigReads++;
@@ -304,8 +309,9 @@ setTimeout(() => {
 	(async () => {
 		await dom.window.showConfig();
 		const configPath = dom.window.document.getElementById('modal-config-paths');
-		if (configPath.hidden || !configPath.textContent.includes('/state/projects/demo/config.yaml')) process.exit(52);
-		if (configPath.querySelector('[data-copy-value="/state/projects/demo/config.yaml"]') === null) process.exit(53);
+		if (configPath.hidden || !configPath.textContent.includes('/state/projects/demo/runs/run-1/configs/config.yaml') || configPath.textContent.includes('notifications.toml')) process.exit(52);
+		if (configPath.querySelector('[data-copy-value="/state/projects/demo/runs/run-1/configs/config.yaml"]') === null) process.exit(53);
+		if (dom.window.document.querySelector('.output-box').textContent.includes('notifications.toml')) process.exit(59);
 		await dom.window.showGenerateNotificationConfig();
 		if (modal.querySelector('strong').textContent !== 'Generate notification config') process.exit(31);
 		if (!dom.window.document.getElementById('notification-config-editor').hidden || dom.window.document.getElementById('config-generator').hidden) process.exit(41);
@@ -1207,7 +1213,7 @@ func TestWebHTMLIncludesProjectRuntime(t *testing.T) {
 
 func TestWebHTMLIncludesConfigPaths(t *testing.T) {
 	html := testSite().webHTML()
-	for _, want := range []string{"function setLocation(path)", "function setModalConfigPaths(paths)", "function addConfigButton()", "function showGenerateConfig()", "generate-config-button", "config-editor", "/api/save-config", "/api/config-targets", "config-target-options", "state.config_path", "project.config_path", "run.context.config_snapshot_paths"} {
+	for _, want := range []string{"function setLocation(path)", "function setModalConfigPaths(paths)", "function addConfigButton()", "function showGenerateConfig()", "generate-config-button", "config-editor", "/api/save-config", "/api/config-targets", "config-target-options", "state.config_path", "project.config_path", "run?.context?.config_snapshot_paths"} {
 		if !webContains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
 		}

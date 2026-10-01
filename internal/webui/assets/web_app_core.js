@@ -671,6 +671,14 @@ function setModalConfigPaths(paths) {
   }
   container.hidden = !paths?.length;
 }
+function isNotificationConfigPath(path) {
+  const value = String(path || "");
+  const separator = String.fromCodePoint(92);
+  const basename = value.slice(
+    Math.max(value.lastIndexOf("/"), value.lastIndexOf(separator)) + 1,
+  );
+  return basename === "notifications.toml";
+}
 function pageConfigPaths() {
   const parts = pageParts();
   if (parts[0] !== "project")
@@ -683,7 +691,9 @@ function pageConfigPaths() {
     const run = project.runs.find(
       (item) => item.run_id === decodeURIComponent(parts[3]),
     );
-    return (run && run.context && run.context.config_snapshot_paths) || [];
+    return (run?.context?.config_snapshot_paths || []).filter(
+      (path) => !isNotificationConfigPath(path),
+    );
   }
   return project.config_path ? [project.config_path] : [];
 }
@@ -712,7 +722,10 @@ async function showConfig() {
     return;
   }
   const payload = JSON.parse(text);
-  const files = payload.configs || [];
+  const isRunPage = parts[0] === "project" && parts[2] === "run";
+  const files = (payload.configs || []).filter(
+    (file) => !isRunPage || !isNotificationConfigPath(file.path),
+  );
   setModalConfigPaths(files.map((file) => file.path));
   const content = files
     .map((item) => "# " + item.path + "\n" + item.content)
