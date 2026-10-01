@@ -286,6 +286,48 @@ func TestFingerprintMatchingRejectsChangedExplicitInputs(t *testing.T) {
 	}
 }
 
+func TestFingerprintMatchingRejectsChangedCommand(t *testing.T) {
+	covers(t, "RUN-4")
+	e := support.NewEnv(t)
+
+	e.MustRotari("add", "-p", "command", "--", "true")
+	e.MustRotari("run", "-p", "command", "--quiet")
+	currentID := support.AddedJobID(t, e.MustRotari("add", "-p", "command", "--", "echo", "changed"))
+	e.MustRotari("run", "-p", "command", "--match-by", "fingerprint", "--quiet")
+	run := readSummary(t, e, "command")
+	command := commandByID(t, readCommandSnapshot(t, e, "command", run.RunID), currentID)
+	if command.Origin != nil {
+		t.Fatalf("changed command unexpectedly matched its source: %#v", command)
+	}
+}
+
+func TestFingerprintMatchingRejectsChangedMatrixValue(t *testing.T) {
+	covers(t, "RUN-4")
+	e := support.NewEnv(t)
+
+	e.MustRotari("add", "-p", "matrix-input", "--matrix", "SEED=1,2", "--", "true")
+	e.MustRotari("run", "-p", "matrix-input", "--quiet")
+	e.MustRotari("add", "-p", "matrix-input", "--matrix", "SEED=1,3", "--", "true")
+	e.MustRotari("run", "-p", "matrix-input", "--match-by", "fingerprint", "--quiet")
+	run := readSummary(t, e, "matrix-input")
+	snapshot := readCommandSnapshot(t, e, "matrix-input", run.RunID)
+	originsByValue := make(map[string]*struct {
+		JobID string `json:"job_id"`
+	})
+	for _, command := range snapshot.Commands {
+		if command.Matrix == nil || len(command.Matrix.Values) != 1 || command.Matrix.Values[0].Name != "SEED" {
+			t.Fatalf("unexpected matrix execution unit: %#v", command)
+		}
+		originsByValue[command.Matrix.Values[0].Value] = command.Origin
+	}
+	if originsByValue["1"] == nil {
+		t.Fatalf("unchanged matrix value did not match its source: %#v", snapshot.Commands)
+	}
+	if origin := originsByValue["3"]; origin != nil {
+		t.Fatalf("changed matrix value unexpectedly matched: %#v", origin)
+	}
+}
+
 type commandSnapshot struct {
 	Commands []snapshotCommand `json:"commands"`
 }
