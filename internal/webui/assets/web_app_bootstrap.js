@@ -28,6 +28,8 @@ function esc(v) {
 }
 const originalRender = render;
 render = function () {
+  if (pageParts()[0] !== "search")
+    document.getElementById("page-title").closest("section").hidden = false;
   const runtimeDetails = document.querySelector(".project-runtime details");
   if (runtimeDetails) projectRuntimeDetailsOpen = runtimeDetails.open;
   originalRender();

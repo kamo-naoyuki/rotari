@@ -216,7 +216,9 @@ function renderHistorySearchPage() {
   document.title = "History search · rotari";
   document.querySelector(".header-title-text").textContent =
     "rotari History search";
-  document.getElementById("location").textContent = "History search";
+  document.getElementById("location").textContent =
+    "Search project, run, and job history in the ranges you choose.";
+  document.getElementById("page-title").closest("section").hidden = true;
   if (typeof rewriteStaticLinks === "function") {
     document.getElementById("page-title").textContent = "History search";
     document.getElementById("summary").textContent = "";
@@ -226,9 +228,6 @@ function renderHistorySearchPage() {
     return;
   }
   if (document.getElementById("history-search-form")) return;
-  document.getElementById("page-title").textContent = "History search";
-  document.getElementById("summary").textContent =
-    "Search project, run, and job history in the ranges you choose.";
   app.className = "";
   app.innerHTML = historySearchPageHTML();
   document
