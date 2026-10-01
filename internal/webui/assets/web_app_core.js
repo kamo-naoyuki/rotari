@@ -888,7 +888,6 @@ function notificationChannelEditor(name, settings, fields) {
   contentGroup.className = "notification-setting-group";
   const contentHeading = document.createElement("h3");
   contentHeading.textContent = "Information to send";
-  contentGroup.append(contentHeading);
   const maxLabel = document.createElement("label");
   maxLabel.className = "notification-max-jobs";
   const maxInput = document.createElement("input");
@@ -899,7 +898,7 @@ function notificationChannelEditor(name, settings, fields) {
   const maxText = document.createElement("span");
   maxText.textContent = "Maximum jobs";
   maxLabel.append(maxInput, maxText);
-  contentGroup.append(maxLabel);
+  contentGroup.append(maxLabel, contentHeading);
   const fieldGroup = document.createElement("div");
   fieldGroup.className = "notification-field-grid";
   fields.forEach((field) =>
@@ -967,6 +966,7 @@ async function showNotificationConfig() {
     return;
   }
   const payload = JSON.parse(text);
+  form.dataset.editable = payload.path ? "true" : "false";
   if (!payload.path) {
     const targets = document.createElement("div");
     targets.className = "config-target-options";
@@ -1014,17 +1014,7 @@ async function showNotificationConfig() {
     form.append(
       notificationChannelEditor("browser", settings.browser, payload.fields),
     );
-    const actions = document.createElement("div");
-    actions.className = "notification-config-actions";
-    const save = document.createElement("button");
-    save.type = "submit";
-    save.textContent = "Save";
-    const reload = document.createElement("button");
-    reload.type = "button";
-    reload.textContent = "Reload";
-    reload.onclick = showNotificationConfig;
-    actions.append(save, reload);
-    form.append(actions);
+    const save = document.getElementById("notification-config-save");
     form.onsubmit = async (event) => {
       event.preventDefault();
       save.disabled = true;

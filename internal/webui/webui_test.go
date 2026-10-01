@@ -212,8 +212,10 @@ setTimeout(() => {
 		if (groups[1].querySelectorAll('.notification-field-grid input[type="checkbox"]').length !== fields.length) process.exit(18);
 		const maxJobs = groups[1].querySelector('.notification-max-jobs');
 		if (!maxJobs || maxJobs.firstElementChild !== maxJobs.querySelector('input[type="number"]') || maxJobs.lastElementChild.textContent !== 'Maximum jobs') process.exit(19);
+		if (groups[1].firstElementChild !== maxJobs || maxJobs.nextElementSibling.textContent !== 'Information to send') process.exit(25);
 	}
 	const modal = dom.window.document.getElementById('output-modal');
+	dom.window.document.getElementById('notification-config-editor').dataset.editable = 'true';
 	modal.querySelector('strong').textContent = 'Notifications';
 	modal.dataset.view = 'notification-config';
 	dom.window.openOutputModal(false);
@@ -223,6 +225,8 @@ setTimeout(() => {
 	if (dom.window.document.getElementById('notification-config-editor').hidden) process.exit(22);
 	if (!dom.window.document.querySelector('.output-box').classList.contains('notification-config-output')) process.exit(24);
 	if (!dom.window.document.getElementById('copy-modal').hidden) process.exit(23);
+	const modalActions = [...modal.querySelector('.modal-actions').children].filter(button => !button.hidden).map(button => button.textContent.trim());
+	if (JSON.stringify(modalActions.slice(-3)) !== JSON.stringify(['Save', 'Reload', 'Close'])) process.exit(26);
 	modal.dataset.view = 'generate-config';
 	modal.querySelector('strong').textContent = 'Generate config';
 	dom.window.styleActionColumns();

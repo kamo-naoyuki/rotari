@@ -248,6 +248,14 @@ function updateModalActions() {
     view === "generate-config" ||
     view === "notification-config" ||
     modal.dataset.editing === "true";
+  document.getElementById("notification-config-save").hidden =
+    view !== "notification-config" ||
+    document.getElementById("notification-config-editor").dataset.editable !==
+      "true";
+  document.getElementById("notification-config-reload").hidden =
+    view !== "notification-config" ||
+    document.getElementById("notification-config-editor").dataset.editable !==
+      "true";
   const copyTitle = view === "log" ? "Copy log" : "Copy";
   copyButton.title = copyTitle;
   copyButton.setAttribute("aria-label", copyTitle);
