@@ -33,13 +33,13 @@ function historySearchConditionHTML(join = "and") {
     )
     .join("");
   return `<div class="history-search-condition">
+    <select class="history-search-target" aria-label="Search target" onchange="historySearchUpdateFields(this)">${targetOptions}</select>
+    <select class="history-search-field" aria-label="Search field">${historySearchOptionsHTML("job")}</select>
+    <input class="history-search-word" type="search" maxlength="256" placeholder="Search word" aria-label="Search word" required />
     <select class="history-search-join" aria-label="Combine condition" ${join === "first" ? "hidden" : ""}>
       <option value="and" ${join === "and" ? "selected" : ""}>AND</option>
       <option value="or" ${join === "or" ? "selected" : ""}>OR</option>
     </select>
-    <select class="history-search-target" aria-label="Search target" onchange="historySearchUpdateFields(this)">${targetOptions}</select>
-    <select class="history-search-field" aria-label="Search field">${historySearchOptionsHTML("job")}</select>
-    <input class="history-search-word" type="search" maxlength="256" placeholder="Search word" aria-label="Search word" required />
     <button type="button" class="history-search-remove" aria-label="Remove condition" onclick="historySearchRemoveCondition(this)" hidden>−</button>
   </div>`;
 }

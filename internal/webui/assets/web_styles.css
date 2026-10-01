@@ -1223,8 +1223,8 @@ pre,
 .history-search-condition {
   display: grid;
   grid-template-columns:
-    92px minmax(100px, 0.75fr) minmax(130px, 1fr) minmax(160px, 2fr)
-    34px;
+    minmax(100px, 0.75fr) minmax(130px, 1fr) minmax(160px, 2fr)
+    92px 34px;
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -1358,15 +1358,32 @@ pre,
   }
 
   .history-search-condition {
-    grid-template-columns: minmax(90px, 0.7fr) minmax(110px, 1fr) 34px;
+    grid-template-columns: minmax(0, 2fr) minmax(95px, 1fr) 34px;
   }
 
-  .history-search-join {
-    grid-column: 1 / -1;
+  .history-search-target {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .history-search-field {
+    grid-column: 2;
+    grid-row: 1;
   }
 
   .history-search-word {
-    grid-column: 1 / 3;
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .history-search-join {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .history-search-remove {
+    grid-column: 3;
+    grid-row: 1 / 3;
   }
 }
 
