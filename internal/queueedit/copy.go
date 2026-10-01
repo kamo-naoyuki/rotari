@@ -178,38 +178,19 @@ func selectCommands(source Run, selection string, inScope func(model.QueuedComma
 	for _, command := range source.Snapshot.Commands {
 		result, finished := model.AggregatedJobResult(command.ID, command.Array, source.Results)
 		include := false
-		hasResultFilters := len(filter.ExitCodes) > 0 || len(filter.FailureKinds) > 0
-		switch selection {
-		case "all":
-			include = !hasResultFilters || filter.MatchesResult(result, finished)
-		case "job-id":
-			include = requested[command.ID]
-		default:
-			include = model.ResultSelectionMatches(selection, finished, result.ExitCode)
-		}
-		if hasResultFilters && !filter.MatchesResult(result, finished) {
-			include = false
-		}
-		attributes := jobfilter.Attributes{}
-		if source.Attributes != nil {
-			attributes = source.Attributes(command.ID)
-		}
-		if !filter.MatchesAttributes(attributes) {
-			include = false
-		}
-		if len(filter.Diagnoses) > 0 {
-			log := ""
-			var logErr error
+		if selection != "job-id" {
+			job := jobfilter.Job{ID: command.ID, Result: result, Finished: finished}
+			if source.Attributes != nil {
+				job.Attributes = source.Attributes(command.ID)
+			}
 			if source.Log != nil {
-				log, logErr = source.Log(command.ID)
-			} else {
-				logErr = errors.New("job log unavailable")
+				job.Diagnosis = func(selectors []string) bool {
+					log, err := source.Log(command.ID)
+					return err == nil && diagnose.MatchesResultSelectors(selectors, result, log)
+				}
 			}
-			if logErr != nil || !diagnose.MatchesResultSelectors(filter.Diagnoses, result, log) {
-				include = false
-			}
+			include = filter.Selects(selection, job) && inScope(command)
 		}
-		include = include && inScope(command)
 		if requested[command.ID] {
 			include = true
 			delete(requested, command.ID)

@@ -209,8 +209,11 @@ heading in `--help`. `change` and `remove` take only the definition filters
   narrows its default failed and unfinished jobs.
 
 The conditions are `jobfilter.Filter` in
-[internal/jobfilter/filter.go](../internal/jobfilter/filter.go), which
-`run.PlanRerun`, `queueedit.Copy`, and `show` apply; the options are
+[internal/jobfilter/filter.go](../internal/jobfilter/filter.go). Its
+`Selects` decides each job against the result selection and the per-job
+conditions for `run.PlanRerun` (whole commands and array tasks),
+`queueedit.Copy`, and `show`; `MatchesCommand` applies the definition
+conditions. The options are
 `cliJobFilterOptions` in
 [cmd/rotari/job_filter_flags.go](../cmd/rotari/job_filter_flags.go).
 Covered by the filter rows of `TestSelectorTable`.

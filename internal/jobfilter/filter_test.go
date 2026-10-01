@@ -41,20 +41,50 @@ func TestFilterMatchesCommandPattern(t *testing.T) {
 
 func TestFilterMatchesExitCodesAndFailureKinds(t *testing.T) {
 	filter := Filter{ExitCodes: []int{124}, FailureKinds: []string{"timeout"}}
-	if !filter.MatchesResult(model.JobResult{ExitCode: 124, Error: "timed out after 1s"}, true) {
+	if !filter.matchesResult(model.JobResult{ExitCode: 124, Error: "timed out after 1s"}, true) {
 		t.Fatal("exit code filter did not match a selected result")
 	}
-	if filter.MatchesResult(model.JobResult{ExitCode: 3, Error: "timed out after 1s"}, true) {
+	if filter.matchesResult(model.JobResult{ExitCode: 3, Error: "timed out after 1s"}, true) {
 		t.Fatal("exit code filter matched an excluded result")
 	}
-	if !filter.MatchesResult(model.JobResult{ExitCode: 124, Error: "timed out after 1s"}, true) {
+	if !filter.matchesResult(model.JobResult{ExitCode: 124, Error: "timed out after 1s"}, true) {
 		t.Fatal("failure kind filter did not match a timeout result")
 	}
-	if filter.MatchesResult(model.JobResult{ExitCode: 0}, true) {
+	if filter.matchesResult(model.JobResult{ExitCode: 0}, true) {
 		t.Fatal("failure kind filter matched a success result")
 	}
-	if filter.MatchesResult(model.JobResult{ExitCode: 1}, false) {
+	if filter.matchesResult(model.JobResult{ExitCode: 1}, false) {
 		t.Fatal("unfinished result matched a result filter")
+	}
+}
+
+func TestSelectsCombinesSelectionAndEveryJobCondition(t *testing.T) {
+	failed := Job{ID: "a", Result: model.JobResult{ExitCode: 3}, Finished: true, Attributes: Attributes{Hosts: []string{"worker-01"}}}
+	matchDiagnosis := func([]string) bool { return true }
+	for _, test := range []struct {
+		name      string
+		filter    Filter
+		selection string
+		job       Job
+		want      bool
+	}{
+		{name: "no conditions", selection: "", job: Job{}, want: true},
+		{name: "all", selection: "all", job: Job{}, want: true},
+		{name: "selection matches", selection: "failed", job: failed, want: true},
+		{name: "selection excludes", selection: "success", job: failed, want: false},
+		{name: "exit code with selection", filter: Filter{ExitCodes: []int{1}}, selection: "failed", job: failed, want: false},
+		{name: "exit code without selection", filter: Filter{ExitCodes: []int{3}}, job: failed, want: true},
+		{name: "unfinished never matches exit code", filter: Filter{ExitCodes: []int{0}}, job: Job{}, want: false},
+		{name: "definition", filter: Filter{Changed: true, ChangedIDs: map[string]bool{"b": true}}, job: failed, want: false},
+		{name: "host", filter: Filter{Hosts: []string{"other"}}, selection: "failed", job: failed, want: false},
+		{name: "diagnosis without provider", filter: Filter{Diagnoses: []string{"oom"}}, job: failed, want: false},
+		{name: "diagnosis", filter: Filter{Diagnoses: []string{"oom"}}, job: Job{ID: "a", Result: failed.Result, Finished: true, Diagnosis: matchDiagnosis}, want: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := test.filter.Selects(test.selection, test.job); got != test.want {
+				t.Fatalf("Selects(%q, %+v) = %t, want %t", test.selection, test.job, got, test.want)
+			}
+		})
 	}
 }
 

@@ -884,20 +884,30 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 			jobCounts.pending++
 		}
 		executorText := queueExecutorText(runQueue, jobSpec)
-		if filter.selection != "" && !model.ResultSelectionMatches(filter.selection, statusOK, status) {
+		jobResult, _ := resolved.Result(jobSpec)
+		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobID, originByID[jobID])
+		startedText := submittedAt
+		if resolved.Attempt.HasWrapper && resolved.Attempt.Wrapper.StartedAt != "" {
+			startedText = resolved.Attempt.Wrapper.StartedAt
+		}
+		startedTime, _ := jobfilter.ParseTimestamp(startedText)
+		finishedTime, _ := jobfilter.ParseTimestamp(finishedAt)
+		if !filter.filter.Selects(filter.selection, jobfilter.Job{
+			ID:       jobSpec.ID,
+			Result:   jobResult,
+			Finished: statusOK,
+			Attributes: jobfilter.Attributes{
+				Hosts:      resolved.Hosts(),
+				StartedAt:  startedTime,
+				FinishedAt: finishedTime,
+				Now:        time.Now(),
+			},
+			Diagnosis: func(selectors []string) bool {
+				log, err := readJobDiagnosisLog(jobDir)
+				return err == nil && diagnose.MatchesResultSelectors(selectors, jobResult, log)
+			},
+		}) {
 			continue
-		}
-		jobResult, hasJobResult := resolved.Result(jobSpec)
-		if len(filter.filter.ExitCodes) > 0 || len(filter.filter.FailureKinds) > 0 {
-			if !hasJobResult || !filter.filter.MatchesResult(jobResult, statusOK) {
-				continue
-			}
-		}
-		if len(filter.filter.Diagnoses) > 0 {
-			log, err := readJobDiagnosisLog(jobDir)
-			if err != nil || !hasJobResult || !diagnose.MatchesResultSelectors(filter.filter.Diagnoses, jobResult, log) {
-				continue
-			}
 		}
 		if statusOK && status != 0 {
 			changeHints = append(changeHints, jobSpec)
@@ -909,21 +919,6 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		command := readJSONCommand(filepath.Join(jobDir, commandJSONName))
 		if command == "" {
 			command = strings.Join(jobSpec.Command, " ")
-		}
-		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobID, originByID[jobID])
-		startedText := submittedAt
-		if resolved.Attempt.HasWrapper && resolved.Attempt.Wrapper.StartedAt != "" {
-			startedText = resolved.Attempt.Wrapper.StartedAt
-		}
-		startedTime, _ := jobfilter.ParseTimestamp(startedText)
-		finishedTime, _ := jobfilter.ParseTimestamp(finishedAt)
-		if !filter.filter.MatchesAttributes(jobfilter.Attributes{
-			Hosts:      resolved.Hosts(),
-			StartedAt:  startedTime,
-			FinishedAt: finishedTime,
-			Now:        time.Now(),
-		}) {
-			continue
 		}
 		submittedAt = model.FormatDisplayTimestamp(submittedAt)
 		finishedAt = model.FormatDisplayTimestamp(finishedAt)

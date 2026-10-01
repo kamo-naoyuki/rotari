@@ -124,10 +124,42 @@ func (filter Filter) MatchesAttributes(attributes Attributes) bool {
 	return true
 }
 
-// MatchesResult reports whether a finished job's result satisfies the value
+// Job is what a selection needs to know about one job or array task.
+type Job struct {
+	ID         string
+	Result     model.JobResult
+	Finished   bool
+	Attributes Attributes
+	// Diagnosis reports whether the job's diagnosis matches any selector. It
+	// is called only for a filter with diagnosis conditions; nil never matches.
+	Diagnosis func(selectors []string) bool
+}
+
+// Selects reports whether job is selected by a result selection and every
+// per-job condition of the filter. selection is a comma-separated list such as
+// "failed,unfinished"; "" and "all" select every result. Definition
+// conditions are checked separately with MatchesCommand, because they apply
+// to a whole command.
+func (filter Filter) Selects(selection string, job Job) bool {
+	if selection != "" && selection != "all" && !model.ResultSelectionMatches(selection, job.Finished, job.Result.ExitCode) {
+		return false
+	}
+	if (len(filter.ExitCodes) > 0 || len(filter.FailureKinds) > 0) && !filter.matchesResult(job.Result, job.Finished) {
+		return false
+	}
+	if !filter.MatchesDefinition(job.ID) || !filter.MatchesAttributes(job.Attributes) {
+		return false
+	}
+	if len(filter.Diagnoses) > 0 && (job.Diagnosis == nil || !job.Diagnosis(filter.Diagnoses)) {
+		return false
+	}
+	return true
+}
+
+// matchesResult reports whether a finished job's result satisfies the value
 // filters. An unfinished result never matches any exit-code or failure-kind
 // filter, even when the zero value would otherwise satisfy one.
-func (filter Filter) MatchesResult(result model.JobResult, finished bool) bool {
+func (filter Filter) matchesResult(result model.JobResult, finished bool) bool {
 	if !finished {
 		return false
 	}

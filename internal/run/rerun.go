@@ -188,19 +188,20 @@ func (resolver *originResolver) attributes(origin *model.JobOrigin, jobID string
 	return provider.Attributes(*origin)
 }
 
-func (resolver *originResolver) diagnosisMatches(filter jobfilter.Filter, result model.JobResult, origin *model.JobOrigin, jobID string) bool {
-	if len(filter.Diagnoses) == 0 {
-		return true
-	}
+func (resolver *originResolver) job(id string, result model.JobResult, finished bool, attributes jobfilter.Attributes, origin *model.JobOrigin) jobfilter.Job {
+	job := jobfilter.Job{ID: id, Result: result, Finished: finished, Attributes: attributes}
 	provider, ok := resolver.source.(OriginDiagnoses)
 	if !ok {
-		return false
+		return job
 	}
 	if origin == nil {
-		origin = &model.JobOrigin{RunID: resolver.fallbackRunID, JobID: jobID}
+		origin = &model.JobOrigin{RunID: resolver.fallbackRunID, JobID: id}
 	}
-	matched, err := provider.DiagnosisMatches(*origin, result, filter.Diagnoses)
-	return err == nil && matched
+	job.Diagnosis = func(selectors []string) bool {
+		matched, err := provider.DiagnosisMatches(*origin, result, selectors)
+		return err == nil && matched
+	}
+	return job
 }
 
 // jobResult returns the result of a job or task of command: the one its
@@ -240,7 +241,6 @@ func (resolver *originResolver) commandResult(command model.QueuedCommand) (mode
 // origin. Commands added directly to the queue have no origin and fall back
 // to the reference run. Commands outside inScope never match the selection.
 func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope func(model.QueuedCommand) bool, filter jobfilter.Filter, referenceRunID string, partialArray bool, source OriginResults) (Plan, error) {
-	hasResultFilters := len(filter.ExitCodes) > 0 || len(filter.FailureKinds) > 0
 	requested := make(map[string]bool, len(jobIDs))
 	for _, jobID := range jobIDs {
 		requested[jobID] = true
@@ -279,17 +279,7 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 					plan.Execute[id] = true
 					continue
 				}
-				matchSelection := false
-				switch selection {
-				case "":
-					matchSelection = !hasResultFilters || filter.MatchesResult(result, finished)
-				default:
-					matchSelection = model.ResultSelectionMatches(selection, finished, result.ExitCode)
-				}
-				if hasResultFilters && !filter.MatchesResult(result, finished) {
-					matchSelection = false
-				}
-				if matchTasks && scoped && matchSelection && filter.MatchesDefinition(id) && filter.MatchesAttributes(attributes) && resolver.diagnosisMatches(filter, result, origin, id) {
+				if matchTasks && scoped && filter.Selects(selection, resolver.job(id, result, finished, attributes, origin)) {
 					plan.Execute[id] = true
 					continue
 				}
@@ -314,17 +304,7 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 		}
 		include := requested[command.ID]
 		if selection != "job-id" {
-			matchSelection := false
-			switch selection {
-			case "":
-				matchSelection = !hasResultFilters || filter.MatchesResult(result, finished)
-			default:
-				matchSelection = model.ResultSelectionMatches(selection, finished, result.ExitCode)
-			}
-			include = include || (scoped && matchSelection && filter.MatchesDefinition(command.ID) && filter.MatchesAttributes(attributes) && resolver.diagnosisMatches(filter, result, command.Origin, command.ID))
-		}
-		if hasResultFilters && !filter.MatchesResult(result, finished) {
-			include = false
+			include = include || (scoped && filter.Selects(selection, resolver.job(command.ID, result, finished, attributes, command.Origin)))
 		}
 		delete(requested, command.ID)
 		if include {

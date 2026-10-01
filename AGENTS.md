@@ -73,6 +73,14 @@ a caller.
 If the fallback behavior changes, inspect and update all relevant implementations.
 Do not change only one side.
 
+### Job selection
+
+Whether a job or array task is selected by a result selection (`--failed`,
+`--success`, `--unfinished`) and the per-job `--filter-*` conditions is
+decided once, by `jobfilter.Filter.Selects`. `show`, `copy`, and `run` /
+`retry` (including each array task under `--partial-array`) call it; do not
+re-implement a condition in a caller. Callers only supply the job's facts.
+
 ### Paths
 
 Path elements must be treated as arbitrary strings and must not be interpreted as filesystem paths.
