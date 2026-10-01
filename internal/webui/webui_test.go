@@ -195,7 +195,9 @@ setTimeout(() => {
 	if (!viewConfig || !viewConfig.disabled || !generateConfig) process.exit(3);
 	for (let i = 0; i < 3; i++) dom.window.addConfigButton();
 	const notificationConfigButtons = dom.window.document.querySelectorAll('.notification-config-button');
-	if (notificationConfigButtons.length !== 1 || notificationConfigButtons[0].textContent !== 'Config notifications') process.exit(11);
+	const generateNotificationConfigButton = dom.window.document.querySelector('.generate-config-button');
+	if (notificationConfigButtons.length !== 1 || notificationConfigButtons[0].textContent !== 'View notifications config') process.exit(11);
+	if (!generateNotificationConfigButton || generateNotificationConfigButton.textContent !== 'Generate notifications config') process.exit(29);
 	const channelSettings = { job_failure: true, job_success: false, run_failure: true, run_success: true, max_jobs: 10, fields: [] };
 	const fields = ['project', 'attempt_id', 'command'];
 	const webhookEditor = dom.window.notificationChannelEditor('webhook', channelSettings, fields);
@@ -204,16 +206,26 @@ setTimeout(() => {
 	if (!webhookEditor.querySelector('.notification-channel-description').textContent.includes('Slack or Discord')) process.exit(13);
 	if (browserEditor.querySelector('legend').textContent !== 'Desktop notifications (this browser)') process.exit(14);
 	if (!browserEditor.querySelector('.notification-channel-description').textContent.includes('from this browser')) process.exit(15);
-	for (const editor of [webhookEditor, browserEditor]) {
+	const webhookExtras = dom.window.document.createElement('div');
+	webhookExtras.className = 'notification-webhook-settings';
+	webhookExtras.append('Format ');
+	const webhookWithExtras = dom.window.notificationChannelEditor('webhook', channelSettings, fields, webhookExtras);
+	webhookWithExtras.append(webhookExtras);
+	for (const editor of [webhookWithExtras, browserEditor]) {
 		const headings = [...editor.querySelectorAll('.notification-setting-group h3')].map(node => node.textContent);
 		if (JSON.stringify(headings) !== JSON.stringify(['When to notify', 'Information to send'])) process.exit(16);
 		const groups = editor.querySelectorAll('.notification-setting-group');
 		if (groups[0].querySelectorAll('input[type="checkbox"]').length !== 4) process.exit(17);
 		if (groups[1].querySelectorAll('.notification-field-grid input[type="checkbox"]').length !== fields.length) process.exit(18);
-		const maxJobs = groups[1].querySelector('.notification-max-jobs');
+		const maxJobs = editor === webhookWithExtras
+			? webhookExtras.querySelector('.notification-max-jobs')
+			: groups[1].querySelector('.notification-max-jobs');
 		if (!maxJobs || maxJobs.firstElementChild.textContent !== 'Maximum jobs' || maxJobs.lastElementChild !== maxJobs.querySelector('input[type="number"]')) process.exit(19);
-		if (groups[1].firstElementChild !== maxJobs || maxJobs.nextElementSibling.textContent !== 'Information to send') process.exit(25);
 	}
+	const webhookMaxJobs = webhookExtras.querySelector('.notification-max-jobs');
+	if (!webhookMaxJobs || webhookMaxJobs.parentElement !== webhookExtras || webhookExtras.firstElementChild !== webhookMaxJobs || webhookMaxJobs.nextSibling.textContent !== 'Format ') process.exit(27);
+	const browserInformation = browserEditor.querySelectorAll('.notification-setting-group')[1];
+	if (browserInformation.lastElementChild !== browserInformation.querySelector('.notification-max-jobs')) process.exit(28);
 	const modal = dom.window.document.getElementById('output-modal');
 	dom.window.document.getElementById('notification-config-editor').dataset.editable = 'true';
 	modal.querySelector('strong').textContent = 'Notifications';
@@ -226,7 +238,7 @@ setTimeout(() => {
 	if (!dom.window.document.querySelector('.output-box').classList.contains('notification-config-output')) process.exit(24);
 	if (!dom.window.document.getElementById('copy-modal').hidden) process.exit(23);
 	const modalActions = [...modal.querySelector('.modal-actions').children].filter(button => !button.hidden).map(button => button.textContent.trim());
-	if (JSON.stringify(modalActions.slice(-3)) !== JSON.stringify(['Save', 'Reload', 'Close'])) process.exit(26);
+	if (JSON.stringify(modalActions.slice(-3)) !== JSON.stringify(['Save', 'Reload config', 'Close'])) process.exit(26);
 	modal.dataset.view = 'generate-config';
 	modal.querySelector('strong').textContent = 'Generate config';
 	dom.window.styleActionColumns();

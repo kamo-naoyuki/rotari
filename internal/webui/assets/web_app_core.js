@@ -850,7 +850,7 @@ function notificationFieldControl(channel, field, selected) {
   label.append(input, field.replaceAll("_", " "));
   return label;
 }
-function notificationChannelEditor(name, settings, fields) {
+function notificationChannelEditor(name, settings, fields, maxJobsContainer) {
   const fieldset = document.createElement("fieldset");
   const legend = document.createElement("legend");
   const isWebhook = name === "webhook";
@@ -888,6 +888,15 @@ function notificationChannelEditor(name, settings, fields) {
   contentGroup.className = "notification-setting-group";
   const contentHeading = document.createElement("h3");
   contentHeading.textContent = "Information to send";
+  contentGroup.append(contentHeading);
+  const fieldGroup = document.createElement("div");
+  fieldGroup.className = "notification-field-grid";
+  fields.forEach((field) =>
+    fieldGroup.append(
+      notificationFieldControl(name, field, settings.fields || []),
+    ),
+  );
+  contentGroup.append(fieldGroup);
   const maxLabel = document.createElement("label");
   maxLabel.className = "notification-max-jobs";
   const maxText = document.createElement("span");
@@ -898,15 +907,8 @@ function notificationChannelEditor(name, settings, fields) {
   maxInput.min = "1";
   maxInput.value = settings.max_jobs;
   maxLabel.append(maxText, maxInput);
-  contentGroup.append(maxLabel, contentHeading);
-  const fieldGroup = document.createElement("div");
-  fieldGroup.className = "notification-field-grid";
-  fields.forEach((field) =>
-    fieldGroup.append(
-      notificationFieldControl(name, field, settings.fields || []),
-    ),
-  );
-  contentGroup.append(fieldGroup);
+  if (maxJobsContainer) maxJobsContainer.prepend(maxLabel);
+  else contentGroup.append(maxLabel);
   fieldset.append(contentGroup);
   return fieldset;
 }
@@ -1008,6 +1010,7 @@ async function showNotificationConfig() {
       "webhook",
       settings.webhook,
       payload.fields,
+      webhookExtras,
     );
     webhook.append(webhookExtras);
     form.append(webhook);
@@ -1065,7 +1068,7 @@ function addConfigButton() {
   if (configGenerationProject() !== null) {
     const notificationButton = document.createElement("button");
     notificationButton.className = "notification-config-button";
-    notificationButton.textContent = "Config notifications";
+    notificationButton.textContent = "View notifications config";
     notificationButton.onclick = showNotificationConfig;
     toolbar.insertBefore(
       notificationButton,
@@ -1073,7 +1076,7 @@ function addConfigButton() {
     );
     const generateButton = document.createElement("button");
     generateButton.className = "generate-config-button";
-    generateButton.textContent = "Generate config";
+    generateButton.textContent = "Generate notifications config";
     generateButton.title = "Generate or replace a config template";
     generateButton.onclick = showGenerateConfig;
     toolbar.insertBefore(
