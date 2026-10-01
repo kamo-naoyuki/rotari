@@ -29,7 +29,7 @@ func TestHistorySearchAcrossProjects(t *testing.T) {
 		t.Fatal(err)
 	}
 	results := alphaSummary["results"].([]any)
-	results[0].(map[string]any)["diagnoses"] = []map[string]string{{"name": "Out of memory"}}
+	results[0].(map[string]any)["diagnoses"] = []map[string]string{{"name": "Permission denied"}, {"name": "Legacy custom diagnosis"}}
 	alphaSummaryData, err = json.Marshal(alphaSummary)
 	if err != nil {
 		t.Fatal(err)
@@ -107,7 +107,7 @@ func TestHistorySearchAcrossProjects(t *testing.T) {
 		t.Errorf("exact typo total = %d, want 0", got)
 	}
 	searchRange := map[string]string{"basedir_id": base64.RawURLEncoding.EncodeToString([]byte(filepath.Clean(absBase)))}
-	diagnosisOptions := e.HTTPPostJSON(base+"/api/history-search-diagnoses", map[string]any{"scopes": []map[string]string{searchRange}})
+	diagnosisOptions := e.HTTPGet(base + "/api/history-search-diagnoses")
 	if diagnosisOptions.Status != 200 {
 		t.Fatalf("diagnosis options: status %d: %s", diagnosisOptions.Status, diagnosisOptions.Body)
 	}
@@ -118,20 +118,18 @@ func TestHistorySearchAcrossProjects(t *testing.T) {
 		t.Fatal(err)
 	}
 	containsDiagnosis := false
-	savedDiagnosis := ""
+	containsLegacyDiagnosis := false
 	for _, name := range options.Diagnoses {
 		containsDiagnosis = containsDiagnosis || name == "Permission denied"
-		if name == "Out of memory" {
-			savedDiagnosis = name
-		}
+		containsLegacyDiagnosis = containsLegacyDiagnosis || name == "Legacy custom diagnosis"
 	}
-	if !containsDiagnosis || savedDiagnosis == "" {
-		t.Fatalf("diagnosis options = %#v, want known and saved diagnosis names", options.Diagnoses)
+	if !containsDiagnosis || containsLegacyDiagnosis {
+		t.Fatalf("diagnosis options = %#v, want standard names without saved custom labels", options.Diagnoses)
 	}
 	diagnosisSearch := e.HTTPPostJSON(base+"/api/history-search", map[string]any{
 		"scopes":  []map[string]string{searchRange},
 		"target":  "job",
-		"filters": []map[string]string{{"target": "job", "field": "diagnosis", "word": savedDiagnosis}},
+		"filters": []map[string]string{{"target": "job", "field": "diagnosis", "word": "Permission denied"}},
 	})
 	if diagnosisSearch.Status != 200 {
 		t.Fatalf("diagnosis search: status %d: %s", diagnosisSearch.Status, diagnosisSearch.Body)

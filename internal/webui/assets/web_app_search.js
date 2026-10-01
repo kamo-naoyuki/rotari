@@ -173,7 +173,7 @@ function historySearchScopeHTML() {
     <select class="history-search-scope-project" aria-label="Project" onchange="historySearchProjectChanged(this)" disabled>
       <option value="">All projects</option>
     </select>
-    <select class="history-search-scope-run" aria-label="Run" onchange="historySearchScopeChanged()" disabled>
+    <select class="history-search-scope-run" aria-label="Run" disabled>
       <option value="">All runs</option>
     </select>
     <button type="button" class="history-search-scope-remove" aria-label="Remove search range" onclick="historySearchRemoveScope(this)">−</button>
@@ -283,14 +283,12 @@ function historySearchAddScope() {
   if (!scopes) return;
   scopes.insertAdjacentHTML("beforeend", historySearchScopeHTML());
   historySearchUpdateScopeControls(scopes);
-  void historySearchRefreshDiagnosisOptions();
 }
 
 function historySearchRemoveScope(button) {
   const scopes = document.getElementById("history-search-scopes");
   button.closest(".history-search-scope-row").remove();
   historySearchUpdateScopeControls(scopes);
-  void historySearchRefreshDiagnosisOptions();
 }
 
 function historySearchUpdateScopeControls(scopes) {
@@ -313,10 +311,7 @@ async function historySearchBasedirChanged(select) {
   run.innerHTML = '<option value="">All runs</option>';
   project.disabled = !select.value;
   run.disabled = true;
-  if (!select.value) {
-    await historySearchRefreshDiagnosisOptions();
-    return;
-  }
+  if (!select.value) return;
   const selectedID = select.value;
   try {
     const response = await fetch(
@@ -337,7 +332,6 @@ async function historySearchBasedirChanged(select) {
   } catch (error) {
     // Keep the project selector empty if the selected basedir is unavailable.
   }
-  await historySearchRefreshDiagnosisOptions();
 }
 
 async function historySearchProjectChanged(select) {
@@ -346,10 +340,7 @@ async function historySearchProjectChanged(select) {
   const run = row.querySelector(".history-search-scope-run");
   run.innerHTML = '<option value="">All runs</option>';
   run.disabled = !select.value;
-  if (!select.value) {
-    await historySearchRefreshDiagnosisOptions();
-    return;
-  }
+  if (!select.value) return;
   const selectedProject = select.value;
   const selectedID = basedir.value;
   const query = new URLSearchParams({
@@ -381,7 +372,6 @@ async function historySearchProjectChanged(select) {
   } catch (error) {
     // Keep the run selector empty if the selected project is unavailable.
   }
-  await historySearchRefreshDiagnosisOptions();
 }
 
 function historySearchSelectedScopes() {
@@ -403,29 +393,20 @@ async function historySearchLoadDiagnosisOptions(
   select,
   resetSelection = true,
 ) {
-  const scopes = historySearchSelectedScopes();
-  const scopeKey = JSON.stringify(scopes);
   const selectedValue = resetSelection ? "" : select.value;
-  if (!scopes.length) {
-    select.innerHTML = historySearchSelectOptions([], "Choose diagnosis");
-    select.disabled = true;
+  if (historySearchDiagnosisOptions.length) {
+    select.innerHTML = historySearchSelectOptions(
+      historySearchDiagnosisOptions,
+      "Choose diagnosis",
+      selectedValue,
+    );
+    select.disabled = false;
     return;
   }
-  select.dataset.scopeKey = scopeKey;
   select.disabled = true;
   try {
-    const response = await fetch("/api/history-search-diagnoses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scopes }),
-    });
-    if (
-      !response.ok ||
-      !select.isConnected ||
-      select.dataset.scopeKey !== scopeKey ||
-      JSON.stringify(historySearchSelectedScopes()) !== scopeKey
-    )
-      return;
+    const response = await fetch("/api/history-search-diagnoses");
+    if (!response.ok || !select.isConnected) return;
     const options = await response.json();
     historySearchDiagnosisOptions = options.diagnoses || [];
     select.innerHTML = historySearchSelectOptions(
@@ -438,21 +419,6 @@ async function historySearchLoadDiagnosisOptions(
     // Keep the diagnosis selector empty if reading saved diagnoses failed.
     select.disabled = true;
   }
-}
-
-async function historySearchRefreshDiagnosisOptions() {
-  const selectors = [
-    ...document.querySelectorAll(
-      ".history-search-condition .history-search-field",
-    ),
-  ].filter((field) => field.value === "job:diagnosis");
-  await Promise.all(
-    selectors.map((field) => historySearchUpdateValueControl(field, false)),
-  );
-}
-
-function historySearchScopeChanged() {
-  void historySearchRefreshDiagnosisOptions();
 }
 
 function historySearchRequestFromForm() {

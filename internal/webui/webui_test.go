@@ -242,6 +242,7 @@ const runTable = {
 	querySelectorAll: () => runRows,
 };
 let formLookups = 0;
+let diagnosisRequestMethod = "";
 const context = {
 	executorNames: ['local', 'ssh', 'slurm'],
 	registeredBasedirs: [
@@ -280,12 +281,13 @@ const context = {
 			return [];
 		},
 	},
-	fetch: async url => {
+	fetch: async (url, init = {}) => {
 		requests.push(url);
+		if (String(url).includes('/api/history-search-diagnoses')) diagnosisRequestMethod = init.method || 'GET';
 		return { ok: true, json: async () => String(url).includes('project_name=')
 			? { runs: [{ id: 'run-1', name: 'nightly', status: 'success' }] }
 			: String(url).includes('/api/history-search-diagnoses')
-				? { diagnoses: ['New diagnosis'] }
+				? { diagnoses: ['Permission denied'] }
 				: { projects: ['project-a'] } };
 	},
 	URLSearchParams,
@@ -342,10 +344,11 @@ vm.runInContext(code, context);
 	await context.historySearchProjectChanged(project);
 	if (run.disabled || !run.optionsHTML.includes('run-1') || !run.optionsHTML.includes('nightly')) throw new Error('project did not load run options');
 	diagnosisValue.value = 'Old diagnosis';
-	await context.historySearchRefreshDiagnosisOptions();
+	await context.historySearchUpdateValueControl(diagnosisField);
 	if (!requests.some(url => String(url).includes('/api/history-search-diagnoses'))) throw new Error('diagnosis candidate API was not called');
+	if (diagnosisRequestMethod !== 'GET') throw new Error('diagnosis candidates should be loaded from the fixed rule list without scanning search ranges');
 	if (requests.filter(url => String(url).includes('/api/history-search-options')).length !== 2) throw new Error('expected one basedir/project options request per hierarchy level');
-	if (!diagnosisValue.innerHTML.includes('New diagnosis') || diagnosisValue.innerHTML.includes('Old diagnosis')) throw new Error('diagnosis options were not refreshed for the selected range: ' + diagnosisValue.innerHTML);
+	if (!diagnosisValue.innerHTML.includes('Permission denied') || diagnosisValue.innerHTML.includes('Old diagnosis')) throw new Error('diagnosis options did not use the known rule names: ' + diagnosisValue.innerHTML);
 	if (diagnosisValue.disabled) throw new Error('diagnosis dropdown stayed disabled after receiving candidates');
 })().catch(error => { console.error(error); process.exit(1); });
 `
@@ -403,14 +406,8 @@ func TestWebHistorySearchScopesAcrossSelectedBasedirs(t *testing.T) {
 	}
 	options := testOptions(baseA, false)
 	options.BaseDirs = []string{baseA, baseB}
-	diagnosisRequest, err := json.Marshal(map[string]any{
-		"scopes": []webprojection.HistorySearchScope{{BaseDirID: basedirID(baseA)}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
 	diagnosisRecorder := httptest.NewRecorder()
-	Handler(options).ServeHTTP(diagnosisRecorder, httptest.NewRequest(http.MethodPost, "/api/history-search-diagnoses", bytes.NewReader(diagnosisRequest)))
+	Handler(options).ServeHTTP(diagnosisRecorder, httptest.NewRequest(http.MethodGet, "/api/history-search-diagnoses", nil))
 	if diagnosisRecorder.Code != http.StatusOK {
 		t.Fatalf("diagnosis options status = %d, body = %s", diagnosisRecorder.Code, diagnosisRecorder.Body.String())
 	}
@@ -421,13 +418,13 @@ func TestWebHistorySearchScopesAcrossSelectedBasedirs(t *testing.T) {
 		t.Fatal(err)
 	}
 	containsKnownDiagnosis := false
-	containsSavedDiagnosis := false
+	containsLegacyDiagnosis := false
 	for _, diagnosis := range diagnosisOptions.Diagnoses {
 		containsKnownDiagnosis = containsKnownDiagnosis || diagnosis == "Permission denied"
-		containsSavedDiagnosis = containsSavedDiagnosis || diagnosis == "Out of memory"
+		containsLegacyDiagnosis = containsLegacyDiagnosis || diagnosis == "Out of memory"
 	}
-	if !containsKnownDiagnosis || !containsSavedDiagnosis {
-		t.Fatalf("diagnosis options = %#v, want known and saved diagnosis names", diagnosisOptions.Diagnoses)
+	if !containsKnownDiagnosis || containsLegacyDiagnosis {
+		t.Fatalf("diagnosis options = %#v, want standard names only", diagnosisOptions.Diagnoses)
 	}
 	for _, test := range []struct {
 		query string
