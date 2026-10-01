@@ -1043,6 +1043,14 @@ setTimeout(async () => {
 		assert(root.querySelector('.basedir-notification-toggle')?.checked, 'startup basedir should be monitored by default');
 		assert(root.querySelector('.basedir-notification-toggle')?.title === 'Disable notifications', 'enabled basedir checkbox should explain how to disable notifications');
 		assert(root.querySelector('.basedir-notification-tooltip')?.textContent === 'Disable notifications', 'notification hover text is missing');
+		const activeNotificationToggle = root.querySelector('.basedir-notification-toggle');
+		activeNotificationToggle.click();
+		assert(!activeNotificationToggle.checked, 'active basedir notification monitor should be switchable off');
+		dom.window.renderSidebar(state.projects);
+		root = dom.window.document.querySelector(rootSelector);
+		assert(!root.querySelector('.basedir-notification-toggle').checked, 'active basedir notification monitor unexpectedly turned back on after rerender');
+		root.querySelector('.basedir-notification-toggle').click();
+		assert(root.querySelector('.basedir-notification-toggle').checked, 'active basedir notification monitor cannot be switched back on');
 		assert(root.querySelector('.sidebar-project:not(.basedir-entry) .sidebar-project-link.active')?.textContent.trim() === 'root-project', 'selected project is not active in the sidebar');
 		root.querySelector(':scope > .basedir-row .sidebar-toggle').click();
 		root = dom.window.document.querySelector(rootSelector);
