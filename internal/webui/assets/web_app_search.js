@@ -50,7 +50,7 @@ function historySearchConditionHTML(join = "and", target = "job") {
       <option value="and" ${join === "and" ? "selected" : ""}>AND</option>
       <option value="or" ${join === "or" ? "selected" : ""}>OR</option>
     </select>
-    <button type="button" class="history-search-remove" aria-label="Remove condition" onclick="historySearchRemoveCondition(this)" hidden>−</button>
+    ${join !== "first" ? '<button type="button" class="history-search-remove" aria-label="Remove condition" onclick="historySearchRemoveCondition(this)">−</button>' : ""}
   </div>`;
 }
 
@@ -119,10 +119,9 @@ function historySearchRemoveCondition(button) {
 }
 
 function historySearchUpdateConditionControls(conditions) {
-  [...conditions.children].forEach((condition, index) => {
-    condition.querySelector(".history-search-join").hidden = index === 0;
-    condition.querySelector(".history-search-remove").hidden =
-      conditions.children.length === 1;
+  [...conditions.children].forEach((condition) => {
+    const remove = condition.querySelector(".history-search-remove");
+    if (remove) remove.hidden = false;
   });
 }
 
@@ -153,17 +152,24 @@ function historySearchScopeHTML() {
     <select class="history-search-scope-run" aria-label="Run" disabled>
       <option value="">All runs</option>
     </select>
-    <button type="button" class="history-search-scope-remove" aria-label="Remove search range" onclick="historySearchRemoveScope(this)" hidden>−</button>
+    <button type="button" class="history-search-scope-remove" aria-label="Remove search range" onclick="historySearchRemoveScope(this)">−</button>
   </div>`;
+}
+
+function historySearchInitialScopeHTML() {
+  return historySearchScopeHTML().replace(
+    '<button type="button" class="history-search-scope-remove" aria-label="Remove search range" onclick="historySearchRemoveScope(this)">−</button>',
+    "",
+  );
 }
 
 function historySearchPageHTML() {
   return `<div class="history-search-page">
     <form id="history-search-form" class="history-search-form">
       <fieldset class="history-search-scope">
-        <legend>Search scope</legend>
+        <legend>Search range</legend>
         <p class="history-search-scope-help">Choose a basedir, then optionally narrow the range to a project and run. Added ranges are searched together.</p>
-        <div id="history-search-scopes">${historySearchScopeHTML()}</div>
+        <div id="history-search-scopes">${historySearchInitialScopeHTML()}</div>
         <button type="button" class="history-search-add-scope" onclick="historySearchAddScope()">＋ Add search range</button>
       </fieldset>
       <fieldset class="history-search-query">
@@ -250,8 +256,11 @@ function historySearchRemoveScope(button) {
 
 function historySearchUpdateScopeControls(scopes) {
   [...scopes.children].forEach((scope) => {
-    scope.querySelector(".history-search-scope-remove").hidden =
-      scopes.children.length === 1;
+    if (!scope.querySelector(".history-search-scope-remove"))
+      scope.insertAdjacentHTML(
+        "beforeend",
+        '<button type="button" class="history-search-scope-remove" aria-label="Remove search range" onclick="historySearchRemoveScope(this)">−</button>',
+      );
   });
 }
 

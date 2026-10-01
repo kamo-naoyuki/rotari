@@ -130,6 +130,7 @@ func TestWebHistorySearchPageRenders(t *testing.T) {
 	for _, marker := range []string{
 		"href=\"/search/\"",
 		"history-search-form",
+		"Search range",
 		"history-search-conditions",
 		"history-search-scopes",
 		"history-search-target",
