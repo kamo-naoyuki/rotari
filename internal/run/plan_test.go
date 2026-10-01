@@ -144,6 +144,28 @@ func TestPlanRerunSelectsArrayTasksIndividually(t *testing.T) {
 	}
 }
 
+func TestPlanRerunAppliesResultFiltersToArrayTasks(t *testing.T) {
+	queue := model.Queue{
+		Commands: []model.QueuedCommand{
+			{ID: "array", Command: []string{"run"}, Array: &model.ArraySpec{First: 1, Last: 2}},
+			{ID: "single", Command: []string{"run"}},
+		},
+	}
+	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"run-1": {
+		"array-1": {ID: "array-1", ExitCode: 1},
+		"array-2": {ID: "array-2", ExitCode: 3},
+		"single":  {ID: "single", ExitCode: 1},
+	}}}
+	filter := jobfilter.Filter{ExitCodes: []int{3}}
+	plan, err := PlanRerun(queue, "failed", nil, model.CommandSelector{}, filter, "run-1", true, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Execute["array-1"] || !plan.Execute["array-2"] || plan.Execute["single"] {
+		t.Fatalf("execute = %#v, want only array-2", plan.Execute)
+	}
+}
+
 func TestPlanRerunReportsUnknownJobIDs(t *testing.T) {
 	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "known"}}}
 	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"run-1": {}}}

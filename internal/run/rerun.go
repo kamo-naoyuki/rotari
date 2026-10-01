@@ -286,6 +286,9 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 				default:
 					matchSelection = model.ResultSelectionMatches(selection, finished, result.ExitCode)
 				}
+				if hasResultFilters && !filter.MatchesResult(result, finished) {
+					matchSelection = false
+				}
 				if matchTasks && scoped && matchSelection && filter.MatchesDefinition(id) && filter.MatchesAttributes(attributes) && resolver.diagnosisMatches(filter, result, origin, id) {
 					plan.Execute[id] = true
 					continue
