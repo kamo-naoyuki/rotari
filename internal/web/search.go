@@ -24,6 +24,7 @@ type HistorySearchFilter struct {
 }
 
 type HistorySearchRequest struct {
+	Target  string                `json:"target,omitempty"`
 	Filters []HistorySearchFilter `json:"filters"`
 	From    string                `json:"from,omitempty"`
 	To      string                `json:"to,omitempty"`
@@ -104,9 +105,15 @@ func ValidateHistorySearchRequest(request HistorySearchRequest) error {
 	if !from.IsZero() && !to.IsZero() && from.After(to) {
 		return fmt.Errorf("history search start time must not be after end time")
 	}
+	if request.Target != "" && historySearchTargetRank(request.Target) < 0 {
+		return fmt.Errorf("invalid history search result target %q", request.Target)
+	}
 	for index, filter := range request.Filters {
 		if err := validateHistorySearchFilter(index, filter); err != nil {
 			return err
+		}
+		if request.Target != "" && historySearchTargetRank(filter.Target) > historySearchTargetRank(request.Target) {
+			return fmt.Errorf("history search condition %d is more specific than result target %q", index+1, request.Target)
 		}
 	}
 	return nil
@@ -161,7 +168,7 @@ func SearchHistory(records []HistorySearchRecord, request HistorySearchRequest) 
 	if err != nil {
 		return HistorySearchResponse{}, err
 	}
-	target := historySearchResultTarget(request.Filters)
+	target := historySearchResultTarget(request)
 	rows := collectHistorySearchRows(records, request, target, from, to)
 	total := len(rows)
 	limit := request.Limit
@@ -172,9 +179,12 @@ func SearchHistory(records []HistorySearchRecord, request HistorySearchRequest) 
 	return HistorySearchResponse{Rows: rows, Total: total, Offset: request.Offset, Limit: limit}, nil
 }
 
-func historySearchResultTarget(filters []HistorySearchFilter) string {
+func historySearchResultTarget(request HistorySearchRequest) string {
+	if request.Target != "" {
+		return request.Target
+	}
 	target := HistorySearchProject
-	for _, filter := range filters {
+	for _, filter := range request.Filters {
 		if historySearchTargetRank(filter.Target) > historySearchTargetRank(target) {
 			target = filter.Target
 		}

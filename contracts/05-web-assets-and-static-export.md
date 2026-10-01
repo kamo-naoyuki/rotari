@@ -40,11 +40,14 @@ in user-selected scopes. Each scope selects a registered basedir and may
 narrow to one project and one run; multiple scopes are combined as a union.
 The dropdown choices load hierarchically from the selected basedir and project.
 Search scope is independent of basedir checkboxes used to monitor browser
-notifications. Search conditions select a project, run, or job field and a
-case-insensitive substring; additional conditions are joined in displayed
-order with AND or OR, evaluated left-to-right. When conditions target multiple
-levels, results use the most specific level and conditions for parent levels
-match the corresponding ancestor. Results are ordered by activity time with a
+notifications. The result level (project, run, or job) is selected once for
+the whole search. Each condition selects an attribute from that level or one
+of its ancestors: project results expose project attributes, run results
+expose run and project attributes, and job results expose job, run, and
+project attributes. Conditions match case-insensitive substrings; additional
+conditions are joined in displayed order with AND or OR, evaluated
+left-to-right. Results always remain at the selected level. Results are
+ordered by activity time with a
 stable tie-break and paged in batches of 50. Time ranges apply to the selected
 result level: run start/finish for runs, job finish/submission (falling back to
 the run time) for jobs, and activity in a run or job for projects. The static

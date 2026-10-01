@@ -132,6 +132,8 @@ func TestWebHistorySearchPageRenders(t *testing.T) {
 		"history-search-form",
 		"history-search-conditions",
 		"history-search-scopes",
+		"history-search-target",
+		"Search for",
 		"Choose basedir",
 		"All projects",
 		"All runs",
@@ -146,6 +148,9 @@ func TestWebHistorySearchPageRenders(t *testing.T) {
 	}
 	if strings.Contains(html, "history-search-basedirs input[type=\"checkbox\"]") {
 		t.Fatal("history search still uses a basedir checkbox list")
+	}
+	if strings.Contains(html, `class="history-search-condition"><select class="history-search-target"`) {
+		t.Fatal("search target is still repeated on each condition row")
 	}
 }
 
@@ -200,6 +205,12 @@ const context = {
 vm.createContext(context);
 vm.runInContext(code, context);
 (async () => {
+	const projectFields = context.historySearchOptionsHTML('project');
+	const runFields = context.historySearchOptionsHTML('run');
+	const jobFields = context.historySearchOptionsHTML('job');
+	if (!projectFields.includes('project:project_name')) throw new Error('project target is missing its attribute');
+	if (!runFields.includes('project:project_name') || !runFields.includes('run:run_name')) throw new Error('run target is missing project/run attributes');
+	if (!jobFields.includes('project:project_name') || !jobFields.includes('run:run_name') || !jobFields.includes('job:command')) throw new Error('job target is missing project/run/job attributes');
 	const scopeHTML = context.historySearchScopeHTML();
 	if (!scopeHTML.includes('<option value="base-b" selected>')) throw new Error('mounted basedir was not selected by default');
 	context.mountedBasedirID = '';

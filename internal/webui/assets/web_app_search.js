@@ -1,40 +1,36 @@
 const historySearchFieldOptions = {
-  project: [{ value: "project_name", label: "Project name" }],
+  project: [
+    { target: "project", value: "project_name", label: "Project · Name" },
+  ],
   run: [
-    { value: "run_id", label: "Run ID" },
-    { value: "run_name", label: "Run name" },
-    { value: "status", label: "Run status" },
-    { value: "exit_code", label: "Run exit code" },
+    { target: "project", value: "project_name", label: "Project · Name" },
+    { target: "run", value: "run_id", label: "Run · ID" },
+    { target: "run", value: "run_name", label: "Run · Name" },
+    { target: "run", value: "status", label: "Run · Status" },
+    { target: "run", value: "exit_code", label: "Run · Exit code" },
   ],
   job: [
-    { value: "command", label: "Command" },
-    { value: "status", label: "Job status" },
-    { value: "job_id", label: "Job ID" },
-    { value: "job_name", label: "Job name" },
-    { value: "stage", label: "Stage" },
-    { value: "executor", label: "Executor" },
-    { value: "attempt_id", label: "Attempt ID" },
-    { value: "exit_code", label: "Job exit code" },
+    { target: "project", value: "project_name", label: "Project · Name" },
+    { target: "run", value: "run_id", label: "Run · ID" },
+    { target: "run", value: "run_name", label: "Run · Name" },
+    { target: "run", value: "status", label: "Run · Status" },
+    { target: "run", value: "exit_code", label: "Run · Exit code" },
+    { target: "job", value: "command", label: "Job · Command" },
+    { target: "job", value: "status", label: "Job · Status" },
+    { target: "job", value: "job_id", label: "Job · ID" },
+    { target: "job", value: "job_name", label: "Job · Name" },
+    { target: "job", value: "stage", label: "Job · Stage" },
+    { target: "job", value: "executor", label: "Job · Executor" },
+    { target: "job", value: "attempt_id", label: "Job · Attempt ID" },
+    { target: "job", value: "exit_code", label: "Job · Exit code" },
   ],
 };
 let historySearchLastRequest = null;
 let historySearchOffset = 0;
 
-function historySearchConditionHTML(join = "and") {
-  const targets = [
-    ["project", "Project"],
-    ["run", "Run"],
-    ["job", "Job"],
-  ];
-  const targetOptions = targets
-    .map(
-      ([value, label]) =>
-        `<option value="${value}" ${value === "job" ? "selected" : ""}>${label}</option>`,
-    )
-    .join("");
+function historySearchConditionHTML(join = "and", target = "job") {
   return `<div class="history-search-condition">
-    <select class="history-search-target" aria-label="Search target" onchange="historySearchUpdateFields(this)">${targetOptions}</select>
-    <select class="history-search-field" aria-label="Search field">${historySearchOptionsHTML("job")}</select>
+    <select class="history-search-field" aria-label="Search field">${historySearchOptionsHTML(target)}</select>
     <input class="history-search-word" type="search" maxlength="256" placeholder="Search word" aria-label="Search word" required />
     <select class="history-search-join" aria-label="Combine condition" ${join === "first" ? "hidden" : ""}>
       <option value="and" ${join === "and" ? "selected" : ""}>AND</option>
@@ -46,23 +42,34 @@ function historySearchConditionHTML(join = "and") {
 
 function historySearchOptionsHTML(target, selected = "") {
   return (historySearchFieldOptions[target] || [])
-    .map(
-      (field) =>
-        `<option value="${field.value}" ${field.value === selected ? "selected" : ""}>${field.label}</option>`,
-    )
+    .map((field) => {
+      const value = `${field.target}:${field.value}`;
+      return `<option value="${value}" ${value === selected ? "selected" : ""}>${field.label}</option>`;
+    })
     .join("");
 }
 
-function historySearchUpdateFields(select) {
-  const condition = select.closest(".history-search-condition");
-  condition.querySelector(".history-search-field").innerHTML =
-    historySearchOptionsHTML(select.value);
+function historySearchUpdateTarget(select) {
+  const conditions = document.getElementById("history-search-conditions");
+  [...conditions.querySelectorAll(".history-search-condition")].forEach(
+    (condition) => {
+      const field = condition.querySelector(".history-search-field");
+      const selected = field.value;
+      field.innerHTML = historySearchOptionsHTML(select.value, selected);
+      if (field.value !== selected && field.options.length)
+        field.selectedIndex = 0;
+    },
+  );
 }
 
 function historySearchAddCondition() {
   const conditions = document.getElementById("history-search-conditions");
   if (!conditions || conditions.children.length >= 20) return;
-  conditions.insertAdjacentHTML("beforeend", historySearchConditionHTML("and"));
+  const target = document.getElementById("history-search-target").value;
+  conditions.insertAdjacentHTML(
+    "beforeend",
+    historySearchConditionHTML("and", target),
+  );
   historySearchUpdateConditionControls(conditions);
 }
 
@@ -123,7 +130,14 @@ function historySearchPageHTML() {
       </fieldset>
       <fieldset class="history-search-query">
         <legend>Conditions</legend>
-        <div id="history-search-conditions">${historySearchConditionHTML("first")}</div>
+        <label class="history-search-result-target">Search for
+          <select id="history-search-target" onchange="historySearchUpdateTarget(this)">
+            <option value="project">Projects</option>
+            <option value="run">Runs</option>
+            <option value="job" selected>Jobs</option>
+          </select>
+        </label>
+        <div id="history-search-conditions">${historySearchConditionHTML("first", "job")}</div>
         <button type="button" class="history-search-add" onclick="historySearchAddCondition()">＋ Add condition</button>
       </fieldset>
       <div class="history-search-time-row">
@@ -282,16 +296,22 @@ function historySearchRequestFromForm() {
     }));
   const filters = [
     ...document.querySelectorAll(".history-search-condition"),
-  ].map((condition, index) => ({
-    target: condition.querySelector(".history-search-target").value,
-    field: condition.querySelector(".history-search-field").value,
-    word: condition.querySelector(".history-search-word").value.trim(),
-    ...(index > 0
-      ? { join: condition.querySelector(".history-search-join").value }
-      : {}),
-  }));
+  ].map((condition, index) => {
+    const [target, field] = condition
+      .querySelector(".history-search-field")
+      .value.split(":", 2);
+    return {
+      target,
+      field,
+      word: condition.querySelector(".history-search-word").value.trim(),
+      ...(index > 0
+        ? { join: condition.querySelector(".history-search-join").value }
+        : {}),
+    };
+  });
   const request = {
     scopes,
+    target: document.getElementById("history-search-target").value,
     filters,
     limit: 50,
     offset: 0,
