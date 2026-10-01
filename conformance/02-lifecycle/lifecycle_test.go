@@ -158,6 +158,27 @@ func TestFingerprintMatchingPrioritizesIDsAndQueueOccurrence(t *testing.T) {
 	}
 }
 
+func TestFingerprintMatchingIgnoresNonInputMetadata(t *testing.T) {
+	covers(t, "RUN-4")
+	e := support.NewEnv(t)
+
+	e.MustRotari("add", "-p", "metadata", "--job-name", "anchor", "--", "true")
+	targetID := support.AddedJobID(t, e.MustRotari("add", "-p", "metadata", "--job-name", "target", "--", "true"))
+	e.MustRotari("run", "-p", "metadata", "--quiet")
+	source := readSummary(t, e, "metadata")
+	e.MustRotari("copy", "-p", "metadata", "--run-id", source.RunID, "--overwrite", "--quiet")
+	e.MustRotari("change", "-p", "metadata", "--job-id", targetID,
+		"--set-job-name", "renamed", "--executor", "local", "--depends-on", "anchor",
+		"--timeout", "1h", "--retry", "1", "--retry-delay", "1s", "--retry-backoff", "2", "--retry-max-delay", "1m", "--quiet")
+	e.MustRotari("run", "-p", "metadata", "--match-by", "fingerprint", "--quiet")
+	run := readSummary(t, e, "metadata")
+	snapshot := readCommandSnapshot(t, e, "metadata", run.RunID)
+	command := commandByID(t, snapshot, targetID)
+	if command.Origin == nil || command.Origin.JobID != targetID {
+		t.Fatalf("non-input metadata prevented fingerprint matching: %#v", command)
+	}
+}
+
 func TestFingerprintMatchingPreservesArrayTasksAndMatrixLeaves(t *testing.T) {
 	covers(t, "RUN-4")
 	e := support.NewEnv(t)
