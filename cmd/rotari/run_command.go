@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -317,13 +320,7 @@ func sendRunRequest(client *serverinternal.Client, request serverinternal.Reques
 	defer signal.Stop(signals)
 	detach := make(chan struct{}, 1)
 	if isTerminal(os.Stdin) {
-		go func() {
-			var buffer [1]byte
-			n, err := os.Stdin.Read(buffer[:])
-			if (n == 0 && err == nil) || (n > 0 && buffer[0] == serverinternal.DetachControl) {
-				detach <- struct{}{}
-			}
-		}()
+		go watchDetach(os.Stdin, detach)
 	}
 	printer := runProgressPrinter{quiet: request.Quiet, lastCompleted: -1, lastSucceeded: -1, lastFailed: -1}
 	response, outcome, err := client.StreamRun(request, detach, signals, printer.print)
@@ -341,6 +338,23 @@ func sendRunRequest(client *serverinternal.Client, request serverinternal.Reques
 		}
 	}
 	return response, nil
+}
+
+// watchDetach signals detach when input reaches EOF, which is how a canonical
+// mode terminal reports Ctrl-D at the start of a line, or carries the detach
+// byte. Other input is discarded.
+func watchDetach(input io.Reader, detach chan<- struct{}) {
+	var buffer [256]byte
+	for {
+		n, err := input.Read(buffer[:])
+		if bytes.IndexByte(buffer[:n], serverinternal.DetachControl) >= 0 || errors.Is(err, io.EOF) {
+			detach <- struct{}{}
+			return
+		}
+		if err != nil {
+			return
+		}
+	}
 }
 
 // runProgressPrinter renders a synchronous run's progress responses.

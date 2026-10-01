@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -192,6 +193,27 @@ func TestCmdRunOverwriteSkipsQueueConfirmation(t *testing.T) {
 	}
 	if strings.Contains(string(output), "queue is not empty") {
 		t.Fatalf("cmdRun prompted instead of honoring --overwrite: %q", output)
+	}
+}
+
+func TestWatchDetach(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  io.Reader
+		detach bool
+	}{
+		{name: "EOF from Ctrl-D at line start", input: strings.NewReader(""), detach: true},
+		{name: "detach byte after other input", input: io.MultiReader(strings.NewReader("\n"), strings.NewReader("x\x04")), detach: true},
+		{name: "read error", input: iotest.ErrReader(errors.New("closed")), detach: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			detach := make(chan struct{}, 1)
+			watchDetach(test.input, detach)
+			if got := len(detach) == 1; got != test.detach {
+				t.Fatalf("detached = %v, want %v", got, test.detach)
+			}
+		})
 	}
 }
 
