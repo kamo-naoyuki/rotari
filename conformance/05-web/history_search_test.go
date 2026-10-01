@@ -118,18 +118,20 @@ func TestHistorySearchAcrossProjects(t *testing.T) {
 		t.Fatal(err)
 	}
 	containsDiagnosis := false
-	containsSavedDiagnosis := false
+	savedDiagnosis := ""
 	for _, name := range options.Diagnoses {
 		containsDiagnosis = containsDiagnosis || name == "Permission denied"
-		containsSavedDiagnosis = containsSavedDiagnosis || name == "Out of memory"
+		if name == "Out of memory" {
+			savedDiagnosis = name
+		}
 	}
-	if !containsDiagnosis || !containsSavedDiagnosis {
+	if !containsDiagnosis || savedDiagnosis == "" {
 		t.Fatalf("diagnosis options = %#v, want known and saved diagnosis names", options.Diagnoses)
 	}
 	diagnosisSearch := e.HTTPPostJSON(base+"/api/history-search", map[string]any{
 		"scopes":  []map[string]string{searchRange},
 		"target":  "job",
-		"filters": []map[string]string{{"target": "job", "field": "diagnosis", "word": options.Diagnoses[0]}},
+		"filters": []map[string]string{{"target": "job", "field": "diagnosis", "word": savedDiagnosis}},
 	})
 	if diagnosisSearch.Status != 200 {
 		t.Fatalf("diagnosis search: status %d: %s", diagnosisSearch.Status, diagnosisSearch.Body)

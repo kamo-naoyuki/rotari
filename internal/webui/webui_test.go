@@ -420,8 +420,14 @@ func TestWebHistorySearchScopesAcrossSelectedBasedirs(t *testing.T) {
 	if err := json.Unmarshal(diagnosisRecorder.Body.Bytes(), &diagnosisOptions); err != nil {
 		t.Fatal(err)
 	}
-	if len(diagnosisOptions.Diagnoses) != 1 || diagnosisOptions.Diagnoses[0] != "Out of memory" {
-		t.Fatalf("diagnosis options = %#v, want saved diagnosis names from selected range", diagnosisOptions.Diagnoses)
+	containsKnownDiagnosis := false
+	containsSavedDiagnosis := false
+	for _, diagnosis := range diagnosisOptions.Diagnoses {
+		containsKnownDiagnosis = containsKnownDiagnosis || diagnosis == "Permission denied"
+		containsSavedDiagnosis = containsSavedDiagnosis || diagnosis == "Out of memory"
+	}
+	if !containsKnownDiagnosis || !containsSavedDiagnosis {
+		t.Fatalf("diagnosis options = %#v, want known and saved diagnosis names", diagnosisOptions.Diagnoses)
 	}
 	for _, test := range []struct {
 		query string
