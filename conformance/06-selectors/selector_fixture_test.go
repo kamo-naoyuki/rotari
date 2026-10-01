@@ -22,7 +22,7 @@ import (
 //	    prep            stage setup, succeeds                          [prep]
 //	    train-SEED1/2   matrix "train", stage training, --retry 1;
 //	                    SEED 2 fails both attempts                     [train-SEED1] [train-SEED2]
-//	    eval            array 1-3, stage evaluation; task 2 fails            [eval]
+//	    eval            array 1-3, stage evaluation; task 2 exits 3          [eval]
 //	    (unnamed)       stage report, succeeds                         [report]
 //	    late            added after run "first", never runs            [late]
 //	    run "first":  every job but late                               [sweep-first]
@@ -64,7 +64,7 @@ func newSelectorFixture(t *testing.T) selectorFixture {
 
 	f.add(f.base, "sweep", "--job-name", "prep", "--stage", "setup", "--", "true")
 	f.add(f.base, "sweep", "--job-name", "train", "--matrix", "SEED=1,2", "--stage", "training", "--retry", "1", "--", "sh", "-c", `test "$SEED" = 1`)
-	f.add(f.base, "sweep", "--job-name", "eval", "--array", "1-3", "--stage", "evaluation", "--", "sh", "-c", `test "$ROTARI_ARRAY_TASK_ID" != 2`)
+	f.add(f.base, "sweep", "--job-name", "eval", "--array", "1-3", "--stage", "evaluation", "--", "sh", "-c", `test "$ROTARI_ARRAY_TASK_ID" != 2 || exit 3`)
 	f.add(f.base, "sweep", "--stage", "report", "--", "true")
 	f.recordJobs(f.base, "sweep", map[string]string{"prep": "prep", "train-SEED1": "train-SEED1", "train-SEED2": "train-SEED2", "eval": "eval"}, "report")
 	f.runs["sweep-first"] = f.run(f.base, "sweep", "first")

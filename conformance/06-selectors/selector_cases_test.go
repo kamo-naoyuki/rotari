@@ -36,6 +36,8 @@ var selectorCases = []selectorCase{
 	{name: "success filter", cmd: "show", args: "-b {B} -p sweep --success", table: true, jobs: []string{"eval-1", "eval-3", "prep", "report", "train-SEED1"}},
 	{name: "unfinished filter", cmd: "show", args: "-b {B} -p sweep --unfinished", table: true, jobs: []string{"late"}},
 	{name: "failed filter without a stage", cmd: "show", args: "-b {B} -p sweep --failed --filter-not-stage training", table: true, jobs: []string{"eval-2"}},
+	{name: "exit code filter", cmd: "show", args: "-b {B} -p sweep --filter-exit-code 3", table: true, jobs: []string{"eval-2"}},
+	{name: "failed and exit code filter", cmd: "show", args: "-b {B} -p sweep --failed --filter-exit-code 1", table: true, jobs: []string{"train-SEED2"}},
 
 	// copy: which commands are restored, and from which run.
 	{name: "latest run", cmd: "copy", args: "-b {B} -p sweep", jobs: []string{"eval", "late", "prep", "report", "train-SEED1", "train-SEED2"}},
@@ -71,6 +73,8 @@ var selectorCases = []selectorCase{
 	{name: "failed without a matrix", cmd: "copy", args: "-b {B} -p sweep --failed --filter-not-matrix train", jobs: []string{"eval"}},
 	{name: "stage and a different long form", cmd: "copy", args: "-b {B} -p sweep --stage training --filter-stage evaluation", err: `--stage "training" and --filter-stage "evaluation" differ`},
 	{name: "job ID and filter", cmd: "copy", args: "-b {B} -p sweep --filter-not-stage training --job-id {job:prep}", err: "cannot be combined with --filter-* options"},
+	{name: "exit code filter", cmd: "copy", args: "-b {B} -p sweep --filter-exit-code 3", jobs: []string{"eval"}},
+	{name: "failed and exit code filter", cmd: "copy", args: "-b {B} -p sweep --failed --filter-exit-code 1", jobs: []string{"train-SEED2"}},
 
 	// change: which commands get the new setting.
 	{name: "empty queue", cmd: "change", args: "-b {B} -p sweep --job-name prep", err: "no queued jobs"},
@@ -141,6 +145,9 @@ var selectorCases = []selectorCase{
 	{name: "array task name", cmd: "run", args: "-b {B} -p sweep --job-name eval[3]", jobs: []string{"eval-3"}},
 	{name: "unknown stage", cmd: "run", args: "-b {B} -p sweep --stage nope", err: `no jobs in stage "nope"`},
 	{name: "stage and job ID", cmd: "run", args: "-b {B} -p sweep --stage training --job-id {job:prep}", err: "cannot be combined"},
+	{name: "exit code filter narrows failed and unfinished", cmd: "retry", args: "-b {B} -p sweep --filter-exit-code 3", jobs: []string{"eval-2"}},
+	{name: "failed and exit code filter", cmd: "run", args: "-b {B} -p sweep --failed --filter-exit-code 1", jobs: []string{"train-SEED2"}},
+	{name: "failed and exit code filter on a whole array", cmd: "run", args: "-b {B} -p sweep --failed --filter-exit-code 3 --partial-array=false", jobs: []string{"eval-1", "eval-2", "eval-3"}},
 
 	// An edit keeps the recorded result; only a status mark replaces it.
 	{name: "changed command", cmd: "retry", args: "-b {B} -p sweep", queued: true, change: "-b {B} -p sweep --job-name prep echo edited", jobs: []string{"eval-2", "late", "train-SEED2"}},
