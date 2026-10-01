@@ -163,10 +163,11 @@ func MatchFingerprintJobsByMode(current, source []FingerprintJob, mode string) [
 		return matches
 	}
 
-	currentByFingerprint := fingerprintGroups(current, usedCurrent)
+	currentByFingerprint := orderedFingerprintGroups(current, usedCurrent)
 	sourceByFingerprint := fingerprintGroups(source, usedSource)
-	for fingerprint, currentIndexes := range currentByFingerprint {
-		sourceIndexes := sourceByFingerprint[fingerprint]
+	for _, group := range currentByFingerprint {
+		currentIndexes := group.indexes
+		sourceIndexes := sourceByFingerprint[group.fingerprint]
 		if len(currentIndexes) != len(sourceIndexes) {
 			continue
 		}
@@ -187,10 +188,11 @@ func matchFingerprintOnly(current, source []FingerprintJob) []FingerprintMatch {
 
 func matchRemainingFingerprintJobs(current, source []FingerprintJob, usedCurrent, usedSource []bool) []FingerprintMatch {
 	matches := make([]FingerprintMatch, 0)
-	currentByFingerprint := fingerprintGroups(current, usedCurrent)
+	currentByFingerprint := orderedFingerprintGroups(current, usedCurrent)
 	sourceByFingerprint := fingerprintGroups(source, usedSource)
-	for fingerprint, currentIndexes := range currentByFingerprint {
-		sourceIndexes := sourceByFingerprint[fingerprint]
+	for _, group := range currentByFingerprint {
+		currentIndexes := group.indexes
+		sourceIndexes := sourceByFingerprint[group.fingerprint]
 		if len(currentIndexes) != len(sourceIndexes) {
 			continue
 		}
@@ -199,6 +201,37 @@ func matchRemainingFingerprintJobs(current, source []FingerprintJob, usedCurrent
 		}
 	}
 	return matches
+}
+
+type fingerprintGroup struct {
+	fingerprint string
+	indexes     []int
+}
+
+func orderedFingerprintGroups(jobs []FingerprintJob, used []bool) []fingerprintGroup {
+	groups := make(map[string][]int)
+	first := make(map[string]int)
+	for index, job := range jobs {
+		if used[index] {
+			continue
+		}
+		if _, ok := first[job.Fingerprint]; !ok {
+			first[job.Fingerprint] = index
+		}
+		groups[job.Fingerprint] = append(groups[job.Fingerprint], index)
+	}
+	keys := make([]string, 0, len(groups))
+	for fingerprint := range groups {
+		keys = append(keys, fingerprint)
+	}
+	sort.Slice(keys, func(left, right int) bool {
+		return first[keys[left]] < first[keys[right]]
+	})
+	order := make([]fingerprintGroup, 0, len(keys))
+	for _, fingerprint := range keys {
+		order = append(order, fingerprintGroup{fingerprint: fingerprint, indexes: groups[fingerprint]})
+	}
+	return order
 }
 
 func fingerprintGroups(jobs []FingerprintJob, used []bool) map[string][]int {

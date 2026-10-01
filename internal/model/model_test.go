@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -88,6 +89,36 @@ func TestMatchFingerprintJobsPrioritizesJobIDsAndCountsRemainingUnits(t *testing
 	}
 	if matches[0].CurrentID != "same" || matches[0].SourceID != "same" || matches[1].SourceID != "old-1" || matches[2].SourceID != "old-2" {
 		t.Fatalf("matches = %#v", matches)
+	}
+}
+
+func TestMatchFingerprintJobsRespectsCurrentQueueOrderAcrossGroups(t *testing.T) {
+	current := []FingerprintJob{
+		{ID: "c-1", Fingerprint: "c"},
+		{ID: "a-1", Fingerprint: "a"},
+		{ID: "b-1", Fingerprint: "b"},
+		{ID: "c-2", Fingerprint: "c"},
+		{ID: "a-2", Fingerprint: "a"},
+		{ID: "b-2", Fingerprint: "b"},
+	}
+	source := []FingerprintJob{
+		{ID: "s-c-1", Fingerprint: "c"},
+		{ID: "s-a-1", Fingerprint: "a"},
+		{ID: "s-b-1", Fingerprint: "b"},
+		{ID: "s-c-2", Fingerprint: "c"},
+		{ID: "s-a-2", Fingerprint: "a"},
+		{ID: "s-b-2", Fingerprint: "b"},
+	}
+	want := []string{"c-1", "c-2", "a-1", "a-2", "b-1", "b-2"}
+	for i := 0; i < 200; i++ {
+		matches := MatchFingerprintJobs(current, source)
+		got := make([]string, 0, len(matches))
+		for _, match := range matches {
+			got = append(got, match.CurrentID)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("iteration %d: matches in queue order = %#v, want %#v", i, got, want)
+		}
 	}
 }
 
