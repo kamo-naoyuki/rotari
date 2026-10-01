@@ -47,7 +47,7 @@ func TestWebHeaderBrandLinksToHome(t *testing.T) {
 	if !webContains(html, `<a class="header-home" href="/"><img class="brand-icon"`) {
 		t.Fatal("header brand logo is not a home link")
 	}
-	if !webContains(html, `rotari Web</a>`) {
+	if !webContains(html, `<span class="header-title-text">rotari Web</span></a>`) {
 		t.Fatal("header brand link does not include the page title")
 	}
 }

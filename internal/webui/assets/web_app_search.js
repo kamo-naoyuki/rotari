@@ -168,19 +168,21 @@ function historySearchPageHTML() {
       </fieldset>
       <fieldset class="history-search-query">
         <legend>Conditions</legend>
-        <label class="history-search-result-target">Search for
-          <select id="history-search-target" onchange="historySearchUpdateTarget(this)">
-            <option value="project">Projects</option>
-            <option value="run">Runs</option>
-            <option value="job" selected>Jobs</option>
-          </select>
-        </label>
+        <div class="history-search-controls-row">
+          <label class="history-search-result-target">Search for
+            <select id="history-search-target" onchange="historySearchUpdateTarget(this)">
+              <option value="project">Projects</option>
+              <option value="run">Runs</option>
+              <option value="job" selected>Jobs</option>
+            </select>
+          </label>
+          <div class="history-search-match-options">
+            <label><input id="history-search-ignore-case" type="checkbox" checked /> Ignore case</label>
+            <label><input id="history-search-fuzzy" type="checkbox" /> Fuzzy search</label>
+          </div>
+        </div>
         <div id="history-search-conditions">${historySearchConditionHTML("first", "job")}</div>
         <button type="button" class="history-search-add" onclick="historySearchAddCondition()">＋ Add condition</button>
-        <div class="history-search-match-options">
-          <label><input id="history-search-ignore-case" type="checkbox" checked /> Ignore case</label>
-          <label><input id="history-search-fuzzy" type="checkbox" /> Fuzzy search</label>
-        </div>
       </fieldset>
       <div class="history-search-time-row">
         <label>Time range
@@ -212,8 +214,8 @@ function historySearchPageHTML() {
 function renderHistorySearchPage() {
   const app = document.getElementById("app");
   document.title = "History search · rotari";
-  document.querySelector(".header-home").innerHTML =
-    esc("rotari") + " History search";
+  document.querySelector(".header-title-text").textContent =
+    "rotari History search";
   document.getElementById("location").textContent = "History search";
   if (typeof rewriteStaticLinks === "function") {
     document.getElementById("page-title").textContent = "History search";

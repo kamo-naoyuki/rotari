@@ -1247,11 +1247,12 @@ pre,
 
 .history-search-condition .history-search-remove {
   box-sizing: border-box;
+  grid-column: 4;
   width: 34px;
   height: 34px;
   min-width: 34px;
   padding: 0;
-  justify-self: center;
+  justify-self: start;
   align-self: center;
   display: flex;
   align-items: center;
@@ -1267,8 +1268,10 @@ pre,
 .history-search-match-options {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 14px;
-  margin-top: 10px;
+  min-height: 36px;
+  margin: 0 0 12px;
 }
 
 .history-search-match-options label {
@@ -1280,17 +1283,32 @@ pre,
 }
 
 .history-search-match-options input {
+  box-sizing: border-box;
+  width: 13px;
+  height: 13px;
+  min-width: 13px;
+  min-height: 13px;
   margin: 0;
+  padding: 0;
+  flex: 0 0 13px;
 }
 
 .history-search-result-target {
   display: flex;
   width: min(100%, 320px);
+  flex: 0 1 320px;
   align-items: center;
   gap: 10px;
   margin: 0 0 12px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.history-search-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
 }
 
 .history-search-result-target select {

@@ -185,6 +185,7 @@ const app = { className: '', innerHTML: '' };
 const pageTitle = { textContent: '' };
 const summary = { textContent: '' };
 const headerHome = { innerHTML: '' };
+const headerTitle = { textContent: 'rotari Web' };
 const form = { addEventListener() {} };
 const resultContainer = { innerHTML: '' };
 let scrolledJob = '';
@@ -213,7 +214,11 @@ const context = {
 	esc: value => String(value),
 	basedirURL: (_id, path) => path,
 	document: {
-			querySelector(selector) { return selector === '.header-home' ? headerHome : null; },
+		querySelector(selector) {
+			if (selector === '.header-home') return headerHome;
+			if (selector === '.header-title-text') return headerTitle;
+			return null;
+		},
 		getElementById(id) {
 			if (id === 'app') return app;
 			if (id === 'location') return location;
@@ -268,7 +273,7 @@ vm.runInContext(code, context);
 	if (!context.historySearchScopeHTML().includes('<option value="base-a" selected>')) throw new Error('current basedir was not selected by default');
 	context.renderHistorySearchPage();
 	if (location.textContent === 'loading...') throw new Error('history search page left the location label loading');
-	if (headerHome.innerHTML !== 'rotari History search') throw new Error('header home title was not updated for history search');
+	if (headerTitle.textContent !== 'rotari History search') throw new Error('header home title was not updated for history search');
 	if (summary.textContent !== 'Search project, run, and job history in the ranges you choose.') throw new Error('history search description is not shown as the header subtitle');
 	if (app.innerHTML.includes('history-search-intro')) throw new Error('history search intro box is still rendered');
 	await context.historySearchBasedirChanged(basedir);
@@ -1522,7 +1527,7 @@ func TestWebHTMLIncludesEmbeddedThemeFavicons(t *testing.T) {
 		`data:image/svg+xml;base64,`,
 		`<span class="brand-mark" aria-hidden="true"><img class="brand-icon" alt="" src="data:image/svg+xml;base64,`,
 		`<h1><a class="header-home" href="/"><img class="brand-icon"`,
-		`rotari Web</a></h1>`,
+		`<span class="header-title-text">rotari Web</span></a></h1>`,
 	} {
 		if !webContains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
