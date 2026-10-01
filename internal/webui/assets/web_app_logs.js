@@ -499,8 +499,7 @@ function openOutputModal(compact) {
   const editingConfig = view === "config" && modal.dataset.editing === "true";
   const editingNotificationConfig = view === "notification-config";
   const generatingConfig =
-    view === "generate-config" ||
-    view === "notification-config-generate";
+    view === "generate-config" || view === "notification-config-generate";
   const configPaths = document.getElementById("modal-config-paths");
   configPaths.hidden =
     (view !== "config" && view !== "notification-config") ||

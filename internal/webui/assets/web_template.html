@@ -107,7 +107,11 @@
                 ><button
                   id="notification-config-save"
                   type="button"
-                  onclick="document.getElementById('notification-config-editor').requestSubmit()"
+                  onclick="
+                    document
+                      .getElementById('notification-config-editor')
+                      .requestSubmit()
+                  "
                   hidden
                 >
                   Save</button
@@ -125,7 +129,11 @@
               Markdown report for pasting into an AI assistant. Nothing is sent
               to external services automatically.
             </p>
-            <div id="modal-config-paths" class="modal-config-paths" hidden></div>
+            <div
+              id="modal-config-paths"
+              class="modal-config-paths"
+              hidden
+            ></div>
             <div class="output-box">
               <pre id="modal-log" class="log"></pre>
               <div id="config-editor" class="config-editor" hidden>

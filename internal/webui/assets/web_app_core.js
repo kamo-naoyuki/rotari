@@ -955,9 +955,9 @@ function updateNotificationConfigDirty(form) {
     return value !== control.dataset.initialValue;
   });
   form.classList.toggle("dirty", dirty);
-  form.querySelectorAll("fieldset").forEach((fieldset) =>
-    fieldset.classList.toggle("dirty", dirty),
-  );
+  form
+    .querySelectorAll("fieldset")
+    .forEach((fieldset) => fieldset.classList.toggle("dirty", dirty));
 }
 function initializeNotificationConfigDirtyState(form) {
   form.querySelectorAll("input,select").forEach((control) => {
