@@ -31,10 +31,11 @@ render = function () {
   const runtimeDetails = document.querySelector(".project-runtime details");
   if (runtimeDetails) projectRuntimeDetailsOpen = runtimeDetails.open;
   originalRender();
+  const parts = pageParts();
+  if (parts[0] === "search") return;
   enhancePage();
   enhanceQueueOverview();
   addQueueOverviewPathActions();
-  const parts = pageParts();
   if (parts[0] === "project" && !parts[2]) {
     const queue = state.projects.find(
       (q) => q.project_name === decodeURIComponent(parts[1]),

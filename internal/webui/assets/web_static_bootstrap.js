@@ -131,6 +131,13 @@ function staticWordCloudKey(project, run) {
 function staticRootPath() {
   const pathname = window.location.pathname;
   const parts = pathname.split("/").filter(Boolean);
+  const searchIndex = parts.lastIndexOf("search");
+  if (
+    searchIndex >= 0 &&
+    (searchIndex === parts.length - 1 ||
+      (parts.at(-1) === "index.html" && searchIndex === parts.length - 2))
+  )
+    return "/" + parts.slice(0, searchIndex).join("/");
   const projectIndex = parts.indexOf("project");
   if (projectIndex >= 0) {
     return "/" + parts.slice(0, projectIndex).join("/");

@@ -93,9 +93,10 @@ order and delivered as one script; they intentionally share the global scope:
 3. `web_app_logs.js`
 4. `web_app_tables.js`
 5. `web_app_charts.js`
-6. `web_app_notifications.js`
-7. `web_app_search.js`
-8. `web_app_bootstrap.js`
+6. `web_app_matrix.js`
+7. `web_app_notifications.js`
+8. `web_app_search.js`
+9. `web_app_bootstrap.js`
 
 Do not reorder these files without running the full Web test suite. The
 separation is for source readability and ownership, not JavaScript module

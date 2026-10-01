@@ -65,6 +65,24 @@
   background: #1c2b39;
 }
 
+.sidebar-search-link {
+  display: block;
+  margin: -8px 4px 16px;
+  padding: 8px 12px;
+  border: 1px solid #314152;
+  border-radius: 8px;
+  color: var(--text);
+  background: #15212d;
+  font-size: 12px;
+  font-weight: 590;
+  text-decoration: none;
+}
+
+.sidebar-search-link:hover {
+  border-color: #526b80;
+  background: #1c2b39;
+}
+
 .sidebar-section-note {
   margin: -5px 8px 7px;
   color: #718295;

@@ -38,6 +38,9 @@ var webAppMatrixJS string
 //go:embed assets/web_app_notifications.js
 var webAppNotificationsJS string
 
+//go:embed assets/web_app_search.js
+var webAppSearchJS string
+
 //go:embed assets/web_app_bootstrap.js
 var webAppBootstrapJS string
 
@@ -78,7 +81,7 @@ func composeWebHTMLWithNotificationSettings(executors []string, notifications bo
 		basedirs = basedirLists[0]
 	}
 	basedirJSON, _ := json.Marshal(basedirs)
-	webAppJS := strings.Join([]string{webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppTablesJS, webAppChartsJS, webAppMatrixJS, webAppNotificationsJS, webAppBootstrapJS}, "\n")
+	webAppJS := strings.Join([]string{webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppTablesJS, webAppChartsJS, webAppMatrixJS, webAppNotificationsJS, webAppSearchJS, webAppBootstrapJS}, "\n")
 	template := strings.Replace(webTemplateHTML, "__ROTARI_WEB_APP__", webAppJS, 1)
 	template = strings.Replace(template, "__ROTARI_BASEDIRS__", string(basedirJSON), 1)
 	template = strings.Replace(template, "__ROTARI_EXECUTORS__", string(executorJSON), 1)
@@ -107,6 +110,8 @@ func composeInfoHTML(template, homePath, content string) string {
 	template = strings.Replace(template, "__ROTARI_INFO_STYLES__", webInfoStylesCSS+"\n"+webSidebarStylesCSS, 1)
 	template = strings.ReplaceAll(template, "__ROTARI_BRAND_ICON__", brandIcon())
 	template = strings.ReplaceAll(template, "__ROTARI_HOME_PATH__", html.EscapeString(homePath))
+	searchPath := strings.TrimRight(homePath, "/") + "/search/"
+	template = strings.ReplaceAll(template, "__ROTARI_SEARCH_PATH__", html.EscapeString(searchPath))
 	template = strings.Replace(template, "__ROTARI_CONTENT__", content, 1)
 	return template
 }

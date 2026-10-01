@@ -124,6 +124,132 @@ func TestWebHTMLJavaScriptSyntax(t *testing.T) {
 	}
 }
 
+func TestWebHistorySearchPageRenders(t *testing.T) {
+	html := testSite().webHTML()
+	for _, marker := range []string{
+		"href=\"/search/\"",
+		"history-search-form",
+		"history-search-conditions",
+		"history-search-basedirs",
+		"Last 24 hours",
+		"All history",
+		"rotari-history-search-basedirs:",
+		"/api/history-search",
+	} {
+		if !strings.Contains(html, marker) {
+			t.Errorf("Web HTML is missing history search marker %q", marker)
+		}
+	}
+}
+
+func TestGenerateStaticWebIncludesHistorySearchPage(t *testing.T) {
+	baseDir := t.TempDir()
+	outputDir := filepath.Join(t.TempDir(), "site")
+	if err := siteFor(baseDir).generateStaticWeb(outputDir); err != nil {
+		t.Fatal(err)
+	}
+	page, err := os.ReadFile(filepath.Join(outputDir, "search", "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(page), "Cross-basedir history search is available in the live Web UI only.") {
+		t.Fatal("static history search page does not explain that search requires the live Web UI")
+	}
+	if _, err := os.Stat(filepath.Join(outputDir, "search", "web_styles.css")); err != nil {
+		t.Fatalf("static history search stylesheet missing: %v", err)
+	}
+}
+
+func TestWebHistorySearchScopesAcrossSelectedBasedirs(t *testing.T) {
+	baseA, baseB := t.TempDir(), t.TempDir()
+	for _, item := range []struct {
+		baseDir string
+		project string
+		runID   string
+	}{
+		{baseDir: baseA, project: "project-a", runID: "run-a"},
+		{baseDir: baseB, project: "project-b", runID: "run-b"},
+	} {
+		paths, err := stateinternal.ResolveProjectPaths(item.baseDir, item.project)
+		if err != nil {
+			t.Fatal(err)
+		}
+		runDir := filepath.Join(paths.RunsDir, item.runID)
+		if err := os.MkdirAll(runDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := stateinternal.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Name: "build", Command: []string{"make", "build"}}}}); err != nil {
+			t.Fatal(err)
+		}
+		if err := stateinternal.WriteJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{
+			RunID: item.runID, RunName: "nightly", Status: "success",
+			StartedAt: "2026-10-01T10:00:00Z", FinishedAt: "2026-10-01T10:01:00Z",
+			Results: []model.JobResult{{ID: "job-1", ExitCode: 0}},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	options := testOptions(baseA, false)
+	options.BaseDirs = []string{baseA, baseB}
+	input := historySearchAPIRequest{
+		HistorySearchRequest: webprojection.HistorySearchRequest{Filters: []webprojection.HistorySearchFilter{{Target: webprojection.HistorySearchJob, Field: "command", Word: "BUILD"}}},
+		BasedirIDs:           []string{basedirID(baseA), basedirID(baseB)},
+	}
+	body, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/history-search", bytes.NewReader(body))
+	recorder := httptest.NewRecorder()
+	Handler(options).ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("cross-basedir search status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	var result webprojection.HistorySearchResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Total != 2 || len(result.Rows) != 2 || result.Rows[0].BaseDirID == result.Rows[1].BaseDirID {
+		t.Fatalf("cross-basedir search result = %#v, want one matching job from each basedir", result)
+	}
+	input.BasedirIDs = []string{basedirID(baseB)}
+	body, err = json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request = httptest.NewRequest(http.MethodPost, "/api/history-search", bytes.NewReader(body))
+	recorder = httptest.NewRecorder()
+	Handler(options).ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("scoped search status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Total != 1 || result.Rows[0].BaseDirID != basedirID(baseB) {
+		t.Fatalf("basedir-scoped search = %#v, want only baseB", result)
+	}
+}
+
+func TestWebHistorySearchRejectsUnknownBasedir(t *testing.T) {
+	baseDir := t.TempDir()
+	options := testOptions(baseDir, false)
+	input := historySearchAPIRequest{
+		HistorySearchRequest: webprojection.HistorySearchRequest{Filters: []webprojection.HistorySearchFilter{{Target: webprojection.HistorySearchProject, Field: "project_name", Word: "demo"}}},
+		BasedirIDs:           []string{"not-registered"},
+	}
+	body, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/history-search", bytes.NewReader(body))
+	recorder := httptest.NewRecorder()
+	Handler(options).ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("unknown basedir status = %d, want 400; body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestBrowserNotificationSettingsSeparateByBasedir(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
@@ -252,7 +378,8 @@ setTimeout(() => {
 	if (!generateNotificationConfigButton || generateNotificationConfigButton.textContent !== 'Generate notification config') process.exit(29);
 	if (!generateNotificationConfigButton.onclick.toString().includes('showGenerateNotificationConfig')) process.exit(30);
 	const sidebarControls = dom.window.document.getElementById('sidebar-config-controls');
-	if (!sidebarControls || sidebarControls.nextElementSibling.textContent.trim() !== 'Registered basedirs') process.exit(36);
+	const historySearchLink = sidebarControls?.nextElementSibling;
+	if (!historySearchLink || !historySearchLink.classList.contains('sidebar-search-link') || historySearchLink.textContent.trim() !== 'History search' || historySearchLink.nextElementSibling.textContent.trim() !== 'Registered basedirs') process.exit(36);
 	const toolbar = dom.window.document.querySelector('.toolbar');
 	if (notificationConfigButtons[0].parentElement !== toolbar || generateNotificationConfigButton.parentElement !== toolbar) process.exit(37);
 	const sidebarControlNames = [...sidebarControls.children].map(button => button.className || button.id);
@@ -1026,6 +1153,9 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 		}
 	}
 	jobsHTML := jobsHTML("/", []string{"demo"}, nil, joblist.DefaultSinceText, true, true)
+	if !strings.Contains(jobsHTML, `class="sidebar-search-link"`) || !strings.Contains(jobsHTML, `href="/search/"`) || !strings.Contains(jobsHTML, `History search`) {
+		t.Fatal("Job activity sidebar does not link to history search")
+	}
 	for _, marker := range []string{".sidebar-brand {", ".sidebar-project-row {", ".sidebar-link.active {"} {
 		if !strings.Contains(jobsHTML, marker) || !strings.Contains(webSidebarStylesCSS, marker) {
 			t.Fatalf("Job activity page is missing shared sidebar style %q", marker)
@@ -2158,13 +2288,13 @@ func TestJobsHTMLStylesStates(t *testing.T) {
 func TestJobsHTMLSupportsSortingAndTimezoneTimestamps(t *testing.T) {
 	started := time.Date(2026, 9, 29, 1, 2, 3, 0, time.UTC)
 	finished := started.Add(time.Minute)
-	html := jobsHTML("/", nil, []joblist.Row{{State: "success", Project: "p", RunID: "r", JobName: "j", StartedAt: started, FinishedAt: finished}}, joblist.DefaultSinceText, false, false)
+	html := jobsHTML("/", nil, []joblist.Row{{State: "success", Project: "p", RunID: "r", JobName: "j", Command: "echo hi", FullCommand: "echo hi", AttemptID: "att_1", StartedAt: started, FinishedAt: finished}}, joblist.DefaultSinceText, false, false)
 	for _, want := range []string{
 		`class="jobs-table"`,
 		`data-sort="started"`,
 		`data-sort="finished"`,
 		`data-sort-value="2026-09-29T01:02:03Z"`,
-		`data-sort-value="2026-09-29T01:03:03Z"`,
+		`data-sort-value="` + finished.Format(time.RFC3339) + `"`,
 		"function sortJobsTable(table, key, direction)",
 		`header.textContent = header.dataset.label + " ↕"`,
 		`header.dataset.label + " ↕"`,

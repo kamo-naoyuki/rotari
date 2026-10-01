@@ -215,6 +215,10 @@ function render() {
   const queues = state.projects || [];
   renderSidebar(queues);
   const parts = pageParts();
+  if (parts[0] === "search") {
+    renderHistorySearchPage();
+    return;
+  }
   if (parts[0] !== "project") {
     renderOverview(queues);
     return;

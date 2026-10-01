@@ -375,6 +375,7 @@ func (s site) baseHandler() http.Handler {
 		}
 		writeWebJSON(writer, run)
 	})
+	mux.HandleFunc("/api/history-search", s.handleHistorySearch)
 	mux.HandleFunc("/api/active-runs", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			methodNotAllowed(writer)
@@ -1624,6 +1625,13 @@ func (s site) generateStaticWeb(outputDir string) error {
 		return err
 	}
 	if err := writeStaticStylesheet(outputDir); err != nil {
+		return err
+	}
+	searchPath := filepath.Join(outputDir, "search")
+	if err := writeStaticWebPage(filepath.Join(searchPath, "index.html"), template); err != nil {
+		return err
+	}
+	if err := writeStaticStylesheet(searchPath); err != nil {
 		return err
 	}
 	projects, err := joblist.Projects(baseDir, "")
