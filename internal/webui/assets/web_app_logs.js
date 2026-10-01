@@ -490,6 +490,9 @@ function openOutputModal(compact) {
   const editingConfig = view === "config" && modal.dataset.editing === "true";
   const editingNotificationConfig = view === "notification-config";
   const generatingConfig = view === "generate-config";
+  document
+    .querySelector(".output-box")
+    .classList.toggle("notification-config-output", editingNotificationConfig);
   ensureModalOutput().hidden =
     editingConfig || editingNotificationConfig || generatingConfig;
   document.getElementById("config-editor").hidden = !editingConfig;

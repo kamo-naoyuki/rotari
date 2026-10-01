@@ -472,6 +472,19 @@ section {
   padding: 12px;
 }
 
+.notification-config-editor fieldset > legend {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.output-box.notification-config-output {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .notification-channel-description {
   grid-column: 1 / -1;
   margin: 0;
@@ -493,6 +506,20 @@ section {
   color: var(--text);
   font-size: 13px;
   font-weight: 600;
+}
+
+.notification-max-jobs {
+  display: flex;
+  width: max-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.notification-max-jobs input[type="number"] {
+  width: 96px;
+  min-width: 96px;
 }
 
 .notification-config-editor input[type="checkbox"] {

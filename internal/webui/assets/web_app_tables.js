@@ -399,19 +399,11 @@ function labelJobActionHeaders() {
 }
 function clarifyLogControls() {
   const modal = document.getElementById("output-modal");
-  if (
-    modal.dataset.view !== "config" &&
-    modal.dataset.view !== "generate-config" &&
-    modal.dataset.view !== "diagnosis" &&
-    modal.dataset.view !== "path" &&
-    modal.dataset.view !== "ai"
-  ) {
+  if (modal.dataset.view === "log") {
     modal.querySelector("strong").textContent =
-      modal.dataset.view === "log" && selectedLog?.logMode === "separate"
+      selectedLog?.logMode === "separate"
         ? "Job log — " + selectedLog.stream
-        : modal.dataset.view === "log"
-          ? "Job log — merged"
-          : "Job log";
+        : "Job log — merged";
   }
   document.querySelectorAll("#app table.runs th").forEach((header) => {
     if (header.textContent.trim() === "Output") header.textContent = "Logs";

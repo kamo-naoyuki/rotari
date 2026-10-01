@@ -890,6 +890,7 @@ function notificationChannelEditor(name, settings, fields) {
   contentHeading.textContent = "Information to send";
   contentGroup.append(contentHeading);
   const maxLabel = document.createElement("label");
+  maxLabel.className = "notification-max-jobs";
   maxLabel.textContent = "Maximum jobs ";
   const maxInput = document.createElement("input");
   maxInput.type = "number";

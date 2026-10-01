@@ -210,15 +210,18 @@ setTimeout(() => {
 		const groups = editor.querySelectorAll('.notification-setting-group');
 		if (groups[0].querySelectorAll('input[type="checkbox"]').length !== 4) process.exit(17);
 		if (groups[1].querySelectorAll('.notification-field-grid input[type="checkbox"]').length !== fields.length) process.exit(18);
-		if (!groups[1].querySelector('input[type="number"]')) process.exit(19);
+		const maxJobs = groups[1].querySelector('.notification-max-jobs');
+		if (!maxJobs || !maxJobs.textContent.startsWith('Maximum jobs') || !maxJobs.querySelector('input[type="number"]')) process.exit(19);
 	}
 	const modal = dom.window.document.getElementById('output-modal');
 	modal.querySelector('strong').textContent = 'Notifications';
 	modal.dataset.view = 'notification-config';
 	dom.window.openOutputModal(false);
+	dom.window.styleActionColumns();
 	if (modal.querySelector('strong').textContent !== 'Notifications') process.exit(20);
 	if (!dom.window.document.getElementById('modal-log').hidden) process.exit(21);
 	if (dom.window.document.getElementById('notification-config-editor').hidden) process.exit(22);
+	if (!dom.window.document.querySelector('.output-box').classList.contains('notification-config-output')) process.exit(24);
 	if (!dom.window.document.getElementById('copy-modal').hidden) process.exit(23);
 	modal.dataset.view = 'generate-config';
 	modal.querySelector('strong').textContent = 'Generate config';
@@ -744,6 +747,9 @@ func TestNotificationConfigCheckboxesUseCompactDimensions(t *testing.T) {
 
 func TestNotificationConfigEditorCanScrollWithinModal(t *testing.T) {
 	for _, marker := range []string{
+		".output-box.notification-config-output {",
+		"display: flex;",
+		"overflow: hidden;",
 		".notification-config-editor {",
 		"flex: 1;",
 		"min-height: 0;",
@@ -751,6 +757,20 @@ func TestNotificationConfigEditorCanScrollWithinModal(t *testing.T) {
 	} {
 		if !strings.Contains(webStylesCSS, marker) {
 			t.Fatalf("notification config editor scrolling is missing %q", marker)
+		}
+	}
+}
+
+func TestNotificationMaxJobsLabelDoesNotWrap(t *testing.T) {
+	for _, marker := range []string{
+		".notification-max-jobs {",
+		"display: flex;",
+		"align-items: center;",
+		"white-space: nowrap;",
+		".notification-max-jobs input[type=\"number\"] {",
+	} {
+		if !strings.Contains(webStylesCSS, marker) {
+			t.Fatalf("notification maximum-jobs layout is missing %q", marker)
 		}
 	}
 }
@@ -1970,7 +1990,7 @@ func TestGenerateStaticWebIncludesJobsPage(t *testing.T) {
 
 func TestWebSeparatesLogsFromActions(t *testing.T) {
 	html := testSite().webHTML()
-	for _, want := range []string{"function mergeActionColumns(){}", "function orderJobActions()", "view-log", "show-path", "delete-run", "Job log", "Job log — merged", `logMode === "separate"`, "changeLogStream", `id="log-stream"`, "View log", "Source log", "Logs", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const buttons=[...logCell.querySelectorAll('button')]", "const diagnosisControl=canDiagnose", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", "dataset.view!=='path'", "cell.style.display='table-cell'", "buttonGrid.className='action-buttons'", "buttonGrid.style.gridTemplateColumns='repeat(2, max-content)'", "cell.querySelector(\":scope > .action-buttons\")", "button.style.width='auto'", "cell.style.width='max-content'"} {
+	for _, want := range []string{"function mergeActionColumns(){}", "function orderJobActions()", "view-log", "show-path", "delete-run", "Job log", "Job log — merged", `logMode === "separate"`, "changeLogStream", `id="log-stream"`, "View log", "Source log", "Logs", "showDiagnosis(this)", "data-diagnoses", "function showDiagnosis(trigger)", "const buttons=[...logCell.querySelectorAll('button')]", "const diagnosisControl=canDiagnose", "disabled title=\"Available after a finalized failed result with saved analysis\"", "function showPath(path)", "textContent='Job path'", "if(modal.dataset.view==='log')", "cell.style.display='table-cell'", "buttonGrid.className='action-buttons'", "buttonGrid.style.gridTemplateColumns='repeat(2, max-content)'", "cell.querySelector(\":scope > .action-buttons\")", "button.style.width='auto'", "cell.style.width='max-content'"} {
 		if !webContains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
 		}
@@ -2019,7 +2039,7 @@ func TestWebProvidesCopyAndAIReports(t *testing.T) {
 		`button.textContent='Report'`,
 		`Prepare run report`,
 		`Prepare job report`,
-		`dataset.view!=='ai'`,
+		`redactToggle.hidden=view!=='ai'`,
 	} {
 		if !webContains(html, want) {
 			t.Fatalf("web page does not contain %q", want)
