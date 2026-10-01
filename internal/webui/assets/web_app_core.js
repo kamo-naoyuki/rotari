@@ -950,7 +950,8 @@ function appendNotificationConfigTargets(project, targets, form) {
   for (const target of targets || []) {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = "Generate " + target.location;
+    button.textContent = "Generate " + target.path;
+    button.title = target.path;
     button.onclick = () => generateNotificationConfig(project, target, button);
     options.append(button);
   }
@@ -1044,10 +1045,10 @@ async function showNotificationConfig() {
       webhookExtras,
     );
     webhook.append(webhookExtras);
-    form.append(webhook);
     form.append(
       notificationChannelEditor("browser", settings.browser, payload.fields),
     );
+    form.append(webhook);
     const save = document.getElementById("notification-config-save");
     form.onsubmit = async (event) => {
       event.preventDefault();
@@ -1109,7 +1110,7 @@ function addConfigButton() {
   if (configGenerationProject() !== null) {
     const notificationButton = document.createElement("button");
     notificationButton.className = "notification-config-button";
-    notificationButton.textContent = "View notifications config";
+    notificationButton.textContent = "Notification config";
     notificationButton.onclick = showNotificationConfig;
     sidebarControls.insertBefore(
       notificationButton,

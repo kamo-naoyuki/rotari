@@ -196,7 +196,7 @@ setTimeout(() => {
 	for (let i = 0; i < 3; i++) dom.window.addConfigButton();
 	const notificationConfigButtons = dom.window.document.querySelectorAll('.notification-config-button');
 	const generateNotificationConfigButton = dom.window.document.querySelector('.notification-generate-config-button');
-	if (notificationConfigButtons.length !== 1 || notificationConfigButtons[0].textContent !== 'View notifications config') process.exit(11);
+	if (notificationConfigButtons.length !== 1 || notificationConfigButtons[0].textContent !== 'Notification config') process.exit(11);
 	if (!generateNotificationConfigButton || generateNotificationConfigButton.textContent !== 'Generate notifications config') process.exit(29);
 	if (!generateNotificationConfigButton.onclick.toString().includes('showGenerateNotificationConfig')) process.exit(30);
 	const sidebarControls = dom.window.document.getElementById('sidebar-config-controls');
@@ -275,7 +275,7 @@ setTimeout(() => {
 		if (String(url).startsWith('/api/notification-config')) {
 			notificationConfigReads++;
 			const payload = notificationConfigReads === 1
-				? { path: '', targets: [{ location: 'basedir' }] }
+				? { path: '', targets: [{ location: 'basedir', path: '/state/notifications.toml' }] }
 				: { path: '/state/notifications.toml', url_set: false, fields: [], settings: {
 					webhook: { format: 'json', job_failure: true, job_success: false, run_failure: true, run_success: true, max_jobs: 20, fields: [] },
 					browser: { job_failure: true, job_success: false, run_failure: true, run_success: true, max_jobs: 10, fields: [] },
@@ -292,10 +292,12 @@ setTimeout(() => {
 		await dom.window.showGenerateNotificationConfig();
 		if (modal.querySelector('strong').textContent !== 'Generate notifications config') process.exit(31);
 		const targets = dom.window.document.querySelectorAll('#notification-config-editor .config-target-options button');
-		if (targets.length !== 1 || targets[0].textContent !== 'Generate basedir') process.exit(32);
+		if (targets.length !== 1 || targets[0].textContent !== 'Generate /state/notifications.toml') process.exit(32);
 		await targets[0].onclick();
 		if (!generatedNotificationRequest || generatedNotificationRequest.location !== 'basedir') process.exit(33);
 		if (notificationConfigReads !== 2 || modal.querySelector('strong').textContent !== 'Notifications') process.exit(34);
+		const channelTitles = [...dom.window.document.querySelectorAll('#notification-config-editor > fieldset > legend')].map(legend => legend.textContent);
+		if (JSON.stringify(channelTitles) !== JSON.stringify(['Desktop notifications (this browser)', 'External notifications (webhook)'])) process.exit(40);
 	})().catch(error => { console.error(error); process.exit(35); });
 }, 50);
 `
@@ -918,7 +920,7 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 	if !strings.Contains(jobsHTML, `class="sidebar-project-row"><span class="sidebar-toggle-placeholder"`) {
 		t.Fatal("Job activity project links do not use the shared sidebar row layout")
 	}
-	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-config-controls {", "flex-direction: column;", ".sidebar-config-controls > button {", "width: 100%;", ".sidebar-resizer {", ".basedir-notification-toggle {", ".basedir-notification-control {", ".basedir-notification-tooltip {", "width: 14px !important;", "height: 14px !important;", "padding: 0;", ".basedir-contents {", "margin-left: 42px;", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "overscroll-behavior: contain;", "overflow-anchor: none;", "text-overflow: ellipsis;"} {
+	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-config-controls {", "flex-direction: column;", ".sidebar-config-controls > button {", "align-self: flex-start;", "width: max-content;", "max-width: 100%;", ".sidebar-resizer {", ".basedir-notification-toggle {", ".basedir-notification-control {", ".basedir-notification-tooltip {", "width: 14px !important;", "height: 14px !important;", "padding: 0;", ".basedir-contents {", "margin-left: 42px;", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "overscroll-behavior: contain;", "overflow-anchor: none;", "text-overflow: ellipsis;"} {
 		if !strings.Contains(webSidebarStylesCSS, marker) {
 			t.Fatalf("shared sidebar style is missing %q", marker)
 		}

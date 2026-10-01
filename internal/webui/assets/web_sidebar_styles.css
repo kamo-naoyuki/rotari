@@ -40,7 +40,9 @@
 }
 
 .sidebar-config-controls > button {
-  width: 100%;
+  align-self: flex-start;
+  width: max-content;
+  max-width: 100%;
   min-height: 34px;
   text-align: left;
 }
