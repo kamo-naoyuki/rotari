@@ -179,6 +179,49 @@ func TestFingerprintMatchingIgnoresNonInputMetadata(t *testing.T) {
 	}
 }
 
+func TestFingerprintMatchingTreatsMissingHistoryAsNewWork(t *testing.T) {
+	covers(t, "RUN-4")
+	e := support.NewEnv(t)
+
+	e.MustRotari("add", "-p", "missing", "--", "true")
+	e.MustRotari("run", "-p", "missing", "--quiet")
+	source := readSummary(t, e, "missing")
+	if err := os.Remove(filepath.Join(e.Base, "projects", "missing", "runs", source.RunID, "commands.json")); err != nil {
+		t.Fatal(err)
+	}
+	currentID := support.AddedJobID(t, e.MustRotari("add", "-p", "missing", "--", "true"))
+	e.MustRotari("run", "-p", "missing", "--match-by", "fingerprint", "--quiet")
+	run := readSummary(t, e, "missing")
+	command := commandByID(t, readCommandSnapshot(t, e, "missing", run.RunID), currentID)
+	if command.Origin != nil {
+		t.Fatalf("job matched a run without a command snapshot: %#v", command)
+	}
+}
+
+func TestFingerprintMatchingNormalizesDirectoryAndIgnoresArrayRange(t *testing.T) {
+	covers(t, "RUN-4")
+	e := support.NewEnv(t)
+	workDir := filepath.Join(e.Root, "work")
+	if err := os.MkdirAll(filepath.Join(workDir, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	e.MustRotari("add", "-p", "range", "--array", "1-2", "--working-directory", workDir, "--", "true")
+	e.MustRotari("run", "-p", "range", "--quiet")
+	currentID := support.AddedJobID(t, e.MustRotari("add", "-p", "range", "--array", "1-3", "--working-directory", workDir+"/sub/../.", "--", "true"))
+	e.MustRotari("run", "-p", "range", "--match-by", "fingerprint", "--quiet")
+	run := readSummary(t, e, "range")
+	command := commandByID(t, readCommandSnapshot(t, e, "range", run.RunID), currentID)
+	if len(command.TaskOrigins) != 2 {
+		t.Fatalf("task origins = %#v, want tasks 1 and 2 matched", command.TaskOrigins)
+	}
+	for task := range command.TaskOrigins {
+		if task == "3" || strings.HasSuffix(task, "-3") {
+			t.Fatalf("task 3 has no historical unit but matched: %#v", command.TaskOrigins)
+		}
+	}
+}
+
 func TestFingerprintMatchingPreservesArrayTasksAndMatrixLeaves(t *testing.T) {
 	covers(t, "RUN-4")
 	e := support.NewEnv(t)
