@@ -12,6 +12,12 @@ Column meanings:
 `rotari env` prints the same definitions together with whether each variable
 is currently set.
 
+For options available from the CLI, environment, and configuration, values are
+resolved in this order: explicit CLI value, environment variable, configuration
+file, then built-in default. Within a configuration file, a command-specific
+section takes precedence over the root value. `--config FILE` selects the
+configuration source; it does not change this precedence.
+
 <!-- BEGIN GENERATED ENVIRONMENT REFERENCE -->
 
 | Variable | CLI default | Job | Array | Description |

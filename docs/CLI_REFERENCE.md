@@ -4,6 +4,12 @@ The command reference below is generated from `rotari schema --json`, the same
 metadata used by command help and shell completion. Environment variables are
 documented separately in [Environment variables](ENVIRONMENT_VARIABLES.md).
 
+For options available from the CLI, environment, and configuration, values are
+resolved in this order: explicit CLI value, environment variable, configuration
+file, then built-in default. Within a configuration file, a command-specific
+section takes precedence over the root value. `--config FILE` selects the
+configuration source; it does not change this precedence.
+
 <!-- BEGIN GENERATED CLI REFERENCE -->
 
 ## Commands
