@@ -12,6 +12,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 ## Resolved
 
+- **Python CLI options could be silently dropped or mis-encoded** (`python/rotari/client.py`): unknown keyword options were ignored, and `run(partial_array=False)` emitted `--partial-array false`, which the CLI parses as a positional argument rather than a false boolean flag. Unknown options now raise `TypeError`, and valueless boolean flags with explicit values use `--flag=value`. Covered by `test_unknown_options_are_rejected_before_invoking_cli` and `test_run_passes_false_for_boolean_value_flag`.
+
 <!-- Keep only short records of resolved items when they may help prevent recurrence. -->
 
 - **`wait` could remove recovery locks and report incomplete runs as finished** (`cmd/rotari/wait.go`): selector inspection now preserves stale locks, `wait` rejects newer or invalid summaries once their run is no longer active, and it waits for project finalization before returning a summary. If finalization was interrupted after summary writing, `wait` reports the interrupted state. Covered by `TestCmdWaitProjectSelectorPreservesInterruptedRunLock`, `TestResolveActiveWaitTargetsPreservesStaleRunLock`, `TestCmdWaitDoesNotReturnSummaryBeforeProjectFinalization`, and related summary tests.

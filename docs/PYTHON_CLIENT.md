@@ -145,8 +145,11 @@ queries should be explicit methods, not attributes with hidden CLI calls;
 they should reuse the CLI's status resolution instead of duplicating it in
 Python. There is no background polling thread.
 
-Command options are generated from the CLI schema. To inspect the complete
-schema and descriptions:
+Command options are generated from the CLI schema. Unknown option names raise
+`TypeError` instead of being silently ignored. Boolean flags that support an
+explicit false value, such as `partial_array`, accept Python booleans; for
+example, `run(partial_array=False)` passes `--partial-array=false`. To inspect
+the complete schema and descriptions:
 
 ```sh
 rotari schema --json

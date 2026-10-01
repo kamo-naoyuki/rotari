@@ -24,6 +24,27 @@ def _cli_option_name(name: str) -> str:
     return name.replace("_", "-")
 
 
+def _append_flag_arguments(
+    arguments: list[str], name: str, flag: Mapping[str, object], value: object
+) -> None:
+    prefix = f"--{name}"
+    values = (
+        value
+        if flag.get("repeated")
+        and isinstance(value, Sequence)
+        and not isinstance(value, (str, bytes))
+        else (value,)
+    )
+    for item in values:
+        if isinstance(item, bool):
+            if item:
+                arguments.append(prefix)
+        elif flag.get("value_name"):
+            arguments.extend((prefix, str(item)))
+        else:
+            arguments.append(f"{prefix}={item}")
+
+
 def build_command_arguments(
     command: str,
     options: Mapping[str, object] | None = None,
@@ -39,25 +60,15 @@ def build_command_arguments(
     provided = {
         _cli_option_name(option): value for option, value in (options or {}).items()
     }
+    unknown = sorted(provided.keys() - flags.keys())
+    if unknown:
+        names = ", ".join(unknown)
+        raise TypeError(f"unknown option(s) for rotari {command}: {names}")
     arguments = [command]
     for name, flag in flags.items():
         value = provided.get(name)
-        if value is None:
-            continue
-        prefix = f"--{name}"
-        values = (
-            value
-            if flag.get("repeated")
-            and isinstance(value, Sequence)
-            and not isinstance(value, (str, bytes))
-            else (value,)
-        )
-        for item in values:
-            if isinstance(item, bool):
-                if item:
-                    arguments.append(prefix)
-            else:
-                arguments.extend((prefix, str(item)))
+        if value is not None:
+            _append_flag_arguments(arguments, name, flag, value)
     arguments.extend(positional)
     return arguments
 
@@ -385,7 +396,7 @@ class Rotari:
     def reset(self, *, recover: bool = False) -> CommandResult:
         """Clear the current queue, optionally recovering an interrupted run."""
 
-        arguments = build_command_arguments("reset", locals())
+        arguments = build_command_arguments("reset", {"recover": recover})
         return self.command(*arguments)
 
     def check(self, **options: object) -> dict[str, object]:

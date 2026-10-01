@@ -148,6 +148,27 @@ def test_run_builds_options_from_schema():
     ]
 
 
+def test_run_passes_false_for_boolean_value_flag():
+    with patch("subprocess.run", return_value=completed("  Run ID: run-2\n")) as run:
+        Rotari().run(partial_array=False)
+
+    argv = run.call_args.args[0]
+    assert "--partial-array=false" in argv
+    assert "false" not in argv
+
+
+def test_unknown_options_are_rejected_before_invoking_cli():
+    with patch("subprocess.run") as run:
+        try:
+            Rotari().add(["true"], job_nam="train")
+        except TypeError as error:
+            assert "job-nam" in str(error)
+        else:
+            raise AssertionError("unknown option was silently ignored")
+
+        run.assert_not_called()
+
+
 def test_sync_run_uses_new_run_id_from_progress_not_source_run():
     output = (
         "=== Run started ===\n  Project: demo\n  Run ID: run-2\n"
