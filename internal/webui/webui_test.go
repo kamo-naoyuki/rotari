@@ -269,8 +269,13 @@ setTimeout(() => {
 	if (!editor.hidden || !dom.window.document.getElementById('config-generator').hidden) process.exit(8);
 	if (dom.window.document.getElementById('modal-log').hidden) process.exit(9);
 	if (modal.querySelector('strong').textContent !== 'Job path') process.exit(10);
+	dom.window.history.pushState({}, '', '/project/default/run/run-1');
+	dom.window.addConfigButton();
+	if (!dom.window.document.querySelector('.notification-config-button') || !dom.window.document.querySelector('.notification-generate-config-button')) process.exit(43);
+	if (dom.window.document.querySelector('.notification-config-button').parentElement.id !== 'sidebar-config-controls') process.exit(44);
 	let notificationConfigReads = 0;
 	let generatedNotificationRequest = null;
+	dom.window.confirm = () => true;
 	dom.window.fetch = async (url, options = {}) => {
 		if (String(url).startsWith('/api/notification-config')) {
 			notificationConfigReads++;
@@ -291,8 +296,11 @@ setTimeout(() => {
 	(async () => {
 		await dom.window.showGenerateNotificationConfig();
 		if (modal.querySelector('strong').textContent !== 'Generate notifications config') process.exit(31);
-		const targets = dom.window.document.querySelectorAll('#notification-config-editor .config-target-options button');
-		if (targets.length !== 1 || targets[0].textContent !== 'Generate /state/notifications.toml') process.exit(32);
+		if (!dom.window.document.getElementById('notification-config-editor').hidden || dom.window.document.getElementById('config-generator').hidden) process.exit(41);
+		const generator = dom.window.document.getElementById('config-generator');
+		if (generator.querySelector('p')?.textContent !== 'Choose where to generate notifications.toml.') process.exit(42);
+		const targets = generator.querySelectorAll('.config-target-options button');
+		if (targets.length !== 1 || targets[0].textContent !== '/state/notifications.toml' || targets[0].title !== 'Generate notifications.toml in basedir') process.exit(32);
 		await targets[0].onclick();
 		if (!generatedNotificationRequest || generatedNotificationRequest.location !== 'basedir') process.exit(33);
 		if (notificationConfigReads !== 2 || modal.querySelector('strong').textContent !== 'Notifications') process.exit(34);
@@ -1785,6 +1793,14 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 		}
 	}
 	body := response.Body.String()
+	notificationButtonIndex := strings.Index(body, `<div class="sidebar-config-controls"><button id="notify-toggle"`)
+	registeredBasedirsIndex := strings.Index(body, "Registered basedirs")
+	if notificationButtonIndex < 0 || registeredBasedirsIndex <= notificationButtonIndex {
+		t.Fatal("Job activity notification toggle is not above Registered basedirs in the sidebar")
+	}
+	if strings.Contains(body, `<div class="toolbar"><button id="notify-toggle"`) {
+		t.Fatal("Job activity notification toggle is still in the header toolbar")
+	}
 	allProjectsIndex := strings.Index(body, `>All projects</a>`)
 	projectListIndex := strings.Index(body, `class="sidebar-projects project-list"`)
 	jobActivityIndex := strings.Index(body, `href="/jobs/">Job activity</a>`)

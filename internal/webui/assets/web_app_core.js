@@ -760,6 +760,10 @@ function configGenerationProject() {
   if (parts[2] === "run") return null;
   return parts[0] === "project" ? decodeURIComponent(parts[1]) : "";
 }
+function notificationConfigProject() {
+  const parts = pageParts();
+  return parts[0] === "project" ? decodeURIComponent(parts[1]) : "";
+}
 function showGenerateConfig() {
   const project = configGenerationProject();
   const modal = document.getElementById("output-modal");
@@ -786,19 +790,11 @@ function showGenerateConfig() {
       return JSON.parse(text);
     })
     .then((payload) => {
-      generator.replaceChildren(
-        Object.assign(document.createElement("p"), {
-          textContent: "Choose where to generate config.toml.",
-        }),
-      );
-      const options = document.createElement("div");
-      options.className = "config-target-options";
-      (payload.targets || []).forEach((target) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent = target.path;
-        button.title = "Generate config.toml in " + target.location;
-        button.onclick = async () => {
+      renderConfigTargetOptions(
+        generator,
+        payload.targets,
+        "config.toml",
+        async (target, button) => {
           if (
             !confirm(
               "Generate config.toml at " +
@@ -826,10 +822,8 @@ function showGenerateConfig() {
           closeOutputModal();
           await refresh();
           alert("Generated " + result.path);
-        };
-        options.append(button);
-      });
-      generator.append(options);
+        },
+      );
     })
     .catch((error) => {
       generator.textContent =
@@ -926,6 +920,14 @@ function readNotificationChannel(form, name) {
   };
 }
 async function generateNotificationConfig(project, target, button) {
+  if (
+    !confirm(
+      "Generate notifications.toml at " +
+        target.path +
+        "? Existing contents of that file will be replaced.",
+    )
+  )
+    return;
   button.disabled = true;
   const response = await fetch("/api/generate-notification-config", {
     method: "POST",
@@ -944,22 +946,26 @@ async function generateNotificationConfig(project, target, button) {
   notificationSettingsByProject.delete(project);
   await showNotificationConfig();
 }
-function appendNotificationConfigTargets(project, targets, form) {
+function renderConfigTargetOptions(container, targets, fileName, generate) {
+  container.replaceChildren(
+    Object.assign(document.createElement("p"), {
+      textContent: "Choose where to generate " + fileName + ".",
+    }),
+  );
   const options = document.createElement("div");
   options.className = "config-target-options";
   for (const target of targets || []) {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = "Generate " + target.path;
-    button.title = target.path;
-    button.onclick = () => generateNotificationConfig(project, target, button);
+    button.textContent = target.path;
+    button.title = "Generate " + fileName + " in " + target.location;
+    button.onclick = () => generate(target, button);
     options.append(button);
   }
-  form.append(options);
+  container.append(options);
 }
 async function showGenerateNotificationConfig() {
-  const project = configGenerationProject();
-  if (project === null) return;
+  const project = notificationConfigProject();
   const modal = document.getElementById("output-modal");
   const output = ensureModalOutput();
   const configEditor = document.getElementById("config-editor");
@@ -967,10 +973,11 @@ async function showGenerateNotificationConfig() {
   const form = document.getElementById("notification-config-editor");
   output.hidden = true;
   configEditor.hidden = true;
-  generator.hidden = true;
-  form.hidden = false;
+  generator.hidden = false;
+  form.hidden = true;
   form.dataset.editable = "false";
-  form.replaceChildren();
+  generator.replaceChildren();
+  generator.textContent = "Loading notification config locations...";
   const params = new URLSearchParams();
   if (project) params.set("project_name", project);
   const response = await fetch("/api/notification-config?" + params, {
@@ -981,14 +988,18 @@ async function showGenerateNotificationConfig() {
     alert(text);
     return;
   }
-  appendNotificationConfigTargets(project, JSON.parse(text).targets, form);
+  renderConfigTargetOptions(
+    generator,
+    JSON.parse(text).targets,
+    "notifications.toml",
+    (target, button) => generateNotificationConfig(project, target, button),
+  );
   modal.querySelector("strong").textContent = "Generate notifications config";
   modal.dataset.view = "notification-config-generate";
-  openOutputModal(false);
+  openOutputModal(true);
 }
 async function showNotificationConfig() {
-  const project = configGenerationProject();
-  if (project === null) return;
+  const project = notificationConfigProject();
   const modal = document.getElementById("output-modal");
   const output = ensureModalOutput();
   const configEditor = document.getElementById("config-editor");
@@ -1012,7 +1023,12 @@ async function showNotificationConfig() {
   const payload = JSON.parse(text);
   form.dataset.editable = payload.path ? "true" : "false";
   if (!payload.path) {
-    appendNotificationConfigTargets(project, payload.targets, form);
+    renderConfigTargetOptions(
+      form,
+      payload.targets,
+      "notifications.toml",
+      (target, button) => generateNotificationConfig(project, target, button),
+    );
   } else {
     const settings = payload.settings;
     const webhookExtras = document.createElement("div");
@@ -1107,7 +1123,7 @@ function addConfigButton() {
     generateConfigButton,
     document.getElementById("refresh-button"),
   );
-  if (configGenerationProject() !== null) {
+  if (notificationConfigProject() !== null) {
     const notificationButton = document.createElement("button");
     notificationButton.className = "notification-config-button";
     notificationButton.textContent = "Notification config";

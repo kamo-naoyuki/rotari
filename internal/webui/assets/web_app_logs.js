@@ -497,10 +497,10 @@ function openOutputModal(compact) {
   const modal = document.getElementById("output-modal");
   const view = modal.dataset.view;
   const editingConfig = view === "config" && modal.dataset.editing === "true";
-  const editingNotificationConfig =
-    view === "notification-config" ||
+  const editingNotificationConfig = view === "notification-config";
+  const generatingConfig =
+    view === "generate-config" ||
     view === "notification-config-generate";
-  const generatingConfig = view === "generate-config";
   document
     .querySelector(".output-box")
     .classList.toggle("notification-config-output", editingNotificationConfig);
