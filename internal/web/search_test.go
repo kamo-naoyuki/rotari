@@ -67,6 +67,46 @@ func TestSearchHistoryUsesPerConditionOrAndTimeWindow(t *testing.T) {
 	}
 }
 
+func TestSearchHistoryIgnoreCaseAndFuzzyOptions(t *testing.T) {
+	records := []HistorySearchRecord{{
+		BaseDirID: "base", ProjectName: "alpha", RunID: "run-1",
+		JobID: "job-1", Command: "make build", JobStatus: "failed",
+		Timestamp: "2026-10-01T10:00:00Z",
+	}}
+	request := HistorySearchRequest{
+		Target: HistorySearchJob,
+		Filters: []HistorySearchFilter{{
+			Target: HistorySearchJob, Field: "command", Word: "BUILD",
+		}},
+	}
+	got, err := SearchHistory(records, request)
+	if err != nil || got.Total != 1 {
+		t.Fatalf("default ignore-case search = (%#v, %v), want one match", got, err)
+	}
+	request.CaseSensitive = true
+	got, err = SearchHistory(records, request)
+	if err != nil || got.Total != 0 {
+		t.Fatalf("case-sensitive search = (%#v, %v), want no match", got, err)
+	}
+	request.CaseSensitive = false
+	request.Filters[0].Word = "biuld"
+	got, err = SearchHistory(records, request)
+	if err != nil || got.Total != 0 {
+		t.Fatalf("exact search with a typo = (%#v, %v), want no match", got, err)
+	}
+	request.Fuzzy = true
+	got, err = SearchHistory(records, request)
+	if err != nil || got.Total != 1 {
+		t.Fatalf("fuzzy search with a typo = (%#v, %v), want one match", got, err)
+	}
+	request.Filters[0].Field = "status"
+	request.Filters[0].Word = "fail"
+	got, err = SearchHistory(records, request)
+	if err != nil || got.Total != 0 {
+		t.Fatalf("fuzzy status search = (%#v, %v), want exact enum match only", got, err)
+	}
+}
+
 func TestSearchHistoryDeduplicatesRunsAndPaginatesDeterministically(t *testing.T) {
 	records := []HistorySearchRecord{
 		{BaseDirID: "base", ProjectName: "alpha", RunID: "run-1", RunName: "nightly", RunStatus: "success", RunFinished: "2026-10-02T10:00:00Z", Timestamp: "2026-10-02T10:00:00Z"},

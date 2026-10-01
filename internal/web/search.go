@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 const (
@@ -24,12 +25,14 @@ type HistorySearchFilter struct {
 }
 
 type HistorySearchRequest struct {
-	Target  string                `json:"target,omitempty"`
-	Filters []HistorySearchFilter `json:"filters"`
-	From    string                `json:"from,omitempty"`
-	To      string                `json:"to,omitempty"`
-	Offset  int                   `json:"offset,omitempty"`
-	Limit   int                   `json:"limit,omitempty"`
+	Target        string                `json:"target,omitempty"`
+	CaseSensitive bool                  `json:"case_sensitive,omitempty"`
+	Fuzzy         bool                  `json:"fuzzy,omitempty"`
+	Filters       []HistorySearchFilter `json:"filters"`
+	From          string                `json:"from,omitempty"`
+	To            string                `json:"to,omitempty"`
+	Offset        int                   `json:"offset,omitempty"`
+	Limit         int                   `json:"limit,omitempty"`
 }
 
 type HistorySearchScope struct {
@@ -227,7 +230,7 @@ func collectHistorySearchRows(records []HistorySearchRecord, request HistorySear
 }
 
 func historySearchRecordMatches(record HistorySearchRecord, request HistorySearchRequest, target string, from, to time.Time) bool {
-	return historySearchInWindow(record, target, from, to) && historySearchMatches(record, target, request.Filters)
+	return historySearchInWindow(record, target, from, to) && historySearchMatchesWithOptions(record, target, request.Filters, !request.CaseSensitive, request.Fuzzy)
 }
 
 func pageHistorySearchRows(rows []HistorySearchRow, offset, limit int) []HistorySearchRow {
@@ -281,9 +284,13 @@ func historyTimestampAfter(value, previous string) bool {
 }
 
 func historySearchMatches(record HistorySearchRecord, target string, filters []HistorySearchFilter) bool {
-	matched := historySearchFilterMatches(record, target, filters[0])
+	return historySearchMatchesWithOptions(record, target, filters, true, false)
+}
+
+func historySearchMatchesWithOptions(record HistorySearchRecord, target string, filters []HistorySearchFilter, ignoreCase, fuzzy bool) bool {
+	matched := historySearchFilterMatchesWithOptions(record, target, filters[0], ignoreCase, fuzzy)
 	for _, filter := range filters[1:] {
-		next := historySearchFilterMatches(record, target, filter)
+		next := historySearchFilterMatchesWithOptions(record, target, filter, ignoreCase, fuzzy)
 		if filter.Join == "or" {
 			matched = matched || next
 		} else {
@@ -294,11 +301,111 @@ func historySearchMatches(record HistorySearchRecord, target string, filters []H
 }
 
 func historySearchFilterMatches(record HistorySearchRecord, resultTarget string, filter HistorySearchFilter) bool {
+	return historySearchFilterMatchesWithOptions(record, resultTarget, filter, true, false)
+}
+
+func historySearchFilterMatchesWithOptions(record HistorySearchRecord, resultTarget string, filter HistorySearchFilter, ignoreCase, fuzzy bool) bool {
 	if historySearchTargetRank(filter.Target) > historySearchTargetRank(resultTarget) {
 		return false
 	}
 	value := historySearchFieldValue(record, filter.Target, filter.Field)
-	return strings.Contains(strings.ToLower(value), strings.ToLower(strings.TrimSpace(filter.Word)))
+	word := strings.TrimSpace(filter.Word)
+	if ignoreCase {
+		value, word = strings.ToLower(value), strings.ToLower(word)
+	}
+	if historySearchIsEnumeratedField(filter) {
+		return value == word
+	}
+	if strings.Contains(value, word) {
+		return true
+	}
+	return fuzzy && historySearchFuzzyMatch(value, word)
+}
+
+func historySearchIsEnumeratedField(filter HistorySearchFilter) bool {
+	return filter.Field == "status" || (filter.Target == HistorySearchJob && filter.Field == "executor")
+}
+
+func historySearchFuzzyMatch(value, word string) bool {
+	queryTokens := historySearchTokens(word)
+	valueTokens := historySearchTokens(value)
+	if len(queryTokens) == 0 || len(valueTokens) == 0 {
+		return false
+	}
+	for _, query := range queryTokens {
+		queryRunes := []rune(query)
+		if len(queryRunes) < 4 {
+			return false
+		}
+		maxDistance := 1
+		if len(queryRunes) >= 8 {
+			maxDistance = 2
+		}
+		found := false
+		for _, candidate := range valueTokens {
+			candidateRunes := []rune(candidate)
+			if absInt(len(queryRunes)-len(candidateRunes)) > maxDistance {
+				continue
+			}
+			if historySearchEditDistanceAtMost(queryRunes, candidateRunes, maxDistance) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+func historySearchTokens(value string) []string {
+	return strings.FieldsFunc(value, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+	})
+}
+
+func historySearchEditDistanceAtMost(left, right []rune, limit int) bool {
+	if absInt(len(left)-len(right)) > limit {
+		return false
+	}
+	previous := make([]int, len(right)+1)
+	var previousPrevious []int
+	for index := range previous {
+		previous[index] = index
+	}
+	for leftIndex, leftRune := range left {
+		current := make([]int, len(right)+1)
+		current[0] = leftIndex + 1
+		rowMinimum := current[0]
+		for rightIndex, rightRune := range right {
+			cost := 1
+			if leftRune == rightRune {
+				cost = 0
+			}
+			current[rightIndex+1] = min(
+				current[rightIndex]+1,
+				previous[rightIndex+1]+1,
+				previous[rightIndex]+cost,
+			)
+			if leftIndex > 0 && rightIndex > 0 && left[leftIndex] == right[rightIndex-1] && left[leftIndex-1] == right[rightIndex] {
+				current[rightIndex+1] = min(current[rightIndex+1], previousPrevious[rightIndex-1]+1)
+			}
+			rowMinimum = min(rowMinimum, current[rightIndex+1])
+		}
+		if rowMinimum > limit {
+			return false
+		}
+		previousPrevious, previous = previous, current
+	}
+	return previous[len(right)] <= limit
+}
+
+func absInt(value int) int {
+	if value < 0 {
+		return -value
+	}
+	return value
 }
 
 func historySearchFieldValue(record HistorySearchRecord, target, field string) string {

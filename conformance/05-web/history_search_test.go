@@ -56,4 +56,36 @@ func TestHistorySearchAcrossProjects(t *testing.T) {
 	if !projects["alpha"] || !projects["beta"] {
 		t.Errorf("cross-project results = %#v, want alpha and beta", projects)
 	}
+	searchTotal := func(word string, caseSensitive, fuzzy bool) int {
+		t.Helper()
+		response := e.HTTPPostJSON(base+"/api/history-search", map[string]any{
+			"scopes":         []map[string]string{{"basedir_id": base64.RawURLEncoding.EncodeToString([]byte(filepath.Clean(absBase)))}},
+			"target":         "job",
+			"case_sensitive": caseSensitive,
+			"fuzzy":          fuzzy,
+			"filters":        []map[string]string{{"target": "job", "field": "command", "word": word}},
+		})
+		if response.Status != 200 {
+			t.Fatalf("history search for %q: status %d: %s", word, response.Status, response.Body)
+		}
+		var got struct {
+			Total int `json:"total"`
+		}
+		if err := json.Unmarshal([]byte(response.Body), &got); err != nil {
+			t.Fatal(err)
+		}
+		return got.Total
+	}
+	if got := searchTotal("TRUE", false, false); got != 2 {
+		t.Errorf("default ignore-case total = %d, want 2", got)
+	}
+	if got := searchTotal("TRUE", true, false); got != 0 {
+		t.Errorf("case-sensitive total = %d, want 0", got)
+	}
+	if got := searchTotal("ture", false, true); got != 2 {
+		t.Errorf("fuzzy typo total = %d, want 2", got)
+	}
+	if got := searchTotal("ture", false, false); got != 0 {
+		t.Errorf("exact typo total = %d, want 0", got)
+	}
 }

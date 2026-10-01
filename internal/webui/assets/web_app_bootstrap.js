@@ -80,6 +80,7 @@ render = function () {
   clampLongTableCells();
   addMatrixPanels();
   applyBasedirLinks();
+  focusHistorySearchJob();
 };
 window.addEventListener("popstate", () => refresh(true));
 initSidebarResizer();

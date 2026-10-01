@@ -44,16 +44,22 @@ notifications. The result level (project, run, or job) is selected once for
 the whole search. Each condition selects an attribute from that level or one
 of its ancestors: project results expose project attributes, run results
 expose run and project attributes, and job results expose job, run, and
-project attributes. Conditions match case-insensitive substrings; additional
-conditions are joined in displayed order with AND or OR, evaluated
-left-to-right. Results always remain at the selected level. Results are
+project attributes. Ignore-case matching is on by default and can be disabled.
+Fuzzy matching is an independent, opt-in setting for free-text attributes; it
+allows a small edit distance and ignores terms shorter than four characters.
+Status and executor conditions use dropdowns and exact value matching. Other
+attributes accept search text and match substrings by default. Additional
+conditions are joined in displayed order with AND or OR, evaluated left-to-right.
+Results always remain at the selected level. Results are
 ordered by activity time with a
 stable tie-break and paged in batches of 50. Time ranges apply to the selected
 result level: run start/finish for runs, job finish/submission (falling back to
 the run time) for jobs, and activity in a run or job for projects. The static
 export includes the search route but explains that history search requires the
 live Web UI. Search and dropdown-option APIs validate basedir IDs against the
-server's registered-basedir allowlist and only read persisted state.
+server's registered-basedir allowlist and only read persisted state. Selecting
+a job result opens its run detail, selects the table page containing that job,
+and scrolls the matching row into view.
 
 Search projection and condition evaluation live in
 [`internal/web/search.go`](../internal/web/search.go); the API scanner is in

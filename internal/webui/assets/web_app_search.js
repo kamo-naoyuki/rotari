@@ -27,11 +27,25 @@ const historySearchFieldOptions = {
 };
 let historySearchLastRequest = null;
 let historySearchOffset = 0;
+let historySearchFocusedJobURL = "";
+
+const historySearchStatusOptions = {
+  run: ["running", "finished", "failed", "unreadable"],
+  job: [
+    "pending",
+    "running",
+    "success",
+    "success (accepted)",
+    "failed",
+    "cancelled",
+    "blocked",
+  ],
+};
 
 function historySearchConditionHTML(join = "and", target = "job") {
   return `<div class="history-search-condition">
-    <select class="history-search-field" aria-label="Search field">${historySearchOptionsHTML(target)}</select>
-    <input class="history-search-word" type="search" maxlength="256" placeholder="Search word" aria-label="Search word" required />
+    <select class="history-search-field" aria-label="Search field" onchange="historySearchUpdateValueControl(this)">${historySearchOptionsHTML(target)}</select>
+    ${historySearchValueControl("job", "command")}
     <select class="history-search-join" aria-label="Combine condition" ${join === "first" ? "hidden" : ""}>
       <option value="and" ${join === "and" ? "selected" : ""}>AND</option>
       <option value="or" ${join === "or" ? "selected" : ""}>OR</option>
@@ -49,6 +63,30 @@ function historySearchOptionsHTML(target, selected = "") {
     .join("");
 }
 
+function historySearchValueControl(target, field, selectedValue = "") {
+  let options = [];
+  if (field === "status") options = historySearchStatusOptions[target] || [];
+  if (field === "executor") options = executorNames || [];
+  if (!options.length)
+    return `<input class="history-search-word" type="search" maxlength="256" placeholder="Search word" aria-label="Search word" value="${esc(selectedValue)}" required />`;
+  const placeholder = field === "status" ? "Choose status" : "Choose executor";
+  const optionHTML = [""]
+    .concat(options)
+    .map((value) => {
+      const label = value || placeholder;
+      return `<option value="${esc(value)}" ${value === selectedValue ? "selected" : ""}>${esc(label)}</option>`;
+    })
+    .join("");
+  return `<select class="history-search-word" aria-label="Search value" required>${optionHTML}</select>`;
+}
+
+function historySearchUpdateValueControl(select) {
+  const condition = select.closest(".history-search-condition");
+  const current = condition.querySelector(".history-search-word");
+  const [target, field] = select.value.split(":", 2);
+  current.outerHTML = historySearchValueControl(target, field);
+}
+
 function historySearchUpdateTarget(select) {
   const conditions = document.getElementById("history-search-conditions");
   [...conditions.querySelectorAll(".history-search-condition")].forEach(
@@ -58,6 +96,7 @@ function historySearchUpdateTarget(select) {
       field.innerHTML = historySearchOptionsHTML(select.value, selected);
       if (field.value !== selected && field.options.length)
         field.selectedIndex = 0;
+      historySearchUpdateValueControl(field);
     },
   );
 }
@@ -120,7 +159,6 @@ function historySearchScopeHTML() {
 
 function historySearchPageHTML() {
   return `<div class="history-search-page">
-    <p class="history-search-intro">Search project, run, and job history in the ranges you choose.</p>
     <form id="history-search-form" class="history-search-form">
       <fieldset class="history-search-scope">
         <legend>Search scope</legend>
@@ -139,6 +177,10 @@ function historySearchPageHTML() {
         </label>
         <div id="history-search-conditions">${historySearchConditionHTML("first", "job")}</div>
         <button type="button" class="history-search-add" onclick="historySearchAddCondition()">＋ Add condition</button>
+        <div class="history-search-match-options">
+          <label><input id="history-search-ignore-case" type="checkbox" checked /> Ignore case</label>
+          <label><input id="history-search-fuzzy" type="checkbox" /> Fuzzy search</label>
+        </div>
       </fieldset>
       <div class="history-search-time-row">
         <label>Time range
@@ -170,6 +212,8 @@ function historySearchPageHTML() {
 function renderHistorySearchPage() {
   const app = document.getElementById("app");
   document.title = "History search · rotari";
+  document.querySelector(".header-home").innerHTML =
+    esc("rotari") + " History search";
   document.getElementById("location").textContent = "History search";
   if (typeof rewriteStaticLinks === "function") {
     document.getElementById("page-title").textContent = "History search";
@@ -182,7 +226,7 @@ function renderHistorySearchPage() {
   if (document.getElementById("history-search-form")) return;
   document.getElementById("page-title").textContent = "History search";
   document.getElementById("summary").textContent =
-    "Choose basedirs, projects and runs to search";
+    "Search project, run, and job history in the ranges you choose.";
   app.className = "";
   app.innerHTML = historySearchPageHTML();
   document
@@ -312,6 +356,9 @@ function historySearchRequestFromForm() {
   const request = {
     scopes,
     target: document.getElementById("history-search-target").value,
+    case_sensitive: !document.getElementById("history-search-ignore-case")
+      .checked,
+    fuzzy: document.getElementById("history-search-fuzzy").checked,
     filters,
     limit: 50,
     offset: 0,
@@ -401,6 +448,11 @@ function historySearchRenderResults(rows) {
   }
   const body = rows
     .map((row) => {
+      const runPath =
+        "/project/" +
+        encodeURIComponent(row.project_name) +
+        "/run/" +
+        encodeURIComponent(row.run_id);
       const targetURL =
         row.target === "project"
           ? basedirURL(
@@ -409,10 +461,9 @@ function historySearchRenderResults(rows) {
             )
           : basedirURL(
               row.basedir_id,
-              "/project/" +
-                encodeURIComponent(row.project_name) +
-                "/run/" +
-                encodeURIComponent(row.run_id),
+              row.target === "job"
+                ? runPath + "?job_id=" + encodeURIComponent(row.job_id)
+                : runPath,
             );
       let title;
       let details;
@@ -442,4 +493,26 @@ function historySearchRenderResults(rows) {
     <thead><tr><th>Type</th><th>Match</th><th>Status</th><th>Time</th></tr></thead>
     <tbody>${body}</tbody>
   </table></div>`;
+}
+
+function focusHistorySearchJob() {
+  const parts = pageParts();
+  if (parts[0] !== "project" || parts[2] !== "run") return;
+  const jobID = new URLSearchParams(location.search).get("job_id");
+  if (!jobID) return;
+  const focusKey = location.pathname + location.search;
+  if (historySearchFocusedJobURL === focusKey) return;
+  const table = [...document.querySelectorAll("#app table.runs")].find(
+    (item) => !item.closest(".web-queue-commands"),
+  );
+  if (!table) return;
+  const rows = [...table.querySelectorAll("tbody tr[data-job-id]")];
+  const index = rows.findIndex((row) => row.dataset.jobId === jobID);
+  if (index < 0) return;
+  paginationState.job.page = Math.floor(index / paginationPageSize);
+  paginateTable(table, "job");
+  const row = rows[index];
+  row.classList.add("history-search-job-match");
+  row.scrollIntoView({ behavior: "smooth", block: "center" });
+  historySearchFocusedJobURL = focusKey;
 }

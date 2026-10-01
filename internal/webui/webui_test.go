@@ -133,6 +133,10 @@ func TestWebHistorySearchPageRenders(t *testing.T) {
 		"history-search-conditions",
 		"history-search-scopes",
 		"history-search-target",
+		"history-search-ignore-case",
+		"history-search-fuzzy",
+		"Ignore case",
+		"Fuzzy search",
 		"Search for",
 		"Choose basedir",
 		"All projects",
@@ -151,6 +155,12 @@ func TestWebHistorySearchPageRenders(t *testing.T) {
 	}
 	if strings.Contains(html, `class="history-search-condition"><select class="history-search-target"`) {
 		t.Fatal("search target is still repeated on each condition row")
+	}
+	if !strings.Contains(html, `id="history-search-ignore-case" type="checkbox" checked`) {
+		t.Fatal("Ignore case is not enabled by default")
+	}
+	if !strings.Contains(html, `id="history-search-fuzzy" type="checkbox" />`) {
+		t.Fatal("Fuzzy search is not disabled by default")
 	}
 }
 
@@ -174,7 +184,19 @@ const location = { textContent: 'loading...' };
 const app = { className: '', innerHTML: '' };
 const pageTitle = { textContent: '' };
 const summary = { textContent: '' };
+const headerHome = { innerHTML: '' };
 const form = { addEventListener() {} };
+const resultContainer = { innerHTML: '' };
+let scrolledJob = '';
+const runRows = Array.from({ length: 25 }, (_, index) => ({
+	dataset: { jobId: 'job-' + index },
+	classList: { add(name) { this.added = name; } },
+	scrollIntoView() { scrolledJob = this.dataset.jobId; },
+}));
+const runTable = {
+	closest: () => null,
+	querySelectorAll: () => runRows,
+};
 let formLookups = 0;
 const context = {
 	executorNames: ['local', 'ssh', 'slurm'],
@@ -183,17 +205,25 @@ const context = {
 		{ id: 'base-b', path: '/state/b' },
 	],
 	mountedBasedirID: 'base-b',
+	location: { ...location, pathname: '/project/demo/run/run-1', search: '?job_id=job-21' },
+	pageParts: () => ['project', 'demo', 'run', 'run-1'],
+	paginationState: { job: { page: 0 } },
+	paginationPageSize: 20,
+	paginateTable: (table, key) => { context.paginatedTable = table; context.paginatedKey = key; },
 	esc: value => String(value),
 	basedirURL: (_id, path) => path,
 	document: {
+			querySelector(selector) { return selector === '.header-home' ? headerHome : null; },
 		getElementById(id) {
 			if (id === 'app') return app;
 			if (id === 'location') return location;
 			if (id === 'page-title') return pageTitle;
 			if (id === 'summary') return summary;
+			if (id === 'history-search-results') return resultContainer;
 			if (id === 'history-search-form') return ++formLookups === 1 ? null : form;
 			return null;
 		},
+		querySelectorAll(selector) { return selector === '#app table.runs' ? [runTable] : []; },
 	},
 	fetch: async url => {
 		requests.push(url);
@@ -202,6 +232,7 @@ const context = {
 			: { projects: ['project-a'] } };
 	},
 	URLSearchParams,
+		decodeURIComponent,
 };
 vm.createContext(context);
 vm.runInContext(code, context);
@@ -217,12 +248,29 @@ vm.runInContext(code, context);
 	if (!projectFields.includes('project:project_name')) throw new Error('project target is missing its attribute');
 	if (!runFields.includes('project:project_name') || !runFields.includes('run:run_name')) throw new Error('run target is missing project/run attributes');
 	if (!jobFields.includes('project:project_name') || !jobFields.includes('run:run_name') || !jobFields.includes('job:command')) throw new Error('job target is missing project/run/job attributes');
+	const runStatus = context.historySearchValueControl('run', 'status');
+	const jobStatus = context.historySearchValueControl('job', 'status');
+	const executor = context.historySearchValueControl('job', 'executor');
+	if (!runStatus.startsWith('<select') || !runStatus.includes('Choose status') || !runStatus.includes('failed')) throw new Error('run status is not a dropdown');
+	if (!jobStatus.startsWith('<select') || !jobStatus.includes('Choose status') || !jobStatus.includes('blocked')) throw new Error('job status is not a dropdown');
+	if (!executor.startsWith('<select') || !executor.includes('Choose executor') || !executor.includes('slurm')) throw new Error('executor is not a dropdown');
+	if (!context.historySearchValueControl('job', 'command').startsWith('<input')) throw new Error('free-text attribute does not use text input');
+	context.historySearchRenderResults([{
+		target: 'job', basedir_id: 'base-a', project_name: 'demo', run_id: 'run-1',
+		job_id: 'job-21', job_name: 'compile', run_name: 'nightly', command: 'make build',
+	}]);
+	if (!resultContainer.innerHTML.includes('?job_id=job-21')) throw new Error('job result link does not identify the selected job');
+	context.focusHistorySearchJob();
+	if (context.paginationState.job.page !== 1 || scrolledJob !== 'job-21' || !context.paginatedKey) throw new Error('run page did not scroll to the matching job row');
 	const scopeHTML = context.historySearchScopeHTML();
 	if (!scopeHTML.includes('<option value="base-b" selected>')) throw new Error('mounted basedir was not selected by default');
 	context.mountedBasedirID = '';
 	if (!context.historySearchScopeHTML().includes('<option value="base-a" selected>')) throw new Error('current basedir was not selected by default');
 	context.renderHistorySearchPage();
 	if (location.textContent === 'loading...') throw new Error('history search page left the location label loading');
+	if (headerHome.innerHTML !== 'rotari History search') throw new Error('header home title was not updated for history search');
+	if (summary.textContent !== 'Search project, run, and job history in the ranges you choose.') throw new Error('history search description is not shown as the header subtitle');
+	if (app.innerHTML.includes('history-search-intro')) throw new Error('history search intro box is still rendered');
 	await context.historySearchBasedirChanged(basedir);
 	if (project.disabled || !project.optionsHTML.includes('project-a')) throw new Error('basedir did not load project options');
 	project.value = 'project-a';
