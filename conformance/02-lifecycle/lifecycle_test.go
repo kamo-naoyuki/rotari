@@ -119,6 +119,45 @@ func TestFingerprintMatchingUsesIDsAndRejectsCountMismatches(t *testing.T) {
 	}
 }
 
+func TestFingerprintMatchingPrioritizesIDsAndQueueOccurrence(t *testing.T) {
+	covers(t, "RUN-4")
+	e := support.NewEnv(t)
+
+	stableID := support.AddedJobID(t, e.MustRotari("add", "-p", "priority", "--", "true"))
+	otherID := support.AddedJobID(t, e.MustRotari("add", "-p", "priority", "--", "echo", "other"))
+	e.MustRotari("run", "-p", "priority", "--quiet")
+	prioritySource := readSummary(t, e, "priority")
+	e.MustRotari("copy", "-p", "priority", "--run-id", prioritySource.RunID, "--overwrite", "--quiet")
+	e.MustRotari("change", "-p", "priority", "--job-id", stableID, "--quiet", "echo", "other")
+	e.MustRotari("remove", "-p", "priority", "--quiet", otherID)
+	e.MustRotari("run", "-p", "priority", "--match-by", "id-and-fingerprint", "--quiet")
+	priorityRun := readSummary(t, e, "priority")
+	priorityCommands := readCommandSnapshot(t, e, "priority", priorityRun.RunID)
+	prioritized := commandByID(t, priorityCommands, stableID)
+	if prioritized.Origin == nil || prioritized.Origin.JobID != stableID {
+		t.Fatalf("ID match did not take priority over the matching fingerprint: %#v", prioritized)
+	}
+
+	firstOld := support.AddedJobID(t, e.MustRotari("add", "-p", "occurrence", "--", "true"))
+	secondOld := support.AddedJobID(t, e.MustRotari("add", "-p", "occurrence", "--", "true"))
+	e.MustRotari("run", "-p", "occurrence", "--quiet")
+	occurrenceSource := readSummary(t, e, "occurrence")
+	e.MustRotari("copy", "-p", "occurrence", "--run-id", occurrenceSource.RunID, "--overwrite", "--quiet")
+	e.MustRotari("remove", "-p", "occurrence", "--quiet", firstOld)
+	e.MustRotari("remove", "-p", "occurrence", "--quiet", secondOld)
+	firstNew := support.AddedJobID(t, e.MustRotari("add", "-p", "occurrence", "--", "true"))
+	secondNew := support.AddedJobID(t, e.MustRotari("add", "-p", "occurrence", "--", "true"))
+	e.MustRotari("run", "-p", "occurrence", "--match-by", "fingerprint", "--quiet")
+	occurrenceRun := readSummary(t, e, "occurrence")
+	occurrenceCommands := readCommandSnapshot(t, e, "occurrence", occurrenceRun.RunID)
+	for currentID, sourceID := range map[string]string{firstNew: firstOld, secondNew: secondOld} {
+		command := commandByID(t, occurrenceCommands, currentID)
+		if command.Origin == nil || command.Origin.JobID != sourceID {
+			t.Fatalf("queue occurrence for %s matched origin %#v, want source job %s", currentID, command.Origin, sourceID)
+		}
+	}
+}
+
 func TestFingerprintMatchingPreservesArrayTasksAndMatrixLeaves(t *testing.T) {
 	covers(t, "RUN-4")
 	e := support.NewEnv(t)
