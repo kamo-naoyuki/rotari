@@ -98,10 +98,6 @@ retries and asynchronous runs, [Executors and schedulers](EXECUTORS.md#executors
 for execution backends, and [Array and matrix jobs](RUNNING.md#array-and-matrix-jobs)
 for task expansion and matrix combinations.
 
-On a Sun Grid Engine cluster, select `-e sge` when adding a job; see the
-[SGE executor guide](EXECUTORS.md#sun-grid-engine-executor) for its scheduler
-requirements and configuration.
-
 Use `--depends-on NAME` to run a job only after a prerequisite job or stage
 succeeds:
 
