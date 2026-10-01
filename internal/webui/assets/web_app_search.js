@@ -270,7 +270,6 @@ function historySearchAddScope() {
   scopes.insertAdjacentHTML("beforeend", historySearchScopeHTML());
   historySearchUpdateScopeControls(scopes);
   void historySearchRefreshDiagnosisOptions();
-  historySearchRefreshDiagnosisOptions();
 }
 
 function historySearchRemoveScope(button) {
@@ -278,7 +277,6 @@ function historySearchRemoveScope(button) {
   button.closest(".history-search-scope-row").remove();
   historySearchUpdateScopeControls(scopes);
   void historySearchRefreshDiagnosisOptions();
-  historySearchRefreshDiagnosisOptions();
 }
 
 function historySearchUpdateScopeControls(scopes) {
