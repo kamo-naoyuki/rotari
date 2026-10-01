@@ -22,7 +22,7 @@ func TestTimelinePointUsesBrowserJSONKeys(t *testing.T) {
 }
 
 func TestBuildTimelineCountsCarriedJobsAtStart(t *testing.T) {
-	points := BuildTimeline("start", []JobTimelineInput{
+	points := BuildTimeline("start", "30", []JobTimelineInput{
 		{Finished: true, Carried: true, Success: true},
 		{SubmittedAt: "10", FinishedAt: "20", Finished: true, Success: false},
 	})
@@ -41,7 +41,7 @@ func TestBuildTimelineCountsCarriedJobsAtStart(t *testing.T) {
 }
 
 func TestBuildTimelineCombinesEventsAtSameTime(t *testing.T) {
-	points := BuildTimeline("start", []JobTimelineInput{
+	points := BuildTimeline("start", "", []JobTimelineInput{
 		{SubmittedAt: "10", FinishedAt: "20", Finished: true, Success: true},
 		{SubmittedAt: "10", FinishedAt: "20", Finished: true, Success: false},
 	})
@@ -53,5 +53,20 @@ func TestBuildTimelineCombinesEventsAtSameTime(t *testing.T) {
 	}
 	if points[2].Running != 0 || points[2].Finished != 2 || points[2].Success != 1 || points[2].Failed != 1 {
 		t.Fatalf("same-time completion = %#v", points[2])
+	}
+}
+
+func TestBuildTimelineUsesRunEndWhenFinishedJobHasNoTimestamps(t *testing.T) {
+	points := BuildTimeline("start", "finish", []JobTimelineInput{
+		{Finished: true, Success: true},
+	})
+	if len(points) != 2 {
+		t.Fatalf("points = %#v, want start and run-finish points", points)
+	}
+	if points[0].At != "start" || points[0].Pending != 1 || points[0].Finished != 0 {
+		t.Fatalf("initial point = %#v, want one pending job", points[0])
+	}
+	if points[1].At != "finish" || points[1].Pending != 0 || points[1].Finished != 1 || points[1].Success != 1 {
+		t.Fatalf("finish point = %#v, want one finished success", points[1])
 	}
 }

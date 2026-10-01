@@ -19,7 +19,7 @@ type TimelinePoint struct {
 	Failed   int    `json:"failed"`
 }
 
-func BuildTimeline(startedAt string, jobs []JobTimelineInput) []TimelinePoint {
+func BuildTimeline(startedAt, runFinishedAt string, jobs []JobTimelineInput) []TimelinePoint {
 	type event struct {
 		at                                          string
 		pending, running, finished, success, failed int
@@ -27,7 +27,16 @@ func BuildTimeline(startedAt string, jobs []JobTimelineInput) []TimelinePoint {
 	events := make([]event, 0, len(jobs)*2)
 	initial := TimelinePoint{At: startedAt}
 	for _, job := range jobs {
-		if job.Finished && (job.Carried || (job.SubmittedAt == "" && job.FinishedAt == "")) {
+		if job.Finished && job.Carried {
+			initial.Finished++
+			if job.Success {
+				initial.Success++
+			} else {
+				initial.Failed++
+			}
+			continue
+		}
+		if job.Finished && job.SubmittedAt == "" && job.FinishedAt == "" && runFinishedAt == "" {
 			initial.Finished++
 			if job.Success {
 				initial.Success++
@@ -40,8 +49,17 @@ func BuildTimeline(startedAt string, jobs []JobTimelineInput) []TimelinePoint {
 		if job.SubmittedAt != "" {
 			events = append(events, event{at: job.SubmittedAt, pending: -1, running: 1})
 		}
-		if job.FinishedAt != "" {
-			finished := event{at: job.FinishedAt, running: -1, finished: 1}
+		finishedAt := job.FinishedAt
+		if finishedAt == "" && job.Finished {
+			finishedAt = runFinishedAt
+		}
+		if finishedAt != "" {
+			finished := event{at: finishedAt, finished: 1}
+			if job.SubmittedAt != "" {
+				finished.running = -1
+			} else {
+				finished.pending = -1
+			}
 			if job.Finished && job.Success {
 				finished.success = 1
 			} else {

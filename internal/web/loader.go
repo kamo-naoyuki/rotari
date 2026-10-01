@@ -236,5 +236,5 @@ func buildTimeline(summary model.RunSummary, jobs []Job) []TimelinePoint {
 	for _, job := range jobs {
 		inputs = append(inputs, JobTimelineInput{Finished: job.Result != nil, Carried: job.Origin != nil, SubmittedAt: job.SubmittedAt, FinishedAt: job.FinishedAt, Success: job.Result != nil && job.Result.ExitCode == 0})
 	}
-	return BuildTimeline(summary.StartedAt, inputs)
+	return BuildTimeline(summary.StartedAt, summary.FinishedAt, inputs)
 }

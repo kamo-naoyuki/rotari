@@ -2530,7 +2530,7 @@ func TestBuildWebTimelineCountsCarriedResultsAtStart(t *testing.T) {
 	for _, job := range jobs {
 		inputs = append(inputs, webprojection.JobTimelineInput{Finished: job.Result != nil, Carried: job.Origin != nil, SubmittedAt: job.SubmittedAt, FinishedAt: job.FinishedAt, Success: job.Result != nil && job.Result.ExitCode == 0})
 	}
-	timeline := webprojection.BuildTimeline(summary.StartedAt, inputs)
+	timeline := webprojection.BuildTimeline(summary.StartedAt, summary.FinishedAt, inputs)
 	if len(timeline) != 3 {
 		t.Fatalf("timeline = %#v, want start, submitted, and finished points", timeline)
 	}
