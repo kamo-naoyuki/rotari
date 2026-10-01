@@ -226,11 +226,11 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]resolve.Run,
 		if pathErr != nil {
 			return nil, pathErr
 		}
-		running, runningErr := isRunning(paths.LockFile)
-		if runningErr != nil {
-			return nil, runningErr
+		lockState, _, lockErr := state.InspectLock(paths.LockFile, false)
+		if lockErr != nil {
+			return nil, lockErr
 		}
-		if !running {
+		if lockState != state.LockActive && lockState != state.LockRemote {
 			continue
 		}
 		lock, lockErr := state.LoadLock(paths.LockFile)
@@ -259,7 +259,7 @@ func resolveActiveRunTarget(cliBaseDir, cliProjectName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	inspection, err := project.Inspect(paths, true)
+	inspection, err := project.Inspect(paths, false)
 	state, runID := inspection.State, inspection.RunID
 	if err != nil {
 		return "", fmt.Errorf("failed to check project state: %w", err)
@@ -299,6 +299,25 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 		}
 		summary, err := state.LoadRunSummary(summaryPath)
 		if err == nil {
+			inspection, inspectErr := project.Inspect(paths, false)
+			if inspectErr != nil {
+				printErrorf("failed to check project state: %v", inspectErr)
+				return waitResult{exitCode: 1}
+			}
+			if inspection.State == project.Running && inspection.RunID == runID {
+				if !deadline.IsZero() && time.Now().After(deadline) {
+					printErrorf("timed out waiting for run %s", runID)
+					return waitResult{exitCode: 1, timedOut: true}
+				}
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+			if inspection.State == project.Interrupted && inspection.RunID == runID {
+				printErrorf("run %s was interrupted after writing its summary; inspect it with 'rotari show --basedir %s --project-name %s --run-id %s', then recover with 'rotari unlock --basedir %s --project-name %s --run-id %s'",
+					runID, executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID),
+					executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
+				return waitResult{exitCode: 1}
+			}
 			if jsonOutput {
 				_ = json.NewEncoder(os.Stdout).Encode(summary)
 			} else {
@@ -318,6 +337,17 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 				printError(message)
 				return waitResult{exitCode: 1}
 			}
+		} else if errors.Is(err, state.ErrNewerStateVersion) {
+			printError(err)
+			return waitResult{exitCode: 1}
+		} else if errors.Is(err, state.ErrInvalidJSON) {
+			if message, ended := runEndedWithInvalidSummary(paths, runID, summaryPath); ended {
+				printError(message)
+				return waitResult{exitCode: 1}
+			}
+		} else {
+			printErrorf("failed to read run summary %s: %v", summaryPath, err)
+			return waitResult{exitCode: 1}
 		}
 		if !deadline.IsZero() && time.Now().After(deadline) {
 			printErrorf("timed out waiting for run %s", runID)
@@ -325,6 +355,24 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
+}
+
+// runEndedWithInvalidSummary reports an invalid summary only after its run is
+// no longer active, allowing wait to tolerate a summary being atomically replaced.
+func runEndedWithInvalidSummary(paths state.ProjectPaths, runID, summaryPath string) (string, bool) {
+	inspection, err := project.Inspect(paths, false)
+	if err != nil || (inspection.State == project.Running && inspection.RunID == runID) {
+		return "", false
+	}
+	if _, err := state.LoadRunSummary(summaryPath); err == nil {
+		return "", false
+	}
+	target := fmt.Sprintf("--basedir %s --project-name %s --run-id %s",
+		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
+	if inspection.State == project.Interrupted && inspection.RunID == runID {
+		return fmt.Sprintf("run %s was interrupted without a valid summary; inspect it with 'rotari show %s', then recover with 'rotari unlock %s'", runID, target, target), true
+	}
+	return fmt.Sprintf("run %s is not active and has no valid summary; inspect it with 'rotari show %s'", runID, target), true
 }
 
 // runEndedWithoutSummary reports whether runID is no longer active although it

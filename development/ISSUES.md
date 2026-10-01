@@ -14,6 +14,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Keep only short records of resolved items when they may help prevent recurrence. -->
 
+- **`wait` could remove recovery locks and report incomplete runs as finished** (`cmd/rotari/wait.go`): selector inspection now preserves stale locks, `wait` rejects newer or invalid summaries once their run is no longer active, and it waits for project finalization before returning a summary. If finalization was interrupted after summary writing, `wait` reports the interrupted state. Covered by `TestCmdWaitProjectSelectorPreservesInterruptedRunLock`, `TestResolveActiveWaitTargetsPreservesStaleRunLock`, `TestCmdWaitDoesNotReturnSummaryBeforeProjectFinalization`, and related summary tests.
+
 - **`TestFollowJobLogReadsAppendedOutputUntilFinished` failed intermittently** (`cmd/rotari/show.go`, `followJobLog`): the loop read the log, then checked the finished marker, so output written between the two reads was dropped and follow returned early. It now re-reads the log once after observing the finished marker.
 
 - **`TestUnlockDerivesInterruptedRun` could kill a supervisor before its job started** (`conformance/01-resolution/export_target_test.go`): the fixture now waits for the job process before simulating interruption, so it reaches a consistent interrupted state.

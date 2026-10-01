@@ -12,7 +12,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-func TestCmdWaitTimesOutForMalformedSummary(t *testing.T) {
+func TestCmdWaitReportsMalformedSummaryAfterRunEnds(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
@@ -43,7 +43,46 @@ func TestCmdWaitTimesOutForMalformedSummary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 1 || !strings.Contains(string(output), "timed out waiting for run run-1") {
+	if code != 1 || !strings.Contains(string(output), "run run-1 is not active and has no valid summary") || strings.Contains(string(output), "timed out") {
+		t.Fatalf("cmdWait exit code = %d, stderr = %q", code, output)
+	}
+}
+
+func TestCmdWaitRejectsNewerSummaryVersion(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "run-1"
+	runDir := filepath.Join(paths.RunsDir, runID)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := registerRun(paths, runID); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "summary.json"), []byte(`{"state_version":99,"run_id":"run-1"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	oldStderr := os.Stderr
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = writer
+	code := cmdWait([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", runID})
+	os.Stderr = oldStderr
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 || !strings.Contains(string(output), "upgrade rotari") {
 		t.Fatalf("cmdWait exit code = %d, stderr = %q", code, output)
 	}
 }
@@ -231,6 +270,104 @@ func TestCmdWaitReportsInterruptedRunWithoutSummary(t *testing.T) {
 	if _, err := os.Stat(paths.MetaFile); err != nil {
 		t.Fatalf("cmdWait must not change project state: %v", err)
 	}
+}
+
+func TestCmdWaitProjectSelectorPreservesInterruptedRunLock(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	paths := writeInterruptedResetProject(t, baseDir)
+	if err := registerRun(paths, "run-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.LockFile, staleTestRunLock(t, "run-1")); err != nil {
+		t.Fatal(err)
+	}
+
+	oldStderr := os.Stderr
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = writer
+	code := cmdWait([]string{"--basedir", baseDir, "demo", "--timeout", "10s"})
+	os.Stderr = oldStderr
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 || !strings.Contains(string(output), "was interrupted before it wrote a summary") {
+		t.Fatalf("cmdWait exit code = %d, stderr = %q", code, output)
+	}
+	if _, err := os.Stat(paths.LockFile); err != nil {
+		t.Fatalf("wait removed the interrupted run lock: %v", err)
+	}
+}
+
+func TestCmdWaitDoesNotReturnSummaryBeforeProjectFinalization(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir := t.TempDir()
+	paths := writeInterruptedResetProject(t, baseDir)
+	if err := registerRun(paths, "run-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "summary.json"), model.RunSummary{RunID: "run-1", Status: "finished"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.LockFile, staleTestRunLock(t, "run-1")); err != nil {
+		t.Fatal(err)
+	}
+
+	oldStderr := os.Stderr
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = writer
+	code := cmdWait([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", "run-1"})
+	os.Stderr = oldStderr
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 || !strings.Contains(string(output), "was interrupted after writing its summary") {
+		t.Fatalf("cmdWait exit code = %d, stderr = %q", code, output)
+	}
+	if _, err := os.Stat(paths.LockFile); err != nil {
+		t.Fatalf("wait removed the interrupted run lock: %v", err)
+	}
+}
+
+func TestResolveActiveWaitTargetsPreservesStaleRunLock(t *testing.T) {
+	baseDir := t.TempDir()
+	paths := writeInterruptedResetProject(t, baseDir)
+	if err := writeJSON(paths.LockFile, staleTestRunLock(t, "run-1")); err != nil {
+		t.Fatal(err)
+	}
+	targets, err := resolveActiveWaitTargets(baseDir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(targets) != 0 {
+		t.Fatalf("active targets = %#v, want none", targets)
+	}
+	if _, err := os.Stat(paths.LockFile); err != nil {
+		t.Fatalf("active-run scan removed the interrupted run lock: %v", err)
+	}
+}
+
+func staleTestRunLock(t *testing.T, runID string) model.LockInfo {
+	t.Helper()
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return model.LockInfo{PID: 1 << 30, Host: host, RunID: runID}
 }
 
 func TestCmdWaitKeepsWaitingForActiveRunWithoutSummary(t *testing.T) {

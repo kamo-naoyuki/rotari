@@ -76,7 +76,13 @@ Representative implementation and tests:
   inspects the project state without removing a stale lock; when the run is no
   longer active (for example, interrupted because its supervisor exited), it
   prints how to inspect and recover the run and exits 1 instead of waiting
-  forever. A malformed summary is treated as still being written.
+  forever. A malformed summary is treated as still being written while its
+  run is active; if the run has ended without a valid summary, `wait` reports
+  that failure. A summary from a newer state version fails with an upgrade
+  message. A readable summary is returned only after the project has stopped
+  running that run; if the run was interrupted after writing it, `wait` reports
+  the interruption rather than treating it as finalized. Selector resolution
+  must also leave stale run locks in place for recovery.
 - `show --json` emits one object with the resolved location, available run
   summary, and saved commands. With `--run-id` and `--job-id`, it emits a job
   view with the selected command's expanded jobs, whether each has finished,
