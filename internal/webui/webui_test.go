@@ -703,6 +703,21 @@ func TestRunSelectionCheckboxesUseCompactDimensions(t *testing.T) {
 	}
 }
 
+func TestNotificationConfigCheckboxesUseCompactDimensions(t *testing.T) {
+	for _, marker := range []string{
+		`.notification-config-editor input[type="checkbox"] {`,
+		"width: 16px;",
+		"height: 16px;",
+		"min-width: 0;",
+		"min-height: 0;",
+		"padding: 0;",
+	} {
+		if !strings.Contains(webStylesCSS, marker) {
+			t.Fatalf("notification config checkbox styling is missing %q", marker)
+		}
+	}
+}
+
 func TestRunToolbarButtonsUseConsistentMinimumWidth(t *testing.T) {
 	if !strings.Contains(webStylesCSS, ".web-copy-controls > button {\n  min-width: 100px;\n}") {
 		t.Fatal("run toolbar buttons do not share a minimum width")
