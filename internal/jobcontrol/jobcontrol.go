@@ -22,6 +22,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -296,9 +297,9 @@ func (controller Controller) selectJobs(runDir string, selection Selection, now 
 			inScope[index] = true
 		}
 	}
-	names := make(map[string]bool, len(selection.Names))
-	for _, name := range selection.Names {
-		names[name] = false
+	nameIDs, missingNames := resolve.JobIDsByName(commands, selection.Names)
+	if len(missingNames) > 0 {
+		return nil, fmt.Errorf("job name %q not found", missingNames[0])
 	}
 	var jobIDs []string
 	for index, command := range commands {
@@ -309,18 +310,8 @@ func (controller Controller) selectJobs(runDir string, selection Selection, now 
 			continue
 		}
 		for _, job := range model.QueueToJobs(commands[index : index+1]) {
-			if len(names) > 0 {
-				_, byJob := names[job.Name]
-				_, byCommand := names[command.Name]
-				if !byJob && !byCommand {
-					continue
-				}
-				if byJob {
-					names[job.Name] = true
-				}
-				if byCommand {
-					names[command.Name] = true
-				}
+			if len(selection.Names) > 0 && !nameIDs[job.ID] {
+				continue
 			}
 			jobDir, err := state.LatestAttemptJobDir(runDir, job.ID)
 			if err != nil {
@@ -340,11 +331,6 @@ func (controller Controller) selectJobs(runDir string, selection Selection, now 
 				continue
 			}
 			jobIDs = append(jobIDs, job.ID)
-		}
-	}
-	for _, name := range selection.Names {
-		if !names[name] {
-			return nil, fmt.Errorf("job name %q not found", name)
 		}
 	}
 	if len(jobIDs) == 0 {

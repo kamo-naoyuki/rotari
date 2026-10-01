@@ -498,17 +498,73 @@ func highestPriority(targets []Job) []Job {
 // command ID; a task ID or name, such as "ID-2" or "NAME[2]", returns that
 // task's ID.
 func JobInQueue(queue model.Queue, selector string, byName bool) (string, bool) {
+	if byName {
+		commandIDs, jobIDs, _ := matchJobNames(queue.Commands, []string{selector})
+		if selector != "" {
+			for _, command := range queue.Commands {
+				if commandIDs[command.ID] {
+					return command.ID, true
+				}
+			}
+		}
+		for _, job := range model.QueueToJobs(queue.Commands) {
+			if jobIDs[job.ID] {
+				return job.ID, true
+			}
+		}
+		return "", false
+	}
 	for _, command := range queue.Commands {
-		if (byName && command.Name != "" && command.Name == selector) || (!byName && command.ID == selector) {
+		if command.ID == selector {
 			return command.ID, true
 		}
 	}
 	for _, job := range model.QueueToJobs(queue.Commands) {
-		if (byName && job.Name == selector) || (!byName && job.ID == selector) {
+		if job.ID == selector {
 			return job.ID, true
 		}
 	}
 	return "", false
+}
+
+// JobIDsByName returns every job ID selected by one or more names in a run's
+// command snapshot. A command name selects every job produced by that
+// command, while an array task name selects only that task.
+func JobIDsByName(commands []model.QueuedCommand, names []string) (map[string]bool, []string) {
+	_, jobIDs, matched := matchJobNames(commands, names)
+	missing := make([]string, 0)
+	for _, name := range names {
+		if !matched[name] {
+			missing = append(missing, name)
+		}
+	}
+	return jobIDs, missing
+}
+
+func matchJobNames(commands []model.QueuedCommand, names []string) (map[string]bool, map[string]bool, map[string]bool) {
+	requested := make(map[string]bool, len(names))
+	for _, name := range names {
+		requested[name] = false
+	}
+	commandIDs := make(map[string]bool)
+	jobIDs := make(map[string]bool)
+	for _, command := range commands {
+		jobs := model.QueueToJobs([]model.QueuedCommand{command})
+		if _, wanted := requested[command.Name]; wanted && len(jobs) > 0 {
+			requested[command.Name] = true
+			commandIDs[command.ID] = true
+			for _, job := range jobs {
+				jobIDs[job.ID] = true
+			}
+		}
+		for _, job := range jobs {
+			if _, wanted := requested[job.Name]; wanted {
+				requested[job.Name] = true
+				jobIDs[job.ID] = true
+			}
+		}
+	}
+	return commandIDs, jobIDs, requested
 }
 
 // JobInRun finds a job by ID or name in runID's command snapshot. A run

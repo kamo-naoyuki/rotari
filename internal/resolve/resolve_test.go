@@ -347,3 +347,24 @@ func TestJobInQueueMatchesArrayCommandBeforeItsTasks(t *testing.T) {
 		}
 	}
 }
+
+func TestJobIDsByNameExpandsCommandsAndArrayTasks(t *testing.T) {
+	commands := []model.QueuedCommand{
+		{ID: "train-a", Name: "train", Command: []string{"run"}},
+		{ID: "eval", Name: "eval", Command: []string{"run"}, Array: &model.ArraySpec{First: 1, Last: 2}},
+	}
+	ids, missing := JobIDsByName(commands, []string{"train", "eval[2]", "missing"})
+	for _, id := range []string{"train-a", "eval-2"} {
+		if !ids[id] {
+			t.Errorf("job ID %q was not selected: %#v", id, ids)
+		}
+	}
+	if ids["eval-1"] || len(missing) != 1 || missing[0] != "missing" {
+		t.Fatalf("IDs = %#v, missing = %v, want only eval-2 and missing name", ids, missing)
+	}
+
+	ids, missing = JobIDsByName(commands, []string{"eval"})
+	if !ids["eval-1"] || !ids["eval-2"] || len(ids) != 2 || len(missing) != 0 {
+		t.Fatalf("command name selected %#v, missing %v; want both array tasks", ids, missing)
+	}
+}
