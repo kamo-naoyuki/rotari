@@ -40,6 +40,7 @@ var jobControlCases = []jobControlCase{
 	{name: "stage filter", args: "cancel -b {B} -p sweep --filter-stage single --yes", jobs: []string{"idle"}},
 	{name: "command filter", args: "cancel -b {B} -p sweep --filter-command=sleep.*301 --yes", jobs: []string{"idle"}},
 	{name: "state filter", args: "cancel -b {B} -p sweep --filter-state running --yes", jobs: []string{"hold-1", "hold-2", "idle"}},
+	{name: "state filters combine by OR", args: "cancel -b {B} -p sweep --filter-state running --filter-state pending --yes", jobs: []string{"hold-1", "hold-2", "idle"}},
 	{name: "negated stage filter", args: "cancel -b {B} -p sweep --filter-not-stage batch --yes", jobs: []string{"idle"}},
 	{name: "filter matching no jobs", args: "cancel -b {B} -p sweep --filter-stage missing --yes", err: `no jobs in stage "missing"`},
 	{name: "unknown job name", args: "cancel -b {B} -p sweep --job-name missing", err: `job name "missing" not found`},
