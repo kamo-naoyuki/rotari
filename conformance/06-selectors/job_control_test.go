@@ -22,6 +22,8 @@ import (
 type jobControlCase struct {
 	name string
 	args string
+	// matrixFixture adds two running matrix leaves for matrix selector cases.
+	matrixFixture bool
 	// suspended suspends every live job before the command, for resume.
 	suspended bool
 	// jobs are the live jobs the command acted on: cancelled, suspended, or
@@ -38,11 +40,17 @@ var jobControlCases = []jobControlCase{
 	{name: "repeated job names", args: "cancel -b {B} -p sweep --job-name hold --job-name idle", jobs: []string{"hold-1", "hold-2", "idle"}},
 	{name: "stage scope", args: "cancel -b {B} -p sweep --stage single --yes", jobs: []string{"idle"}},
 	{name: "stage filter", args: "cancel -b {B} -p sweep --filter-stage single --yes", jobs: []string{"idle"}},
+	{name: "matrix scope", args: "cancel -b {B} -p sweep --matrix grid --yes", matrixFixture: true, jobs: []string{"grid-SEED1", "grid-SEED2"}},
+	{name: "matrix filter", args: "cancel -b {B} -p sweep --filter-matrix grid --yes", matrixFixture: true, jobs: []string{"grid-SEED1", "grid-SEED2"}},
+	{name: "negated matrix filter", args: "cancel -b {B} -p sweep --filter-not-matrix grid --yes", matrixFixture: true, jobs: []string{"hold-1", "hold-2", "idle"}},
 	{name: "command filter", args: "cancel -b {B} -p sweep --filter-command=sleep.*301 --yes", jobs: []string{"idle"}},
+	{name: "host filter with no matches", args: "cancel -b {B} -p sweep --filter-host=no-such-host-* --yes", err: "no unfinished jobs match the selection"},
 	{name: "state filter", args: "cancel -b {B} -p sweep --filter-state running --yes", jobs: []string{"hold-1", "hold-2", "idle"}},
 	{name: "state filters combine by OR", args: "cancel -b {B} -p sweep --filter-state running --filter-state pending --yes", jobs: []string{"hold-1", "hold-2", "idle"}},
 	{name: "negated stage filter", args: "cancel -b {B} -p sweep --filter-not-stage batch --yes", jobs: []string{"idle"}},
 	{name: "started after excludes every job", args: "cancel -b {B} -p sweep --filter-started-after 2099-01-01T00:00:00Z --yes", err: "no unfinished jobs match the selection"},
+	{name: "started before excludes every job", args: "cancel -b {B} -p sweep --filter-started-before 2000-01-01T00:00:00Z --yes", err: "no unfinished jobs match the selection"},
+	{name: "longer than excludes every job", args: "cancel -b {B} -p sweep --filter-longer-than 8760h --yes", err: "no unfinished jobs match the selection"},
 	{name: "shorter than excludes every job", args: "cancel -b {B} -p sweep --filter-shorter-than 1ns --yes", err: "no unfinished jobs match the selection"},
 	{name: "filter matching no jobs", args: "cancel -b {B} -p sweep --filter-stage missing --yes", err: `no jobs in stage "missing"`},
 	{name: "unknown job name", args: "cancel -b {B} -p sweep --job-name missing", err: `job name "missing" not found`},
@@ -69,6 +77,7 @@ var jobControlCases = []jobControlCase{
 	{name: "job name", args: "suspend -b {B} -p sweep --job-name idle", jobs: []string{"idle"}},
 	{name: "stage scope", args: "suspend -b {B} -p sweep --stage single --yes", jobs: []string{"idle"}},
 	{name: "stage filter", args: "suspend -b {B} -p sweep --filter-stage single --yes", jobs: []string{"idle"}},
+	{name: "matrix filter", args: "suspend -b {B} -p sweep --filter-matrix grid --yes", matrixFixture: true, jobs: []string{"grid-SEED1", "grid-SEED2"}},
 	{name: "state filter", args: "suspend -b {B} -p sweep --filter-state running --yes", jobs: []string{"hold-1", "hold-2", "idle"}},
 	{name: "negated stage filter", args: "suspend -b {B} -p sweep --filter-not-stage batch --yes", jobs: []string{"idle"}},
 	{name: "pending state rejected", args: "suspend -b {B} -p sweep --filter-state pending --yes", err: `invalid choice "pending" (choose from running)`},
@@ -87,6 +96,7 @@ var jobControlCases = []jobControlCase{
 	{name: "job name", args: "resume -b {B} -p sweep --job-name idle", suspended: true, jobs: []string{"idle"}},
 	{name: "stage scope", args: "resume -b {B} -p sweep --stage single --yes", suspended: true, jobs: []string{"idle"}},
 	{name: "stage filter", args: "resume -b {B} -p sweep --filter-stage single --yes", suspended: true, jobs: []string{"idle"}},
+	{name: "matrix filter", args: "resume -b {B} -p sweep --filter-matrix grid --yes", matrixFixture: true, suspended: true, jobs: []string{"grid-SEED1", "grid-SEED2"}},
 	{name: "negated stage filter", args: "resume -b {B} -p sweep --filter-not-stage batch --yes", suspended: true, jobs: []string{"idle"}},
 	{name: "pending state rejected", args: "resume -b {B} -p sweep --filter-state pending --yes", suspended: true, err: `invalid choice "pending" (choose from running)`},
 	{name: "job ID", args: "resume -b {B} -p sweep {job:idle}", suspended: true, jobs: []string{"idle"}},
@@ -103,44 +113,55 @@ func TestJobControlSelectors(t *testing.T) {
 		command := strings.Fields(tc.args)[0]
 		t.Run(command+"/"+tc.name, func(t *testing.T) {
 			t.Parallel()
-			f := newSelectorFixture(t)
-			live := f.startJobControlRun()
-			if tc.suspended {
-				f.e.mustRotari("suspend", "-b", f.base, "-p", "sweep")
-			}
-			r := f.e.rotari(f.expand(tc.args)...)
-			output := f.symbolic(r.stdout + r.stderr)
-			if tc.err != "" {
-				if r.code == 0 || !strings.Contains(output, tc.err) {
-					t.Fatalf("rotari %s: exit %d, output:\n%s\nwant an error containing %q", tc.args, r.code, output, tc.err)
-				}
-			} else if r.code != 0 {
-				t.Fatalf("rotari %s: exit %d, output:\n%s", tc.args, r.code, output)
-			}
-			want := append([]string(nil), tc.jobs...)
-			sort.Strings(want)
-			if got := live.affected(t, command, want); strings.Join(got, ",") != strings.Join(want, ",") {
-				t.Fatalf("rotari %s acted on [%s], want [%s]; output:\n%s", tc.args, strings.Join(got, ","), strings.Join(want, ","), output)
-			}
+			runJobControlCase(t, tc, command)
 		})
 	}
 }
 
+func runJobControlCase(t *testing.T, tc jobControlCase, command string) {
+	t.Helper()
+	f := newSelectorFixture(t)
+	live := f.startJobControlRun(tc.matrixFixture)
+	if tc.suspended {
+		f.e.mustRotari("suspend", "-b", f.base, "-p", "sweep")
+	}
+	r := f.e.rotari(f.expand(tc.args)...)
+	output := f.symbolic(r.stdout + r.stderr)
+	if tc.err != "" {
+		if r.code == 0 || !strings.Contains(output, tc.err) {
+			t.Fatalf("rotari %s: exit %d, output:\n%s\nwant an error containing %q", tc.args, r.code, output, tc.err)
+		}
+	} else if r.code != 0 {
+		t.Fatalf("rotari %s: exit %d, output:\n%s", tc.args, r.code, output)
+	}
+	want := append([]string(nil), tc.jobs...)
+	sort.Strings(want)
+	if got := live.affected(t, command, want); strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("rotari %s acted on [%s], want [%s]; output:\n%s", tc.args, strings.Join(got, ","), strings.Join(want, ","), output)
+	}
+}
+
 // jobControlRun is run "live" of project sweep, with the attempt directory
-// of each of its jobs by key: hold-1, hold-2, and idle.
+// of each of its jobs by key: hold-1, hold-2, idle, and optional matrix leaves.
 type jobControlRun struct {
 	attemptDirs map[string]string
 }
 
-// startJobControlRun queues array job hold and job idle in project sweep,
-// starts run "live" of them in the background, records {run:live},
-// {job:hold}, {job:idle}, and {att:idle/live}, and returns once every job
-// runs. The run is cancelled when the test ends.
-func (f selectorFixture) startJobControlRun() jobControlRun {
+// startJobControlRun queues array job hold and job idle in project sweep, plus
+// matrix leaves when requested. It starts run "live" in the background,
+// records symbolic selectors, and returns once every job is running. The run
+// is cancelled when the test ends.
+func (f selectorFixture) startJobControlRun(includeMatrix bool) jobControlRun {
 	f.e.t.Helper()
 	f.add(f.base, "sweep", "--job-name", "hold", "--stage", "batch", "--array", "1-2", "--", "sleep", "300")
 	f.add(f.base, "sweep", "--job-name", "idle", "--stage", "single", "--", "sleep", "301")
-	f.recordJobs(f.base, "sweep", map[string]string{"hold": "hold", "idle": "idle"}, "")
+	jobKeys := map[string]string{"hold": "hold", "idle": "idle"}
+	if includeMatrix {
+		f.add(f.base, "sweep", "--job-name", "grid", "--matrix", "SEED=1,2", "--stage", "matrix", "--", "sleep", "302")
+		jobKeys["grid-SEED1"] = "grid-SEED1"
+		jobKeys["grid-SEED2"] = "grid-SEED2"
+	}
+	f.recordJobs(f.base, "sweep", jobKeys, "")
 	client := f.e.command("run", "-b", f.base, "-p", "sweep", "--run-name", "live", "--quiet")
 	if err := client.Start(); err != nil {
 		f.e.t.Fatal(err)
@@ -153,6 +174,10 @@ func (f selectorFixture) startJobControlRun() jobControlRun {
 		_ = client.Wait()
 	})
 	keys := map[string]string{"hold-1": f.jobs["hold"] + "-1", "hold-2": f.jobs["hold"] + "-2", "idle": f.jobs["idle"]}
+	if includeMatrix {
+		keys["grid-SEED1"] = f.jobs["grid-SEED1"]
+		keys["grid-SEED2"] = f.jobs["grid-SEED2"]
+	}
 	var liveRunID string
 	waitUntil(f.e.t, 15*time.Second, func() (bool, string) {
 		runID := f.lastRunID(f.base, "sweep")
