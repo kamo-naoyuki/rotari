@@ -8,13 +8,13 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **Unidentified intermittent test failure in `cmd/rotari` (suspected flaky test)**: during sandbox investigation on 2026-09-29, `go test ./cmd/rotari ./internal/state` reported `FAIL github.com/kamo-naoyuki/rotari/cmd/rotari 32.326s`; `internal/state` passed from cache. Only the last 50 output lines were retained, so the failing test and assertion are unknown. Subsequent uncached runs all passed: 5 CLI-only runs, 5 runs of both packages, and 15 verbose CLI-only runs. The cause and any sandbox involvement remain unverified; error messages from negative test cases near the end of the output do not identify the failure. On recurrence, preserve full output and the actual `go test` exit code, preferably using `go test -count=1 -json ./cmd/rotari ./internal/state`, then identify the failing test before investigating timing or environment dependencies. A trailing `grep` returning 1 because it found no failures is not a test failure.
-
 ## Resolved
 
 - **Python CLI options could be silently dropped or mis-encoded** (`python/rotari/client.py`): unknown keyword options were ignored, and `run(partial_array=False)` emitted `--partial-array false`, which the CLI parses as a positional argument rather than a false boolean flag. Unknown options now raise `TypeError`, and valueless boolean flags with explicit values use `--flag=value`. Covered by `test_unknown_options_are_rejected_before_invoking_cli` and `test_run_passes_false_for_boolean_value_flag`.
 
 - **Python object ownership and forced JSON options were unnecessarily surprising** (`python/rotari/client.py`): `Job` and `Run` objects were rejected by a separately constructed client even when both clients had identical project context, and methods that always decode JSON exposed a `json` option they silently overrode. Objects now interoperate across clients with matching executable, basedir, project, cwd, and env; JSON output flags are omitted from signatures/docs and explicitly rejected if passed. Covered by `test_objects_can_be_used_with_an_equivalently_configured_client` and `test_json_output_options_are_managed_by_python_api`.
+
+- **The unreproduced intermittent `go test ./cmd/rotari` failure was not actionable**: during sandbox investigation on 2026-09-29, `go test ./cmd/rotari ./internal/state` reported `FAIL github.com/kamo-naoyuki/rotari/cmd/rotari 32.326s`, but the output was incomplete and the failing test was not identified. Subsequent uncached runs all passed: 5 CLI-only runs, 5 runs of both packages, and 15 verbose CLI-only runs. The issue was treated as a suspected flaky test, but no concrete failure was reproduced, so there was no code-level bug to fix. On recurrence, preserve full output and the actual `go test` exit code and identify the failing test before investigating timing or environment dependencies.
 
 <!-- Keep only short records of resolved items when they may help prevent recurrence. -->
 
