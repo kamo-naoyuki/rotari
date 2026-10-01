@@ -67,6 +67,24 @@ func TestTemplateParses(t *testing.T) {
 	}
 }
 
+func TestDefaultNotificationFieldsIncludeRunAndAttemptIDs(t *testing.T) {
+	settings := Defaults()
+	for channel, fields := range map[string][]string{
+		"webhook": settings.Webhook.Fields,
+		"browser": settings.Browser.Fields,
+	} {
+		selected := make(map[string]bool, len(fields))
+		for _, field := range fields {
+			selected[field] = true
+		}
+		for _, field := range []string{"run_id", "attempt_id"} {
+			if !selected[field] {
+				t.Errorf("%s default fields do not include %q: %v", channel, field, fields)
+			}
+		}
+	}
+}
+
 func TestMarshalRoundTripsSettings(t *testing.T) {
 	want := Defaults()
 	want.Webhook.URL = "https://example.invalid/hook?token=secret"

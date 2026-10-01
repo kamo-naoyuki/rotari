@@ -35,7 +35,7 @@ job_failure = true
 job_success = false
 run_failure = true
 run_success = true
-fields = ["project", "run_name", "run_status", "job_name", "job_status", "exit_code", "diagnosis_name", "diagnosis_suggestion", "link"]
+fields = ["project", "run_id", "run_name", "run_status", "job_name", "attempt_id", "job_status", "exit_code", "diagnosis_name", "diagnosis_suggestion", "link"]
 max_jobs = 10
 ```
 
@@ -45,10 +45,10 @@ The first poll establishes a baseline and never reports existing history.
 `max_jobs` limits how many jobs one notification lists, and the body is
 truncated at 1000 characters.
 
-The browser defaults omit IDs because names are easier to scan in a short
-desktop notification and the default `link` opens the exact run page. This is
-a presentation default, not a browser limitation; `run_id`, `job_id`, and
-`attempt_id` can all be selected. Removing `link` disables click navigation.
+The browser defaults include `run_id` and `attempt_id` so a notification
+identifies its run and exact job execution; the default `link` opens the exact
+run page. Other IDs such as `job_id` can also be selected. Removing `link`
+disables click navigation.
 
 The current basedir's `/api/state` is checked every two seconds. Selected other
 basedirs use `/api/active-runs`. Completed run details are not repeatedly
@@ -74,7 +74,7 @@ job_failure = true
 job_success = false
 run_failure = true
 run_success = true
-fields = ["project", "run_id", "run_name", "run_status", "job_id", "job_name", "job_status", "exit_code", "success_count", "failure_count", "duration", "diagnosis_name", "diagnosis_suggestion"]
+fields = ["project", "run_id", "run_name", "run_status", "job_id", "job_name", "attempt_id", "job_status", "exit_code", "success_count", "failure_count", "duration", "diagnosis_name", "diagnosis_suggestion"]
 max_jobs = 20
 ```
 

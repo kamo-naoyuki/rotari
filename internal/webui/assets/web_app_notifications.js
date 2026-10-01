@@ -13,9 +13,11 @@ const defaultNotificationSettings = {
   run_success: true,
   fields: [
     "project",
+    "run_id",
     "run_name",
     "run_status",
     "job_name",
+    "attempt_id",
     "job_status",
     "exit_code",
     "diagnosis_name",
