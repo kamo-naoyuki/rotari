@@ -255,12 +255,14 @@ function historySearchRemoveScope(button) {
 }
 
 function historySearchUpdateScopeControls(scopes) {
-  [...scopes.children].forEach((scope) => {
-    if (!scope.querySelector(".history-search-scope-remove"))
+  [...scopes.children].forEach((scope, index) => {
+    if (index > 0 && !scope.querySelector(".history-search-scope-remove"))
       scope.insertAdjacentHTML(
         "beforeend",
         '<button type="button" class="history-search-scope-remove" aria-label="Remove search range" onclick="historySearchRemoveScope(this)">−</button>',
       );
+    if (index === 0)
+      scope.querySelector(".history-search-scope-remove")?.remove();
   });
 }
 

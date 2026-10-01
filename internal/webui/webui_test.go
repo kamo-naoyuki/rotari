@@ -191,6 +191,17 @@ const headerHome = { innerHTML: '' };
 const headerTitle = { textContent: 'rotari Web' };
 const form = { addEventListener() {} };
 const resultContainer = { innerHTML: '' };
+const makeRemoveButton = () => ({ removed: false, remove() { this.removed = true; } });
+const firstScope = {
+	removeButton: makeRemoveButton(),
+	querySelector() { return this.removeButton && !this.removeButton.removed ? this.removeButton : null; },
+};
+const secondScope = {
+	removeButton: makeRemoveButton(),
+	querySelector() { return this.removeButton && !this.removeButton.removed ? this.removeButton : null; },
+	insertAdjacentHTML() { this.removeButton = makeRemoveButton(); },
+};
+const scopeContainer = { children: [firstScope, secondScope] };
 let scrolledJob = '';
 const runRows = Array.from({ length: 25 }, (_, index) => ({
 	dataset: { jobId: 'job-' + index },
@@ -228,6 +239,7 @@ const context = {
 			if (id === 'page-title') return pageTitle;
 			if (id === 'summary') return summary;
 			if (id === 'history-search-results') return resultContainer;
+			if (id === 'history-search-scopes') return scopeContainer;
 			if (id === 'history-search-form') return ++formLookups === 1 ? null : form;
 			return null;
 		},
@@ -281,6 +293,9 @@ vm.runInContext(code, context);
 	if (!pageHeadingSection.hidden) throw new Error('History search heading box is still visible above Search scope');
 	if (summary.textContent) throw new Error('History search description remains in the heading box');
 	if (app.innerHTML.includes('history-search-intro')) throw new Error('history search intro box is still rendered');
+	context.historySearchUpdateScopeControls(scopeContainer);
+	if (firstScope.querySelector('.history-search-scope-remove')) throw new Error('first search range unexpectedly has a remove button');
+	if (!secondScope.querySelector('.history-search-scope-remove')) throw new Error('additional search range is missing its remove button');
 	await context.historySearchBasedirChanged(basedir);
 	if (project.disabled || !project.optionsHTML.includes('project-a')) throw new Error('basedir did not load project options');
 	project.value = 'project-a';
