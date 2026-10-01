@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "docs/**"
+      - "examples/**"
       - "python/**"
       - "cmd/rotari/schema.go"
       - "cmd/rotari/environment.go"
@@ -18,6 +19,7 @@ on:
   pull_request:
     paths:
       - "docs/**"
+      - "examples/**"
       - "python/**"
       - "cmd/rotari/schema.go"
       - "cmd/rotari/environment.go"

@@ -83,7 +83,6 @@ jobs:
           cp -a docs/web-demo/. "$RUNNER_TEMP/pages-site/"
           mkdir -p "$RUNNER_TEMP/pages-site/docs"
           cp -a "$RUNNER_TEMP/docs-site/." "$RUNNER_TEMP/pages-site/docs/"
-          cp -a examples "$RUNNER_TEMP/pages-site/docs/examples"
           cp -a "$RUNNER_TEMP/go-api" "$RUNNER_TEMP/pages-site/go-api"
           cp -a "$RUNNER_TEMP/pypi-index/simple" "$RUNNER_TEMP/pages-site/simple"
 

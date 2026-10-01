@@ -194,13 +194,13 @@ See the [Python API reference](docs/python-api.md) for available methods and opt
 
 ## Examples
 
-Start with the [basic example](docs/../examples/basic.sh) for a dependent job:
+Start with the [basic example](docs/examples.md#basic-example) for a dependent job:
 
 ```sh
 ./examples/basic.sh
 ```
 
-The [examples guide](docs/../examples/README.md) has independent, no-argument
+The [examples guide](docs/examples.md) has independent, no-argument
 scripts for arrays, retrying failed work, async runs, Slurm, workflow
 manifests, and diagnosis. All examples use `.example-state` in the current
 working directory, with a separate project for each. Slurm needs a configured

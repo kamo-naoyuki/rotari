@@ -28,6 +28,7 @@ nav:
       - Workflow manifests: WORKFLOW_MANIFESTS.md
       - Comparison with other tools: TOOL_COMPARISON.md
       - Docker: DOCKER.md
+      - Examples: examples.md
       - FAQ: FAQ.md
   - Integrations:
       - Notifications: NOTIFICATIONS.md
@@ -44,6 +45,9 @@ markdown_extensions:
   - admonition
   - attr_list
   - pymdownx.details
+  - pymdownx.snippets:
+      base_path:
+        - "."
   - pymdownx.highlight
   - pymdownx.superfences:
       custom_fences:
