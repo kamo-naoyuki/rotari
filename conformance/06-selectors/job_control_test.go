@@ -42,6 +42,8 @@ var jobControlCases = []jobControlCase{
 	{name: "state filter", args: "cancel -b {B} -p sweep --filter-state running --yes", jobs: []string{"hold-1", "hold-2", "idle"}},
 	{name: "state filters combine by OR", args: "cancel -b {B} -p sweep --filter-state running --filter-state pending --yes", jobs: []string{"hold-1", "hold-2", "idle"}},
 	{name: "negated stage filter", args: "cancel -b {B} -p sweep --filter-not-stage batch --yes", jobs: []string{"idle"}},
+	{name: "started after excludes every job", args: "cancel -b {B} -p sweep --filter-started-after 2099-01-01T00:00:00Z --yes", err: "no unfinished jobs match the selection"},
+	{name: "shorter than excludes every job", args: "cancel -b {B} -p sweep --filter-shorter-than 1ns --yes", err: "no unfinished jobs match the selection"},
 	{name: "filter matching no jobs", args: "cancel -b {B} -p sweep --filter-stage missing --yes", err: `no jobs in stage "missing"`},
 	{name: "unknown job name", args: "cancel -b {B} -p sweep --job-name missing", err: `job name "missing" not found`},
 	{name: "filter and wait", args: "cancel -b {B} -p sweep --filter-state running --wait --yes", err: "--wait may not be used with a job selection"},
