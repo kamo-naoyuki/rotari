@@ -86,9 +86,15 @@ function historySearchToggleCustomRange(select) {
 }
 
 function historySearchScopeHTML() {
+  const currentBasedirID =
+    mountedBasedirID ||
+    registeredBasedirs.find((entry) => entry.current)?.id ||
+    registeredBasedirs[0]?.id ||
+    "";
   const basedirOptions = registeredBasedirs
     .map(
-      (entry) => `<option value="${esc(entry.id)}">${esc(entry.path)}</option>`,
+      (entry) =>
+        `<option value="${esc(entry.id)}" ${entry.id === currentBasedirID ? "selected" : ""}>${esc(entry.path)}</option>`,
     )
     .join("");
   return `<div class="history-search-scope-row">
@@ -149,6 +155,8 @@ function historySearchPageHTML() {
 
 function renderHistorySearchPage() {
   const app = document.getElementById("app");
+  document.title = "History search · rotari";
+  document.getElementById("location").textContent = "History search";
   if (typeof rewriteStaticLinks === "function") {
     document.getElementById("page-title").textContent = "History search";
     document.getElementById("summary").textContent = "";
@@ -158,7 +166,6 @@ function renderHistorySearchPage() {
     return;
   }
   if (document.getElementById("history-search-form")) return;
-  document.title = "History search · rotari";
   document.getElementById("page-title").textContent = "History search";
   document.getElementById("summary").textContent =
     "Choose basedirs, projects and runs to search";

@@ -165,10 +165,30 @@ const run = { value: '', disabled: true, innerHTML: '', optionsHTML: '', insertA
 const row = { querySelector(selector) { return selector === '.history-search-scope-project' ? project : run; } };
 const basedir = { value: 'base-a', closest() { return row; } };
 const requests = [];
+const location = { textContent: 'loading...' };
+const app = { className: '', innerHTML: '' };
+const pageTitle = { textContent: '' };
+const summary = { textContent: '' };
+const form = { addEventListener() {} };
+let formLookups = 0;
 const context = {
-	registeredBasedirs: [{ id: 'base-a', path: '/state/a' }],
+	registeredBasedirs: [
+		{ id: 'base-a', path: '/state/a', current: true },
+		{ id: 'base-b', path: '/state/b' },
+	],
+	mountedBasedirID: 'base-b',
 	esc: value => String(value),
 	basedirURL: (_id, path) => path,
+	document: {
+		getElementById(id) {
+			if (id === 'app') return app;
+			if (id === 'location') return location;
+			if (id === 'page-title') return pageTitle;
+			if (id === 'summary') return summary;
+			if (id === 'history-search-form') return ++formLookups === 1 ? null : form;
+			return null;
+		},
+	},
 	fetch: async url => {
 		requests.push(url);
 		return { ok: true, json: async () => String(url).includes('project_name=')
@@ -180,6 +200,12 @@ const context = {
 vm.createContext(context);
 vm.runInContext(code, context);
 (async () => {
+	const scopeHTML = context.historySearchScopeHTML();
+	if (!scopeHTML.includes('<option value="base-b" selected>')) throw new Error('mounted basedir was not selected by default');
+	context.mountedBasedirID = '';
+	if (!context.historySearchScopeHTML().includes('<option value="base-a" selected>')) throw new Error('current basedir was not selected by default');
+	context.renderHistorySearchPage();
+	if (location.textContent === 'loading...') throw new Error('history search page left the location label loading');
 	await context.historySearchBasedirChanged(basedir);
 	if (project.disabled || !project.optionsHTML.includes('project-a')) throw new Error('basedir did not load project options');
 	project.value = 'project-a';

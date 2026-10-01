@@ -1248,8 +1248,16 @@ pre,
 }
 
 .history-search-condition .history-search-remove {
+  box-sizing: border-box;
+  width: 34px;
+  height: 34px;
   min-width: 34px;
   padding: 0;
+  justify-self: center;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--muted);
   font-size: 20px;
 }
