@@ -209,7 +209,6 @@ Wait for an asynchronous run by project, run name, or run id.
 | `config` | `str` | config file to use |
 | `run_id` | `Sequence[str]` | run ID; may be repeated |
 | `timeout` | `str` | maximum wait duration |
-| `json` | `bool` | print each completed run as one JSON object |
 
 ## `Rotari.show`
 
@@ -238,7 +237,6 @@ Show queue or run status.
 | `follow` | `bool` | follow one selected log stream until the run completes |
 | `no_pager` | `bool` | print logs directly instead of using a pager |
 | `basedirs` | `bool` | list state directories known to the master registry |
-| `json` | `bool` | print machine-readable JSON for a run |
 | `report` | `bool` | print an AI-ready Markdown report |
 | `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |

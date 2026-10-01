@@ -83,26 +83,37 @@ def _python_option_name(name: str) -> str:
     return name.replace("-", "_")
 
 
+def _include_signature_flag(command: str, flag: Mapping[str, object]) -> bool:
+    if flag["name"] in {"basedir", "project-name"}:
+        return False
+    return not (flag["name"] == "json" and command in {"check", "wait", "show"})
+
+
+def _signature_flag(flag: Mapping[str, object]) -> inspect.Parameter:
+    name = _python_option_name(str(flag["name"]))
+    if flag.get("repeated"):
+        default: object = ()
+    elif flag.get("value_name"):
+        default = None
+    else:
+        default = False
+    return inspect.Parameter(name, inspect.Parameter.KEYWORD_ONLY, default=default)
+
+
 def _install_cli_signatures() -> None:
     for command_spec in CLI_SCHEMA["commands"]:
         command = command_spec["name"]
         method = getattr(Rotari, "import_" if command == "import" else command, None)
         if method is None:
             continue
-        parameters = _signature_positionals(command)
-        for flag in command_spec.get("flags", ()):
-            if flag["name"] in {"basedir", "project-name"}:
-                continue
-            name = _python_option_name(flag["name"])
-            if flag.get("repeated"):
-                default = ()
-            elif flag.get("value_name"):
-                default = None
-            else:
-                default = False
-            parameters.append(
-                inspect.Parameter(name, inspect.Parameter.KEYWORD_ONLY, default=default)
-            )
+        parameters = [
+            *_signature_positionals(command),
+            *(
+                _signature_flag(flag)
+                for flag in command_spec.get("flags", ())
+                if _include_signature_flag(command, flag)
+            ),
+        ]
         method.__signature__ = inspect.Signature(parameters)
 
 
@@ -129,6 +140,11 @@ def _signature_positionals(command: str) -> list[inspect.Parameter]:
             inspect.Parameter("as_dict", inspect.Parameter.KEYWORD_ONLY, default=False)
         )
     return parameters
+
+
+def _reject_managed_json_option(command: str, options: Mapping[str, object]) -> None:
+    if "json" in options:
+        raise TypeError(f"{command}() always returns JSON; do not pass json=")
 
 
 @dataclass(frozen=True)
@@ -402,6 +418,7 @@ class Rotari:
     def check(self, **options: object) -> dict[str, object]:
         """Return the CLI project readiness report, including non-runnable states."""
 
+        _reject_managed_json_option("check", options)
         arguments = build_command_arguments(
             "check", {**options, "json": True, "quiet": False}
         )
@@ -425,6 +442,7 @@ class Rotari:
     ) -> dict[str, object] | list[dict[str, object]]:
         """Wait for one or more runs; return summaries in selector order."""
 
+        _reject_managed_json_option("wait", options)
         if selector is not None and options.get("run_id") is not None:
             raise ValueError("selector and run_id cannot be used together")
         many, ids = self._wait_targets(selector)
@@ -511,6 +529,7 @@ class Rotari:
     ) -> dict[str, object] | list[dict[str, object]]:
         """Query the CLI for a run or a job in the latest saved run."""
 
+        _reject_managed_json_option("show", options)
         if target is None:
             if run is not None:
                 raise ValueError("run requires a job target")
@@ -569,8 +588,15 @@ class Rotari:
         return value
 
     def _require_owner(self, target: Run | Job) -> None:
-        if target._client is not None and target._client is not self:
-            raise ValueError("target belongs to a different Rotari client")
+        owner = target._client
+        if owner is not None and (
+            owner.executable != self.executable
+            or owner.basedir != self.basedir
+            or owner.project != self.project
+            or owner.cwd != self.cwd
+            or owner.env != self.env
+        ):
+            raise ValueError("target belongs to a different Rotari project context")
 
     def cancel(
         self,

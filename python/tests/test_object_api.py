@@ -89,6 +89,15 @@ def test_retry_returns_new_run_and_object_methods_delegate():
     ]
 
 
+def test_objects_can_be_used_with_an_equivalently_configured_client():
+    _, job, run = client_objects()
+    sibling = Rotari("rotari", basedir="state", project="demo")
+    with patch("subprocess.run", return_value=response('{"job_id":"job-1"}')):
+        assert sibling.show(job) == {"job_id": "job-1"}
+    with patch("subprocess.run", return_value=response('{"run_id":"run-1"}')):
+        assert sibling.wait(run) == {"run_id": "run-1"}
+
+
 def test_wait_list_order_and_failure_and_single_compatibility():
     client, _, run = client_objects()
     output = (
@@ -243,6 +252,27 @@ def test_signatures_expose_target_and_cli_flags():
         assert "target" in inspect.signature(method).parameters
     assert "run" in inspect.signature(Rotari.show).parameters
     assert "deep" in inspect.signature(Rotari.check).parameters
+
+
+def test_json_output_options_are_managed_by_python_api():
+    client, _, run = client_objects()
+    cases = [
+        lambda: client.check(json=False),
+        lambda: client.wait(run, json=False),
+        lambda: client.show(run, json=False),
+    ]
+    with patch("subprocess.run") as invoke:
+        for action in cases:
+            try:
+                action()
+            except TypeError as error:
+                assert "always returns JSON" in str(error)
+            else:
+                raise AssertionError("managed json option was accepted")
+        invoke.assert_not_called()
+
+    for method in (Rotari.check, Rotari.wait, Rotari.show):
+        assert "json" not in inspect.signature(method).parameters
 
 
 def test_real_cli_job_lifecycle_when_binary_is_available():

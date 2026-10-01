@@ -41,6 +41,8 @@ def render_table(command: dict[str, Any]) -> str:
     for flag in command.get("flags", ()):
         if flag["name"] in SKIP_FLAGS:
             continue
+        if flag["name"] == "json" and command["name"] in {"wait", "show"}:
+            continue
         description = flag.get("description", "").replace("|", "\\|")
         if flag.get("repeated") and "may be repeated" not in description.lower():
             description += " May be repeated."

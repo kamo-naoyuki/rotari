@@ -106,6 +106,10 @@ run ID or `Run`, not a job. A single target returns a JSON dict; a list
 returns a list in input order, including summaries of failed runs. `show()`
 has the same single/list convention. A `show()` call returns a snapshot,
 not a live-updating object; lists may make one CLI call per target.
+Objects can be passed between `Rotari` instances when their executable,
+`basedir`, project, `cwd`, and `env` settings match. `check()`, `wait()`, and
+`show()` always return decoded JSON; their output format is managed by the
+Python API rather than a caller-supplied `json` option.
 
 Without `run=`, `show(job)` looks in the project's latest **saved run**,
 not the queue. A job absent from that run is an error, even if it is in the
