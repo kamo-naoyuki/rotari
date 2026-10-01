@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -224,57 +224,10 @@ func (source originResults) AttemptResult(origin model.JobOrigin) (model.JobResu
 	return LoadOriginAttemptResult(source.store, source.paths, origin)
 }
 
-func (source originResults) Attributes(origin model.JobOrigin) (jobfilter.Attributes, error) {
-	runDir, err := state.SafeJoin(source.paths.RunsDir, origin.RunID)
-	if err != nil {
-		return jobfilter.Attributes{}, err
-	}
-	jobDir, err := state.LatestAttemptJobDir(runDir, origin.JobID)
-	if origin.AttemptID != "" {
-		jobDir, err = state.SpecificAttemptJobDir(runDir, origin.JobID, origin.AttemptID)
-	}
-	if err != nil {
-		return jobfilter.Attributes{}, err
-	}
-	status, _ := executor.LoadWrapperStatus(source.store, filepath.Join(jobDir, "status.json"))
-	startedAt, _ := jobfilter.ParseTimestamp(status.StartedAt)
-	if startedAt.IsZero() {
-		startedAt, _ = jobfilter.ParseTimestamp(state.ReadJobTimestamp(runDir, origin.JobID, "submitted_at"))
-	}
-	finishedAt, _ := jobfilter.ParseTimestamp(state.ReadJobTimestamp(runDir, origin.JobID, "finished_at"))
-	return jobfilter.Attributes{Hosts: status.Hosts, StartedAt: startedAt, FinishedAt: finishedAt, Now: time.Now()}, nil
-}
-
-// DiagnosisMatches diagnoses the origin attempt's log with the current rules;
-// see run.OriginDiagnoses.
-func (source originResults) DiagnosisMatches(origin model.JobOrigin, result model.JobResult, selectors []string) (bool, error) {
-	log, err := source.log(origin)
-	if err != nil {
-		return false, err
-	}
-	return diagnose.MatchesResultSelectors(selectors, result, log), nil
-}
-
-func (source originResults) log(origin model.JobOrigin) (string, error) {
-	runDir, err := state.SafeJoin(source.paths.RunsDir, origin.RunID)
-	if err != nil {
-		return "", err
-	}
-	jobDir, err := state.LatestAttemptJobDir(runDir, origin.JobID)
-	if origin.AttemptID != "" {
-		jobDir, err = state.SpecificAttemptJobDir(runDir, origin.JobID, origin.AttemptID)
-	}
-	if err != nil {
-		return "", err
-	}
-	for _, name := range []string{"output", state.StdoutFileName, state.StderrFileName} {
-		path := filepath.Join(jobDir, name)
-		data, readErr := os.ReadFile(path)
-		if readErr == nil {
-			return string(data), nil
-		}
-	}
-	return "", os.ErrNotExist
+// FilterJob reads the job origin names from the project's runs; see
+// run.OriginJobs.
+func (source originResults) FilterJob(origin model.JobOrigin, id string, result model.JobResult, finished bool) jobfilter.Job {
+	return jobstatus.FilterJob(source.store, source.paths.RunsDir, origin, id, result, finished, time.Now())
 }
 
 func (source originResults) Origin(runID, jobID string, result model.JobResult) *model.JobOrigin {

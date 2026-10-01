@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
@@ -50,31 +50,8 @@ func (editor Editor) Copy(baseDir, projectName, runID string, request queueedit.
 			Timestamps: func(jobID string) (string, string) {
 				return state.ReadJobTimestamp(sourceRunDir, jobID, "submitted_at"), state.ReadJobTimestamp(sourceRunDir, jobID, "finished_at")
 			},
-			Attributes: func(jobID string) jobfilter.Attributes {
-				jobDir, err := state.LatestAttemptJobDir(sourceRunDir, jobID)
-				if err != nil {
-					return jobfilter.Attributes{}
-				}
-				status, _ := executor.LoadWrapperStatus(editor.Store, filepath.Join(jobDir, "status.json"))
-				startedAt, _ := jobfilter.ParseTimestamp(status.StartedAt)
-				if startedAt.IsZero() {
-					startedAt, _ = jobfilter.ParseTimestamp(state.ReadJobTimestamp(sourceRunDir, jobID, "submitted_at"))
-				}
-				finishedAt, _ := jobfilter.ParseTimestamp(state.ReadJobTimestamp(sourceRunDir, jobID, "finished_at"))
-				return jobfilter.Attributes{Hosts: status.Hosts, StartedAt: startedAt, FinishedAt: finishedAt, Now: time.Now()}
-			},
-			Log: func(jobID string) (string, error) {
-				jobDir, err := state.LatestAttemptJobDir(sourceRunDir, jobID)
-				if err != nil {
-					return "", err
-				}
-				for _, name := range []string{"output", state.StdoutFileName, state.StderrFileName} {
-					data, readErr := os.ReadFile(filepath.Join(jobDir, name))
-					if readErr == nil {
-						return string(data), nil
-					}
-				}
-				return "", os.ErrNotExist
+			FilterJob: func(jobID string, result model.JobResult, finished bool) jobfilter.Job {
+				return jobstatus.FilterJob(editor.Store, filepath.Dir(sourceRunDir), model.JobOrigin{RunID: runID, JobID: jobID}, jobID, result, finished, time.Now())
 			},
 		}
 		if context, contextErr := state.LoadContext(editor.Store, sourceRunDir); contextErr == nil {

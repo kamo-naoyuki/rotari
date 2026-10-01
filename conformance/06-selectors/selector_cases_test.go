@@ -40,6 +40,7 @@ var selectorCases = []selectorCase{
 	{name: "failed and exit code filter", cmd: "show", args: "-b {B} -p sweep --failed --filter-exit-code 1", table: true, jobs: []string{"train-SEED2"}},
 	{name: "exit code filter looks past the queue", cmd: "show", args: "-b {B} -p sweep --filter-exit-code 3", queued: true, table: true, jobs: []string{"eval-2"}},
 	{name: "queue and exit code filter", cmd: "show", args: "-b {B} -p sweep --queue --filter-exit-code 3", queued: true, err: "--queue cannot be combined with run, log, or filter options"},
+	{name: "success and host filter on carried jobs", cmd: "show", args: "-b {B} -p sweep --success --filter-host *", table: true, jobs: []string{"eval-1", "eval-3", "prep", "report", "train-SEED1"}},
 
 	// copy: which commands are restored, and from which run.
 	{name: "latest run", cmd: "copy", args: "-b {B} -p sweep", jobs: []string{"eval", "late", "prep", "report", "train-SEED1", "train-SEED2"}},
@@ -78,6 +79,8 @@ var selectorCases = []selectorCase{
 	{name: "exit code filter", cmd: "copy", args: "-b {B} -p sweep --filter-exit-code 3", jobs: []string{"eval"}},
 	{name: "failed and exit code filter", cmd: "copy", args: "-b {B} -p sweep --failed --filter-exit-code 1", jobs: []string{"train-SEED2"}},
 	{name: "failed and host filter", cmd: "copy", args: "-b {B} -p sweep --failed --filter-host *", jobs: []string{"eval", "train-SEED2"}},
+	{name: "success and host filter on carried jobs", cmd: "copy", args: "-b {B} -p sweep --success --filter-host *", jobs: []string{"prep", "report", "train-SEED1"}},
+	{name: "success and finished-after filter on carried jobs", cmd: "copy", args: "-b {B} -p sweep --success --filter-finished-after 2000-01-01", jobs: []string{"prep", "report", "train-SEED1"}},
 
 	// change: which commands get the new setting.
 	{name: "empty queue", cmd: "change", args: "-b {B} -p sweep --job-name prep", err: "no queued jobs"},
@@ -152,6 +155,8 @@ var selectorCases = []selectorCase{
 	{name: "failed and exit code filter", cmd: "run", args: "-b {B} -p sweep --failed --filter-exit-code 1", jobs: []string{"train-SEED2"}},
 	{name: "failed and exit code filter on a whole array", cmd: "run", args: "-b {B} -p sweep --failed --filter-exit-code 3 --partial-array=false", jobs: []string{"eval-1", "eval-2", "eval-3"}},
 	{name: "failed and host filter on a whole array", cmd: "run", args: "-b {B} -p sweep --failed --filter-host * --partial-array=false", jobs: []string{"eval-1", "eval-2", "eval-3", "train-SEED2"}},
+	{name: "success and host filter on carried jobs", cmd: "run", args: "-b {B} -p sweep --success --filter-host *", jobs: []string{"eval-1", "eval-3", "prep", "report", "train-SEED1"}},
+	{name: "success and finished-after filter on carried jobs", cmd: "run", args: "-b {B} -p sweep --success --filter-finished-after 2000-01-01", jobs: []string{"eval-1", "eval-3", "prep", "report", "train-SEED1"}},
 
 	// An edit keeps the recorded result; only a status mark replaces it.
 	{name: "changed command", cmd: "retry", args: "-b {B} -p sweep", queued: true, change: "-b {B} -p sweep --job-name prep echo edited", jobs: []string{"eval-2", "late", "train-SEED2"}},

@@ -20,6 +20,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -353,20 +354,9 @@ func (controller Controller) selectJobs(runDir string, selection Selection, now 
 	return jobIDs, nil
 }
 
-// attributes returns the hosts and start time of an unfinished attempt: the
-// wrapper's start, or its submission when it has not started.
+// attributes returns the hosts and start time of an unfinished attempt.
 func (controller Controller) attributes(jobDir string, now time.Time) jobfilter.Attributes {
-	attributes := jobfilter.Attributes{Now: now}
-	if path, err := state.ValidatedStateFile(jobDir, "status.json"); err == nil {
-		if status, ok := executor.LoadWrapperStatus(controller.Store, path); ok {
-			attributes.Hosts = status.Hosts
-			attributes.StartedAt, _ = jobfilter.ParseTimestamp(status.StartedAt)
-		}
-	}
-	if attributes.StartedAt.IsZero() {
-		attributes.StartedAt, _ = jobfilter.ParseTimestamp(state.ReadAttemptTimestamp(jobDir, "submitted_at"))
-	}
-	return attributes
+	return jobstatus.AttemptAttributes(controller.Store, jobDir, now)
 }
 
 // activeLock loads the lock of project's active run, which must be runID

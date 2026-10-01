@@ -180,11 +180,17 @@ func ReadJobName(jobDir string) string {
 }
 
 func ReadJobTimestamp(runDir, jobID, name string) string {
-	if name != "submitted_at" && name != "finished_at" {
-		return ""
-	}
 	jobDir, err := LatestAttemptJobDir(runDir, jobID)
 	if err != nil {
+		return ""
+	}
+	return ResolveAttemptTimestamp(jobDir, name)
+}
+
+// ResolveAttemptTimestamp reads an attempt's submitted_at or finished_at,
+// falling back to the times job.json and status.json record.
+func ResolveAttemptTimestamp(jobDir, name string) string {
+	if name != "submitted_at" && name != "finished_at" {
 		return ""
 	}
 	path, err := ValidatedStateFile(jobDir, name)

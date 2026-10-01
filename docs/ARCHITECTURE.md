@@ -140,6 +140,7 @@ flowchart TB
   queueops --> queueedit
   queueops --> executor
   queueops --> state
+  queueops --> jobstatus
   cmd --> report
   report --> web
   report --> project
@@ -171,15 +172,19 @@ flowchart TB
   projectrun --> run
   projectrun --> executor
   projectrun --> state
+  projectrun --> jobstatus
   server --> executor
   run --> executor
   jobcontrol --> executor
   jobcontrol --> state
+  jobcontrol --> jobstatus
   web --> jobstatus
   web --> diagnose
   web --> state
   jobstatus --> executor
   jobstatus --> state
+  jobstatus --> jobfilter
+  jobstatus --> diagnose
   workflow --> state
   executor --> state
   runregistry --> state
@@ -210,7 +215,7 @@ are checked against this graph by
 | [internal/runregistry](../internal/runregistry/) | The master directory's run index, `<masterdir>/runs/<run-id>.json`: register, look up, unregister, and find stale entries for `gc`. | `registry.go` |
 | [internal/projectrun](../internal/projectrun/) | One project's run against its files: `Begin` (context, run lock, registry, running metadata), `Execute` (snapshot, plan, dispatch, summary), and `Finish` (final context, queue and metadata finalization, lock removal). Shared by sync and async runs and by cancellation. Also checks that a queue can run with the known executors (`ValidateQueue`). | `lifecycle.go`, `execute.go`, `validate.go` |
 | [internal/run](../internal/run/) | Run rules without file access: which jobs execute or are carried forward, dependency unblocking, retries, per-executor lanes and concurrency, the summary contents. | `rerun.go` (`PlanRerun`), `engine.go` (`ExecuteJobs`), `dispatch.go` (`Dispatcher`) |
-| [internal/jobstatus](../internal/jobstatus/) | Read side: turns attempt files and the summary into one displayed result and timestamps. Shared by CLI and Web. | `job.go`, `attempt.go`, `times.go` |
+| [internal/jobstatus](../internal/jobstatus/) | Read side: turns attempt files and the summary into one displayed result and timestamps, and reads the hosts, times, and log that job filters judge, following carried jobs to their attempt. Shared by CLI and Web. | `job.go`, `attempt.go`, `times.go`, `facts.go` |
 | [internal/runview](../internal/runview/) | Read-side loading of a persisted run snapshot and resolution of each job's displayed status. Shared by run comparison and history views. | `run.go` (`LoadRun`) |
 | [internal/supervisor](../internal/supervisor/) | The work behind supervisor requests: sync and async runs, including preflight selection planning. Implements `server.Operations` and returns plain-text messages. | `run.go` (`Operations.Run`, `StartRun`) |
 | [internal/server](../internal/server/) | Supervisor transport: request/response types, the pipe connection between `run` and its supervisor, the lease and liveness check, idle shutdown, attached-run streaming. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go`, `lease.go` |

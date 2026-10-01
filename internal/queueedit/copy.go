@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 )
@@ -19,8 +18,10 @@ type Run struct {
 	CWD      string
 	// Timestamps returns a job's submitted and finished times in the run.
 	Timestamps func(jobID string) (submittedAt, finishedAt string)
-	Attributes func(jobID string) jobfilter.Attributes
-	Log        func(jobID string) (string, error)
+	// FilterJob returns what job filters need to know about a job or task of
+	// the run with the given result. Without it, host, time, and diagnosis
+	// filters match no job.
+	FilterJob func(jobID string, result model.JobResult, finished bool) jobfilter.Job
 }
 
 // Attempt selects one attempt of a job in the source run. Callers check that
@@ -218,17 +219,10 @@ func selectCommands(source Run, selection string, inScope func(model.QueuedComma
 // job returns what a filter needs to know about one job or task of the run.
 func (source Run) job(id string) jobfilter.Job {
 	result, finished := source.Results[id]
-	job := jobfilter.Job{ID: id, Result: result, Finished: finished}
-	if source.Attributes != nil {
-		job.Attributes = source.Attributes(id)
+	if source.FilterJob == nil {
+		return jobfilter.Job{ID: id, Result: result, Finished: finished}
 	}
-	if source.Log != nil {
-		job.Diagnosis = func(selectors []string) bool {
-			log, err := source.Log(id)
-			return err == nil && diagnose.MatchesResultSelectors(selectors, result, log)
-		}
-	}
-	return job
+	return source.FilterJob(id, result, finished)
 }
 
 func keptNames(names []string, keep func(string) bool) []string {

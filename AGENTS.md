@@ -81,7 +81,10 @@ decided once, by `jobfilter.Filter.Selects`, and for an array job decided as
 a whole, by `jobfilter.Filter.SelectsArray` from its tasks. `show`, `copy`,
 and `run` / `retry` (including each array task under `--partial-array`) call
 them; do not re-implement a condition or aggregate task results in a caller.
-Callers only supply the job's facts.
+Callers only supply the job's result. The hosts, times, and log the
+conditions read come from `jobstatus.FilterJob`, which follows a carried
+job to the attempt that produced its result; do not read them from job
+directories in a caller.
 
 ### Paths
 

@@ -240,8 +240,8 @@ func TestCopyFilterMatchesAnyTaskOfArray(t *testing.T) {
 	source := testRun([]model.QueuedCommand{
 		{ID: "arr", Command: []string{"run"}, Array: &model.ArraySpec{First: 1, Last: 2}},
 	}, model.JobResult{ID: "arr-1", ExitCode: 1}, model.JobResult{ID: "arr-2", ExitCode: 2})
-	source.Attributes = func(jobID string) jobfilter.Attributes {
-		return jobfilter.Attributes{Hosts: []string{"host-" + jobID}}
+	source.FilterJob = func(jobID string, result model.JobResult, finished bool) jobfilter.Job {
+		return jobfilter.Job{ID: jobID, Result: result, Finished: finished, Attributes: jobfilter.Attributes{Hosts: []string{"host-" + jobID}}}
 	}
 	for name, filter := range map[string]jobfilter.Filter{
 		"exit code of the second failed task": {ExitCodes: []int{2}},

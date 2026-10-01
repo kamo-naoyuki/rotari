@@ -887,30 +887,11 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 		executorText := queueExecutorText(runQueue, jobSpec)
 		jobResult, _ := resolved.Result(jobSpec)
-		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobID, originByID[jobID])
-		startedText := submittedAt
-		if resolved.Attempt.HasWrapper && resolved.Attempt.Wrapper.StartedAt != "" {
-			startedText = resolved.Attempt.Wrapper.StartedAt
-		}
-		startedTime, _ := jobfilter.ParseTimestamp(startedText)
-		finishedTime, _ := jobfilter.ParseTimestamp(finishedAt)
-		if !filter.filter.Selects(filter.selection, jobfilter.Job{
-			ID:       jobSpec.ID,
-			Result:   jobResult,
-			Finished: statusOK,
-			Attributes: jobfilter.Attributes{
-				Hosts:      resolved.Hosts(),
-				StartedAt:  startedTime,
-				FinishedAt: finishedTime,
-				Now:        time.Now(),
-			},
-			Diagnosis: func(selectors []string) bool {
-				log, err := readJobDiagnosisLog(jobDir)
-				return err == nil && diagnose.MatchesResultSelectors(selectors, jobResult, log)
-			},
-		}) {
+		job := jobstatus.FilterJob(jsonStore(), paths.RunsDir, model.JobOrigin{RunID: runID, JobID: jobID}, jobID, jobResult, statusOK, time.Now())
+		if !filter.filter.Selects(filter.selection, job) {
 			continue
 		}
+		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobID, originByID[jobID])
 		if statusOK && status != 0 {
 			changeHints = append(changeHints, jobSpec)
 		}
@@ -945,16 +926,6 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	printFailedLogHints(runID, changeHints, resultByID)
 	fmt.Printf("\n%s\n  rotari delete -r %s\n", cyan("To delete this run's saved logs:"), runID)
 	return 0
-}
-
-func readJobDiagnosisLog(jobDir string) (string, error) {
-	for _, name := range []string{"output", state.StdoutFileName, state.StderrFileName} {
-		data, err := os.ReadFile(filepath.Join(jobDir, name))
-		if err == nil {
-			return string(data), nil
-		}
-	}
-	return "", os.ErrNotExist
 }
 
 func printFailedLogHints(runID string, failedJobs []model.JobSpec, results map[string]model.JobResult) {

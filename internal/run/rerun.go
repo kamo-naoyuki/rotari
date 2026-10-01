@@ -26,18 +26,11 @@ type OriginResults interface {
 	Origin(runID, jobID string, result model.JobResult) *model.JobOrigin
 }
 
-// OriginAttributes optionally supplies execution attributes for an origin.
-// Older in-memory sources may omit it; filters requiring these attributes then
-// simply do not match.
-type OriginAttributes interface {
-	Attributes(origin model.JobOrigin) (jobfilter.Attributes, error)
-}
-
-// OriginDiagnoses optionally reports whether an origin's result, diagnosed
-// with the current rules from its latest attempt's log, matches any of
-// selectors. Without it a diagnosis filter matches no job.
-type OriginDiagnoses interface {
-	DiagnosisMatches(origin model.JobOrigin, result model.JobResult, selectors []string) (bool, error)
+// OriginJobs optionally supplies what job filters need to know about the job
+// an origin names: result and finished as given, with its hosts, times, and
+// log. Without it, host, time, and diagnosis filters match no job.
+type OriginJobs interface {
+	FilterJob(origin model.JobOrigin, id string, result model.JobResult, finished bool) jobfilter.Job
 }
 
 // PlanRerun decides which of the queue's jobs a new run executes.
@@ -177,42 +170,22 @@ func (resolver *originResolver) fallbackOrigin(jobID string, result model.JobRes
 	return resolver.source.Origin(resolver.fallbackRunID, jobID, result)
 }
 
-func (resolver *originResolver) attributes(origin *model.JobOrigin, jobID string) (jobfilter.Attributes, error) {
-	provider, ok := resolver.source.(OriginAttributes)
+func (resolver *originResolver) job(id string, result model.JobResult, finished bool, origin *model.JobOrigin) jobfilter.Job {
+	provider, ok := resolver.source.(OriginJobs)
 	if !ok {
-		return jobfilter.Attributes{}, nil
-	}
-	if origin == nil {
-		origin = &model.JobOrigin{RunID: resolver.fallbackRunID, JobID: jobID}
-	}
-	return provider.Attributes(*origin)
-}
-
-func (resolver *originResolver) job(id string, result model.JobResult, finished bool, attributes jobfilter.Attributes, origin *model.JobOrigin) jobfilter.Job {
-	job := jobfilter.Job{ID: id, Result: result, Finished: finished, Attributes: attributes}
-	provider, ok := resolver.source.(OriginDiagnoses)
-	if !ok {
-		return job
+		return jobfilter.Job{ID: id, Result: result, Finished: finished}
 	}
 	if origin == nil {
 		origin = &model.JobOrigin{RunID: resolver.fallbackRunID, JobID: id}
 	}
-	job.Diagnosis = func(selectors []string) bool {
-		matched, err := provider.DiagnosisMatches(*origin, result, selectors)
-		return err == nil && matched
-	}
-	return job
+	return provider.FilterJob(*origin, id, result, finished)
 }
 
 // selectsCommand decides command as a whole: a job by its own result, and an
-// array by its tasks' results and attributes.
+// array by its tasks'.
 func (resolver *originResolver) selectsCommand(filter jobfilter.Filter, selection string, command model.QueuedCommand, result model.JobResult, finished bool) (bool, error) {
 	if command.Array == nil {
-		attributes, err := resolver.attributes(command.Origin, command.ID)
-		if err != nil {
-			return false, err
-		}
-		return filter.Selects(selection, resolver.job(command.ID, result, finished, attributes, command.Origin)), nil
+		return filter.Selects(selection, resolver.job(command.ID, result, finished, command.Origin)), nil
 	}
 	tasks := make([]jobfilter.Job, 0)
 	for _, task := range model.ArrayTaskIDs(command.Array) {
@@ -222,11 +195,7 @@ func (resolver *originResolver) selectsCommand(filter jobfilter.Filter, selectio
 		if err != nil {
 			return false, err
 		}
-		attributes, err := resolver.attributes(origin, id)
-		if err != nil {
-			return false, err
-		}
-		tasks = append(tasks, resolver.job(id, taskResult, taskFinished, attributes, origin))
+		tasks = append(tasks, resolver.job(id, taskResult, taskFinished, origin))
 	}
 	return filter.SelectsArray(selection, tasks), nil
 }
@@ -297,16 +266,12 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 				if err != nil {
 					return Plan{}, err
 				}
-				attributes, err := resolver.attributes(origin, id)
-				if err != nil {
-					return Plan{}, err
-				}
 				if requested[id] {
 					delete(requested, id)
 					plan.Execute[id] = true
 					continue
 				}
-				if matchTasks && scoped && filter.Selects(selection, resolver.job(id, result, finished, attributes, origin)) {
+				if matchTasks && scoped && filter.Selects(selection, resolver.job(id, result, finished, origin)) {
 					plan.Execute[id] = true
 					continue
 				}

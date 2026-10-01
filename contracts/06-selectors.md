@@ -195,6 +195,9 @@ heading in `--help`. `change` and `remove` take only the definition filters
 - `--filter-started-after`, `--filter-started-before`,
   `--filter-finished-after`, and `--filter-finished-before` compare the latest
   attempt's timestamps. `after` is inclusive and `before` is exclusive.
+- For a job whose result was carried into the run, the host, time, and
+  diagnosis conditions read the attempt that produced the result, in the run
+  it was carried from.
 - `--filter-longer-than` and `--filter-shorter-than` compare execution
   duration. The former is inclusive and the latter is exclusive. A running
   job uses the current time as its end; a missing timestamp does not match.
@@ -218,7 +221,9 @@ The conditions are `jobfilter.Filter` in
 conditions for `run.PlanRerun` (whole commands and array tasks),
 `queueedit.Copy`, and `show`, and `SelectsArray` decides an array job as a
 whole from its tasks; `MatchesCommand` applies the definition
-conditions. The options are
+conditions. `jobstatus.FilterJob` in
+[internal/jobstatus/facts.go](../internal/jobstatus/facts.go) reads the
+hosts, times, and log each job is judged by. The options are
 `cliJobFilterOptions` in
 [cmd/rotari/job_filter_flags.go](../cmd/rotari/job_filter_flags.go).
 Covered by the filter rows of `TestSelectorTable`.
