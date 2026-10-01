@@ -196,8 +196,8 @@ setTimeout(() => {
 	for (let i = 0; i < 3; i++) dom.window.addConfigButton();
 	const notificationConfigButtons = dom.window.document.querySelectorAll('.notification-config-button');
 	const generateNotificationConfigButton = dom.window.document.querySelector('.notification-generate-config-button');
-	if (notificationConfigButtons.length !== 1 || notificationConfigButtons[0].textContent !== 'Notification settings') process.exit(11);
-	if (!generateNotificationConfigButton || generateNotificationConfigButton.textContent !== 'Generate notification settings') process.exit(29);
+	if (notificationConfigButtons.length !== 1 || notificationConfigButtons[0].textContent !== 'Notification config') process.exit(11);
+	if (!generateNotificationConfigButton || generateNotificationConfigButton.textContent !== 'Generate notification config') process.exit(29);
 	if (!generateNotificationConfigButton.onclick.toString().includes('showGenerateNotificationConfig')) process.exit(30);
 	const sidebarControls = dom.window.document.getElementById('sidebar-config-controls');
 	if (!sidebarControls || sidebarControls.nextElementSibling.textContent.trim() !== 'Registered basedirs') process.exit(36);
@@ -237,11 +237,11 @@ setTimeout(() => {
 	if (browserInformation.lastElementChild !== browserInformation.querySelector('.notification-max-jobs')) process.exit(28);
 	const modal = dom.window.document.getElementById('output-modal');
 	dom.window.document.getElementById('notification-config-editor').dataset.editable = 'true';
-	modal.querySelector('strong').textContent = 'Notifications';
+	modal.querySelector('strong').textContent = 'Notification config';
 	modal.dataset.view = 'notification-config';
 	dom.window.openOutputModal(false);
 	dom.window.styleActionColumns();
-	if (modal.querySelector('strong').textContent !== 'Notifications') process.exit(20);
+	if (modal.querySelector('strong').textContent !== 'Notification config') process.exit(20);
 	if (!dom.window.document.getElementById('modal-log').hidden) process.exit(21);
 	if (dom.window.document.getElementById('notification-config-editor').hidden) process.exit(22);
 	if (!dom.window.document.querySelector('.output-box').classList.contains('notification-config-output')) process.exit(24);
@@ -307,7 +307,7 @@ setTimeout(() => {
 		if (configPath.hidden || !configPath.textContent.includes('/state/projects/demo/config.yaml')) process.exit(52);
 		if (configPath.querySelector('[data-copy-value="/state/projects/demo/config.yaml"]') === null) process.exit(53);
 		await dom.window.showGenerateNotificationConfig();
-		if (modal.querySelector('strong').textContent !== 'Generate notification settings') process.exit(31);
+		if (modal.querySelector('strong').textContent !== 'Generate notification config') process.exit(31);
 		if (!dom.window.document.getElementById('notification-config-editor').hidden || dom.window.document.getElementById('config-generator').hidden) process.exit(41);
 		const generator = dom.window.document.getElementById('config-generator');
 		if (generator.querySelector('p')?.textContent !== 'Choose where to generate notifications.toml.') process.exit(42);
@@ -315,7 +315,7 @@ setTimeout(() => {
 		if (targets.length !== 1 || targets[0].textContent !== '/state/notifications.toml' || targets[0].title !== 'Generate notifications.toml in basedir') process.exit(32);
 		await targets[0].onclick();
 		if (!generatedNotificationRequest || generatedNotificationRequest.location !== 'basedir') process.exit(33);
-		if (notificationConfigReads !== 2 || modal.querySelector('strong').textContent !== 'Notifications') process.exit(34);
+		if (notificationConfigReads !== 2 || modal.querySelector('strong').textContent !== 'Notification config') process.exit(34);
 		const notificationPath = dom.window.document.getElementById('modal-config-paths');
 		if (notificationPath.hidden || !notificationPath.textContent.includes('/state/notifications.toml')) process.exit(54);
 		if (notificationPath.querySelector('[data-copy-value="/state/notifications.toml"]') === null) process.exit(55);

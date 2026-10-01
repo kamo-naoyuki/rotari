@@ -1014,7 +1014,7 @@ async function showGenerateNotificationConfig() {
   form.hidden = true;
   form.dataset.editable = "false";
   generator.replaceChildren();
-  generator.textContent = "Loading notification settings locations...";
+  generator.textContent = "Loading notification config locations...";
   const params = new URLSearchParams();
   if (project) params.set("project_name", project);
   const response = await fetch("/api/notification-config?" + params, {
@@ -1031,7 +1031,7 @@ async function showGenerateNotificationConfig() {
     "notifications.toml",
     (target, button) => generateNotificationConfig(project, target, button),
   );
-  modal.querySelector("strong").textContent = "Generate notification settings";
+  modal.querySelector("strong").textContent = "Generate notification config";
   modal.dataset.view = "notification-config-generate";
   openOutputModal(true);
 }
@@ -1151,7 +1151,7 @@ async function showNotificationConfig() {
       await showNotificationConfig();
     };
   }
-  modal.querySelector("strong").textContent = "Notifications";
+  modal.querySelector("strong").textContent = "Notification config";
   modal.dataset.view = "notification-config";
   openOutputModal(false);
 }
@@ -1182,7 +1182,7 @@ function addConfigButton() {
   if (notificationConfigProject() !== null) {
     const notificationButton = document.createElement("button");
     notificationButton.className = "notification-config-button";
-    notificationButton.textContent = "Notification settings";
+    notificationButton.textContent = "Notification config";
     notificationButton.onclick = showNotificationConfig;
     toolbar.insertBefore(
       notificationButton,
@@ -1191,7 +1191,7 @@ function addConfigButton() {
     const generateNotificationButton = document.createElement("button");
     generateNotificationButton.className =
       "notification-generate-config-button";
-    generateNotificationButton.textContent = "Generate notification settings";
+    generateNotificationButton.textContent = "Generate notification config";
     generateNotificationButton.title =
       "Generate or replace a notifications.toml template";
     generateNotificationButton.onclick = showGenerateNotificationConfig;
