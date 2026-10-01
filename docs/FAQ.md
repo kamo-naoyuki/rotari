@@ -46,6 +46,27 @@ The manifest is a constrained representation of the existing queue, not a progra
 
 A project groups the current queue and run history. The queue (`queue.json`) contains waiting commands; a run is an immutable snapshot taken when execution starts.
 
+### Why doesn't `add` start a job immediately?
+
+Rotari treats the queue as a workflow being defined, not as a continuously
+executing scheduler queue. `add` lets you assemble jobs and dependencies;
+`run` starts that definition as one execution. A run groups the commands,
+results, logs, and attempts from that execution, even when it contains only one
+job. It also uses the directory and environment of the shell that calls `run`
+unless a job specifies its own. In an idle project with an empty queue, you can
+run a single job with
+`rotari add -p demo -- ./build.sh && rotari run -p demo`, or use `run --async`
+to start it in the background.
+
+### Can I add another job to a project while its run is active?
+
+No. A project has one active run at a time, and its queue is retained as that
+run's snapshot until it finishes. Jobs prepared together can execute
+concurrently within the same run; an independent job that must start before
+the current run finishes needs another project. That keeps its run history
+separate. Rotari does not provide a continuously accepting queue for jobs
+added after a run starts.
+
 ### I didn't pass `--project-name` — which project does rotari use?
 
 Selection uses `--project-name`, `ROTARI_PROJECT_NAME`, the only project in the resolved state directory, and then `default`. Multiple candidates require an explicit selection. A bare `rotari show` lists projects in registered basedirs.
