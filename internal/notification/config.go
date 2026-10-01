@@ -89,7 +89,7 @@ func Defaults() Settings {
 		Webhook: WebhookSettings{
 			ChannelSettings: ChannelSettings{
 				JobFailure: true, RunFailure: true, RunSuccess: true, MaxJobs: 20,
-				Fields: []string{"project", "run_id", "run_name", "run_status", "job_id", "job_name", "attempt_id", "job_status", "exit_code", "success_count", "failure_count", "duration", "diagnosis_name", "diagnosis_suggestion"},
+				Fields: []string{"project", "run_id", "run_name", "run_status", "job_name", "attempt_id", "job_status", "exit_code", "success_count", "failure_count", "duration", "diagnosis_name", "diagnosis_suggestion"},
 			},
 			Format: "json",
 		},

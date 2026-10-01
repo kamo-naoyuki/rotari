@@ -82,6 +82,12 @@ func TestDefaultNotificationFieldsIncludeRunAndAttemptIDs(t *testing.T) {
 				t.Errorf("%s default fields do not include %q: %v", channel, field, fields)
 			}
 		}
+		if !selected["job_name"] {
+			t.Errorf("%s default fields do not include job_name: %v", channel, fields)
+		}
+		if selected["job_id"] {
+			t.Errorf("%s default fields unexpectedly include job_id: %v", channel, fields)
+		}
 	}
 }
 
