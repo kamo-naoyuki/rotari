@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -122,6 +123,74 @@ func TestJobControlSelectors(t *testing.T) {
 			runJobControlCase(t, tc, command)
 		})
 	}
+	t.Run("terminal confirmation decline has no effects", func(t *testing.T) {
+		t.Parallel()
+		testTerminalConfirmationDeclineHasNoEffects(t)
+	})
+	t.Run("terminal confirmation acts on listed jobs", func(t *testing.T) {
+		t.Parallel()
+		testTerminalConfirmationActsOnListedJobs(t)
+	})
+}
+
+func testTerminalConfirmationDeclineHasNoEffects(t *testing.T) {
+	t.Helper()
+	f := newSelectorFixture(t)
+	live := f.startJobControlRun(false)
+	result, output := runJobControlWithTerminal(t, f, "n\n", "cancel", "-b", f.base, "-p", "sweep", "--filter-stage", "single")
+	symbolic := f.symbolic(output)
+	if result == nil || !strings.Contains(symbolic, "Continue? [y/N]") || !strings.Contains(symbolic, "{job:idle}") || !strings.Contains(symbolic, "cancel cancelled") {
+		t.Fatalf("declined terminal selection: err=%v, output:\n%s", result, symbolic)
+	}
+	if strings.Contains(symbolic, "job {job:hold}") || strings.Contains(symbolic, "job {job:hold-1}") {
+		t.Fatalf("prompt listed jobs outside the filter: %s", symbolic)
+	}
+	if got := live.affected(t, "cancel", nil); len(got) != 0 {
+		t.Fatalf("declined confirmation affected jobs %v", got)
+	}
+}
+
+func testTerminalConfirmationActsOnListedJobs(t *testing.T) {
+	t.Helper()
+	f := newSelectorFixture(t)
+	live := f.startJobControlRun(false)
+	result, output := runJobControlWithTerminal(t, f, "y\n", "suspend", "-b", f.base, "-p", "sweep", "--filter-stage", "single")
+	symbolic := f.symbolic(output)
+	if result != nil {
+		t.Fatalf("approved terminal selection: %v\n%s", result, symbolic)
+	}
+	if !strings.Contains(symbolic, "suspend 1 job(s) of run {run:live}") || !strings.Contains(symbolic, "{job:idle}") {
+		t.Fatalf("prompt did not list the selected job: %s", symbolic)
+	}
+	if strings.Contains(symbolic, "job {job:hold}") || strings.Contains(symbolic, "job {job:hold-1}") {
+		t.Fatalf("prompt listed jobs outside the filter: %s", symbolic)
+	}
+	if got := live.affected(t, "suspend", []string{"idle"}); strings.Join(got, ",") != "idle" {
+		t.Fatalf("approved confirmation affected %v, want [idle]", got)
+	}
+}
+
+func runJobControlWithTerminal(t *testing.T, f selectorFixture, input string, args ...string) (error, string) {
+	t.Helper()
+	script, err := exec.LookPath("script")
+	if err != nil {
+		t.Skipf("script utility is unavailable for PTY test: %v", err)
+	}
+	commandArgs := make([]string, 0, len(args)+1)
+	commandArgs = append(commandArgs, shellQuote(rotariBin))
+	for _, arg := range args {
+		commandArgs = append(commandArgs, shellQuote(arg))
+	}
+	cmd := exec.Command(script, "-q", "-e", "-c", strings.Join(commandArgs, " "), "/dev/null")
+	cmd.Dir = f.e.root
+	cmd.Env = f.e.vars
+	cmd.Stdin = strings.NewReader(input)
+	output, runErr := cmd.CombinedOutput()
+	return runErr, string(output)
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
 func runJobControlCase(t *testing.T, tc jobControlCase, command string) {
