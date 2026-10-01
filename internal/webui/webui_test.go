@@ -275,6 +275,7 @@ const context = {
 		querySelectorAll(selector) {
 			if (selector === '#app table.runs') return [runTable];
 			if (selector === '.history-search-scope-row') return [firstScope, secondScope];
+			if (selector === '.history-search-scope-basedir') return [basedir];
 			if (selector === '.history-search-condition .history-search-field') return [diagnosisField];
 			return [];
 		},
@@ -311,6 +312,8 @@ vm.runInContext(code, context);
 	if (!runStatus.startsWith('<select') || !runStatus.includes('Choose status') || !runStatus.includes('failed')) throw new Error('run status is not a dropdown');
 	if (!jobStatus.startsWith('<select') || !jobStatus.includes('Choose status') || !jobStatus.includes('blocked')) throw new Error('job status is not a dropdown');
 	if (!executor.startsWith('<select') || !executor.includes('Choose executor') || !executor.includes('slurm')) throw new Error('executor is not a dropdown');
+	const pendingDiagnosis = context.historySearchValueControl('job', 'diagnosis');
+	if (!pendingDiagnosis.includes('disabled')) throw new Error('diagnosis dropdown should wait for candidates');
 	if (!context.historySearchValueControl('job', 'command').startsWith('<input')) throw new Error('free-text attribute does not use text input');
 	context.historySearchRenderResults([{
 		target: 'job', basedir_id: 'base-a', project_name: 'demo', run_id: 'run-1',
@@ -333,7 +336,7 @@ vm.runInContext(code, context);
 	context.historySearchUpdateScopeControls(scopeContainer);
 	if (firstScope.querySelector('.history-search-scope-remove')) throw new Error('first search range unexpectedly has a remove button');
 	if (!secondScope.querySelector('.history-search-scope-remove')) throw new Error('additional search range is missing its remove button');
-	await context.historySearchBasedirChanged(basedir);
+	await context.historySearchInitializeScopes();
 	if (project.disabled || !project.optionsHTML.includes('project-a')) throw new Error('basedir did not load project options');
 	project.value = 'project-a';
 	await context.historySearchProjectChanged(project);
@@ -343,6 +346,7 @@ vm.runInContext(code, context);
 	if (!requests.some(url => String(url).includes('/api/history-search-diagnoses'))) throw new Error('diagnosis candidate API was not called');
 	if (requests.filter(url => String(url).includes('/api/history-search-options')).length !== 2) throw new Error('expected one basedir/project options request per hierarchy level');
 	if (!diagnosisValue.innerHTML.includes('New diagnosis') || diagnosisValue.innerHTML.includes('Old diagnosis')) throw new Error('diagnosis options were not refreshed for the selected range: ' + diagnosisValue.innerHTML);
+	if (diagnosisValue.disabled) throw new Error('diagnosis dropdown stayed disabled after receiving candidates');
 })().catch(error => { console.error(error); process.exit(1); });
 `
 	if output, err := exec.Command("node", "-e", script).CombinedOutput(); err != nil {

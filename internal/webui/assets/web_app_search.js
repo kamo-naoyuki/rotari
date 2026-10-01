@@ -30,6 +30,7 @@ let historySearchLastRequest = null;
 let historySearchOffset = 0;
 let historySearchFocusedJobURL = "";
 let historySearchDiagnosisOptions = [];
+let historySearchInitialScopesPromise = null;
 
 const historySearchStatusOptions = {
   run: ["running", "finished", "failed", "unreadable"],
@@ -262,6 +263,19 @@ function renderHistorySearchPage() {
   document
     .getElementById("history-search-form")
     .addEventListener("submit", historySearchSubmit);
+  void historySearchInitializeScopes();
+}
+
+function historySearchInitializeScopes() {
+  if (!historySearchInitialScopesPromise) {
+    const basedirs = [
+      ...document.querySelectorAll(".history-search-scope-basedir"),
+    ].filter((select) => select.value);
+    historySearchInitialScopesPromise = Promise.all(
+      basedirs.map((select) => historySearchBasedirChanged(select)),
+    );
+  }
+  return historySearchInitialScopesPromise;
 }
 
 function historySearchAddScope() {

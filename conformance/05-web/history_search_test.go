@@ -117,8 +117,14 @@ func TestHistorySearchAcrossProjects(t *testing.T) {
 	if err := json.Unmarshal([]byte(diagnosisOptions.Body), &options); err != nil {
 		t.Fatal(err)
 	}
-	if len(options.Diagnoses) != 1 || options.Diagnoses[0] != "Out of memory" {
-		t.Fatalf("diagnosis options = %#v, want saved diagnosis names", options.Diagnoses)
+	containsDiagnosis := false
+	containsSavedDiagnosis := false
+	for _, name := range options.Diagnoses {
+		containsDiagnosis = containsDiagnosis || name == "Permission denied"
+		containsSavedDiagnosis = containsSavedDiagnosis || name == "Out of memory"
+	}
+	if !containsDiagnosis || !containsSavedDiagnosis {
+		t.Fatalf("diagnosis options = %#v, want known and saved diagnosis names", options.Diagnoses)
 	}
 	diagnosisSearch := e.HTTPPostJSON(base+"/api/history-search", map[string]any{
 		"scopes":  []map[string]string{searchRange},

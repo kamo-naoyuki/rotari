@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	stateinternal "github.com/kamo-naoyuki/rotari/internal/state"
@@ -117,7 +118,10 @@ func (s site) handleHistorySearchDiagnoses(writer http.ResponseWriter, request *
 		writeWebError(writer, fmt.Errorf("diagnosis options require at least one search range"))
 		return
 	}
-	names := make(map[string]bool)
+	names := map[string]bool{"Python exception": true}
+	for _, rule := range diagnose.DefaultRules() {
+		names[rule.Name] = true
+	}
 	for _, scope := range input.Scopes {
 		entry, ok := s.registeredBasedir(scope.BaseDirID)
 		if !ok {
