@@ -194,7 +194,24 @@ setTimeout(() => {
 	const generateConfig = dom.window.document.querySelector('.generate-config-button');
 	if (!viewConfig || !viewConfig.disabled || !generateConfig) process.exit(3);
 	for (let i = 0; i < 3; i++) dom.window.addConfigButton();
-	if (dom.window.document.querySelectorAll('.notification-config-button').length !== 1) process.exit(11);
+	const notificationConfigButtons = dom.window.document.querySelectorAll('.notification-config-button');
+	if (notificationConfigButtons.length !== 1 || notificationConfigButtons[0].textContent !== 'Config notifications') process.exit(11);
+	const channelSettings = { job_failure: true, job_success: false, run_failure: true, run_success: true, max_jobs: 10, fields: [] };
+	const fields = ['project', 'attempt_id', 'command'];
+	const webhookEditor = dom.window.notificationChannelEditor('webhook', channelSettings, fields);
+	const browserEditor = dom.window.notificationChannelEditor('browser', channelSettings, fields);
+	if (webhookEditor.querySelector('legend').textContent !== 'External notifications (webhook)') process.exit(12);
+	if (!webhookEditor.querySelector('.notification-channel-description').textContent.includes('Slack or Discord')) process.exit(13);
+	if (browserEditor.querySelector('legend').textContent !== 'Desktop notifications (this browser)') process.exit(14);
+	if (!browserEditor.querySelector('.notification-channel-description').textContent.includes('from this browser')) process.exit(15);
+	for (const editor of [webhookEditor, browserEditor]) {
+		const headings = [...editor.querySelectorAll('.notification-setting-group h3')].map(node => node.textContent);
+		if (JSON.stringify(headings) !== JSON.stringify(['When to notify', 'Information to send'])) process.exit(16);
+		const groups = editor.querySelectorAll('.notification-setting-group');
+		if (groups[0].querySelectorAll('input[type="checkbox"]').length !== 4) process.exit(17);
+		if (groups[1].querySelectorAll('.notification-field-grid input[type="checkbox"]').length !== fields.length) process.exit(18);
+		if (!groups[1].querySelector('input[type="number"]')) process.exit(19);
+	}
 	const modal = dom.window.document.getElementById('output-modal');
 	modal.dataset.view = 'generate-config';
 	modal.querySelector('strong').textContent = 'Generate config';
@@ -714,6 +731,19 @@ func TestNotificationConfigCheckboxesUseCompactDimensions(t *testing.T) {
 	} {
 		if !strings.Contains(webStylesCSS, marker) {
 			t.Fatalf("notification config checkbox styling is missing %q", marker)
+		}
+	}
+}
+
+func TestNotificationConfigEditorCanScrollWithinModal(t *testing.T) {
+	for _, marker := range []string{
+		".notification-config-editor {",
+		"flex: 1;",
+		"min-height: 0;",
+		"overflow: auto;",
+	} {
+		if !strings.Contains(webStylesCSS, marker) {
+			t.Fatalf("notification config editor scrolling is missing %q", marker)
 		}
 	}
 }

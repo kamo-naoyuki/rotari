@@ -853,8 +853,22 @@ function notificationFieldControl(channel, field, selected) {
 function notificationChannelEditor(name, settings, fields) {
   const fieldset = document.createElement("fieldset");
   const legend = document.createElement("legend");
-  legend.textContent = name === "webhook" ? "Webhook" : "Browser";
+  const isWebhook = name === "webhook";
+  legend.textContent = isWebhook
+    ? "External notifications (webhook)"
+    : "Desktop notifications (this browser)";
   fieldset.append(legend);
+  const description = document.createElement("p");
+  description.className = "notification-channel-description";
+  description.textContent = isWebhook
+    ? "Deliver selected events to a webhook URL, for example Slack or Discord."
+    : "Display selected events as desktop notifications from this browser.";
+  fieldset.append(description);
+  const eventGroup = document.createElement("div");
+  eventGroup.className = "notification-setting-group";
+  const eventHeading = document.createElement("h3");
+  eventHeading.textContent = "When to notify";
+  eventGroup.append(eventHeading);
   for (const [key, labelText] of [
     ["job_failure", "Job failure"],
     ["job_success", "Job success"],
@@ -867,8 +881,14 @@ function notificationChannelEditor(name, settings, fields) {
     input.name = name + "-" + key;
     input.checked = !!settings[key];
     label.append(input, labelText);
-    fieldset.append(label);
+    eventGroup.append(label);
   }
+  fieldset.append(eventGroup);
+  const contentGroup = document.createElement("div");
+  contentGroup.className = "notification-setting-group";
+  const contentHeading = document.createElement("h3");
+  contentHeading.textContent = "Information to send";
+  contentGroup.append(contentHeading);
   const maxLabel = document.createElement("label");
   maxLabel.textContent = "Maximum jobs ";
   const maxInput = document.createElement("input");
@@ -877,7 +897,7 @@ function notificationChannelEditor(name, settings, fields) {
   maxInput.min = "1";
   maxInput.value = settings.max_jobs;
   maxLabel.append(maxInput);
-  fieldset.append(maxLabel);
+  contentGroup.append(maxLabel);
   const fieldGroup = document.createElement("div");
   fieldGroup.className = "notification-field-grid";
   fields.forEach((field) =>
@@ -885,7 +905,8 @@ function notificationChannelEditor(name, settings, fields) {
       notificationFieldControl(name, field, settings.fields || []),
     ),
   );
-  fieldset.append(fieldGroup);
+  contentGroup.append(fieldGroup);
+  fieldset.append(contentGroup);
   return fieldset;
 }
 function readNotificationChannel(form, name) {
@@ -1033,7 +1054,7 @@ async function showNotificationConfig() {
   modal.querySelector("strong").textContent = "Notifications";
   modal.dataset.view = "notification-config";
   modal.dataset.editing = "true";
-  openOutputModal(true);
+  openOutputModal(false);
 }
 function addConfigButton() {
   document
@@ -1053,7 +1074,7 @@ function addConfigButton() {
   if (configGenerationProject() !== null) {
     const notificationButton = document.createElement("button");
     notificationButton.className = "notification-config-button";
-    notificationButton.textContent = "Notifications";
+    notificationButton.textContent = "Config notifications";
     notificationButton.onclick = showNotificationConfig;
     toolbar.insertBefore(
       notificationButton,
