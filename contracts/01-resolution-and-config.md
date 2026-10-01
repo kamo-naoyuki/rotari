@@ -184,10 +184,11 @@ Implementation and tests for these rules:
   `TestCommandLineOnlyFlagIgnoresConfigAndStaysOutOfTemplate` in
   [`cmd/rotari/config_test.go`](../cmd/rotari/config_test.go).
 - `rotari config --list` is an inventory rather than a resolution operation. It
-  lists every supported config found in the global and basedir scopes under
-  `Common:`, then scans every `projects/<project>/` directory and lists paths
-  beneath each project name under `Projects:`. An explicit `--project-name`
-  limits only project-specific entries to that project.
+  lists every supported config and `notifications.toml` found in the global
+  and basedir scopes under `Common:`, then scans every `projects/<project>/`
+  directory and lists paths beneath each project name under `Projects:`. An
+  explicit `--project-name` limits only project-specific entries to that
+  project.
 - Without `--output`, `rotari config` offers home, basedir, existing project
   config paths, stdout, and an arbitrary path interactively; an explicit
   `--output` is non-interactive.

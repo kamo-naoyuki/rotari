@@ -12,12 +12,13 @@ there.
 rotari config
 ```
 
-Use `rotari config --list` to list every existing config file found in the
-global and basedir locations plus every project below the basedir. It groups
-common files under `Common:` and project-specific files under `Projects:`, with
-each project name followed by indented paths. This is an inventory, not the
-single config selected by priority. Supplying `--project-name` limits the
-project-specific entries to that project.
+Use `rotari config --list` to list every existing config file—including
+`notifications.toml`—found in the global and basedir locations plus every
+project below the basedir. It groups common files under `Common:` and
+project-specific files under `Projects:`, with each project name followed by
+indented paths. This is an inventory, not the single config selected by
+priority. Supplying `--project-name` limits the project-specific entries to
+that project.
 
 ```sh
 rotari config --list --basedir DIR

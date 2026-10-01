@@ -236,9 +236,12 @@ func TestConfigListIncludesMixedFormatsAcrossScopes(t *testing.T) {
 	paths := []string{
 		filepath.Join(globalDir, "config.yaml"),
 		filepath.Join(globalDir, "config.json"),
+		filepath.Join(globalDir, "notifications.toml"),
 		filepath.Join(baseDir, "config.toml"),
+		filepath.Join(baseDir, "notifications.toml"),
 		filepath.Join(projectDir, "config.yaml"),
 		filepath.Join(projectDir, "config.toml"),
+		filepath.Join(projectDir, "notifications.toml"),
 	}
 	for _, path := range paths {
 		if err := os.WriteFile(path, []byte("{}\n"), 0o644); err != nil {

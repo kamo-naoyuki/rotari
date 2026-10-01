@@ -375,7 +375,7 @@ func cmdConfig(args []string) int {
 			printErrorf("invalid project name %q", *projectName)
 			return 1
 		}
-		common, projects := config.ListPaths(resolvedBaseDir, *projectName)
+		common, projects := config.ListPaths(resolvedBaseDir, *projectName, notification.FileName)
 		if len(common) > 0 {
 			fmt.Println("Common:")
 			for _, path := range common {

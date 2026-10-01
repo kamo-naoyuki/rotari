@@ -145,21 +145,22 @@ func PathsForRun(baseDir, projectName string) []string {
 }
 
 // ListPaths returns every config file found across all scopes for
-// `config --list`. Unlike PathsForRun, it does not stop at the first
-// scope that has files: --list is meant to show the user everything, not just
-// the one scope that would take effect.
-func ListPaths(baseDir, projectName string) (common []string, projects map[string][]string) {
+// `config --list`. additionalNames are other config filenames to include,
+// such as notifications.toml. Unlike PathsForRun, it does not stop at the
+// first scope that has files: --list is meant to show the user everything,
+// not just the one scope that would take effect.
+func ListPaths(baseDir, projectName string, additionalNames ...string) (common []string, projects map[string][]string) {
 	projects = make(map[string][]string)
 	if configHome, err := HomeDir(); err == nil {
-		common = append(common, FilePaths(configHome)...)
+		common = append(common, listDirectoryPaths(configHome, additionalNames)...)
 	}
-	common = append(common, FilePaths(baseDir)...)
+	common = append(common, listDirectoryPaths(baseDir, additionalNames)...)
 	if projectName != "" {
 		projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), projectName)
 		if err != nil {
 			return common, projects
 		}
-		if paths := FilePaths(projectDir); len(paths) > 0 {
+		if paths := listDirectoryPaths(projectDir, additionalNames); len(paths) > 0 {
 			projects[projectName] = paths
 		}
 		return common, projects
@@ -176,9 +177,28 @@ func ListPaths(baseDir, projectName string) (common []string, projects map[strin
 		if err != nil {
 			continue
 		}
-		if paths := FilePaths(projectDir); len(paths) > 0 {
+		if paths := listDirectoryPaths(projectDir, additionalNames); len(paths) > 0 {
 			projects[entry.Name()] = paths
 		}
 	}
 	return common, projects
+}
+
+func listDirectoryPaths(directory string, additionalNames []string) []string {
+	paths := FilePaths(directory)
+	for _, name := range additionalNames {
+		if name == "" || filepath.Base(name) != name {
+			continue
+		}
+		path := filepath.Join(directory, name)
+		info, err := os.Stat(path)
+		if err == nil {
+			if !info.IsDir() {
+				paths = append(paths, path)
+			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			Warnf("WARNING: cannot inspect config %s: %v", path, err)
+		}
+	}
+	return paths
 }

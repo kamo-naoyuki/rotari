@@ -64,7 +64,7 @@ Put `config.yaml`, `config.toml`, or `config.json` in `$XDG_CONFIG_HOME/rotari` 
 
 ### How do I find every config file below a basedir?
 
-Run `rotari config --list --basedir DIR`. It groups global and basedir paths under `Common:`, then project paths under `Projects:` with each project name followed by indented paths. Add `--project-name NAME` to limit project-specific entries to that project. This inventory includes files that are not selected by normal priority resolution.
+Run `rotari config --list --basedir DIR`. It includes `notifications.toml` and groups global and basedir paths under `Common:`, then project paths under `Projects:` with each project name followed by indented paths. Add `--project-name NAME` to limit project-specific entries to that project. This inventory includes files that are not selected by normal priority resolution.
 
 ### How do I see every configurable option?
 
