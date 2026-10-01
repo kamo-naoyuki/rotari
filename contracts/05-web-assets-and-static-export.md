@@ -144,7 +144,13 @@ notification permission and on/off toggle.
 - `--auth-token` or `ROTARI_WEB_AUTH_TOKEN` wraps every Web route and accepts
   `Authorization: Bearer TOKEN`, `X-Rotari-Token: TOKEN`, or Basic
   authentication with username `rotari` and the token as the password; this is
-  authentication only and does not encrypt HTTP traffic.
+  authentication only and does not encrypt HTTP traffic. The notification
+  settings form masks a saved webhook URL in its input and never returns that
+  URL in the read API response, but masking is only a visual safeguard: a URL
+  entered in the form is sent to the Web server over the current HTTP
+  connection when saved. Use loopback or a trusted network, or terminate HTTPS
+  at a trusted reverse proxy; do not treat the password-style field or auth
+  token as transport encryption.
 - A non-loopback listener also exposes registered basedir paths; the warning
   without an auth token includes that path information.
 - `loadWebState` ([internal/webui/webui.go](../internal/webui/webui.go)) exposes persisted runtime metadata for each project: `running.lock` fields and,

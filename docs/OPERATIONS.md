@@ -123,7 +123,11 @@ provides HTTP authentication, not encryption.
   `127.0.0.1`; with a token, use only a trusted network or HTTPS proxy. Prefer
   the environment variable so the token does not appear in the process list.
   Environment variable values are never exposed over HTTP, but project and run
-  pages show raw config files, which may contain secrets.
+  pages show raw config files, which may contain secrets. The notification
+  settings UI visually masks a saved webhook URL and does not return it from
+  its read API, but this does not encrypt the connection: a replacement URL is
+  sent to the Web server when saved. Use HTTPS through a trusted reverse proxy
+  whenever the browser-to-server network is not trusted.
 
 None of this defends against another user with access to your own UID
 (e.g. root, or anyone who can read your home directory), only against other
