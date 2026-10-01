@@ -67,6 +67,7 @@ var jobControlCases = []jobControlCase{
 	{name: "attempt ID of a finished run", args: "cancel {att:train-SEED2/0}", err: `run "{run:sweep-first}" is not running; the active run of project "sweep" is "{run:live}"`},
 	{name: "run ID", args: "cancel {run:live}", jobs: []string{"hold-1", "hold-2", "idle"}},
 	{name: "run ID and job ID", args: "cancel {run:live} {job:idle}", jobs: []string{"idle"}},
+	{name: "run ID and filter", args: "cancel {run:live} --filter-stage single --yes", jobs: []string{"idle"}},
 	{name: "finished run ID", args: "cancel {run:sweep-first}", err: `run "{run:sweep-first}" is not running; the active run of project "sweep" is "{run:live}"`},
 	{name: "run ID of a project without an active run", args: "cancel {run:other-first}", err: `run "{run:other-first}" is not running; project "other" has no active run`},
 	{name: "job IDs both ways", args: "cancel -b {B} -p sweep -j {job:idle} {job:hold}", err: "usage"},
@@ -89,6 +90,7 @@ var jobControlCases = []jobControlCase{
 	{name: "array task ID", args: "suspend -b {B} -p sweep {job:hold}-2", jobs: []string{"hold-2"}},
 	{name: "attempt ID", args: "suspend {att:idle/live}", jobs: []string{"idle"}},
 	{name: "run ID", args: "suspend {run:live}", jobs: []string{"hold-1", "hold-2", "idle"}},
+	{name: "run ID and filter", args: "suspend {run:live} --filter-stage single --yes", jobs: []string{"idle"}},
 	{name: "finished run ID", args: "suspend {run:sweep-first}", err: `run "{run:sweep-first}" is not running; the active run of project "sweep" is "{run:live}"`},
 	{name: "job ID not in the active run", args: "suspend -b {B} -p sweep {job:prep}", err: `job "{job:prep}" is not running`},
 	{name: "job IDs both ways", args: "suspend -b {B} -p sweep -j {job:idle} {job:hold}", err: "usage"},
@@ -107,6 +109,7 @@ var jobControlCases = []jobControlCase{
 	{name: "array command ID", args: "resume -b {B} -p sweep {job:hold}", suspended: true, jobs: []string{"hold-1", "hold-2"}},
 	{name: "attempt ID", args: "resume {att:idle/live}", suspended: true, jobs: []string{"idle"}},
 	{name: "run ID", args: "resume {run:live}", suspended: true, jobs: []string{"hold-1", "hold-2", "idle"}},
+	{name: "run ID and filter", args: "resume {run:live} --filter-stage single --yes", suspended: true, jobs: []string{"idle"}},
 	{name: "finished run ID", args: "resume {run:sweep-first}", suspended: true, err: `run "{run:sweep-first}" is not running; the active run of project "sweep" is "{run:live}"`},
 }
 
