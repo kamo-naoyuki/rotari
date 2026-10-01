@@ -17,7 +17,7 @@ import (
 )
 
 // These tests run the rotari binary inside the scheduler container, so the
-// run engine, the job wrappers, and the Slurm or PBS executor all work
+// run engine, the job wrappers, and the Slurm, PBS, or SGE executor all work
 // against a real scheduler. SCHEDULER_STATE_DIR is the host directory mounted
 // at /state in the container.
 
@@ -74,6 +74,9 @@ func (project containerProject) shell(timeout time.Duration, script string) (str
 	args := []string{"exec"}
 	if project.config.user != "" {
 		args = append(args, "--user", project.config.user)
+	}
+	if project.config.setup != "" {
+		script = project.config.setup + "\n" + script
 	}
 	args = append(args, project.config.container, "sh", "-lc", script)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -209,6 +212,17 @@ func (project containerProject) attemptTimestamp(jobID, file, field string) stri
 		project.t.Fatalf("%s of %s has no %s:\n%s", file, jobID, field, output)
 	}
 	return value
+}
+
+func (project containerProject) attemptMetadata(jobID string) map[string]any {
+	project.t.Helper()
+	path := fmt.Sprintf("%s/projects/p/runs/*/%s/attempts/*/job.json", project.baseDir, jobID)
+	output, _ := project.shell(30*time.Second, "cat "+path)
+	var metadata map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &metadata); err != nil {
+		project.t.Fatalf("job metadata for %s: %v\n%s", jobID, err, output)
+	}
+	return metadata
 }
 
 func TestSchedulerContainerRefillsConcurrencySlots(t *testing.T) {

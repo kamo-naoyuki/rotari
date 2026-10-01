@@ -14,6 +14,7 @@ on:
         options:
           - slurm
           - pbs
+          - sge
 
 permissions:
   contents: read
@@ -62,18 +63,32 @@ jobs:
               --volume "$state_dir:/state" \
               giovtorres/docker-centos7-slurm:latest
             scheduler_user=root
-          else
+            scheduler_setup=""
+          elif [[ "${{ matrix.executor }}" == pbs ]]; then
             docker run --detach --name "$container" \
               --cap-add SYS_RESOURCE \
               --volume "$GITHUB_WORKSPACE:/workspace:ro" \
               --volume "$state_dir:/state" \
               naoso5/test-openpbs:latest
             scheduler_user=testuser
+            scheduler_setup=""
+          else
+            # This image installs the Loveshack Grid Engine package at startup.
+            # Pin its amd64 digest: the published CentOS 7 image has not been
+            # rebuilt since 2021 and must not silently change under CI.
+            docker run --detach --name "$container" --hostname docker \
+              --cap-add SYS_ADMIN \
+              --volume "$state_dir:/state" \
+              drmaa/gridengine@sha256:bebb328113b2f4b6eb14d01d18f4a5714ffd3c41659df6b0013d7e1b63588415 \
+              /bin/bash -lc 'exec sleep infinity'
+            scheduler_user=root
+            scheduler_setup='. /opt/sge/default/common/settings.sh'
           fi
 
           echo "SCHEDULER_CONTAINER=$container" >> "$GITHUB_ENV"
           echo "SCHEDULER_USER=$scheduler_user" >> "$GITHUB_ENV"
           echo "SCHEDULER_STATE_DIR=$state_dir" >> "$GITHUB_ENV"
+          echo "SCHEDULER_SETUP=$scheduler_setup" >> "$GITHUB_ENV"
 
       - name: Wait for scheduler
         shell: bash
@@ -84,6 +99,10 @@ jobs:
               if docker exec "$SCHEDULER_CONTAINER" sinfo >/dev/null 2>&1; then
                 exit 0
               fi
+            elif [[ "${{ matrix.executor }}" == sge ]] && \
+              docker exec --user "$SCHEDULER_USER" "$SCHEDULER_CONTAINER" \
+                /bin/bash -lc '. /opt/sge/default/common/settings.sh && qstat -xml >/dev/null && qconf -sql | grep -qx all.q'; then
+              exit 0
             elif docker inspect --format='{{.State.Health.Status}}' "$SCHEDULER_CONTAINER" 2>/dev/null | grep -qx healthy && \
               docker exec --user "$SCHEDULER_USER" "$SCHEDULER_CONTAINER" qstat -Bf >/dev/null 2>&1; then
               exit 0
@@ -104,6 +123,10 @@ jobs:
           ROTARI_SCHEDULER_CONTAINER_TEST: "1"
           ROTARI_SCHEDULER_EXECUTOR: ${{ matrix.executor }}
         run: gotestsum --format pkgname-and-test-fails -- ./cmd/rotari -run '^TestSchedulerContainer' -count=1
+
+      - name: Dump scheduler logs on failure
+        if: failure()
+        run: docker logs "$SCHEDULER_CONTAINER" || true
 
       - name: Stop scheduler
         if: always()

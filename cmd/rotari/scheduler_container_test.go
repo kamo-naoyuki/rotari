@@ -18,6 +18,47 @@ type schedulerContainerTestConfig struct {
 	executor  string
 	container string
 	user      string
+	setup     string
+}
+
+func TestSchedulerContainerSGEAccounting(t *testing.T) {
+	config := requireSchedulerContainerTest(t)
+	if config.executor != "sge" {
+		t.Skip("SGE container test")
+	}
+	project := newContainerProject(t)
+	project.add("--job-name", "accounted", "--", "true")
+	if code := project.run(); code != 0 {
+		t.Fatalf("run exit = %d, want success", code)
+	}
+	jobID := project.jobIDs()["accounted"]
+	metadata := project.attemptMetadata(jobID)
+	schedulerJobID, ok := metadata["sge_job_id"].(string)
+	if !ok || schedulerJobID == "" {
+		t.Fatalf("job metadata = %#v, want an SGE job ID", metadata)
+	}
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		output, code := project.shell(30*time.Second, "qacct -j "+executor.ShellQuote(schedulerJobID))
+		if code == 0 && accountingField(output, "exit_status") != "" && accountingField(output, "failed") != "" {
+			if accountingField(output, "exit_status") != "0" || accountingField(output, "failed") != "0" {
+				t.Fatalf("qacct -j %s returned unexpected accounting:\n%s", schedulerJobID, output)
+			}
+			return
+		}
+		time.Sleep(time.Second)
+	}
+	t.Fatalf("qacct did not publish accounting for job %s before timeout", schedulerJobID)
+}
+
+func accountingField(output, name string) string {
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && fields[0] == name {
+			return fields[1]
+		}
+	}
+	return ""
 }
 
 func requireSchedulerContainerTest(t *testing.T) schedulerContainerTestConfig {
@@ -29,6 +70,7 @@ func requireSchedulerContainerTest(t *testing.T) schedulerContainerTestConfig {
 		executor:  os.Getenv("ROTARI_SCHEDULER_EXECUTOR"),
 		container: os.Getenv("SCHEDULER_CONTAINER"),
 		user:      os.Getenv("SCHEDULER_USER"),
+		setup:     os.Getenv("SCHEDULER_SETUP"),
 	}
 	if config.executor == "" || config.container == "" {
 		t.Fatalf("ROTARI_SCHEDULER_EXECUTOR and SCHEDULER_CONTAINER must be set")
@@ -103,6 +145,9 @@ func runSchedulerContainerCommand(t *testing.T, config schedulerContainerTestCon
 	args := []string{"exec"}
 	if config.user != "" {
 		args = append(args, "--user", config.user)
+	}
+	if config.setup != "" {
+		script = config.setup + "\n" + script
 	}
 	args = append(args, config.container, "sh", "-lc", script)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

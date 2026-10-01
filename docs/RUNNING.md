@@ -51,8 +51,11 @@ The Slurm and PBS executors are integration-tested in CI against a Slurm
 container and an OpenPBS container. These tests do not certify compatibility
 with every real cluster configuration. The LSF executor is covered by unit
 tests using fake scheduler commands, but has not yet been tested against a
-real LSF installation. SGE is likewise covered by unit tests using fake
-commands and has not yet been tested against a live Grid Engine cluster.
+real LSF installation. SGE is covered by unit tests using fake commands and
+can also be tested on demand through the Scheduler integration workflow's
+`sge` choice. That job uses a digest-pinned, CentOS 7 Grid Engine image last
+published in 2021; it is a compatibility smoke test, not certification for
+every Grid Engine fork or a recommendation to use that image in production.
 
 ## Dependencies and stages
 
