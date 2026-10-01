@@ -73,7 +73,7 @@ func failedJobHints(runID string, results []model.JobResult) string {
 			attemptID = result.ID
 		}
 		fmt.Fprintf(&hints, "  Job: %s\n  Attempt ID: %s\n  Hosts: %s\n  Command: %s\n  Show output:\n    rotari show --run-id %s --job-id %s\n",
-			result.ID, result.AttemptID, hosts, strings.Join(result.Command, " "), runID, attemptID)
+			result.ID, attemptID, hosts, strings.Join(result.Command, " "), runID, attemptID)
 	}
 	return hints.String()
 }

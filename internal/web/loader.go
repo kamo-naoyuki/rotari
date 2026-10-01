@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
@@ -83,7 +84,11 @@ func buildLineageSummary(summary model.RunSummary, jobs []Job) runlineage.RunSum
 	for _, job := range jobs {
 		status := runlineage.StatusUnfinished
 		if job.Result != nil {
-			status = model.ResultStatus(*job.Result, true)
+			if strings.HasPrefix(job.Result.Error, "blocked") {
+				status = runlineage.StatusBlocked
+			} else {
+				status = model.ResultStatus(*job.Result, true)
+			}
 			if status == model.StatusCancelled {
 				status = runlineage.StatusFailed
 			}

@@ -167,6 +167,41 @@ func TestCompareGridTracksStatusesAcrossRuns(t *testing.T) {
 	}
 }
 
+func TestCompareGridFollowsOriginAcrossRenamedJobs(t *testing.T) {
+	first := job("old", StatusSuccess, "true")
+	second := job("new", StatusFailed, "false")
+	second.Origin = &model.JobOrigin{RunID: "run-1", JobID: first.Spec.ID}
+	third := job("new", StatusSuccess, "true")
+	third.Origin = &model.JobOrigin{RunID: "run-2", JobID: second.Spec.ID}
+
+	got := CompareGrid([]Run{
+		{ID: "run-1", Jobs: []Job{first}},
+		{ID: "run-2", Jobs: []Job{second}},
+		{ID: "run-3", Jobs: []Job{third}},
+	})
+	if len(got.Jobs) != 1 || got.Jobs[0].Name != "new" {
+		t.Fatalf("grid jobs = %+v, want one renamed job row", got.Jobs)
+	}
+	if !reflect.DeepEqual(got.Jobs[0].Statuses, []string{StatusSuccess, StatusFailed, StatusSuccess}) {
+		t.Fatalf("statuses = %v", got.Jobs[0].Statuses)
+	}
+}
+
+func TestSpecChangesIncludesOutputAndOpenSettings(t *testing.T) {
+	from := model.JobSpec{Output: []string{"stdout"}, LogMode: model.LogModeMerge}
+	to := model.JobSpec{Output: []string{"result.json"}, LogMode: model.LogModeSeparate, OpenMode: model.OpenModeAppend}
+	changes := SpecChanges(from, to)
+	fields := make(map[string]bool)
+	for _, change := range changes {
+		fields[change.Field] = true
+	}
+	for _, field := range []string{"output", "log_mode", "open_mode"} {
+		if !fields[field] {
+			t.Fatalf("changes = %+v, missing %q", changes, field)
+		}
+	}
+}
+
 func TestLineageCountsRunsAndChangesFromPrevious(t *testing.T) {
 	first := Run{ID: "run-1", Jobs: []Job{job("a", StatusFailed, "false"), job("b", StatusBlocked, "true")}}
 	second := Run{ID: "run-2", Jobs: []Job{job("a", StatusSuccess, "true"), job("b", StatusSuccess, "true"), job("c", StatusUnfinished, "true")}}

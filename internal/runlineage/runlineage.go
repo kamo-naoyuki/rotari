@@ -121,42 +121,50 @@ type GridJob struct {
 func CompareGrid(runs []Run) GridResult {
 	result := GridResult{Runs: make([]RunInfo, 0, len(runs)), Jobs: []GridJob{}}
 	jobIndexes := make(map[string]int)
+	originIndexes := make(map[string]int)
+	lastJobs := make([]*Job, 0)
+	lastRunIndexes := make([]int, 0)
 	for _, run := range runs {
 		result.Runs = append(result.Runs, runInfo(run))
 	}
 	for runIndex, run := range runs {
-		seen := make(map[string]bool)
 		for _, job := range run.Jobs {
 			key := jobKey(job.Spec)
-			seen[key] = true
-			jobIndex, exists := jobIndexes[key]
+			jobIndex := -1
+			if job.Origin != nil {
+				if index, ok := originIndexes[job.Origin.RunID+"\x00"+job.Origin.JobID]; ok {
+					jobIndex = index
+				}
+			}
+			if jobIndex < 0 {
+				if index, ok := jobIndexes[key]; ok {
+					jobIndex = index
+				}
+			}
+			exists := jobIndex >= 0
 			if !exists {
 				jobIndex = len(result.Jobs)
 				jobIndexes[key] = jobIndex
 				result.Jobs = append(result.Jobs, GridJob{
 					Name: displayName(job.Spec), Statuses: make([]string, len(runs)), DefinitionChanged: make([]bool, len(runs)),
 				})
+				lastJobs = append(lastJobs, nil)
+				lastRunIndexes = append(lastRunIndexes, -1)
 			}
 			gridJob := &result.Jobs[jobIndex]
 			gridJob.Statuses[runIndex] = job.Status
-			if runIndex > 0 {
-				previousJob := findJob(runs[runIndex-1].Jobs, key)
-				if previousJob != nil && len(SpecChanges(previousJob.Spec, job.Spec)) > 0 {
-					gridJob.DefinitionChanged[runIndex] = true
-				}
+			if runIndex > 0 && lastRunIndexes[jobIndex] == runIndex-1 && lastJobs[jobIndex] != nil && len(SpecChanges(lastJobs[jobIndex].Spec, job.Spec)) > 0 {
+				gridJob.DefinitionChanged[runIndex] = true
 			}
+			gridJob.Name = displayName(job.Spec)
+			jobCopy := job
+			lastJobs[jobIndex] = &jobCopy
+			lastRunIndexes[jobIndex] = runIndex
+			jobIndexes[key] = jobIndex
+			originIndexes[run.ID+"\x00"+job.Spec.ID] = jobIndex
 		}
 	}
 	return result
-}
-
-func findJob(jobs []Job, key string) *Job {
-	for index := range jobs {
-		if jobKey(jobs[index].Spec) == key {
-			return &jobs[index]
-		}
-	}
-	return nil
 }
 
 // Compare compares from with to. Jobs are listed in to's order, followed by
@@ -296,6 +304,10 @@ func SpecChanges(from, to model.JobSpec) []Change {
 		changes = append(changes, Change{Field: "executor_options", From: shellJoin(from.ExecutorOptions), To: shellJoin(to.ExecutorOptions)})
 	}
 	list("environment", from.Environment, to.Environment)
+	list("output", from.Output, to.Output)
+	list("error", from.Error, to.Error)
+	scalar("log_mode", from.LogMode, to.LogMode)
+	scalar("open_mode", from.OpenMode, to.OpenMode)
 	scalar("working_directory", from.WorkingDirectory, to.WorkingDirectory)
 	scalar("stage", from.Stage, to.Stage)
 	list("depends_on", from.DependsOn, to.DependsOn)

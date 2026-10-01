@@ -22,6 +22,10 @@ func (ops Operations) StartRun(request server.Request, onDone func()) (string, e
 	if err != nil {
 		return "", err
 	}
+	runDir, err := state.SafeJoin(started.paths.RunsDir, started.runID)
+	if err != nil {
+		return "", err
+	}
 	go func() {
 		if onDone != nil {
 			defer onDone()
@@ -30,10 +34,6 @@ func (ops Operations) StartRun(request server.Request, onDone func()) (string, e
 			ops.logf("async run %s failed: %v", started.runID, err)
 		}
 	}()
-	runDir, err := state.SafeJoin(started.paths.RunsDir, started.runID)
-	if err != nil {
-		return "", err
-	}
 	paths := started.paths
 	return fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run: %s\n  Directory: %s\n\nCheck status:\n  rotari show --run-id %s\n\nCancel run:\n  rotari cancel --basedir %s --project-name %s",
 		request.QueueName, model.RunLabel(started.runID, request.RunName), runDir, started.runID, paths.BaseDir, request.QueueName), nil
@@ -263,7 +263,7 @@ func runObserver(request server.Request, runID string, progress func(server.Resp
 				}
 				message = fmt.Sprintf("%s\n  ID: %s\n  Attempt ID: %s\n  Command: %s\n  Show output:\n    rotari show --run-id %s --job-id %s",
 					failureTitle,
-					result.ID, result.AttemptID, strings.Join(result.Command, " "), runID, attemptID)
+					result.ID, attemptID, strings.Join(result.Command, " "), runID, attemptID)
 			} else if strings.HasPrefix(result.Error, "retry:") {
 				message = fmt.Sprintf("Retrying job: attempt=%s job=%s command=%v", strings.TrimPrefix(result.Error, "retry:"), result.ID, result.Command)
 			}

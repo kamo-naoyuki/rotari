@@ -50,6 +50,16 @@ func TestLoadQueueStateBuildsRunsFromCallbacks(t *testing.T) {
 	}
 }
 
+func TestBuildLineageSummaryCountsBlockedJobsSeparately(t *testing.T) {
+	summary := buildLineageSummary(model.RunSummary{RunID: "run-1"}, []Job{
+		{ID: "failed", Result: &model.JobResult{ID: "failed", ExitCode: 1, Error: "command failed"}},
+		{ID: "blocked", Result: &model.JobResult{ID: "blocked", ExitCode: 1, Error: "blocked by failed dependency"}},
+	})
+	if summary.Counts.Failed != 1 || summary.Counts.Blocked != 1 {
+		t.Fatalf("counts = %+v, want one failed and one blocked", summary.Counts)
+	}
+}
+
 func TestLoadQueueStateMarksRunsFromNewerRotariUnreadable(t *testing.T) {
 	newer := fmt.Errorf("%w: summary.json has state version 99", state.ErrNewerStateVersion)
 	loaded, err := LoadQueueState(QueueLoader{
