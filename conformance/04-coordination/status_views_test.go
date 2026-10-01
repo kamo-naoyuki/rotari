@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/conformance/support"
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestCLIAndWebAgreeOnJobResults(t *testing.T) {
@@ -127,6 +129,70 @@ type fallbackCase struct {
 	edit     func(*testing.T, string)
 	exitCode int
 	blocked  bool
+}
+
+func TestCLIShowSelectedOlderAttemptIgnoresLatestSummary(t *testing.T) {
+	covers(t, "DUR-5")
+	e := support.NewEnv(t)
+	project := "older-select"
+	runID, _ := e.FinishedJobRun(project)
+	runDir := filepath.Join(e.Base, "projects", project, "runs", runID)
+	path := filepath.Join(runDir, "summary.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var summary model.RunSummary
+	if err := json.Unmarshal(data, &summary); err != nil {
+		t.Fatal(err)
+	}
+	if len(summary.Results) != 1 {
+		t.Fatalf("summary has %d rows, want 1", len(summary.Results))
+	}
+	jobID := summary.Results[0].ID
+	olderAttempt := state.MakeAttemptID(runID, jobID, 0)
+	latestAttempt := state.MakeAttemptID(runID, jobID, 1)
+	olderDir := filepath.Join(runDir, jobID, "attempts", olderAttempt)
+	newerDir := filepath.Join(runDir, jobID, "attempts", latestAttempt)
+	if err := os.MkdirAll(olderDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(newerDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	olderTimestamp := "2026-09-24T01:02:03Z"
+	newerTimestamp := "2026-09-25T01:02:03Z"
+	if err := os.WriteFile(filepath.Join(olderDir, "status.json"), []byte(`{"phase":"running","finished_at":"`+olderTimestamp+`"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(olderDir, "submitted_at"), []byte(olderTimestamp+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(newerDir, "status"), []byte("0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(newerDir, "submitted_at"), []byte(newerTimestamp+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	summary.Results[0].AttemptID = latestAttempt
+	summary.Results[0].Hosts = []string{"latest-host"}
+	summary.Results[0].Diagnoses = []model.RuleDiagnosis{{Name: "latest-diagnosis"}}
+	if err := state.WriteJSON(path, summary); err != nil {
+		t.Fatal(err)
+	}
+	out := e.MustRotari("show", olderAttempt).Stdout
+	if !strings.Contains(out, "Attempt ID: "+olderAttempt) {
+		t.Fatalf("show %s omitted the selected attempt ID:\n%s", olderAttempt, out)
+	}
+	if !strings.Contains(out, "Submitted: ") || !strings.Contains(out, "Finished: ") {
+		t.Fatalf("show %s omitted its own timestamp fields:\n%s", olderAttempt, out)
+	}
+	if strings.Contains(out, "latest-host") || strings.Contains(out, "latest-diagnosis") {
+		t.Fatalf("show %s leaked latest summary metadata:\n%s", olderAttempt, out)
+	}
+	if !strings.Contains(e.MustRotari("show", "--run-id", runID, "--job-id", jobID, "--json").Stdout, "latest-host") {
+		t.Fatalf("latest summary metadata was not visible in the current job view")
+	}
 }
 
 func TestStatusFallbackChainAgreesAcrossViews(t *testing.T) {
