@@ -177,8 +177,8 @@ function addRunStatistics() {
   section.style.background =
     "linear-gradient(135deg,rgba(30,48,58,.95),rgba(24,33,43,.92))";
   section.style.border = "1px solid #385160";
-  section.style.padding = "18px";
-  section.style.margin = "16px 0 20px";
+  section.style.padding = "12px 18px";
+  section.style.margin = "10px 0 12px";
   const heading = document.createElement("div");
   heading.style.display = "flex";
   heading.style.justifyContent = "space-between";
@@ -266,8 +266,8 @@ function addRunEnvironment() {
   section.style.background =
     "linear-gradient(135deg,rgba(25,45,49,.95),rgba(24,33,43,.92))";
   section.style.border = "1px solid #3d5f62";
-  section.style.padding = "18px";
-  section.style.margin = "16px 0 20px";
+  section.style.padding = "12px 18px";
+  section.style.margin = "10px 0 12px";
   section.innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><h2 style="margin:0">Load average</h2><span class="meta">' +
     esc(runLoadSummary(run)) +
@@ -429,8 +429,8 @@ function addOutputWordCloud() {
   section.style.background =
     "linear-gradient(135deg,rgba(30,48,58,.95),rgba(24,33,43,.92))";
   section.style.border = "1px solid #385160";
-  section.style.padding = "18px";
-  section.style.margin = "16px 0 20px";
+  section.style.padding = "12px 18px";
+  section.style.margin = "10px 0 12px";
   const heading = document.createElement("div");
   const title = document.createElement("h2");
   title.textContent = "Output word cloud";
@@ -448,7 +448,7 @@ function addOutputWordCloud() {
     loadOutputWordCloud(section, queue.project_name, runID, true);
   const content = document.createElement("div");
   content.className = "output-word-cloud-content";
-  content.style.margin = "16px -4px 0";
+  content.style.margin = "10px -4px 0";
   content.style.textAlign = "center";
   body.append(regenerate, content);
   section.append(heading, body);
@@ -1089,8 +1089,8 @@ function renderJobTimelineScratch() {
   section.style.background =
     "linear-gradient(135deg,rgba(29,39,49,.95),rgba(20,29,38,.92))";
   section.style.border = "1px solid #385160";
-  section.style.padding = "18px";
-  section.style.margin = "16px 0 20px";
+  section.style.padding = "12px 18px";
+  section.style.margin = "10px 0 12px";
   const heading = document.createElement("div");
   heading.style.display = "flex";
   heading.style.alignItems = "baseline";

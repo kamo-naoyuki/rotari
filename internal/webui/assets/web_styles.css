@@ -1099,7 +1099,8 @@ section h2 {
 }
 
 .matrix-panel {
-  padding: 20px;
+  padding: 12px 18px;
+  margin: 10px 0 12px;
 }
 
 pre,
