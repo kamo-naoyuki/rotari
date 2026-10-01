@@ -6,6 +6,9 @@ const notificationsDefaultOn = __ROTARI_NOTIFICATION_DEFAULT__;
 const initialNotificationSettings = __ROTARI_NOTIFICATION_SETTINGS__;
 const notificationsEnabledKey = "rotari-notifications-enabled";
 const notificationSettingsByProject = new Map();
+function notificationSettingsKey(projectName, basedirID) {
+  return (basedirID || mountedBasedirID || "") + "\0" + projectName;
+}
 const defaultNotificationSettings = {
   job_failure: true,
   job_success: false,
@@ -27,17 +30,24 @@ const defaultNotificationSettings = {
   max_jobs: 10,
 };
 Object.assign(defaultNotificationSettings, initialNotificationSettings);
-async function notificationSettings(projectName) {
-  if (notificationSettingsByProject.has(projectName))
-    return notificationSettingsByProject.get(projectName);
+async function notificationSettings(projectName, basedirID) {
+  const key = notificationSettingsKey(projectName, basedirID);
+  if (notificationSettingsByProject.has(key))
+    return notificationSettingsByProject.get(key);
   try {
     const params = new URLSearchParams({ project_name: projectName });
-    const response = await fetch("/api/notification-settings?" + params, {
+    const url =
+      (basedirID
+        ? basedirURL(basedirID, "/api/notification-settings")
+        : "/api/notification-settings") +
+      "?" +
+      params;
+    const response = await fetch(url, {
       cache: "no-store",
     });
     if (response.ok) {
       const settings = await response.json();
-      notificationSettingsByProject.set(projectName, settings);
+      notificationSettingsByProject.set(key, settings);
       return settings;
     }
   } catch (error) {
@@ -287,14 +297,19 @@ function notifyRunEvent(
 }
 // Job failures and a run's own completion that occur in the same poll are
 // merged into a single notification per run.
-async function checkRunNotifications(previousState, nextState) {
+async function checkRunNotifications(previousState, nextState, basedirID) {
   if (!previousState) return;
   const settingsByProject = new Map();
+  const resolvedBasedirID =
+    basedirID ||
+    mountedBasedirID ||
+    registeredBasedirs.find((entry) => entry.current)?.id ||
+    "";
   await Promise.all(
     (nextState.projects || []).map(async (project) => {
       settingsByProject.set(
-        project.project_name,
-        await notificationSettings(project.project_name),
+        notificationSettingsKey(project.project_name, resolvedBasedirID),
+        await notificationSettings(project.project_name, resolvedBasedirID),
       );
     }),
   );
@@ -332,7 +347,9 @@ async function checkRunNotifications(previousState, nextState) {
         const jobKey = runKey + "/" + job.id;
         const before = previousJobs.get(jobKey);
         if (before?.final && before.status === status) continue;
-        const settings = settingsByProject.get(project.project_name);
+        const settings = settingsByProject.get(
+          notificationSettingsKey(project.project_name, resolvedBasedirID),
+        );
         if (
           (status === "failed" && !settings.job_failure) ||
           (status === "success" && !settings.job_success)
@@ -381,7 +398,7 @@ async function refreshOtherBasedirNotifications() {
         const nextState = await response.json();
         const previousState = otherBasedirNotificationStates.get(entry.id);
         if (previousState)
-          await checkRunNotifications(previousState, nextState);
+          await checkRunNotifications(previousState, nextState, entry.id);
         otherBasedirNotificationStates.set(entry.id, nextState);
       } catch (error) {
         // Keep polling after temporary network failures.
@@ -397,7 +414,13 @@ refresh = async function (forceProject = true) {
   const previousState = state;
   await originalRefresh(forceProject);
   if (state !== previousState)
-    await checkRunNotifications(previousState, state);
+    await checkRunNotifications(
+      previousState,
+      state,
+      mountedBasedirID ||
+        registeredBasedirs.find((entry) => entry.current)?.id ||
+        "",
+    );
   await refreshOtherBasedirNotifications();
 };
 updateNotifyToggleLabel();

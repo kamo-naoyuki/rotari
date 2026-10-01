@@ -124,6 +124,58 @@ func TestWebHTMLJavaScriptSyntax(t *testing.T) {
 	}
 }
 
+func TestBrowserNotificationSettingsSeparateByBasedir(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	js := strings.ReplaceAll(webAppNotificationsJS, "__ROTARI_NOTIFICATION_ICON__", "'icon.png'")
+	js = strings.ReplaceAll(js, "__ROTARI_NOTIFICATION_DEFAULT__", "true")
+	js = strings.ReplaceAll(js, "__ROTARI_NOTIFICATION_SETTINGS__", "{}")
+	script := `
+const vm = require('vm');
+const fs = require('fs');
+const code = ` + strconv.Quote(js) + `;
+const context = {
+  console,
+  document: { getElementById: () => null },
+  Notification: { permission: 'granted', requestPermission: async () => {} },
+  localStorage: { getItem: () => 'true', setItem: () => {} },
+  URLSearchParams,
+  refresh: async () => {},
+  fetch: async (url) => {
+    const params = new URLSearchParams(String(url).split('?')[1] || '');
+    const basedir = params.get('basedir_id') || 'current';
+    const runSuccess = basedir === 'two' ? false : true;
+    return { ok: true, json: async () => ({ job_failure: true, job_success: true, run_failure: true, run_success: runSuccess, max_jobs: 10, fields: [] }) };
+  },
+  appURL: (path) => path,
+  basedirURL: (id, path) => path + (path.includes('?') ? '&' : '?') + 'basedir_id=' + encodeURIComponent(id),
+  mountedBasedirID: '',
+  registeredBasedirs: [],
+  selectedNotificationBasedirIDs: () => new Set(),
+  jobDisplayStatus: (job, run) => (job && job.result && job.result.exit_code === 0) ? 'success' : 'failed',
+  NotificationPermission: 'granted',
+};
+vm.createContext(context);
+vm.runInContext(code, context);
+(async () => {
+  const current = await context.notificationSettings('demo', 'one');
+  const other = await context.notificationSettings('demo', 'two');
+  if (current.run_success !== true || other.run_success !== false) {
+    console.error(JSON.stringify({ current, other }));
+    process.exit(1);
+  }
+})();
+`
+	path := filepath.Join(t.TempDir(), "notification-settings-basedir.js")
+	if err := os.WriteFile(path, []byte(script), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if output, err := exec.Command("node", path).CombinedOutput(); err != nil {
+		t.Fatalf("browser notification settings did not respect basedir: %v\n%s", err, output)
+	}
+}
+
 func TestBrowserNotificationFields(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
