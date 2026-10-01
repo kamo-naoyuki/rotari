@@ -177,6 +177,7 @@ const summary = { textContent: '' };
 const form = { addEventListener() {} };
 let formLookups = 0;
 const context = {
+	executorNames: ['local', 'ssh', 'slurm'],
 	registeredBasedirs: [
 		{ id: 'base-a', path: '/state/a', current: true },
 		{ id: 'base-b', path: '/state/b' },
@@ -205,6 +206,11 @@ const context = {
 vm.createContext(context);
 vm.runInContext(code, context);
 (async () => {
+	if (!context.historySearchValueControl('run', 'status').startsWith('<select')) throw new Error('run status is not a dropdown');
+	if (!context.historySearchValueControl('job', 'status').startsWith('<select')) throw new Error('job status is not a dropdown');
+	const executorDropdown = context.historySearchValueControl('job', 'executor');
+	if (!executorDropdown.startsWith('<select') || !executorDropdown.includes('slurm')) throw new Error('executor is not a dropdown with executor options');
+	if (!context.historySearchValueControl('job', 'command').startsWith('<input')) throw new Error('free-text attributes lost their input');
 	const projectFields = context.historySearchOptionsHTML('project');
 	const runFields = context.historySearchOptionsHTML('run');
 	const jobFields = context.historySearchOptionsHTML('job');
@@ -1294,7 +1300,7 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 	if !strings.Contains(jobsHTML, `class="sidebar-project-row"><span class="sidebar-toggle-placeholder"`) {
 		t.Fatal("Job activity project links do not use the shared sidebar row layout")
 	}
-	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-config-controls {", "flex-direction: column;", ".sidebar-config-controls > button,", ".sidebar-config-controls > .sidebar-config-action {", "align-self: flex-start;", "width: max-content;", "max-width: 100%;", ".sidebar-resizer {", ".basedir-notification-toggle {", ".basedir-notification-control {", ".basedir-notification-tooltip {", "width: 14px !important;", "height: 14px !important;", "padding: 0;", ".basedir-contents {", "margin-left: 42px;", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "overscroll-behavior: contain;", "overflow-anchor: none;", "text-overflow: ellipsis;"} {
+	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-config-controls {", "flex-direction: column;", ".sidebar-config-controls > button,", ".sidebar-config-controls > .sidebar-config-action {", ".sidebar-search-link {", "width: max-content;", "box-sizing: border-box;", "align-self: flex-start;", "max-width: 100%;", ".sidebar-resizer {", ".basedir-notification-toggle {", ".basedir-notification-control {", ".basedir-notification-tooltip {", "width: 14px !important;", "height: 14px !important;", "padding: 0;", ".basedir-contents {", "margin-left: 42px;", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "overscroll-behavior: contain;", "overflow-anchor: none;", "text-overflow: ellipsis;"} {
 		if !strings.Contains(webSidebarStylesCSS, marker) {
 			t.Fatalf("shared sidebar style is missing %q", marker)
 		}
