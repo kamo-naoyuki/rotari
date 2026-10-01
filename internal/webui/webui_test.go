@@ -201,11 +201,12 @@ setTimeout(() => {
 	if (!generateNotificationConfigButton.onclick.toString().includes('showGenerateNotificationConfig')) process.exit(30);
 	const sidebarControls = dom.window.document.getElementById('sidebar-config-controls');
 	if (!sidebarControls || sidebarControls.nextElementSibling.textContent.trim() !== 'Registered basedirs') process.exit(36);
-	if (notificationConfigButtons[0].parentElement !== sidebarControls || generateNotificationConfigButton.parentElement !== sidebarControls) process.exit(37);
+	const toolbar = dom.window.document.querySelector('.toolbar');
+	if (notificationConfigButtons[0].parentElement !== toolbar || generateNotificationConfigButton.parentElement !== toolbar) process.exit(37);
 	const sidebarControlNames = [...sidebarControls.children].map(button => button.className || button.id);
-	if (JSON.stringify(sidebarControlNames) !== JSON.stringify(['notification-config-button', 'notification-generate-config-button', 'notify-toggle'])) process.exit(38);
-	const toolbarNames = [...dom.window.document.querySelector('.toolbar').children].map(button => button.className || button.id);
-	if (JSON.stringify(toolbarNames) !== JSON.stringify(['config-button', 'generate-config-button', 'refresh-button'])) process.exit(39);
+	if (JSON.stringify(sidebarControlNames) !== JSON.stringify(['notify-toggle'])) process.exit(38);
+	const toolbarNames = [...toolbar.children].map(button => button.className || button.id);
+	if (JSON.stringify(toolbarNames) !== JSON.stringify(['config-button', 'generate-config-button', 'notification-config-button', 'notification-generate-config-button', 'refresh-button'])) process.exit(39);
 	const channelSettings = { job_failure: true, job_success: false, run_failure: true, run_success: true, max_jobs: 10, fields: [] };
 	const fields = ['project', 'attempt_id', 'command'];
 	const webhookEditor = dom.window.notificationChannelEditor('webhook', channelSettings, fields);
@@ -271,8 +272,7 @@ setTimeout(() => {
 	if (modal.querySelector('strong').textContent !== 'Job path') process.exit(10);
 	dom.window.history.pushState({}, '', '/project/default/run/run-1');
 	dom.window.addConfigButton();
-	if (!dom.window.document.querySelector('.notification-config-button') || !dom.window.document.querySelector('.notification-generate-config-button')) process.exit(43);
-	if (dom.window.document.querySelector('.notification-config-button').parentElement.id !== 'sidebar-config-controls') process.exit(44);
+	if (dom.window.document.querySelector('.notification-config-button') || dom.window.document.querySelector('.notification-generate-config-button')) process.exit(43);
 	let notificationConfigReads = 0;
 	let generatedNotificationRequest = null;
 	const notificationSaveRequests = [];
@@ -1872,7 +1872,7 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 		}
 	}
 	body := response.Body.String()
-	notificationButtonIndex := strings.Index(body, `<div class="sidebar-config-controls"><a class="sidebar-config-action"`)
+	notificationButtonIndex := strings.Index(body, `<div class="sidebar-config-controls"><button id="notify-toggle"`)
 	registeredBasedirsIndex := strings.Index(body, "Registered basedirs")
 	if notificationButtonIndex < 0 || registeredBasedirsIndex <= notificationButtonIndex {
 		t.Fatal("Job activity notification controls are not above Registered basedirs in the sidebar")

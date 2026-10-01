@@ -778,8 +778,7 @@ function configGenerationProject() {
   return parts[0] === "project" ? decodeURIComponent(parts[1]) : "";
 }
 function notificationConfigProject() {
-  const parts = pageParts();
-  return parts[0] === "project" ? decodeURIComponent(parts[1]) : "";
+  return configGenerationProject();
 }
 function showGenerateConfig() {
   const project = configGenerationProject();
@@ -1164,7 +1163,6 @@ function addConfigButton() {
     .forEach((button) => button.remove());
   const paths = pageConfigPaths();
   const toolbar = document.querySelector(".toolbar");
-  const sidebarControls = document.getElementById("sidebar-config-controls");
   const viewButton = document.createElement("button");
   viewButton.className = "config-button";
   viewButton.textContent = "View config";
@@ -1186,9 +1184,9 @@ function addConfigButton() {
     notificationButton.className = "notification-config-button";
     notificationButton.textContent = "Notification settings";
     notificationButton.onclick = showNotificationConfig;
-    sidebarControls.insertBefore(
+    toolbar.insertBefore(
       notificationButton,
-      document.getElementById("notify-toggle"),
+      document.getElementById("refresh-button"),
     );
     const generateNotificationButton = document.createElement("button");
     generateNotificationButton.className =
@@ -1197,9 +1195,9 @@ function addConfigButton() {
     generateNotificationButton.title =
       "Generate or replace a notifications.toml template";
     generateNotificationButton.onclick = showGenerateNotificationConfig;
-    sidebarControls.insertBefore(
+    toolbar.insertBefore(
       generateNotificationButton,
-      document.getElementById("notify-toggle"),
+      document.getElementById("refresh-button"),
     );
   }
 }

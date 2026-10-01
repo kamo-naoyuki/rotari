@@ -52,21 +52,13 @@ func TestWebHeaderBrandLinksToHome(t *testing.T) {
 	}
 }
 
-func TestJobsSidebarLinksToNotificationConfig(t *testing.T) {
+func TestJobsSidebarShowsGlobalNotificationToggleOnly(t *testing.T) {
 	html := jobsHTMLWithSession("/_basedir/base-1/", nil, nil, "24h", true, true, "session")
-	for _, want := range []string{
-		`href="/_basedir/base-1/?rotari-action=notification-config">Notification settings</a>`,
-		`href="/_basedir/base-1/?rotari-action=generate-notification-config">Generate notification settings</a>`,
-		`id="notify-toggle"`,
-	} {
-		if !strings.Contains(html, want) {
-			t.Fatalf("Job activity sidebar is missing notification action %q", want)
-		}
+	if !strings.Contains(html, `id="notify-toggle"`) {
+		t.Fatal("Job activity sidebar is missing the global notification toggle")
 	}
-	controls := strings.Index(html, `class="sidebar-config-controls"`)
-	registered := strings.Index(html, "Registered basedirs")
-	if controls < 0 || registered <= controls {
-		t.Fatal("Job activity notification controls are not above Registered basedirs")
+	if strings.Contains(html, "Notification settings") || strings.Contains(html, "Generate notification settings") {
+		t.Fatal("Job activity page should not show project notification config actions")
 	}
 }
 
