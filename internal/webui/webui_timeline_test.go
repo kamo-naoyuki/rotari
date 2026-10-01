@@ -73,7 +73,7 @@ const state = { projects: [{ project_name: 'demo', runs: [{
     {at: '2026-10-01T10:00:00Z', pending: 2},
     {at: '2026-10-01T10:00:01Z', pending: 1, running: 1},
     {at: '2026-10-01T10:00:02Z', success: 1, running: 1},
-    {at: '2026-10-01T10:00:03Z', success: 2},
+    {at: '2026-10-02T10:00:00Z', success: 2},
   ]
 }]}]};
 ` + webAppChartsJS[start:start+end] + `
@@ -81,8 +81,15 @@ renderJobTimelineScratch();
 const bars = document.querySelectorAll('.job-timeline svg rect');
 const barPositions = new Set([...bars].map(bar => bar.getAttribute('x')));
 if (bars.length !== 6 || barPositions.size !== 4) {
-	console.error('rendered bars = ' + bars.length + ' across ' + barPositions.size + ' time points, want 6 segments across 4 points');
+  console.error('rendered bars = ' + bars.length + ' across ' + barPositions.size + ' time points, want 6 segments across 4 points');
   process.exit(1);
+}
+const timeLabels = [...document.querySelectorAll('.job-timeline svg text')]
+  .filter(label => label.getAttribute('y') === '236')
+  .map(label => label.textContent);
+if (timeLabels.length !== 4 || !timeLabels[0].startsWith('start · ') || timeLabels[0] === timeLabels[3]) {
+  console.error('timeline labels = ' + JSON.stringify(timeLabels) + ', want a distinct start label and disambiguated repeated clock times');
+  process.exit(3);
 }
 if (document.querySelector('.job-timeline .meta').textContent !== 'time → / share ↑') process.exit(2);
 `

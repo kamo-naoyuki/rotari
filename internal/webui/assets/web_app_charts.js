@@ -1068,6 +1068,25 @@ function renderJobTimelineScratch() {
             ],
         )
       : rawPoints;
+  const clockLabels = points.map((point) =>
+    new Date(point.at).toLocaleTimeString(),
+  );
+  const hasRepeatedClockLabels =
+    new Set(clockLabels).size !== clockLabels.length;
+  const timeLabels = points.map((point, index) => {
+    const date = new Date(point.at);
+    const label = hasRepeatedClockLabels
+      ? date.toLocaleString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+      : clockLabels[index];
+    return index === 0 ? "start · " + label : label;
+  });
   const keys = ["pending", "running", "success", "failed"];
   const colors = {
     pending: "#94a3b3",
@@ -1174,12 +1193,7 @@ function renderJobTimelineScratch() {
       svg.append(rect);
     });
     line(x, top + plotHeight, x, top + plotHeight + 4, "#94a3b3");
-    text(
-      x,
-      height - 24,
-      point.at ? new Date(point.at).toLocaleTimeString() : "-",
-      "middle",
-    );
+    text(x, height - 24, point.at ? timeLabels[index] : "-", "middle");
   });
   text(width / 2, height - 4, "time", "middle");
   const yLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
