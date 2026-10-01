@@ -36,6 +36,7 @@ var jobControlCases = []jobControlCase{
 	{name: "project", args: "cancel -b {B} -p sweep", jobs: []string{"hold-1", "hold-2", "idle"}},
 	{name: "job name", args: "cancel -b {B} -p sweep --job-name idle", jobs: []string{"idle"}},
 	{name: "repeated job names", args: "cancel -b {B} -p sweep --job-name hold --job-name idle", jobs: []string{"hold-1", "hold-2", "idle"}},
+	{name: "stage scope", args: "cancel -b {B} -p sweep --stage single --yes", jobs: []string{"idle"}},
 	{name: "stage filter", args: "cancel -b {B} -p sweep --filter-stage single --yes", jobs: []string{"idle"}},
 	{name: "command filter", args: "cancel -b {B} -p sweep --filter-command=sleep.*301 --yes", jobs: []string{"idle"}},
 	{name: "state filter", args: "cancel -b {B} -p sweep --filter-state running --yes", jobs: []string{"hold-1", "hold-2", "idle"}},
@@ -63,6 +64,7 @@ var jobControlCases = []jobControlCase{
 	// suspend
 	{name: "project", args: "suspend -b {B} -p sweep", jobs: []string{"hold-1", "hold-2", "idle"}},
 	{name: "job name", args: "suspend -b {B} -p sweep --job-name idle", jobs: []string{"idle"}},
+	{name: "stage scope", args: "suspend -b {B} -p sweep --stage single --yes", jobs: []string{"idle"}},
 	{name: "stage filter", args: "suspend -b {B} -p sweep --filter-stage single --yes", jobs: []string{"idle"}},
 	{name: "state filter", args: "suspend -b {B} -p sweep --filter-state running --yes", jobs: []string{"hold-1", "hold-2", "idle"}},
 	{name: "negated stage filter", args: "suspend -b {B} -p sweep --filter-not-stage batch --yes", jobs: []string{"idle"}},
@@ -80,6 +82,7 @@ var jobControlCases = []jobControlCase{
 	// resume
 	{name: "project", args: "resume -b {B} -p sweep", suspended: true, jobs: []string{"hold-1", "hold-2", "idle"}},
 	{name: "job name", args: "resume -b {B} -p sweep --job-name idle", suspended: true, jobs: []string{"idle"}},
+	{name: "stage scope", args: "resume -b {B} -p sweep --stage single --yes", suspended: true, jobs: []string{"idle"}},
 	{name: "stage filter", args: "resume -b {B} -p sweep --filter-stage single --yes", suspended: true, jobs: []string{"idle"}},
 	{name: "negated stage filter", args: "resume -b {B} -p sweep --filter-not-stage batch --yes", suspended: true, jobs: []string{"idle"}},
 	{name: "pending state rejected", args: "resume -b {B} -p sweep --filter-state pending --yes", suspended: true, err: `invalid choice "pending" (choose from running)`},
