@@ -13,12 +13,13 @@ first part is based on clones of
 
 ## Summary
 
-Rotari belongs with these tools, not with workflow engines. Like them, it runs
-commands you already have, in the environment you already have, with no
-workflow definition to write. What it adds is a history: a script of
-`rotari add` lines stays the definition of the batch, and each time it runs,
-rotari keeps that run's commands, every job's status, and its logs, on
-whichever backend it ran, and can rerun only the jobs that failed.
+Rotari belongs with these tools, while also offering a small manifest format
+and a Python client for constructing and inspecting batches. Like them, it
+runs commands you already have, in the environment you already have. What it
+adds is a history: each run keeps its commands, every job's status, and its
+logs, on whichever backend it ran. A batch can be built from shell commands,
+a YAML/JSON/TOML manifest, or Python, then retried, edited, or reconciled
+without turning rotari into a workflow engine.
 
 | | Unit of work | Where it runs | Rerunning failures | Batch history |
 | --- | --- | --- | --- | --- |
@@ -28,7 +29,7 @@ whichever backend it ran, and can rerun only the jobs that failed.
 | task-spooler | a task in a per-user server's queue | one machine, GPU-aware | add the command again | finished-task list, capped |
 | submitit | a Python function call | Slurm, local | resubmit from Python | job folders |
 | `sbatch --array`, `queue.pl` | a script and an index | one scheduler | resubmit chosen indices | scheduler accounting |
-| rotari | a job in a queue, run as a batch | local, SSH, Slurm, PBS, LSF | `retry` starts a new run of only the failed and unfinished jobs | every run, with `lineage` between runs |
+| rotari | a job in a queue, run as a batch | local, SSH, Slurm, PBS, LSF | `run --retry`, `retry`, or manifest/fingerprint matching can reuse or rerun selected work | every run, with lineage across related runs |
 
 ## Tool by tool
 
@@ -66,7 +67,9 @@ a restart runs where and with what it was added. Its README states that it is
 built for human interaction and not for hundreds of tasks.
 
 Choose it for a personal, long-lived queue of heterogeneous commands on one
-machine.
+machine. Rotari also provides persistent run history, cross-backend
+execution, and a web interface, but pueue remains the simpler choice when a
+daemon queue is the main requirement.
 
 ### task-spooler
 
@@ -89,7 +92,10 @@ checkpointing. Commands need wrapping in `CommandFunction`, and rerunning
 failures is up to the calling Python code.
 
 Choose it when the experiment driver is a Python program and the jobs are
-functions in it.
+functions in it. Rotari's Python client is different: it controls the
+`rotari` executable and submits command argument lists, so it preserves the
+same command-based model as the CLI rather than serializing Python functions
+or closures.
 
 ### Hand-written scheduler submissions
 
@@ -103,24 +109,32 @@ tied to one scheduler.
 
 - **The run is the unit of history.** Every run keeps its commands and each
   job's status and logs, so `show` answers what ran and what failed long
-  after the terminal is gone, and `lineage` compares two runs. The other tools
-  track individual tasks or one invocation.
-- **Rerunning only what failed.** Across many hosts, a correct command can
-  still fail because one node misbehaved. `run --retry N` retries a failed
+  after the terminal is gone, and `lineage` follows related runs and their
+  carried-forward results. The other tools track individual tasks or one
+  invocation.
+- **Rerunning and reconciling work.** Across many hosts, a correct command
+  can still fail because one node misbehaved. `run --retry N` retries a failed
   job within the run, and `rotari retry` starts a new run of only the failed
-  and unfinished jobs, carrying the successful ones forward. GNU Parallel's
-  `--retry-failed` is the closest, for one invocation's joblog.
-- **Editing in rotari is optional.** `change`, `copy`, and manifests edit a
-  batch inside rotari, but most batches are simply rerun from their script.
+  and unfinished jobs. Fingerprint matching can carry successful results into
+  a newly built queue, while exported manifests can accept, edit, remove, or
+  rerun individual jobs. GNU Parallel's `--retry-failed` is the closest
+  simpler analogue, for one invocation's joblog.
+- **Editing in rotari is optional.** `change`, `copy`, manifests, and the
+  Python client can edit or construct a batch inside rotari, but a shell
+  script remains a natural way to build one.
 - **One queue, several backends.** The same queue runs locally, over SSH, or on
   Slurm, PBS, or LSF, with array and matrix jobs, and status and logs look the
   same on each.
 - **The environment binds at run time.** pueue and task-spooler bind a task's
-  directory and environment when it is added; rotari takes them from the shell
-  that runs `rotari run` or `rotari retry`, so a batch can be rerun after
-  `cd` or activating another environment without editing it. See
-  [Workflow and execution environment](CONCEPTS.md#workflow-and-execution-environment);
-  how far this reaches on remote executors is still open.
+  directory and environment when it is added; rotari takes the caller's
+  environment at `run` or `retry` time by default, while retaining saved job
+  variables and rotari metadata. `--env=NONE` suppresses caller variables.
+  The setting is mapped to the native mechanisms of SSH, Slurm, PBS, and LSF;
+  saved `--env KEY=VALUE` variables work on every executor.
+- **Operations beyond the CLI.** `rotari web` provides history, logs, job
+  control, and multiple-basedir monitoring. `diagnose` can analyze failures
+  with local rules or an LLM, and notifications can deliver webhook or
+  browser alerts.
 - **No resident daemon.** Each run has its own supervisor process for its
   lifetime; state is files.
 
@@ -134,7 +148,9 @@ submits at once.
 ## Workflow engines
 
 Workflow engines start from a definition of the workflow, written in a DSL,
-YAML, or Python, and run it the same way each time. Most of them also define
+YAML, or Python, and run it the same way each time. Rotari now accepts
+manifests too, but its manifest describes jobs and their execution settings,
+not a file-driven pipeline. Most workflow engines also define
 where and with what each step runs, and several start runs by themselves from
 schedules or events. This is the right design for pipelines that are shared,
 reproduced, or operated, and it is what rotari leaves out.
@@ -145,16 +161,19 @@ reproduced, or operated, and it is what rotari leaves out.
 | [Nextflow](https://www.nextflow.io/) | processes and channels (Groovy-based DSL) | the CLI | local, Slurm, PBS, LSF, SGE, and other HPC schedulers, Kubernetes, and cloud batch services | per-process containers or conda environments | `-resume` reuses cached task results |
 | [Dagu](https://dagu.sh/) | a YAML DAG | the CLI, Web UI, API, cron, and event triggers | local, SSH, containers, Kubernetes, distributed workers | the working directory, variables, and container in the YAML | step retry policies and `dagu retry` of a run |
 | [Airflow](https://airflow.apache.org/), [Prefect](https://www.prefect.io/), [Dagster](https://dagster.io/) | Python code | a scheduler, sensors, the UI, or the API | workers on the configured infrastructure | each task's operator or deployment settings | task retries and rerunning from the failed task |
-| rotari | none: a shell script of `rotari add` lines builds each batch | the user, from a shell | local, SSH, Slurm, PBS, LSF | the shell that runs `rotari run` | `run --retry` within a run, `retry` for a new run of the failed and unfinished jobs |
+| rotari | shell commands, YAML/JSON/TOML manifests, or Python command lists | the user, from the CLI, Python, or API | local, SSH, Slurm, PBS, LSF | the shell that runs `rotari run`, or explicit job/run settings | `run --retry`, `retry`, fingerprint matching, and manifest reconciliation |
 
 What separates rotari from all of them:
 
-- **No workflow definition.** The script builds a batch and is rerun as it
-  is; rotari has no rules, file dependencies, conditionals, or output
-  passing between jobs, only job-level dependencies.
-- **No triggers.** There is no scheduler, cron, or sensor; every run is
-  started by a person or an agent at a shell, which is why the environment
-  can come from that shell instead of being written down.
+- **A batch definition, not a pipeline engine.** A shell script, manifest, or
+  Python program can build the batch. Rotari supports job dependencies,
+  arrays, matrices, retries, and reconciliation, but it does not provide
+  file-based dependency discovery, conditional workflow logic, or general
+  output passing between jobs.
+- **No workflow triggers.** There is no built-in scheduler, cron, or sensor;
+  every run is started by a person or an agent through the CLI, Python client,
+  or API. The Web UI can inspect and control runs, but does not turn rotari
+  into an event-driven workflow engine.
 - **No service to operate.** There is no resident server or database, and
   on a cluster the site's scheduler does the placement and resource
   allocation.
