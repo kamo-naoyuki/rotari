@@ -196,8 +196,7 @@ func (e *env) startRun(p string, n int, async bool, extra ...string) activeRun {
 			killStrays(e.t, e.root)
 		})
 	}
-	deadline := time.Now().Add(15 * time.Second)
-	for {
+	waitUntil(e.t, 15*time.Second, func() (bool, string) {
 		running := strings.Count(e.rotari("jobs", p, "--format", "%a %s").stdout, " running")
 		var shown struct {
 			RunID string `json:"run_id"`
@@ -205,13 +204,11 @@ func (e *env) startRun(p string, n int, async bool, extra ...string) activeRun {
 		_ = json.Unmarshal([]byte(e.rotari("show", "-p", p, "--json").stdout), &shown)
 		if running == n && shown.RunID != "" {
 			r.runID = shown.RunID
-			return r
+			return true, "active run is not ready"
 		}
-		if time.Now().After(deadline) {
-			e.t.Fatalf("run did not start")
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+		return false, fmt.Sprintf("run=%s running=%d, want %d running jobs", shown.RunID, running, n)
+	})
+	return r
 }
 
 func (e *env) in(t *testing.T) *env {

@@ -2,6 +2,7 @@ package conformance
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -33,6 +34,14 @@ type jobControlCase struct {
 var jobControlCases = []jobControlCase{
 	// cancel
 	{name: "project", args: "cancel -b {B} -p sweep", jobs: []string{"hold-1", "hold-2", "idle"}},
+	{name: "job name", args: "cancel -b {B} -p sweep --job-name idle", jobs: []string{"idle"}},
+	{name: "repeated job names", args: "cancel -b {B} -p sweep --job-name hold --job-name idle", jobs: []string{"hold-1", "hold-2", "idle"}},
+	{name: "stage filter", args: "cancel -b {B} -p sweep --filter-stage single --yes", jobs: []string{"idle"}},
+	{name: "command filter", args: "cancel -b {B} -p sweep --filter-command=sleep.*301 --yes", jobs: []string{"idle"}},
+	{name: "state filter", args: "cancel -b {B} -p sweep --filter-state running --yes", jobs: []string{"hold-1", "hold-2", "idle"}},
+	{name: "negated stage filter", args: "cancel -b {B} -p sweep --filter-not-stage batch --yes", jobs: []string{"idle"}},
+	{name: "unknown job name", args: "cancel -b {B} -p sweep --job-name missing", err: `job name "missing" not found`},
+	{name: "filter and wait", args: "cancel -b {B} -p sweep --filter-state running --wait --yes", err: "--wait may not be used with a job selection"},
 	{name: "job ID", args: "cancel -b {B} -p sweep {job:idle}", jobs: []string{"idle"}},
 	{name: "job ID option", args: "cancel -b {B} -p sweep -j {job:idle}", jobs: []string{"idle"}},
 	{name: "job ID in any project's active run", args: "cancel -b {B} {job:idle}", jobs: []string{"idle"}},
@@ -52,6 +61,11 @@ var jobControlCases = []jobControlCase{
 
 	// suspend
 	{name: "project", args: "suspend -b {B} -p sweep", jobs: []string{"hold-1", "hold-2", "idle"}},
+	{name: "job name", args: "suspend -b {B} -p sweep --job-name idle", jobs: []string{"idle"}},
+	{name: "stage filter", args: "suspend -b {B} -p sweep --filter-stage single --yes", jobs: []string{"idle"}},
+	{name: "state filter", args: "suspend -b {B} -p sweep --filter-state running --yes", jobs: []string{"hold-1", "hold-2", "idle"}},
+	{name: "negated stage filter", args: "suspend -b {B} -p sweep --filter-not-stage batch --yes", jobs: []string{"idle"}},
+	{name: "pending state rejected", args: "suspend -b {B} -p sweep --filter-state pending --yes", err: `invalid choice "pending" (choose from running)`},
 	{name: "job ID", args: "suspend -b {B} -p sweep {job:idle}", jobs: []string{"idle"}},
 	{name: "job ID in any project's active run", args: "suspend -b {B} {job:idle}", jobs: []string{"idle"}},
 	{name: "array command ID", args: "suspend -b {B} -p sweep {job:hold}", jobs: []string{"hold-1", "hold-2"}},
@@ -64,6 +78,10 @@ var jobControlCases = []jobControlCase{
 
 	// resume
 	{name: "project", args: "resume -b {B} -p sweep", suspended: true, jobs: []string{"hold-1", "hold-2", "idle"}},
+	{name: "job name", args: "resume -b {B} -p sweep --job-name idle", suspended: true, jobs: []string{"idle"}},
+	{name: "stage filter", args: "resume -b {B} -p sweep --filter-stage single --yes", suspended: true, jobs: []string{"idle"}},
+	{name: "negated stage filter", args: "resume -b {B} -p sweep --filter-not-stage batch --yes", suspended: true, jobs: []string{"idle"}},
+	{name: "pending state rejected", args: "resume -b {B} -p sweep --filter-state pending --yes", suspended: true, err: `invalid choice "pending" (choose from running)`},
 	{name: "job ID", args: "resume -b {B} -p sweep {job:idle}", suspended: true, jobs: []string{"idle"}},
 	{name: "job ID in any project's active run", args: "resume -b {B} {job:idle}", suspended: true, jobs: []string{"idle"}},
 	{name: "array command ID", args: "resume -b {B} -p sweep {job:hold}", suspended: true, jobs: []string{"hold-1", "hold-2"}},
@@ -73,7 +91,7 @@ var jobControlCases = []jobControlCase{
 }
 
 func TestJobControlSelectors(t *testing.T) {
-	covers(t, "RES-18", "SEL-9")
+	covers(t, "RES-18", "SEL-9", "SEL-12")
 	for _, tc := range jobControlCases {
 		command := strings.Fields(tc.args)[0]
 		t.Run(command+"/"+tc.name, func(t *testing.T) {
@@ -113,8 +131,8 @@ type jobControlRun struct {
 // runs. The run is cancelled when the test ends.
 func (f selectorFixture) startJobControlRun() jobControlRun {
 	f.e.t.Helper()
-	f.add(f.base, "sweep", "--job-name", "hold", "--array", "1-2", "--", "sleep", "300")
-	f.add(f.base, "sweep", "--job-name", "idle", "--", "sleep", "300")
+	f.add(f.base, "sweep", "--job-name", "hold", "--stage", "batch", "--array", "1-2", "--", "sleep", "300")
+	f.add(f.base, "sweep", "--job-name", "idle", "--stage", "single", "--", "sleep", "301")
 	f.recordJobs(f.base, "sweep", map[string]string{"hold": "hold", "idle": "idle"}, "")
 	client := f.e.command("run", "-b", f.base, "-p", "sweep", "--run-name", "live", "--quiet")
 	if err := client.Start(); err != nil {
@@ -128,19 +146,17 @@ func (f selectorFixture) startJobControlRun() jobControlRun {
 		_ = client.Wait()
 	})
 	keys := map[string]string{"hold-1": f.jobs["hold"] + "-1", "hold-2": f.jobs["hold"] + "-2", "idle": f.jobs["idle"]}
-	deadline := time.Now().Add(15 * time.Second)
-	for {
+	var liveRunID string
+	waitUntil(f.e.t, 15*time.Second, func() (bool, string) {
 		runID := f.lastRunID(f.base, "sweep")
 		running := strings.Count(f.e.rotari("jobs", "-b", f.base, "sweep", "--format", "%a %s").stdout, " running")
 		if runID != f.runs["sweep-second"] && running == len(keys) {
-			f.runs["live"] = runID
-			break
+			liveRunID = runID
+			return true, "live run is not ready"
 		}
-		if time.Now().After(deadline) {
-			f.e.t.Fatal("run live did not start")
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+		return false, fmt.Sprintf("run=%s running=%d, want run different from %s with %d running jobs", runID, running, f.runs["sweep-second"], len(keys))
+	})
+	f.runs["live"] = liveRunID
 	live := jobControlRun{attemptDirs: map[string]string{}}
 	for key, jobID := range keys {
 		dirs, err := filepath.Glob(filepath.Join(f.base, "projects", "sweep", "runs", f.runs["live"], jobID, "attempts", "*"))
@@ -160,9 +176,9 @@ func (f selectorFixture) startJobControlRun() jobControlRun {
 // reach want.
 func (live jobControlRun) affected(t *testing.T, command string, want []string) []string {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		var got []string
+	var got []string
+	waitUntil(t, 5*time.Second, func() (bool, string) {
+		got = nil
 		for key, dir := range live.attemptDirs {
 			switch command {
 			case "cancel":
@@ -180,11 +196,9 @@ func (live jobControlRun) affected(t *testing.T, command string, want []string) 
 			}
 		}
 		sort.Strings(got)
-		if strings.Join(got, ",") == strings.Join(want, ",") || time.Now().After(deadline) {
-			return got
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+		return strings.Join(got, ",") == strings.Join(want, ","), fmt.Sprintf("affected=%v, want=%v", got, want)
+	})
+	return got
 }
 
 // schedulerState reads the state an attempt's scheduler_status.json records.

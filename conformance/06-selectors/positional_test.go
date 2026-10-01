@@ -2,6 +2,7 @@ package conformance
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -272,19 +273,15 @@ func (f selectorFixture) startLive() {
 		_ = client.Process.Kill()
 		_ = client.Wait()
 	})
-	deadline := time.Now().Add(15 * time.Second)
-	for {
+	waitUntil(f.e.t, 15*time.Second, func() (bool, string) {
 		runID := f.lastRunID(f.base, "sweep")
 		running := strings.Count(f.e.rotari("jobs", "-b", f.base, "sweep", "--format", "%a %s").stdout, " running")
 		if runID != f.runs["sweep-second"] && running == 1 {
 			f.runs["live"] = runID
-			return
+			return true, "live run is not ready"
 		}
-		if time.Now().After(deadline) {
-			f.e.t.Fatal("run live did not start")
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+		return false, fmt.Sprintf("run=%s running=%d, want a new run with one running job", runID, running)
+	})
 }
 
 // hasQueuedCommand checks that project's queue holds a job with command.

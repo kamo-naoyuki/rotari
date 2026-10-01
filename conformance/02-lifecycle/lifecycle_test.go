@@ -88,6 +88,149 @@ func TestFilteredRerunCarriesCompletedResults(t *testing.T) {
 	}
 }
 
+func TestFingerprintMatchingUsesIDsAndRejectsCountMismatches(t *testing.T) {
+	covers(t, "RUN-4")
+	e := support.NewEnv(t)
+
+	support.AddedJobID(t, e.MustRotari("add", "-p", "fingerprint", "--", "true"))
+	e.MustRotari("run", "-p", "fingerprint", "--quiet")
+
+	changedID := support.AddedJobID(t, e.MustRotari("add", "-p", "fingerprint", "--", "true"))
+	e.MustRotari("run", "-p", "fingerprint", "--match-by", "fingerprint", "--quiet")
+	matchedRun := readSummary(t, e, "fingerprint")
+	matchedCommands := readCommandSnapshot(t, e, "fingerprint", matchedRun.RunID)
+	matched := commandByID(t, matchedCommands, changedID)
+	if matched.Origin == nil || matched.Origin.JobID == changedID {
+		t.Fatalf("changed job was not matched to the historical fingerprint: %#v", matched)
+	}
+
+	e.MustRotari("add", "-p", "mismatch", "--", "true")
+	e.MustRotari("run", "-p", "mismatch", "--quiet")
+	firstExtra := support.AddedJobID(t, e.MustRotari("add", "-p", "mismatch", "--", "true"))
+	secondExtra := support.AddedJobID(t, e.MustRotari("add", "-p", "mismatch", "--", "true"))
+	e.MustRotari("run", "-p", "mismatch", "--match-by", "fingerprint", "--quiet")
+	mismatchRun := readSummary(t, e, "mismatch")
+	mismatchCommands := readCommandSnapshot(t, e, "mismatch", mismatchRun.RunID)
+	for _, jobID := range []string{firstExtra, secondExtra} {
+		command := commandByID(t, mismatchCommands, jobID)
+		if command.Origin != nil {
+			t.Fatalf("count-mismatched job %s was matched: %#v", jobID, command)
+		}
+	}
+}
+
+func TestFingerprintMatchingPreservesArrayTasksAndMatrixLeaves(t *testing.T) {
+	covers(t, "RUN-4")
+	e := support.NewEnv(t)
+
+	e.MustRotari("add", "-p", "expanded", "--array", "1-2", "--", "true")
+	e.MustRotari("add", "-p", "expanded", "--matrix", "SEED=1,2", "--", "true")
+	e.MustRotari("run", "-p", "expanded", "--quiet")
+
+	e.MustRotari("add", "-p", "expanded", "--array", "1-2", "--", "true")
+	e.MustRotari("add", "-p", "expanded", "--matrix", "SEED=1,2", "--", "true")
+	e.MustRotari("run", "-p", "expanded", "--match-by", "fingerprint", "--quiet")
+	run := readSummary(t, e, "expanded")
+	snapshot := readCommandSnapshot(t, e, "expanded", run.RunID)
+	var arrayTasks, matrixLeaves int
+	for _, command := range snapshot.Commands {
+		switch {
+		case command.Array != nil:
+			if len(command.TaskOrigins) != 2 {
+				t.Fatalf("array task origins = %#v, want 2 tasks", command.TaskOrigins)
+			}
+			arrayTasks += len(command.TaskOrigins)
+		case command.Matrix != nil:
+			if command.Origin == nil {
+				t.Fatalf("matrix leaf has no origin: %#v", command)
+			}
+			matrixLeaves++
+		}
+	}
+	if arrayTasks != 2 || matrixLeaves != 2 {
+		t.Fatalf("expanded origins = array tasks %d, matrix leaves %d; want 2, 2", arrayTasks, matrixLeaves)
+	}
+}
+
+func TestFingerprintMatchingRejectsChangedExplicitInputs(t *testing.T) {
+	covers(t, "RUN-4")
+	e := support.NewEnv(t)
+	firstDir := filepath.Join(e.Root, "first")
+	secondDir := filepath.Join(e.Root, "second")
+	if err := os.MkdirAll(firstDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(secondDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	e.MustRotari("add", "-p", "inputs", "--env", "MODE=one", "--working-directory", firstDir, "--", "true")
+	e.MustRotari("run", "-p", "inputs", "--quiet")
+	e.MustRotari("add", "-p", "inputs", "--env", "MODE=two", "--working-directory", firstDir, "--", "true")
+	e.MustRotari("run", "-p", "inputs", "--match-by", "fingerprint", "--quiet")
+	firstChanged := readSummary(t, e, "inputs")
+	firstSnapshot := readCommandSnapshot(t, e, "inputs", firstChanged.RunID)
+	if len(firstSnapshot.Commands) != 1 || firstSnapshot.Commands[0].Origin != nil {
+		t.Fatalf("environment change unexpectedly matched: %#v", firstSnapshot.Commands)
+	}
+
+	e.MustRotari("add", "-p", "inputs", "--env", "MODE=two", "--working-directory", secondDir, "--", "true")
+	e.MustRotari("run", "-p", "inputs", "--match-by", "fingerprint", "--quiet")
+	secondChanged := readSummary(t, e, "inputs")
+	secondSnapshot := readCommandSnapshot(t, e, "inputs", secondChanged.RunID)
+	if len(secondSnapshot.Commands) != 1 || secondSnapshot.Commands[0].Origin != nil {
+		t.Fatalf("working-directory change unexpectedly matched: %#v", secondSnapshot.Commands)
+	}
+}
+
+type commandSnapshot struct {
+	Commands []snapshotCommand `json:"commands"`
+}
+
+type snapshotCommand struct {
+	ID     string `json:"id"`
+	Origin *struct {
+		JobID string `json:"job_id"`
+	} `json:"origin,omitempty"`
+	Array *struct {
+		Tasks []int `json:"tasks"`
+	} `json:"array,omitempty"`
+	TaskOrigins map[string]struct {
+		JobID string `json:"job_id"`
+	} `json:"task_origins,omitempty"`
+	Matrix *struct {
+		Values []struct {
+			Name  string `json:"name"`
+			Value string `json:"value"`
+		} `json:"values"`
+	} `json:"matrix,omitempty"`
+}
+
+func readCommandSnapshot(t *testing.T, e *support.Env, project, runID string) commandSnapshot {
+	t.Helper()
+	path := filepath.Join(e.Base, "projects", project, "runs", runID, "commands.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var snapshot commandSnapshot
+	if err := json.Unmarshal(data, &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	return snapshot
+}
+
+func commandByID(t *testing.T, snapshot commandSnapshot, jobID string) snapshotCommand {
+	t.Helper()
+	for _, command := range snapshot.Commands {
+		if command.ID == jobID {
+			return command
+		}
+	}
+	t.Fatalf("command snapshot has no job %s: %#v", jobID, snapshot.Commands)
+	return snapshotCommand{}
+}
+
 func TestRunRetrySucceedsWithinOneRun(t *testing.T) {
 	covers(t, "CORE-7", "RUN-2")
 	e := support.NewEnv(t)
