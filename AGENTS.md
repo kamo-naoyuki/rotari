@@ -103,6 +103,31 @@ When changing validation or user-visible behavior, check all relevant interfaces
 
 Do not assume that fixing one interface fixes the others.
 
+## Preventing bugs
+
+Most bugs found so far were one rule implemented in several places that
+drifted apart, or one path of a feature that nobody exercised. Design against
+both.
+
+* **One rule, one implementation.** When a rule (selection, status
+  resolution, validation, path handling) applies in more than one command,
+  view, or process, implement it once in the package that owns it and have
+  callers supply only facts. Before adding or changing a condition, search
+  for every place that evaluates the same rule and route them through the
+  shared function. Keep lower-level helpers unexported when exporting them
+  would let a caller bypass the shared function.
+* **Enumerate the variants.** A change to job behavior must consider each
+  variant that applies: plain job, array task, whole array (`--partial-array`),
+  matrix member; queue view and run view; latest and older attempt; executed
+  and carried result; CLI, server, Web API, and Python client. When fixing a
+  bug in one variant, check its siblings for the same bug.
+* **Do not decide per-job conditions on aggregates.** An aggregate result
+  (for example, an array's) keeps only part of its members' facts. Evaluate
+  per-job conditions on each member, then combine.
+* **Never ignore an option silently.** An option that cannot apply in a mode
+  or view must change the view to one where it applies, or fail with an
+  error. It must not be accepted and ignored.
+
 ## Documentation
 
 A user-visible behavior change may require updates to:
@@ -142,6 +167,30 @@ When changing behavior:
 
 Do not modify tests merely to make them pass.
 Tests should reflect the intended behavior.
+
+When fixing a bug:
+
+1. Write a test that reproduces it, and confirm the test fails for the
+   reported reason before fixing the code.
+2. When a test is added after the fix, show that it catches the bug: run it
+   against the pre-fix commit in a temporary worktree
+   (`git worktree add --detach "$TMPDIR/wt" COMMIT`), then remove the
+   worktree.
+3. Add a conformance row as well when the bug is visible through the binary
+   or the Web API, so the bug is covered for every command that shares the
+   rule, not only the one where it was found.
+
+For behavior shared by several commands or paths, prefer a table test that
+gives each command and variant the same input and expects the same selection.
+Fixtures must contain data that tells cases apart: distinct exit codes,
+more than one failing task, tasks with and without a host, carried and
+executed results. A fixture where every failure looks the same cannot detect
+two failures being mixed up.
+
+Confirm that the tests you report actually ran. `go test -run` prints `ok`
+when the pattern matches nothing, and a subtest name containing `/` adds a
+level to the pattern (for example,
+`-run 'TestSelectorTable/.*/exit_code'`). Use `-v` when in doubt.
 
 `conformance/` checks contracts through the built binary and the Web API. A
 refactoring must leave it passing without edits; change it only when a
