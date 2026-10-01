@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/rundiff"
+	"github.com/kamo-naoyuki/rotari/internal/runlineage"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -41,7 +41,7 @@ func TestLoadRunResolvesSummaryStatuses(t *testing.T) {
 	if run.Name != "experiment" || len(run.Jobs) != 2 {
 		t.Fatalf("run = %+v", run)
 	}
-	if run.Jobs[0].Status != rundiff.StatusFailed || run.Jobs[1].Status != rundiff.StatusSuccess {
+	if run.Jobs[0].Status != runlineage.StatusFailed || run.Jobs[1].Status != runlineage.StatusSuccess {
 		t.Fatalf("job statuses = %+v", run.Jobs)
 	}
 }

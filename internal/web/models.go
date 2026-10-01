@@ -2,7 +2,7 @@ package web
 
 import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/rundiff"
+	"github.com/kamo-naoyuki/rotari/internal/runlineage"
 )
 
 type EnvironmentDefinition struct {
@@ -17,12 +17,12 @@ type EnvironmentDefinition struct {
 
 type Run struct {
 	model.RunSummary
-	LineageSummary rundiff.RunSummary `json:"lineage_summary,omitempty"`
-	Jobs           []Job              `json:"jobs"`
-	CWD            string             `json:"cwd,omitempty"`
-	Context        model.RunContext   `json:"context,omitempty"`
-	Timeline       []TimelinePoint    `json:"timeline,omitempty"`
-	Running        bool               `json:"running"`
+	LineageSummary runlineage.RunSummary `json:"lineage_summary,omitempty"`
+	Jobs           []Job                 `json:"jobs"`
+	CWD            string                `json:"cwd,omitempty"`
+	Context        model.RunContext      `json:"context,omitempty"`
+	Timeline       []TimelinePoint       `json:"timeline,omitempty"`
+	Running        bool                  `json:"running"`
 	// Unreadable, when set, is why the run's files cannot be read: they come
 	// from a newer rotari. The run then has status "unreadable" and no jobs.
 	Unreadable string `json:"unreadable,omitempty"`

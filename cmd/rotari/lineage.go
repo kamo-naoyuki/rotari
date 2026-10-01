@@ -14,7 +14,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	"github.com/kamo-naoyuki/rotari/internal/rundiff"
+	"github.com/kamo-naoyuki/rotari/internal/runlineage"
 	"github.com/kamo-naoyuki/rotari/internal/runview"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -110,8 +110,8 @@ func runStartTime(paths state.ProjectPaths, runID string) time.Time {
 	return time.Time{}
 }
 
-func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result rundiff.Result, showAll bool) {
-	label := func(info rundiff.RunInfo) string { return model.RunLabel(info.ID, info.Name) }
+func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result runlineage.Result, showAll bool) {
+	label := func(info runlineage.RunInfo) string { return model.RunLabel(info.ID, info.Name) }
 	fmt.Fprintf(writer, "%s %s\n", cyan("Project:"), paths.ProjectName)
 	fmt.Fprintf(writer, "%s %s -> %s\n", cyan("Runs:"), label(result.From), label(result.To))
 	if result.From.Elapsed != "" || result.To.Elapsed != "" {
@@ -121,9 +121,9 @@ func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result rundiff.Res
 	fmt.Fprintf(writer, "%s fixed %d, still failing %d, newly failing %d, added %d, removed %d, changed %d, carried %d\n",
 		cyan("Summary:"), summary.Fixed, summary.StillFailing, summary.NewlyFailing, summary.Added, summary.Removed, summary.Changed, summary.Carried)
 
-	shown := make([]rundiff.JobDiff, 0, len(result.Jobs))
+	shown := make([]runlineage.JobDiff, 0, len(result.Jobs))
 	for _, job := range result.Jobs {
-		if showAll || job.Transition != rundiff.TransitionUnchanged || len(job.Changes) > 0 {
+		if showAll || job.Transition != runlineage.TransitionUnchanged || len(job.Changes) > 0 {
 			shown = append(shown, job)
 		}
 	}
@@ -178,11 +178,11 @@ func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result rundiff.Res
 
 func colorTransition(text, transition string) string {
 	switch transition {
-	case rundiff.TransitionFixed:
+	case runlineage.TransitionFixed:
 		return green(text)
-	case rundiff.TransitionNewlyFailing:
+	case runlineage.TransitionNewlyFailing:
 		return red(text)
-	case rundiff.TransitionStillFailing, rundiff.TransitionAdded, rundiff.TransitionRemoved:
+	case runlineage.TransitionStillFailing, runlineage.TransitionAdded, runlineage.TransitionRemoved:
 		return yellow(text)
 	}
 	return text
@@ -207,10 +207,10 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 				printError(err)
 				return 1
 			}
-			summary := rundiff.RunSummary{
-				Run: rundiff.RunInfo{ID: run.ID, Name: run.Name}, Counts: rundiff.Summarize(run),
-				Diagnoses: rundiff.SummarizeDiagnoses(run),
-				Origins:   rundiff.SummarizeOrigins(run),
+			summary := runlineage.RunSummary{
+				Run: runlineage.RunInfo{ID: run.ID, Name: run.Name}, Counts: runlineage.Summarize(run),
+				Diagnoses: runlineage.SummarizeDiagnoses(run),
+				Origins:   runlineage.SummarizeOrigins(run),
 			}
 			if jsonOutput {
 				return encodeJSON(summary, "run summary")
@@ -229,7 +229,7 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 			return 1
 		}
 		if len(resolvedIDs) > 2 {
-			runs := make([]rundiff.Run, 0, len(resolvedIDs))
+			runs := make([]runlineage.Run, 0, len(resolvedIDs))
 			for _, runID := range resolvedIDs {
 				run, loadErr := runview.LoadRun(paths, runID, jsonStore())
 				if loadErr != nil {
@@ -238,14 +238,14 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 				}
 				runs = append(runs, run)
 			}
-			grid := rundiff.CompareGrid(runs)
+			grid := runlineage.CompareGrid(runs)
 			if jsonOutput {
 				return encodeJSON(grid, "comparison grid")
 			}
 			writeRunGrid(os.Stdout, paths, grid)
 			return 0
 		}
-		result := rundiff.Compare(from, to)
+		result := runlineage.Compare(from, to)
 		if jsonOutput {
 			return encodeJSON(result, "comparison")
 		}
@@ -257,7 +257,7 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 		printError(err)
 		return 1
 	}
-	runs := make([]rundiff.Run, 0, len(runIDs))
+	runs := make([]runlineage.Run, 0, len(runIDs))
 	for _, runID := range runIDs {
 		run, err := runview.LoadRun(paths, runID, jsonStore())
 		if err != nil {
@@ -270,7 +270,7 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 		}
 		runs = append(runs, run)
 	}
-	entries := rundiff.Lineage(runs)
+	entries := runlineage.Lineage(runs)
 	if jsonOutput {
 		return encodeJSON(entries, "lineage")
 	}
@@ -310,7 +310,7 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 	return 0
 }
 
-func writeRunGrid(writer io.Writer, paths state.ProjectPaths, grid rundiff.GridResult) {
+func writeRunGrid(writer io.Writer, paths state.ProjectPaths, grid runlineage.GridResult) {
 	fmt.Fprintf(writer, "%s %s\n", cyan("Project:"), paths.ProjectName)
 	labels := make([]string, len(grid.Runs))
 	for index, run := range grid.Runs {
@@ -339,7 +339,7 @@ func writeRunGrid(writer io.Writer, paths state.ProjectPaths, grid rundiff.GridR
 	}
 }
 
-func writeRunSummary(writer io.Writer, paths state.ProjectPaths, summary rundiff.RunSummary) {
+func writeRunSummary(writer io.Writer, paths state.ProjectPaths, summary runlineage.RunSummary) {
 	fmt.Fprintf(writer, "%s %s\n", cyan("Project:"), paths.ProjectName)
 	fmt.Fprintf(writer, "%s %s\n", cyan("Run:"), model.RunLabel(summary.Run.ID, summary.Run.Name))
 	counts := summary.Counts

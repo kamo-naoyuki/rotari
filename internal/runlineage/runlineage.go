@@ -1,8 +1,8 @@
-// Package rundiff compares two runs of a project: which jobs were added or
+// Package runlineage compares two runs of a project: which jobs were added or
 // removed, how each job's definition changed, and how its result moved, such
 // as a failure that was fixed. It works on already loaded runs and does not
 // read state files itself.
-package rundiff
+package runlineage
 
 import (
 	"sort"

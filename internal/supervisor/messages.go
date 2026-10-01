@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/rundiff"
+	"github.com/kamo-naoyuki/rotari/internal/runlineage"
 	"github.com/kamo-naoyuki/rotari/internal/runview"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -32,13 +32,13 @@ func CompletionMessage(paths state.ProjectPaths, runID string, summary model.Run
 	message := title + "\n" + fmt.Sprintf("  Project: %s\n  Run: %s\n  Status: %s\n  Exit code: %d\n  Success: %d\n  Failed: %d\n  Directory: %s\n",
 		paths.ProjectName, model.RunLabel(runID, summary.RunName), summary.Status, summary.ExitCode, successCount, failedCount, runDir)
 	if run, err := runview.LoadRun(paths, runID, state.NewStore(state.DirectoryMode(), state.FileMode())); err == nil {
-		counts := rundiff.Summarize(run)
+		counts := runlineage.Summarize(run)
 		message += fmt.Sprintf("  Summary: jobs %d, succeeded %d, failed %d, blocked %d, unfinished %d\n",
 			counts.Jobs, counts.Succeeded, counts.Failed, counts.Blocked, counts.Unfinished)
-		for _, diagnosis := range rundiff.SummarizeDiagnoses(run) {
+		for _, diagnosis := range runlineage.SummarizeDiagnoses(run) {
 			message += fmt.Sprintf("  Diagnosis: %s %d\n", diagnosis.Name, diagnosis.Count)
 		}
-		for _, origin := range rundiff.SummarizeOrigins(run) {
+		for _, origin := range runlineage.SummarizeOrigins(run) {
 			label := origin.RunID
 			if label == "" {
 				label = "new"

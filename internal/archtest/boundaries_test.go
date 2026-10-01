@@ -59,8 +59,8 @@ var boundaryRules = []boundaryRule{
 		forbidden: fileAccess,
 	},
 	{
-		pkg:       "internal/rundiff",
-		reason:    "rundiff compares loaded runs and never reads state files",
+		pkg:       "internal/runlineage",
+		reason:    "runlineage compares loaded runs and never reads state files",
 		allowed:   []string{"internal/model"},
 		forbidden: fileAccess,
 	},

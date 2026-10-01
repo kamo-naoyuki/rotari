@@ -1,4 +1,4 @@
-package rundiff
+package runlineage
 
 import (
 	"reflect"

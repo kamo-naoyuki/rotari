@@ -10,7 +10,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/rundiff"
+	"github.com/kamo-naoyuki/rotari/internal/runlineage"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -78,14 +78,14 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 	return state, nil
 }
 
-func buildLineageSummary(summary model.RunSummary, jobs []Job) rundiff.RunSummary {
-	run := rundiff.Run{ID: summary.RunID, Name: summary.RunName, StartedAt: summary.StartedAt, FinishedAt: summary.FinishedAt}
+func buildLineageSummary(summary model.RunSummary, jobs []Job) runlineage.RunSummary {
+	run := runlineage.Run{ID: summary.RunID, Name: summary.RunName, StartedAt: summary.StartedAt, FinishedAt: summary.FinishedAt}
 	for _, job := range jobs {
-		status := rundiff.StatusUnfinished
+		status := runlineage.StatusUnfinished
 		if job.Result != nil {
 			status = model.ResultStatus(*job.Result, true)
 			if status == model.StatusCancelled {
-				status = rundiff.StatusFailed
+				status = runlineage.StatusFailed
 			}
 		}
 		diagnoses := make([]string, 0)
@@ -96,13 +96,13 @@ func buildLineageSummary(summary model.RunSummary, jobs []Job) rundiff.RunSummar
 				diagnoses = append(diagnoses, diagnosis.Name)
 			}
 		}
-		run.Jobs = append(run.Jobs, rundiff.Job{
+		run.Jobs = append(run.Jobs, runlineage.Job{
 			Spec: model.JobSpec{ID: job.ID, Name: job.Name, Command: job.Command, WorkingDirectory: job.WorkingDirectory,
 				Executor: job.Executor, ExecutorOptions: job.ExecutorOptions, Stage: job.Stage, DependsOn: job.DependsOn, DependsOnFinished: job.DependsOnFinished},
 			Status: status, Origin: job.Origin, DiagnosisStatus: diagnosisStatus, Diagnoses: diagnoses,
 		})
 	}
-	return rundiff.RunSummary{Run: rundiff.RunInfo{ID: summary.RunID, Name: summary.RunName}, Counts: rundiff.Summarize(run), Diagnoses: rundiff.SummarizeDiagnoses(run), Origins: rundiff.SummarizeOrigins(run)}
+	return runlineage.RunSummary{Run: runlineage.RunInfo{ID: summary.RunID, Name: summary.RunName}, Counts: runlineage.Summarize(run), Diagnoses: runlineage.SummarizeDiagnoses(run), Origins: runlineage.SummarizeOrigins(run)}
 }
 
 // newerStateVersion reports whether err is a run file from a newer rotari.

@@ -15,7 +15,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	"github.com/kamo-naoyuki/rotari/internal/rundiff"
+	"github.com/kamo-naoyuki/rotari/internal/runlineage"
 	"github.com/kamo-naoyuki/rotari/internal/runview"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/supervisor"
@@ -356,13 +356,13 @@ func formatRunCompletion(paths state.ProjectPaths, runID string, summary model.R
 	}
 	message := title + "\n" + colorLabeledDetails(details, summary.ExitCode != 0)
 	if run, err := runview.LoadRun(paths, runID, jsonStore()); err == nil {
-		counts := rundiff.Summarize(run)
+		counts := runlineage.Summarize(run)
 		message += fmt.Sprintf("\nSummary: jobs %d, succeeded %d, failed %d, blocked %d, unfinished %d",
 			counts.Jobs, counts.Succeeded, counts.Failed, counts.Blocked, counts.Unfinished)
-		for _, diagnosis := range rundiff.SummarizeDiagnoses(run) {
+		for _, diagnosis := range runlineage.SummarizeDiagnoses(run) {
 			message += fmt.Sprintf("\nDiagnosis: %s %d", diagnosis.Name, diagnosis.Count)
 		}
-		for _, origin := range rundiff.SummarizeOrigins(run) {
+		for _, origin := range runlineage.SummarizeOrigins(run) {
 			message += fmt.Sprintf("\nOrigin: %s %d", firstNonEmpty(origin.RunID, "new"), origin.Count)
 		}
 	}

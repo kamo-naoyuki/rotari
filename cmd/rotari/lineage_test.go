@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/rundiff"
+	"github.com/kamo-naoyuki/rotari/internal/runlineage"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -86,7 +86,7 @@ func TestCmdLineageListsSummarizesAndComparesRuns(t *testing.T) {
 	if code := captureShowStdout(t, &output, func() int { return cmdLineage(append(args, "--json")) }); code != 0 {
 		t.Fatalf("lineage --json exit = %d", code)
 	}
-	var entries []rundiff.LineageEntry
+	var entries []runlineage.LineageEntry
 	if err := json.Unmarshal(output.Bytes(), &entries); err != nil {
 		t.Fatalf("lineage JSON: %v\n%s", err, output.String())
 	}
@@ -99,7 +99,7 @@ func TestCmdLineageListsSummarizesAndComparesRuns(t *testing.T) {
 	if code := captureShowStdout(t, &output, func() int { return cmdLineage(append(args, "--json", second)) }); code != 0 {
 		t.Fatalf("lineage RUN exit = %d", code)
 	}
-	var single rundiff.RunSummary
+	var single runlineage.RunSummary
 	if err := json.Unmarshal(output.Bytes(), &single); err != nil {
 		t.Fatalf("single run JSON: %v\n%s", err, output.String())
 	}
@@ -111,7 +111,7 @@ func TestCmdLineageListsSummarizesAndComparesRuns(t *testing.T) {
 	if code := captureShowStdout(t, &output, func() int { return cmdLineage(append(args, "--json", first, second)) }); code != 0 {
 		t.Fatalf("lineage RUN_A RUN_B exit = %d", code)
 	}
-	var unified rundiff.Result
+	var unified runlineage.Result
 	if err := json.Unmarshal(output.Bytes(), &unified); err != nil {
 		t.Fatalf("unified comparison JSON: %v\n%s", err, output.String())
 	}
