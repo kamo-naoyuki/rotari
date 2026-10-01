@@ -88,6 +88,38 @@ func TestSelectsCombinesSelectionAndEveryJobCondition(t *testing.T) {
 	}
 }
 
+func TestSelectsArrayUsesAggregateSelectionAndAnyTaskCondition(t *testing.T) {
+	tasks := []Job{
+		{ID: "a-1", Result: model.JobResult{ExitCode: 1}, Finished: true},
+		{ID: "a-2", Result: model.JobResult{ExitCode: 2}, Finished: true},
+		{ID: "a-3", Finished: true},
+	}
+	if !(Filter{ExitCodes: []int{2}}).SelectsArray("failed", tasks) {
+		t.Fatal("exit code of a later failed task did not select the array")
+	}
+	if (Filter{ExitCodes: []int{4}}).SelectsArray("", tasks) {
+		t.Fatal("exit code no task has selected the array")
+	}
+	if (Filter{}).SelectsArray("success", tasks) {
+		t.Fatal("an array with failed tasks matched success")
+	}
+	unfinished := append(tasks[:2:2], Job{ID: "a-3"})
+	if (Filter{}).SelectsArray("failed", unfinished) || !(Filter{}).SelectsArray("unfinished", unfinished) {
+		t.Fatal("an array with an unfinished task is not unfinished as a whole")
+	}
+}
+
+func TestHasRunConditions(t *testing.T) {
+	if (Filter{NotStages: []string{"a"}, Command: "x", Changed: true}).HasRunConditions() {
+		t.Fatal("definition conditions reported as run conditions")
+	}
+	for _, filter := range []Filter{{ExitCodes: []int{1}}, {FailureKinds: []string{"oom"}}, {Diagnoses: []string{"x"}}, {Hosts: []string{"h"}}, {LongerThan: time.Second}} {
+		if !filter.HasRunConditions() {
+			t.Fatalf("%+v has no run conditions", filter)
+		}
+	}
+}
+
 func TestEmptyFilterMatchesEveryCommand(t *testing.T) {
 	filter := Filter{}
 	if !filter.Empty() {

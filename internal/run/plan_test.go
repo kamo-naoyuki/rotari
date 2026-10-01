@@ -166,6 +166,32 @@ func TestPlanRerunAppliesResultFiltersToArrayTasks(t *testing.T) {
 	}
 }
 
+func TestPlanRerunSelectsWholeArrayByAnyTask(t *testing.T) {
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "array", Command: []string{"run"}, Array: &model.ArraySpec{First: 1, Last: 2}},
+	}}
+	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"run-1": {
+		"array-1": {ID: "array-1", ExitCode: 1},
+		"array-2": {ID: "array-2", ExitCode: 3},
+	}}}
+	plan, err := PlanRerun(queue, "failed", nil, model.CommandSelector{}, jobfilter.Filter{ExitCodes: []int{3}}, "run-1", false, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.Execute["array"] {
+		t.Fatalf("execute = %#v, want the array for its second task's exit code", plan.Execute)
+	}
+	// Definition changes are recorded per task.
+	changed := jobfilter.Filter{Changed: true, ChangedIDs: map[string]bool{"array-2": true}}
+	plan, err = PlanRerun(queue, "", nil, model.CommandSelector{}, changed, "run-1", false, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.Execute["array"] {
+		t.Fatalf("execute = %#v, want the array with a changed task", plan.Execute)
+	}
+}
+
 func TestPlanRerunReportsUnknownJobIDs(t *testing.T) {
 	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "known"}}}
 	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"run-1": {}}}

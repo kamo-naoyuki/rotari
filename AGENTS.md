@@ -77,9 +77,11 @@ Do not change only one side.
 
 Whether a job or array task is selected by a result selection (`--failed`,
 `--success`, `--unfinished`) and the per-job `--filter-*` conditions is
-decided once, by `jobfilter.Filter.Selects`. `show`, `copy`, and `run` /
-`retry` (including each array task under `--partial-array`) call it; do not
-re-implement a condition in a caller. Callers only supply the job's facts.
+decided once, by `jobfilter.Filter.Selects`, and for an array job decided as
+a whole, by `jobfilter.Filter.SelectsArray` from its tasks. `show`, `copy`,
+and `run` / `retry` (including each array task under `--partial-array`) call
+them; do not re-implement a condition or aggregate task results in a caller.
+Callers only supply the job's facts.
 
 ### Paths
 

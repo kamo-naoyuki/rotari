@@ -69,7 +69,7 @@ lists each candidate's project, run or queue, and job. A group selector
 
 | Command | Without `--run-id` | With `--run-id` |
 | --- | --- | --- |
-| `show` | The active run, then an interrupted run, then a non-empty queue, then the latest run. Options that only apply to runs (`--failed`, `--logs`, `--failed-logs`, `--follow`, `--report`) skip the queue. A job selector without a project searches every project the same way and fails when it is ambiguous. | That run. |
+| `show` | The active run, then an interrupted run, then a non-empty queue, then the latest run. Options that only apply to runs (`--failed`, the `--filter-*` conditions on a result or execution such as `--filter-exit-code` and `--filter-host`, `--logs`, `--failed-logs`, `--follow`, `--report`) skip the queue, and `--queue` rejects them. A job selector without a project searches every project the same way and fails when it is ambiguous. | That run. |
 | `export` | A non-empty queue, else the latest run, named on stderr. An active or interrupted run is refused, pointing to `wait` or `unlock`. | That run, refused the same way when it is active or interrupted. |
 | `copy` | Source: the run named by attempt IDs, else the latest run that holds every `--job-id` (searching every project without `-p`), else the project's latest run. Destination: the current queue. | Source: that run (also as positional `RUN_ID`). |
 | `run`, `retry` | The current queue. A job selector, result filter, or group first restores the queue from the reference run when it is empty. A job selector looks for the job in a non-empty queue first, as `show` does, and otherwise in the latest run, which then replaces the queue (after confirmation). The reference run is found like `copy`'s source. | The queue is replaced by that run's snapshot (after confirmation), which is also the reference. |
@@ -207,12 +207,17 @@ heading in `--help`. `change` and `remove` take only the definition filters
 - A filter narrows a result filter and a scope. Alone, it keeps every job it
   does not exclude: `run` executes them whatever their result, and `retry`
   narrows its default failed and unfinished jobs.
+- An array job decided as a whole (`copy`, and `run`/`retry` with
+  `--partial-array=false`) matches a result filter by its aggregate result,
+  finished when every task is and failed when any task is, and matches the
+  other `--filter-*` conditions when any one task does.
 
 The conditions are `jobfilter.Filter` in
 [internal/jobfilter/filter.go](../internal/jobfilter/filter.go). Its
 `Selects` decides each job against the result selection and the per-job
 conditions for `run.PlanRerun` (whole commands and array tasks),
-`queueedit.Copy`, and `show`; `MatchesCommand` applies the definition
+`queueedit.Copy`, and `show`, and `SelectsArray` decides an array job as a
+whole from its tasks; `MatchesCommand` applies the definition
 conditions. The options are
 `cliJobFilterOptions` in
 [cmd/rotari/job_filter_flags.go](../cmd/rotari/job_filter_flags.go).

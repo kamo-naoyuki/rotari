@@ -156,6 +156,29 @@ func (filter Filter) Selects(selection string, job Job) bool {
 	return true
 }
 
+// SelectsArray reports whether an array job decided as a whole is selected:
+// its aggregate result, finished when every task is and failed when any task
+// is, matches selection, and some task satisfies every per-job condition.
+func (filter Filter) SelectsArray(selection string, tasks []Job) bool {
+	whole := Job{Finished: true}
+	for _, task := range tasks {
+		whole.Finished = whole.Finished && task.Finished
+		if whole.Result.ExitCode == 0 {
+			whole.Result.ExitCode = task.Result.ExitCode
+		}
+	}
+	if !(Filter{}).Selects(selection, whole) {
+		return false
+	}
+	return slices.ContainsFunc(tasks, func(task Job) bool { return filter.Selects("", task) })
+}
+
+// HasRunConditions reports whether the filter has a condition on a job's
+// result or execution, which only a run records.
+func (filter Filter) HasRunConditions() bool {
+	return len(filter.ExitCodes) > 0 || len(filter.FailureKinds) > 0 || len(filter.Diagnoses) > 0 || len(filter.Hosts) > 0 || filter.StartedAfter != nil || filter.StartedBefore != nil || filter.FinishedAfter != nil || filter.FinishedBefore != nil || filter.LongerThan > 0 || filter.ShorterThan > 0
+}
+
 // matchesResult reports whether a finished job's result satisfies the value
 // filters. An unfinished result never matches any exit-code or failure-kind
 // filter, even when the zero value would otherwise satisfy one.

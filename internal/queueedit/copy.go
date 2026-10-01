@@ -176,20 +176,18 @@ func selectCommands(source Run, selection string, inScope func(model.QueuedComma
 	selected := make([]model.QueuedCommand, 0, len(source.Snapshot.Commands))
 	selectedNames := make(map[string]bool)
 	for _, command := range source.Snapshot.Commands {
-		result, finished := model.AggregatedJobResult(command.ID, command.Array, source.Results)
 		include := false
 		if selection != "job-id" {
-			job := jobfilter.Job{ID: command.ID, Result: result, Finished: finished}
-			if source.Attributes != nil {
-				job.Attributes = source.Attributes(command.ID)
-			}
-			if source.Log != nil {
-				job.Diagnosis = func(selectors []string) bool {
-					log, err := source.Log(command.ID)
-					return err == nil && diagnose.MatchesResultSelectors(selectors, result, log)
+			if command.Array == nil {
+				include = filter.Selects(selection, source.job(command.ID))
+			} else {
+				tasks := make([]jobfilter.Job, 0)
+				for _, task := range model.ArrayTaskIDs(command.Array) {
+					tasks = append(tasks, source.job(fmt.Sprintf("%s-%d", command.ID, task)))
 				}
+				include = filter.SelectsArray(selection, tasks)
 			}
-			include = filter.Selects(selection, job) && inScope(command)
+			include = include && inScope(command)
 		}
 		if requested[command.ID] {
 			include = true
@@ -215,6 +213,22 @@ func selectCommands(source Run, selection string, inScope func(model.QueuedComma
 		return nil, nil, fmt.Errorf("run %s has no jobs matching selection", source.ID)
 	}
 	return selected, selectedNames, nil
+}
+
+// job returns what a filter needs to know about one job or task of the run.
+func (source Run) job(id string) jobfilter.Job {
+	result, finished := source.Results[id]
+	job := jobfilter.Job{ID: id, Result: result, Finished: finished}
+	if source.Attributes != nil {
+		job.Attributes = source.Attributes(id)
+	}
+	if source.Log != nil {
+		job.Diagnosis = func(selectors []string) bool {
+			log, err := source.Log(id)
+			return err == nil && diagnose.MatchesResultSelectors(selectors, result, log)
+		}
+	}
+	return job
 }
 
 func keptNames(names []string, keep func(string) bool) []string {

@@ -236,6 +236,27 @@ func TestCopyFilterNarrowsSelection(t *testing.T) {
 	}
 }
 
+func TestCopyFilterMatchesAnyTaskOfArray(t *testing.T) {
+	source := testRun([]model.QueuedCommand{
+		{ID: "arr", Command: []string{"run"}, Array: &model.ArraySpec{First: 1, Last: 2}},
+	}, model.JobResult{ID: "arr-1", ExitCode: 1}, model.JobResult{ID: "arr-2", ExitCode: 2})
+	source.Attributes = func(jobID string) jobfilter.Attributes {
+		return jobfilter.Attributes{Hosts: []string{"host-" + jobID}}
+	}
+	for name, filter := range map[string]jobfilter.Filter{
+		"exit code of the second failed task": {ExitCodes: []int{2}},
+		"host of a task":                      {Hosts: []string{"host-arr-2"}},
+	} {
+		queue, _, err := Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "failed", Filter: filter}, sequentialIDs())
+		if err != nil || !reflect.DeepEqual(commandIDs(queue), []string{"arr"}) {
+			t.Fatalf("%s: copied = %v, %v, want the array", name, commandIDs(queue), err)
+		}
+	}
+	if _, _, err := Copy(model.Queue{}, "demo", source, CopyRequest{Selection: "all", Filter: jobfilter.Filter{ExitCodes: []int{3}}}, sequentialIDs()); err == nil {
+		t.Fatal("an exit code no task has selected the array")
+	}
+}
+
 func TestCopyTaskIDNarrowsArray(t *testing.T) {
 	source := testRun([]model.QueuedCommand{
 		{ID: "eval", Command: []string{"true"}, Array: &model.ArraySpec{First: 1, Last: 3}},

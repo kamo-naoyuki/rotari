@@ -204,6 +204,33 @@ func (resolver *originResolver) job(id string, result model.JobResult, finished 
 	return job
 }
 
+// selectsCommand decides command as a whole: a job by its own result, and an
+// array by its tasks' results and attributes.
+func (resolver *originResolver) selectsCommand(filter jobfilter.Filter, selection string, command model.QueuedCommand, result model.JobResult, finished bool) (bool, error) {
+	if command.Array == nil {
+		attributes, err := resolver.attributes(command.Origin, command.ID)
+		if err != nil {
+			return false, err
+		}
+		return filter.Selects(selection, resolver.job(command.ID, result, finished, attributes, command.Origin)), nil
+	}
+	tasks := make([]jobfilter.Job, 0)
+	for _, task := range model.ArrayTaskIDs(command.Array) {
+		id := taskID(command.ID, task)
+		origin := TaskOrigin(command, task)
+		taskResult, taskFinished, err := resolver.jobResult(command, origin, id)
+		if err != nil {
+			return false, err
+		}
+		attributes, err := resolver.attributes(origin, id)
+		if err != nil {
+			return false, err
+		}
+		tasks = append(tasks, resolver.job(id, taskResult, taskFinished, attributes, origin))
+	}
+	return filter.SelectsArray(selection, tasks), nil
+}
+
 // jobResult returns the result of a job or task of command: the one its
 // origin or the reference run records, as its marked status leaves it.
 func (resolver *originResolver) jobResult(command model.QueuedCommand, origin *model.JobOrigin, id string) (model.JobResult, bool, error) {
@@ -298,13 +325,12 @@ func planByOrigin(queue model.Queue, selection string, jobIDs []string, inScope 
 		if err != nil {
 			return Plan{}, err
 		}
-		attributes, err := resolver.attributes(command.Origin, command.ID)
-		if err != nil {
-			return Plan{}, err
-		}
 		include := requested[command.ID]
-		if selection != "job-id" {
-			include = include || (scoped && filter.Selects(selection, resolver.job(command.ID, result, finished, attributes, command.Origin)))
+		if selection != "job-id" && scoped && !include {
+			include, err = resolver.selectsCommand(filter, selection, command, result, finished)
+			if err != nil {
+				return Plan{}, err
+			}
 		}
 		delete(requested, command.ID)
 		if include {

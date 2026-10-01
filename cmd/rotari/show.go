@@ -131,7 +131,9 @@ func cmdShow(args []string) int {
 	// logs and reports only know --failed.
 	failedOnly, unfinishedOnly, successOnly := filterOptions.resultFilters()
 	resultSelection := filterOptions.resultSelection()
-	resultFilter := resultSelection != ""
+	// Result and execution conditions need a run's results, so they select a
+	// run view like a result selection does.
+	resultFilter := resultSelection != "" || filter.HasRunConditions()
 	if (unfinishedOnly || successOnly) && (*showLogs || *showFailedLogs || *followLogs || *reportOutput || *jsonOutput) {
 		printError("--unfinished and --success filter the job table; logs, reports, and JSON take --failed only")
 		return 1
