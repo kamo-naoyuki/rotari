@@ -891,13 +891,14 @@ function notificationChannelEditor(name, settings, fields) {
   contentGroup.append(contentHeading);
   const maxLabel = document.createElement("label");
   maxLabel.className = "notification-max-jobs";
-  maxLabel.textContent = "Maximum jobs ";
   const maxInput = document.createElement("input");
   maxInput.type = "number";
   maxInput.name = name + "-max-jobs";
   maxInput.min = "1";
   maxInput.value = settings.max_jobs;
-  maxLabel.append(maxInput);
+  const maxText = document.createElement("span");
+  maxText.textContent = "Maximum jobs";
+  maxLabel.append(maxInput, maxText);
   contentGroup.append(maxLabel);
   const fieldGroup = document.createElement("div");
   fieldGroup.className = "notification-field-grid";

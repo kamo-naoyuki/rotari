@@ -211,7 +211,7 @@ setTimeout(() => {
 		if (groups[0].querySelectorAll('input[type="checkbox"]').length !== 4) process.exit(17);
 		if (groups[1].querySelectorAll('.notification-field-grid input[type="checkbox"]').length !== fields.length) process.exit(18);
 		const maxJobs = groups[1].querySelector('.notification-max-jobs');
-		if (!maxJobs || !maxJobs.textContent.startsWith('Maximum jobs') || !maxJobs.querySelector('input[type="number"]')) process.exit(19);
+		if (!maxJobs || maxJobs.firstElementChild !== maxJobs.querySelector('input[type="number"]') || maxJobs.lastElementChild.textContent !== 'Maximum jobs') process.exit(19);
 	}
 	const modal = dom.window.document.getElementById('output-modal');
 	modal.querySelector('strong').textContent = 'Notifications';
