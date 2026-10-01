@@ -32,6 +32,19 @@
   text-transform: uppercase;
 }
 
+.sidebar-config-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: -8px 4px 16px;
+}
+
+.sidebar-config-controls > button {
+  width: 100%;
+  min-height: 34px;
+  text-align: left;
+}
+
 .sidebar-section-note {
   margin: -5px 8px 7px;
   color: #718295;

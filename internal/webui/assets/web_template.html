@@ -29,6 +29,11 @@
           <span class="brand-name">rotari</span>
           <span class="brand-caption">JOB CONTROL</span>
         </a>
+        <div id="sidebar-config-controls" class="sidebar-config-controls">
+          <button id="notify-toggle" onclick="toggleRunNotifications()">
+            Enable notifications
+          </button>
+        </div>
         <div class="sidebar-section-heading">Registered basedirs</div>
         <div class="sidebar-section-note">
           State directories known to rotari
@@ -55,9 +60,7 @@
             <div class="meta" id="location">loading...</div>
           </div>
           <div class="toolbar">
-            <button id="notify-toggle" onclick="toggleRunNotifications()">
-              Enable notifications</button
-            ><button onclick="refresh()">Refresh</button>
+            <button id="refresh-button" onclick="refresh()">Refresh</button>
           </div>
         </header>
         <div id="disconnect-banner">

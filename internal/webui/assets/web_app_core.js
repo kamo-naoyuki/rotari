@@ -944,6 +944,47 @@ async function generateNotificationConfig(project, target, button) {
   notificationSettingsByProject.delete(project);
   await showNotificationConfig();
 }
+function appendNotificationConfigTargets(project, targets, form) {
+  const options = document.createElement("div");
+  options.className = "config-target-options";
+  for (const target of targets || []) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Generate " + target.location;
+    button.onclick = () => generateNotificationConfig(project, target, button);
+    options.append(button);
+  }
+  form.append(options);
+}
+async function showGenerateNotificationConfig() {
+  const project = configGenerationProject();
+  if (project === null) return;
+  const modal = document.getElementById("output-modal");
+  const output = ensureModalOutput();
+  const configEditor = document.getElementById("config-editor");
+  const generator = document.getElementById("config-generator");
+  const form = document.getElementById("notification-config-editor");
+  output.hidden = true;
+  configEditor.hidden = true;
+  generator.hidden = true;
+  form.hidden = false;
+  form.dataset.editable = "false";
+  form.replaceChildren();
+  const params = new URLSearchParams();
+  if (project) params.set("project_name", project);
+  const response = await fetch("/api/notification-config?" + params, {
+    cache: "no-store",
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    alert(text);
+    return;
+  }
+  appendNotificationConfigTargets(project, JSON.parse(text).targets, form);
+  modal.querySelector("strong").textContent = "Generate notifications config";
+  modal.dataset.view = "notification-config-generate";
+  openOutputModal(false);
+}
 async function showNotificationConfig() {
   const project = configGenerationProject();
   if (project === null) return;
@@ -970,17 +1011,7 @@ async function showNotificationConfig() {
   const payload = JSON.parse(text);
   form.dataset.editable = payload.path ? "true" : "false";
   if (!payload.path) {
-    const targets = document.createElement("div");
-    targets.className = "config-target-options";
-    for (const target of payload.targets || []) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = "Generate " + target.location;
-      button.onclick = () =>
-        generateNotificationConfig(project, target, button);
-      targets.append(button);
-    }
-    form.append(targets);
+    appendNotificationConfigTargets(project, payload.targets, form);
   } else {
     const settings = payload.settings;
     const webhookExtras = document.createElement("div");
@@ -1053,34 +1084,46 @@ async function showNotificationConfig() {
 function addConfigButton() {
   document
     .querySelectorAll(
-      ".config-button,.notification-config-button,.generate-config-button",
+      ".config-button,.notification-config-button,.generate-config-button,.notification-generate-config-button",
     )
     .forEach((button) => button.remove());
   const paths = pageConfigPaths();
+  const toolbar = document.querySelector(".toolbar");
+  const sidebarControls = document.getElementById("sidebar-config-controls");
   const viewButton = document.createElement("button");
   viewButton.className = "config-button";
   viewButton.textContent = "View config";
   viewButton.disabled = !paths.length;
   viewButton.title = paths.length ? "View config" : "No config file";
   if (paths.length) viewButton.onclick = showConfig;
-  const toolbar = document.querySelector(".toolbar");
-  toolbar.insertBefore(viewButton, document.getElementById("notify-toggle"));
+  toolbar.insertBefore(viewButton, document.getElementById("refresh-button"));
+  const generateConfigButton = document.createElement("button");
+  generateConfigButton.className = "generate-config-button";
+  generateConfigButton.textContent = "Generate config";
+  generateConfigButton.title = "Generate or replace a config template";
+  generateConfigButton.onclick = showGenerateConfig;
+  toolbar.insertBefore(
+    generateConfigButton,
+    document.getElementById("refresh-button"),
+  );
   if (configGenerationProject() !== null) {
     const notificationButton = document.createElement("button");
     notificationButton.className = "notification-config-button";
     notificationButton.textContent = "View notifications config";
     notificationButton.onclick = showNotificationConfig;
-    toolbar.insertBefore(
+    sidebarControls.insertBefore(
       notificationButton,
       document.getElementById("notify-toggle"),
     );
-    const generateButton = document.createElement("button");
-    generateButton.className = "generate-config-button";
-    generateButton.textContent = "Generate notifications config";
-    generateButton.title = "Generate or replace a config template";
-    generateButton.onclick = showGenerateConfig;
-    toolbar.insertBefore(
-      generateButton,
+    const generateNotificationButton = document.createElement("button");
+    generateNotificationButton.className =
+      "notification-generate-config-button";
+    generateNotificationButton.textContent = "Generate notifications config";
+    generateNotificationButton.title =
+      "Generate or replace a notifications.toml template";
+    generateNotificationButton.onclick = showGenerateNotificationConfig;
+    sidebarControls.insertBefore(
+      generateNotificationButton,
       document.getElementById("notify-toggle"),
     );
   }

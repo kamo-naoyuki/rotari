@@ -247,6 +247,7 @@ function updateModalActions() {
   copyButton.hidden =
     view === "generate-config" ||
     view === "notification-config" ||
+    view === "notification-config-generate" ||
     modal.dataset.editing === "true";
   document.getElementById("notification-config-save").hidden =
     view !== "notification-config" ||
@@ -496,7 +497,9 @@ function openOutputModal(compact) {
   const modal = document.getElementById("output-modal");
   const view = modal.dataset.view;
   const editingConfig = view === "config" && modal.dataset.editing === "true";
-  const editingNotificationConfig = view === "notification-config";
+  const editingNotificationConfig =
+    view === "notification-config" ||
+    view === "notification-config-generate";
   const generatingConfig = view === "generate-config";
   document
     .querySelector(".output-box")
