@@ -81,11 +81,6 @@ command-line tools. Each remote job runs in its own process group;
 cancellation reconnects over SSH and sends `SIGTERM` only when the recorded PID
 still has the same process start time, so a reused PID is never signalled.
 
-CI also tests execution and remote cancellation over a real, loopback-only
-OpenSSH server with a disposable key. These tests verify SSH transport and
-authentication in addition to the ordinary executor tests that replace the
-`ssh` command with a local stub.
-
 ```sh
 rotari add -p sweep \
   -e ssh \
@@ -96,17 +91,4 @@ rotari add -p sweep \
   --env CUDA_VISIBLE_DEVICES=0 \
   ./train.sh
 rotari run -p sweep
-```
-
-### Sun Grid Engine executor
-
-Select `sge` for Grid Engine installations that provide the standard
-`qsub`, `qstat -xml`, `qacct`, `qdel`, and `qmod` commands. SGE options are
-passed through to `qsub`; for example, use `--executor-option="-q short"` or
-`--sge-options="-q short"`. Rotari submits array tasks as individual jobs
-rather than relying on implementation-specific native array job IDs.
-
-```sh
-rotari add -p sweep -e sge --executor-option="-q short" ./train.sh
-rotari run -p sweep --sge-concurrency 8
 ```
