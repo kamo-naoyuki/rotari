@@ -9,7 +9,7 @@
 [![web demo](https://img.shields.io/website?url=https%3A%2F%2Fkamo-naoyuki.github.io%2Frotari%2F&label=web%20demo&style=flat)](https://kamo-naoyuki.github.io/rotari/) [![Documentation](https://img.shields.io/badge/docs-MkDocs%20Material-526CFE)](https://kamo-naoyuki.github.io/rotari/docs/) [![codecov](https://codecov.io/gh/kamo-naoyuki/rotari/graph/badge.svg)](https://codecov.io/gh/kamo-naoyuki/rotari) [![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=kamo-naoyuki_rotari&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kamo-naoyuki_rotari)
 
 
-**Rotari is a single-user, daemonless job queue and execution manager for command batches.** It runs jobs on a workstation or dispatches and tracks them over SSH or through Slurm, PBS, and LSF, keeping status, logs, and run history in the filesystem. On clusters, the scheduler allocates resources; on workstations, rotari limits local concurrency.
+**Rotari is a single-user, daemonless job queue and execution manager for command batches.** It runs jobs on a workstation or dispatches and tracks them over SSH or through Slurm, PBS, LSF, and SGE, keeping status, logs, and run history in the filesystem. On clusters, the scheduler allocates resources; on workstations, rotari limits local concurrency.
 
 Rotari is designed for researchers running experiment batches from shell scripts, and supports simple dependencies plus array and matrix jobs. If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet)'s `run.pl`/`queue.pl`, the basic idea should feel familiar.
 
