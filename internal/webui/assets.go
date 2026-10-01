@@ -137,7 +137,7 @@ func jobsHTMLWithSession(homePath string, projects []string, rows []joblist.Row,
 	var notificationControl string
 	var toolbar string
 	if canFilter {
-		notificationControl = `<div class="sidebar-config-controls"><button id="notify-toggle" type="button" onclick="toggleJobsNotifications()">Notification off</button></div>`
+		notificationControl = `<div class="sidebar-config-controls"><a class="sidebar-config-action" href="` + html.EscapeString(homePath+"?rotari-action=notification-config") + `">Notification settings</a><a class="sidebar-config-action" href="` + html.EscapeString(homePath+"?rotari-action=generate-notification-config") + `">Generate notification settings</a><button id="notify-toggle" type="button" onclick="toggleJobsNotifications()">Notification off</button></div>`
 		toolbar = `<div class="toolbar"><button type="button" onclick="location.reload()">Refresh</button></div>`
 	}
 	template = strings.Replace(template, "__ROTARI_JOBS_NOTIFICATION_CONTROL__", notificationControl, 1)

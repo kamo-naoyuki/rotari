@@ -341,8 +341,9 @@ function activeSidebarProjectsHTML(entry, queues, activeProject, activeRun) {
       const projectName = project.project_name;
       const key = entry.id + "/" + projectName;
       const projectActive = projectName === activeProject;
-      if (projectActive) expandedSidebarProjects[key] = true;
-      const expanded = projectActive || !!expandedSidebarProjects[key];
+      if (!Object.hasOwn(expandedSidebarProjects, key))
+        expandedSidebarProjects[key] = projectActive;
+      const expanded = !!expandedSidebarProjects[key];
       let currentRun = "";
       if (projectActive) currentRun = activeRun;
       const runsHTML = expanded
@@ -643,18 +644,43 @@ function applyBasedirLinks() {
     link.setAttribute("href", prefix + href);
   });
 }
-function setLocation(base, paths) {
+function webStatePath(...segments) {
+  const separator = String(segments[0] || "").includes("\\") ? "\\" : "/";
+  let path = String(segments.shift() || "").replace(/[\\/]+$/, "");
+  if (!path) path = separator;
+  for (const segment of segments) {
+    const part = String(segment).replace(/^[\\/]+|[\\/]+$/g, "");
+    if (!part) continue;
+    path = path.endsWith(separator) ? path + part : path + separator + part;
+  }
+  return path;
+}
+function setLocation(path) {
   const location = document.getElementById("location");
-  location.textContent = base;
-  if (!paths || !paths.length) return;
-  location.append("\nConfig: ");
-  paths.forEach((path, index) => {
-    if (index) location.append(", ");
-    const copy = document
+  location.replaceChildren(
+    path,
+    document
       .createRange()
-      .createContextualFragment(copyIconForValue(path, "config path"));
-    location.append(path, copy);
-  });
+      .createContextualFragment(copyIconForValue(path, "state path")),
+  );
+}
+function setModalConfigPaths(paths) {
+  const container = document.getElementById("modal-config-paths");
+  container.replaceChildren();
+  for (const path of paths || []) {
+    const item = document.createElement("div");
+    item.className = "modal-config-path";
+    const value = document.createElement("span");
+    value.textContent = path;
+    item.append(
+      value,
+      document
+        .createRange()
+        .createContextualFragment(copyIconForValue(path, "config path")),
+    );
+    container.append(item);
+  }
+  container.hidden = !paths?.length;
 }
 function pageConfigPaths() {
   const parts = pageParts();
@@ -680,6 +706,7 @@ async function showConfig() {
     "notification-config-editor",
   );
   const output = ensureModalOutput();
+  setModalConfigPaths([]);
   generator.hidden = true;
   editor.hidden = true;
   notificationEditor.hidden = true;
@@ -697,6 +724,7 @@ async function showConfig() {
   }
   const payload = JSON.parse(text);
   const files = payload.configs || [];
+  setModalConfigPaths(files.map((file) => file.path));
   const content = files
     .map((item) => "# " + item.path + "\n" + item.content)
     .join("\n\n");
@@ -919,6 +947,26 @@ function readNotificationChannel(form, name) {
     ].map((input) => input.value),
   };
 }
+function updateNotificationConfigDirty(form) {
+  const dirty = [...form.querySelectorAll("input,select")].some((control) => {
+    const value =
+      control.type === "checkbox" ? String(control.checked) : control.value;
+    return value !== control.dataset.initialValue;
+  });
+  form.classList.toggle("dirty", dirty);
+  form.querySelectorAll("fieldset").forEach((fieldset) =>
+    fieldset.classList.toggle("dirty", dirty),
+  );
+}
+function initializeNotificationConfigDirtyState(form) {
+  form.querySelectorAll("input,select").forEach((control) => {
+    control.dataset.initialValue =
+      control.type === "checkbox" ? String(control.checked) : control.value;
+  });
+  form.oninput = () => updateNotificationConfigDirty(form);
+  form.onchange = () => updateNotificationConfigDirty(form);
+  updateNotificationConfigDirty(form);
+}
 async function generateNotificationConfig(project, target, button) {
   if (
     !confirm(
@@ -971,13 +1019,14 @@ async function showGenerateNotificationConfig() {
   const configEditor = document.getElementById("config-editor");
   const generator = document.getElementById("config-generator");
   const form = document.getElementById("notification-config-editor");
+  setModalConfigPaths([]);
   output.hidden = true;
   configEditor.hidden = true;
   generator.hidden = false;
   form.hidden = true;
   form.dataset.editable = "false";
   generator.replaceChildren();
-  generator.textContent = "Loading notification config locations...";
+  generator.textContent = "Loading notification settings locations...";
   const params = new URLSearchParams();
   if (project) params.set("project_name", project);
   const response = await fetch("/api/notification-config?" + params, {
@@ -994,7 +1043,7 @@ async function showGenerateNotificationConfig() {
     "notifications.toml",
     (target, button) => generateNotificationConfig(project, target, button),
   );
-  modal.querySelector("strong").textContent = "Generate notifications config";
+  modal.querySelector("strong").textContent = "Generate notification settings";
   modal.dataset.view = "notification-config-generate";
   openOutputModal(true);
 }
@@ -1005,6 +1054,7 @@ async function showNotificationConfig() {
   const configEditor = document.getElementById("config-editor");
   const generator = document.getElementById("config-generator");
   const form = document.getElementById("notification-config-editor");
+  setModalConfigPaths([]);
   output.hidden = true;
   configEditor.hidden = true;
   generator.hidden = true;
@@ -1045,15 +1095,31 @@ async function showNotificationConfig() {
       format.add(option);
     }
     const url = document.createElement("input");
-    url.type = "password";
+    const savedWebhookURLMessage = payload.url_set
+      ? "Webhook URL is set — edit to replace or clear"
+      : "";
+    url.type = payload.url_set ? "text" : "password";
     url.name = "webhook-url";
-    url.placeholder = payload.url_set ? "Webhook URL is set" : "Webhook URL";
-    const clearLabel = document.createElement("label");
-    const clear = document.createElement("input");
-    clear.type = "checkbox";
-    clear.name = "clear-webhook-url";
-    clearLabel.append(clear, "Clear webhook URL");
-    webhookExtras.append("Format ", format, " URL ", url, clearLabel);
+    url.value = savedWebhookURLMessage;
+    url.placeholder = "Webhook URL";
+    url.title = payload.url_set
+      ? "Replace the saved URL, or clear this field to remove it"
+      : "Enter a webhook URL";
+    url.onfocus = () => {
+      if (url.value === savedWebhookURLMessage && savedWebhookURLMessage)
+        url.select();
+    };
+    url.oninput = () => {
+      if (url.value !== savedWebhookURLMessage) url.type = "password";
+      updateNotificationConfigDirty(form);
+    };
+    const urlLabel = document.createElement("label");
+    urlLabel.className = "notification-webhook-url-label";
+    urlLabel.append("Webhook URL ", url);
+    const formatLabel = document.createElement("label");
+    formatLabel.className = "notification-webhook-format-label";
+    formatLabel.append("Webhook format ", format);
+    webhookExtras.append(formatLabel, urlLabel);
     const webhook = notificationChannelEditor(
       "webhook",
       settings.webhook,
@@ -1065,12 +1131,15 @@ async function showNotificationConfig() {
       notificationChannelEditor("browser", settings.browser, payload.fields),
     );
     form.append(webhook);
+    setModalConfigPaths([payload.path]);
+    initializeNotificationConfigDirtyState(form);
     const save = document.getElementById("notification-config-save");
     form.onsubmit = async (event) => {
       event.preventDefault();
       save.disabled = true;
       const webhookSettings = readNotificationChannel(form, "webhook");
       webhookSettings.format = format.value;
+      const webhookURLChanged = url.value !== savedWebhookURLMessage;
       const saveResponse = await fetch("/api/save-notification-config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1080,8 +1149,8 @@ async function showNotificationConfig() {
             webhook: webhookSettings,
             browser: readNotificationChannel(form, "browser"),
           },
-          webhook_url: clear.checked ? "" : url.value,
-          change_webhook_url: clear.checked || url.value !== "",
+          webhook_url: webhookURLChanged ? url.value : "",
+          change_webhook_url: webhookURLChanged,
         }),
       });
       const saveText = await saveResponse.text();
@@ -1126,7 +1195,7 @@ function addConfigButton() {
   if (notificationConfigProject() !== null) {
     const notificationButton = document.createElement("button");
     notificationButton.className = "notification-config-button";
-    notificationButton.textContent = "Notification config";
+    notificationButton.textContent = "Notification settings";
     notificationButton.onclick = showNotificationConfig;
     sidebarControls.insertBefore(
       notificationButton,
@@ -1135,7 +1204,7 @@ function addConfigButton() {
     const generateNotificationButton = document.createElement("button");
     generateNotificationButton.className =
       "notification-generate-config-button";
-    generateNotificationButton.textContent = "Generate notifications config";
+    generateNotificationButton.textContent = "Generate notification settings";
     generateNotificationButton.title =
       "Generate or replace a notifications.toml template";
     generateNotificationButton.onclick = showGenerateNotificationConfig;
@@ -1145,6 +1214,22 @@ function addConfigButton() {
     );
   }
 }
+function openRequestedConfigAction() {
+  const url = new URL(window.location.href);
+  const action = url.searchParams.get("rotari-action");
+  if (
+    action !== "notification-config" &&
+    action !== "generate-notification-config"
+  )
+    return;
+  url.searchParams.delete("rotari-action");
+  history.replaceState(null, "", url.pathname + url.search + url.hash);
+  const open =
+    action === "notification-config"
+      ? showNotificationConfig
+      : showGenerateNotificationConfig;
+  open().catch((error) => alert(error.message));
+}
 function renderOverview(queues) {
   let runs = 0,
     running = 0;
@@ -1152,10 +1237,7 @@ function renderOverview(queues) {
     runs += q.run_count || q.runs.length;
     running += q.running_run_id ? 1 : 0;
   });
-  setLocation(
-    state.base_dir + " / all projects",
-    state.config_path ? [state.config_path] : [],
-  );
+  setLocation(webStatePath(state.base_dir, "projects"));
   document.getElementById("page-title").textContent = "All projects";
   document.getElementById("summary").innerHTML =
     "<span>" +
@@ -1206,10 +1288,7 @@ function renderOverview(queues) {
     : "No projects found.";
 }
 function renderQueue(q) {
-  setLocation(
-    state.base_dir + " / " + q.project_name,
-    q.config_path ? [q.config_path] : [],
-  );
+  setLocation(webStatePath(state.base_dir, "projects", q.project_name));
   document.getElementById("page-title").textContent = q.project_name;
   document.getElementById("summary").innerHTML =
     "<span>" +
@@ -1259,8 +1338,7 @@ function renderRun(q, runID) {
     return;
   }
   setLocation(
-    state.base_dir + " / " + q.project_name + " / " + runID,
-    run.context && run.context.config_snapshot_paths,
+    webStatePath(state.base_dir, "projects", q.project_name, "runs", runID),
   );
   document.getElementById("page-title").innerHTML = esc(run.run_name || runID);
   document.getElementById("summary").innerHTML =

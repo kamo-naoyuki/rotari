@@ -501,6 +501,10 @@ function openOutputModal(compact) {
   const generatingConfig =
     view === "generate-config" ||
     view === "notification-config-generate";
+  const configPaths = document.getElementById("modal-config-paths");
+  configPaths.hidden =
+    (view !== "config" && view !== "notification-config") ||
+    configPaths.childElementCount === 0;
   document
     .querySelector(".output-box")
     .classList.toggle("notification-config-output", editingNotificationConfig);

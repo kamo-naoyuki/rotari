@@ -72,6 +72,7 @@ render = function () {
   fixRunStatisticsColors();
   fixTimelineLegendColors();
   addConfigButton();
+  openRequestedConfigAction();
   addAIButtons();
   arrangeRunControls();
   orderJobActions();

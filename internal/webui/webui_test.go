@@ -196,8 +196,8 @@ setTimeout(() => {
 	for (let i = 0; i < 3; i++) dom.window.addConfigButton();
 	const notificationConfigButtons = dom.window.document.querySelectorAll('.notification-config-button');
 	const generateNotificationConfigButton = dom.window.document.querySelector('.notification-generate-config-button');
-	if (notificationConfigButtons.length !== 1 || notificationConfigButtons[0].textContent !== 'Notification config') process.exit(11);
-	if (!generateNotificationConfigButton || generateNotificationConfigButton.textContent !== 'Generate notifications config') process.exit(29);
+	if (notificationConfigButtons.length !== 1 || notificationConfigButtons[0].textContent !== 'Notification settings') process.exit(11);
+	if (!generateNotificationConfigButton || generateNotificationConfigButton.textContent !== 'Generate notification settings') process.exit(29);
 	if (!generateNotificationConfigButton.onclick.toString().includes('showGenerateNotificationConfig')) process.exit(30);
 	const sidebarControls = dom.window.document.getElementById('sidebar-config-controls');
 	if (!sidebarControls || sidebarControls.nextElementSibling.textContent.trim() !== 'Registered basedirs') process.exit(36);
@@ -275,13 +275,17 @@ setTimeout(() => {
 	if (dom.window.document.querySelector('.notification-config-button').parentElement.id !== 'sidebar-config-controls') process.exit(44);
 	let notificationConfigReads = 0;
 	let generatedNotificationRequest = null;
+	const notificationSaveRequests = [];
 	dom.window.confirm = () => true;
 	dom.window.fetch = async (url, options = {}) => {
+		if (String(url).startsWith('/api/config?')) {
+			return {ok: true, text: async () => JSON.stringify({configs: [{path: '/state/projects/demo/config.yaml', content: 'run: {}\n'}]})};
+		}
 		if (String(url).startsWith('/api/notification-config')) {
 			notificationConfigReads++;
 			const payload = notificationConfigReads === 1
 				? { path: '', targets: [{ location: 'basedir', path: '/state/notifications.toml' }] }
-				: { path: '/state/notifications.toml', url_set: false, fields: [], settings: {
+				: { path: '/state/notifications.toml', url_set: true, fields: [], settings: {
 					webhook: { format: 'json', job_failure: true, job_success: false, run_failure: true, run_success: true, max_jobs: 20, fields: [] },
 					browser: { job_failure: true, job_success: false, run_failure: true, run_success: true, max_jobs: 10, fields: [] },
 				} };
@@ -291,11 +295,19 @@ setTimeout(() => {
 			generatedNotificationRequest = JSON.parse(options.body);
 			return { ok: true, text: async () => '{"path":"/state/notifications.toml"}' };
 		}
+		if (url === '/api/save-notification-config') {
+			notificationSaveRequests.push(JSON.parse(options.body));
+			return { ok: true, text: async () => '{"path":"/state/notifications.toml"}' };
+		}
 		throw new Error('unexpected request: ' + url);
 	};
 	(async () => {
+		await dom.window.showConfig();
+		const configPath = dom.window.document.getElementById('modal-config-paths');
+		if (configPath.hidden || !configPath.textContent.includes('/state/projects/demo/config.yaml')) process.exit(52);
+		if (configPath.querySelector('[data-copy-value="/state/projects/demo/config.yaml"]') === null) process.exit(53);
 		await dom.window.showGenerateNotificationConfig();
-		if (modal.querySelector('strong').textContent !== 'Generate notifications config') process.exit(31);
+		if (modal.querySelector('strong').textContent !== 'Generate notification settings') process.exit(31);
 		if (!dom.window.document.getElementById('notification-config-editor').hidden || dom.window.document.getElementById('config-generator').hidden) process.exit(41);
 		const generator = dom.window.document.getElementById('config-generator');
 		if (generator.querySelector('p')?.textContent !== 'Choose where to generate notifications.toml.') process.exit(42);
@@ -304,8 +316,40 @@ setTimeout(() => {
 		await targets[0].onclick();
 		if (!generatedNotificationRequest || generatedNotificationRequest.location !== 'basedir') process.exit(33);
 		if (notificationConfigReads !== 2 || modal.querySelector('strong').textContent !== 'Notifications') process.exit(34);
+		const notificationPath = dom.window.document.getElementById('modal-config-paths');
+		if (notificationPath.hidden || !notificationPath.textContent.includes('/state/notifications.toml')) process.exit(54);
+		if (notificationPath.querySelector('[data-copy-value="/state/notifications.toml"]') === null) process.exit(55);
 		const channelTitles = [...dom.window.document.querySelectorAll('#notification-config-editor > fieldset > legend')].map(legend => legend.textContent);
 		if (JSON.stringify(channelTitles) !== JSON.stringify(['Desktop notifications (this browser)', 'External notifications (webhook)'])) process.exit(40);
+		const notificationForm = dom.window.document.getElementById('notification-config-editor');
+		const webhookURL = notificationForm.elements['webhook-url'];
+		const savedURLMessage = 'Webhook URL is set — edit to replace or clear';
+		if (webhookURL.value !== savedURLMessage || notificationForm.elements['clear-webhook-url']) process.exit(48);
+		const webhookURLLabel = webhookURL.closest('.notification-webhook-url-label');
+		if (!webhookURLLabel || webhookURLLabel.lastElementChild !== webhookURL || !webhookURLLabel.classList.contains('notification-webhook-url-label')) process.exit(56);
+		if (notificationForm.querySelector('.notification-webhook-format-label').textContent.trim() !== 'Webhook format jsonslackteamsdiscord') process.exit(57);
+		const eventCheckbox = notificationForm.querySelector('input[type="checkbox"]');
+		if (notificationForm.classList.contains('dirty') || [...notificationForm.querySelectorAll('fieldset')].some(fieldset => fieldset.classList.contains('dirty'))) process.exit(45);
+		const initialChecked = eventCheckbox.checked;
+		eventCheckbox.checked = !initialChecked;
+		eventCheckbox.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+		if (!notificationForm.classList.contains('dirty') || [...notificationForm.querySelectorAll('fieldset')].some(fieldset => !fieldset.classList.contains('dirty'))) process.exit(46);
+		eventCheckbox.checked = initialChecked;
+		eventCheckbox.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+		if (notificationForm.classList.contains('dirty') || [...notificationForm.querySelectorAll('fieldset')].some(fieldset => fieldset.classList.contains('dirty'))) process.exit(47);
+		const submitNotificationForm = async () => notificationForm.onsubmit({ preventDefault() {} });
+		await submitNotificationForm();
+		if (notificationSaveRequests.at(-1).change_webhook_url !== false) process.exit(49);
+		const urlToClear = notificationForm.elements['webhook-url'];
+		urlToClear.value = '';
+		urlToClear.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+		await submitNotificationForm();
+		if (notificationSaveRequests.at(-1).change_webhook_url !== true || notificationSaveRequests.at(-1).webhook_url !== '') process.exit(50);
+		const updatedURL = dom.window.document.getElementById('notification-config-editor').elements['webhook-url'];
+		updatedURL.value = 'https://hooks.example.test/new';
+		updatedURL.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+		await dom.window.document.getElementById('notification-config-editor').onsubmit({ preventDefault() {} });
+		if (notificationSaveRequests.at(-1).change_webhook_url !== true || notificationSaveRequests.at(-1).webhook_url !== 'https://hooks.example.test/new') process.exit(51);
 	})().catch(error => { console.error(error); process.exit(35); });
 }, 50);
 `
@@ -845,7 +889,7 @@ func TestRunToolbarButtonsUseConsistentMinimumWidth(t *testing.T) {
 
 func TestWebRunPageCopiesConfigPathsAndRunID(t *testing.T) {
 	html := testSite().webHTML()
-	for _, marker := range []string{"function setLocation(base, paths)", `copyIconForValue(path, "config path")`, `copyIconForValue(run.run_id, "run ID")`} {
+	for _, marker := range []string{"function setLocation(path)", `copyIconForValue(path, "state path")`, `setLocation(webStatePath(state.base_dir, "projects", q.project_name, "runs", runID))`, `copyIconForValue(run.run_id, "run ID")`} {
 		if !webContains(html, marker) {
 			t.Fatalf("web run page is missing identity copy control %q", marker)
 		}
@@ -861,12 +905,16 @@ func TestWebRunPageCopiesConfigPathsAndRunID(t *testing.T) {
 func TestWebProjectAndOverviewPagesCopyConfigPaths(t *testing.T) {
 	html := testSite().webHTML()
 	for _, marker := range []string{
-		`setLocation(state.base_dir + " / all projects", state.config_path ? [state.config_path] : [])`,
-		`setLocation(state.base_dir + " / " + q.project_name, q.config_path ? [q.config_path] : [])`,
+		`setLocation(webStatePath(state.base_dir, "projects"))`,
+		`setLocation(webStatePath(state.base_dir, "projects", q.project_name))`,
+		`setLocation(webStatePath(state.base_dir, "projects", q.project_name, "runs", runID))`,
 	} {
 		if !webContains(html, marker) {
-			t.Fatalf("web page is missing config path copy control setup %q", marker)
+			t.Fatalf("web page is missing state path display setup %q", marker)
 		}
+	}
+	if webContains(html, `location.append("\nConfig: ")`) {
+		t.Fatal("config file path is still displayed in the page header")
 	}
 }
 
@@ -928,7 +976,7 @@ func TestWebSidebarStylesAreSharedWithJobsPage(t *testing.T) {
 	if !strings.Contains(jobsHTML, `class="sidebar-project-row"><span class="sidebar-toggle-placeholder"`) {
 		t.Fatal("Job activity project links do not use the shared sidebar row layout")
 	}
-	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-config-controls {", "flex-direction: column;", ".sidebar-config-controls > button {", "align-self: flex-start;", "width: max-content;", "max-width: 100%;", ".sidebar-resizer {", ".basedir-notification-toggle {", ".basedir-notification-control {", ".basedir-notification-tooltip {", "width: 14px !important;", "height: 14px !important;", "padding: 0;", ".basedir-contents {", "margin-left: 42px;", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "overscroll-behavior: contain;", "overflow-anchor: none;", "text-overflow: ellipsis;"} {
+	for _, marker := range []string{".sidebar-section-heading {", ".sidebar-section-note {", ".sidebar-config-controls {", "flex-direction: column;", ".sidebar-config-controls > button,", ".sidebar-config-controls > .sidebar-config-action {", "align-self: flex-start;", "width: max-content;", "max-width: 100%;", ".sidebar-resizer {", ".basedir-notification-toggle {", ".basedir-notification-control {", ".basedir-notification-tooltip {", "width: 14px !important;", "height: 14px !important;", "padding: 0;", ".basedir-contents {", "margin-left: 42px;", "resize: none;", "min-width: 190px;", "max-width: 520px;", "overflow-y: auto;", "overflow-x: hidden;", "overscroll-behavior: contain;", "overflow-anchor: none;", "text-overflow: ellipsis;"} {
 		if !strings.Contains(webSidebarStylesCSS, marker) {
 			t.Fatalf("shared sidebar style is missing %q", marker)
 		}
@@ -1093,8 +1141,8 @@ func TestWebHTMLIncludesEmbeddedThemeFavicons(t *testing.T) {
 		`media="(prefers-color-scheme: light)"`,
 		`data:image/svg+xml;base64,`,
 		`<span class="brand-mark" aria-hidden="true"><img class="brand-icon" alt="" src="data:image/svg+xml;base64,`,
-		`<h1><img class="brand-icon"`,
-		`rotari Web</h1>`,
+		`<h1><a class="header-home" href="/"><img class="brand-icon"`,
+		`rotari Web</a></h1>`,
 	} {
 		if !webContains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
@@ -1151,7 +1199,7 @@ func TestWebHTMLIncludesProjectRuntime(t *testing.T) {
 
 func TestWebHTMLIncludesConfigPaths(t *testing.T) {
 	html := testSite().webHTML()
-	for _, want := range []string{"function setLocation(base, paths)", "function addConfigButton()", "function showGenerateConfig()", "generate-config-button", "config-editor", "/api/save-config", "/api/config-targets", "config-target-options", "state.config_path", "q.config_path", "run.context.config_snapshot_paths"} {
+	for _, want := range []string{"function setLocation(path)", "function setModalConfigPaths(paths)", "function addConfigButton()", "function showGenerateConfig()", "generate-config-button", "config-editor", "/api/save-config", "/api/config-targets", "config-target-options", "state.config_path", "project.config_path", "run.context.config_snapshot_paths"} {
 		if !webContains(html, want) {
 			t.Fatalf("web HTML does not contain %q", want)
 		}
@@ -1581,6 +1629,29 @@ func TestWebNotificationConfigGenerateReadAndSave(t *testing.T) {
 	if updated.Settings.Webhook.URL != "https://example.invalid/secret" || !updated.Settings.Browser.JobSuccess {
 		t.Fatalf("updated settings = %#v", updated.Settings)
 	}
+
+	settings.Webhook.URL = ""
+	clearBody, err := json.Marshal(webSaveNotificationConfigRequest{
+		Settings:         settings,
+		ChangeWebhookURL: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clearRequest := httptest.NewRequest(http.MethodPost, "/api/save-notification-config", bytes.NewReader(clearBody))
+	clearRequest.Header.Set("Content-Type", "application/json")
+	clearResponse := httptest.NewRecorder()
+	handler.ServeHTTP(clearResponse, clearRequest)
+	if clearResponse.Code != http.StatusOK {
+		t.Fatalf("clear webhook URL status = %d, body = %q", clearResponse.Code, clearResponse.Body.String())
+	}
+	cleared, err := notification.Load(baseDir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleared.Settings.Webhook.URL != "" {
+		t.Fatalf("cleared webhook URL = %q, want empty", cleared.Settings.Webhook.URL)
+	}
 }
 
 func TestWebNotificationConfigWriteRequiresControl(t *testing.T) {
@@ -1793,10 +1864,10 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 		}
 	}
 	body := response.Body.String()
-	notificationButtonIndex := strings.Index(body, `<div class="sidebar-config-controls"><button id="notify-toggle"`)
+	notificationButtonIndex := strings.Index(body, `<div class="sidebar-config-controls"><a class="sidebar-config-action"`)
 	registeredBasedirsIndex := strings.Index(body, "Registered basedirs")
 	if notificationButtonIndex < 0 || registeredBasedirsIndex <= notificationButtonIndex {
-		t.Fatal("Job activity notification toggle is not above Registered basedirs in the sidebar")
+		t.Fatal("Job activity notification controls are not above Registered basedirs in the sidebar")
 	}
 	if strings.Contains(body, `<div class="toolbar"><button id="notify-toggle"`) {
 		t.Fatal("Job activity notification toggle is still in the header toolbar")

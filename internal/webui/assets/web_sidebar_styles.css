@@ -39,12 +39,30 @@
   margin: -8px 4px 16px;
 }
 
-.sidebar-config-controls > button {
+.sidebar-config-controls > button,
+.sidebar-config-controls > .sidebar-config-action {
+  display: block;
   align-self: flex-start;
   width: max-content;
   max-width: 100%;
   min-height: 34px;
   text-align: left;
+}
+
+.sidebar-config-controls > .sidebar-config-action {
+  padding: 7px 12px;
+  border: 1px solid #314152;
+  border-radius: 8px;
+  background: #15212d;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 590;
+  text-decoration: none;
+}
+
+.sidebar-config-controls > .sidebar-config-action:hover {
+  border-color: #526b80;
+  background: #1c2b39;
 }
 
 .sidebar-section-note {
