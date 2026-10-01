@@ -2659,13 +2659,13 @@ func TestLoadWebStateIncludesRunContextAndTimeline(t *testing.T) {
 func TestBuildWebTimelineCountsCarriedResultsAtStart(t *testing.T) {
 	summary := model.RunSummary{StartedAt: "2026-09-16T00:00:00Z"}
 	jobs := []webprojection.Job{
-		{ID: "carried-success", Origin: &model.JobOrigin{RunID: "previous", JobID: "carried-success"}, SubmittedAt: "2026-09-15T00:00:01Z", FinishedAt: "2026-09-15T00:00:02Z", Result: &model.JobResult{ID: "carried-success", ExitCode: 0}},
+		{ID: "carried-success", Origin: &model.JobOrigin{RunID: "previous", JobID: "carried-success"}, Carried: true, SubmittedAt: "2026-09-15T00:00:01Z", FinishedAt: "2026-09-15T00:00:02Z", Result: &model.JobResult{ID: "carried-success", ExitCode: 0}},
 		{ID: "rerun-failed", SubmittedAt: "2026-09-16T00:00:01Z", FinishedAt: "2026-09-16T00:00:02Z", Result: &model.JobResult{ID: "rerun-failed", ExitCode: 1}},
 	}
 
 	inputs := make([]webprojection.JobTimelineInput, 0, len(jobs))
 	for _, job := range jobs {
-		inputs = append(inputs, webprojection.JobTimelineInput{Finished: job.Result != nil, Carried: job.Origin != nil, SubmittedAt: job.SubmittedAt, FinishedAt: job.FinishedAt, Success: job.Result != nil && job.Result.ExitCode == 0})
+		inputs = append(inputs, webprojection.JobTimelineInput{Finished: job.Result != nil, Carried: job.Carried, SubmittedAt: job.SubmittedAt, FinishedAt: job.FinishedAt, Success: job.Result != nil && job.Result.ExitCode == 0})
 	}
 	timeline := webprojection.BuildTimeline(summary.StartedAt, summary.FinishedAt, inputs)
 	if len(timeline) != 3 {

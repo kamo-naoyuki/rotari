@@ -18,6 +18,16 @@ Representative implementation and tests:
   and [internal/webui/assets/web_template.html](../internal/webui/assets/web_template.html)
   for the browser application and page shell.
 
+## Job timeline
+
+**WEB-1** A run timeline counts carried results at its initial point and
+includes timestamped submission and completion events for jobs executed in
+the run, even when those jobs have origin metadata. The shared carried-result
+decision is in [internal/runlineage](../internal/runlineage/runlineage.go);
+timeline projection is in [internal/web](../internal/web/timeline.go) and is
+covered through the Web API by
+[`TestFilteredRerunCarriesCompletedResults`](../conformance/02-lifecycle/lifecycle_test.go).
+
 ## Asset layout
 
 Web assets live under `internal/webui/assets/`:

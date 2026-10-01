@@ -48,6 +48,7 @@ type Job struct {
 	Matrix         *Matrix          `json:"matrix,omitempty"`
 	Result         *model.JobResult `json:"result,omitempty"`
 	Origin         *model.JobOrigin `json:"origin,omitempty"`
+	Carried        bool             `json:"-"`
 	AttemptDir     string           `json:"-"`
 	SubmittedAt    string           `json:"submitted_at,omitempty"`
 	FinishedAt     string           `json:"finished_at,omitempty"`

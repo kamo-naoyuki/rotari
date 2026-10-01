@@ -53,6 +53,12 @@ type Run struct {
 	Jobs       []Job
 }
 
+// IsCarried reports whether a job's result came from its origin rather than
+// an attempt executed in the current run.
+func IsCarried(origin *model.JobOrigin, latestAttemptID string, blocked bool) bool {
+	return origin != nil && !blocked && (latestAttemptID == "" || latestAttemptID == origin.AttemptID)
+}
+
 // Change is one changed field of a job definition.
 type Change struct {
 	Field string   `json:"field"`

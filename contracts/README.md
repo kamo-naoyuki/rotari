@@ -94,6 +94,7 @@ A rule in the pages of this directory gets an ID by starting with
 | `STATE` | "State load and write contracts" in [04-coordination-and-safety.md](04-coordination-and-safety.md#state-load-and-write-contracts) |
 | `SAFE` | "Concurrency and safety" in [04-coordination-and-safety.md](04-coordination-and-safety.md#concurrency-and-safety) |
 | `SEL` | [06-selectors.md](06-selectors.md): complete IDs, what each command reads, the job selector and job control tables, selector combinations, and positional arguments |
+| `WEB` | [05-web-assets-and-static-export.md](05-web-assets-and-static-export.md): Web API and UI behavior |
 
 Other sections have no IDs yet; give a rule one, with the next free number,
 when a conformance test starts checking it. Never renumber or reuse an ID;
@@ -187,3 +188,4 @@ the IDs, this table, and those calls disagree.
 | SEL-10 | Each command takes its positional arguments with their meaning and exclusions | conformance | `TestPositionalArguments` |
 | SEL-11 | The `--filter-*` options select jobs as the Filters section says | conformance | `TestSelectorTable` |
 | SEL-12 | `--job-name` and filters choose unfinished jobs for `cancel`, `suspend`, and `resume`, confirmed before acting | partial | `TestJobControlSelectors` |
+| WEB-1 | Run timelines show carried results at start and timestamped events for executed jobs, including jobs with origins | conformance | `TestFilteredRerunCarriesCompletedResults` |

@@ -117,6 +117,36 @@ func TestLoadJobsProjectsSummaryAndOrigin(t *testing.T) {
 	}
 }
 
+func TestBuildTimelineIncludesRerunAttemptEventsWhenJobHasOrigin(t *testing.T) {
+	runID := "run-1"
+	runDir := filepath.Join(t.TempDir(), runID)
+	attemptID := state.MakeAttemptID(runID, "job-1", 1)
+	attemptDir := filepath.Join(runDir, "job-1", "attempts", attemptID)
+	writeTestFile(t, filepath.Join(attemptDir, "submitted_at"), "2026-10-02T10:00:00Z")
+	writeTestFile(t, filepath.Join(attemptDir, "finished_at"), "2026-10-02T10:00:05Z")
+	writeTestFile(t, filepath.Join(attemptDir, "status"), "0")
+
+	origin := &model.JobOrigin{RunID: "run-0", JobID: "job-1", AttemptID: "previous-attempt", Status: "success"}
+	jobs, err := LoadJobs(
+		state.NewStore(0o700, 0o600),
+		runDir,
+		model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"echo", "ok"}, Origin: origin}}},
+		model.RunSummary{RunID: runID, StartedAt: "2026-10-02T09:59:00Z", FinishedAt: "2026-10-02T10:00:05Z", Results: []model.JobResult{{ID: "job-1", ExitCode: 0}}},
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	points := buildTimeline(model.RunSummary{StartedAt: "2026-10-02T09:59:00Z"}, jobs)
+	if len(points) != 3 {
+		t.Fatalf("timeline = %#v, want start, submission, and completion points", points)
+	}
+	if points[0].Pending != 1 || points[1].Running != 1 || points[2].Success != 1 {
+		t.Fatalf("timeline = %#v, want the rerun job to move pending → running → success", points)
+	}
+}
+
 func TestLoadJobsPrefersAttemptStatusOverSummary(t *testing.T) {
 	runDir := filepath.Join(t.TempDir(), "20260925-000000-00000000")
 	writeTestFile(t, filepath.Join(runDir, "job-1", "status"), "3")

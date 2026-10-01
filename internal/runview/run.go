@@ -51,7 +51,7 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runline
 		}
 		attemptID, _ := state.LatestAttemptID(runDir, spec.ID)
 		origin := origins[spec.ID]
-		carried := origin != nil && !resolved.Blocked() && (attemptID == "" || attemptID == origin.AttemptID)
+		carried := runlineage.IsCarried(origin, attemptID, resolved.Blocked())
 		diagnoses := make([]string, 0, len(summaryResult.Diagnoses))
 		for _, diagnosis := range summaryResult.Diagnoses {
 			diagnoses = append(diagnoses, diagnosis.Name)

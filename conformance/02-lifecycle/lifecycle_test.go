@@ -51,7 +51,7 @@ func summaryResult(t *testing.T, summary conformanceSummary, jobID string) (stri
 }
 
 func TestFilteredRerunCarriesCompletedResults(t *testing.T) {
-	covers(t, "CORE-3", "CORE-6", "RUN-1")
+	covers(t, "CORE-3", "CORE-6", "RUN-1", "WEB-1")
 	e := support.NewEnv(t)
 	okJob := support.AddedJobID(t, e.MustRotari("add", "-p", "p1", "--job-name", "ok", "--", "sh", "-c", "echo hello"))
 	badJob := support.AddedJobID(t, e.MustRotari("add", "-p", "p1", "--job-name", "bad", "--", "sh", "-c", "exit 3"))
@@ -85,6 +85,33 @@ func TestFilteredRerunCarriesCompletedResults(t *testing.T) {
 	}
 	if _, exit := summaryResult(t, second, badJob); exit == 0 {
 		t.Fatal("failed job was not rerun in the filtered run")
+	}
+	response := e.HTTPGet(e.StartWeb() + "/api/run?project_name=" + url.QueryEscape("p1") + "&run_id=" + url.QueryEscape(second.RunID))
+	if response.Status != 200 {
+		t.Fatalf("GET rerun details: status %d: %s", response.Status, response.Body)
+	}
+	var detail struct {
+		RunID    string `json:"run_id"`
+		Timeline []struct {
+			Pending  int `json:"pending"`
+			Finished int `json:"finished"`
+			Success  int `json:"success"`
+			Failed   int `json:"failed"`
+		} `json:"timeline"`
+	}
+	if err := json.Unmarshal([]byte(response.Body), &detail); err != nil {
+		t.Fatal(err)
+	}
+	if detail.RunID != second.RunID || len(detail.Timeline) < 2 {
+		t.Fatalf("rerun timeline = %#v, want initial and execution-event points", detail)
+	}
+	initial := detail.Timeline[0]
+	if initial.Pending != 1 || initial.Finished != 1 || initial.Success != 1 {
+		t.Fatalf("initial timeline point = %+v, want one carried success and one pending rerun", initial)
+	}
+	final := detail.Timeline[len(detail.Timeline)-1]
+	if final.Finished != 2 || final.Success != 1 || final.Failed != 1 {
+		t.Fatalf("final timeline point = %+v, want carried success and rerun failure", final)
 	}
 }
 

@@ -160,6 +160,7 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 		if pathErr != nil {
 			return nil, fmt.Errorf("invalid job ID %q: %w", jobSpec.ID, pathErr)
 		}
+		latestAttemptID, _ := state.LatestAttemptID(runDir, jobSpec.ID)
 		origin := origins[jobSpec.ID]
 		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobSpec.ID, origin)
 		summaryResult, hasSummary := results[jobSpec.ID]
@@ -178,13 +179,14 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 		if selected {
 			// A selected older attempt shows its own outcome; the summary
 			// result belongs to the latest attempt.
-			latestAttemptID, _ := state.LatestAttemptID(runDir, jobSpec.ID)
 			latest = selectedAttemptID == latestAttemptID
 			job.AttemptID = selectedAttemptID
 			job.SubmittedAt = state.ReadAttemptTimestamp(jobDir, "submitted_at")
 			job.FinishedAt = state.ReadAttemptTimestamp(jobDir, "finished_at")
 		}
-		if result, ok := jobstatus.ResolveAttempt(attempt, latest, summaryResult, hasSummary).Result(jobSpec); ok {
+		resolved := jobstatus.ResolveAttempt(attempt, latest, summaryResult, hasSummary)
+		job.Carried = runlineage.IsCarried(origin, latestAttemptID, resolved.Blocked())
+		if result, ok := resolved.Result(jobSpec); ok {
 			if selected {
 				result.AttemptID = selectedAttemptID
 			}
@@ -239,7 +241,7 @@ func loadAttempts(store state.Store, runDir string, jobSpec model.JobSpec) []Att
 func buildTimeline(summary model.RunSummary, jobs []Job) []TimelinePoint {
 	inputs := make([]JobTimelineInput, 0, len(jobs))
 	for _, job := range jobs {
-		inputs = append(inputs, JobTimelineInput{Finished: job.Result != nil, Carried: job.Origin != nil, SubmittedAt: job.SubmittedAt, FinishedAt: job.FinishedAt, Success: job.Result != nil && job.Result.ExitCode == 0})
+		inputs = append(inputs, JobTimelineInput{Finished: job.Result != nil, Carried: job.Carried, SubmittedAt: job.SubmittedAt, FinishedAt: job.FinishedAt, Success: job.Result != nil && job.Result.ExitCode == 0})
 	}
 	return BuildTimeline(summary.StartedAt, summary.FinishedAt, inputs)
 }
