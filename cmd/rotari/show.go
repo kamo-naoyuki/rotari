@@ -838,9 +838,10 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		if scoped != nil && !scoped[jobID] {
 			continue
 		}
-		latestAttemptLabel := "-"
-		if value, readErr := state.LatestAttemptID(runDir, jobID); readErr == nil && value != "" {
-			latestAttemptLabel = value
+		latestAttemptID, _ := state.LatestAttemptID(runDir, jobID)
+		latestAttemptLabel := latestAttemptID
+		if latestAttemptLabel == "" {
+			latestAttemptLabel = "-"
 		}
 		if latestAttemptLabel == "-" {
 			if origin := originByID[jobID]; origin != nil && origin.AttemptID != "" {
@@ -891,7 +892,9 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		if !filter.filter.Selects(filter.selection, job) {
 			continue
 		}
-		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobID, originByID[jobID])
+		origin := originByID[jobID]
+		carried := runlineage.IsCarried(origin, latestAttemptID, blocked)
+		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobID, origin, carried)
 		if statusOK && status != 0 {
 			changeHints = append(changeHints, jobSpec)
 		}

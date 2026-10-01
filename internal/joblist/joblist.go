@@ -182,7 +182,7 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, 
 		} else {
 			continue
 		}
-		submittedText, finishedText := jobstatus.Timestamps(runDir, job.ID, nil)
+		submittedText, finishedText := jobstatus.Timestamps(runDir, job.ID, nil, false)
 		startedAt, err := parseTimestamp(submittedText)
 		if err != nil && summary.StartedAt != "" {
 			startedAt, err = parseTimestamp(summary.StartedAt)

@@ -7,13 +7,14 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-// Timestamps returns a job's submitted and finished times. Missing values
-// fall back to the origin record of a carried job, then to the origin job's
-// own timestamps in its source run.
-func Timestamps(runDir, jobID string, origin *model.JobOrigin) (submittedAt, finishedAt string) {
-	submittedAt = state.ReadJobTimestamp(runDir, jobID, "submitted_at")
-	finishedAt = state.ReadJobTimestamp(runDir, jobID, "finished_at")
-	return resolveOriginTimestamps(submittedAt, finishedAt, origin, func(runID, sourceJobID string) (string, string) {
+// Timestamps returns a job's submitted and finished times. A carried result
+// uses timestamps from its origin; a job executed in this run uses only its
+// own attempt timestamps.
+func Timestamps(runDir, jobID string, origin *model.JobOrigin, carried bool) (submittedAt, finishedAt string) {
+	if !carried || origin == nil {
+		return state.ReadJobTimestamp(runDir, jobID, "submitted_at"), state.ReadJobTimestamp(runDir, jobID, "finished_at")
+	}
+	return resolveOriginTimestamps(origin.SubmittedAt, origin.FinishedAt, origin, func(runID, sourceJobID string) (string, string) {
 		sourceRunDir, err := state.SafeJoin(filepath.Dir(runDir), runID)
 		if err != nil {
 			return "", ""

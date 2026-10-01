@@ -162,7 +162,6 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 		}
 		latestAttemptID, _ := state.LatestAttemptID(runDir, jobSpec.ID)
 		origin := origins[jobSpec.ID]
-		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobSpec.ID, origin)
 		summaryResult, hasSummary := results[jobSpec.ID]
 		attemptID := jobSpec.AttemptID
 		if attemptID == "" && hasSummary {
@@ -170,7 +169,7 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 		}
 		attempt := jobstatus.ReadAttempt(store, jobDir)
 		_, finalErr := os.Stat(filepath.Join(jobDir, state.FinalResultFileName))
-		job := Job{ID: jobSpec.ID, AttemptID: attemptID, AttemptDir: jobDir, Name: jobSpec.Name, Stage: jobSpec.Stage, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, LogMode: jobSpec.LogMode, DependsOn: jobSpec.DependsOn, DependsOnFinished: jobSpec.DependsOnFinished, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SubmittedAt: submittedAt, FinishedAt: finishedAt, SchedulerState: attempt.SchedulerState, Final: hasSummary || finalErr == nil}
+		job := Job{ID: jobSpec.ID, AttemptID: attemptID, AttemptDir: jobDir, Name: jobSpec.Name, Stage: jobSpec.Stage, Command: jobSpec.Command, WorkingDirectory: jobSpec.WorkingDirectory, Executor: jobSpec.Executor, ExecutorOptions: jobSpec.ExecutorOptions, LogMode: jobSpec.LogMode, DependsOn: jobSpec.DependsOn, DependsOnFinished: jobSpec.DependsOnFinished, Origin: origin, ArrayTaskID: jobSpec.ArrayTaskID, ArrayFirst: jobSpec.ArrayFirst, ArrayLast: jobSpec.ArrayLast, SchedulerState: attempt.SchedulerState, Final: hasSummary || finalErr == nil}
 		job.Matrix = matrices[jobSpec.ID]
 		if jobSpec.ArrayGroup != "" {
 			job.Matrix = matrices[jobSpec.ArrayGroup]
@@ -181,11 +180,15 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 			// result belongs to the latest attempt.
 			latest = selectedAttemptID == latestAttemptID
 			job.AttemptID = selectedAttemptID
-			job.SubmittedAt = state.ReadAttemptTimestamp(jobDir, "submitted_at")
-			job.FinishedAt = state.ReadAttemptTimestamp(jobDir, "finished_at")
 		}
 		resolved := jobstatus.ResolveAttempt(attempt, latest, summaryResult, hasSummary)
 		job.Carried = runlineage.IsCarried(origin, latestAttemptID, resolved.Blocked())
+		if selected {
+			job.SubmittedAt = state.ResolveAttemptTimestamp(jobDir, "submitted_at")
+			job.FinishedAt = state.ResolveAttemptTimestamp(jobDir, "finished_at")
+		} else {
+			job.SubmittedAt, job.FinishedAt = jobstatus.Timestamps(runDir, jobSpec.ID, origin, job.Carried)
+		}
 		if result, ok := resolved.Result(jobSpec); ok {
 			if selected {
 				result.AttemptID = selectedAttemptID

@@ -147,6 +147,35 @@ func TestBuildTimelineIncludesRerunAttemptEventsWhenJobHasOrigin(t *testing.T) {
 	}
 }
 
+func TestBuildTimelineDoesNotUseOriginTimesForBlockedJobs(t *testing.T) {
+	runsDir := t.TempDir()
+	runDir := filepath.Join(runsDir, "run-2")
+	writeTestFile(t, filepath.Join(runsDir, "run-1", "job-1", "submitted_at"), "2026-10-02T09:00:00Z")
+	writeTestFile(t, filepath.Join(runsDir, "run-1", "job-1", "finished_at"), "2026-10-02T09:00:01Z")
+
+	origin := &model.JobOrigin{RunID: "run-1", JobID: "job-1", AttemptID: "old-attempt", SubmittedAt: "2026-10-02T09:00:00Z", FinishedAt: "2026-10-02T09:00:01Z"}
+	startedAt := "2026-10-02T10:00:00Z"
+	finishedAt := "2026-10-02T10:00:02Z"
+	jobs, err := LoadJobs(
+		state.NewStore(0o700, 0o600),
+		runDir,
+		model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"echo", "blocked"}, Origin: origin}}},
+		model.RunSummary{RunID: "run-2", StartedAt: startedAt, FinishedAt: finishedAt, Results: []model.JobResult{{ID: "job-1", ExitCode: 1, Error: "blocked by failed dependency"}}},
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if jobs[0].SubmittedAt != "" || jobs[0].FinishedAt != "" {
+		t.Fatalf("blocked job times = %q, %q; want no timestamps inherited from its origin", jobs[0].SubmittedAt, jobs[0].FinishedAt)
+	}
+
+	points := buildTimeline(model.RunSummary{StartedAt: startedAt, FinishedAt: finishedAt}, jobs)
+	if len(points) != 2 || points[0].At != startedAt || points[1].At != finishedAt {
+		t.Fatalf("timeline = %#v, want monotonic run-start and run-finish points", points)
+	}
+}
+
 func TestLoadJobsPrefersAttemptStatusOverSummary(t *testing.T) {
 	runDir := filepath.Join(t.TempDir(), "20260925-000000-00000000")
 	writeTestFile(t, filepath.Join(runDir, "job-1", "status"), "3")

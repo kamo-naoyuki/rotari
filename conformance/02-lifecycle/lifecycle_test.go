@@ -115,6 +115,41 @@ func TestFilteredRerunCarriesCompletedResults(t *testing.T) {
 	}
 }
 
+func TestBlockedOriginJobsDoNotRewindWebTimeline(t *testing.T) {
+	covers(t, "WEB-1")
+	e := support.NewEnv(t)
+	rootJob := support.AddedJobID(t, e.MustRotari("add", "-p", "timeline", "--job-name", "root", "--", "true"))
+	support.AddedJobID(t, e.MustRotari("add", "-p", "timeline", "--job-name", "dependent", "--depends-on", "root", "--", "true"))
+	e.MustRotari("run", "-p", "timeline", "--quiet")
+	source := readSummary(t, e, "timeline")
+	e.MustRotari("copy", "-p", "timeline", "--run-id", source.RunID, "--overwrite", "--quiet")
+	e.MustRotari("change", "-p", "timeline", "--job-id", rootJob, "--", "false")
+	if result := e.Rotari("run", "-p", "timeline", "--quiet"); result.Code == 0 {
+		t.Fatalf("rerun with a failed dependency unexpectedly succeeded: %s", result)
+	}
+	current := readSummary(t, e, "timeline")
+	response := e.HTTPGet(e.StartWeb() + "/api/run?project_name=" + url.QueryEscape("timeline") + "&run_id=" + url.QueryEscape(current.RunID))
+	if response.Status != 200 {
+		t.Fatalf("GET rerun details: status %d: %s", response.Status, response.Body)
+	}
+	var detail struct {
+		Timeline []struct {
+			At string `json:"at"`
+		} `json:"timeline"`
+	}
+	if err := json.Unmarshal([]byte(response.Body), &detail); err != nil {
+		t.Fatal(err)
+	}
+	if len(detail.Timeline) < 2 {
+		t.Fatalf("timeline = %#v, want start and completion points", detail.Timeline)
+	}
+	for index := 1; index < len(detail.Timeline); index++ {
+		if detail.Timeline[index].At < detail.Timeline[index-1].At {
+			t.Fatalf("timeline times move backwards: %#v", detail.Timeline)
+		}
+	}
+}
+
 func TestFingerprintMatchingUsesIDsAndRejectsCountMismatches(t *testing.T) {
 	covers(t, "RUN-4")
 	e := support.NewEnv(t)

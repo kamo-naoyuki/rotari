@@ -30,6 +30,34 @@ projection is in [internal/web](../internal/web/timeline.go) and display is in
 [web_app_charts.js](../internal/webui/assets/web_app_charts.js), covered by
 [`TestFilteredRerunCarriesCompletedResults`](../conformance/02-lifecycle/lifecycle_test.go).
 
+## History search
+
+**WEB-2** The live Web UI provides a dedicated history search across projects
+in selected registered basedirs. Its default scope is all registered basedirs
+and is independent of the basedir checkboxes used to monitor browser
+notifications. Search conditions select a project, run, or job field and a
+case-insensitive substring; additional conditions are joined in displayed
+order with AND or OR, evaluated left-to-right. When conditions target multiple
+levels, results use the most specific level and conditions for parent levels
+match the corresponding ancestor. Results are ordered by activity time with a
+stable tie-break and paged in batches of 50. Time ranges apply to the selected
+result level: run start/finish for runs, job finish/submission (falling back to
+the run time) for jobs, and activity in a run or job for projects. The static
+export includes the search route but explains that cross-basedir history
+search requires the live Web UI. The API validates basedir IDs against the
+server's registered-basedir allowlist and only reads persisted state.
+
+Search projection and condition evaluation live in
+[`internal/web/search.go`](../internal/web/search.go); the API scanner is in
+[`internal/webui/history_search.go`](../internal/webui/history_search.go),
+and the page is in
+[`web_app_search.js`](../internal/webui/assets/web_app_search.js). Package and
+API coverage is in
+[`internal/web/search_test.go`](../internal/web/search_test.go) and
+[`internal/webui/webui_test.go`](../internal/webui/webui_test.go); the
+cross-project API behavior is covered by
+[`TestHistorySearchAcrossProjects`](../conformance/05-web/history_search_test.go).
+
 ## Asset layout
 
 Web assets live under `internal/webui/assets/`:
@@ -46,6 +74,7 @@ internal/webui/assets/
 ├── web_app_charts.js
 ├── web_app_matrix.js
 ├── web_app_notifications.js
+├── web_app_search.js
 ├── web_app_bootstrap.js
 ├── web_static_bootstrap.js
 ├── cli_docs_template.html
@@ -65,7 +94,8 @@ order and delivered as one script; they intentionally share the global scope:
 4. `web_app_tables.js`
 5. `web_app_charts.js`
 6. `web_app_notifications.js`
-7. `web_app_bootstrap.js`
+7. `web_app_search.js`
+8. `web_app_bootstrap.js`
 
 Do not reorder these files without running the full Web test suite. The
 separation is for source readability and ownership, not JavaScript module
@@ -96,9 +126,9 @@ and `TestGenerateStaticWebWritesProjectPages` in
 asset and static copies.
 
 The live Web UI sidebar is hierarchical: registered basedirs (plus the
-startup `--basedir`) contain projects, and projects contain runs. `rotari web`
-does not offer a project-only filter; users choose a project from the selected
-basedir's tree. `/api/state` is a lightweight index: it lists project names,
+startup `--basedir`) contain projects, and projects contain runs. Other than
+History search, users choose a project from the selected basedir's tree.
+`/api/state` is a lightweight index: it lists project names,
 run counts, the latest and immediately preceding run summaries, and running-lock
 metadata without loading project queues or completed run details. Keeping the
 preceding summary lets notification polling catch a fast run followed by a new
@@ -109,8 +139,9 @@ a project loads its queue and run summaries through `/api/project`; opening a
 completed run loads its jobs, attempts, context, and timeline through `/api/run`.
 `/api/active-runs` exposes the same index for notification monitoring of
 other basedirs. Completed run details are cached in the browser for that
-session and are not polled again. All these API routes are bound to the basedir
-in the URL mount. The mount identifier resolves
+session and are not polled again. These API routes are bound to the basedir in
+the URL mount. The cross-basedir `/api/history-search` route is the exception:
+it accepts only basedir IDs from the registered allowlist. The mount identifier resolves
 only to the startup basedir or a basedir in the read-only registry list;
 unlisted IDs are not accepted. The static export remains a complete
 single-basedir snapshot and has no basedir switching. Covered by
@@ -174,7 +205,8 @@ notification permission and on/off toggle.
 - Web mutating routes are gated by `allowControl`, enabled by default and
   configurable with `--allow-control` or `ROTARI_WEB_ALLOW_CONTROL`.
   `--allow-control=false` rejects them with `403` before reading request bodies.
-  Read-only `GET` routes remain available.
+  Read-only `GET` routes and the read-only `POST /api/history-search` remain
+  available.
 - Web state exposes only whether an environment variable is set. Raw values
   never cross the HTTP boundary; `Value` is populated only by the local
   `rotari env` CLI command.
