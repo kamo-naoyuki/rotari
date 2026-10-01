@@ -138,7 +138,7 @@ func TestBuildTimelineIncludesRerunAttemptEventsWhenJobHasOrigin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	points := buildTimeline(model.RunSummary{StartedAt: "2026-10-02T09:59:00Z"}, jobs)
+	points := buildTimeline(model.RunSummary{StartedAt: "2026-10-02T09:59:00Z"}, jobs, nil)
 	if len(points) != 3 {
 		t.Fatalf("timeline = %#v, want start, submission, and completion points", points)
 	}
@@ -170,9 +170,26 @@ func TestBuildTimelineDoesNotUseOriginTimesForBlockedJobs(t *testing.T) {
 		t.Fatalf("blocked job times = %q, %q; want no timestamps inherited from its origin", jobs[0].SubmittedAt, jobs[0].FinishedAt)
 	}
 
-	points := buildTimeline(model.RunSummary{StartedAt: startedAt, FinishedAt: finishedAt}, jobs)
+	points := buildTimeline(model.RunSummary{StartedAt: startedAt, FinishedAt: finishedAt}, jobs, nil)
 	if len(points) != 2 || points[0].At != startedAt || points[1].At != finishedAt {
 		t.Fatalf("timeline = %#v, want monotonic run-start and run-finish points", points)
+	}
+}
+
+func TestBuildTimelineUsesRunStartSampleWhenSummaryStartedAtIsLate(t *testing.T) {
+	startedAt := "2026-10-02T09:00:27.123456789Z"
+	jobs := []Job{{
+		SubmittedAt: "2026-10-02T09:00:27Z",
+		FinishedAt:  "2026-10-02T09:00:39Z",
+		Result:      &model.JobResult{ID: "job-1", ExitCode: 0},
+	}}
+	points := buildTimeline(
+		model.RunSummary{StartedAt: "2026-10-02T09:00:39Z", FinishedAt: "2026-10-02T09:00:39Z"},
+		jobs,
+		[]model.LoadSample{{At: startedAt}},
+	)
+	if points[0].At != "2026-10-02T09:00:27Z" {
+		t.Fatalf("initial point time = %q, want run-start sample normalized to seconds", points[0].At)
 	}
 }
 

@@ -188,5 +188,5 @@ the IDs, this table, and those calls disagree.
 | SEL-10 | Each command takes its positional arguments with their meaning and exclusions | conformance | `TestPositionalArguments` |
 | SEL-11 | The `--filter-*` options select jobs as the Filters section says | conformance | `TestSelectorTable` |
 | SEL-12 | `--job-name` and filters choose unfinished jobs for `cancel`, `suspend`, and `resume`, confirmed before acting | partial | `TestJobControlSelectors` |
-| WEB-1 | Run timelines show carried results at start and timestamped events for executed jobs, including jobs with origins, without origin-time rewinds | conformance | `TestFilteredRerunCarriesCompletedResults`, `TestBlockedOriginJobsDoNotRewindWebTimeline` |
+| WEB-1 | Run timelines start at the actual run start, show carried results at start, and include timestamped events for executed jobs with origins, without origin-time rewinds | conformance | `TestFilteredRerunCarriesCompletedResults`, `TestBlockedOriginJobsDoNotRewindWebTimeline`, `TestRunTimelineStartsAtActualRunStart` |
 | WEB-2 | Live history search covers user-selected basedir/project/run scopes with validated, read-only hierarchical filters and pagination | partial | `TestHistorySearchAcrossProjects` |

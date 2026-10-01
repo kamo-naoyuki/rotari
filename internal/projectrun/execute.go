@@ -61,6 +61,10 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 	if !state.IsValidPathElement(runID) {
 		return 1, fmt.Errorf("invalid run ID %q", runID)
 	}
+	startedAt := runner.timestamp()
+	if lock, err := state.LoadLock(paths.LockFile); err == nil && lock.RunID == runID && lock.StartedAt != "" {
+		startedAt = lock.StartedAt
+	}
 	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
 		return 1, fmt.Errorf("failed to load queue: %w", err)
@@ -194,7 +198,7 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 	})
 	run.FinalizePendingResults(pending, finalResults)
 
-	summary := run.BuildRunSummary(runID, options.RunName, runner.timestamp(), jobs, finalResults, nil)
+	summary := run.BuildRunSummary(runID, options.RunName, startedAt, jobs, finalResults, nil)
 	if err := state.WriteJSON(filepath.Join(runDir, "summary.json"), summary); err != nil {
 		return 1, fmt.Errorf("failed to save run summary: %w", err)
 	}

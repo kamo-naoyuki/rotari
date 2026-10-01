@@ -22,13 +22,16 @@ Representative implementation and tests:
 
 **WEB-1** A run timeline counts carried results at its initial point and
 includes timestamped submission and completion events for jobs executed in
-the run, even when those jobs have origin metadata. The chart identifies its
-initial point as the run start and disambiguates repeated local clock labels
-with dates. The shared carried-result decision is in
+the run, even when those jobs have origin metadata. The initial point uses
+the actual run start; an initial load sample corrects older summaries that
+recorded a late start. The chart identifies the initial point and
+disambiguates repeated local clock labels with dates. The shared
+carried-result decision is in
 [internal/runlineage](../internal/runlineage/runlineage.go); timeline
 projection is in [internal/web](../internal/web/timeline.go) and display is in
 [web_app_charts.js](../internal/webui/assets/web_app_charts.js), covered by
-[`TestFilteredRerunCarriesCompletedResults`](../conformance/02-lifecycle/lifecycle_test.go).
+[`TestFilteredRerunCarriesCompletedResults`](../conformance/02-lifecycle/lifecycle_test.go) and
+[`TestRunTimelineStartsAtActualRunStart`](../conformance/02-lifecycle/lifecycle_test.go).
 
 ## History search
 

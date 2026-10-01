@@ -150,6 +150,44 @@ func TestBlockedOriginJobsDoNotRewindWebTimeline(t *testing.T) {
 	}
 }
 
+func TestRunTimelineStartsAtActualRunStart(t *testing.T) {
+	covers(t, "WEB-1")
+	e := support.NewEnv(t)
+	e.MustRotari("add", "-p", "timeline", "--", "sh", "-c", "sleep 2")
+	e.MustRotari("run", "-p", "timeline", "--quiet")
+
+	var shown struct {
+		RunID   string `json:"run_id"`
+		Summary struct {
+			StartedAt string `json:"started_at"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "timeline", "--json").Stdout), &shown); err != nil {
+		t.Fatal(err)
+	}
+	response := e.HTTPGet(e.StartWeb() + "/api/run?project_name=" + url.QueryEscape("timeline") + "&run_id=" + url.QueryEscape(shown.RunID))
+	if response.Status != 200 {
+		t.Fatalf("GET run timeline: status %d: %s", response.Status, response.Body)
+	}
+	var detail struct {
+		Timeline []struct {
+			At string `json:"at"`
+		} `json:"timeline"`
+	}
+	if err := json.Unmarshal([]byte(response.Body), &detail); err != nil {
+		t.Fatal(err)
+	}
+	if shown.Summary.StartedAt == "" || len(detail.Timeline) < 2 {
+		t.Fatalf("run start/timeline = %q / %#v, want a start and job event", shown.Summary.StartedAt, detail.Timeline)
+	}
+	if detail.Timeline[0].At > shown.Summary.StartedAt {
+		t.Fatalf("first timeline point = %q, after run start %q", detail.Timeline[0].At, shown.Summary.StartedAt)
+	}
+	if detail.Timeline[0].At > detail.Timeline[1].At {
+		t.Fatalf("timeline begins at %q after its first job event %q", detail.Timeline[0].At, detail.Timeline[1].At)
+	}
+}
+
 func TestFingerprintMatchingUsesIDsAndRejectsCountMismatches(t *testing.T) {
 	covers(t, "RUN-4")
 	e := support.NewEnv(t)

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
@@ -72,7 +73,7 @@ func LoadQueueState(loader QueueLoader) (QueueState, error) {
 		context.LoadSamples = loader.Samples(runID)
 		state.Runs = append(state.Runs, Run{
 			RunSummary: summary, LineageSummary: buildLineageSummary(summary, jobs), Jobs: jobs,
-			CWD: context.CWD, Context: context, Timeline: buildTimeline(summary, jobs), Running: runID == state.RunningRunID,
+			CWD: context.CWD, Context: context, Timeline: buildTimeline(summary, jobs, context.LoadSamples), Running: runID == state.RunningRunID,
 		})
 	}
 	sort.Slice(state.Runs, func(i, j int) bool { return state.Runs[i].RunID > state.Runs[j].RunID })
@@ -241,10 +242,19 @@ func loadAttempts(store state.Store, runDir string, jobSpec model.JobSpec) []Att
 	return attempts
 }
 
-func buildTimeline(summary model.RunSummary, jobs []Job) []TimelinePoint {
+func buildTimeline(summary model.RunSummary, jobs []Job, loadSamples []model.LoadSample) []TimelinePoint {
 	inputs := make([]JobTimelineInput, 0, len(jobs))
 	for _, job := range jobs {
 		inputs = append(inputs, JobTimelineInput{Finished: job.Result != nil, Carried: job.Carried, SubmittedAt: job.SubmittedAt, FinishedAt: job.FinishedAt, Success: job.Result != nil && job.Result.ExitCode == 0})
 	}
-	return BuildTimeline(summary.StartedAt, summary.FinishedAt, inputs)
+	startedAt := summary.StartedAt
+	if len(loadSamples) > 0 {
+		sampleAt := loadSamples[0].At
+		summaryStart, summaryErr := time.Parse(time.RFC3339, summary.StartedAt)
+		sampleStart, sampleErr := time.Parse(time.RFC3339Nano, sampleAt)
+		if summaryErr == nil && sampleErr == nil && summaryStart.Sub(sampleStart) > time.Second {
+			startedAt = sampleStart.UTC().Format(time.RFC3339)
+		}
+	}
+	return BuildTimeline(startedAt, summary.FinishedAt, inputs)
 }
