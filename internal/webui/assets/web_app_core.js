@@ -1037,7 +1037,9 @@ async function showNotificationConfig() {
 }
 function addConfigButton() {
   document
-    .querySelectorAll(".config-button,.generate-config-button")
+    .querySelectorAll(
+      ".config-button,.notification-config-button,.generate-config-button",
+    )
     .forEach((button) => button.remove());
   const paths = pageConfigPaths();
   const viewButton = document.createElement("button");

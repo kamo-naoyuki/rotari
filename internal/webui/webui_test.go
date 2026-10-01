@@ -193,6 +193,8 @@ setTimeout(() => {
 	const viewConfig = dom.window.document.querySelector('.config-button');
 	const generateConfig = dom.window.document.querySelector('.generate-config-button');
 	if (!viewConfig || !viewConfig.disabled || !generateConfig) process.exit(3);
+	for (let i = 0; i < 3; i++) dom.window.addConfigButton();
+	if (dom.window.document.querySelectorAll('.notification-config-button').length !== 1) process.exit(11);
 	const modal = dom.window.document.getElementById('output-modal');
 	modal.dataset.view = 'generate-config';
 	modal.querySelector('strong').textContent = 'Generate config';
