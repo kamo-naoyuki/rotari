@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -130,15 +131,65 @@ func TestWebHistorySearchPageRenders(t *testing.T) {
 		"href=\"/search/\"",
 		"history-search-form",
 		"history-search-conditions",
-		"history-search-basedirs",
+		"history-search-scopes",
+		"Choose basedir",
+		"All projects",
+		"All runs",
 		"Last 24 hours",
 		"All history",
-		"rotari-history-search-basedirs:",
 		"/api/history-search",
+		"/api/history-search-options",
 	} {
 		if !strings.Contains(html, marker) {
 			t.Errorf("Web HTML is missing history search marker %q", marker)
 		}
+	}
+	if strings.Contains(html, "history-search-basedirs input[type=\"checkbox\"]") {
+		t.Fatal("history search still uses a basedir checkbox list")
+	}
+}
+
+func TestHistorySearchScopeSelectorsLoadHierarchically(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	code, err := json.Marshal(webAppSearchJS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := `
+const vm = require('vm');
+const code = ` + string(code) + `;
+const project = { value: '', disabled: true, innerHTML: '', optionsHTML: '', insertAdjacentHTML(_where, html) { this.optionsHTML += html; }, closest() { return row; } };
+const run = { value: '', disabled: true, innerHTML: '', optionsHTML: '', insertAdjacentHTML(_where, html) { this.optionsHTML += html; } };
+const row = { querySelector(selector) { return selector === '.history-search-scope-project' ? project : run; } };
+const basedir = { value: 'base-a', closest() { return row; } };
+const requests = [];
+const context = {
+	registeredBasedirs: [{ id: 'base-a', path: '/state/a' }],
+	esc: value => String(value),
+	basedirURL: (_id, path) => path,
+	fetch: async url => {
+		requests.push(url);
+		return { ok: true, json: async () => String(url).includes('project_name=')
+			? { runs: [{ id: 'run-1', name: 'nightly', status: 'success' }] }
+			: { projects: ['project-a'] } };
+	},
+	URLSearchParams,
+};
+vm.createContext(context);
+vm.runInContext(code, context);
+(async () => {
+	await context.historySearchBasedirChanged(basedir);
+	if (project.disabled || !project.optionsHTML.includes('project-a')) throw new Error('basedir did not load project options');
+	project.value = 'project-a';
+	await context.historySearchProjectChanged(project);
+	if (run.disabled || !run.optionsHTML.includes('run-1') || !run.optionsHTML.includes('nightly')) throw new Error('project did not load run options');
+	if (requests.length !== 2) throw new Error('expected one options request per hierarchy level');
+})().catch(error => { console.error(error); process.exit(1); });
+`
+	if output, err := exec.Command("node", "-e", script).CombinedOutput(); err != nil {
+		t.Fatalf("history search dropdowns did not load hierarchically: %v\n%s", err, output)
 	}
 }
 
@@ -191,9 +242,49 @@ func TestWebHistorySearchScopesAcrossSelectedBasedirs(t *testing.T) {
 	}
 	options := testOptions(baseA, false)
 	options.BaseDirs = []string{baseA, baseB}
+	for _, test := range []struct {
+		query string
+		check func(*testing.T, []byte)
+	}{
+		{
+			query: "basedir_id=" + url.QueryEscape(basedirID(baseA)),
+			check: func(t *testing.T, data []byte) {
+				var got historySearchOptionsResponse
+				if err := json.Unmarshal(data, &got); err != nil {
+					t.Fatal(err)
+				}
+				if len(got.Projects) != 1 || got.Projects[0] != "project-a" {
+					t.Fatalf("basedir project options = %#v", got.Projects)
+				}
+			},
+		},
+		{
+			query: "basedir_id=" + url.QueryEscape(basedirID(baseA)) + "&project_name=project-a",
+			check: func(t *testing.T, data []byte) {
+				var got historySearchOptionsResponse
+				if err := json.Unmarshal(data, &got); err != nil {
+					t.Fatal(err)
+				}
+				if len(got.Runs) != 1 || got.Runs[0].ID != "run-a" {
+					t.Fatalf("project run options = %#v", got.Runs)
+				}
+			},
+		},
+	} {
+		request := httptest.NewRequest(http.MethodGet, "/api/history-search-options?"+test.query, nil)
+		recorder := httptest.NewRecorder()
+		Handler(options).ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("history search options status = %d, body = %s", recorder.Code, recorder.Body.String())
+		}
+		test.check(t, recorder.Body.Bytes())
+	}
 	input := historySearchAPIRequest{
 		HistorySearchRequest: webprojection.HistorySearchRequest{Filters: []webprojection.HistorySearchFilter{{Target: webprojection.HistorySearchJob, Field: "command", Word: "BUILD"}}},
-		BasedirIDs:           []string{basedirID(baseA), basedirID(baseB)},
+		Scopes: []webprojection.HistorySearchScope{
+			{BaseDirID: basedirID(baseA)},
+			{BaseDirID: basedirID(baseB)},
+		},
 	}
 	body, err := json.Marshal(input)
 	if err != nil {
@@ -212,7 +303,9 @@ func TestWebHistorySearchScopesAcrossSelectedBasedirs(t *testing.T) {
 	if result.Total != 2 || len(result.Rows) != 2 || result.Rows[0].BaseDirID == result.Rows[1].BaseDirID {
 		t.Fatalf("cross-basedir search result = %#v, want one matching job from each basedir", result)
 	}
-	input.BasedirIDs = []string{basedirID(baseB)}
+	input.Scopes = []webprojection.HistorySearchScope{{
+		BaseDirID: basedirID(baseB), ProjectName: "project-b", RunID: "run-b",
+	}}
 	body, err = json.Marshal(input)
 	if err != nil {
 		t.Fatal(err)
@@ -236,7 +329,7 @@ func TestWebHistorySearchRejectsUnknownBasedir(t *testing.T) {
 	options := testOptions(baseDir, false)
 	input := historySearchAPIRequest{
 		HistorySearchRequest: webprojection.HistorySearchRequest{Filters: []webprojection.HistorySearchFilter{{Target: webprojection.HistorySearchProject, Field: "project_name", Word: "demo"}}},
-		BasedirIDs:           []string{"not-registered"},
+		Scopes:               []webprojection.HistorySearchScope{{BaseDirID: "not-registered"}},
 	}
 	body, err := json.Marshal(input)
 	if err != nil {

@@ -33,8 +33,10 @@ projection is in [internal/web](../internal/web/timeline.go) and display is in
 ## History search
 
 **WEB-2** The live Web UI provides a dedicated history search across projects
-in selected registered basedirs. Its default scope is all registered basedirs
-and is independent of the basedir checkboxes used to monitor browser
+in user-selected scopes. Each scope selects a registered basedir and may
+narrow to one project and one run; multiple scopes are combined as a union.
+The dropdown choices load hierarchically from the selected basedir and project.
+Search scope is independent of basedir checkboxes used to monitor browser
 notifications. Search conditions select a project, run, or job field and a
 case-insensitive substring; additional conditions are joined in displayed
 order with AND or OR, evaluated left-to-right. When conditions target multiple
@@ -43,9 +45,9 @@ match the corresponding ancestor. Results are ordered by activity time with a
 stable tie-break and paged in batches of 50. Time ranges apply to the selected
 result level: run start/finish for runs, job finish/submission (falling back to
 the run time) for jobs, and activity in a run or job for projects. The static
-export includes the search route but explains that cross-basedir history
-search requires the live Web UI. The API validates basedir IDs against the
-server's registered-basedir allowlist and only reads persisted state.
+export includes the search route but explains that history search requires the
+live Web UI. Search and dropdown-option APIs validate basedir IDs against the
+server's registered-basedir allowlist and only read persisted state.
 
 Search projection and condition evaluation live in
 [`internal/web/search.go`](../internal/web/search.go); the API scanner is in

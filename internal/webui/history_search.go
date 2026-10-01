@@ -17,7 +17,100 @@ import (
 
 type historySearchAPIRequest struct {
 	webprojection.HistorySearchRequest
-	BasedirIDs []string `json:"basedir_ids"`
+	Scopes []webprojection.HistorySearchScope `json:"scopes"`
+}
+
+type historySearchOptionsResponse struct {
+	Projects []string                 `json:"projects,omitempty"`
+	Runs     []historySearchRunOption `json:"runs,omitempty"`
+}
+
+type historySearchRunOption struct {
+	ID     string `json:"id"`
+	Name   string `json:"name,omitempty"`
+	Status string `json:"status,omitempty"`
+}
+
+func (s site) handleHistorySearchOptions(writer http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet {
+		methodNotAllowed(writer)
+		return
+	}
+	entry, ok := s.registeredBasedir(request.URL.Query().Get("basedir_id"))
+	if !ok {
+		writeWebError(writer, fmt.Errorf("invalid basedir_id"))
+		return
+	}
+	projectName := request.URL.Query().Get("project_name")
+	if projectName == "" {
+		projects, err := joblist.Projects(entry.Path, "")
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writeWebJSON(writer, historySearchOptionsResponse{Projects: projects})
+		return
+	}
+	projects, err := joblist.Projects(entry.Path, "")
+	if err != nil {
+		writeWebError(writer, err)
+		return
+	}
+	if !containsHistorySearchValue(projects, projectName) {
+		writeWebError(writer, fmt.Errorf("project_name %q not found", projectName))
+		return
+	}
+	paths, err := stateinternal.ResolveProjectPaths(entry.Path, projectName)
+	if err != nil {
+		writeWebError(writer, err)
+		return
+	}
+	runIDs, err := webRunIDs(paths.RunsDir)
+	if err != nil {
+		writeWebError(writer, err)
+		return
+	}
+	runs := make([]historySearchRunOption, 0, len(runIDs))
+	for _, runID := range runIDs {
+		runDir, err := stateinternal.SafeJoin(paths.RunsDir, runID)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		summary, err := stateinternal.LoadRunSummary(filepath.Join(runDir, "summary.json"))
+		if errors.Is(err, stateinternal.ErrNewerStateVersion) {
+			runs = append(runs, historySearchRunOption{ID: runID, Status: "unreadable"})
+			continue
+		}
+		if err != nil {
+			runs = append(runs, historySearchRunOption{ID: runID, Status: "running"})
+			continue
+		}
+		status := summary.Status
+		if status == "" && summary.FinishedAt != "" {
+			status = model.RunStatus(summary.ExitCode)
+		}
+		runs = append(runs, historySearchRunOption{ID: runID, Name: summary.RunName, Status: status})
+	}
+	writeWebJSON(writer, historySearchOptionsResponse{Runs: runs})
+}
+
+func containsHistorySearchValue(values []string, value string) bool {
+	for _, candidate := range values {
+		if candidate == value {
+			return true
+		}
+	}
+	return false
+}
+
+func (s site) registeredBasedir(id string) (webBaseDir, bool) {
+	for _, entry := range s.basedirEntries() {
+		if entry.ID == id {
+			return entry, true
+		}
+	}
+	return webBaseDir{}, false
 }
 
 func (s site) handleHistorySearch(writer http.ResponseWriter, request *http.Request) {
@@ -41,27 +134,28 @@ func (s site) handleHistorySearch(writer http.ResponseWriter, request *http.Requ
 		writeWebError(writer, err)
 		return
 	}
-	if len(input.BasedirIDs) == 0 || len(input.BasedirIDs) > 100 {
-		writeWebError(writer, fmt.Errorf("history search requires between 1 and 100 basedirs"))
+	if len(input.Scopes) == 0 {
+		writeWebError(writer, fmt.Errorf("history search requires at least one search range"))
 		return
 	}
-	entries := make(map[string]webBaseDir)
-	for _, entry := range s.basedirEntries() {
-		entries[entry.ID] = entry
-	}
-	selected := make(map[string]bool, len(input.BasedirIDs))
-	for _, id := range input.BasedirIDs {
-		_, ok := entries[id]
-		if !ok || selected[id] {
-			writeWebError(writer, fmt.Errorf("invalid basedir_id %q", id))
+	selectedScopes := make(map[string]bool, len(input.Scopes))
+	records := make([]webprojection.HistorySearchRecord, 0)
+	for _, scope := range input.Scopes {
+		entry, ok := s.registeredBasedir(scope.BaseDirID)
+		if !ok {
+			writeWebError(writer, fmt.Errorf("invalid basedir_id %q", scope.BaseDirID))
 			return
 		}
-		selected[id] = true
-	}
-	records := make([]webprojection.HistorySearchRecord, 0)
-	for _, id := range input.BasedirIDs {
-		entry := entries[id]
-		loaded, err := s.loadHistorySearchRecords(entry)
+		if scope.RunID != "" && scope.ProjectName == "" {
+			writeWebError(writer, fmt.Errorf("project_name is required with run_id"))
+			return
+		}
+		key := scope.BaseDirID + "\x00" + scope.ProjectName + "\x00" + scope.RunID
+		if selectedScopes[key] {
+			continue
+		}
+		selectedScopes[key] = true
+		loaded, err := s.loadHistorySearchRecords(entry, scope.ProjectName, scope.RunID)
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -76,14 +170,23 @@ func (s site) handleHistorySearch(writer http.ResponseWriter, request *http.Requ
 	writeWebJSON(writer, result)
 }
 
-func (s site) loadHistorySearchRecords(entry webBaseDir) ([]webprojection.HistorySearchRecord, error) {
+func (s site) loadHistorySearchRecords(entry webBaseDir, projectName, runID string) ([]webprojection.HistorySearchRecord, error) {
 	projects, err := joblist.Projects(entry.Path, "")
 	if err != nil {
 		return nil, err
 	}
+	if projectName != "" {
+		if !stateinternal.IsValidPathElement(projectName) {
+			return nil, fmt.Errorf("invalid project_name %q", projectName)
+		}
+		if !containsHistorySearchValue(projects, projectName) {
+			return nil, fmt.Errorf("project_name %q not found", projectName)
+		}
+		projects = []string{projectName}
+	}
 	records := make([]webprojection.HistorySearchRecord, 0)
 	for _, projectName := range projects {
-		projectRecords, err := s.loadHistorySearchProject(entry, projectName)
+		projectRecords, err := s.loadHistorySearchProject(entry, projectName, runID)
 		if err != nil {
 			return nil, err
 		}
@@ -92,7 +195,7 @@ func (s site) loadHistorySearchRecords(entry webBaseDir) ([]webprojection.Histor
 	return records, nil
 }
 
-func (s site) loadHistorySearchProject(entry webBaseDir, projectName string) ([]webprojection.HistorySearchRecord, error) {
+func (s site) loadHistorySearchProject(entry webBaseDir, projectName, selectedRunID string) ([]webprojection.HistorySearchRecord, error) {
 	paths, err := stateinternal.ResolveProjectPaths(entry.Path, projectName)
 	if err != nil {
 		return nil, err
@@ -100,6 +203,15 @@ func (s site) loadHistorySearchProject(entry webBaseDir, projectName string) ([]
 	runIDs, err := webRunIDs(paths.RunsDir)
 	if err != nil {
 		return nil, err
+	}
+	if selectedRunID != "" {
+		if _, err := stateinternal.SafeJoin(paths.RunsDir, selectedRunID); err != nil {
+			return nil, err
+		}
+		if !containsHistorySearchValue(runIDs, selectedRunID) {
+			return nil, fmt.Errorf("run_id %q not found for project %q", selectedRunID, projectName)
+		}
+		runIDs = []string{selectedRunID}
 	}
 	lock, lockErr := stateinternal.LoadLock(paths.LockFile)
 	if lockErr != nil {

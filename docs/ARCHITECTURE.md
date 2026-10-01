@@ -62,8 +62,8 @@ flowchart LR
    project locks across the selected basedir, and loads a project's queue and
    run summaries only when that project is opened. Job/attempt details load
    only for the selected run or active runs monitored for notifications.
-   The dedicated history-search API scans all runs in the requested registered
-   basedirs without expanding the lightweight `/api/state` index.
+   The dedicated history-search API scans only the user-selected basedir,
+   project, and run scopes without expanding the lightweight `/api/state` index.
    Expanding another basedir reads only its project directory names. Static
    export remains a complete snapshot. Its control endpoints (`/api/copy`,
    `/api/cancel-job`, ...) call the same internal operations as the CLI.

@@ -31,6 +31,12 @@ type HistorySearchRequest struct {
 	Limit   int                   `json:"limit,omitempty"`
 }
 
+type HistorySearchScope struct {
+	BaseDirID   string `json:"basedir_id"`
+	ProjectName string `json:"project_name,omitempty"`
+	RunID       string `json:"run_id,omitempty"`
+}
+
 type HistorySearchRecord struct {
 	BaseDirID   string
 	BaseDirPath string

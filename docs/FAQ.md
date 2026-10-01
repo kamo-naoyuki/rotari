@@ -376,10 +376,11 @@ duration such as `6h` or `168h` in `Since` to change the completed-job window.
 ### Can I search old jobs across projects?
 
 Yes. Open `History search` in the Web sidebar to search project, run, and job
-history across registered basedirs. The search scope is selected separately
-from notification monitoring, and defaults to all registered basedirs. Choose
-a time window and add field/word conditions joined by AND or OR. The static Web
-export includes an explanation page; history search requires the live Web UI.
+history in selected scopes. Choose a basedir, then optionally narrow it to a
+project and run; add more scopes to include additional ranges. Scope selection
+is independent of notification monitoring. Choose a time window and add
+field/word conditions joined by AND or OR. The static Web export includes an
+explanation page; history search requires the live Web UI.
 
 ### What do Create and Append do on a run page?
 

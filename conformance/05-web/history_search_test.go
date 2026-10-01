@@ -25,9 +25,9 @@ func TestHistorySearchAcrossProjects(t *testing.T) {
 		t.Fatal(err)
 	}
 	response := e.HTTPPostJSON(base+"/api/history-search", map[string]any{
-		"basedir_ids": []string{base64.RawURLEncoding.EncodeToString([]byte(filepath.Clean(absBase)))},
-		"filters":     []map[string]string{{"target": "job", "field": "command", "word": "true"}},
-		"limit":       50,
+		"scopes":  []map[string]string{{"basedir_id": base64.RawURLEncoding.EncodeToString([]byte(filepath.Clean(absBase)))}},
+		"filters": []map[string]string{{"target": "job", "field": "command", "word": "true"}},
+		"limit":   50,
 	})
 	if response.Status != 200 {
 		t.Fatalf("history search: status %d: %s", response.Status, response.Body)

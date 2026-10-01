@@ -17,27 +17,8 @@ const historySearchFieldOptions = {
     { value: "exit_code", label: "Job exit code" },
   ],
 };
-const historySearchBasedirsKey =
-  "rotari-history-search-basedirs:" +
-  registeredBasedirs
-    .map((entry) => entry.id)
-    .sort()
-    .join(",");
 let historySearchLastRequest = null;
 let historySearchOffset = 0;
-
-function historySearchSelectedBasedirIDs() {
-  const all = registeredBasedirs.map((entry) => entry.id);
-  try {
-    const stored = localStorage.getItem(historySearchBasedirsKey);
-    if (stored === null) return new Set(all);
-    const registered = new Set(all);
-    return new Set(JSON.parse(stored).filter((id) => registered.has(id)));
-  } catch (error) {
-    // If local storage is unavailable or malformed, default to all registered basedirs.
-    return new Set(all);
-  }
-}
 
 function historySearchConditionHTML(join = "and") {
   const targets = [
@@ -104,29 +85,35 @@ function historySearchToggleCustomRange(select) {
   if (custom) custom.hidden = select.value !== "custom";
 }
 
-function historySearchBasedirsHTML() {
-  const selected = historySearchSelectedBasedirIDs();
-  return registeredBasedirs
+function historySearchScopeHTML() {
+  const basedirOptions = registeredBasedirs
     .map(
-      (entry) => `<label class="history-search-basedir">
-        <input type="checkbox" name="basedir" value="${esc(entry.id)}" ${selected.has(entry.id) ? "checked" : ""} />
-        <span title="${esc(entry.path)}">${esc(entry.path)}</span>
-      </label>`,
+      (entry) => `<option value="${esc(entry.id)}">${esc(entry.path)}</option>`,
     )
     .join("");
+  return `<div class="history-search-scope-row">
+    <select class="history-search-scope-basedir" aria-label="Basedir" onchange="historySearchBasedirChanged(this)">
+      <option value="">Choose basedir</option>${basedirOptions}
+    </select>
+    <select class="history-search-scope-project" aria-label="Project" onchange="historySearchProjectChanged(this)" disabled>
+      <option value="">All projects</option>
+    </select>
+    <select class="history-search-scope-run" aria-label="Run" disabled>
+      <option value="">All runs</option>
+    </select>
+    <button type="button" class="history-search-scope-remove" aria-label="Remove search range" onclick="historySearchRemoveScope(this)" hidden>−</button>
+  </div>`;
 }
 
 function historySearchPageHTML() {
   return `<div class="history-search-page">
-    <p class="history-search-intro">Search project, run, and job history across registered basedirs.</p>
+    <p class="history-search-intro">Search project, run, and job history in the ranges you choose.</p>
     <form id="history-search-form" class="history-search-form">
       <fieldset class="history-search-scope">
         <legend>Search scope</legend>
-        <div class="history-search-basedirs">${historySearchBasedirsHTML()}</div>
-        <div class="history-search-scope-actions">
-          <button type="button" onclick="historySearchSetAllBasedirs(true)">Select all</button>
-          <button type="button" onclick="historySearchSetAllBasedirs(false)">Clear</button>
-        </div>
+        <p class="history-search-scope-help">Choose a basedir, then optionally narrow the range to a project and run. Added ranges are searched together.</p>
+        <div id="history-search-scopes">${historySearchScopeHTML()}</div>
+        <button type="button" class="history-search-add-scope" onclick="historySearchAddScope()">＋ Add search range</button>
       </fieldset>
       <fieldset class="history-search-query">
         <legend>Conditions</legend>
@@ -174,36 +161,118 @@ function renderHistorySearchPage() {
   document.title = "History search · rotari";
   document.getElementById("page-title").textContent = "History search";
   document.getElementById("summary").textContent =
-    "Across projects and registered basedirs";
+    "Choose basedirs, projects and runs to search";
   app.className = "";
   app.innerHTML = historySearchPageHTML();
   document
     .getElementById("history-search-form")
     .addEventListener("submit", historySearchSubmit);
-  document
-    .querySelectorAll('.history-search-basedirs input[name="basedir"]')
-    .forEach((checkbox) =>
-      checkbox.addEventListener("change", historySearchSaveBasedirs),
+}
+
+function historySearchAddScope() {
+  const scopes = document.getElementById("history-search-scopes");
+  if (!scopes) return;
+  scopes.insertAdjacentHTML("beforeend", historySearchScopeHTML());
+  historySearchUpdateScopeControls(scopes);
+}
+
+function historySearchRemoveScope(button) {
+  const scopes = document.getElementById("history-search-scopes");
+  button.closest(".history-search-scope-row").remove();
+  historySearchUpdateScopeControls(scopes);
+}
+
+function historySearchUpdateScopeControls(scopes) {
+  [...scopes.children].forEach((scope) => {
+    scope.querySelector(".history-search-scope-remove").hidden =
+      scopes.children.length === 1;
+  });
+}
+
+async function historySearchBasedirChanged(select) {
+  const row = select.closest(".history-search-scope-row");
+  const project = row.querySelector(".history-search-scope-project");
+  const run = row.querySelector(".history-search-scope-run");
+  project.innerHTML = '<option value="">All projects</option>';
+  run.innerHTML = '<option value="">All runs</option>';
+  project.disabled = !select.value;
+  run.disabled = true;
+  if (!select.value) return;
+  const selectedID = select.value;
+  try {
+    const response = await fetch(
+      basedirURL(
+        selectedID,
+        "/api/history-search-options?basedir_id=" +
+          encodeURIComponent(selectedID),
+      ),
     );
+    if (!response.ok || select.value !== selectedID) return;
+    const options = await response.json();
+    project.insertAdjacentHTML(
+      "beforeend",
+      (options.projects || [])
+        .map((name) => `<option value="${esc(name)}">${esc(name)}</option>`)
+        .join(""),
+    );
+  } catch (error) {
+    // Keep the project selector empty if the selected basedir is unavailable.
+  }
 }
 
-function historySearchSetAllBasedirs(checked) {
-  document
-    .querySelectorAll('.history-search-basedirs input[name="basedir"]')
-    .forEach((checkbox) => (checkbox.checked = checked));
-  historySearchSaveBasedirs();
-}
-
-function historySearchSaveBasedirs() {
-  const selected = [
-    ...document.querySelectorAll(
-      '.history-search-basedirs input[name="basedir"]:checked',
-    ),
-  ].map((checkbox) => checkbox.value);
-  localStorage.setItem(historySearchBasedirsKey, JSON.stringify(selected));
+async function historySearchProjectChanged(select) {
+  const row = select.closest(".history-search-scope-row");
+  const basedir = row.querySelector(".history-search-scope-basedir");
+  const run = row.querySelector(".history-search-scope-run");
+  run.innerHTML = '<option value="">All runs</option>';
+  run.disabled = !select.value;
+  if (!select.value) return;
+  const selectedProject = select.value;
+  const selectedID = basedir.value;
+  const query = new URLSearchParams({
+    basedir_id: selectedID,
+    project_name: selectedProject,
+  });
+  try {
+    const response = await fetch(
+      basedirURL(selectedID, "/api/history-search-options?" + query),
+    );
+    if (
+      !response.ok ||
+      basedir.value !== selectedID ||
+      select.value !== selectedProject
+    )
+      return;
+    const options = await response.json();
+    run.insertAdjacentHTML(
+      "beforeend",
+      (options.runs || [])
+        .map((item) => {
+          const label = item.name
+            ? `${item.name} · ${item.id}`
+            : `${item.id}${item.status ? ` · ${item.status}` : ""}`;
+          return `<option value="${esc(item.id)}">${esc(label)}</option>`;
+        })
+        .join(""),
+    );
+  } catch (error) {
+    // Keep the run selector empty if the selected project is unavailable.
+  }
 }
 
 function historySearchRequestFromForm() {
+  const scopes = [...document.querySelectorAll(".history-search-scope-row")]
+    .map((row) => ({
+      basedir_id: row.querySelector(".history-search-scope-basedir").value,
+      project_name: row.querySelector(".history-search-scope-project").value,
+      run_id: row.querySelector(".history-search-scope-run").value,
+    }))
+    .filter((scope) => scope.basedir_id)
+    .map((scope) => ({
+      basedir_id: scope.basedir_id,
+      ...(scope.project_name ? { project_name: scope.project_name } : {}),
+      ...(scope.run_id ? { run_id: scope.run_id } : {}),
+    }));
   const filters = [
     ...document.querySelectorAll(".history-search-condition"),
   ].map((condition, index) => ({
@@ -215,11 +284,7 @@ function historySearchRequestFromForm() {
       : {}),
   }));
   const request = {
-    basedir_ids: [
-      ...document.querySelectorAll(
-        '.history-search-basedirs input[name="basedir"]:checked',
-      ),
-    ].map((checkbox) => checkbox.value),
+    scopes,
     filters,
     limit: 50,
     offset: 0,
@@ -266,8 +331,8 @@ async function historySearchExecute() {
   message.textContent = "Searching…";
   pagination.hidden = true;
   results.replaceChildren();
-  if (!historySearchLastRequest.basedir_ids.length) {
-    message.textContent = "Select at least one basedir to search.";
+  if (!historySearchLastRequest.scopes.length) {
+    message.textContent = "Choose at least one search range.";
     return;
   }
   const request = {
