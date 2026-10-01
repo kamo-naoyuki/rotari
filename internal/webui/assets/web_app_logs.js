@@ -245,7 +245,9 @@ function updateModalActions() {
     view !== "ai" || typeof window.__ROTARI_STATIC_STATE__ !== "undefined";
   const copyButton = document.getElementById("copy-modal");
   copyButton.hidden =
-    view === "generate-config" || modal.dataset.editing === "true";
+    view === "generate-config" ||
+    view === "notification-config" ||
+    modal.dataset.editing === "true";
   const copyTitle = view === "log" ? "Copy log" : "Copy";
   copyButton.title = copyTitle;
   copyButton.setAttribute("aria-label", copyTitle);
@@ -486,10 +488,14 @@ function openOutputModal(compact) {
   const modal = document.getElementById("output-modal");
   const view = modal.dataset.view;
   const editingConfig = view === "config" && modal.dataset.editing === "true";
+  const editingNotificationConfig = view === "notification-config";
   const generatingConfig = view === "generate-config";
-  ensureModalOutput().hidden = editingConfig || generatingConfig;
+  ensureModalOutput().hidden =
+    editingConfig || editingNotificationConfig || generatingConfig;
   document.getElementById("config-editor").hidden = !editingConfig;
   document.getElementById("config-generator").hidden = !generatingConfig;
+  document.getElementById("notification-config-editor").hidden =
+    !editingNotificationConfig;
   if (!editingConfig) delete modal.dataset.editing;
   updateModalActions();
   modal.style.display = "flex";

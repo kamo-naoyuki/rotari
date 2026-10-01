@@ -213,6 +213,13 @@ setTimeout(() => {
 		if (!groups[1].querySelector('input[type="number"]')) process.exit(19);
 	}
 	const modal = dom.window.document.getElementById('output-modal');
+	modal.querySelector('strong').textContent = 'Notifications';
+	modal.dataset.view = 'notification-config';
+	dom.window.openOutputModal(false);
+	if (modal.querySelector('strong').textContent !== 'Notifications') process.exit(20);
+	if (!dom.window.document.getElementById('modal-log').hidden) process.exit(21);
+	if (dom.window.document.getElementById('notification-config-editor').hidden) process.exit(22);
+	if (!dom.window.document.getElementById('copy-modal').hidden) process.exit(23);
 	modal.dataset.view = 'generate-config';
 	modal.querySelector('strong').textContent = 'Generate config';
 	dom.window.styleActionColumns();

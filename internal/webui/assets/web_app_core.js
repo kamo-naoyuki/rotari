@@ -1053,7 +1053,6 @@ async function showNotificationConfig() {
   }
   modal.querySelector("strong").textContent = "Notifications";
   modal.dataset.view = "notification-config";
-  modal.dataset.editing = "true";
   openOutputModal(false);
 }
 function addConfigButton() {
