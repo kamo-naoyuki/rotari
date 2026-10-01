@@ -4,7 +4,7 @@ Rotari keeps track of experiment batches run from shell scripts: which jobs
 are running, which failed and why, their logs, and every earlier run.
 
 It runs the same batch on a workstation, over SSH, or on a shared Slurm, PBS,
-or LSF cluster while keeping commands, results, and logs together.
+LSF, or Sun Grid Engine cluster while keeping commands, results, and logs together.
 
 ## Start here
 
@@ -13,7 +13,7 @@ or LSF cluster while keeping commands, results, and logs together.
 - [Environment variables](ENVIRONMENT_VARIABLES.md): variable meanings and scope.
 - [Concepts](CONCEPTS.md): projects, queues, runs, IDs, and state.
 - [Running and recovering](RUNNING.md): schedule, execute, inspect, rerun, retry, and use array and matrix jobs.
-- [Executors and schedulers](EXECUTORS.md): local, SSH, Slurm, PBS, and LSF execution backends.
+- [Executors and schedulers](EXECUTORS.md): local, SSH, Slurm, PBS, LSF, and SGE execution backends.
 - [Inspecting and diagnosing](INSPECT.md): status, logs, and failure diagnosis.
 
 The repository [README](https://github.com/kamo-naoyuki/rotari) provides the

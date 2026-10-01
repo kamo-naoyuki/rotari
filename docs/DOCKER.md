@@ -11,7 +11,7 @@ AMD64 and ARM64. Images are tagged with the release version and (for stable
 releases) `latest`.
 
 The image contains Rotari, Bash, and the OpenSSH client. It does not bundle job
-language runtimes or Slurm, PBS, or LSF clients. Use a custom image when jobs
+language runtimes or Slurm, PBS, LSF, or SGE clients. Use a custom image when jobs
 need additional software or scheduler commands.
 
 ## Start an interactive container

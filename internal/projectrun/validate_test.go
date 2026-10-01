@@ -39,6 +39,11 @@ func TestValidateQueueRejectsInvalidExecutorConfiguration(t *testing.T) {
 			queue: model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Executor: "slurm", ExecutorOptions: []string{"--array=1-2"}, Array: &model.ArraySpec{First: 1, Last: 2}, Command: []string{"true"}}}},
 			want:  `job "job-1" executor options: executor options must not include --array`,
 		},
+		{
+			name:  "reserved SGE array option",
+			queue: model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Executor: "sge", ExecutorOptions: []string{"-t 1-2"}, Array: &model.ArraySpec{First: 1, Last: 2}, Command: []string{"true"}}}},
+			want:  `job "job-1" executor options: executor options must not include -t`,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -34,11 +34,11 @@ A newer rotari reads runs and queues written by older versions. `queue.json`, a 
 
 ### Can rotari manage jobs for multiple users like Slurm?
 
-No. Rotari has no accounts, permissions, quotas, or fair-share scheduling. Use a separate `--basedir` per user and do not share writable state or Web UI tokens between untrusted users. Slurm, PBS, or LSF remains responsible for scheduler-side identity and resource policy.
+No. Rotari has no accounts, permissions, quotas, or fair-share scheduling. Use a separate `--basedir` per user and do not share writable state or Web UI tokens between untrusted users. Slurm, PBS, LSF, or SGE remains responsible for scheduler-side identity and resource policy.
 
 ### Which workflow-orchestrator features does rotari provide?
 
-Rotari provides dependencies, parallel execution, retries, logs, history, array jobs, local/SSH/Slurm/PBS/LSF execution, a Web UI, completion webhooks, and an optional declarative workflow manifest.
+Rotari provides dependencies, parallel execution, retries, logs, history, array jobs, local/SSH/Slurm/PBS/LSF/SGE execution, a Web UI, completion webhooks, and an optional declarative workflow manifest.
 
 The manifest is a constrained representation of the existing queue, not a programming language: commands remain argument arrays. Rotari does not provide file freshness checks, artifact caching, scheduled or event triggers, data lineage, RBAC, or quotas. Use tools such as Snakemake, `make`, or Airflow when those features are needed.
 
@@ -76,7 +76,7 @@ Generate `notifications.toml` with `rotari config --notifications`, then set `we
 
 ### How are concurrency and executor options selected?
 
-`--local-concurrency` applies to local jobs; `--batch-concurrency` is the default for other executors. SSH, Slurm, PBS, and LSF also have executor-specific settings, with job-level settings taking priority.
+`--local-concurrency` applies to local jobs; `--batch-concurrency` is the default for other executors. SSH, Slurm, PBS, LSF, and SGE also have executor-specific settings, with job-level settings taking priority.
 
 ### Can I limit CPU or memory for a local job without Slurm?
 
@@ -134,7 +134,7 @@ Rust is also a strong option, but Go is currently a better balance of safety, im
 
 ### Does rotari run on Windows?
 
-No. Rotari supports Linux and macOS, and on Windows it runs inside [WSL](https://learn.microsoft.com/windows/wsl/). WSL2 also supports CUDA, so GPU experiments on a Windows machine can run there. Native Windows support is not planned: rotari relies on POSIX file locks, signals, sessions and process groups, and shell wrapper scripts, and Slurm, PBS, and LSF run on Linux.
+No. Rotari supports Linux and macOS, and on Windows it runs inside [WSL](https://learn.microsoft.com/windows/wsl/). WSL2 also supports CUDA, so GPU experiments on a Windows machine can run there. Native Windows support is not planned: rotari relies on POSIX file locks, signals, sessions and process groups, and shell wrapper scripts, and Slurm, PBS, LSF, and SGE run on Linux.
 
 ## Retries, copying, arrays, and dependencies
 
@@ -161,8 +161,8 @@ Synchronous runs return `0` if all jobs succeed and `1` if any job fails. `--asy
 ### Can an array run only selected task IDs?
 
 Yes. Use `--array 1,3,4`; ranges such as `1-10` are also supported. Slurm
-uses its native sparse array for selected task IDs; PBS and LSF submit those
-tasks independently.
+uses its native sparse array for selected task IDs; PBS, LSF, and SGE submit
+those tasks independently.
 
 ### I ran `rotari retry` — which jobs actually rerun?
 
@@ -311,7 +311,7 @@ Yes. With no selector, it finds a running project and lists candidates when mult
 
 ### How does rotari actually stop a running job on Ctrl-C or `rotari cancel`?
 
-Local and SSH jobs receive `SIGTERM` through their process groups. Slurm, PBS, and LSF use their native cancellation commands. Rotari does not automatically escalate to `SIGKILL`.
+Local and SSH jobs receive `SIGTERM` through their process groups. Slurm, PBS, LSF, and SGE use their native cancellation commands. Rotari does not automatically escalate to `SIGKILL`.
 
 ### Why do cross-host `cancel`/`suspend`/`resume` fail for local jobs?
 
@@ -323,7 +323,7 @@ Yes. A runner PID on another host cannot be used; rotari reports the host mismat
 
 ### Why do scheduler jobs fail from a different Web/CLI host?
 
-Scheduler control requires the relevant Slurm, PBS, or LSF client command. Use a host where those scheduler clients are installed and configured.
+Scheduler control requires the relevant Slurm, PBS, LSF, or SGE client command. Use a host where those scheduler clients are installed and configured.
 
 ### Does `running` mean a scheduler job is already executing?
 

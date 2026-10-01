@@ -622,7 +622,7 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "executor",
                     "short": "e",
                     "value_name": "EXECUTOR",
-                    "values": ["local", "lsf", "pbs", "slurm", "ssh"],
+                    "values": ["local", "lsf", "pbs", "sge", "slurm", "ssh"],
                 },
                 {
                     "description": "replace executor options",
@@ -1390,7 +1390,7 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "executor",
                     "short": "e",
                     "value_name": "EXECUTOR",
-                    "values": ["local", "lsf", "pbs", "slurm", "ssh"],
+                    "values": ["local", "lsf", "pbs", "sge", "slurm", "ssh"],
                 },
                 {
                     "description": "option passed to the selected scheduler "
@@ -1753,7 +1753,7 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "N",
                 },
                 {
-                    "description": "scheduler job concurrency (Slurm/PBS/...)",
+                    "description": "scheduler job concurrency (Slurm/PBS/LSF/SGE)",
                     "environment": "ROTARI_RUN_BATCH_CONCURRENCY",
                     "name": "batch-concurrency",
                     "value_name": "N",
@@ -1834,7 +1834,7 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "executor",
                     "short": "e",
                     "value_name": "EXECUTOR",
-                    "values": ["local", "lsf", "pbs", "slurm", "ssh"],
+                    "values": ["local", "lsf", "pbs", "sge", "slurm", "ssh"],
                 },
                 {
                     "description": "caller environment propagation mode (default ALL)",
@@ -1945,6 +1945,32 @@ CLI_SCHEMA: dict[str, Any] = {
                     "failures",
                     "environment": "ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT",
                     "name": "lsf-submit-retry-limit",
+                    "value_name": "N",
+                },
+                {
+                    "description": "SGE executor concurrency",
+                    "environment": "ROTARI_RUN_SGE_CONCURRENCY",
+                    "name": "sge-concurrency",
+                    "value_name": "N",
+                },
+                {
+                    "description": "SGE executor dispatch options; may be repeated",
+                    "environment": "ROTARI_RUN_SGE_OPTIONS",
+                    "name": "sge-options",
+                    "repeated": True,
+                    "value_name": "OPTION",
+                },
+                {
+                    "description": "minimum SGE submission interval",
+                    "environment": "ROTARI_RUN_SGE_SUBMIT_INTERVAL",
+                    "name": "sge-submit-interval",
+                    "value_name": "DURATION",
+                },
+                {
+                    "description": "maximum retries for transient SGE submission "
+                    "failures",
+                    "environment": "ROTARI_RUN_SGE_SUBMIT_RETRY_LIMIT",
+                    "name": "sge-submit-retry-limit",
                     "value_name": "N",
                 },
                 {
@@ -2114,7 +2140,7 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "N",
                 },
                 {
-                    "description": "scheduler job concurrency (Slurm/PBS/...)",
+                    "description": "scheduler job concurrency (Slurm/PBS/LSF/SGE)",
                     "environment": "ROTARI_RUN_BATCH_CONCURRENCY",
                     "name": "batch-concurrency",
                     "value_name": "N",
@@ -2162,7 +2188,7 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "executor",
                     "short": "e",
                     "value_name": "EXECUTOR",
-                    "values": ["local", "lsf", "pbs", "slurm", "ssh"],
+                    "values": ["local", "lsf", "pbs", "sge", "slurm", "ssh"],
                 },
                 {
                     "description": "caller environment propagation mode (default ALL)",
@@ -2267,6 +2293,32 @@ CLI_SCHEMA: dict[str, Any] = {
                     "failures",
                     "environment": "ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT",
                     "name": "lsf-submit-retry-limit",
+                    "value_name": "N",
+                },
+                {
+                    "description": "SGE executor concurrency",
+                    "environment": "ROTARI_RUN_SGE_CONCURRENCY",
+                    "name": "sge-concurrency",
+                    "value_name": "N",
+                },
+                {
+                    "description": "SGE executor dispatch options; may be repeated",
+                    "environment": "ROTARI_RUN_SGE_OPTIONS",
+                    "name": "sge-options",
+                    "repeated": True,
+                    "value_name": "OPTION",
+                },
+                {
+                    "description": "minimum SGE submission interval",
+                    "environment": "ROTARI_RUN_SGE_SUBMIT_INTERVAL",
+                    "name": "sge-submit-interval",
+                    "value_name": "DURATION",
+                },
+                {
+                    "description": "maximum retries for transient SGE submission "
+                    "failures",
+                    "environment": "ROTARI_RUN_SGE_SUBMIT_RETRY_LIMIT",
+                    "name": "sge-submit-retry-limit",
                     "value_name": "N",
                 },
                 {
@@ -2681,6 +2733,35 @@ CLI_SCHEMA: dict[str, Any] = {
             "--lsf-submit-retry-limit default.",
             "job": False,
             "name": "ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT",
+        },
+        {
+            "array": False,
+            "cli_default": True,
+            "description": "SGE worker limit; --sge-concurrency default.",
+            "job": False,
+            "name": "ROTARI_RUN_SGE_CONCURRENCY",
+        },
+        {
+            "array": False,
+            "cli_default": True,
+            "description": "SGE dispatch options; --sge-options default.",
+            "job": False,
+            "name": "ROTARI_RUN_SGE_OPTIONS",
+        },
+        {
+            "array": False,
+            "cli_default": True,
+            "description": "SGE submit interval; --sge-submit-interval default.",
+            "job": False,
+            "name": "ROTARI_RUN_SGE_SUBMIT_INTERVAL",
+        },
+        {
+            "array": False,
+            "cli_default": True,
+            "description": "SGE transient submit retry limit; "
+            "--sge-submit-retry-limit default.",
+            "job": False,
+            "name": "ROTARI_RUN_SGE_SUBMIT_RETRY_LIMIT",
         },
         {
             "array": True,

@@ -48,6 +48,10 @@ configuration source; it does not change this precedence.
 | `ROTARI_RUN_LSF_OPTIONS` | yes | no | no | LSF dispatch options; --lsf-options default. |
 | `ROTARI_RUN_LSF_SUBMIT_INTERVAL` | yes | no | no | LSF submit interval; --lsf-submit-interval default. |
 | `ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT` | yes | no | no | LSF transient submit retry limit; --lsf-submit-retry-limit default. |
+| `ROTARI_RUN_SGE_CONCURRENCY` | yes | no | no | SGE worker limit; --sge-concurrency default. |
+| `ROTARI_RUN_SGE_OPTIONS` | yes | no | no | SGE dispatch options; --sge-options default. |
+| `ROTARI_RUN_SGE_SUBMIT_INTERVAL` | yes | no | no | SGE submit interval; --sge-submit-interval default. |
+| `ROTARI_RUN_SGE_SUBMIT_RETRY_LIMIT` | yes | no | no | SGE transient submit retry limit; --sge-submit-retry-limit default. |
 | `ROTARI_RUN_RETRY` | yes | yes | yes | Retry count; --retry default. |
 | `ROTARI_RUN_ASYNC` | yes | yes | yes | Async run mode; --async default. |
 | `ROTARI_QUIET` | yes | yes | yes | Global quiet mode; --quiet default. |

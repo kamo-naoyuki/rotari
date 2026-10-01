@@ -53,7 +53,7 @@ type RunSettingsMap map[string]RunSettings
 
 // RunSettingNames lists the executors that take per-run settings, such as
 // --slurm-concurrency.
-var RunSettingNames = []string{"ssh", "slurm", "pbs", "lsf"}
+var RunSettingNames = []string{"ssh", "slurm", "pbs", "lsf", "sge"}
 
 // Concurrency returns the concurrency set for name, or fallback when none is.
 func (settings RunSettingsMap) Concurrency(name string, fallback int) int {

@@ -24,6 +24,7 @@ func NewRegistry(store state.Store, logf func(string, ...any)) Registry {
 		"slurm": NewSlurm(store, logf),
 		"pbs":   NewPBS(store, logf),
 		"lsf":   NewLSF(store, logf),
+		"sge":   NewSGE(store, logf),
 		"ssh":   NewSSH(store),
 	}
 }

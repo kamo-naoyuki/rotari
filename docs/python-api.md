@@ -67,7 +67,7 @@ Execute queued commands, optionally selecting jobs from a run.
 | `overwrite` | `bool` | replace a non-empty queue without prompting; requires --run-id |
 | `run_name` | `str` | run name label |
 | `local_concurrency` | `str` | local worker concurrency |
-| `batch_concurrency` | `str` | scheduler job concurrency (Slurm/PBS/...) |
+| `batch_concurrency` | `str` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
 | `retry` | `str` | retry failed jobs up to N times; explicit cancellations are not retried |
 | `failed` | `bool` | only execute failed jobs; others carry forward their previous result |
 | `unfinished` | `bool` | only execute unfinished jobs; others carry forward their previous result |
@@ -97,6 +97,10 @@ Execute queued commands, optionally selecting jobs from a run.
 | `lsf_options` | `Sequence[str]` | LSF executor dispatch options; may be repeated |
 | `lsf_submit_interval` | `str` | minimum LSF submission interval |
 | `lsf_submit_retry_limit` | `str` | maximum retries for transient LSF submission failures |
+| `sge_concurrency` | `str` | SGE executor concurrency |
+| `sge_options` | `Sequence[str]` | SGE executor dispatch options; may be repeated |
+| `sge_submit_interval` | `str` | minimum SGE submission interval |
+| `sge_submit_retry_limit` | `str` | maximum retries for transient SGE submission failures |
 | `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
@@ -131,7 +135,7 @@ Run failed and unfinished jobs; with --job-id, run those jobs.
 | `overwrite` | `bool` | replace a non-empty queue without prompting; requires --run-id |
 | `run_name` | `str` | run name label |
 | `local_concurrency` | `str` | local worker concurrency |
-| `batch_concurrency` | `str` | scheduler job concurrency (Slurm/PBS/...) |
+| `batch_concurrency` | `str` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
 | `retry` | `str` | retry failed jobs up to N times; explicit cancellations are not retried |
 | `job_ids` | `Sequence[str]` | only execute this job instead of failed and unfinished jobs; may be repeated |
 | `stage` | `str` | only retry jobs in this stage |
@@ -155,6 +159,10 @@ Run failed and unfinished jobs; with --job-id, run those jobs.
 | `lsf_options` | `Sequence[str]` | LSF executor dispatch options; may be repeated |
 | `lsf_submit_interval` | `str` | minimum LSF submission interval |
 | `lsf_submit_retry_limit` | `str` | maximum retries for transient LSF submission failures |
+| `sge_concurrency` | `str` | SGE executor concurrency |
+| `sge_options` | `Sequence[str]` | SGE executor dispatch options; may be repeated |
+| `sge_submit_interval` | `str` | minimum SGE submission interval |
+| `sge_submit_retry_limit` | `str` | maximum retries for transient SGE submission failures |
 | `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |

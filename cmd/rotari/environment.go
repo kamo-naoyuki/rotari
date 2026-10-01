@@ -35,6 +35,10 @@ const (
 	envRunLSFOptions            = "ROTARI_RUN_LSF_OPTIONS"
 	envRunLSFSubmitInterval     = "ROTARI_RUN_LSF_SUBMIT_INTERVAL"
 	envRunLSFSubmitRetryLimit   = "ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT"
+	envRunSGEConc               = "ROTARI_RUN_SGE_CONCURRENCY"
+	envRunSGEOptions            = "ROTARI_RUN_SGE_OPTIONS"
+	envRunSGESubmitInterval     = "ROTARI_RUN_SGE_SUBMIT_INTERVAL"
+	envRunSGESubmitRetryLimit   = "ROTARI_RUN_SGE_SUBMIT_RETRY_LIMIT"
 	envRunRetry                 = "ROTARI_RUN_RETRY"
 	envRunAsync                 = "ROTARI_RUN_ASYNC"
 	envQuiet                    = "ROTARI_QUIET"
@@ -78,6 +82,7 @@ var propagatedEnvironmentVariables = []string{
 	envRunSlurmSubmitInterval, envRunSlurmSubmitRetryLimit,
 	envRunPBSConc, envRunPBSOptions, envRunPBSSubmitInterval, envRunPBSSubmitRetryLimit,
 	envRunLSFConc, envRunLSFOptions, envRunLSFSubmitInterval, envRunLSFSubmitRetryLimit,
+	envRunSGEConc, envRunSGEOptions, envRunSGESubmitInterval, envRunSGESubmitRetryLimit,
 	envRunRetry, envRunAsync, envQuiet, envRunQuiet, envArrayRange,
 }
 
@@ -109,6 +114,10 @@ func environmentDefinitions() []webprojection.EnvironmentDefinition {
 		{Name: envRunLSFOptions, CLIDefault: true, Description: "LSF dispatch options; --lsf-options default."},
 		{Name: envRunLSFSubmitInterval, CLIDefault: true, Description: "LSF submit interval; --lsf-submit-interval default."},
 		{Name: envRunLSFSubmitRetryLimit, CLIDefault: true, Description: "LSF transient submit retry limit; --lsf-submit-retry-limit default."},
+		{Name: envRunSGEConc, CLIDefault: true, Description: "SGE worker limit; --sge-concurrency default."},
+		{Name: envRunSGEOptions, CLIDefault: true, Description: "SGE dispatch options; --sge-options default."},
+		{Name: envRunSGESubmitInterval, CLIDefault: true, Description: "SGE submit interval; --sge-submit-interval default."},
+		{Name: envRunSGESubmitRetryLimit, CLIDefault: true, Description: "SGE transient submit retry limit; --sge-submit-retry-limit default."},
 		{Name: envRunRetry, CLIDefault: true, Job: true, Array: true, Description: "Retry count; --retry default."},
 		{Name: envRunAsync, CLIDefault: true, Job: true, Array: true, Description: "Async run mode; --async default."},
 		{Name: envQuiet, CLIDefault: true, Job: true, Array: true, Description: "Global quiet mode; --quiet default."},

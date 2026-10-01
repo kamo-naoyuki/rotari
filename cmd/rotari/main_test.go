@@ -489,7 +489,7 @@ func TestCLIStringRejectsValuesOutsideChoices(t *testing.T) {
 		fs.SetOutput(io.Discard)
 		executor := cliString(fs, "executor", "")
 		err := fs.Parse(args)
-		if err == nil || !strings.Contains(err.Error(), `invalid choice "invalid" (choose from local, lsf, pbs, slurm, ssh)`) {
+		if err == nil || !strings.Contains(err.Error(), `invalid choice "invalid" (choose from local, lsf, pbs, sge, slurm, ssh)`) {
 			t.Fatalf("Parse(%v) error = %v", args, err)
 		}
 		if *executor != "" {
@@ -510,7 +510,7 @@ func TestCLIStringAcceptsValueFromChoices(t *testing.T) {
 		t.Fatalf("executor = %q, want slurm", *executor)
 	}
 	fs.PrintDefaults()
-	if !strings.Contains(output.String(), "choices: local, lsf, pbs, slurm, ssh") {
+	if !strings.Contains(output.String(), "choices: local, lsf, pbs, sge, slurm, ssh") {
 		t.Fatalf("help does not list choices: %q", output.String())
 	}
 }

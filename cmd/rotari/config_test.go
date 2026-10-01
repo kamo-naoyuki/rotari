@@ -473,6 +473,8 @@ func TestExecutorRunSettingsLoadFromRunConfig(t *testing.T) {
 			"slurm-concurrency":        12,
 			"slurm-submit-interval":    "750ms",
 			"slurm-submit-retry-limit": 4,
+			"sge-concurrency":          6,
+			"sge-options":              []any{"-q", "short"},
 		},
 	}
 	cliConfigCommand = "run"
@@ -488,6 +490,9 @@ func TestExecutorRunSettingsLoadFromRunConfig(t *testing.T) {
 	if settings["slurm"].Concurrency != 12 || settings["slurm"].SubmitInterval != 750*time.Millisecond || settings["slurm"].SubmitRetryLimit != 4 {
 		t.Fatalf("Slurm settings = %#v", settings["slurm"])
 	}
+	if settings["sge"].Concurrency != 6 || len(settings["sge"].Options) != 2 || settings["sge"].Options[0] != "-q" {
+		t.Fatalf("SGE settings = %#v", settings["sge"])
+	}
 }
 
 func TestExecutorRunSettingsEnvironmentOverridesConfig(t *testing.T) {
@@ -498,6 +503,10 @@ func TestExecutorRunSettingsEnvironmentOverridesConfig(t *testing.T) {
 	t.Setenv(envRunSSHOptions, "env-host")
 	t.Setenv(envRunSlurmSubmitInterval, "250ms")
 	t.Setenv(envRunSlurmSubmitRetryLimit, "1")
+	t.Setenv(envRunSGEConc, "8")
+	t.Setenv(envRunSGEOptions, "-q env-queue")
+	t.Setenv(envRunSGESubmitInterval, "300ms")
+	t.Setenv(envRunSGESubmitRetryLimit, "2")
 	t.Cleanup(func() {
 		cliConfig = oldConfig
 		cliConfigCommand = oldCommand
@@ -509,6 +518,9 @@ func TestExecutorRunSettingsEnvironmentOverridesConfig(t *testing.T) {
 	}
 	if settings["slurm"].SubmitInterval != 250*time.Millisecond || settings["slurm"].SubmitRetryLimit != 1 {
 		t.Fatalf("Slurm settings = %#v, want environment values", settings["slurm"])
+	}
+	if settings["sge"].Concurrency != 8 || len(settings["sge"].Options) != 1 || settings["sge"].Options[0] != "-q env-queue" || settings["sge"].SubmitInterval != 300*time.Millisecond || settings["sge"].SubmitRetryLimit != 2 {
+		t.Fatalf("SGE settings = %#v, want environment values", settings["sge"])
 	}
 }
 
@@ -545,7 +557,7 @@ func TestExecutorRunSettingsIncludeCommandLineValues(t *testing.T) {
 
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	settings := cliExecutorRunSettings(fs)
-	if err := fs.Parse([]string{"--slurm-concurrency", "7", "--slurm-options", "--partition=gpu", "--slurm-submit-interval", "2s", "--slurm-submit-retry-limit", "5", "--ssh-concurrency", "2"}); err != nil {
+	if err := fs.Parse([]string{"--slurm-concurrency", "7", "--slurm-options", "--partition=gpu", "--slurm-submit-interval", "2s", "--slurm-submit-retry-limit", "5", "--sge-concurrency", "9", "--sge-options=-q", "--sge-options=batch", "--sge-submit-interval", "1s", "--sge-submit-retry-limit", "3", "--ssh-concurrency", "2"}); err != nil {
 		t.Fatal(err)
 	}
 	got := settings()
@@ -554,6 +566,9 @@ func TestExecutorRunSettingsIncludeCommandLineValues(t *testing.T) {
 	}
 	if got["ssh"].Concurrency != 2 {
 		t.Fatalf("SSH settings = %#v, want command-line concurrency", got["ssh"])
+	}
+	if got["sge"].Concurrency != 9 || len(got["sge"].Options) != 2 || got["sge"].SubmitInterval != time.Second || got["sge"].SubmitRetryLimit != 3 {
+		t.Fatalf("SGE settings = %#v, want command-line values", got["sge"])
 	}
 }
 

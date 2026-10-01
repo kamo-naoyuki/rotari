@@ -29,7 +29,7 @@ without turning rotari into a workflow engine.
 | task-spooler | a task in a per-user server's queue | one machine, GPU-aware | add the command again | finished-task list, capped |
 | submitit | a Python function call | Slurm, local | resubmit from Python | job folders |
 | `sbatch --array`, `queue.pl` | a script and an index | one scheduler | resubmit chosen indices | scheduler accounting |
-| rotari | a job in a queue, run as a batch | local, SSH, Slurm, PBS, LSF | `run --retry`, `retry`, or manifest/fingerprint matching can reuse or rerun selected work | every run, with lineage across related runs |
+| rotari | a job in a queue, run as a batch | local, SSH, Slurm, PBS, LSF, SGE | `run --retry`, `retry`, or manifest/fingerprint matching can reuse or rerun selected work | every run, with lineage across related runs |
 
 ## Tool by tool
 
@@ -123,13 +123,13 @@ tied to one scheduler.
   Python client can edit or construct a batch inside rotari, but a shell
   script remains a natural way to build one.
 - **One queue, several backends.** The same queue runs locally, over SSH, or on
-  Slurm, PBS, or LSF, with array and matrix jobs, and status and logs look the
+  Slurm, PBS, LSF, or SGE, with array and matrix jobs, and status and logs look the
   same on each.
 - **The environment binds at run time.** pueue and task-spooler bind a task's
   directory and environment when it is added; rotari takes the caller's
   environment at `run` or `retry` time by default, while retaining saved job
   variables and rotari metadata. `--env=NONE` suppresses caller variables.
-  The setting is mapped to the native mechanisms of SSH, Slurm, PBS, and LSF;
+  The setting is mapped to the native mechanisms of SSH, Slurm, PBS, LSF, and SGE;
   saved `--env KEY=VALUE` variables work on every executor.
 - **Operations beyond the CLI.** `rotari web` provides history, logs, job
   control, and multiple-basedir monitoring. `diagnose` can analyze failures
@@ -161,7 +161,7 @@ reproduced, or operated, and it is what rotari leaves out.
 | [Nextflow](https://www.nextflow.io/) | processes and channels (Groovy-based DSL) | the CLI | local, Slurm, PBS, LSF, SGE, and other HPC schedulers, Kubernetes, and cloud batch services | per-process containers or conda environments | `-resume` reuses cached task results |
 | [Dagu](https://dagu.sh/) | a YAML DAG | the CLI, Web UI, API, cron, and event triggers | local, SSH, containers, Kubernetes, distributed workers | the working directory, variables, and container in the YAML | step retry policies and `dagu retry` of a run |
 | [Airflow](https://airflow.apache.org/), [Prefect](https://www.prefect.io/), [Dagster](https://dagster.io/) | Python code | a scheduler, sensors, the UI, or the API | workers on the configured infrastructure | each task's operator or deployment settings | task retries and rerunning from the failed task |
-| rotari | shell commands, YAML/JSON/TOML manifests, or Python command lists | the user, from the CLI, Python, or API | local, SSH, Slurm, PBS, LSF | the shell that runs `rotari run`, or explicit job/run settings | `run --retry`, `retry`, fingerprint matching, and manifest reconciliation |
+| rotari | shell commands, YAML/JSON/TOML manifests, or Python command lists | the user, from the CLI, Python, or API | local, SSH, Slurm, PBS, LSF, SGE | the shell that runs `rotari run`, or explicit job/run settings | `run --retry`, `retry`, fingerprint matching, and manifest reconciliation |
 
 What separates rotari from all of them:
 

@@ -466,6 +466,7 @@
             "local",
             "lsf",
             "pbs",
+            "sge",
             "slurm",
             "ssh"
           ]
@@ -1046,6 +1047,7 @@
             "local",
             "lsf",
             "pbs",
+            "sge",
             "slurm",
             "ssh"
           ]
@@ -1355,6 +1357,7 @@
             "local",
             "lsf",
             "pbs",
+            "sge",
             "slurm",
             "ssh"
           ]
@@ -1434,6 +1437,22 @@
         },
         {
           "name": "lsf-submit-retry-limit",
+          "value_name": "N"
+        },
+        {
+          "name": "sge-concurrency",
+          "value_name": "N"
+        },
+        {
+          "name": "sge-options",
+          "value_name": "OPTION"
+        },
+        {
+          "name": "sge-submit-interval",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "sge-submit-retry-limit",
           "value_name": "N"
         },
         {
@@ -1589,6 +1608,7 @@
             "local",
             "lsf",
             "pbs",
+            "sge",
             "slurm",
             "ssh"
           ]
@@ -1659,6 +1679,22 @@
         },
         {
           "name": "lsf-submit-retry-limit",
+          "value_name": "N"
+        },
+        {
+          "name": "sge-concurrency",
+          "value_name": "N"
+        },
+        {
+          "name": "sge-options",
+          "value_name": "OPTION"
+        },
+        {
+          "name": "sge-submit-interval",
+          "value_name": "DURATION"
+        },
+        {
+          "name": "sge-submit-retry-limit",
           "value_name": "N"
         },
         {

@@ -100,6 +100,7 @@ func validateExecutorCommand(executorName string) error {
 		"slurm": "sbatch",
 		"pbs":   "qsub",
 		"lsf":   "bsub",
+		"sge":   "qsub",
 	}[executorName]
 	if command == "" {
 		return fmt.Errorf("unsupported executor: %s", executorName)

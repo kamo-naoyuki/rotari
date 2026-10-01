@@ -84,6 +84,10 @@ func validateExecutorOptions(executorName string, options []string, array bool) 
 		if array {
 			return executor.RejectArraySchedulerOptions(options, "-J")
 		}
+	case "sge":
+		if array {
+			return executor.RejectArraySchedulerOptions(options, "-t")
+		}
 	default:
 		return fmt.Errorf("unsupported executor: %s", executorName)
 	}

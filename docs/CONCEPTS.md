@@ -244,7 +244,7 @@ flowchart LR
     Server -->|begin active run| Runner["runner\nshared run lifecycle"]
     Runner -->|dispatch jobs| Local["local jobs"]
     Runner -->|dispatch jobs| SSH["SSH jobs"]
-    Runner -->|dispatch jobs| Scheduler["Slurm / PBS / LSF jobs"]
+    Runner -->|dispatch jobs| Scheduler["Slurm / PBS / LSF / SGE jobs"]
     Runner -->|write logs + result| State[("project state\nqueue / run history")]
     Server -->|status + progress| Client
 ```

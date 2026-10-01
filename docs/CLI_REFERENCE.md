@@ -478,7 +478,7 @@ Usage: `rotari run [RUN_ID]`
 | `--overwrite` | `` | `` | replace a non-empty queue without prompting; requires --run-id |
 | `--run-name` | `NAME` | `ROTARI_RUN_NAME` | run name label |
 | `--local-concurrency` | `N` | `ROTARI_RUN_LOCAL_CONCURRENCY` | local worker concurrency |
-| `--batch-concurrency` | `N` | `ROTARI_RUN_BATCH_CONCURRENCY` | scheduler job concurrency (Slurm/PBS/...) |
+| `--batch-concurrency` | `N` | `ROTARI_RUN_BATCH_CONCURRENCY` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
 | `--retry` | `N` | `ROTARI_RUN_RETRY` | retry failed jobs up to N times; explicit cancellations are not retried |
 | `--failed` | `` | `` | only execute failed jobs; others carry forward their previous result |
 | `--unfinished` | `` | `` | only execute unfinished jobs; others carry forward their previous result |
@@ -508,6 +508,10 @@ Usage: `rotari run [RUN_ID]`
 | `--lsf-options` | `OPTION (repeatable)` | `ROTARI_RUN_LSF_OPTIONS` | LSF executor dispatch options; may be repeated |
 | `--lsf-submit-interval` | `DURATION` | `ROTARI_RUN_LSF_SUBMIT_INTERVAL` | minimum LSF submission interval |
 | `--lsf-submit-retry-limit` | `N` | `ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT` | maximum retries for transient LSF submission failures |
+| `--sge-concurrency` | `N` | `ROTARI_RUN_SGE_CONCURRENCY` | SGE executor concurrency |
+| `--sge-options` | `OPTION (repeatable)` | `ROTARI_RUN_SGE_OPTIONS` | SGE executor dispatch options; may be repeated |
+| `--sge-submit-interval` | `DURATION` | `ROTARI_RUN_SGE_SUBMIT_INTERVAL` | minimum SGE submission interval |
+| `--sge-submit-retry-limit` | `N` | `ROTARI_RUN_SGE_SUBMIT_RETRY_LIMIT` | maximum retries for transient SGE submission failures |
 | `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
@@ -542,7 +546,7 @@ Usage: `rotari retry [RUN_ID]`
 | `--overwrite` | `` | `` | replace a non-empty queue without prompting; requires --run-id |
 | `--run-name` | `NAME` | `ROTARI_RUN_NAME` | run name label |
 | `--local-concurrency` | `N` | `ROTARI_RUN_LOCAL_CONCURRENCY` | local worker concurrency |
-| `--batch-concurrency` | `N` | `ROTARI_RUN_BATCH_CONCURRENCY` | scheduler job concurrency (Slurm/PBS/...) |
+| `--batch-concurrency` | `N` | `ROTARI_RUN_BATCH_CONCURRENCY` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
 | `--retry` | `N` | `ROTARI_RUN_RETRY` | retry failed jobs up to N times; explicit cancellations are not retried |
 | `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | only execute this job instead of failed and unfinished jobs; may be repeated |
 | `--stage` | `STAGE` | `` | only retry jobs in this stage |
@@ -566,6 +570,10 @@ Usage: `rotari retry [RUN_ID]`
 | `--lsf-options` | `OPTION (repeatable)` | `ROTARI_RUN_LSF_OPTIONS` | LSF executor dispatch options; may be repeated |
 | `--lsf-submit-interval` | `DURATION` | `ROTARI_RUN_LSF_SUBMIT_INTERVAL` | minimum LSF submission interval |
 | `--lsf-submit-retry-limit` | `N` | `ROTARI_RUN_LSF_SUBMIT_RETRY_LIMIT` | maximum retries for transient LSF submission failures |
+| `--sge-concurrency` | `N` | `ROTARI_RUN_SGE_CONCURRENCY` | SGE executor concurrency |
+| `--sge-options` | `OPTION (repeatable)` | `ROTARI_RUN_SGE_OPTIONS` | SGE executor dispatch options; may be repeated |
+| `--sge-submit-interval` | `DURATION` | `ROTARI_RUN_SGE_SUBMIT_INTERVAL` | minimum SGE submission interval |
+| `--sge-submit-retry-limit` | `N` | `ROTARI_RUN_SGE_SUBMIT_RETRY_LIMIT` | maximum retries for transient SGE submission failures |
 | `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |

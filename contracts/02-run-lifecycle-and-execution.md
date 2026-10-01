@@ -185,8 +185,10 @@
   comma-separated task list. Runtime expansion creates one `JobSpec` and
   persisted job directory per selected task. Local executors run those tasks as
   independent processes. Slurm, PBS, and LSF may submit a complete contiguous
-  range as one native array; sparse selections fall back to independent
-  submissions so scheduler support for sparse native arrays is not required.
+  range as one native array; SGE uses independent jobs. Sparse selections fall
+  back to independent submissions so scheduler support for sparse native
+  arrays is not required. See the [SGE executor](../internal/executor/sge.go)
+  and its [tests](../internal/executor/sge_test.go).
 - A matrix `add` expands its repeated `KEY=VALUE[,VALUE...]` dimensions before
   persistence. Every Cartesian-product combination is stored as an independent
   queue command with its own generated job ID, a derived job name when the

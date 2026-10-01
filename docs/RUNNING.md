@@ -9,21 +9,24 @@ Array jobs can be added with a numeric range or a comma-separated task list:
 ```sh
 rotari add --array 1-10 -e local ./train.sh
 rotari add --array 1-10 -e slurm ./train.sh
+rotari add --array 1-10 -e sge ./train.sh
 rotari add --array 1,3,4 -e slurm ./train.sh
 ```
 
 Each task is tracked separately. Local and SSH execution starts one process per
 task. Slurm, PBS, and LSF may submit a complete contiguous range as a native
-scheduler array, while sparse selections use independent jobs where native
-arrays are not applicable. For each array task, rotari exposes:
+scheduler array, while SGE always submits independent jobs to avoid relying on
+fork-specific native array syntax. Sparse selections use independent jobs
+where native arrays are not applicable. For each array task, rotari exposes:
 
 - `ROTARI_ARRAY_TASK_ID`: current task number
 - `ROTARI_ARRAY_FIRST`: first task number in the array
 - `ROTARI_ARRAY_LAST`: last task number in the array
 - `ROTARI_ARRAY_SIZE`: total number of tasks
 
-Scheduler-backed arrays also map the native index variable into these values,
-for example `SLURM_ARRAY_TASK_ID`, `PBS_ARRAY_INDEX`, or `LSB_JOBINDEX`.
+Scheduler-backed native arrays also map the scheduler index variable into
+these values, for example `SLURM_ARRAY_TASK_ID`, `PBS_ARRAY_INDEX`, or
+`LSB_JOBINDEX`.
 
 To register a matrix as independent jobs, repeat `--matrix` on `add`:
 
@@ -48,7 +51,8 @@ The Slurm and PBS executors are integration-tested in CI against a Slurm
 container and an OpenPBS container. These tests do not certify compatibility
 with every real cluster configuration. The LSF executor is covered by unit
 tests using fake scheduler commands, but has not yet been tested against a
-real LSF installation.
+real LSF installation. SGE is likewise covered by unit tests using fake
+commands and has not yet been tested against a live Grid Engine cluster.
 
 ## Dependencies and stages
 
@@ -619,7 +623,7 @@ rotari resume RUN_ID
 Without `--job-id/-j`, all currently running jobs are affected. Repeat `--job-id/-j`
 to control selected jobs; job IDs select as for `cancel`, except that an array
 job's ID selects only its running tasks. Local jobs use `SIGSTOP`/`SIGCONT`; Slurm jobs use
-`scontrol suspend`/`scontrol resume`.
+`scontrol suspend`/`scontrol resume`; SGE jobs use `qmod` suspend/unsuspend.
 
 Delete saved run logs while keeping queued commands:
 

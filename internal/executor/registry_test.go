@@ -12,10 +12,10 @@ import (
 
 func TestRegistryNamesAndLookup(t *testing.T) {
 	registry := NewRegistry(state.NewStore(0o700, 0o600), nil)
-	if got := registry.Names(); !reflect.DeepEqual(got, []string{"local", "lsf", "pbs", "slurm", "ssh"}) {
+	if got := registry.Names(); !reflect.DeepEqual(got, []string{"local", "lsf", "pbs", "sge", "slurm", "ssh"}) {
 		t.Fatalf("Names() = %#v", got)
 	}
-	if !registry.Known("slurm") || registry.Known("kubernetes") {
+	if !registry.Known("sge") || !registry.Known("slurm") || registry.Known("kubernetes") {
 		t.Fatal("Known() mismatch")
 	}
 	if executor, ok := registry.Lookup("pbs"); !ok || executor.Name() != "pbs" {
@@ -41,6 +41,12 @@ func TestRegistryOwner(t *testing.T) {
 	}
 	if owner, err := registry.Owner(store, jobDir); err != nil || owner.Name() != "lsf" {
 		t.Fatalf("Owner() with job.json = %v, %v, want lsf", owner, err)
+	}
+	if err := os.WriteFile(filepath.Join(jobDir, "job.json"), []byte(`{"executor":"sge"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if owner, err := registry.Owner(store, jobDir); err != nil || owner.Name() != "sge" {
+		t.Fatalf("Owner() with SGE job.json = %v, %v, want sge", owner, err)
 	}
 }
 

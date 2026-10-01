@@ -158,14 +158,14 @@ The package map, process roles, and per-command walkthroughs are in
   CLI or Web path, so no interface silently reimplements run semantics.
 
 The import-level parts of these rules (what `internal/model`, `internal/state`,
-`internal/executor`, `internal/run`, `internal/rundiff`, and
+`internal/executor`, `internal/run`, `internal/runlineage`, and
 `internal/jobfilter` may import, no
 `internal` package importing `cmd/`, and `conformance` importing only the
 standard library) are enforced by
 [`internal/archtest/boundaries_test.go`](../internal/archtest/boundaries_test.go).
 Change a rule there in the same change as this list.
 
-`internal/rundiff` compares and summarizes runs that `cmd/rotari/diff.go` has loaded, with
+`internal/runlineage` compares and summarizes runs that `cmd/rotari/lineage.go` has loaded, with
 each job's status already resolved through `internal/jobstatus`. It matches
 jobs by name, or by job ID for unnamed jobs, because a job changed through an
 imported manifest gets a new ID but keeps its name. It classifies result moves
@@ -173,7 +173,7 @@ as fixed, still failing, or newly failing and lists changed definition fields;
 it never reads state files. `previousRunID` orders a project's runs by their
 first load sample, then by the summary's start time, then by run ID, because
 run IDs only have one-second resolution. `lineage` lists runs in the
-same order and uses `rundiff.Lineage` for each run's counts and its changes
+same order and uses `runlineage.Lineage` for each run's counts and its changes
 since the previous run. Covered by
-[`internal/rundiff/rundiff_test.go`](../internal/rundiff/rundiff_test.go)
-and [`cmd/rotari/diff_test.go`](../cmd/rotari/diff_test.go).
+[`internal/runlineage/runlineage_test.go`](../internal/runlineage/runlineage_test.go)
+and [`cmd/rotari/lineage_test.go`](../cmd/rotari/lineage_test.go).
