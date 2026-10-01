@@ -1,7 +1,6 @@
 package projectrun
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -14,8 +13,8 @@ import (
 const LoadSampleInterval = 10 * time.Second
 
 // WriteContext records where and how a run starts: working directory, host,
-// load, and a snapshot of every active config file.
-func (runner Runner) WriteContext(paths state.ProjectPaths, runID, cwd string) error {
+// load, and snapshots of the loaded command and notification configs.
+func (runner Runner) WriteContext(paths state.ProjectPaths, runID, cwd, configPath string) error {
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return err
@@ -23,7 +22,7 @@ func (runner Runner) WriteContext(paths state.ProjectPaths, runID, cwd string) e
 	hostname, _ := os.Hostname()
 	context := model.RunContext{CWD: cwd, Hostname: hostname, StartedLoad: readLoadAverage()}
 	if runner.ConfigPaths != nil {
-		context.ConfigPaths = runner.ConfigPaths(paths)
+		context.ConfigPaths = runner.ConfigPaths(paths, configPath)
 	}
 	if len(context.ConfigPaths) > 0 {
 		files, snapshotPaths, err := snapshotRunConfigs(runDir, context.ConfigPaths)
@@ -70,12 +69,15 @@ func snapshotRunConfigs(runDir string, configPaths []string) ([]string, []string
 	}
 	files := make([]string, 0, len(configPaths))
 	snapshotPaths := make([]string, 0, len(configPaths))
-	for index, configPath := range configPaths {
+	for _, configPath := range configPaths {
 		data, err := os.ReadFile(configPath)
 		if err != nil {
 			return nil, nil, err
 		}
-		fileName := fmt.Sprintf("config-%d%s", index+1, filepath.Ext(configPath))
+		fileName := filepath.Base(configPath)
+		if fileName != "notifications.toml" {
+			fileName = "config" + filepath.Ext(configPath)
+		}
 		snapshotPath, err := state.SafeJoin(snapshotDir, fileName)
 		if err != nil {
 			return nil, nil, err

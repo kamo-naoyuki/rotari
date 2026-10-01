@@ -196,12 +196,14 @@ Implementation and tests for these rules:
   active home, basedir, and project config files are visible in CLI output as
   well as in the web UI.
 - The Web UI exposes config paths in its state and serves raw contents only for
-  the selected config. At run creation, that config is copied below the run
-  directory and listed in `context.json`; a run page serves the immutable copy
-  rather than rereading the source path. It does not accept arbitrary filesystem
-  paths. Older runs without snapshots retain the legacy resolved-path fallback.
-  The projected run context separately records the snapshot path for the Web
-  UI's `Config:` location display.
+  the selected config. At run creation, rotari copies only the config actually
+  loaded for the run (the explicit `--config` file when supplied, otherwise the
+  resolved config) as `configs/config.<ext>`, and lists its source and snapshot
+  path in `context.json`; lower-priority config files are not copied. A run page
+  serves the immutable copy rather than rereading the source path. It does not
+  accept arbitrary filesystem paths. Older runs without snapshots retain the
+  legacy resolved-path fallback. The projected run context separately records
+  the snapshot path for the Web UI's `Config:` location display.
 - On all-projects and project pages, the Web UI also offers a control-gated
   `config-targets`/`generate-config` pair. It uses the same `configTemplate`
   generator as the CLI to write TOML at a selected global, basedir, or project

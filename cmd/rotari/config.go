@@ -21,6 +21,7 @@ import (
 
 var cliConfig map[string]any
 var cliConfigCommand string
+var cliConfigPath string
 
 func init() {
 	// Config warnings use the CLI's error style.
@@ -29,12 +30,17 @@ func init() {
 
 func loadCLIConfig(args []string) error {
 	cliConfig = nil
+	cliConfigPath = ""
 	if path, specified := configFileArg(args); specified {
 		values, err := config.LoadPath(path)
 		if err != nil {
 			return err
 		}
 		cliConfig = values
+		cliConfigPath, err = filepath.Abs(path)
+		if err != nil {
+			return err
+		}
 		return nil
 	}
 	baseDir, projectName := configLocationArgs(args)
@@ -62,6 +68,10 @@ func loadCLIConfig(args []string) error {
 	values := map[string]any{}
 	if path := config.EffectivePath(resolvedBaseDir, projectName); path != "" {
 		values, err = config.LoadFile(filepath.Dir(path))
+		if err != nil {
+			return err
+		}
+		cliConfigPath, err = filepath.Abs(path)
 		if err != nil {
 			return err
 		}

@@ -54,6 +54,47 @@ func TestBeginRecordsContextBeforeMarkingRunning(t *testing.T) {
 	}
 }
 
+func TestBeginSnapshotsLoadedConfigWithCanonicalName(t *testing.T) {
+	runner, paths := testRunner(t)
+	configPath := filepath.Join(t.TempDir(), "chosen.toml")
+	notificationPath := filepath.Join(t.TempDir(), "notifications.toml")
+	for path, content := range map[string]string{
+		configPath:       "[run]\nretry = 2\n",
+		notificationPath: "[webhook]\nrun_failure = false\n",
+	} {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runner.ConfigPaths = func(_ state.ProjectPaths, loadedConfig string) []string {
+		return []string{loadedConfig, notificationPath}
+	}
+	if err := runner.Begin(paths, Start{RunID: "run-1", ConfigPath: configPath}); err != nil {
+		t.Fatal(err)
+	}
+	context, err := state.LoadContext(runner.Store, filepath.Join(paths.RunsDir, "run-1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPaths := []string{configPath, notificationPath}
+	if !reflect.DeepEqual(context.ConfigPaths, wantPaths) {
+		t.Fatalf("config paths = %#v, want %#v", context.ConfigPaths, wantPaths)
+	}
+	wantFiles := []string{"config.toml", "notifications.toml"}
+	if !reflect.DeepEqual(context.ConfigSnapshotFiles, wantFiles) {
+		t.Fatalf("config snapshot files = %#v, want %#v", context.ConfigSnapshotFiles, wantFiles)
+	}
+	for name, want := range map[string]string{
+		"config.toml":        "[run]\nretry = 2\n",
+		"notifications.toml": "[webhook]\nrun_failure = false\n",
+	} {
+		data, err := os.ReadFile(filepath.Join(paths.RunsDir, "run-1", "configs", name))
+		if err != nil || string(data) != want {
+			t.Fatalf("snapshot %s = %q, err = %v; want %q", name, data, err, want)
+		}
+	}
+}
+
 func TestBeginRollsBackWhenRegistrationFails(t *testing.T) {
 	runner, paths := testRunner(t)
 	runner.RegisterRun = func(state.ProjectPaths, string) error { return errors.New("registry full") }

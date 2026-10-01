@@ -51,10 +51,11 @@ config files are present. The web UI uses the same project, basedir, then
 global priority and displays only that one path.
 
 Only the first existing config in that priority order is loaded; lower-priority
-config files are ignored. When a run starts, rotari copies that selected config
-into its run directory. The run page's `View config` displays the copy, so
-later edits do not change historical run details. Its `Config:` location lists
-the run-local copy path.
+config files are ignored. An explicit `--config FILE` selects that file instead.
+When a run starts, rotari copies only the config actually loaded into its run
+directory as `configs/config.<ext>` (for example, `configs/config.toml`). The
+run page's `View config` displays the copy, so later edits do not change
+historical run details. Its `Config:` location lists the run-local copy path.
 
 ## Environment variables
 

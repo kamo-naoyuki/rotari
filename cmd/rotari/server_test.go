@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -113,6 +114,47 @@ func TestCmdRunWithRunIDRejectsRunningProjectBeforeQueueConfirmation(t *testing.
 	}
 	if strings.Contains(string(output), "queue is not empty") {
 		t.Fatalf("cmdRun checked queue before running state: %q", output)
+	}
+}
+
+func TestRunSnapshotsOnlyExplicitlyLoadedConfig(t *testing.T) {
+	baseDir := t.TempDir()
+	paths := testProjectPaths(t, baseDir, "demo")
+	if err := os.WriteFile(filepath.Join(paths.ProjectDir, "config.yaml"), []byte("run:\n  retry: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	selectedConfig := filepath.Join(t.TempDir(), "chosen.toml")
+	if err := os.WriteFile(selectedConfig, []byte("[run]\nretry = 0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	notificationConfig := filepath.Join(paths.ProjectDir, "notifications.toml")
+	if err := os.WriteFile(notificationConfig, []byte("[webhook]\nrun_failure = false\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	useInProcessSupervisor(t)
+	oldConfig, oldConfigCommand, oldConfigPath := cliConfig, cliConfigCommand, cliConfigPath
+	t.Cleanup(func() { cliConfig, cliConfigCommand, cliConfigPath = oldConfig, oldConfigCommand, oldConfigPath })
+	if code := run([]string{"run", "--basedir", baseDir, "--project-name", "demo", "--config", selectedConfig, "--quiet"}); code != 0 {
+		t.Fatalf("run exit code = %d", code)
+	}
+	meta, err := state.LoadMeta(paths.MetaFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	context, err := state.LoadContext(jsonStore(), filepath.Join(paths.RunsDir, meta.LastRunID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPaths := []string{selectedConfig, notificationConfig}
+	if !reflect.DeepEqual(context.ConfigPaths, wantPaths) {
+		t.Fatalf("config paths = %#v, want %#v", context.ConfigPaths, wantPaths)
+	}
+	wantFiles := []string{"config.toml", "notifications.toml"}
+	if !reflect.DeepEqual(context.ConfigSnapshotFiles, wantFiles) {
+		t.Fatalf("snapshot files = %#v, want %#v", context.ConfigSnapshotFiles, wantFiles)
 	}
 }
 

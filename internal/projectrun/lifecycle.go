@@ -15,6 +15,8 @@ type Start struct {
 	RunName string
 	// CWD is the working directory the run was requested from.
 	CWD string
+	// ConfigPath is the command config file that the client loaded.
+	ConfigPath string
 }
 
 // Begin records a new run and marks the project running. The caller must hold
@@ -25,7 +27,7 @@ type Start struct {
 // for the current process; a caller that hands the run to another process
 // rewrites the lock with that process's PID.
 func (runner Runner) Begin(paths state.ProjectPaths, start Start) error {
-	if err := runner.WriteContext(paths, start.RunID, start.CWD); err != nil {
+	if err := runner.WriteContext(paths, start.RunID, start.CWD, start.ConfigPath); err != nil {
 		return fmt.Errorf("failed to save run context: %w", err)
 	}
 	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: start.RunID, RunName: start.RunName, StartedAt: runner.timestamp()}); err != nil {

@@ -3,7 +3,6 @@ package main
 import (
 	"path/filepath"
 
-	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/notification"
@@ -31,8 +30,11 @@ func projectRunner() projectrun.Runner {
 		},
 		AttemptIDName:       envAttemptID,
 		PropagatedVariables: propagatedEnvironmentVariables,
-		ConfigPaths: func(paths state.ProjectPaths) []string {
-			pathsForRun := config.PathsForRun(paths.BaseDir, paths.ProjectName)
+		ConfigPaths: func(paths state.ProjectPaths, configPath string) []string {
+			var pathsForRun []string
+			if configPath != "" {
+				pathsForRun = append(pathsForRun, configPath)
+			}
 			if loaded, err := notification.Load(paths.BaseDir, paths.ProjectName); err == nil && loaded.Path != "" {
 				pathsForRun = append(pathsForRun, loaded.Path)
 			}

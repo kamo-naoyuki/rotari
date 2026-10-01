@@ -100,7 +100,8 @@
   failure on an unavailable remote directory.
 
 - Queue-editing commands mutate `queue.json`. Starting a run assigns a new ID,
-  snapshots the queue and every active config file, records context, and marks
+  snapshots the queue, the config actually loaded for the run, and any active
+  notification config, records context, and marks
   it active. Completion writes results and summary, updates metadata, clears the
   consumed queue, and removes the active lock. Completed run snapshots, results,
   logs, and config copies remain immutable until the run is explicitly deleted.

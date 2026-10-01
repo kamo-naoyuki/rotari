@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
@@ -36,7 +37,7 @@ func executeMixedRun(paths state.ProjectPaths, runID, runName string, localConcu
 }
 
 func writeRunContext(paths state.ProjectPaths, runID, cwd string) error {
-	return projectRunner().WriteContext(paths, runID, cwd)
+	return projectRunner().WriteContext(paths, runID, cwd, config.EffectivePath(paths.BaseDir, paths.ProjectName))
 }
 
 func finishRunContext(paths state.ProjectPaths, runID string) error {

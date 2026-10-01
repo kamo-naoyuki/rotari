@@ -27,9 +27,9 @@ type Runner struct {
 	// PropagatedVariables are copied from the runner's environment into jobs.
 	PropagatedVariables []string
 
-	// ConfigPaths lists the config files active for a project; Begin snapshots
-	// them into the run directory. Optional.
-	ConfigPaths func(paths state.ProjectPaths) []string
+	// ConfigPaths lists the loaded config and notification files for a run;
+	// Begin snapshots them into the run directory. Optional.
+	ConfigPaths func(paths state.ProjectPaths, configPath string) []string
 	// RegisterRun records where runID lives so other commands can find it.
 	// Optional.
 	RegisterRun func(paths state.ProjectPaths, runID string) error

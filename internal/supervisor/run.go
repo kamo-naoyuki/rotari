@@ -84,7 +84,7 @@ func (ops Operations) beginRun(request server.Request) (startedRun, error) {
 	defer prepared.release()
 	request.SourceRunID = prepared.sourceRunID
 	runID := ops.NewRunID()
-	if err := ops.Runner.Begin(prepared.paths, projectrun.Start{RunID: runID, RunName: request.RunName, CWD: request.CWD}); err != nil {
+	if err := ops.Runner.Begin(prepared.paths, projectrun.Start{RunID: runID, RunName: request.RunName, CWD: request.CWD, ConfigPath: request.ConfigPath}); err != nil {
 		return startedRun{}, err
 	}
 	options := runRequestOptions(request, runID)

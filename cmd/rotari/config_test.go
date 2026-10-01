@@ -24,13 +24,16 @@ func TestProjectConfigIgnoresLowerPriorityScopes(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(projectDir, "config.json"), []byte(`{"executor":"slurm"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	oldConfig := cliConfig
-	t.Cleanup(func() { cliConfig = oldConfig })
+	oldConfig, oldConfigPath := cliConfig, cliConfigPath
+	t.Cleanup(func() { cliConfig, cliConfigPath = oldConfig, oldConfigPath })
 	if err := loadCLIConfig([]string{"--basedir", baseDir, "--project-name", "demo"}); err != nil {
 		t.Fatal(err)
 	}
 	if got := configString("executor", ""); got != "slurm" || configInt("retry", 0) != 0 {
 		t.Fatalf("config = %#v", cliConfig)
+	}
+	if cliConfigPath != filepath.Join(projectDir, "config.json") {
+		t.Fatalf("loaded config path = %q, want project config", cliConfigPath)
 	}
 }
 
@@ -39,13 +42,16 @@ func TestConfigOptionLoadsExplicitFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte("executor: slurm\nretry: 3\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	oldConfig := cliConfig
-	t.Cleanup(func() { cliConfig = oldConfig })
+	oldConfig, oldConfigPath := cliConfig, cliConfigPath
+	t.Cleanup(func() { cliConfig, cliConfigPath = oldConfig, oldConfigPath })
 	if err := loadCLIConfig([]string{"--config", path}); err != nil {
 		t.Fatal(err)
 	}
 	if got := configString("executor", ""); got != "slurm" || configInt("retry", 0) != 3 {
 		t.Fatalf("config = %#v", cliConfig)
+	}
+	if cliConfigPath != path {
+		t.Fatalf("loaded config path = %q, want %q", cliConfigPath, path)
 	}
 }
 
@@ -58,13 +64,16 @@ func TestConfigOptionOverridesAutomaticConfigAndSupportsEquals(t *testing.T) {
 	if err := os.WriteFile(selected, []byte(`{"project-name":"from-file"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	oldConfig := cliConfig
-	t.Cleanup(func() { cliConfig = oldConfig })
+	oldConfig, oldConfigPath := cliConfig, cliConfigPath
+	t.Cleanup(func() { cliConfig, cliConfigPath = oldConfig, oldConfigPath })
 	if err := loadCLIConfig([]string{"--basedir", baseDir, "--config=" + selected}); err != nil {
 		t.Fatal(err)
 	}
 	if got := configString("project-name", ""); got != "from-file" {
 		t.Fatalf("project name = %q, want from-file", got)
+	}
+	if cliConfigPath != selected {
+		t.Fatalf("loaded config path = %q, want %q", cliConfigPath, selected)
 	}
 	if err := loadCLIConfig([]string{"--config", filepath.Join(baseDir, "missing.yaml")}); err == nil {
 		t.Fatal("missing explicit config file was accepted")

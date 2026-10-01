@@ -58,14 +58,14 @@ func testRunner() projectrun.Runner {
 	store := testStore()
 	return projectrun.Runner{
 		Store: store, Executors: executor.NewRegistry(store, nil),
-		ConfigPaths: func(paths stateinternal.ProjectPaths) []string {
+		ConfigPaths: func(paths stateinternal.ProjectPaths, _ string) []string {
 			return config.PathsForRun(paths.BaseDir, paths.ProjectName)
 		},
 	}
 }
 
 func writeRunContext(paths stateinternal.ProjectPaths, runID, cwd string) error {
-	return testRunner().WriteContext(paths, runID, cwd)
+	return testRunner().WriteContext(paths, runID, cwd, "")
 }
 
 func finishRunContext(paths stateinternal.ProjectPaths, runID string) error {
@@ -2570,6 +2570,9 @@ func TestWriteRunContext(t *testing.T) {
 	}
 	if len(context.ConfigSnapshotFiles) != 1 {
 		t.Fatalf("config snapshot files = %#v, want one snapshot", context.ConfigSnapshotFiles)
+	}
+	if context.ConfigSnapshotFiles[0] != "config.yaml" {
+		t.Fatalf("config snapshot file = %q, want config.yaml", context.ConfigSnapshotFiles[0])
 	}
 	if len(context.ConfigSnapshotPaths) != 1 || context.ConfigSnapshotPaths[0] != filepath.Join(paths.RunsDir, "run-1", "configs", context.ConfigSnapshotFiles[0]) {
 		t.Fatalf("config snapshot paths = %#v, want run-local config path", context.ConfigSnapshotPaths)

@@ -21,6 +21,7 @@ type Request struct {
 	Retry            int                     `json:"retry,omitempty"`
 	RunName          string                  `json:"run_name,omitempty"`
 	CWD              string                  `json:"cwd,omitempty"`
+	ConfigPath       string                  `json:"config_path,omitempty"`
 	Async            bool                    `json:"async,omitempty"`
 	Quiet            bool                    `json:"quiet,omitempty"`
 	Executor         string                  `json:"executor,omitempty"`
