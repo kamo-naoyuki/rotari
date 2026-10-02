@@ -67,7 +67,20 @@ setTimeout(() => {
 
   dom.window.__runFrame(0);
   const initial = angles();
+  const initialPositions = [player, ...whites()].map(ball => ({
+    x: Number(ball.getAttribute('cx')),
+    y: Number(ball.getAttribute('cy')),
+  }));
   dom.window.__runFrame(1000);
+  const afterGravity = [player, ...whites()].map(ball => ({
+    x: Number(ball.getAttribute('cx')),
+    y: Number(ball.getAttribute('cy')),
+  }));
+  for (let index = 1; index < initialPositions.length; index++) {
+    if (initialPositions[index].x < 0 && afterGravity[index].y >= initialPositions[index].y) process.exit(13);
+    if (initialPositions[index].x > 0 && afterGravity[index].y <= initialPositions[index].y) process.exit(14);
+  }
+  if (afterGravity[0].x <= initialPositions[0].x) process.exit(15);
   const naturalDeltas = whites().map((ball, index) => ({
     radius: Number(ball.getAttribute('r')),
     delta: radiansMoved(initial[index + 1], Number(ball.getAttribute('data-angle'))),

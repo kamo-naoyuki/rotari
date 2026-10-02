@@ -57,6 +57,8 @@ function initOrbitGame() {
     element.setAttribute("cy", (ringRadius * Math.sin(angle)).toFixed(2));
     element.dataset.angle = String(angle);
   };
+  // Positive SVG-angle motion travels counterclockwise on the left and clockwise on the right.
+  const gravitySpeed = (radius) => 0.55 / radius;
   const makeWhiteBalls = () => {
     whiteBalls.replaceChildren();
     whiteStates = Array.from({ length: ballCount }, (_, index) => {
@@ -104,12 +106,13 @@ function initOrbitGame() {
         : Math.min((timestamp - lastFrameTime) / 1000, 0.05);
     lastFrameTime = timestamp;
     const turnSpeed = turnDirection * 1.7 * elapsed;
-    redAngle += (0.55 / redRadius) * elapsed + turnSpeed * 0.81;
+    redAngle += gravitySpeed(redRadius) * elapsed + turnSpeed * 0.81;
     drawBall(player, redAngle);
     for (const white of whiteStates) {
       const sizeFactor = 0.45 + (whiteRadiusMax - white.radius) * 0.065;
       white.angle +=
-        elapsed * (0.55 / white.radius + turnDirection * 1.7 * sizeFactor);
+        elapsed *
+        (gravitySpeed(white.radius) + turnDirection * 1.7 * sizeFactor);
       drawBall(white.element, white.angle);
     }
     if (hasCollision()) {
