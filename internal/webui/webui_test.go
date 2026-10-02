@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -2462,8 +2463,11 @@ func TestWebJobsPageShowsRecentJobs(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("GET /jobs/ status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
 	}
+	// The template is formatted by prettier, so the heading spans lines.
+	if !regexp.MustCompile(`<h1>\s*<a class="header-home" href="/"\s*>`).MatchString(response.Body.String()) {
+		t.Fatalf("GET /jobs/ heading does not link home: %s", response.Body.String())
+	}
 	for _, want := range []string{
-		`<h1><a class="header-home" href="/">`,
 		"rotari Job activity",
 		"Registered basedirs",
 		"State directories known to rotari",
