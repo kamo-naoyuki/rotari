@@ -1,4 +1,4 @@
-// Command rotari-mcp serves read-only rotari job inspection over MCP stdio.
+// Command mcp serves the rotari job information tool over MCP stdio.
 package main
 
 import (
@@ -9,7 +9,6 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// main runs the stdio MCP server until the client disconnects.
 func main() {
 	if err := rotarimcp.NewServer().Run(context.Background(), &mcpsdk.StdioTransport{}); err != nil {
 		log.Printf("rotari MCP server failed: %v", err)

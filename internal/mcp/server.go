@@ -39,24 +39,32 @@ func NewServer() *mcpsdk.Server {
 	return server
 }
 
-// getJobInfo builds a redacted report for the explicitly selected job.
-func getJobInfo(_ context.Context, _ *mcpsdk.CallToolRequest, input GetJobInfoInput) (*mcpsdk.CallToolResult, GetJobInfoOutput, error) {
+// GetJobInfo returns the redacted report for one explicitly selected job.
+// Both the MCP tool and the terminal command use this function so their job
+// lookup and report behavior stays identical.
+func GetJobInfo(input GetJobInfoInput) (GetJobInfoOutput, error) {
 	if input.BaseDir == "" {
-		return nil, GetJobInfoOutput{}, fmt.Errorf("basedir is required")
+		return GetJobInfoOutput{}, fmt.Errorf("basedir is required")
 	}
 	paths, err := state.ResolveProjectPaths(input.BaseDir, input.Project)
 	if err != nil {
-		return nil, GetJobInfoOutput{}, err
+		return GetJobInfoOutput{}, err
 	}
 	store := state.NewStore(state.DirectoryMode(), state.FileMode())
 	jobReport, err := report.Build(store, paths, input.RunID, input.JobID, false, "", true)
 	if err != nil {
-		return nil, GetJobInfoOutput{}, err
+		return GetJobInfoOutput{}, err
 	}
-	return nil, GetJobInfoOutput{
+	return GetJobInfoOutput{
 		Project: input.Project,
 		RunID:   input.RunID,
 		JobID:   input.JobID,
 		Report:  jobReport,
 	}, nil
+}
+
+// getJobInfo builds a redacted report for the explicitly selected job.
+func getJobInfo(_ context.Context, _ *mcpsdk.CallToolRequest, input GetJobInfoInput) (*mcpsdk.CallToolResult, GetJobInfoOutput, error) {
+	output, err := GetJobInfo(input)
+	return nil, output, err
 }
