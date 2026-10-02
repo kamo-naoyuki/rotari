@@ -642,6 +642,15 @@ serve the web status UI
 | `--auth-token` | `TOKEN` | `ROTARI_WEB_AUTH_TOKEN` | require this token in Authorization: Bearer or X-Rotari-Token; prefer ROTARI_WEB_AUTH_TOKEN for secrets |
 | `--notifications` | `` | `ROTARI_WEB_NOTIFICATIONS` | default state of the browser desktop-notification toggle; pass --notifications=false to default it off |
 
+### `rotari mcp`
+
+serve rotari's tools for agents over MCP on stdio
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
+| `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory whose runs and basedirs the tools serve |
+
 ### `rotari completion`
 
 print shell completion script

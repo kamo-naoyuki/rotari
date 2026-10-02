@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Drive rotari-mcp over stdio like an MCP-only agent and print response sizes.
+"""Drive `rotari mcp` over stdio like an MCP-only agent and print response sizes.
 
-Usage: XDG_STATE_HOME=DIR/xdg agent-trial-mcp.py PATH_TO_ROTARI_MCP, after
+Usage: XDG_STATE_HOME=DIR/xdg agent-trial-mcp.py PATH_TO_ROTARI, after
 agent-trial-fixture.sh DIR. See agent-trial-2026-10-03-m4.md.
 """
 
@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 proc = subprocess.Popen(
-    [sys.argv[1]], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True
+    [sys.argv[1], "mcp"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True
 )
 next_id = 0
 

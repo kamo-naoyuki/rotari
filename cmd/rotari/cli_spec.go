@@ -494,6 +494,14 @@ var cliCommandSpecs = []cliCommandSpec{
 		),
 	},
 	{
+		Name:        "mcp",
+		Description: "serve rotari's tools for agents over MCP on stdio",
+		Flags: []cliFlagSpec{
+			{Name: "config", Description: "config file to use", ValueName: "FILE", CommandLineOnly: true},
+			{Name: "masterdir", Description: "master registry directory whose runs and basedirs the tools serve", ValueName: "DIR"},
+		},
+	},
+	{
 		Name:        "completion",
 		Description: "print shell completion script",
 		Subcommands: []cliSubcommandSpec{

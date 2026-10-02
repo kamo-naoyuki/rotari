@@ -29,35 +29,33 @@ lines redact paths and hostnames where detected; redaction is not guaranteed
 to catch every secret. No queue edits, job execution, or job control are
 exposed, and the server does not remove stale locks or migrate registries.
 
-## Build
+## Start the server
 
-Build the MCP stdio server from the repository:
+The server is part of the `rotari` binary:
 
 ```sh
-mkdir -p ./bin
-go build -o ./bin/rotari-mcp ./cmd/mcp/server
+rotari mcp
 ```
 
-The MCP server uses the official Go MCP SDK, which currently requires Go 1.23
-or newer.
-
-The server resolves its master directory when it starts, in the same order as
-the CLI: `ROTARI_MASTERDIR`, then `$XDG_STATE_HOME/rotari/master`, then
-`~/.local/state/rotari/master`. It exits with a non-zero status if the master
-directory cannot be resolved or the server fails.
+It speaks MCP on stdin and stdout, so an MCP client starts it as a
+subprocess. It resolves its master directory when it starts: `--masterdir`,
+then the same order as the CLI, `ROTARI_MASTERDIR`, then
+`$XDG_STATE_HOME/rotari/master`, then `~/.local/state/rotari/master`. It exits
+with a non-zero status if the master directory cannot be resolved or the
+server fails.
 
 ## Configure VS Code
 
-Add an MCP server entry to the workspace's `.vscode/mcp.json`, changing the
-command to the absolute path of the built binary:
+Add an MCP server entry to the workspace's `.vscode/mcp.json`, giving the
+absolute path of the `rotari` binary when it is not on the client's `PATH`:
 
 ```json
 {
   "servers": {
     "rotari": {
       "type": "stdio",
-      "command": "/absolute/path/to/rotari/bin/rotari-mcp",
-      "args": []
+      "command": "rotari",
+      "args": ["mcp"]
     }
   }
 }

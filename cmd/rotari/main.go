@@ -100,6 +100,8 @@ func run(args []string) int {
 		return cmdServer(args[1:])
 	case "web":
 		return cmdWeb(args[1:])
+	case "mcp":
+		return cmdMCP(args[1:])
 	case "env":
 		return cmdEnvironment(args[1:])
 	case "completion":

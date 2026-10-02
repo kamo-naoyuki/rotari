@@ -21,7 +21,7 @@ flowchart LR
     runcli(["rotari run / retry"])
     direct(["rotari add / copy / change / cancel<br/>show / jobs / export ..."])
     webcli(["rotari web<br/>(HTTP)"])
-      mcpcli(["rotari-mcp<br/>(stdio MCP)"])
+      mcpcli(["rotari mcp<br/>(stdio MCP)"])
   end
   subgraph sup["one per active run of a project"]
     supervisor["supervisor<br/>rotari __server<br/>executes the run's jobs"]
@@ -107,7 +107,6 @@ no `internal` package imports `cmd/rotari`.
 ```mermaid
 flowchart TB
   cmd["cmd/rotari<br/>CLI flags, wiring, output"]
-   mcpserver["cmd/mcp/server<br/>MCP stdio entry point"]
    mcpadapter["internal/mcp<br/>MCP tools over shared packages"]
   projectrun["projectrun<br/>run lifecycle"]
   project["project<br/>state machine, idle edits"]
@@ -148,7 +147,7 @@ flowchart TB
   queueops --> state
   queueops --> jobstatus
   cmd --> report
-   mcpserver --> mcpadapter
+   cmd --> mcpadapter
    mcpadapter --> report
    mcpadapter --> resolve
    mcpadapter --> runview
@@ -240,7 +239,7 @@ are checked against this graph by
 | [internal/workflow](../internal/workflow/) | Workflow manifests: `export` merge and `import` reconciliation. | `manifest.go`, `export.go`, `reconcile.go` |
 | [internal/joblist](../internal/joblist/) | Recent job attempts across a base directory's projects for `rotari jobs` and the Web UI's jobs page: which attempts are listed, their order, and how their times read. | `joblist.go` (`Collect`) |
 | [internal/report](../internal/report/) | The redacted evidence report for AI-assisted diagnosis, shared by `show --report` and the Web UI. Reads jobs through `internal/web`'s projection. | `report.go` (`Build`) |
-| [internal/mcp](../internal/mcp/) | Read-only MCP tools for `rotari-mcp` (`cmd/mcp/server`): project list, run summary, job report, project check, and run comparison. They present the shared functions `rotari show`, `check`, and `lineage` use (`project.Overviews`, `basedirregistry.Discover`, `runview.Summary`, `projectrun.Runner.Check`, `runlineage.Compare`, `report.Build`), locate runs only through the master directory's run registry (`resolve.RegisteredRun`), and return no absolute paths. It does not depend on `cmd/rotari`. | `server.go` (`NewServer`), `tools.go` |
+| [internal/mcp](../internal/mcp/) | Read-only MCP tools that `rotari mcp` (`cmd/rotari/mcp.go`) serves: project list, run summary, job report, project check, and run comparison. They present the shared functions `rotari show`, `check`, and `lineage` use (`project.Overviews`, `basedirregistry.Discover`, `runview.Summary`, `projectrun.Runner.Check`, `runlineage.Compare`, `report.Build`), locate runs only through the master directory's run registry (`resolve.RegisteredRun`), and return no absolute paths. It does not depend on `cmd/rotari`. | `server.go` (`NewServer`), `tools.go` |
 | [internal/runlineage](../internal/runlineage/) | Comparison and summaries of loaded runs for `lineage`, and the grouping of a run's failures by cause that `show`, `lineage`, and the Web UI share. | `runlineage.go`, `failures.go` (`FailureGroups`) |
 | [internal/jobfilter](../internal/jobfilter/) | The conditions of the `--filter-*` options that narrow a job selection, evaluated without file access; callers supply what a condition needs about each job. | `filter.go` (`Filter`, `Selects`) |
 | [internal/diagnose](../internal/diagnose/) | Rule-based and provider-backed failure diagnosis. | `analysis.go` |

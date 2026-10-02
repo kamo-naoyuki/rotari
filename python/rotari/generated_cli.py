@@ -2632,6 +2632,24 @@ CLI_SCHEMA: dict[str, Any] = {
             "name": "web",
         },
         {
+            "description": "serve rotari's tools for agents over MCP on stdio",
+            "flags": [
+                {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
+                    "description": "master registry directory whose runs and "
+                    "basedirs the tools serve",
+                    "environment": "ROTARI_MASTERDIR",
+                    "name": "masterdir",
+                    "value_name": "DIR",
+                },
+            ],
+            "name": "mcp",
+        },
+        {
             "description": "print shell completion script",
             "name": "completion",
             "subcommands": [

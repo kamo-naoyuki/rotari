@@ -1912,6 +1912,19 @@
       "name": "web"
     },
     {
+      "flags": [
+        {
+          "name": "config",
+          "value_name": "FILE"
+        },
+        {
+          "name": "masterdir",
+          "value_name": "DIR"
+        }
+      ],
+      "name": "mcp"
+    },
+    {
       "name": "completion",
       "subcommands": [
         {
