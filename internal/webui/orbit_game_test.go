@@ -77,17 +77,18 @@ setTimeout(() => {
     y: Number(ball.getAttribute('cy')),
   }));
   for (let index = 1; index < initialPositions.length; index++) {
-    if (initialPositions[index].x < 0 && afterGravity[index].y >= initialPositions[index].y) process.exit(13);
-    if (initialPositions[index].x > 0 && afterGravity[index].y <= initialPositions[index].y) process.exit(14);
+    const delta = radiansMoved(initial[index], Number(whites()[index - 1].getAttribute('data-angle')));
+    if (initialPositions[index].x < 0 && delta >= 0) process.exit(13);
+    if (initialPositions[index].x > 0 && delta <= 0) process.exit(14);
+    if (afterGravity[index].y <= initialPositions[index].y) process.exit(16);
   }
-  if (afterGravity[0].x <= initialPositions[0].x) process.exit(15);
+  if (radiansMoved(initial[0], Number(player.getAttribute('data-angle'))) <= 0) process.exit(15);
   const naturalDeltas = whites().map((ball, index) => ({
     radius: Number(ball.getAttribute('r')),
     delta: radiansMoved(initial[index + 1], Number(ball.getAttribute('data-angle'))),
   }));
-  if (radiansMoved(initial[0], Number(player.getAttribute('data-angle'))) <= 0) process.exit(12);
   naturalDeltas.sort((a, b) => a.radius - b.radius);
-  if (!(naturalDeltas[0].delta > naturalDeltas.at(-1).delta)) process.exit(4);
+  if (!(Math.abs(naturalDeltas[0].delta) > Math.abs(naturalDeltas.at(-1).delta))) process.exit(4);
 
   const beforeRight = angles();
   dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
