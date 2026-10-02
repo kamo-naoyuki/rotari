@@ -630,36 +630,28 @@ func TestCmdShowFailedLogsFiltersSuccessfulJobs(t *testing.T) {
 		}
 	}
 
-	oldStdout := os.Stdout
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	os.Stdout = writer
-	code := cmdShow([]string{
-		"--basedir", baseDir, "--project-name", "demo", "--run-id", runID, "--failed-logs", "--no-pager",
-	})
-	os.Stdout = oldStdout
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
-	output, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if code != 0 {
-		t.Fatalf("cmdShow exit code = %d, want 0", code)
-	}
-	text := string(output)
-	for _, want := range []string{"Base directory: " + baseDir, "Project: demo", "Run: " + runID, "bad-job", "failure", "Status: 3 (failed)", "Command: false", "failed output"} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("failed logs do not contain %q:\n%s", want, text)
-		}
-	}
-	for _, unwanted := range []string{"ok-job", "successful output"} {
-		if strings.Contains(text, unwanted) {
-			t.Fatalf("failed logs unexpectedly contain %q:\n%s", unwanted, text)
-		}
+	for _, options := range [][]string{
+		{"--failed-logs"}, {"--logs", "--failed"}, {"--failed", "--logs"},
+		{"--logs", "--filter-result", "failed"}, {"--filter-result", "failed", "--logs"},
+	} {
+		t.Run(strings.Join(options, " "), func(t *testing.T) {
+			var output bytes.Buffer
+			args := append([]string{"--basedir", baseDir, "--project-name", "demo", "--run-id", runID, "--no-pager"}, options...)
+			if code := captureShowStdout(t, &output, func() int { return cmdShow(args) }); code != 0 {
+				t.Fatalf("cmdShow exit code = %d, want 0", code)
+			}
+			text := output.String()
+			for _, want := range []string{"Base directory: " + baseDir, "Project: demo", "Run: " + runID, "bad-job", "failure", "Status: 3 (failed)", "Command: false", "failed output"} {
+				if !strings.Contains(text, want) {
+					t.Fatalf("failed logs do not contain %q:\n%s", want, text)
+				}
+			}
+			for _, unwanted := range []string{"ok-job", "successful output"} {
+				if strings.Contains(text, unwanted) {
+					t.Fatalf("failed logs unexpectedly contain %q:\n%s", unwanted, text)
+				}
+			}
+		})
 	}
 }
 

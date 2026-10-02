@@ -436,7 +436,7 @@ func cmdShow(args []string) int {
 			return 1
 		}
 		return showWithPager(!*noPager, func(writer io.Writer) int {
-			return showRunLogs(writer, paths, runID, *showFailedLogs, *streamOption)
+			return showRunLogs(writer, paths, runID, *showFailedLogs || failedOnly, *streamOption)
 		})
 	}
 	if *reportOutput {

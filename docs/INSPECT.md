@@ -38,6 +38,9 @@ rotari show RUN_ID --report # describe the whole run and include recent logs
 rotari show -p sweep --run-id latest --job-id JOB_ID --json # one run job (or all tasks of an array) as JSON
 ```
 
+`show --logs --failed` (or `--logs --filter-result failed`) selects the same
+failed jobs as `--failed-logs`, including output carried from an older run.
+
 The project list shows each project's last run and its result, such as
 `failed 7/15` when 7 of its 15 jobs failed. Its suggested commands name the
 basedir (`-b BASEDIR`) when a listed project lies outside the default state

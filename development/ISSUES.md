@@ -10,6 +10,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 ## Resolved
 
+- **Run-wide log output silently ignored result selection** (`cmd/rotari/show.go`): `show --logs --failed` and its long form `--logs --filter-result failed` passed only `--failed-logs` to the existing log selector, so they printed successful jobs as well. The CLI now forwards the parsed failed selection. `TestCmdShowFailedLogsFiltersSuccessfulJobs` and `TestShowLogResultSelection` fail before the fix, including older/latest runs and carried successful output (SEL-11). The Web API reads a named job's log rather than exposing this run-wide selection; Python's structured `show` uses JSON.
+
 - **A project that had only been added was not listed across basedirs** (`cmd/rotari/add.go`): `add` called `registerBasedir` only on an option error, so a project created by `add` stayed out of the basedir registry, and out of `rotari_list_projects`, until its first run. `add --dry-run` of a new project also failed, because the guarded edit locked a project directory that a dry run does not create. Applied `add` and `copy` now register through `queueops.Editor.RegisterBaseDir`, a dry run registers nothing, and `project.CreateQueueGuarded` previews and creates a new project for `add` and `import`. `TestCommandsThatCreateAProjectRegisterItsBasedir` (RES-8) fails on the previous commit for both causes.
 
 - **`jobs --since 7d`, as documented, was rejected** (`internal/joblist`, `ParseSince`): Go durations have no day unit. `ParseSince`, which the CLI and the Web jobs page share, now also takes a whole number of days. Contract CLI-6; `TestParseSinceAcceptsDurationsAndDays` and `TestJobsWindowAcceptsDays` fail on the previous commit.

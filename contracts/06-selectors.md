@@ -173,6 +173,14 @@ heading in `--help`. `change` and `remove` take only the definition filters
 table keeps for `--failed`, in the run's summary results and in a job or
 array view's jobs.
 
+For run-wide log output, `show --logs --failed` and
+`show --logs --filter-result failed` select the same failed jobs as
+`show --failed-logs`, including carried output. Other result selections are
+rejected with log output. The CLI forwards the parsed failed selection to the
+existing log selector in [cmd/rotari/show.go](../cmd/rotari/show.go); the
+external check is
+[conformance/03-interfaces/log_selection_test.go](../conformance/03-interfaces/log_selection_test.go).
+
 **SEL-11** The `--filter-*` options select jobs as follows:
 
 - `--filter-result RESULT` (`failed`, `unfinished`, or `success`) is the
