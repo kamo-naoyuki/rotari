@@ -28,6 +28,8 @@ func TestDiagnoseDefaultNormalizesAndMatchesKnownErrors(t *testing.T) {
 		{name: "CUDA tensor device mismatch", job: Job{Log: "Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!"}, want: "CUDA device selection/configuration error"},
 		{name: "CUDA peer access unsupported", job: Job{Log: "CUDA error: peer access is not supported between these two devices"}, want: "CUDA peer-to-peer access unavailable"},
 		{name: "Slurm memory limit", job: Job{Log: "slurmstepd: error: Detected 1 oom-kill event(s) in StepId=1"}, want: "Slurm memory limit exceeded"},
+		{name: "rotari timeout log line", job: Job{Log: "step 3\nrotari: job timed out after 5s\nTerminated"}, want: "Job timeout reached"},
+		{name: "rotari timeout error", job: Job{Error: "timed out after 1h30m0s"}, want: "Job timeout reached"},
 		{name: "Slurm time limit", job: Job{Log: "slurmstepd: error: CANCELLED AT 2026-09-21 DUE TO TIME LIMIT"}, want: "Slurm time limit exceeded"},
 		{name: "PBS walltime", job: Job{Log: "PBS: job exceeded walltime limit"}, want: "PBS resource or walltime limit exceeded"},
 		{name: "LSF memory limit", job: Job{Log: "Exited with exit code 137. TERM_MEMLIMIT"}, want: "LSF memory limit exceeded"},
@@ -132,6 +134,8 @@ func TestDiagnoseDefaultIgnoresLookalikeText(t *testing.T) {
 		{name: "ordinary unset variable text", log: "This script enables set -u so unset parameters fail."},
 		{name: "exception name inside identifier", log: "counter.valueerrors=0 keyerrorsuppressed=1"},
 		{name: "errno name inside word", log: "prefix_enoentry and leacces and teagain"},
+		{name: "another tool's timeout", log: "request timed out after 30s, retrying"},
+		{name: "quoted rotari timeout", log: "see: rotari: job timed out after 5s in the docs"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
