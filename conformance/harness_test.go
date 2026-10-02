@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
 
 // rotariBin is the binary built by TestMain.
@@ -33,9 +35,8 @@ func runTests(m *testing.M) int {
 	}
 	defer os.RemoveAll(dir)
 	rotariBin = filepath.Join(dir, "rotari")
-	build := exec.Command("go", "build", "-o", rotariBin, "github.com/kamo-naoyuki/rotari/cmd/rotari")
-	if output, err := build.CombinedOutput(); err != nil {
-		fmt.Fprintf(os.Stderr, "build rotari: %v\n%s", err, output)
+	if err := support.BuildRotari(rotariBin); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 	return m.Run()
@@ -159,6 +160,7 @@ func (r result) String() string {
 }
 
 func (e *env) command(args ...string) *exec.Cmd {
+	support.TrackBuildInputs(e.t)
 	cmd := exec.Command(rotariBin, args...)
 	cmd.Env = e.vars
 	cmd.Dir = e.root

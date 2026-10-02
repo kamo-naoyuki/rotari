@@ -16,9 +16,9 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 - **`jobs --since 7d`, as documented, is rejected** (`internal/joblist`, `ParseSince`; `docs/INSPECT.md`): the guide gives `rotari jobs --since 7d` as "the last seven days", but `ParseSince` uses `time.ParseDuration`, which has no day unit, so the command fails with `invalid --since duration "7d"`. Expected: accept days, or document hours such as `168h`.
 
-- **`go test ./conformance/...` can report a cached pass after `cmd/rotari` changes** (`conformance/support`, `Run`): the rotari binary is built by a `go build` subprocess, so Go's test cache does not see `cmd/rotari` sources as inputs. On 2026-10-02, after `cmd/rotari/show.go` and `lineage.go` changed, `01-resolution`, `02-lifecycle`, `05-web`, and `06-selectors` printed `(cached)`; `go test -count=1 ./conformance/...` then ran them. `AGENTS.md` and `scripts/check.sh` do not pass `-count=1`. Expected: a conformance run always tests the current binary.
-
 ## Resolved
+
+- **`go test ./conformance/...` reported cached passes after `cmd/rotari` changes** (`conformance/support`): the binary is built by a `go build` subprocess that Go's test cache does not observe. All three build sites now use `support.BuildRotari`, and every command that runs the binary calls `support.TrackBuildInputs`, which stats the files under `cmd/`, `internal/`, `go.mod`, and `go.sum` during the test run (stats in `TestMain` are not recorded). Editing a Go source or an embedded asset now reruns the packages, and unchanged sources stay cached.
 
 - **`TestWebJobsPageShowsRecentJobs` never passed** (`internal/webui/webui_test.go`): it was recorded as expecting a stale home-link URL, but the link is `href="/"` as expected. The test, added with the link in `f708ff1`, matched `<h1><a class="header-home" href="/">` on one line, while the prettier-formatted template splits it over lines. It now matches the heading with a whitespace-tolerant pattern, which still fails when the link target changes.
 

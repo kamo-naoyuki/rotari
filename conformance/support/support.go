@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -77,12 +78,83 @@ func Run(m *testing.M) int {
 	}
 	defer os.RemoveAll(dir)
 	binary = filepath.Join(dir, "rotari")
-	build := exec.Command("go", "build", "-o", binary, "github.com/kamo-naoyuki/rotari/cmd/rotari")
-	if output, err := build.CombinedOutput(); err != nil {
-		fmt.Fprintf(os.Stderr, "build rotari: %v\n%s", err, output)
+	if err := BuildRotari(binary); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 	return m.Run()
+}
+
+// BuildRotari builds cmd/rotari at path for a conformance test binary.
+// Commands that run the binary must call TrackBuildInputs.
+func BuildRotari(path string) error {
+	build := exec.Command("go", "build", "-o", path, "github.com/kamo-naoyuki/rotari/cmd/rotari")
+	if output, err := build.CombinedOutput(); err != nil {
+		return fmt.Errorf("build rotari: %w\n%s", err, output)
+	}
+	return nil
+}
+
+var trackBuildInputs = sync.OnceValue(statBuildInputs)
+
+// TrackBuildInputs makes a cached test result depend on rotari's sources.
+//
+// BuildRotari runs `go build` in a subprocess, which Go's test cache does not
+// observe, so a cached conformance result would survive a change to rotari.
+// The cache does record files the test process stats while tests run (not
+// in TestMain), so every command that runs the built binary calls this: it
+// stats each file under the module's cmd and internal directories, plus
+// go.mod and go.sum, once per test binary.
+func TrackBuildInputs(t testing.TB) {
+	t.Helper()
+	if err := trackBuildInputs(); err != nil {
+		t.Fatalf("track rotari sources: %v", err)
+	}
+}
+
+// statBuildInputs stats the files a rotari build reads; see TrackBuildInputs.
+func statBuildInputs() error {
+	root, err := moduleRoot()
+	if err != nil {
+		return err
+	}
+	for _, name := range []string{"go.mod", "go.sum"} {
+		if _, err := os.Stat(filepath.Join(root, name)); err != nil {
+			return err
+		}
+	}
+	for _, dir := range []string{"cmd", "internal"} {
+		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, entry os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			_, err = os.Stat(path)
+			return err
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// moduleRoot finds the directory holding go.mod above the working directory,
+// which go test sets to the test package's directory.
+func moduleRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("go.mod not found above the working directory")
+		}
+		dir = parent
+	}
 }
 
 func NewEnv(t *testing.T) *Env {
@@ -110,6 +182,7 @@ func NewEnv(t *testing.T) *Env {
 }
 
 func (e *Env) command(args ...string) *exec.Cmd {
+	TrackBuildInputs(e.T)
 	cmd := exec.Command(binary, args...)
 	cmd.Env = e.vars
 	cmd.Dir = e.Root
