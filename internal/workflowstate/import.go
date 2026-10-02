@@ -1,9 +1,7 @@
 package workflowstate
 
 import (
-	"errors"
 	"fmt"
-	"os"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
@@ -115,9 +113,8 @@ func (request Import) Apply() (Plan, error) {
 	return plan, nil
 }
 
-// writeQueue replaces the project's queue with queue under guard. A dry run
-// of a project that does not exist yet creates nothing and reports the
-// revision a new project has.
+// writeQueue replaces the project's queue with queue under guard, creating
+// the project when needed; see project.CreateQueueGuarded.
 func writeQueue(baseDir, projectName string, queue model.Queue, overwrite bool, guard project.Guard) (project.Outcome, error) {
 	paths, err := state.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
@@ -131,19 +128,7 @@ func writeQueue(baseDir, projectName string, queue model.Queue, overwrite bool, 
 			report(result)
 		}
 	}
-	if _, err := os.Stat(paths.ProjectDir); errors.Is(err, os.ErrNotExist) && guard.DryRun {
-		revision, err := project.CheckRevision(paths, guard)
-		if err != nil {
-			return project.Outcome{}, err
-		}
-		return project.Outcome{Revision: revision, Queue: &queue}, nil
-	}
-	if !guard.DryRun {
-		if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
-			return project.Outcome{}, err
-		}
-	}
-	err = project.EditQueueGuarded(paths, "import", guard, func(existing *model.Queue) error {
+	err = project.CreateQueueGuarded(paths, "import", guard, func(existing *model.Queue) error {
 		if len(existing.Commands) > 0 && !overwrite {
 			return fmt.Errorf("project %q has queued jobs; use --overwrite", projectName)
 		}

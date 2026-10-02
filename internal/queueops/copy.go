@@ -80,6 +80,9 @@ func (editor Editor) Copy(baseDir, projectName, runID string, request queueedit.
 	if err != nil {
 		return "", err
 	}
+	if err := editor.registerBaseDir(paths.BaseDir); err != nil {
+		return "", err
+	}
 	return fmt.Sprintf("copied jobs=%d from run=%s to queue=%s", copied, runID, projectName), nil
 }
 

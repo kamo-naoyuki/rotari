@@ -8,9 +8,9 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **A project that has only been added is not listed across basedirs** (`cmd/rotari/run_registry.go`, `registerBasedir`): a basedir is registered in the master directory when a run starts or a manifest is imported, but not when `add`, `change`, or `copy` creates or edits a queue. Until the project's first run, `rotari_list_projects` and the MCP tools that take `basedir_ref` cannot reach it. Found in the M6 MCP agent trial; `TestRunPreviewListsTheTasksOfAWholeArray` imports its queue for this reason. Expected: every command that writes a project's state registers its basedir, in one place.
-
 ## Resolved
+
+- **A project that had only been added was not listed across basedirs** (`cmd/rotari/add.go`): `add` called `registerBasedir` only on an option error, so a project created by `add` stayed out of the basedir registry, and out of `rotari_list_projects`, until its first run. `add --dry-run` of a new project also failed, because the guarded edit locked a project directory that a dry run does not create. Applied `add` and `copy` now register through `queueops.Editor.RegisterBaseDir`, a dry run registers nothing, and `project.CreateQueueGuarded` previews and creates a new project for `add` and `import`. `TestCommandsThatCreateAProjectRegisterItsBasedir` (RES-8) fails on the previous commit for both causes.
 
 - **`jobs --since 7d`, as documented, was rejected** (`internal/joblist`, `ParseSince`): Go durations have no day unit. `ParseSince`, which the CLI and the Web jobs page share, now also takes a whole number of days. Contract CLI-6; `TestParseSinceAcceptsDurationsAndDays` and `TestJobsWindowAcceptsDays` fail on the previous commit.
 

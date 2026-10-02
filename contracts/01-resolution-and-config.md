@@ -362,7 +362,11 @@ maintain a separate one-record-per-basedir index under the master directory:
 
 Register a basedir idempotently when a command creates or adopts state there:
 queue/project creation, run creation, import, copy, and server startup. Do
-not register from read-only commands such as `show` or `jobs`. The basedir
+not register from read-only commands such as `show` or `jobs`, or from a
+`--dry-run`, which writes nothing. `add` and `copy` register through
+`queueops.Editor.RegisterBaseDir`, import through `workflowstate.Import`;
+`TestCommandsThatCreateAProjectRegisterItsBasedir` checks the commands that
+create a project. The basedir
 registry is used for discovery by bare `show` and `show --basedirs`, so those
 commands do not need to scan every historical run record. Existing
 installations are backfilled from the run registry when the basedir index is

@@ -3,7 +3,6 @@ package queueops
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
@@ -28,12 +27,7 @@ func (editor Editor) Add(baseDir, projectName string, commands []model.QueuedCom
 	if err != nil {
 		return "", err
 	}
-	if !editor.Guard.DryRun {
-		if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
-			return "", err
-		}
-	}
-	err = project.EditQueueGuarded(paths, "add", editor.Guard, func(queue *model.Queue) error {
+	err = project.CreateQueueGuarded(paths, "add", editor.Guard, func(queue *model.Queue) error {
 		for index := range commands {
 			if commands[index].Executor != "" && !editor.Executors.Known(commands[index].Executor) {
 				return fmt.Errorf("unsupported executor: %s", commands[index].Executor)
@@ -60,6 +54,9 @@ func (editor Editor) Add(baseDir, projectName string, commands []model.QueuedCom
 		return nil
 	})
 	if err != nil {
+		return "", err
+	}
+	if err := editor.registerBaseDir(paths.BaseDir); err != nil {
 		return "", err
 	}
 	message := fmt.Sprintf("added project=%s jobs=%d", projectName, len(commands))

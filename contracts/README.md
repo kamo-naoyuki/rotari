@@ -126,7 +126,7 @@ the IDs, this table, and those calls disagree.
 | RES-5 | `jobs` takes an optional positional project that overrides defaults | partial | `TestPositionalProject` |
 | RES-6 | `export TARGET [FILE]` names a project or saved run | conformance | `TestExportResolvesProjectAndRunTargets` |
 | RES-7 | `unlock` derives the run from the lock or interrupted metadata | conformance | `TestUnlockDerivesInterruptedRun` |
-| RES-8 | `show --basedirs` lists registered state directories | conformance | `TestShowBasedirsListsKnownStateDirectories` |
+| RES-8 | `show --basedirs` lists registered state directories | conformance | `TestShowBasedirsListsKnownStateDirectories`, `TestCommandsThatCreateAProjectRegisterItsBasedir` |
 | RES-9 | Project names and job IDs are single path elements | conformance | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
 | RES-10 | Unsafe path elements are rejected before filesystem access, locally and remotely | partial | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
 | RES-11 | Stored times are UTC RFC3339; displayed times follow `TZ` | partial | `TestDisplayTimesFollowTZ` |

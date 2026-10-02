@@ -131,10 +131,6 @@ func cmdAdd(args []string) int {
 		err = model.ValidateRetryBackoff(*retryDelay, retryBackoff, *retryMaxDelay)
 	}
 	if err != nil {
-		if err := registerBasedir(baseDir); err != nil {
-			printErrorf("failed to register state directory: %v", err)
-			return 1
-		}
 		printError(err)
 		return 1
 	}

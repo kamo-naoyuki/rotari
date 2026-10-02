@@ -258,7 +258,7 @@ func jobController() jobcontrol.Controller {
 }
 
 func queueEditor() queueops.Editor {
-	return queueops.Editor{Store: jsonStore(), Executors: executorRegistry, NewJobID: makeJobID, UnregisterRun: unregisterRun}
+	return queueops.Editor{Store: jsonStore(), Executors: executorRegistry, NewJobID: makeJobID, UnregisterRun: unregisterRun, RegisterBaseDir: registerBasedir}
 }
 
 func loadWrapperStatus(path string) (executor.WrapperStatus, bool) {

@@ -167,3 +167,41 @@ func TestWaitResolvesActiveAndFinishedSelectors(t *testing.T) {
 		}
 	})
 }
+
+// TestCommandsThatCreateAProjectRegisterItsBasedir creates a project in a
+// basedir of its own with each command that can create one, and checks that
+// `show --basedirs` lists the basedir after the write but not after its dry
+// run, which writes nothing. (copy cannot create a project: it copies from
+// one of the project's own runs.)
+func TestCommandsThatCreateAProjectRegisterItsBasedir(t *testing.T) {
+	covers(t, "RES-8")
+	for _, test := range []struct {
+		name string
+		args func(e *support.Env, baseDir string) []string
+	}{
+		{"add", func(_ *support.Env, baseDir string) []string {
+			return []string{"add", "-b", baseDir, "-p", "fresh", "--", "true"}
+		}},
+		{"import", func(e *support.Env, baseDir string) []string {
+			manifest := filepath.Join(e.Root, "manifest.json")
+			if err := os.WriteFile(manifest, []byte(`{"version":1,"jobs":[{"name":"imported","command":["true"]}]}`), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			return []string{"import", "-b", baseDir, manifest, "fresh"}
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			e := support.NewEnv(t)
+			baseDir := filepath.Join(e.Root, "other-basedir")
+			args := test.args(e, baseDir)
+			e.MustRotari(append([]string{args[0], "--dry-run"}, args[1:]...)...)
+			if out := e.MustRotari("show", "--basedirs").Stdout; strings.Contains(out, baseDir) {
+				t.Fatalf("%s --dry-run registered %s:\n%s", test.name, baseDir, out)
+			}
+			e.MustRotari(args...)
+			if out := e.MustRotari("show", "--basedirs").Stdout; !strings.Contains(out, baseDir) {
+				t.Fatalf("%s did not register %s:\n%s", test.name, baseDir, out)
+			}
+		})
+	}
+}

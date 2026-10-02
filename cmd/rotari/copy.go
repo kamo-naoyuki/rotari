@@ -201,10 +201,6 @@ func cmdCopy(args []string) int {
 		printError(err)
 		return 1
 	}
-	if err := registerBasedir(baseDir); err != nil {
-		printErrorf("failed to register state directory: %v", err)
-		return 1
-	}
 	guard.printResult(message, *quiet)
 	return 0
 }

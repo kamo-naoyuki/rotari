@@ -309,3 +309,37 @@ func TestRecoverInterruptedGuardedPreviewsAndChecksTheRevision(t *testing.T) {
 		t.Fatal("recovery at the previewed revision did not discard the queue")
 	}
 }
+
+func TestCreateQueueGuardedPreviewsANewProjectWithoutCreatingIt(t *testing.T) {
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "fresh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendJob := func(queue *model.Queue) error {
+		queue.Commands = append(queue.Commands, model.QueuedCommand{ID: "first", Command: []string{"true"}})
+		return nil
+	}
+	empty, err := Revision(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var preview Outcome
+	if err := CreateQueueGuarded(paths, "add", Guard{DryRun: true, Report: func(outcome Outcome) { preview = outcome }}, appendJob); err != nil {
+		t.Fatal(err)
+	}
+	if preview.Applied || preview.Revision != empty || preview.Queue == nil || len(preview.Queue.Commands) != 1 {
+		t.Fatalf("dry run outcome = %+v", preview)
+	}
+	if _, err := os.Stat(paths.ProjectDir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("dry run created the project: %v", err)
+	}
+
+	var applied Outcome
+	if err := CreateQueueGuarded(paths, "add", Guard{IfRevision: preview.Revision, Report: func(outcome Outcome) { applied = outcome }}, appendJob); err != nil {
+		t.Fatal(err)
+	}
+	if !applied.Applied || applied.NewRevision == empty || len(loadQueueForTest(t, paths).Commands) != 1 {
+		t.Fatalf("applied outcome = %+v", applied)
+	}
+}

@@ -120,6 +120,31 @@ func EditQueueGuarded(paths state.ProjectPaths, operation string, guard Guard, e
 	return report(paths, guard, Outcome{Revision: revision, Queue: &queue})
 }
 
+// CreateQueueGuarded is EditQueueGuarded for an edit that may create the
+// project, such as add or import. Applying it creates the project directory
+// first. A dry run of a project that does not exist yet edits an empty queue
+// without locking or creating anything, and reports the revision a new
+// project has.
+func CreateQueueGuarded(paths state.ProjectPaths, operation string, guard Guard, edit func(queue *model.Queue) error) error {
+	if _, err := os.Stat(paths.ProjectDir); errors.Is(err, os.ErrNotExist) && guard.DryRun {
+		revision, err := CheckRevision(paths, guard)
+		if err != nil {
+			return err
+		}
+		var queue model.Queue
+		if err := edit(&queue); err != nil {
+			return err
+		}
+		return report(paths, guard, Outcome{Revision: revision, Queue: &queue})
+	}
+	if !guard.DryRun {
+		if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
+			return err
+		}
+	}
+	return EditQueueGuarded(paths, operation, guard, edit)
+}
+
 // CheckRevision returns the project's revision, refusing the edit when it is
 // not guard.IfRevision. Callers hold the state lock, unless the project does
 // not exist yet.

@@ -194,12 +194,8 @@ func TestRunPreviewMatchesTheRun(t *testing.T) {
 func TestRunPreviewListsTheTasksOfAWholeArray(t *testing.T) {
 	covers(t, "CLI-7", "MCP-1")
 	e := support.NewEnv(t)
-	// import registers the basedir, which rotari_list_projects needs.
-	manifest := filepath.Join(e.Root, "manifest.json")
-	if err := os.WriteFile(manifest, []byte(`{"version":1,"jobs":[{"name":"prep","command":["true"]},{"name":"train","command":["true"],"array":"1-3"}]}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	e.MustRotari("import", manifest, "p1")
+	e.MustRotari("add", "-p", "p1", "--job-name", "prep", "--", "true")
+	e.MustRotari("add", "-p", "p1", "--job-name", "train", "--array", "1-3", "--", "true")
 
 	preview := e.MustRotari("run", "-p", "p1", "--dry-run")
 	var want []string
