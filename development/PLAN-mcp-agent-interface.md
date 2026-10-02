@@ -56,6 +56,39 @@ MCP server instance
 
 masterdir は registry を見つける設定上のスコープであり、それ自体をジョブやログの識別子にしない。registry は複数 basedir を持てるので、返却情報や後続の問い合わせでは、どの basedir に属するかを保つ必要がある。異なる basedir の同名 project や同じ job ID を混同しないことが要点。
 
+## 中心アイデア: show / jobs の agent 向け query
+
+個別の `list_projects`、`list_runs`、`list_jobs`、`get_job` を人間の画面どおりにそのまま並べるより、**対象の範囲と欲しい情報を指定する共通 query** をまず検討する。人間向けの表や見た目は不要で、agent が次に使える構造化データを返せばよい。
+
+考え方は既存 Web の履歴検索に近い。Web 検索は basedir / project / run scope と検索条件を受け取り、条件に合う project / run / job の行を返す。agent 向け query では、検索語や条件だけでなく、`basedir`、`project`、`run_id`、`job_id` の対象指定と、返してほしい情報（projection）を明示できるようにする。
+
+概念上の要求例:
+
+```json
+{
+    "scope": {
+        "basedirs": ["base-a"],
+        "projects": ["experiment"],
+        "run_ids": ["run-1", "run-2"],
+        "job_ids": ["train-1", "train-2"]
+    },
+    "include": ["summary", "result", "diagnosis", "stdout"],
+    "limits": {
+        "records": 100,
+        "log_tail_lines": 100,
+        "log_bytes_per_job": 20000
+    }
+}
+```
+
+この例の名前・スキーマは未確定。意図としては、各階層の ID 群はその階層内の候補を表し、親子関係をたどって一致したレコードだけを返すこと。異なる project に同じ run/job ID があっても、別の階層の ID リストを総当たりの直積として結び付けない。結果には、各レコードを特定する basedir / project / run / job の識別子を含める。
+
+`include` は「どの情報を返すか」を選ぶ。たとえば概要・job spec・結果・diagnosis・stdout・stderr から必要なものを選び、未指定のログ全文や大きなデータは返さない。ログには必ず上限を設け、切り詰めたことと取得範囲を結果に含める。
+
+既存 Web 履歴検索との違いは主にこの projection にある。Web は検索条件に合う一覧行を返してから画面で詳細を読む一方、agent query は同じ対象スコープ・絞り込みの考え方を使いつつ、agent が次の判断に必要とした詳細フィールドを選んで返す。Web API を MCP から単に呼ぶのではなく、共有できる検索・解決・projection の規則を見極める。
+
+この形なら agent は、たとえば `projects` だけを指定して run 候補を得てから、次の query で `run_ids` を絞り、さらに `job_ids` と `include: ["stdout"]` を指定する、という段階的な探索もできる。逆に、分かっている ID が揃っていれば一度の query で欲しい詳細まで取得できる。
+
 ## agent に渡す情報のアイデア
 
 以下は情報の候補であり、すべてを返す提案ではない。agent にどの問いを解かせたいかを決め、そこから必要な情報を絞る。
@@ -128,7 +161,7 @@ Web UI との対応を考える際は、既存 Web が basedir を選択して�
 
 ## 情報を返す形のアイデア
 
-- **一覧 → 要約 → 詳細 → excerpt** のように、agent が必要な分だけ深掘りできる段階構成。
+- 共通 query で **対象 scope と include projection** を指定し、概要のみからログ excerpt まで必要な深さを選べるようにする。
 - 各結果に、次の問い合わせで使える project/run/job/attempt の識別子を付ける。
 - ID だけでなく、人が確認できる job 名・run 名も添える。
 - 「結果なし」「検索範囲」「省略あり」「診断なし」「古い情報」など、情報の限界も明示する。
@@ -138,7 +171,7 @@ Web UI との対応を考える際は、既存 Web が basedir を選択して�
 
 ## どの MCP 機能に載せるかのアイデア
 
-- **Tools**: 「検索する」「一覧する」「比較する」など、引数を受けて rotari 側で処理する操作の候補。
+- **Tools**: 共通 query のように、scope / 条件 / include を引数として受け、rotari 側でデータを組み立てる操作の候補。Tools を採用するなら、細かな閲覧ごとに tool を増やす案と、query tool にまとめる案を比較する。
 - **Resources**: run summary や diagnosis report のように、識別子で指定して読み取る情報を VS Code がどう提示するかを見て検討する候補。resource picker / 自動コンテキスト注入が役立つかは未検証。
 - **Prompts**: 「失敗 job を調べる手順」のような定型の調査手順を提供する候補。状態データや設定値を保存する用途とは分ける。
 - これらは排他的とは限らないが、まず必要な情報・操作を整理し、クライアントでの使われ方を見てから選ぶ。
@@ -164,7 +197,7 @@ Web UI との対応を考える際は、既存 Web が basedir を選択して�
 
 ## アイデアを絞るための試し方
 
-まず一つの masterdir に複数 basedir が登録された状態を用意し、実際の問い合わせ例で agent が解決するのに必要な情報を洗い出す。たとえば:
+まず一つの masterdir に複数 basedir が登録された状態を用意し、実際の問い合わせ例で agent が解決するのに必要な情報と query の使い勝手を洗い出す。たとえば:
 
 1. 「registry に登録されている basedir と、それぞれの最近の状態を見せて」
 2. 「この basedir の最新 run で失敗した job と、失敗理由を要約して」
@@ -173,7 +206,7 @@ Web UI との対応を考える際は、既存 Web が basedir を選択して�
 5. 「同じ project 名が複数 basedir にあるとき、候補を混同せず表示して」
 6. 「失敗した job だけ再実行すると何が対象になるか説明して」
 
-それぞれについて、agent に最初から与える情報、最初の問い合わせで返す情報、追加問い合わせに回す情報、最終回答に必要な情報を分ける。既存 CLI を agent に使わせた場合と仮の MCP tool を使わせた場合を比べ、「コマンドを間違えにくいか」「path や basedir をユーザーに聞かずに済むか」「結果を正しく次の問い合わせへつなげられるか」を評価する。
+それぞれについて、agent に最初から与える情報、query の scope、`include` で要求するフィールド、最初の応答で返す量、追加 query に回す情報を分ける。既存の `show` / `jobs` / Web 履歴検索を組み合わせる方法と共通 query 案を比べ、「agent が必要な ID を順に発見できるか」「欲しい情報だけ返せるか」「path を渡さずに正しい basedir の情報へ到達できるか」を評価する。
 
 ## まだ決めないこと
 
@@ -183,6 +216,8 @@ Web UI との対応を考える際は、既存 Web が basedir を選択して�
 - basedir ごとの情報を返す粒度と、Web UI に似た複数 basedir 横断検索を提供するか。
 - basedir を識別する参照形式（Web UI と同様の可逆 ID か、opaque reference か）。
 - 「basedir + project + run + job」など、次の操作に使う参照の形式。
+- 既存 Web 履歴検索の scope / filter と、agent 向け query の `include` projection をどこまで共有するか。
+- 一つの共通 query にまとめるか、scope の一覧取得と詳細取得を別 tool にするか。
 - ログ検索の既定範囲、全文を返すか excerpt にするか、件数や byte 上限。
 - 読み取りに加え、queue 変更や run 操作まで agent に許可するか。
 - VS Code 専用 extension を作る必要があるか。
