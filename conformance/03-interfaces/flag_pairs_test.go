@@ -31,6 +31,19 @@ type pairCommand struct {
 
 type flagPair struct{ a, b pairFlag }
 
+// One execution classification shared by the inventory and runners. Missing
+// adapters are deferred explicitly rather than counted as passing tests.
+func pairAdapter(command string) string {
+	switch command {
+	case "show", "jobs", "check", "lineage":
+		return "read"
+	case "config", "export":
+		return "file"
+	default:
+		return ""
+	}
+}
+
 func commandFlagPairs(c pairCommand) []flagPair {
 	var pairs []flagPair
 	for i, a := range c.Flags {
@@ -117,7 +130,7 @@ func TestCLIFlagPairInventory(t *testing.T) {
 		pairs := len(commandFlagPairs(c))
 		total += pairs
 		coverage := "deferred: needs isolated command/subcommand adapter; see flag-pair coverage document"
-		if c.Name == "show" || c.Name == "jobs" {
+		if pairAdapter(c.Name) != "" {
 			executable += pairs
 			coverage = "robustness/order; semantic witnesses separately"
 		}
@@ -209,8 +222,8 @@ func (f pairFixture) sample(t *testing.T, flag pairFlag) []string {
 	return []string{"--" + flag.Name, value}
 }
 
-// Only read-only commands use this helper. Finished runs ensure --follow exits;
-// the deadline is a failure bound, never an expected result.
+// Only read-only and isolated-output commands use this helper. Finished runs
+// ensure --follow exits; the deadline is a failure bound, never an expected result.
 func pairInvoke(t *testing.T, e *support.Env, args ...string) support.Result {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
@@ -265,15 +278,15 @@ func TestCLIFlagPairs(t *testing.T) {
 	invocations := 0
 	outcomes := [2]int{} // assertPairOutcome permits only success (0) or rejection (1).
 	for _, c := range readPairSchema(t, f.e) {
-		if c.Name != "show" && c.Name != "jobs" {
+		if pairAdapter(c.Name) != "read" {
 			continue
 		}
 		t.Run(c.Name, func(t *testing.T) {
 			for _, pair := range commandFlagPairs(c) {
 				t.Run(pair.a.Name+"+"+pair.b.Name, func(t *testing.T) {
 					aArgs, bArgs := f.sample(t, pair.a), f.sample(t, pair.b)
-					ab := pairInvoke(t, f.e, append(append([]string{c.Name}, aArgs...), bArgs...)...)
-					ba := pairInvoke(t, f.e, append(append([]string{c.Name}, bArgs...), aArgs...)...)
+					ab := pairInvoke(t, f.e, append(append(pairReadBase(c.Name, f), aArgs...), bArgs...)...)
+					ba := pairInvoke(t, f.e, append(append(pairReadBase(c.Name, f), bArgs...), aArgs...)...)
 					invocations += 2
 					assertPairOutcome(t, ab)
 					assertPairOutcome(t, ba)
@@ -286,6 +299,13 @@ func TestCLIFlagPairs(t *testing.T) {
 		})
 	}
 	t.Logf("pairs accepted=%d explicitly rejected=%d invocations=%d elapsed=%s (includes fixture/schema)", outcomes[0], outcomes[1], invocations, time.Since(start))
+}
+
+func pairReadBase(command string, f pairFixture) []string {
+	if command == "lineage" {
+		return []string{command, f.run}
+	}
+	return []string{command}
 }
 
 func pairShownIDs(t *testing.T, f pairFixture, r support.Result, mode string) []string {
@@ -480,14 +500,14 @@ func TestCLIFlagPairSamples(t *testing.T) {
 	f := newPairFixture(t)
 	f.e.MustRotari("copy", "--run-id", f.run, "--quiet")
 	for _, c := range readPairSchema(t, f.e) {
-		if c.Name != "show" && c.Name != "jobs" {
+		if pairAdapter(c.Name) != "read" {
 			continue
 		}
 		for _, flag := range c.Flags {
 			t.Run(c.Name+"/"+flag.Name, func(t *testing.T) {
-				assertPairOutcome(t, pairInvoke(t, f.e, append([]string{c.Name}, f.sample(t, flag)...)...))
+				assertPairOutcome(t, pairInvoke(t, f.e, append(pairReadBase(c.Name, f), f.sample(t, flag)...)...))
 				if flag.ValueName == "" {
-					assertPairOutcome(t, pairInvoke(t, f.e, c.Name, "--"+flag.Name+"=false"))
+					assertPairOutcome(t, pairInvoke(t, f.e, append(pairReadBase(c.Name, f), "--"+flag.Name+"=false")...))
 				}
 			})
 		}

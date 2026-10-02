@@ -273,15 +273,24 @@ duplicating its lifecycle or status-projection work.
 ## Current status and next action
 
 The schema inventory now generates 6,481 pairs, including 1,830 for `run`.
-Read-only adapters execute 762 `show`/`jobs` pairs in both orders (1,524
-invocations); one measured pair-loop run took about 65 seconds including fixture
-and schema setup. The suite does not drop these pairs in short or race mode.
+Adapters now execute 819 pairs in six commands: `show`, `jobs`, `check`,
+`lineage`, `config`, and `export`. Read-only adapters cover 783 pairs; file
+adapters cover 36 with an independently reset output directory and observations
+of file presence, contents, permissions, and non-interference with fixture state.
+Both orders total 1,638 invocations. A measured expansion run took 38.25 seconds
+for read-only pairs and 6.40 seconds for file pairs including their separate
+fixtures. The suite does not drop these pairs in short or race mode.
 
 Observation tests exercise 23 selection flags against four output modes (92
 combinations), plus formatted `jobs` time windows. Most output/filter
 combinations explicitly reject; accepted combinations must match the job table
 and show an effect, except for two documented redundant failed-log selections.
 Standalone sample checks also exercise boolean false and repeated values.
+Further witnesses cover missing executables under `check --deep` with quiet/JSON,
+check quiet/JSON mode precedence, all three file formats, export run-vs-queue
+source selection with file output, and distinct template/notification content.
+The expansion's 57 additional pairs passed (50 accepted, 7 explicitly rejected),
+without finding another production bug or adding an equality exception.
 
 Initial harness errors were repaired. Semantic checks found one confirmed bug:
 run-wide `show --logs` ignored `--failed` and `--filter-result failed`. A focused
@@ -292,7 +301,7 @@ only current test/harness files copied into the temporary worktree.
 
 See [coverage and triage](../../conformance/03-interfaces/flag-pair-coverage.md)
 for measured coverage, reasoned exceptions, and explicit observation gaps.
-Milestone 1 is **not complete**: 5,719 pairs still need safe command adapters,
+Milestone 1 is **not complete**: 5,662 pairs still need safe command adapters,
 and queue, direct-selector, active/unfinished, and cross-interface semantic
 witnesses remain. Next, broaden fixture witnesses and add isolated mutation/run
 adapters. Compatibility declarations remain an evidence-gated follow-up.
