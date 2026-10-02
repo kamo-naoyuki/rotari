@@ -33,8 +33,9 @@ For transient host failures, `rotari run --retry N` retries within the run;
 forward successful work.
 
 On clusters, rotari dispatches jobs to the site's scheduler, which handles
-placement and resource allocation. Jobs otherwise use the caller's working
-directory and environment ([details](docs/CONCEPTS.md#workflow-and-execution-environment)).
+placement and resource allocation. By default, jobs inherit the working
+directory and environment of the shell that runs `rotari run`; set
+`--working-directory` or `--env` to override them ([details](docs/CONCEPTS.md#workflow-and-execution-environment)).
 
 ### Choosing a tool
 
