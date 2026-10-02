@@ -178,7 +178,8 @@ Outcome:
 - M3 is done: project list results and working hints (CLI-5), `jobs` scope, a failure-summary pointer in `show`, `wait --until-failure` (RUN-6), and an updated `rotari guide`.
 - M4 is done: four read-only MCP tools over the shared functions, with no absolute paths in results.
 - M5 is done for `check` (`rotari_check_project`); `export` moved to M6.
-- Next step: M6, state-changing queue and workflow operations. These need design decisions first: the preview/apply contract, approval, authorization, audit, idempotency, and recovery.
+- M6 CLI half is done: `add`, `change`, `copy`, `delete`, `import`, `remove`, `reset`, `run`, and `retry` take `--dry-run` and `--if-revision` (contract CLI-7), `check` reports the revision, and `gc` applies by default with `--dry-run`.
+- Next step: M6 MCP half (import preview/apply, run start). Starting a run needs a supervisor process, which `rotari-mcp` cannot start on its own; see Open decisions.
 
 ## Open decisions
 
@@ -187,6 +188,7 @@ Outcome:
 - Which command and configuration details are safe and useful to return.
 - Whether Web history search (`web.SearchHistory`) should back an MCP log-search tool.
 - Where redaction is owned once outputs other than `report` return paths, hostnames, or commands.
+- How an MCP tool starts a run: the supervisor is `rotari __server`, a child of the `rotari` binary, which `rotari-mcp` is not.
 - For M6/M7: the preview, confirmation, apply, and result-reporting sequence; authorization and audit; idempotency and retries after a transport timeout; asynchronous run handles; cancellation; partial failure.
 
 ## Validation
