@@ -1,4 +1,4 @@
-// Command mcp serves the rotari job information tool over MCP stdio.
+// Command rotari-mcp serves the rotari job information tool over MCP stdio.
 package main
 
 import (

@@ -1,4 +1,4 @@
-// Command mcp-cmd prints the same job report exposed by the rotari MCP tool.
+// Command rotari-agent prints the same job report exposed by the rotari MCP tool.
 package main
 
 import (
@@ -15,7 +15,7 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("mcp-cmd", flag.ContinueOnError)
+	flags := flag.NewFlagSet("rotari-agent", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	basedir := flags.String("basedir", "", "rotari state directory")
 	project := flags.String("project", "", "rotari project name")
@@ -25,7 +25,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "mcp-cmd does not accept positional arguments")
+		fmt.Fprintln(stderr, "rotari-agent does not accept positional arguments")
 		return 2
 	}
 

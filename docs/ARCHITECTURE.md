@@ -21,8 +21,8 @@ flowchart LR
     runcli(["rotari run / retry"])
     direct(["rotari add / copy / change / cancel<br/>show / jobs / export ..."])
     webcli(["rotari web<br/>(HTTP)"])
-      mcpcli(["mcp<br/>(stdio MCP)"])
-      mcpcmd(["mcp-cmd<br/>(terminal)"])
+      mcpcli(["rotari-mcp<br/>(stdio MCP)"])
+      agentcli(["rotari-agent<br/>(terminal agent interface)"])
   end
   subgraph sup["one per active run of a project"]
     supervisor["supervisor<br/>rotari __server<br/>executes the run's jobs"]
@@ -37,7 +37,7 @@ flowchart LR
   direct -->|"read / write under state lock"| files
   webcli -->|"read, edit queue"| files
    mcpcli -->|"read job report"| files
-   mcpcmd -->|"read job report"| files
+   agentcli -->|"read job report"| files
   nodes -->|write attempt status.json| files
 
    classDef command fill:#e0e7ff,stroke:#4f46e5,color:#1e1b4b
@@ -109,8 +109,8 @@ no `internal` package imports `cmd/rotari`.
 ```mermaid
 flowchart TB
   cmd["cmd/rotari<br/>CLI flags, wiring, output"]
-   mcpserver["cmd/rotari/mcp<br/>MCP stdio entry point"]
-   mcpcmd["cmd/rotari/mcp-cmd<br/>terminal entry point"]
+   mcpserver["cmd/mcp/server<br/>MCP stdio entry point"]
+   agentcmd["cmd/mcp/agent<br/>terminal agent entry point"]
    mcpadapter["internal/mcp<br/>shared job report and MCP tool"]
   projectrun["projectrun<br/>run lifecycle"]
   project["project<br/>state machine, idle edits"]
@@ -152,7 +152,7 @@ flowchart TB
   queueops --> jobstatus
   cmd --> report
    mcpserver --> mcpadapter
-   mcpcmd --> mcpadapter
+   agentcmd --> mcpadapter
    mcpadapter --> report
    mcpadapter --> state
   report --> web

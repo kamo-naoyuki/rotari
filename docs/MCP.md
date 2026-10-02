@@ -17,19 +17,19 @@ Build the MCP stdio server and the terminal command from the repository:
 
 ```sh
 mkdir -p ./bin
-go build -o ./bin/mcp ./cmd/rotari/mcp
-go build -o ./bin/mcp-cmd ./cmd/rotari/mcp-cmd
+go build -o ./bin/rotari-mcp ./cmd/mcp/server
+go build -o ./bin/rotari-agent ./cmd/mcp/agent
 ```
 
 Both commands call `internal/mcp.GetJobInfo`; the MCP server exposes it as
-`rotari_get_job_info`, while `mcp-cmd` prints the same report in a terminal.
-The MCP server uses the official Go MCP SDK, which currently requires Go 1.23
-or newer.
+`rotari_get_job_info`, while `rotari-agent` prints the same report in a
+terminal. The MCP server uses the official Go MCP SDK, which currently requires
+Go 1.23 or newer.
 
 Run the terminal form with the same four identifiers:
 
 ```sh
-./bin/mcp-cmd --basedir /path/to/rotari-state --project experiment \
+./bin/rotari-agent --basedir /path/to/rotari-state --project experiment \
   --run-id 20261002-120000-12345678 --job-id abc123def
 ```
 
@@ -43,7 +43,7 @@ command to the absolute path of the built binary:
   "servers": {
     "rotari": {
       "type": "stdio",
-      "command": "/absolute/path/to/rotari/bin/mcp",
+      "command": "/absolute/path/to/rotari/bin/rotari-mcp",
       "args": []
     }
   }
@@ -64,5 +64,6 @@ example, it needs a request equivalent to:
 
 The `basedir` is an explicit tool argument in this first prototype. The server
 does not walk arbitrary directories or infer a basedir from the job ID. When
-MCP is unavailable, use `mcp-cmd` with the same `basedir`, `project`, `run-id`,
-and `job-id` values; both entry points call the same lookup and report code.
+MCP is unavailable, use `rotari-agent` with the same `basedir`, `project`,
+`run-id`, and `job-id` values; both entry points call the same lookup and
+report code.
