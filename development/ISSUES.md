@@ -16,6 +16,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 - **`show` project-list hint fails outside the default basedir** (`cmd/rotari/show.go`): with projects in several registered basedirs, `rotari show` lists them and suggests `rotari show -p PROJECT`, which fails with `project "exp" does not exist in state directory <default>` because the hint omits `-b`.
 
+- **`go test ./conformance/...` can report a cached pass after `cmd/rotari` changes** (`conformance/support`, `Run`): the rotari binary is built by a `go build` subprocess, so Go's test cache does not see `cmd/rotari` sources as inputs. On 2026-10-02, after `cmd/rotari/show.go` and `lineage.go` changed, `01-resolution`, `02-lifecycle`, `05-web`, and `06-selectors` printed `(cached)`; `go test -count=1 ./conformance/...` then ran them. `AGENTS.md` and `scripts/check.sh` do not pass `-count=1`. Expected: a conformance run always tests the current binary.
+
 - **`TestWebJobsPageShowsRecentJobs` expects a stale home-link URL** (`internal/webui/webui_test.go`): the rendered Job activity header scopes its home link to the current basedir, while the test expects the literal `href="/"`. The focused history-search tests pass; update this unrelated assertion to match the scoped route.
 
 ## Resolved
