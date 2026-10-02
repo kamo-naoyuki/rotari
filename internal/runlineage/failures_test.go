@@ -92,3 +92,41 @@ func TestFailureGroupsIsEmptyWithoutFailures(t *testing.T) {
 		t.Fatalf("FailureGroups() = %+v, want none", got)
 	}
 }
+
+func TestCompareReportsFailureCauses(t *testing.T) {
+	oom := diagnosed(1, "CUDA/GPU memory exhausted", "OOM", "Reduce batch size.")
+	withResult := func(name, status string, result model.JobResult) Job {
+		return Job{Spec: model.JobSpec{ID: name + "-id", Name: name}, Status: status, Result: result}
+	}
+	timedOut := model.JobResult{ExitCode: model.TimeoutExitCode, Error: "timed out after 5s"}
+	valueError := diagnosed(2, "Python type or value error", "ValueError", "Fix the value.")
+	from := Run{ID: "run-1", Jobs: []Job{
+		withResult("changed", StatusFailed, oom),
+		withResult("same", StatusFailed, oom),
+		withResult("fixed", StatusFailed, oom),
+		withResult("newly", StatusSuccess, model.JobResult{}),
+	}}
+	to := Run{ID: "run-2", Jobs: []Job{
+		withResult("changed", StatusFailed, timedOut),
+		withResult("same", StatusFailed, diagnosed(3, "CUDA/GPU memory exhausted", "OOM again", "Reduce batch size.")),
+		withResult("fixed", StatusSuccess, model.JobResult{}),
+		withResult("newly", StatusFailed, valueError),
+	}}
+	result := Compare(from, to)
+	got := map[string][3]string{}
+	for _, job := range result.Jobs {
+		got[job.Name] = [3]string{job.FromCause, job.ToCause, fmt.Sprint(job.CauseChanged)}
+	}
+	want := map[string][3]string{
+		"changed": {"CUDA/GPU memory exhausted", model.FailureKindTimeout, "true"},
+		"same":    {"CUDA/GPU memory exhausted", "CUDA/GPU memory exhausted", "false"},
+		"fixed":   {"CUDA/GPU memory exhausted", "", "false"},
+		"newly":   {"", "Python type or value error", "false"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("causes = %v\nwant %v", got, want)
+	}
+	if result.Summary.CauseChanged != 1 || result.Summary.StillFailing != 2 {
+		t.Fatalf("summary = %+v, want 2 still failing with 1 changed cause", result.Summary)
+	}
+}

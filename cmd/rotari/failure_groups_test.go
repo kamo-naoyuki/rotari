@@ -124,3 +124,20 @@ func TestShowAndLineageAgreeOnFailureGroups(t *testing.T) {
 		t.Fatalf("show --success groups jobs its table does not list:\n%s", text)
 	}
 }
+
+func TestDiffCause(t *testing.T) {
+	tests := []struct {
+		from, to, want string
+	}{
+		{"", "", "-"},
+		{"oom", "oom", "oom"},
+		{"oom", "timeout", "oom -> timeout"},
+		{"oom", "", "oom -> -"},
+		{"", "timeout", "- -> timeout"},
+	}
+	for _, test := range tests {
+		if got := diffCause(runlineage.JobDiff{FromCause: test.from, ToCause: test.to}); got != test.want {
+			t.Errorf("diffCause(%q, %q) = %q, want %q", test.from, test.to, got, test.want)
+		}
+	}
+}

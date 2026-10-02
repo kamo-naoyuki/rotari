@@ -118,8 +118,8 @@ func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result runlineage.
 		fmt.Fprintf(writer, "%s %s -> %s\n", cyan("Elapsed:"), firstNonEmpty(result.From.Elapsed, "-"), firstNonEmpty(result.To.Elapsed, "-"))
 	}
 	summary := result.Summary
-	fmt.Fprintf(writer, "%s fixed %d, still failing %d, newly failing %d, added %d, removed %d, changed %d, carried %d\n",
-		cyan("Summary:"), summary.Fixed, summary.StillFailing, summary.NewlyFailing, summary.Added, summary.Removed, summary.Changed, summary.Carried)
+	fmt.Fprintf(writer, "%s fixed %d, still failing %d, newly failing %d, added %d, removed %d, changed %d, carried %d, cause changed %d\n",
+		cyan("Summary:"), summary.Fixed, summary.StillFailing, summary.NewlyFailing, summary.Added, summary.Removed, summary.Changed, summary.Carried, summary.CauseChanged)
 
 	shown := make([]runlineage.JobDiff, 0, len(result.Jobs))
 	for _, job := range result.Jobs {
@@ -132,18 +132,14 @@ func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result runlineage.
 		for _, job := range shown {
 			width = max(width, len(job.Name))
 		}
-		fmt.Fprintf(writer, "\n%s\n", cyan(fmt.Sprintf("%-*s  %-10s  %-10s  %-14s  %s", width, "JOB", "FROM", "TO", "RESULT", "CHANGES")))
+		changesWidth := len("CHANGES")
 		for _, job := range shown {
-			fields := make([]string, 0, len(job.Changes))
-			for _, change := range job.Changes {
-				fields = append(fields, change.Field)
-			}
-			changes := firstNonEmpty(strings.Join(fields, ","), "-")
-			if job.Carried {
-				changes += " (carried)"
-			}
-			fmt.Fprintf(writer, "%-*s  %-10s  %-10s  %s  %s\n", width, job.Name, firstNonEmpty(job.FromStatus, "-"), firstNonEmpty(job.ToStatus, "-"),
-				colorTransition(fmt.Sprintf("%-14s", strings.ReplaceAll(job.Transition, "_", " ")), job.Transition), changes)
+			changesWidth = max(changesWidth, len(diffChanges(job)))
+		}
+		fmt.Fprintf(writer, "\n%s\n", cyan(fmt.Sprintf("%-*s  %-10s  %-10s  %-14s  %-*s  %s", width, "JOB", "FROM", "TO", "RESULT", changesWidth, "CHANGES", "CAUSE")))
+		for _, job := range shown {
+			fmt.Fprintf(writer, "%-*s  %-10s  %-10s  %s  %-*s  %s\n", width, job.Name, firstNonEmpty(job.FromStatus, "-"), firstNonEmpty(job.ToStatus, "-"),
+				colorTransition(fmt.Sprintf("%-14s", strings.ReplaceAll(job.Transition, "_", " ")), job.Transition), changesWidth, diffChanges(job), diffCause(job))
 		}
 	}
 	if hidden := len(result.Jobs) - len(shown); hidden > 0 {
@@ -174,6 +170,32 @@ func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result runlineage.
 			fmt.Fprintf(writer, "    %s: %s -> %s\n", change.Field, firstNonEmpty(change.From, "-"), firstNonEmpty(change.To, "-"))
 		}
 	}
+}
+
+// diffChanges lists the changed definition fields of a compared job.
+func diffChanges(job runlineage.JobDiff) string {
+	fields := make([]string, 0, len(job.Changes))
+	for _, change := range job.Changes {
+		fields = append(fields, change.Field)
+	}
+	changes := firstNonEmpty(strings.Join(fields, ","), "-")
+	if job.Carried {
+		changes += " (carried)"
+	}
+	return changes
+}
+
+// diffCause shows a compared job's failure cause in each run: one cause
+// when both runs fail for the same one, "FROM -> TO" otherwise, and "-" when
+// neither run failed.
+func diffCause(job runlineage.JobDiff) string {
+	switch {
+	case job.FromCause == "" && job.ToCause == "":
+		return "-"
+	case job.FromCause == job.ToCause:
+		return job.FromCause
+	}
+	return firstNonEmpty(job.FromCause, "-") + " -> " + firstNonEmpty(job.ToCause, "-")
 }
 
 func colorTransition(text, transition string) string {

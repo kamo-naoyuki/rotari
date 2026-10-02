@@ -74,14 +74,20 @@ type Change struct {
 // JobDiff compares one job across the runs. A job is matched by name, or by
 // job ID when it has no name.
 type JobDiff struct {
-	Name       string   `json:"name"`
-	FromID     string   `json:"from_job_id,omitempty"`
-	ToID       string   `json:"to_job_id,omitempty"`
-	FromStatus string   `json:"from_status,omitempty"`
-	ToStatus   string   `json:"to_status,omitempty"`
-	Transition string   `json:"transition"`
-	Carried    bool     `json:"carried,omitempty"`
-	Changes    []Change `json:"changes,omitempty"`
+	Name       string `json:"name"`
+	FromID     string `json:"from_job_id,omitempty"`
+	ToID       string `json:"to_job_id,omitempty"`
+	FromStatus string `json:"from_status,omitempty"`
+	ToStatus   string `json:"to_status,omitempty"`
+	Transition string `json:"transition"`
+	// FromCause and ToCause name each side's failure cause, as
+	// FailureCause does; CauseChanged marks a still-failing job whose cause
+	// differs between the runs.
+	FromCause    string   `json:"from_cause,omitempty"`
+	ToCause      string   `json:"to_cause,omitempty"`
+	CauseChanged bool     `json:"cause_changed,omitempty"`
+	Carried      bool     `json:"carried,omitempty"`
+	Changes      []Change `json:"changes,omitempty"`
 }
 
 // RunInfo identifies a compared run.
@@ -100,6 +106,8 @@ type Summary struct {
 	Removed      int `json:"removed"`
 	Changed      int `json:"changed"`
 	Carried      int `json:"carried"`
+	// CauseChanged counts still-failing jobs whose cause changed.
+	CauseChanged int `json:"cause_changed"`
 }
 
 // Result is the comparison of two runs.
@@ -194,12 +202,14 @@ func Compare(from, to Run) Result {
 		} else if job.Origin == nil {
 			seen[key] = true
 		}
-		diff := JobDiff{Name: displayName(job.Spec), ToID: job.Spec.ID, ToStatus: job.Status, Carried: job.Carried}
+		diff := JobDiff{Name: displayName(job.Spec), ToID: job.Spec.ID, ToStatus: job.Status, ToCause: FailureCause(job), Carried: job.Carried}
 		if matched {
 			diff.FromID = old.Spec.ID
 			diff.FromStatus = old.Status
+			diff.FromCause = FailureCause(old)
 			diff.Changes = SpecChanges(old.Spec, job.Spec)
 			diff.Transition = transition(old.Status, job.Status)
+			diff.CauseChanged = diff.Transition == TransitionStillFailing && diff.FromCause != diff.ToCause
 		} else {
 			diff.Transition = TransitionAdded
 		}
@@ -210,7 +220,7 @@ func Compare(from, to Run) Result {
 			continue
 		}
 		result.Jobs = append(result.Jobs, JobDiff{
-			Name: displayName(job.Spec), FromID: job.Spec.ID, FromStatus: job.Status, Transition: TransitionRemoved,
+			Name: displayName(job.Spec), FromID: job.Spec.ID, FromStatus: job.Status, FromCause: FailureCause(job), Transition: TransitionRemoved,
 		})
 	}
 	for _, diff := range result.Jobs {
@@ -231,6 +241,9 @@ func Compare(from, to Run) Result {
 		}
 		if diff.Carried {
 			result.Summary.Carried++
+		}
+		if diff.CauseChanged {
+			result.Summary.CauseChanged++
 		}
 	}
 	return result

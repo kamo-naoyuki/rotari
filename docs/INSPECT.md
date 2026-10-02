@@ -126,7 +126,10 @@ rotari lineage -p sweep --json RUN_A RUN_B
 rotari lineage -p sweep RUN_A RUN_B RUN_C
 ```
 
-`lineage` summarizes jobs that were fixed, are still failing, or newly fail; jobs
+`lineage` summarizes jobs that were fixed, are still failing, or newly fail,
+with each run's failure cause as `show` groups it (the `CAUSE` column, and
+`from_cause`, `to_cause`, and `cause_changed` in JSON), so a job that still
+fails for a different reason stands out; jobs
 added or removed; jobs whose command, executor, executor options, environment,
 working directory, stage, or dependencies changed; and jobs whose result was
 carried forward instead of re-executed. Jobs are matched by origin when the

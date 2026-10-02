@@ -50,7 +50,7 @@ func FailureGroups(run Run) []FailureGroup {
 	groups := make([]FailureGroup, 0)
 	index := make(map[failureCause]int)
 	for _, job := range run.Jobs {
-		if job.Status != StatusFailed && job.Status != StatusBlocked {
+		if !failed(job) {
 			continue
 		}
 		cause, suggestion, evidence := classifyFailure(job)
@@ -78,6 +78,21 @@ func FailureGroups(run Run) []FailureGroup {
 	}
 	sort.SliceStable(groups, func(i, j int) bool { return groups[i].Count > groups[j].Count })
 	return groups
+}
+
+// FailureCause names the cause FailureGroups groups a failed or blocked job
+// under, and is empty for any other job.
+func FailureCause(job Job) string {
+	if !failed(job) {
+		return ""
+	}
+	cause, _, _ := classifyFailure(job)
+	return cause.name
+}
+
+// failed reports whether job counts as a failure for grouping.
+func failed(job Job) bool {
+	return job.Status == StatusFailed || job.Status == StatusBlocked
 }
 
 type failureCause struct {
