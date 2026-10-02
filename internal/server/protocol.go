@@ -54,4 +54,6 @@ type Response struct {
 	Total     int    `json:"total,omitempty"`
 	Succeeded int    `json:"succeeded,omitempty"`
 	Failed    int    `json:"failed,omitempty"`
+	// RunID is the run an asynchronous run request started.
+	RunID string `json:"run_id,omitempty"`
 }

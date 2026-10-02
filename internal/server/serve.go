@@ -31,8 +31,9 @@ var ErrRunAlreadyStarted = errors.New("this supervisor has already started a run
 // Operations performs the project work behind server requests. The server
 // owns the transport, active-run bookkeeping, and its own lifetime.
 type Operations interface {
-	// StartRun starts an asynchronous run and calls onDone once it ends.
-	StartRun(request Request, onDone func()) (string, error)
+	// StartRun starts an asynchronous run and calls onDone once it ends. It
+	// returns the new run's ID and the message for the client.
+	StartRun(request Request, onDone func()) (runID, message string, err error)
 	// Run executes a synchronous run, reporting progress as it goes.
 	Run(request Request, progress func(Response)) (message string, exitCode int, err error)
 	// CancelRun cancels a synchronous run whose client disconnected without
@@ -195,11 +196,12 @@ func (server *Server) Handle(conn io.ReadWriteCloser) {
 		}
 		server.BeginRun()
 		if request.Async {
-			message, err := server.ops.StartRun(request, server.EndRun)
+			runID, message, err := server.ops.StartRun(request, server.EndRun)
 			if err != nil {
 				server.EndRun()
 			}
 			response = messageResponse(message, err)
+			response.RunID = runID
 		} else {
 			message, exitCode, err, detached := server.runAttached(conn, request, func(progress Response) {
 				_ = encoder.Encode(progress)

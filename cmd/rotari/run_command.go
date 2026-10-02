@@ -210,36 +210,18 @@ func runJobs(args []string, defaultSelection string) int {
 	// --run-id is omitted, the queue is only repopulated from the latest
 	// run if it is currently empty; a non-empty queue (e.g. already
 	// restored and edited via "change") is used as-is.
-	sourceRunID := *runIDOption
-	forceCopy := sourceRunID != ""
 	if attemptSelection {
 		selection = "job-id"
-		forceCopy = true
 	}
-	if sourceRunID == "" && selection != "" {
-		paths, pathErr := state.ResolveProjectPaths(baseDir, queueName)
-		if pathErr != nil {
-			printError(pathErr)
-			return 1
-		}
-		meta, metaErr := state.LoadMeta(paths.MetaFile)
-		if metaErr != nil {
-			printErrorf("failed to load metadata: %v", metaErr)
-			return 1
-		}
-		if meta.LastRunID == "" {
-			printErrorf("queue %q has no previous run", queueName)
-			return 1
-		}
-		sourceRunID = meta.LastRunID
-		queue, queueErr := state.LoadQueue(paths.QueueFile)
-		if queueErr != nil {
-			printErrorf("failed to load queue: %v", queueErr)
-			return 1
-		}
-		// A filtered run, job selection included, keeps a populated queue
-		// and restores the latest run only into an empty one.
-		forceCopy = len(queue.Commands) == 0
+	sourcePaths, err := state.ResolveProjectPaths(baseDir, queueName)
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	sourceRunID, forceCopy, err := projectrun.RunSource(sourcePaths, selection, *runIDOption)
+	if err != nil {
+		printError(err)
+		return 1
 	}
 	// The run starts from the queue as it is, or as the copy below leaves
 	// it; --dry-run plans that queue without writing, and --if-revision

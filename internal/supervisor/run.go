@@ -17,14 +17,14 @@ import (
 
 // StartRun starts an async run inside the supervisor and returns at once.
 // onDone, if not nil, is called once the run has finished.
-func (ops Operations) StartRun(request server.Request, onDone func()) (string, error) {
+func (ops Operations) StartRun(request server.Request, onDone func()) (string, string, error) {
 	started, err := ops.beginRun(request)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	runDir, err := state.SafeJoin(started.paths.RunsDir, started.runID)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	go func() {
 		if onDone != nil {
@@ -35,7 +35,7 @@ func (ops Operations) StartRun(request server.Request, onDone func()) (string, e
 		}
 	}()
 	paths := started.paths
-	return fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run: %s\n  Directory: %s\n\nCheck status:\n  rotari show --run-id %s\n\nCancel run:\n  rotari cancel --basedir %s --project-name %s",
+	return started.runID, fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run: %s\n  Directory: %s\n\nCheck status:\n  rotari show --run-id %s\n\nCancel run:\n  rotari cancel --basedir %s --project-name %s",
 		request.QueueName, model.RunLabel(started.runID, request.RunName), runDir, started.runID, paths.BaseDir, request.QueueName), nil
 }
 

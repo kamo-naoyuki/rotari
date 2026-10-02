@@ -129,7 +129,7 @@ func testPlanningFailureDoesNotCreateRun(t *testing.T, async bool) {
 	}
 	request := server.Request{QueueName: "default", LocalConcurrency: 1, Selection: "failed"}
 	if async {
-		_, err = ops.StartRun(request, nil)
+		_, _, err = ops.StartRun(request, nil)
 	} else {
 		_, _, err = ops.Run(request, nil)
 	}
