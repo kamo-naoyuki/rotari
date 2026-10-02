@@ -102,14 +102,14 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 
 ## M2: Relevant excerpts, timeout diagnosis, and cause-aware comparison
 
-**Commits:** 2026-10-02 22:35:00 `0e805c2`; 2026-10-02 22:35:00 `d50b977`; 2026-10-02 22:35:01 `94cd80c`; 2026-10-02 22:35:01 `a00d427`; 2026-10-02 22:36:33 `3ed1f6a`.
+**Commits:** 2026-10-02 22:35:00 `0e805c2`; 2026-10-02 22:35:00 `d50b977`; 2026-10-02 22:35:01 `94cd80c`; 2026-10-02 22:35:01 `a00d427`; 2026-10-02 22:35:31 `02acad4`.
 
 **Change:**
 - `0e805c2`: added the "Job timeout reached" default rule (`internal/diagnose/default_rules.go`, `docs/LOCAL_DIAGNOSIS.md`). It matches only the wrapper's `rotari: job timed out after` line and the exact `timed out after DURATION` error.
 - `d50b977`: `internal/report` picks log lines with `reportLogExcerpt`. When a saved diagnosis's evidence is in the log, the excerpt keeps the 20 lines before and 5 after the latest line with each evidence, plus the last 20 lines, and marks omitted lines. Otherwise it keeps the last 100 lines. The section heading names the selection. `docs/INSPECT.md` was updated.
 - `94cd80c`: `runlineage.JobDiff` gained `from_cause`, `to_cause`, and `cause_changed`, and `Summary` gained `cause_changed`. Causes come from the new `runlineage.FailureCause`, which shares the classification with `FailureGroups`. The `lineage` comparison table gained a `CAUSE` column. `docs/INSPECT.md` was updated.
 - `a00d427`: extended the `ISSUES.md` positional-argument entry to attempt IDs with `--report`.
-- `3ed1f6a`: updated the plan and added the M2 trial note.
+- `02acad4`: updated the plan and added the M2 trial note.
 
 **Reason:** M2 of the plan. The first trial's fix loop could not tell that a still-failing timeout was the same failure. Reports labelled rotari's own timeout as unexplained, and report logs were fixed tails.
 
