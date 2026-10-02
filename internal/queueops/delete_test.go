@@ -9,7 +9,7 @@ import (
 func TestDeleteRunRejectsUnsafeRunIDs(t *testing.T) {
 	paths := state.ProjectPaths{RunsDir: t.TempDir()}
 	for _, runID := range []string{"", "../run-1", "nested/run-1", "run/..", "run/."} {
-		if err := (Editor{}).deleteRun(paths, runID); err == nil {
+		if err := (Editor{}).deleteRun(paths, runID, false); err == nil {
 			t.Fatalf("deleteRun accepted unsafe run ID %q", runID)
 		}
 	}

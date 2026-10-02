@@ -373,6 +373,13 @@
         },
         {
           "name": "all"
+        },
+        {
+          "name": "dry-run"
+        },
+        {
+          "name": "if-revision",
+          "value_name": "REVISION"
         }
       ],
       "name": "delete"
@@ -571,6 +578,13 @@
         {
           "name": "filter-not-matrix",
           "value_name": "NAME"
+        },
+        {
+          "name": "dry-run"
+        },
+        {
+          "name": "if-revision",
+          "value_name": "REVISION"
         }
       ],
       "name": "change"
@@ -636,10 +650,14 @@
           "name": "overwrite"
         },
         {
+          "name": "json"
+        },
+        {
           "name": "dry-run"
         },
         {
-          "name": "json"
+          "name": "if-revision",
+          "value_name": "REVISION"
         }
       ],
       "name": "import"
@@ -707,6 +725,13 @@
         {
           "name": "filter-not-matrix",
           "value_name": "NAME"
+        },
+        {
+          "name": "dry-run"
+        },
+        {
+          "name": "if-revision",
+          "value_name": "REVISION"
         }
       ],
       "name": "remove"
@@ -1137,6 +1162,13 @@
         },
         {
           "name": "quiet"
+        },
+        {
+          "name": "dry-run"
+        },
+        {
+          "name": "if-revision",
+          "value_name": "REVISION"
         }
       ],
       "name": "add"
@@ -1273,6 +1305,13 @@
         {
           "name": "filter-not-matrix",
           "value_name": "NAME"
+        },
+        {
+          "name": "dry-run"
+        },
+        {
+          "name": "if-revision",
+          "value_name": "REVISION"
         }
       ],
       "name": "copy"

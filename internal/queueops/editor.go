@@ -2,6 +2,7 @@ package queueops
 
 import (
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -16,4 +17,7 @@ type Editor struct {
 	NewJobID func() string
 	// UnregisterRun removes a deleted run from the run registry.
 	UnregisterRun func(runID string) error
+	// Guard previews the operations or applies them only at a given project
+	// revision; see project.Guard. The zero Guard applies them.
+	Guard project.Guard
 }

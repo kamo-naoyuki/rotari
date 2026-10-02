@@ -81,7 +81,8 @@ func writeProjectCheck(writer io.Writer, projectName string, result projectCheck
 			Queued   *int   `json:"queued"`
 			Lock     string `json:"lock"`
 			RunID    string `json:"run_id,omitempty"`
-		}{projectName, result.State, result.Runnable, queued, result.Lock, result.RunID})
+			Revision string `json:"revision"`
+		}{projectName, result.State, result.Runnable, queued, result.Lock, result.RunID, result.Revision})
 	}
 
 	fmt.Fprintf(writer, "project=%s state=%s runnable=%t queued=", projectName, result.State, result.Runnable)
@@ -94,6 +95,7 @@ func writeProjectCheck(writer io.Writer, projectName string, result projectCheck
 	if result.RunID != "" {
 		fmt.Fprintf(writer, " run_id=%s", result.RunID)
 	}
+	fmt.Fprintf(writer, " revision=%s", result.Revision)
 	_, err := fmt.Fprintln(writer)
 	return err
 }

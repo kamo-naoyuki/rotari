@@ -250,7 +250,6 @@ var cliCommandSpecs = []cliCommandSpec{
 		Description: "validate and replace a queue from a workflow manifest",
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "overwrite", Description: "replace a non-empty queue"},
-			cliFlagSpec{Name: "dry-run", Description: "validate and print the import plan without writing"},
 			cliFlagSpec{Name: "json", Description: "print the import plan as JSON"},
 		),
 		Positional: "FILE [PROJECT]",

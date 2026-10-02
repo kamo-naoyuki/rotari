@@ -51,6 +51,8 @@ Add a command to a queue.
 | `array` | `str` | create an array job range or selected tasks |
 | `matrix` | `Sequence[str]` | expand a command into jobs from KEY=VALUE[,VALUE...] dimensions; may be repeated |
 | `quiet` | `bool` | suppress success output |
+| `dry_run` | `bool` | print what the command would change, and the project revision, without writing |
+| `if_revision` | `str` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ## `Rotari.run`
 

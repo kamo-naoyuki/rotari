@@ -172,6 +172,7 @@ type CheckProjectOutput struct {
 	Queued     *int   `json:"queued" jsonschema:"queued jobs; null when the queue of an active or interrupted project cannot be read"`
 	Lock       string `json:"lock"`
 	RunID      string `json:"run_id,omitempty"`
+	Revision   string `json:"revision"`
 }
 
 // checkProject reports whether a project's queued run can start, as
@@ -194,7 +195,7 @@ func checkProject(masterDir string, input CheckProjectInput) (CheckProjectOutput
 	if err != nil {
 		return CheckProjectOutput{}, errors.New(strings.ReplaceAll(err.Error(), baseDir, "BASEDIR"))
 	}
-	output := CheckProjectOutput{BaseDirRef: input.BaseDirRef, Project: input.Project, State: result.State, Runnable: result.Runnable, Lock: result.Lock, RunID: result.RunID}
+	output := CheckProjectOutput{BaseDirRef: input.BaseDirRef, Project: input.Project, State: result.State, Runnable: result.Runnable, Lock: result.Lock, RunID: result.RunID, Revision: result.Revision}
 	if result.QueuedKnown {
 		output.Queued = &result.Queued
 	}

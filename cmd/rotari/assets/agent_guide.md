@@ -23,6 +23,11 @@ successful results are carried forward.
   - `rotari schema --json` lists every command and flag.
 - Prefer machine-readable output: `show --json`, `check --json`,
   `wait --json`, and `import --dry-run --json`.
+- Preview before changing state, then apply exactly what you previewed:
+  `add`, `change`, `copy`, `delete`, `import`, and `remove` take `--dry-run`,
+  which prints the change and `revision=REVISION` without writing, and
+  `--if-revision REVISION`, which applies only if nothing changed the project
+  since. `rotari check --json` also reports the revision.
 - Do not rely on prompts. `copy` into a non-empty queue needs `--append` or
   `--overwrite`, and `run --run-id` into a non-empty queue needs
   `--overwrite`.

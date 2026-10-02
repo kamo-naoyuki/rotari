@@ -74,7 +74,7 @@ func EditGuarded(paths state.ProjectPaths, operation string, guard Guard, edit f
 	if err := EnsureIdle(paths, operation); err != nil {
 		return err
 	}
-	revision, err := checkRevision(paths, guard)
+	revision, err := CheckRevision(paths, guard)
 	if err != nil {
 		return err
 	}
@@ -101,7 +101,7 @@ func EditQueueGuarded(paths state.ProjectPaths, operation string, guard Guard, e
 	if err := EnsureIdle(paths, operation); err != nil {
 		return err
 	}
-	revision, err := checkRevision(paths, guard)
+	revision, err := CheckRevision(paths, guard)
 	if err != nil {
 		return err
 	}
@@ -120,9 +120,10 @@ func EditQueueGuarded(paths state.ProjectPaths, operation string, guard Guard, e
 	return report(paths, guard, Outcome{Revision: revision, Queue: &queue})
 }
 
-// checkRevision returns the project's revision, refusing the edit when it is
-// not guard.IfRevision. Callers hold the state lock.
-func checkRevision(paths state.ProjectPaths, guard Guard) (string, error) {
+// CheckRevision returns the project's revision, refusing the edit when it is
+// not guard.IfRevision. Callers hold the state lock, unless the project does
+// not exist yet.
+func CheckRevision(paths state.ProjectPaths, guard Guard) (string, error) {
 	revision, err := Revision(paths)
 	if err != nil {
 		return "", err

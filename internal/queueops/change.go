@@ -75,7 +75,7 @@ func (editor Editor) ChangeWithFilter(baseDir, projectName, requestedRunID strin
 		return "", err
 	}
 	var changedIDs []string
-	err = project.EditQueue(paths, "change", func(queue *model.Queue) error {
+	err = project.EditQueueGuarded(paths, "change", editor.Guard, func(queue *model.Queue) error {
 		if err := restoreSnapshot(paths, requestedRunID, queue); err != nil {
 			return err
 		}

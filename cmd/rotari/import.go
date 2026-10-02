@@ -22,6 +22,9 @@ type importPlan struct {
 	Project string                `json:"project"`
 	Jobs    []importPlanJob       `json:"jobs"`
 	Removed []workflow.RemovedJob `json:"removed"`
+	// Revision is the project's revision: for --dry-run the one to pass to
+	// --if-revision, and after an import the one it produced.
+	Revision string `json:"revision"`
 }
 
 type importPlanJob struct {
@@ -61,8 +64,8 @@ func cmdImport(args []string) int {
 	basedir := cliString(fs, "basedir", "")
 	projectName := cliString(fs, "project-name", "")
 	overwrite := cliBool(fs, "overwrite", false)
-	dryRun := cliBool(fs, "dry-run", false)
 	jsonOutput := cliBool(fs, "json", false)
+	guard := cliGuardFlags(fs)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -142,16 +145,14 @@ func cmdImport(args []string) int {
 		return 1
 	}
 	plan := newImportPlan(resolvedProject, queue, removed)
-	if *dryRun {
-		if err := validateImportDestination(baseDir, resolvedProject, *overwrite); err != nil {
-			printError(err)
-			return 1
-		}
-	} else {
-		if err := writeImportedQueue(baseDir, resolvedProject, queue, *overwrite); err != nil {
-			printError(err)
-			return 1
-		}
+	outcome, err := writeImportedQueue(baseDir, resolvedProject, queue, *overwrite, guard.guard())
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	plan.Revision = outcome.Revision
+	if outcome.Applied {
+		plan.Revision = outcome.NewRevision
 		if err := registerBasedir(baseDir); err != nil {
 			printErrorf("failed to register state directory: %v", err)
 			return 1
@@ -162,41 +163,6 @@ func cmdImport(args []string) int {
 		return 1
 	}
 	return 0
-}
-
-func validateImportDestination(baseDir, projectName string, overwrite bool) error {
-	paths, err := state.ResolveProjectPaths(baseDir, projectName)
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stat(paths.ProjectDir); errors.Is(err, os.ErrNotExist) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-	release, err := state.AcquireStateReadLock(paths.StateLockFile)
-	if err != nil {
-		return fmt.Errorf("failed to lock queue for reading: %w", err)
-	}
-	defer release()
-	inspection, err := project.InspectConsistent(paths, false)
-	if err != nil {
-		return fmt.Errorf("failed to check project state: %w", err)
-	}
-	if inspection.State == project.Running {
-		return fmt.Errorf("project %q is running; import is not allowed", projectName)
-	}
-	if inspection.State == project.Interrupted {
-		return fmt.Errorf("project %q has interrupted run %q; import is not allowed", projectName, inspection.RunID)
-	}
-	existing, err := state.LoadQueue(paths.QueueFile)
-	if err != nil {
-		return err
-	}
-	if len(existing.Commands) > 0 && !overwrite {
-		return fmt.Errorf("project %q has queued jobs; use --overwrite", projectName)
-	}
-	return nil
 }
 
 func writeImportPlan(plan importPlan, jsonOutput bool) error {
@@ -219,6 +185,7 @@ func writeImportPlan(plan importPlan, jsonOutput bool) error {
 		fields = append(fields, "source_run_id="+removed.RunID)
 		printImportPlanLine("remove", append(fields, importCommandField(removed.Command)))
 	}
+	fmt.Printf("revision=%s\n", plan.Revision)
 	return nil
 }
 
@@ -326,19 +293,40 @@ func newImportPlanSource(origin *model.JobOrigin) *importPlanSource {
 	return &importPlanSource{RunID: origin.RunID, JobID: origin.JobID, AttemptID: origin.AttemptID, Status: origin.Status}
 }
 
-func writeImportedQueue(baseDir, projectName string, queue model.Queue, overwrite bool) error {
+// writeImportedQueue replaces the project's queue with queue under guard. A
+// dry run of a project that does not exist yet creates nothing and reports
+// the revision a new project has.
+func writeImportedQueue(baseDir, projectName string, queue model.Queue, overwrite bool, guard project.Guard) (project.Outcome, error) {
 	paths, err := state.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
-		return err
+		return project.Outcome{}, err
 	}
-	if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
-		return err
+	var outcome project.Outcome
+	report := guard.Report
+	guard.Report = func(result project.Outcome) {
+		outcome = result
+		if report != nil {
+			report(result)
+		}
 	}
-	return project.EditQueue(paths, "import", func(existing *model.Queue) error {
+	if _, err := os.Stat(paths.ProjectDir); errors.Is(err, os.ErrNotExist) && guard.DryRun {
+		revision, err := project.CheckRevision(paths, guard)
+		if err != nil {
+			return project.Outcome{}, err
+		}
+		return project.Outcome{Revision: revision, Queue: &queue}, nil
+	}
+	if !guard.DryRun {
+		if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
+			return project.Outcome{}, err
+		}
+	}
+	err = project.EditQueueGuarded(paths, "import", guard, func(existing *model.Queue) error {
 		if len(existing.Commands) > 0 && !overwrite {
 			return fmt.Errorf("project %q has queued jobs; use --overwrite", projectName)
 		}
 		*existing = queue
 		return nil
 	})
+	return outcome, err
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
@@ -16,6 +15,7 @@ func cmdDelete(args []string) int {
 	queueNameOption := cliString(fs, "project-name", "")
 	runIDOption := cliString(fs, "run-id", "")
 	allRuns := cliBool(fs, "all", false)
+	guard := cliGuardFlags(fs)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -38,11 +38,11 @@ func cmdDelete(args []string) int {
 		return 1
 	}
 	*runIDOption = resolvedRunID
-	message, err := queueEditor().DeleteHistory(baseDir, queueName, *runIDOption)
+	message, err := guard.editor().DeleteHistory(baseDir, queueName, *runIDOption)
 	if err != nil {
 		printError(err)
 		return 1
 	}
-	fmt.Printf("%s\n", colorKeyValueMessage(message, green))
+	guard.printResult(message, false)
 	return 0
 }

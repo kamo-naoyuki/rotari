@@ -154,6 +154,8 @@ Usage: `rotari delete [RUN_ID]`
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run to delete |
 | `--all` | `` | `` | delete every run of the project |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari gc`
 
@@ -224,6 +226,8 @@ Usage: `rotari change <command ...>`
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
 | `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
 | `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari export`
 
@@ -253,8 +257,9 @@ Usage: `rotari import FILE [PROJECT]`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--overwrite` | `` | `` | replace a non-empty queue |
-| `--dry-run` | `` | `` | validate and print the import plan without writing |
 | `--json` | `` | `` | print the import plan as JSON |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari remove`
 
@@ -279,6 +284,8 @@ Usage: `rotari remove [JOB_ID ...]`
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
 | `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
 | `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari show`
 
@@ -424,6 +431,8 @@ Usage: `rotari add <command ...>`
 | `--array` | `FIRST-LAST\|TASK[,TASK...]` | `ROTARI_ARRAY_RANGE` | create an array job range or selected tasks |
 | `--matrix` | `KEY=VALUE[,VALUE...] (repeatable)` | `` | expand a command into jobs from KEY=VALUE[,VALUE...] dimensions; may be repeated |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari copy`
 
@@ -463,6 +472,8 @@ Usage: `rotari copy [RUN_ID]`
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
 | `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
 | `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari run`
 

@@ -21,6 +21,8 @@ type Check struct {
 	Queued      int
 	QueuedKnown bool
 	Lock        string
+	// Revision is the project's revision, for --if-revision.
+	Revision string
 }
 
 // Check reports whether the project's queued run can start, without changing
@@ -37,7 +39,11 @@ func (runner Runner) Check(paths state.ProjectPaths, deep func(model.Queue) erro
 	if err != nil {
 		return Check{}, fmt.Errorf("inspect project state: %w", err)
 	}
-	result := Check{Lock: string(inspection.Lock), RunID: inspection.RunID}
+	revision, err := project.Revision(paths)
+	if err != nil {
+		return Check{}, err
+	}
+	result := Check{Lock: string(inspection.Lock), RunID: inspection.RunID, Revision: revision}
 	switch inspection.State {
 	case project.Running:
 		if inspection.Lock == state.LockRemote {
