@@ -103,3 +103,38 @@
 - **Remaining:** 5,662 pairs need safe mutation/execution/control adapters;
   observation gaps and lineage/config mode limits are in the coverage notes.
   Later milestones remain untouched.
+
+## Restored mutation adapters for remove, reset, and delete
+
+**Commit:** `2dea6b8` — 2026-10-03T05:33:44+09:00
+
+- **Change:** Added a mutation adapter that restores the whole environment
+  root (paths, contents, modes, directory times) before each invocation and
+  compares process results and the resulting tree in both flag orders, with
+  only `meta.json`'s `updated_at` dropped. Rejections and dry runs must leave
+  the tree byte-identical; guard revisions are checked against `check --json`.
+  Added effect witnesses for `remove` selectors, definition filters, long-form
+  aliases, selector-filter intersections, `--run-id` restoration, `reset
+  --quiet`, and `delete --run-id`/`--all`. Updated SEL-7 bookkeeping, the
+  plan, coverage notes, and an open issue.
+- **Reason:** Extend pair checks to commands that change queue and history,
+  where equal stdout says nothing about effects.
+- **Plan impact:** 178 pairs (158 accepted, 20 explicitly rejected); 997 of
+  6,481 pairs now execute, 5,484 remain. A full root rewrite per invocation
+  took 5m13s on NFS (about 0.7s of each pair was restoring); a differential
+  restore verified by a stat walk takes 41-43s. No option was silently
+  ignored and no production code changed. Triage recorded one open
+  diagnostic issue: `remove` rejects two selector kinds, including `--all`
+  with `--filter-stage`, with only its usage line. Two harness defects were
+  repaired, not allowlisted: an assumed running supervisor at shutdown, and an
+  exclusion sample (`setup`) no selector picks.
+- **Validation:** Mutation pairs, effect witnesses, and inventory passed
+  uncached. In temporary worktrees, a build ignoring remove filters failed the
+  effect checks, and one ignoring them only with a direct selector failed
+  eight intersection checks; both worktrees were removed. Interface and root
+  conformance packages and focused race passed. `scripts/check.sh --short`
+  and the full `scripts/check.sh`, including race, passed. Gofmt, vet,
+  diagnostics, and diff checks passed; pre-commit remains unavailable.
+- **Remaining:** Extend the mutation adapter to `add`, `change`, `copy`, and
+  `import` (1,520 pairs), then run/control adapters; the `remove` diagnostic
+  issue in `development/ISSUES.md`.
