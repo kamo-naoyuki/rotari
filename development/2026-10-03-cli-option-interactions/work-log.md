@@ -40,3 +40,32 @@
 - **Remaining:** The staged pair-check rollout described in
   [plan.md](plan.md) and
   [coverage notes](../../conformance/03-interfaces/flag-pair-coverage.md).
+
+## Schema inventory and read-only interaction checks
+
+**Commit:** `644ebae` — 2026-10-03T04:22:15+09:00
+
+- **Change:** Added all-command pair inventory, standalone sample checks,
+  read-only `show`/`jobs` adapters, output/selector witnesses, two narrowly
+  reasoned equivalences, coverage notes, and updated plan/SEL-11 bookkeeping.
+- **Reason:** Separate systematic robustness/order checks from semantic ignore
+  detection, which requires a distinguishing fixture and independent renderer.
+- **Plan impact:** Generated 6,481 pairs. Executed 762 pairs in both orders;
+  the final measured run accepted 463 and explicitly rejected 299 in 1,524
+  invocations (29.84 seconds including setup). Ran 92 output/selector cases
+  and the formatted jobs window witness. Milestone 1 remains partial.
+- **Validation:** Inventory, samples, observation, and complete pair tests
+  passed uncached. `json+failed` passed on current production code and failed
+  with the expected selected-ID mismatch on `fddf05a`, before the historical
+  fix. Current test/support files supplied harness compatibility only; no old
+  production file changed, and the temporary worktree was removed. CLI/root
+  conformance/interface package checks passed. Full `scripts/check.sh` passed
+  including race (interface package: 84.33 seconds normal, 132.05 seconds race).
+  Short checks passed on recheck after initial unrelated wait-selection
+  failures; see the preceding entry. Final contract/layout checks passed.
+  Gofmt, diff, Markdown diagnostics, and relative-link checks passed;
+  pre-commit is unavailable.
+- **Remaining:** 5,719 deferred pairs need isolated command adapters. Positive
+  queue, active/unfinished, host/time/diagnosis, direct-selector, and interface
+  witnesses remain explicitly documented in the coverage notes. Later
+  milestones have not started.
