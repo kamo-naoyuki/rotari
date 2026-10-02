@@ -132,3 +132,39 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - `pre-commit` is not installed.
 
 **Remaining:** M3. The open positional-argument issue (`show RUN_ID|ATTEMPT_ID --json|--report`) affects documented examples.
+
+## M3: Discovery, a summary pointer, and early failure
+
+**Commits:**
+- Discovery: 2026-10-02 22:41:59 `5353a25`; 2026-10-02 22:43:04 `766bd04`; 2026-10-02 22:43:05 `0ee31dc`.
+- Summary pointer: 2026-10-02 22:44:25 `427d327`.
+- Early failure and guide: 2026-10-02 22:52:12 `198659d`; 2026-10-02 22:52:12 `594b6c4`.
+- Plan and trial note: 2026-10-02 22:52:46 `14ad825`; 2026-10-02 22:53:00 `c892845`.
+
+**Change:**
+- `5353a25`: the `show` project list gained `LAST RESULT` (for example `failed 84/300`). Its hints add `-b BASEDIR` when a listed project lies outside the default state directory, and it suggests `rotari lineage RUN_ID`. Added contract CLI-5, `TestProjectListHintsWork`, and `TestShowProjectListHintsWorkForListedBaseDirs`. Updated the expectation of `TestCmdShowProjectsListsProjectSummaries`, which encoded the broken hint. Removed the resolved `ISSUES.md` entry.
+- `0ee31dc`: when `jobs` finds nothing, it names the searched state directory or count, the project, and the window, and suggests `--all-basedirs`.
+- `766bd04`: recorded in `ISSUES.md` that the documented `jobs --since 7d` is rejected.
+- `427d327`: `show -r RUN` prints `Failure summary: rotari lineage --basedir ... --project-name ... RUN_ID` before its job table when jobs failed.
+- `198659d`:
+  - Added `wait --until-failure`. `runlineage.Job.Final` is set by `runview.LoadRun` from the run summary or `final_result.json`, and that recorded result supplies diagnoses before the summary exists.
+  - Added contract RUN-6 with two conformance tests, and a Python client test for `until_failure`.
+  - Regenerated the CLI reference, Python API docs, `generated_cli.py` (with ruff 0.14.10, as in CI), and the golden help and schema.
+- `594b6c4`: `rotari guide` now leads with `lineage RUN_ID`, `show -j ATTEMPT_ID --report`, `lineage RUN NEW_RUN`, and `wait --until-failure`.
+
+**Reason:** M3 of the plan. The first trial spent four calls finding the failed project, including one through a failing hint. It read a 77 KB table before the failure groups, and could not learn of an early failure until the run ended. Separately, `rotari guide`, the documented agent entry point, recommended the costly path and a command that fails.
+
+**Plan impact:**
+- M3 is done. M4 (read-only MCP tools) is next.
+- Two M3 items were not built:
+  - a cursor of changes since the last call, because returning at the first final failure covered the need;
+  - effective per-job settings, because the comparison now exposes the original mistake and `show --json` already has the settings.
+
+**Validation:**
+- The hint tests and the RUN-6 retry test fail on the pre-change behavior. The hint tests were run in a temporary worktree at the previous commit. For the retry test, ignoring `Final` was injected by hand and then reverted. That test first passed even with `Final` ignored, so it now uses `--retry-delay 3s`.
+- `go test -count=1 ./conformance/...` passed in all packages after updating the golden files. The golden diff is only the new flag.
+- `scripts/check.sh` failed only in the known `TestWebJobsPageShowsRecentJobs`. Python tests passed (28).
+- The fixture measurements are in the M3 trial note.
+- `pre-commit` is not installed; ruff format was applied to the Python files.
+
+**Remaining:** M4. The positional `show RUN_ID|ATTEMPT_ID --json|--report` failure and `jobs --since 7d` remain in `ISSUES.md`.
