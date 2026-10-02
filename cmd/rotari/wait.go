@@ -108,15 +108,7 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 	// latest matching run's result, so a run that ends before wait is called
 	// is not an error.
 	if resolve.ProjectExists(baseDir, selector) {
-		runID, err := resolveActiveRunTarget(baseDir, selector)
-		if err != nil {
-			baseDir, projectName, latestRunID, latestErr := resolve.ExistingRunID(baseDir, selector, model.Latest)
-			if latestErr != nil {
-				return resolve.Run{}, latestErr
-			}
-			return resolve.Run{BaseDir: baseDir, ProjectName: projectName, RunID: latestRunID}, nil
-		}
-		return resolve.Run{BaseDir: baseDir, ProjectName: selector, RunID: runID}, nil
+		return resolveProjectWaitTarget(baseDir, selector)
 	}
 	selectedProject := cliProjectName
 	if selectedProject == "" {
@@ -166,6 +158,19 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 	return resolve.Run{}, fmt.Errorf("no project, run name, or run ID matches %q", selector)
 }
 
+// resolveProjectWaitTarget applies the same active-then-latest rule to a
+// project selected by a positional argument, option, or environment variable.
+func resolveProjectWaitTarget(baseDir, projectName string) (resolve.Run, error) {
+	runID, err := resolveActiveRunTarget(baseDir, projectName)
+	if err != nil {
+		baseDir, projectName, runID, err = resolve.ExistingRunID(baseDir, projectName, model.Latest)
+		if err != nil {
+			return resolve.Run{}, err
+		}
+	}
+	return resolve.Run{BaseDir: baseDir, ProjectName: projectName, RunID: runID}, nil
+}
+
 // latestRunPerProject keeps the newest of runs in each project. Run IDs
 // start with their creation time, so the greatest ID is the newest.
 func latestRunPerProject(runs []resolve.Run) []resolve.Run {
@@ -201,11 +206,11 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]resolve.Run,
 		if !resolve.ProjectExists(baseDir, projectName) {
 			return []resolve.Run{{BaseDir: baseDir, ProjectName: projectName}}, nil
 		}
-		runID, err := resolveActiveRunTarget(cliBaseDir, cliProjectName)
+		target, err := resolveProjectWaitTarget(baseDir, projectName)
 		if err != nil {
 			return nil, err
 		}
-		return []resolve.Run{{BaseDir: baseDir, ProjectName: projectName, RunID: runID}}, nil
+		return []resolve.Run{target}, nil
 	}
 	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 	if err != nil {

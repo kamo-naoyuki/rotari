@@ -107,9 +107,13 @@ The per-command view of these rules, with job selectors, is in
   whose latest runs are in several projects is ambiguous. If a selected
   project does not yet exist, `wait` succeeds as a no-op; a name that matches
   neither a project nor a run is treated as an uncreated project unless it
-  looks like a run ID. An explicit project without a selector follows the
-  same rule, but no selector and no project still reports no active runs.
+  looks like a run ID. A project selected by `--project-name/-p` or
+  `ROTARI_PROJECT_NAME` without a selector follows the same active-then-latest
+  rule, but no selector and no project still reports no active runs.
   An explicit `--run-id` bypasses this selector resolution.
+  Implementation: [project wait resolution](../cmd/rotari/wait.go).
+  Tests: [option and environment resolution](../cmd/rotari/wait_project_test.go)
+  and [selector conformance](../conformance/01-resolution/export_target_test.go).
 - **RES-17** Run lookup applies to history commands (`show`, `wait`, `copy`, `change`,
   `remove`, `delete`, and rerun selection), not state-creating commands such as
   `add` or a plain new `run`.

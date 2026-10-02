@@ -137,6 +137,10 @@ run. `wait` returns the overall run exit code. Pass a project name, run name,
 or run ID as a positional selector. Rotari checks them in that order, so a
 project name wins over a run name and a run ID when the same string is used for
 more than one kind of identifier. Use `--run-id/-r` to select a run explicitly.
+Selecting a project by name, `--project-name/-p`, or `ROTARI_PROJECT_NAME`
+waits for its active run, or returns its latest run's result immediately if
+the run has already finished. This also works when a short async run finishes
+before `wait` starts.
 Pass multiple selectors to wait for independent async runs together:
 
 ```sh
@@ -165,8 +169,9 @@ like a run ID; use explicit run IDs when a missing run must be reported.
 
 `--async` starts the run in a detached session (`setsid`), so it survives
 terminal closure. Use `rotari wait` with a project, run name, or run ID from any
-terminal, and `rotari cancel` to stop it. Without a selector, `wait` scans the
-resolved basedir: it waits when exactly one project is running, and lists the
+terminal, and `rotari cancel` to stop it. Without a selector or an explicit
+project, `wait` scans the resolved basedir: it waits when exactly one project
+is running, and lists the
 running projects and run IDs and asks for a selector when several are running.
 If the run stops without finishing, for example because its supervisor was
 killed, `wait` reports the interrupted run and exits with status 1.

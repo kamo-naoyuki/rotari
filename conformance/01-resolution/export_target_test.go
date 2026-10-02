@@ -159,13 +159,42 @@ func TestWaitResolvesActiveAndFinishedSelectors(t *testing.T) {
 	})
 
 	t.Run("finished project returns its latest run", func(t *testing.T) {
-		e := support.NewEnv(t)
-		runID, _ := e.FinishedJobRun("finished")
-		r := e.MustRotari("wait", "finished")
-		if !strings.Contains(r.Stdout, runID) {
-			t.Fatalf("wait project selector omitted run %q: %s", runID, r)
+		for _, outcome := range []string{"success", "failure"} {
+			t.Run(outcome, func(t *testing.T) {
+				e := support.NewEnv(t)
+				project, runID, wantCode := "finished", "", 0
+				if outcome == "failure" {
+					run := e.CreateFinishedRun()
+					project, runID, wantCode = run.Project, run.RunID, 1
+				} else {
+					runID, _ = e.FinishedJobRun(project)
+				}
+				checkWaitFinishedProjectSelections(t, e, project, runID, wantCode)
+			})
 		}
 	})
+}
+
+func checkWaitFinishedProjectSelections(t *testing.T, e *support.Env, project, runID string, wantCode int) {
+	t.Helper()
+	for _, selection := range []struct {
+		name string
+		args []string
+		env  *support.Env
+	}{
+		{"positional", []string{project}, e},
+		{"short option", []string{"-p", project}, e},
+		{"long option", []string{"--project-name", project}, e},
+		{"environment", nil, e.WithVar("ROTARI_PROJECT_NAME", project)},
+	} {
+		t.Run(selection.name, func(t *testing.T) {
+			args := append([]string{"wait", "--timeout", "1s"}, selection.args...)
+			r := selection.env.Rotari(args...)
+			if r.Code != wantCode || !strings.Contains(r.Stdout, runID) {
+				t.Fatalf("wait omitted completed run %q or returned the wrong result (want exit %d): %s", runID, wantCode, r)
+			}
+		})
+	}
 }
 
 // TestCommandsThatCreateAProjectRegisterItsBasedir creates a project in a
