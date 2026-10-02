@@ -44,9 +44,9 @@ It no longer suggests `show --failed-logs`, which was 95 KB for the 300-task run
 
 | Step | Command | Size (`labC`) |
 | --- | --- | --- |
-| Find where to look | `rotari show` | about 0.8 KB |
+| Find where to look | `rotari show` | 0.9 KB |
 | Why it failed | `rotari lineage -b BASEDIR RUN_ID` | 1.5 KB |
-| One job's evidence | `rotari show -j ATTEMPT_ID --report` | about 2 KB |
+| One job's evidence | `rotari show -j ATTEMPT_ID --report` | 1.4 KB |
 | Did the fix help | `rotari lineage RUN_ID NEW_RUN_ID` | grows with the changed jobs only |
 
 The first trial needed about 100 KB of output for the same decisions.
