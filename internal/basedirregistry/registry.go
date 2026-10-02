@@ -52,6 +52,21 @@ func ref(baseDir string) string {
 	return hex.EncodeToString(sum[:])[:32]
 }
 
+// Find returns the basedir registered under masterDir whose Ref is ref, as
+// Discover lists them.
+func Find(masterDir, ref string) (string, error) {
+	baseDirs, _, err := Discover(masterDir)
+	if err != nil {
+		return "", err
+	}
+	for _, baseDir := range baseDirs {
+		if Ref(baseDir) == ref {
+			return baseDir, nil
+		}
+	}
+	return "", fmt.Errorf("basedir_ref %q is not registered", ref)
+}
+
 // Discover lists the basedirs registered under masterDir without writing.
 // A master directory from before the basedir registry existed has only run
 // records; their basedirs are listed instead and fromRuns is set, so that a

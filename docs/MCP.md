@@ -10,10 +10,13 @@ the same information.
 | `rotari_list_projects` | none | every project of every registered state directory, with its state, queue size, run count, and last run's ID, status, and failed and total job counts | `rotari show` |
 | `rotari_run_summary` | `run_id` | job counts, and failed and blocked jobs grouped by cause, each with its jobs, exit codes, an example evidence line, the attempt to inspect, and a suggested fix | `rotari lineage RUN_ID` |
 | `rotari_get_job_info` | `run_id`, `job_id` | a report on one job: status, result, diagnosis, and the log lines around the diagnosis evidence | `rotari show -j ATTEMPT_ID --report` |
+| `rotari_check_project` | `basedir_ref`, `project` | whether the project's queued run can start: its state (`ready`, `empty`, `running`, `locked`, or `interrupted`), queued job count, and lock, after validating the queue's jobs, dependencies, and executors | `rotari check PROJECT` (without `--deep`) |
 | `rotari_compare_runs` | `run_id`, optional `previous_run_id` | which jobs were fixed, still fail, or newly fail, each run's failure cause and whether it changed, and which job definitions changed; `previous_run_id` defaults to the run that started just before `run_id` | `rotari lineage PREVIOUS_RUN_ID RUN_ID` |
 
 A typical session lists projects, summarizes the run with failures, inspects
 one job from a failure group's attempt, and compares a later run with it.
+Tools that act on a project rather than a run take the `basedir_ref` and
+`project` that `rotari_list_projects` returns.
 
 The server finds a run's state directory and project through the run
 registry of its master directory, the same registry the `rotari` CLI uses to

@@ -57,14 +57,15 @@ func TestServerExposesJobInfoToolOverMCP(t *testing.T) {
 		if err := json.Unmarshal(encoded, &schema); err != nil {
 			t.Fatal(err)
 		}
+		// A project is named by basedir_ref and its name, never by a path.
 		for property := range schema.Properties {
-			if strings.Contains(property, "basedir") || strings.Contains(property, "project") || strings.Contains(property, "path") {
-				t.Errorf("%s takes a location, %q: %s", tool.Name, property, encoded)
+			if property != "basedir_ref" && (strings.Contains(property, "dir") || strings.Contains(property, "path")) {
+				t.Errorf("%s takes a path, %q: %s", tool.Name, property, encoded)
 			}
 		}
 	}
 	sort.Strings(names)
-	if want := []string{"rotari_compare_runs", "rotari_get_job_info", "rotari_list_projects", "rotari_run_summary"}; !reflect.DeepEqual(names, want) {
+	if want := []string{"rotari_check_project", "rotari_compare_runs", "rotari_get_job_info", "rotari_list_projects", "rotari_run_summary"}; !reflect.DeepEqual(names, want) {
 		t.Fatalf("tools = %q, want %q", names, want)
 	}
 

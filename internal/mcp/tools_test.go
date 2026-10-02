@@ -182,3 +182,44 @@ func TestCompareRunsRejectsRunsOfDifferentProjects(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckProjectReportsReadinessWithoutPaths(t *testing.T) {
+	f := newToolFixture(t)
+	secondRef := basedirregistry.Ref(f.secondBaseDir)
+	paths, err := state.ResolveProjectPaths(f.secondBaseDir, "exp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output, err := checkProject(f.masterDir, CheckProjectInput{BaseDirRef: secondRef, Project: "exp"}); err != nil || output.State != "empty" || output.Runnable || *output.Queued != 0 {
+		t.Fatalf("check of an empty queue = %+v, %v", output, err)
+	}
+	if err := state.WriteJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "a", Command: []string{"true"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if output, err := checkProject(f.masterDir, CheckProjectInput{BaseDirRef: secondRef, Project: "exp"}); err != nil || output.State != "ready" || !output.Runnable || *output.Queued != 1 {
+		t.Fatalf("check of a ready queue = %+v, %v", output, err)
+	}
+	if err := state.WriteJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "a", Command: []string{"true"}, Executor: "nosuch"}}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name  string
+		input CheckProjectInput
+		want  string
+	}{
+		{"invalid queue", CheckProjectInput{BaseDirRef: secondRef, Project: "exp"}, "unsupported executor: nosuch"},
+		{"unknown ref", CheckProjectInput{BaseDirRef: "0123", Project: "exp"}, "is not registered"},
+		{"unknown project", CheckProjectInput{BaseDirRef: secondRef, Project: "nope"}, "nope"},
+		{"unsafe project", CheckProjectInput{BaseDirRef: secondRef, Project: "../exp"}, "../exp"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := checkProject(f.masterDir, test.input)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("checkProject(%+v) error = %v, want %q", test.input, err, test.want)
+			}
+			if strings.Contains(err.Error(), f.secondBaseDir) {
+				t.Fatalf("error reveals the basedir path: %v", err)
+			}
+		})
+	}
+}

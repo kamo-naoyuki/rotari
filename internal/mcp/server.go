@@ -56,6 +56,13 @@ func NewServer(masterDir string) *mcpsdk.Server {
 		return nil, output, err
 	})
 	mcpsdk.AddTool(server, &mcpsdk.Tool{
+		Name:        "rotari_check_project",
+		Description: "Report whether a project's queued run can start: its state (ready, empty, running, locked, or interrupted), queued job count, and lock, after validating the queue's jobs, dependencies, and executors.",
+	}, func(_ context.Context, _ *mcpsdk.CallToolRequest, input CheckProjectInput) (*mcpsdk.CallToolResult, CheckProjectOutput, error) {
+		output, err := checkProject(masterDir, input)
+		return nil, output, err
+	})
+	mcpsdk.AddTool(server, &mcpsdk.Tool{
 		Name:        "rotari_compare_runs",
 		Description: "Compare two runs of one project: which jobs were fixed, still fail, or newly fail, each run's failure cause and whether it changed, and which job definitions changed.",
 	}, func(_ context.Context, _ *mcpsdk.CallToolRequest, input CompareRunsInput) (*mcpsdk.CallToolResult, CompareRunsOutput, error) {

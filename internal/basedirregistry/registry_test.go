@@ -115,3 +115,17 @@ func TestDiscoverFallsBackToRunRecordsWithoutWriting(t *testing.T) {
 		t.Fatalf("Discover() after registering = %v, %v, %v; want the registry", baseDirs, fromRuns, err)
 	}
 }
+
+func TestFindResolvesARef(t *testing.T) {
+	masterDir := t.TempDir()
+	baseDir, _ := filepath.Abs(t.TempDir())
+	if err := Open(masterDir).Register(baseDir); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := Find(masterDir, Ref(baseDir)); err != nil || got != baseDir {
+		t.Fatalf("Find(Ref) = %q, %v; want %q", got, err, baseDir)
+	}
+	if _, err := Find(masterDir, Ref(baseDir+"-other")); err == nil {
+		t.Fatal("Find accepted the ref of an unregistered basedir")
+	}
+}

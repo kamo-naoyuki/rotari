@@ -1,12 +1,15 @@
 package mcp
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	"github.com/kamo-naoyuki/rotari/internal/report"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/runlineage"
@@ -154,6 +157,48 @@ func compareRuns(masterDir string, input CompareRunsInput) (CompareRunsOutput, e
 		return CompareRunsOutput{}, err
 	}
 	return CompareRunsOutput{BaseDirRef: basedirregistry.Ref(location.BaseDir), Project: location.ProjectName, Comparison: runlineage.Compare(from, to)}, nil
+}
+
+type CheckProjectInput struct {
+	BaseDirRef string `json:"basedir_ref" jsonschema:"basedir_ref of the project, from rotari_list_projects"`
+	Project    string `json:"project" jsonschema:"project name"`
+}
+
+type CheckProjectOutput struct {
+	BaseDirRef string `json:"basedir_ref"`
+	Project    string `json:"project"`
+	State      string `json:"state" jsonschema:"ready, empty, running, locked (running on another host), or interrupted"`
+	Runnable   bool   `json:"runnable"`
+	Queued     *int   `json:"queued" jsonschema:"queued jobs; null when the queue of an active or interrupted project cannot be read"`
+	Lock       string `json:"lock"`
+	RunID      string `json:"run_id,omitempty"`
+}
+
+// checkProject reports whether a project's queued run can start, as
+// `rotari check` does without --deep, which needs the jobs' host.
+func checkProject(masterDir string, input CheckProjectInput) (CheckProjectOutput, error) {
+	baseDir, err := basedirregistry.Find(masterDir, input.BaseDirRef)
+	if err != nil {
+		return CheckProjectOutput{}, err
+	}
+	if err := resolve.RequireProject(baseDir, input.Project); err != nil {
+		return CheckProjectOutput{}, errors.New(strings.ReplaceAll(err.Error(), baseDir, "BASEDIR"))
+	}
+	paths, err := state.ResolveProjectPaths(baseDir, input.Project)
+	if err != nil {
+		return CheckProjectOutput{}, err
+	}
+	store := state.NewStore(state.DirectoryMode(), state.FileMode())
+	runner := projectrun.Runner{Store: store, Executors: executor.NewRegistry(store, func(string, ...any) {})}
+	result, err := runner.Check(paths, nil)
+	if err != nil {
+		return CheckProjectOutput{}, errors.New(strings.ReplaceAll(err.Error(), baseDir, "BASEDIR"))
+	}
+	output := CheckProjectOutput{BaseDirRef: input.BaseDirRef, Project: input.Project, State: result.State, Runnable: result.Runnable, Lock: result.Lock, RunID: result.RunID}
+	if result.QueuedKnown {
+		output.Queued = &result.Queued
+	}
+	return output, nil
 }
 
 // registeredRun locates runID through masterDir's run registry.
