@@ -112,11 +112,18 @@ Outcome ([measurements](agent-trial-2026-10-02-m1.md)):
 - `lineage RUN` answers the done question for `labC` in 1.5 KB. `show -r RUN` prints the same groups but stays at 77 KB because its 300-row job table comes first, so the criterion is met by `lineage RUN`, not by `show`. Making the compact view the obvious first call moved to M3.
 - `show --json` and `lineage RUN --json` carry the groups with every member ID (6.9 KB for `labC`). Contract CLI-4 and `TestFailureGroupsAgreeAcrossViews` require `show`, `lineage RUN`, and the Web API to agree.
 
-### M2: Relevant excerpts and cause-aware comparison
+### M2: Relevant excerpts and cause-aware comparison (done)
 
 - Excerpt selection by relevance in `report`, used by `show --report` and the Web report endpoints.
 - Timeout as a known diagnosis cause in reports. Failure groups already classify timeouts (M1), but `show --report` still says "No known rule matched" for them.
 - `lineage` comparison reports each side's cause and whether it changed.
+
+Outcome ([measurements](agent-trial-2026-10-02-m2.md)):
+
+- Reports keep the lines around each saved diagnosis's evidence plus the last 20 lines when the evidence is in the log, and the last 100 lines otherwise. Short fixture logs shrink only about 10% (`labC` `--report --failed` 108.4 KB to 97.3 KB); the change matters for long logs whose cause is far from the end.
+- A "Job timeout reached" rule matches only rotari's own timeout line and error.
+- `lineage RUN_A RUN_B` shows each run's cause (`CAUSE` column; `from_cause`, `to_cause`, `cause_changed` in JSON). The fix loop's mistake from the first trial, a timeout change that did not apply, now shows as `train[12] still failing timeout` in one call.
+- Contract CLI-4 was not extended to comparisons, which have package tests but no conformance check.
 
 ### M3: Discovery and progress
 
@@ -146,7 +153,8 @@ Extract `check` (structured findings) and `export` (bounded or paged manifest) f
 - M0 is done. `rotari-agent` is removed. `rotari_get_job_info` takes only `run_id` and `job_id`; `rotari-mcp` locates the run through its master directory's run registry and exits non-zero on failure.
 - The [agent trial](agent-trial-2026-10-02.md) (2026-10-02) established the gaps above. The CLI issues it found are recorded in [ISSUES.md](../ISSUES.md): `show --json` ignoring `--failed`, a positional run ID rejected with `--json`, an array job name accepted as an unresolvable dependency, and a `show` hint missing the basedir.
 - M1 is done: failures are grouped by cause in `show`, `lineage RUN`, and the Web run summary (contract CLI-4).
-- Next step: M2, relevant excerpts and cause-aware comparison.
+- M2 is done: evidence-aware report excerpts, a timeout diagnosis rule, and failure causes in `lineage` comparisons.
+- Next step: M3, discovery and progress.
 
 ## Open decisions
 
