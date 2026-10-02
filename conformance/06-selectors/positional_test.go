@@ -145,7 +145,7 @@ var positionalCases = []positionalCase{
 	{name: "job ID and option", args: "diagnose -b {B} -p sweep --rules --job-id {job:train-SEED2} {job:train-SEED2}", fail: true, want: "usage"},
 
 	// gc: a master directory.
-	{name: "master directory", args: "gc {M}", want: "found 0 orphan run registry entries"},
+	{name: "master directory", args: "gc {M}", want: "removed 0 orphan run registry entries"},
 	{name: "master directory and option", args: "gc --masterdir {M} {M}", fail: true, want: "usage"},
 
 	// latest: the latest run wherever a run can be given, and a reserved name.
