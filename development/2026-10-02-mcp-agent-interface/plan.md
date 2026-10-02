@@ -1,6 +1,7 @@
 # Plan: Agent-Facing MCP Interface
 
 **Created:** 2026-10-02
+**Work history:** [work-log.md](work-log.md)
 
 ## Purpose
 

@@ -1,6 +1,7 @@
 # Plan: Unified Notification Settings and Events
 
 **Created:** 2026-10-01
+**Work history:** [work-log.md](work-log.md)
 
 ## Purpose
 

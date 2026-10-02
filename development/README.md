@@ -25,7 +25,7 @@ Prefer a focused plan over adding a section to an unrelated plan. Link to relate
 
 ### Work started before a plan exists
 
-If substantial work was already underway or completed before a plan was written, a `plan.md` is optional and may be omitted. Still create a directory for that work and record its relevant commits using the timestamped commit-note format below. In this case, use the date of the first related commit as the directory prefix, so the directory records when the work began. Do not create directories or commit notes for small, isolated fixes that do not warrant a plan.
+If substantial work was already underway or completed before a plan was written, a `plan.md` is optional and may be omitted. Still create a directory for that work and record its relevant commits in `WORK_LOG.md`. In this case, use the date of the first related commit as the directory prefix, so the directory records when the work began. Do not create directories or log small, isolated fixes that do not warrant a plan.
 
 Example layout:
 
@@ -35,50 +35,38 @@ development/
   ISSUES.md
   2026-10-02-example-feature/
     plan.md
-    2026-10-02_173455_a1b2c3d.md
+    work-log.md
   2026-10-01-existing-substantial-work/
-    2026-10-01_091500_d4e5f6a.md
+    work-log.md
 ```
 
 ## Recording related commits
 
-For every commit that materially advances a plan, add a short English Markdown note in that plan's directory. Name the file using the commit timestamp and short commit ID:
+Keep the current overview in each plan's `plan.md`. Record implementation
+history in that plan directory's `work-log.md`, grouped by cohesive change
+rather than creating one tiny file per commit. This keeps each plan's history
+separate while gathering related decisions and outcomes together.
 
-```text
-YYYY-MM-DD_HHMMSS_<short-commit-id>.md
-```
+Each entry must include the actual Git date and time for every related commit,
+as well as its short ID. Use the timestamp from Git, not the note-writing date.
+Do not copy commit messages verbatim. Explain the work in context and cover:
 
-For example, `2026-10-02_173455_a1b2c3d.md`. Use the timestamp recorded for that commit in Git; do not estimate it or use the date the note is written. This keeps filenames sortable in chronological order.
+- **Change:** affected packages, commands, interfaces, tests, and documents.
+- **Reason:** the plan decision, milestone, or problem addressed.
+- **Plan impact:** milestone advanced and decisions made, reversed, or opened.
+- **Validation:** commands/checks actually run and their results. If historical
+  evidence is unavailable, state that explicitly; do not infer a pass from a
+  test existing in the diff.
+- **Remaining:** known follow-up and related `ISSUES.md` entries, or "None".
 
-A note must let a reader understand the commit's place in the plan without opening the diff. Do not copy the full commit message, and do not reduce the note to a single summary sentence. Every note must cover:
+Group commits only when they form one coherent change; give separate entries
+when the reason, validation, or remaining work differs. Add the entry after the
+commit exists so its ID and timestamp are known. Do not record unrelated
+commits. A commit may appear in multiple plan logs only when it materially
+advances each one, with plan-specific context. Keep old plan directories named
+for the date the work began; do not rename them when updating the log.
 
-- **Change:** what changed, naming the affected packages, commands, interfaces, and documents.
-- **Reason:** why the change was made, including the plan section, decision, or problem it addresses.
-- **Plan impact:** which phase or milestone advanced, and any decision made, reversed, or newly opened.
-- **Validation:** the tests or checks that were run and their results, or why none were run.
-- **Remaining:** follow-up work, known gaps, and issues recorded in `ISSUES.md` because of this change; write "None" when there are none.
-
-For example:
-
-```markdown
-# Move job inspection into a protocol-neutral package
-
-## Change
-Moved `GetJobInfo` and its request/response types from `internal/mcp` to `internal/agentapi`. `cmd/mcp/agent` now depends only on `internal/agentapi`; `internal/mcp` maps the MCP tool to it. Updated `docs/ARCHITECTURE.md`.
-
-## Reason
-M0 of the plan: `rotari-agent` imported the MCP SDK through `internal/mcp`, contradicting the protocol-neutral core principle.
-
-## Plan impact
-M0 item 1 is done. No decisions changed.
-
-## Validation
-`go test ./internal/agentapi ./internal/mcp ./cmd/mcp/...` and `scripts/check.sh` passed.
-
-## Remaining
-Basedir references and structured output (M0 items 2-3).
-```
-
-Create the note after the commit exists so its ID and timestamp are known. Do not create one for unrelated commits. A commit may be noted in more than one plan only when it materially advances each plan; write a summary appropriate to each plan. Keep `plan.md` as the current overview, and use timestamped notes for the chronological record.
-
-For plans that predate this naming convention, use the date of the commit that first added the plan as the directory prefix and record that date in `plan.md`. Do not rename an existing plan directory to the date of a later edit. For substantial work that began before a plan existed, use the date of its first related commit as described above; no `plan.md` is required.
+For substantial work begun before a plan existed, use the date of its first
+related commit as the directory prefix. A `plan.md` is optional for completed
+work that was never planned, but its history belongs in that work directory's
+`work-log.md`.

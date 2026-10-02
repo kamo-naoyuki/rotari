@@ -1,6 +1,7 @@
 # Plan: Matching Jobs by Fingerprint
 
 **Created:** 2026-09-29
+**Work history:** [work-log.md](work-log.md)
 
 ## Purpose
 

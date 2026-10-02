@@ -1,6 +1,7 @@
 # Plan: Preventing Recurring Boundary Bugs
 
 **Created:** 2026-10-01
+**Work history:** [work-log.md](work-log.md)
 
 ## Purpose
 

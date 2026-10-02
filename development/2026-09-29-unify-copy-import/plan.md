@@ -1,6 +1,7 @@
 # Plan: Unifying `copy` and `import`
 
 **Created:** 2026-09-29
+**Work history:** [work-log.md](work-log.md)
 
 ## Goal
 
