@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -42,15 +44,28 @@ func TestServerExposesJobInfoToolOverMCP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tools.Tools) != 1 || tools.Tools[0].Name != "rotari_get_job_info" {
-		t.Fatalf("tools = %#v, want rotari_get_job_info", tools.Tools)
+	var names []string
+	for _, tool := range tools.Tools {
+		names = append(names, tool.Name)
+		encoded, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var schema struct {
+			Properties map[string]any `json:"properties"`
+		}
+		if err := json.Unmarshal(encoded, &schema); err != nil {
+			t.Fatal(err)
+		}
+		for property := range schema.Properties {
+			if strings.Contains(property, "basedir") || strings.Contains(property, "project") || strings.Contains(property, "path") {
+				t.Errorf("%s takes a location, %q: %s", tool.Name, property, encoded)
+			}
+		}
 	}
-	schema, err := json.Marshal(tools.Tools[0].InputSchema)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(schema), "basedir") || strings.Contains(string(schema), "project") {
-		t.Fatalf("input schema asks for a location: %s", schema)
+	sort.Strings(names)
+	if want := []string{"rotari_compare_runs", "rotari_get_job_info", "rotari_list_projects", "rotari_run_summary"}; !reflect.DeepEqual(names, want) {
+		t.Fatalf("tools = %q, want %q", names, want)
 	}
 
 	for _, test := range []struct {

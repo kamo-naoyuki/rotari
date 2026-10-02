@@ -199,10 +199,16 @@ func redactAIReport(report string, paths state.ProjectPaths, run webprojection.R
 	if len(replacements) > 0 {
 		report = strings.NewReplacer(replacements...).Replace(report)
 	}
-	report = reportUnixPathPattern.ReplaceAllString(report, redactedPathPlaceholder)
-	report = reportWindowsPathPattern.ReplaceAllString(report, redactedPathPlaceholder)
-	report = reportFQDNPattern.ReplaceAllString(report, "[REDACTED_HOST]")
-	return report + "\n> Paths and hostnames are redacted where detected. Review logs before sharing; complete redaction is not guaranteed.\n"
+	return RedactPatterns(report) + "\n> Paths and hostnames are redacted where detected. Review logs before sharing; complete redaction is not guaranteed.\n"
+}
+
+// RedactPatterns replaces text that looks like an absolute path or a
+// hostname, the generic part of a report's redaction. It does not know the
+// run's own paths and hostname, so it can miss some; see Build.
+func RedactPatterns(text string) string {
+	text = reportUnixPathPattern.ReplaceAllString(text, redactedPathPlaceholder)
+	text = reportWindowsPathPattern.ReplaceAllString(text, redactedPathPlaceholder)
+	return reportFQDNPattern.ReplaceAllString(text, "[REDACTED_HOST]")
 }
 
 func writeJobAIReport(builder *strings.Builder, paths state.ProjectPaths, run webprojection.Run, job webprojection.Job, status string, includeLog bool) {

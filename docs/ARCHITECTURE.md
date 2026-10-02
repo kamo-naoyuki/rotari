@@ -151,6 +151,8 @@ flowchart TB
    mcpserver --> mcpadapter
    mcpadapter --> report
    mcpadapter --> resolve
+   mcpadapter --> runview
+   mcpadapter --> project
    mcpadapter --> state
   report --> web
   report --> project
@@ -227,7 +229,7 @@ are checked against this graph by
 | [internal/projectrun](../internal/projectrun/) | One project's run against its files: `Begin` (context, run lock, registry, running metadata), `Execute` (snapshot, plan, dispatch, summary), and `Finish` (final context, queue and metadata finalization, lock removal). Shared by sync and async runs and by cancellation. Also checks that a queue can run with the known executors (`ValidateQueue`). | `lifecycle.go`, `execute.go`, `validate.go` |
 | [internal/run](../internal/run/) | Run rules without file access: which jobs execute or are carried forward, dependency unblocking, retries, per-executor lanes and concurrency, the summary contents. | `rerun.go` (`PlanRerun`), `engine.go` (`ExecuteJobs`), `dispatch.go` (`Dispatcher`) |
 | [internal/jobstatus](../internal/jobstatus/) | Read side: turns attempt files and the summary into one displayed result and timestamps, and reads the hosts, times, and log that job filters judge, following carried jobs to their attempt. Shared by CLI and Web. | `job.go`, `attempt.go`, `times.go`, `facts.go` |
-| [internal/runview](../internal/runview/) | Read-side loading of a persisted run snapshot and resolution of each job's displayed status. Shared by run comparison and history views. | `run.go` (`LoadRun`) |
+| [internal/runview](../internal/runview/) | Read-side loading of a persisted run snapshot and resolution of each job's displayed status, a project's runs in start order, and the one-run summary. Shared by run comparison, history views, and the MCP tools. | `run.go` (`LoadRun`), `order.go` (`RunsByStart`, `Summary`) |
 | [internal/supervisor](../internal/supervisor/) | The work behind supervisor requests: sync and async runs, including preflight selection planning. Implements `server.Operations` and returns plain-text messages. | `run.go` (`Operations.Run`, `StartRun`) |
 | [internal/server](../internal/server/) | Supervisor transport: request/response types, the pipe connection between `run` and its supervisor, the lease and liveness check, idle shutdown, attached-run streaming. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go`, `lease.go` |
 | [internal/jobcontrol](../internal/jobcontrol/) | Cancel, suspend, resume of running jobs through executors. | `jobcontrol.go` |
@@ -238,7 +240,7 @@ are checked against this graph by
 | [internal/workflow](../internal/workflow/) | Workflow manifests: `export` merge and `import` reconciliation. | `manifest.go`, `export.go`, `reconcile.go` |
 | [internal/joblist](../internal/joblist/) | Recent job attempts across a base directory's projects for `rotari jobs` and the Web UI's jobs page: which attempts are listed, their order, and how their times read. | `joblist.go` (`Collect`) |
 | [internal/report](../internal/report/) | The redacted evidence report for AI-assisted diagnosis, shared by `show --report` and the Web UI. Reads jobs through `internal/web`'s projection. | `report.go` (`Build`) |
-| [internal/mcp](../internal/mcp/) | Read-only MCP tools for `rotari-mcp` (`cmd/mcp/server`). Locates runs only through the run registry of the server's master directory (`resolve.RegisteredRun`) and returns existing rotari reports. It does not depend on `cmd/rotari`. | `server.go` (`NewServer`) |
+| [internal/mcp](../internal/mcp/) | Read-only MCP tools for `rotari-mcp` (`cmd/mcp/server`): project list, run summary, job report, and run comparison. They present the shared functions `rotari show` and `lineage` use (`project.Overviews`, `basedirregistry.Discover`, `runview.Summary`, `runlineage.Compare`, `report.Build`), locate runs only through the master directory's run registry (`resolve.RegisteredRun`), and return no absolute paths. It does not depend on `cmd/rotari`. | `server.go` (`NewServer`), `tools.go` |
 | [internal/runlineage](../internal/runlineage/) | Comparison and summaries of loaded runs for `lineage`, and the grouping of a run's failures by cause that `show`, `lineage`, and the Web UI share. | `runlineage.go`, `failures.go` (`FailureGroups`) |
 | [internal/jobfilter](../internal/jobfilter/) | The conditions of the `--filter-*` options that narrow a job selection, evaluated without file access; callers supply what a condition needs about each job. | `filter.go` (`Filter`, `Selects`) |
 | [internal/diagnose](../internal/diagnose/) | Rule-based and provider-backed failure diagnosis. | `analysis.go` |

@@ -1,22 +1,30 @@
 # MCP server (experimental)
 
-rotari includes an experimental read-only MCP server for asking an agent to
-inspect one job. It exposes the `rotari_get_job_info` tool, which takes an
-exact run ID and an exact job ID. It returns an AI-oriented report with the
-job's status, result, diagnosis, and a bounded tail of recent log output.
-Known paths and hostnames are redacted where detected; redaction is not
-guaranteed to catch every secret.
+rotari includes an experimental read-only MCP server for agents that cannot
+run shell commands. Agents that can should use the `rotari` CLI, as
+`rotari guide` describes; each tool below names the CLI command that returns
+the same information.
 
-The server finds the run's state directory and project through the run
+| Tool | Input | Returns | CLI equivalent |
+| --- | --- | --- | --- |
+| `rotari_list_projects` | none | every project of every registered state directory, with its state, queue size, run count, and last run's ID, status, and failed and total job counts | `rotari show` |
+| `rotari_run_summary` | `run_id` | job counts, and failed and blocked jobs grouped by cause, each with its jobs, exit codes, an example evidence line, the attempt to inspect, and a suggested fix | `rotari lineage RUN_ID` |
+| `rotari_get_job_info` | `run_id`, `job_id` | a report on one job: status, result, diagnosis, and the log lines around the diagnosis evidence | `rotari show -j ATTEMPT_ID --report` |
+| `rotari_compare_runs` | `run_id`, optional `previous_run_id` | which jobs were fixed, still fail, or newly fail, each run's failure cause and whether it changed, and which job definitions changed; `previous_run_id` defaults to the run that started just before `run_id` | `rotari lineage PREVIOUS_RUN_ID RUN_ID` |
+
+A typical session lists projects, summarizes the run with failures, inspects
+one job from a failure group's attempt, and compares a later run with it.
+
+The server finds a run's state directory and project through the run
 registry of its master directory, the same registry the `rotari` CLI uses to
-resolve `--run-id`. It serves only runs registered there: it does not fall
-back to a default state directory, walk other directories, list projects, or
-discover a job from its ID alone. No queue edits, job execution, or job
-control are exposed.
-
-Agents that can run shell commands can use the `rotari` CLI directly; for
-example, `rotari show -r RUN_ID --report` prints the same report, and
-`rotari show -r RUN_ID --json` returns structured run data.
+resolve `--run-id`. It serves only runs and state directories registered
+there: it does not fall back to a default state directory or walk other
+directories. Results name a state directory by `basedir_ref`, a stable
+reference that does not reveal its path, and by `basedir_name`, the last
+element of its path; they contain no absolute paths. Reports and evidence
+lines redact paths and hostnames where detected; redaction is not guaranteed
+to catch every secret. No queue edits, job execution, or job control are
+exposed, and the server does not remove stale locks or migrate registries.
 
 ## Build
 
@@ -55,16 +63,6 @@ command to the absolute path of the built binary:
 Set `ROTARI_MASTERDIR` in the entry's `env` when your runs are registered
 under a non-default master directory.
 
-Then ask the agent to call `rotari_get_job_info` with the run ID and job ID,
-for example:
-
-```json
-{
-  "run_id": "20261002-120000-12345678",
-  "job_id": "abc123def"
-}
-```
-
 A run ID that is not registered in the master directory, or whose run
-directory is gone, is reported as a tool error. Run and job IDs must not
-contain `/` or `\`.
+directory is gone, is reported as a tool error, as is a comparison of runs
+from different projects. Run and job IDs must not contain `/` or `\`.
