@@ -1355,6 +1355,12 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "DURATION",
                 },
                 {
+                    "description": "return as soon as a job of the run has "
+                    "failed with no retry left, without waiting "
+                    "for the rest",
+                    "name": "until-failure",
+                },
+                {
                     "description": "print each completed run as one JSON object",
                     "name": "json",
                 },

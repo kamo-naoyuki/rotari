@@ -31,6 +31,7 @@ func cmdWait(args []string) int {
 	var explicitRunIDs stringSliceFlag
 	cliValue(fs, &explicitRunIDs, "run-id")
 	timeout := cliDuration(fs, "timeout", 0)
+	untilFailure := cliBool(fs, "until-failure", false)
 	jsonOutput := cliBool(fs, "json", false)
 	if err := cliParse(fs, args); err != nil {
 		return 1
@@ -80,7 +81,7 @@ func cmdWait(args []string) int {
 		if target.RunID == "" {
 			continue // A project that does not exist yet has nothing to wait for.
 		}
-		result := waitForRun(target.BaseDir, target.ProjectName, target.RunID, deadline, *jsonOutput)
+		result := waitForRun(target.BaseDir, target.ProjectName, target.RunID, deadline, *untilFailure, *jsonOutput)
 		if result.exitCode > exitCode {
 			exitCode = result.exitCode
 		}
@@ -275,7 +276,9 @@ type waitResult struct {
 	timedOut bool
 }
 
-func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, jsonOutput bool) waitResult {
+// waitForRun waits until runID finishes, or with untilFailure until one of
+// its jobs has failed with no retry left, whichever comes first.
+func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, untilFailure, jsonOutput bool) waitResult {
 	baseDir, queueName, runID, err := resolve.ExistingRunID(basedir, queueNameOption, runID)
 	if err != nil {
 		printError(err)
@@ -349,12 +352,59 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 			printErrorf("failed to read run summary %s: %v", summaryPath, err)
 			return waitResult{exitCode: 1}
 		}
+		if untilFailure {
+			if failures := finalFailureGroups(paths, runID); len(failures) > 0 {
+				writeEarlyFailures(paths, runID, failures, jsonOutput)
+				return waitResult{exitCode: 1}
+			}
+		}
 		if !deadline.IsZero() && time.Now().After(deadline) {
 			printErrorf("timed out waiting for run %s", runID)
 			return waitResult{exitCode: 1, timedOut: true}
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
+}
+
+// finalFailureGroups groups the jobs of an active run that have failed with
+// no retry left. A failed attempt that the run will retry does not count.
+func finalFailureGroups(paths state.ProjectPaths, runID string) []runlineage.FailureGroup {
+	run, err := runview.LoadRun(paths, runID, jsonStore())
+	if err != nil {
+		return nil
+	}
+	final := run.Jobs[:0]
+	for _, job := range run.Jobs {
+		if job.Final {
+			final = append(final, job)
+		}
+	}
+	run.Jobs = final
+	return runlineage.FailureGroups(run)
+}
+
+// earlyFailureJSON is what wait --until-failure --json prints for a run that
+// is still running when a job has failed.
+type earlyFailureJSON struct {
+	RunID    string                    `json:"run_id"`
+	Status   string                    `json:"status"`
+	Failures []runlineage.FailureGroup `json:"failures"`
+}
+
+// writeEarlyFailures reports that runID, still running, has failed jobs.
+func writeEarlyFailures(paths state.ProjectPaths, runID string, failures []runlineage.FailureGroup, jsonOutput bool) {
+	if jsonOutput {
+		_ = json.NewEncoder(os.Stdout).Encode(earlyFailureJSON{RunID: runID, Status: "running", Failures: failures})
+		return
+	}
+	fmt.Println(red(fmt.Sprintf("Run %s is still running, and jobs have failed.", runID)))
+	writeFailureGroups(os.Stdout, failures)
+	target := fmt.Sprintf("--basedir %s --project-name %s --run-id %s",
+		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
+	fmt.Println(cyan("To keep waiting:"))
+	fmt.Printf("  rotari wait %s\n", target)
+	fmt.Println(cyan("To cancel the run:"))
+	fmt.Printf("  rotari cancel --basedir %s --project-name %s\n", executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName))
 }
 
 // runEndedWithInvalidSummary reports an invalid summary only after its run is

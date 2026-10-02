@@ -143,6 +143,18 @@ rotari run -p eval --async
 rotari wait sweep eval
 ```
 
+To learn of a failure without waiting for the rest of a long run, pass
+`--until-failure`. `wait` then also returns, with status 1, as soon as a job
+of the run has failed with no retry left: it prints the failures grouped by
+cause (see [Inspecting](INSPECT.md#inspect)) and the commands to keep waiting
+or cancel. A failed attempt that the run will retry does not count. With
+`--json`, it prints `{"run_id": ..., "status": "running", "failures": [...]}`
+instead of a completed run's summary.
+
+```sh
+rotari wait sweep --until-failure
+```
+
 Waiting for a project that has not been created yet succeeds immediately and
 does not create it, whether selected by name or `--project-name`. A missing
 explicit `--run-id` (including `latest`) remains an error. A name that matches

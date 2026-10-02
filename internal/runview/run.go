@@ -57,9 +57,17 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runline
 			diagnoses = append(diagnoses, diagnosis.Name)
 		}
 		result, _ := resolved.Result(spec)
+		// While the run is active, a job that reached its final result has
+		// recorded it, diagnosis included, beside its attempt.
+		var finalResult model.JobResult
+		final := hasSummary || store.ReadJSON(filepath.Join(jobDir, state.FinalResultFileName), &finalResult) == nil
+		if !hasSummary && final {
+			finalResult.ExitCode = result.ExitCode
+			result = finalResult
+		}
 		run.Jobs = append(run.Jobs, runlineage.Job{
 			Spec: spec, Status: status, Origin: origin, Carried: carried,
-			DiagnosisStatus: summaryResult.DiagnosisStatus, Diagnoses: diagnoses, Result: result,
+			DiagnosisStatus: summaryResult.DiagnosisStatus, Diagnoses: diagnoses, Result: result, Final: final,
 		})
 	}
 	return run, nil

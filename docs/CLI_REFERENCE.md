@@ -390,6 +390,7 @@ Usage: `rotari wait [PROJECT_OR_RUN_NAME_OR_RUN_ID ...]`
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID (repeatable)` | `ROTARI_RUN_ID` | run ID; may be repeated |
 | `--timeout` | `DURATION` | `ROTARI_WAIT_TIMEOUT` | maximum wait duration |
+| `--until-failure` | `` | `` | return as soon as a job of the run has failed with no retry left, without waiting for the rest |
 | `--json` | `` | `` | print each completed run as one JSON object |
 
 ### `rotari add`

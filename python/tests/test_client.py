@@ -243,6 +243,27 @@ def test_wait_returns_failed_run_summary_instead_of_raising():
     assert result == payload
 
 
+def test_wait_until_failure_returns_the_running_runs_failures():
+    payload = {
+        "run_id": "run-1",
+        "status": "running",
+        "failures": [{"kind": "timeout", "cause": "timeout", "count": 1}],
+    }
+    with patch(
+        "subprocess.run", return_value=completed(json.dumps(payload), returncode=1)
+    ) as run:
+        result = Rotari().wait("run-1", until_failure=True)
+
+    assert result == payload
+    assert run.call_args.args[0] == [
+        "rotari",
+        "wait",
+        "--until-failure",
+        "--json",
+        "run-1",
+    ]
+
+
 def test_wait_without_selector_lets_cli_find_the_active_run():
     payload = {"run_id": "run-1", "status": "finished", "exit_code": 0}
     with patch("subprocess.run", return_value=completed(json.dumps(payload))) as run:

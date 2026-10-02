@@ -73,3 +73,47 @@ func TestLoadRunDoesNotCarryAnewlyBlockedJob(t *testing.T) {
 		t.Fatalf("job = %+v, want blocked and not carried", run.Jobs)
 	}
 }
+
+func TestLoadRunMarksFinalResultsOfAnActiveRun(t *testing.T) {
+	paths := state.ProjectPaths{RunsDir: t.TempDir()}
+	runDir := filepath.Join(paths.RunsDir, "run-1")
+	store := state.NewStore(0o700, 0o600)
+	if err := store.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{
+		{ID: "final", Name: "final", Command: []string{"false"}},
+		{ID: "retrying", Name: "retrying", Command: []string{"false"}},
+		{ID: "running", Name: "running", Command: []string{"sleep", "9"}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	// No summary yet: two jobs have failed, and only "final" has no retry left.
+	for _, jobID := range []string{"final", "retrying"} {
+		if err := os.MkdirAll(filepath.Join(runDir, jobID), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(runDir, jobID, "status"), []byte("3\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	oom := []model.RuleDiagnosis{{Name: "CUDA/GPU memory exhausted", Evidence: "CUDA out of memory"}}
+	if err := store.WriteJSON(filepath.Join(runDir, "final", state.FinalResultFileName), model.JobResult{ID: "final", ExitCode: 3, DiagnosisStatus: model.DiagnosisMatched, Diagnoses: oom}); err != nil {
+		t.Fatal(err)
+	}
+
+	run, err := LoadRun(paths, "run-1", store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobs := map[string]runlineage.Job{}
+	for _, job := range run.Jobs {
+		jobs[job.Spec.ID] = job
+	}
+	if job := jobs["final"]; !job.Final || job.Status != runlineage.StatusFailed || job.Result.ExitCode != 3 || len(job.Result.Diagnoses) != 1 {
+		t.Errorf("final job = %+v, want a final failure with its diagnosis", job)
+	}
+	if job := jobs["retrying"]; job.Final || job.Status != runlineage.StatusFailed {
+		t.Errorf("retrying job = %+v, want a failure that is not final", job)
+	}
+	if job := jobs["running"]; job.Final || job.Status != runlineage.StatusUnfinished {
+		t.Errorf("running job = %+v, want unfinished and not final", job)
+	}
+}

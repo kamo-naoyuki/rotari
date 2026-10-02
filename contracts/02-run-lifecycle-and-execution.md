@@ -81,6 +81,16 @@
   result. Implemented in [internal/run/rerun.go](../internal/run/rerun.go) and
   covered by `TestImportedWorkflowRunsFreshJobs` in
   [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
+- **RUN-6** `wait --until-failure` returns, with status 1 and the failures
+  grouped by cause, as soon as a job of the waited run has failed with no
+  retry left; a failed attempt that the run will retry does not count, and a
+  run that finishes first is reported as `wait` reports any run. A job's
+  result is final once the run records `final_result.json` for its attempt;
+  [internal/runview/run.go](../internal/runview/run.go) marks it `Final`, and
+  [cmd/rotari/wait.go](../cmd/rotari/wait.go) waits on it. Covered by
+  `TestWaitUntilFailureReturnsAtAFinalFailure` and
+  `TestWaitUntilFailureIgnoresAFailureTheRunRetries` in
+  [conformance/02-lifecycle/wait_failure_test.go](../conformance/02-lifecycle/wait_failure_test.go).
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,

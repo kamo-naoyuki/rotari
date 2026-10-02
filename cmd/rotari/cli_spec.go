@@ -334,6 +334,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "run-id", Description: "run ID; may be repeated", ValueName: "ID"},
 			cliFlagSpec{Name: "timeout", Description: "maximum wait duration", ValueName: "DURATION"},
+			cliFlagSpec{Name: "until-failure", Description: "return as soon as a job of the run has failed with no retry left, without waiting for the rest"},
 			cliFlagSpec{Name: "json", Description: "print each completed run as one JSON object"},
 		),
 		Positional: "[PROJECT_OR_RUN_NAME_OR_RUN_ID ...]",

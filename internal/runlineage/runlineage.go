@@ -41,6 +41,9 @@ type Job struct {
 	Diagnoses       []string
 	// Result is the job's resolved result once it has finished.
 	Result model.JobResult
+	// Final reports that Result will not change in this run: the run has
+	// finished, or the job reached its final result with no retry left.
+	Final bool
 	// Carried reports that the run reused an earlier result instead of
 	// executing the job.
 	Carried bool

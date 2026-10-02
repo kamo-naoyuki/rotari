@@ -1018,6 +1018,9 @@
           "value_name": "DURATION"
         },
         {
+          "name": "until-failure"
+        },
+        {
           "name": "json"
         }
       ],

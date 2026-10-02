@@ -209,6 +209,7 @@ Wait for an asynchronous run by project, run name, or run id.
 | `config` | `str` | config file to use |
 | `run_id` | `Sequence[str]` | run ID; may be repeated |
 | `timeout` | `str` | maximum wait duration |
+| `until_failure` | `bool` | return as soon as a job of the run has failed with no retry left, without waiting for the rest |
 
 ## `Rotari.show`
 
