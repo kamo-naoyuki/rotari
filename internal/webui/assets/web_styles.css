@@ -1338,10 +1338,6 @@ pre,
   font-size: 12px;
 }
 
-.history-search-time-row select:focus-visible {
-  outline-offset: 0;
-}
-
 .history-search-custom-range {
   display: flex;
   flex-wrap: wrap;
