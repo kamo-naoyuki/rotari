@@ -48,7 +48,36 @@ For every commit that materially advances a plan, add a short English Markdown n
 YYYY-MM-DD_HHMMSS_<short-commit-id>.md
 ```
 
-For example, `2026-10-02_173455_a1b2c3d.md`. Use the timestamp recorded for that commit in Git; do not estimate it or use the date the note is written. This keeps filenames sortable in chronological order. Summarize the change in one or a few sentences, and mention the plan-relevant outcome rather than copying the full commit message.
+For example, `2026-10-02_173455_a1b2c3d.md`. Use the timestamp recorded for that commit in Git; do not estimate it or use the date the note is written. This keeps filenames sortable in chronological order.
+
+A note must let a reader understand the commit's place in the plan without opening the diff. Do not copy the full commit message, and do not reduce the note to a single summary sentence. Every note must cover:
+
+- **Change:** what changed, naming the affected packages, commands, interfaces, and documents.
+- **Reason:** why the change was made, including the plan section, decision, or problem it addresses.
+- **Plan impact:** which phase or milestone advanced, and any decision made, reversed, or newly opened.
+- **Validation:** the tests or checks that were run and their results, or why none were run.
+- **Remaining:** follow-up work, known gaps, and issues recorded in `ISSUES.md` because of this change; write "None" when there are none.
+
+For example:
+
+```markdown
+# Move job inspection into a protocol-neutral package
+
+## Change
+Moved `GetJobInfo` and its request/response types from `internal/mcp` to `internal/agentapi`. `cmd/mcp/agent` now depends only on `internal/agentapi`; `internal/mcp` maps the MCP tool to it. Updated `docs/ARCHITECTURE.md`.
+
+## Reason
+M0 of the plan: `rotari-agent` imported the MCP SDK through `internal/mcp`, contradicting the protocol-neutral core principle.
+
+## Plan impact
+M0 item 1 is done. No decisions changed.
+
+## Validation
+`go test ./internal/agentapi ./internal/mcp ./cmd/mcp/...` and `scripts/check.sh` passed.
+
+## Remaining
+Basedir references and structured output (M0 items 2-3).
+```
 
 Create the note after the commit exists so its ID and timestamp are known. Do not create one for unrelated commits. A commit may be noted in more than one plan only when it materially advances each plan; write a summary appropriate to each plan. Keep `plan.md` as the current overview, and use timestamped notes for the chronological record.
 
