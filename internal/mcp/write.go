@@ -51,7 +51,7 @@ type ApplyImportInput struct {
 type RunInput struct {
 	BaseDirRef string `json:"basedir_ref" jsonschema:"basedir_ref of the project, from rotari_list_projects"`
 	Project    string `json:"project" jsonschema:"project name"`
-	Retry      bool   `json:"retry,omitempty" jsonschema:"rerun the failed and unfinished jobs of the last run, as rotari retry does, instead of running the queue as it is"`
+	Retry      bool   `json:"retry,omitempty" jsonschema:"run only the failed and unfinished jobs and carry the other results, as rotari retry does: those of the queue, such as one just imported, or of the last run when the queue is empty"`
 }
 
 type StartRunInput struct {

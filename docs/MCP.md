@@ -39,9 +39,11 @@ nothing; preview again. `rotari_preview_run` lists the jobs the run would
 execute, planned as the run itself is, and `rotari_start_run` returns the
 `run_id` of the run it started in the background; follow it with
 `rotari_run_summary` until its `state` is no longer `running`, as
-`rotari wait` would. Right after the start, the run may have no jobs yet. With `retry`, the run reruns the failed and unfinished
-jobs of the project's last run, copying that run into an empty queue first,
-as `rotari retry` does.
+`rotari wait` would. Right after the start, the run may have no jobs yet.
+With `retry`, the run executes only the failed and unfinished jobs and
+carries the other results, as `rotari retry` does: those of the queue, such
+as one just imported, or of the project's last run, which it copies into an
+empty queue first.
 
 A started run uses `rotari run`'s defaults, and its jobs run in the working
 directory and with the environment of the `rotari mcp` process, which is
