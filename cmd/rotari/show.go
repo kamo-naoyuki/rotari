@@ -365,11 +365,11 @@ func cmdShow(args []string) int {
 				}
 				return showQueue(paths, queue, scope, filter)
 			}
-			if countProjectRuns(paths.RunsDir) == 0 && runOnly {
+			if project.CountRuns(paths) == 0 && runOnly {
 				printErrorf("project %q has no runs; logs, failed filters, and reports need one", paths.ProjectName)
 				return 1
 			}
-			if countProjectRuns(paths.RunsDir) == 0 {
+			if project.CountRuns(paths) == 0 {
 				printErrorf("WARNING: project %q has no runs or queued jobs; nothing to show", paths.ProjectName)
 				writeShowTargetHeaderWithMode(os.Stdout, paths, "project")
 				fmt.Println("\nNo runs or queued jobs found.")
@@ -726,7 +726,7 @@ func writeShowTargetHeaderWithMode(writer io.Writer, paths state.ProjectPaths, m
 	} else {
 		fmt.Fprintf(writer, "%s stopped\n", cyan("Runner server:"))
 	}
-	fmt.Fprintf(writer, "%s %d\n", cyan("Runs:"), countProjectRuns(paths.RunsDir))
+	fmt.Fprintf(writer, "%s %d\n", cyan("Runs:"), project.CountRuns(paths))
 	if configPath := config.EffectivePath(paths.BaseDir, paths.ProjectName); configPath != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Config:"), configPath)
 	}
@@ -755,20 +755,6 @@ func showViewLabel(mode string) string {
 	default:
 		return strings.ToUpper(mode)
 	}
-}
-
-func countProjectRuns(runsDir string) int {
-	entries, err := os.ReadDir(runsDir)
-	if err != nil {
-		return 0
-	}
-	count := 0
-	for _, entry := range entries {
-		if entry.IsDir() {
-			count++
-		}
-	}
-	return count
 }
 
 func printInterruptedRunNotice(paths state.ProjectPaths, runID string) {
@@ -1420,44 +1406,15 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 	}
 	projects := make([]projectInfo, 0)
 	for _, baseDir := range baseDirs {
-		entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
+		overviews, err := project.Overviews(baseDir, true)
 		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			printErrorf("failed to read projects directory %q: %v", baseDir, err)
+			printError(err)
 			return 1
 		}
-		for _, entry := range entries {
-			if !entry.IsDir() || !state.IsValidPathElement(entry.Name()) {
-				continue
-			}
-			paths, err := state.ResolveProjectPaths(baseDir, entry.Name())
-			if err != nil {
-				printErrorf("failed to resolve project %q: %v", entry.Name(), err)
-				return 1
-			}
-			queue, err := state.LoadQueue(paths.QueueFile)
-			if err != nil {
-				printErrorf("failed to load queue for project %q: %v", entry.Name(), err)
-				return 1
-			}
-			inspection, err := project.Inspect(paths, true)
-			projectState := inspection.State
-			if err != nil {
-				printErrorf("failed to check project %q state: %v", entry.Name(), err)
-				return 1
-			}
-			meta, err := state.LoadMeta(paths.MetaFile)
-			if err != nil {
-				printErrorf("failed to load project %q metadata: %v", entry.Name(), err)
-				return 1
-			}
-			lastRun, lastResult := meta.LastRunID, lastRunResult(paths, meta.LastRunID, projectState == project.Running)
-			if lastRun == "" {
-				lastRun = "-"
-			}
-			projects = append(projects, projectInfo{baseDir: baseDir, name: entry.Name(), queued: len(queue.Commands), runs: countProjectRuns(paths.RunsDir), state: projectStateName(projectState), lastRun: lastRun, lastResult: lastResult})
+		for _, overview := range overviews {
+			lastRun := firstNonEmpty(overview.LastRun.ID, "-")
+			projects = append(projects, projectInfo{baseDir: baseDir, name: overview.Name, queued: overview.Queued, runs: overview.Runs,
+				state: projectStateName(overview.State), lastRun: lastRun, lastResult: lastRunResult(overview)})
 		}
 	}
 
@@ -1496,26 +1453,17 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 // lastRunResult describes a project's last run for the project list:
 // "running" while it runs, its status, with failed and total job counts once
 // any job failed, or "-" without a readable summary.
-func lastRunResult(paths state.ProjectPaths, runID string, running bool) string {
-	if running {
+func lastRunResult(overview project.Overview) string {
+	last := overview.LastRun
+	switch {
+	case overview.State == project.Running:
 		return "running"
-	}
-	if runID == "" {
+	case last.Status == "":
 		return "-"
+	case last.Failed == 0:
+		return last.Status
 	}
-	runDir, err := state.SafeJoin(paths.RunsDir, runID)
-	if err != nil {
-		return "-"
-	}
-	summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
-	if err != nil || summary.Status == "" {
-		return "-"
-	}
-	succeeded, failed := model.CountRunResults(summary.Results)
-	if failed == 0 {
-		return summary.Status
-	}
-	return fmt.Sprintf("%s %d/%d", summary.Status, failed, succeeded+failed)
+	return fmt.Sprintf("%s %d/%d", last.Status, last.Failed, last.Jobs)
 }
 
 func showBaseDirs(masterDir string) int {
