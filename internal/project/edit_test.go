@@ -212,3 +212,63 @@ func TestEditQueueRejectsInterruptedProjectWithoutEditing(t *testing.T) {
 		t.Fatal("edit ran on an interrupted project")
 	}
 }
+
+func TestEditQueueGuardedPreviewsAndChecksTheRevision(t *testing.T) {
+	paths := writeIdleQueueFixture(t)
+	appendJob := func(queue *model.Queue) error {
+		queue.Commands = append(queue.Commands, model.QueuedCommand{ID: "next", Command: []string{"true"}})
+		return nil
+	}
+	before, err := Revision(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A dry run reports the edited queue and writes nothing.
+	var preview Outcome
+	if err := EditQueueGuarded(paths, "add", Guard{DryRun: true, Report: func(outcome Outcome) { preview = outcome }}, appendJob); err != nil {
+		t.Fatal(err)
+	}
+	if preview.Applied || preview.Revision != before || preview.Queue == nil || len(preview.Queue.Commands) != 2 {
+		t.Fatalf("dry run outcome = %+v", preview)
+	}
+	if after, _ := Revision(paths); after != before || len(loadQueueForTest(t, paths).Commands) != 1 {
+		t.Fatalf("dry run wrote the project: revision %s -> %s", before, after)
+	}
+
+	// The previewed revision applies the edit and yields a new revision.
+	var applied Outcome
+	if err := EditQueueGuarded(paths, "add", Guard{IfRevision: preview.Revision, Report: func(outcome Outcome) { applied = outcome }}, appendJob); err != nil {
+		t.Fatal(err)
+	}
+	if !applied.Applied || applied.NewRevision == before || len(loadQueueForTest(t, paths).Commands) != 2 {
+		t.Fatalf("applied outcome = %+v", applied)
+	}
+	if now, _ := Revision(paths); now != applied.NewRevision {
+		t.Fatalf("NewRevision = %s, project is at %s", applied.NewRevision, now)
+	}
+
+	// The old revision is refused, and nothing is written.
+	err = EditQueueGuarded(paths, "add", Guard{IfRevision: before}, appendJob)
+	if !errors.Is(err, ErrRevisionChanged) || !strings.Contains(err.Error(), before) {
+		t.Fatalf("stale revision error = %v", err)
+	}
+	if len(loadQueueForTest(t, paths).Commands) != 2 {
+		t.Fatal("a refused edit wrote the queue")
+	}
+}
+
+func TestEditGuardedPassesDryRunAndChecksTheRevision(t *testing.T) {
+	paths := writeIdleQueueFixture(t)
+	var sawDryRun []bool
+	edit := func(dryRun bool) error { sawDryRun = append(sawDryRun, dryRun); return nil }
+	if err := EditGuarded(paths, "delete", Guard{DryRun: true}, edit); err != nil {
+		t.Fatal(err)
+	}
+	if err := EditGuarded(paths, "delete", Guard{IfRevision: "stale"}, edit); !errors.Is(err, ErrRevisionChanged) {
+		t.Fatalf("stale revision error = %v", err)
+	}
+	if !reflect.DeepEqual(sawDryRun, []bool{true}) {
+		t.Fatalf("edit saw dry runs %v, want one dry run and no call for the refused edit", sawDryRun)
+	}
+}
