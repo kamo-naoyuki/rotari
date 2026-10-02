@@ -16,7 +16,7 @@ These runs used fresh fixtures from [agent-trial-fixture.sh](agent-trial-fixture
 6. Follows the run until it is no longer running.
 7. Compares the new run with the previous one.
 
-The first pass ran on `dcc0899` and found the defects below. The final pass ran on `1efb12c`, with the clarified `retry` description applied on top.
+The first pass ran on `dcc0899` and found the defects below. The final pass ran on `1efb12c`. The `retry` description was clarified afterwards, in `66aff94`.
 
 ## Calls (final pass)
 

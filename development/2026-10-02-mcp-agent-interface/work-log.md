@@ -347,3 +347,43 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - The agent trial has not been repeated with the write tools yet.
 
 **Remaining:** An agent trial with the write tools; MCP queue edits or M7.
+
+## M6 agent trial: an MCP-only agent fixes and reruns a project
+
+**Commits:** 2026-10-03 03:03:13 `69b6de6`; 2026-10-03 03:10:02 `1efb12c`; 2026-10-03 03:13:34 `66aff94`; 2026-10-03 03:13:34 `be5a54c`.
+
+**Change:**
+- `69b6de6`:
+  - `run.PlanRerun` now expands an array that runs whole into its tasks, so `run.Plan.Execute` is keyed by job ID for every reader. Before, `run --dry-run` and `rotari_preview_run` left those tasks out.
+  - The run no longer expands the plan itself; `ExpandArrayPlan` is unexported.
+  - The supervisor's start message counts the queue's jobs, not its commands.
+  - Five tests that asserted the command-ID key were updated to the task keys.
+- `1efb12c`:
+  - Added `project.RunPhaseOf` (running, interrupted, finished, ended); `rotari wait`'s three state checks use it.
+  - `rotari_run_summary` reports it as `state`, and a running run that has not written its jobs yet is running, not an error.
+  - Every MCP tool is added through `addTool`, which replaces registered basedirs with `BASEDIR` in errors. The per-tool `hidePath` calls are removed. Contract MCP-3.
+- `66aff94`: the `retry` input of the MCP run tools, and `docs/MCP.md`, say that a retry plans from the queue's own results when it has any, such as after an import.
+- `be5a54c`:
+  - The trial script gained a `write` scenario.
+  - Added the trial note [agent-trial-2026-10-03-m6.md](agent-trial-2026-10-03-m6.md), and the plan's status and next step.
+  - Recorded in ISSUES.md that `add` does not register the basedir.
+
+**Reason:** the plan repeats the agent trial after each milestone. The write tools were tried by an agent that may change rotari state only through MCP.
+
+**Plan impact:**
+- M6 is confirmed by the trial. The trial needed no MCP queue edit tool.
+- Next candidate: a bounded wait tool, from M7's progress inspection, because following a run took 31 polls.
+- The output-size decision now also covers import plans and comparisons.
+
+**Validation:**
+- `TestRunPreviewListsTheTasksOfAWholeArray` fails on `dcc0899`: the dry run listed only the plain job.
+- `TestRunSummaryFollowsAStartingRunAndHidesPaths` fails on `69b6de6`, with its `state` assertion removed because that commit has no `state` field. The starting run returned an error, and the abandoned run's error held the absolute path.
+- New `TestRunPhaseOf`: six phases.
+- Before `69b6de6` and before `1efb12c`: `scripts/check.sh` passed, and `go test -count=1 ./conformance/... ./internal/archtest ./internal/doclinks` passed.
+- Before `66aff94`: `go test ./internal/mcp ./internal/doclinks` passed.
+- The final trial pass on `1efb12c` completed. Its numbers are in the note.
+
+**Remaining:**
+- The ISSUES.md entry on basedir registration by `add`.
+- A bounded wait tool.
+- Output sizes of import plans, comparisons, and tool schemas.
