@@ -69,3 +69,37 @@
   queue, active/unfinished, host/time/diagnosis, direct-selector, and interface
   witnesses remain explicitly documented in the coverage notes. Later
   milestones have not started.
+
+## Read projections and isolated file-output adapters
+
+**Commit:** `413f129` — 2026-10-03T04:49:44+09:00
+
+- **Change:** Added `check` and one-run `lineage` to the shared read adapter,
+  and isolated `config`/`export` file adapters. Compared both orders' file
+  contents, presence, and modes; rejected operations must leave no output,
+  and all file-adapter operations must preserve queue/history. Added standalone
+  samples and witnesses for three formats, deep checking a missing executable,
+  quiet/JSON precedence, run source versus a distinct queue with output, and
+  notification/template content. Updated CLI-1 bookkeeping, plan, and coverage.
+- **Reason:** Broaden coverage without mistaking read-only success or stdout
+  equality for evidence of option effects. Output reset prevents config's
+  overwrite protection from contaminating the second order.
+- **Plan impact:** Added 57 pairs: 50 accepted and 7 explicitly rejected.
+  Now 819 pairs execute in six commands, accepting 513 and rejecting 306 in
+  1,638 order-check invocations. Measured read loop: 38.25 seconds; file loop:
+  6.40 seconds, including their separate fixtures. No new production bug,
+  behavior change, compatibility declaration, or equality exception.
+- **Validation:** Focused added cases, all pair-prefixed tests, interface/root
+  conformance packages, and contract/layout checks passed uncached. Focused
+  race checks passed (interface 72.59 seconds, root conformance 6.01 seconds).
+  Short checks initially failed on JavaScript syntax errors in concurrently
+  edited Web assets, then passed on recheck. Full checks failed first in Web
+  rendering tests with `Unexpected end of input`, then on recheck in
+  `TestOrbitGameInteraction` (exit 8). The full script did not reach race;
+  focused race was run separately, not presented as a full-script pass.
+  Original logs and exit codes were retained. Web files were not changed by
+  this work. Gofmt, Markdown diagnostics, relative links, and diff checks
+  passed. Pre-commit remains unavailable.
+- **Remaining:** 5,662 pairs need safe mutation/execution/control adapters;
+  observation gaps and lineage/config mode limits are in the coverage notes.
+  Later milestones remain untouched.
