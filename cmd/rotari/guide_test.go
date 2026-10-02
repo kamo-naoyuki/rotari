@@ -48,7 +48,7 @@ func TestAgentGuideListsCommonOptionsOnlyWhenCommandHasAll(t *testing.T) {
 
 func TestAgentGuideRecommendsAsyncRunWithWait(t *testing.T) {
 	guide := agentGuide()
-	for _, want := range []string{"rotari run --async", "rotari wait", "import --dry-run", "rotari check"} {
+	for _, want := range []string{"rotari run --async", "rotari wait", "import --dry-run", "rotari check", "wait --until-failure", "rotari lineage RUN_ID", "rotari show -j ATTEMPT_ID --report"} {
 		if !strings.Contains(guide, want) {
 			t.Fatalf("guide does not mention %q", want)
 		}
