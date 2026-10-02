@@ -4,106 +4,155 @@
 
 ## Purpose
 
-Explore how an agent can discover and inspect rotari state without being given filesystem paths or having to reproduce human-oriented screen flows. This is a design/implementation exploration, not a final public API specification. Keep read-only inspection separate from queue mutation and execution; do not grant write/run capabilities implicitly.
+Make rotari efficient for agents to diagnose, fix, and rerun jobs, and eventually to request other rotari operations, without being given filesystem paths or replaying human-oriented screen flows.
 
-## Discovery model
+The [agent trial](agent-trial-2026-10-02.md) showed that an agent with a shell can already do this through the CLI: run IDs resolve without paths, `show -r RUN_ID --json` carries per-job diagnoses, and `lineage RUN1 RUN2` compares runs by job name. The cost is volume, not capability: deciding what to fix in a 300-task run took about 100 KB of output when the decision needs under 1 KB. The plan therefore puts agent-specific *information* first, in shared packages that every interface uses, and treats MCP as a thin delivery channel for clients without a shell.
 
-An MCP server is configured for one master directory. Its registry may contain multiple basedirs, so masterdir and basedir are not a 1:1 relationship. Expose a basedir-scoped reference and preserve that scope through project, run, job, attempt, and log lookup. Never confuse identical project names or IDs across basedirs. Avoid requiring agents to pass raw basedir/state paths.
+This is a design/implementation exploration. API names, schemas, and identifiers are not a public contract until a milestone below says so.
 
-A useful information hierarchy is:
+## Scope and non-goals
 
-```text
-MCP server -> configured masterdir -> registered basedirs -> project -> run -> job/attempt/log/diagnosis
-```
+In scope, in milestone order (see [Milestones](#milestones)):
 
-The first response should help an agent choose where to look; deeper queries should return only the requested projection. Candidate overview data includes basedir label/existence, project count, recent activity, active runs, and recent failures.
+- compact, decision-ready information: failures grouped by cause, relevant log excerpts, cause-aware run comparison, incremental progress, and cross-basedir discovery with results;
+- delivering it through the CLI (`--json` and human output), the Web UI where useful, and read-only MCP tools;
+- later, read-only operations (`check`, `export`) and then explicitly named state-changing and lifecycle operations behind a preview/apply boundary.
 
-## Query and projection concept
+Non-goals:
 
-Consider a shared query with explicit hierarchical scope (`basedirs`, `projects`, `run_ids`, `job_ids`), filters, included fields, and strict limits. Candidate projections include summaries, results, diagnosis, command/job definition, and bounded stdout/stderr excerpts. Results should carry all identifiers needed for a follow-up request, state the searched scope, and disclose truncation, unavailable data, or ambiguous candidates. Apply parent-child relationships rather than treating ID lists as a Cartesian product.
+- a second implementation of `cmd/rotari` behavior inside an agent or MCP adapter;
+- a separate terminal agent command; terminal agents use `rotari` itself;
+- a generic object query language, a generic command interpreter, an untyped `operation: "<CLI command>"` field, or arbitrary shell commands;
+- exposing every CLI flag through MCP; a tool exposes a coherent use case and the selectors it needs;
+- a visual UI or a dedicated VS Code extension.
 
-Reuse existing resolution, status, selection, and history-search semantics where possible; do not call the Web API blindly or implement a second set of rules. Evaluate whether search/projection logic can be shared across Web and MCP while keeping transport and presentation adapters separate.
+## Principles
 
-## Intended functional coverage
+1. **Information before interfaces.** The trial's gaps are missing summaries, not missing entry points. Build each summary once in a shared package; the CLI, Web UI, and MCP present it.
+2. **The CLI is the terminal agent interface.** Agents with a shell use `rotari` commands and their `--json` output. Improvements for agents land there, with stable JSON fields, so humans and scripts benefit too.
+3. **MCP is a thin adapter.** `internal/mcp` maps typed tool inputs to the same shared functions the CLI calls and encodes their results. It holds no selection, status, or grouping rules of its own.
+4. **One rule, one owner.** Each behavior uses the package that already owns it (see [Shared behavior map](#shared-behavior-map)). When a capability exists only inside a `cmd/rotari` handler, extract it to a lower-level package first; do not copy the handler.
+5. **Read and change are separate tools.** A state change is a separately named operation with typed arguments, never a side effect of a read. MCP clients ask the user per tool, so separating read tools from changing and destructive tools lets users always allow reads and confirm changes.
+6. **Never guess, never ignore.** Ambiguous matches are returned as candidates. Unsupported selectors or options fail with an error rather than being accepted and ignored.
+7. **Bounded and safe by default.** Output states its scope, counts, and truncation. Secrets, environment values, executor options, and sensitive paths are not returned by default; commands and logs are treated as potentially sensitive.
 
-The long-term goal is not only job inspection. The agent-facing interface should eventually cover the useful rotari capabilities across these domains:
+## Decisions
 
-| Domain | Candidate capabilities | Interaction shape |
+Record any reversal here with its reason.
+
+- **No `rotari-agent`.** The prototype's `rotari-agent` printed the same report as `rotari show --report`. It is removed rather than extended (M0).
+- **MCP configuration.** One MCP server process serves one master directory. Only basedirs registered in that master directory's `basedirregistry` are reachable.
+- **Basedir reference in MCP.** A basedir is addressed by its registry record key (the 32-hex prefix of the SHA-256 of its absolute path, as `basedirregistry` already uses), which is stable while the path is unchanged. MCP results do not return the absolute path by default. Run and attempt IDs remain the primary handles because they already resolve their basedir and project.
+- **MCP mechanism.** Tools only at first. Resources and Prompts may be added later without changing the shared functions.
+- **Task-shaped tools.** MCP exposes a small number of tools named after use cases (for example, find recent failures, summarize a run's failures, show a job's evidence, compare runs), not a generic query tool. Results do not advertise `available_operations`; tool schemas describe what exists.
+- **Structured output.** Results are structured records. Human-formatted text, such as `report.Build` output, may be one field, not the whole result.
+
+## Gaps found by the trial
+
+Each gap is a shared capability first and an interface second.
+
+| Gap | Trial evidence | Shared capability |
 | --- | --- | --- |
-| Discovery and inspection (`show`, `jobs`) | Find basedirs/projects; inspect queue, run, job, attempt, result, diagnosis, and bounded logs | Common scoped query with filters and a requested projection |
-| Readiness (`check`) | Validate whether the selected project/queue can run and return actionable issues | Read-only operation with structured findings; may be exposed as a query projection if that stays clear |
-| Workflow (`export`, `import`) | Export a run/queue as a manifest; validate and preview a proposed import; apply the import | Export is a read operation; import is a state-changing operation with a separate preview and apply step |
-| Queue operations | Add, change, remove, copy jobs; inspect the resulting queue | Explicit operations with a structured change plan and an apply step where useful |
-| Run operations | Start/run, retry selected jobs, wait/inspect progress, cancel, suspend, resume | Explicit lifecycle operations; start asynchronously and return stable run identity |
-| Project/history cleanup | Delete runs/jobs, garbage-collect history/state, reset a queue/project | Destructive operations, individually named and guarded; never hidden inside a generic query |
+| Failure grouping | 300 tasks, 84 failures: `--report --failed` 108 KB; the decision is three groups | Group a run's failed jobs by cause: diagnosis rule when one matched, otherwise exit code and a normalized error line. Each group has a count, its members, one representative excerpt, and the IDs to drill down. |
+| Relevant excerpts | 240 of 466 report lines were progress output from log tails | Pick excerpt lines by relevance: diagnosis evidence and its context, then stderr, then the tail. Disclose what was omitted. |
+| Cause-aware comparison | `lineage` says "still failing" without saying whether the cause changed | Add each side's cause (from the same grouping key) to compared jobs, and distinguish "same cause" from "different cause". |
+| Incremental progress | `wait` returns only when the run ends | Report changes since a cursor, and allow returning at the first new failure. |
+| Discovery with results | `show` lists same-named projects without results; its hint and `jobs` silently assume the default basedir | Add the last run's result to the project list, make hints include the basedir when needed, and have `jobs` state its scope. |
+| Effective settings | A failed `change` went unnoticed; `retry` output does not show the timeout it used | Show per-job effective settings (timeout, retry) in run output and JSON. |
+| Timeout diagnosis | A timed-out job reports "timed out" and "No known rule matched" together | Treat rotari's own timeout as a known cause in diagnosis. |
 
-The query model is for selecting *what data to return* and is a natural fit for `show`, `jobs`, log search, and possibly `check`. It should not become a generic command interpreter for writes. Mutations and lifecycle transitions should have explicit operation names and typed arguments, so the agent can distinguish reading a proposed change from applying it. `export` is read-only but may return a large manifest; `import`, `delete`, and `reset` modify or discard state and need stronger safeguards.
+## Shared behavior map
 
-## Unified object-oriented interaction (UI/API idea)
+Agent-facing work must reach these owners rather than re-implement their rules. Extend this table as capabilities are added; it doubles as the parity matrix between CLI, Web, and MCP.
 
-The same idea can be viewed as a database-like object browser/API rather than a collection of unrelated command replicas:
+| Capability | Owning package(s) | CLI / Web entry | MCP |
+| --- | --- | --- | --- |
+| Failure grouping | new; next to `diagnose` / `report` (decide in M1) | `show` (M1), Web run page | M4 |
+| Excerpt selection | `report` | `show --report`, Web report endpoints | M4 |
+| Diagnosis | `diagnose` | `diagnose`, `show` | via `report` |
+| Run comparison | `runlineage` | `lineage` | M4 |
+| Incremental progress | `projectrun` / `runview` (decide in M3) | `wait` | M4 |
+| Basedir discovery | `basedirregistry` | `show`, `show --basedirs`, Web | M4 |
+| Recent jobs across projects | `joblist` | `jobs`, Web jobs page | M4 |
+| Project resolution | `resolve`, `state` | all commands | M0 (no raw basedir) |
+| Job result / status | `jobstatus` | `show`, Web `loadWebJobs` | via shared functions |
+| Result selection and `--filter-*` | `jobfilter` (`Filter.Selects`, `Filter.SelectsArray`) | `show`, `copy`, `run`, `retry` | via shared functions |
+| Run snapshot and display | `runview`, `runregistry` | `show`, Web | via shared functions |
+| History / log search | `web` (`SearchHistory`) | Web history search | open |
+| Readiness | none yet (`cmd/rotari/check.go`) | `check` | M5, after extraction |
+| Export | `workflow` + `cmd/rotari/export.go` | `export` | M5, after extraction |
+| Import | `workflow` | `import` | M6 |
+| Queue edits, run deletion | `queueops` | `add`, `change`, `remove`, `copy`, `delete` | M6 |
+| Run lifecycle | `projectrun` | `run`, `retry` | M7 |
+| Job control | `jobcontrol` | `cancel`, `suspend`, `resume` | M7 |
+| History cleanup | none yet (`cmd/rotari/gc.go`, `reset.go`) | `gc`, `reset` | M7 |
 
-1. **Query objects** by object kind (`basedir`, `project`, `queue`, `run`, or `job`) and conditions. The query returns typed object records, each with a stable scoped identity and a requested information projection.
-2. **Act on returned object identities** through explicit operations. For example: retrieve more information with selected fields; `check`; `export`; preview/apply `import`; `add`; `run` with run options; `delete`; or `reset`.
-3. **Return the affected object(s) and outcome** in structured form so a follow-up query can continue from their identities.
+## Milestones
 
-Conceptually, a result might contain `type`, `identity` (basedir/project/run/job IDs as applicable), `data` (the requested projection), and perhaps `available_operations`. The exact shape is open. Exposing possible operations on an object can help an agent discover what applies, but the server must validate every requested action: not every operation applies to every object, and an advertised/hinted action is not authorization.
+Each milestone is checked by repeating the trial's scenario: triage of the mixed-failure `labA` fixture and the 300-task `labC` fixture, and the fix loop. Record call counts and output sizes in a new trial note and compare them with the [first trial](agent-trial-2026-10-02.md).
 
-Keep the two parts distinct even if the client presents them as one interface: **query selects/reads objects; operation requests a state transition**. A `job` result could support more-info, log projections, and job control; a `queue` or `project` may support check/add/import/run/reset; a `run` may support inspect/export/retry/cancel/delete. These are candidate mappings, not a promise that each object gets every action. `reset`, `delete`, `import`, queue edits, and `run` need explicit target identity, typed options, precondition validation, and a preview/approval/apply flow appropriate to the operation. Never encode arbitrary shell commands or accept an untyped `operation: "<CLI command>"` escape hatch.
+### M0: Retire `rotari-agent` and clean up the prototype
 
-This could provide a consistent interaction for both `rotari-agent` and MCP: terminal input/output can be JSON, while MCP wraps the same query and operation services as tools. It does not imply a visual UI must be built first; “UI” here means the agent-facing object/action model.
+- Remove `cmd/mcp/agent`; its output equals `rotari show --report`.
+- Make `rotari-mcp` resolve the job through the master directory's registry instead of taking a raw basedir path, and return structured fields alongside the report text.
+- Make `rotari-mcp` exit non-zero when the server fails.
+- Update `docs/ARCHITECTURE.md` for the `cmd/mcp` and `internal/mcp` entries.
 
-The terminal entry point (`rotari-agent`) and MCP entry point should expose the same protocol-neutral operation set and structured inputs/outputs. Transport adapters may format/encode results differently (JSON on stdout versus MCP structured results), but must call the same service functions and preserve the same validation, selection, status resolution, and error semantics. Avoid implementing a second CLI-like behavior inside the MCP adapter.
+### M1: Failure grouping
 
-Before calling the API complete, maintain a parity matrix from every candidate operation to its existing rotari implementation and contract tests. This should identify unsupported options/variants explicitly; an operation must not silently ignore a flag or selector.
+Add the shared grouping and use it in `show` for a run (human output and `--json`), then in the Web run page.
 
-## Sharing and package boundaries
+Done when, for the `labC` fixture, one `show` call answers which causes failed, how many tasks each, which tasks, and a representative error per cause, in under 2 KB of human output; and the JSON form carries the same groups with drill-down IDs. Grouping must be evaluated per job and then combined (array tasks, matrix members, carried results), never decided on an array's aggregate result.
 
-Supporting these domains must **not** mean reimplementing all of `cmd/rotari` in `rotari-agent` and MCP. That would create a second CLI/API whose queue, selector, status, locking, and run behavior would drift from rotari itself.
+### M2: Relevant excerpts and cause-aware comparison
 
-- Keep `cmd/rotari` as the human-oriented CLI adapter. Keep `cmd/mcp/agent` and `cmd/mcp/server` as thin transport/argument/output adapters.
-- Each behavior has one owner: use the existing shared packages for project resolution, status/result resolution, job selection, queue edits, workflow reconciliation, run lifecycle, job control, reporting, and history search. When a capability currently exists only inside a command handler, first extract the reusable operation to an appropriate lower-level package; do not copy the handler into an agent package.
-- Keep protocol-neutral request/response and application operations separate from MCP SDK types. MCP should map typed MCP inputs to the shared operation and encode its result; `rotari-agent` should parse flags/JSON, call that same operation, and emit JSON. Neither adapter should call the other.
-- Add one integration/parity test per shared behavior proving both entry points reach the same operation/result, plus package/conformance tests for the owning domain rules. Don't duplicate the domain test suite for every transport.
-- The parity matrix is a coverage map, not a demand to expose every CLI flag. An agent operation should expose only coherent agent use cases and necessary selectors, while preserving the relevant underlying contract.
+- Excerpt selection by relevance in `report`, used by `show --report` and the Web report endpoints.
+- Timeout as a known diagnosis cause.
+- `lineage` comparison reports each side's cause and whether it changed.
 
-This may require a protocol-neutral internal service package (for example, a narrowly scoped `internal/agentapi`) alongside `internal/mcp`; exact package names are open. The key boundary is that reusable behavior and result types must not depend on MCP SDK request/result types or on `cmd/rotari`.
+### M3: Discovery and progress
 
-## Information and operations to evaluate
+- Project list with last results; basedir-correct hints; `jobs` states its scope.
+- Incremental progress for `wait` (changes since a cursor, return at first failure).
+- Effective per-job settings in run output.
 
-- Which basedir and project contain the relevant state?
-- Which run is latest, active, failed, or comparable to a previous run?
-- Which jobs failed, what were their dependencies and attempt histories, and what diagnosis applies?
-- Which bounded log excerpts explain the failure?
-- What changed between runs, and did retry improve the outcome?
-- Should the agent only explain a possible retry, or may it preview/mutate/run after explicit human approval?
-- Which human-facing commands map naturally to a scoped query, and which must remain explicit operations?
-- Which object kinds should the query return (`basedir`, `project`, `queue`, `run`, `job`), and what stable identity does each need?
-- Should results advertise applicable operations, or should the agent learn them from tool schemas only?
-- For add/change/copy/import/delete/reset/retry/run/control operations, what is the preview, confirmation, apply, and result-reporting sequence?
-- How do idempotency, retries after transport timeout, asynchronous run handles, cancellation, and partial failures work for state-changing calls?
+### M4: Read-only MCP tools
 
-Do not return secrets, environment values, executor options, or sensitive paths by default. Treat commands and logs as potentially sensitive. Large logs/artifacts require byte/line limits and an explicit indication of truncation. Do not guess among multiple matching projects, runs, or jobs.
+Expose M1-M3 through a small set of task-shaped MCP tools for clients without a shell. Done when an MCP-only agent completes the trial's triage and comparison with at most a documented number of calls and comparable output size to the CLI path, against a master directory with a same-named project in two basedirs.
 
-## MCP transport concepts
+### M5: Read-only operations
 
-MCP protocol methods (`initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`) are distinct from rotari tool names (for example, names advertised through `tools/list`). `capabilities` reports feature categories, not a mode switch. Decide among Tools, Resources, and Prompts only after the information and interaction model is tested; these mechanisms are not mutually exclusive.
+Extract `check` (structured findings) and `export` (bounded or paged manifest) from `cmd/rotari` into shared packages, then expose them. Neither changes state.
 
-## Current status and follow-ups
+### M6: State-changing queue and workflow operations
 
-A read-only job-inspection prototype has been added, inspection logic is shared with terminal-facing code, and MCP entry points are grouped under `cmd/mcp`. The query/projection model remains exploratory. Re-evaluate the design against the implementation before committing to API names, schema, opaque references, paging, or cross-basedir behavior.
+`import`, queue edits (`add`, `change`, `remove`, `copy`), and run deletion, each with a separate preview and apply step. Do not start until the preview/apply contract, authorization, audit, idempotency, and recovery behavior are designed.
 
-Next, exercise realistic read queries against a master directory with multiple basedirs: discover state, summarize a failed run, compare runs, search bounded logs, and avoid collisions between same-named projects. Record what context the agent needs initially versus what should be fetched on demand. Then inventory the full desired command coverage and map each operation to shared rotari logic and contracts. Add state-changing operations only after their preview/apply boundary, authorization, approval, timeout, idempotency, and recovery behavior are designed.
+### M7: Execution and destructive operations
+
+`run` / `retry` (asynchronous start returning a stable run identity), progress inspection, `cancel` / `suspend` / `resume`, and `gc` / `reset`. Destructive operations are individually named tools, never reachable through a read.
+
+## Current status
+
+- A read-only `rotari_get_job_info` MCP tool and a `rotari-agent` command exist (`internal/mcp`, `cmd/mcp/server`, `cmd/mcp/agent`); both call `report.Build` through one shared function.
+- The [agent trial](agent-trial-2026-10-02.md) (2026-10-02) established the gaps above. The CLI issues it found are recorded in [ISSUES.md](../ISSUES.md): `show --json` ignoring `--failed`, a positional run ID rejected with `--json`, an array job name accepted as an unresolvable dependency, and a `show` hint missing the basedir.
+- Next step: M0, then M1.
 
 ## Open decisions
 
-- One general query tool versus separate discovery and detail operations.
-- Tools, Resources, Prompts, or a combination.
-- Reversible basedir IDs versus opaque references and their lifecycle.
-- Search scope, paging/default time range, and limits for logs and records.
-- Which command/configuration details are safe and useful to return.
-- Whether Web history-search scope and MCP projection can share a model.
-- How the protocol-neutral shared operation layer is separated from MCP and terminal transport adapters.
-- The complete command/operation parity matrix, including variants and contract coverage.
-- Whether mutation/execution support is exposed to agents, and where preview, confirmation, authorization, and audit are mandatory.
-- Whether a dedicated VS Code extension is necessary.
+- The package that owns failure grouping, and the normalization of an error line when no diagnosis rule matches.
+- Output size limits and defaults for groups, members, and excerpts.
+- The cursor format for incremental progress and how long a cursor stays valid.
+- Which command and configuration details are safe and useful to return.
+- Whether Web history search (`web.SearchHistory`) should back an MCP log-search tool.
+- Where redaction is owned once outputs other than `report` return paths, hostnames, or commands.
+- For M6/M7: the preview, confirmation, apply, and result-reporting sequence; authorization and audit; idempotency and retries after a transport timeout; asynchronous run handles; cancellation; partial failure.
+
+## Validation
+
+- Shared capabilities are tested in their owning packages with table tests whose fixtures tell cases apart: distinct exit codes, more than one failing task per cause, causes with and without a matching rule, array tasks, matrix members, carried and executed results, older attempts.
+- CLI, Web, and MCP each get a test that they present the shared result; do not duplicate the domain suite per interface.
+- Add conformance rows for user-visible CLI and Web API behavior, and update `contracts/README.md` when a contract changes.
+- Test that unsupported selectors fail, truncation is disclosed, ambiguous selectors return candidates, and sensitive fields are absent by default.
+- Repeat the agent trial after each milestone and record the result.
+- Run focused package tests, `go test ./conformance` when a shared rule is touched, then `scripts/check.sh`.
