@@ -88,14 +88,6 @@ func projectPaths(masterDir, baseDirRef, projectName string) (string, state.Proj
 	return baseDir, paths, err
 }
 
-// hidePath replaces baseDir in err's message, so tool errors carry no path.
-func hidePath(err error, baseDir string) error {
-	if err == nil || baseDir == "" {
-		return err
-	}
-	return errors.New(strings.ReplaceAll(err.Error(), baseDir, "BASEDIR"))
-}
-
 func (tools writeTools) runner() projectrun.Runner {
 	store := state.NewStore(state.DirectoryMode(), state.FileMode())
 	return projectrun.Runner{Store: store, Executors: executor.NewRegistry(store, func(string, ...any) {})}
@@ -110,7 +102,7 @@ type writeTools struct {
 func (tools writeTools) importManifest(input ImportInput, guard project.Guard) (workflowstate.Plan, error) {
 	baseDir, paths, err := projectPaths(tools.masterDir, input.BaseDirRef, input.Project)
 	if err != nil {
-		return workflowstate.Plan{}, hidePath(err, baseDir)
+		return workflowstate.Plan{}, err
 	}
 	if containsRedaction(input.Manifest) {
 		return workflowstate.Plan{}, errors.New("the manifest contains redacted placeholders from rotari_export_run; replace them with real values, or export the full manifest with the rotari CLI")
@@ -130,7 +122,7 @@ func (tools writeTools) importManifest(input ImportInput, guard project.Guard) (
 		Validate: func(queue model.Queue) error { return runner.ValidateQueue(queue, "", nil, nil) },
 		Register: basedirregistry.Open(tools.masterDir).Register,
 	}.Apply()
-	return plan, hidePath(err, baseDir)
+	return plan, err
 }
 
 // runPlanRequest returns the plan request of a run as `rotari run`, or with
@@ -174,18 +166,18 @@ func (tools writeTools) runQueue(paths state.ProjectPaths, request *projectrun.P
 
 // previewRun plans a run as rotari_start_run would start it.
 func (tools writeTools) previewRun(input RunInput) (RunPreviewOutput, error) {
-	baseDir, paths, err := projectPaths(tools.masterDir, input.BaseDirRef, input.Project)
+	_, paths, err := projectPaths(tools.masterDir, input.BaseDirRef, input.Project)
 	if err != nil {
-		return RunPreviewOutput{}, hidePath(err, baseDir)
+		return RunPreviewOutput{}, err
 	}
 	request := runPlanRequest(input.Retry)
 	queue, err := tools.runQueue(paths, &request, project.Guard{DryRun: true})
 	if err != nil {
-		return RunPreviewOutput{}, hidePath(err, baseDir)
+		return RunPreviewOutput{}, err
 	}
 	planned, revision, err := tools.runner().PreviewRun(paths, queue, request, "")
 	if err != nil {
-		return RunPreviewOutput{}, hidePath(err, baseDir)
+		return RunPreviewOutput{}, err
 	}
 	output := RunPreviewOutput{Project: paths.ProjectName, Execute: []PlannedJob{}, Carried: len(planned.Plan.CarriedResults), Revision: revision}
 	for _, job := range model.QueueToJobs(planned.Queue.Commands) {
@@ -206,15 +198,15 @@ func (tools writeTools) startRun(input StartRunInput) (StartRunOutput, error) {
 	if input.IfRevision == "" {
 		return StartRunOutput{}, errors.New("if_revision is required; take it from rotari_preview_run")
 	}
-	baseDir, paths, err := projectPaths(tools.masterDir, input.BaseDirRef, input.Project)
+	_, paths, err := projectPaths(tools.masterDir, input.BaseDirRef, input.Project)
 	if err != nil {
-		return StartRunOutput{}, hidePath(err, baseDir)
+		return StartRunOutput{}, err
 	}
 	request := runPlanRequest(input.Retry)
 	revision := input.IfRevision
 	guard := project.Guard{IfRevision: input.IfRevision, Report: func(outcome project.Outcome) { revision = outcome.NewRevision }}
 	if _, err := tools.runQueue(paths, &request, guard); err != nil {
-		return StartRunOutput{}, hidePath(err, baseDir)
+		return StartRunOutput{}, err
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -227,10 +219,10 @@ func (tools writeTools) startRun(input StartRunInput) (StartRunOutput, error) {
 		IfRevision: revision,
 	})
 	if err != nil {
-		return StartRunOutput{}, hidePath(err, baseDir)
+		return StartRunOutput{}, err
 	}
 	if !response.OK {
-		return StartRunOutput{}, hidePath(errors.New(response.Message), baseDir)
+		return StartRunOutput{}, errors.New(response.Message)
 	}
 	return StartRunOutput{Project: paths.ProjectName, RunID: response.RunID}, nil
 }

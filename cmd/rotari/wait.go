@@ -302,12 +302,12 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, unti
 		}
 		summary, err := state.LoadRunSummary(summaryPath)
 		if err == nil {
-			inspection, inspectErr := project.Inspect(paths, false)
-			if inspectErr != nil {
-				printErrorf("failed to check project state: %v", inspectErr)
+			phase, phaseErr := project.RunPhaseOf(paths, runID)
+			if phaseErr != nil {
+				printErrorf("failed to check project state: %v", phaseErr)
 				return waitResult{exitCode: 1}
 			}
-			if inspection.State == project.Running && inspection.RunID == runID {
+			if phase == project.RunPhaseRunning {
 				if !deadline.IsZero() && time.Now().After(deadline) {
 					printErrorf("timed out waiting for run %s", runID)
 					return waitResult{exitCode: 1, timedOut: true}
@@ -315,7 +315,7 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, unti
 				time.Sleep(500 * time.Millisecond)
 				continue
 			}
-			if inspection.State == project.Interrupted && inspection.RunID == runID {
+			if phase == project.RunPhaseInterrupted {
 				printErrorf("run %s was interrupted after writing its summary; inspect it with 'rotari show --basedir %s --project-name %s --run-id %s', then recover with 'rotari unlock --basedir %s --project-name %s --run-id %s'",
 					runID, executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID),
 					executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
@@ -336,7 +336,7 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, unti
 			return waitResult{exitCode: 1}
 		}
 		if errors.Is(err, os.ErrNotExist) {
-			if message, ended := runEndedWithoutSummary(paths, runID, summaryPath); ended {
+			if message, ended := runEndedWithoutSummary(paths, runID); ended {
 				printError(message)
 				return waitResult{exitCode: 1}
 			}
@@ -344,7 +344,7 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, unti
 			printError(err)
 			return waitResult{exitCode: 1}
 		} else if errors.Is(err, state.ErrInvalidJSON) {
-			if message, ended := runEndedWithInvalidSummary(paths, runID, summaryPath); ended {
+			if message, ended := runEndedWithInvalidSummary(paths, runID); ended {
 				printError(message)
 				return waitResult{exitCode: 1}
 			}
@@ -409,17 +409,14 @@ func writeEarlyFailures(paths state.ProjectPaths, runID string, failures []runli
 
 // runEndedWithInvalidSummary reports an invalid summary only after its run is
 // no longer active, allowing wait to tolerate a summary being atomically replaced.
-func runEndedWithInvalidSummary(paths state.ProjectPaths, runID, summaryPath string) (string, bool) {
-	inspection, err := project.Inspect(paths, false)
-	if err != nil || (inspection.State == project.Running && inspection.RunID == runID) {
-		return "", false
-	}
-	if _, err := state.LoadRunSummary(summaryPath); err == nil {
+func runEndedWithInvalidSummary(paths state.ProjectPaths, runID string) (string, bool) {
+	phase, err := project.RunPhaseOf(paths, runID)
+	if err != nil || phase == project.RunPhaseRunning || phase == project.RunPhaseFinished {
 		return "", false
 	}
 	target := fmt.Sprintf("--basedir %s --project-name %s --run-id %s",
 		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
-	if inspection.State == project.Interrupted && inspection.RunID == runID {
+	if phase == project.RunPhaseInterrupted {
 		return fmt.Sprintf("run %s was interrupted without a valid summary; inspect it with 'rotari show %s', then recover with 'rotari unlock %s'", runID, target, target), true
 	}
 	return fmt.Sprintf("run %s is not active and has no valid summary; inspect it with 'rotari show %s'", runID, target), true
@@ -428,18 +425,16 @@ func runEndedWithInvalidSummary(paths state.ProjectPaths, runID, summaryPath str
 // runEndedWithoutSummary reports whether runID is no longer active although it
 // never wrote summaryPath, for example because its supervisor exited early.
 // It leaves a stale run lock in place for show, unlock, and reset --recover.
-func runEndedWithoutSummary(paths state.ProjectPaths, runID, summaryPath string) (string, bool) {
-	inspection, err := project.Inspect(paths, false)
-	if err != nil || (inspection.State == project.Running && inspection.RunID == runID) {
-		return "", false
-	}
-	// The run may have finished between the summary read and the state check.
-	if _, err := os.Stat(summaryPath); !errors.Is(err, os.ErrNotExist) {
+func runEndedWithoutSummary(paths state.ProjectPaths, runID string) (string, bool) {
+	// RunPhaseOf reads the summary again, so a run that finished since the
+	// caller's read is not reported as ended.
+	phase, err := project.RunPhaseOf(paths, runID)
+	if err != nil || phase == project.RunPhaseRunning || phase == project.RunPhaseFinished {
 		return "", false
 	}
 	target := fmt.Sprintf("--basedir %s --project-name %s --run-id %s",
 		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
-	if inspection.State == project.Interrupted && inspection.RunID == runID {
+	if phase == project.RunPhaseInterrupted {
 		return fmt.Sprintf("run %s was interrupted before it wrote a summary; inspect it with 'rotari show %s', then recover with 'rotari unlock %s'", runID, target, target), true
 	}
 	return fmt.Sprintf("run %s is not active and has no summary; inspect it with 'rotari show %s'", runID, target), true

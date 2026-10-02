@@ -214,6 +214,7 @@ func TestCheckProjectReportsReadinessWithoutPaths(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := checkProject(f.masterDir, test.input)
+			err = hideStateDirs(f.masterDir, err)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("checkProject(%+v) error = %v, want %q", test.input, err, test.want)
 			}

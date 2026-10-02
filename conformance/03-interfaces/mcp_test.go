@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
@@ -129,8 +130,37 @@ func baseDirRef(t *testing.T, session *mcpSession, project string) string {
 	return ""
 }
 
+type mcpRunSummary struct {
+	State   string `json:"state"`
+	Summary struct {
+		Counts struct {
+			Jobs int `json:"jobs"`
+		} `json:"counts"`
+	} `json:"summary"`
+}
+
+// waitWithMCP follows a run with rotari_run_summary, from right after it
+// starts, until it is no longer running, as an agent without the CLI does.
+func waitWithMCP(t *testing.T, session *mcpSession, runID string) mcpRunSummary {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		var summary mcpRunSummary
+		if message := session.call("rotari_run_summary", map[string]any{"run_id": runID}, &summary); message != "" {
+			t.Fatalf("rotari_run_summary of run %s: %s", runID, message)
+		}
+		if summary.State != "running" {
+			return summary
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("run %s still running", runID)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
 func TestMCPWritesApplyOnlyAtThePreviewedRevision(t *testing.T) {
-	covers(t, "MCP-1")
+	covers(t, "MCP-1", "MCP-3")
 	e := support.NewEnv(t)
 	run := e.CreateFinishedRun()
 	session := startMCP(t, e)
@@ -171,16 +201,8 @@ func TestMCPWritesApplyOnlyAtThePreviewedRevision(t *testing.T) {
 	if message := session.call("rotari_start_run", apply, &started); message != "" || started.RunID == "" {
 		t.Fatalf("start at the previewed revision: %q %+v", message, started)
 	}
-	e.Rotari("wait", "-p", run.Project, "-r", started.RunID, "--timeout", "30s")
-	var summary struct {
-		Summary struct {
-			Counts struct {
-				Jobs int `json:"jobs"`
-			} `json:"counts"`
-		} `json:"summary"`
-	}
-	if message := session.call("rotari_run_summary", map[string]any{"run_id": started.RunID}, &summary); message != "" || summary.Summary.Counts.Jobs != 2 {
-		t.Fatalf("summary of the started run: %q %+v", message, summary)
+	if summary := waitWithMCP(t, session, started.RunID); summary.State != "finished" || summary.Summary.Counts.Jobs != 2 {
+		t.Fatalf("summary of the started run: %+v", summary)
 	}
 
 	// An import preview gives a revision that the import then needs.

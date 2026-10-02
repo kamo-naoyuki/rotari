@@ -4,7 +4,10 @@ package mcp
 import (
 	"context"
 	"errors"
+	"sort"
+	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/report"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
@@ -40,90 +43,124 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 			"To change a project, preview first (rotari_preview_import, rotari_preview_run), show the user what will happen, " +
 			"then apply with the preview's revision (rotari_import, rotari_start_run); a write fails if the project changed since.",
 	})
-	mcpsdk.AddTool(server, &mcpsdk.Tool{
+	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_list_projects",
 		Description: "List the projects of every registered rotari state directory with their state, queue size, run count, and last run's ID, status, and failed job count.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
-	}, func(_ context.Context, _ *mcpsdk.CallToolRequest, _ ListProjectsInput) (*mcpsdk.CallToolResult, ListProjectsOutput, error) {
+	}, func(_ ListProjectsInput) (ListProjectsOutput, error) {
 		output, err := listProjects(masterDir)
-		return nil, output, err
+		return output, err
 	})
-	mcpsdk.AddTool(server, &mcpsdk.Tool{
+	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_run_summary",
 		Description: "Summarize one run: job counts, and failed and blocked jobs grouped by cause, each with its jobs, exit codes, an example evidence line, the attempt to inspect, and a suggested fix.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
-	}, func(_ context.Context, _ *mcpsdk.CallToolRequest, input RunSummaryInput) (*mcpsdk.CallToolResult, RunSummaryOutput, error) {
+	}, func(input RunSummaryInput) (RunSummaryOutput, error) {
 		output, err := runSummary(masterDir, input)
-		return nil, output, err
+		return output, err
 	})
-	mcpsdk.AddTool(server, &mcpsdk.Tool{
+	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_get_job_info",
 		Description: "Return a redacted AI-oriented report for one rotari job, including its status, result, diagnosis, and the log lines around the diagnosis evidence.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
-	}, func(_ context.Context, _ *mcpsdk.CallToolRequest, input GetJobInfoInput) (*mcpsdk.CallToolResult, GetJobInfoOutput, error) {
+	}, func(input GetJobInfoInput) (GetJobInfoOutput, error) {
 		output, err := getJobInfo(masterDir, input)
-		return nil, output, err
+		return output, err
 	})
-	mcpsdk.AddTool(server, &mcpsdk.Tool{
+	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_check_project",
 		Description: "Report whether a project's queued run can start: its state (ready, empty, running, locked, or interrupted), queued job count, and lock, after validating the queue's jobs, dependencies, and executors.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
-	}, func(_ context.Context, _ *mcpsdk.CallToolRequest, input CheckProjectInput) (*mcpsdk.CallToolResult, CheckProjectOutput, error) {
+	}, func(input CheckProjectInput) (CheckProjectOutput, error) {
 		output, err := checkProject(masterDir, input)
-		return nil, output, err
+		return output, err
 	})
-	mcpsdk.AddTool(server, &mcpsdk.Tool{
+	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_compare_runs",
 		Description: "Compare two runs of one project: which jobs were fixed, still fail, or newly fail, each run's failure cause and whether it changed, and which job definitions changed.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
-	}, func(_ context.Context, _ *mcpsdk.CallToolRequest, input CompareRunsInput) (*mcpsdk.CallToolResult, CompareRunsOutput, error) {
+	}, func(input CompareRunsInput) (CompareRunsOutput, error) {
 		output, err := compareRuns(masterDir, input)
-		return nil, output, err
+		return output, err
 	})
-	mcpsdk.AddTool(server, &mcpsdk.Tool{
+	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_export_run",
 		Description: "Export a finished run as a workflow manifest, as rotari export RUN_ID does, for reading: environment values, executor options, and paths are redacted, so it cannot be imported until they are replaced with real values.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
-	}, func(_ context.Context, _ *mcpsdk.CallToolRequest, input ExportRunInput) (*mcpsdk.CallToolResult, ExportRunOutput, error) {
+	}, func(input ExportRunInput) (ExportRunOutput, error) {
 		output, err := exportRun(masterDir, input)
-		return nil, output, err
+		return output, err
 	})
-	mcpsdk.AddTool(server, &mcpsdk.Tool{
+	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_preview_import",
 		Description: "Preview importing a workflow manifest into a project's queue, as rotari import --dry-run does: the jobs it would queue, their source results, the source jobs it would drop, and the project revision. Changes nothing.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
-	}, func(_ context.Context, _ *mcpsdk.CallToolRequest, input ImportInput) (*mcpsdk.CallToolResult, workflowstate.Plan, error) {
+	}, func(input ImportInput) (workflowstate.Plan, error) {
 		output, err := writes.importManifest(input, project.Guard{DryRun: true})
-		return nil, output, err
+		return output, err
 	})
-	mcpsdk.AddTool(server, &mcpsdk.Tool{
+	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_import",
 		Description: "Import a workflow manifest into a project's queue, as rotari import does, only if the project is still at the revision rotari_preview_import returned. Returns the plan and the new revision.",
 		Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPointer(true)},
-	}, func(_ context.Context, _ *mcpsdk.CallToolRequest, input ApplyImportInput) (*mcpsdk.CallToolResult, workflowstate.Plan, error) {
+	}, func(input ApplyImportInput) (workflowstate.Plan, error) {
 		if input.IfRevision == "" {
-			return nil, workflowstate.Plan{}, errors.New("if_revision is required; take it from rotari_preview_import")
+			return workflowstate.Plan{}, errors.New("if_revision is required; take it from rotari_preview_import")
 		}
 		output, err := writes.importManifest(input.ImportInput, project.Guard{IfRevision: input.IfRevision})
-		return nil, output, err
+		return output, err
 	})
-	mcpsdk.AddTool(server, &mcpsdk.Tool{
+	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_preview_run",
 		Description: "Preview a run of a project, as rotari run --dry-run (or with retry, rotari retry --dry-run) does: the jobs it would execute, the results it would carry, and the project revision. Changes nothing.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
-	}, func(_ context.Context, _ *mcpsdk.CallToolRequest, input RunInput) (*mcpsdk.CallToolResult, RunPreviewOutput, error) {
+	}, func(input RunInput) (RunPreviewOutput, error) {
 		output, err := writes.previewRun(input)
-		return nil, output, err
+		return output, err
 	})
-	mcpsdk.AddTool(server, &mcpsdk.Tool{
+	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_start_run",
 		Description: "Start a run of a project in the background, as rotari run --async (or with retry, rotari retry --async) does, only if the project is still at the revision rotari_preview_run returned. Returns the run ID; follow it with rotari_run_summary.",
 		Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPointer(false)},
-	}, func(_ context.Context, _ *mcpsdk.CallToolRequest, input StartRunInput) (*mcpsdk.CallToolResult, StartRunOutput, error) {
+	}, func(input StartRunInput) (StartRunOutput, error) {
 		output, err := writes.startRun(input)
-		return nil, output, err
+		return output, err
 	})
 	return server
+}
+
+// addTool adds a tool whose errors name no state directory; see
+// hideStateDirs. Every tool is added through it.
+func addTool[In, Out any](server *mcpsdk.Server, masterDir string, tool *mcpsdk.Tool, handle func(In) (Out, error)) {
+	mcpsdk.AddTool(server, tool, func(_ context.Context, _ *mcpsdk.CallToolRequest, input In) (*mcpsdk.CallToolResult, Out, error) {
+		output, err := handle(input)
+		return nil, output, hideStateDirs(masterDir, err)
+	})
+}
+
+// hideStateDirs replaces in err's message each directory registered under
+// masterDir with BASEDIR, and masterDir with MASTERDIR.
+func hideStateDirs(masterDir string, err error) error {
+	if err == nil {
+		return nil
+	}
+	baseDirs, _, _ := basedirregistry.Discover(masterDir)
+	// A longer directory is replaced first, so one nested in another is not
+	// left partly named.
+	sort.Slice(baseDirs, func(i, j int) bool { return len(baseDirs[i]) > len(baseDirs[j]) })
+	message := err.Error()
+	for _, baseDir := range baseDirs {
+		message = hideBaseDir(message, baseDir)
+	}
+	return errors.New(strings.ReplaceAll(message, masterDir, "MASTERDIR"))
+}
+
+// hideBaseDir replaces baseDir in text with BASEDIR.
+func hideBaseDir(text, baseDir string) string {
+	if baseDir == "" {
+		return text
+	}
+	return strings.ReplaceAll(text, baseDir, "BASEDIR")
 }
 
 func boolPointer(value bool) *bool {

@@ -251,3 +251,14 @@ as the CLI and hold no rules of their own.
   [`internal/mcp/export.go`](../internal/mcp/export.go); checked by
   `TestMCPExportIsARedactedViewThatImportRefuses` in
   [`conformance/03-interfaces/mcp_test.go`](../conformance/03-interfaces/mcp_test.go).
+- **MCP-3** `rotari_run_summary` reports a run's `state` as `rotari wait`
+  decides it, with `project.RunPhaseOf`: `running` while the run holds the
+  project's run lock, from the moment `rotari_start_run` returns its ID,
+  then `finished`, `interrupted`, or `ended`. A run that has not written its
+  jobs yet is `running` with no jobs, not an error. No MCP tool's error
+  names a state directory: each tool is added through one wrapper that
+  replaces registered basedirs with `BASEDIR`. Implemented in
+  [`internal/project/run_phase.go`](../internal/project/run_phase.go) and
+  [`internal/mcp/server.go`](../internal/mcp/server.go); checked by
+  `TestMCPWritesApplyOnlyAtThePreviewedRevision`, which follows a started
+  run with `rotari_run_summary` alone.

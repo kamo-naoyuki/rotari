@@ -43,11 +43,11 @@ func exportRun(masterDir string, input ExportRunInput) (ExportRunOutput, error) 
 		return runner.ValidateQueue(queue, "", nil, nil)
 	}, false)
 	if err != nil {
-		return ExportRunOutput{}, hidePath(err, location.BaseDir)
+		return ExportRunOutput{}, err
 	}
 	manifest, err := workflow.MergeRuns(location.ProjectName, []workflow.SourceRun{run})
 	if err != nil {
-		return ExportRunOutput{}, hidePath(err, location.BaseDir)
+		return ExportRunOutput{}, err
 	}
 	format := input.Format
 	if format == "" {

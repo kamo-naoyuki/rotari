@@ -179,3 +179,69 @@ func writeRunFixture(t *testing.T, masterDir, baseDir, runID, logLine string) {
 		t.Fatal(err)
 	}
 }
+
+// TestRunSummaryFollowsAStartingRunAndHidesPaths reads, through the server,
+// a run that has started but not written its jobs, which must be running
+// with no jobs yet, and an inactive run without jobs, whose error must name
+// no state directory.
+func TestRunSummaryFollowsAStartingRunAndHidesPaths(t *testing.T) {
+	masterDir := t.TempDir()
+	baseDir, _ := filepath.Abs(t.TempDir())
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, value := range map[string]any{
+		paths.QueueFile: model.Queue{},
+		paths.LockFile:  model.LockInfo{PID: os.Getpid(), RunID: "starting", Host: host},
+		paths.MetaFile:  model.Meta{Phase: "running", LastRunID: "starting"},
+	} {
+		if err := state.WriteJSON(path, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, runID := range []string{"starting", "abandoned"} {
+		if err := os.MkdirAll(filepath.Join(paths.RunsDir, runID), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := runregistry.Open(masterDir).Register(runregistry.Location{BaseDir: baseDir, ProjectName: "demo", RunID: runID}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx := context.Background()
+	clientTransport, serverTransport := mcpsdk.NewInMemoryTransports()
+	serverSession, err := NewServer(masterDir, Options{}).Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+	session, err := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test-client", Version: "1.0.0"}, nil).Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	call := func(runID string) *mcpsdk.CallToolResult {
+		result, err := session.CallTool(ctx, &mcpsdk.CallToolParams{Name: "rotari_run_summary", Arguments: map[string]any{"run_id": runID}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+
+	result := call("starting")
+	encoded, _ := json.Marshal(result.StructuredContent)
+	var output RunSummaryOutput
+	if err := json.Unmarshal(encoded, &output); err != nil || result.IsError || output.State != "running" || output.Summary.Run.ID != "starting" || output.Summary.Counts.Jobs != 0 {
+		t.Fatalf("summary of a starting run = %s (error %v)", encoded, result.IsError)
+	}
+
+	result = call("abandoned")
+	text, _ := json.Marshal(result.Content)
+	if !result.IsError || strings.Contains(string(text), baseDir) || strings.Contains(string(text), masterDir) || !strings.Contains(string(text), "BASEDIR") {
+		t.Fatalf("summary of an abandoned run = %s, want an error naming no state directory", text)
+	}
+}

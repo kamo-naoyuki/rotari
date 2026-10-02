@@ -3,8 +3,8 @@ package mcp
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
@@ -63,7 +63,7 @@ func listProjects(masterDir string) (ListProjectsOutput, error) {
 		if err != nil {
 			output.Unreadable = append(output.Unreadable, UnreadableBaseDir{
 				BaseDirRef: basedirregistry.Ref(baseDir), BaseDirName: filepath.Base(baseDir),
-				Error: strings.ReplaceAll(err.Error(), baseDir, "BASEDIR"),
+				Error: hideBaseDir(err.Error(), baseDir),
 			})
 			continue
 		}
@@ -95,24 +95,37 @@ type RunSummaryInput struct {
 type RunSummaryOutput struct {
 	BaseDirRef string                `json:"basedir_ref"`
 	Project    string                `json:"project"`
+	State      project.RunPhase      `json:"state" jsonschema:"running, interrupted (its supervisor stopped while it ran), finished, or ended (stopped without a summary); counts change only while running"`
 	Summary    runlineage.RunSummary `json:"summary"`
 }
 
 // runSummary describes one run as `rotari lineage RUN_ID` does: counts and
-// failures grouped by cause, with evidence lines redacted by pattern.
+// failures grouped by cause, with evidence lines redacted by pattern, and
+// whether the run is still running, as `rotari wait` decides it.
 func runSummary(masterDir string, input RunSummaryInput) (RunSummaryOutput, error) {
 	location, paths, err := registeredRun(masterDir, input.RunID)
 	if err != nil {
 		return RunSummaryOutput{}, err
 	}
+	phase, err := project.RunPhaseOf(paths, location.RunID)
+	if err != nil {
+		return RunSummaryOutput{}, err
+	}
+	output := RunSummaryOutput{BaseDirRef: basedirregistry.Ref(location.BaseDir), Project: location.ProjectName, State: phase}
 	summary, err := runview.Summary(paths, location.RunID, state.NewStore(state.DirectoryMode(), state.FileMode()))
 	if err != nil {
+		// A run that has just started has not written its jobs yet.
+		if phase == project.RunPhaseRunning && errors.Is(err, os.ErrNotExist) {
+			output.Summary.Run.ID = location.RunID
+			return output, nil
+		}
 		return RunSummaryOutput{}, err
 	}
 	for index := range summary.Failures {
 		summary.Failures[index].Example.Evidence = report.RedactPatterns(summary.Failures[index].Example.Evidence)
 	}
-	return RunSummaryOutput{BaseDirRef: basedirregistry.Ref(location.BaseDir), Project: location.ProjectName, Summary: summary}, nil
+	output.Summary = summary
+	return output, nil
 }
 
 type CompareRunsInput struct {
@@ -183,7 +196,7 @@ func checkProject(masterDir string, input CheckProjectInput) (CheckProjectOutput
 		return CheckProjectOutput{}, err
 	}
 	if err := resolve.RequireProject(baseDir, input.Project); err != nil {
-		return CheckProjectOutput{}, errors.New(strings.ReplaceAll(err.Error(), baseDir, "BASEDIR"))
+		return CheckProjectOutput{}, err
 	}
 	paths, err := state.ResolveProjectPaths(baseDir, input.Project)
 	if err != nil {
@@ -193,7 +206,7 @@ func checkProject(masterDir string, input CheckProjectInput) (CheckProjectOutput
 	runner := projectrun.Runner{Store: store, Executors: executor.NewRegistry(store, func(string, ...any) {})}
 	result, err := runner.Check(paths, nil)
 	if err != nil {
-		return CheckProjectOutput{}, errors.New(strings.ReplaceAll(err.Error(), baseDir, "BASEDIR"))
+		return CheckProjectOutput{}, err
 	}
 	output := CheckProjectOutput{BaseDirRef: input.BaseDirRef, Project: input.Project, State: result.State, Runnable: result.Runnable, Lock: result.Lock, RunID: result.RunID, Revision: result.Revision}
 	if result.QueuedKnown {

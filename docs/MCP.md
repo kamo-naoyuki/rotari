@@ -9,7 +9,7 @@ starting a run are described in [Changing a project](#changing-a-project).
 | Tool | Input | Returns | CLI equivalent |
 | --- | --- | --- | --- |
 | `rotari_list_projects` | none | every project of every registered state directory, with its state, queue size, run count, and last run's ID, status, and failed and total job counts | `rotari show` |
-| `rotari_run_summary` | `run_id` | job counts, and failed and blocked jobs grouped by cause, each with its jobs, exit codes, an example evidence line, the attempt to inspect, and a suggested fix | `rotari lineage RUN_ID` |
+| `rotari_run_summary` | `run_id` | the run's `state` (`running`, `finished`, `interrupted`, or `ended` without a summary), job counts, and failed and blocked jobs grouped by cause, each with its jobs, exit codes, an example evidence line, the attempt to inspect, and a suggested fix | `rotari lineage RUN_ID` |
 | `rotari_get_job_info` | `run_id`, `job_id` | a report on one job: status, result, diagnosis, and the log lines around the diagnosis evidence | `rotari show -j ATTEMPT_ID --report` |
 | `rotari_check_project` | `basedir_ref`, `project` | whether the project's queued run can start: its state (`ready`, `empty`, `running`, `locked`, or `interrupted`), queued job count, and lock, after validating the queue's jobs, dependencies, and executors | `rotari check PROJECT` (without `--deep`) |
 | `rotari_export_run` | `run_id`, optional `format` (`yaml`, `json`, or `toml`) | the finished run as a workflow manifest for reading, with environment values, executor options, and paths redacted; the MCP import tools refuse it until the placeholders are replaced, and `rotari export` gives the full manifest | `rotari export RUN_ID` |
@@ -38,7 +38,8 @@ write fails with `project changed since the planned revision` and changes
 nothing; preview again. `rotari_preview_run` lists the jobs the run would
 execute, planned as the run itself is, and `rotari_start_run` returns the
 `run_id` of the run it started in the background; follow it with
-`rotari_run_summary`. With `retry`, the run reruns the failed and unfinished
+`rotari_run_summary` until its `state` is no longer `running`, as
+`rotari wait` would. Right after the start, the run may have no jobs yet. With `retry`, the run reruns the failed and unfinished
 jobs of the project's last run, copying that run into an empty queue first,
 as `rotari retry` does.
 
@@ -52,7 +53,8 @@ resolve `--run-id`. It serves only runs and state directories registered
 there: it does not fall back to a default state directory or walk other
 directories. Results name a state directory by `basedir_ref`, a stable
 reference that does not reveal its path, and by `basedir_name`, the last
-element of its path; they contain no absolute paths. Reports and evidence
+element of its path; they contain no absolute paths, and errors write
+`BASEDIR` for a registered state directory's path. Reports and evidence
 lines redact paths and hostnames where detected; redaction is not guaranteed
 to catch every secret. Queue edits other than import, job control,
 and deleting history are not exposed, and the server does not remove stale
