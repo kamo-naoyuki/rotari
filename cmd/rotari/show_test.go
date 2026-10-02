@@ -1164,6 +1164,8 @@ func TestShowRunsReportsNoRunsWhenDirectoryMissing(t *testing.T) {
 }
 
 func TestCmdShowProjectsListsProjectSummaries(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("ROTARI_BASEDIR", "")
 	baseDir := t.TempDir()
 	demo, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
@@ -1205,7 +1207,7 @@ func TestCmdShowProjectsListsProjectSummaries(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cmdShow exit code = %d, want 0", code)
 	}
-	for _, want := range []string{baseDir, "Projects: 2", "PROJECT", "QUEUED", "RUNS", "demo", "demo-run", "example", "running", "To show runs in a project:", "rotari show -p PROJECT"} {
+	for _, want := range []string{baseDir, "Projects: 2", "PROJECT", "QUEUED", "RUNS", "demo", "demo-run", "example", "running", "To show runs in a project:", "rotari show -b BASEDIR -p PROJECT"} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("cmdShow project listing output does not contain %q:\n%s", want, output)
 		}

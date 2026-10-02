@@ -1384,12 +1384,13 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 	fmt.Printf("%s\n", cyan("=== SHOW MODE: "+showViewLabel("projects")+" ==="))
 
 	type projectInfo struct {
-		baseDir string
-		name    string
-		queued  int
-		runs    int
-		state   string
-		lastRun string
+		baseDir    string
+		name       string
+		queued     int
+		runs       int
+		state      string
+		lastRun    string
+		lastResult string
 	}
 	projects := make([]projectInfo, 0)
 	for _, baseDir := range baseDirs {
@@ -1426,11 +1427,11 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 				printErrorf("failed to load project %q metadata: %v", entry.Name(), err)
 				return 1
 			}
-			lastRun := meta.LastRunID
+			lastRun, lastResult := meta.LastRunID, lastRunResult(paths, meta.LastRunID, projectState == project.Running)
 			if lastRun == "" {
 				lastRun = "-"
 			}
-			projects = append(projects, projectInfo{baseDir: baseDir, name: entry.Name(), queued: len(queue.Commands), runs: countProjectRuns(paths.RunsDir), state: projectStateName(projectState), lastRun: lastRun})
+			projects = append(projects, projectInfo{baseDir: baseDir, name: entry.Name(), queued: len(queue.Commands), runs: countProjectRuns(paths.RunsDir), state: projectStateName(projectState), lastRun: lastRun, lastResult: lastResult})
 		}
 	}
 
@@ -1439,13 +1440,56 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 		return 0
 	}
 	fmt.Printf("\n%s\n", cyan(fmt.Sprintf("Projects: %d", len(projects))))
-	fmt.Println(cyan(fmt.Sprintf("%-36s %-24s %-8s %-8s %-14s %s", "BASEDIR", "PROJECT", "QUEUED", "RUNS", "STATE", "LAST RUN")))
+	fmt.Println(cyan(fmt.Sprintf("%-36s %-24s %-8s %-8s %-14s %-24s %s", "BASEDIR", "PROJECT", "QUEUED", "RUNS", "STATE", "LAST RUN", "LAST RESULT")))
+	// Without -b, `show -p` resolves the default state directory, so the
+	// hint names the basedir when a listed project lives elsewhere.
+	defaultBaseDir, _, defaultErr := state.ResolveBaseDir("")
+	otherBaseDir, hasRun := false, false
 	for _, project := range projects {
-		fmt.Printf("%-36s %-24s %-8d %-8d %-14s %s\n", project.baseDir, project.name, project.queued, project.runs, project.state, project.lastRun)
+		fmt.Printf("%-36s %-24s %-8d %-8d %-14s %-24s %s\n", project.baseDir, project.name, project.queued, project.runs, project.state, project.lastRun, project.lastResult)
+		otherBaseDir = otherBaseDir || defaultErr != nil || filepath.Clean(project.baseDir) != filepath.Clean(defaultBaseDir)
+		hasRun = hasRun || project.lastRun != "-"
 	}
 	fmt.Println("\n" + cyan("To show runs in a project:"))
-	fmt.Println("  rotari show -p PROJECT")
+	if otherBaseDir {
+		fmt.Println("  rotari show -b BASEDIR -p PROJECT")
+	} else {
+		fmt.Println("  rotari show -p PROJECT")
+	}
+	if hasRun {
+		fmt.Println(cyan("To summarize a run's failures by cause:"))
+		if otherBaseDir {
+			fmt.Println("  rotari lineage -b BASEDIR RUN_ID")
+		} else {
+			fmt.Println("  rotari lineage RUN_ID")
+		}
+	}
 	return 0
+}
+
+// lastRunResult describes a project's last run for the project list:
+// "running" while it runs, its status, with failed and total job counts once
+// any job failed, or "-" without a readable summary.
+func lastRunResult(paths state.ProjectPaths, runID string, running bool) string {
+	if running {
+		return "running"
+	}
+	if runID == "" {
+		return "-"
+	}
+	runDir, err := state.SafeJoin(paths.RunsDir, runID)
+	if err != nil {
+		return "-"
+	}
+	summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
+	if err != nil || summary.Status == "" {
+		return "-"
+	}
+	succeeded, failed := model.CountRunResults(summary.Results)
+	if failed == 0 {
+		return summary.Status
+	}
+	return fmt.Sprintf("%s %d/%d", summary.Status, failed, succeeded+failed)
 }
 
 func showBaseDirs(masterDir string) int {

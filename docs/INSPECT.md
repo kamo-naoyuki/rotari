@@ -34,6 +34,12 @@ rotari show RUN_ID --report # describe the whole run and include recent logs
 rotari show -p sweep --run-id latest --job-id JOB_ID --json # one run job (or all tasks of an array) as JSON
 ```
 
+The project list shows each project's last run and its result, such as
+`failed 7/15` when 7 of its 15 jobs failed. Its suggested commands name the
+basedir (`-b BASEDIR`) when a listed project lies outside the default state
+directory; with `ROTARI_BASEDIR` set, `show` lists only that directory, so use
+`rotari show -b DIR` for another one.
+
 The run/job JSON view includes the resolved run and project, a `jobs` array
 with each job's definition, a `finished` flag, and a `result` when available.
 For a running job, `finished` is false and no `result` is present. Passing

@@ -156,6 +156,14 @@ follows:
   [`cmd/rotari/failure_groups.go`](../cmd/rotari/failure_groups.go), and the
   end-to-end check is
   [`conformance/03-interfaces/failure_groups_test.go`](../conformance/03-interfaces/failure_groups_test.go).
+- **CLI-5** The project list (`show` without a project) shows each project's
+  last run and its result, and the commands it suggests work as printed, with
+  their placeholders filled in, for every listed project. A suggestion names
+  the basedir when a listed project lies outside the default state
+  directory, since `ROTARI_BASEDIR` counts as an explicit `--basedir`. The
+  list is in [`cmd/rotari/show.go`](../cmd/rotari/show.go)
+  (`showProjectsForBaseDirs`), with the end-to-end check in
+  [`conformance/03-interfaces/project_list_test.go`](../conformance/03-interfaces/project_list_test.go).
 
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.
