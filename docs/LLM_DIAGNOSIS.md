@@ -38,20 +38,7 @@ export ROTARI_LLM_MODEL='gpt-5-mini'
 add it to shell startup files unless you understand the security implications.
 Use `unset ROTARI_LLM_API_KEY` when finished.
 
-## 3. Run the sample
-
-```sh
-./examples/diagnose-llm.sh
-```
-
-The sample uses the `diagnose-llm-example` project under `.example-state` in
-the current working directory, and runs a Python job that intentionally fails with
-`ModuleNotFoundError`, and asks the model to
-diagnose that log. It prints the state directory afterward for inspection.
-To try local diagnosis without an API key, run
-[`examples/diagnose-rules.sh`](../examples/diagnose-rules.sh).
-
-## 4. Diagnose your own job
+## 3. Diagnose your own job
 
 First inspect the log, then send one job explicitly:
 
@@ -59,6 +46,9 @@ First inspect the log, then send one job explicitly:
 rotari show --run-id RUN_ID --job-id JOB_ID
 rotari diagnose --run-id RUN_ID --job-id JOB_ID --model "$ROTARI_LLM_MODEL" --language ja
 ```
+
+To try local diagnosis without an API key, run
+[`examples/diagnose-rules.sh`](../examples/diagnose-rules.sh).
 
 The request contains the job's command, recorded exit/error information, and
 at most the final 12,000 characters of its configured log. The default merged
