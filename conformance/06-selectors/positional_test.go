@@ -74,6 +74,9 @@ var positionalCases = []positionalCase{
 
 	// show: a project, then run and job selectors.
 	{name: "project", args: "show -b {B} sweep", want: "Project: sweep"},
+	{name: "project with JSON", args: "show -b {B} sweep --json", want: `"project_name":"sweep"`},
+	{name: "latest with failed logs", args: "show -b {B} -p sweep latest --failed-logs --no-pager", want: "{job:train-SEED2}"},
+	{name: "job name with JSON", args: "show -b {B} -p sweep prep --json", fail: true, want: "a run name, job ID, or job name selector cannot be combined with log, follow, JSON, or report options"},
 	{name: "project name with project option", args: "show -b {B} -p other sweep", fail: true, want: `selector "sweep" not found`},
 	{name: "active run name", args: "show -b {B} live", setup: setupActive, want: "Run: live ({run:live})"},
 	{name: "run-only option with a queue", args: "show -b {B} -p sweep --failed", setup: setupQueued, want: "Run: second ({run:sweep-second})"},
@@ -165,6 +168,12 @@ var positionalCases = []positionalCase{
 	// found them through the registry; what the command then does is its own.
 	{name: "complete run ID", args: "show {run:remote-run}", want: "Run: remote ({run:remote-run})"},
 	{name: "complete attempt ID", args: "show {att:train-SEED2/0}", want: "Attempt ID: {att:train-SEED2/0}"},
+	// An attempt ID, a run ID, latest, or a project is exact, like the
+	// matching option, so output options apply to it.
+	{name: "run ID with JSON", args: "show {run:remote-run} --json", want: `"run_id":"{run:remote-run}"`},
+	{name: "run ID with a report", args: "show {run:remote-run} --report", want: "Run ID: `{run:remote-run}`"},
+	{name: "attempt ID with a report", args: "show {att:train-SEED2/0} --report", want: "# rotari job report"},
+	{name: "attempt ID with JSON", args: "show {att:train-SEED2/0} --json", want: `"job_id":"{job:train-SEED2}"`},
 	{name: "complete run ID", args: "copy {run:remote-run}", want: "copied jobs=1 from run={run:remote-run} to queue=remote"},
 	{name: "complete attempt ID", args: "copy -j {att:train-SEED2/0}", want: "copied jobs=1 from run={run:sweep-first} to queue=sweep"},
 	{name: "complete run ID", args: "change --run-id {run:remote-run} --all --timeout 1m", want: "changed queue=remote"},

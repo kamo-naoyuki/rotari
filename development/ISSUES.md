@@ -12,13 +12,13 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 - **`internal/archtest` can report a cached pass after imports change** (`internal/archtest/boundaries_test.go`, `listImports`): the boundary test reads imports through a `go list` subprocess, which Go's test cache does not observe, so `go test ./internal/archtest` can print `(cached)` after a change that breaks a rule. The same cause was fixed for conformance with `support.TrackBuildInputs`. Run it with `-count=1` until it tracks its inputs.
 
-- **A positional run ID cannot be combined with `show --json` or `--report`** (`cmd/rotari/show.go`): `rotari show RUN_ID` works, but `rotari show RUN_ID --json` fails with "a run name selector cannot be combined with run, job, queue, list, log, follow, JSON, or report options". The same run works as `show -r RUN_ID --json`. The message calls the run ID a run name, and `docs/CONCEPTS.md` presents `show RUN_ID` as equivalent to the option form. A positional attempt ID fails the same way: `rotari show ATTEMPT_ID --report`, which `docs/INSPECT.md` gives as an example, fails while `show -j ATTEMPT_ID --report` works.
-
 - **An array job's name is accepted as a dependency but never resolves** (`add`, dependency validation): `add --job-name train --array 1-2 ...` followed by `add --depends-on train ...` (or `--depends-on-finished`, with a plain or matrix dependent) succeeds, and then `check` and `run` fail with `depends on unknown job "train"`. A matrix base name does resolve. Expected: either resolve the array name to all its tasks, or reject it at `add` with a hint to use a stage.
 
 - **`jobs --since 7d`, as documented, is rejected** (`internal/joblist`, `ParseSince`; `docs/INSPECT.md`): the guide gives `rotari jobs --since 7d` as "the last seven days", but `ParseSince` uses `time.ParseDuration`, which has no day unit, so the command fails with `invalid --since duration "7d"`. Expected: accept days, or document hours such as `168h`.
 
 ## Resolved
+
+- **A positional run ID or attempt ID could not be combined with `show --json` or `--report`** (`cmd/rotari/show.go`): contract SEL-10 excluded output options for every `show` positional, while `docs/CONCEPTS.md`, `docs/INSPECT.md`, and the agent guide used `show RUN_ID --report` and `show ATTEMPT_ID --report`. The exact forms (attempt ID, run ID, `latest`, project) now take log, follow, JSON, and report options like their option forms; a run name, job ID, or job name still rejects them, with a message that names those forms. SEL-10 was updated; seven `TestPositionalArguments` rows fail on the previous commit.
 
 - **`show --json` silently ignored `--failed`** (`cmd/rotari/show.go`, `show_json_job.go`): the run, array, and job JSON views printed every job. They now keep the jobs that `jobfilter.Filter.Selects` keeps, through the same `selectsShownJob` helper as the job table. Covered by `TestShowJSONAppliesFailedSelection` and two `TestSelectorTable` JSON rows (SEL-3, SEL-11), which fail on the previous commit. `--success`, `--unfinished`, and `--filter-*` were already rejected with `--json`.
 

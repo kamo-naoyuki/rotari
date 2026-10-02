@@ -149,8 +149,8 @@ func cmdShow(args []string) int {
 	selector := ""
 	if len(fs.Args()) == 1 {
 		selector = fs.Args()[0]
-		if *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput {
-			printError("a run name selector cannot be combined with run, job, queue, list, log, follow, JSON, or report options")
+		if *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || *showBaseDirsList {
+			printError("a positional selector cannot be combined with run, job, queue, or list options")
 			return 1
 		}
 	}
@@ -198,6 +198,13 @@ func cmdShow(args []string) int {
 			*queueNameOption = selector
 			selector = ""
 		}
+	}
+	// An attempt ID, run ID, latest, or project has been applied above like
+	// its option. A selector left here is searched for as a run name, job
+	// ID, or job name, which the output options do not take.
+	if selector != "" && (*showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
+		printError("a run name, job ID, or job name selector cannot be combined with log, follow, JSON, or report options; use --run-id or --job-id")
+		return 1
 	}
 	if strings.HasPrefix(*jobIDOption, "att_") {
 		attemptID = *jobIDOption
