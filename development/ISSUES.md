@@ -8,6 +8,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **A project that has only been added is not listed across basedirs** (`cmd/rotari/run_registry.go`, `registerBasedir`): a basedir is registered in the master directory when a run starts or a manifest is imported, but not when `add`, `change`, or `copy` creates or edits a queue. Until the project's first run, `rotari_list_projects` and the MCP tools that take `basedir_ref` cannot reach it. Found in the M6 MCP agent trial; `TestRunPreviewListsTheTasksOfAWholeArray` imports its queue for this reason. Expected: every command that writes a project's state registers its basedir, in one place.
+
 ## Resolved
 
 - **`jobs --since 7d`, as documented, was rejected** (`internal/joblist`, `ParseSince`): Go durations have no day unit. `ParseSince`, which the CLI and the Web jobs page share, now also takes a whole number of days. Contract CLI-6; `TestParseSinceAcceptsDurationsAndDays` and `TestJobsWindowAcceptsDays` fail on the previous commit.

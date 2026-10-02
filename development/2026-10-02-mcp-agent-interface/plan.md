@@ -188,12 +188,13 @@ Outcome:
 - M5 is done for `check` (`rotari_check_project`); `export` moved to M6.
 - M6 CLI half is done: `add`, `change`, `copy`, `delete`, `import`, `remove`, `reset`, `run`, and `retry` take `--dry-run` and `--if-revision` (contract CLI-7), `check` reports the revision, and `gc` applies by default with `--dry-run`.
 - M6 MCP half is done for import, export, and run start (MCP-1, MCP-2), served by `rotari mcp`.
-- Next step: repeat the agent trial with the write tools, then decide whether MCP needs the queue edits of M6 or goes on to M7 (cancel, suspend, resume, gc, reset).
+- The [M6 agent trial](agent-trial-2026-10-03-m6.md) fixed and reran a project through MCP alone. It found and fixed a run preview that left out whole-array tasks, and a run summary that could not follow a started run (MCP-3). A project that has only been added is still unreachable (ISSUES.md).
+- Next step: the trial needed no MCP queue edit; export, edit, and import covered the change. Its main cost was polling a running run. A bounded wait tool is the next candidate, from M7's progress inspection, before job control and history deletion.
 
 ## Open decisions
 
-- Output size limits and defaults for groups, members, and excerpts.
-- The cursor format for incremental progress and how long a cursor stays valid.
+- Output size limits and defaults for groups, members, and excerpts; also for import plans and run comparisons, which list every job (3 to 4 KB in the M6 trial).
+- The cursor format for incremental progress and how long a cursor stays valid, and how long a bounded wait tool may block an MCP call.
 - Which command and configuration details are safe and useful to return.
 - Whether Web history search (`web.SearchHistory`) should back an MCP log-search tool.
 - Where redaction is owned once outputs other than `report` return paths, hostnames, or commands.
