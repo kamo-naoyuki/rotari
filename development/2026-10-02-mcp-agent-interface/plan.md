@@ -152,13 +152,18 @@ Outcome ([measurements](agent-trial-2026-10-03-m4.md)):
 - Read-only: the MCP list does not remove stale locks or migrate registries, which the CLI's `show` does.
 - `wait --until-failure` is not an MCP tool, because a tool call that blocks for a long time is a poor fit for MCP clients. It remains a CLI feature.
 
-### M5: Read-only operations
+### M5: Read-only operations (done for `check`; `export` moved to M6)
 
 Extract `check` (structured findings) and `export` (bounded or paged manifest) from `cmd/rotari` into shared packages, then expose them. Neither changes state.
 
+Outcome:
+
+- `check` moved into `projectrun.Runner.Check`, which `rotari check` calls; the `--deep` host checks are passed in as an optional function. `rotari_check_project` exposes it without `--deep`. It names the project by `basedir_ref` and name; `basedirregistry.Find` resolves the reference, and error messages hide the basedir path. In the MCP trial script it answered in 135 bytes.
+- `export` is not exposed, and not extracted yet. A run's manifest holds job environment values, absolute working directories, and commands, which the principles keep out of default results. A redacted manifest could not be imported, and its main use is to be edited and imported. Which details an exported manifest may carry, and who approves an import, are M6 decisions. The extraction will be done then, when it has a caller.
+
 ### M6: State-changing queue and workflow operations
 
-`import`, queue edits (`add`, `change`, `remove`, `copy`), and run deletion, each with a separate preview and apply step. Do not start until the preview/apply contract, authorization, audit, idempotency, and recovery behavior are designed.
+`import`, queue edits (`add`, `change`, `remove`, `copy`), and run deletion, each with a separate preview and apply step. Do not start until the preview/apply contract, authorization, audit, idempotency, and recovery behavior are designed. Extract `export` from `cmd/rotari` with it, and decide what an exported manifest may carry through MCP (environment values, working directories, commands).
 
 ### M7: Execution and destructive operations
 
@@ -172,7 +177,8 @@ Extract `check` (structured findings) and `export` (bounded or paged manifest) f
 - M2 is done: evidence-aware report excerpts, a timeout diagnosis rule, and failure causes in `lineage` comparisons.
 - M3 is done: project list results and working hints (CLI-5), `jobs` scope, a failure-summary pointer in `show`, `wait --until-failure` (RUN-6), and an updated `rotari guide`.
 - M4 is done: four read-only MCP tools over the shared functions, with no absolute paths in results.
-- Next step: M5 (read-only operations `check` and `export`) requires extracting them from `cmd/rotari` first. Before that, consider the open ISSUES that affect agents: positional `show RUN_ID|ATTEMPT_ID --json|--report`, and cancelled jobs classified as `signal`.
+- M5 is done for `check` (`rotari_check_project`); `export` moved to M6.
+- Next step: M6, state-changing queue and workflow operations. These need design decisions first: the preview/apply contract, approval, authorization, audit, idempotency, and recovery.
 
 ## Open decisions
 

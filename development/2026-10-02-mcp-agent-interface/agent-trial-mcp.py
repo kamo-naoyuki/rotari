@@ -99,5 +99,17 @@ print(
 for job in comparison["comparison"]["jobs"]:
     if job["transition"] == "still_failing":
         print("  ", job["name"], job.get("from_cause"), "->", job.get("to_cause"))
+check = call(
+    "rotari_check_project",
+    {"basedir_ref": labA["basedir_ref"], "project": labA["project"]},
+)
+print(
+    "  ",
+    check.get("state"),
+    "runnable",
+    check.get("runnable"),
+    "queued",
+    check.get("queued"),
+)
 proc.stdin.close()
 proc.wait()
