@@ -136,54 +136,23 @@ func (ops Operations) prepareRun(request server.Request) (preparedRun, error) {
 		release()
 		return preparedRun{}, err
 	}
-	queue, err := ops.Runner.LoadQueue(paths, request.Executor, request.ExecutorOptions, request.ExecutorSettings)
-	if err != nil {
+	if _, err := project.CheckRevision(paths, project.Guard{IfRevision: request.IfRevision}); err != nil {
 		release()
 		return preparedRun{}, err
 	}
-	if len(queue.Commands) == 0 {
-		release()
-		return preparedRun{}, fmt.Errorf("queue %q has no queued commands", request.QueueName)
-	}
-	// A scope also needs validation for unfiltered runs, which do not use it
-	// when planning their execution.
-	if scope := requestScope(request); scope.Kinds() > 0 {
-		if _, err := model.SelectCommands(queue.Commands, scope); err != nil {
-			release()
-			return preparedRun{}, err
-		}
-	}
-	sourceRunID, err := projectrun.ReferenceRun(paths, request.Selection, request.SourceRunID)
-	if err != nil {
-		release()
-		return preparedRun{}, err
-	}
-	if request.MatchBy != "" || request.Filter.Changed || request.Filter.New {
-		sourceRunID, err = projectrun.FingerprintReferenceRun(paths, sourceRunID)
-		if err != nil {
-			release()
-			return preparedRun{}, err
-		}
-	}
-	if request.MatchBy != "" {
-		queue, err = ops.Runner.MatchFingerprintQueue(paths, queue, request.MatchBy, sourceRunID)
-		if err != nil {
-			release()
-			return preparedRun{}, err
-		}
-	}
-	filter, err := projectrun.ClassifyDefinitions(paths, queue, request.Filter, sourceRunID, request.MatchBy)
+	queue, err := state.LoadQueue(paths.QueueFile)
 	if err != nil {
 		release()
 		return preparedRun{}, err
 	}
 	// Resolve the reference and plan under the state lock, before Begin changes
 	// the project's last run. A planning error must not create an incomplete run.
-	plan, err := ops.Runner.PlanSelection(paths, queue, request.Selection, request.JobIDs, requestScope(request), filter, sourceRunID, request.PartialArray)
+	planned, err := ops.Runner.PlanRun(paths, queue, planRequest(request))
 	if err != nil {
 		release()
 		return preparedRun{}, err
 	}
+	queue, plan, sourceRunID := planned.Queue, planned.Plan, planned.SourceRunID
 	return preparedRun{paths: paths, queue: queue, plan: plan, executor: resolvedExecutor, sourceRunID: sourceRunID, release: release}, nil
 }
 
@@ -218,6 +187,15 @@ func (ops Operations) resolveQueueExecutor(queueName, requested string) (string,
 		}
 	}
 	return requested, nil
+}
+
+// planRequest returns what planning request's run needs.
+func planRequest(request server.Request) projectrun.PlanRequest {
+	return projectrun.PlanRequest{
+		Executor: request.Executor, ExecutorOptions: request.ExecutorOptions, Settings: request.ExecutorSettings,
+		Selection: request.Selection, JobIDs: request.JobIDs, Scope: requestScope(request), Filter: request.Filter,
+		SourceRunID: request.SourceRunID, PartialArray: request.PartialArray, MatchBy: request.MatchBy,
+	}
 }
 
 // requestScope returns the stage or matrix that narrows a run request's

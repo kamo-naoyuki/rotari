@@ -603,6 +603,16 @@ rotari remove -p sweep --dry-run JOB_ID         # prints revision=REVISION
 rotari remove -p sweep --if-revision REVISION JOB_ID
 ```
 
+`run` and `retry` take the same options. `--dry-run` lists the jobs the run
+would execute and how many results it would carry, planned the way the run
+itself is, without copying a run into the queue or starting anything.
+`--if-revision` starts the run only if the project is still at that revision.
+
+```sh
+rotari retry -p sweep --dry-run                 # lists the jobs it would execute
+rotari retry -p sweep --if-revision REVISION --async
+```
+
 A revision identifies the project's queue and metadata files; any write to
 either changes it.
 

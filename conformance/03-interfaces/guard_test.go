@@ -134,3 +134,55 @@ func projectSnapshot(t *testing.T, e *support.Env) string {
 	sort.Strings(runs)
 	return strings.Join(append(parts, strings.Join(runs, ",")), "\n")
 }
+
+// TestRunPreviewMatchesTheRun checks that `retry --dry-run` changes nothing
+// and lists the jobs the run then executes, and that the run starts only at
+// the previewed revision.
+func TestRunPreviewMatchesTheRun(t *testing.T) {
+	covers(t, "CLI-7")
+	e := support.NewEnv(t)
+	run := e.CreateFinishedRun()
+	before := projectSnapshot(t, e)
+
+	preview := e.MustRotari("retry", "-p", "p1", "--dry-run")
+	revision := revisionOf(t, preview)
+	if !strings.Contains(preview.Stdout, "would execute 1 of 2 job(s)") || !strings.Contains(preview.Stdout, "execute job_id="+run.BadJob) || strings.Contains(preview.Stdout, "execute job_id="+run.OKJob) {
+		t.Fatalf("retry --dry-run does not plan only the failed job:\n%s", preview.Stdout)
+	}
+	if revision != checkRevision(t, e) || projectSnapshot(t, e) != before {
+		t.Fatal("retry --dry-run changed the project")
+	}
+
+	if result := e.Rotari("retry", "-p", "p1", "--if-revision", "0000000000000000"); result.Code == 0 || !strings.Contains(result.Stderr, "project changed since the planned revision") {
+		t.Fatalf("retry with a stale revision = %s, want refused", result)
+	}
+	if projectSnapshot(t, e) != before {
+		t.Fatal("a refused retry changed the project")
+	}
+
+	e.Rotari("retry", "-p", "p1", "--if-revision", revision, "--quiet")
+	var shown struct {
+		RunID   string `json:"run_id"`
+		Summary struct {
+			Results []struct {
+				ID        string `json:"id"`
+				AttemptID string `json:"attempt_id"`
+			} `json:"results"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "p1", "--json").Stdout), &shown); err != nil || shown.RunID == run.RunID {
+		t.Fatalf("retry at the previewed revision did not start a run: %v", err)
+	}
+	for _, result := range shown.Summary.Results {
+		executed := strings.Contains(result.AttemptID, shown.RunID)
+		if executed != (result.ID == run.BadJob) {
+			t.Errorf("job %s executed=%v in the retry, but the preview planned only %s", result.ID, executed, run.BadJob)
+		}
+	}
+
+	// Without a copy, the preview plans the queue as it is.
+	queued := support.AddedJobID(t, e.MustRotari("add", "-p", "p1", "--", "true"))
+	if output := e.MustRotari("run", "-p", "p1", "--dry-run").Stdout; !strings.Contains(output, "would execute 1 of 1 job(s)") || !strings.Contains(output, "execute job_id="+queued) {
+		t.Fatalf("run --dry-run of a queued job:\n%s", output)
+	}
+}

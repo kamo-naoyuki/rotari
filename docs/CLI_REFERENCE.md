@@ -544,6 +544,8 @@ Usage: `rotari run [RUN_ID]`
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
 | `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
 | `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari retry`
 
@@ -606,6 +608,8 @@ Usage: `rotari retry [RUN_ID]`
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
 | `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
 | `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari server`
 

@@ -182,7 +182,7 @@ the IDs, this table, and those calls disagree.
 | CLI-4 | `show`, `lineage RUN`, and the Web API group a run's failed and blocked jobs by the same causes | conformance | `TestFailureGroupsAgreeAcrossViews` |
 | CLI-5 | The project list shows each project's last result, and its suggested commands work for every listed project | conformance | `TestProjectListHintsWork` |
 | CLI-6 | `jobs --since` and the Web jobs page take a Go duration or whole days such as `7d` | conformance | `TestJobsWindowAcceptsDays` |
-| CLI-7 | Commands that change a project take `--dry-run` and `--if-revision`, applying only at the previewed revision | conformance | `TestGuardedCommandsPreviewAndCheckTheRevision` |
+| CLI-7 | Commands that change a project take `--dry-run` and `--if-revision`, applying only at the previewed revision | conformance | `TestGuardedCommandsPreviewAndCheckTheRevision`, `TestRunPreviewMatchesTheRun` |
 | SEL-1 | A run ID or attempt ID alone resolves its location in every command | partial | `TestPositionalArguments`, `TestSelectorTable` |
 | SEL-2 | Each command reads the run or queue its row names | partial | `TestSelectorTable` |
 | SEL-3 | `show` resolves each selector form as its column says | conformance | `TestSelectorTable` |

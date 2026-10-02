@@ -1586,6 +1586,13 @@
         {
           "name": "filter-not-matrix",
           "value_name": "NAME"
+        },
+        {
+          "name": "dry-run"
+        },
+        {
+          "name": "if-revision",
+          "value_name": "REVISION"
         }
       ],
       "name": "run"
@@ -1828,6 +1835,13 @@
         {
           "name": "filter-not-matrix",
           "value_name": "NAME"
+        },
+        {
+          "name": "dry-run"
+        },
+        {
+          "name": "if-revision",
+          "value_name": "REVISION"
         }
       ],
       "name": "retry"

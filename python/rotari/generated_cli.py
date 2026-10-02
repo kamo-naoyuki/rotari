@@ -2170,6 +2170,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "repeated": True,
                     "value_name": "NAME",
                 },
+                {
+                    "description": "print what the command would change, and the "
+                    "project revision, without writing",
+                    "name": "dry-run",
+                },
+                {
+                    "description": "apply only if the project is still at this "
+                    "revision, as printed by --dry-run",
+                    "name": "if-revision",
+                    "value_name": "REVISION",
+                },
             ],
             "name": "run",
             "positional": "[RUN_ID]",
@@ -2517,6 +2528,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "filter-not-matrix",
                     "repeated": True,
                     "value_name": "NAME",
+                },
+                {
+                    "description": "print what the command would change, and the "
+                    "project revision, without writing",
+                    "name": "dry-run",
+                },
+                {
+                    "description": "apply only if the project is still at this "
+                    "revision, as printed by --dry-run",
+                    "name": "if-revision",
+                    "value_name": "REVISION",
                 },
             ],
             "name": "retry",

@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
@@ -57,6 +59,7 @@ func runJobs(args []string, defaultSelection string) int {
 	matchBy := cliString(fs, "match-by", model.MatchByIDAndFingerprint)
 	var executorOptions stringSliceFlag
 	cliValue(fs, &executorOptions, "executor-option")
+	guard := cliGuardFlags(fs)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -238,13 +241,22 @@ func runJobs(args []string, defaultSelection string) int {
 		// and restores the latest run only into an empty one.
 		forceCopy = len(queue.Commands) == 0
 	}
+	// The run starts from the queue as it is, or as the copy below leaves
+	// it; --dry-run plans that queue without writing, and --if-revision
+	// carries the revision the copy produced to the run's own check.
+	runQueue, runRevision := (*model.Queue)(nil), *guard.ifRevision
 	if forceCopy {
 		// Only prompts when the queue actually has jobs to lose; an empty
-		// queue (the common "auto-copy" case) is overwritten silently.
-		overwriteConfirmed, confirmErr := confirmQueueOverwrite(baseDir, queueName, false, *overwriteQueue)
-		if confirmErr != nil {
-			printError(confirmErr)
-			return 1
+		// queue (the common "auto-copy" case) is overwritten silently. A dry
+		// run writes nothing, so it does not ask.
+		overwriteConfirmed := true
+		if !*guard.dryRun {
+			confirmed, confirmErr := confirmQueueOverwrite(baseDir, queueName, false, *overwriteQueue)
+			if confirmErr != nil {
+				printError(confirmErr)
+				return 1
+			}
+			overwriteConfirmed = confirmed
 		}
 		copySelection := "all"
 		copyJobIDs := []string(nil)
@@ -252,12 +264,19 @@ func runJobs(args []string, defaultSelection string) int {
 			copySelection = "job-id"
 			copyJobIDs = jobIDs
 		}
-		message, copyErr := queueEditor().Copy(baseDir, queueName, sourceRunID, queueedit.CopyRequest{Selection: copySelection, JobIDs: copyJobIDs, Overwrite: overwriteConfirmed})
+		message, copyErr := guard.editor().Copy(baseDir, queueName, sourceRunID, queueedit.CopyRequest{Selection: copySelection, JobIDs: copyJobIDs, Overwrite: overwriteConfirmed})
 		if copyErr != nil {
 			printError(copyErr)
 			return 1
 		}
-		fmt.Println(colorKeyValueMessage(message, green))
+		if *guard.dryRun {
+			runQueue = guard.outcome.Queue
+		} else {
+			fmt.Println(colorKeyValueMessage(message, green))
+			if runRevision != "" {
+				runRevision = guard.outcome.NewRevision
+			}
+		}
 	}
 	if attemptSelection {
 		selection = ""
@@ -268,6 +287,12 @@ func runJobs(args []string, defaultSelection string) int {
 	if err != nil {
 		printError(err)
 		return 1
+	}
+	if *guard.dryRun {
+		return previewRun(paths, runQueue, projectrun.PlanRequest{
+			Executor: *executor, ExecutorOptions: executorOptions, Settings: executorSettings(),
+			Selection: selection, JobIDs: jobIDs, Scope: scope, Filter: filter, SourceRunID: sourceRunID, PartialArray: *partialArray, MatchBy: *matchBy,
+		}, *guard.ifRevision)
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -284,6 +309,7 @@ func runJobs(args []string, defaultSelection string) int {
 		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings(), Retry: *retry, Async: *async, Quiet: *quiet,
 		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, EnvMode: *envMode, CWD: cwd, ConfigPath: cliConfigPath,
 		Selection: selection, JobIDs: jobIDs, ScopeStage: scope.Stage, ScopeMatrix: scope.Matrix, Filter: filter, SourceRunID: sourceRunID, PartialArray: *partialArray, MatchBy: *matchBy,
+		IfRevision: runRevision,
 	}
 	var response serverinternal.Response
 	if *async {
@@ -390,4 +416,54 @@ func (printer *runProgressPrinter) print(response serverinternal.Response) {
 	default:
 		fmt.Printf("%s\n", yellow(response.Message))
 	}
+}
+
+// previewRun prints what a run of the project would execute, planned with
+// projectrun.Runner.PlanRun as the run itself is, without starting it. queue,
+// when set, is the queue a copy would leave; otherwise the project's queue is
+// planned.
+func previewRun(paths state.ProjectPaths, queue *model.Queue, request projectrun.PlanRequest, ifRevision string) int {
+	release, err := state.AcquireStateReadLock(paths.StateLockFile)
+	if err != nil {
+		printErrorf("failed to lock project state: %v", err)
+		return 1
+	}
+	defer release()
+	if err := project.EnsureIdle(paths, "run"); err != nil {
+		printError(err)
+		return 1
+	}
+	revision, err := project.CheckRevision(paths, project.Guard{IfRevision: ifRevision})
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	if queue == nil {
+		loaded, err := state.LoadQueue(paths.QueueFile)
+		if err != nil {
+			printErrorf("failed to load queue: %v", err)
+			return 1
+		}
+		queue = &loaded
+	}
+	planned, err := projectRunner().PlanRun(paths, *queue, request)
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	jobs := model.QueueToJobs(planned.Queue.Commands)
+	executed := 0
+	for _, job := range jobs {
+		if planned.Plan.Execute[job.ID] {
+			executed++
+		}
+	}
+	fmt.Println(colorKeyValueMessage(fmt.Sprintf("dry run: run project=%s would execute %d of %d job(s), carrying %d result(s)", paths.ProjectName, executed, len(jobs), len(planned.Plan.CarriedResults)), green))
+	for _, job := range jobs {
+		if planned.Plan.Execute[job.ID] {
+			fmt.Printf("  execute job_id=%s%s\n", job.ID, strings.Join(optionalField(" job_name", job.Name), ""))
+		}
+	}
+	fmt.Printf("revision=%s\n", revision)
+	return 0
 }
