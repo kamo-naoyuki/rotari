@@ -228,3 +228,25 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 **Remaining:**
 - M5, which requires extracting `check` and `export` from `cmd/rotari`.
 - Open issues that affect agents: the positional `show RUN_ID|ATTEMPT_ID --json|--report` failure, cancelled jobs classified as `signal`, and archtest's stale cache.
+
+## After M4: Clear the open issues found during this work
+
+**Commits:** 2026-10-03 01:43:41 `a9beda4`; 2026-10-03 01:45:45 `967838e`; 2026-10-03 01:46:42 `05ad304`; 2026-10-03 01:49:36 `84fbc2e`; 2026-10-03 01:53:03 `3373408`.
+
+**Change:**
+- `a9beda4`: `show` with an exact positional selector (attempt ID, run ID, `latest`, project) now takes log, follow, JSON, and report options like its option form. A run name, job ID, or job name selector still rejects them, with a clearer message. Contract SEL-10 changed: it had excluded output options for every positional, while the docs and the agent guide used `show RUN_ID --report`.
+- `967838e`: a job stopped by `cancel` records the error `cancelled` (`model.CancelledError`, set in the runner's final-result hook). `--filter-failure-kind cancelled` and failure groups now read such jobs as cancelled, not as `signal` or `error`. Added contract CAN-5.
+- `05ad304`: `internal/archtest` stats the module's Go sources during its test, so its cached result follows source changes.
+- `84fbc2e`: a named array job's name stands for all of its tasks in `--depends-on` and `--depends-on-finished`, as stage and matrix names already did. Added contract RUN-7.
+- `3373408`: `jobs --since` and the Web jobs page accept whole days such as `7d`. Added contract CLI-6, and regenerated the CLI reference and Python metadata.
+
+**Reason:** These issues were recorded during M0-M4. Three affect agents directly: documented commands failed, and cancellations were misclassified in failure groups.
+
+**Plan impact:** No milestone changed. `ISSUES.md` has no open items. The agent guide's `show -j ATTEMPT_ID --report` form keeps working, and the positional form now works too.
+
+**Validation:**
+- Each fix's new tests failed on the previous commit before the fix: the SEL-10 rows, `TestCancelledJobsReadAsCancelled` for both kinds of cancel, `TestArrayNameDependsOnEveryTask`, and `TestJobsWindowAcceptsDays`.
+- The archtest cache was checked by hand: it reran after editing or adding a Go file, and stayed cached otherwise.
+- `scripts/check.sh` passed. `go test -count=1 ./conformance/...` passed in all packages, and the generator `--check` steps passed.
+
+**Remaining:** M5 (`check` and `export` as read-only operations), which needs their extraction from `cmd/rotari`.
