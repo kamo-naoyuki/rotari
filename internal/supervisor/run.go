@@ -89,7 +89,7 @@ func (ops Operations) beginRun(request server.Request) (startedRun, error) {
 	}
 	options := runRequestOptions(request, runID)
 	options.Executor = prepared.executor
-	return startedRun{paths: prepared.paths, runID: runID, options: options, submitted: len(prepared.plan.Execute), total: len(prepared.queue.Commands)}, nil
+	return startedRun{paths: prepared.paths, runID: runID, options: options, submitted: len(prepared.plan.Execute), total: len(model.QueueToJobs(prepared.queue.Commands))}, nil
 }
 
 // preparedRun is a run request that passed validation while its caller holds

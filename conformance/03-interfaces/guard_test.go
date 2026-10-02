@@ -186,3 +186,70 @@ func TestRunPreviewMatchesTheRun(t *testing.T) {
 		t.Fatalf("run --dry-run of a queued job:\n%s", output)
 	}
 }
+
+// TestRunPreviewListsTheTasksOfAWholeArray previews a run of a fresh queue
+// that holds an array, through `run --dry-run` and rotari_preview_run, and
+// checks that both list every job the run then executes, each array task
+// included.
+func TestRunPreviewListsTheTasksOfAWholeArray(t *testing.T) {
+	covers(t, "CLI-7", "MCP-1")
+	e := support.NewEnv(t)
+	// import registers the basedir, which rotari_list_projects needs.
+	manifest := filepath.Join(e.Root, "manifest.json")
+	if err := os.WriteFile(manifest, []byte(`{"version":1,"jobs":[{"name":"prep","command":["true"]},{"name":"train","command":["true"],"array":"1-3"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.MustRotari("import", manifest, "p1")
+
+	preview := e.MustRotari("run", "-p", "p1", "--dry-run")
+	var want []string
+	for _, match := range regexp.MustCompile(`(?m)^  execute job_id=(\S+)`).FindAllStringSubmatch(preview.Stdout, -1) {
+		want = append(want, match[1])
+	}
+	sort.Strings(want)
+	if len(want) != 4 || !strings.Contains(preview.Stdout, "would execute 4 of 4 job(s)") {
+		t.Fatalf("run --dry-run lists %v, want prep and the three train tasks:\n%s", want, preview.Stdout)
+	}
+
+	session := startMCP(t, e)
+	var planned struct {
+		Execute []struct {
+			ID string `json:"id"`
+		} `json:"execute"`
+	}
+	if message := session.call("rotari_preview_run", map[string]any{"basedir_ref": baseDirRef(t, session, "p1"), "project": "p1"}, &planned); message != "" {
+		t.Fatal(message)
+	}
+	var tool []string
+	for _, job := range planned.Execute {
+		tool = append(tool, job.ID)
+	}
+	sort.Strings(tool)
+	if strings.Join(tool, ",") != strings.Join(want, ",") {
+		t.Fatalf("rotari_preview_run lists %v, want %v", tool, want)
+	}
+
+	e.MustRotari("run", "-p", "p1", "--if-revision", revisionOf(t, preview), "--quiet")
+	var shown struct {
+		RunID   string `json:"run_id"`
+		Summary struct {
+			Results []struct {
+				ID        string `json:"id"`
+				AttemptID string `json:"attempt_id"`
+			} `json:"results"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "p1", "--json").Stdout), &shown); err != nil {
+		t.Fatal(err)
+	}
+	var executed []string
+	for _, result := range shown.Summary.Results {
+		if strings.Contains(result.AttemptID, shown.RunID) {
+			executed = append(executed, result.ID)
+		}
+	}
+	sort.Strings(executed)
+	if strings.Join(executed, ",") != strings.Join(want, ",") {
+		t.Fatalf("the run executed %v, the preview planned %v", executed, want)
+	}
+}

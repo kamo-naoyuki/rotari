@@ -1872,7 +1872,7 @@ func TestPlanRerunSelectionAggregatesArrayTaskResults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !plan.Execute["array"] {
+	if !plan.Execute["array-1"] || !plan.Execute["array-2"] {
 		t.Fatal("expected array with a failed task to be re-executed as a whole when partialArray is false")
 	}
 }

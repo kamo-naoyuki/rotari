@@ -183,7 +183,8 @@ follows:
   [`conformance/03-interfaces/guard_test.go`](../conformance/03-interfaces/guard_test.go).
   `run` and `retry` take the same options: `--dry-run` lists the jobs the run
   would execute, planned by `projectrun.Runner.PlanRun` as the run itself is,
-  and `--if-revision` starts the run only at that revision, compared again by
+  with each task of an array that runs whole listed (`run.PlanRerun` keys the
+  plan by job ID), and `--if-revision` starts the run only at that revision, compared again by
   the supervisor when it begins the run.
 
 - CLI colors are semantic presentation, not machine-readable output. They are

@@ -120,7 +120,6 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 	if err != nil {
 		return 1, fmt.Errorf("failed to prepare job selection: %w", err)
 	}
-	run.ExpandArrayPlan(queue.Commands, jobs, plan.Execute)
 	run.ApplyCarriedOrigins(queue.Commands, plan.CarriedOrigins)
 	// The first snapshot keeps a failed plan inspectable; this one records origins.
 	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {

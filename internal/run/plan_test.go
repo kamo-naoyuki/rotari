@@ -33,13 +33,13 @@ func (source *fakeOriginResults) Origin(runID, jobID string, result model.JobRes
 }
 
 func TestPlanRerunWithoutSelectionExecutesEveryCommand(t *testing.T) {
-	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "a"}, {ID: "b", Array: &model.ArraySpec{First: 1, Last: 2}}}}
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "a", Command: []string{"run"}}, {ID: "b", Command: []string{"run"}, Array: &model.ArraySpec{First: 1, Last: 2}}}}
 	plan, err := PlanRerun(queue, "", nil, model.CommandSelector{}, jobfilter.Filter{}, "", true, &fakeOriginResults{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Execute) != 2 || !plan.Execute["a"] || !plan.Execute["b"] || plan.CarriedResults != nil {
-		t.Fatalf("plan = %#v, want every command", plan)
+	if len(plan.Execute) != 3 || !plan.Execute["a"] || !plan.Execute["b-1"] || !plan.Execute["b-2"] || plan.CarriedResults != nil {
+		t.Fatalf("plan = %#v, want every command, the array by its tasks", plan)
 	}
 }
 
@@ -139,8 +139,8 @@ func TestPlanRerunSelectsArrayTasksIndividually(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !plan.Execute["array"] || plan.Execute["array-2"] {
-		t.Fatalf("whole-array execute = %#v, want the array command", plan.Execute)
+	if len(plan.Execute) != 2 || !plan.Execute["array-1"] || !plan.Execute["array-2"] {
+		t.Fatalf("whole-array execute = %#v, want both of the array's tasks", plan.Execute)
 	}
 }
 
@@ -178,8 +178,8 @@ func TestPlanRerunSelectsWholeArrayByAnyTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !plan.Execute["array"] {
-		t.Fatalf("execute = %#v, want the array for its second task's exit code", plan.Execute)
+	if !plan.Execute["array-1"] || !plan.Execute["array-2"] {
+		t.Fatalf("execute = %#v, want the whole array for its second task's exit code", plan.Execute)
 	}
 	// Definition changes are recorded per task.
 	changed := jobfilter.Filter{Changed: true, ChangedIDs: map[string]bool{"array-2": true}}
@@ -187,8 +187,8 @@ func TestPlanRerunSelectsWholeArrayByAnyTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !plan.Execute["array"] {
-		t.Fatalf("execute = %#v, want the array with a changed task", plan.Execute)
+	if !plan.Execute["array-1"] || !plan.Execute["array-2"] {
+		t.Fatalf("execute = %#v, want the whole array with a changed task", plan.Execute)
 	}
 }
 

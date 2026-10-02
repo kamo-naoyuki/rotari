@@ -29,7 +29,8 @@ func FinalizePendingResults(pending []model.JobSpec, results map[string]model.Jo
 	}
 }
 
-func ExpandArrayPlan(commands []model.QueuedCommand, jobs []model.JobSpec, execute map[string]bool) {
+// expandArrayPlan replaces each whole array in execute with its tasks.
+func expandArrayPlan(commands []model.QueuedCommand, jobs []model.JobSpec, execute map[string]bool) {
 	for _, command := range commands {
 		if command.Array == nil || !execute[command.ID] {
 			continue
