@@ -197,6 +197,8 @@ Discard the current, not-yet-run queue.
 | `config` | `str` | config file to use |
 | `recover` | `bool` | confirm an interrupted run has stopped without prompting |
 | `quiet` | `bool` | suppress success output |
+| `dry_run` | `bool` | print what the command would change, and the project revision, without writing |
+| `if_revision` | `str` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ## `Rotari.wait`
 

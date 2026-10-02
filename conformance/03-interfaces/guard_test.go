@@ -41,6 +41,7 @@ func TestGuardedCommandsPreviewAndCheckTheRevision(t *testing.T) {
 		{"delete", func(_ *support.Env, run support.FinishedRun, _ string) []string {
 			return []string{"delete", "-p", "p1", "-r", run.RunID}
 		}},
+		{"reset", func(*support.Env, support.FinishedRun, string) []string { return []string{"reset", "p1"} }},
 		{"import", func(e *support.Env, _ support.FinishedRun, _ string) []string {
 			manifest := filepath.Join(e.Root, "manifest.json")
 			if err := os.WriteFile(manifest, []byte(`{"version":1,"jobs":[{"name":"imported","command":["true"]}]}`), 0o600); err != nil {

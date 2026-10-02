@@ -55,6 +55,8 @@ Usage: `rotari reset [PROJECT]`
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--recover` | `` | `ROTARI_RESET_RECOVER` | confirm an interrupted run has stopped without prompting |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari cancel`
 

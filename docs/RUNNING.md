@@ -588,7 +588,7 @@ as Slurm `--time`, which still apply.
 ## Previewing and guarding changes
 
 The commands that change a project's queue or run history (`add`, `change`,
-`copy`, `delete`, `import`, and `remove`) take `--dry-run` and
+`copy`, `delete`, `import`, `remove`, and `reset`) take `--dry-run` and
 `--if-revision REVISION`. `--dry-run` checks the change and prints what it
 would do, prefixed with `dry run:`, and the project's revision, without
 writing anything. `--if-revision` applies the change only if the project is

@@ -171,7 +171,8 @@ follows:
   with the end-to-end check in
   [`conformance/03-interfaces/jobs_presentation_test.go`](../conformance/03-interfaces/jobs_presentation_test.go).
 - **CLI-7** The commands that change a project's queue or run history
-  (`add`, `change`, `copy`, `delete`, `import`, `remove`) take `--dry-run`,
+  (`add`, `change`, `copy`, `delete`, `import`, `remove`, `reset`) take
+  `--dry-run`,
   which writes nothing and prints the change and the project revision that
   `check` also reports, and `--if-revision REVISION`, which applies the
   change only while the project is still at that revision, compared under the

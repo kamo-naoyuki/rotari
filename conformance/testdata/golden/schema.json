@@ -84,6 +84,13 @@
         },
         {
           "name": "quiet"
+        },
+        {
+          "name": "dry-run"
+        },
+        {
+          "name": "if-revision",
+          "value_name": "REVISION"
         }
       ],
       "name": "reset"

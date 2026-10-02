@@ -113,6 +113,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "environment": "ROTARI_QUIET",
                     "name": "quiet",
                 },
+                {
+                    "description": "print what the command would change, and the "
+                    "project revision, without writing",
+                    "name": "dry-run",
+                },
+                {
+                    "description": "apply only if the project is still at this "
+                    "revision, as printed by --dry-run",
+                    "name": "if-revision",
+                    "value_name": "REVISION",
+                },
             ],
             "name": "reset",
             "positional": "[PROJECT]",

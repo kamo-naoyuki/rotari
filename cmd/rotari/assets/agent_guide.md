@@ -24,7 +24,8 @@ successful results are carried forward.
 - Prefer machine-readable output: `show --json`, `check --json`,
   `wait --json`, and `import --dry-run --json`.
 - Preview before changing state, then apply exactly what you previewed:
-  `add`, `change`, `copy`, `delete`, `import`, and `remove` take `--dry-run`,
+  `add`, `change`, `copy`, `delete`, `import`, `remove`, and `reset` take
+  `--dry-run`,
   which prints the change and `revision=REVISION` without writing, and
   `--if-revision REVISION`, which applies only if nothing changed the project
   since. `rotari check --json` also reports the revision.

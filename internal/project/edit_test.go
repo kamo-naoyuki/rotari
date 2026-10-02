@@ -272,3 +272,40 @@ func TestEditGuardedPassesDryRunAndChecksTheRevision(t *testing.T) {
 		t.Fatalf("edit saw dry runs %v, want one dry run and no call for the refused edit", sawDryRun)
 	}
 }
+
+func TestRecoverInterruptedGuardedPreviewsAndChecksTheRevision(t *testing.T) {
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job", Command: []string{"true"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	writeTestRunStateFiles(t, paths, "run-1")
+	before, err := Revision(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var preview Outcome
+	if err := RecoverInterruptedGuarded(paths, "run-1", true, Guard{DryRun: true, Report: func(outcome Outcome) { preview = outcome }}); err != nil {
+		t.Fatal(err)
+	}
+	if preview.Revision != before || preview.Applied {
+		t.Fatalf("dry run outcome = %+v", preview)
+	}
+	if now, _ := Revision(paths); now != before || len(loadQueueForTest(t, paths).Commands) != 1 {
+		t.Fatal("dry run recovered the interrupted run")
+	}
+	if err := RecoverInterruptedGuarded(paths, "run-1", true, Guard{IfRevision: "stale"}); !errors.Is(err, ErrRevisionChanged) {
+		t.Fatalf("stale revision error = %v", err)
+	}
+	if err := RecoverInterruptedGuarded(paths, "run-1", true, Guard{IfRevision: before}); err != nil {
+		t.Fatal(err)
+	}
+	if len(loadQueueForTest(t, paths).Commands) != 0 {
+		t.Fatal("recovery at the previewed revision did not discard the queue")
+	}
+}

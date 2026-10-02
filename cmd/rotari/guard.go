@@ -54,7 +54,7 @@ func (flags guardFlags) printResult(message string, quiet bool) {
 }
 
 // guardedCommands change a project and take --dry-run and --if-revision.
-var guardedCommands = []string{"add", "change", "copy", "delete", "import", "remove"}
+var guardedCommands = []string{"add", "change", "copy", "delete", "import", "remove", "reset"}
 
 // guardFlagSpecs are the specs of --dry-run and --if-revision. They apply to
 // one invocation, so neither is read from the environment or config.
