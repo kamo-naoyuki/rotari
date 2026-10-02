@@ -46,7 +46,7 @@ repos:
         entry: gofmt -w
         # Bootstraps Go in pre-commit.ci instead of relying on a system gofmt.
         language: golang
-        language_version: 1.22.12
+        language_version: 1.23.12
         types: [go]
 
       - id: example-shellcheck

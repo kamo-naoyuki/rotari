@@ -25,3 +25,4 @@ the [Getting started](GETTING_STARTED.md) guide.
 - [Python client](PYTHON_CLIENT.md): installation and a short usage guide.
 - [Python API](python-api.md)
 - [Go API](go-api.md)
+- [MCP server](MCP.md): experimental VS Code/agent integration for inspecting one job.
