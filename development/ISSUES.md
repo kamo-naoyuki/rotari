@@ -8,6 +8,14 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **`show --json` silently ignores `--failed`** (`cmd/rotari/show.go`): `rotari show -r RUN_ID --json --failed` prints output byte-identical to `--json` alone, including successful jobs. This violates the rule that an option must not be accepted and ignored. Expected: select failed jobs, or reject the combination. Found in the [agent trial](2026-10-02-mcp-agent-interface/agent-trial-2026-10-02.md); not yet checked for `--success`, `--unfinished`, or `--filter-*`.
+
+- **A positional run ID cannot be combined with `show --json` or `--report`** (`cmd/rotari/show.go`): `rotari show RUN_ID` works, but `rotari show RUN_ID --json` fails with "a run name selector cannot be combined with run, job, queue, list, log, follow, JSON, or report options". The same run works as `show -r RUN_ID --json`. The message calls the run ID a run name, and `docs/CONCEPTS.md` presents `show RUN_ID` as equivalent to the option form.
+
+- **An array job's name is accepted as a dependency but never resolves** (`add`, dependency validation): `add --job-name train --array 1-2 ...` followed by `add --depends-on train ...` (or `--depends-on-finished`, with a plain or matrix dependent) succeeds, and then `check` and `run` fail with `depends on unknown job "train"`. A matrix base name does resolve. Expected: either resolve the array name to all its tasks, or reject it at `add` with a hint to use a stage.
+
+- **`show` project-list hint fails outside the default basedir** (`cmd/rotari/show.go`): with projects in several registered basedirs, `rotari show` lists them and suggests `rotari show -p PROJECT`, which fails with `project "exp" does not exist in state directory <default>` because the hint omits `-b`.
+
 - **`TestWebJobsPageShowsRecentJobs` expects a stale home-link URL** (`internal/webui/webui_test.go`): the rendered Job activity header scopes its home link to the current basedir, while the test expects the literal `href="/"`. The focused history-search tests pass; update this unrelated assertion to match the scoped route.
 
 ## Resolved
