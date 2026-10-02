@@ -2,7 +2,7 @@
 
 **Created:** 2026-10-03
 
-**Status:** Planned; no test implementation or initial pair triage has run.
+**Status:** In progress; read-only adapters and initial triage completed.
 
 ## Purpose
 
@@ -272,7 +272,27 @@ duplicating its lifecycle or status-projection work.
 
 ## Current status and next action
 
-Only repository inspection and planning have been completed. The next action
-is Milestone 1's schema inventory and safe read-only command adapters, followed
-by the first measured execution and failure triage. No pair count, runtime,
-bug count, or intentional-equivalence list has been verified yet.
+The schema inventory now generates 6,481 pairs, including 1,830 for `run`.
+Read-only adapters execute 762 `show`/`jobs` pairs in both orders (1,524
+invocations); one measured pair-loop run took about 65 seconds including fixture
+and schema setup. The suite does not drop these pairs in short or race mode.
+
+Observation tests exercise 23 selection flags against four output modes (92
+combinations), plus formatted `jobs` time windows. Most output/filter
+combinations explicitly reject; accepted combinations must match the job table
+and show an effect, except for two documented redundant failed-log selections.
+Standalone sample checks also exercise boolean false and repeated values.
+
+Initial harness errors were repaired. Semantic checks found one confirmed bug:
+run-wide `show --logs` ignored `--failed` and `--filter-result failed`. A focused
+unit regression and external regression both failed before the fix, and the
+existing log selector now receives the parsed failed selection. The JSON/failed
+witness also detected the historical bug on the pre-fix commit `fddf05a`, with
+only current test/harness files copied into the temporary worktree.
+
+See [coverage and triage](../../conformance/03-interfaces/flag-pair-coverage.md)
+for measured coverage, reasoned exceptions, and explicit observation gaps.
+Milestone 1 is **not complete**: 5,719 pairs still need safe command adapters,
+and queue, direct-selector, active/unfinished, and cross-interface semantic
+witnesses remain. Next, broaden fixture witnesses and add isolated mutation/run
+adapters. Compatibility declarations remain an evidence-gated follow-up.
