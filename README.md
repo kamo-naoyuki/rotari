@@ -9,9 +9,12 @@
 [![web demo](https://img.shields.io/website?url=https%3A%2F%2Fkamo-naoyuki.github.io%2Frotari%2F&label=web%20demo&style=flat)](https://kamo-naoyuki.github.io/rotari/) [![Documentation](https://img.shields.io/badge/docs-MkDocs%20Material-526CFE)](https://kamo-naoyuki.github.io/rotari/docs/) [![codecov](https://codecov.io/gh/kamo-naoyuki/rotari/graph/badge.svg)](https://codecov.io/gh/kamo-naoyuki/rotari) [![SonarCloud Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=kamo-naoyuki_rotari&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kamo-naoyuki_rotari)
 
 
-**Rotari is a single-user, daemonless job queue and execution manager for command batches.** It runs jobs on a workstation or dispatches and tracks them over SSH or through Slurm, PBS, LSF, and SGE, keeping status, logs, and run history in the filesystem. On clusters, the scheduler allocates resources; on workstations, rotari limits local concurrency.
+**Rotari is a single-user, daemonless job queue and execution manager for command batches.** It runs jobs on workstations, over SSH, or through Slurm, PBS, LSF, and SGE.
 
-Rotari is designed for researchers running experiment batches from shell scripts, and supports simple dependencies plus array and matrix jobs. If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or [ESPnet](https://github.com/espnet)'s `run.pl`/`queue.pl`, the basic idea should feel familiar.
+Rotari is designed for researchers and supports simple dependencies, arrays, and
+matrix jobs. If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or
+[ESPnet](https://github.com/espnet)'s `run.pl`/`queue.pl`, the basic idea should
+feel familiar.
 
 The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers installation, concepts, command reference, and running rotari on clusters.
 
@@ -22,7 +25,16 @@ The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers ins
 | <img src="https://kamo-naoyuki.github.io/rotari/demo-shell.gif" alt="shell background jobs demo" width="400"> | <img src="https://kamo-naoyuki.github.io/rotari/demo-rotari.gif" alt="rotari demo" width="400"> |
 
 
-You don't need a separate workflow language: define experiment batches with `rotari add` lines in a shell script or add commands interactively, then start runs yourself with `rotari run`. Rotari keeps each run's commands, results, and logs. If a job fails on a bad host, `rotari run --retry N` retries it in that run; `rotari retry` starts a new run with only failed and unfinished jobs, preserving successful work. On clusters, rotari dispatches jobs to the site's scheduler, which handles placement and resource allocation. Jobs otherwise use the caller's working directory and environment ([details](docs/CONCEPTS.md#workflow-and-execution-environment)).
+You don't need a separate workflow language: define experiment batches with
+`rotari add` lines in a shell script or add commands interactively, then start
+runs yourself with `rotari run`. Each run keeps its commands, results, and logs.
+For transient host failures, `rotari run --retry N` retries within the run;
+`rotari retry` starts a new run for failed and unfinished jobs while carrying
+forward successful work.
+
+On clusters, rotari dispatches jobs to the site's scheduler, which handles
+placement and resource allocation. Jobs otherwise use the caller's working
+directory and environment ([details](docs/CONCEPTS.md#workflow-and-execution-environment)).
 
 ### Choosing a tool
 
