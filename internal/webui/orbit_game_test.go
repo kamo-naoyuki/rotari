@@ -72,6 +72,7 @@ setTimeout(() => {
     radius: Number(ball.getAttribute('r')),
     delta: radiansMoved(initial[index + 1], Number(ball.getAttribute('data-angle'))),
   }));
+  if (radiansMoved(initial[0], Number(player.getAttribute('data-angle'))) <= 0) process.exit(12);
   naturalDeltas.sort((a, b) => a.radius - b.radius);
   if (!(naturalDeltas[0].delta > naturalDeltas.at(-1).delta)) process.exit(4);
 
@@ -99,6 +100,7 @@ setTimeout(() => {
 
   logo.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true }));
   dom.window.__runFrame(0);
+  dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
   for (let frame = 1; frame <= 2000 && document.getElementById('orbit-game-over').hidden; frame++) {
     dom.window.__runFrame(frame * 50);
   }

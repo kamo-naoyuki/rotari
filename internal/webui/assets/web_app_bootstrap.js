@@ -104,7 +104,7 @@ function initOrbitGame() {
         : Math.min((timestamp - lastFrameTime) / 1000, 0.05);
     lastFrameTime = timestamp;
     const turnSpeed = turnDirection * 1.7 * elapsed;
-    redAngle += turnSpeed * 0.81;
+    redAngle += (0.55 / redRadius) * elapsed + turnSpeed * 0.81;
     drawBall(player, redAngle);
     for (const white of whiteStates) {
       const sizeFactor = 0.45 + (whiteRadiusMax - white.radius) * 0.065;
