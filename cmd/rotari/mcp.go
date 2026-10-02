@@ -6,6 +6,7 @@ import (
 	"os"
 
 	rotarimcp "github.com/kamo-naoyuki/rotari/internal/mcp"
+	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -28,9 +29,21 @@ func cmdMCP(args []string) int {
 		printErrorf("failed to resolve master directory: %v", err)
 		return 1
 	}
-	if err := rotarimcp.NewServer(masterDir).Run(context.Background(), &mcpsdk.StdioTransport{}); err != nil {
+	options := rotarimcp.Options{NewJobID: makeJobID, StartRun: startRunForMCP}
+	if err := rotarimcp.NewServer(masterDir, options).Run(context.Background(), &mcpsdk.StdioTransport{}); err != nil {
 		printErrorf("MCP server failed: %v", err)
 		return 1
 	}
 	return 0
+}
+
+// startRunForMCP starts paths' supervisor, as `rotari run` does, and sends
+// it request.
+func startRunForMCP(paths state.ProjectPaths, request serverinternal.Request) (serverinternal.Response, error) {
+	client, err := startSupervisor(paths)
+	if err != nil {
+		return serverinternal.Response{}, err
+	}
+	defer client.Close()
+	return client.Send(request)
 }

@@ -1,9 +1,10 @@
 # MCP server (experimental)
 
-rotari includes an experimental read-only MCP server for agents that cannot
-run shell commands. Agents that can should use the `rotari` CLI, as
+rotari includes an experimental MCP server, `rotari mcp`, for agents that
+cannot run shell commands. Agents that can should use the `rotari` CLI, as
 `rotari guide` describes; each tool below names the CLI command that returns
-the same information.
+the same information. The tools below only read; importing a manifest and
+starting a run are described in [Changing a project](#changing-a-project).
 
 | Tool | Input | Returns | CLI equivalent |
 | --- | --- | --- | --- |
@@ -18,6 +19,32 @@ one job from a failure group's attempt, and compares a later run with it.
 Tools that act on a project rather than a run take the `basedir_ref` and
 `project` that `rotari_list_projects` returns.
 
+## Changing a project
+
+The tools that change a project come in pairs: a read-only preview and a
+write that applies only at the revision the preview returned. An MCP client
+can let previews run freely and ask its user before each write; the
+read-only tools are annotated as such.
+
+| Preview | Write | Input | CLI equivalent |
+| --- | --- | --- | --- |
+| `rotari_preview_import` | `rotari_import` | `basedir_ref`, `project`, `manifest` (text), optional `format` (`yaml`, `json`, or `toml`) and `overwrite`; the write also `if_revision` | `rotari import --dry-run` / `--if-revision` |
+| `rotari_preview_run` | `rotari_start_run` | `basedir_ref`, `project`, optional `retry`; the write also `if_revision` and optional `run_name` | `rotari run` or `retry`, with `--dry-run` / `--async --if-revision` |
+
+A preview returns the plan and `revision`; pass that revision as
+`if_revision` to the write. If anything wrote the project in between, the
+write fails with `project changed since the planned revision` and changes
+nothing; preview again. `rotari_preview_run` lists the jobs the run would
+execute, planned as the run itself is, and `rotari_start_run` returns the
+`run_id` of the run it started in the background; follow it with
+`rotari_run_summary`. With `retry`, the run reruns the failed and unfinished
+jobs of the project's last run, copying that run into an empty queue first,
+as `rotari retry` does.
+
+A started run uses `rotari run`'s defaults, and its jobs run in the working
+directory and with the environment of the `rotari mcp` process, which is
+usually the MCP client's.
+
 The server finds a run's state directory and project through the run
 registry of its master directory, the same registry the `rotari` CLI uses to
 resolve `--run-id`. It serves only runs and state directories registered
@@ -26,8 +53,9 @@ directories. Results name a state directory by `basedir_ref`, a stable
 reference that does not reveal its path, and by `basedir_name`, the last
 element of its path; they contain no absolute paths. Reports and evidence
 lines redact paths and hostnames where detected; redaction is not guaranteed
-to catch every secret. No queue edits, job execution, or job control are
-exposed, and the server does not remove stale locks or migrate registries.
+to catch every secret. Queue edits other than import, job control,
+and deleting history are not exposed, and the server does not remove stale
+locks or migrate registries.
 
 ## Start the server
 

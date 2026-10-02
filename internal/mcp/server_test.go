@@ -26,7 +26,7 @@ func TestServerExposesJobInfoToolOverMCP(t *testing.T) {
 	writeRunFixture(t, masterDir, secondBaseDir, "run-2", "second-log-line")
 	ctx := context.Background()
 	clientTransport, serverTransport := mcpsdk.NewInMemoryTransports()
-	server := NewServer(masterDir)
+	server := NewServer(masterDir, Options{})
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestServerExposesJobInfoToolOverMCP(t *testing.T) {
 		}
 	}
 	sort.Strings(names)
-	if want := []string{"rotari_check_project", "rotari_compare_runs", "rotari_get_job_info", "rotari_list_projects", "rotari_run_summary"}; !reflect.DeepEqual(names, want) {
+	if want := []string{"rotari_check_project", "rotari_compare_runs", "rotari_get_job_info", "rotari_import", "rotari_list_projects", "rotari_preview_import", "rotari_preview_run", "rotari_run_summary", "rotari_start_run"}; !reflect.DeepEqual(names, want) {
 		t.Fatalf("tools = %q, want %q", names, want)
 	}
 

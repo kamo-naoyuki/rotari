@@ -90,6 +90,7 @@ A rule in the pages of this directory gets an ID by starting with
 | `LOG` | "Job logs" in [02-run-lifecycle-and-execution.md](02-run-lifecycle-and-execution.md#job-logs) |
 | `RUN` | "Run lifecycle" in [02-run-lifecycle-and-execution.md](02-run-lifecycle-and-execution.md#run-lifecycle) |
 | `CLI` | "CLI presentation" in [03-server-and-command-interfaces.md](03-server-and-command-interfaces.md#cli-presentation) |
+| `MCP` | "MCP tools" in [03-server-and-command-interfaces.md](03-server-and-command-interfaces.md#mcp-tools) |
 | `COORD` | "Shared-state coordination" in [04-coordination-and-safety.md](04-coordination-and-safety.md#shared-state-coordination) |
 | `STATE` | "State load and write contracts" in [04-coordination-and-safety.md](04-coordination-and-safety.md#state-load-and-write-contracts) |
 | `SAFE` | "Concurrency and safety" in [04-coordination-and-safety.md](04-coordination-and-safety.md#concurrency-and-safety) |
@@ -183,6 +184,7 @@ the IDs, this table, and those calls disagree.
 | CLI-5 | The project list shows each project's last result, and its suggested commands work for every listed project | conformance | `TestProjectListHintsWork` |
 | CLI-6 | `jobs --since` and the Web jobs page take a Go duration or whole days such as `7d` | conformance | `TestJobsWindowAcceptsDays` |
 | CLI-7 | Commands that change a project take `--dry-run` and `--if-revision`, applying only at the previewed revision | conformance | `TestGuardedCommandsPreviewAndCheckTheRevision`, `TestRunPreviewMatchesTheRun` |
+| MCP-1 | MCP tools that change a project preview first and apply only at the previewed revision | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision` |
 | SEL-1 | A run ID or attempt ID alone resolves its location in every command | partial | `TestPositionalArguments`, `TestSelectorTable` |
 | SEL-2 | Each command reads the run or queue its row names | partial | `TestSelectorTable` |
 | SEL-3 | `show` resolves each selector form as its column says | conformance | `TestSelectorTable` |

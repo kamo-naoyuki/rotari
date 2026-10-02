@@ -192,6 +192,12 @@ func (e *Env) command(args ...string) *exec.Cmd {
 	return cmd
 }
 
+// Command returns an unstarted rotari command in e's environment, for a
+// test that talks to the process itself, such as over its stdin.
+func (e *Env) Command(args ...string) *exec.Cmd {
+	return e.command(args...)
+}
+
 func (e *Env) Rotari(args ...string) Result {
 	e.T.Helper()
 	var stdout, stderr bytes.Buffer

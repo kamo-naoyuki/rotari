@@ -225,3 +225,21 @@ follows:
   with client behavior covered by
   [`cmd/rotari/server_test.go`](../cmd/rotari/server_test.go).
   The machine-readable `check --json` output is not suppressed by quiet.
+
+## MCP tools
+
+`rotari mcp` serves MCP tools over stdio for one master directory; see
+[docs/MCP.md](../docs/MCP.md). The tools present the same shared functions
+as the CLI and hold no rules of their own.
+
+- **MCP-1** A tool that changes a project comes as a read-only preview and a
+  write. The preview (`rotari_preview_import`, `rotari_preview_run`) changes
+  nothing and returns the project revision that `check` reports, planned as
+  the CLI's `--dry-run` plans it. The write (`rotari_import`,
+  `rotari_start_run`) requires that revision and applies only while the
+  project is still at it; otherwise it fails and changes nothing. A run the
+  write starts executes the jobs its preview listed. The tools are in
+  [`internal/mcp/write.go`](../internal/mcp/write.go), with the end-to-end
+  check in
+  [`conformance/03-interfaces/mcp_test.go`](../conformance/03-interfaces/mcp_test.go).
+

@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
@@ -405,30 +404,7 @@ func (printer *runProgressPrinter) print(response serverinternal.Response) {
 // when set, is the queue a copy would leave; otherwise the project's queue is
 // planned.
 func previewRun(paths state.ProjectPaths, queue *model.Queue, request projectrun.PlanRequest, ifRevision string) int {
-	release, err := state.AcquireStateReadLock(paths.StateLockFile)
-	if err != nil {
-		printErrorf("failed to lock project state: %v", err)
-		return 1
-	}
-	defer release()
-	if err := project.EnsureIdle(paths, "run"); err != nil {
-		printError(err)
-		return 1
-	}
-	revision, err := project.CheckRevision(paths, project.Guard{IfRevision: ifRevision})
-	if err != nil {
-		printError(err)
-		return 1
-	}
-	if queue == nil {
-		loaded, err := state.LoadQueue(paths.QueueFile)
-		if err != nil {
-			printErrorf("failed to load queue: %v", err)
-			return 1
-		}
-		queue = &loaded
-	}
-	planned, err := projectRunner().PlanRun(paths, *queue, request)
+	planned, revision, err := projectRunner().PreviewRun(paths, queue, request, ifRevision)
 	if err != nil {
 		printError(err)
 		return 1

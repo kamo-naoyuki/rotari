@@ -6,6 +6,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -77,4 +78,33 @@ func (runner Runner) PlanRun(paths state.ProjectPaths, queue model.Queue, reques
 		return PlannedRun{}, err
 	}
 	return PlannedRun{Queue: queue, Plan: plan, SourceRunID: sourceRunID}, nil
+}
+
+// PreviewRun plans a run of the project without starting it, as a run would
+// plan it under the state lock: the project must be idle and, when
+// ifRevision is set, still at that revision. queue, when set, replaces the
+// project's queue, such as the queue a copy from the reference run would
+// leave. It returns the plan and the project's revision.
+func (runner Runner) PreviewRun(paths state.ProjectPaths, queue *model.Queue, request PlanRequest, ifRevision string) (PlannedRun, string, error) {
+	release, err := state.AcquireStateReadLock(paths.StateLockFile)
+	if err != nil {
+		return PlannedRun{}, "", fmt.Errorf("failed to lock project state: %w", err)
+	}
+	defer release()
+	if err := project.EnsureIdle(paths, "run"); err != nil {
+		return PlannedRun{}, "", err
+	}
+	revision, err := project.CheckRevision(paths, project.Guard{IfRevision: ifRevision})
+	if err != nil {
+		return PlannedRun{}, "", err
+	}
+	if queue == nil {
+		loaded, err := state.LoadQueue(paths.QueueFile)
+		if err != nil {
+			return PlannedRun{}, "", fmt.Errorf("failed to load queue: %w", err)
+		}
+		queue = &loaded
+	}
+	planned, err := runner.PlanRun(paths, *queue, request)
+	return planned, revision, err
 }
