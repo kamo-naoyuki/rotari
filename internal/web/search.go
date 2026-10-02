@@ -42,27 +42,29 @@ type HistorySearchScope struct {
 }
 
 type HistorySearchRecord struct {
-	BaseDirID        string
-	BaseDirPath      string
-	ProjectName      string
-	RunID            string
-	RunName          string
-	RunStatus        string
-	RunExitCode      *int
-	RunStarted       string
-	RunFinished      string
-	JobID            string
-	JobName          string
-	JobStatus        string
-	JobStage         string
-	Command          string
-	Host             string
-	WorkingDirectory string
-	Diagnosis        string
-	Executor         string
-	AttemptID        string
-	JobExitCode      *int
-	Timestamp        string
+	BaseDirID           string
+	BaseDirPath         string
+	ProjectName         string
+	RunID               string
+	RunName             string
+	RunStatus           string
+	RunExitCode         *int
+	RunStarted          string
+	RunFinished         string
+	RunHost             string
+	RunWorkingDirectory string
+	JobID               string
+	JobName             string
+	JobStatus           string
+	JobStage            string
+	Command             string
+	Host                string
+	WorkingDirectory    string
+	Diagnosis           string
+	Executor            string
+	AttemptID           string
+	JobExitCode         *int
+	Timestamp           string
 }
 
 type HistorySearchRow struct {
@@ -155,7 +157,7 @@ func parseHistorySearchTime(value, label string) (time.Time, error) {
 
 var historySearchFields = map[string]map[string]bool{
 	HistorySearchProject: {"project_name": true},
-	HistorySearchRun:     {"run_id": true, "run_name": true, "status": true, "exit_code": true},
+	HistorySearchRun:     {"run_id": true, "run_name": true, "status": true, "exit_code": true, "host": true, "working_directory": true},
 	HistorySearchJob:     {"job_id": true, "job_name": true, "status": true, "command": true, "host": true, "working_directory": true, "diagnosis": true, "stage": true, "executor": true, "attempt_id": true, "exit_code": true},
 }
 
@@ -435,6 +437,10 @@ func historySearchFieldValue(record HistorySearchRecord, target, field string) s
 			if record.RunExitCode != nil {
 				return strconv.Itoa(*record.RunExitCode)
 			}
+		case "host":
+			return record.RunHost
+		case "working_directory":
+			return record.RunWorkingDirectory
 		}
 	case HistorySearchJob:
 		switch field {

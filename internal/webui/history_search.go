@@ -270,7 +270,11 @@ func (s site) loadHistorySearchRun(entry webBaseDir, projectName, runsDir, runID
 	if summary.RunID == "" {
 		summary.RunID = runID
 	}
-	base := historySearchBaseRecord(entry, projectName, summary)
+	runContext, contextErr := stateinternal.LoadContext(s.Store, runDir)
+	if contextErr != nil {
+		runContext = model.RunContext{}
+	}
+	base := historySearchBaseRecord(entry, projectName, summary, runContext)
 	records := []webprojection.HistorySearchRecord{base}
 	if errors.Is(summaryErr, stateinternal.ErrNewerStateVersion) {
 		return records, nil
@@ -288,7 +292,7 @@ func (s site) loadHistorySearchRun(entry webBaseDir, projectName, runsDir, runID
 	return records, nil
 }
 
-func historySearchBaseRecord(entry webBaseDir, projectName string, summary model.RunSummary) webprojection.HistorySearchRecord {
+func historySearchBaseRecord(entry webBaseDir, projectName string, summary model.RunSummary, runContext model.RunContext) webprojection.HistorySearchRecord {
 	status := summary.Status
 	if status == "" {
 		if summary.FinishedAt != "" {
@@ -310,7 +314,8 @@ func historySearchBaseRecord(entry webBaseDir, projectName string, summary model
 		BaseDirID: entry.ID, BaseDirPath: entry.Path, ProjectName: projectName,
 		RunID: summary.RunID, RunName: summary.RunName, RunStatus: status,
 		RunExitCode: exitCode, RunStarted: summary.StartedAt,
-		RunFinished: summary.FinishedAt, Timestamp: timestamp,
+		RunFinished: summary.FinishedAt, RunHost: runContext.Hostname,
+		RunWorkingDirectory: runContext.CWD, Timestamp: timestamp,
 	}
 }
 
@@ -346,6 +351,9 @@ func historySearchJobRecord(base webprojection.HistorySearchRecord, job webproje
 	base.JobStatus, base.JobStage = jobStatus, job.Stage
 	base.Command, base.Executor, base.AttemptID = strings.Join(job.Command, " "), job.Executor, job.AttemptID
 	base.WorkingDirectory = job.WorkingDirectory
+	if base.WorkingDirectory == "" {
+		base.WorkingDirectory = base.RunWorkingDirectory
+	}
 	if job.Result != nil {
 		base.Host = strings.Join(job.Result.Hosts, " ")
 	}

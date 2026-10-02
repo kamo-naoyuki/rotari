@@ -8,6 +8,12 @@ const historySearchFieldOptions = {
     { target: "run", value: "run_name", label: "Run · Name" },
     { target: "run", value: "status", label: "Run · Status" },
     { target: "run", value: "exit_code", label: "Run · Exit code" },
+    { target: "run", value: "host", label: "Run · Host" },
+    {
+      target: "run",
+      value: "working_directory",
+      label: "Run · Working directory",
+    },
   ],
   job: [
     { target: "project", value: "project_name", label: "Project · Name" },
@@ -15,6 +21,12 @@ const historySearchFieldOptions = {
     { target: "run", value: "run_name", label: "Run · Name" },
     { target: "run", value: "status", label: "Run · Status" },
     { target: "run", value: "exit_code", label: "Run · Exit code" },
+    { target: "run", value: "host", label: "Run · Host" },
+    {
+      target: "run",
+      value: "working_directory",
+      label: "Run · Working directory",
+    },
     { target: "job", value: "command", label: "Job · Command" },
     { target: "job", value: "status", label: "Job · Status" },
     { target: "job", value: "host", label: "Job · Host" },

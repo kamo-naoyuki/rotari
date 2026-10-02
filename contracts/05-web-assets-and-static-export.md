@@ -44,13 +44,16 @@ notifications. The result level (project, run, or job) is selected once for
 the whole search. Each condition selects an attribute from that level or one
 of its ancestors: project results expose project attributes, run results
 expose run and project attributes, and job results expose job, run, and
-project attributes. Ignore-case matching is on by default and can be disabled.
+project attributes. Run attributes include the run's host and working
+directory; a job with no job-specific working directory uses its run's
+working directory for job searches. Ignore-case matching is on by default and
+can be disabled.
 Fuzzy matching is an independent, opt-in setting for free-text attributes; it
 allows a small edit distance and ignores terms shorter than four characters.
 Status, executor, and diagnosis conditions use dropdowns and exact value
 matching. Diagnosis choices come from the built-in diagnosis rules plus the
 Python exception fallback, not from scanning saved results. Other attributes
-including job host and working directory accept search text and match
+including job and run host and working directory accept search text and match
 substrings by default. Additional
 conditions are joined in displayed order with AND or OR, evaluated left-to-right.
 Results always remain at the selected level. Results are

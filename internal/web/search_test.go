@@ -150,6 +150,30 @@ func TestSearchHistoryMatchesJobHostAndWorkingDirectory(t *testing.T) {
 	}
 }
 
+func TestSearchHistoryMatchesRunHostAndWorkingDirectory(t *testing.T) {
+	records := []HistorySearchRecord{{
+		BaseDirID: "base", ProjectName: "alpha", RunID: "run-1",
+		RunHost: "login-node-02", RunWorkingDirectory: "/work/project",
+		Timestamp: "2026-10-01T10:00:00Z",
+	}}
+	for _, test := range []struct {
+		field string
+		word  string
+	}{
+		{field: "host", word: "login-node-02"},
+		{field: "working_directory", word: "/work/project"},
+	} {
+		request := HistorySearchRequest{
+			Target:  HistorySearchRun,
+			Filters: []HistorySearchFilter{{Target: HistorySearchRun, Field: test.field, Word: test.word}},
+		}
+		got, err := SearchHistory(records, request)
+		if err != nil || got.Total != 1 || got.Rows[0].RunID != "run-1" {
+			t.Errorf("search run %s=%q = (%#v, %v), want run-1", test.field, test.word, got, err)
+		}
+	}
+}
+
 func TestSearchHistoryDeduplicatesRunsAndPaginatesDeterministically(t *testing.T) {
 	records := []HistorySearchRecord{
 		{BaseDirID: "base", ProjectName: "alpha", RunID: "run-1", RunName: "nightly", RunStatus: "success", RunFinished: "2026-10-02T10:00:00Z", Timestamp: "2026-10-02T10:00:00Z"},

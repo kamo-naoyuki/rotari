@@ -18,7 +18,7 @@ func TestHistorySearchAcrossProjects(t *testing.T) {
 	covers(t, "WEB-2")
 	e := support.NewEnv(t)
 	workingDirectory := e.Root
-	e.MustRotari("add", "-p", "alpha", "--working-directory", workingDirectory, "--", "true")
+	e.MustRotari("add", "-p", "alpha", "--", "true")
 	e.MustRotari("run", "-p", "alpha", "--quiet")
 	var alphaShown struct {
 		RunID string `json:"run_id"`
@@ -27,6 +27,23 @@ func TestHistorySearchAcrossProjects(t *testing.T) {
 		e.T.Fatalf("show --json did not describe alpha run: %v", err)
 	}
 	alphaRunID := alphaShown.RunID
+	contextPath := filepath.Join(e.Base, "projects", "alpha", "runs", alphaRunID, "context.json")
+	contextData, err := os.ReadFile(contextPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var runContext map[string]any
+	if err := json.Unmarshal(contextData, &runContext); err != nil {
+		t.Fatal(err)
+	}
+	runContext["hostname"] = "run-host-fixture"
+	contextData, err = json.Marshal(runContext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(contextPath, contextData, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	e.FinishedJobRun("beta")
 	alphaSummaryPath := filepath.Join(e.Base, "projects", "alpha", "runs", alphaRunID, "summary.json")
 	alphaSummaryData, err := os.ReadFile(alphaSummaryPath)
@@ -84,14 +101,14 @@ func TestHistorySearchAcrossProjects(t *testing.T) {
 	if !projects["alpha"] || !projects["beta"] {
 		t.Errorf("cross-project results = %#v, want alpha and beta", projects)
 	}
-	searchTotal := func(field, word string, caseSensitive, fuzzy bool) int {
+	searchTotal := func(target, field, word string, caseSensitive, fuzzy bool) int {
 		t.Helper()
 		response := e.HTTPPostJSON(base+"/api/history-search", map[string]any{
 			"scopes":         []map[string]string{{"basedir_id": base64.RawURLEncoding.EncodeToString([]byte(filepath.Clean(absBase)))}},
-			"target":         "job",
+			"target":         target,
 			"case_sensitive": caseSensitive,
 			"fuzzy":          fuzzy,
-			"filters":        []map[string]string{{"target": "job", "field": field, "word": word}},
+			"filters":        []map[string]string{{"target": target, "field": field, "word": word}},
 		})
 		if response.Status != 200 {
 			t.Fatalf("history search for %q: status %d: %s", word, response.Status, response.Body)
@@ -104,23 +121,29 @@ func TestHistorySearchAcrossProjects(t *testing.T) {
 		}
 		return got.Total
 	}
-	if got := searchTotal("command", "TRUE", false, false); got != 2 {
+	if got := searchTotal("job", "command", "TRUE", false, false); got != 2 {
 		t.Errorf("default ignore-case total = %d, want 2", got)
 	}
-	if got := searchTotal("command", "TRUE", true, false); got != 0 {
+	if got := searchTotal("job", "command", "TRUE", true, false); got != 0 {
 		t.Errorf("case-sensitive total = %d, want 0", got)
 	}
-	if got := searchTotal("command", "ture", false, true); got != 2 {
+	if got := searchTotal("job", "command", "ture", false, true); got != 2 {
 		t.Errorf("fuzzy typo total = %d, want 2", got)
 	}
-	if got := searchTotal("command", "ture", false, false); got != 0 {
+	if got := searchTotal("job", "command", "ture", false, false); got != 0 {
 		t.Errorf("exact typo total = %d, want 0", got)
 	}
-	if got := searchTotal("host", "GPU-NODE-08", false, false); got != 1 {
+	if got := searchTotal("job", "host", "GPU-NODE-08", false, false); got != 1 {
 		t.Errorf("host search total = %d, want 1", got)
 	}
-	if got := searchTotal("working_directory", workingDirectory, false, false); got != 1 {
-		t.Errorf("working-directory search total = %d, want 1", got)
+	if got := searchTotal("job", "working_directory", workingDirectory, false, false); got != 2 {
+		t.Errorf("job working-directory fallback search total = %d, want 2", got)
+	}
+	if got := searchTotal("run", "host", "run-host-fixture", false, false); got != 1 {
+		t.Errorf("run host search total = %d, want 1", got)
+	}
+	if got := searchTotal("run", "working_directory", workingDirectory, false, false); got != 2 {
+		t.Errorf("run working-directory search total = %d, want 2", got)
 	}
 	searchRange := map[string]string{"basedir_id": base64.RawURLEncoding.EncodeToString([]byte(filepath.Clean(absBase)))}
 	diagnosisOptions := e.HTTPGet(base + "/api/history-search-diagnoses")
