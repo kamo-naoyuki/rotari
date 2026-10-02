@@ -12,7 +12,9 @@ async function loadLogChunk(queue, run, job, attemptID, stream, before) {
       "&tail=200&before=" +
       before,
   );
-  return response.text();
+  const text = await response.text();
+  if (!response.ok) throw new Error(text.trim() || "HTTP " + response.status);
+  return text;
 }
 function attachLogLoader(output) {
   output.onscroll = async () => {
@@ -20,21 +22,27 @@ function attachLogLoader(output) {
       output.scrollTop > 20 ||
       !selectedLog ||
       selectedLog.loading ||
-      selectedLog.done
+      selectedLog.done ||
+      selectedLog.error
     )
       return;
     if (followTimer) clearInterval(followTimer);
     followTimer = null;
     selectedLog.loading = true;
     const previousHeight = output.scrollHeight;
-    const chunk = await loadLogChunk(
-      selectedLog.queue,
-      selectedLog.run,
-      selectedLog.job,
-      selectedLog.attemptID,
-      selectedLog.stream,
-      selectedLog.before + 200,
-    );
+    let chunk = "";
+    try {
+      chunk = await loadLogChunk(
+        selectedLog.queue,
+        selectedLog.run,
+        selectedLog.job,
+        selectedLog.attemptID,
+        selectedLog.stream,
+        selectedLog.before + 200,
+      );
+    } catch (error) {
+      chunk = "";
+    }
     if (!chunk) {
       selectedLog.done = true;
     } else {
@@ -72,8 +80,14 @@ async function showLog(queue, run, job, attemptID, stream, logMode) {
     before: 0,
     loading: false,
     done: false,
+    error: "",
   };
-  selectedOutput = await loadLogChunk(queue, run, job, attemptID, stream, 0);
+  try {
+    selectedOutput = await loadLogChunk(queue, run, job, attemptID, stream, 0);
+  } catch (error) {
+    selectedLog.error = error.message;
+    selectedOutput = "Failed to load log: " + error.message;
+  }
   const output = ensureModalOutput();
   output.textContent = selectedOutput;
   openOutputModal(isCompactOutput(selectedOutput));
@@ -116,15 +130,21 @@ function showDiagnosis(trigger) {
 }
 async function followOutput() {
   if (!selectedLog || selectedLog.before > 0 || selectedLog.loading) return;
-  const latest = await loadLogChunk(
-    selectedLog.queue,
-    selectedLog.run,
-    selectedLog.job,
-    selectedLog.attemptID,
-    selectedLog.stream,
-    0,
-  );
-  if (latest && latest !== selectedOutput) {
+  let latest = "";
+  try {
+    latest = await loadLogChunk(
+      selectedLog.queue,
+      selectedLog.run,
+      selectedLog.job,
+      selectedLog.attemptID,
+      selectedLog.stream,
+      0,
+    );
+  } catch (error) {
+    return;
+  }
+  if (latest && (selectedLog.error || latest !== selectedOutput)) {
+    selectedLog.error = "";
     selectedOutput = latest;
     const output = ensureModalOutput();
     output.textContent = latest;
@@ -190,7 +210,7 @@ function copiedTextButton(button) {
   button.copyResetTimer = setTimeout(() => (button.textContent = label), 1200);
 }
 async function fetchSelectedLog(tail) {
-  if (!selectedLog) return selectedOutput;
+  if (!selectedLog || selectedLog.error) return selectedOutput;
   const suffix = tail ? "&tail=" + tail : "";
   const response = await fetch(
     "/api/log?project_name=" +
@@ -509,6 +529,10 @@ function openOutputModal(compact) {
     .classList.toggle("notification-config-output", editingNotificationConfig);
   ensureModalOutput().hidden =
     editingConfig || editingNotificationConfig || generatingConfig;
+  ensureModalOutput().classList.toggle(
+    "log-error",
+    view === "log" && !!selectedLog && !!selectedLog.error,
+  );
   document.getElementById("config-editor").hidden = !editingConfig;
   document.getElementById("config-generator").hidden = !generatingConfig;
   document.getElementById("notification-config-editor").hidden =

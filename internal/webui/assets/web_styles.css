@@ -447,6 +447,10 @@ section {
   max-height: 240px;
   min-height: 0;
 }
+.log.log-error {
+  color: var(--bad);
+  border-color: var(--bad);
+}
 .config-editor {
   display: flex;
   height: 100%;

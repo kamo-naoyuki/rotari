@@ -1166,6 +1166,79 @@ setTimeout(async () => {
 	}
 }
 
+func TestWebLogLoadErrorIsShownAsError(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	script := `
+const fs = require('fs');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const html = fs.readFileSync(process.argv[1], 'utf8');
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+let logAvailable = false;
+let followOutput = null;
+let copiedText = null;
+let alertText = null;
+const dom = new JSDOM(html, {
+  runScripts: 'dangerously',
+  url: 'http://127.0.0.1/project/default/run/run-1',
+  virtualConsole,
+  beforeParse(window) {
+    window.fetch = async (url) => {
+      if (url === '/api/state') return {ok: true, json: async () => ({queues: []})};
+      if (url.startsWith('/api/log?')) {
+        if (logAvailable) return {ok: true, status: 200, text: async () => 'job output'};
+        return {ok: false, status: 400, text: async () => 'open /state/attempt/stdout: no such file or directory\n'};
+      }
+      throw new Error('unexpected fetch: ' + url);
+    };
+    window.setInterval = (callback) => { followOutput = callback; return 1; };
+    window.alert = (text) => { alertText = text; };
+    Object.defineProperty(window.navigator, 'clipboard', {value: {writeText: async (text) => { copiedText = text; }}});
+  },
+});
+setTimeout(async () => {
+  const assert = (condition, message) => { if (!condition) throw new Error(message); };
+  const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+  try {
+    const output = () => dom.window.document.getElementById('modal-log');
+    await dom.window.showLog('default', 'run-1', 'job-1', 'attempt-0', 'stdout', 'merge');
+    assert(output().classList.contains('log-error'), 'log load error is not marked as an error');
+    assert(output().textContent === 'Failed to load log: open /state/attempt/stdout: no such file or directory', 'unexpected error text: ' + output().textContent);
+    dom.window.copyModalOutput(dom.window.document.getElementById('copy-modal'));
+    await settle();
+    assert(alertText === null, 'copy alerted: ' + alertText);
+    assert(copiedText === output().textContent, 'copy did not copy the displayed error: ' + copiedText);
+    copiedText = null;
+    dom.window.copyLogTail(dom.window.document.getElementById('copy-tail'));
+    await settle();
+    assert(alertText === null, 'copy tail alerted: ' + alertText);
+    assert(copiedText === output().textContent, 'copy tail did not copy the displayed error: ' + copiedText);
+    logAvailable = true;
+    await followOutput();
+    assert(!output().classList.contains('log-error'), 'error mark stayed after the log appeared');
+    assert(output().textContent === 'job output', 'log did not replace the error: ' + output().textContent);
+    dom.window.copyModalOutput(dom.window.document.getElementById('copy-modal'));
+    await settle();
+    assert(copiedText === 'job output', 'copy did not copy the log after it appeared: ' + copiedText);
+    if (errors.length) throw new Error(errors.join('\n'));
+  } catch (error) {
+    console.error(error.stack || String(error));
+    process.exit(1);
+  }
+}, 50);
+`
+	htmlPath := filepath.Join(t.TempDir(), "index.html")
+	if err := os.WriteFile(htmlPath, []byte(testSite().webHTML()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if output, err := exec.Command("node", "-e", script, htmlPath).CombinedOutput(); err != nil {
+		t.Fatalf("log load error check failed: %v\n%s", err, output)
+	}
+}
+
 func TestRunBulkControlsOperateOnSelectedJobs(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
