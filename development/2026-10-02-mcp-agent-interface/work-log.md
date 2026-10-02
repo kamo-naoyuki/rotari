@@ -280,3 +280,44 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - The MCP trial script's check call returned `empty` in 135 bytes.
 
 **Remaining:** M6 needs design decisions before implementation; see the plan's open decisions.
+
+## M6 (CLI part): Preview and guarded apply for every state-changing command
+
+**Commits:** 2026-10-03 02:08:46 `ce00901`; 2026-10-03 02:17:13 `ac747a5`; 2026-10-03 02:19:35 `d639434`; 2026-10-03 02:21:27 `0f4a779`; 2026-10-03 02:29:30 `d04ab62`; 2026-10-03 02:29:30 `dcf747d`.
+
+**Change:**
+- `ce00901`:
+  - Added `project.Revision`, a hash of `queue.json` and `meta.json`.
+  - Added `project.Guard{DryRun, IfRevision, Report}`, `EditGuarded`, `EditQueueGuarded`, and `CheckRevision`. The revision is compared under the state lock, and a stale one returns `ErrRevisionChanged`.
+- `ac747a5`: `queueops.Editor.Guard` routes add, change, remove, copy, and delete through the guard. `import`'s own `--dry-run` moved onto it, and its plan gained `revision`. The CLI flags come from one list, `guardedCommands`, and are command-line only. `check` (text, JSON, and the MCP tool) reports the revision. Added contract CLI-7 with a table test that gives every command the same preview, apply, and stale calls.
+- `d639434`: `gc` now removes orphan entries by default, and `--dry-run` lists them. The cached `gc.json` plan and `--apply` are gone. The race check moved to a `RemoveOrphan` test. This is an incompatible change, which the user allowed.
+- `0f4a779`: `reset` is guarded on both paths. The idle path uses `EditQueueGuarded`, and the interrupted path uses the new `RecoverInterruptedGuarded`. A dry run needs no `--recover` and creates nothing.
+- `d04ab62`: fixed a SEL-10 row that still expected `gc`'s old output. `d639434` was committed after package tests only, without the conformance suite.
+- `dcf747d`:
+  - Supervisor run planning moved into `projectrun.Runner.PlanRun`.
+  - `run --dry-run` and `retry --dry-run` plan with it, using the queue a copy would leave (from the copy's own dry run).
+  - `--if-revision` guards the copy, and the run request carries the resulting revision, which the supervisor checks again before `Begin`.
+
+**Reason:** M6 design decision 2: every change is previewed, then applied only at the previewed revision. The user chose `--dry-run` and `--if-revision` as the names, approved making `gc` consistent, and allowed incompatible changes.
+
+**Plan impact:**
+- The CLI half of M6 is done.
+- Remaining for M6:
+  - MCP tools for import preview and apply, and for starting a run.
+  - Extracting `export` and deciding what an exported manifest may carry.
+- Starting a run from MCP needs a supervisor process, which `rotari-mcp` cannot start by itself. This is an open decision.
+
+**Validation:**
+- Each step ran its package tests.
+- New tests:
+  - `TestEditQueueGuardedPreviewsAndChecksTheRevision`
+  - `TestEditGuardedPassesDryRunAndChecksTheRevision`
+  - `TestRecoverInterruptedGuardedPreviewsAndChecksTheRevision`
+  - `TestRemoveOrphanKeepsChangedAndReappearedEntries`
+  - `TestCmdGCRemovesOnlyOrphansAndDryRunKeepsThem`
+  - `TestGuardedCommandsPreviewAndCheckTheRevision`: seven commands.
+  - `TestRunPreviewMatchesTheRun`: a retry executes exactly the previewed jobs.
+- Before the last two commits: `scripts/check.sh` passed, `go test -count=1 ./conformance/...` passed in all packages, the generator `--check` steps passed, and the Python tests passed (28).
+- Lesson: run the conformance suite before every commit that changes CLI output.
+
+**Remaining:** The MCP side of M6.
