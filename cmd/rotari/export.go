@@ -11,6 +11,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
+	"github.com/kamo-naoyuki/rotari/internal/workflowstate"
 )
 
 const workflowTemplateYAML = `version: 1
@@ -320,5 +321,5 @@ func loadExportRun(baseDir, projectName, requested string) (workflow.SourceRun, 
 	if err := projectRunner().ValidateQueue(queue, "", nil, nil); err != nil {
 		return workflow.SourceRun{}, fmt.Errorf("invalid run %s commands: %w", runID, err)
 	}
-	return workflowSourceRun(runID, runDir, queue, summary), nil
+	return workflowstate.SourceRun(runID, runDir, queue, summary), nil
 }
