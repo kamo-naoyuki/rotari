@@ -39,6 +39,20 @@ The long-term goal is not only job inspection. The agent-facing interface should
 
 The query model is for selecting *what data to return* and is a natural fit for `show`, `jobs`, log search, and possibly `check`. It should not become a generic command interpreter for writes. Mutations and lifecycle transitions should have explicit operation names and typed arguments, so the agent can distinguish reading a proposed change from applying it. `export` is read-only but may return a large manifest; `import`, `delete`, and `reset` modify or discard state and need stronger safeguards.
 
+## Unified object-oriented interaction (UI/API idea)
+
+The same idea can be viewed as a database-like object browser/API rather than a collection of unrelated command replicas:
+
+1. **Query objects** by object kind (`basedir`, `project`, `queue`, `run`, or `job`) and conditions. The query returns typed object records, each with a stable scoped identity and a requested information projection.
+2. **Act on returned object identities** through explicit operations. For example: retrieve more information with selected fields; `check`; `export`; preview/apply `import`; `add`; `run` with run options; `delete`; or `reset`.
+3. **Return the affected object(s) and outcome** in structured form so a follow-up query can continue from their identities.
+
+Conceptually, a result might contain `type`, `identity` (basedir/project/run/job IDs as applicable), `data` (the requested projection), and perhaps `available_operations`. The exact shape is open. Exposing possible operations on an object can help an agent discover what applies, but the server must validate every requested action: not every operation applies to every object, and an advertised/hinted action is not authorization.
+
+Keep the two parts distinct even if the client presents them as one interface: **query selects/reads objects; operation requests a state transition**. A `job` result could support more-info, log projections, and job control; a `queue` or `project` may support check/add/import/run/reset; a `run` may support inspect/export/retry/cancel/delete. These are candidate mappings, not a promise that each object gets every action. `reset`, `delete`, `import`, queue edits, and `run` need explicit target identity, typed options, precondition validation, and a preview/approval/apply flow appropriate to the operation. Never encode arbitrary shell commands or accept an untyped `operation: "<CLI command>"` escape hatch.
+
+This could provide a consistent interaction for both `rotari-agent` and MCP: terminal input/output can be JSON, while MCP wraps the same query and operation services as tools. It does not imply a visual UI must be built first; “UI” here means the agent-facing object/action model.
+
 The terminal entry point (`rotari-agent`) and MCP entry point should expose the same protocol-neutral operation set and structured inputs/outputs. Transport adapters may format/encode results differently (JSON on stdout versus MCP structured results), but must call the same service functions and preserve the same validation, selection, status resolution, and error semantics. Avoid implementing a second CLI-like behavior inside the MCP adapter.
 
 Before calling the API complete, maintain a parity matrix from every candidate operation to its existing rotari implementation and contract tests. This should identify unsupported options/variants explicitly; an operation must not silently ignore a flag or selector.
@@ -64,6 +78,8 @@ This may require a protocol-neutral internal service package (for example, a nar
 - What changed between runs, and did retry improve the outcome?
 - Should the agent only explain a possible retry, or may it preview/mutate/run after explicit human approval?
 - Which human-facing commands map naturally to a scoped query, and which must remain explicit operations?
+- Which object kinds should the query return (`basedir`, `project`, `queue`, `run`, `job`), and what stable identity does each need?
+- Should results advertise applicable operations, or should the agent learn them from tool schemas only?
 - For add/change/copy/import/delete/reset/retry/run/control operations, what is the preview, confirmation, apply, and result-reporting sequence?
 - How do idempotency, retries after transport timeout, asynchronous run handles, cancellation, and partial failures work for state-changing calls?
 
