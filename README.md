@@ -22,7 +22,7 @@ The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers ins
 | <img src="https://kamo-naoyuki.github.io/rotari/demo-shell.gif" alt="shell background jobs demo" width="400"> | <img src="https://kamo-naoyuki.github.io/rotari/demo-rotari.gif" alt="rotari demo" width="400"> |
 
 
-Rotari adds execution control and run history around the shell commands you already use—not a separate workflow language. Add `rotari add` lines interactively or in a script; each run keeps its commands, results, and logs, so you can inspect or retry work without losing earlier runs. Jobs use the caller's working directory and environment by default ([details](docs/CONCEPTS.md#workflow-and-execution-environment)).
+You don't need a separate workflow language: build a batch with `rotari add` lines in a shell script or add commands interactively, then run it with `rotari run`. Rotari keeps each run's commands, results, and logs, so you can inspect or retry work without losing earlier runs. Jobs use the caller's working directory and environment by default ([details](docs/CONCEPTS.md#workflow-and-execution-environment)).
 
 ### Choosing a tool
 
