@@ -13,7 +13,7 @@ Use [ISSUES.md](ISSUES.md) for bugs, design concerns, and technical debt discove
 
 ## Creating a plan directory
 
-Create one directory per cohesive work item under `development/`, prefixed with the date the plan is written and followed by a lowercase kebab-case name: `development/YYYY-MM-DD-example-feature/`. Add `plan.md` as the entry point and put the creation date near its title. Write plan content in English and include, as appropriate:
+Create a dated directory for substantial, cohesive work (such as a multi-commit feature or refactoring), not for every small fix. Use a lowercase kebab-case name after the date: `development/YYYY-MM-DD-example-feature/`. When planning before implementation, use the date the plan is written, add `plan.md` as the entry point, and put the creation date near its title. Write plan content in English and include, as appropriate:
 
 - purpose, scope, and non-goals;
 - decisions and constraints;
@@ -22,6 +22,10 @@ Create one directory per cohesive work item under `development/`, prefixed with 
 - tests and validation needed for completion.
 
 Prefer a focused plan over adding a section to an unrelated plan. Link to related plans with relative Markdown links. Update the plan when implementation changes its assumptions or materially advances its status.
+
+### Work started before a plan exists
+
+If substantial work was already underway or completed before a plan was written, a `plan.md` is optional and may be omitted. Still create a directory for that work and record its relevant commits using the timestamped commit-note format below. In this case, use the date of the first related commit as the directory prefix, so the directory records when the work began. Do not create directories or commit notes for small, isolated fixes that do not warrant a plan.
 
 Example layout:
 
@@ -32,6 +36,8 @@ development/
   2026-10-02-example-feature/
     plan.md
     2026-10-02_173455_a1b2c3d.md
+  2026-10-01-existing-substantial-work/
+    2026-10-01_091500_d4e5f6a.md
 ```
 
 ## Recording related commits
@@ -46,4 +52,4 @@ For example, `2026-10-02_173455_a1b2c3d.md`. Use the timestamp recorded for that
 
 Create the note after the commit exists so its ID and timestamp are known. Do not create one for unrelated commits. A commit may be noted in more than one plan only when it materially advances each plan; write a summary appropriate to each plan. Keep `plan.md` as the current overview, and use timestamped notes for the chronological record.
 
-For plans that predate this naming convention, use the date of the commit that first added the plan as the directory prefix and record that date in `plan.md`. Do not rename an existing plan directory to the date of a later edit.
+For plans that predate this naming convention, use the date of the commit that first added the plan as the directory prefix and record that date in `plan.md`. Do not rename an existing plan directory to the date of a later edit. For substantial work that began before a plan existed, use the date of its first related commit as described above; no `plan.md` is required.
