@@ -117,3 +117,24 @@ func TestLoadRunMarksFinalResultsOfAnActiveRun(t *testing.T) {
 		t.Errorf("running job = %+v, want unfinished and not final", job)
 	}
 }
+
+func TestPreviousRunFollowsStartOrder(t *testing.T) {
+	paths := state.ProjectPaths{ProjectName: "demo", RunsDir: t.TempDir()}
+	// Both runs start in the same second and the later one's ID sorts first,
+	// so only the load samples order them.
+	first, second := "20260101-000000-bbbbbbbb", "20260101-000000-aaaaaaaa"
+	for runID, at := range map[string]string{first: "2026-01-01T00:00:00.1Z", second: "2026-01-01T00:00:00.9Z"} {
+		if err := os.MkdirAll(filepath.Join(paths.RunsDir, runID), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(paths.RunsDir, runID, state.LoadSamplesFileName), []byte(`{"at":"`+at+`","one":1,"five":1,"fifteen":1}`+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, err := PreviousRun(paths, second); err != nil || got != first {
+		t.Fatalf("PreviousRun(second) = %q, %v; want %q", got, err, first)
+	}
+	if _, err := PreviousRun(paths, first); err == nil {
+		t.Fatal("PreviousRun(first) found an earlier run")
+	}
+}
