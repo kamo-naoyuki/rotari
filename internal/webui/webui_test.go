@@ -1026,6 +1026,10 @@ setTimeout(() => {
 	if (!button) process.exit(2);
 	const notify = dom.window.document.getElementById('notify-toggle');
 	if (!notify || notify.textContent !== 'Notification off' || notify.disabled) process.exit(8);
+	dom.window.Notification.permission = 'granted';
+	dom.window.localStorage.setItem('rotari-notifications-enabled', 'true');
+	dom.window.updateNotifyToggleLabel();
+	if (notify.textContent !== 'Notification on' || !notify.classList.contains('notifications-on') || notify.getAttribute('aria-pressed') !== 'true') process.exit(9);
 	const view = dom.window.document.querySelector('.config-button');
 	if (!view || view.disabled) process.exit(3);
 	dom.window.confirm = () => true;

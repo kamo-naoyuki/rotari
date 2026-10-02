@@ -256,10 +256,11 @@
           return;
         }
         button.disabled = Notification.permission === "denied";
-        button.textContent =
-          Notification.permission === "granted" && jobsNotificationsEnabled()
-            ? "Notification on"
-            : "Notification off";
+        const enabled =
+          Notification.permission === "granted" && jobsNotificationsEnabled();
+        button.textContent = enabled ? "Notification on" : "Notification off";
+        button.classList.toggle("notifications-on", enabled);
+        button.setAttribute("aria-pressed", String(enabled));
       }
 
       async function toggleJobsNotifications() {

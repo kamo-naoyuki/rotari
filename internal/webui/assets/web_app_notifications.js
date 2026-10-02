@@ -71,10 +71,11 @@ function updateNotifyToggleLabel() {
     return;
   }
   button.disabled = Notification.permission === "denied";
-  button.textContent =
-    Notification.permission === "granted" && notificationsEnabled()
-      ? "Notification on"
-      : "Notification off";
+  const enabled =
+    Notification.permission === "granted" && notificationsEnabled();
+  button.textContent = enabled ? "Notification on" : "Notification off";
+  button.classList.toggle("notifications-on", enabled);
+  button.setAttribute("aria-pressed", String(enabled));
 }
 async function toggleRunNotifications() {
   if (!notificationsSupported()) return;

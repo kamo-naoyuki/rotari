@@ -49,6 +49,18 @@
   text-align: left;
 }
 
+.sidebar-config-controls > #notify-toggle.notifications-on {
+  border-color: rgba(240, 139, 112, 0.72);
+  background: rgba(240, 139, 112, 0.18);
+  color: #ffa88f;
+  box-shadow: 0 0 14px rgba(240, 139, 112, 0.16);
+}
+
+.sidebar-config-controls > #notify-toggle.notifications-on:hover {
+  border-color: rgba(240, 139, 112, 0.92);
+  background: rgba(240, 139, 112, 0.26);
+}
+
 .sidebar-config-controls > .sidebar-config-action {
   padding: 7px 12px;
   border: 1px solid #314152;
