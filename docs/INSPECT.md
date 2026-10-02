@@ -64,6 +64,11 @@ selections or filters, only the listed jobs are grouped. `show --run-id RUN_ID
 --json` carries the same groups, with every job ID, as `failures`; so do
 `lineage RUN_ID --json` and the Web UI's run summary.
 
+A report's log section shows, for a job whose saved diagnosis cites a line
+found in its log, the lines around that evidence and the last 20 lines, with
+the skipped lines marked as `[... N lines omitted ...]`. Otherwise it shows
+the last 100 lines. Either way it keeps at most 12000 characters.
+
 An older `ATTEMPT_ID` shows that attempt's own status, timestamps, and logs.
 Logs are merged by default; use `add --log-mode separate` when adding a job to
 preserve stdout and stderr independently. Repeat `add --output FILE` and

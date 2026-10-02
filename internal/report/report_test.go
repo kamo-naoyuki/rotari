@@ -170,3 +170,50 @@ func TestReportStatusAndValueHelpers(t *testing.T) {
 		t.Fatal("report value helpers returned unexpected results")
 	}
 }
+
+func TestReportLogExcerptKeepsEvidenceFarFromTheEnd(t *testing.T) {
+	lines := make([]string, 300)
+	for index := range lines {
+		lines[index] = fmt.Sprintf("line-%03d", index+1)
+	}
+	lines[49] = "ValueError: bad value"
+	lines[199] = "WARNING: retrying shard"
+	output, description := reportLogExcerpt(strings.Join(lines, "\n"), []string{"ValueError: bad value", "retrying shard", ""})
+	want := []string{
+		"line-030", "ValueError: bad value", "line-055", // around the first evidence
+		"[... 124 lines omitted ...]",
+		"line-180", "WARNING: retrying shard", "line-205", // around the second evidence
+		"[... 75 lines omitted ...]",
+		"line-281", "line-300", // the final lines
+	}
+	for _, text := range want {
+		if !strings.Contains(output, text) {
+			t.Errorf("excerpt does not contain %q:\n%s", text, output)
+		}
+	}
+	for _, text := range []string{"line-029", "line-056", "line-179", "line-206", "line-280"} {
+		if strings.Contains(output, text+"\n") {
+			t.Errorf("excerpt contains omitted %q:\n%s", text, output)
+		}
+	}
+	if !strings.Contains(description, "around the diagnosis evidence") {
+		t.Errorf("description = %q", description)
+	}
+}
+
+func TestReportLogExcerptFallsBackToTheTail(t *testing.T) {
+	lines := make([]string, 150)
+	for index := range lines {
+		lines[index] = fmt.Sprintf("line-%03d", index+1)
+	}
+	output, description := reportLogExcerpt(strings.Join(lines, "\n"), []string{"not in the log"})
+	if strings.Contains(output, "line-050") || !strings.Contains(output, "line-051") || !strings.Contains(output, "line-150") || strings.Contains(output, "omitted") {
+		t.Errorf("excerpt is not the last %d lines:\n%s", reportLogLines, output)
+	}
+	if description != fmt.Sprintf("last %d lines, at most %d characters", reportLogLines, reportLogChars) {
+		t.Errorf("description = %q", description)
+	}
+	if output, _ := reportLogExcerpt("", []string{"anything"}); output != "" {
+		t.Errorf("empty log excerpt = %q", output)
+	}
+}
