@@ -143,6 +143,19 @@ follows:
   [`cmd/rotari/config.go`](../cmd/rotari/config.go); the external check
   enumerates each command exposing `--config` in the CLI schema in
   [`conformance/03-interfaces/options_test.go`](../conformance/03-interfaces/options_test.go).
+- **CLI-4** `show` for a run, `lineage RUN`, and the Web API's run
+  `lineage_summary` group the run's failed and blocked jobs by the same
+  causes, in text and in their `failures` JSON. Each job is classified on its
+  own result, so array tasks and matrix members fall into their own causes: a
+  block, cancellation, or timeout that rotari recorded comes first, then the
+  job's latest saved rule diagnosis, then its remaining failure kind. Groups
+  list the most frequent cause first. `show` groups only the jobs its table
+  lists. The rule is implemented once in
+  [`internal/runlineage/failures.go`](../internal/runlineage/failures.go)
+  (`FailureGroups`); the CLI text is in
+  [`cmd/rotari/failure_groups.go`](../cmd/rotari/failure_groups.go), and the
+  end-to-end check is
+  [`conformance/03-interfaces/failure_groups_test.go`](../conformance/03-interfaces/failure_groups_test.go).
 
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.

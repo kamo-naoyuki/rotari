@@ -210,6 +210,7 @@ func showLineage(paths state.ProjectPaths, runIDs []string, jsonOutput bool) int
 			summary := runlineage.RunSummary{
 				Run: runlineage.RunInfo{ID: run.ID, Name: run.Name}, Counts: runlineage.Summarize(run),
 				Diagnoses: runlineage.SummarizeDiagnoses(run),
+				Failures:  runlineage.FailureGroups(run),
 				Origins:   runlineage.SummarizeOrigins(run),
 			}
 			if jsonOutput {
@@ -351,6 +352,7 @@ func writeRunSummary(writer io.Writer, paths state.ProjectPaths, summary runline
 			fmt.Fprintf(writer, "  %s %d\n", diagnosis.Name, diagnosis.Count)
 		}
 	}
+	writeFailureGroups(writer, summary.Failures)
 	if len(summary.Origins) > 0 {
 		fmt.Fprintln(writer, cyan("Origins:"))
 		for _, origin := range summary.Origins {

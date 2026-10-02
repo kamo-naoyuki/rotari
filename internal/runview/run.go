@@ -56,9 +56,10 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runline
 		for _, diagnosis := range summaryResult.Diagnoses {
 			diagnoses = append(diagnoses, diagnosis.Name)
 		}
+		result, _ := resolved.Result(spec)
 		run.Jobs = append(run.Jobs, runlineage.Job{
 			Spec: spec, Status: status, Origin: origin, Carried: carried,
-			DiagnosisStatus: summaryResult.DiagnosisStatus, Diagnoses: diagnoses,
+			DiagnosisStatus: summaryResult.DiagnosisStatus, Diagnoses: diagnoses, Result: result,
 		})
 	}
 	return run, nil

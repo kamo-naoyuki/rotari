@@ -465,12 +465,13 @@ func hasMultipleProjects(baseDir string) (bool, error) {
 }
 
 type showJSON struct {
-	BaseDir  string            `json:"base_dir"`
-	Project  string            `json:"project_name"`
-	RunID    string            `json:"run_id"`
-	RunDir   string            `json:"run_dir"`
-	Summary  *model.RunSummary `json:"summary,omitempty"`
-	Commands model.Queue       `json:"commands"`
+	BaseDir  string                    `json:"base_dir"`
+	Project  string                    `json:"project_name"`
+	RunID    string                    `json:"run_id"`
+	RunDir   string                    `json:"run_dir"`
+	Summary  *model.RunSummary         `json:"summary,omitempty"`
+	Failures []runlineage.FailureGroup `json:"failures,omitempty"`
+	Commands model.Queue               `json:"commands"`
 }
 
 type showJobCounts struct {
@@ -549,6 +550,12 @@ func showRunJSON(paths state.ProjectPaths, runID string) int {
 		return 1
 	}
 	result.Commands = commands
+	failures, err := runFailureGroups(paths, runID, nil)
+	if err != nil {
+		printErrorf("failed to group failures: %v", err)
+		return 1
+	}
+	result.Failures = failures
 	if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
 		printErrorf("failed to write JSON: %v", err)
 		return 1
@@ -826,6 +833,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 			}
 		}
 	}
+	displayed := make(map[string]bool)
 	fmt.Println("\n" + cyan("Jobs:"))
 	changeHints := make([]model.JobSpec, 0)
 	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-42s %-6s %-15s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s", "JOB ID", "LATEST ATTEMPT", "TASK", "NAME", "STAGE", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "HOSTS", "COMMAND")))
@@ -892,6 +900,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		if !filter.filter.Selects(filter.selection, job) {
 			continue
 		}
+		displayed[jobID] = true
 		origin := originByID[jobID]
 		carried := runlineage.IsCarried(origin, latestAttemptID, blocked)
 		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobID, origin, carried)
@@ -923,6 +932,19 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 	}
 	fmt.Printf("\n%s success: %d, failed: %d, blocked: %d, running: %d, pending: %d\n", cyan("Job status:"), jobCounts.success, jobCounts.failed, jobCounts.blocked, jobCounts.running, jobCounts.pending)
+	// Grouping needs the job definitions, which a run without a readable
+	// command snapshot lacks; its table above lists job IDs only.
+	if runQueueErr == nil {
+		failures, err := runFailureGroups(paths, runID, displayed)
+		if err != nil {
+			printErrorf("failed to group failures: %v", err)
+			return 1
+		}
+		if len(failures) > 0 {
+			fmt.Println()
+			writeFailureGroups(os.Stdout, failures)
+		}
+	}
 	fmt.Println("\n" + cyan("To show a job:"))
 	fmt.Println("  rotari show -j ATTEMPT_ID")
 	printChangeHints(paths, runID, runQueue, changeHints)

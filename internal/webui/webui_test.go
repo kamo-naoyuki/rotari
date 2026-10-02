@@ -917,6 +917,84 @@ for (const [path, want] of [['/project/default', 'unreadable'], ['/project/defau
 	}
 }
 
+func TestWebRunPageShowsFailureCauses(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	baseDir := t.TempDir()
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stateinternal.WriteJSON(paths.QueueFile, model.Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	runID := "20260927-000000-00000000"
+	runDir := filepath.Join(paths.RunsDir, runID)
+	if err := stateinternal.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{
+		{ID: "tr", Name: "train", Command: []string{"./train.sh"}, Array: &model.ArraySpec{First: 1, Last: 3}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	oom := []model.RuleDiagnosis{{Name: "CUDA/GPU memory exhausted", Evidence: "CUDA out of memory"}}
+	if err := stateinternal.WriteJSON(filepath.Join(runDir, "summary.json"), model.RunSummary{RunID: runID, Status: "failed", ExitCode: 1, Results: []model.JobResult{
+		{ID: "tr-1", ExitCode: 1, Diagnoses: oom},
+		{ID: "tr-2", ExitCode: 124, Error: "timed out after 5s"},
+		{ID: "tr-3", ExitCode: 1, Diagnoses: oom},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	state, err := siteFor(baseDir).loadWebState(baseDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	htmlPath := filepath.Join(t.TempDir(), "index.html")
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	if err := os.WriteFile(htmlPath, []byte(testSite().webHTML()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := `
+const fs = require('fs');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const html = fs.readFileSync(process.argv[1], 'utf8');
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+const dom = new JSDOM(html, {
+  runScripts: 'dangerously',
+  url: 'http://127.0.0.1/project/default/run/' + process.argv[3],
+  virtualConsole,
+  beforeParse(window) {
+    window.fetch = async () => ({ok: true, json: async () => state});
+    window.setInterval = () => 1;
+  },
+});
+setTimeout(() => {
+  if (errors.length) {
+    console.error(errors.join('\n'));
+    process.exit(1);
+  }
+  const summary = dom.window.document.getElementById('summary').textContent;
+  const want = 'Failure causes: CUDA/GPU memory exhausted 2, timeout 1';
+  if (!summary.includes(want)) {
+    console.error('summary does not show ' + want + ': ' + summary);
+    process.exit(2);
+  }
+}, 50);
+`
+	if output, err := exec.Command("node", "-e", script, htmlPath, statePath, runID).CombinedOutput(); err != nil {
+		t.Fatalf("web runtime check failed: %v\n%s", err, output)
+	}
+}
+
 func TestWebShowDiagnosisRendersAnalysisStatus(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")

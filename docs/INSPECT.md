@@ -40,6 +40,30 @@ For a running job, `finished` is false and no `result` is present. Passing
 `--run-id latest` selects the latest saved run even when the project has a
 non-empty queue; an unknown job ID fails instead of showing the queue.
 
+For a run with failed or blocked jobs, `show` ends its job table with
+`Failures by cause:`, one entry per cause with the number of jobs, their exit
+codes, the jobs (array tasks as `train[3,7,11]`, at most ten), an example
+line, the command that shows the first job, and the diagnosis rule's
+suggestion:
+
+```text
+Failures by cause:
+  42 CUDA/GPU memory exhausted (exit 1): sweep[7,14,21,28,35,42,49,56,63,70] +32 more
+    e.g. torch.OutOfMemoryError: CUDA out of memory (task 7)
+    show: rotari show -j att_20261002-124301-d7741cfe-32ab8e9d1-7-0
+    fix: Reduce batch size or model memory use, select a GPU with more free memory, and check for other processes using the GPU.
+  1 timeout (exit 124): slow
+    e.g. timed out after 5s
+```
+
+Each job is classified on its own result: a block by a failed dependency, a
+cancellation, or a timeout comes first, then the job's latest saved rule
+diagnosis, and otherwise its failure kind (`oom`, `signal`, or `error`; see
+`--filter-failure-kind`). The most frequent cause is listed first. With result
+selections or filters, only the listed jobs are grouped. `show --run-id RUN_ID
+--json` carries the same groups, with every job ID, as `failures`; so do
+`lineage RUN_ID --json` and the Web UI's run summary.
+
 An older `ATTEMPT_ID` shows that attempt's own status, timestamps, and logs.
 Logs are merged by default; use `add --log-mode separate` when adding a job to
 preserve stdout and stderr independently. Repeat `add --output FILE` and
@@ -102,8 +126,9 @@ added or removed; jobs whose command, executor, executor options, environment,
 working directory, stage, or dependencies changed; and jobs whose result was
 carried forward instead of re-executed. Jobs are matched by origin when the
 origin points to the compared run; otherwise named jobs are matched by name.
-The one-run summary also groups failed jobs by diagnosis and reports their
-source-run origins, including `new` for jobs without an origin.
+The one-run summary also counts failed jobs by diagnosis, groups them by
+cause as `show` does, and reports their source-run origins, including `new`
+for jobs without an origin.
 
 ### Check run readiness
 

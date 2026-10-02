@@ -96,19 +96,21 @@ func buildLineageSummary(summary model.RunSummary, jobs []Job) runlineage.RunSum
 		}
 		diagnoses := make([]string, 0)
 		diagnosisStatus := ""
+		result := model.JobResult{}
 		if job.Result != nil {
+			result = *job.Result
 			diagnosisStatus = job.Result.DiagnosisStatus
 			for _, diagnosis := range job.Result.Diagnoses {
 				diagnoses = append(diagnoses, diagnosis.Name)
 			}
 		}
 		run.Jobs = append(run.Jobs, runlineage.Job{
-			Spec: model.JobSpec{ID: job.ID, Name: job.Name, Command: job.Command, WorkingDirectory: job.WorkingDirectory,
+			Spec: model.JobSpec{ID: job.ID, Name: job.Name, ArrayTaskID: job.ArrayTaskID, Command: job.Command, WorkingDirectory: job.WorkingDirectory,
 				Executor: job.Executor, ExecutorOptions: job.ExecutorOptions, Stage: job.Stage, DependsOn: job.DependsOn, DependsOnFinished: job.DependsOnFinished},
-			Status: status, Origin: job.Origin, DiagnosisStatus: diagnosisStatus, Diagnoses: diagnoses,
+			Status: status, Origin: job.Origin, DiagnosisStatus: diagnosisStatus, Diagnoses: diagnoses, Result: result, Carried: job.Carried,
 		})
 	}
-	return runlineage.RunSummary{Run: runlineage.RunInfo{ID: summary.RunID, Name: summary.RunName}, Counts: runlineage.Summarize(run), Diagnoses: runlineage.SummarizeDiagnoses(run), Origins: runlineage.SummarizeOrigins(run)}
+	return runlineage.RunSummary{Run: runlineage.RunInfo{ID: summary.RunID, Name: summary.RunName}, Counts: runlineage.Summarize(run), Diagnoses: runlineage.SummarizeDiagnoses(run), Failures: runlineage.FailureGroups(run), Origins: runlineage.SummarizeOrigins(run)}
 }
 
 // newerStateVersion reports whether err is a run file from a newer rotari.

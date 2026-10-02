@@ -39,6 +39,8 @@ type Job struct {
 	Origin          *model.JobOrigin
 	DiagnosisStatus string
 	Diagnoses       []string
+	// Result is the job's resolved result once it has finished.
+	Result model.JobResult
 	// Carried reports that the run reused an earlier result instead of
 	// executing the job.
 	Carried bool
@@ -371,6 +373,7 @@ type RunSummary struct {
 	Run       RunInfo          `json:"run"`
 	Counts    Counts           `json:"counts"`
 	Diagnoses []DiagnosisCount `json:"diagnoses,omitempty"`
+	Failures  []FailureGroup   `json:"failures,omitempty"`
 	Origins   []OriginCount    `json:"origins,omitempty"`
 }
 

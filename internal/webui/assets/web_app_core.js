@@ -1361,6 +1361,9 @@ function renderRun(q, runID) {
     const diagnosisText = (lineage.diagnoses || [])
       .map((item) => item.name + " " + item.count)
       .join(", ");
+    const failureText = (lineage.failures || [])
+      .map((group) => group.cause + " " + group.count)
+      .join(", ");
     const originText = (lineage.origins || [])
       .map((item) => (item.run_id || "new") + " " + item.count)
       .join(", ");
@@ -1372,6 +1375,9 @@ function renderRun(q, runID) {
       ", failed " +
       esc(lineage.counts.failed) +
       ")</span>" +
+      (failureText
+        ? "<span>Failure causes: " + esc(failureText) + "</span>"
+        : "") +
       (diagnosisText
         ? "<span>Diagnoses: " + esc(diagnosisText) + "</span>"
         : "") +
