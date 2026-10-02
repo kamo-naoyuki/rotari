@@ -22,11 +22,7 @@ The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers ins
 | <img src="https://kamo-naoyuki.github.io/rotari/demo-shell.gif" alt="shell background jobs demo" width="400"> | <img src="https://kamo-naoyuki.github.io/rotari/demo-rotari.gif" alt="rotari demo" width="400"> |
 
 
-Rotari deliberately stays out of the way. **You don't need a separate workflow language:** write the commands as you normally would, as `rotari add` lines in a shell script or typed one by one, and rotari provides the execution, parallelism, logs, status, and run history around them. The script stays the definition of the batch: each time it runs, rotari keeps that run's commands, results, and logs, so you can edit the script, run it again, and still see what every earlier run did. When a queue needs to be reproduced or edited as a unit, rotari can also export and import a constrained YAML, TOML, or JSON manifest; commands remain argument arrays rather than a new scripting language.
-
-**The environment stays yours, too.** A queue records commands, not where or with what they run: jobs are started from the working directory and environment of the shell that runs `rotari run`, as the commands of a shell script would be. After `cd` into another experiment directory or activating another conda environment, the same queue runs there without editing; pin a job's directory or variables only where it must not depend on the caller. See [Workflow and execution environment](docs/CONCEPTS.md#workflow-and-execution-environment).
-
-**So do resources.** Rotari does not allocate GPUs, memory, or nodes. On a cluster the scheduler does, from the options you pass with `--executor-option`; on a workstation, rotari only limits how many jobs run at once (`--local-concurrency`), and a job's own variables such as `CUDA_VISIBLE_DEVICES` do the rest.
+Rotari adds execution control and run history around the shell commands you already use—not a separate workflow language. Add `rotari add` lines interactively or in a script; each run keeps its commands, results, and logs, so you can inspect or retry work without losing earlier runs. Jobs use the caller's working directory and environment by default ([details](docs/CONCEPTS.md#workflow-and-execution-environment)).
 
 ### Choosing a tool
 
