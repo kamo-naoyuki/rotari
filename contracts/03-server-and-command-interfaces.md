@@ -242,4 +242,11 @@ as the CLI and hold no rules of their own.
   [`internal/mcp/write.go`](../internal/mcp/write.go), with the end-to-end
   check in
   [`conformance/03-interfaces/mcp_test.go`](../conformance/03-interfaces/mcp_test.go).
-
+- **MCP-2** `rotari_export_run` returns a run's workflow manifest as a
+  view for reading: environment values and executor options are replaced
+  with `[REDACTED]` and paths are redacted where detected, while
+  `rotari export` keeps them. The MCP import tools refuse a manifest that
+  still holds such a placeholder. Implemented in
+  [`internal/mcp/export.go`](../internal/mcp/export.go); checked by
+  `TestMCPExportIsARedactedViewThatImportRefuses` in
+  [`conformance/03-interfaces/mcp_test.go`](../conformance/03-interfaces/mcp_test.go).

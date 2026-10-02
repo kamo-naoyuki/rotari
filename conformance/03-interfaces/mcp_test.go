@@ -206,3 +206,35 @@ func TestMCPWritesApplyOnlyAtThePreviewedRevision(t *testing.T) {
 		t.Fatalf("a second import at the old revision: %q", message)
 	}
 }
+
+func TestMCPExportIsARedactedViewThatImportRefuses(t *testing.T) {
+	covers(t, "MCP-2")
+	e := support.NewEnv(t)
+	e.MustRotari("add", "-p", "secret", "--env", "API_TOKEN=s3cret", "--working-directory", e.Root, "--", "true")
+	e.MustRotari("run", "-p", "secret", "--quiet")
+	var shown struct {
+		RunID string `json:"run_id"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "secret", "--json").Stdout), &shown); err != nil {
+		t.Fatal(err)
+	}
+	session := startMCP(t, e)
+	var exported struct {
+		BaseDirRef string `json:"basedir_ref"`
+		Manifest   string `json:"manifest"`
+	}
+	if message := session.call("rotari_export_run", map[string]any{"run_id": shown.RunID}, &exported); message != "" {
+		t.Fatal(message)
+	}
+	if strings.Contains(exported.Manifest, "s3cret") || strings.Contains(exported.Manifest, e.Root) || !strings.Contains(exported.Manifest, "API_TOKEN") {
+		t.Fatalf("rotari_export_run is not a redacted view:\n%s", exported.Manifest)
+	}
+	full := e.MustRotari("export", shown.RunID).Stdout
+	if !strings.Contains(full, "s3cret") {
+		t.Fatalf("rotari export lost the environment value:\n%s", full)
+	}
+	importInput := map[string]any{"basedir_ref": exported.BaseDirRef, "project": "secret", "manifest": exported.Manifest, "overwrite": true}
+	if message := session.call("rotari_preview_import", importInput, nil); !strings.Contains(message, "redacted placeholders") {
+		t.Fatalf("import of the redacted view: %q", message)
+	}
+}

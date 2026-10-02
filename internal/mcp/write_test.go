@@ -111,3 +111,46 @@ func TestStartRunNeedsARevisionAndAStarter(t *testing.T) {
 		t.Fatalf("start without a starter: %v", err)
 	}
 }
+
+func TestExportRunRedactsAndImportRefusesTheRedactedView(t *testing.T) {
+	f := newToolFixture(t)
+	paths, _ := state.ResolveProjectPaths(f.secondBaseDir, "exp")
+	commands := model.Queue{Commands: []model.QueuedCommand{{
+		ID: "tr", Name: "train", Command: []string{"python", "/home/alice/train.py"}, Array: &model.ArraySpec{First: 1, Last: 3},
+		Environment: []string{"API_TOKEN=s3cret"}, WorkingDirectory: "/data/alice/exp", ExecutorOptions: []string{"--account=alice-lab"},
+	}}}
+	if err := state.WriteJSON(paths.RunsDir+"/"+f.healthyRun+"/commands.json", commands); err != nil {
+		t.Fatal(err)
+	}
+	output, err := exportRun(f.masterDir, ExportRunInput{RunID: f.healthyRun})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{"s3cret", "/home/alice", "/data/alice", "alice-lab", f.secondBaseDir} {
+		if strings.Contains(output.Manifest, secret) {
+			t.Errorf("exported manifest reveals %q:\n%s", secret, output.Manifest)
+		}
+	}
+	for _, kept := range []string{"API_TOKEN", "train", "python"} {
+		if !strings.Contains(output.Manifest, kept) {
+			t.Errorf("exported manifest lost %q:\n%s", kept, output.Manifest)
+		}
+	}
+
+	tools := testWriteTools(f, &[]server.Request{})
+	_, err = tools.importManifest(ImportInput{BaseDirRef: basedirregistry.Ref(f.secondBaseDir), Project: "exp", Manifest: output.Manifest, Overwrite: true}, project.Guard{DryRun: true})
+	if err == nil || !strings.Contains(err.Error(), "redacted placeholders") {
+		t.Fatalf("import of the redacted view: %v", err)
+	}
+}
+
+func TestExportRunRefusesAnActiveRun(t *testing.T) {
+	f := newToolFixture(t)
+	paths, _ := state.ResolveProjectPaths(f.firstBaseDir, "exp")
+	if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: f.secondRun}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := exportRun(f.masterDir, ExportRunInput{RunID: f.secondRun}); err == nil || !strings.Contains(err.Error(), "interrupted") {
+		t.Fatalf("export of an unsettled run: %v", err)
+	}
+}

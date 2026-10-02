@@ -112,6 +112,9 @@ func (tools writeTools) importManifest(input ImportInput, guard project.Guard) (
 	if err != nil {
 		return workflowstate.Plan{}, hidePath(err, baseDir)
 	}
+	if containsRedaction(input.Manifest) {
+		return workflowstate.Plan{}, errors.New("the manifest contains redacted placeholders from rotari_export_run; replace them with real values, or export the full manifest with the rotari CLI")
+	}
 	format := input.Format
 	if format == "" {
 		format = "yaml"

@@ -81,6 +81,14 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 		return nil, output, err
 	})
 	mcpsdk.AddTool(server, &mcpsdk.Tool{
+		Name:        "rotari_export_run",
+		Description: "Export a finished run as a workflow manifest, as rotari export RUN_ID does, for reading: environment values, executor options, and paths are redacted, so it cannot be imported until they are replaced with real values.",
+		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
+	}, func(_ context.Context, _ *mcpsdk.CallToolRequest, input ExportRunInput) (*mcpsdk.CallToolResult, ExportRunOutput, error) {
+		output, err := exportRun(masterDir, input)
+		return nil, output, err
+	})
+	mcpsdk.AddTool(server, &mcpsdk.Tool{
 		Name:        "rotari_preview_import",
 		Description: "Preview importing a workflow manifest into a project's queue, as rotari import --dry-run does: the jobs it would queue, their source results, the source jobs it would drop, and the project revision. Changes nothing.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
