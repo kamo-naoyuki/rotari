@@ -4,7 +4,9 @@ set -euo pipefail
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_dir=$(cd "${script_dir}/.." && pwd)
 output_dir=${1:-"${repo_dir}/dep-graph"}
-goda_version=v0.10.1
+# Keep the bootstrap tool compatible with the Go minimum in go.mod (1.23).
+# goda v0.8.0 and later require Go 1.25 and trigger a toolchain download.
+goda_version=v0.7.1
 
 mkdir -p "${output_dir}"
 
