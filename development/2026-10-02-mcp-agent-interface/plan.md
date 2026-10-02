@@ -140,9 +140,17 @@ Outcome ([measurements](agent-trial-2026-10-02-m3.md)):
 - Effective per-job settings were not added. The first trial's failure was an ignored `change` error, which `lineage RUN RUN2` now exposes as `still failing ... timeout`, and `show --json` already carries each job's settings in `commands`.
 - `rotari guide`, the agent entry point, now leads with `lineage RUN_ID`, `show -j ATTEMPT_ID --report`, and `wait --until-failure`. It no longer suggests `--failed-logs` or the broken positional `--report` form.
 
-### M4: Read-only MCP tools
+### M4: Read-only MCP tools (done)
 
 Expose M1-M3 through a small set of task-shaped MCP tools for clients without a shell. Done when an MCP-only agent completes the trial's triage and comparison with at most a documented number of calls and comparable output size to the CLI path, against a master directory with a same-named project in two basedirs.
+
+Outcome ([measurements](agent-trial-2026-10-03-m4.md)):
+
+- Tools: `rotari_list_projects`, `rotari_run_summary`, `rotari_get_job_info`, and `rotari_compare_runs`, each documented in `docs/MCP.md` with its CLI equivalent. The MCP-only trial used four calls and about 6 KB, plus a one-time 7 KB of tool schemas.
+- The shared functions they need moved out of `cmd/rotari` first: `runview.RunsByStart`, `PreviousRun`, and `Summary`; `project.Overviews` and `CountRuns`; and `basedirregistry.Discover` and `Ref`. The CLI now calls the same functions, so each rule still has one implementation.
+- Paths: results carry `basedir_ref` (the registry key) and `basedir_name`, never an absolute path. Evidence lines are redacted by `report.RedactPatterns`, the pattern part of the report's redaction. Redaction of known per-run values (cwd, hostname) still happens only in reports.
+- Read-only: the MCP list does not remove stale locks or migrate registries, which the CLI's `show` does.
+- `wait --until-failure` is not an MCP tool, because a tool call that blocks for a long time is a poor fit for MCP clients. It remains a CLI feature.
 
 ### M5: Read-only operations
 
@@ -163,7 +171,8 @@ Extract `check` (structured findings) and `export` (bounded or paged manifest) f
 - M1 is done: failures are grouped by cause in `show`, `lineage RUN`, and the Web run summary (contract CLI-4).
 - M2 is done: evidence-aware report excerpts, a timeout diagnosis rule, and failure causes in `lineage` comparisons.
 - M3 is done: project list results and working hints (CLI-5), `jobs` scope, a failure-summary pointer in `show`, `wait --until-failure` (RUN-6), and an updated `rotari guide`.
-- Next step: M4, read-only MCP tools over these shared capabilities.
+- M4 is done: four read-only MCP tools over the shared functions, with no absolute paths in results.
+- Next step: M5 (read-only operations `check` and `export`) requires extracting them from `cmd/rotari` first. Before that, consider the open ISSUES that affect agents: positional `show RUN_ID|ATTEMPT_ID --json|--report`, and cancelled jobs classified as `signal`.
 
 ## Open decisions
 
