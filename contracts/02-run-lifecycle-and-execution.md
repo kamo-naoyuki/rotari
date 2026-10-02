@@ -398,6 +398,14 @@ the request, on the host that owns the run.
   cancel-job) stops only that job. The rest of the run keeps running and
   finishes normally, and the run's `--retry` does not start the cancelled job
   again.
+- **CAN-5** A job that a cancel stopped, whether the whole run's or its own,
+  records a cancelled result: its error is `cancelled`, keeping an earlier
+  error in parentheses. `--filter-failure-kind cancelled` selects it, and
+  failure groups list it as `cancelled` rather than by its exit code or
+  signal. The result is set once, when the job reaches its final result, in
+  [internal/projectrun/execute.go](../internal/projectrun/execute.go); covered
+  by `TestCancelledJobsReadAsCancelled` in
+  [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle/cancel_test.go).
 
 Whole-run and job cancel go through `jobcontrol.Controller`
 ([internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go)).

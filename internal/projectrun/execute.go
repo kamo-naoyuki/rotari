@@ -177,6 +177,9 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 			}
 		},
 		FinalResult: func(job model.JobSpec, result model.JobResult) model.JobResult {
+			if result.ExitCode != 0 && runner.WasExplicitlyCancelled(runDir, job.ID, result) {
+				result.Error = model.CancelledError(result.Error)
+			}
 			if runner.Diagnose != nil {
 				result = runner.Diagnose(runDir, result)
 			}

@@ -618,6 +618,10 @@ project's active run; `rotari cancel` of an earlier run's ID fails instead of
 cancelling the run that is active now. Without `-p`, a `JOB_ID` is looked for
 in the active run of every project.
 
+A cancelled job's result records the error `cancelled`, so
+`--filter-failure-kind cancelled` selects it and failure summaries list it
+under `cancelled` rather than by its exit code.
+
 Whole-run cancel (no `--job-id/-j`) and, for `local`-executor jobs, `--job-id/-j`
 cancel/suspend/resume all signal jobs by PID, which only means
 something on the host that actually runs it; run these commands from that
