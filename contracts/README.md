@@ -193,7 +193,7 @@ the IDs, this table, and those calls disagree.
 | SEL-4 | `copy` resolves each selector form as its column says | conformance | `TestSelectorTable` |
 | SEL-5 | `run` and `retry` resolve each selector form as their column says | conformance | `TestRunJobIDRunsEditedQueue`, `TestSelectorTable` |
 | SEL-6 | `change` resolves each selector form as its column says | conformance | `TestSelectorTable` |
-| SEL-7 | `remove` resolves each selector form as its column says | conformance | `TestSelectorTable` |
+| SEL-7 | `remove` resolves each selector form as its column says | conformance | `TestCLIFlagPairMutationObservability`, `TestSelectorTable` |
 | SEL-8 | Selectors combine by kind, with the listed exclusions | conformance | `TestSelectorTable` |
 | SEL-9 | `cancel`, `suspend`, and `resume` resolve each form as the job control table says | conformance | `TestJobControlSelectors` |
 | SEL-10 | Each command takes its positional arguments with their meaning and exclusions | conformance | `TestPositionalArguments` |

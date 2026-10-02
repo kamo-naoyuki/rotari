@@ -8,6 +8,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **`remove` rejects a selector conflict with only its usage line** (`cmd/rotari/remove.go`): `--filter-stage` and `--filter-matrix` are the long forms of `--stage` and `--matrix`, so `remove --all --filter-stage S` (and any two selector kinds, such as `--job-id` with `--stage`) count as two selectors and exit 1 with `usage: rotari remove ...`. Nothing is ignored or changed, but the message does not name the conflicting options, and a reader may expect `--filter-stage` to narrow `--all` as the definition filters do. Expected: an error naming the conflict, as `show` and `delete` give. Found by `TestCLIFlagPairMutationObservability`; the pair checks accept only this exact usage rejection for two selector kinds.
+
 ## Resolved
 
 - **Run-wide log output silently ignored result selection** (`cmd/rotari/show.go`): `show --logs --failed` and its long form `--logs --filter-result failed` passed only `--failed-logs` to the existing log selector, so they printed successful jobs as well. The CLI now forwards the parsed failed selection. `TestCmdShowFailedLogsFiltersSuccessfulJobs` and `TestShowLogResultSelection` fail before the fix, including older/latest runs and carried successful output (SEL-11). The Web API reads a named job's log rather than exposing this run-wide selection; Python's structured `show` uses JSON.

@@ -39,6 +39,8 @@ func pairAdapter(command string) string {
 		return "read"
 	case "config", "export":
 		return "file"
+	case "remove", "reset", "delete":
+		return "mutation"
 	default:
 		return ""
 	}
@@ -222,7 +224,7 @@ func (f pairFixture) sample(t *testing.T, flag pairFlag) []string {
 	return []string{"--" + flag.Name, value}
 }
 
-// Only read-only and isolated-output commands use this helper. Finished runs
+// Adapters own isolation and restoration for mutating commands. Finished runs
 // ensure --follow exits; the deadline is a failure bound, never an expected result.
 func pairInvoke(t *testing.T, e *support.Env, args ...string) support.Result {
 	t.Helper()

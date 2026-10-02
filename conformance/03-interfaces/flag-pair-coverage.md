@@ -1,8 +1,9 @@
 # CLI flag-pair coverage
 
 The entry point is [flag_pairs_test.go](flag_pairs_test.go), with isolated file
-adapters in [flag_pair_files_test.go](flag_pair_files_test.go) and additional
-witnesses in [flag_pair_projections_test.go](flag_pair_projections_test.go). Tests obtain flags
+adapters in [flag_pair_files_test.go](flag_pair_files_test.go), restored
+mutation adapters in [flag_pair_mutations_test.go](flag_pair_mutations_test.go),
+and additional witnesses in [flag_pair_projections_test.go](flag_pair_projections_test.go). Tests obtain flags
 from the built binary's `schema --json`, not from CLI implementation imports.
 The staged rollout is tracked in the
 [development plan](../../development/2026-10-03-cli-option-interactions/plan.md).
@@ -44,6 +45,33 @@ The staged rollout is tracked in the
   two `--since` values. Accepted combinations must match the job table's IDs
   and have a distinguishing witness. Explicit incompatibility errors are
   valid outcomes, not successful selection checks.
+- `TestCLIFlagPairMutations` executes the 136 `remove`, 21 `reset`, and 21
+  `delete` pairs in both orders (356 invocations) from a fixture with two
+  finished runs and a restored queue plus one queue-only job. Before every
+  invocation the whole environment root is restored to the initial snapshot:
+  paths, contents, modes, and modification times (latest-run lookup reads
+  directory times). Restoration rewrites only entries that differ from the
+  previous post-invocation snapshot and then verifies every entry's type,
+  mode, size, and time; on NFS a full rewrite per invocation took 5m13s,
+  the differential restore 41s. Observations are the process result and the
+  full tree, with only `meta.json`'s `updated_at` dropped. Rejections and dry
+  runs must leave the tree byte-identical. A guard revision printed by
+  `--dry-run`/`--if-revision` is checked against `check --json` on the
+  resulting state before it is normalized for order comparison. The adapter
+  supplies `remove --all` or `delete --run-id` only when no selector is under
+  test. Two exact usage rejections supplement the classifier: `remove` with
+  two selector kinds, and `delete --all` with `--run-id`.
+- `TestCLIFlagPairMutationObservability` (SEL-7) checks that each `remove`
+  selector and definition filter has an effect, that `--filter-stage` and
+  `--filter-matrix` act as their short forms, and that every selector with
+  every filter removes exactly the intersection of what each removes alone, in
+  both orders. It requires each option to change some combination, so the
+  fixture can tell an ignored option apart. It also checks that `--run-id`
+  restores that run's snapshot, `reset --quiet` keeps history and suppresses
+  output, and `delete --run-id` removes one run while `--all` removes every
+  run. In temporary worktrees, a build that ignores remove filters everywhere
+  failed the effect checks, and one that ignores them only with a direct
+  selector failed eight intersection checks.
 - Additional witnesses prove deep checks reject a missing executable even
   with quiet/JSON output, quiet success text stays suppressed while requested
   check JSON remains emitted, export's explicit run source wins over a distinct
@@ -74,18 +102,19 @@ only robustness/order coverage; they do not claim a semantic ignore oracle.
 
 ## Deferred command adapters
 
-Every pair is inventoried, and six commands have execution adapters. The
-remaining 5,662 pairs are **not executed** by this suite.
+Every pair is inventoried, and nine commands have execution adapters. The
+remaining 5,484 pairs are **not executed** by this suite.
 
 | Commands | Pairs | Required next work |
 | --- | ---: | --- |
-| `add`, `change`, `copy`, `delete`, `import`, `remove`, `reset` | 1,698 | Reconstruct independent queue/history state per variant; observe effects and guard rejections |
+| `add`, `change`, `copy`, `import` | 1,520 | Reuse the restored mutation adapter; add job-definition samples and effect witnesses |
 | `run`, `retry` | 3,315 | Independent run state, harmless execution, fake scheduler settings, async cleanup, persisted observations |
 | `cancel`, `suspend`, `resume`, `unlock`, `wait` | 559 | Active/interrupted fixtures, barriers, signals, prompts, and bounded cleanup |
 | `gc`, `server`, `web`, `mcp`, `diagnose` | 90 | Isolated registry/daemon/stdio/HTTP adapters; fake external diagnosis services |
 | `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
-The 819 executed pairs consist of 783 read-only and 36 file-output pairs.
+The 997 executed pairs consist of 783 read-only, 36 file-output, and 178
+mutation pairs.
 Deferred cases are not equality exceptions and are not counted as passes.
 New commands/flags require revisiting this accounting. Subcommands are not
 expanded by the inventory yet; the current execution targets have none.
@@ -143,3 +172,13 @@ pairs (50 accepted, 7 explicitly rejected). The combined measured runs accepted
 38.25 seconds including setup, and file pairs took 6.40 seconds including their
 own fixture. No new production bug or equality exception was found. No command
 compatibility declaration was added; implementation behavior is unchanged.
+
+The mutation expansion added `remove`, `reset`, and `delete`: 178 pairs (158
+accepted, 20 explicitly rejected), 41 seconds with the differential restore.
+No option was found silently ignored and no production code changed. Triage
+found one diagnostic gap, recorded as an open issue: `remove` rejects two
+selector kinds, including `--all` with `--filter-stage`, with only its usage
+line. Two harness defects were repaired, not allowlisted: the fixture assumed a
+supervisor was still running for `server shutdown`, and the first exclusion
+sample excluded a stage no selector picks, so it could not detect an ignored
+`--filter-not-stage`.

@@ -281,6 +281,19 @@ Both orders total 1,638 invocations. A measured expansion run took 38.25 seconds
 for read-only pairs and 6.40 seconds for file pairs including their separate
 fixtures. The suite does not drop these pairs in short or race mode.
 
+A restored mutation adapter adds `remove`, `reset`, and `delete`: 178 pairs
+(158 accepted, 20 explicitly rejected) in both orders, now 997 executed pairs
+in nine commands. Each invocation starts from a byte-identical environment
+root, including directory times; rejections and dry runs must change nothing,
+and guard revisions must match `check`. On NFS, rewriting the whole root per
+invocation took 5m13s, so restoration rewrites only what changed (41s).
+Effect witnesses prove every `remove` selector and definition filter has an
+effect and that each selector-filter combination removes the intersection;
+modified builds in temporary worktrees that ignore filters, everywhere or
+only with a direct selector, fail them. Triage found no ignored option. It
+recorded one open diagnostic issue: `remove` rejects two selector kinds,
+including `--all` with `--filter-stage`, with only its usage line.
+
 Observation tests exercise 23 selection flags against four output modes (92
 combinations), plus formatted `jobs` time windows. Most output/filter
 combinations explicitly reject; accepted combinations must match the job table
@@ -301,7 +314,8 @@ only current test/harness files copied into the temporary worktree.
 
 See [coverage and triage](../../conformance/03-interfaces/flag-pair-coverage.md)
 for measured coverage, reasoned exceptions, and explicit observation gaps.
-Milestone 1 is **not complete**: 5,662 pairs still need safe command adapters,
+Milestone 1 is **not complete**: 5,484 pairs still need safe command adapters,
 and queue, direct-selector, active/unfinished, and cross-interface semantic
-witnesses remain. Next, broaden fixture witnesses and add isolated mutation/run
-adapters. Compatibility declarations remain an evidence-gated follow-up.
+witnesses remain. Next, extend the mutation adapter to `add`, `change`,
+`copy`, and `import`, then add run adapters. Compatibility declarations remain
+an evidence-gated follow-up.
