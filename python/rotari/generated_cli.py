@@ -535,7 +535,10 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "masterdir",
                     "value_name": "DIR",
                 },
-                {"description": "remove the cached orphan entries", "name": "apply"},
+                {
+                    "description": "list the orphan entries without removing them",
+                    "name": "dry-run",
+                },
             ],
             "name": "gc",
             "positional": "[MASTERDIR]",

@@ -137,7 +137,7 @@ commands after a start or crash.
 
 ### How do I clean up run registry entries left by manual deletion?
 
-Run `rotari gc [MASTERDIR]` to review candidates, then `rotari gc --apply [MASTERDIR]` to remove them. Reappeared or changed candidates are skipped.
+Run `rotari gc --dry-run [MASTERDIR]` to review candidates, then `rotari gc [MASTERDIR]` to remove them. Reappeared or changed candidates are skipped.
 
 ## Language and implementation choices
 

@@ -167,7 +167,7 @@ Usage: `rotari gc [MASTERDIR]`
 | --- | --- | --- | --- |
 | `--config` | `FILE` | `` | config file to use |
 | `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
-| `--apply` | `` | `` | remove the cached orphan entries |
+| `--dry-run` | `` | `` | list the orphan entries without removing them |
 
 ### `rotari unlock`
 

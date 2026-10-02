@@ -189,7 +189,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Flags: []cliFlagSpec{
 			{Name: "config", Description: "config file to use", ValueName: "FILE", CommandLineOnly: true},
 			{Name: "masterdir", Description: "master registry directory", ValueName: "DIR"},
-			{Name: "apply", Description: "remove the cached orphan entries"},
+			{Name: "dry-run", Description: "list the orphan entries without removing them", CommandLineOnly: true},
 		},
 		Positional: "[MASTERDIR]",
 	},

@@ -259,7 +259,7 @@ func RegisteredRun(masterDir, runID string) (runregistry.Location, error) {
 // stale registry entry.
 func requireRunDirectory(location runregistry.Location) error {
 	if !location.Exists() {
-		return fmt.Errorf("run %q is registered but its run directory is missing; run 'rotari gc' to inspect stale registry entries", location.RunID)
+		return fmt.Errorf("run %q is registered but its run directory is missing; run 'rotari gc --dry-run' to list stale registry entries and 'rotari gc' to remove them", location.RunID)
 	}
 	return nil
 }

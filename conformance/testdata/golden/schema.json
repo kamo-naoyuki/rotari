@@ -395,7 +395,7 @@
           "value_name": "DIR"
         },
         {
-          "name": "apply"
+          "name": "dry-run"
         }
       ],
       "name": "gc"

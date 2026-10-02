@@ -42,28 +42,27 @@ order. A registry file contains the run ID, base directory, and project name;
 it is only a lookup index, not the source of the run's logs or results.
 
 `gc` is separate from inspection and recovery: it maintains this master
-registry after run data was removed outside rotari. First scan for orphaned
-registry entries:
+registry after run data was removed outside rotari. To list orphaned registry
+entries without removing them:
+
+```sh
+rotari gc --dry-run
+```
+
+The candidates and their locations are printed. This includes basedir
+registry records whose basedir directory no longer exists. Existing basedir
+directories, including empty ones, are retained. Malformed or invalid
+registry files are listed and left untouched; inspect their run data and
+repair or remove them manually. To remove the candidates:
 
 ```sh
 rotari gc
 ```
 
-The candidates and their locations are printed and cached for ten minutes.
-This includes basedir registry records whose basedir directory no longer
-exists. Existing basedir directories, including empty ones, are retained.
-The temporary GC plan is stored at `<masterdir>/gc.json`.
-Malformed or invalid registry files are listed and left untouched; inspect
-their run data and repair or remove them manually.
-After reviewing them, apply that exact plan:
-
-```sh
-rotari gc --apply
-```
-
-The apply step removes registry entries only. It skips candidates whose
-registry location changed or whose run directory reappeared, and never deletes
-run data or an existing basedir directory.
+`gc` removes registry entries only. Just before removing each one, it checks
+again, and skips a candidate whose registry location changed or whose run
+directory reappeared; it never deletes run data or an existing basedir
+directory.
 
 ## Shared filesystem use
 

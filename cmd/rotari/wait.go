@@ -329,7 +329,7 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, unti
 			return waitResult{exitCode: summary.ExitCode}
 		}
 		if runInfo, statErr := os.Stat(runDir); os.IsNotExist(statErr) || (statErr == nil && !runInfo.IsDir()) {
-			printErrorf("run %q is registered but its run directory is missing; run 'rotari gc' to inspect stale registry entries", runID)
+			printErrorf("run %q is registered but its run directory is missing; run 'rotari gc --dry-run' to list stale registry entries and 'rotari gc' to remove them", runID)
 			return waitResult{exitCode: 1}
 		} else if statErr != nil {
 			printErrorf("failed to inspect run directory %s: %v", runDir, statErr)

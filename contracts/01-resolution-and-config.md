@@ -341,10 +341,12 @@ order:
 - The registry is only an index. Run files remain authoritative.
 - Deleting a run through CLI or web history controls removes its registry entry
   after the run files and metadata are updated.
-- Runs deleted outside rotari can leave orphaned registry entries. `rotari gc`
-  caches their plan for ten minutes; its optional positional master directory
-  is an alternative to `--masterdir`; `rotari gc --apply [MASTERDIR]` removes
-  only unchanged entries whose run directories are still absent.
+- Runs deleted outside rotari can leave orphaned registry entries.
+  `rotari gc [MASTERDIR]` removes them, and basedir records whose basedir is
+  gone; its optional positional master directory is an alternative to
+  `--masterdir`. Each removal checks again that the entry is unchanged and its
+  directory still absent. `rotari gc --dry-run` lists the candidates without
+  removing anything.
 - Automatic garbage collection is not performed. Malformed or invalid registry
   files are reported and left untouched for manual inspection.
 
