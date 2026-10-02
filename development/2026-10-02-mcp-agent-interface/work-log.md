@@ -99,3 +99,36 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - `prettier --check` passed for `web_app_core.js`. `pre-commit` is not installed.
 
 **Remaining:** M2 (relevant excerpts, timeout diagnosis in reports, cause-aware `lineage` comparison). M3 now includes making the compact summary discoverable from `show`. The stale-cache conformance issue is open in `ISSUES.md`.
+
+## M2: Relevant excerpts, timeout diagnosis, and cause-aware comparison
+
+**Commits:** 2026-10-02 22:35:00 `0e805c2`; 2026-10-02 22:35:00 `d50b977`; 2026-10-02 22:35:01 `94cd80c`; 2026-10-02 22:35:01 `a00d427`; 2026-10-02 22:36:33 `3ed1f6a`.
+
+**Change:**
+- `0e805c2`: added the "Job timeout reached" default rule (`internal/diagnose/default_rules.go`, `docs/LOCAL_DIAGNOSIS.md`). It matches only the wrapper's `rotari: job timed out after` line and the exact `timed out after DURATION` error.
+- `d50b977`: `internal/report` picks log lines with `reportLogExcerpt`. When a saved diagnosis's evidence is in the log, the excerpt keeps the 20 lines before and 5 after the latest line with each evidence, plus the last 20 lines, and marks omitted lines. Otherwise it keeps the last 100 lines. The section heading names the selection. `docs/INSPECT.md` was updated.
+- `94cd80c`: `runlineage.JobDiff` gained `from_cause`, `to_cause`, and `cause_changed`, and `Summary` gained `cause_changed`. Causes come from the new `runlineage.FailureCause`, which shares the classification with `FailureGroups`. The `lineage` comparison table gained a `CAUSE` column. `docs/INSPECT.md` was updated.
+- `a00d427`: extended the `ISSUES.md` positional-argument entry to attempt IDs with `--report`.
+- `3ed1f6a`: updated the plan and added the M2 trial note.
+
+**Reason:** M2 of the plan. The first trial's fix loop could not tell that a still-failing timeout was the same failure. Reports labelled rotari's own timeout as unexplained, and report logs were fixed tails.
+
+**Plan impact:**
+- M2 is done. M3 (discovery and progress) is next.
+- Contract CLI-4 was deliberately not extended to comparisons, because no conformance test checks them.
+- The rule change sets a new rules version, so earlier saved analyses show the "earlier rules" note.
+
+**Validation:**
+- New tests:
+  - Rule cases for the timeout line and error, and lookalike cases (`request timed out after 30s`, a quoted rotari line) that must not match.
+  - `TestReportLogExcerptKeepsEvidenceFarFromTheEnd`: two evidence windows, the tail, and the exact omitted counts.
+  - `TestReportLogExcerptFallsBackToTheTail`
+  - `TestCompareReportsFailureCauses`: changed, same, fixed, and newly failing causes.
+  - `TestDiffCause`
+- Existing `TestBuildIncludesDiagnosisAndBoundedLog` still passes, because its evidence is not in the log.
+- The fix loop was rerun on the trial fixture with the new binary, as recorded in the M2 trial note.
+- `go vet ./...` passed. `go test -count=1 ./conformance/...` passed in all seven packages.
+- `scripts/check.sh` failed only in the known `TestWebJobsPageShowsRecentJobs`.
+- `pre-commit` is not installed.
+
+**Remaining:** M3. The open positional-argument issue (`show RUN_ID|ATTEMPT_ID --json|--report`) affects documented examples.
