@@ -218,8 +218,8 @@ func ExistingRun(cliBaseDir, cliProjectName, runID string) (string, string, erro
 			if cliProjectName == "" {
 				cliProjectName = location.ProjectName
 			}
-			if !location.Exists() {
-				return "", "", fmt.Errorf("run %q is registered but its run directory is missing; run 'rotari gc' to inspect stale registry entries", runID)
+			if err := requireRunDirectory(location); err != nil {
+				return "", "", err
 			}
 		}
 	}
@@ -235,6 +235,33 @@ func ExistingRun(cliBaseDir, cliProjectName, runID string) (string, string, erro
 		return "", "", err
 	}
 	return baseDir, projectName, nil
+}
+
+// RegisteredRun returns the location of runID from the run registry under
+// masterDir. Unlike ExistingRun it has no fallback: a run that is not
+// registered there is an error, so callers that serve one master directory
+// never reach state outside it.
+func RegisteredRun(masterDir, runID string) (runregistry.Location, error) {
+	location, found, err := runregistry.Open(masterDir).Lookup(runID)
+	if err != nil {
+		return runregistry.Location{}, err
+	}
+	if !found {
+		return runregistry.Location{}, fmt.Errorf("run %q is not registered", runID)
+	}
+	if err := requireRunDirectory(location); err != nil {
+		return runregistry.Location{}, err
+	}
+	return location, nil
+}
+
+// requireRunDirectory reports a registered run whose directory is gone as a
+// stale registry entry.
+func requireRunDirectory(location runregistry.Location) error {
+	if !location.Exists() {
+		return fmt.Errorf("run %q is registered but its run directory is missing; run 'rotari gc' to inspect stale registry entries", location.RunID)
+	}
+	return nil
 }
 
 // ExistingRunID is ExistingRun that also resolves runID to a saved run of the

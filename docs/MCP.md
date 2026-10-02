@@ -1,37 +1,39 @@
 # MCP server (experimental)
 
 rotari includes an experimental read-only MCP server for asking an agent to
-inspect one job. It exposes the `rotari_get_job_info` tool, which takes the
-state directory (`basedir`), project name, exact run ID, and exact job ID. It
-returns an AI-oriented report with the job's status, result, diagnosis, and a
-bounded tail of recent log output. Known paths and hostnames are redacted where
-detected; redaction is not guaranteed to catch every secret.
+inspect one job. It exposes the `rotari_get_job_info` tool, which takes an
+exact run ID and an exact job ID. It returns an AI-oriented report with the
+job's status, result, diagnosis, and a bounded tail of recent log output.
+Known paths and hostnames are redacted where detected; redaction is not
+guaranteed to catch every secret.
 
-The tool currently requires the caller to supply all four identifiers. It does
-not search the basedir registry, list projects, or discover a job from its ID
-alone. No queue edits, job execution, or job control are exposed.
+The server finds the run's state directory and project through the run
+registry of its master directory, the same registry the `rotari` CLI uses to
+resolve `--run-id`. It serves only runs registered there: it does not fall
+back to a default state directory, walk other directories, list projects, or
+discover a job from its ID alone. No queue edits, job execution, or job
+control are exposed.
 
-## Build both entry points
+Agents that can run shell commands can use the `rotari` CLI directly; for
+example, `rotari show -r RUN_ID --report` prints the same report, and
+`rotari show -r RUN_ID --json` returns structured run data.
 
-Build the MCP stdio server and the terminal command from the repository:
+## Build
+
+Build the MCP stdio server from the repository:
 
 ```sh
 mkdir -p ./bin
 go build -o ./bin/rotari-mcp ./cmd/mcp/server
-go build -o ./bin/rotari-agent ./cmd/mcp/agent
 ```
 
-Both commands call `internal/mcp.GetJobInfo`; the MCP server exposes it as
-`rotari_get_job_info`, while `rotari-agent` prints the same report in a
-terminal. The MCP server uses the official Go MCP SDK, which currently requires
-Go 1.23 or newer.
+The MCP server uses the official Go MCP SDK, which currently requires Go 1.23
+or newer.
 
-Run the terminal form with the same four identifiers:
-
-```sh
-./bin/rotari-agent --basedir /path/to/rotari-state --project experiment \
-  --run-id 20261002-120000-12345678 --job-id abc123def
-```
+The server resolves its master directory when it starts, in the same order as
+the CLI: `ROTARI_MASTERDIR`, then `$XDG_STATE_HOME/rotari/master`, then
+`~/.local/state/rotari/master`. It exits with a non-zero status if the master
+directory cannot be resolved or the server fails.
 
 ## Configure VS Code
 
@@ -50,20 +52,19 @@ command to the absolute path of the built binary:
 }
 ```
 
-Then ask the agent to call `rotari_get_job_info` with all four values. For
-example, it needs a request equivalent to:
+Set `ROTARI_MASTERDIR` in the entry's `env` when your runs are registered
+under a non-default master directory.
+
+Then ask the agent to call `rotari_get_job_info` with the run ID and job ID,
+for example:
 
 ```json
 {
-  "basedir": "/path/to/rotari-state",
-  "project": "experiment",
   "run_id": "20261002-120000-12345678",
   "job_id": "abc123def"
 }
 ```
 
-The `basedir` is an explicit tool argument in this first prototype. The server
-does not walk arbitrary directories or infer a basedir from the job ID. When
-MCP is unavailable, use `rotari-agent` with the same `basedir`, `project`,
-`run-id`, and `job-id` values; both entry points call the same lookup and
-report code.
+A run ID that is not registered in the master directory, or whose run
+directory is gone, is reported as a tool error. Run and job IDs must not
+contain `/` or `\`.

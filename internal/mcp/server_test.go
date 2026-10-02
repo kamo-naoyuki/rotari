@@ -9,15 +9,22 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/runregistry"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestServerExposesJobInfoToolOverMCP(t *testing.T) {
-	baseDir, project, runID, jobID := writeJobFixture(t)
+	masterDir := t.TempDir()
+	// Two basedirs hold a project with the same name; the run ID alone must
+	// select the right one.
+	firstBaseDir := t.TempDir()
+	secondBaseDir := t.TempDir()
+	writeRunFixture(t, masterDir, firstBaseDir, "run-1", "first-log-line")
+	writeRunFixture(t, masterDir, secondBaseDir, "run-2", "second-log-line")
 	ctx := context.Background()
 	clientTransport, serverTransport := mcpsdk.NewInMemoryTransports()
-	server := NewServer()
+	server := NewServer(masterDir)
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -38,21 +45,78 @@ func TestServerExposesJobInfoToolOverMCP(t *testing.T) {
 	if len(tools.Tools) != 1 || tools.Tools[0].Name != "rotari_get_job_info" {
 		t.Fatalf("tools = %#v, want rotari_get_job_info", tools.Tools)
 	}
+	schema, err := json.Marshal(tools.Tools[0].InputSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(schema), "basedir") || strings.Contains(string(schema), "project") {
+		t.Fatalf("input schema asks for a location: %s", schema)
+	}
 
-	result, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
-		Name: "rotari_get_job_info",
-		Arguments: map[string]any{
-			"basedir": baseDir,
-			"project": project,
-			"run_id":  runID,
-			"job_id":  jobID,
-		},
+	for _, test := range []struct {
+		runID, baseDir, want, other string
+	}{
+		{"run-1", firstBaseDir, "first-log-line", "second-log-line"},
+		{"run-2", secondBaseDir, "second-log-line", "first-log-line"},
+	} {
+		output := callJobInfo(ctx, t, clientSession, test.runID, "job-1")
+		if output.Project != "demo" || output.RunID != test.runID || output.JobID != "job-1" {
+			t.Fatalf("%s: output identity = %#v", test.runID, output)
+		}
+		for _, want := range []string{"job report", "Python exception", "ValueError: bad value", "[REDACTED_PATH]", test.want} {
+			if !strings.Contains(output.Report, want) {
+				t.Errorf("%s: report does not contain %q:\n%s", test.runID, want, output.Report)
+			}
+		}
+		if strings.Contains(output.Report, test.other) {
+			t.Errorf("%s: report contains the other basedir's log %q", test.runID, test.other)
+		}
+		if strings.Contains(output.Report, test.baseDir) || strings.Contains(output.Report, "/work/private") {
+			t.Fatalf("%s: report contains an unredacted path:\n%s", test.runID, output.Report)
+		}
+	}
+}
+
+func TestGetJobInfoRejectsUnknownAndUnsafeIdentifiers(t *testing.T) {
+	masterDir := t.TempDir()
+	writeRunFixture(t, masterDir, t.TempDir(), "run-1", "log-line")
+	// A run in another master directory is not reachable.
+	writeRunFixture(t, t.TempDir(), t.TempDir(), "run-elsewhere", "log-line")
+	for _, test := range []struct {
+		name  string
+		input GetJobInfoInput
+		want  string
+	}{
+		{"unregistered run", GetJobInfoInput{RunID: "run-elsewhere", JobID: "job-1"}, `run "run-elsewhere" is not registered`},
+		{"slash in run", GetJobInfoInput{RunID: "../run-1", JobID: "job-1"}, "invalid run id"},
+		{"backslash in run", GetJobInfoInput{RunID: `run\1`, JobID: "job-1"}, "invalid run id"},
+		{"empty run", GetJobInfoInput{JobID: "job-1"}, "invalid run id"},
+		{"slash in job", GetJobInfoInput{RunID: "run-1", JobID: "../job-1"}, `job "../job-1" not found`},
+		{"backslash in job", GetJobInfoInput{RunID: "run-1", JobID: `job\1`}, `job "job\\1" not found`},
+		{"unknown job", GetJobInfoInput{RunID: "run-1", JobID: "job-2"}, `job "job-2" not found`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := getJobInfo(masterDir, test.input)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("getJobInfo(%+v) error = %v, want %q", test.input, err, test.want)
+			}
+		})
+	}
+}
+
+// callJobInfo calls rotari_get_job_info through session and decodes its
+// structured result.
+func callJobInfo(ctx context.Context, t *testing.T, session *mcpsdk.ClientSession, runID, jobID string) GetJobInfoOutput {
+	t.Helper()
+	result, err := session.CallTool(ctx, &mcpsdk.CallToolParams{
+		Name:      "rotari_get_job_info",
+		Arguments: map[string]any{"run_id": runID, "job_id": jobID},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result.IsError {
-		t.Fatalf("tool returned error: %#v", result.Content)
+		t.Fatalf("%s: tool returned error: %#v", runID, result.Content)
 	}
 	encoded, err := json.Marshal(result.StructuredContent)
 	if err != nil {
@@ -62,32 +126,14 @@ func TestServerExposesJobInfoToolOverMCP(t *testing.T) {
 	if err := json.Unmarshal(encoded, &output); err != nil {
 		t.Fatal(err)
 	}
-	if output.Project != project || output.RunID != runID || output.JobID != jobID {
-		t.Fatalf("output identity = %#v", output)
-	}
-	for _, want := range []string{"job report", "Python exception", "ValueError: bad value", "[REDACTED_PATH]", "recent-log-line"} {
-		if !strings.Contains(output.Report, want) {
-			t.Errorf("report does not contain %q:\n%s", want, output.Report)
-		}
-	}
-	if strings.Contains(output.Report, baseDir) || strings.Contains(output.Report, "/work/private") {
-		t.Fatalf("report contains an unredacted path:\n%s", output.Report)
-	}
+	return output
 }
 
-func TestGetJobInfoRejectsUnsafeIdentifiers(t *testing.T) {
-	_, _, err := getJobInfo(context.Background(), nil, GetJobInfoInput{
-		BaseDir: t.TempDir(), Project: "../project", RunID: "run-1", JobID: "job-1",
-	})
-	if err == nil {
-		t.Fatal("unsafe project name was accepted")
-	}
-}
-
-func writeJobFixture(t *testing.T) (string, string, string, string) {
+// writeRunFixture writes a failed run with job "job-1" of project "demo" under
+// baseDir and registers it in the run registry under masterDir.
+func writeRunFixture(t *testing.T, masterDir, baseDir, runID, logLine string) {
 	t.Helper()
-	baseDir := t.TempDir()
-	project, runID, jobID := "demo", "run-1", "job-1"
+	project, jobID := "demo", "job-1"
 	paths, err := state.ResolveProjectPaths(baseDir, project)
 	if err != nil {
 		t.Fatal(err)
@@ -110,8 +156,10 @@ func writeJobFixture(t *testing.T) (string, string, string, string) {
 	if err := os.MkdirAll(filepath.Join(runDir, jobID), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(runDir, jobID, state.StdoutFileName), []byte("recent-log-line\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(runDir, jobID, state.StdoutFileName), []byte(logLine+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	return baseDir, project, runID, jobID
+	if err := runregistry.Open(masterDir).Register(runregistry.Location{BaseDir: baseDir, ProjectName: project, RunID: runID}); err != nil {
+		t.Fatal(err)
+	}
 }

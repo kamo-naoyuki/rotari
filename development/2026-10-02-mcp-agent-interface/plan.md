@@ -42,7 +42,7 @@ Non-goals:
 Record any reversal here with its reason.
 
 - **No `rotari-agent`.** The prototype's `rotari-agent` printed the same report as `rotari show --report`. It is removed rather than extended (M0).
-- **MCP configuration.** One MCP server process serves one master directory. Only basedirs registered in that master directory's `basedirregistry` are reachable.
+- **MCP configuration.** One MCP server process serves one master directory, resolved at startup like the CLI's. A run is reachable only through that master directory's run registry (`resolve.RegisteredRun`), with no fallback to a default or working-directory basedir. Discovery tools (M4) will list basedirs from the same master directory.
 - **Basedir reference in MCP.** A basedir is addressed by its registry record key (the 32-hex prefix of the SHA-256 of its absolute path, as `basedirregistry` already uses), which is stable while the path is unchanged. MCP results do not return the absolute path by default. Run and attempt IDs remain the primary handles because they already resolve their basedir and project.
 - **MCP mechanism.** Tools only at first. Resources and Prompts may be added later without changing the shared functions.
 - **Task-shaped tools.** MCP exposes a small number of tools named after use cases (for example, find recent failures, summarize a run's failures, show a job's evidence, compare runs), not a generic query tool. Results do not advertise `available_operations`; tool schemas describe what exists.
@@ -75,7 +75,7 @@ Agent-facing work must reach these owners rather than re-implement their rules. 
 | Incremental progress | `projectrun` / `runview` (decide in M3) | `wait` | M4 |
 | Basedir discovery | `basedirregistry` | `show`, `show --basedirs`, Web | M4 |
 | Recent jobs across projects | `joblist` | `jobs`, Web jobs page | M4 |
-| Project resolution | `resolve`, `state` | all commands | M0 (no raw basedir) |
+| Project resolution | `resolve` (`RegisteredRun` for MCP), `state` | all commands | done in M0 (run ID only) |
 | Job result / status | `jobstatus` | `show`, Web `loadWebJobs` | via shared functions |
 | Result selection and `--filter-*` | `jobfilter` (`Filter.Selects`, `Filter.SelectsArray`) | `show`, `copy`, `run`, `retry` | via shared functions |
 | Run snapshot and display | `runview`, `runregistry` | `show`, Web | via shared functions |
@@ -92,10 +92,11 @@ Agent-facing work must reach these owners rather than re-implement their rules. 
 
 Each milestone is checked by repeating the trial's scenario: triage of the mixed-failure `labA` fixture and the 300-task `labC` fixture, and the fix loop. Record call counts and output sizes in a new trial note and compare them with the [first trial](agent-trial-2026-10-02.md).
 
-### M0: Retire `rotari-agent` and clean up the prototype
+### M0: Retire `rotari-agent` and clean up the prototype (done)
 
 - Remove `cmd/mcp/agent`; its output equals `rotari show --report`.
-- Make `rotari-mcp` resolve the job through the master directory's registry instead of taking a raw basedir path, and return structured fields alongside the report text.
+- Make `rotari-mcp` resolve the job through the master directory's registry instead of taking a raw basedir path.
+- Structured result fields beyond the identity (project, run, job) are deferred to M4, where they come from the M1-M3 shared capabilities rather than from a second projection inside the adapter.
 - Make `rotari-mcp` exit non-zero when the server fails.
 - Update `docs/ARCHITECTURE.md` for the `cmd/mcp` and `internal/mcp` entries.
 
@@ -135,9 +136,9 @@ Extract `check` (structured findings) and `export` (bounded or paged manifest) f
 
 ## Current status
 
-- A read-only `rotari_get_job_info` MCP tool and a `rotari-agent` command exist (`internal/mcp`, `cmd/mcp/server`, `cmd/mcp/agent`); both call `report.Build` through one shared function.
+- M0 is done. `rotari-agent` is removed. `rotari_get_job_info` takes only `run_id` and `job_id`; `rotari-mcp` locates the run through its master directory's run registry and exits non-zero on failure.
 - The [agent trial](agent-trial-2026-10-02.md) (2026-10-02) established the gaps above. The CLI issues it found are recorded in [ISSUES.md](../ISSUES.md): `show --json` ignoring `--failed`, a positional run ID rejected with `--json`, an array job name accepted as an unresolvable dependency, and a `show` hint missing the basedir.
-- Next step: M0, then M1.
+- Next step: M1, failure grouping.
 
 ## Open decisions
 

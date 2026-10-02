@@ -22,7 +22,6 @@ flowchart LR
     direct(["rotari add / copy / change / cancel<br/>show / jobs / export ..."])
     webcli(["rotari web<br/>(HTTP)"])
       mcpcli(["rotari-mcp<br/>(stdio MCP)"])
-      agentcli(["rotari-agent<br/>(terminal agent interface)"])
   end
   subgraph sup["one per active run of a project"]
     supervisor["supervisor<br/>rotari __server<br/>executes the run's jobs"]
@@ -37,7 +36,6 @@ flowchart LR
   direct -->|"read / write under state lock"| files
   webcli -->|"read, edit queue"| files
    mcpcli -->|"read job report"| files
-   agentcli -->|"read job report"| files
   nodes -->|write attempt status.json| files
 
    classDef command fill:#e0e7ff,stroke:#4f46e5,color:#1e1b4b
@@ -110,8 +108,7 @@ no `internal` package imports `cmd/rotari`.
 flowchart TB
   cmd["cmd/rotari<br/>CLI flags, wiring, output"]
    mcpserver["cmd/mcp/server<br/>MCP stdio entry point"]
-   agentcmd["cmd/mcp/agent<br/>terminal agent entry point"]
-   mcpadapter["internal/mcp<br/>shared job report and MCP tool"]
+   mcpadapter["internal/mcp<br/>MCP tools over shared packages"]
   projectrun["projectrun<br/>run lifecycle"]
   project["project<br/>state machine, idle edits"]
   resolve["resolve<br/>selectors to run and job"]
@@ -152,8 +149,8 @@ flowchart TB
   queueops --> jobstatus
   cmd --> report
    mcpserver --> mcpadapter
-   agentcmd --> mcpadapter
    mcpadapter --> report
+   mcpadapter --> resolve
    mcpadapter --> state
   report --> web
   report --> project
@@ -241,7 +238,7 @@ are checked against this graph by
 | [internal/workflow](../internal/workflow/) | Workflow manifests: `export` merge and `import` reconciliation. | `manifest.go`, `export.go`, `reconcile.go` |
 | [internal/joblist](../internal/joblist/) | Recent job attempts across a base directory's projects for `rotari jobs` and the Web UI's jobs page: which attempts are listed, their order, and how their times read. | `joblist.go` (`Collect`) |
 | [internal/report](../internal/report/) | The redacted evidence report for AI-assisted diagnosis, shared by `show --report` and the Web UI. Reads jobs through `internal/web`'s projection. | `report.go` (`Build`) |
-| [internal/mcp](../internal/mcp/) | Read-only MCP tools that adapt explicit basedir/project/run/job identifiers to existing rotari reports. It does not depend on `cmd/rotari`. | `server.go` (`NewServer`) |
+| [internal/mcp](../internal/mcp/) | Read-only MCP tools for `rotari-mcp` (`cmd/mcp/server`). Locates runs only through the run registry of the server's master directory (`resolve.RegisteredRun`) and returns existing rotari reports. It does not depend on `cmd/rotari`. | `server.go` (`NewServer`) |
 | [internal/runlineage](../internal/runlineage/) | Comparison and summaries of loaded runs for `lineage`. | `runlineage.go` |
 | [internal/jobfilter](../internal/jobfilter/) | The conditions of the `--filter-*` options that narrow a job selection, evaluated without file access; callers supply what a condition needs about each job. | `filter.go` (`Filter`, `Selects`) |
 | [internal/diagnose](../internal/diagnose/) | Rule-based and provider-backed failure diagnosis. | `analysis.go` |
