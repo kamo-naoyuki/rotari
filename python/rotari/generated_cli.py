@@ -1225,8 +1225,9 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "FORMAT",
                 },
                 {
-                    "description": "include jobs finished within this duration; "
-                    "use 0 for running jobs only",
+                    "description": "include jobs finished within this duration, "
+                    "such as 24h or 7d; use 0 for running jobs "
+                    "only",
                     "name": "since",
                     "value_name": "DURATION",
                 },

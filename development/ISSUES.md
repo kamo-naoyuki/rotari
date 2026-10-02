@@ -8,9 +8,9 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **`jobs --since 7d`, as documented, is rejected** (`internal/joblist`, `ParseSince`; `docs/INSPECT.md`): the guide gives `rotari jobs --since 7d` as "the last seven days", but `ParseSince` uses `time.ParseDuration`, which has no day unit, so the command fails with `invalid --since duration "7d"`. Expected: accept days, or document hours such as `168h`.
-
 ## Resolved
+
+- **`jobs --since 7d`, as documented, was rejected** (`internal/joblist`, `ParseSince`): Go durations have no day unit. `ParseSince`, which the CLI and the Web jobs page share, now also takes a whole number of days. Contract CLI-6; `TestParseSinceAcceptsDurationsAndDays` and `TestJobsWindowAcceptsDays` fail on the previous commit.
 
 - **An array job's name did not resolve as a dependency** (`internal/model/model.go`, `QueueToJobs`): stage and matrix names expanded to their members, but a named array's tasks are named `NAME[N]`, so `--depends-on NAME` matched no job and `check` and `run` failed with `depends on unknown job`. `QueueToJobs` now expands an array's name to its tasks for `--depends-on` and `--depends-on-finished`. Contract RUN-7; `TestQueueToJobsExpandsArrayNameDependency` and `TestArrayNameDependsOnEveryTask` fail on the previous commit.
 

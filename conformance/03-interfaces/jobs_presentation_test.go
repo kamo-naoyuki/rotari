@@ -31,3 +31,19 @@ func TestJobsTableKeepsVisibleColumnsAligned(t *testing.T) {
 		}
 	}
 }
+
+func TestJobsWindowAcceptsDays(t *testing.T) {
+	covers(t, "CLI-6")
+	e := support.NewEnv(t)
+	run := e.CreateFinishedRun()
+	if output := e.MustRotari("jobs", run.Project, "--since", "7d").Stdout; !strings.Contains(output, run.BadAttempt) {
+		t.Fatalf("jobs --since 7d does not list the finished job %s:\n%s", run.BadAttempt, output)
+	}
+	if result := e.Rotari("jobs", run.Project, "--since", "1.5d"); result.Code == 0 {
+		t.Fatalf("jobs --since 1.5d was accepted: %s", result)
+	}
+	web := e.StartWeb()
+	if got := e.HTTPGet(web + "/jobs/?since=7d"); got.Status != 200 || !strings.Contains(got.Body, run.BadAttempt) {
+		t.Fatalf("GET /jobs/?since=7d: status %d, want 200 listing %s", got.Status, run.BadAttempt)
+	}
+}

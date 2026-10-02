@@ -355,7 +355,7 @@ Usage: `rotari jobs [PROJECT]`
 | `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory for --all |
 | `--all-basedirs` | `` | `` | include all basedirs known to the master registry |
 | `-o` / `--format` | `FORMAT` | `` | output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time) |
-| `--since` | `DURATION` | `` | include jobs finished within this duration; use 0 for running jobs only |
+| `--since` | `DURATION` | `` | include jobs finished within this duration, such as 24h or 7d; use 0 for running jobs only |
 
 ### `rotari diagnose`
 

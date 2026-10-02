@@ -164,6 +164,12 @@ follows:
   list is in [`cmd/rotari/show.go`](../cmd/rotari/show.go)
   (`showProjectsForBaseDirs`), with the end-to-end check in
   [`conformance/03-interfaces/project_list_test.go`](../conformance/03-interfaces/project_list_test.go).
+- **CLI-6** The job listing window, `jobs --since` and the Web jobs page's
+  `since`, takes a Go duration such as `24h` or `90m`, or a whole number of
+  days such as `7d`; anything else is rejected. Both parse it with
+  `joblist.ParseSince` in [`internal/joblist/joblist.go`](../internal/joblist/joblist.go),
+  with the end-to-end check in
+  [`conformance/03-interfaces/jobs_presentation_test.go`](../conformance/03-interfaces/jobs_presentation_test.go).
 
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.

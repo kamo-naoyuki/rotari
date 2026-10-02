@@ -199,3 +199,29 @@ func formatInt(value int) string {
 	}
 	return "1"
 }
+
+func TestParseSinceAcceptsDurationsAndDays(t *testing.T) {
+	tests := []struct {
+		value string
+		want  time.Duration
+		err   bool
+	}{
+		{"", DefaultSince, false},
+		{"0", 0, false},
+		{"90m", 90 * time.Minute, false},
+		{"7d", 7 * 24 * time.Hour, false},
+		{"1d", 24 * time.Hour, false},
+		{"0d", 0, false},
+		{"-1d", 0, true},
+		{"1.5d", 0, true},
+		{"d", 0, true},
+		{"7days", 0, true},
+		{"-1h", 0, true},
+	}
+	for _, test := range tests {
+		got, err := ParseSince(test.value)
+		if (err != nil) != test.err || (!test.err && got != test.want) {
+			t.Errorf("ParseSince(%q) = %v, %v; want %v, error %v", test.value, got, err, test.want, test.err)
+		}
+	}
+}
