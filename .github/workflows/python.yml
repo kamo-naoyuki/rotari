@@ -44,10 +44,10 @@ jobs:
         run: python -m pip install pytest ruff==0.16.9 ./python
 
       - name: Lint Python code
-        run: ruff check python scripts
+        run: ruff check --config python/pyproject.toml python scripts
 
       - name: Check Python formatting
-        run: ruff format --check python scripts
+        run: ruff format --check --config python/pyproject.toml python scripts
 
       - name: Run Python tests
         run: PYTHONPATH=python python -m pytest python/tests
