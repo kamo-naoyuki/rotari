@@ -5,9 +5,9 @@ import json
 import os
 import re
 import subprocess
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Mapping, Sequence, overload
+from typing import overload
 
 from .generated_cli import CLI_SCHEMA
 
@@ -497,7 +497,7 @@ class Rotari:
         if not all(isinstance(item, dict) for item in summaries):
             raise TypeError("rotari wait --json returned a non-object JSON value")
         if many:
-            for expected, summary in zip(ids, summaries):
+            for expected, summary in zip(ids, summaries, strict=True):
                 if summary.get("run_id") != expected:
                     raise ValueError("rotari wait returned runs out of order")
         return summaries

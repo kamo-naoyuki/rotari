@@ -19,7 +19,7 @@ repos:
     rev: v0.16.9
     hooks:
       - id: ruff
-        args: [--config, python/pyproject.toml, --select, I, --fix]
+        args: [--config, python/pyproject.toml, --fix]
         files: ^(python|scripts)/
       - id: ruff-format
         args: [--config, python/pyproject.toml]
