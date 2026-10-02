@@ -63,3 +63,39 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - `pre-commit` is not installed here and was not run; `gofmt -l` and `go vet` reported nothing.
 
 **Remaining:** M1, failure grouping. `TestWebJobsPageShowsRecentJobs` remains open in `ISSUES.md`.
+
+## M1: Group a run's failures by cause
+
+**Commits:** 2026-10-02 22:26:28 `3f59a01`; 2026-10-02 22:26:36 `85a41aa`; 2026-10-02 22:27:16 `a254005`.
+
+**Change:**
+- Added `runlineage.FailureGroups` (`internal/runlineage/failures.go`). It classifies each failed or blocked job on its own result, in this order: a recorded block, cancellation, or timeout; then the latest saved rule diagnosis; then the remaining `model.FailureKinds` kind.
+- Groups carry the count, the carried count, the exit codes, an example (job, attempt, evidence), the diagnosis suggestion, and every member.
+- `runlineage.Job` gained the resolved `Result`, set by `runview.LoadRun` and by the Web loader's `buildLineageSummary`, which now also passes array task IDs and carried flags.
+- `show` for a run prints `Failures by cause:` for the jobs its table lists, and `show --json` adds `failures`. `lineage RUN` prints and returns the same groups, and the Web API's `lineage_summary.failures` carries them. The run page shows them as `Failure causes`.
+- The CLI text is in `cmd/rotari/failure_groups.go`.
+- Added contract CLI-4 with `TestFailureGroupsAgreeAcrossViews`, and updated `docs/INSPECT.md` and `docs/ARCHITECTURE.md`.
+- Recorded in `ISSUES.md` that conformance results can be stale from the Go test cache (`85a41aa`).
+- Added the M1 trial note and updated `plan.md` (`a254005`).
+
+**Reason:** M1 of the plan. The first trial needed about 100 KB of output to learn three causes in a 300-task run.
+
+**Plan impact:**
+- M1 is done. Failure grouping is owned by `runlineage`, beside the existing `SummarizeDiagnoses`, which resolved the owner open decision. The existing diagnosis counts are unchanged.
+- `model.FailureKinds` replaced the planned error-line normalization.
+- The 2 KB criterion is met by `lineage RUN` (1.5 KB for `labC`), but not by `show -r RUN` (77 KB, dominated by its job table). Making the compact view the obvious first call became an M3 item.
+- Timeout diagnosis in reports stays in M2.
+
+**Validation:**
+- New tests:
+  - `TestFailureGroupsClassifiesEachJobByCause`: distinct exit codes within one cause, a carried task, a timeout whose log also matched a rule, a signal, a cancellation, no match, and a blocked matrix member.
+  - `TestFailureMemberLabels`
+  - `TestShowAndLineageAgreeOnFailureGroups`: text, JSON, and `--success` filtering.
+  - `TestBuildLineageSummaryGroupsFailuresByCause`
+  - `TestWebRunPageShowsFailureCauses`, run in jsdom. It fails with the JS change reverted and passes with it.
+  - `TestFailureGroupsAgreeAcrossViews`: the built binary and the Web API.
+- `go test -count=1 ./conformance/...` passed in all seven packages; an earlier cached run had not re-tested four of them.
+- `scripts/check.sh` failed only in the known `TestWebJobsPageShowsRecentJobs`.
+- `prettier --check` passed for `web_app_core.js`. `pre-commit` is not installed.
+
+**Remaining:** M2 (relevant excerpts, timeout diagnosis in reports, cause-aware `lineage` comparison). M3 now includes making the compact summary discoverable from `show`. The stale-cache conformance issue is open in `ISSUES.md`.
