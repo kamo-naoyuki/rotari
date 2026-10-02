@@ -1,7 +1,10 @@
 package archtest
 
 import (
+	"io/fs"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -129,6 +132,7 @@ func violatesRule(rule boundaryRule, imported string) bool {
 // the imports of its test files when withTests is set.
 func listImports(t *testing.T, withTests bool) map[string][]string {
 	t.Helper()
+	trackModuleSources(t)
 	format := `{{.ImportPath}} {{join .Imports " "}}`
 	if withTests {
 		format += ` {{join .TestImports " "}} {{join .XTestImports " "}}`
@@ -148,4 +152,43 @@ func listImports(t *testing.T, withTests bool) map[string][]string {
 		}
 	}
 	return imports
+}
+
+// trackModuleSources makes a cached result of these tests depend on the
+// module's Go sources. listImports reads imports through a `go list`
+// subprocess, which Go's test cache does not observe; the cache does record
+// files the test process stats, so this stats go.mod and every directory
+// and .go file of the module. conformance/support does the same for the
+// conformance packages, which may not import this package.
+func trackModuleSources(t *testing.T) {
+	t.Helper()
+	root, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(root, "go.mod")); err == nil {
+			break
+		}
+		parent := filepath.Dir(root)
+		if parent == root {
+			t.Fatal("go.mod not found above the working directory")
+		}
+		root = parent
+	}
+	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() && path != root && (strings.HasPrefix(entry.Name(), ".") || entry.Name() == "node_modules" || entry.Name() == "testdata") {
+			return filepath.SkipDir
+		}
+		if entry.IsDir() || strings.HasSuffix(path, ".go") {
+			_, err = os.Stat(path)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatalf("track module sources: %v", err)
+	}
 }

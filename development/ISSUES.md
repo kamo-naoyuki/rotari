@@ -8,13 +8,13 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **`internal/archtest` can report a cached pass after imports change** (`internal/archtest/boundaries_test.go`, `listImports`): the boundary test reads imports through a `go list` subprocess, which Go's test cache does not observe, so `go test ./internal/archtest` can print `(cached)` after a change that breaks a rule. The same cause was fixed for conformance with `support.TrackBuildInputs`. Run it with `-count=1` until it tracks its inputs.
-
 - **An array job's name is accepted as a dependency but never resolves** (`add`, dependency validation): `add --job-name train --array 1-2 ...` followed by `add --depends-on train ...` (or `--depends-on-finished`, with a plain or matrix dependent) succeeds, and then `check` and `run` fail with `depends on unknown job "train"`. A matrix base name does resolve. Expected: either resolve the array name to all its tasks, or reject it at `add` with a hint to use a stage.
 
 - **`jobs --since 7d`, as documented, is rejected** (`internal/joblist`, `ParseSince`; `docs/INSPECT.md`): the guide gives `rotari jobs --since 7d` as "the last seven days", but `ParseSince` uses `time.ParseDuration`, which has no day unit, so the command fails with `invalid --since duration "7d"`. Expected: accept days, or document hours such as `168h`.
 
 ## Resolved
+
+- **`internal/archtest` reported cached passes after imports changed** (`internal/archtest/boundaries_test.go`): `listImports` reads imports through `go list`, which Go's test cache does not observe. `trackModuleSources` now stats go.mod and every directory and `.go` file of the module during the test, so editing or adding a Go file reruns the package; unchanged sources stay cached. It mirrors `conformance/support.TrackBuildInputs`, which conformance cannot share across the package boundary.
 
 - **Jobs stopped by `cancel` did not read as cancelled** (`internal/projectrun/execute.go`): the runner knew a job was explicitly cancelled (it skips the retry) but kept its result's error empty, so a whole-run cancel's jobs were classified as `signal` (exit 143) and a single-job cancel's as `error`. The final result now records `cancelled` through `model.CancelledError`, which `IsCancelledError` and therefore `--filter-failure-kind` and failure groups read. Contract CAN-5; `TestCancelledJobsReadAsCancelled` fails on the previous commit for both kinds of cancel.
 
