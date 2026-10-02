@@ -345,6 +345,10 @@ func historySearchJobRecord(base webprojection.HistorySearchRecord, job webproje
 	base.JobID, base.JobName = job.ID, job.Name
 	base.JobStatus, base.JobStage = jobStatus, job.Stage
 	base.Command, base.Executor, base.AttemptID = strings.Join(job.Command, " "), job.Executor, job.AttemptID
+	base.WorkingDirectory = job.WorkingDirectory
+	if job.Result != nil {
+		base.Host = strings.Join(job.Result.Hosts, " ")
+	}
 	base.JobExitCode, base.Timestamp = exitCode, timestamp
 	if job.Result != nil {
 		names := make([]string, 0, len(job.Result.Diagnoses))

@@ -8,6 +8,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **`TestWebJobsPageShowsRecentJobs` expects a stale home-link URL** (`internal/webui/webui_test.go`): the rendered Job activity header scopes its home link to the current basedir, while the test expects the literal `href="/"`. The focused history-search tests pass; update this unrelated assertion to match the scoped route.
+
 ## Resolved
 
 - **Fingerprint matches were returned in nondeterministic group order** (`internal/model/fingerprint.go`, `MatchFingerprintJobsByMode`): iterating the fingerprint-group map made match output order vary between runs. Groups are now processed by their first occurrence in the current queue; `TestMatchFingerprintJobsRespectsCurrentQueueOrderAcrossGroups` covers stable ordering.

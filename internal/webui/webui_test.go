@@ -306,7 +306,7 @@ vm.runInContext(code, context);
 	const jobFields = context.historySearchOptionsHTML('job');
 	if (!projectFields.includes('project:project_name')) throw new Error('project target is missing its attribute');
 	if (!runFields.includes('project:project_name') || !runFields.includes('run:run_name')) throw new Error('run target is missing project/run attributes');
-	if (!jobFields.includes('project:project_name') || !jobFields.includes('run:run_name') || !jobFields.includes('job:command') || !jobFields.includes('job:diagnosis')) throw new Error('job target is missing project/run/job attributes');
+	if (!jobFields.includes('project:project_name') || !jobFields.includes('run:run_name') || !jobFields.includes('job:command') || !jobFields.includes('job:host') || !jobFields.includes('job:working_directory') || !jobFields.includes('job:diagnosis')) throw new Error('job target is missing project/run/job attributes');
 	if (!context.historySearchValueControl('job', 'diagnosis').startsWith('<select')) throw new Error('diagnosis is not a selectable job attribute');
 	const runStatus = context.historySearchValueControl('run', 'status');
 	const jobStatus = context.historySearchValueControl('job', 'status');

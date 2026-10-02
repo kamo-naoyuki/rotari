@@ -50,7 +50,8 @@ allows a small edit distance and ignores terms shorter than four characters.
 Status, executor, and diagnosis conditions use dropdowns and exact value
 matching. Diagnosis choices come from the built-in diagnosis rules plus the
 Python exception fallback, not from scanning saved results. Other attributes
-accept search text and match substrings by default. Additional
+including job host and working directory accept search text and match
+substrings by default. Additional
 conditions are joined in displayed order with AND or OR, evaluated left-to-right.
 Results always remain at the selected level. Results are
 ordered by activity time with a

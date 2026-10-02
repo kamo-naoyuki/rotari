@@ -126,6 +126,30 @@ func TestSearchHistoryMatchesSavedDiagnosisNameExactly(t *testing.T) {
 	}
 }
 
+func TestSearchHistoryMatchesJobHostAndWorkingDirectory(t *testing.T) {
+	records := []HistorySearchRecord{{
+		BaseDirID: "base", ProjectName: "alpha", RunID: "run-1",
+		JobID: "job-1", JobName: "train", Host: "gpu-node-07 gpu-node-08",
+		WorkingDirectory: "/scratch/project/train", Timestamp: "2026-10-01T10:00:00Z",
+	}}
+	for _, test := range []struct {
+		field string
+		word  string
+	}{
+		{field: "host", word: "GPU-NODE-08"},
+		{field: "working_directory", word: "/scratch/project"},
+	} {
+		request := HistorySearchRequest{
+			Target:  HistorySearchJob,
+			Filters: []HistorySearchFilter{{Target: HistorySearchJob, Field: test.field, Word: test.word}},
+		}
+		got, err := SearchHistory(records, request)
+		if err != nil || got.Total != 1 || got.Rows[0].JobID != "job-1" {
+			t.Errorf("search %s=%q = (%#v, %v), want job-1", test.field, test.word, got, err)
+		}
+	}
+}
+
 func TestSearchHistoryDeduplicatesRunsAndPaginatesDeterministically(t *testing.T) {
 	records := []HistorySearchRecord{
 		{BaseDirID: "base", ProjectName: "alpha", RunID: "run-1", RunName: "nightly", RunStatus: "success", RunFinished: "2026-10-02T10:00:00Z", Timestamp: "2026-10-02T10:00:00Z"},

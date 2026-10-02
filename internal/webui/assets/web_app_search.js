@@ -17,6 +17,12 @@ const historySearchFieldOptions = {
     { target: "run", value: "exit_code", label: "Run · Exit code" },
     { target: "job", value: "command", label: "Job · Command" },
     { target: "job", value: "status", label: "Job · Status" },
+    { target: "job", value: "host", label: "Job · Host" },
+    {
+      target: "job",
+      value: "working_directory",
+      label: "Job · Working directory",
+    },
     { target: "job", value: "diagnosis", label: "Job · Diagnosis" },
     { target: "job", value: "job_id", label: "Job · ID" },
     { target: "job", value: "job_name", label: "Job · Name" },
