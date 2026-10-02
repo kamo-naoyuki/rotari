@@ -190,3 +190,41 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - `go test -count=1 ./conformance/...` passed in all packages, and `scripts/check.sh` passed.
 
 **Remaining:** In `ISSUES.md`: the positional `show RUN_ID|ATTEMPT_ID --json|--report` failure, array job names as dependencies, and `jobs --since 7d`. M4 is next.
+
+## M4: Read-only MCP tools over the shared functions
+
+**Commits:** 2026-10-03 01:02:06 `3ae47f4`; 2026-10-03 01:04:14 `0576d19`; 2026-10-03 01:09:42 `bf47bd5`; 2026-10-03 01:09:42 `f510d9e`; 2026-10-03 01:10:15 `dc40174`.
+
+**Change:**
+- `3ae47f4`: moved `projectRunsByStart` and the unused `previousRunID` from `cmd/rotari/lineage.go` into `runview` as `RunsByStart` and `PreviousRun`. Added `runview.Summary`, which `lineage RUN` now uses.
+- `0576d19`: moved the project list's per-project facts into `project.Overviews` (and `CountRuns`). Added `basedirregistry.Discover`, which lists basedirs without the CLI's registry migration, and `basedirregistry.Ref`. CLI output is unchanged.
+- `bf47bd5`: `internal/mcp/tools.go` adds `rotari_list_projects`, `rotari_run_summary`, and `rotari_compare_runs` beside `rotari_get_job_info`. `report.RedactPatterns` was exported for evidence lines. Updated `docs/MCP.md` and `docs/ARCHITECTURE.md`.
+- `f510d9e`: recorded two issues found while testing: whole-run `cancel` results are classified as `signal`, and `internal/archtest` has stale cache passes.
+- `dc40174`: added the MCP-only trial script and note, and updated the plan.
+
+**Reason:** M4 of the plan: give agents without a shell the same compact information as the CLI path, through shared functions rather than a second implementation.
+
+**Plan impact:**
+- M4 is done.
+- Decided:
+  - no blocking `wait` tool;
+  - the comparison tool defaults to the previous run, instead of adding a run-listing tool;
+  - evidence uses pattern-only redaction, while per-run redaction stays in reports.
+- The open decision on redaction ownership is narrowed but not closed.
+
+**Validation:**
+- New tests:
+  - `TestRefNamesTheRecordWithoutThePath`
+  - `TestDiscoverFallsBackToRunRecordsWithoutWriting`
+  - `TestPreviousRunFollowsStartOrder`
+  - `TestListProjectsNamesBaseDirsWithoutPaths`, which checks that no absolute path appears.
+  - `TestRunSummaryGroupsFailuresAndRedactsEvidence`
+  - `TestCompareRunsDefaultsToThePreviousRun`
+  - `TestCompareRunsRejectsRunsOfDifferentProjects`, which also covers an unsafe `previous_run_id`.
+  - The MCP schema test now checks that no tool takes a location.
+- `scripts/check.sh` passed. `go test -count=1 ./internal/archtest ./conformance/...` passed.
+- The MCP-only trial ran against the fixture over stdio.
+
+**Remaining:**
+- M5, which requires extracting `check` and `export` from `cmd/rotari`.
+- Open issues that affect agents: the positional `show RUN_ID|ATTEMPT_ID --json|--report` failure, cancelled jobs classified as `signal`, and archtest's stale cache.
