@@ -321,3 +321,29 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - Lesson: run the conformance suite before every commit that changes CLI output.
 
 **Remaining:** The MCP side of M6.
+
+## M6 (MCP part): `rotari mcp`, previewed writes, and a redacted export
+
+**Commits:** 2026-10-03 02:37:24 `e502d5e`; 2026-10-03 02:40:12 `e96b37f`; 2026-10-03 02:42:24 `3f644f5`; 2026-10-03 02:49:32 `136827e`; 2026-10-03 02:54:48 `cb83f70`; 2026-10-03 02:54:48 `024b50f`.
+
+**Change:**
+- `e502d5e`: the MCP server moved into the binary as `rotari mcp`, so it can start a supervisor. `rotari-mcp` (`cmd/mcp`) is removed; the trial script runs `rotari mcp`.
+- `e96b37f`: workflow import and run sources moved from `cmd/rotari` into `internal/workflowstate`.
+- `3f644f5`: `projectrun.RunSource` decides once whether a run copies from the last run first; `run`, `retry`, and their previews use it. An async run start returns the run ID in `server.Response.RunID`.
+- `136827e`: MCP tools `rotari_preview_import`, `rotari_import`, `rotari_preview_run`, and `rotari_start_run`. Previews are read-only and return the revision; writes require `if_revision` and are refused at another one. Contract MCP-1.
+- `cb83f70`: the settled-run check and loading of `rotari export` moved into `workflowstate.RequireSettledRun` and `LoadSettledRun`.
+- `024b50f`: `rotari_export_run` returns the manifest with environment values and executor options replaced by `[REDACTED]` and paths redacted by pattern. The MCP import tools refuse a manifest that still holds a placeholder. Contract MCP-2.
+
+**Reason:** M6 decisions 1 to 4, approved by the user: per-tool permission is the approval, every write is previewed and applied at a revision, MCP export is a redacted view, and import and run start come first. The user chose to integrate the server into the binary (option 1).
+
+**Plan impact:**
+- M6 is done for import, export, and run start. Run start was brought forward from M7.
+- MCP queue edits (`add`, `change`, `remove`, `copy`, `delete`) are not exposed yet.
+- The open decision on how MCP starts a run is closed.
+
+**Validation:**
+- New tests: `TestExportRunRedactsAndImportRefusesTheRedactedView`, `TestExportRunRefusesAnActiveRun`, the write tool tests in `internal/mcp/write_test.go`, and the conformance tests `TestMCPWritesApplyOnlyAtThePreviewedRevision` (MCP-1) and `TestMCPExportIsARedactedViewThatImportRefuses` (MCP-2), which run the built binary over stdio.
+- Before `024b50f`: `scripts/check.sh` passed, and `go test -count=1 ./conformance/... ./internal/archtest ./internal/doclinks` passed.
+- The agent trial has not been repeated with the write tools yet.
+
+**Remaining:** An agent trial with the write tools; MCP queue edits or M7.

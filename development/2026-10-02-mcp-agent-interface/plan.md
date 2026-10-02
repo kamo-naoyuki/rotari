@@ -161,9 +161,17 @@ Outcome:
 - `check` moved into `projectrun.Runner.Check`, which `rotari check` calls; the `--deep` host checks are passed in as an optional function. `rotari_check_project` exposes it without `--deep`. It names the project by `basedir_ref` and name; `basedirregistry.Find` resolves the reference, and error messages hide the basedir path. In the MCP trial script it answered in 135 bytes.
 - `export` is not exposed, and not extracted yet. A run's manifest holds job environment values, absolute working directories, and commands, which the principles keep out of default results. A redacted manifest could not be imported, and its main use is to be edited and imported. Which details an exported manifest may carry, and who approves an import, are M6 decisions. The extraction will be done then, when it has a caller.
 
-### M6: State-changing queue and workflow operations
+### M6: State-changing queue and workflow operations (done for import, export, and run start; MCP queue edits remain)
 
 `import`, queue edits (`add`, `change`, `remove`, `copy`), and run deletion, each with a separate preview and apply step. Do not start until the preview/apply contract, authorization, audit, idempotency, and recovery behavior are designed. Extract `export` from `cmd/rotari` with it, and decide what an exported manifest may carry through MCP (environment values, working directories, commands).
+
+Outcome:
+
+- Every CLI command that changes a project takes `--dry-run` and `--if-revision` (contract CLI-7).
+- The MCP server is `rotari mcp`, in the same binary, so it can start a supervisor; `rotari-mcp` is removed.
+- MCP previews (`rotari_preview_import`, `rotari_preview_run`) are read-only tools that return a revision. The writes (`rotari_import`, `rotari_start_run`) require it, and the MCP client's per-tool permission is the approval (contract MCP-1). Run start was brought forward from M7 because the trials need it.
+- `export` moved into `workflowstate.LoadSettledRun`. `rotari_export_run` returns a redacted view (environment values, executor options, and detected paths); the MCP import tools refuse it, and the full manifest stays with `rotari export` (contract MCP-2).
+- Not yet exposed through MCP: `add`, `change`, `remove`, `copy`, and `delete`. Their CLI forms are guarded already.
 
 ### M7: Execution and destructive operations
 
@@ -179,7 +187,8 @@ Outcome:
 - M4 is done: four read-only MCP tools over the shared functions, with no absolute paths in results.
 - M5 is done for `check` (`rotari_check_project`); `export` moved to M6.
 - M6 CLI half is done: `add`, `change`, `copy`, `delete`, `import`, `remove`, `reset`, `run`, and `retry` take `--dry-run` and `--if-revision` (contract CLI-7), `check` reports the revision, and `gc` applies by default with `--dry-run`.
-- Next step: M6 MCP half (import preview/apply, run start). Starting a run needs a supervisor process, which `rotari-mcp` cannot start on its own; see Open decisions.
+- M6 MCP half is done for import, export, and run start (MCP-1, MCP-2), served by `rotari mcp`.
+- Next step: repeat the agent trial with the write tools, then decide whether MCP needs the queue edits of M6 or goes on to M7 (cancel, suspend, resume, gc, reset).
 
 ## Open decisions
 
@@ -188,8 +197,7 @@ Outcome:
 - Which command and configuration details are safe and useful to return.
 - Whether Web history search (`web.SearchHistory`) should back an MCP log-search tool.
 - Where redaction is owned once outputs other than `report` return paths, hostnames, or commands.
-- How an MCP tool starts a run: the supervisor is `rotari __server`, a child of the `rotari` binary, which `rotari-mcp` is not.
-- For M6/M7: the preview, confirmation, apply, and result-reporting sequence; authorization and audit; idempotency and retries after a transport timeout; asynchronous run handles; cancellation; partial failure.
+- For M7: audit of MCP writes; retries after a transport timeout (a write repeated at the old revision is refused, so the client must re-preview); cancellation; partial failure.
 
 ## Validation
 
