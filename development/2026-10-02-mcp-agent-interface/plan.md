@@ -43,6 +43,18 @@ The terminal entry point (`rotari-agent`) and MCP entry point should expose the 
 
 Before calling the API complete, maintain a parity matrix from every candidate operation to its existing rotari implementation and contract tests. This should identify unsupported options/variants explicitly; an operation must not silently ignore a flag or selector.
 
+## Sharing and package boundaries
+
+Supporting these domains must **not** mean reimplementing all of `cmd/rotari` in `rotari-agent` and MCP. That would create a second CLI/API whose queue, selector, status, locking, and run behavior would drift from rotari itself.
+
+- Keep `cmd/rotari` as the human-oriented CLI adapter. Keep `cmd/mcp/agent` and `cmd/mcp/server` as thin transport/argument/output adapters.
+- Each behavior has one owner: use the existing shared packages for project resolution, status/result resolution, job selection, queue edits, workflow reconciliation, run lifecycle, job control, reporting, and history search. When a capability currently exists only inside a command handler, first extract the reusable operation to an appropriate lower-level package; do not copy the handler into an agent package.
+- Keep protocol-neutral request/response and application operations separate from MCP SDK types. MCP should map typed MCP inputs to the shared operation and encode its result; `rotari-agent` should parse flags/JSON, call that same operation, and emit JSON. Neither adapter should call the other.
+- Add one integration/parity test per shared behavior proving both entry points reach the same operation/result, plus package/conformance tests for the owning domain rules. Don't duplicate the domain test suite for every transport.
+- The parity matrix is a coverage map, not a demand to expose every CLI flag. An agent operation should expose only coherent agent use cases and necessary selectors, while preserving the relevant underlying contract.
+
+This may require a protocol-neutral internal service package (for example, a narrowly scoped `internal/agentapi`) alongside `internal/mcp`; exact package names are open. The key boundary is that reusable behavior and result types must not depend on MCP SDK request/result types or on `cmd/rotari`.
+
 ## Information and operations to evaluate
 
 - Which basedir and project contain the relevant state?
