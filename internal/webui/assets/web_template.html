@@ -189,33 +189,26 @@
           </button>
         </header>
         <p id="orbit-game-help" class="orbit-game-help">
-          Drag the red node around the ring, or focus it and use ← / →. Press
-          Esc to close.
+          Hold ← / → to rotate the ring. Every ball moves with the turn; smaller
+          white balls also drift faster clockwise. Avoid the white balls.
         </p>
         <svg
           class="orbit-game-board"
           viewBox="0 0 240 240"
           role="group"
-          aria-label="A red node orbiting three white nodes"
+          aria-label="Rotate the ring of red and white balls"
         >
           <circle class="orbit-game-track" cx="120" cy="120" r="84" />
           <circle class="orbit-game-trail" cx="120" cy="120" r="84" />
-          <g transform="translate(120 120) rotate(45)">
-            <circle class="orbit-game-node" cx="48.18" cy="-68.81" r="22" />
-            <circle class="orbit-game-node" cx="76.13" cy="35.50" r="22" />
-            <circle class="orbit-game-node" cx="-68.81" cy="48.18" r="22" />
+          <g id="orbit-game-balls" transform="translate(120 120) rotate(0)">
+            <g id="orbit-game-white-balls" aria-hidden="true"></g>
             <circle
               id="orbit-game-player"
               class="orbit-game-player"
               cx="0"
               cy="-84"
-              r="23"
-              role="slider"
-              aria-label="Red orbit node"
-              aria-valuemin="0"
-              aria-valuemax="359"
-              aria-valuenow="270"
-              tabindex="0"
+              r="13"
+              aria-label="Red ball"
             />
           </g>
         </svg>
@@ -223,6 +216,7 @@
           <button
             id="orbit-game-left"
             type="button"
+            data-orbit-direction="-1"
             aria-label="Move counterclockwise"
           >
             ←
@@ -231,10 +225,15 @@
           <button
             id="orbit-game-right"
             type="button"
+            data-orbit-direction="1"
             aria-label="Move clockwise"
           >
             →
           </button>
+        </div>
+        <div id="orbit-game-over" class="orbit-game-over" role="status" hidden>
+          <strong>Game over</strong>
+          <button id="orbit-game-restart" type="button">Play again</button>
         </div>
       </section>
     </div>

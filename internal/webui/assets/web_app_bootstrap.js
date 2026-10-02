@@ -30,36 +30,125 @@ function initOrbitGame() {
   const dialog = document.getElementById("orbit-game");
   const player = document.getElementById("orbit-game-player");
   const board = dialog?.querySelector(".orbit-game-board");
-  if (!dialog || !player || !board) return;
+  const whiteBalls = document.getElementById("orbit-game-white-balls");
+  const gameOver = document.getElementById("orbit-game-over");
+  if (!dialog || !player || !board || !whiteBalls || !gameOver) return;
 
-  let angle = -Math.PI / 2;
+  const ringRadius = 84;
+  const redRadius = 13;
+  const ballCount = 6;
+  const whiteRadiusMin = 7;
+  const whiteRadiusMax = 17;
   let returnFocus = null;
-  let dragging = false;
-  const moveTo = (nextAngle) => {
-    angle = nextAngle;
-    const degrees = ((Math.round((angle * 180) / Math.PI) % 360) + 360) % 360;
-    player.setAttribute("cx", (84 * Math.cos(angle)).toFixed(2));
-    player.setAttribute("cy", (84 * Math.sin(angle)).toFixed(2));
-    player.setAttribute("aria-valuenow", String(degrees));
+  let turnDirection = 0;
+  let animationFrame = 0;
+  let lastFrameTime = null;
+  let running = false;
+  let redAngle = -Math.PI / 2;
+  let whiteStates = [];
+
+  const angleDelta = (from, to) => {
+    let difference = Math.abs(from - to) % (Math.PI * 2);
+    if (difference > Math.PI) difference = Math.PI * 2 - difference;
+    return difference;
+  };
+  const drawBall = (element, angle) => {
+    element.setAttribute("cx", (ringRadius * Math.cos(angle)).toFixed(2));
+    element.setAttribute("cy", (ringRadius * Math.sin(angle)).toFixed(2));
+    element.dataset.angle = String(angle);
+  };
+  const makeWhiteBalls = () => {
+    whiteBalls.replaceChildren();
+    whiteStates = Array.from({ length: ballCount }, (_, index) => {
+      const radius =
+        whiteRadiusMin + Math.random() * (whiteRadiusMax - whiteRadiusMin);
+      const angle =
+        -Math.PI / 2 + ((index + 1) * Math.PI * 2) / (ballCount + 1);
+      const element = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "circle",
+      );
+      element.setAttribute("class", "orbit-game-node");
+      element.setAttribute("r", radius.toFixed(2));
+      whiteBalls.append(element);
+      drawBall(element, angle);
+      return { angle, radius, element };
+    });
+    redAngle = -Math.PI / 2;
+    drawBall(player, redAngle);
+    gameOver.hidden = true;
+  };
+  const hasCollision = () =>
+    whiteStates.some(
+      (white) =>
+        angleDelta(redAngle, white.angle) <=
+        (redRadius + white.radius) / ringRadius,
+    );
+  const stop = () => {
+    running = false;
+    turnDirection = 0;
+    lastFrameTime = null;
+    if (animationFrame) cancelAnimationFrame(animationFrame);
+    animationFrame = 0;
+  };
+  const endGame = () => {
+    stop();
+    gameOver.hidden = false;
+    document.getElementById("orbit-game-restart").focus();
+  };
+  const tick = (timestamp) => {
+    if (!running || dialog.hidden) return;
+    const elapsed =
+      lastFrameTime === null
+        ? 0
+        : Math.min((timestamp - lastFrameTime) / 1000, 0.05);
+    lastFrameTime = timestamp;
+    const turnSpeed = turnDirection * 1.7 * elapsed;
+    redAngle += turnSpeed * 0.81;
+    drawBall(player, redAngle);
+    for (const white of whiteStates) {
+      const sizeFactor = 0.45 + (whiteRadiusMax - white.radius) * 0.065;
+      white.angle +=
+        elapsed * (0.55 / white.radius + turnDirection * 1.7 * sizeFactor);
+      drawBall(white.element, white.angle);
+    }
+    if (hasCollision()) {
+      endGame();
+      return;
+    }
+    animationFrame = requestAnimationFrame(tick);
+  };
+  const start = () => {
+    stop();
+    makeWhiteBalls();
+    running = true;
+    animationFrame = requestAnimationFrame(tick);
   };
   const open = () => {
     returnFocus = document.activeElement;
     dialog.hidden = false;
-    player.focus();
+    start();
+    document.getElementById("orbit-game-left").focus();
   };
   const close = () => {
+    stop();
     dialog.hidden = true;
-    dragging = false;
     if (returnFocus && typeof returnFocus.focus === "function")
       returnFocus.focus();
   };
-  const nudge = (direction) => moveTo(angle + direction * (Math.PI / 18));
-  const pointerAngle = (event) => {
-    const bounds = board.getBoundingClientRect();
-    if (!bounds.width || !bounds.height) return;
-    const x = ((event.clientX - bounds.left) * 240) / bounds.width - 120;
-    const y = ((event.clientY - bounds.top) * 240) / bounds.height - 120;
-    moveTo(Math.atan2(y, x) - Math.PI / 4);
+  const setTurnDirection = (direction) => {
+    if (running) turnDirection = direction;
+  };
+  const nudge = (direction) => {
+    if (!running) return;
+    redAngle += direction * 0.12 * 0.81;
+    for (const white of whiteStates) {
+      white.angle +=
+        direction * 0.12 * (0.45 + (whiteRadiusMax - white.radius) * 0.065);
+      drawBall(white.element, white.angle);
+    }
+    drawBall(player, redAngle);
+    if (hasCollision()) endGame();
   };
 
   for (const link of document.querySelectorAll(
@@ -72,20 +161,41 @@ function initOrbitGame() {
     });
   }
   document.getElementById("orbit-game-close").addEventListener("click", close);
+  for (const button of dialog.querySelectorAll("[data-orbit-direction]")) {
+    const direction = Number(button.dataset.orbitDirection);
+    button.addEventListener("pointerdown", (event) => {
+      setTurnDirection(direction);
+      if (button.setPointerCapture) button.setPointerCapture(event.pointerId);
+    });
+    for (const eventName of [
+      "pointerup",
+      "pointercancel",
+      "lostpointercapture",
+    ]) {
+      button.addEventListener(eventName, () => setTurnDirection(0));
+    }
+    button.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ")
+        setTurnDirection(direction);
+    });
+    button.addEventListener("keyup", (event) => {
+      if (event.key === "Enter" || event.key === " ") setTurnDirection(0);
+    });
+    button.addEventListener("click", () => nudge(direction));
+  }
   document
-    .getElementById("orbit-game-left")
-    .addEventListener("click", () => nudge(-1));
-  document
-    .getElementById("orbit-game-right")
-    .addEventListener("click", () => nudge(1));
+    .getElementById("orbit-game-restart")
+    .addEventListener("click", start);
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) close();
   });
   dialog.addEventListener("keydown", (event) => {
     if (event.key === "Tab") {
       const focusable = [
-        ...dialog.querySelectorAll('button:not([disabled]), [tabindex="0"]'),
-      ];
+        ...dialog.querySelectorAll(
+          'button:not([disabled]):not([hidden]), [tabindex="0"]',
+        ),
+      ].filter((element) => !element.closest("[hidden]"));
       const first = focusable[0];
       const last = focusable.at(-1);
       if (event.shiftKey && document.activeElement === first) {
@@ -98,32 +208,18 @@ function initOrbitGame() {
     } else if (event.key === "Escape") {
       event.preventDefault();
       close();
-    } else if (event.target === player && event.key === "ArrowLeft") {
+    } else if (event.key === "ArrowLeft") {
       event.preventDefault();
-      nudge(-1);
-    } else if (event.target === player && event.key === "ArrowRight") {
+      setTurnDirection(-1);
+    } else if (event.key === "ArrowRight") {
       event.preventDefault();
-      nudge(1);
+      setTurnDirection(1);
     }
   });
-  board.addEventListener("pointerdown", (event) => {
-    if (event.target.closest("button")) return;
-    dragging = true;
-    pointerAngle(event);
-    if (board.setPointerCapture) board.setPointerCapture(event.pointerId);
+  dialog.addEventListener("keyup", (event) => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight")
+      setTurnDirection(0);
   });
-  board.addEventListener("pointermove", (event) => {
-    if (dragging) pointerAngle(event);
-  });
-  for (const eventName of [
-    "pointerup",
-    "pointercancel",
-    "lostpointercapture",
-  ]) {
-    board.addEventListener(eventName, () => {
-      dragging = false;
-    });
-  }
 }
 const originalRender = render;
 render = function () {

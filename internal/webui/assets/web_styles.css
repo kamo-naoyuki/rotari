@@ -501,6 +501,20 @@ section {
 .orbit-game-header button {
   padding: 7px 12px;
 }
+.orbit-game-over {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 16px;
+  color: #ff8d91;
+}
+.orbit-game-over[hidden] {
+  display: none;
+}
+.orbit-game-over button {
+  padding: 8px 12px;
+}
 .modal-config-paths {
   display: flex;
   flex-direction: column;
