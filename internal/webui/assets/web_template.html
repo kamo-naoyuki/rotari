@@ -169,6 +169,75 @@
         </div>
       </div>
     </main>
+    <div
+      id="orbit-game"
+      class="orbit-game"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="orbit-game-title"
+      aria-describedby="orbit-game-help"
+      hidden
+    >
+      <section class="orbit-game-panel">
+        <header class="orbit-game-header">
+          <div>
+            <p class="orbit-game-eyebrow">ROTARI · FREE PLAY</p>
+            <h2 id="orbit-game-title">Orbit</h2>
+          </div>
+          <button id="orbit-game-close" type="button" aria-label="Close Orbit">
+            Close
+          </button>
+        </header>
+        <p id="orbit-game-help" class="orbit-game-help">
+          Drag the red node around the ring, or focus it and use ← / →. Press
+          Esc to close.
+        </p>
+        <svg
+          class="orbit-game-board"
+          viewBox="0 0 240 240"
+          role="group"
+          aria-label="A red node orbiting three white nodes"
+        >
+          <circle class="orbit-game-track" cx="120" cy="120" r="84" />
+          <circle class="orbit-game-trail" cx="120" cy="120" r="84" />
+          <g transform="translate(120 120) rotate(45)">
+            <circle class="orbit-game-node" cx="48.18" cy="-68.81" r="22" />
+            <circle class="orbit-game-node" cx="76.13" cy="35.50" r="22" />
+            <circle class="orbit-game-node" cx="-68.81" cy="48.18" r="22" />
+            <circle
+              id="orbit-game-player"
+              class="orbit-game-player"
+              cx="0"
+              cy="-84"
+              r="23"
+              role="slider"
+              aria-label="Red orbit node"
+              aria-valuemin="0"
+              aria-valuemax="359"
+              aria-valuenow="270"
+              tabindex="0"
+            />
+          </g>
+        </svg>
+        <div class="orbit-game-controls" aria-label="Orbit controls">
+          <button
+            id="orbit-game-left"
+            type="button"
+            aria-label="Move counterclockwise"
+          >
+            ←
+          </button>
+          <span>move around the ring</span>
+          <button
+            id="orbit-game-right"
+            type="button"
+            aria-label="Move clockwise"
+          >
+            →
+          </button>
+        </div>
+      </section>
+    </div>
     __ROTARI_STATIC_BOOTSTRAP__
     <script>
       __ROTARI_WEB_APP__;

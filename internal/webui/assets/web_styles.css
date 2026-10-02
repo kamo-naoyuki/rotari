@@ -380,6 +380,127 @@ section {
   margin: 0 0 12px;
   padding: 0 0 10px;
 }
+.orbit-game {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(5, 9, 13, 0.86);
+  backdrop-filter: blur(8px);
+}
+.orbit-game[hidden] {
+  display: none;
+}
+.orbit-game-panel {
+  width: min(420px, 100%);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background:
+    radial-gradient(
+      ellipse at 50% 53%,
+      rgba(229, 72, 77, 0.08),
+      transparent 54%
+    ),
+    var(--panel);
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.55);
+  text-align: center;
+}
+.orbit-game-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0;
+}
+.orbit-game-header h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 24px;
+}
+.orbit-game-eyebrow {
+  margin: 0 0 4px;
+  color: #e5484d;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+.orbit-game-help {
+  max-width: 310px;
+  margin: 16px auto 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.orbit-game-board {
+  display: block;
+  width: min(280px, 78vw);
+  margin: 2px auto 0;
+  overflow: visible;
+  touch-action: none;
+  user-select: none;
+}
+.orbit-game-track {
+  fill: none;
+  stroke: #8994a0;
+  stroke-width: 2;
+  opacity: 0.52;
+}
+.orbit-game-trail {
+  fill: none;
+  stroke: #e8eef4;
+  stroke-width: 5;
+  stroke-dasharray: 32 496;
+  stroke-linecap: round;
+  opacity: 0.3;
+  transform: rotate(-45deg);
+  transform-origin: center;
+}
+.orbit-game-node {
+  fill: #f2f2f2;
+  stroke: #8a8a8a;
+  stroke-width: 1.4;
+  pointer-events: none;
+}
+.orbit-game-player {
+  fill: #e5484d;
+  stroke: #ffb0b2;
+  stroke-width: 1.2;
+  cursor: grab;
+  filter: drop-shadow(0 0 10px rgba(229, 72, 77, 0.38));
+  outline: none;
+}
+.orbit-game-player:focus-visible {
+  stroke: #fff;
+  stroke-width: 3;
+}
+.orbit-game-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.orbit-game-controls button {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--text);
+  background: #111820;
+  font-size: 22px;
+  line-height: 1;
+}
+.orbit-game-controls button:hover {
+  border-color: #e5484d;
+  background: #20252d;
+}
+.orbit-game-header button {
+  padding: 7px 12px;
+}
 .modal-config-paths {
   display: flex;
   flex-direction: column;
