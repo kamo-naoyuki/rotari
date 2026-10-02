@@ -68,7 +68,7 @@ Agent-facing work must reach these owners rather than re-implement their rules. 
 
 | Capability | Owning package(s) | CLI / Web entry | MCP |
 | --- | --- | --- | --- |
-| Failure grouping | new; next to `diagnose` / `report` (decide in M1) | `show` (M1), Web run page | M4 |
+| Failure grouping | `runlineage` (`FailureGroups`, beside `SummarizeDiagnoses`) | `show` run view and `--json`, `lineage RUN`, Web run summary (done in M1) | M4 |
 | Excerpt selection | `report` | `show --report`, Web report endpoints | M4 |
 | Diagnosis | `diagnose` | `diagnose`, `show` | via `report` |
 | Run comparison | `runlineage` | `lineage` | M4 |
@@ -100,21 +100,28 @@ Each milestone is checked by repeating the trial's scenario: triage of the mixed
 - Make `rotari-mcp` exit non-zero when the server fails.
 - Update `docs/ARCHITECTURE.md` for the `cmd/mcp` and `internal/mcp` entries.
 
-### M1: Failure grouping
+### M1: Failure grouping (done)
 
 Add the shared grouping and use it in `show` for a run (human output and `--json`), then in the Web run page.
 
 Done when, for the `labC` fixture, one `show` call answers which causes failed, how many tasks each, which tasks, and a representative error per cause, in under 2 KB of human output; and the JSON form carries the same groups with drill-down IDs. Grouping must be evaluated per job and then combined (array tasks, matrix members, carried results), never decided on an array's aggregate result.
 
+Outcome ([measurements](agent-trial-2026-10-02-m1.md)):
+
+- The grouping lives in `runlineage`, which already counted diagnoses for `lineage RUN` and the Web run summary; the first trial had missed that `lineage RUN` existed. A cause is a recorded block, cancellation, or timeout, else the latest saved rule diagnosis, else the `model.FailureKinds` kind, so no new error-line normalization was needed.
+- `lineage RUN` answers the done question for `labC` in 1.5 KB. `show -r RUN` prints the same groups but stays at 77 KB because its 300-row job table comes first, so the criterion is met by `lineage RUN`, not by `show`. Making the compact view the obvious first call moved to M3.
+- `show --json` and `lineage RUN --json` carry the groups with every member ID (6.9 KB for `labC`). Contract CLI-4 and `TestFailureGroupsAgreeAcrossViews` require `show`, `lineage RUN`, and the Web API to agree.
+
 ### M2: Relevant excerpts and cause-aware comparison
 
 - Excerpt selection by relevance in `report`, used by `show --report` and the Web report endpoints.
-- Timeout as a known diagnosis cause.
+- Timeout as a known diagnosis cause in reports. Failure groups already classify timeouts (M1), but `show --report` still says "No known rule matched" for them.
 - `lineage` comparison reports each side's cause and whether it changed.
 
 ### M3: Discovery and progress
 
 - Project list with last results; basedir-correct hints; `jobs` states its scope.
+- Make the compact run summary the obvious first call: an agent that starts with `show -r RUN` reads the whole job table before the failure groups. Options include pointing to `lineage RUN` early in `show` output or a summary-only `show` view.
 - Incremental progress for `wait` (changes since a cursor, return at first failure).
 - Effective per-job settings in run output.
 
@@ -138,11 +145,11 @@ Extract `check` (structured findings) and `export` (bounded or paged manifest) f
 
 - M0 is done. `rotari-agent` is removed. `rotari_get_job_info` takes only `run_id` and `job_id`; `rotari-mcp` locates the run through its master directory's run registry and exits non-zero on failure.
 - The [agent trial](agent-trial-2026-10-02.md) (2026-10-02) established the gaps above. The CLI issues it found are recorded in [ISSUES.md](../ISSUES.md): `show --json` ignoring `--failed`, a positional run ID rejected with `--json`, an array job name accepted as an unresolvable dependency, and a `show` hint missing the basedir.
-- Next step: M1, failure grouping.
+- M1 is done: failures are grouped by cause in `show`, `lineage RUN`, and the Web run summary (contract CLI-4).
+- Next step: M2, relevant excerpts and cause-aware comparison.
 
 ## Open decisions
 
-- The package that owns failure grouping, and the normalization of an error line when no diagnosis rule matches.
 - Output size limits and defaults for groups, members, and excerpts.
 - The cursor format for incremental progress and how long a cursor stays valid.
 - Which command and configuration details are safe and useful to return.
