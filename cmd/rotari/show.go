@@ -798,6 +798,11 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		fmt.Printf("%s %s\n%s %s\n%s %s\n%s %d\n", cyan("Status:"), summary.Status, cyan("Started:"), model.FormatDisplayTimestamp(summary.StartedAt), cyan("Finished:"), model.FormatDisplayTimestamp(summary.FinishedAt), cyan("Exit code:"), summary.ExitCode)
 	}
 	fmt.Printf("%s %s\n", cyan("Output directory:"), runDir)
+	if _, failed := model.CountRunResults(summary.Results); failed > 0 {
+		// The job table can be long; point to the compact summary before it.
+		fmt.Printf("%s rotari lineage --basedir %s --project-name %s %s\n", cyan("Failure summary:"),
+			executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
+	}
 	queue, queueErr := state.LoadQueue(paths.QueueFile)
 	if queueErr == nil && len(queue.Commands) > 0 {
 		if diff, err := compareQueueWithRun(paths.QueueFile, filepath.Join(runDir, "commands.json")); err == nil && diff.HasChanges() {

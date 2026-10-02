@@ -50,7 +50,9 @@ For a running job, `finished` is false and no `result` is present. Passing
 `--run-id latest` selects the latest saved run even when the project has a
 non-empty queue; an unknown job ID fails instead of showing the queue.
 
-For a run with failed or blocked jobs, `show` ends its job table with
+For a run with failed jobs, `show` prints a `Failure summary:` line before
+the job table, with the `rotari lineage` command that prints only the run's
+summary and failure causes. It also ends its job table with
 `Failures by cause:`, one entry per cause with the number of jobs, their exit
 codes, the jobs (array tasks as `train[3,7,11]`, at most ten), an example
 line, the command that shows the first job, and the diagnosis rule's

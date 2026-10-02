@@ -120,6 +120,23 @@ func TestShowAndLineageAgreeOnFailureGroups(t *testing.T) {
 		}
 	}
 
+	// show points to the compact summary before its job table, and the
+	// command works as printed.
+	text := run(cmdShow, "--run-id", runID)
+	summaryAt, tableAt := strings.Index(text, "Failure summary: rotari lineage "), strings.Index(text, "Jobs:")
+	if summaryAt < 0 || tableAt < 0 || summaryAt > tableAt {
+		t.Fatalf("show does not point to the failure summary before the job table:\n%s", text)
+	}
+	line, _, _ := strings.Cut(text[summaryAt:], "\n")
+	hinted := strings.Fields(strings.TrimPrefix(line, "Failure summary: rotari lineage "))
+	for index, field := range hinted {
+		hinted[index] = strings.Trim(field, "'") // the test's values need no shell quoting
+	}
+	var lineageOutput bytes.Buffer
+	if code := captureShowStdout(t, &lineageOutput, func() int { return cmdLineage(hinted) }); code != 0 || !strings.Contains(lineageOutput.String(), "Failures by cause:") {
+		t.Fatalf("hinted lineage %q exit = %d, does not summarize failures:\n%s", hinted, code, lineageOutput.String())
+	}
+
 	if text := run(cmdShow, "--run-id", runID, "--success"); strings.Contains(text, "Failures by cause:") {
 		t.Fatalf("show --success groups jobs its table does not list:\n%s", text)
 	}
