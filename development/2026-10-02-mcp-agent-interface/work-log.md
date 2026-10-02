@@ -2,11 +2,9 @@
 
 See [plan.md](plan.md) for current scope and status. Historical one-line notes did not preserve test results unless explicitly stated below; test files in diffs are not assumed to have passed.
 
-The commits listed before M0 were rebased on 2026-10-02, which set their Git author and commit dates to 21:51:02. Their entries keep the original commit times; the commit IDs are the rebased ones.
-
 ## Explore the interface and prototype read-only inspection
 
-**Commits:** 2026-10-02 13:09:21 `820acb4`; 2026-10-02 13:21:21 `d8a140f`; 2026-10-02 13:36:39 `d30dc7a`; 2026-10-02 14:11:05 `d8de696`.
+**Commits:** `820acb4`; `d8a140f`; `d30dc7a`; `d8de696`.
 
 **Change:** Added/reframed the agent-facing plan, explored master-directory-scoped discovery, and built an initial read-only MCP job-inspection prototype with command/package/docs/test changes.
 
@@ -20,7 +18,7 @@ The commits listed before M0 were rebased on 2026-10-02, which set their Git aut
 
 ## Share inspection behavior and organize MCP commands
 
-**Commits:** 2026-10-02 15:48:59 `854261d`; 2026-10-02 15:55:08 `35b7ba4`.
+**Commits:** `854261d`; `35b7ba4`.
 
 **Change:** Shared job inspection between MCP and terminal-facing code, grouped MCP server/agent entry points under `cmd/mcp`, and updated architecture/MCP docs.
 
@@ -34,7 +32,7 @@ The commits listed before M0 were rebased on 2026-10-02, which set their Git aut
 
 ## Record the agent trial and reprioritize milestones
 
-**Commits:** 2026-10-02 17:34:55 `167b6ee`; 2026-10-02 21:43:16 `c12fb5d`; 2026-10-02 21:43:16 `bc22864`.
+**Commits:** `167b6ee`; `c12fb5d`; `bc22864`.
 
 **Change:** Explored a query/projection model, added a reproducible CLI agent-trial note and fixture, and rewrote the plan around observed information gaps. The current plan prioritizes compact shared summaries, treats CLI `--json` as the shell-agent interface, and keeps MCP a thin adapter.
 
