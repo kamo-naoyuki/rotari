@@ -13,6 +13,10 @@ rotari jobs --all-basedirs # list jobs across basedirs known to the master regis
 rotari jobs --all-basedirs --format "%s %b %p %a %n %c %t %e" # choose displayed fields
 ```
 
+When `jobs` finds nothing, it names the state directory it searched and the
+time window, and suggests `--all-basedirs` to search every registered state
+directory.
+
 Use `show` to inspect a project's runs and pending queue, or a specific run/job.
 
 ```sh

@@ -164,3 +164,35 @@ func formatInt(value int) string {
 	}
 	return "1"
 }
+
+func TestCmdJobsEmptyResultNamesItsScope(t *testing.T) {
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	baseDir, _ := filepath.Abs(t.TempDir())
+	tests := []struct {
+		name string
+		args []string
+		want []string
+		not  []string
+	}{
+		{"one basedir", []string{"--basedir", baseDir}, []string{"in state directory " + baseDir + " (finished within 24h)", "rotari jobs --all-basedirs"}, nil},
+		{"all basedirs without any", []string{"--all-basedirs", "--since", "168h"}, []string{"in 0 state directories (finished within 168h)"}, []string{"rotari jobs --all-basedirs"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var output bytes.Buffer
+			if code := captureShowStdout(t, &output, func() int { return cmdJobs(test.args) }); code != 0 {
+				t.Fatalf("jobs exit = %d:\n%s", code, output.String())
+			}
+			for _, want := range test.want {
+				if !strings.Contains(output.String(), want) {
+					t.Errorf("jobs output does not contain %q:\n%s", want, output.String())
+				}
+			}
+			for _, unwanted := range test.not {
+				if strings.Contains(output.String(), unwanted) {
+					t.Errorf("jobs output contains %q:\n%s", unwanted, output.String())
+				}
+			}
+		})
+	}
+}
