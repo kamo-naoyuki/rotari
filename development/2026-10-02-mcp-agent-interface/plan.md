@@ -1,5 +1,7 @@
 # Plan: Agent-Facing MCP Interface
 
+**Created:** 2026-10-02
+
 ## Purpose
 
 Explore how an agent can discover and inspect rotari state without being given filesystem paths or having to reproduce human-oriented screen flows. This is a design/implementation exploration, not a final public API specification. Keep read-only inspection separate from queue mutation and execution; do not grant write/run capabilities implicitly.

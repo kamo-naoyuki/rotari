@@ -1,5 +1,7 @@
 # Plan: Preventing Recurring Boundary Bugs
 
+**Created:** 2026-10-01
+
 ## Purpose
 
 Recurring defects have crossed package, process, persistence, and interface boundaries. Typical examples include inconsistent status projections across CLI/Web/Python, stale or partially finalized run state, selectors resolved differently by callers, and lifecycle tests that rely on elapsed time rather than observed state. The goal is to make these boundaries explicit, testable, and difficult to regress.

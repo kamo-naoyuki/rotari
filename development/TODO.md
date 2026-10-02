@@ -54,7 +54,7 @@ belong to operating workflows that are already settled. Resource allocation
 middleware, and rotari only limits how many jobs it runs or submits at once.
 
 Files declared with `--require-file` and `--produce-file` (see
-[the job-filter plan](job-filters/plan.md)) only select jobs; inferring
+[the job-filter plan](2026-09-29-job-filters/plan.md)) only select jobs; inferring
 dependencies from them, running only outdated jobs by default, and targets or
 pattern rules are out of scope for the same reason. Consider a check that warns
 when a job requires a file another job produces but does not depend on it.

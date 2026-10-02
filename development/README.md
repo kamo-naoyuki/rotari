@@ -13,7 +13,7 @@ Use [ISSUES.md](ISSUES.md) for bugs, design concerns, and technical debt discove
 
 ## Creating a plan directory
 
-Create one lowercase kebab-case directory per cohesive work item under `development/`, for example `development/example-feature/`. Add `plan.md` as the entry point. Write plan content in English and include, as appropriate:
+Create one directory per cohesive work item under `development/`, prefixed with the date the plan is written and followed by a lowercase kebab-case name: `development/YYYY-MM-DD-example-feature/`. Add `plan.md` as the entry point and put the creation date near its title. Write plan content in English and include, as appropriate:
 
 - purpose, scope, and non-goals;
 - decisions and constraints;
@@ -29,7 +29,7 @@ Example layout:
 development/
   README.md
   ISSUES.md
-  example-feature/
+  2026-10-02-example-feature/
     plan.md
     2026-10-02_173455_a1b2c3d.md
 ```
@@ -45,3 +45,5 @@ YYYY-MM-DD_HHMMSS_<short-commit-id>.md
 For example, `2026-10-02_173455_a1b2c3d.md`. Use the timestamp recorded for that commit in Git; do not estimate it or use the date the note is written. This keeps filenames sortable in chronological order. Summarize the change in one or a few sentences, and mention the plan-relevant outcome rather than copying the full commit message.
 
 Create the note after the commit exists so its ID and timestamp are known. Do not create one for unrelated commits. A commit may be noted in more than one plan only when it materially advances each plan; write a summary appropriate to each plan. Keep `plan.md` as the current overview, and use timestamped notes for the chronological record.
+
+For plans that predate this naming convention, use the date of the commit that first added the plan as the directory prefix and record that date in `plan.md`. Do not rename an existing plan directory to the date of a later edit.

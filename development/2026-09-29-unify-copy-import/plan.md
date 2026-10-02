@@ -1,5 +1,7 @@
 # Plan: Unifying `copy` and `import`
 
+**Created:** 2026-09-29
+
 ## Goal
 
 Make imported queues use the same run/result rules as copied queues. Remove the separate Force mechanism, allow explicit status marking, and leave the decision to execute or carry a result to the existing run filters.
@@ -21,7 +23,7 @@ Centralize status resolution/marking in `internal/model`; migrate legacy queue d
 
 ## Status
 
-The main status-handling unification and Force removal landed. Subsequent work included package-boundary cleanup and workflow import/reconciliation fixes. Fingerprint matching is a separate follow-up and is documented in [its plan](../fingerprint-matching/plan.md). Treat this plan as completed for its original scope; use new focused plans for additional semantics rather than reopening the unification task.
+The main status-handling unification and Force removal landed. Subsequent work included package-boundary cleanup and workflow import/reconciliation fixes. Fingerprint matching is a separate follow-up and is documented in [its plan](../2026-09-29-fingerprint-matching/plan.md). Treat this plan as completed for its original scope; use new focused plans for additional semantics rather than reopening the unification task.
 
 ## Validation
 

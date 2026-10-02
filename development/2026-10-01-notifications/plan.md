@@ -1,5 +1,7 @@
 # Plan: Unified Notification Settings and Events
 
+**Created:** 2026-10-01
+
 ## Purpose
 
 Use a common event model and settings vocabulary for webhook and browser notifications, while keeping settings independent per channel. Notify on final job outcomes and run completion, group nearby events, and make settings manageable through CLI/Web configuration. Rule-based diagnosis is a primary failure detail.

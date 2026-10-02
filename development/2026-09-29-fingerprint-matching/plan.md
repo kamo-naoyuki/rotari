@@ -1,8 +1,10 @@
 # Plan: Matching Jobs by Fingerprint
 
+**Created:** 2026-09-29
+
 ## Purpose
 
-Match equivalent work across runs even when Job IDs or names change, while keeping Job IDs as random unique identifiers rather than content identities. This is a follow-up to [copy/import behavior unification](../unify-copy-import/plan.md).
+Match equivalent work across runs even when Job IDs or names change, while keeping Job IDs as random unique identifiers rather than content identities. This is a follow-up to [copy/import behavior unification](../2026-09-29-unify-copy-import/plan.md).
 
 ## Decisions
 

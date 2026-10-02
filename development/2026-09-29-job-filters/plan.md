@@ -1,5 +1,7 @@
 # Plan: Generalized Job Filters
 
+**Created:** 2026-09-29
+
 ## Purpose and scope
 
 Generalize result-only selection into reusable job predicates, so users can select work by result, definition, execution facts, diagnosis, and declared-file freshness. The user remains responsible for choosing what to run; rotari does not infer workflow dependencies or choose work automatically. The primary scope is CLI and the generated Python client. Web/API filters and cron scheduling are separate work.
