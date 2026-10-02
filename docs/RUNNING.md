@@ -83,7 +83,9 @@ rotari run
 ```
 
 `--depends-on` accepts either a job name or a stage name. A job name and stage
-name cannot be the same within one queue.
+name cannot be the same within one queue. The name of an array job stands for
+all of its tasks, like a stage name: `--depends-on train` waits until every
+task of the array `train` succeeds.
 
 Use `--depends-on-finished NAME` for a job that should run once its
 prerequisites finish, whatever their result, like Slurm's `afterany`. It suits

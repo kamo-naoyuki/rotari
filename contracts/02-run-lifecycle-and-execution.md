@@ -91,6 +91,14 @@
   `TestWaitUntilFailureReturnsAtAFinalFailure` and
   `TestWaitUntilFailureIgnoresAFailureTheRunRetries` in
   [conformance/02-lifecycle/wait_failure_test.go](../conformance/02-lifecycle/wait_failure_test.go).
+- **RUN-7** In `--depends-on` and `--depends-on-finished`, a named array
+  job's name stands for all of its tasks, as a stage name stands for its jobs
+  and a matrix name for its members: `--depends-on train` waits for every
+  task of the array `train` to succeed, and `--depends-on-finished train` for
+  every task to finish. The expansion is in `QueueToJobs` in
+  [internal/model/model.go](../internal/model/model.go); covered by
+  `TestArrayNameDependsOnEveryTask` in
+  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,

@@ -8,11 +8,11 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **An array job's name is accepted as a dependency but never resolves** (`add`, dependency validation): `add --job-name train --array 1-2 ...` followed by `add --depends-on train ...` (or `--depends-on-finished`, with a plain or matrix dependent) succeeds, and then `check` and `run` fail with `depends on unknown job "train"`. A matrix base name does resolve. Expected: either resolve the array name to all its tasks, or reject it at `add` with a hint to use a stage.
-
 - **`jobs --since 7d`, as documented, is rejected** (`internal/joblist`, `ParseSince`; `docs/INSPECT.md`): the guide gives `rotari jobs --since 7d` as "the last seven days", but `ParseSince` uses `time.ParseDuration`, which has no day unit, so the command fails with `invalid --since duration "7d"`. Expected: accept days, or document hours such as `168h`.
 
 ## Resolved
+
+- **An array job's name did not resolve as a dependency** (`internal/model/model.go`, `QueueToJobs`): stage and matrix names expanded to their members, but a named array's tasks are named `NAME[N]`, so `--depends-on NAME` matched no job and `check` and `run` failed with `depends on unknown job`. `QueueToJobs` now expands an array's name to its tasks for `--depends-on` and `--depends-on-finished`. Contract RUN-7; `TestQueueToJobsExpandsArrayNameDependency` and `TestArrayNameDependsOnEveryTask` fail on the previous commit.
 
 - **`internal/archtest` reported cached passes after imports changed** (`internal/archtest/boundaries_test.go`): `listImports` reads imports through `go list`, which Go's test cache does not observe. `trackModuleSources` now stats go.mod and every directory and `.go` file of the module during the test, so editing or adding a Go file reruns the package; unchanged sources stay cached. It mirrors `conformance/support.TrackBuildInputs`, which conformance cannot share across the package boundary.
 

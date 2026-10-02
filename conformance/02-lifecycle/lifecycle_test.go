@@ -23,6 +23,7 @@ type conformanceSummary struct {
 		ID        string `json:"id"`
 		AttemptID string `json:"attempt_id"`
 		ExitCode  int    `json:"exit_code"`
+		Error     string `json:"error"`
 	} `json:"results"`
 }
 
@@ -737,5 +738,29 @@ func TestRunUsesCallersDirectoryAndEnvironment(t *testing.T) {
 	relative := readCallerRecord(t, e, "relative-working-directory", relativeOut)
 	if relative.pwd != relativeDir || relative.foo != "from-b" || relative.rotariCWD != dirB || relative.contextCWD != dirB {
 		t.Fatalf("relative working-directory record = %#v; want job cwd %q and caller context %q", relative, relativeDir, dirB)
+	}
+}
+
+func TestArrayNameDependsOnEveryTask(t *testing.T) {
+	covers(t, "RUN-7")
+	e := support.NewEnv(t)
+	// Task 2 fails, so the array as a whole does not succeed.
+	e.MustRotari("add", "-p", "deps", "--job-name", "train", "--array", "1-2", "--", "sh", "-c", `test "$ROTARI_ARRAY_TASK_ID" = 1`)
+	collect := support.AddedJobID(t, e.MustRotari("add", "-p", "deps", "--job-name", "collect", "--depends-on-finished", "train", "--", "true"))
+	deploy := support.AddedJobID(t, e.MustRotari("add", "-p", "deps", "--job-name", "deploy", "--depends-on", "train", "--", "true"))
+	e.MustRotari("check", "deps")
+	if result := e.Rotari("run", "-p", "deps", "--quiet"); result.Code == 0 {
+		t.Fatalf("run with a failing task should exit 1: %s", result)
+	}
+	summary := readSummary(t, e, "deps")
+	results := map[string]string{}
+	for _, result := range summary.Results {
+		results[result.ID] = fmt.Sprintf("exit %d %s", result.ExitCode, result.Error)
+	}
+	if got := results[collect]; got != "exit 0 " {
+		t.Errorf("collect, after every train task finished: %q, want exit 0", got)
+	}
+	if got := results[deploy]; !strings.HasPrefix(got, "exit 1 blocked") {
+		t.Errorf("deploy, after a failed train task: %q, want blocked", got)
 	}
 }
