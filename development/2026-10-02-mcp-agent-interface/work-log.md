@@ -250,3 +250,33 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - `scripts/check.sh` passed. `go test -count=1 ./conformance/...` passed in all packages, and the generator `--check` steps passed.
 
 **Remaining:** M5 (`check` and `export` as read-only operations), which needs their extraction from `cmd/rotari`.
+
+## M5: Expose `check`; move `export` to M6
+
+**Commits:** 2026-10-03 01:58:25 `515a956`; 2026-10-03 01:58:26 `229fd78`; 2026-10-03 01:59:14 `48ab65f`.
+
+**Change:**
+- `515a956`: moved `rotari check`'s logic into `projectrun.Runner.Check`. The `--deep` host checks are passed in as an optional function. The CLI output is unchanged.
+- `229fd78`:
+  - Added the MCP tool `rotari_check_project` (`basedir_ref` and `project` in; state, runnability, queue size, and lock out), and `basedirregistry.Find` to resolve a `basedir_ref`.
+  - Error messages replace the basedir path with `BASEDIR`.
+  - The MCP schema test now allows `basedir_ref` and a project name, while still rejecting inputs that take a path.
+  - Updated `docs/MCP.md` and `ARCHITECTURE.md`.
+- `48ab65f`: updated the plan and added a check call to the MCP trial script.
+
+**Reason:** M5 of the plan. `check` lets an MCP-only agent tell a person whether a queued run can start.
+
+**Plan impact:**
+- M5 is done for `check`.
+- `export` moved to M6, with its extraction from `cmd/rotari`. A run's manifest carries environment values, absolute working directories, and commands, which the principles keep out of default results. A redacted manifest could not be imported, and import is `export`'s main use.
+- M6 must therefore decide what an exported manifest may carry through MCP.
+
+**Validation:**
+- New tests:
+  - `TestFindResolvesARef`
+  - `TestCheckProjectReportsReadinessWithoutPaths`, which covers empty, ready, an invalid executor, an unknown ref, an unknown project, and an unsafe project, and checks that no error contains the basedir path.
+- The existing `rotari check` tests and `TestCheckJSONMatchesText` (CLI-1) pass after the move.
+- `go test -count=1 ./internal/archtest` passed.
+- The MCP trial script's check call returned `empty` in 135 bytes.
+
+**Remaining:** M6 needs design decisions before implementation; see the plan's open decisions.
