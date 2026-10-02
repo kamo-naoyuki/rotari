@@ -22,11 +22,9 @@ The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers ins
 | <img src="https://kamo-naoyuki.github.io/rotari/demo-shell.gif" alt="shell background jobs demo" width="400"> | <img src="https://kamo-naoyuki.github.io/rotari/demo-rotari.gif" alt="rotari demo" width="400"> |
 
 
-You don't need a separate workflow language: build a batch with `rotari add` lines in a shell script or add commands interactively, then run it with `rotari run`. Rotari keeps each run's commands, results, and logs, so you can inspect or retry work without losing earlier runs. Jobs use the caller's working directory and environment by default ([details](docs/CONCEPTS.md#workflow-and-execution-environment)).
+You don't need a separate workflow language: define experiment batches with `rotari add` lines in a shell script or add commands interactively, then start runs yourself with `rotari run`. Rotari keeps each run's commands, results, and logs. If a job fails on a bad host, `rotari run --retry N` retries it in that run; `rotari retry` starts a new run with only failed and unfinished jobs, preserving successful work. On clusters, rotari dispatches jobs to the site's scheduler, which handles placement and resource allocation. Jobs otherwise use the caller's working directory and environment ([details](docs/CONCEPTS.md#workflow-and-execution-environment)).
 
 ### Choosing a tool
-
-**Rotari is for batches of experiment commands that you run yourself**, from a shell script on a workstation, over SSH, or on a shared Slurm, PBS, or LSF cluster, and want a record of. On many hosts, a job whose command is correct can still fail because one node misbehaved; `run --retry N` retries such jobs within a run, and `rotari retry` later reruns only the failed and unfinished jobs, so the successful work is kept.
 
 Rotari covers a narrow need, and other tools may fit yours better: [GNU Parallel](https://www.gnu.org/software/parallel/) for one command over many inputs, [pueue](https://github.com/Nukesor/pueue) or [task-spooler](https://github.com/justanhduc/task-spooler) for a personal queue on one machine, and a workflow engine such as [Snakemake](https://snakemake.github.io/), [Nextflow](https://www.nextflow.io/), [Dagu](https://dagu.sh/), or [Airflow](https://airflow.apache.org/) for a pipeline you share, rerun on new data, or run on a schedule. [Comparison with other tools](docs/TOOL_COMPARISON.md) explains what each one does and how rotari differs.
 
