@@ -125,12 +125,20 @@ Outcome ([measurements](agent-trial-2026-10-02-m2.md)):
 - `lineage RUN_A RUN_B` shows each run's cause (`CAUSE` column; `from_cause`, `to_cause`, `cause_changed` in JSON). The fix loop's mistake from the first trial, a timeout change that did not apply, now shows as `train[12] still failing timeout` in one call.
 - Contract CLI-4 was not extended to comparisons, which have package tests but no conformance check.
 
-### M3: Discovery and progress
+### M3: Discovery and progress (done)
 
 - Project list with last results; basedir-correct hints; `jobs` states its scope.
 - Make the compact run summary the obvious first call: an agent that starts with `show -r RUN` reads the whole job table before the failure groups. Options include pointing to `lineage RUN` early in `show` output or a summary-only `show` view.
 - Incremental progress for `wait` (changes since a cursor, return at first failure).
 - Effective per-job settings in run output.
+
+Outcome ([measurements](agent-trial-2026-10-02-m3.md)):
+
+- The project list shows `LAST RESULT` (for example `failed 84/300`), and its hints work for projects outside the default state directory. Contract CLI-5 covers this, and it resolved the ISSUES entry. `jobs` names the state directory and window it searched.
+- `show -r RUN` prints a `Failure summary:` line with the exact `rotari lineage` command before its job table.
+- `wait --until-failure` returns at the first failure with no retry left (contract RUN-6). In the trial it returned after 1 s instead of after a 20 s job. A cursor of changes since the last call was not built: returning at the first final failure covered the trial's need, and the run's state is cheap to re-read with `lineage RUN`.
+- Effective per-job settings were not added. The first trial's failure was an ignored `change` error, which `lineage RUN RUN2` now exposes as `still failing ... timeout`, and `show --json` already carries each job's settings in `commands`.
+- `rotari guide`, the agent entry point, now leads with `lineage RUN_ID`, `show -j ATTEMPT_ID --report`, and `wait --until-failure`. It no longer suggests `--failed-logs` or the broken positional `--report` form.
 
 ### M4: Read-only MCP tools
 
@@ -154,7 +162,8 @@ Extract `check` (structured findings) and `export` (bounded or paged manifest) f
 - The [agent trial](agent-trial-2026-10-02.md) (2026-10-02) established the gaps above. The CLI issues it found are recorded in [ISSUES.md](../ISSUES.md): `show --json` ignoring `--failed`, a positional run ID rejected with `--json`, an array job name accepted as an unresolvable dependency, and a `show` hint missing the basedir.
 - M1 is done: failures are grouped by cause in `show`, `lineage RUN`, and the Web run summary (contract CLI-4).
 - M2 is done: evidence-aware report excerpts, a timeout diagnosis rule, and failure causes in `lineage` comparisons.
-- Next step: M3, discovery and progress.
+- M3 is done: project list results and working hints (CLI-5), `jobs` scope, a failure-summary pointer in `show`, `wait --until-failure` (RUN-6), and an updated `rotari guide`.
+- Next step: M4, read-only MCP tools over these shared capabilities.
 
 ## Open decisions
 
