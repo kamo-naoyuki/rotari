@@ -65,9 +65,11 @@ var boundaryRules = []boundaryRule{
 		forbidden: fileAccess,
 	},
 	{
-		pkg:          "conformance",
-		reason:       "conformance checks the binary and Web API from outside the code",
-		allowed:      []string{},
+		pkg:    "conformance",
+		reason: "conformance checks the binary and Web API from outside the code",
+		// conformance/support is the conformance packages' own harness,
+		// which also imports only the standard library.
+		allowed:      []string{"conformance/support"},
 		standardOnly: true,
 		withTests:    true,
 	},
