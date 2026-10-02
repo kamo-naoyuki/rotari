@@ -168,3 +168,25 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - `pre-commit` is not installed; ruff format was applied to the Python files.
 
 **Remaining:** M4. The positional `show RUN_ID|ATTEMPT_ID --json|--report` failure and `jobs --since 7d` remain in `ISSUES.md`.
+
+## Before M4: Fix the issues that affect verification and shared selection
+
+**Commits:** 2026-10-02 22:56:04 `457b7fd`; 2026-10-02 22:59:32 `fddf05a`; 2026-10-02 23:03:07 `d64b4b6`; 2026-10-02 23:06:33 `b18399f`.
+
+**Change:**
+- `457b7fd`: `TestWebJobsPageShowsRecentJobs` matched the Job activity heading on one line, but the prettier-formatted template splits it. The test had never passed. It now uses a whitespace-tolerant pattern, and the `ISSUES.md` record was corrected: the link was never wrong.
+- `fddf05a`: the conformance packages build rotari through `support.BuildRotari`. Every command that runs the binary calls `support.TrackBuildInputs`, which stats `cmd/`, `internal/`, `go.mod`, and `go.sum` during the test run, so Go's test cache reruns conformance when rotari's sources change.
+- `b18399f`: the package boundary rule now allows the root `conformance` package to import `conformance/support`, and `contracts/00-overview.md` and `ARCHITECTURE.md` were updated. `fddf05a` had broken that rule; I committed it before running `scripts/check.sh`.
+- `d64b4b6`: `show --json --failed` now applies the selection to the run, array, and job JSON views. The table and the JSON views share `selectsShownJob`, which gathers facts for `jobfilter.Filter.Selects`. Added `TestShowJSONAppliesFailedSelection`, two `TestSelectorTable` JSON rows, and a sentence in `contracts/06-selectors.md`.
+
+**Reason:** M4 builds MCP tools on the shared selection and is verified by conformance runs and `scripts/check.sh`. The stale cache and the permanently failing test made those checks unreliable, and the ignored `--failed` would have carried into the MCP tools.
+
+**Plan impact:** No milestone changed; these were prerequisites agreed before M4. `scripts/check.sh` passes for the first time in this plan's work.
+
+**Validation:**
+- The new selection tests fail on the previous commit, which was checked in a temporary worktree.
+- The heading check fails when the link target changes, which was injected by hand and then reverted.
+- Cache invalidation was checked by hand: unchanged sources stay `(cached)`, and editing `cmd/rotari/guide.go` or `internal/webui/assets/web_styles.css` reruns the packages.
+- `go test -count=1 ./conformance/...` passed in all packages, and `scripts/check.sh` passed.
+
+**Remaining:** In `ISSUES.md`: the positional `show RUN_ID|ATTEMPT_ID --json|--report` failure, array job names as dependencies, and `jobs --since 7d`. M4 is next.
