@@ -8,8 +8,6 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **`show --json` silently ignores `--failed`** (`cmd/rotari/show.go`): `rotari show -r RUN_ID --json --failed` prints output byte-identical to `--json` alone, including successful jobs. This violates the rule that an option must not be accepted and ignored. Expected: select failed jobs, or reject the combination. Found in the [agent trial](2026-10-02-mcp-agent-interface/agent-trial-2026-10-02.md); not yet checked for `--success`, `--unfinished`, or `--filter-*`.
-
 - **A positional run ID cannot be combined with `show --json` or `--report`** (`cmd/rotari/show.go`): `rotari show RUN_ID` works, but `rotari show RUN_ID --json` fails with "a run name selector cannot be combined with run, job, queue, list, log, follow, JSON, or report options". The same run works as `show -r RUN_ID --json`. The message calls the run ID a run name, and `docs/CONCEPTS.md` presents `show RUN_ID` as equivalent to the option form. A positional attempt ID fails the same way: `rotari show ATTEMPT_ID --report`, which `docs/INSPECT.md` gives as an example, fails while `show -j ATTEMPT_ID --report` works.
 
 - **An array job's name is accepted as a dependency but never resolves** (`add`, dependency validation): `add --job-name train --array 1-2 ...` followed by `add --depends-on train ...` (or `--depends-on-finished`, with a plain or matrix dependent) succeeds, and then `check` and `run` fail with `depends on unknown job "train"`. A matrix base name does resolve. Expected: either resolve the array name to all its tasks, or reject it at `add` with a hint to use a stage.
@@ -17,6 +15,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 - **`jobs --since 7d`, as documented, is rejected** (`internal/joblist`, `ParseSince`; `docs/INSPECT.md`): the guide gives `rotari jobs --since 7d` as "the last seven days", but `ParseSince` uses `time.ParseDuration`, which has no day unit, so the command fails with `invalid --since duration "7d"`. Expected: accept days, or document hours such as `168h`.
 
 ## Resolved
+
+- **`show --json` silently ignored `--failed`** (`cmd/rotari/show.go`, `show_json_job.go`): the run, array, and job JSON views printed every job. They now keep the jobs that `jobfilter.Filter.Selects` keeps, through the same `selectsShownJob` helper as the job table. Covered by `TestShowJSONAppliesFailedSelection` and two `TestSelectorTable` JSON rows (SEL-3, SEL-11), which fail on the previous commit. `--success`, `--unfinished`, and `--filter-*` were already rejected with `--json`.
 
 - **`go test ./conformance/...` reported cached passes after `cmd/rotari` changes** (`conformance/support`): the binary is built by a `go build` subprocess that Go's test cache does not observe. All three build sites now use `support.BuildRotari`, and every command that runs the binary calls `support.TrackBuildInputs`, which stats the files under `cmd/`, `internal/`, `go.mod`, and `go.sum` during the test run (stats in `TestMain` are not recorded). Editing a Go source or an embedded asset now reruns the packages, and unchanged sources stay cached.
 

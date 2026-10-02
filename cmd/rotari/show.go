@@ -385,7 +385,7 @@ func cmdShow(args []string) int {
 	if runQueue, err := state.LoadQueue(filepath.Join(paths.RunsDir, runID, "commands.json")); err == nil && !*reportOutput {
 		if arrayScope, ok := arrayCommandScope(runQueue.Commands, *jobIDOption); ok {
 			if *jsonOutput {
-				return showRunJobJSON(paths, runID, *jobIDOption)
+				return showRunJobJSON(paths, runID, *jobIDOption, resultSelection)
 			}
 			return showRun(paths, runID, showJobFilter{selection: resultSelection, scope: arrayScope})
 		}
@@ -401,7 +401,7 @@ func cmdShow(args []string) int {
 			return 0
 		}
 		if *jsonOutput {
-			return showRunJobJSON(paths, runID, *jobIDOption)
+			return showRunJobJSON(paths, runID, *jobIDOption, resultSelection)
 		}
 		running, err := isRunning(paths.LockFile)
 		if err != nil {
@@ -442,7 +442,7 @@ func cmdShow(args []string) int {
 		return 0
 	}
 	if *jsonOutput {
-		return showRunJSON(paths, runID)
+		return showRunJSON(paths, runID, resultSelection)
 	}
 	return showRun(paths, runID, showJobFilter{selection: resultSelection, scope: scope, filter: filter})
 }
@@ -536,9 +536,24 @@ func scopedJobIDs(commands []model.QueuedCommand, scope model.CommandSelector, f
 	return ids, nil
 }
 
-func showRunJSON(paths state.ProjectPaths, runID string) int {
+// showRunJSON prints a run's summary, failure groups, and command snapshot.
+// A non-empty selection keeps only the summary results and failure groups of
+// the jobs it selects; the command snapshot stays whole.
+func showRunJSON(paths state.ProjectPaths, runID, selection string) int {
 	result := showJSON{BaseDir: paths.BaseDir, Project: paths.ProjectName, RunID: runID, RunDir: filepath.Join(paths.RunsDir, runID)}
+	var selected map[string]bool
 	if summary, err := state.LoadRunSummary(filepath.Join(result.RunDir, "summary.json")); err == nil {
+		if selection != "" {
+			selected = make(map[string]bool)
+			kept := summary.Results[:0]
+			for _, jobResult := range summary.Results {
+				if selectsShownJob(paths, runID, jobResult.ID, jobResult, true, selection, jobfilter.Filter{}) {
+					kept = append(kept, jobResult)
+					selected[jobResult.ID] = true
+				}
+			}
+			summary.Results = kept
+		}
 		result.Summary = &summary
 	} else if !os.IsNotExist(err) {
 		printErrorf("failed to read summary: %v", err)
@@ -550,7 +565,7 @@ func showRunJSON(paths state.ProjectPaths, runID string) int {
 		return 1
 	}
 	result.Commands = commands
-	failures, err := runFailureGroups(paths, runID, nil)
+	failures, err := runFailureGroups(paths, runID, selected)
 	if err != nil {
 		printErrorf("failed to group failures: %v", err)
 		return 1
@@ -561,6 +576,13 @@ func showRunJSON(paths state.ProjectPaths, runID string) int {
 		return 1
 	}
 	return 0
+}
+
+// selectsShownJob reports whether a show view of runID keeps the job, given
+// its result. jobfilter.Filter.Selects decides; this only gathers the facts.
+func selectsShownJob(paths state.ProjectPaths, runID, jobID string, result model.JobResult, finished bool, selection string, filter jobfilter.Filter) bool {
+	job := jobstatus.FilterJob(jsonStore(), paths.RunsDir, model.JobOrigin{RunID: runID, JobID: jobID}, jobID, result, finished, time.Now())
+	return filter.Selects(selection, job)
 }
 
 func showQueueJSON(paths state.ProjectPaths, queue model.Queue) int {
@@ -901,8 +923,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 		executorText := queueExecutorText(runQueue, jobSpec)
 		jobResult, _ := resolved.Result(jobSpec)
-		job := jobstatus.FilterJob(jsonStore(), paths.RunsDir, model.JobOrigin{RunID: runID, JobID: jobID}, jobID, jobResult, statusOK, time.Now())
-		if !filter.filter.Selects(filter.selection, job) {
+		if !selectsShownJob(paths, runID, jobID, jobResult, statusOK, filter.selection, filter.filter) {
 			continue
 		}
 		displayed[jobID] = true

@@ -169,7 +169,9 @@ the same name. `show`, `copy`, `run`, and `retry` list them under their own
 heading in `--help`. `change` and `remove` take only the definition filters
 (`--filter-command`, `--filter-stage`, `--filter-matrix`, and their
 `--filter-not-*` forms); `--filter-changed` and `--filter-new` are taken by
-`show`, `run`, and `retry` only.
+`show`, `run`, and `retry` only. `show --json` keeps the jobs that its job
+table keeps for `--failed`, in the run's summary results and in a job or
+array view's jobs.
 
 **SEL-11** The `--filter-*` options select jobs as follows:
 

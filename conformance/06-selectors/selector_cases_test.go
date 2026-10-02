@@ -33,6 +33,8 @@ var selectorCases = []selectorCase{
 	{name: "job name positional", cmd: "show", args: "-b {B} -p sweep prep", jobs: []string{"prep"}},
 	{name: "job ID positional", cmd: "show", args: "-b {B} {job:prep}", jobs: []string{"prep"}},
 	{name: "failed filter", cmd: "show", args: "-b {B} -p sweep --failed", table: true, jobs: []string{"eval-2", "train-SEED2"}},
+	{name: "failed filter as JSON", cmd: "show", args: "-b {B} -p sweep --failed --json", json: true, jobs: []string{"eval-2", "train-SEED2"}, run: "sweep-second"},
+	{name: "failed array tasks as JSON", cmd: "show", args: "-b {B} -p sweep --job-id {job:eval} --failed --json", json: true, jobs: []string{"eval-2"}, run: "sweep-second"},
 	{name: "success filter", cmd: "show", args: "-b {B} -p sweep --success", table: true, jobs: []string{"eval-1", "eval-3", "prep", "report", "train-SEED1"}},
 	{name: "unfinished filter", cmd: "show", args: "-b {B} -p sweep --unfinished", table: true, jobs: []string{"late"}},
 	{name: "failed filter without a stage", cmd: "show", args: "-b {B} -p sweep --failed --filter-not-stage training", table: true, jobs: []string{"eval-2"}},
