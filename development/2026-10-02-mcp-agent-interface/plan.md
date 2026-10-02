@@ -24,7 +24,26 @@ Consider a shared query with explicit hierarchical scope (`basedirs`, `projects`
 
 Reuse existing resolution, status, selection, and history-search semantics where possible; do not call the Web API blindly or implement a second set of rules. Evaluate whether search/projection logic can be shared across Web and MCP while keeping transport and presentation adapters separate.
 
-## Information to evaluate
+## Intended functional coverage
+
+The long-term goal is not only job inspection. The agent-facing interface should eventually cover the useful rotari capabilities across these domains:
+
+| Domain | Candidate capabilities | Interaction shape |
+| --- | --- | --- |
+| Discovery and inspection (`show`, `jobs`) | Find basedirs/projects; inspect queue, run, job, attempt, result, diagnosis, and bounded logs | Common scoped query with filters and a requested projection |
+| Readiness (`check`) | Validate whether the selected project/queue can run and return actionable issues | Read-only operation with structured findings; may be exposed as a query projection if that stays clear |
+| Workflow (`export`, `import`) | Export a run/queue as a manifest; validate and preview a proposed import; apply the import | Export is a read operation; import is a state-changing operation with a separate preview and apply step |
+| Queue operations | Add, change, remove, copy jobs; inspect the resulting queue | Explicit operations with a structured change plan and an apply step where useful |
+| Run operations | Start/run, retry selected jobs, wait/inspect progress, cancel, suspend, resume | Explicit lifecycle operations; start asynchronously and return stable run identity |
+| Project/history cleanup | Delete runs/jobs, garbage-collect history/state, reset a queue/project | Destructive operations, individually named and guarded; never hidden inside a generic query |
+
+The query model is for selecting *what data to return* and is a natural fit for `show`, `jobs`, log search, and possibly `check`. It should not become a generic command interpreter for writes. Mutations and lifecycle transitions should have explicit operation names and typed arguments, so the agent can distinguish reading a proposed change from applying it. `export` is read-only but may return a large manifest; `import`, `delete`, and `reset` modify or discard state and need stronger safeguards.
+
+The terminal entry point (`rotari-agent`) and MCP entry point should expose the same protocol-neutral operation set and structured inputs/outputs. Transport adapters may format/encode results differently (JSON on stdout versus MCP structured results), but must call the same service functions and preserve the same validation, selection, status resolution, and error semantics. Avoid implementing a second CLI-like behavior inside the MCP adapter.
+
+Before calling the API complete, maintain a parity matrix from every candidate operation to its existing rotari implementation and contract tests. This should identify unsupported options/variants explicitly; an operation must not silently ignore a flag or selector.
+
+## Information and operations to evaluate
 
 - Which basedir and project contain the relevant state?
 - Which run is latest, active, failed, or comparable to a previous run?
@@ -32,6 +51,9 @@ Reuse existing resolution, status, selection, and history-search semantics where
 - Which bounded log excerpts explain the failure?
 - What changed between runs, and did retry improve the outcome?
 - Should the agent only explain a possible retry, or may it preview/mutate/run after explicit human approval?
+- Which human-facing commands map naturally to a scoped query, and which must remain explicit operations?
+- For add/change/copy/import/delete/reset/retry/run/control operations, what is the preview, confirmation, apply, and result-reporting sequence?
+- How do idempotency, retries after transport timeout, asynchronous run handles, cancellation, and partial failures work for state-changing calls?
 
 Do not return secrets, environment values, executor options, or sensitive paths by default. Treat commands and logs as potentially sensitive. Large logs/artifacts require byte/line limits and an explicit indication of truncation. Do not guess among multiple matching projects, runs, or jobs.
 
@@ -43,7 +65,7 @@ MCP protocol methods (`initialize`, `tools/list`, `tools/call`, `resources/list`
 
 A read-only job-inspection prototype has been added, inspection logic is shared with terminal-facing code, and MCP entry points are grouped under `cmd/mcp`. The query/projection model remains exploratory. Re-evaluate the design against the implementation before committing to API names, schema, opaque references, paging, or cross-basedir behavior.
 
-Next, exercise realistic requests against a master directory with multiple basedirs: discover state, summarize a failed run, compare runs, search bounded logs, and avoid collisions between same-named projects. Record what context the agent needs initially versus what should be fetched on demand. Decide separately about write/run operations, authorization, approval, timeouts, and idempotency.
+Next, exercise realistic read queries against a master directory with multiple basedirs: discover state, summarize a failed run, compare runs, search bounded logs, and avoid collisions between same-named projects. Record what context the agent needs initially versus what should be fetched on demand. Then inventory the full desired command coverage and map each operation to shared rotari logic and contracts. Add state-changing operations only after their preview/apply boundary, authorization, approval, timeout, idempotency, and recovery behavior are designed.
 
 ## Open decisions
 
@@ -53,5 +75,7 @@ Next, exercise realistic requests against a master directory with multiple based
 - Search scope, paging/default time range, and limits for logs and records.
 - Which command/configuration details are safe and useful to return.
 - Whether Web history-search scope and MCP projection can share a model.
-- Whether any future mutation/execution support belongs in MCP and where approval is mandatory.
+- How the protocol-neutral shared operation layer is separated from MCP and terminal transport adapters.
+- The complete command/operation parity matrix, including variants and contract coverage.
+- Whether mutation/execution support is exposed to agents, and where preview, confirmation, authorization, and audit are mandatory.
 - Whether a dedicated VS Code extension is necessary.
