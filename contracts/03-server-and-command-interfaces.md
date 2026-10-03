@@ -233,6 +233,14 @@ follows:
   once and ending with a newline. Both use
   [`internal/supervisor/messages.go`](../internal/supervisor/messages.go);
   checked by [`conformance/03-interfaces/wait_test.go`](../conformance/03-interfaces/wait_test.go).
+- **CLI-15** A single-value CLI option may be specified only once in an
+  invocation; a second occurrence is rejected before command effects. Options
+  declared repeatable remain repeatable, including short and long aliases of
+  the same option. The shared checks are in
+  [`cmd/rotari/cli_spec.go`](../cmd/rotari/cli_spec.go), with parser tests in
+  [`cmd/rotari/cli_spec_test.go`](../cmd/rotari/cli_spec_test.go) and an
+  executable-level check in
+  [`conformance/03-interfaces/flag_pair_projections_test.go`](../conformance/03-interfaces/flag_pair_projections_test.go).
 
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	webprojection "github.com/kamo-naoyuki/rotari/internal/web"
 )
@@ -59,7 +58,7 @@ func cmdSchema(args []string) int {
 				Name: flag.Name, Description: flag.Description, ValueName: flag.ValueName,
 				Values: flag.Values, Short: cliShortFlagNames[flag.Name],
 				Environment: environment,
-				Repeated:    flag.Repeated || strings.Contains(flag.Description, "may be repeated"),
+				Repeated:    cliFlagRepeated(flag),
 			})
 		}
 		schema.Commands = append(schema.Commands, value)

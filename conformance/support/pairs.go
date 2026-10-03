@@ -133,6 +133,10 @@ func NewPairFixture(t *testing.T) PairFixture {
 	if f.Run == "" || len(f.Jobs) != 7 {
 		t.Fatalf("incomplete fixture: %+v", shown)
 	}
+	shutdown := e.Rotari("server", "shutdown")
+	if shutdown.Code != 0 && !strings.Contains(shutdown.Stderr, "server is not running") {
+		t.Fatalf("failed to settle fixture supervisor: %s", shutdown)
+	}
 	return f
 }
 

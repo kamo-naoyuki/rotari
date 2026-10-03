@@ -146,3 +146,20 @@ func TestCLIFlagPairConfigNotificationsObservability(t *testing.T) {
 		})
 	}
 }
+
+func TestCLIRejectsRepeatedSingleValueOption(t *testing.T) {
+	covers(t, "CLI-15")
+	e := support.NewEnv(t)
+	output := filepath.Join(e.Root, "duplicate-option-export")
+	before := support.SavePairTree(t, e.Root)
+	result := pairInvoke(t, e, "web", "--host", "127.0.0.1", "--host", "0.0.0.0", "--static-dir", output)
+	if result.Code != 1 || !strings.Contains(result.Stderr, "flag --host cannot be specified more than once") {
+		t.Fatalf("duplicate --host was not diagnosed: %s", result)
+	}
+	if _, err := os.Stat(output); !os.IsNotExist(err) {
+		t.Fatalf("rejected invocation created static export: %v", err)
+	}
+	if after := support.SavePairTree(t, e.Root); !reflect.DeepEqual(before.Raw(), after.Raw()) {
+		t.Fatalf("rejected duplicate option changed state: %s", result)
+	}
+}

@@ -730,7 +730,7 @@ func writeCommandHelp(w io.Writer, name string, fs *flag.FlagSet) {
 // it.
 func parseLeadingFlags(fs *flag.FlagSet, args []string) error {
 	fs.Usage = func() {}
-	err := fs.Parse(args)
+	err := parseCLIFlagSet(fs, args, true)
 	if errors.Is(err, flag.ErrHelp) {
 		writeCommandHelp(os.Stdout, helpCommandName(fs), fs)
 	}
@@ -921,7 +921,7 @@ func cliParse(fs *flag.FlagSet, args []string) error {
 
 	var positional []string
 	for {
-		if err := fs.Parse(args); err != nil {
+		if err := parseCLIFlagSet(fs, args, false); err != nil {
 			output := parseOutput.String()
 			if err != flag.ErrHelp {
 				if newline := strings.IndexByte(output, '\n'); newline >= 0 {
@@ -949,6 +949,14 @@ func cliParse(fs *flag.FlagSet, args []string) error {
 	return fs.Parse(append([]string{"--"}, positional...))
 }
 
+func parseCLIFlagSet(fs *flag.FlagSet, args []string, stopAtPositional bool) error {
+	if err := rejectDuplicateSingleValueFlags(fs, args, stopAtPositional); err != nil {
+		fmt.Fprintln(fs.Output(), err)
+		return err
+	}
+	return fs.Parse(args)
+}
+
 func cliOptionSet(fs *flag.FlagSet, name string) bool {
 	set := false
 	fs.Visit(func(actual *flag.Flag) {
@@ -957,6 +965,82 @@ func cliOptionSet(fs *flag.FlagSet, name string) bool {
 		}
 	})
 	return set
+}
+
+func rejectDuplicateSingleValueFlags(fs *flag.FlagSet, args []string, stopAtPositional bool) error {
+	seen := map[string]bool{}
+	for i := 0; i < len(args); i++ {
+		name, hasValue, isOption, endOptions := cliArgumentOption(args[i])
+		if endOptions {
+			break
+		}
+		if !isOption {
+			if stopAtPositional {
+				break
+			}
+			continue
+		}
+		option := fs.Lookup(name)
+		if option == nil {
+			continue
+		}
+		canonical := cliCanonicalFlagName(name)
+		if err := recordSingleValueOption(fs.Name(), canonical, seen); err != nil {
+			return err
+		}
+		if cliOptionConsumesNextArgument(option, hasValue) {
+			i++
+		}
+	}
+	return nil
+}
+
+func cliArgumentOption(arg string) (name string, hasValue, isOption, endOptions bool) {
+	if arg == "--" {
+		return "", false, false, true
+	}
+	if len(arg) < 2 || arg[0] != '-' {
+		return "", false, false, false
+	}
+	if strings.HasPrefix(arg, "--") {
+		arg = strings.TrimPrefix(arg, "--")
+	} else {
+		arg = strings.TrimPrefix(arg, "-")
+	}
+	name, _, hasValue = strings.Cut(arg, "=")
+	return name, hasValue, true, false
+}
+
+func cliCanonicalFlagName(name string) string {
+	for long, short := range cliShortFlagNames {
+		if short == name {
+			return long
+		}
+	}
+	return name
+}
+
+func recordSingleValueOption(command, name string, seen map[string]bool) error {
+	if cliFlagRepeated(cliCommandFlag(command, name)) {
+		return nil
+	}
+	if seen[name] {
+		return fmt.Errorf("flag --%s cannot be specified more than once", name)
+	}
+	seen[name] = true
+	return nil
+}
+
+func cliOptionConsumesNextArgument(option *flag.Flag, hasValue bool) bool {
+	if hasValue {
+		return false
+	}
+	boolean, ok := option.Value.(interface{ IsBoolFlag() bool })
+	return !ok || !boolean.IsBoolFlag()
+}
+
+func cliFlagRepeated(spec cliFlagSpec) bool {
+	return spec.Repeated || strings.Contains(spec.Description, "may be repeated")
 }
 
 type cliChoiceValue struct {

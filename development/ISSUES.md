@@ -8,13 +8,11 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **Static-Web fixture snapshot can race supervisor cleanup** (`conformance/03-interfaces/pairweb/web_static_pairs_test.go`): the matrix-exclusion final full check exited 1 in `TestCLIFlagPairWebStaticServerOptions/allow-control` with `lstat .../base/projects/pairs/server.pid: no such file or directory` while snapshotting the fixture. Expected: the read-only snapshot observes settled fixture state. This resembles the file-pair snapshot failure below, but the cause is not yet established. The complete log is retained at `$TMPDIR/matrix-exclude-final-check.log`; the pipeline preserved exit 1, and the script did not reach its race phase.
-
-- **A repeated single-value option keeps only its last value** (`cmd/rotari/cli_spec.go`, Go `flag` string options): while building the job-control pair adapter, `suspend --stage single --stage batch --yes` suspended only the `batch` jobs; the first `--stage` was accepted and ignored. Options not marked `Repeated` in the CLI spec behave this way in every command. Expected: either reject a second value of a single-value option or document last-wins explicitly. The pair suites pass each option once, so they do not cover repetition.
-
-- **File-pair fixture snapshot can race supervisor cleanup** (`conformance/03-interfaces/flag_pair_files_test.go`): the unlock expansion's short check failed in `TestCLIFlagPairFiles` while taking its initial snapshot, with `lstat .../base/projects/pairs/server.pid: no such file or directory`. A directory entry disappeared between enumeration and stat. Expected: the read-only fixture is quiescent before snapshotting. Inspect supervisor shutdown/cleanup synchronization before assigning the cause; the original full log and exit 1 are retained. This is not a sandbox-access failure.
-
 ## Resolved
+
+- **Fixture snapshots raced supervisor PID cleanup** (`conformance/support/pairs.go`): `NewPairFixture` returned after the run client finished but before the supervisor necessarily released its lease and removed `server.pid`. It now shuts down any remaining supervisor and waits for lease release before returning, so both static-Web and file-pair snapshots observe settled fixture state.
+
+- **A repeated single-value option kept only its last value** (`cmd/rotari/cli_spec.go`): shared CLI parsing now rejects repeated single-value options, counting short and long aliases as the same option, while preserving options declared repeatable. `TestCLIParseRejectsRepeatedSingleValueOptions`, `TestCLIParseAllowsRepeatedOptionsAndRejectsDuplicatesBeforeCommand`, and CLI-15's executable-level conformance check cover it.
 
 - **`remove` selector conflicts gave only a usage line** (`cmd/rotari/remove.go`): multi-kind target conflicts now name the supplied flags and exit 1, while valid `--all` plus narrowing filters keep working. Covered by the selector table, flag-pair mutation checks, and `TestCmdRemoveNamesConflictingSelectors`.
 
