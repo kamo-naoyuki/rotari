@@ -1869,9 +1869,10 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "success",
                 },
                 {
-                    "description": "only execute this job; may be repeated; not "
-                    "with a result filter; others carry forward "
-                    "their previous result",
+                    "description": "only execute this job and the jobs that "
+                    "depend on it; may be repeated; not with a "
+                    "result filter; others carry forward their "
+                    "previous result",
                     "environment": "ROTARI_JOB_ID",
                     "name": "job-id",
                     "repeated": True,
@@ -2252,7 +2253,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "N",
                 },
                 {
-                    "description": "only execute this job instead of failed and "
+                    "description": "only execute this job and the jobs that "
+                    "depend on it, instead of failed and "
                     "unfinished jobs; may be repeated",
                     "environment": "ROTARI_JOB_ID",
                     "name": "job-id",

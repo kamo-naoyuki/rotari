@@ -497,7 +497,7 @@ Usage: `rotari run [RUN_ID]`
 | `--failed` | `` | `` | only execute failed jobs; others carry forward their previous result |
 | `--unfinished` | `` | `` | only execute unfinished jobs; others carry forward their previous result |
 | `--success` | `` | `` | only execute successful jobs; others carry forward their previous result |
-| `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | only execute this job; may be repeated; not with a result filter; others carry forward their previous result |
+| `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | only execute this job and the jobs that depend on it; may be repeated; not with a result filter; others carry forward their previous result |
 | `--job-name` | `NAME` | `ROTARI_JOB_NAME` | only execute this job by name |
 | `--stage` | `STAGE` | `` | only execute jobs in this stage, narrowed by any result filter; others carry forward their previous result |
 | `--matrix` | `NAME` | `` | only execute jobs of this matrix, named by its base job name, narrowed by any result filter; others carry forward their previous result |
@@ -564,7 +564,7 @@ Usage: `rotari retry [RUN_ID]`
 | `--local-concurrency` | `N` | `ROTARI_RUN_LOCAL_CONCURRENCY` | local worker concurrency |
 | `--batch-concurrency` | `N` | `ROTARI_RUN_BATCH_CONCURRENCY` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
 | `--retry` | `N` | `ROTARI_RUN_RETRY` | retry failed jobs up to N times; explicit cancellations are not retried |
-| `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | only execute this job instead of failed and unfinished jobs; may be repeated |
+| `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | only execute this job and the jobs that depend on it, instead of failed and unfinished jobs; may be repeated |
 | `--stage` | `STAGE` | `` | only retry jobs in this stage |
 | `--matrix` | `NAME` | `` | only retry jobs of this matrix, named by its base job name |
 | `--async` | `` | `ROTARI_RUN_ASYNC` | return after starting the run |
