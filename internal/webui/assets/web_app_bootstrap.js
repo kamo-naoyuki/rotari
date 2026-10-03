@@ -39,12 +39,14 @@ function initOrbitGame() {
   const ballCount = 6;
   const whiteRadiusMin = 7;
   const whiteRadiusMax = 17;
+  const gravityStrength = 4;
   let returnFocus = null;
   let turnDirection = 0;
   let animationFrame = 0;
   let lastFrameTime = null;
   let running = false;
-  let redAngle = -Math.PI / 2;
+  let redAngle = -Math.PI / 2 - 0.18;
+  let redAngularVelocity = 0;
   let whiteStates = [];
 
   const angleDelta = (from, to) => {
@@ -52,14 +54,15 @@ function initOrbitGame() {
     if (difference > Math.PI) difference = Math.PI * 2 - difference;
     return difference;
   };
-  const drawBall = (element, angle) => {
+  const drawBall = (element, angle, angularVelocity) => {
     element.setAttribute("cx", (ringRadius * Math.cos(angle)).toFixed(2));
     element.setAttribute("cy", (ringRadius * Math.sin(angle)).toFixed(2));
     element.dataset.angle = String(angle);
+    element.dataset.angularVelocity = String(angularVelocity);
   };
-  // Gravity carries balls down each side: counterclockwise on the left, clockwise on the right.
-  const gravitySpeed = (radius, angle) =>
-    (Math.cos(angle) < 0 ? -1 : 1) * (0.55 / radius);
+  // Gravity accelerates each ball down the ring; inertia carries it through the bottom.
+  const gravityAcceleration = (radius, angle) =>
+    (gravityStrength / radius) * Math.cos(angle);
   const makeWhiteBalls = () => {
     whiteBalls.replaceChildren();
     whiteStates = Array.from({ length: ballCount }, (_, index) => {
@@ -74,11 +77,13 @@ function initOrbitGame() {
       element.setAttribute("class", "orbit-game-node");
       element.setAttribute("r", radius.toFixed(2));
       whiteBalls.append(element);
-      drawBall(element, angle);
-      return { angle, radius, element };
+      const white = { angle, angularVelocity: 0, radius, element };
+      drawBall(element, angle, white.angularVelocity);
+      return white;
     });
-    redAngle = -Math.PI / 2;
-    drawBall(player, redAngle);
+    redAngle = -Math.PI / 2 - 0.18;
+    redAngularVelocity = 0;
+    drawBall(player, redAngle, redAngularVelocity);
     gameOver.hidden = true;
   };
   const hasCollision = () =>
@@ -106,16 +111,19 @@ function initOrbitGame() {
         ? 0
         : Math.min((timestamp - lastFrameTime) / 1000, 0.05);
     lastFrameTime = timestamp;
-    const turnSpeed = turnDirection * 1.7 * elapsed;
-    redAngle += gravitySpeed(redRadius, redAngle) * elapsed + turnSpeed * 0.81;
-    drawBall(player, redAngle);
+    const turnAcceleration = turnDirection * 1.7;
+    redAngularVelocity +=
+      (gravityAcceleration(redRadius, redAngle) + turnAcceleration) * elapsed;
+    redAngle += redAngularVelocity * elapsed;
+    drawBall(player, redAngle, redAngularVelocity);
     for (const white of whiteStates) {
       const sizeFactor = 0.45 + (whiteRadiusMax - white.radius) * 0.065;
-      white.angle +=
-        elapsed *
-        (gravitySpeed(white.radius, white.angle) +
-          turnDirection * 1.7 * sizeFactor);
-      drawBall(white.element, white.angle);
+      white.angularVelocity +=
+        (gravityAcceleration(white.radius, white.angle) +
+          turnAcceleration * sizeFactor) *
+        elapsed;
+      white.angle += white.angularVelocity * elapsed;
+      drawBall(white.element, white.angle, white.angularVelocity);
     }
     if (hasCollision()) {
       endGame();
@@ -146,13 +154,13 @@ function initOrbitGame() {
   };
   const nudge = (direction) => {
     if (!running) return;
-    redAngle += direction * 0.12 * 0.81;
+    redAngularVelocity += direction * 0.12 * 0.81;
     for (const white of whiteStates) {
-      white.angle +=
+      white.angularVelocity +=
         direction * 0.12 * (0.45 + (whiteRadiusMax - white.radius) * 0.065);
-      drawBall(white.element, white.angle);
+      drawBall(white.element, white.angle, white.angularVelocity);
     }
-    drawBall(player, redAngle);
+    drawBall(player, redAngle, redAngularVelocity);
     if (hasCollision()) endGame();
   };
 

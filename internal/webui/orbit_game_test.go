@@ -27,6 +27,9 @@ const dom = new JSDOM(html, {
   beforeParse(window) {
     window.fetch = async () => { throw new Error('offline'); };
     window.setInterval = () => 1;
+    const randomValues = [0.1, 0.9, 0.3, 0.7, 0.2, 0.8];
+    let randomIndex = 0;
+    window.Math.random = () => randomValues[randomIndex++ % randomValues.length];
     let nextFrameId = 0;
     const frames = new Map();
     window.requestAnimationFrame = callback => {
@@ -51,13 +54,6 @@ setTimeout(() => {
   const logo = document.querySelector('.sidebar-brand');
   if (!dialog || !player || !logo || !dialog.hidden) process.exit(1);
   const whites = () => [...document.querySelectorAll('#orbit-game-white-balls circle')];
-  const angles = () => [player, ...whites()].map(ball => Number(ball.getAttribute('data-angle')));
-  const radiansMoved = (before, after) => {
-    let difference = after - before;
-    while (difference > Math.PI) difference -= Math.PI * 2;
-    while (difference < -Math.PI) difference += Math.PI * 2;
-    return difference;
-  };
 
   logo.focus();
   const launch = new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true });
@@ -66,48 +62,53 @@ setTimeout(() => {
   if (whites().length !== 6 || whites().some(ball => Number(ball.getAttribute('r')) < 7 || Number(ball.getAttribute('r')) > 17)) process.exit(2);
 
   dom.window.__runFrame(0);
-  const initial = angles();
-  const initialPositions = [player, ...whites()].map(ball => ({
-    x: Number(ball.getAttribute('cx')),
-    y: Number(ball.getAttribute('cy')),
-  }));
-  dom.window.__runFrame(1000);
-  const afterGravity = [player, ...whites()].map(ball => ({
-    x: Number(ball.getAttribute('cx')),
-    y: Number(ball.getAttribute('cy')),
-  }));
-  for (let index = 1; index < initialPositions.length; index++) {
-    const delta = radiansMoved(initial[index], Number(whites()[index - 1].getAttribute('data-angle')));
-    if (initialPositions[index].x < 0 && delta >= 0) process.exit(13);
-    if (initialPositions[index].x > 0 && delta <= 0) process.exit(14);
-    if (afterGravity[index].y <= initialPositions[index].y) process.exit(16);
+  let balls = [player, ...whites()];
+  const initial = balls.map(ball => Number(ball.dataset.angle));
+  dom.window.__runFrame(50);
+  for (let index = 1; index < balls.length; index++) {
+    const angularVelocity = Number(balls[index].dataset.angularVelocity);
+    if (Math.cos(initial[index]) < 0 && angularVelocity >= 0) process.exit(13);
+    if (Math.cos(initial[index]) > 0 && angularVelocity <= 0) process.exit(14);
   }
-  if (radiansMoved(initial[0], Number(player.getAttribute('data-angle'))) <= 0) process.exit(15);
-  const naturalDeltas = whites().map((ball, index) => ({
+  if (Number(player.dataset.angularVelocity) >= 0) process.exit(15);
+  const naturalSpeeds = whites().map((ball, index) => ({
     radius: Number(ball.getAttribute('r')),
-    delta: radiansMoved(initial[index + 1], Number(ball.getAttribute('data-angle'))),
+    speed: Math.abs(Number(ball.dataset.angularVelocity) / Math.cos(initial[index + 1])),
   }));
-  naturalDeltas.sort((a, b) => a.radius - b.radius);
-  if (!(Math.abs(naturalDeltas[0].delta) > Math.abs(naturalDeltas.at(-1).delta))) process.exit(4);
+  naturalSpeeds.sort((a, b) => a.radius - b.radius);
+  if (!(naturalSpeeds[0].speed > naturalSpeeds.at(-1).speed)) process.exit(4);
 
-  const beforeRight = angles();
+  for (let frame = 100; frame <= 3000 && document.getElementById('orbit-game-over').hidden; frame += 50) {
+    dom.window.__runFrame(frame);
+  }
+  const whiteAngles = whites().map(ball => Number(ball.dataset.angle));
+  const spread = Math.hypot(
+    whiteAngles.reduce((sum, angle) => sum + Math.cos(angle), 0) / whiteAngles.length,
+    whiteAngles.reduce((sum, angle) => sum + Math.sin(angle), 0) / whiteAngles.length,
+  );
+  if (spread > 0.98) process.exit(17);
+
+  document.getElementById('orbit-game-restart').click();
+  balls = [player, ...whites()];
+  dom.window.__runFrame(0);
+  const beforeRight = balls.map(ball => Number(ball.dataset.angularVelocity));
   dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
-  dom.window.__runFrame(1050);
-  const afterRight = angles();
-  if (afterRight.some((angle, index) => radiansMoved(beforeRight[index], angle) <= 0)) process.exit(5);
+  dom.window.__runFrame(100);
+  const afterRight = balls.map(ball => Number(ball.dataset.angularVelocity));
+  if (afterRight.some((velocity, index) => velocity <= beforeRight[index])) process.exit(5);
   dialog.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }));
 
-  const beforeLeft = angles();
+  const beforeLeft = balls.map(ball => Number(ball.dataset.angularVelocity));
   dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }));
-  dom.window.__runFrame(1100);
-  const afterLeft = angles();
-  if (afterLeft.some((angle, index) => radiansMoved(beforeLeft[index], angle) >= 0)) process.exit(6);
+  dom.window.__runFrame(150);
+  const afterLeft = balls.map(ball => Number(ball.dataset.angularVelocity));
+  if (afterLeft.some((velocity, index) => velocity >= beforeLeft[index])) process.exit(6);
   dialog.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', bubbles: true }));
 
-  const beforeButton = angles();
+  const beforeButton = balls.map(ball => Number(ball.dataset.angularVelocity));
   document.getElementById('orbit-game-right').click();
-  const afterButton = angles();
-  if (afterButton.some((angle, index) => radiansMoved(beforeButton[index], angle) <= 0)) process.exit(11);
+  const afterButton = balls.map(ball => Number(ball.dataset.angularVelocity));
+  if (afterButton.some((velocity, index) => velocity <= beforeButton[index])) process.exit(11);
 
   player.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
   if (!dialog.hidden || document.activeElement !== logo) process.exit(7);
