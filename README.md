@@ -20,15 +20,18 @@ The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers ins
 
 ## Why use rotari?
 
-- **Which jobs failed?** `rotari show` lists each job's status and result in
-  every run, instead of leaving you to piece them together from terminal output.
+- **Which jobs failed?** Each run records every job's status and result;
+  `rotari show -p PROJECT --run-id RUN_ID` displays them together.
 - **Where are the logs?** `rotari show --logs` prints each job's output, even
   for jobs that ran over SSH or through a scheduler
   ([inspect](docs/INSPECT.md), [executors](docs/EXECUTORS.md)).
-- **What exactly did I run?** Each run saves the command and settings of every
-  job; `rotari show JOB_ID` shows them later.
-- **Rerun everything after one failure?** `rotari retry` reruns only the failed
-  and unfinished jobs and keeps the successful results
+- **What exactly did I run?** Each run saves every job's command and configured
+  settings; inspect them later with `rotari show JOB_ID`. The caller's ambient
+  environment is not saved, so pin the environment and working directory when
+  an exact rerun matters.
+- **Do I have to rerun everything after one failure?**
+  `rotari retry` reruns only failed and unfinished jobs while carrying
+  successful results
   ([running](docs/RUNNING.md)).
 
 ## How is rotari different?
