@@ -117,3 +117,31 @@ New findings:
 6. **Smaller points:**
    - `show --report` says "Executor: default" where the table says `local`.
    - The timeout failure group has no "fix:" suggestion.
+
+## Fourth run: diagnosis and preview only
+
+After the third run, these were fixed:
+
+- `c1347d1`: the `--async --dry-run` refusal says how to preview and start.
+- `2df0c80`: the guide says that run and attempt IDs locate their state directory, and `--job-id` help says that dependents execute.
+- `04e58e6`: `change` output names the fields it changes.
+
+The fourth run was tried twice, on fixtures built at `7cc208d` and at `bf4d645`. Both agents stopped at their first state-changing command, `rotari change ... --if-revision`. Claude Code's auto-mode classifier denied it as "Modify Shared Resources". Neither agent worked around the denial, and the session did not run the command for them.
+
+Allow rules in `.claude/settings.local.json` for the fixture's `env.sh`, for `rotari`, and for writes under `/tmp` did not change the outcome. The rerun, wait, and comparison steps were not measured. The first three runs completed them.
+
+The diagnosis and preview steps used the fixes as intended:
+
+- `-b ../labA` worked as given.
+- `lineage RUN_ID`, `export -r RUN_ID`, and `show -j ATTEMPT_ID` ran without `--basedir`.
+- `change --dry-run` printed `timeout=5s->60s` before applying.
+- Each agent reached the planned fix in 11 to 13 calls, with about 36 KB of output.
+
+New findings:
+
+1. `change -r RUN --dry-run` names the changed fields but not that the queue is first replaced with the run's jobs.
+2. The missing-project error lists the state directories that have the project, but not their last run's result, which is what tells them apart.
+3. The `--job-id` help does not say whether `depends_on_finished` dependents count, and there is no way to rerun one task without its dependents.
+4. Repeated from earlier runs:
+   - `show --report` says "Executor: default" where the table says `local`.
+   - The `show` run table is very wide, because of `DEPENDS ON`.
