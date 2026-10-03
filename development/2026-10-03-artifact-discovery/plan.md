@@ -128,8 +128,9 @@ Apply exclusions before ordinary positive rules:
   Unsupported application-specific interpolation is not evaluated.
 - **PATH-X3:** exclude known special sinks such as `/dev/null`. Do not require
   an existence check to identify ordinary references or infer regular-file type.
-- **PATH-X4:** for a recognized direct interpreter invocation, exclude the
-  complete code operand from ordinary argv classification. A code operand is
+- **PATH-X4:** for a recognized interpreter invocation, wherever it appears in
+  the argument list, exclude the complete code operand from ordinary
+  classification. A code operand is
   not one path even if its source text contains slashes or filename suffixes.
   Shell `-c` bodies are inspected only by shell inspection (section 3); bodies
   for other languages are opaque and are not inspected.
@@ -196,47 +197,52 @@ paths and use existence to make an ambiguous interpretation appear certain.
 
 #### Recognizing code-bearing interpreter invocations (PATH-X4)
 
-The initial recognizer examines argv structure; it never searches arbitrary
-arguments for a token that merely looks like an interpreter name. Match the
-basename of argv[0] case-insensitively, so `/bin/bash` and `bash` are equivalent.
-Use this closed initial list:
+The recognizer looks for a listed interpreter followed by its code option, at any
+position in the argument list, so a launcher in front does not hide it. It does
+not need a list of wrappers. Match executable basenames case-insensitively, so
+`/bin/bash` and `bash` are equivalent. Use this closed initial list:
 
-| Executable basename | Code option | Code operand |
+| Executable basename | Code option | Options that take a separate value |
 | --- | --- | --- |
-| `sh`, `dash`, `bash`, `zsh` | `-c`, or a short-option bundle whose final character is `c` (for example `-lc`, `-xec`) | The immediately following argv element |
-| `python`, `python2`, `python3`, `python3.N`, `pypy`, `pypy3` | Exactly `-c` | The immediately following argv element |
-| `perl` | Exactly `-e` | The immediately following argv element |
-| `node` | `-e` or `--eval` | The immediately following argv element |
+| `sh`, `dash`, `bash`, `zsh` | `-c`, or a short-option bundle whose final character is `c` (for example `-lc`, `-xec`) | `-o`, `+o`, `-O`, `+O` |
+| `python`, `python2`, `python3`, `python3.N`, `pypy`, `pypy3` | Exactly `-c` | `-W`, `-X` |
+| `perl` | Exactly `-e` | none |
+| `node` | `-e` or `--eval` | none |
 
-For this first version, recognize the code option only when it is argv[1]. This
-intentionally handles the unambiguous common forms (`bash -lc CODE`,
-`python -c CODE`, `perl -e CODE`, `node --eval CODE`) without implementing each
-interpreter's full option grammar. Do not recognize attached operands such as
-`python -cCODE`, options before the code option, later options, `--`, REPL input,
-or language-specific stdin modes. Those forms are deferred; tests must establish
-that the recognized forms exclude exactly one code operand and leave later argv
-arguments eligible for ordinary classification.
+For each argument whose basename is a listed interpreter, read the options that
+follow it: elements starting with `-` (or `+` for shells), each listed
+value-taking option consuming one more element. Stop at the first other element,
+because that is the interpreter's script or operand; a `-c` after `train.py`
+belongs to the script, not to the interpreter. If a code option appears among
+those options, the element right after it is the code operand and is excluded
+from classification. Arguments after the code operand remain eligible (for
+`bash -c CODE NAME ARG...` they are positional parameters).
 
-Also recognize the simple `env` prefix only when argv[0] has basename `env`,
-argv[1..n] contains zero or more literal `NAME=value` assignments, and the next
-element is one of the listed interpreter executables followed immediately by its
-recognized code option and operand. Do not parse `env` options (`-S`, `-i`, `-u`,
-`-C`, etc.), nested launchers (`nice`, `sudo`, `timeout`, `srun`, and similar),
-or shell command strings embedded under an unrecognized wrapper. For such an
-unrecognized wrapper, do not classify the wrapper's remaining argv values as
-independent paths; this avoids treating an opaque code body as a candidate. The
-wrapper and its script path are not discovered by PATH-X4 in this initial slice.
+| Argument list | Code operand | Candidates from ordinary classification |
+| --- | --- | --- |
+| `bash -c "python train.py > out/log.txt"` | the quoted string | none |
+| `bash -l -c "..."`, `bash -o pipefail -c "..."` | the quoted string | none |
+| `timeout 1h bash -c "..."` | the quoted string | none (a launcher does not hide it) |
+| `env A=1 python3.12 -c "open('out/a.txt')"` | the quoted string | none |
+| `srun python train.py --out results/model.pt` | none | `train.py`, `results/model.pt` |
+| `python train.py -c config.yaml` | none: `-c` follows the script | `train.py`, `config.yaml` |
+| `cat bash` | none: no code option | as usual |
 
-If the executable is a recognized shell and PATH-X4 matches, pass only its code
-operand to the shell inspection phase. Do not run generic PATH-R2/R3/R4 over the
-entire code string first. The shell parser can then find literal command
-arguments and PATH-R1 redirections without executing the source. For Python,
-Perl, and Node, suppress that operand entirely; do not parse those languages.
+When a match is wrong, the cost is one skipped value. Unmatched forms
+(`python -cCODE`, an unlisted option that takes a value before the code option)
+fall back to ordinary classification; add them only with positive and negative
+fixtures. Never infer that a string is code just because it contains shell syntax.
 
-This is intentionally a narrow boundary, not a promise to understand all ways
-to launch an interpreter. Add new executable aliases, wrappers, or option forms
-only with positive and negative argv fixtures. In particular, never infer that
-an arbitrary string argument is code just because it contains shell syntax.
+If the interpreter is a listed shell, pass the code operand to shell inspection
+(section 3) instead of classifying it; the parser then finds literal command
+arguments and PATH-R1 redirections without executing anything. For Python, Perl,
+and Node, the operand is opaque and is not parsed.
+
+Implement the recognizer once, on a list of literal words, and call it from both
+argv extraction and shell inspection. Inside a shell script,
+`python -c "open('out/a.txt')"` and `timeout 1h bash -c '...'` are the same
+problem as in argv. Whether a shell `-c` body found inside shell source is
+inspected recursively, and to what depth, is decided with the shell parser.
 
 #### Job log destinations (PATH-D1)
 
@@ -282,7 +288,9 @@ ambiguous, skip the affected reference. A script's own location is not its
 execution directory. Do not inspect Python or other program source as shell.
 
 Some commands provide their script through a heredoc rather than a script path.
-When a recognized shell command consumes a literal heredoc as its stdin script
+Heredocs exist only inside shell source, so this applies to a script or `-c` body
+already under inspection; an argv value is never treated as a heredoc. When a
+recognized shell command in that source consumes a heredoc as its stdin script
 (for example, `bash <<'SH' ... SH`), inspect that body as shell source, with the
 same static-only rules and provenance pointing to the heredoc body. The parser
 must associate the heredoc with the command that consumes it; do not scan every
@@ -290,6 +298,11 @@ heredoc body as shell. In particular, heredocs used as data (`cat <<'EOF'`),
 here-strings, and bodies passed to non-shell interpreters such as `python <<'PY'`
 are not shell source and are not parsed in this phase. Do not evaluate the body
 or perform shell expansion while inspecting it.
+
+Inspect the body only when the delimiter is quoted (`<<'SH'`, `<<"SH"`, `<<\SH`).
+With an unquoted delimiter, the outer shell expands `$NAME`, `$(...)`, and
+backslashes in the body before the inner shell reads it, so the body text is not
+the source that runs; skip it in this phase.
 
 Choose a parser only when this phase starts; add a dependency only if necessary.
 Shell inspection must not block delivery of argument/configuration discovery.
@@ -342,6 +355,7 @@ sinks and skip targets requiring unsupported expansion or an ambiguous base.
 | `> /dev/null` | Skip: known special sink |
 | `cat <<'EOF'` with body containing `results.csv` | Do not inspect body as shell; it is data |
 | `bash <<'SH'` with body `python train.py > result.csv` | Inspect body as shell source; retain literal path candidates |
+| `bash <<SH` (unquoted delimiter) | Skip body: the outer shell expands it first |
 | `python <<'PY'` with body containing `open('result.csv')` | Skip body in this phase; it is Python source |
 
 This rule applies to parsed shell scripts and recognized shell `-c` bodies only.
@@ -449,9 +463,11 @@ related implementation commits exist, following [development tracking rules](../
 - Table-driven classifier tests: absolute/relative paths, spaces, Unicode,
   standalone and equals-style values, duplicate references, extensionless names,
   URLs, numeric values, expressions, nonexistent paths, interpreter code bodies
-  (`bash -c`/`-lc`, versioned `python3.N -c`, `perl -e`, `node --eval`,
-  simple `env` assignments), environment entries, unsupported code-option
-  positions and wrappers, and the known false positives.
+  (`bash -c`/`-lc`, options and value-taking options before the code option,
+  versioned `python3.N -c`, `perl -e`, `node --eval`, a launcher or `env` in
+  front, `-c` after the script such as `python train.py -c config.yaml`, and the
+  same recognizer applied to words parsed from shell source), environment
+  entries, and the known false positives.
 - Log-destination tests: relative and absolute `Output`/`Error` for each executor,
   resolved on the same base the executor opens them on.
 - Configuration tests: nested mappings/sequences, malformed input, empty sources,
@@ -459,7 +475,7 @@ related implementation commits exist, following [development tracking rules](../
   limits. Confirm no custom-tag evaluation or unbounded alias expansion.
 - Shell tests: literal redirections and arguments, quoted spaces, numeric target
   names, FD duplication/closure, here-documents/strings, heredoc-fed shell script
-  versus heredoc data and non-shell script, special sinks, variables,
+  versus heredoc data, non-shell script, and an unquoted delimiter, special sinks, variables,
   substitutions, globbing, `cd`, and non-shell source rejection. PATH-E1: each
   array task and matrix member resolves its own path; `${NAME:-x}`, unknown
   names, and inherited environment variables are skipped.
