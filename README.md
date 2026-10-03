@@ -18,21 +18,18 @@ feel familiar.
 
 The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers installation, concepts, command reference, and running rotari on clusters. For LLMs, use the [documentation index](https://kamo-naoyuki.github.io/rotari/docs/llms.txt) or [full documentation](https://kamo-naoyuki.github.io/rotari/docs/llms-full.txt).
 
-## Why use Rotari?
+## Why use rotari?
 
-Rotari helps when experiment batches make everyday work difficult:
-
-- **Lose track of successes and failures:** see each job's status, result, and
-  log in its run history instead of piecing together terminal output.
-- **Hunt for remote logs:** use `rotari show --logs` to inspect per-job output
-  from run history instead of searching SSH hosts or scheduler work directories
+- **Which jobs failed?** `rotari show` lists each job's status and result in
+  every run, instead of leaving you to piece them together from terminal output.
+- **Where are the logs?** `rotari show --logs` prints each job's output, even
+  for jobs that ran over SSH or through a scheduler
   ([inspect](docs/INSPECT.md), [executors](docs/EXECUTORS.md)).
-- **Reproduce a past experiment:** review the saved command snapshot and job
-  settings; pin the working directory and environment when they must be the
-  same on a rerun
-  ([execution environment](docs/CONCEPTS.md#workflow-and-execution-environment)).
-- **Rerun only what failed:** `rotari retry` selects failed and unfinished jobs
-  while carrying successful results forward.
+- **What exactly did I run?** Each run saves the command and settings of every
+  job; `rotari show JOB_ID` shows them later.
+- **Rerun everything after one failure?** `rotari retry` reruns only the failed
+  and unfinished jobs and keeps the successful results
+  ([running](docs/RUNNING.md)).
 
 ## How is rotari different?
 
@@ -43,10 +40,8 @@ Rotari helps when experiment batches make everyday work difficult:
 
 You don't need a separate workflow language: define experiment batches with
 `rotari add` lines in a shell script or add commands interactively, then start
-runs yourself with `rotari run`. Each run keeps its commands, results, and logs.
-For transient host failures, `rotari run --retry N` retries within the run;
-`rotari retry` starts a new run for failed and unfinished jobs while carrying
-forward successful work.
+runs yourself with `rotari run`. For transient host failures,
+`rotari run --retry N` retries failed jobs within the same run.
 
 On clusters, rotari dispatches jobs to the site's scheduler, which handles
 placement and resource allocation. By default, jobs inherit the working
