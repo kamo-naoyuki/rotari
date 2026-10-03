@@ -160,6 +160,14 @@ A project is in one of three states, derived from `running.lock` and
 - **SAFE-6** A command asks for confirmation only when stdin is a terminal.
   Otherwise `reset` of an interrupted project and `copy` into a non-empty
   queue fail with a message naming `--recover` or `--append`/`--overwrite`.
+- **SAFE-7** Before recovering an interrupted run, `reset` (and the MCP reset
+  preview) report how many of its jobs' latest attempts have not recorded a
+  final status, and warn not to recover while any appear to be running. The
+  scan reads files only, so a job killed without writing its status still
+  appears to be running. Implemented in `scanInterruptedRunJobs` in
+  [internal/project/inspect.go](../internal/project/inspect.go) over
+  `state.LatestAttemptDirs`; checked by
+  `TestInterruptedResetWarnsAboutRunningJobs`.
 
 Further rules:
 

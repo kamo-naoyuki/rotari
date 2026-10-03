@@ -511,3 +511,21 @@ func writeFile(t *testing.T, path, content string) {
 		t.Fatal(err)
 	}
 }
+
+// TestInterruptedResetWarnsAboutRunningJobs stops only the supervisor of a
+// run, so its job keeps running, and checks that reset of the interrupted
+// project says so and tells the operator not to recover yet.
+func TestInterruptedResetWarnsAboutRunningJobs(t *testing.T) {
+	covers(t, "SAFE-7")
+	e := support.NewEnv(t)
+	e.StartRun("live", 1, true)
+	support.WaitUntil(t, 15*time.Second, func() (bool, string) {
+		return support.JobProcesses(t, e.Root, "") == 1, "the job did not start"
+	})
+	t.Cleanup(func() { support.KillStrays(t, e.Root) })
+	support.KillSupervisors(t, e.Root)
+	support.WaitForInterrupted(t, e, "live")
+	if r := e.Rotari("reset", "live"); r.Code == 0 || !strings.Contains(r.Stderr, "1 of 1 job(s) appear to still be running") || !strings.Contains(r.Stderr, "Do not recover") {
+		t.Fatalf("reset with a running job: %s", r)
+	}
+}

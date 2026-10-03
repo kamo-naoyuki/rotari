@@ -152,6 +152,7 @@ the IDs, this table, and those calls disagree.
 | SAFE-4 | `unlock` recovers an interrupted run, no-ops without one, and refuses one whose coordinator is alive | conformance | `TestControlFromAnotherHost`, `TestInterruptedProjectNeedsRecovery`, `TestUnlockRefusesLiveRun`, `TestUnlockWithoutInterruptedRunIsNoOp` |
 | SAFE-5 | `reset` discards the queue, rejects a running project, and needs confirmation for an interrupted one | conformance | `TestResetOfInterruptedProject`, `TestRunningProjectRejectsChanges` |
 | SAFE-6 | Commands ask for confirmation only on a terminal, otherwise naming the option that confirms | conformance | `TestCopyIntoQueueWithoutTerminal`, `TestResetOfInterruptedProject` |
+| SAFE-7 | Reset of an interrupted run warns while its jobs appear to be running | conformance | `TestInterruptedResetWarnsAboutRunningJobs` |
 | COORD-1 | Controlling a local job from another host fails, naming that host | conformance | `TestControlFromAnotherHost` |
 | COORD-2 | Cancelling a run whose coordinator is on another host fails, naming that host | conformance | `TestControlFromAnotherHost` |
 | COORD-3 | A lock from another host keeps the project locked until `unlock` | conformance | `TestControlFromAnotherHost` |

@@ -207,3 +207,30 @@ func TestScanInterruptedRunJobsTreatsNonTerminalStatusJSONAsRunning(t *testing.T
 		t.Fatalf("status = %+v, want Total=1 StillRunning=1", status)
 	}
 }
+
+// TestScanInterruptedRunJobsReadsLatestAttempts scans a run whose jobs keep
+// their files per attempt, as runs do: a job whose latest attempt finished
+// and one whose latest attempt has not.
+func TestScanInterruptedRunJobsReadsLatestAttempts(t *testing.T) {
+	runDir := filepath.Join(t.TempDir(), "20260101-000000-aaaaaaaa")
+	finished := filepath.Join(runDir, "done", "attempts", "att_20260101-000000-aaaaaaaa-done-0")
+	running := filepath.Join(runDir, "busy", "attempts", "att_20260101-000000-aaaaaaaa-busy-0")
+	for _, dir := range []string{finished, running} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "command.json"), []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(finished, "status.json"), []byte(`{"phase":"finished","exit_code":0,"finished_at":"2026-09-19T10:00:00Z"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	status, err := scanInterruptedRunJobs(runDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Total != 2 || status.StillRunning != 1 {
+		t.Fatalf("status = %+v, want Total=2 StillRunning=1", status)
+	}
+}

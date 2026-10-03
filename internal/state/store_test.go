@@ -201,25 +201,28 @@ func TestValidateRunDirectoryChecksRequiredSnapshots(t *testing.T) {
 	}
 }
 
-func TestListRunJobDirsIncludesOnlyJobSnapshots(t *testing.T) {
-	runDir := t.TempDir()
-	for _, name := range []string{"job-2", "job-1", "without-command"} {
-		if err := os.MkdirAll(filepath.Join(runDir, name), 0o700); err != nil {
+func TestLatestAttemptDirsIncludesOnlyJobSnapshots(t *testing.T) {
+	runDir := filepath.Join(t.TempDir(), "20260101-000000-aaaaaaaa")
+	attempt := "att_20260101-000000-aaaaaaaa-job-2-1"
+	// job-1 is in the layout before attempt directories; job-2 has two
+	// attempts, of which the later one counts; the third has no snapshot.
+	for _, dir := range []string{"job-1", "job-2/attempts/att_20260101-000000-aaaaaaaa-job-2-0", "job-2/attempts/" + attempt, "without-command"} {
+		if err := os.MkdirAll(filepath.Join(runDir, dir), 0o700); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, name := range []string{"job-1", "job-2"} {
-		if err := os.WriteFile(filepath.Join(runDir, name, "command.json"), []byte("{}\n"), 0o600); err != nil {
+	for _, dir := range []string{"job-1", "job-2/attempts/att_20260101-000000-aaaaaaaa-job-2-0", "job-2/attempts/" + attempt} {
+		if err := os.WriteFile(filepath.Join(runDir, dir, "command.json"), []byte("{}\n"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
-	got, err := ListRunJobDirs(runDir)
+	got, err := LatestAttemptDirs(runDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{filepath.Join(runDir, "job-1"), filepath.Join(runDir, "job-2")}
+	want := []string{filepath.Join(runDir, "job-1"), filepath.Join(runDir, "job-2", "attempts", attempt)}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
-		t.Fatalf("ListRunJobDirs() = %#v, want %#v", got, want)
+		t.Fatalf("LatestAttemptDirs() = %#v, want %#v", got, want)
 	}
 }
 

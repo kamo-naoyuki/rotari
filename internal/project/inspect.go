@@ -159,7 +159,7 @@ type interruptedRunJobs struct {
 // apart from a job that is genuinely still executing, and treating "unknown"
 // as "running" is the safer default here.
 func scanInterruptedRunJobs(runDir string) (interruptedRunJobs, error) {
-	jobDirs, err := state.ListRunJobDirs(runDir)
+	jobDirs, err := state.LatestAttemptDirs(runDir)
 	if err != nil {
 		return interruptedRunJobs{}, err
 	}

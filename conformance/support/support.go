@@ -465,6 +465,27 @@ func (e *Env) JobExitStatus(project, jobID string) string {
 	return status
 }
 
+// KillSupervisors kills the supervisor processes of runs under root, as a
+// crash would, and leaves their jobs running.
+func KillSupervisors(t *testing.T, root string) {
+	t.Helper()
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		t.Skipf("cannot list processes: %v", err)
+	}
+	for _, entry := range entries {
+		pid, err := strconv.Atoi(entry.Name())
+		if err != nil {
+			continue
+		}
+		cmdline, err := os.ReadFile(filepath.Join("/proc", entry.Name(), "cmdline"))
+		if err != nil || !bytes.Contains(cmdline, []byte(root+string(filepath.Separator))) || !bytes.Contains(cmdline, []byte("__server\x00")) {
+			continue
+		}
+		_ = syscall.Kill(pid, syscall.SIGKILL)
+	}
+}
+
 func KillStrays(t *testing.T, root string) {
 	t.Helper()
 	entries, err := os.ReadDir("/proc")

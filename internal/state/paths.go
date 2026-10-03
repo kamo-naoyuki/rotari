@@ -102,25 +102,28 @@ func ValidateRunDirectory(runsDir, runID string, requireCommands bool) (string, 
 	return runDir, nil
 }
 
-func ListRunJobDirs(runDir string) ([]string, error) {
+// LatestAttemptDirs returns, sorted, the latest attempt directory of each job
+// of runDir that has a command snapshot: JOB/attempts/ATTEMPT, or JOB itself
+// in a run written before attempts had directories of their own.
+func LatestAttemptDirs(runDir string) ([]string, error) {
 	entries, err := os.ReadDir(runDir)
 	if err != nil {
 		return nil, err
 	}
-	jobDirs := make([]string, 0)
+	attemptDirs := make([]string, 0)
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if !entry.IsDir() || !IsValidPathElement(entry.Name()) {
 			continue
 		}
-		jobDir, err := SafeJoin(runDir, entry.Name())
+		attemptDir, err := LatestAttemptJobDir(runDir, entry.Name())
 		if err != nil {
 			continue
 		}
-		if err := RequireRunStateFile(jobDir, "command.json", entry.Name()); err != nil {
+		if err := RequireRunStateFile(attemptDir, "command.json", entry.Name()); err != nil {
 			continue
 		}
-		jobDirs = append(jobDirs, jobDir)
+		attemptDirs = append(attemptDirs, attemptDir)
 	}
-	sort.Strings(jobDirs)
-	return jobDirs, nil
+	sort.Strings(attemptDirs)
+	return attemptDirs, nil
 }
