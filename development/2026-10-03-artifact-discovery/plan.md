@@ -280,20 +280,49 @@ Attached code operands such as `python -cCODE` are unsupported initially.
 
 #### Recognized launchers
 
-Walk inward only through this small explicit launcher table. Each parser must
-identify the next command's exact argv boundary; do not scan the remaining words
-for an interpreter name. Match launcher basenames case-insensitively. Nested
-recognized launchers may be followed, with a maximum depth of four; an unknown
-launcher or unsupported option form ends PATH-X4 inspection without examining
-its remaining arguments as commands.
+The launcher parser must identify the wrapped command boundary from that
+launcher’s grammar. Do **not** treat every word before the wrapped command as an
+option: the words can be option values or positional operands. For example,
+`timeout 1h bash ...` has a positional duration, while `srun -n 4 python ...`
+has an option value before the command.
+
+| Strategy | Benefit | Cost / failure mode | Decision |
+| --- | --- | --- | --- |
+| Treat every intervening word as an option | No launcher-specific parsing | Misses that `1h` is a positional operand to `timeout`; can mistake `python` in `srun --job-name python -n 2 bash -c CODE` for the command | Reject |
+| Parse each supported launcher’s options, values, and positional operands | Finds the command boundary and avoids most interpreter-looking option-value false matches | Requires a launcher table; unsupported options can hide an inner interpreter | Use |
+| Search every argv word for interpreter names | Finds interpreters behind arbitrary wrappers | Can misread ordinary arguments as nested commands; e.g. `echo bash -c output.csv` | Reject |
+
+Walk inward only through the explicit launcher table below. Match launcher
+basenames case-insensitively. Each entry defines its accepted options, which
+values they consume, and where its wrapped command starts. Nested listed
+launchers may be followed up to depth four. An unknown launcher or an option
+whose arity/boundary is not listed stops PATH-X4; do not guess by scanning ahead.
 
 | Launcher | Initially accepted prefix before the wrapped command | Examples |
 | --- | --- | --- |
 | `env` | Zero or more literal `NAME=value` assignments; env options such as `-i`, `-u`, and `-S` are not supported initially | `env A=1 python -c CODE` |
-| `timeout` | `--foreground`, `--preserve-status`, `--verbose`; `-s VALUE`/`--signal VALUE`/`--signal=VALUE`; `-k VALUE`/`--kill-after VALUE`/`--kill-after=VALUE`; then the required duration and wrapped command | `timeout 1h bash -c CODE`; `timeout -s TERM -k 5s 1h python -c CODE` |
+| `timeout` | `--foreground`, `--preserve-status`, `--verbose`; `-s VALUE`/`--signal VALUE`/`--signal=VALUE`; `-k VALUE`/`--kill-after VALUE`/`--kill-after=VALUE`; then the required positional duration, then the wrapped command | `timeout 1h bash -c CODE`; `timeout -s TERM -k 5s 1h python -c CODE` |
 | `srun` | No-option form; `--name=value` options; and the listed boolean flags `--pty`, `--unbuffered`, `--label`, `--overlap`, `--exclusive`. Separate-value options are limited to `-n`/`--ntasks`, `-N`/`--nodes`, `-G`/`--gpus`, `-c`/`--cpus-per-task`, `-p`/`--partition`, `-t`/`--time`, `-o`/`--output`, `-e`/`--error`, `-J`/`--job-name`, and `-A`/`--account` | `srun python train.py`; `srun --ntasks=2 python -c CODE`; `srun -n 2 python -c CODE` |
 
-Examples that define the boundary:
+If launcher parsing stops, leave unconsumed words eligible for ordinary path
+classification. This can misclassify opaque code text as a candidate and miss
+paths inside that code, but avoids silently discarding a candidate merely
+because an arbitrary word resembled an interpreter. These are deliberate
+trade-offs, not claims that unsupported forms were successfully analyzed.
+
+| Unsupported form | Why traversal stops | Expected limitation |
+| --- | --- | --- |
+| `nice bash -c "python train.py > out/log.txt"` | `nice` is not listed | Code text may be a false candidate; inner paths are missed |
+| `nohup bash -c "..."` | `nohup` is not listed | Same |
+| `uv run python -c "..."` | `uv` is not listed | Same |
+| `conda run -n ENV bash -c "..."` | `conda` is not listed | Same |
+| `srun --mpi pmix bash -c "..."` | `--mpi` arity is not listed | Same |
+
+Add launcher or option support when its expected benefit justifies the parsing
+and maintenance cost; include accepted and rejected command-line fixtures. The
+initial list is intentionally useful rather than exhaustive.
+
+Examples that define the interpreter/launcher boundary:
 
 | Argument list | Code operand | Candidates from ordinary classification |
 | --- | --- | --- |
@@ -316,24 +345,7 @@ Examples that define the boundary:
 | `echo bash -c output.csv` | none | `output.csv` remains subject to ordinary classification |
 | `python train.py --engine python -c config.yaml` | none: the inner `python` is an option value, not a command | `train.py`, `config.yaml` remain eligible |
 
-An unsupported option or launcher form is not searched through. Its remaining
-arguments stay ordinary argv values, so a code body behind it is classified as
-one value and can become a false candidate. The shell body is also not inspected,
-so the paths inside it are missed. This is accepted in exchange for never
-suppressing a value based only on an interpreter-looking word. Keep these cases
-in the fixture table as known false positives, so adding a launcher shows up as
-a fixture change:
-
-| Argument list | Result in the initial version |
-| --- | --- |
-| `nice bash -c "python train.py > out/log.txt"` | Whole code string accepted (PATH-R3/R4) |
-| `nohup bash -c "..."` | Same |
-| `uv run python -c "open('out/a.txt')"` | Same |
-| `conda run -n ENV bash -c "..."` | Same |
-| `srun --mpi pmix bash -c "..."` (unlisted separate-value option) | Same |
-
-Add launcher forms only with accepted and rejected command examples. Never infer
-that a string is code just because it contains shell syntax.
+Never infer that a string is code just because it contains shell syntax.
 
 If the interpreter is a listed shell, pass the code operand to shell inspection
 (section 3) instead of classifying it; the parser then finds literal command
