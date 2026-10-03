@@ -24,8 +24,9 @@ last commit removes only those duplicate rows.
 export/import. The matrix-specific field name avoids a generic job-level
 `exclude` option.
 
-**Plan impact:** Implementation is complete for workflow manifests; CLI
-`add --matrix` and Web rendering remain unchanged as planned.
+**Plan impact:** Manifest implementation completed; at this commit the CLI
+surface was still outstanding. Web exclusion is inferred from absent cells
+in the existing dimensions-by-members grid and needs no additional rule field.
 
 **Validation:** Focused uncached model/workflow/queueedit/queueops/CLI tests
 passed. Uncached race tests for those packages passed; doclinks also passed
@@ -41,6 +42,54 @@ fixture snapshot's disappearing `server.pid` and did not enter its race
 phase. Its complete log is retained at
 `$TMPDIR/matrix-exclude-final-check.log`. No full-check pass is claimed.
 
-**Remaining:** The static-Web fixture snapshot issue in
-[../ISSUES.md](../ISSUES.md) needs separate investigation. A clean full
-repository check remains outstanding; no matrix-specific failures remain.
+**Remaining at this commit:** CLI support was added in the follow-up entry
+below. The static-Web fixture snapshot issue in [../ISSUES.md](../ISSUES.md)
+needs separate investigation; a clean full repository check remains
+outstanding.
+
+## CLI `add --matrix-exclude`
+
+**Commit:** `22f244f` — 2026-10-04T03:49:26+09:00
+
+**Change:** Added repeatable, command-line-only
+`rotari add --matrix-exclude KEY=VALUE[,KEY=VALUE...]`, reusing the shared
+model parser and effective matrix expansion. The command rejects exclusions
+without `--matrix`; exclusions must refer to declared dimensions/values and
+leave at least one combination. Added unit, binary conformance, config
+isolation, matrix/array, and flag-pair effect tests. Updated contracts, user
+guides, agent guide, flag-pair inventory and coverage counts, help/schema
+goldens, CLI reference, Python CLI metadata, and Python API docs. Updated the
+plan to cover both workflow and CLI surfaces.
+
+**Reason:** The earlier implementation mistakenly scoped exclusions to
+manifests even though the matrix is created by `rotari add`; CLI parity was
+part of the intended feature.
+
+**Plan impact:** The existing RUN-8 contract now requires the manifest and CLI
+surfaces to share behavior, and explicitly requires `--matrix` when an
+exclusion is supplied.
+
+**Validation:** `go test -count=1 ./cmd/rotari -run
+'TestCommandLineOnlyFlagIgnoresConfigAndStaysOutOfTemplate|TestCmdAddMatrixExclusion'`,
+the model/parser focused tests, `TestWorkflowMatrixExclusionExportImport`,
+`TestCLIFlagPairInventory`, `TestCLIFlagPairEditSamples`, and the full
+`TestCLIFlagPairEdits` suite passed. The latter covered 1,545 pairs / 3,090
+invocations and took 259.561 seconds. `TestCLIAddMatrixExclusionEffect` and
+all add pairs involving `matrix-exclude` passed. `TestContractStatus`,
+`TestConformanceLayout`, `TestGoldenOutputs`, generated CLI reference checks,
+README sync, strict MkDocs build, `gofmt`, and `git diff --check` passed. A
+post-refactor uncached race run passed for CLI/model/workflow/queue packages,
+and the matrix manifest+CLI binary conformance passed with race enabled. After
+the final helper extraction, all 325 `add` flag pairs passed again, including
+every pair involving `matrix-exclude`. `go vet` passed for the affected Go
+packages. A fresh full `scripts/check.sh` was not rerun after this follow-up;
+the prior full-check failure remains recorded above. `ruff` 0.16.9 was
+installed in the selected system Python environment to apply the exact CI
+generation format.
+
+**Remaining:** A clean full repository check is outstanding; the recorded
+static-Web fixture snapshot failure is unrelated to the matrix-exclusion
+changes.
+
+**CLI implementation commit:** Pending at the time this work-log entry was
+written.

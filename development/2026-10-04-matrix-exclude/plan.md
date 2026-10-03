@@ -4,7 +4,9 @@
 
 **Status:** Workflow-manifest and `rotari add --matrix-exclude` implementations
 are complete. Focused unit, binary conformance, add flag-pair, and generated-doc
-checks pass. The changes are ready for final review and commit.
+checks pass. Implemented in commits `a68f1cc` and `22f244f`; a clean full
+repository check remains outstanding due the previously recorded Web fixture
+snapshot failure.
 
 ## Purpose
 
