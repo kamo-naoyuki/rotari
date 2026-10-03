@@ -209,3 +209,47 @@ func TestCancelledPendingJobNeverStarts(t *testing.T) {
 		}
 	}
 }
+
+// TestAsyncStartHintsWork starts a run with --async and runs the commands
+// its message suggests, as printed: the message ends its last line, its
+// cancel command names the run and cancels it, and its wait command waits
+// for that run.
+func TestAsyncStartHintsWork(t *testing.T) {
+	covers(t, "CAN-7")
+	e := support.NewEnv(t)
+	e.MustRotari("add", "-p", "hints", "--", "sleep", "30")
+	started := e.MustRotari("run", "-p", "hints", "--async").Stdout
+	if !strings.HasSuffix(started, "\n") {
+		t.Fatalf("the start message does not end its last line: %q", started)
+	}
+	hint := func(prefix string) []string {
+		for _, line := range strings.Split(started, "\n") {
+			if fields := strings.Fields(line); len(fields) > 1 && fields[0] == "rotari" && fields[1] == prefix {
+				for index := range fields {
+					fields[index] = strings.Trim(fields[index], "'")
+				}
+				return fields[1:]
+			}
+		}
+		t.Fatalf("the start message suggests no rotari %s:\n%s", prefix, started)
+		return nil
+	}
+	cancel, wait := hint("cancel"), hint("wait")
+	var shown struct {
+		RunID string `json:"run_id"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "hints", "--json").Stdout), &shown); err != nil {
+		t.Fatal(err)
+	}
+	runID := shown.RunID
+	if cancel[len(cancel)-1] != runID {
+		t.Fatalf("the cancel hint %v does not name run %s", cancel, runID)
+	}
+	e.MustRotari(cancel...)
+	if result := e.Rotari(wait...); !strings.Contains(result.Stdout+result.Stderr, runID) {
+		t.Fatalf("the wait hint %v did not wait for run %s: %s", wait, runID, result)
+	}
+	if check := e.Rotari("check", "hints").Stdout; !projectFinished(check) {
+		t.Fatalf("the run did not finish after the hinted cancel and wait: %s", check)
+	}
+}

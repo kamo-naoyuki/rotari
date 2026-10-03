@@ -170,6 +170,7 @@ the IDs, this table, and those calls disagree.
 | CAN-4 | Cancelling one job stops only that job, which the run does not retry | conformance | `TestCancelJobStopsOnlyThatJob` |
 | CAN-5 | A job stopped by a cancel records a cancelled result, read as the `cancelled` failure kind | conformance | `TestCancelledJobsReadAsCancelled` |
 | CAN-6 | A job cancelled before it starts never starts, on every submission path | conformance | `TestCancelledPendingJobNeverStarts` |
+| CAN-7 | The async start message ends its line, and its wait and cancel hints work as printed for that run | conformance | `TestAsyncStartHintsWork` |
 | LOG-1 | Attempts use the selected internal merge or separate log mode, independently of external destinations | conformance | `TestJobStreamsPersistSeparately` |
 | LOG-2 | Repeatable `--output`/`--error` sinks; absent `--error`, stderr follows `--output`; independent of internal log mode | conformance | `TestExternalLogDestinations` |
 | LOG-3 | Destination parents are created on the execution host; setup errors fail before the command starts | conformance | `TestExternalLogDestinations` |

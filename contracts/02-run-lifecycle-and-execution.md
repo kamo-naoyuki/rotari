@@ -423,6 +423,13 @@ the request, on the host that owns the run.
   [internal/run/dispatch.go](../internal/run/dispatch.go); covered by
   `TestDispatcherNeverSubmitsACancelledJob` and `TestCancelledPendingJobNeverStarts` in
   [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle/cancel_test.go).
+- **CAN-7** The message `run --async` and `retry --async` print once the run
+  starts ends its last line, and the commands it suggests work as printed:
+  `rotari wait ... --run-id RUN_ID` waits for that run, and
+  `rotari cancel ... RUN_ID` cancels that run and no other. Written by
+  `Operations.StartRun` in
+  [internal/supervisor/run.go](../internal/supervisor/run.go); covered by
+  `TestAsyncStartHintsWork`.
 
 Whole-run and job cancel go through `jobcontrol.Controller`
 ([internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go)).

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
@@ -34,9 +35,9 @@ func (ops Operations) StartRun(request server.Request, onDone func()) (string, s
 			ops.logf("async run %s failed: %v", started.runID, err)
 		}
 	}()
-	paths := started.paths
-	return started.runID, fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run: %s\n  Directory: %s\n\nCheck status:\n  rotari show --run-id %s\n\nCancel run:\n  rotari cancel --basedir %s --project-name %s",
-		request.QueueName, model.RunLabel(started.runID, request.RunName), runDir, started.runID, paths.BaseDir, request.QueueName), nil
+	target := fmt.Sprintf("--basedir %s --project-name %s", executor.ShellQuote(started.paths.BaseDir), executor.ShellQuote(request.QueueName))
+	return started.runID, fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run: %s\n  Directory: %s\n\nWait for it:\n  rotari wait %s --run-id %s\n\nCheck status:\n  rotari show --run-id %s\n\nCancel run:\n  rotari cancel %s %s\n",
+		request.QueueName, model.RunLabel(started.runID, request.RunName), runDir, target, started.runID, started.runID, target, started.runID), nil
 }
 
 // Run executes a run inside the supervisor, reporting progress to the
