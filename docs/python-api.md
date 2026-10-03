@@ -74,7 +74,7 @@ Execute queued commands, optionally selecting jobs from a run.
 | `failed` | `bool` | only execute failed jobs; others carry forward their previous result |
 | `unfinished` | `bool` | only execute unfinished jobs; others carry forward their previous result |
 | `success` | `bool` | only execute successful jobs; others carry forward their previous result |
-| `job_ids` | `Sequence[str]` | only execute this job and the jobs that depend on it; may be repeated; not with a result filter; others carry forward their previous result |
+| `job_ids` | `Sequence[str]` | only execute this job and the jobs that depend on it, through --depends-on or --depends-on-finished; may be repeated; not with a result filter; others carry forward their previous result |
 | `job_name` | `str` | only execute this job by name |
 | `stage` | `str` | only execute jobs in this stage, narrowed by any result filter; others carry forward their previous result |
 | `matrix` | `str` | only execute jobs of this matrix, named by its base job name, narrowed by any result filter; others carry forward their previous result |
@@ -141,7 +141,7 @@ Run failed and unfinished jobs; with --job-id, run those jobs.
 | `local_concurrency` | `str` | local worker concurrency |
 | `batch_concurrency` | `str` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
 | `retry` | `str` | retry failed jobs up to N times; explicit cancellations are not retried |
-| `job_ids` | `Sequence[str]` | only execute this job and the jobs that depend on it, instead of failed and unfinished jobs; may be repeated |
+| `job_ids` | `Sequence[str]` | only execute this job and the jobs that depend on it, through --depends-on or --depends-on-finished, instead of failed and unfinished jobs; may be repeated |
 | `stage` | `str` | only retry jobs in this stage |
 | `matrix` | `str` | only retry jobs of this matrix, named by its base job name |
 | `async_` | `bool` | return after starting the run |
