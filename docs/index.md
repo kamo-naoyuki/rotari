@@ -9,8 +9,6 @@ LSF, or Sun Grid Engine cluster while keeping commands, results, and logs togeth
 ## Start here
 
 - [Getting started](GETTING_STARTED.md): installation and the first run.
-- [CLI reference](CLI_REFERENCE.md): commands and common options.
-- [Environment variables](ENVIRONMENT_VARIABLES.md): variable meanings and scope.
 - [Concepts](CONCEPTS.md): projects, queues, runs, IDs, and state.
 - [Running and recovering](RUNNING.md): schedule, execute, inspect, rerun, retry, and use array and matrix jobs.
 - [Executors and schedulers](EXECUTORS.md): local, SSH, Slurm, PBS, LSF, and SGE execution backends.
@@ -22,6 +20,8 @@ the [Getting started](GETTING_STARTED.md) guide.
 
 ## Reference
 
+- [CLI reference](CLI_REFERENCE.md): commands and common options.
+- [Environment variables](ENVIRONMENT_VARIABLES.md): variable meanings and scope.
 - [Python client](PYTHON_CLIENT.md): installation and a short usage guide.
 - [Python API](python-api.md)
 - [Go API](go-api.md)
