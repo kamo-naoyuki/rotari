@@ -6,7 +6,10 @@ successful results are carried forward.
 
 ## Rules
 
-- Start runs with `rotari run --async`, then block on `rotari wait`. A
+- Start runs with `rotari run --async`, then block on `rotari wait`. To
+  preview a run first, give the same command `--dry-run` in place of
+  `--async`, which it cannot be combined with, then start it with
+  `--async --if-revision REVISION`. A
   synchronous `rotari run` requests cancellation when its client is killed, so
   a tool-call timeout that kills the command cancels the whole run. `wait`
   can be killed and repeated safely; it exits with the run's exit code.
@@ -53,8 +56,10 @@ rotari wait sweep --json
 rotari lineage RUN_ID
 # One job's evidence, taking ATTEMPT_ID from the cause's "show:" line:
 rotari show -j ATTEMPT_ID --report
-# Fix the cause, then rerun only failed and unfinished jobs:
-rotari retry -p sweep --async
+# Fix the cause, preview the rerun of failed and unfinished jobs, then
+# start exactly that, taking REVISION from the preview's last line:
+rotari retry -p sweep --dry-run
+rotari retry -p sweep --async --if-revision REVISION
 rotari wait sweep --json
 # What the retry fixed, what still fails, and whether the cause changed:
 rotari lineage RUN_ID NEW_RUN_ID

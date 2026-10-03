@@ -267,3 +267,18 @@ func TestRunPreviewSaysWhyADependentJobExecutes(t *testing.T) {
 		t.Fatalf("the preview gives the selected job a reason:\n%s", preview)
 	}
 }
+
+// TestAsyncDryRunRefusalShowsTheWayToPreview gives run and retry both
+// --async and --dry-run, which is refused, and checks that the refusal
+// says how to preview and then start the run.
+func TestAsyncDryRunRefusalShowsTheWayToPreview(t *testing.T) {
+	covers(t, "CLI-8")
+	e := support.NewEnv(t)
+	e.CreateFinishedRun()
+	for _, command := range []string{"run", "retry"} {
+		result := e.Rotari(command, "-p", "p1", "--async", "--dry-run")
+		if result.Code == 0 || !strings.Contains(result.Stderr, "preview without --async") || !strings.Contains(result.Stderr, "--async --if-revision REVISION") {
+			t.Errorf("%s --async --dry-run = %s, want a refusal that shows how to preview and start", command, result)
+		}
+	}
+}

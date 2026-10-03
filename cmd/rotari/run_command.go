@@ -63,7 +63,7 @@ func runJobs(args []string, defaultSelection string) int {
 		return 1
 	}
 	if *async && *guard.dryRun {
-		printError("--async cannot be combined with --dry-run")
+		printError("--async cannot be combined with --dry-run, which starts no run; preview without --async, then start the run with --async --if-revision REVISION, taking REVISION from the preview")
 		return 1
 	}
 	if *matchBy != model.MatchByJobID && *matchBy != model.MatchByFingerprint && *matchBy != model.MatchByIDAndFingerprint {
