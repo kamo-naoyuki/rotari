@@ -10,6 +10,9 @@ type Plan struct {
 	Execute        map[string]bool
 	CarriedResults map[string]model.JobResult
 	CarriedOrigins map[string]*model.JobOrigin
+	// RerunDependencies names, for a job that executes only because a job it
+	// depends on executes, that dependency, so a preview can say why.
+	RerunDependencies map[string]string
 }
 
 func joinStrings(values []string, separator string) string {

@@ -90,8 +90,12 @@ func PlanRerun(queue model.Queue, selection string, jobIDs []string, scope model
 	return plan, nil
 }
 
-func forceExecution(jobID string, plan *Plan) {
+func forceExecution(jobID, dependency string, plan *Plan) {
 	plan.Execute[jobID] = true
+	if plan.RerunDependencies == nil {
+		plan.RerunDependencies = make(map[string]string)
+	}
+	plan.RerunDependencies[jobID] = dependency
 	delete(plan.CarriedResults, jobID)
 	delete(plan.CarriedOrigins, jobID)
 }
@@ -113,10 +117,11 @@ func expandDownstream(queue model.Queue, plan *Plan) {
 	for changed := true; changed; {
 		changed = false
 		for _, job := range jobs {
-			if executing(job) || !dependsOnAny(job, executingNames) {
+			dependency := firstName(job.AllDependencies(), executingNames)
+			if executing(job) || dependency == "" {
 				continue
 			}
-			forceExecution(job.ID, plan)
+			forceExecution(job.ID, dependency, plan)
 			if job.Name != "" {
 				executingNames[job.Name] = true
 			}
@@ -125,17 +130,14 @@ func expandDownstream(queue model.Queue, plan *Plan) {
 	}
 }
 
-func dependsOnAny(job model.JobSpec, names map[string]bool) bool {
-	return anyName(job.AllDependencies(), names)
-}
-
-func anyName(candidates []string, names map[string]bool) bool {
+// firstName returns the first of candidates that names holds, or "".
+func firstName(candidates []string, names map[string]bool) string {
 	for _, candidate := range candidates {
 		if names[candidate] {
-			return true
+			return candidate
 		}
 	}
-	return false
+	return ""
 }
 
 // originResolver looks up the result each queued job's origin names, caching

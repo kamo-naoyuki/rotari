@@ -2,6 +2,7 @@ package run
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
@@ -422,5 +423,28 @@ func TestPlanRerunRequestedArrayTaskExecutesAlone(t *testing.T) {
 	}
 	if _, carried := plan.CarriedResults["eval-2"]; !carried {
 		t.Fatalf("carried = %#v, want the other tasks carried", plan.CarriedResults)
+	}
+}
+
+// TestPlanRerunNamesTheDependencyThatMakesAJobExecute reruns one job by ID:
+// the job that depends on it and the one that depends on that execute too,
+// each with the dependency that made it, and the selected job has none.
+func TestPlanRerunNamesTheDependencyThatMakesAJobExecute(t *testing.T) {
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "prep", Name: "prep", Command: []string{"true"}},
+		{ID: "train", Name: "train", Command: []string{"true"}, DependsOn: []string{"prep"}},
+		{ID: "eval", Name: "eval", Command: []string{"true"}, DependsOnFinished: []string{"train"}},
+		{ID: "other", Name: "other", Command: []string{"true"}},
+	}}
+	source := &fakeOriginResults{runs: map[string]map[string]model.JobResult{"run-1": {
+		"prep": {ID: "prep"}, "train": {ID: "train"}, "eval": {ID: "eval"}, "other": {ID: "other"},
+	}}}
+	plan, err := PlanRerun(queue, "job-id", []string{"prep"}, model.CommandSelector{}, jobfilter.Filter{}, "run-1", true, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"train": "prep", "eval": "train"}
+	if !reflect.DeepEqual(plan.RerunDependencies, want) || plan.Execute["other"] {
+		t.Fatalf("rerun dependencies = %v, execute = %v; want %v", plan.RerunDependencies, plan.Execute, want)
 	}
 }

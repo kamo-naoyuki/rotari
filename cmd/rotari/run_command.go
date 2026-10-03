@@ -423,7 +423,7 @@ func previewRun(paths state.ProjectPaths, queue *model.Queue, request projectrun
 	fmt.Println(colorKeyValueMessage(fmt.Sprintf("dry run: run project=%s%s would execute %d of %d job(s), carrying %d result(s)", paths.ProjectName, strings.Join(optionalField(" run_name", runName), ""), executed, len(jobs), len(planned.Plan.CarriedResults)), green))
 	for _, job := range jobs {
 		if planned.Plan.Execute[job.ID] {
-			fmt.Printf("  execute job_id=%s%s\n", job.ID, strings.Join(optionalField(" job_name", job.Name), ""))
+			fmt.Printf("  execute job_id=%s%s%s\n", job.ID, strings.Join(optionalField(" job_name", job.Name), ""), strings.Join(optionalField(" depends_on_rerun", planned.Plan.RerunDependencies[job.ID]), ""))
 		}
 	}
 	fmt.Printf("revision=%s\n", revision)

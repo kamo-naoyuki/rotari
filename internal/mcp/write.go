@@ -70,6 +70,9 @@ type StartRunInput struct {
 type PlannedJob struct {
 	ID   string `json:"id"`
 	Name string `json:"name,omitempty"`
+	// DependsOnRerun names the dependency that executes, for a job the
+	// selection left out but that executes because of it.
+	DependsOnRerun string `json:"depends_on_rerun,omitempty" jsonschema:"for a job that executes only because a job it depends on executes: that dependency"`
 }
 
 type RunPreviewOutput struct {
@@ -203,7 +206,7 @@ func (tools writeTools) previewRun(input RunInput) (RunPreviewOutput, error) {
 	for _, job := range model.QueueToJobs(planned.Queue.Commands) {
 		output.Jobs++
 		if planned.Plan.Execute[job.ID] {
-			output.Execute = append(output.Execute, PlannedJob{ID: job.ID, Name: job.Name})
+			output.Execute = append(output.Execute, PlannedJob{ID: job.ID, Name: job.Name, DependsOnRerun: planned.Plan.RerunDependencies[job.ID]})
 		}
 	}
 	return output, nil

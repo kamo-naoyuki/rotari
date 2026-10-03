@@ -249,3 +249,21 @@ func TestRunPreviewListsTheTasksOfAWholeArray(t *testing.T) {
 		t.Fatalf("the run executed %v, the preview planned %v", executed, want)
 	}
 }
+
+// TestRunPreviewSaysWhyADependentJobExecutes reruns one job by ID, which
+// also executes the job that depends on it, and checks that the preview
+// names the rerun dependency on that job's line only.
+func TestRunPreviewSaysWhyADependentJobExecutes(t *testing.T) {
+	covers(t, "CLI-7")
+	e := support.NewEnv(t)
+	prep := support.AddedJobID(t, e.MustRotari("add", "-p", "p1", "--job-name", "prep", "--", "true"))
+	after := support.AddedJobID(t, e.MustRotari("add", "-p", "p1", "--job-name", "after", "--depends-on", "prep", "--", "true"))
+	e.MustRotari("run", "-p", "p1", "--quiet")
+	preview := e.MustRotari("retry", "-p", "p1", "--dry-run", "-j", prep).Stdout
+	if !strings.Contains(preview, "execute job_id="+after+" job_name=after depends_on_rerun=prep\n") {
+		t.Fatalf("the preview does not say why after executes:\n%s", preview)
+	}
+	if !strings.Contains(preview, "execute job_id="+prep+" job_name=prep\n") {
+		t.Fatalf("the preview gives the selected job a reason:\n%s", preview)
+	}
+}

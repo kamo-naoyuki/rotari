@@ -184,7 +184,8 @@ follows:
   `run` and `retry` take the same options: `--dry-run` lists the jobs the run
   would execute, planned by `projectrun.Runner.PlanRun` as the run itself is,
   with each task of an array that runs whole listed (`run.PlanRerun` keys the
-  plan by job ID), and `--if-revision` starts the run only at that revision, compared again by
+  plan by job ID) and a job that executes only because a job it depends on
+  executes marked `depends_on_rerun=NAME` (`run.Plan.RerunDependencies`), and `--if-revision` starts the run only at that revision, compared again by
   the supervisor when it begins the run.
 - **CLI-11** When a command names a project that its state directory does not
   have, the error lists the other registered state directories that have a

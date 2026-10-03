@@ -188,7 +188,7 @@ the IDs, this table, and those calls disagree.
 | CLI-4 | `show`, `lineage RUN`, and the Web API group a run's failed and blocked jobs by the same causes | conformance | `TestFailureGroupsAgreeAcrossViews` |
 | CLI-5 | The project list shows each project's last result, and its suggested commands work for every listed project | conformance | `TestProjectListHintsWork` |
 | CLI-6 | `jobs --since` and the Web jobs page take a Go duration or whole days such as `7d` | conformance | `TestJobsWindowAcceptsDays` |
-| CLI-7 | Commands that change a project take `--dry-run` and `--if-revision`, applying only at the previewed revision | conformance | `TestCLIFlagPairImportObservability`, `TestGuardedCommandsPreviewAndCheckTheRevision`, `TestRunPreviewMatchesTheRun`, `TestRunPreviewListsTheTasksOfAWholeArray` |
+| CLI-7 | Commands that change a project take `--dry-run` and `--if-revision`, applying only at the previewed revision | conformance | `TestCLIFlagPairImportObservability`, `TestGuardedCommandsPreviewAndCheckTheRevision`, `TestRunPreviewListsTheTasksOfAWholeArray`, `TestRunPreviewMatchesTheRun`, `TestRunPreviewSaysWhyADependentJobExecutes` |
 | CLI-8 | `run` and `retry` reject `--async` with `--dry-run`, which does not start a run | conformance | `TestCLIFlagPairAsyncDryRunIsRejected` |
 | CLI-9 | `run` and `retry` use consistent selector combinations in dry-run plans | partial | `TestCLIFlagPairRunSelectionEffects` |
 | CLI-10 | A supplied `--run-name` is visible in a dry-run preview | conformance | `TestCLIFlagPairRunNameInPreview` |
