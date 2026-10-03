@@ -41,3 +41,22 @@ func TestRunDiffGroupsArrayTasksThatReadTheSame(t *testing.T) {
 		t.Errorf("comparison does not group the tasks or still marks carried in CHANGES:\n%s", text)
 	}
 }
+
+// TestRunDiffNamesTheJobsItHides hides unchanged jobs, one rerun with the
+// same result and carried array tasks, and checks that the hidden line names
+// them, marking the carried ones.
+func TestRunDiffNamesTheJobsItHides(t *testing.T) {
+	unchanged := func(name string, carried bool) runlineage.JobDiff {
+		return runlineage.JobDiff{Name: name, FromStatus: "success", ToStatus: "success", Transition: runlineage.TransitionUnchanged, Carried: carried}
+	}
+	result := runlineage.Result{Jobs: []runlineage.JobDiff{
+		unchanged("prep[1]", true), unchanged("prep[2]", true),
+		{Name: "train", FromStatus: "failed", ToStatus: "success", Transition: runlineage.TransitionFixed},
+		unchanged("eval-splitval", false),
+	}}
+	var output bytes.Buffer
+	writeRunDiff(&output, state.ProjectPaths{ProjectName: "exp"}, result, false)
+	if want := "3 unchanged job(s) hidden: prep[1,2] (carried), eval-splitval\n"; !strings.Contains(output.String(), want) {
+		t.Fatalf("comparison does not name the hidden jobs, want %q:\n%s", want, output.String())
+	}
+}

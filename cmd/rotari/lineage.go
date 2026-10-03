@@ -74,7 +74,7 @@ func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result runlineage.
 		}
 	}
 	if hidden := len(result.Jobs) - len(shown); hidden > 0 {
-		fmt.Fprintf(writer, "\n%d unchanged job(s) hidden.\n", hidden)
+		fmt.Fprintf(writer, "\n%d unchanged job(s) hidden: %s\n", hidden, hiddenJobLabels(result.Jobs, showAll))
 	}
 	wroteHeader := false
 	for _, row := range groupArrayTasks(shown, func(a, b runlineage.JobDiff) bool { return reflect.DeepEqual(a.Changes, b.Changes) }) {
@@ -170,6 +170,37 @@ func groupArrayTasks(jobs []runlineage.JobDiff, same func(a, b runlineage.JobDif
 	}
 	return rows
 }
+
+// hiddenJobLabels names the jobs a comparison hides, an array's tasks joined
+// as in the table and carried results marked, up to hiddenJobLimit rows.
+func hiddenJobLabels(jobs []runlineage.JobDiff, showAll bool) string {
+	hidden := make([]runlineage.JobDiff, 0, len(jobs))
+	for _, job := range jobs {
+		if !showAll && !job.Notable() {
+			hidden = append(hidden, job)
+		}
+	}
+	rows := groupArrayTasks(hidden, func(a, b runlineage.JobDiff) bool { return a.Carried == b.Carried })
+	labels := make([]string, 0, min(len(rows), hiddenJobLimit))
+	for index, row := range rows {
+		if index == hiddenJobLimit {
+			break
+		}
+		label := row.label
+		if row.job.Carried {
+			label += " (carried)"
+		}
+		labels = append(labels, label)
+	}
+	text := strings.Join(labels, ", ")
+	if rest := len(rows) - len(labels); rest > 0 {
+		text += fmt.Sprintf(" +%d more", rest)
+	}
+	return text
+}
+
+// hiddenJobLimit is how many rows of hidden jobs a comparison names.
+const hiddenJobLimit = 10
 
 // sameDiffRow reports whether two compared jobs read the same in the table.
 func sameDiffRow(a, b runlineage.JobDiff) bool {
