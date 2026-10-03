@@ -234,25 +234,5 @@ command must target a specific location explicitly.
 
 ## Internal execution model
 
-This section is the runtime architecture view: it explains who owns the project
-state, which process actually launches jobs, and how the queue, supervisor, and
-runner fit together during a run.
-
-```mermaid
-flowchart LR
-    Client["run client\nrotari run"] -->|starts, then sends run request| Server["supervisor\none per run of a project"]
-    Server -->|begin active run| Runner["runner\nshared run lifecycle"]
-    Runner -->|dispatch jobs| Local["local jobs"]
-    Runner -->|dispatch jobs| SSH["SSH jobs"]
-    Runner -->|dispatch jobs| Scheduler["Slurm / PBS / LSF / SGE jobs"]
-    Runner -->|write logs + result| State[("project state\nqueue / run history")]
-    Server -->|status + progress| Client
-```
-
-The CLI is the user-facing entry point. `run` starts a supervisor for the
-run as its child process and sends it the run request; the supervisor takes
-the project's run lock, executes the run, and exits when the run ends. It
-inherits the working directory and environment of the `run` command, and the
-jobs inherit them from it. The runner, inside the supervisor, then executes
-the queued jobs, persists their logs and results, and reports progress back
-to an attached client.
+How `run` executes jobs through a per-run supervisor is described in
+[Code architecture](ARCHITECTURE.md#processes).
