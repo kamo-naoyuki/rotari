@@ -282,3 +282,33 @@
   projection edits were excluded from the commit.
 - **Remaining:** 622 control/external pairs and the documented observation
   gaps, including actual run synchronization and retry-in-progress behavior.
+
+## Isolated GC and server registry adapters
+
+**Commit:** `e65349a` — 2026-10-03T17:48:57+09:00
+
+- **Change:** Added three GC and three server flag pairs (18 invocations,
+  since server pairs run under both status and list), plus standalone samples.
+  A synthetic registry distinguishes existing run data, orphan runs, missing
+  basedirs, malformed records, and stale server records. Tree comparisons
+  require previews and rejections to preserve everything; GC apply and server
+  list may remove only their specifically expected records. An alternate
+  empty-registry witness proves config selection and CLI masterdir precedence
+  in both flag orders. No supervisor starts or receives a signal.
+- **Reason:** Expand remaining adapters without external daemons or risking
+  live jobs. Server's schema combines subcommand flags, so unsupported flags
+  are diagnosed by the actual subcommand parser, not accepted generically.
+- **Plan impact:** 5,865/6,481 pairs execute across nineteen commands;
+  616 remain (532 cancel/suspend/resume, 84 web/MCP/diagnose). Server shutdown
+  and live lease effects remain separate from this status/list matrix.
+- **Validation:** Focused samples, all six pairs, location effects, and
+  inventory passed normally and uncached with race (4.20s focused package).
+  Contract/layout and document-link tests passed. Full `scripts/check.sh`
+  passed with the default timeout, including vet, normal, and race, exit 0;
+  interface packages took 76.79/385.99/132.79s normal and
+  175.50/524.28/253.32s race. Independent review found no blockers. Gofmt,
+  new-file diagnostics and diff checks passed; pre-commit remains unavailable.
+  Parallel option-description, queueops/resolve, projection, and artifact
+  plan changes were excluded from this work's commits.
+- **Remaining:** 616 pairs and all documented mode/semantic gaps. Next:
+  finite MCP stdin/stdout requests, then isolated Web and diagnosis adapters.
