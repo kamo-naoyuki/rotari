@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/runlineage"
 	"github.com/kamo-naoyuki/rotari/internal/runview"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -41,7 +43,7 @@ func runFailureGroups(paths state.ProjectPaths, runID string, selected map[strin
 // writeFailureGroups prints one entry per cause: its count, exit codes, and
 // jobs, the first job's evidence and how to show that job, and the cause's
 // suggestion.
-func writeFailureGroups(writer io.Writer, groups []runlineage.FailureGroup) {
+func writeFailureGroups(writer io.Writer, groups []runlineage.FailureGroup, retryHint func(runlineage.FailureGroup) string) {
 	if len(groups) == 0 {
 		return
 	}
@@ -64,6 +66,11 @@ func writeFailureGroups(writer io.Writer, groups []runlineage.FailureGroup) {
 		}
 		if group.Suggestion != "" {
 			fmt.Fprintf(writer, "    fix: %s\n", group.Suggestion)
+		}
+		if retryHint != nil {
+			if hint := retryHint(group); hint != "" {
+				fmt.Fprintf(writer, "    retry: %s\n", hint)
+			}
 		}
 	}
 }
@@ -114,4 +121,26 @@ func truncateText(text string, limit int) string {
 		return text
 	}
 	return string(runes[:limit-3]) + "..."
+}
+
+// failureRetryHints returns, for runID, a function that gives the command
+// that previews a retry of one failure group's jobs, as printed: groups of a
+// rule diagnosis select by --filter-diagnosis, and the others by
+// --filter-failure-kind. retry acts on a project's last run, so it returns
+// nil unless runID is the project's last run and has finished.
+func failureRetryHints(paths state.ProjectPaths, runID string) func(runlineage.FailureGroup) string {
+	meta, err := state.LoadMeta(paths.MetaFile)
+	if err != nil || meta.LastRunID != runID {
+		return nil
+	}
+	if phase, err := project.RunPhaseOf(paths, runID); err != nil || phase != project.RunPhaseFinished {
+		return nil
+	}
+	target := fmt.Sprintf("rotari retry --basedir %s --project-name %s", executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName))
+	return func(group runlineage.FailureGroup) string {
+		if group.Kind == runlineage.FailureKindDiagnosis {
+			return fmt.Sprintf("%s --filter-diagnosis %s --dry-run", target, executor.ShellQuote(group.Cause))
+		}
+		return fmt.Sprintf("%s --filter-failure-kind %s --dry-run", target, executor.ShellQuote(group.Kind))
+	}
 }

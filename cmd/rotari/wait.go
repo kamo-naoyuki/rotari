@@ -397,7 +397,8 @@ func writeEarlyFailures(paths state.ProjectPaths, runID string, failures []runli
 		return
 	}
 	fmt.Println(red(fmt.Sprintf("Run %s is still running, and jobs have failed.", runID)))
-	writeFailureGroups(os.Stdout, failures)
+	// The run is still running, so a retry of its failures cannot start yet.
+	writeFailureGroups(os.Stdout, failures, nil)
 	target := fmt.Sprintf("--basedir %s --project-name %s --run-id %s",
 		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
 	fmt.Println(cyan("To keep waiting:"))

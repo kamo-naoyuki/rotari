@@ -149,7 +149,10 @@ follows:
   own result, so array tasks and matrix members fall into their own causes: a
   block, cancellation, or timeout that rotari recorded comes first, then the
   job's latest saved rule diagnosis, then its remaining failure kind. Groups
-  list the most frequent cause first. `show` groups only the jobs its table
+  list the most frequent cause first. In text, each group of the project's last
+  finished run also prints a `retry:` command that previews a rerun of only
+  that group's jobs, by `--filter-diagnosis` for a rule diagnosis and by
+  `--filter-failure-kind` otherwise; it works as printed. `show` groups only the jobs its table
   lists. The rule is implemented once in
   [`internal/runlineage/failures.go`](../internal/runlineage/failures.go)
   (`FailureGroups`); the CLI text is in

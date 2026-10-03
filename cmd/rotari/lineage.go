@@ -391,7 +391,7 @@ func writeRunSummary(writer io.Writer, paths state.ProjectPaths, summary runline
 			fmt.Fprintf(writer, "  %s %d\n", diagnosis.Name, diagnosis.Count)
 		}
 	}
-	writeFailureGroups(writer, summary.Failures)
+	writeFailureGroups(writer, summary.Failures, failureRetryHints(paths, summary.Run.ID))
 	if len(summary.Origins) > 0 {
 		fmt.Fprintln(writer, cyan("Origins:"))
 		for _, origin := range summary.Origins {

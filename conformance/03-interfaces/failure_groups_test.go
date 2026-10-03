@@ -87,3 +87,65 @@ esac`)
 		}
 	}
 }
+
+// TestFailureGroupRetryHintsWork runs a project whose jobs fail for two
+// causes, a timeout and an error exit, and runs each failure group's retry
+// hint that lineage prints, as printed: each previews a rerun of only that
+// group's job.
+func TestFailureGroupRetryHintsWork(t *testing.T) {
+	covers(t, "CLI-4")
+	e := support.NewEnv(t)
+	e.MustRotari("add", "-p", "hints", "--job-name", "slow", "--timeout", "1s", "--", "sleep", "10")
+	e.MustRotari("add", "-p", "hints", "--job-name", "broken", "--", "sh", "-c", "exit 3")
+	e.MustRotari("add", "-p", "hints", "--job-name", "fine", "--", "true")
+	e.Rotari("run", "-p", "hints", "--quiet")
+	var shown struct {
+		RunID string `json:"run_id"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "hints", "--json").Stdout), &shown); err != nil {
+		t.Fatal(err)
+	}
+	out := e.MustRotari("lineage", "-p", "hints", shown.RunID).Stdout
+	var hints [][]string
+	for _, line := range strings.Split(out, "\n") {
+		if hint, ok := strings.CutPrefix(strings.TrimSpace(line), "retry: rotari "); ok {
+			hints = append(hints, shellFields(hint))
+		}
+	}
+	if len(hints) != 2 {
+		t.Fatalf("lineage prints %d retry hints, want one per failure group:\n%s", len(hints), out)
+	}
+	for _, hint := range hints {
+		preview := e.MustRotari(hint...).Stdout
+		if !strings.Contains(preview, "would execute 1 of 3 job(s)") {
+			t.Errorf("hint %v previews more or less than its group's job:\n%s", hint, preview)
+		}
+	}
+}
+
+// shellFields splits a command line as a shell does for the quoting rotari
+// prints: words separated by spaces, with single quotes around a word.
+func shellFields(line string) []string {
+	var fields []string
+	var current strings.Builder
+	quoted, started := false, false
+	for _, r := range line {
+		switch {
+		case r == '\'':
+			quoted, started = !quoted, true
+		case r == ' ' && !quoted:
+			if started {
+				fields = append(fields, current.String())
+				current.Reset()
+				started = false
+			}
+		default:
+			current.WriteRune(r)
+			started = true
+		}
+	}
+	if started {
+		fields = append(fields, current.String())
+	}
+	return fields
+}

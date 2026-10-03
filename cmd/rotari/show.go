@@ -971,7 +971,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 		if len(failures) > 0 {
 			fmt.Println()
-			writeFailureGroups(os.Stdout, failures)
+			writeFailureGroups(os.Stdout, failures, failureRetryHints(paths, runID))
 		}
 	}
 	fmt.Println("\n" + cyan("To show a job:"))

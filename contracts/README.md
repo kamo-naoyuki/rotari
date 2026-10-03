@@ -185,7 +185,7 @@ the IDs, this table, and those calls disagree.
 | CLI-1 | `check --json` reports the same project state, run identifier, queue count, lock, and runnable result as the human-readable `check` output | partial | `TestCLIFlagPairCheckObservability`, `TestCheckJSONMatchesText` |
 | CLI-2 | Human-readable `jobs` columns keep their visible start positions aligned across rows; ANSI color sequences do not count toward column width | conformance | `TestJobsTableKeepsVisibleColumnsAligned` |
 | CLI-3 | All command options shared by CLI, environment, and config use the same source precedence | conformance | `TestCLIOptionPrecedence` |
-| CLI-4 | `show`, `lineage RUN`, and the Web API group a run's failed and blocked jobs by the same causes | conformance | `TestFailureGroupsAgreeAcrossViews` |
+| CLI-4 | `show`, `lineage RUN`, and the Web API group a run's failed and blocked jobs by the same causes | conformance | `TestFailureGroupRetryHintsWork`, `TestFailureGroupsAgreeAcrossViews` |
 | CLI-5 | The project list shows each project's last result, and its suggested commands work for every listed project | conformance | `TestProjectListHintsWork` |
 | CLI-6 | `jobs --since` and the Web jobs page take a Go duration or whole days such as `7d` | conformance | `TestJobsWindowAcceptsDays` |
 | CLI-7 | Commands that change a project take `--dry-run` and `--if-revision`, applying only at the previewed revision | conformance | `TestCLIFlagPairImportObservability`, `TestChangePreviewNamesTheFieldsItChanges`, `TestGuardedCommandsPreviewAndCheckTheRevision`, `TestRunPreviewListsTheTasksOfAWholeArray`, `TestRunPreviewMatchesTheRun`, `TestRunPreviewSaysWhyADependentJobExecutes`, `TestRunRestoringEditsSayTheyReplaceTheQueue` |
