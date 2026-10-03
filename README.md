@@ -18,6 +18,13 @@ feel familiar.
 
 The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers installation, concepts, command reference, and running rotari on clusters. For LLMs, use the [documentation index](https://kamo-naoyuki.github.io/rotari/docs/llms.txt) or [full documentation](https://kamo-naoyuki.github.io/rotari/docs/llms-full.txt).
 
+## Why use Rotari?
+
+When a batch of commands becomes hard to monitor and recover with ad hoc shell
+scripts, Rotari keeps a queue and records each run's commands, results, and
+logs. Retry failed work without rerunning successful jobs, while continuing to
+use ordinary shell commands on a workstation or through a cluster scheduler.
+
 ## How is rotari different?
 
 | Plain shell (background jobs) | rotari |
