@@ -828,7 +828,11 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 	runQueue, runQueueErr := state.LoadQueue(filepath.Join(runDir, "commands.json"))
 	runActive := project.RunActive(paths, runID)
 	jobCounts := showJobCounts{}
-	resultByID := model.ResultsByID(summary.Results)
+	var recorded *model.RunSummary
+	if summaryOK {
+		recorded = &summary
+	}
+	resultByID := jobstatus.RecordedResults(runDir, recorded)
 	jobIDs := make([]string, 0, len(runQueue.Commands))
 	originByID := make(map[string]*model.JobOrigin, len(runQueue.Commands))
 	if runQueueErr == nil {
@@ -921,7 +925,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 		displayed[jobID] = true
 		origin := originByID[jobID]
-		carried := runlineage.IsCarried(origin, latestAttemptID, blocked)
+		carried := runlineage.IsCarried(origin, latestAttemptID, blocked, hasSummary)
 		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobID, origin, carried)
 		if statusOK && status != 0 {
 			changeHints = append(changeHints, jobSpec)
@@ -2048,10 +2052,10 @@ func runResultAccepted(runDir, jobID string) bool {
 
 // loadRunResult returns the job's result from the run's summary.json.
 func loadRunResult(runDir, jobID string) (model.JobResult, bool) {
-	summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
-	if err != nil {
-		return model.JobResult{}, false
+	var recorded *model.RunSummary
+	if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
+		recorded = &summary
 	}
-	result, ok := model.ResultsByID(summary.Results)[jobID]
+	result, ok := jobstatus.RecordedResults(runDir, recorded)[jobID]
 	return result, ok
 }

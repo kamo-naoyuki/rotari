@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestResolveJobPrefersAttemptOverSummary(t *testing.T) {
@@ -91,5 +92,26 @@ func TestResolveAttemptIgnoresSummaryForOlderAttempt(t *testing.T) {
 	latest := ResolveAttempt(attempt, true, summary, true)
 	if latest.Source != SourceSummary || !latest.HasSummary {
 		t.Fatalf("ResolveAttempt(latest) = %#v, want summary fallback", latest)
+	}
+}
+
+// TestRecordedResultsPrefersTheSummaryToCarriedResults reads a run's
+// recorded results before and after its summary exists, and for a run with
+// neither file.
+func TestRecordedResultsPrefersTheSummaryToCarriedResults(t *testing.T) {
+	runDir := t.TempDir()
+	if got := RecordedResults(runDir, nil); len(got) != 0 {
+		t.Fatalf("without files: %v", got)
+	}
+	carried := model.RunSummary{RunID: "run-2", Results: []model.JobResult{{ID: "kept", ExitCode: 0, AttemptID: "att-1"}}}
+	if err := state.WriteJSON(filepath.Join(runDir, state.CarriedResultsFileName), carried); err != nil {
+		t.Fatal(err)
+	}
+	if got := RecordedResults(runDir, nil); len(got) != 1 || got["kept"].AttemptID != "att-1" {
+		t.Fatalf("before the summary: %v", got)
+	}
+	summary := model.RunSummary{Results: []model.JobResult{{ID: "kept", ExitCode: 0, AttemptID: "att-1"}, {ID: "ran", ExitCode: 3}}}
+	if got := RecordedResults(runDir, &summary); len(got) != 2 || got["ran"].ExitCode != 3 {
+		t.Fatalf("with the summary: %v", got)
 	}
 }

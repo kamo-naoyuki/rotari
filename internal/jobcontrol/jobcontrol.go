@@ -167,7 +167,11 @@ func (controller Controller) Cancel(baseDir, project, runID string, jobIDs []str
 		return "", err
 	}
 	targets := make([]string, 0, len(snapshot.Commands))
+	carried := carriedJobs(runDir)
 	for _, job := range model.QueueToJobs(snapshot.Commands) {
+		if _, ok := carried[job.ID]; ok {
+			continue
+		}
 		jobDir, err := state.LatestAttemptJobDir(runDir, job.ID)
 		if err != nil {
 			return "", err
@@ -199,10 +203,14 @@ func (controller Controller) CancelJobs(runDir, project, runID string, jobIDs []
 	for _, job := range model.QueueToJobs(snapshot.Commands) {
 		knownJobs[job.ID] = true
 	}
+	carried := carriedJobs(runDir)
 	cancelled := 0
 	for jobID := range requested {
 		if !state.IsValidPathElement(jobID) {
 			return "", fmt.Errorf("invalid job ID %q", jobID)
+		}
+		if result, ok := carried[jobID]; ok {
+			return "", fmt.Errorf("job %q does not run in run %s; it carries its result from attempt %s", jobID, runID, result.AttemptID)
 		}
 		jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
 		if err != nil {
@@ -309,6 +317,7 @@ func (controller Controller) selectJobs(runDir string, selection Selection, now 
 	if len(missingNames) > 0 {
 		return nil, fmt.Errorf("job name %q not found", missingNames[0])
 	}
+	carried := carriedJobs(runDir)
 	var jobIDs []string
 	for index, command := range commands {
 		if selection.Scope.Kinds() > 0 && !inScope[index] {
@@ -319,6 +328,9 @@ func (controller Controller) selectJobs(runDir string, selection Selection, now 
 		}
 		for _, job := range model.QueueToJobs(commands[index : index+1]) {
 			if len(selection.Names) > 0 && !nameIDs[job.ID] {
+				continue
+			}
+			if _, ok := carried[job.ID]; ok {
 				continue
 			}
 			jobDir, err := state.LatestAttemptJobDir(runDir, job.ID)
@@ -390,6 +402,7 @@ func (controller Controller) expandArrays(runDir string, jobIDs []string, pendin
 			arrays[command.ID] = command
 		}
 	}
+	carried := carriedJobs(runDir)
 	expanded := make([]string, 0, len(jobIDs))
 	for _, jobID := range jobIDs {
 		command, ok := arrays[jobID]
@@ -399,6 +412,9 @@ func (controller Controller) expandArrays(runDir string, jobIDs []string, pendin
 		}
 		tasks := 0
 		for _, task := range model.QueueToJobs([]model.QueuedCommand{command}) {
+			if _, ok := carried[task.ID]; ok {
+				continue
+			}
 			taskDir, err := state.LatestAttemptJobDir(runDir, task.ID)
 			if err != nil {
 				return nil, err
@@ -571,4 +587,11 @@ func runnerHostMismatch(lock model.LockInfo) (recordedHost string, mismatch bool
 
 func now() string {
 	return time.Now().UTC().Format(time.RFC3339)
+}
+
+// carriedJobs returns the jobs of the active run in runDir whose results it
+// carries from earlier runs. They never run in it, so job control does not
+// reach them.
+func carriedJobs(runDir string) map[string]model.JobResult {
+	return jobstatus.RecordedResults(runDir, nil)
 }

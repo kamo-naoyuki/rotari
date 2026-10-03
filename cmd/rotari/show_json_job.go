@@ -95,10 +95,7 @@ func selectRunJSONJobs(queue model.Queue, jobID string) []model.JobSpec {
 }
 
 func resolveRunJSONJobs(runDir string, selected []model.JobSpec, summary *model.RunSummary) ([]showJSONJob, error) {
-	results := map[string]model.JobResult{}
-	if summary != nil {
-		results = model.ResultsByID(summary.Results)
-	}
+	results := jobstatus.RecordedResults(runDir, summary)
 	entries := make([]showJSONJob, 0, len(selected))
 	for _, spec := range selected {
 		jobDir, err := state.LatestAttemptJobDir(runDir, spec.ID)

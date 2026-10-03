@@ -31,9 +31,10 @@ Representative implementation and tests:
   interrupted run. Recovery remains an explicit operator action.
 - **DUR-5** Readers consume this state through one fallback chain: the attempt's
   `status`, then a terminal `status.json`, then a terminal
-  `scheduler_status.json`, and finally the run's `summary.json` result, which
+  `scheduler_status.json`, and finally the run's recorded result, which
   alone decides a job that never ran, such as one blocked by a failed
-  dependency. A summary result still supplies acceptance, blocked state,
+  dependency. The recorded result is the run's `summary.json` result or,
+  before the run writes its summary, its carried result (DUR-7). A summary result still supplies acceptance, blocked state,
   hosts, and diagnoses when an attempt file decides the exit code. `show` of a
   run and of a job, `jobs`, reports, and the Web UI all use it, so they never
   disagree about a job. The summary result belongs to the latest attempt, so
@@ -43,6 +44,19 @@ Representative implementation and tests:
   --recover` and `unlock` still require the operator to confirm that jobs have
   stopped, and a job that was still running keeps running and records its
   result.
+- **DUR-7** Before it dispatches any job, a run records the results it carries
+  forward from earlier runs in `carried.json` beside `commands.json` (a
+  `model.RunSummary` holding only those results). Until the run writes
+  `summary.json`, readers take a carried job's result from it, so `show`,
+  `lineage`, `jobs`, the Web API, and the MCP tools read a carried job as its
+  carried result rather than as running, and job control (`cancel`,
+  `suspend`, `resume`, their previews and filters) does not reach it; a
+  cancel naming a carried job fails. A job with an origin but no recorded
+  result is one the run will still execute. Written in
+  [internal/projectrun/execute.go](../internal/projectrun/execute.go), read
+  through `jobstatus.RecordedResults` and `runlineage.IsCarried`; checked by
+  `TestCarriedJobsReadAsCarriedDuringTheRun` in
+  [conformance/03-interfaces/carried_test.go](../conformance/03-interfaces/carried_test.go).
 
 Implementation and tests: the wrapper is built in
 [`internal/executor/wrapper.go`](../internal/executor/wrapper.go), with
@@ -237,7 +251,7 @@ run data. How it implements these rules and the rest of the state layout:
   decode errors are returned. `ReadQueueFile` reads the same files but returns
   `os.ErrNotExist` for a missing one, for callers such as restoring a run's
   `commands.json`, where a missing snapshot is an error.
-- `queue.json`, `commands.json`, and `summary.json` carry `state_version`
+- `queue.json`, `commands.json`, `summary.json`, and `carried.json` carry `state_version`
   (`model.StateVersion`). `Store.WriteJSON` stamps the current version on every
   `model.Queue` and `model.RunSummary` it writes, without changing the
   caller's value. `LoadQueue`, `ReadQueueFile`, and `LoadRunSummary` read files

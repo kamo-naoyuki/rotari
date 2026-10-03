@@ -8,21 +8,15 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **Carried jobs read as running while their run is active** (`internal/jobstatus`, `internal/runview`, `internal/jobcontrol`):
-  - A run executes some jobs and carries the others' results, but it records which is which only in its final `summary.json`.
-  - Until then, a carried job has no job directory in the run, and the run's `commands.json` gives an origin to every job, including those that will execute. So readers cannot tell a carried job from a pending one.
-  - Observed in the M7 MCP agent trial, and with two jobs where a retry carries one:
-    - `rotari show -r RUN` lists the carried job as `running`.
-    - `rotari lineage RUN` and `rotari_run_summary` count it as unfinished (`succeeded 0`).
-    - `jobcontrol.Controller.Select` lists it as pending. So `rotari_preview_job_control` and `rotari cancel --filter-*` offer it, and a cancel writes a `cancelled` marker into it.
-  - The final summary is right.
-  - Expected: a carried job reads as its carried result from the start of the run, in every view.
-  - Likely fix: the run records its carried results (or the jobs it executes) beside `commands.json` before dispatching. `jobstatus` then resolves a carried job from that record, and `jobcontrol` skips it.
-  - This adds persistent run state, so it needs a contract note.
-
 - **`remove` rejects a selector conflict with only its usage line** (`cmd/rotari/remove.go`): `--filter-stage` and `--filter-matrix` are the long forms of `--stage` and `--matrix`, so `remove --all --filter-stage S` (and any two selector kinds, such as `--job-id` with `--stage`) count as two selectors and exit 1 with `usage: rotari remove ...`. Nothing is ignored or changed, but the message does not name the conflicting options, and a reader may expect `--filter-stage` to narrow `--all` as the definition filters do. Expected: an error naming the conflict, as `show` and `delete` give. Found by `TestCLIFlagPairMutationObservability`; the pair checks accept only this exact usage rejection for two selector kinds.
 
 ## Resolved
+
+- **Carried jobs read as running while their run was active** (`internal/jobstatus`, `internal/runview`, `internal/jobcontrol`):
+  - A run recorded which jobs it carried only in its final `summary.json`, and its `commands.json` gives an origin to jobs it executes too. So during the run, `show`, `lineage`, the Web API, and `rotari_run_summary` read a carried job as running or unfinished, and job control offered it and wrote cancel markers into it.
+  - The run now writes `carried.json` before dispatching.
+  - `jobstatus.RecordedResults` reads it until the summary exists, `runlineage.IsCarried` requires a recorded result, and `jobcontrol` skips carried jobs and refuses a cancel naming one.
+  - Contract DUR-7. `TestCarriedJobsReadAsCarriedDuringTheRun` fails on the previous commit for `show`, `lineage`, the Web API, the MCP summary, and the cancel preview.
 
 - **Reset never warned that an interrupted run's jobs might still be running** (`internal/state/paths.go`, `ListRunJobDirs`): the scan behind the warning looked for `command.json` directly in each job directory, but jobs keep it per attempt (`JOB/attempts/ATTEMPT`), so it found no jobs and printed no detail; its tests built the old flat layout. Found in the M7 MCP agent trial, where a reset recovered a run whose hanging job kept running. `state.LatestAttemptDirs` now returns each job's latest attempt directory. Contract SAFE-7; `TestInterruptedResetWarnsAboutRunningJobs` fails on the previous commit.
 

@@ -165,10 +165,11 @@ func collectRun(store state.Store, paths state.ProjectPaths, runID string, now, 
 	if err != nil {
 		return nil, false, false, nil
 	}
-	resultByID := make(map[string]model.JobResult, len(summary.Results))
-	for _, result := range summary.Results {
-		resultByID[result.ID] = result
+	var recorded *model.RunSummary
+	if summaryErr == nil {
+		recorded = &summary
 	}
+	resultByID := jobstatus.RecordedResults(runDir, recorded)
 	rows := make([]Row, 0)
 	for _, job := range model.QueueToJobs(runQueue.Commands) {
 		jobDir, err := state.LatestAttemptJobDir(runDir, job.ID)

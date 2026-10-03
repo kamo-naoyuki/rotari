@@ -237,3 +237,25 @@ func TestNotableListsChangedResultsAndDefinitions(t *testing.T) {
 		}
 	}
 }
+
+func TestIsCarriedNeedsARecordedResult(t *testing.T) {
+	origin := &model.JobOrigin{RunID: "run-1", AttemptID: "att-1"}
+	for _, test := range []struct {
+		name              string
+		origin            *model.JobOrigin
+		latest            string
+		blocked, recorded bool
+		want              bool
+	}{
+		{"carried, recorded at start", origin, "", false, true, true},
+		{"carried, after the summary", origin, "att-1", false, true, true},
+		{"pending, will execute", origin, "", false, false, false},
+		{"executed in this run", origin, "att-2", false, true, false},
+		{"blocked", origin, "", true, true, false},
+		{"new job", nil, "", false, true, false},
+	} {
+		if got := IsCarried(test.origin, test.latest, test.blocked, test.recorded); got != test.want {
+			t.Errorf("%s: IsCarried = %v, want %v", test.name, got, test.want)
+		}
+	}
+}

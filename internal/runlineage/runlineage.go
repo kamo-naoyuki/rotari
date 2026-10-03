@@ -59,9 +59,12 @@ type Run struct {
 }
 
 // IsCarried reports whether a job's result came from its origin rather than
-// an attempt executed in the current run.
-func IsCarried(origin *model.JobOrigin, latestAttemptID string, blocked bool) bool {
-	return origin != nil && !blocked && (latestAttemptID == "" || latestAttemptID == origin.AttemptID)
+// an attempt executed in the current run. recorded reports that the run has
+// recorded a result for the job (jobstatus.RecordedResults): while a run is
+// active, a job it will still execute has an origin and no attempt too, but
+// no recorded result.
+func IsCarried(origin *model.JobOrigin, latestAttemptID string, blocked, recorded bool) bool {
+	return recorded && origin != nil && !blocked && (latestAttemptID == "" || latestAttemptID == origin.AttemptID)
 }
 
 // Change is one changed field of a job definition.

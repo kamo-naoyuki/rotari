@@ -138,7 +138,13 @@ func LoadRunJobs(store state.Store, runDir string, summary model.RunSummary, sel
 // the shared jobstatus fallback chain. A non-empty selectedAttemptID shows
 // that attempt, instead of the latest one, for its job.
 func LoadJobs(store state.Store, runDir string, commands model.Queue, summary model.RunSummary, selectedAttemptID string) ([]Job, error) {
-	results := model.ResultsByID(summary.Results)
+	// Before the run writes its summary, callers pass one without results,
+	// and the results the run carries are its recorded ones.
+	var recorded *model.RunSummary
+	if len(summary.Results) > 0 {
+		recorded = &summary
+	}
+	results := jobstatus.RecordedResults(runDir, recorded)
 	origins := model.QueueOriginsByJobID(commands)
 	taskJobs := model.QueueToJobs(commands.Commands)
 	selectedJobID := ""
@@ -185,7 +191,7 @@ func LoadJobs(store state.Store, runDir string, commands model.Queue, summary mo
 			job.AttemptID = selectedAttemptID
 		}
 		resolved := jobstatus.ResolveAttempt(attempt, latest, summaryResult, hasSummary)
-		job.Carried = runlineage.IsCarried(origin, latestAttemptID, resolved.Blocked())
+		job.Carried = runlineage.IsCarried(origin, latestAttemptID, resolved.Blocked(), hasSummary)
 		if selected {
 			job.SubmittedAt = state.ResolveAttemptTimestamp(jobDir, "submitted_at")
 			job.FinishedAt = state.ResolveAttemptTimestamp(jobDir, "finished_at")

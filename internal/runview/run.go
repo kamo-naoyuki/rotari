@@ -29,7 +29,11 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runline
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return runlineage.Run{}, fmt.Errorf("failed to load run %s summary: %w", runID, err)
 	}
-	results := model.ResultsByID(summary.Results)
+	var recorded *model.RunSummary
+	if err == nil {
+		recorded = &summary
+	}
+	results := jobstatus.RecordedResults(runDir, recorded)
 	origins := model.QueueOriginsByJobID(commands)
 	run := runlineage.Run{ID: runID, Name: summary.RunName, StartedAt: summary.StartedAt, FinishedAt: summary.FinishedAt}
 	for _, spec := range model.QueueToJobs(commands.Commands) {
@@ -51,7 +55,7 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runline
 		}
 		attemptID, _ := state.LatestAttemptID(runDir, spec.ID)
 		origin := origins[spec.ID]
-		carried := runlineage.IsCarried(origin, attemptID, resolved.Blocked())
+		carried := runlineage.IsCarried(origin, attemptID, resolved.Blocked(), hasSummary)
 		diagnoses := make([]string, 0, len(summaryResult.Diagnoses))
 		for _, diagnosis := range summaryResult.Diagnoses {
 			diagnoses = append(diagnoses, diagnosis.Name)

@@ -73,6 +73,7 @@ The normal state layout is:
     ├── server.pid        # while a supervisor runs
     └── runs/<run-id>/
         ├── commands.json
+        ├── carried.json  # results carried from earlier runs, written at start
         ├── context.json
         ├── summary.json
         └── <job-id>/

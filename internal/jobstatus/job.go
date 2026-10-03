@@ -1,6 +1,7 @@
 package jobstatus
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -83,4 +84,21 @@ func (job Job) Result(spec model.JobSpec) (model.JobResult, bool) {
 		return result, true
 	}
 	return job.Attempt.Result(spec)
+}
+
+// RecordedResults returns the results a run has recorded for its jobs, which
+// the chain reads as each job's run result: its summary's once it has one,
+// and before that the results it carries forward from earlier runs, which it
+// records before dispatching any job. summary is the run's summary, or nil
+// when it has none yet. A job the run executes has no recorded result until
+// the summary.
+func RecordedResults(runDir string, summary *model.RunSummary) map[string]model.JobResult {
+	if summary != nil {
+		return model.ResultsByID(summary.Results)
+	}
+	carried, err := state.LoadRunSummary(filepath.Join(runDir, state.CarriedResultsFileName))
+	if err != nil {
+		return map[string]model.JobResult{}
+	}
+	return model.ResultsByID(carried.Results)
 }

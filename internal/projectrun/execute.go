@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
@@ -124,6 +125,16 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 	// The first snapshot keeps a failed plan inspectable; this one records origins.
 	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		return 1, fmt.Errorf("failed to save run commands: %w", err)
+	}
+	// Readers tell carried jobs from pending ones by these results until the
+	// run writes its summary; see jobstatus.RecordedResults.
+	carried := model.RunSummary{RunID: runID, Results: make([]model.JobResult, 0, len(plan.CarriedResults))}
+	for _, result := range plan.CarriedResults {
+		carried.Results = append(carried.Results, result)
+	}
+	sort.Slice(carried.Results, func(i, j int) bool { return carried.Results[i].ID < carried.Results[j].ID })
+	if err := state.WriteJSON(filepath.Join(runDir, state.CarriedResultsFileName), carried); err != nil {
+		return 1, fmt.Errorf("failed to save carried results: %w", err)
 	}
 
 	finalResults := make(map[string]model.JobResult, len(jobs))

@@ -41,11 +41,20 @@ func CheckRunVersions(runDir string) error {
 	if _, err := LoadQueue(filepath.Join(runDir, "commands.json")); errors.Is(err, ErrNewerStateVersion) {
 		return err
 	}
-	if _, err := LoadRunSummary(filepath.Join(runDir, "summary.json")); errors.Is(err, ErrNewerStateVersion) {
-		return err
+	for _, name := range []string{"summary.json", CarriedResultsFileName} {
+		if _, err := LoadRunSummary(filepath.Join(runDir, name)); errors.Is(err, ErrNewerStateVersion) {
+			return err
+		}
 	}
 	return nil
 }
+
+// CarriedResultsFileName is the run file in which a run records, before it
+// dispatches any job, the results it carries forward from earlier runs
+// instead of executing. It holds a model.RunSummary with only RunID and
+// Results, and is read through LoadRunSummary until the run writes
+// summary.json; see jobstatus.RecordedResults.
+const CarriedResultsFileName = "carried.json"
 
 func LoadRunSummary(path string) (model.RunSummary, error) {
 	var summary model.RunSummary
