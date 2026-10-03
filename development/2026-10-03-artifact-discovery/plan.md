@@ -15,11 +15,26 @@ The term **artifact candidate** means a statically discoverable file or director
 reference, not a proven output of the job. Input and output paths are deliberately
 not distinguished. Discovery is best-effort and does not promise completeness.
 
+Distinguishing inputs from outputs would make a viewer more useful, but static
+evidence rarely decides it: the same `--config results/run.yaml` form can name
+either, and option names are application conventions. Instead of a role, keep the
+evidence that hints at one in provenance: the accepting rule, the configuration
+key or option name, and the direction of a shell redirection (`>` versus `<`).
+A future viewer can present these as hints without rotari claiming a role.
+
+Referenced scripts and configuration files are candidates on purpose. Seeing the
+`train.py`, `run.sh`, or `config.yaml` a job was started with is itself useful,
+even though these are usually inputs.
+
 ## Agreed scope
 
 - Extract identifiable path references from command arguments.
-- Inspect referenced configuration files in selected formats, initially YAML
-  and JSON, for identifiable path-valued strings.
+- Record the job's own stdout/stderr destinations (`QueuedCommand.Output` and
+  `Error`) as candidates; rotari already knows these paths exactly.
+- Classify the values of the job's `Environment` entries (`KEY=value`) with the
+  same classifier, using the variable name as key context.
+- Inspect referenced configuration files in selected formats, initially YAML,
+  JSON, and TOML, for identifiable path-valued strings.
 - Add conservative shell-script inspection as a later phase of this plan.
 - Record files and directories alike. A nonexistent path can remain a candidate
   with an unknown filesystem type.
@@ -49,6 +64,10 @@ what limits, will be decided in the viewing design.
 - [QueuedCommand](../../internal/model/model.go) stores command arguments as
   `[]string`, working-directory settings, environment, and external log
   destinations. There is currently no artifact-candidate field.
+- Array tasks and matrix members share one argv. A matrix member differs only by
+  environment entries (`MatrixEnvironment`), and an array task by
+  `ROTARI_ARRAY_TASK_ID`. Per-task output paths are therefore usually built in a
+  shell or configuration from these variables, not written in argv.
 - [Run preparation](../../internal/projectrun/execute.go) resolves an unspecified
   working directory to the run caller's directory and a relative directory
   against that directory. The directory at `add` time is not necessarily the
@@ -109,6 +128,12 @@ Apply exclusions before ordinary positive rules:
   Unsupported application-specific interpolation is not evaluated.
 - **PATH-X3:** exclude known special sinks such as `/dev/null`. Do not require
   an existence check to identify ordinary references or infer regular-file type.
+- **PATH-X4:** skip the value that follows a code option of a recognized
+  interpreter (`sh`/`bash`/`zsh`/`dash -c`, `python -c`, `perl -e`, `node -e`,
+  and similar), and do not classify it as one value. Otherwise
+  `bash -c "python train.py > out/log.txt"` would be accepted whole by PATH-R3
+  or PATH-R4. Shell `-c` bodies are inspected only by shell inspection (section
+  3); bodies for other languages are not inspected.
 
 Then accept the first matching positive rule:
 
@@ -125,6 +150,8 @@ Initial PATH-R4 extensions (case-insensitive): `.yaml`, `.yml`, `.json`, `.toml`
 `.npz`, `.h5`, `.hdf5`, `.pt`, `.pth`, `.sh`, and `.py`. This is a deliberately
 limited classifier list, not a list of supported viewers or configuration parsers.
 Changes to it require accepted/rejected fixtures, not inference from any suffix.
+`.py` and `.sh` are included on purpose so the job's own script becomes a candidate
+(for example `train.py` in `python train.py`); see Purpose.
 
 For PATH-R5, normalize hyphens to underscores and compare case-insensitively.
 Initially recognize exact `path`, `file`, and `dir`, and keys ending in `_path`,
@@ -146,6 +173,21 @@ Examples that must anchor the initial test table:
 | `0.001`, `1e-3`, `1/2` | Skip, PATH-X1 | Numeric value or ratio |
 | `${output_dir}/plot.png` in YAML | Skip, PATH-X2 | Unresolved interpolation |
 | Literal `>` passed as ordinary argv | Skip | Not shell redirection syntax |
+| `python train.py --lr 0.1` | Accept `train.py`, PATH-R4 | The job's script is an intended candidate |
+| `python train.py > out/log.txt` after `bash -c` | Skip as argv, PATH-X4 | Code body; shell inspection handles it |
+| `OUTPUT_DIR=results` in `Environment` | Accept `results`, PATH-R5 | `_dir` key context from the variable name |
+
+Known false positives that PATH-R3 accepts by design. Keep them in the fixture
+table as accepted, so a rule change that starts or stops matching them is visible:
+
+| Value | Actually | Note |
+| --- | --- | --- |
+| `meta-llama/Llama-3-8B` | Hugging Face model ID | Common in ML experiments |
+| `origin/main` | Git ref | |
+| `2026/10/03` | Date | Unlike `1/2`, not covered by the numeric-ratio exclusion |
+
+If these turn out to be noisy in practice, add a narrow exclusion with fixtures.
+Do not broaden PATH-X1 into a general "looks like an identifier" test.
 
 The classifier deliberately accepts imperfect heuristics, not a claim that every
 accepted string is a path. Unknown expressions that resemble paths can still be
@@ -153,7 +195,21 @@ misclassified. Keep the rules explainable, skip ambiguous unsupported forms, and
 add distinguishing negative fixtures when adjusting a rule. Do not probe several
 paths and use existence to make an ambiguous interpretation appear certain.
 
+#### Job log destinations (PATH-D1)
+
+`QueuedCommand.Output` and `Error` are destinations rotari itself writes, so they
+are candidates without classification, under rule PATH-D1. Resolve them on the
+same base the executors use when they open them; confirm that base in each
+executor (local, SSH, schedulers) in phase 0 rather than assuming the job's
+working directory. Their provenance records the stream (stdout or stderr), which
+is also an output-role hint.
+
 ### 2. Referenced configuration files
+
+A command argument or environment value accepted by the classifier is inspected as
+a configuration file when its extension is `.yaml`, `.yml`, `.json`, or `.toml`
+(case-insensitive). The parsers already in `go.mod` (`gopkg.in/yaml.v3`,
+`encoding/json`, `github.com/BurntSushi/toml`) cover these; no new dependency.
 
 Parse supported configuration formats structurally and inspect string values in
 nested mappings and sequences. Preserve the source file and key/index location
@@ -184,6 +240,31 @@ execution directory. Do not inspect Python or other program source as shell.
 
 Choose a parser only when this phase starts; add a dependency only if necessary.
 Shell inspection must not block delivery of argument/configuration discovery.
+
+#### Variables rotari sets for the task (PATH-E1)
+
+Without an exception, array and matrix jobs lose their most important outputs:
+`> "out/$ROTARI_ARRAY_TASK_ID.log"` or `--out "results/$LR"` is an unresolved
+expansion and is skipped, and every task gets the same candidates. In shell
+contexts only, expand a parameter whose value rotari itself fixes for the
+concrete task:
+
+- `ROTARI_ARRAY_TASK_ID` and `ROTARI_JOB_DIR`;
+- matrix variables of the member (`MatrixValue`);
+- names set by the job's `Environment` entries.
+
+Only plain `$NAME` and `${NAME}` forms are expanded. Any other parameter, an
+operator form such as `${NAME:-default}`, a command substitution, or a glob in
+the same word still skips the whole reference. Do not read the supervisor's or
+the execution host's inherited environment: those values are not known for the
+task. Record that PATH-E1 expansion was applied in provenance.
+
+This is not evaluation of a dynamic expression: the values are part of the
+prepared job specification, and the shell's expansion of these forms is fixed.
+Configuration files are not covered. Whether `${NAME}` or `${oc.env:NAME}` in
+YAML expands at all is up to the application, so PATH-X2 still applies there.
+Ordinary argv also stays literal, because the executor passes it quoted and no
+shell expands it.
 
 #### Redirection-specific rule (PATH-R1)
 
@@ -246,6 +327,9 @@ Proposed information for each candidate:
 - Provenance: command argument index, or source file plus configuration location
   or script source location. Preserve multiple sources when paths are deduplicated.
 - Accepting classifier rule ID for each source, so detection remains explainable.
+- Role hints for each source, without a role decision: key or option name,
+  redirection direction for PATH-R1, stream for PATH-D1, and whether PATH-E1
+  expanded a variable.
 - Association with the concrete job/task and attempt for execution-bound records.
 
 Missing existence/type data means **not observed**, not **missing**. Discovery
@@ -257,9 +341,12 @@ Place classification/extraction in a focused shared package, tentatively
 future CLI/Web presentation outside that core. Do not duplicate rules in `add`,
 run preparation, or future viewers.
 
-Finalize the persisted schema before integration. Prefer attempt-owned metadata
-for execution-bound references; queue-time references, if persisted, are derived
-from the current job definition. Missing metadata in old state means discovery
+Finalize the persisted schema before integration. Persist only attempt-owned
+records. Queue-time candidates are a pure function of the current job definition,
+so compute them when a queue view needs them instead of storing them. This keeps
+discovery out of `QueuedCommand`, from which job fingerprints are computed
+(`Fingerprint` in [fingerprint.go](../../internal/model/fingerprint.go)); check
+which fields it hashes before adding any field there. Missing metadata in old state means discovery
 information is unavailable, not that the job had no associated files. Check
 state compatibility and copy/import/export behavior without assuming a schema
 version bump is automatically required.
@@ -290,11 +377,11 @@ members must not accidentally share a mutable candidate list or resolution base.
 
 | Phase | Deliverable | Exit criteria | Status |
 | --- | --- | --- | --- |
-| 0. Rules and schema | Accepted/rejected path fixtures, lifecycle placement, persistence and inspection safety decisions | No unresolved assumption about add/run CWD, argv semantics, or remote visibility | Pending |
-| 1. Argument extraction | Shared classifier and argv extractor with provenance and deduplication | Deterministic unit tests; nonexistent output references retained | Pending |
-| 2. Configuration extraction | Bounded YAML/JSON parsing of directly referenced sources | Nested strings and provenance covered; ambiguous/dynamic values skipped | Pending |
+| 0. Rules and schema | Accepted/rejected path fixtures, lifecycle placement, persistence and inspection safety decisions, log-destination base per executor | No unresolved assumption about add/run CWD, argv semantics, or remote visibility | Pending |
+| 1. Argument extraction | Shared classifier; argv, environment, and log-destination extraction with provenance, role hints, and deduplication | Deterministic unit tests; nonexistent output references retained; interpreter code bodies skipped | Pending |
+| 2. Configuration extraction | Bounded YAML/JSON/TOML parsing of directly referenced sources | Nested strings and provenance covered; ambiguous/dynamic values skipped | Pending |
 | 3. Lifecycle and persistence | Attempt-bound resolution and storage shared by all job creation paths | Plain/array/matrix/retry/carried cases and old state covered; execution behavior unchanged | Pending |
-| 4. Shell inspection | Conservative literal-only syntax-aware extraction | Dynamic or ambiguous cases skipped; no execution during inspection | Deferred until phases 1-3 are validated |
+| 4. Shell inspection | Conservative syntax-aware extraction of literals and PATH-E1 task variables | Array tasks and matrix members get distinct candidates for `$ROTARI_ARRAY_TASK_ID`/matrix-variable paths; other dynamic or ambiguous cases skipped; no execution during inspection | Deferred until phases 1-3 are validated |
 | 5. Contracts and documentation | Document implemented guarantees and limitations | Representative conformance tests, contract IDs/status rows, architecture and affected guides agree | Pending |
 
 Argument/configuration discovery can be completed without shell inspection or a
@@ -305,13 +392,18 @@ related implementation commits exist, following [development tracking rules](../
 
 - Table-driven classifier tests: absolute/relative paths, spaces, Unicode,
   standalone and equals-style values, duplicate references, extensionless names,
-  URLs, numeric values, expressions, and nonexistent paths.
+  URLs, numeric values, expressions, nonexistent paths, interpreter code bodies
+  (`bash -c`, `python -c`), environment entries, and the known false positives.
+- Log-destination tests: relative and absolute `Output`/`Error` for each executor,
+  resolved on the same base the executor opens them on.
 - Configuration tests: nested mappings/sequences, malformed input, empty sources,
   YAML aliases/tags, interpolation, separate directory/name keys, and size/depth
   limits. Confirm no custom-tag evaluation or unbounded alias expansion.
 - Shell tests: literal redirections and arguments, quoted spaces, numeric target
   names, FD duplication/closure, here-documents/strings, special sinks, variables,
-  substitutions, globbing, `cd`, and non-shell source rejection.
+  substitutions, globbing, `cd`, and non-shell source rejection. PATH-E1: each
+  array task and matrix member resolves its own path; `${NAME:-x}`, unknown
+  names, and inherited environment variables are skipped.
 - Lifecycle tests: different add/run directories, explicit relative/absolute
   working directories, changed commands/configuration, arrays, matrices, retries,
   older attempts, carried origins, and unavailable remote sources.
@@ -330,7 +422,6 @@ related implementation commits exist, following [development tracking rules](../
 - Finalize the initial classifier rules above as fixtures, including expression
   exclusions, shell dialects, and unsupported argument forms.
 - Concrete metadata schema, deterministic ordering, and discovery-version policy.
-- Whether queue-time derived candidates need persistence or only attempt records.
 - Source-inspection budgets, symlink rules, and bounded diagnostic storage.
 - Behavior for execution-host-only configuration/script files beyond the initial
   supervisor-visible/shared-filesystem support.
