@@ -76,8 +76,10 @@ func (editor Editor) ChangeWithFilter(baseDir, projectName, requestedRunID strin
 		return "", err
 	}
 	var changedIDs, lines []string
+	var restored string
 	err = project.EditQueueGuarded(paths, "change", editor.Guard, func(queue *model.Queue) error {
-		if err := restoreSnapshot(paths, requestedRunID, queue); err != nil {
+		var err error
+		if restored, err = restoreSnapshot(paths, requestedRunID, queue); err != nil {
 			return err
 		}
 		if err := checkEditable(*queue, projectName, selector); err != nil {
@@ -134,6 +136,9 @@ func (editor Editor) ChangeWithFilter(baseDir, projectName, requestedRunID strin
 	})
 	if err != nil {
 		return "", err
+	}
+	if restored != "" {
+		lines = append([]string{restored}, lines...)
 	}
 	return strings.Join(lines, "\n"), nil
 }
@@ -255,33 +260,35 @@ func validateRename(queue model.Queue, jobIndex int, newName string) error {
 }
 
 // restoreSnapshot replaces queue with the command snapshot of
-// requestedRunID, or leaves it alone when requestedRunID is empty.
-func restoreSnapshot(paths state.ProjectPaths, requestedRunID string, queue *model.Queue) error {
+// requestedRunID, or leaves it alone when requestedRunID is empty. It returns
+// a line that says so, for the edit's output, or "" when it leaves the queue.
+func restoreSnapshot(paths state.ProjectPaths, requestedRunID string, queue *model.Queue) (string, error) {
 	if requestedRunID == "" {
-		return nil
+		return "", nil
 	}
 	runID, err := resolve.RunID(paths, requestedRunID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	snapshot, err := state.ReadQueueFile(filepath.Join(runDir, "commands.json"))
 	if err != nil {
-		return fmt.Errorf("failed to load command snapshot: %w", err)
+		return "", fmt.Errorf("failed to load command snapshot: %w", err)
 	}
 	if len(snapshot.Commands) == 0 {
-		return errors.New("command snapshot has no jobs")
+		return "", errors.New("command snapshot has no jobs")
 	}
 	// Marks applied to that run, whose results already show them.
 	for index := range snapshot.Commands {
 		snapshot.Commands[index].MarkedStatus = ""
 		snapshot.Commands[index].TaskMarkedStatus = nil
 	}
+	message := fmt.Sprintf("restored queue=%s from run=%s jobs=%d, replacing %d queued job(s)", paths.ProjectName, runID, len(model.QueueToJobs(snapshot.Commands)), len(model.QueueToJobs(queue.Commands)))
 	*queue = snapshot
-	return nil
+	return message, nil
 }
 
 // checkEditable rejects a change or remove on an empty queue, which never

@@ -297,3 +297,22 @@ func TestChangePreviewNamesTheFieldsItChanges(t *testing.T) {
 		}
 	}
 }
+
+// TestRunRestoringEditsSayTheyReplaceTheQueue previews change -r and
+// remove -r on a project with a queued job and checks that each says it
+// replaces the queue with the run's jobs before editing them.
+func TestRunRestoringEditsSayTheyReplaceTheQueue(t *testing.T) {
+	covers(t, "CLI-7")
+	e := support.NewEnv(t)
+	run := e.CreateFinishedRun()
+	e.MustRotari("add", "-p", "p1", "--job-name", "queued", "--", "true")
+	want := "restored queue=p1 from run=" + run.RunID + " jobs=2, replacing 1 queued job(s)\n"
+	for _, args := range [][]string{
+		{"change", "-p", "p1", "-r", run.RunID, "-j", run.BadJob, "--timeout", "1m", "--dry-run"},
+		{"remove", "-p", "p1", "-r", run.RunID, run.BadJob, "--dry-run"},
+	} {
+		if out := e.MustRotari(args...).Stdout; !strings.Contains(out, want) {
+			t.Errorf("%s -r --dry-run does not say it replaces the queue:\n%s", args[0], out)
+		}
+	}
+}

@@ -24,8 +24,10 @@ func (editor Editor) RemoveWithFilter(baseDir, projectName, requestedRunID strin
 		return "", err
 	}
 	var removed []model.QueuedCommand
+	var restored string
 	err = project.EditQueueGuarded(paths, "remove", editor.Guard, func(queue *model.Queue) error {
-		if err := restoreSnapshot(paths, requestedRunID, queue); err != nil {
+		var err error
+		if restored, err = restoreSnapshot(paths, requestedRunID, queue); err != nil {
 			return err
 		}
 		if err := checkEditable(*queue, projectName, selector); err != nil {
@@ -81,5 +83,9 @@ func (editor Editor) RemoveWithFilter(baseDir, projectName, requestedRunID strin
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("removed %d job(s) from queue=%s", len(removed), projectName), nil
+	message := fmt.Sprintf("removed %d job(s) from queue=%s", len(removed), projectName)
+	if restored != "" {
+		message = restored + "\n" + message
+	}
+	return message, nil
 }
