@@ -88,6 +88,13 @@ func cmdDiagnose(args []string) int {
 	if len(fs.Args()) == 1 {
 		*jobID = fs.Args()[0]
 	}
+	if *rules {
+		llmOptions := diagnoseRuleModeLLMOptions(fs)
+		if len(llmOptions) > 0 {
+			printErrorf("--rules cannot be combined with --%s; these options only apply to LLM diagnosis", strings.Join(llmOptions, ", --"))
+			return 1
+		}
+	}
 	if *jobName != "" {
 		if *jobID != "" {
 			printError("--job-name cannot be combined with a job ID")
@@ -205,6 +212,25 @@ func cmdDiagnose(args []string) int {
 	}
 	fmt.Println(answer)
 	return 0
+}
+
+func diagnoseRuleModeLLMOptions(fs *flag.FlagSet) []string {
+	var incompatible []string
+	for _, name := range []string{"endpoint", "language", "model", "provider"} {
+		provided := cliOptionSet(fs, name)
+		if !provided {
+			if envName := cliEnvironmentVariable(name); envName != "" {
+				_, provided = os.LookupEnv(envName)
+			}
+		}
+		if !provided {
+			_, provided = configValue(name)
+		}
+		if provided {
+			incompatible = append(incompatible, name)
+		}
+	}
+	return incompatible
 }
 
 func loadDiagnosisJob(paths state.ProjectPaths, runID, jobID string, attemptIDs ...string) (diagnose.Job, error) {

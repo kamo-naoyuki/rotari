@@ -1338,7 +1338,9 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {
                     "description": "use local rule-based diagnosis without "
-                    "calling an LLM",
+                    "calling an LLM; cannot be combined with "
+                    "--provider, --endpoint, --model, or "
+                    "--language",
                     "name": "rules",
                 },
                 {

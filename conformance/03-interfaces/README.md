@@ -3,8 +3,9 @@
 Conformance tests for [contracts/03-server-and-command-interfaces.md](../../contracts/03-server-and-command-interfaces.md)
 belong here.
 
-The long flag-pair suites run in the child packages [pairedits](pairedits/)
-and [pairruns](pairruns/), sharing [support/pairs.go](../support/pairs.go).
+The long flag-pair suites run in child packages [pairedits](pairedits/),
+[pairruns](pairruns/), [pairweb](pairweb/), and [pairdiagnose](pairdiagnose/),
+sharing [support/pairs.go](../support/pairs.go).
 The contract-to-directory mapping stays at this group in
 [layout.json](../layout.json); contract tests scan all child packages.
 Use `go test ./conformance/03-interfaces/...` to include every suite.

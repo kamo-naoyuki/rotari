@@ -2,7 +2,7 @@
 
 The shared harness (schema inventory types, finished-run fixture, bounded
 invocation, and NFS-aware tree restoration) is
-[conformance/support/pairs.go](../support/pairs.go). The suites run in four
+[conformance/support/pairs.go](../support/pairs.go). The suites run in five
 packages so the full pair matrix does not put any single package near Go's
 default ten-minute test timeout:
 
@@ -13,6 +13,8 @@ default ten-minute test timeout:
   effect witnesses.
 - [pairruns](pairruns/): `run`/`retry` previews, `unlock`, and `wait`.
 - [pairweb](pairweb/): safe static exports; it never starts an HTTP server.
+- [pairdiagnose](pairdiagnose/): local rules and a local fake LLM endpoint;
+  no external provider is contacted.
 
 In the latest uncached run, the first three packages took 104.87s, 354.09s,
 and 156.48s in normal mode; pairweb takes about 16s. No pair or semantic
@@ -24,7 +26,7 @@ implementation imports. The staged rollout is tracked in the
 
 ## Current layers
 
-- `TestCLIFlagPairInventory` enumerates all 6,481 unordered flag-name pairs.
+- `TestCLIFlagPairInventory` enumerates all 6,826 unordered flag-name pairs.
   Sorted flag-name fingerprints require an explicit coverage review when a
   command or flag is added, removed, or renamed. This is not exhaustive value
   coverage; changes to descriptions/types without a name change are not
@@ -136,6 +138,12 @@ implementation imports. The staged rollout is tracked in the
   environment, or config rather than silently ignored. `--notifications` is
   checked as a content-affecting option on the exported browser toggle.
   `web` never starts a live HTTP server in this adapter.
+- `TestCLIFlagPairDiagnose` executes all 55 `diagnose` pairs in both orders.
+  LLM-mode requests go only to an in-process fake endpoint, which checks the
+  selected model, language prompt, endpoint path, and authentication shape;
+  local-rule pairs make no request. `--rules` with an explicitly supplied
+  provider, endpoint, model, or language is rejected from CLI, environment, or
+  config rather than silently ignoring that option.
 - `TestCLIFlagPairMCP` checks the `--config`/`--masterdir` pair and standalone
   samples by sending only JSON-RPC `initialize` and `tools/list`. It compares
   server identity/capabilities and sorted tool names, ignores asynchronous
@@ -177,20 +185,19 @@ only robustness/order coverage; they do not claim a semantic ignore oracle.
 
 ## Deferred command adapters
 
-Every pair is inventoried, and twenty-two commands have adapters. The remaining
-587 pairs are **not executed** by this suite.
+Every pair is inventoried, and twenty-three commands have adapters. The remaining
+532 pairs are **not executed** by this suite.
 
 | Commands | Pairs | Required next work |
 | --- | ---: | --- |
 | `cancel`, `suspend`, `resume` | 532 | Active/interrupted fixtures, barriers, signals, prompts, and bounded cleanup |
-| `diagnose` | 55 | Isolated local-rule and fake external diagnosis service modes |
 | `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
-The 6,239 executed pairs consist of 783 read-only, 36 file-output, 178
-queue-mutation, 1,520 edit, 3,681 run/retry/wait, 6 unlock, 6 gc/server,
-1 MCP, and 28 web static-export pairs. The edit pair loop accepted
-1,187 and explicitly rejected 333 pairs in 3,040 invocations; one run took
-4m01s including setup.
+The 6,294 executed pairs consist of 783 read-only, 36 file-output, 178
+queue-mutation, 1,520 edit, 3,660 run/retry previews, 6 unlock, 21 wait,
+6 gc/server, 1 MCP, 28 web static-export, and 55 diagnose pairs. The edit pair
+loop accepted 1,187 and explicitly rejected 333 pairs in 3,040 invocations;
+one run took 4m01s including setup.
 
 The run/retry dry-run pair loop accepted 3,322 and explicitly rejected 338
 pairs, with 7,320 invocations in 19.9 seconds, after `retry`'s spec came to

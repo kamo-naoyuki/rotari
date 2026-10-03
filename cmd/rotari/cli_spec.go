@@ -321,7 +321,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "run-id", Description: "run ID", ValueName: "ID"},
 			cliFlagSpec{Name: "job-id", Description: "failed job ID", ValueName: "ID"},
 			cliFlagSpec{Name: "job-name", Description: "failed job name", ValueName: "NAME"},
-			cliFlagSpec{Name: "rules", Description: "use local rule-based diagnosis without calling an LLM"},
+			cliFlagSpec{Name: "rules", Description: "use local rule-based diagnosis without calling an LLM; cannot be combined with --provider, --endpoint, --model, or --language"},
 			cliFlagSpec{Name: "provider", Description: "LLM provider: openai, openai-chat, anthropic, gemini, or cohere", ValueName: "PROVIDER", Values: []string{"openai", "openai-chat", "anthropic", "gemini", "cohere"}},
 			cliFlagSpec{Name: "endpoint", Description: "LLM API endpoint", ValueName: "URL"},
 			cliFlagSpec{Name: "model", Description: "LLM model name", ValueName: "MODEL"},

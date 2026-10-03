@@ -380,7 +380,7 @@ Usage: `rotari diagnose [JOB_ID]`
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run ID |
 | `-j` / `--job-id` | `ID` | `ROTARI_JOB_ID` | failed job ID |
 | `--job-name` | `NAME` | `ROTARI_JOB_NAME` | failed job name |
-| `--rules` | `` | `` | use local rule-based diagnosis without calling an LLM |
+| `--rules` | `` | `` | use local rule-based diagnosis without calling an LLM; cannot be combined with --provider, --endpoint, --model, or --language |
 | `--provider` | `PROVIDER` | `ROTARI_LLM_PROVIDER` | LLM provider: openai, openai-chat, anthropic, gemini, or cohere |
 | `--endpoint` | `URL` | `ROTARI_LLM_ENDPOINT` | LLM API endpoint |
 | `--model` | `MODEL` | `ROTARI_LLM_MODEL` | LLM model name |

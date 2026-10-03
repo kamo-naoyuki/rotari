@@ -194,6 +194,7 @@ the IDs, this table, and those calls disagree.
 | CLI-10 | A supplied `--run-name` is visible in a dry-run preview | conformance | `TestCLIFlagPairRunNameInPreview` |
 | CLI-11 | A missing project's error names the registered state directories that have it | conformance | `TestMissingProjectNamesWhereItIs` |
 | CLI-12 | `wait --json` reports completed and early-failure runs as structured JSON | conformance | `TestCLIFlagPairWaitJSONAndEarlyFailure`, `TestCLIFlagPairWaitSamples` |
+| CLI-13 | `diagnose --rules` rejects LLM-only options supplied by CLI, environment, or config | conformance | `TestCLIFlagPairDiagnoseRulesOptions` |
 | MCP-1 | MCP tools that change a project preview first and apply only at the previewed revision | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision`, `TestRunPreviewListsTheTasksOfAWholeArray` |
 | MCP-2 | `rotari_export_run` is a redacted view that the MCP import tools refuse | conformance | `TestMCPExportIsARedactedViewThatImportRefuses` |
 | MCP-3 | `rotari_run_summary` and `rotari_wait_run` report the run's state as `wait` decides it, from right after the start, and tool errors name no state directory | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision`, `TestMCPWaitReturnsOnTheFirstFinalFailure` |

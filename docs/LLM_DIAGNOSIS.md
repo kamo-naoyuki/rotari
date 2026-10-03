@@ -49,6 +49,9 @@ rotari diagnose --run-id RUN_ID --job-id JOB_ID --model "$ROTARI_LLM_MODEL" --la
 
 To try local diagnosis without an API key, run
 [`examples/diagnose-rules.sh`](../examples/diagnose-rules.sh).
+In local-rule mode, `--provider`, `--endpoint`, `--model`, and `--language`
+cannot be supplied; rotari reports the incompatible options rather than
+silently ignoring them.
 
 The request contains the job's command, recorded exit/error information, and
 at most the final 12,000 characters of its configured log. The default merged
