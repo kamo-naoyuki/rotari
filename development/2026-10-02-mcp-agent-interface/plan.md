@@ -210,7 +210,14 @@ Outcome:
   - reset never warned that an interrupted run's jobs might still run (SAFE-7).
 - Carried jobs now read as carried from the start of their run (DUR-7, `12b5395`): a run records its carried results in `carried.json` before dispatching, as the user chose.
 - MCP summaries list 10 jobs per failure group and comparisons 20 changed jobs by default (`82b1769`). labC's summary fell from 7.3 KB to 3.7 KB. A comparison still repeats a definition change for each listed task, which only matters below the limit.
-- Next step: none is planned. The remaining open decisions are below; a new agent task, such as one with a scheduler executor, would be the next trial.
+- Real agents use the CLI, because the user cannot connect MCP servers. Four [CLI agent trials](agent-trial-2026-10-03-cli-agent.md) drove the fixes that followed:
+  - the guide and help, the missing-project error, and relative state directories;
+  - `lineage` grouping and hidden-job names, previews that say why and what changes, and the async start hints;
+  - the executor display, job names in results, and dependency ranges.
+  - The task fell from 27 calls and about 140 KB to about 21 calls.
+- Next step:
+  - `retry`'s spec (ISSUES.md), with the CLI option interaction work.
+  - A fifth trial that measures the rerun steps, once the agent's writes can be allowed.
 
 ## Open decisions
 

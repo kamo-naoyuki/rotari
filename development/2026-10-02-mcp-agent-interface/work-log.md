@@ -622,3 +622,50 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 **Remaining:**
 - `retry`'s spec (ISSUES.md).
 - The trial's open points: dry-run reasons, `lineage` hidden-job names, the queue table's timeout and source columns, and `wait`'s exit code wording.
+
+## CLI agent trials three and four, and their fixes
+
+**Commits:** 2026-10-03 15:48:30 `d5e4359`; 2026-10-03 16:00:46 `62e644a`; 2026-10-03 16:05:50 `58af6b6`; 2026-10-03 16:41:22 `c1347d1`; 2026-10-03 16:55:00 `2df0c80`; 2026-10-03 16:55:00 `04e58e6`; 2026-10-03 17:11:28 `bf4d645`; 2026-10-03 17:32:48 `61f8ce3`; 2026-10-03 17:43:10 `903bb6b`; 2026-10-03 17:43:10 `80fac3c`; 2026-10-03 17:43:11 `e483723`; 2026-10-03 18:27:40 `28a544d`; 2026-10-03 18:34:18 `6eb4ec4`; 2026-10-03 18:34:19 `2048258`; 2026-10-03 18:40:01 `0a33bcf`.
+
+**Change:**
+- `d5e4359`:
+  - The `--async` start message ends its last line, suggests `rotari wait ... --run-id RUN_ID`, and its cancel hint names the run.
+  - Contract CAN-7, checked by running the hints as printed.
+- `62e644a`: `run.Plan.RerunDependencies` records why a job the selection left out executes. Previews print `depends_on_rerun=NAME`, and `rotari_preview_run` returns it.
+- `58af6b6`, `61f8ce3`: the third and fourth trials in [agent-trial-2026-10-03-cli-agent.md](agent-trial-2026-10-03-cli-agent.md).
+- `c1347d1`:
+  - The `--async --dry-run` refusal, which the user chose to keep, says how to preview and then start.
+  - The guide shows that sequence.
+  - CLI-8.
+- `2df0c80`:
+  - The guide says that run and attempt IDs locate their state directory.
+  - The `--job-id` help says that dependents execute.
+- `04e58e6`: `change` output names the changed fields through `runlineage.SpecChanges`, such as `timeout=5s->60s`. CLI-7.
+- `bf4d645`: ignore `.claude/settings.local.json`, which the user had the session create for the fourth trial's permissions.
+- `903bb6b`: `change -r` and `remove -r` begin their output with the restore of the queue from the run. CLI-7.
+- `80fac3c`: the missing-project error gives each candidate state directory's last run. CLI-11.
+- `e483723`: the `--job-id` help names both kinds of dependency.
+- `28a544d`: `state.ReadAttemptExecutor`. The report and the run table show the executor an attempt ran on, instead of "default" or the queue's default. DUR-5.
+- `6eb4ec4`: `lineage` names the jobs it hides.
+- `2048258`: run summary results carry the job's `name`, an optional field. DUR-5.
+- `0a33bcf`: `model.FormatDependencies` joins an array's tasks into ranges, such as `finished:train[1-12]`.
+
+**Reason:** the third and fourth CLI agent trials.
+
+**Plan impact:**
+- The third run took 21 calls.
+- The fourth run measured only diagnosis and preview. Claude Code's auto-mode classifier denied its first write, and allow rules did not change that.
+- `retry`'s spec stays in ISSUES.md, because it overlaps with the CLI option interaction work.
+- Rerunning one array task without its dependents was noted, not built.
+
+**Validation:**
+- Each behavior change has a test that fails before it: conformance where the binary shows it, unit tests for `run`, `model`, `state`, and `lineage` output.
+- Before each commit, the conformance suite, `internal/archtest`, `internal/doclinks`, and `scripts/check.sh` passed. The only exceptions were failures in the CLI option interaction work's in-progress tests, which passed when rerun:
+  - `TestCLIFlagPairFiles` and `TestCLIFlagPairMCP`; `TestCLIFlagPairMCP` passed four times in a row.
+  - `TestContractStatus` rows for that work's CLI-12.
+- Commits were made through a separate index, because that work had files staged and edited in the same tree.
+
+**Remaining:**
+- `retry`'s spec (ISSUES.md).
+- A way to rerun one array task without its dependents.
+- A fifth trial, once writes can be allowed for the agent.
