@@ -8,6 +8,13 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **`retry`'s help and schema omit options it takes** (`cmd/rotari/cli_spec.go`, `retry` entry):
+  - `retry` parses `run`'s options. The contract (`02-run-lifecycle-and-execution.md`) and `TestSelectorTable` make `--failed`, `--unfinished`, and `--success` replace its default selection.
+  - But its `cliCommandSpecs` entry lists none of these, nor `--job-name`, `--partial-array`, or `--match-by`. So `retry --help`, `rotari schema`, completion, and the CLI reference do not show options that `retry` accepts.
+  - Found in the CLI agent trial ([agent-trial-2026-10-03-cli-agent.md](2026-10-02-mcp-agent-interface/agent-trial-2026-10-03-cli-agent.md)): the agent could not tell which options `retry` takes.
+  - Expected: `retry`'s spec lists every option it accepts, from one list shared with `run`.
+  - Changing it moves `retry`'s pinned flag count in `conformance/03-interfaces/flag_pairs_test.go`, which the CLI option interaction work is changing now; coordinate with that work.
+
 - **`remove` rejects a selector conflict with only its usage line** (`cmd/rotari/remove.go`): `--filter-stage` and `--filter-matrix` are the long forms of `--stage` and `--matrix`, so `remove --all --filter-stage S` (and any two selector kinds, such as `--job-id` with `--stage`) count as two selectors and exit 1 with `usage: rotari remove ...`. Nothing is ignored or changed, but the message does not name the conflicting options, and a reader may expect `--filter-stage` to narrow `--all` as the definition filters do. Expected: an error naming the conflict, as `show` and `delete` give. Found by `TestCLIFlagPairMutationObservability`; the pair checks accept only this exact usage rejection for two selector kinds.
 
 ## Resolved
