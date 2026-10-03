@@ -187,6 +187,9 @@ the IDs, this table, and those calls disagree.
 | CLI-5 | The project list shows each project's last result, and its suggested commands work for every listed project | conformance | `TestProjectListHintsWork` |
 | CLI-6 | `jobs --since` and the Web jobs page take a Go duration or whole days such as `7d` | conformance | `TestJobsWindowAcceptsDays` |
 | CLI-7 | Commands that change a project take `--dry-run` and `--if-revision`, applying only at the previewed revision | conformance | `TestCLIFlagPairImportObservability`, `TestGuardedCommandsPreviewAndCheckTheRevision`, `TestRunPreviewMatchesTheRun`, `TestRunPreviewListsTheTasksOfAWholeArray` |
+| CLI-8 | `run` and `retry` reject `--async` with `--dry-run`, which does not start a run | conformance | `TestCLIFlagPairAsyncDryRunIsRejected` |
+| CLI-9 | `run` and `retry` use consistent selector combinations in dry-run plans | partial | `TestCLIFlagPairRunSelectionEffects` |
+| CLI-10 | A supplied `--run-name` is visible in a dry-run preview | conformance | `TestCLIFlagPairRunNameInPreview` |
 | CLI-11 | A missing project's error names the registered state directories that have it | conformance | `TestMissingProjectNamesWhereItIs` |
 | MCP-1 | MCP tools that change a project preview first and apply only at the previewed revision | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision`, `TestRunPreviewListsTheTasksOfAWholeArray` |
 | MCP-2 | `rotari_export_run` is a redacted view that the MCP import tools refuse | conformance | `TestMCPExportIsARedactedViewThatImportRefuses` |
@@ -197,7 +200,7 @@ the IDs, this table, and those calls disagree.
 | SEL-2 | Each command reads the run or queue its row names | partial | `TestSelectorTable` |
 | SEL-3 | `show` resolves each selector form as its column says | conformance | `TestSelectorTable` |
 | SEL-4 | `copy` resolves each selector form as its column says | conformance | `TestCLIFlagPairCopyObservability`, `TestSelectorTable` |
-| SEL-5 | `run` and `retry` resolve each selector form as their column says | conformance | `TestRunJobIDRunsEditedQueue`, `TestSelectorTable` |
+| SEL-5 | `run` and `retry` resolve each selector form as their column says | conformance | `TestCLIFlagPairRunSelectionEffects`, `TestRunJobIDRunsEditedQueue`, `TestSelectorTable` |
 | SEL-6 | `change` resolves each selector form as its column says | conformance | `TestSelectorTable` |
 | SEL-7 | `remove` resolves each selector form as its column says | conformance | `TestCLIFlagPairMutationObservability`, `TestSelectorTable` |
 | SEL-8 | Selectors combine by kind, with the listed exclusions | conformance | `TestSelectorTable` |

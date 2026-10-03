@@ -272,14 +272,21 @@ duplicating its lifecycle or status-projection work.
 
 ## Current status and next action
 
-The schema inventory now generates 6,481 pairs, including 1,830 for `run`.
-Adapters now execute 819 pairs in six commands: `show`, `jobs`, `check`,
-`lineage`, `config`, and `export`. Read-only adapters cover 783 pairs; file
-adapters cover 36 with an independently reset output directory and observations
-of file presence, contents, permissions, and non-interference with fixture state.
-Both orders total 1,638 invocations. A measured expansion run took 38.25 seconds
-for read-only pairs and 6.40 seconds for file pairs including their separate
-fixtures. The suite does not drop these pairs in short or race mode.
+The schema inventory generates 6,481 pairs. Adapters execute 5,832 pairs across
+15 commands: 783 read-only, 36 file-output, 178 mutation, 1,520 edit, and 3,315
+run-preview pairs. The remaining 649 pairs are control/external commands.
+
+Run/retry preview checks accept 3,016 pairs and explicitly reject 299 in 6,630
+invocations, measured at 88.95 seconds with four concurrent cases. They never
+start a job or scheduler. This suite runs in short and race mode; NFS fixture
+state is restored differentially.
+
+Semantic preview checks cover failed/stage intersection, per-task array
+selection, and visible `--run-name`. The pair loop also checks the async/dry-run
+rejection regardless of flag order; this was a reproduced silent ignore and is
+now fixed at the shared run/retry parser boundary. Retry-specific selection
+expectations, actual run lifecycle, scheduler submission, and host effects are
+not implied by dry-run coverage.
 
 A restored mutation adapter adds `remove`, `reset`, and `delete`: 178 pairs
 (158 accepted, 20 explicitly rejected) in both orders, now 997 executed pairs
@@ -306,8 +313,8 @@ failures were fixed and not waived as intended behavior.
 
 See [coverage and triage](../../conformance/03-interfaces/flag-pair-coverage.md)
 for measured results and explicit gaps. Milestone 1 is **not complete**:
-3,964 pairs still need execution/control adapters, and clear/set, active-state,
-provenance, boolean/repeated-value, and cross-interface witnesses remain.
-Compatibility declarations are still an evidence-gated follow-up. The next
-implementation step is a safe run/control adapter, without claiming that
-preview-only validation tests execution or scheduler behavior.
+649 control/external pairs still need adapters; execution, scheduler submission,
+async lifecycle, clear/set, active-state, provenance, boolean/repeated-value,
+and cross-interface witnesses remain. Compatibility declarations are an
+evidence-gated follow-up. The next implementation step is a safe control
+adapter; run/retry pair previews are not execution or scheduler tests.

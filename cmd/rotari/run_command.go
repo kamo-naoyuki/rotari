@@ -62,6 +62,10 @@ func runJobs(args []string, defaultSelection string) int {
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
+	if *async && *guard.dryRun {
+		printError("--async cannot be combined with --dry-run")
+		return 1
+	}
 	if *matchBy != model.MatchByJobID && *matchBy != model.MatchByFingerprint && *matchBy != model.MatchByIDAndFingerprint {
 		printErrorf("invalid match mode %q (choose %s, %s, or %s)", *matchBy, model.MatchByJobID, model.MatchByFingerprint, model.MatchByIDAndFingerprint)
 		return 1
@@ -273,7 +277,7 @@ func runJobs(args []string, defaultSelection string) int {
 		return previewRun(paths, runQueue, projectrun.PlanRequest{
 			Executor: *executor, ExecutorOptions: executorOptions, Settings: executorSettings(),
 			Selection: selection, JobIDs: jobIDs, Scope: scope, Filter: filter, SourceRunID: sourceRunID, PartialArray: *partialArray, MatchBy: *matchBy,
-		}, *guard.ifRevision)
+		}, *guard.ifRevision, *runName)
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -403,7 +407,7 @@ func (printer *runProgressPrinter) print(response serverinternal.Response) {
 // projectrun.Runner.PlanRun as the run itself is, without starting it. queue,
 // when set, is the queue a copy would leave; otherwise the project's queue is
 // planned.
-func previewRun(paths state.ProjectPaths, queue *model.Queue, request projectrun.PlanRequest, ifRevision string) int {
+func previewRun(paths state.ProjectPaths, queue *model.Queue, request projectrun.PlanRequest, ifRevision, runName string) int {
 	planned, revision, err := projectRunner().PreviewRun(paths, queue, request, ifRevision)
 	if err != nil {
 		printError(err)
@@ -416,7 +420,7 @@ func previewRun(paths state.ProjectPaths, queue *model.Queue, request projectrun
 			executed++
 		}
 	}
-	fmt.Println(colorKeyValueMessage(fmt.Sprintf("dry run: run project=%s would execute %d of %d job(s), carrying %d result(s)", paths.ProjectName, executed, len(jobs), len(planned.Plan.CarriedResults)), green))
+	fmt.Println(colorKeyValueMessage(fmt.Sprintf("dry run: run project=%s%s would execute %d of %d job(s), carrying %d result(s)", paths.ProjectName, strings.Join(optionalField(" run_name", runName), ""), executed, len(jobs), len(planned.Plan.CarriedResults)), green))
 	for _, job := range jobs {
 		if planned.Plan.Execute[job.ID] {
 			fmt.Printf("  execute job_id=%s%s\n", job.ID, strings.Join(optionalField(" job_name", job.Name), ""))

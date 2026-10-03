@@ -43,6 +43,8 @@ func pairAdapter(command string) string {
 		return "mutation"
 	case "add", "change", "copy", "import":
 		return "edit"
+	case "run", "retry":
+		return "preview"
 	default:
 		return ""
 	}

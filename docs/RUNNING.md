@@ -613,6 +613,18 @@ would execute and how many results it would carry, planned the way the run
 itself is, without copying a run into the queue or starting anything.
 `--if-revision` starts the run only if the project is still at that revision.
 
+`--async` cannot be combined with `--dry-run`: a preview does not start a run
+to detach from. Rotari reports the incompatible options rather than silently
+ignoring `--async`.
+
+When a preview is given `--run-name`, its summary includes `run_name=NAME`.
+The preview does not reserve or persist that name.
+
+The same selector rules apply to a `run --dry-run` preview as to execution:
+result filters combine with a stage or matrix, while direct job selectors
+cannot be combined with result filters or `--filter-*` conditions. A run
+preview lists every task of the whole array when `--partial-array=false` is supplied.
+
 ```sh
 rotari retry -p sweep --dry-run                 # lists the jobs it would execute
 rotari retry -p sweep --if-revision REVISION --async

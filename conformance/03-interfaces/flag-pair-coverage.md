@@ -90,6 +90,11 @@ The staged rollout is tracked in the
   leaves state unchanged while overwrite applies the manifest. These focused
   witnesses supplement the pair loop, rather than treating a successful exit as
   proof that each option took effect.
+- `TestCLIFlagPairPreviews` executes all 1,830 `run` and 1,485 `retry`
+  pairs in both orders through `--dry-run`. Four concurrent cases compare
+  output and exit status and verify that fixture state stays unchanged.
+  Standalone samples and dedicated async-conflict, run-name, and selection
+  witnesses supplement this mode-specific matrix; no job or scheduler starts.
 
 The fixture uses public `add`/`run`/`copy` commands. It contains successes,
 distinct failure codes (1, 3, 7, 9), two failing tasks in a three-task array,
@@ -115,23 +120,36 @@ only robustness/order coverage; they do not claim a semantic ignore oracle.
 
 ## Deferred command adapters
 
-Every pair is inventoried, and thirteen commands have execution adapters. The
-remaining 3,964 pairs are **not executed** by this suite.
+Every pair is inventoried, and fifteen commands have adapters. The remaining
+649 pairs are **not executed** by this suite.
 
 | Commands | Pairs | Required next work |
 | --- | ---: | --- |
-| `run`, `retry` | 3,315 | Independent run state, harmless execution, fake scheduler settings, async cleanup, persisted observations |
 | `cancel`, `suspend`, `resume`, `unlock`, `wait` | 559 | Active/interrupted fixtures, barriers, signals, prompts, and bounded cleanup |
 | `gc`, `server`, `web`, `mcp`, `diagnose` | 90 | Isolated registry/daemon/stdio/HTTP adapters; fake external diagnosis services |
 | `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
-The 2,517 executed pairs consist of 783 read-only, 36 file-output, 178
-mutation, and 1,520 edit pairs. The edit pair loop accepted 1,187 and explicitly
-rejected 333 pairs in 3,040 invocations; one run took 4m01s including setup.
-The whole uncached interface package took 438.88s in the repository check.
+The 5,832 executed pairs consist of 783 read-only, 36 file-output, 178
+mutation, 1,520 edit, and 3,315 run-preview pairs. The edit pair loop accepted
+1,187 and explicitly rejected 333 pairs in 3,040 invocations; one run took
+4m01s including setup.
+
+The run/retry dry-run pair loop accepted 3,016 and explicitly rejected 299
+pairs, with 6,630 invocations in 88.95 seconds. This excludes actual execution,
+supervisor/async lifecycle, scheduler submission, and host effects.
 
 ## Remaining observation gaps
 
+- Run/retry pairs only preview plans. `--async` with `--dry-run` is explicitly
+  rejected after this adapter exposed it being accepted and ignored; see CLI-8.
+  Every generated pair containing async therefore exercises this early mode
+  rejection, not the other flag's planning behavior. The full matrix injects
+  dry-run for safety; it is flag-pair coverage in that mode, not unrestricted
+  two-option execution coverage. Run naming has a dedicated preview witness.
+  Runtime presentation/settings not visible in a job plan (such as quiet
+  output or scheduler settings when a local executor is selected) still
+  need mode-aware witnesses. Actual sync/async execution, scheduler submission,
+  retries, cancellation, and host effects remain deferred.
 - Edit samples represent a single value and a finished source fixture. Clear/set
   precedence, dependency-cycle effects, append-vs-overwrite collision behavior,
   source/destination conflicts, stdin import, new-project creation, repeated
@@ -210,3 +228,18 @@ rewriting existing IDs. `TestCLIFlagPairEditSamples` exercises every individual
 schema flag. Tests for definition fields, copy selector intersection, JSON
 preview, and `--quiet` provide semantic witnesses; the remaining cases above are
 not claimed as ignored-option coverage.
+
+The run/retry preview expansion executes all 3,315 pairs: 3,016 accepted and
+299 explicitly rejected in both orders (6,630 invocations, 88.95 seconds with
+four concurrent pair cases). It found `--async` silently accepted with
+`--dry-run` for both commands in both orders. Before the fix, all four
+regression cases returned exit 0 and printed a preview. `runJobs` now rejects
+the combination before planning; `TestCLIFlagPairAsyncDryRunIsRejected` checks
+the exact error and unchanged state. The result/stage and partial-array plan
+witnesses pass. These remain previews; no job or scheduler is started.
+
+A run-name witness also failed before the fix: the requested name was missing
+from the preview. The shared CLI now includes `run_name=NAME` in the preview
+summary without persisting or reserving it (CLI-10). The selector/partial-array
+witness currently verifies `run`; sibling `retry` semantic coverage remains a
+follow-up, although both commands participate in the generated pair matrix.

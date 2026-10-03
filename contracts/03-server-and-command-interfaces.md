@@ -195,6 +195,22 @@ follows:
   `resolve.RequireProject` and `rotari jobs`; checked by
   `TestMissingProjectNamesWhereItIs` in
   [`conformance/03-interfaces/project_list_test.go`](../conformance/03-interfaces/project_list_test.go).
+- **CLI-8** `run` and `retry` reject `--async` with `--dry-run`: a preview does
+  not start a run, so asynchronous return behavior cannot apply. The rejection
+  names both options and changes no project state; see
+  [`cmd/rotari/run_command.go`](../cmd/rotari/run_command.go) and
+  [`conformance/03-interfaces/flag_pair_run_test.go`](../conformance/03-interfaces/flag_pair_run_test.go).
+- **CLI-9** `run` and `retry` report selector/result-filter conflicts in either
+  flag order. Stage or matrix scopes combine with result filters; direct job
+  selectors do not combine with result or `--filter-*` selectors. Dry-run
+  plans use the same rules: partial arrays select individual matching tasks;
+  `--partial-array=false` plans the whole array when any task matches. See
+  [`internal/projectrun/plan.go`](../internal/projectrun/plan.go) and
+  [`conformance/03-interfaces/flag_pair_run_test.go`](../conformance/03-interfaces/flag_pair_run_test.go).
+- **CLI-10** When `run --dry-run --run-name NAME` is given, the preview includes
+  `run_name=NAME` in its summary. A dry run does not persist or reserve that
+  name. See [`cmd/rotari/run_command.go`](../cmd/rotari/run_command.go) and
+  [`conformance/03-interfaces/flag_pair_run_test.go`](../conformance/03-interfaces/flag_pair_run_test.go).
 
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.

@@ -19,6 +19,10 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 ## Resolved
 
+- **`run --dry-run` accepted but hid `--run-name`** (`cmd/rotari/run_command.go`): the preview returned before the run summary used the requested name, so changing `--run-name` had no observable effect. The preview now includes `run_name=NAME` without persisting it. `TestCLIFlagPairRunNameInPreview` covers it (CLI-10).
+
+- **`run --async --dry-run` silently ignored `--async`** (`cmd/rotari/run_command.go`): the dry-run preview returned before the async start path, but both flag orders were accepted and printed the same plan. `runJobs` now rejects the combination with a message naming both flags. `TestCLIFlagPairAsyncDryRunIsRejected` reproduces the old behavior, checks `run` and `retry` in both orders, and verifies no state changed (CLI-8).
+
 - **Carried jobs read as running while their run was active** (`internal/jobstatus`, `internal/runview`, `internal/jobcontrol`):
   - A run recorded which jobs it carried only in its final `summary.json`, and its `commands.json` gives an origin to jobs it executes too. So during the run, `show`, `lineage`, the Web API, and `rotari_run_summary` read a carried job as running or unfinished, and job control offered it and wrote cancel markers into it.
   - The run now writes `carried.json` before dispatching.
