@@ -279,3 +279,12 @@ as the CLI and hold no rules of their own.
   [`internal/mcp/control.go`](../internal/mcp/control.go); checked by
   `TestMCPJobControlActsOnlyOnThePreviewedRunningRun` in
   [`conformance/03-interfaces/mcp_test.go`](../conformance/03-interfaces/mcp_test.go).
+- **MCP-5** `rotari_preview_reset` reports, without changing anything, how
+  many queued jobs a reset removes and the interrupted run it would recover,
+  with what that run's jobs last reported, and the revision. `rotari_reset`
+  applies only at that revision, recovers an interrupted run only with
+  `recover_interrupted`, refuses a running project, and keeps run history,
+  as `rotari reset` does through `project.Reset`. Implemented in
+  [`internal/mcp/reset.go`](../internal/mcp/reset.go); checked by
+  `TestMCPResetRecoversOnlyAConfirmedInterruptedRun` in
+  [`conformance/03-interfaces/mcp_test.go`](../conformance/03-interfaces/mcp_test.go).

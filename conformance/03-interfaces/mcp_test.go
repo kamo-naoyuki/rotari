@@ -345,3 +345,54 @@ func TestMCPJobControlActsOnlyOnThePreviewedRunningRun(t *testing.T) {
 		t.Fatalf("cancel of an ended run: %q", message)
 	}
 }
+
+// TestMCPResetRecoversOnlyAConfirmedInterruptedRun interrupts a run, then
+// previews and applies a reset through MCP: the preview names the run and
+// changes nothing, a reset without confirmation or at a stale revision is
+// refused, and the confirmed reset recovers the run and keeps its history.
+func TestMCPResetRecoversOnlyAConfirmedInterruptedRun(t *testing.T) {
+	covers(t, "MCP-5")
+	e := support.NewEnv(t)
+	run := e.StartRun("live", 1, false)
+	support.WaitUntil(t, 15*time.Second, func() (bool, string) {
+		return support.JobProcesses(t, e.Root, "") == 1, "the job did not start"
+	})
+	support.KillStrays(t, e.Root)
+	support.WaitForInterrupted(t, e, "live")
+	session := startMCP(t, e)
+	target := map[string]any{"basedir_ref": baseDirRef(t, session, "live"), "project": "live"}
+
+	var preview struct {
+		InterruptedRunID string `json:"interrupted_run_id"`
+		Revision         string `json:"revision"`
+	}
+	if message := session.call("rotari_preview_reset", target, &preview); message != "" || preview.InterruptedRunID != run.RunID || preview.Revision == "" {
+		t.Fatalf("reset preview: %q %+v", message, preview)
+	}
+	if state := e.CheckState("live"); state != "interrupted" {
+		t.Fatalf("after the preview: state %q", state)
+	}
+
+	apply := map[string]any{"basedir_ref": target["basedir_ref"], "project": "live", "if_revision": preview.Revision}
+	if message := session.call("rotari_reset", apply, nil); !strings.Contains(message, "interrupted run") {
+		t.Fatalf("unconfirmed reset: %q", message)
+	}
+	apply["recover_interrupted"] = true
+	apply["if_revision"] = "0000000000000000"
+	if message := session.call("rotari_reset", apply, nil); !strings.Contains(message, "project changed since the planned revision") {
+		t.Fatalf("reset at a stale revision: %q", message)
+	}
+	if state := e.CheckState("live"); state != "interrupted" {
+		t.Fatalf("after refused resets: state %q", state)
+	}
+	apply["if_revision"] = preview.Revision
+	if message := session.call("rotari_reset", apply, nil); message != "" {
+		t.Fatal(message)
+	}
+	if state := e.CheckState("live"); state != "empty" {
+		t.Fatalf("after the reset: state %q", state)
+	}
+	if _, err := os.Stat(filepath.Join(e.Base, "projects", "live", "runs", run.RunID)); err != nil {
+		t.Errorf("the reset removed run history: %v", err)
+	}
+}

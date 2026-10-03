@@ -41,7 +41,8 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 			"and project itself and returns no absolute paths. Paths and hostnames in logs and evidence are redacted where detected. " +
 			"To change a project, preview first (rotari_preview_import, rotari_preview_run), show the user what will happen, " +
 			"then apply with the preview's revision (rotari_import, rotari_start_run); a write fails if the project changed since. " +
-			"To stop or pause a running run, list its jobs with rotari_preview_job_control, then call rotari_cancel, rotari_suspend, or rotari_resume with its run_id.",
+			"To stop or pause a running run, list its jobs with rotari_preview_job_control, then call rotari_cancel, rotari_suspend, or rotari_resume with its run_id. " +
+			"To clear a queue or recover an interrupted run, use rotari_preview_reset and rotari_reset.",
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_list_projects",
@@ -132,6 +133,20 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 	}, func(_ context.Context, input StartRunInput) (StartRunOutput, error) {
 		output, err := writes.startRun(input)
 		return output, err
+	})
+	addTool(server, masterDir, &mcpsdk.Tool{
+		Name:        "rotari_preview_reset",
+		Description: "Preview resetting a project, as rotari reset --dry-run does: how many queued jobs it would remove, and any interrupted run it would recover, with what that run's jobs last reported, and the project revision. Run history is kept. Changes nothing.",
+		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
+	}, func(_ context.Context, input ResetInput) (ResetOutput, error) {
+		return writes.reset(input, true, project.Guard{DryRun: true})
+	})
+	addTool(server, masterDir, &mcpsdk.Tool{
+		Name:        "rotari_reset",
+		Description: "Reset a project, as rotari reset does, only if it is still at the revision rotari_preview_reset returned: remove its queued jobs, keeping run history, and with recover_interrupted recover its interrupted run. A running project is refused.",
+		Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPointer(true)},
+	}, func(_ context.Context, input ApplyResetInput) (ResetOutput, error) {
+		return writes.applyReset(input)
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_preview_job_control",

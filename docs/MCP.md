@@ -59,6 +59,15 @@ cancel stops the whole run, and suspend and resume act on every running job.
 Each fails without effect when the run is no longer running, as
 `rotari cancel --run-id` does. `rotari_cancel` is annotated as destructive.
 
+To clear a project's queue, or to recover a run left interrupted when its
+supervisor stopped, preview with `rotari_preview_reset` (`basedir_ref`,
+`project`). It reports how many queued jobs the reset removes and any
+interrupted run it would recover, with what that run's jobs last reported
+and whether some may still be running, and the revision. `rotari_reset`
+takes the same input and `if_revision`, and recovers an interrupted run only
+with `recover_interrupted`; confirm first that its jobs have stopped. A
+running project is refused, and run history is kept, as with `rotari reset`.
+
 A started run uses `rotari run`'s defaults, and its jobs run in the working
 directory and with the environment of the `rotari mcp` process, which is
 usually the MCP client's.
@@ -72,8 +81,8 @@ reference that does not reveal its path, and by `basedir_name`, the last
 element of its path; they contain no absolute paths, and errors write
 `BASEDIR` for a registered state directory's path. Reports and evidence
 lines redact paths and hostnames where detected; redaction is not guaranteed
-to catch every secret. Queue edits other than import, deleting history,
-`gc`, and `reset` are not exposed, and the server does not remove stale
+to catch every secret. Queue edits other than import and reset, deleting
+history, and `gc` are not exposed, and the server does not remove stale
 locks or migrate registries.
 
 ## Start the server
