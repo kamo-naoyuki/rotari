@@ -21,6 +21,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 ## Resolved
 
+- **Interface flag-pair suites exceeded Go's ten-minute package timeout**: with `wait` added, the single interface package timed out at 606.14s. The suites now share `conformance/support/pairs.go` and run in `03-interfaces`, `pairedits`, and `pairruns`, with no removed tests or short/race exclusions. An uncached normal run took 104.87/354.09/156.48s; an uncached race run took 85.56/414.96/148.14s. Full repository checks passed with the default timeout; CI timeout settings are unchanged.
+
 - **`run --dry-run` accepted but hid `--run-name`** (`cmd/rotari/run_command.go`): the preview returned before the run summary used the requested name, so changing `--run-name` had no observable effect. The preview now includes `run_name=NAME` without persisting it. `TestCLIFlagPairRunNameInPreview` covers it (CLI-10).
 
 - **`run --async --dry-run` silently ignored `--async`** (`cmd/rotari/run_command.go`): the dry-run preview returned before the async start path, but both flag orders were accepted and printed the same plan. `runJobs` now rejects the combination with a message naming both flags. `TestCLIFlagPairAsyncDryRunIsRejected` reproduces the old behavior, checks `run` and `retry` in both orders, and verifies no state changed (CLI-8).

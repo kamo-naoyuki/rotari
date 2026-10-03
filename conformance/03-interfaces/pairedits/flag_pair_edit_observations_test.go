@@ -1,4 +1,4 @@
-package interfaces
+package pairedits
 
 import (
 	"encoding/json"
@@ -35,7 +35,7 @@ func pairReportedRevision(t *testing.T, command string, flags []pairFlag, r supp
 func pairNormalizeEdit(t *testing.T, f pairMutationFixture, r support.Result, after pairSavedTree) pairMutationResult {
 	t.Helper()
 	known := map[string]bool{}
-	for _, id := range pairTreeIDs(t, f.initial) {
+	for _, id := range pairTreeIDs(t, f.Initial) {
 		known[id] = true
 	}
 	ids := pairTreeIDs(t, after)
@@ -57,20 +57,20 @@ func pairNormalizeEdit(t *testing.T, f pairMutationFixture, r support.Result, af
 	normalized := make(pairSavedTree, len(after))
 	copy(normalized, after)
 	for i, file := range normalized {
-		if filepath.Base(file.path) == "queue.json" {
-			normalized[i].data = []byte(replacer.Replace(string(file.data)))
+		if filepath.Base(file.Path) == "queue.json" {
+			normalized[i].Data = []byte(replacer.Replace(string(file.Data)))
 		}
 	}
 	r.Stdout, r.Stderr = replacer.Replace(r.Stdout), replacer.Replace(r.Stderr)
 	r.Args = nil
-	return pairMutationResult{process: r, state: normalized.observation(t)}
+	return pairMutationResult{Process: r, State: normalized.Observation(t)}
 }
 
 func pairTreeIDs(t *testing.T, tree pairSavedTree) []string {
 	t.Helper()
 	var ids []string
 	for _, file := range tree {
-		if filepath.Base(file.path) != "queue.json" && filepath.Base(file.path) != "commands.json" {
+		if filepath.Base(file.Path) != "queue.json" && filepath.Base(file.Path) != "commands.json" {
 			continue
 		}
 		var queue struct {
@@ -81,7 +81,7 @@ func pairTreeIDs(t *testing.T, tree pairSavedTree) []string {
 				} `json:"matrix"`
 			} `json:"commands"`
 		}
-		if err := json.Unmarshal(file.data, &queue); err != nil {
+		if err := json.Unmarshal(file.Data, &queue); err != nil {
 			t.Fatal(err)
 		}
 		for _, command := range queue.Commands {
@@ -96,7 +96,7 @@ func pairTreeIDs(t *testing.T, tree pairSavedTree) []string {
 
 func pairEditQueue(t *testing.T, f pairMutationFixture) []map[string]json.RawMessage {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(f.e.Base, "projects", f.project, "queue.json"))
+	data, err := os.ReadFile(filepath.Join(f.E.Base, "projects", f.Project, "queue.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func TestCLIFlagPairAddObservability(t *testing.T) {
 		"depends-on": "depends_on", "depends-on-finished": "depends_on_finished", "timeout": "timeout", "retry": "retry",
 		"retry-delay": "retry_delay", "retry-backoff": "retry_backoff", "retry-max-delay": "retry_max_delay",
 	}
-	for _, command := range readPairSchema(t, f.e) {
+	for _, command := range readPairSchema(t, f.E) {
 		if command.Name != "add" {
 			continue
 		}
@@ -166,9 +166,9 @@ func TestCLIFlagPairAddObservability(t *testing.T) {
 
 func pairCopyNames(t *testing.T, f pairMutationFixture, args ...string) []string {
 	t.Helper()
-	f.initial.restore(t, f.e.Root, *f.current)
-	r := pairInvoke(t, f.e, append([]string{"copy", "--run-id", f.run, "--overwrite", "--quiet"}, args...)...)
-	*f.current = savePairTree(t, f.e.Root)
+	f.Initial.Restore(t, f.E.Root, *f.Current)
+	r := pairInvoke(t, f.E, append([]string{"copy", "--run-id", f.Run, "--overwrite", "--quiet"}, args...)...)
+	*f.Current = savePairTree(t, f.E.Root)
 	if r.Code != 0 {
 		t.Fatalf("copy witness failed: %s", r)
 	}
@@ -205,36 +205,36 @@ func TestCLIFlagPairCopyObservability(t *testing.T) {
 func TestCLIFlagPairImportObservability(t *testing.T) {
 	covers(t, "CLI-7")
 	f := newPairMutationFixture(t)
-	before := f.initial.raw()
+	before := f.Initial.Raw()
 	preview := f.invoke(t, "import", []pairFlag{{Name: "json"}, {Name: "dry-run"}})
 	var plan struct {
 		Jobs []struct {
 			Name string `json:"name"`
 		} `json:"jobs"`
 	}
-	if err := json.Unmarshal([]byte(preview.process.Stdout), &plan); err != nil {
+	if err := json.Unmarshal([]byte(preview.Process.Stdout), &plan); err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Jobs) != 1 || plan.Jobs[0].Name != "import-added" || !reflect.DeepEqual(before, savePairTree(t, f.e.Root).raw()) {
+	if len(plan.Jobs) != 1 || plan.Jobs[0].Name != "import-added" || !reflect.DeepEqual(before, savePairTree(t, f.E.Root).Raw()) {
 		t.Fatal("JSON preview lost jobs or mutated state")
 	}
 	applied := f.invoke(t, "import", []pairFlag{{Name: "json"}, {Name: "overwrite"}})
 	queue := pairEditQueue(t, f)
-	if applied.process.Code != 0 || len(queue) != 1 || string(queue[0]["name"]) != `"import-added"` {
-		t.Fatalf("import JSON/overwrite lost effect: %s", applied.process)
+	if applied.Process.Code != 0 || len(queue) != 1 || string(queue[0]["name"]) != `"import-added"` {
+		t.Fatalf("import JSON/overwrite lost effect: %s", applied.Process)
 	}
 }
 
 func pairChangeDefinition(t *testing.T, f pairMutationFixture, options ...string) map[string]json.RawMessage {
 	t.Helper()
-	f.initial.restore(t, f.e.Root, *f.current)
-	r := pairInvoke(t, f.e, append([]string{"change", "--job-id", f.bad}, options...)...)
-	*f.current = savePairTree(t, f.e.Root)
+	f.Initial.Restore(t, f.E.Root, *f.Current)
+	r := pairInvoke(t, f.E, append([]string{"change", "--job-id", f.Bad}, options...)...)
+	*f.Current = savePairTree(t, f.E.Root)
 	if r.Code != 0 {
 		t.Fatalf("change witness failed: %s", r)
 	}
 	for _, command := range pairEditQueue(t, f) {
-		if string(command["id"]) == `"`+f.bad+`"` {
+		if string(command["id"]) == `"`+f.Bad+`"` {
 			return command
 		}
 	}
@@ -268,9 +268,9 @@ func TestCLIFlagPairIDNormalization(t *testing.T) {
 			commands = append(commands, map[string]string{"id": id, "name": "same"})
 		}
 		data, _ := json.Marshal(map[string]any{"commands": commands})
-		return pairSavedTree{{path: "queue.json", data: data}}
+		return pairSavedTree{{Path: "queue.json", Data: data}}
 	}
-	f := pairMutationFixture{initial: queue("existing")}
+	f := pairMutationFixture{support.PairMutationFixture{Initial: queue("existing")}}
 	a := pairNormalizeEdit(t, f, support.Result{}, queue("existing", "111111111", "222222222"))
 	b := pairNormalizeEdit(t, f, support.Result{}, queue("existing", "333333333", "444444444"))
 	c := pairNormalizeEdit(t, f, support.Result{}, queue("existing", "333333333", "333333333"))

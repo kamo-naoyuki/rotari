@@ -1,4 +1,4 @@
-package interfaces
+package pairruns
 
 import (
 	"reflect"
@@ -18,10 +18,10 @@ func pairRunSample(t *testing.T, f pairMutationFixture, flag pairFlag) []string 
 		return []string{"--partial-array=false"}
 	}
 	values := map[string]string{
-		"basedir": f.e.Base, "project-name": f.project, "config": f.config,
-		"run-id": f.run, "run-name": "pair-preview", "overwrite": "true",
+		"basedir": f.E.Base, "project-name": f.Project, "config": f.Config,
+		"run-id": f.Run, "run-name": "pair-preview", "overwrite": "true",
 		"local-concurrency": "2", "batch-concurrency": "2", "retry": "2",
-		"job-id": f.bad, "job-name": "bad", "stage": "training", "matrix": "train",
+		"job-id": f.Bad, "job-name": "bad", "stage": "training", "matrix": "train",
 		"executor": "local", "env": "ALL", "match-by": "id-and-fingerprint", "executor-option": "--debug",
 		"ssh-concurrency": "2", "ssh-options": "ConnectTimeout=1",
 		"slurm-concurrency": "2", "slurm-options": "--partition=debug", "slurm-submit-interval": "1s", "slurm-submit-retry-limit": "2",
@@ -36,7 +36,7 @@ func pairRunSample(t *testing.T, f pairMutationFixture, flag pairFlag) []string 
 		"filter-stage": "training", "filter-not-stage": "setup", "filter-matrix": "train", "filter-not-matrix": "train",
 	}
 	if flag.Name == "if-revision" {
-		return []string{"--if-revision", f.revision}
+		return []string{"--if-revision", f.Revision}
 	}
 	if flag.ValueName == "" {
 		return []string{"--" + flag.Name + "=true"}
@@ -95,19 +95,19 @@ func assertPairPreviewOutcome(t *testing.T, r support.Result) {
 
 func TestCLIFlagPairPreviewSamples(t *testing.T) {
 	f := newPairMutationFixture(t)
-	for _, command := range readPairSchema(t, f.e) {
+	for _, command := range readPairSchema(t, f.E) {
 		if command.Name != "run" && command.Name != "retry" {
 			continue
 		}
 		for _, flag := range command.Flags {
 			t.Run(command.Name+"/"+flag.Name, func(t *testing.T) {
-				f.initial.restore(t, f.e.Root, *f.current)
-				r := pairInvoke(t, f.e, pairRunArgs(t, f, command.Name, []pairFlag{flag})...)
+				f.Initial.Restore(t, f.E.Root, *f.Current)
+				r := pairInvoke(t, f.E, pairRunArgs(t, f, command.Name, []pairFlag{flag})...)
 				assertPairPreviewOutcome(t, r)
-				if after := savePairTree(t, f.e.Root); !reflect.DeepEqual(f.initial.raw(), after.raw()) {
+				if after := savePairTree(t, f.E.Root); !reflect.DeepEqual(f.Initial.Raw(), after.Raw()) {
 					t.Fatalf("preview changed fixture: %s", r)
 				}
-				*f.current = savePairTree(t, f.e.Root)
+				*f.Current = savePairTree(t, f.E.Root)
 			})
 		}
 	}
@@ -118,23 +118,23 @@ func TestCLIFlagPairPreviewSamples(t *testing.T) {
 func TestCLIFlagPairPreviews(t *testing.T) {
 	start := time.Now()
 	f := newPairMutationFixture(t)
-	state := f.initial.raw()
+	state := f.Initial.Raw()
 	var outcomes [2]atomic.Int64
 	t.Cleanup(func() {
 		t.Logf("run/retry preview pairs accepted=%d explicitly rejected=%d invocations=%d elapsed=%s", outcomes[0].Load(), outcomes[1].Load(), 2*(outcomes[0].Load()+outcomes[1].Load()), time.Since(start))
 	})
 	semaphore := make(chan struct{}, 4)
-	for _, command := range readPairSchema(t, f.e) {
+	for _, command := range readPairSchema(t, f.E) {
 		if isPreviewCommand(command.Name) {
 			runPreviewCommandPairs(t, f, state, semaphore, &outcomes, command)
 		}
 	}
 	async, dryRun := pairFlag{Name: "async"}, pairFlag{Name: "dry-run"}
 	for _, command := range []string{"run", "retry"} {
-		for _, pair := range []flagPair{{async, dryRun}, {dryRun, async}} {
-			args := append([]string{command}, pairRunSample(t, f, pair.a)...)
-			args = append(args, pairRunSample(t, f, pair.b)...)
-			result := pairInvoke(t, f.e, args...)
+		for _, pair := range []flagPair{{A: async, B: dryRun}, {A: dryRun, B: async}} {
+			args := append([]string{command}, pairRunSample(t, f, pair.A)...)
+			args = append(args, pairRunSample(t, f, pair.B)...)
+			result := pairInvoke(t, f.E, args...)
 			assertPairPreviewOutcome(t, result)
 			if result.Code != 1 || !strings.Contains(result.Stderr, "--async cannot be combined with --dry-run") {
 				t.Fatalf("dry-run pair accepted async mode: %s", result)
@@ -149,7 +149,7 @@ func runPreviewCommandPairs(t *testing.T, f pairMutationFixture, state map[strin
 	t.Helper()
 	t.Run(command.Name, func(t *testing.T) {
 		for _, pair := range commandFlagPairs(command) {
-			t.Run(pair.a.Name+"+"+pair.b.Name, func(t *testing.T) {
+			t.Run(pair.A.Name+"+"+pair.B.Name, func(t *testing.T) {
 				t.Parallel()
 				semaphore <- struct{}{}
 				defer func() { <-semaphore }()
@@ -161,8 +161,8 @@ func runPreviewCommandPairs(t *testing.T, f pairMutationFixture, state map[strin
 
 func assertRunPreviewOrder(t *testing.T, f pairMutationFixture, state map[string]string, command string, pair flagPair, outcomes *[2]atomic.Int64) {
 	t.Helper()
-	a := pairRunInvoke(t, f, command, []pairFlag{pair.a, pair.b})
-	b := pairRunInvoke(t, f, command, []pairFlag{pair.b, pair.a})
+	a := pairRunInvoke(t, f, command, []pairFlag{pair.A, pair.B})
+	b := pairRunInvoke(t, f, command, []pairFlag{pair.B, pair.A})
 	if a.Code < 0 || a.Code > 1 {
 		t.Fatalf("unexpected preview code %d", a.Code)
 	}
@@ -170,7 +170,7 @@ func assertRunPreviewOrder(t *testing.T, f pairMutationFixture, state map[string
 	if a.Code != b.Code || a.Stdout != b.Stdout || a.Stderr != b.Stderr {
 		t.Fatalf("order-dependent preview:\n%s\n%s", a, b)
 	}
-	if got := savePairTree(t, f.e.Root); !reflect.DeepEqual(state, got.raw()) {
+	if got := savePairTree(t, f.E.Root); !reflect.DeepEqual(state, got.Raw()) {
 		t.Fatalf("preview mutated fixture: %s", a)
 	}
 }
@@ -178,7 +178,7 @@ func assertRunPreviewOrder(t *testing.T, f pairMutationFixture, state map[string
 func pairRunInvoke(t *testing.T, f pairMutationFixture, command string, flags []pairFlag) support.Result {
 	t.Helper()
 	args := pairRunArgs(t, f, command, flags)
-	r := pairInvoke(t, f.e, args...)
+	r := pairInvoke(t, f.E, args...)
 	assertPairPreviewOutcome(t, r)
 	return r
 }
@@ -189,12 +189,12 @@ func TestCLIFlagPairAsyncDryRunIsRejected(t *testing.T) {
 	for _, command := range []string{"run", "retry"} {
 		for _, flags := range [][]string{{"--async", "--dry-run"}, {"--dry-run", "--async"}} {
 			t.Run(command+"/"+strings.Join(flags, "+"), func(t *testing.T) {
-				f.initial.restore(t, f.e.Root, *f.current)
-				result := pairInvoke(t, f.e, append([]string{command}, flags...)...)
+				f.Initial.Restore(t, f.E.Root, *f.Current)
+				result := pairInvoke(t, f.E, append([]string{command}, flags...)...)
 				if result.Code != 1 || !strings.Contains(result.Stderr, "--async cannot be combined with --dry-run") {
 					t.Fatalf("async dry-run must fail explicitly: %s", result)
 				}
-				if !reflect.DeepEqual(f.initial.raw(), savePairTree(t, f.e.Root).raw()) {
+				if !reflect.DeepEqual(f.Initial.Raw(), savePairTree(t, f.E.Root).Raw()) {
 					t.Fatalf("rejected async dry-run changed state: %s", result)
 				}
 			})
@@ -206,9 +206,9 @@ var runPlanJobID = regexp.MustCompile(`(?m)^  execute job_id=(\S+)`)
 
 func pairRunPlanIDs(t *testing.T, f pairMutationFixture, command string, flags ...string) []string {
 	t.Helper()
-	f.initial.restore(t, f.e.Root, *f.current)
-	args := append([]string{command, "--run-id", f.run, "--dry-run"}, flags...)
-	r := pairInvoke(t, f.e, args...)
+	f.Initial.Restore(t, f.E.Root, *f.Current)
+	args := append([]string{command, "--run-id", f.Run, "--dry-run"}, flags...)
+	r := pairInvoke(t, f.E, args...)
 	assertPairPreviewOutcome(t, r)
 	if r.Code != 0 {
 		t.Fatalf("selection witness rejected: %s", r)
@@ -246,12 +246,12 @@ func TestCLIFlagPairRunSelectionEffects(t *testing.T) {
 func TestCLIFlagPairRunNameInPreview(t *testing.T) {
 	covers(t, "CLI-10")
 	f := newPairMutationFixture(t)
-	plain := pairInvoke(t, f.e, "run", "--run-id", f.run, "--dry-run")
-	named := pairInvoke(t, f.e, "run", "--run-id", f.run, "--run-name", "pair-preview-witness", "--dry-run")
+	plain := pairInvoke(t, f.E, "run", "--run-id", f.Run, "--dry-run")
+	named := pairInvoke(t, f.E, "run", "--run-id", f.Run, "--run-name", "pair-preview-witness", "--dry-run")
 	if plain.Code != 0 || named.Code != 0 || strings.Contains(plain.Stdout, "pair-preview-witness") || !strings.Contains(named.Stdout, "run_name=pair-preview-witness") {
 		t.Fatalf("run name was ignored in the dry-run preview:\n%s\n%s", plain, named)
 	}
-	if after := savePairTree(t, f.e.Root); !reflect.DeepEqual(f.initial.raw(), after.raw()) {
+	if after := savePairTree(t, f.E.Root); !reflect.DeepEqual(f.Initial.Raw(), after.Raw()) {
 		t.Fatal("--run-name dry-run changed project state")
 	}
 }

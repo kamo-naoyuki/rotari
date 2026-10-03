@@ -1,4 +1,4 @@
-package interfaces
+package pairruns
 
 import (
 	"encoding/json"
@@ -14,15 +14,15 @@ import (
 func TestCLIFlagPairUnlockSamples(t *testing.T) {
 	covers(t, "SAFE-4")
 	f := newPairMutationFixture(t)
-	for _, command := range readPairSchema(t, f.e) {
+	for _, command := range readPairSchema(t, f.E) {
 		if command.Name != "unlock" {
 			continue
 		}
 		for _, flag := range command.Flags {
 			t.Run(flag.Name, func(t *testing.T) {
 				seed := seedPairInterruptedUnlock(t, f)
-				args := append([]string{"unlock"}, f.sample(t, flag)...)
-				result := pairInvoke(t, f.e, args...)
+				args := append([]string{"unlock"}, f.Sample(t, flag)...)
+				result := pairInvoke(t, f.E, args...)
 				assertPairUnlockRecovered(t, f, result, seed)
 			})
 		}
@@ -34,8 +34,8 @@ func TestCLIFlagPairUnlockSamples(t *testing.T) {
 // finished fixture and remains available for --run-id resolution.
 func seedPairInterruptedUnlock(t *testing.T, f pairMutationFixture) pairSavedTree {
 	t.Helper()
-	f.initial.restore(t, f.e.Root, *f.current)
-	projectDir := filepath.Join(f.e.Base, "projects", f.project)
+	f.Initial.Restore(t, f.E.Root, *f.Current)
+	projectDir := filepath.Join(f.E.Base, "projects", f.Project)
 	metaPath := filepath.Join(projectDir, "meta.json")
 	metaData, err := os.ReadFile(metaPath)
 	if err != nil {
@@ -46,7 +46,7 @@ func seedPairInterruptedUnlock(t *testing.T, f pairMutationFixture) pairSavedTre
 		t.Fatal(err)
 	}
 	meta["phase"] = "running"
-	meta["last_run_id"] = f.run
+	meta["last_run_id"] = f.Run
 	metaBytes, err := json.Marshal(meta)
 	if err != nil {
 		t.Fatal(err)
@@ -58,22 +58,22 @@ func seedPairInterruptedUnlock(t *testing.T, f pairMutationFixture) pairSavedTre
 	if err != nil {
 		t.Fatal(err)
 	}
-	lockBytes, err := json.Marshal(map[string]any{"pid": -1, "run_id": f.run, "host": host})
+	lockBytes, err := json.Marshal(map[string]any{"pid": -1, "run_id": f.Run, "host": host})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(projectDir, "running.lock"), lockBytes, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	*f.current = savePairTree(t, f.e.Root)
-	return *f.current
+	*f.Current = savePairTree(t, f.E.Root)
+	return *f.Current
 }
 
 func TestCLIFlagPairUnlock(t *testing.T) {
 	covers(t, "SAFE-4")
 	f := newPairMutationFixture(t)
 	var command pairCommand
-	for _, candidate := range readPairSchema(t, f.e) {
+	for _, candidate := range readPairSchema(t, f.E) {
 		if candidate.Name == "unlock" {
 			command = candidate
 			break
@@ -83,11 +83,11 @@ func TestCLIFlagPairUnlock(t *testing.T) {
 		t.Fatal("unlock is missing from the schema")
 	}
 	for _, pair := range commandFlagPairs(command) {
-		t.Run(pair.a.Name+"+"+pair.b.Name, func(t *testing.T) {
-			ab := invokePairUnlock(t, f, []pairFlag{pair.a, pair.b})
-			ba := invokePairUnlock(t, f, []pairFlag{pair.b, pair.a})
+		t.Run(pair.A.Name+"+"+pair.B.Name, func(t *testing.T) {
+			ab := invokePairUnlock(t, f, []pairFlag{pair.A, pair.B})
+			ba := invokePairUnlock(t, f, []pairFlag{pair.B, pair.A})
 			if !reflect.DeepEqual(ab, ba) {
-				t.Fatalf("order-dependent unlock:\n%s\n%s\nstate equal=%t", ab.process, ba.process, reflect.DeepEqual(ab.state, ba.state))
+				t.Fatalf("order-dependent unlock:\n%s\n%s\nstate equal=%t", ab.Process, ba.Process, reflect.DeepEqual(ab.State, ba.State))
 			}
 		})
 	}
@@ -98,21 +98,21 @@ func invokePairUnlock(t *testing.T, f pairMutationFixture, flags []pairFlag) pai
 	seed := seedPairInterruptedUnlock(t, f)
 	args := []string{"unlock"}
 	for _, flag := range flags {
-		args = append(args, f.sample(t, flag)...)
+		args = append(args, f.Sample(t, flag)...)
 	}
-	result := pairInvoke(t, f.e, args...)
+	result := pairInvoke(t, f.E, args...)
 	assertPairUnlockRecovered(t, f, result, seed)
 	result.Args = nil
-	return pairMutationResult{process: result, state: f.current.observation(t)}
+	return pairMutationResult{Process: result, State: f.Current.Observation(t)}
 }
 
 func assertPairUnlockRecovered(t *testing.T, f pairMutationFixture, result support.Result, seed pairSavedTree) {
 	t.Helper()
-	if result.Code != 0 || !strings.Contains(result.Stdout, "recovered queue project="+f.project+" run_id="+f.run) {
+	if result.Code != 0 || !strings.Contains(result.Stdout, "recovered queue project="+f.Project+" run_id="+f.Run) {
 		assertPairOutcome(t, result)
 		t.Fatalf("unlock did not recover the seeded interrupted run: %s", result)
 	}
-	projectDir := filepath.Join(f.e.Base, "projects", f.project)
+	projectDir := filepath.Join(f.E.Base, "projects", f.Project)
 	if _, err := os.Stat(filepath.Join(projectDir, "running.lock")); !os.IsNotExist(err) {
 		t.Fatalf("stale run lock remains after successful unlock: %v", err)
 	}
@@ -127,20 +127,20 @@ func assertPairUnlockRecovered(t *testing.T, f pairMutationFixture, result suppo
 	if err := json.Unmarshal(data, &meta); err != nil {
 		t.Fatal(err)
 	}
-	metaRelative, err := filepath.Rel(f.e.Root, filepath.Join(f.e.Base, "projects", f.project, "meta.json"))
+	metaRelative, err := filepath.Rel(f.E.Root, filepath.Join(f.E.Base, "projects", f.Project, "meta.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	var seededMeta map[string]any
 	for _, file := range seed {
-		if file.path == metaRelative {
-			if err := json.Unmarshal(file.data, &seededMeta); err != nil {
+		if file.Path == metaRelative {
+			if err := json.Unmarshal(file.Data, &seededMeta); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
-	if meta.Phase != "collecting" || meta.LastRunID != f.run {
-		t.Fatalf("unlocked metadata = %+v, want collecting with retained run ID %q", meta, f.run)
+	if meta.Phase != "collecting" || meta.LastRunID != f.Run {
+		t.Fatalf("unlocked metadata = %+v, want collecting with retained run ID %q", meta, f.Run)
 	}
 	var actualMeta map[string]any
 	if err := json.Unmarshal(data, &actualMeta); err != nil {
@@ -153,8 +153,8 @@ func assertPairUnlockRecovered(t *testing.T, f pairMutationFixture, result suppo
 		t.Fatalf("unlock changed metadata beyond phase/updated_at: got %v, want %v", actualMeta, seededMeta)
 	}
 
-	before, after := seed.observation(t), savePairTree(t, f.e.Root).observation(t)
-	lockRelative, err := filepath.Rel(f.e.Root, filepath.Join(f.e.Base, "projects", f.project, "running.lock"))
+	before, after := seed.Observation(t), savePairTree(t, f.E.Root).Observation(t)
+	lockRelative, err := filepath.Rel(f.E.Root, filepath.Join(f.E.Base, "projects", f.Project, "running.lock"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func assertPairUnlockRecovered(t *testing.T, f pairMutationFixture, result suppo
 	if !reflect.DeepEqual(before, after) {
 		t.Fatalf("unlock changed project state other than its stale lock and recovery metadata")
 	}
-	*f.current = savePairTree(t, f.e.Root)
+	*f.Current = savePairTree(t, f.E.Root)
 }
 
 func TestCLIFlagPairUnlockSafety(t *testing.T) {
@@ -174,13 +174,13 @@ func TestCLIFlagPairUnlockSafety(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			for _, reversed := range []bool{false, true} {
 				seed, runID := seedPairUnlockSafety(t, f, mode)
-				args := []string{"unlock", "--project-name", f.project, "--run-id", runID}
+				args := []string{"unlock", "--project-name", f.Project, "--run-id", runID}
 				if reversed {
-					args = []string{"unlock", "--run-id", runID, "--project-name", f.project}
+					args = []string{"unlock", "--run-id", runID, "--project-name", f.Project}
 				}
-				result := pairInvoke(t, f.e, args...)
-				after := savePairTree(t, f.e.Root)
-				*f.current = after
+				result := pairInvoke(t, f.E, args...)
+				after := savePairTree(t, f.E.Root)
+				*f.Current = after
 				assertPairUnlockSafety(t, f, mode, result, seed, after)
 			}
 		})
@@ -197,7 +197,7 @@ func assertPairUnlockSafety(t *testing.T, f pairMutationFixture, mode string, re
 	if mode == "wrong-run" {
 		message = "run lock belongs to"
 	}
-	if result.Code != 1 || !strings.Contains(result.Stderr, message) || !reflect.DeepEqual(seed.raw(), after.raw()) {
+	if result.Code != 1 || !strings.Contains(result.Stderr, message) || !reflect.DeepEqual(seed.Raw(), after.Raw()) {
 		t.Fatalf("unsafe unlock was not rejected without mutation: %s", result)
 	}
 }
@@ -205,7 +205,7 @@ func assertPairUnlockSafety(t *testing.T, f pairMutationFixture, mode string, re
 func seedPairUnlockSafety(t *testing.T, f pairMutationFixture, mode string) (pairSavedTree, string) {
 	t.Helper()
 	seedPairInterruptedUnlock(t, f)
-	lockPath := filepath.Join(f.e.Base, "projects", f.project, "running.lock")
+	lockPath := filepath.Join(f.E.Base, "projects", f.Project, "running.lock")
 	data, err := os.ReadFile(lockPath)
 	if err != nil {
 		t.Fatal(err)
@@ -214,12 +214,12 @@ func seedPairUnlockSafety(t *testing.T, f pairMutationFixture, mode string) (pai
 	if err := json.Unmarshal(data, &lock); err != nil {
 		t.Fatal(err)
 	}
-	runID := f.run
+	runID := f.Run
 	switch mode {
 	case "live-local":
 		lock["pid"] = os.Getpid()
 	case "wrong-run":
-		runID = f.secondRun // Existing sibling run; resolution must reach the lock check.
+		runID = f.SecondRun // Existing sibling run; resolution must reach the lock check.
 	case "remote":
 		lock["host"] = lock["host"].(string) + "-pair-remote"
 	}
@@ -235,5 +235,5 @@ func seedPairUnlockSafety(t *testing.T, f pairMutationFixture, mode string) (pai
 			t.Fatal(err)
 		}
 	}
-	return savePairTree(t, f.e.Root), runID
+	return savePairTree(t, f.E.Root), runID
 }

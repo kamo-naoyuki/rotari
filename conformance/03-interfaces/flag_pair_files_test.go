@@ -84,15 +84,6 @@ func assertPairFileOutcome(t *testing.T, command string, flags []pairFlag, r pai
 	assertPairOutcome(t, r.process)
 }
 
-func pairHasFlag(flags []pairFlag, name string) bool {
-	for _, flag := range flags {
-		if flag.Name == name {
-			return true
-		}
-	}
-	return false
-}
-
 func pairHasExportSource(flags []pairFlag) bool {
 	return pairHasFlag(flags, "run-id") || pairHasFlag(flags, "basedir") || pairHasFlag(flags, "project-name")
 }
@@ -141,7 +132,7 @@ func TestCLIFlagPairFiles(t *testing.T) {
 		}
 		t.Run(command.Name, func(t *testing.T) {
 			for _, pair := range commandFlagPairs(command) {
-				t.Run(pair.a.Name+"+"+pair.b.Name, func(t *testing.T) {
+				t.Run(pair.A.Name+"+"+pair.B.Name, func(t *testing.T) {
 					outcomes[assertPairFileOrder(t, f, command.Name, pair, state)]++
 				})
 			}
@@ -152,11 +143,11 @@ func TestCLIFlagPairFiles(t *testing.T) {
 
 func assertPairFileOrder(t *testing.T, f pairFixture, command string, pair flagPair, state map[string]string) int {
 	t.Helper()
-	ab := pairFileInvoke(t, f, command, []pairFlag{pair.a, pair.b})
-	assertPairFileOutcome(t, command, []pairFlag{pair.a, pair.b}, ab)
+	ab := pairFileInvoke(t, f, command, []pairFlag{pair.A, pair.B})
+	assertPairFileOutcome(t, command, []pairFlag{pair.A, pair.B}, ab)
 	assertPairStateUnchanged(t, f.e.Base, state, ab.process)
-	ba := pairFileInvoke(t, f, command, []pairFlag{pair.b, pair.a})
-	assertPairFileOutcome(t, command, []pairFlag{pair.b, pair.a}, ba)
+	ba := pairFileInvoke(t, f, command, []pairFlag{pair.B, pair.A})
+	assertPairFileOutcome(t, command, []pairFlag{pair.B, pair.A}, ba)
 	assertPairStateUnchanged(t, f.e.Base, state, ba.process)
 	// Args differ by design; compare all observations, including absence of a
 	// file, contents, and permissions.

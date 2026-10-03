@@ -1,11 +1,23 @@
 # CLI flag-pair coverage
 
-The entry point is [flag_pairs_test.go](flag_pairs_test.go), with isolated file
-adapters in [flag_pair_files_test.go](flag_pair_files_test.go), restored
-mutation adapters in [flag_pair_mutations_test.go](flag_pair_mutations_test.go),
-and additional witnesses in [flag_pair_projections_test.go](flag_pair_projections_test.go). Tests obtain flags
-from the built binary's `schema --json`, not from CLI implementation imports.
-The staged rollout is tracked in the
+The shared harness (schema inventory types, finished-run fixture, bounded
+invocation, and NFS-aware tree restoration) is
+[conformance/support/pairs.go](../support/pairs.go). The suites run in three
+packages so the full pair matrix does not put any single package near Go's
+default ten-minute test timeout:
+
+- this package keeps [flag_pairs_test.go](flag_pairs_test.go) (inventory,
+  read-only pairs, selection witnesses), [flag_pair_files_test.go](flag_pair_files_test.go)
+  (config/export), and [flag_pair_projections_test.go](flag_pair_projections_test.go).
+- [pairedits](pairedits/): the restored mutation and edit adapters and their
+  effect witnesses.
+- [pairruns](pairruns/): `run`/`retry` previews, `unlock`, and `wait`.
+
+In an uncached run, the packages took 104.87s, 354.09s, and 156.48s in normal
+mode. No pair or semantic witness is excluded from short or race mode.
+
+Tests obtain flags from the built binary's `schema --json`, not from CLI
+implementation imports. The staged rollout is tracked in the
 [development plan](../../development/2026-10-03-cli-option-interactions/plan.md).
 
 ## Current layers
@@ -95,6 +107,16 @@ The staged rollout is tracked in the
   output and exit status and verify that fixture state stays unchanged.
   Standalone samples and dedicated async-conflict, run-name, and selection
   witnesses supplement this mode-specific matrix; no job or scheduler starts.
+- `TestCLIFlagPairWait` executes all 21 `wait` pairs in both orders against a
+  single finished failed run, with an explicit two-second timeout on every
+  invocation. The expected exit 1 is the fixture run's result, not a diagnosed
+  option rejection; stderr must remain empty, output must match the selected
+  text/JSON mode, and the fixture tree must remain unchanged. Separate
+  synthetic-running witnesses remove the summary and add a remote lock without
+  starting a process: one confirms timeout and CLI-over-environment/config
+  precedence, and `--until-failure` returns early with final failure groups in
+  text and JSON. These checks do not exercise live-run synchronization or
+  retrying failures.
 - `TestCLIFlagPairUnlock` executes all six `unlock` pairs in both orders from
   an identical synthetic interrupted state. It uses a stale local lock for an
   already-finished fixture run, so no process or scheduler is running. Each
@@ -130,17 +152,17 @@ only robustness/order coverage; they do not claim a semantic ignore oracle.
 
 ## Deferred command adapters
 
-Every pair is inventoried, and sixteen commands have adapters. The remaining
-643 pairs are **not executed** by this suite.
+Every pair is inventoried, and seventeen commands have adapters. The remaining
+622 pairs are **not executed** by this suite.
 
 | Commands | Pairs | Required next work |
 | --- | ---: | --- |
-| `cancel`, `suspend`, `resume`, `wait` | 553 | Active/interrupted fixtures, barriers, signals, prompts, and bounded cleanup |
+| `cancel`, `suspend`, `resume` | 532 | Active/interrupted fixtures, barriers, signals, prompts, and bounded cleanup |
 | `gc`, `server`, `web`, `mcp`, `diagnose` | 90 | Isolated registry/daemon/stdio/HTTP adapters; fake external diagnosis services |
 | `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
-The 5,838 executed pairs consist of 783 read-only, 36 file-output, 184
-mutation/control, 1,520 edit, and 3,315 run-preview pairs. The edit pair loop accepted
+The 5,859 executed pairs consist of 783 read-only, 36 file-output, 178
+queue-mutation, 1,520 edit, 3,336 run/retry/wait, and 6 unlock pairs. The edit pair loop accepted
 1,187 and explicitly rejected 333 pairs in 3,040 invocations; one run took
 4m01s including setup.
 

@@ -272,10 +272,16 @@ duplicating its lifecycle or status-projection work.
 
 ## Current status and next action
 
-The schema inventory generates 6,481 pairs. Adapters execute 5,838 pairs across
-16 commands: 783 read-only, 36 file-output, 184 mutation/control, 1,520 edit,
-and 3,315 run-preview pairs. The remaining 643 pairs are control/external
-commands.
+The schema inventory generates 6,481 pairs. Adapters execute 5,859 pairs across
+17 commands in three conformance packages: 783 read-only, 36 file-output,
+178 queue mutations, 1,520 edits, 3,315 run/retry previews, 6 unlock, and 21
+wait pairs. The remaining 622 pairs are control/external commands.
+
+The pair tests share their public-binary harness through `conformance/support`.
+Splitting the CLI checks across `03-interfaces`, `pairedits`, and `pairruns`
+keeps each Go package below the default ten-minute test timeout without
+excluding pairs or witnesses. One uncached normal run took 104.87s, 354.09s,
+and 156.48s for those packages, respectively.
 
 Run/retry preview checks accept 3,016 pairs and explicitly reject 299 in 6,630
 invocations, measured at 88.95 seconds with four concurrent cases. They never
@@ -314,8 +320,8 @@ failures were fixed and not waived as intended behavior.
 
 See [coverage and triage](../../conformance/03-interfaces/flag-pair-coverage.md)
 for measured results and explicit gaps. Milestone 1 is **not complete**:
-643 control/external pairs still need adapters; execution, scheduler submission,
+622 control/external pairs still need adapters; execution, scheduler submission,
 async lifecycle, clear/set, active-state, provenance, boolean/repeated-value,
 and cross-interface witnesses remain. Compatibility declarations are an
-evidence-gated follow-up. The next implementation step is a safe `wait`
-adapter; run/retry pair previews are not execution or scheduler tests.
+evidence-gated follow-up. Run/retry previews and synthetic wait locks do not
+exercise live execution or scheduler/control integration.

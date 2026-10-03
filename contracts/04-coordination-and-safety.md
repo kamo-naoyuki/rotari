@@ -169,7 +169,7 @@ A project is in one of three states, derived from `running.lock` and
   Without `--run-id`, `unlock` of an idle project with no lock, or a project
   that does not exist, succeeds as a no-op and does not modify or create state.
   `TestCLIFlagPairUnlock` and `TestCLIFlagPairUnlockSafety` in
-  [conformance/03-interfaces/flag_pair_unlock_test.go](../conformance/03-interfaces/flag_pair_unlock_test.go)
+  [conformance/03-interfaces/pairruns/flag_pair_unlock_test.go](../conformance/03-interfaces/pairruns/flag_pair_unlock_test.go)
   check flag-order parity, retained state, and local-live, mismatched-run,
   remote, and lockless recovery using synthetic locks after fixture execution
   has stopped.

@@ -249,6 +249,15 @@ are checked against this graph by
 | [internal/doclinks](../internal/doclinks/) | Tests only: relative links and `#anchor` links in the root Markdown files, `contracts/`, and `docs/`. | `links_test.go` |
 | [conformance](../conformance/) | Tests only: contract checks against the built binary and the Web API, importing only the standard library and their own harness, `conformance/support`. Document-to-directory mapping is in `layout.json`; tests are being migrated under the matching contract groups. | `harness_test.go`, `contracts_test.go`, `layout.json` |
 
+The interface flag-pair suites are split between
+[03-interfaces](../conformance/03-interfaces/),
+[pairedits](../conformance/03-interfaces/pairedits/), and
+[pairruns](../conformance/03-interfaces/pairruns/) to keep each Go package
+within the default test timeout. They share the public-binary fixture,
+schema sampling, bounded subprocess invocation, and restored state through
+[conformance/support/pairs.go](../conformance/support/pairs.go). No pair is
+skipped in short or race mode.
+
 Many `internal` functions take callbacks or hook fields
 (`projectrun.Runner`, `run.BatchLaneCallbacks`, `run.OriginResults`, `server.Operations`). This is
 how `cmd/rotari` supplies file access and output without the internal package

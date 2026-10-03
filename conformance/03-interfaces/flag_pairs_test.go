@@ -1,13 +1,9 @@
 package interfaces
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"reflect"
 	"slices"
 	"sort"
@@ -17,50 +13,6 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
-
-type pairFlag struct {
-	Name      string   `json:"name"`
-	ValueName string   `json:"value_name"`
-	Values    []string `json:"values"`
-}
-
-type pairCommand struct {
-	Name  string     `json:"name"`
-	Flags []pairFlag `json:"flags"`
-}
-
-type flagPair struct{ a, b pairFlag }
-
-// One execution classification shared by the inventory and runners. Missing
-// adapters are deferred explicitly rather than counted as passing tests.
-func pairAdapter(command string) string {
-	switch command {
-	case "show", "jobs", "check", "lineage":
-		return "read"
-	case "config", "export":
-		return "file"
-	case "remove", "reset", "delete":
-		return "mutation"
-	case "add", "change", "copy", "import":
-		return "edit"
-	case "run", "retry":
-		return "preview"
-	case "unlock":
-		return "control"
-	default:
-		return ""
-	}
-}
-
-func commandFlagPairs(c pairCommand) []flagPair {
-	var pairs []flagPair
-	for i, a := range c.Flags {
-		for _, b := range c.Flags[i+1:] {
-			pairs = append(pairs, flagPair{a, b})
-		}
-	}
-	return pairs
-}
 
 // Deferred commands remain visible, and a schema change requires an explicit
 // coverage review. The fingerprint is of sorted flag names, not implementation.
@@ -100,25 +52,6 @@ var pairInventory = map[string]struct {
 	"env":        {0, "e3b0c44298fc1c14"},
 }
 
-func readPairSchema(t *testing.T, e *support.Env) []pairCommand {
-	t.Helper()
-	var schema struct {
-		Version  int           `json:"version"`
-		Commands []pairCommand `json:"commands"`
-	}
-	if err := json.Unmarshal([]byte(e.MustRotari("schema", "--json").Stdout), &schema); err != nil {
-		t.Fatal(err)
-	}
-	if schema.Version != 1 || len(schema.Commands) == 0 {
-		t.Fatalf("unsupported/empty schema: %+v", schema)
-	}
-	sort.Slice(schema.Commands, func(i, j int) bool { return schema.Commands[i].Name < schema.Commands[j].Name })
-	for i := range schema.Commands {
-		sort.Slice(schema.Commands[i].Flags, func(a, b int) bool { return schema.Commands[i].Flags[a].Name < schema.Commands[i].Flags[b].Name })
-	}
-	return schema.Commands
-}
-
 func TestCLIFlagPairInventory(t *testing.T) {
 	e := support.NewEnv(t)
 	commands := readPairSchema(t, e)
@@ -153,130 +86,6 @@ func TestCLIFlagPairInventory(t *testing.T) {
 	t.Logf("pairs: generated=%d executable=%d deferred=%d", total, executable, total-executable)
 }
 
-type pairFixture struct {
-	e                                *support.Env
-	project, run, bad, array, config string
-	jobs                             []string
-}
-
-func newPairFixture(t *testing.T) pairFixture {
-	t.Helper()
-	e := support.NewEnv(t).WithVar("ROTARI_PROJECT_NAME", "pairs").WithVar("NO_COLOR", "1")
-	f := pairFixture{e: e, project: "pairs", config: filepath.Join(e.Root, "pairs.yaml")}
-	if err := os.WriteFile(f.config, []byte("{}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	add := func(name string, args ...string) string {
-		return support.AddedJobID(t, e.MustRotari(append([]string{"add", "--job-name", name}, args...)...))
-	}
-	add("ok", "--stage", "setup", "--", "sh", "-c", "echo ok; echo ok-error >&2")
-	f.bad = add("bad", "--stage", "training", "--", "sh", "-c", "echo bad; echo bad-error >&2; exit 3")
-	f.array = add("array", "--stage", "evaluation", "--array", "1-3", "--", "sh", "-c", `echo task-$ROTARI_ARRAY_TASK_ID; case "$ROTARI_ARRAY_TASK_ID" in 2) exit 7;; 3) exit 9;; esac`)
-	e.MustRotari("add", "--job-name", "train", "--matrix", "SEED=1,2", "--stage", "training", "--", "sh", "-c", `echo seed-$SEED; test "$SEED" = 1`)
-	r := e.Rotari("run", "--quiet")
-	if r.Code != 1 {
-		t.Fatalf("fixture should have failed jobs: %s", r)
-	}
-	var shown struct {
-		RunID   string `json:"run_id"`
-		Summary struct {
-			Results []struct {
-				ID string `json:"id"`
-			} `json:"results"`
-		} `json:"summary"`
-	}
-	if err := json.Unmarshal([]byte(e.MustRotari("show", "--json").Stdout), &shown); err != nil {
-		t.Fatal(err)
-	}
-	f.run = shown.RunID
-	for _, r := range shown.Summary.Results {
-		f.jobs = append(f.jobs, r.ID)
-	}
-	if f.run == "" || len(f.jobs) != 7 {
-		t.Fatalf("incomplete fixture: %+v", shown)
-	}
-	return f
-}
-
-func (f pairFixture) sample(t *testing.T, flag pairFlag) []string {
-	t.Helper()
-	values := map[string]string{
-		"config": f.config, "basedir": f.e.Base, "project-name": f.project,
-		"masterdir": f.e.Master, "run-id": f.run, "job-id": f.bad, "job-name": "bad",
-		"stage": "training", "filter-stage": "training", "matrix": "train", "filter-matrix": "train",
-		"filter-not-stage": "setup", "filter-not-matrix": "train", "filter-command": "exit 3",
-		"filter-exit-code": "7", "filter-failure-kind": "error", "filter-result": "failed",
-		"filter-diagnosis": "CUDA/GPU memory exhausted", "filter-host": "*", "filter-started-after": "2000-01-01T00:00:00Z",
-		"filter-started-before": "2000-01-01T00:00:00Z", "filter-finished-after": "2000-01-01T00:00:00Z",
-		"filter-finished-before": "2000-01-01T00:00:00Z", "filter-longer-than": "1h", "filter-shorter-than": "1h",
-		"stream": "stderr", "format": "%a %n", "since": "7d",
-	}
-	if flag.ValueName == "" {
-		return []string{"--" + flag.Name + "=true"}
-	}
-	value, ok := values[flag.Name]
-	if !ok {
-		t.Fatalf("no valid sample for --%s", flag.Name)
-	}
-	if len(flag.Values) > 0 {
-		valid := false
-		for _, v := range flag.Values {
-			valid = valid || value == v
-		}
-		if !valid {
-			t.Fatalf("sample %q not in --%s values %q", value, flag.Name, flag.Values)
-		}
-	}
-	return []string{"--" + flag.Name, value}
-}
-
-// Adapters own isolation and restoration for mutating commands. Finished runs
-// ensure --follow exits; the deadline is a failure bound, never an expected result.
-func pairInvoke(t *testing.T, e *support.Env, args ...string) support.Result {
-	t.Helper()
-	var stdout, stderr bytes.Buffer
-	cmd := e.Command(args...)
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
-	timer := time.NewTimer(5 * time.Second)
-	defer timer.Stop()
-	var err error
-	select {
-	case err = <-done:
-	case <-timer.C:
-		_ = cmd.Process.Kill()
-		<-done
-		t.Fatalf("timeout: rotari %q\nstdout: %s\nstderr: %s", args, stdout.String(), stderr.String())
-	}
-	code := 0
-	if exit, ok := err.(*exec.ExitError); ok {
-		code = exit.ExitCode()
-	} else if err != nil {
-		t.Fatal(err)
-	}
-	return support.Result{Args: args, Code: code, Stdout: stdout.String(), Stderr: stderr.String()}
-}
-
-func assertPairOutcome(t *testing.T, r support.Result) {
-	t.Helper()
-	if strings.Contains(r.Stderr, "panic:") || strings.Contains(r.Stderr, "fatal error:") || strings.Contains(r.Stderr, "internal error") {
-		t.Fatalf("internal failure: %s", r)
-	}
-	if r.Code == 0 {
-		return
-	}
-	// Recognize only diagnosed option incompatibility, not arbitrary exit 1.
-	text := r.Stderr
-	if r.Code != 1 || (!strings.Contains(text, "cannot be combined") && !strings.Contains(text, "requires --") && !strings.Contains(text, "filter the job table") &&
-		!strings.Contains(text, "--stream requires a job log") && !strings.Contains(text, "--filter-changed and --filter-new apply to the queue view")) {
-		t.Fatalf("unclassified failure (not a usage rejection): %s", r)
-	}
-}
-
 func TestCLIFlagPairs(t *testing.T) {
 	start := time.Now()
 	f := newPairFixture(t)
@@ -291,8 +100,8 @@ func TestCLIFlagPairs(t *testing.T) {
 		}
 		t.Run(c.Name, func(t *testing.T) {
 			for _, pair := range commandFlagPairs(c) {
-				t.Run(pair.a.Name+"+"+pair.b.Name, func(t *testing.T) {
-					aArgs, bArgs := f.sample(t, pair.a), f.sample(t, pair.b)
+				t.Run(pair.A.Name+"+"+pair.B.Name, func(t *testing.T) {
+					aArgs, bArgs := f.sample(t, pair.A), f.sample(t, pair.B)
 					ab := pairInvoke(t, f.e, append(append(pairReadBase(c.Name, f), aArgs...), bArgs...)...)
 					ba := pairInvoke(t, f.e, append(append(pairReadBase(c.Name, f), bArgs...), aArgs...)...)
 					invocations += 2
