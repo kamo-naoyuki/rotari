@@ -181,7 +181,28 @@ func (dispatcher *Dispatcher) Start(jobs []model.JobSpec, done func(model.JobRes
 	}
 }
 
+// cancelledBeforeStart reports the result of a job that is not submitted: one
+// that a cancel reached while it waited, which records a cancelled result
+// and never starts, or one whose job directory is invalid. Every path that
+// submits jobs checks it first.
+func (dispatcher *Dispatcher) cancelledBeforeStart(job model.JobSpec) (model.JobResult, bool) {
+	callbacks := dispatcher.options.Callbacks
+	jobDir, err := callbacks.ValidatedJobDir(dispatcher.runDir, job.ID)
+	if err != nil {
+		return model.JobResult{ID: job.ID, AttemptID: job.AttemptID, Command: job.Command, ExitCode: 1, Error: err.Error()}, true
+	}
+	if !callbacks.JobCancelled(jobDir) {
+		return model.JobResult{}, false
+	}
+	result := callbacks.RecordCancelled(jobDir, job)
+	result.AttemptID = job.AttemptID
+	return result, true
+}
+
 func (dispatcher *Dispatcher) runLocal(selected *lane, job model.JobSpec, submitted func()) model.JobResult {
+	if result, stopped := dispatcher.cancelledBeforeStart(job); stopped {
+		return result
+	}
 	var result model.JobResult
 	handle, err := selected.executor.Submit(dispatcher.runDir, job, nil)
 	submitted()
@@ -240,6 +261,28 @@ func (dispatcher *Dispatcher) jobOptions(selected *lane, job model.JobSpec) []st
 // runArray submits tasks as one native array. Like before, an array does not
 // take concurrency slots; the scheduler limits its tasks.
 func (dispatcher *Dispatcher) runArray(selected *lane, tasks []model.JobSpec, done func(model.JobResult)) {
+	// Cancelled tasks are left out of the native array. The rest are
+	// submitted one by one if the array they leave cannot be submitted.
+	remaining := tasks[:0:0]
+	for _, task := range tasks {
+		if result, stopped := dispatcher.cancelledBeforeStart(task); stopped {
+			dispatcher.logFailure(result)
+			done(result)
+			continue
+		}
+		remaining = append(remaining, task)
+	}
+	if len(remaining) == 0 {
+		return
+	}
+	if len(remaining) < len(tasks) && !dispatcher.canSubmitArray(selected, remaining) {
+		for _, job := range remaining {
+			job := job
+			selected.enqueue(func(submitted func()) model.JobResult { return dispatcher.runBatchJob(selected, job, submitted) }, done)
+		}
+		return
+	}
+	tasks = remaining
 	submitter := selected.executor.(executor.ArraySubmitter)
 	handles, err := submitter.SubmitArray(dispatcher.runDir, tasks, dispatcher.jobOptions(selected, tasks[0]))
 	if err != nil {
@@ -275,13 +318,8 @@ func (dispatcher *Dispatcher) runBatchJob(selected *lane, job model.JobSpec, sub
 }
 
 func (dispatcher *Dispatcher) submitAndWait(selected *lane, job model.JobSpec, submitted func()) model.JobResult {
-	callbacks := dispatcher.options.Callbacks
-	jobDir, err := callbacks.ValidatedJobDir(dispatcher.runDir, job.ID)
-	if err != nil {
-		return model.JobResult{ID: job.ID, Command: job.Command, ExitCode: 1, Error: err.Error()}
-	}
-	if callbacks.JobCancelled(jobDir) {
-		return callbacks.RecordCancelled(jobDir, job)
+	if result, stopped := dispatcher.cancelledBeforeStart(job); stopped {
+		return result
 	}
 	handle, err := selected.executor.Submit(dispatcher.runDir, job, dispatcher.jobOptions(selected, job))
 	submitted()

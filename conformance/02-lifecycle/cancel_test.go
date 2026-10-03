@@ -3,6 +3,8 @@ package lifecycle
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -168,5 +170,42 @@ func TestCancelledJobsReadAsCancelled(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestCancelledPendingJobNeverStarts cancels a job that waits for another,
+// then the job it waits for, and checks that the waiting job never ran and
+// records a cancelled result.
+func TestCancelledPendingJobNeverStarts(t *testing.T) {
+	covers(t, "CAN-6")
+	e := support.NewEnv(t)
+	marker := filepath.Join(e.Root, "after-ran")
+	slow := support.AddedJobID(t, e.MustRotari("add", "-p", "pending", "--job-name", "slow", "--", "sleep", "30"))
+	after := support.AddedJobID(t, e.MustRotari("add", "-p", "pending", "--job-name", "after", "--depends-on-finished", "slow", "--", "touch", marker))
+	e.MustRotari("run", "-p", "pending", "--async", "--quiet")
+	support.WaitUntil(t, 15*time.Second, func() (bool, string) {
+		return support.JobProcesses(t, e.Root, slow) == 1, "the slow job did not start"
+	})
+	e.MustRotari("cancel", "-p", "pending", after)
+	e.MustRotari("cancel", "-p", "pending", slow)
+	e.Rotari("wait", "-p", "pending", "--timeout", "30s")
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("the cancelled pending job ran")
+	}
+	var shown struct {
+		Summary struct {
+			Results []struct {
+				ID    string `json:"id"`
+				Error string `json:"error"`
+			} `json:"results"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "pending", "--json").Stdout), &shown); err != nil {
+		t.Fatal(err)
+	}
+	for _, result := range shown.Summary.Results {
+		if result.ID == after && !strings.Contains(result.Error, "cancelled") {
+			t.Fatalf("the cancelled pending job's result: %+v", result)
+		}
 	}
 }

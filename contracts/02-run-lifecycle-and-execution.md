@@ -414,6 +414,15 @@ the request, on the host that owns the run.
   [internal/projectrun/execute.go](../internal/projectrun/execute.go); covered
   by `TestCancelledJobsReadAsCancelled` in
   [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle/cancel_test.go).
+- **CAN-6** Cancelling a job that has not started yet, such as one waiting
+  for a dependency, keeps it from starting: when the run reaches it, the job
+  records a cancelled result instead of being submitted. Every path that
+  submits jobs checks this first: local jobs, scheduler jobs, and the tasks of
+  a native array, which is then submitted without them. Implemented once in
+  `Dispatcher.cancelledBeforeStart` in
+  [internal/run/dispatch.go](../internal/run/dispatch.go); covered by
+  `TestDispatcherNeverSubmitsACancelledJob` and `TestCancelledPendingJobNeverStarts` in
+  [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle/cancel_test.go).
 
 Whole-run and job cancel go through `jobcontrol.Controller`
 ([internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go)).

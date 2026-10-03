@@ -3,6 +3,7 @@ package run
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -19,6 +20,8 @@ type testExecutor struct {
 	array       bool
 	arrayCalls  int
 	options     [][]string
+	// submitted lists the IDs of the jobs submitted, alone or in arrays.
+	submitted []string
 }
 
 type settingsTestExecutor struct {
@@ -46,6 +49,7 @@ func (fake *testExecutor) Submit(_ string, job model.JobSpec, options []string) 
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
 	fake.options = append(fake.options, append([]string(nil), options...))
+	fake.submitted = append(fake.submitted, job.ID)
 	if fake.submitError != nil {
 		return executor.JobHandle{}, fake.submitError
 	}
@@ -62,6 +66,7 @@ func (fake *testExecutor) SubmitArray(_ string, jobs []model.JobSpec, options []
 	}
 	handles := make([]executor.JobHandle, 0, len(jobs))
 	for _, job := range jobs {
+		fake.submitted = append(fake.submitted, job.ID)
 		handles = append(handles, executor.JobHandle{Job: job, Native: job.ID})
 	}
 	return handles, nil
@@ -336,6 +341,66 @@ func TestDispatcherHandlesSubmissionAndCancellation(t *testing.T) {
 	byID := dispatchAll(t, dispatcher, []model.JobSpec{{ID: "failed-submit", Executor: "slurm"}, {ID: "cancelled", Executor: "slurm"}})
 	if byID["failed-submit"].Error != "submit failed" || byID["cancelled"].Error != "cancelled" {
 		t.Fatalf("results = %#v", byID)
+	}
+}
+
+// TestDispatcherNeverSubmitsACancelledJob cancels jobs before they are
+// dispatched on each path that submits jobs: a local job, a batch job, a
+// task of a native array, and a task whose cancellation leaves an array that
+// the scheduler cannot take whole. Only the other jobs are submitted, and
+// each cancelled one records its cancelled result with its attempt.
+func TestDispatcherNeverSubmitsACancelledJob(t *testing.T) {
+	task := func(id, first, last int) model.JobSpec {
+		return model.JobSpec{ID: fmt.Sprintf("array-%d", id), Executor: "slurm", AttemptID: fmt.Sprintf("att-array-%d", id), Command: []string{"run"},
+			ArrayGroup: "array", ArrayTaskID: intPointer(id), ArrayFirst: first, ArrayLast: last}
+	}
+	for _, test := range []struct {
+		name          string
+		sparse        bool
+		jobs          []model.JobSpec
+		want          []string
+		wantArrayCall bool
+	}{
+		{"local", false, []model.JobSpec{
+			{ID: "cancelled", Executor: "local", AttemptID: "att-cancelled", Command: []string{"true"}},
+			{ID: "kept", Executor: "local", AttemptID: "att-kept", Command: []string{"true"}},
+		}, []string{"kept"}, false},
+		{"batch", false, []model.JobSpec{
+			{ID: "cancelled", Executor: "slurm", AttemptID: "att-cancelled", Command: []string{"run"}},
+			{ID: "kept", Executor: "slurm", AttemptID: "att-kept", Command: []string{"run"}},
+		}, []string{"kept"}, false},
+		{"array, sparse arrays supported", true, []model.JobSpec{task(1, 1, 3), task(2, 1, 3), task(3, 1, 3)}, []string{"array-1", "array-3"}, true},
+		{"array, no sparse arrays", false, []model.JobSpec{task(1, 1, 3), task(2, 1, 3), task(3, 1, 3)}, []string{"array-1", "array-3"}, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fake := &testExecutor{name: "fake", array: test.sparse}
+			callbacks := BatchLaneCallbacks{
+				ValidatedJobDir: func(_, jobID string) (string, error) { return "/job/" + jobID, nil },
+				JobCancelled:    func(jobDir string) bool { return jobDir == "/job/cancelled" || jobDir == "/job/array-2" },
+				RecordCancelled: func(_ string, job model.JobSpec) model.JobResult {
+					return model.JobResult{ID: job.ID, ExitCode: 130, Error: "cancelled"}
+				},
+			}
+			dispatcher := NewDispatcher("/runs/run-1", model.Queue{}, DispatchOptions{
+				LocalConcurrency: 2, BatchMaxActive: 2, ResolveExecutor: func(string) (executor.JobExecutor, bool) { return fake, true }, Callbacks: callbacks,
+			}, nil)
+			byID := dispatchAll(t, dispatcher, test.jobs)
+			fake.mu.Lock()
+			submitted := append([]string(nil), fake.submitted...)
+			arrayCalls := fake.arrayCalls
+			fake.mu.Unlock()
+			sort.Strings(submitted)
+			if strings.Join(submitted, ",") != strings.Join(test.want, ",") || (arrayCalls > 0) != test.wantArrayCall {
+				t.Fatalf("submitted %v with %d array calls, want %v", submitted, arrayCalls, test.want)
+			}
+			for _, job := range test.jobs {
+				result := byID[job.ID]
+				cancelled := job.ID == "cancelled" || job.ID == "array-2"
+				if (result.Error == "cancelled") != cancelled || result.AttemptID != job.AttemptID {
+					t.Errorf("%s: result %+v", job.ID, result)
+				}
+			}
+		})
 	}
 }
 
