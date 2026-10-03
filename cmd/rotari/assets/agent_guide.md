@@ -24,14 +24,15 @@ successful results are carried forward.
   - `rotari import --dry-run FILE` previews which jobs a manifest executes,
     reuses, or accepts without writing the queue.
   - `rotari schema --json` lists every command and flag.
-- Prefer machine-readable output: `show --json`, `check --json`,
-  `wait --json`, and `import --dry-run --json`.
+- Read the default text output. `--json` is for programs such as the Python
+  client: it prints every job's full result, including passed and carried
+  ones, so it grows with the run.
 - Preview before changing state, then apply exactly what you previewed:
   `add`, `change`, `copy`, `delete`, `import`, `remove`, `reset`, `run`, and
   `retry` take `--dry-run`,
   which prints the change and `revision=REVISION` without writing, and
   `--if-revision REVISION`, which applies only if nothing changed the project
-  since. `rotari check --json` also reports the revision.
+  since. `rotari check` also prints the revision.
 - Do not rely on prompts. `copy` into a non-empty queue needs `--append` or
   `--overwrite`, and `run --run-id` into a non-empty queue needs
   `--overwrite`.
@@ -54,7 +55,7 @@ successful results are carried forward.
 rotari add -p sweep --job-name train --matrix LR=0.1,0.01 -- python train.py
 rotari check sweep
 rotari run -p sweep --async
-rotari wait sweep --json
+rotari wait sweep
 # Failures grouped by cause; take RUN_ID from the wait output:
 rotari lineage RUN_ID
 # One job's evidence, taking ATTEMPT_ID from the cause's "show:" line:
@@ -65,14 +66,14 @@ rotari show -j ATTEMPT_ID --report
 # empty queue:
 rotari retry -p sweep --dry-run
 rotari retry -p sweep --async --if-revision REVISION
-rotari wait sweep --json
+rotari wait sweep
 # What the retry fixed, what still fails, and whether the cause changed:
 rotari lineage RUN_ID NEW_RUN_ID
 ```
 
 To edit many jobs at once, export a run as a manifest, edit it, preview the
-import, then import and run it. Take `RUN_ID` from `wait --json` or
-`show --json`:
+import, then import and run it. Take `RUN_ID` from the `Run:` line of
+`wait`, or from `show -p sweep`:
 
 ```sh
 rotari export -p sweep -r RUN_ID > experiment.yaml
