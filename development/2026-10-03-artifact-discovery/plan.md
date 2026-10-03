@@ -128,9 +128,9 @@ Apply exclusions before ordinary positive rules:
   Unsupported application-specific interpolation is not evaluated.
 - **PATH-X3:** exclude known special sinks such as `/dev/null`. Do not require
   an existence check to identify ordinary references or infer regular-file type.
-- **PATH-X4:** for a recognized interpreter invocation, wherever it appears in
-  the argument list, exclude the complete code operand from ordinary
-  classification. A code operand is
+- **PATH-X4:** for a recognized interpreter invocation at the command position
+  or behind a recognized launcher, exclude the complete code operand from
+  ordinary classification. A code operand is
   not one path even if its source text contains slashes or filename suffixes.
   Shell `-c` bodies are inspected only by shell inspection (section 3); bodies
   for other languages are opaque and are not inspected.
@@ -197,10 +197,13 @@ paths and use existence to make an ambiguous interpretation appear certain.
 
 #### Recognizing code-bearing interpreter invocations (PATH-X4)
 
-The recognizer looks for a listed interpreter followed by its code option, at any
-position in the argument list, so a launcher in front does not hide it. It does
-not need a list of wrappers. Match executable basenames case-insensitively, so
-`/bin/bash` and `bash` are equivalent. Use this closed initial list:
+Do not search arbitrary argument values for interpreter-looking words. Start at
+the command position: argv[0] for a direct command, or the command position
+identified by one of the recognized launchers below. This avoids treating
+`echo bash -c output.csv` or an option value such as `--engine python` as a
+nested interpreter invocation. Match executable basenames case-insensitively,
+so `/bin/bash` and `bash` are equivalent. Use this closed initial list of
+interpreters:
 
 | Executable basename | Code option | Options that take a separate value |
 | --- | --- | --- |
@@ -209,40 +212,65 @@ not need a list of wrappers. Match executable basenames case-insensitively, so
 | `perl` | Exactly `-e` | none |
 | `node` | `-e` or `--eval` | none |
 
-For each argument whose basename is a listed interpreter, read the options that
-follow it: elements starting with `-` (or `+` for shells), each listed
-value-taking option consuming one more element. Stop at the first other element,
-because that is the interpreter's script or operand; a `-c` after `train.py`
-belongs to the script, not to the interpreter. If a code option appears among
-those options, the element right after it is the code operand and is excluded
-from classification. Arguments after the code operand remain eligible (for
-`bash -c CODE NAME ARG...` they are positional parameters).
+For each interpreter, parse options after its command word according to that
+interpreter's option grammar. Options may appear before the code option; options
+that consume a separate value consume exactly that next element. Stop at the
+first script/positional operand or `--`; a later `-c`/`-e` belongs to the script,
+not the interpreter. If a code option appears before that boundary, its next
+element is the code operand and is excluded from ordinary classification.
+Arguments after the code operand remain eligible (for `bash -c CODE NAME ARG...`
+they are positional parameters). Attached code operands such as `python -cCODE`
+are unsupported initially.
+
+#### Recognized launchers
+
+Walk inward only through this small explicit launcher table. Each parser must
+identify the next command's exact argv boundary; do not scan the remaining words
+for an interpreter name. Match launcher basenames case-insensitively. Nested
+recognized launchers may be followed, with a maximum depth of four; an unknown
+launcher or unsupported option form ends PATH-X4 inspection without examining
+its remaining arguments as commands.
+
+| Launcher | Initially accepted prefix before the wrapped command | Examples |
+| --- | --- | --- |
+| `env` | Zero or more literal `NAME=value` assignments; env options such as `-i`, `-u`, and `-S` are not supported initially | `env A=1 python -c CODE` |
+| `timeout` | `--foreground`, `--preserve-status`, `--verbose`; `-s VALUE`/`--signal VALUE`; `-k VALUE`/`--kill-after VALUE`; then the required duration and wrapped command | `timeout 1h bash -c CODE`; `timeout -s TERM -k 5s 1h python -c CODE` |
+| `srun` | No-option form; `--name=value` options; and the listed boolean flags `--pty`, `--unbuffered`, `--label`, `--overlap`, `--exclusive`. Separate-value options are limited to `-n`/`--ntasks`, `-c`/`--cpus-per-task`, `-p`/`--partition`, `-t`/`--time`, `-o`/`--output`, `-e`/`--error`, `-J`/`--job-name`, and `-A`/`--account` | `srun python train.py`; `srun --ntasks=2 python -c CODE`; `srun -n 2 python -c CODE` |
+
+Examples that define the boundary:
 
 | Argument list | Code operand | Candidates from ordinary classification |
 | --- | --- | --- |
 | `bash -c "python train.py > out/log.txt"` | the quoted string | none |
 | `bash -l -c "..."`, `bash -o pipefail -c "..."` | the quoted string | none |
-| `timeout 1h bash -c "..."` | the quoted string | none (a launcher does not hide it) |
+| `timeout 1h bash -c "..."` | the quoted string | none |
 | `env A=1 python3.12 -c "open('out/a.txt')"` | the quoted string | none |
 | `srun python train.py --out results/model.pt` | none | `train.py`, `results/model.pt` |
+| `srun --ntasks 2 python -c CODE` | `CODE` | none |
 | `python train.py -c config.yaml` | none: `-c` follows the script | `train.py`, `config.yaml` |
 | `cat bash` | none: no code option | as usual |
 
-When a match is wrong, the cost is one skipped value. Unmatched forms
-(`python -cCODE`, an unlisted option that takes a value before the code option)
-fall back to ordinary classification; add them only with positive and negative
-fixtures. Never infer that a string is code just because it contains shell syntax.
+| `echo bash -c output.csv` | none | `output.csv` remains subject to ordinary classification |
+| `python train.py --engine python -c config.yaml` | none: the inner `python` is an option value, not a command | `train.py`, `config.yaml` remain eligible |
+
+An unsupported option or launcher form is not searched through. Its remaining
+arguments stay ordinary argv values; the result may miss a code body as an
+artifact candidate, but it will not suppress a value based only on an
+interpreter-looking word. Add launcher forms only with accepted and rejected
+command examples. Never infer that a string is code just because it contains
+shell syntax.
 
 If the interpreter is a listed shell, pass the code operand to shell inspection
 (section 3) instead of classifying it; the parser then finds literal command
 arguments and PATH-R1 redirections without executing anything. For Python, Perl,
 and Node, the operand is opaque and is not parsed.
 
-Implement the recognizer once, on a list of literal words, and call it from both
-argv extraction and shell inspection. Inside a shell script,
-`python -c "open('out/a.txt')"` and `timeout 1h bash -c '...'` are the same
-problem as in argv. Whether a shell `-c` body found inside shell source is
-inspected recursively, and to what depth, is decided with the shell parser.
+Implement the recognizer once, on a command plus its literal argument words, and
+call it from both argv extraction and shell inspection. Inside a shell script,
+`python -c "open('out/a.txt')"` and `timeout 1h bash -c '...'` follow the same
+direct-command/recognized-launcher rules as argv. Whether a shell `-c` body
+found inside shell source is inspected recursively, and to what depth, is
+decided with the shell parser.
 
 #### Job log destinations (PATH-D1)
 
@@ -464,9 +492,11 @@ related implementation commits exist, following [development tracking rules](../
   standalone and equals-style values, duplicate references, extensionless names,
   URLs, numeric values, expressions, nonexistent paths, interpreter code bodies
   (`bash -c`/`-lc`, options and value-taking options before the code option,
-  versioned `python3.N -c`, `perl -e`, `node --eval`, a launcher or `env` in
-  front, `-c` after the script such as `python train.py -c config.yaml`, and the
-  same recognizer applied to words parsed from shell source), environment
+  versioned `python3.N -c`, `perl -e`, `node --eval`, recognized `env`/`timeout`/
+  `srun` launcher forms, unsupported launcher forms, `-c` after the script such
+  as `python train.py -c config.yaml`, interpreter-looking words in ordinary
+  arguments such as `echo bash -c output.csv`, positional args after `-c`, and
+  the same recognizer applied to words parsed from shell source), environment
   entries, and the known false positives.
 - Log-destination tests: relative and absolute `Output`/`Error` for each executor,
   resolved on the same base the executor opens them on.
