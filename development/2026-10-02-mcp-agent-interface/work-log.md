@@ -428,3 +428,34 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 **Remaining:**
 - Output sizes of import plans, comparisons, and tool schemas.
 - The destructive rest of M7.
+
+## Summarized MCP import plans and comparisons
+
+**Commits:** 2026-10-03 11:09:27 `7922a08`.
+
+**Change:**
+- Added `workflowstate.Plan.Summary`, which keeps each job's status, counts an array's tasks by status, and counts statuses over the plan. It drops commands and source attempts.
+- `rotari_preview_import` and `rotari_import` return the summary. `detail` adds the full plan.
+- Added `runlineage.JobDiff.Notable`: the rule for which jobs a comparison lists, which `rotari lineage` used inline. `rotari_compare_runs` lists only notable jobs and reports the rest in `hidden_unchanged`; `all_jobs` lists every job.
+- Updated `docs/MCP.md`.
+
+**Reason:** the [M6 trial](agent-trial-2026-10-03-m6.md) found that import results and comparisons grew with the number of jobs. The user agreed to trim them.
+
+**Plan impact:**
+- Import results fell from 3.3 KB to 401 B. The trial's comparison fell only from 4.0 KB to 3.7 KB, because its array tasks all carry a definition change.
+- Measured the model-facing size of the tool definitions: 7.4 KB of 23.3 KB. This corrects the earlier claim that schemas are the largest fixed cost; output schemas were left as they are.
+- The rest of M7 is next, with the user's go-ahead.
+
+**Validation:**
+- New tests: `TestPlanSummaryCountsTasksInsteadOfTheirArray`, `TestNotableListsChangedResultsAndDefinitions`, `TestCompareRunsCountsUnchangedJobsUnlessAllAreAsked`, and a `detail` check in `TestImportToolsPreviewThenApplyAtTheRevision`.
+- `go vet ./...` passed.
+- `scripts/check.sh` and `go test ./conformance/...` failed only in `TestCLIFlagPairEdits` and `TestCLIFlagPairEditSamples`:
+  - Both come from another thread's uncommitted edits to `conformance/03-interfaces/flag_pair_*`.
+  - `TestCLIFlagPairEdits` fails the same way at `cc8ca55` without this change, with only those files copied into a worktree.
+  - The rest of `conformance/03-interfaces` (run with `-skip 'TestCLIFlagPairEdit'`) passed, as did the other conformance packages, `internal/archtest`, and `internal/doclinks`.
+- A fresh trial pass on `7922a08` gave the sizes above.
+
+**Remaining:**
+- Failure groups name every member.
+- Comparisons repeat a definition change per array task.
+- The destructive rest of M7.

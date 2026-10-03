@@ -69,4 +69,16 @@ The basedir registration (`c24dc25`) and `rotari_wait_run` (`cc8ca55`) followed 
 
 - `rotari_wait_run` returned once, after the run settled. It used 1 call and 1.4 KB, where polling took 31 calls and 7.2 KB.
 - The other calls and sizes were as above. The task took 10 tool calls and about 17 KB of results.
-- `tools/list` grew to 20.6 KB for eleven tools, which makes schema size the largest fixed cost of a session.
+- `tools/list` grew to 20.6 KB for eleven tools. Most of it is output schemas, which MCP clients generally do not pass to the model; see the next section.
+
+## After summarizing outputs (`7922a08`)
+
+The import tools now return a summary of the plan, and `rotari_compare_runs` counts the jobs that did not change instead of listing them. A fresh pass on `7922a08`:
+
+- `rotari_preview_import` and `rotari_import` returned 401 B each, down from 3.3 KB.
+- `rotari_compare_runs` returned 3.7 KB, down from 4.0 KB. Only `prep` and `eval-splitval` were hidden. The 12 training tasks all carry the timeout change, so they remain listed, each repeating the same change.
+- Including that change, the write scenario now took about 11.4 KB of results.
+- Of the 23.3 KB `tools/list`, the part a model sees (names, descriptions, and input schemas) is 7.4 KB. The 14.8 KB of output schemas are for clients that validate results; trimming them would not shorten a model's context. The earlier note that schemas are the largest fixed cost overstated it.
+- Still large:
+  - `rotari_run_summary` on labC's 84 failures (7.3 KB) names every failed task in its groups.
+  - The comparison repeats one definition change per array task.
