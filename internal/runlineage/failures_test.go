@@ -130,3 +130,21 @@ func TestCompareReportsFailureCauses(t *testing.T) {
 		t.Fatalf("summary = %+v, want 2 still failing with 1 changed cause", result.Summary)
 	}
 }
+
+func TestLimitMembersKeepsTheFirstJobsAndCountsTheRest(t *testing.T) {
+	members := func(n int) []FailureMember {
+		jobs := make([]FailureMember, n)
+		for index := range jobs {
+			jobs[index] = FailureMember{ID: fmt.Sprintf("job-%d", index)}
+		}
+		return jobs
+	}
+	groups := []FailureGroup{{Count: 12, Jobs: members(12)}, {Count: 3, Jobs: members(3)}}
+	LimitMembers(groups, 10)
+	if len(groups[0].Jobs) != 10 || groups[0].JobsOmitted != 2 || groups[0].Jobs[9].ID != "job-9" || groups[0].Count != 12 {
+		t.Errorf("large group = %d jobs, %d omitted, count %d", len(groups[0].Jobs), groups[0].JobsOmitted, groups[0].Count)
+	}
+	if len(groups[1].Jobs) != 3 || groups[1].JobsOmitted != 0 {
+		t.Errorf("small group = %d jobs, %d omitted", len(groups[1].Jobs), groups[1].JobsOmitted)
+	}
+}

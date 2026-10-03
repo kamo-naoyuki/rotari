@@ -20,6 +20,7 @@ type WaitRunInput struct {
 	RunID          string `json:"run_id" jsonschema:"exact run ID, such as rotari_start_run returns"`
 	TimeoutSeconds int    `json:"timeout_seconds,omitempty" jsonschema:"how long to wait, 1 to 300 seconds; default 30. Call again to keep waiting."`
 	UntilFailure   bool   `json:"until_failure,omitempty" jsonschema:"also return as soon as a job has failed with no retry left, as rotari wait --until-failure does"`
+	AllJobs        bool   `json:"all_jobs,omitempty" jsonschema:"list every job of each failure group, as rotari_run_summary does with all_jobs"`
 }
 
 type WaitRunOutput struct {
@@ -64,7 +65,7 @@ func waitRun(ctx context.Context, masterDir string, input WaitRunInput) (WaitRun
 			reason = "timeout"
 		}
 		if reason != "" {
-			summary, err := runSummary(masterDir, RunSummaryInput{RunID: location.RunID})
+			summary, err := runSummary(masterDir, RunSummaryInput{RunID: location.RunID, AllJobs: input.AllJobs})
 			return WaitRunOutput{RunSummaryOutput: summary, Reason: reason}, err
 		}
 		select {

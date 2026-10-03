@@ -24,6 +24,21 @@ type FailureGroup struct {
 	ExitCodes  []int           `json:"exit_codes"`
 	Example    FailureExample  `json:"example"`
 	Jobs       []FailureMember `json:"jobs"`
+	// JobsOmitted counts the members a presentation left out of Jobs; see
+	// LimitMembers.
+	JobsOmitted int `json:"jobs_omitted,omitempty"`
+}
+
+// LimitMembers keeps the first limit members of each group in Jobs and
+// counts the rest in JobsOmitted. Count, ExitCodes, and Example still
+// describe the whole group.
+func LimitMembers(groups []FailureGroup, limit int) {
+	for index := range groups {
+		if rest := len(groups[index].Jobs) - limit; rest > 0 {
+			groups[index].Jobs = groups[index].Jobs[:limit]
+			groups[index].JobsOmitted = rest
+		}
+	}
 }
 
 // FailureExample is the group's first job, with the line that shows its

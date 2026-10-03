@@ -54,7 +54,7 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_run_summary",
-		Description: "Summarize one run: job counts, and failed and blocked jobs grouped by cause, each with its jobs, exit codes, an example evidence line, the attempt to inspect, and a suggested fix.",
+		Description: "Summarize one run: job counts, and failed and blocked jobs grouped by cause, each with up to 10 of its jobs (all_jobs lists all), exit codes, an example evidence line, the attempt to inspect, and a suggested fix.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
 	}, func(_ context.Context, input RunSummaryInput) (RunSummaryOutput, error) {
 		output, err := runSummary(masterDir, input)
@@ -85,7 +85,7 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_compare_runs",
-		Description: "Compare two runs of one project: which jobs were fixed, still fail, or newly fail, each run's failure cause and whether it changed, and which job definitions changed. Jobs that did not change are only counted unless all_jobs is set.",
+		Description: "Compare two runs of one project: which jobs were fixed, still fail, or newly fail, each run's failure cause and whether it changed, and which job definitions changed. Jobs that did not change are only counted, and at most 20 changed jobs are listed, unless all_jobs is set.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
 	}, func(_ context.Context, input CompareRunsInput) (CompareRunsOutput, error) {
 		output, err := compareRuns(masterDir, input)

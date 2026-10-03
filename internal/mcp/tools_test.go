@@ -2,9 +2,11 @@ package mcp
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -67,7 +69,7 @@ func (f toolFixture) writeRun(t *testing.T, baseDir, runID, startedAt string, re
 	}
 	summary := model.RunSummary{RunID: runID, Status: "finished"}
 	for index, result := range results {
-		result.ID = "tr-" + string(rune('1'+index))
+		result.ID = "tr-" + strconv.Itoa(index+1)
 		result.AttemptID = "att-" + runID + "-" + result.ID
 		if result.ExitCode != 0 {
 			summary.Status, summary.ExitCode = "failed", 1
@@ -242,5 +244,61 @@ func TestCheckProjectReportsReadinessWithoutPaths(t *testing.T) {
 				t.Fatalf("error reveals the basedir path: %v", err)
 			}
 		})
+	}
+}
+
+func TestLimitComparedJobsKeepsResultChangesFirstInOrder(t *testing.T) {
+	jobs := make([]runlineage.JobDiff, 0, 25)
+	for index := 0; index < 25; index++ {
+		job := runlineage.JobDiff{Name: fmt.Sprintf("job-%02d", index), Transition: runlineage.TransitionUnchanged, Changes: []runlineage.Change{{Field: "timeout"}}}
+		// Two results change beyond the limit, where they would be cut
+		// without their priority.
+		if index == 21 || index == 23 {
+			job.Transition = runlineage.TransitionFixed
+		}
+		jobs = append(jobs, job)
+	}
+	shown, hidden := limitComparedJobs(jobs, 20)
+	if len(shown) != 20 || hidden != 5 {
+		t.Fatalf("shown %d, hidden %d; want 20 and 5", len(shown), hidden)
+	}
+	fixed := 0
+	for index, job := range shown {
+		if job.Transition == runlineage.TransitionFixed {
+			fixed++
+		}
+		if index > 0 && shown[index-1].Name >= job.Name {
+			t.Fatalf("jobs out of order: %s before %s", shown[index-1].Name, job.Name)
+		}
+	}
+	if fixed != 2 || shown[17].Name != "job-17" || shown[19].Name != "job-23" {
+		t.Fatalf("kept %d fixed jobs, %s and %s at 17 and 19; want both fixed jobs after job-00 to job-17", fixed, shown[17].Name, shown[19].Name)
+	}
+	if shown, hidden := limitComparedJobs(jobs[:5], 20); len(shown) != 5 || hidden != 0 {
+		t.Fatalf("under the limit: shown %d, hidden %d", len(shown), hidden)
+	}
+}
+
+func TestRunSummaryListsTenJobsPerGroupUnlessAllAreAsked(t *testing.T) {
+	f := newToolFixture(t)
+	results := make([]model.JobResult, 12)
+	for index := range results {
+		results[index] = model.JobResult{ExitCode: 3}
+	}
+	many := "20260101-000000-eeeeeeee"
+	f.writeRun(t, f.secondBaseDir, many, "2026-01-01T00:00:02Z", results)
+	output, err := runSummary(f.masterDir, RunSummaryInput{RunID: many})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if group := output.Summary.Failures[0]; group.Count != 12 || len(group.Jobs) != 10 || group.JobsOmitted != 2 {
+		t.Fatalf("default group = count %d, %d jobs, %d omitted", group.Count, len(group.Jobs), group.JobsOmitted)
+	}
+	output, err = runSummary(f.masterDir, RunSummaryInput{RunID: many, AllJobs: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if group := output.Summary.Failures[0]; len(group.Jobs) != 12 || group.JobsOmitted != 0 {
+		t.Fatalf("all_jobs group = %d jobs, %d omitted", len(group.Jobs), group.JobsOmitted)
 	}
 }

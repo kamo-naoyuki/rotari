@@ -88,8 +88,13 @@ func stateName(runState project.RunState) string {
 	return "idle"
 }
 
+// failureMemberLimit is how many jobs of a failure group the summary lists
+// unless all_jobs is set.
+const failureMemberLimit = 10
+
 type RunSummaryInput struct {
-	RunID string `json:"run_id" jsonschema:"exact run ID"`
+	RunID   string `json:"run_id" jsonschema:"exact run ID"`
+	AllJobs bool   `json:"all_jobs,omitempty" jsonschema:"list every job of each failure group; by default the first 10, with the rest counted in jobs_omitted"`
 }
 
 type RunSummaryOutput struct {
@@ -124,6 +129,9 @@ func runSummary(masterDir string, input RunSummaryInput) (RunSummaryOutput, erro
 	for index := range summary.Failures {
 		summary.Failures[index].Example.Evidence = report.RedactPatterns(summary.Failures[index].Example.Evidence)
 	}
+	if !input.AllJobs {
+		runlineage.LimitMembers(summary.Failures, failureMemberLimit)
+	}
 	output.Summary = summary
 	return output, nil
 }
@@ -131,15 +139,22 @@ func runSummary(masterDir string, input RunSummaryInput) (RunSummaryOutput, erro
 type CompareRunsInput struct {
 	RunID         string `json:"run_id" jsonschema:"exact ID of the newer run"`
 	PreviousRunID string `json:"previous_run_id,omitempty" jsonschema:"exact ID of the older run of the same project; defaults to the run that started just before run_id"`
-	AllJobs       bool   `json:"all_jobs,omitempty" jsonschema:"list every job; by default jobs whose result and definition did not change are only counted in hidden_unchanged"`
+	AllJobs       bool   `json:"all_jobs,omitempty" jsonschema:"list every job; by default jobs whose result and definition did not change are only counted in hidden_unchanged, and beyond 20 listed jobs those whose only change is their definition are counted in hidden_changed"`
 }
+
+// comparisonJobLimit is how many changed jobs a comparison lists unless
+// all_jobs is set.
+const comparisonJobLimit = 20
 
 type CompareRunsOutput struct {
 	BaseDirRef string            `json:"basedir_ref"`
 	Project    string            `json:"project"`
 	Comparison runlineage.Result `json:"comparison"`
-	// HiddenUnchanged counts the jobs left out of Comparison.Jobs.
+	// HiddenUnchanged counts the unchanged jobs left out of Comparison.Jobs.
 	HiddenUnchanged int `json:"hidden_unchanged,omitempty"`
+	// HiddenChanged counts the jobs left out beyond the limit, whose only
+	// change is their definition.
+	HiddenChanged int `json:"hidden_changed,omitempty"`
 }
 
 // compareRuns compares two runs of one project as
@@ -181,9 +196,35 @@ func compareRuns(masterDir string, input CompareRunsInput) (CompareRunsOutput, e
 			}
 		}
 		output.HiddenUnchanged = len(output.Comparison.Jobs) - len(shown)
-		output.Comparison.Jobs = shown
+		output.Comparison.Jobs, output.HiddenChanged = limitComparedJobs(shown, comparisonJobLimit)
 	}
 	return output, nil
+}
+
+// limitComparedJobs keeps at most limit jobs in their order. Jobs whose
+// result changed are kept first; jobs whose only change is their definition
+// fill the rest, and the ones left out are counted.
+func limitComparedJobs(jobs []runlineage.JobDiff, limit int) ([]runlineage.JobDiff, int) {
+	if len(jobs) <= limit {
+		return jobs, 0
+	}
+	keep := make([]bool, len(jobs))
+	kept := 0
+	for _, resultChanged := range []bool{true, false} {
+		for index, job := range jobs {
+			if kept < limit && !keep[index] && (job.Transition != runlineage.TransitionUnchanged) == resultChanged {
+				keep[index] = true
+				kept++
+			}
+		}
+	}
+	shown := make([]runlineage.JobDiff, 0, kept)
+	for index, job := range jobs {
+		if keep[index] {
+			shown = append(shown, job)
+		}
+	}
+	return shown, len(jobs) - kept
 }
 
 type CheckProjectInput struct {
