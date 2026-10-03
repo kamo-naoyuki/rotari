@@ -134,16 +134,6 @@ var positionalCases = []positionalCase{
 	{name: "project other than the run's", args: "import -b {B} {T}/m.yaml other", setup: setupManifest, fail: true, want: `source project "sweep" does not match destination project "other"`},
 	{name: "project and option", args: "import -b {B} -p sweep {T}/m.yaml sweep", setup: setupManifest, fail: true, want: "usage"},
 
-	// diagnose: a job or attempt.
-	{name: "job ID", args: "diagnose -b {B} -p sweep --rules {job:train-SEED2}", want: "No known rule-based diagnosis"},
-	{name: "job ID in any project", args: "diagnose -b {B} --rules {job:train-SEED2}", want: "No known rule-based diagnosis"},
-	{name: "job name", args: "diagnose -b {B} --rules --job-name train-SEED2", want: "No known rule-based diagnosis"},
-	{name: "job name in a given run", args: "diagnose -b {B} -p sweep --run-id {run:sweep-first} --rules --job-name train-SEED2", want: "No known rule-based diagnosis"},
-	{name: "job name shared by projects", args: "diagnose -b {B} --rules --job-name prep", fail: true, want: "project=other run={run:other-first}"},
-	{name: "job name and ID", args: "diagnose -b {B} --rules --job-name prep {job:prep}", fail: true, want: "cannot be combined"},
-	{name: "attempt ID through registry", args: "diagnose --rules {att:train-SEED2/0}", want: "No known rule-based diagnosis"},
-	{name: "job ID and option", args: "diagnose -b {B} -p sweep --rules --job-id {job:train-SEED2} {job:train-SEED2}", fail: true, want: "usage"},
-
 	// gc: a master directory.
 	{name: "master directory", args: "gc {M}", want: "removed 0 orphan run registry entries"},
 	{name: "master directory and option", args: "gc --masterdir {M} {M}", fail: true, want: "usage"},
@@ -180,8 +170,6 @@ var positionalCases = []positionalCase{
 	{name: "complete run ID", args: "remove --run-id {run:remote-run} --all", want: "removed 1 job(s) from queue=remote"},
 	{name: "complete run ID", args: "delete {run:remote-run}", want: "cleared logs project=remote run={run:remote-run}"},
 	{name: "complete run ID", args: "lineage {run:sweep-second}", want: "Run: second ({run:sweep-second})"},
-	{name: "complete run ID", args: "diagnose --rules --run-id {run:sweep-first} --job-name train-SEED2", want: "No known rule-based diagnosis"},
-	{name: "complete attempt ID", args: "diagnose --rules {att:train-SEED2/0}", want: "No known rule-based diagnosis"},
 	{name: "complete run ID", args: "export {run:remote-run}", want: "- {run:remote-run}"},
 	{name: "complete run ID", args: "wait {run:remote-run}", want: "Run: remote ({run:remote-run})"},
 	{name: "complete run ID", args: "unlock --run-id {run:live}", setup: setupInterrupted, want: "recovered queue project=sweep run_id={run:live}"},

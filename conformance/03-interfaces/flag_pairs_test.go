@@ -36,7 +36,6 @@ var pairInventory = map[string]struct {
 	"show":       {39, "6ad0836313f8cf21"},
 	"lineage":    {4, "03f8539f8880af76"},
 	"jobs":       {7, "1e1d7aac6605a457"},
-	"diagnose":   {11, "35f246a94a4dc9c5"},
 	"wait":       {7, "9b5b3531f64908b2"},
 	"add":        {26, "a05e6b70ac64e066"},
 	"copy":       {32, "25806ce2d014cab0"},

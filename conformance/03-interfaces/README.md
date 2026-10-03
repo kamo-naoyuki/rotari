@@ -4,7 +4,7 @@ Conformance tests for [contracts/03-server-and-command-interfaces.md](../../cont
 belong here.
 
 The long flag-pair suites run in child packages [pairedits](pairedits/),
-[pairruns](pairruns/), [pairweb](pairweb/), [pairdiagnose](pairdiagnose/), and
+[pairruns](pairruns/), [pairweb](pairweb/), and
 [pairjobcontrol](pairjobcontrol/),
 sharing [support/pairs.go](../support/pairs.go).
 The contract-to-directory mapping stays at this group in

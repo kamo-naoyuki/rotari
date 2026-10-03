@@ -14,9 +14,9 @@ const (
 	// NoMatchNext follows a failure that no rule matched.
 	NoMatchNext = "Inspect the full job output and scheduler accounting for the failure details."
 	// UnavailableNext follows a diagnosis that could not read the output.
-	UnavailableNext = "Resolve the read error, then run rotari diagnose --rules."
+	UnavailableNext = "Resolve the read error, then inspect the full job output."
 	// OutdatedNote marks a diagnosis saved under earlier rules; see Outdated.
-	OutdatedNote = "Saved with earlier diagnosis rules; rotari diagnose --rules shows the result under the current rules."
+	OutdatedNote = "Saved with earlier diagnosis rules; --filter-diagnosis selects by the current rules."
 )
 
 // matcherRevision is part of RulesVersion. Bump it when Diagnose changes how

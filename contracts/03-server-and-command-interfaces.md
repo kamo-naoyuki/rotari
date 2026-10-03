@@ -222,12 +222,6 @@ follows:
   `--timeout`, whose explicit CLI value takes precedence over environment and
   configuration. Checked by
   [`conformance/03-interfaces/pairruns/flag_pair_wait_test.go`](../conformance/03-interfaces/pairruns/flag_pair_wait_test.go).
-- **CLI-13** `diagnose --rules` rejects explicitly supplied `--provider`,
-  `--endpoint`, `--model`, and `--language` options from the CLI, environment,
-  or configuration. These options only apply to LLM diagnosis and must not be
-  silently ignored in local-rule mode. Implemented by
-  [`cmd/rotari/diagnose.go`](../cmd/rotari/diagnose.go) and checked by
-  [`conformance/03-interfaces/pairdiagnose/diagnose_pairs_test.go`](../conformance/03-interfaces/pairdiagnose/diagnose_pairs_test.go).
 - **CLI-14** For a completed run, text `wait` prints the same completion
   message as `run`, including each summary, diagnosis, and origin line exactly
   once and ending with a newline. Both use

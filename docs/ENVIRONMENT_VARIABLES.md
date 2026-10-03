@@ -79,11 +79,6 @@ configuration source; it does not change this precedence.
 | `ROTARI_WEB_ALLOW_CONTROL` | yes | no | no | --allow-control default for web. |
 | `ROTARI_WEB_AUTH_TOKEN` | yes | no | no | --auth-token default for web; never exposed by the Web UI. |
 | `ROTARI_WEB_NOTIFICATIONS` | yes | no | no | --notifications default for web. |
-| `ROTARI_LLM_API_KEY` | no | no | no | API key for the diagnose command; never persisted or passed to jobs. |
-| `ROTARI_LLM_PROVIDER` | yes | no | no | LLM provider (openai, openai-chat, anthropic, gemini, or cohere); --provider default for diagnose. |
-| `ROTARI_LLM_ENDPOINT` | yes | no | no | LLM API endpoint; --endpoint default for diagnose. |
-| `ROTARI_LLM_MODEL` | yes | no | no | Model name; --model default for diagnose. |
-| `ROTARI_LLM_LANGUAGE` | yes | no | no | BCP 47 response language tag; --language default for diagnose. |
 | `ROTARI_WEBHOOK_URL` | no | no | no | Webhook URL; overrides webhook.url in notifications.toml. |
 | `ROTARI_PRIVATE_STATE` | no | no | no | set to true for 0700/0600 state directory permissions instead of the default 0755/0644 (shared state). |
 

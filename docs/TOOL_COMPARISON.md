@@ -132,8 +132,8 @@ tied to one scheduler.
   The setting is mapped to the native mechanisms of SSH, Slurm, PBS, LSF, and SGE;
   saved `--env KEY=VALUE` variables work on every executor.
 - **Operations beyond the CLI.** `rotari web` provides history, logs, job
-  control, and multiple-basedir monitoring. `diagnose` can analyze failures
-  with local rules or an LLM, and notifications can deliver webhook or
+  control, and multiple-basedir monitoring. Failed jobs are
+  diagnosed with local rules, and notifications can deliver webhook or
   browser alerts.
 - **No resident daemon.** Each run has its own supervisor process for its
   lifetime; state is files.

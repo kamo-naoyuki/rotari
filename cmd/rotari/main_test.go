@@ -530,7 +530,6 @@ func TestCLIUsageIncludesShortOptions(t *testing.T) {
 		{name: "check", positional: "[PROJECT]"},
 		{name: "reset", positional: "[PROJECT]"},
 		{name: "remove", positional: "[JOB_ID ...]"},
-		{name: "diagnose", positional: "JOB_ID"},
 	} {
 		if usage := cliUsage(command.name); !strings.Contains(usage, command.positional) {
 			t.Fatalf("usage %q does not contain positional %q", usage, command.positional)
@@ -584,7 +583,7 @@ func TestCLIStringAppliesChoicesFromFlagSpec(t *testing.T) {
 		value string
 	}{
 		{name: "format", value: "xml"},
-		{name: "provider", value: "unknown"},
+		{name: "match-by", value: "unknown"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			fs := flag.NewFlagSet("test", flag.ContinueOnError)

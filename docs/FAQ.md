@@ -10,7 +10,7 @@ This FAQ gives short answers about rotari's behavior. See the [README](https://g
 - [Projects, queues, runs, and registry](#projects-queues-runs-and-registry)
 - [Language and implementation choices](#language-and-implementation-choices)
 - [Retries, copying, arrays, and dependencies](#retries-copying-arrays-and-dependencies)
-- [LLM diagnosis](#llm-diagnosis)
+- [Failure diagnosis](#failure-diagnosis)
 - [Interrupted runs and locking](#interrupted-runs-and-locking)
 - [Client control and job cancellation](#client-control-and-job-cancellation)
 - [Python interface](#python-interface)
@@ -281,19 +281,15 @@ Yes. Give related jobs the same `--stage NAME`, then use `--depends-on NAME`. St
 
 No. Dependencies are limited to the current queue. Chain separate runs with `rotari wait --run-id RUN_ID && rotari run --project-name PROJECT` or a completion webhook.
 
-## LLM diagnosis
+## Failure diagnosis
 
-### Can I diagnose common failures without sending logs to an LLM?
+### Does rotari diagnose failed jobs?
 
-Yes. Failed jobs receive local rule-based diagnoses. You can also run `rotari diagnose --run-id RUN_ID --job-id JOB_ID --rules`; it needs no network access or API key and does not affect execution or retries.
+Yes. When a run finishes, each failed job is checked locally against [diagnosis rules](LOCAL_DIAGNOSIS.md), and the result is shown by `rotari show --run-id RUN_ID --job-id JOB_ID`, reports, and the Web UI. It needs no network access or API key and does not affect execution or retries.
 
-### What does `rotari diagnose` send to an LLM?
+### Can an LLM diagnose a failure?
 
-It sends the selected command, exit information, and at most the last 12,000 characters of its output. Data is sent only when `ROTARI_LLM_API_KEY` and a model are supplied. Check logs for sensitive data first.
-
-### How do I choose the diagnosis response language?
-
-Use a BCP 47 tag such as `--language ja`, or set `ROTARI_LLM_LANGUAGE`.
+rotari does not call an LLM itself. `rotari show --run-id RUN_ID --job-id JOB_ID --report` prints a redacted evidence report, with the command, status, diagnosis, and the log lines around its evidence, that you can give to an AI assistant. Check it for sensitive data first.
 
 ## Interrupted runs and locking
 

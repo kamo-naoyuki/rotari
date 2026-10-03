@@ -152,8 +152,8 @@ rotari show ATTEMPT_ID
 
 The following commands accept an `ATTEMPT_ID` as their `--job-id/-j` selector:
 
-- `ATTEMPT_ID` supported: `show`, `diagnose`, `cancel`, `suspend`, `resume`,
-  `copy`, `run`, `retry`.
+- `ATTEMPT_ID` supported: `show`, `cancel`, `suspend`, `resume`, `copy`,
+  `run`, `retry`.
 - `ATTEMPT_ID` not supported: `add`, `change`, `remove`, `delete`, `wait`.
   These commands operate on queue definitions or whole runs, not individual attempts.
 
@@ -180,7 +180,6 @@ rotari copy -j JOB_ID RUN_ID
 rotari remove JOB_ID OTHER_JOB_ID
 rotari delete RUN_ID
 rotari unlock PROJECT_NAME --run-id RUN_ID
-rotari diagnose --model MODEL JOB_ID
 rotari cancel JOB_ID OTHER_JOB_ID
 rotari cancel RUN_ID
 rotari suspend ATTEMPT_ID

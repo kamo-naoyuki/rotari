@@ -366,26 +366,6 @@ Usage: `rotari jobs [PROJECT]`
 | `-o` / `--format` | `FORMAT` | `` | output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time) |
 | `--since` | `DURATION` | `` | include jobs finished within this duration, such as 24h or 7d; use 0 for running jobs only |
 
-### `rotari diagnose`
-
-diagnose one job with an LLM or local error rules
-
-Usage: `rotari diagnose [JOB_ID]`
-
-| Option | Value | Environment | Description |
-| --- | --- | --- | --- |
-| `--config` | `FILE` | `` | config file to use |
-| `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
-| `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
-| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run ID |
-| `-j` / `--job-id` | `ID` | `ROTARI_JOB_ID` | failed job ID |
-| `--job-name` | `NAME` | `ROTARI_JOB_NAME` | failed job name |
-| `--rules` | `` | `` | use local rule-based diagnosis without calling an LLM; cannot be combined with --provider, --endpoint, --model, or --language |
-| `--provider` | `PROVIDER` | `ROTARI_LLM_PROVIDER` | LLM provider: openai, openai-chat, anthropic, gemini, or cohere (choices: openai, openai-chat, anthropic, gemini, cohere) |
-| `--endpoint` | `URL` | `ROTARI_LLM_ENDPOINT` | LLM API endpoint |
-| `--model` | `MODEL` | `ROTARI_LLM_MODEL` | LLM model name |
-| `--language` | `TAG` | `ROTARI_LLM_LANGUAGE` | response language BCP 47 tag |
-
 ### `rotari wait`
 
 wait for an asynchronous run by project, run name, or run ID

@@ -1,64 +1,6 @@
 package diagnose
 
-import (
-	"strings"
-	"testing"
-)
-
-func TestBuildPromptIncludesJobContext(t *testing.T) {
-	exitCode := 17
-	prompt := BuildPrompt(Job{
-		RunID:    "run-1",
-		JobID:    "job-2",
-		Command:  []string{"python", "train.py"},
-		ExitCode: &exitCode,
-		Error:    "scheduler error",
-		Log:      "traceback",
-	}, "ja-JP")
-
-	for _, want := range []string{
-		`Respond in the language identified by the BCP 47 tag "ja-JP".`,
-		"Run: run-1",
-		"Job: job-2",
-		"Status: exit code 17",
-		"Scheduler error: scheduler error",
-		"Command: python train.py",
-		"Log tail:\ntraceback",
-	} {
-		if !strings.Contains(prompt, want) {
-			t.Errorf("BuildPrompt() does not contain %q: %q", want, prompt)
-		}
-	}
-}
-
-func TestBuildPromptUsesNotRecordedWithoutExitCode(t *testing.T) {
-	prompt := BuildPrompt(Job{RunID: "run-1", JobID: "job-1"}, "")
-	if !strings.Contains(prompt, "Status: not recorded") {
-		t.Fatalf("BuildPrompt() = %q", prompt)
-	}
-	if strings.Contains(prompt, "BCP 47") {
-		t.Fatalf("BuildPrompt() added language instruction without a language: %q", prompt)
-	}
-}
-
-func TestIsLanguageTag(t *testing.T) {
-	tests := map[string]bool{
-		"ja":      true,
-		"en-US":   true,
-		"zh-Hant": true,
-		"":        false,
-		"j":       false,
-		"english": false,
-		"ja_JP":   false,
-		"ja--JP":  false,
-		"ja-日本語":  false,
-	}
-	for value, want := range tests {
-		if got := IsLanguageTag(value); got != want {
-			t.Errorf("IsLanguageTag(%q) = %t, want %t", value, got, want)
-		}
-	}
-}
+import "testing"
 
 func TestTailLog(t *testing.T) {
 	if got := TailLog("short", 10); got != "short" {

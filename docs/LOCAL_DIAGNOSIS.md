@@ -31,16 +31,13 @@ when its output cannot be read.
 The snapshot also records `diagnosis_rules`, an identifier of the rule set that
 produced it. Saved results are not recomputed when rotari's rules change.
 `show`, reports, and the Web UI note when a saved result came from earlier
-rules; run `rotari diagnose --rules` to see the result under the current rules.
+rules. `--filter-diagnosis` always evaluates the current rules against the job's
+error and output, so it can select a job whose saved result differs.
 
 View saved diagnoses in the CLI with `rotari show --run-id RUN_ID --job-id
 JOB_ID`. The Web UI always shows a `Diagnosis` button beside each job's log
 button; it is enabled for finalized failed jobs with saved analysis and opens
 the evidence and suggested next steps.
-
-To check a saved job manually, run `rotari diagnose --run-id RUN_ID --job-id
-JOB_ID --rules`. The `diagnose` command/API is experimental and may change in
-future releases.
 
 | Diagnosis | Recognized log signatures | Suggested next step |
 | --- | --- | --- |

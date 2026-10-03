@@ -244,7 +244,7 @@ are checked against this graph by
 | [internal/mcp](../internal/mcp/) | MCP tools that `rotari mcp` (`cmd/rotari/mcp.go`) serves: read-only project list, run summary, bounded run wait, job report, project check, run comparison, and redacted run export, previewed, revision-guarded import and run start, job control of a running run, and previewed, revision-guarded reset. They present the shared functions the CLI uses (`project.Overviews`, `basedirregistry.Discover`, `runview.Summary`, `projectrun.Runner.Check`, `runlineage.Compare`, `report.Build`, `workflowstate.Import`, `projectrun.RunSource`, `projectrun.Runner.PreviewRun`), locate runs only through the master directory's run registry (`resolve.RegisteredRun`), and return no absolute paths; every tool is added through `addTool`, which hides state directories in errors. Starting a supervisor and new job IDs come from `cmd/rotari` as `Options`; it does not import `cmd/rotari`. | `server.go` (`NewServer`), `tools.go`, `wait.go`, `export.go`, `write.go`, `control.go`, `reset.go` |
 | [internal/runlineage](../internal/runlineage/) | Comparison and summaries of loaded runs for `lineage`, and the grouping of a run's failures by cause that `show`, `lineage`, and the Web UI share. | `runlineage.go`, `failures.go` (`FailureGroups`) |
 | [internal/jobfilter](../internal/jobfilter/) | The conditions of the `--filter-*` options that narrow a job selection, evaluated without file access; callers supply what a condition needs about each job. | `filter.go` (`Filter`, `Selects`) |
-| [internal/diagnose](../internal/diagnose/) | Rule-based and provider-backed failure diagnosis. | `analysis.go` |
+| [internal/diagnose](../internal/diagnose/) | Rule-based failure diagnosis. | `analysis.go` |
 | [internal/archtest](../internal/archtest/) | Tests only: the package boundary rules checked against the import graph. | `boundaries_test.go` |
 | [internal/doclinks](../internal/doclinks/) | Tests only: relative links and `#anchor` links in the root Markdown files, `contracts/`, and `docs/`. | `links_test.go` |
 | [conformance](../conformance/) | Tests only: contract checks against the built binary and the Web API, importing only the standard library and their own harness, `conformance/support`. Document-to-directory mapping is in `layout.json`; tests are being migrated under the matching contract groups. | `harness_test.go`, `contracts_test.go`, `layout.json` |
@@ -253,8 +253,7 @@ The interface flag-pair suites are split between
 [03-interfaces](../conformance/03-interfaces/),
 [pairedits](../conformance/03-interfaces/pairedits/), and
 [pairruns](../conformance/03-interfaces/pairruns/),
-[pairweb](../conformance/03-interfaces/pairweb/),
-[pairdiagnose](../conformance/03-interfaces/pairdiagnose/), and
+[pairweb](../conformance/03-interfaces/pairweb/), and
 [pairjobcontrol](../conformance/03-interfaces/pairjobcontrol/) to keep each Go
 package within the default test timeout. They share the public-binary fixture,
 schema sampling, bounded subprocess invocation, and restored state through
@@ -298,10 +297,10 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 | Queue editing (flags and output; `add`, `change`, `copy`, `remove`, and `delete` call `internal/queueops`) | `add.go`, `change.go`, `copy.go`, `remove.go`, `reset.go`, `delete.go`, `gc.go`, `unlock.go` |
 | Starting a run (client side; the supervisor side is `internal/supervisor`) | `run_command.go`, `job_executor.go` |
 | Default run registry wiring (`registerRun`, `resolveRunLocation`) | `run_registry.go` |
-| Wiring the run lifecycle (`projectRunner`) | `project_run.go` |
+| Wiring the run lifecycle (`projectRunner`) and its failure diagnosis | `project_run.go`, `diagnosis.go` |
 | Supervisor process wiring, its server registry, and `show --basedirs` discovery | `server.go`, `registry.go` |
 | Job control | `job_control.go`, `wait.go` |
-| Reading results | `show.go`, `jobs.go`, `diff.go`, `diagnose.go`, `check.go` |
+| Reading results | `show.go`, `jobs.go`, `diff.go`, `check.go` |
 | Workflow manifests | `export.go`, `import.go`, `workflow_source.go` |
 | `web` command and the Web UI's CLI metadata (`webOptions`) | `web.go` |
 | Notifications and terminal output | `webhook.go`, `webhook_batch.go`, `color.go`, `terminal*.go` |

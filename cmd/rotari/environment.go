@@ -58,11 +58,6 @@ const (
 	envWebAllowControl          = "ROTARI_WEB_ALLOW_CONTROL"
 	envWebAuthToken             = "ROTARI_WEB_AUTH_TOKEN"
 	envWebNotifications         = "ROTARI_WEB_NOTIFICATIONS"
-	envLLMAPIKey                = "ROTARI_LLM_API_KEY"
-	envLLMProvider              = "ROTARI_LLM_PROVIDER"
-	envLLMEndpoint              = "ROTARI_LLM_ENDPOINT"
-	envLLMModel                 = "ROTARI_LLM_MODEL"
-	envLLMLanguage              = "ROTARI_LLM_LANGUAGE"
 	envWebhookURL               = "ROTARI_WEBHOOK_URL"
 	envPrivateState             = "ROTARI_PRIVATE_STATE"
 	envBin                      = "ROTARI_BIN"
@@ -145,11 +140,6 @@ func environmentDefinitions() []webprojection.EnvironmentDefinition {
 		{Name: envWebAllowControl, CLIDefault: true, Description: "--allow-control default for web."},
 		{Name: envWebAuthToken, CLIDefault: true, Description: "--auth-token default for web; never exposed by the Web UI."},
 		{Name: envWebNotifications, CLIDefault: true, Description: "--notifications default for web."},
-		{Name: envLLMAPIKey, Description: "API key for the diagnose command; never persisted or passed to jobs."},
-		{Name: envLLMProvider, CLIDefault: true, Description: "LLM provider (openai, openai-chat, anthropic, gemini, or cohere); --provider default for diagnose."},
-		{Name: envLLMEndpoint, CLIDefault: true, Description: "LLM API endpoint; --endpoint default for diagnose."},
-		{Name: envLLMModel, CLIDefault: true, Description: "Model name; --model default for diagnose."},
-		{Name: envLLMLanguage, CLIDefault: true, Description: "BCP 47 response language tag; --language default for diagnose."},
 		{Name: envWebhookURL, Description: "Webhook URL; overrides webhook.url in notifications.toml."},
 		{Name: envPrivateState, Description: "set to true for 0700/0600 state directory permissions instead of the default 0755/0644 (shared state)."},
 	}

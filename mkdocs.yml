@@ -32,7 +32,6 @@ nav:
       - FAQ: FAQ.md
   - Integrations:
       - Notifications: NOTIFICATIONS.md
-      - LLM diagnosis: LLM_DIAGNOSIS.md
       - Local diagnosis rules: LOCAL_DIAGNOSIS.md
   - Development:
       - Architecture: ARCHITECTURE.md

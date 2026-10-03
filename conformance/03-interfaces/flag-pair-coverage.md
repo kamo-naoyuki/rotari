@@ -13,8 +13,6 @@ default ten-minute test timeout:
   effect witnesses.
 - [pairruns](pairruns/): `run`/`retry` previews, `unlock`, and `wait`.
 - [pairweb](pairweb/): safe static exports; it never starts an HTTP server.
-- [pairdiagnose](pairdiagnose/): local rules and a local fake LLM endpoint;
-  no external provider is contacted.
 - [pairjobcontrol](pairjobcontrol/): `cancel`, `suspend`, and `resume`
   against live local runs that are cancelled and reaped afterward.
 
@@ -28,7 +26,7 @@ implementation imports. The staged rollout is tracked in the
 
 ## Current layers
 
-- `TestCLIFlagPairInventory` enumerates all 6,826 unordered flag-name pairs.
+- `TestCLIFlagPairInventory` enumerates all 6,796 unordered flag-name pairs.
   Sorted flag-name fingerprints require an explicit coverage review when a
   command or flag is added, removed, or renamed. This is not exhaustive value
   coverage; changes to descriptions/types without a name change are not
@@ -141,12 +139,6 @@ implementation imports. The staged rollout is tracked in the
   environment, or config rather than silently ignored. `--notifications` is
   checked as a content-affecting option on the exported browser toggle.
   `web` never starts a live HTTP server in this adapter.
-- `TestCLIFlagPairDiagnose` executes all 55 `diagnose` pairs in both orders.
-  LLM-mode requests go only to an in-process fake endpoint, which checks the
-  selected model, language prompt, endpoint path, and authentication shape;
-  local-rule pairs make no request. `--rules` with an explicitly supplied
-  provider, endpoint, model, or language is rejected from CLI, environment, or
-  config rather than silently ignoring that option.
 - `TestCLIFlagPairSuspend`, `TestCLIFlagPairResume`, and
   `TestCLIFlagPairCancel` execute all 171 `suspend`, 171 `resume`, and 190
   `cancel` pairs in both orders against live local runs of five sleeping
@@ -208,9 +200,9 @@ advertised flags have adapters; no generated pair is deferred.
 | --- | ---: | --- |
 | `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
-The 6,826 executed pairs consist of 783 read-only, 36 file-output, 178
+The 6,771 executed pairs consist of 783 read-only, 36 file-output, 178
 queue-mutation, 1,520 edit, 3,660 run/retry previews, 6 unlock, 21 wait,
-6 gc/server, 1 MCP, 28 web static-export, 55 diagnose, and 532 job-control
+6 gc/server, 1 MCP, 28 web static-export, and 532 job-control
 pairs. The edit pair
 loop accepted 1,187 and explicitly rejected 333 pairs in 3,040 invocations;
 one run took 4m01s including setup.

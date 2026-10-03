@@ -287,7 +287,7 @@
   `id-1`, separately from the whole-command `Origin` field. This is needed
   because one array command can have some tasks freshly executed and others
   carried in the same run. `model.Queue.OriginOf`, which `state.LoadRunOrigin`
-  applies for `show`, `web`, and `diagnose`, checks both `Origin` and
+  applies for `show` and `web`, checks both `Origin` and
   `TaskOrigins` when resolving where a job's output lives. `--partial-array=false`
   restores the older whole-array behavior: any match re-executes every task,
   using only the whole-command `Origin`.
@@ -610,13 +610,7 @@ Covered by [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle
   payload or a supported service-specific payload. Delivery errors are warnings
   and do not change run status; rotari keeps no delivery ledger and does not
   retry.
-- `diagnose` is an explicitly invoked, stateless integration. It sends one job's
-  command, recorded result, and at most the last 12,000 characters of its
-  configured log; merged mode is sent as-is and separate mode labels the streams to
-  the configured LLM endpoint. API keys and diagnoses are never persisted or
-  injected into job environments. An explicit BCP 47 response language is
-  included when configured.
-- `diagnose --rules` is a local, read-only alternative. It evaluates the same
+- Failure diagnosis is local and rule-based. It evaluates a failed job's
   recorded scheduler error and configured log against a fixed set of documented
   signatures after case, ANSI-escape, and whitespace normalization. It makes no
   network request and reports only matched signatures, each citing its latest

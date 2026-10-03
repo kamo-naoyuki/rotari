@@ -112,12 +112,12 @@ function showDiagnosis(trigger) {
     sections.push(
       "Unavailable: " +
         analysis.note +
-        "\nNext: Resolve the read error, then run rotari diagnose --rules.",
+        "\nNext: Resolve the read error, then inspect the full job output.",
     );
   }
   if (analysis.outdated) {
     sections.push(
-      "Note: Saved with earlier diagnosis rules; rotari diagnose --rules shows the result under the current rules.",
+      "Note: Saved with earlier diagnosis rules; --filter-diagnosis selects by the current rules.",
     );
   }
   selectedOutput = sections.join("\n\n");

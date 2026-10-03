@@ -12,7 +12,6 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/webui"
 )
 
@@ -254,26 +253,6 @@ func TestPagerLineLimitAndLoopbackHostDecisions(t *testing.T) {
 func TestZshCompletionEscaping(t *testing.T) {
 	if got := zshEscapeSpec("a:b[c]"); !strings.Contains(got, `\:`) || !strings.Contains(got, `\[`) {
 		t.Fatalf("escaped zsh spec = %q", got)
-	}
-}
-
-func TestDiagnosisFormattingAndLanguageValidation(t *testing.T) {
-	if got := formatRuleDiagnoses(nil); !strings.Contains(got, "No known rule-based diagnosis") {
-		t.Fatalf("empty diagnosis output = %q", got)
-	}
-	got := formatRuleDiagnoses([]model.RuleDiagnosis{{Name: "Rule", Evidence: "evidence", Suggestion: "next"}})
-	if !strings.Contains(got, "Rule\nEvidence: evidence\nNext: next") {
-		t.Fatalf("diagnosis output = %q", got)
-	}
-	for _, tag := range []string{"en", "ja-JP", "zh-Hant"} {
-		if !diagnose.IsLanguageTag(tag) {
-			t.Fatalf("language tag %q was rejected", tag)
-		}
-	}
-	for _, tag := range []string{"e", "en_", "en--US", "english"} {
-		if diagnose.IsLanguageTag(tag) {
-			t.Fatalf("invalid language tag %q was accepted", tag)
-		}
 	}
 }
 

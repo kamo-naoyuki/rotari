@@ -349,7 +349,6 @@ func TestReadingHistoryDoesNotRewriteIt(t *testing.T) {
 		{"export", first},
 		{"wait", first},
 		{"copy", "-p", "p", "--run-id", first, "--overwrite"},
-		{"diagnose", "--rules", attemptID},
 	} {
 		e.Rotari(args...)
 	}

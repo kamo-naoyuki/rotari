@@ -1293,91 +1293,6 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "[PROJECT]",
         },
         {
-            "description": "diagnose one job with an LLM or local error rules",
-            "flags": [
-                {
-                    "description": "config file to use",
-                    "name": "config",
-                    "value_name": "FILE",
-                },
-                {
-                    "description": "state directory",
-                    "environment": "ROTARI_BASEDIR",
-                    "name": "basedir",
-                    "short": "b",
-                    "value_name": "DIR",
-                },
-                {
-                    "description": "project name",
-                    "environment": "ROTARI_PROJECT_NAME",
-                    "name": "project-name",
-                    "short": "p",
-                    "value_name": "NAME",
-                },
-                {
-                    "description": "run ID",
-                    "environment": "ROTARI_RUN_ID",
-                    "name": "run-id",
-                    "short": "r",
-                    "value_name": "ID",
-                },
-                {
-                    "description": "failed job ID",
-                    "environment": "ROTARI_JOB_ID",
-                    "name": "job-id",
-                    "short": "j",
-                    "value_name": "ID",
-                },
-                {
-                    "description": "failed job name",
-                    "environment": "ROTARI_JOB_NAME",
-                    "name": "job-name",
-                    "value_name": "NAME",
-                },
-                {
-                    "description": "use local rule-based diagnosis without "
-                    "calling an LLM; cannot be combined with "
-                    "--provider, --endpoint, --model, or "
-                    "--language",
-                    "name": "rules",
-                },
-                {
-                    "description": "LLM provider: openai, openai-chat, "
-                    "anthropic, gemini, or cohere",
-                    "environment": "ROTARI_LLM_PROVIDER",
-                    "name": "provider",
-                    "value_name": "PROVIDER",
-                    "values": [
-                        "openai",
-                        "openai-chat",
-                        "anthropic",
-                        "gemini",
-                        "cohere",
-                    ],
-                },
-                {
-                    "description": "LLM API endpoint",
-                    "environment": "ROTARI_LLM_ENDPOINT",
-                    "name": "endpoint",
-                    "value_name": "URL",
-                },
-                {
-                    "description": "LLM model name",
-                    "environment": "ROTARI_LLM_MODEL",
-                    "name": "model",
-                    "value_name": "MODEL",
-                },
-                {
-                    "description": "response language BCP 47 tag",
-                    "environment": "ROTARI_LLM_LANGUAGE",
-                    "name": "language",
-                    "value_name": "TAG",
-                },
-            ],
-            "name": "diagnose",
-            "positional": "[JOB_ID]",
-        },
-        {
             "description": "wait for an asynchronous run by project, run name, or "
             "run ID",
             "flags": [
@@ -3131,45 +3046,6 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "--notifications default for web.",
             "job": False,
             "name": "ROTARI_WEB_NOTIFICATIONS",
-        },
-        {
-            "array": False,
-            "cli_default": False,
-            "description": "API key for the diagnose command; never persisted "
-            "or passed to jobs.",
-            "job": False,
-            "name": "ROTARI_LLM_API_KEY",
-        },
-        {
-            "array": False,
-            "cli_default": True,
-            "description": "LLM provider (openai, openai-chat, anthropic, "
-            "gemini, or cohere); --provider default for "
-            "diagnose.",
-            "job": False,
-            "name": "ROTARI_LLM_PROVIDER",
-        },
-        {
-            "array": False,
-            "cli_default": True,
-            "description": "LLM API endpoint; --endpoint default for diagnose.",
-            "job": False,
-            "name": "ROTARI_LLM_ENDPOINT",
-        },
-        {
-            "array": False,
-            "cli_default": True,
-            "description": "Model name; --model default for diagnose.",
-            "job": False,
-            "name": "ROTARI_LLM_MODEL",
-        },
-        {
-            "array": False,
-            "cli_default": True,
-            "description": "BCP 47 response language tag; --language default "
-            "for diagnose.",
-            "job": False,
-            "name": "ROTARI_LLM_LANGUAGE",
         },
         {
             "array": False,

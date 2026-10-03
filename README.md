@@ -229,7 +229,7 @@ The [examples guide](docs/examples.md) has independent, no-argument
 scripts for arrays, retrying failed work, async runs, Slurm, workflow
 manifests, and diagnosis. All examples use `.example-state` in the current
 working directory, with a separate project for each. Slurm needs a configured
-cluster; LLM diagnosis needs API credentials. To fix a failed job and accept
+cluster. To fix a failed job and accept
 another job's result in an exported workflow, run
 `./examples/workflow-reconcile.sh`. See
 [Workflow manifests](docs/WORKFLOW_MANIFESTS.md) for the details.

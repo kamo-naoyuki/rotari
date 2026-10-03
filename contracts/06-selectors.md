@@ -349,7 +349,6 @@ General rules:
 | `lineage` | `[RUN_ID ...]` | none: the project's runs oldest first; one: that run's summary; two: compare the runs; three or more: show a job-by-run result grid | – |
 | `export` | `[TARGET] [FILE]` | `TARGET` is a run when it has a run ID's shape or is `latest`, otherwise a project (see What each command reads); `FILE` is the output | a project `TARGET` excludes `--project-name`; `FILE` excludes `--output` |
 | `import` | `FILE [PROJECT]` | the manifest, and the destination project; a run-exported manifest must come from that project | `PROJECT` excludes `--project-name` |
-| `diagnose` | `[JOB_ID]` | a job ID or attempt ID; `--job-name` names the job instead | `--job-id`, `--job-name` |
 | `gc` | `[MASTERDIR]` | the master directory | `--masterdir` |
 | others | none | – | – |
 

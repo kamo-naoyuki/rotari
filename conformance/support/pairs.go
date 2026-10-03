@@ -53,8 +53,6 @@ func PairAdapter(command string) string {
 		return "mcp"
 	case "web":
 		return "static"
-	case "diagnose":
-		return "diagnose"
 	case "cancel", "suspend", "resume":
 		return "jobcontrol"
 	default:

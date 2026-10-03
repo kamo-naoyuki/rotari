@@ -100,8 +100,6 @@ func dispatch(args []string) int {
 		return cmdLineage(args[1:])
 	case "jobs":
 		return cmdJobs(args[1:])
-	case "diagnose":
-		return cmdDiagnose(args[1:])
 	case "wait":
 		return cmdWait(args[1:])
 	case "run":

@@ -195,7 +195,6 @@ the IDs, this table, and those calls disagree.
 | CLI-10 | A supplied `--run-name` is visible in a dry-run preview | conformance | `TestCLIFlagPairRunNameInPreview` |
 | CLI-11 | A missing project's error names the registered state directories that have it | conformance | `TestMissingProjectNamesWhereItIs` |
 | CLI-12 | `wait --json` reports completed and early-failure runs as structured JSON | conformance | `TestCLIFlagPairWaitJSONAndEarlyFailure`, `TestCLIFlagPairWaitSamples` |
-| CLI-13 | `diagnose --rules` rejects LLM-only options supplied by CLI, environment, or config | conformance | `TestCLIFlagPairDiagnoseRulesOptions` |
 | CLI-14 | Text `wait` prints the same single, newline-terminated completion message as `run` | conformance | `TestWaitPrintsSameCompletionMessageAsRun` |
 | CLI-15 | Single-value CLI options reject duplicate occurrences while repeatable options remain repeatable | conformance | `TestCLIRejectsRepeatedSingleValueOption` |
 | MCP-1 | MCP tools that change a project preview first and apply only at the previewed revision | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision`, `TestRunPreviewListsTheTasksOfAWholeArray` |

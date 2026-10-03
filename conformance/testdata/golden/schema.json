@@ -987,65 +987,6 @@
           "value_name": "ID"
         },
         {
-          "name": "job-id",
-          "short": "j",
-          "value_name": "ID"
-        },
-        {
-          "name": "job-name",
-          "value_name": "NAME"
-        },
-        {
-          "name": "rules"
-        },
-        {
-          "name": "provider",
-          "value_name": "PROVIDER",
-          "values": [
-            "openai",
-            "openai-chat",
-            "anthropic",
-            "gemini",
-            "cohere"
-          ]
-        },
-        {
-          "name": "endpoint",
-          "value_name": "URL"
-        },
-        {
-          "name": "model",
-          "value_name": "MODEL"
-        },
-        {
-          "name": "language",
-          "value_name": "TAG"
-        }
-      ],
-      "name": "diagnose"
-    },
-    {
-      "flags": [
-        {
-          "name": "config",
-          "value_name": "FILE"
-        },
-        {
-          "name": "basedir",
-          "short": "b",
-          "value_name": "DIR"
-        },
-        {
-          "name": "project-name",
-          "short": "p",
-          "value_name": "NAME"
-        },
-        {
-          "name": "run-id",
-          "short": "r",
-          "value_name": "ID"
-        },
-        {
           "name": "timeout",
           "value_name": "DURATION"
         },
