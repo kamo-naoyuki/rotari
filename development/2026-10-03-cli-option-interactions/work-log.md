@@ -138,3 +138,38 @@
 - **Remaining:** Extend the mutation adapter to `add`, `change`, `copy`, and
   `import` (1,520 pairs), then run/control adapters; the `remove` diagnostic
   issue in `development/ISSUES.md`.
+
+## Add, change, copy, and import pair adapter
+
+**Commit:** `34803f61` — 2026-10-03T12:16:29+09:00
+
+- **Change:** Added the remaining queue-edit adapters for `add`, `change`,
+  `copy`, and `import`, using the NFS-aware fixture restore from the prior
+  milestone. Added representative field/effect witnesses, copy result/stage
+  intersection, import JSON preview/apply, guarded revision verification, and
+  ID-preserving normalization. Registered copy selectors under SEL-4 and the
+  guarded import witness under CLI-7.
+- **Reason:** These commands accounted for 1,520 inventoried pairs and mutate
+  persistent queue or history state; order/output alone cannot show whether
+  their options took effect.
+- **Plan impact:** 1,520 pairs, 1,187 accepted and 333 explicitly rejected in
+  3,040 invocations; total executable coverage is 2,517 pairs in 13 commands,
+  leaving 3,964 deferred. No production bug or equivalence exception found.
+- **Validation:** Standalone schema-flag samples and focused semantic witnesses
+  passed; all 1,520 edit pairs passed in both orders (4m01s normal). The
+  uncached interface package passed in 358.36s; the full script's normal and
+  race interface runs passed in 438.88s and 451.11s. Final focused race
+  verification passed in 335.13s, including every edit pair (5m30s), ID
+  normalization, copy selection, and import JSON observations. Contract/layout
+  checks passed after restoring their correspondence to actual `covers` calls.
+  The first contract check encountered a concurrently added DUR-7 test before
+  its definition existed; no unrelated contract was edited to suppress it.
+  `scripts/check.sh --short` passed. The full script exited 1 during race:
+  concurrently edited carried-result code had missing symbols and mismatched
+  `runlineage.IsCarried` signatures across jobstatus/projectrun/runview/Web.
+  This is not a full-suite pass; original logs and exit codes were retained.
+  Gofmt, editor diagnostics, diff checks and relative links passed. Pre-commit
+  remains unavailable. Concurrent carried-result/MCP and projection edits are
+  excluded from this work's commit.
+- **Remaining:** Run/control adapters, more semantic value/boolean/repeated
+  witnesses, and all gaps recorded in the coverage notes.
