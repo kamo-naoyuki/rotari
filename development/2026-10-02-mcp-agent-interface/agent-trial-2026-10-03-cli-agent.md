@@ -50,3 +50,35 @@ In all, 27 calls returned about 140 KB. The loop itself took about 15 KB.
    - The queue table shows neither the timeout nor the source of a queue restored by `change -r`.
 
 The diagnose, fix, retry, and compare loop worked as designed. The cost is in finding the way in.
+
+## Second run, after the fixes
+
+The first four findings were fixed in:
+
+- `b99bf19`: a shorter `rotari guide`, and `COMMAND --help` as a reference that exits 0.
+- `7e8169c`: a missing project's error names the registered state directories that have it.
+- `a459e0d`: `lineage` groups the tasks of an array that read the same.
+
+Finding 2's retry-specific part, that `retry`'s help omits run options it takes, is recorded in ISSUES.md (`07c22fa`). It overlaps with the CLI option interaction work.
+
+A new subagent got the same task and rules on a fresh fixture, built at `a459e0d`. It completed the task again:
+
+- It raised the timeout and reran only `train[12]` and the dependent eval jobs with `retry -j`.
+- It reported which failures it left and why, as the first agent did.
+- It asked to confirm that labA was the intended `exp`.
+
+| | First run | Second run |
+| --- | --- | --- |
+| rotari calls | 27 | 23 |
+| output | about 140 KB | about 45 KB |
+| `rotari guide` | 46.6 KB | 5.6 KB |
+| calls to find the project | about 6 | 3; the error named labA and labB |
+
+New findings:
+
+1. **A `--basedir` with `..` failed with "invalid state path".** The agent passed `-b ../labA` from the job directory, and `lineage` and `show` failed without saying why. In a reproduction, `add` with such a path created the directory, then failed. Fixed by resolving state and master directories to absolute paths (RES-22).
+2. **Still open:**
+   - `retry --dry-run` does not say why it adds a dependent job.
+   - `lineage` counts carried jobs with a definition change as "changed" and does not name its hidden jobs.
+   - The queue table shows neither the timeout nor the source of a queue restored by `change -r`, and its `DEPENDS ON` column is very wide.
+   - `wait --json` exits 1 for a failed run, which reads like a failure of `wait`.

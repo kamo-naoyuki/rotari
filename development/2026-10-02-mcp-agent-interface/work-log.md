@@ -585,3 +585,40 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - Fresh read and write trial passes on `82b1769` gave the sizes above.
 
 **Remaining:** none planned; see the plan's open decisions.
+
+## Trials with a real agent and the CLI
+
+**Commits:** 2026-10-03 13:01:38 `f47cc93`; 2026-10-03 13:21:01 `b99bf19`; 2026-10-03 13:32:06 `07c22fa`; 2026-10-03 13:44:31 `7e8169c`; 2026-10-03 13:59:05 `a459e0d`; 2026-10-03 14:12:51 `9b66c8e`.
+
+**Change:**
+- `f47cc93`: the trial note [agent-trial-2026-10-03-cli-agent.md](agent-trial-2026-10-03-cli-agent.md). A Claude subagent with no session context used only `rotari guide` and `--help`, and a wrapper logged its calls.
+- `b99bf19`:
+  - `rotari guide` keeps its rules and the common options, and indexes the commands in one line each (46.6 KB to 5.4 KB).
+  - `writeCommandHelp` renders every `COMMAND --help` from `cliCommandSpecs`: description, usage, subcommands, and options with their effective defaults, `--filter-*` under their own heading, on stdout with exit 0.
+  - The `change` and `remove` descriptions say what `--run-id` does.
+- `07c22fa`: ISSUES.md records that `retry`'s spec omits `run` options it takes. A first attempt to reject them was reverted: the contract and `TestSelectorTable` make `retry --failed` and the others valid. The spec fix overlaps with the CLI option interaction work.
+- `7e8169c`: `resolve.RegisteredProjectBaseDirs`. A missing project's error names the registered state directories that have it, and `jobs` points to `--all-basedirs`. Contract CLI-11.
+- `a459e0d`: `lineage` comparisons join the tasks of an array that read the same into one row, and mark carried results in the `RESULT` column.
+- `9b66c8e`: `state.ResolveBaseDir` and `ResolveMasterDir` return absolute paths, so `--basedir ../lab` works. Contract RES-22.
+
+**Reason:** the user cannot connect MCP servers, so real agents use the CLI. The first trial's findings drove these changes, and a second trial measured them.
+
+**Plan impact:**
+- With a real agent, the task fell from 27 calls and about 140 KB to 23 calls and about 45 KB.
+- Finding the project fell from about 6 calls to 3.
+- Smaller findings remain in the trial note.
+
+**Validation:**
+- Each fix's new test fails on the commit before it:
+  - `TestCommandHelpCoversEveryOptionAndExitsZero` is new behavior.
+  - `TestMissingProjectNamesWhereItIs` fails for `show`, `lineage`, and `jobs`.
+  - `TestRunDiffGroupsArrayTasksThatReadTheSame` fails.
+  - `TestRelativeStateDirectoriesResolveAgainstTheWorkingDirectory` failed before the fix on `add -b ../lab`.
+- `scripts/check.sh` and the conformance suite passed before each commit, except as noted below.
+- Before `9b66c8e`, a script truncated the working `contracts/README.md` (it opened the file for writing before reading it). It was restored from HEAD plus this change's row. The other thread had committed its README edits at 14:01:57 (`09d19f3`), before the truncation, and has since added its own SAFE-4 entry to the working file.
+- Before `9b66c8e`, `TestContractStatus` and two flag-pair unlock tests failed only because of the other thread's uncommitted `flag_pair_unlock_test.go`, which was in progress. The suite otherwise passed.
+- The commits from `7e8169c` on were made through a separate index, because the other thread had staged its own files.
+
+**Remaining:**
+- `retry`'s spec (ISSUES.md).
+- The trial's open points: dry-run reasons, `lineage` hidden-job names, the queue table's timeout and source columns, and `wait`'s exit code wording.
