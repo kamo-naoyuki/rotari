@@ -10,6 +10,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
+	"github.com/kamo-naoyuki/rotari/internal/runlineage"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -74,7 +75,7 @@ func (editor Editor) ChangeWithFilter(baseDir, projectName, requestedRunID strin
 	if err != nil {
 		return "", err
 	}
-	var changedIDs []string
+	var changedIDs, lines []string
 	err = project.EditQueueGuarded(paths, "change", editor.Guard, func(queue *model.Queue) error {
 		if err := restoreSnapshot(paths, requestedRunID, queue); err != nil {
 			return err
@@ -96,7 +97,9 @@ func (editor Editor) ChangeWithFilter(baseDir, projectName, requestedRunID strin
 			indexes = filtered
 		}
 		var groupIDs []string
+		before := make(map[int]model.JobSpec, len(indexes))
 		for _, jobIndex := range indexes {
+			before[jobIndex] = commandSpec(queue.Commands[jobIndex])
 			if matrix := queue.Commands[jobIndex].Matrix; matrix != nil {
 				groupIDs = append(groupIDs, matrix.GroupID)
 			}
@@ -121,19 +124,54 @@ func (editor Editor) ChangeWithFilter(baseDir, projectName, requestedRunID strin
 			return fmt.Errorf("invalid dependencies: %w", err)
 		}
 		changedIDs = changedIDs[:0]
+		lines = lines[:0]
 		for _, jobIndex := range indexes {
 			changedIDs = append(changedIDs, queue.Commands[jobIndex].ID)
+			lines = append(lines, fmt.Sprintf("changed queue=%s job=%s%s", projectName, queue.Commands[jobIndex].ID,
+				formatChanges(runlineage.SpecChanges(before[jobIndex], commandSpec(queue.Commands[jobIndex])))))
 		}
 		return nil
 	})
 	if err != nil {
 		return "", err
 	}
-	lines := make([]string, len(changedIDs))
-	for index, id := range changedIDs {
-		lines[index] = fmt.Sprintf("changed queue=%s job=%s", projectName, id)
-	}
 	return strings.Join(lines, "\n"), nil
+}
+
+// commandSpec returns the definition of command that a run compares: an
+// array's first task stands for the array, whose tasks share it.
+func commandSpec(command model.QueuedCommand) model.JobSpec {
+	if jobs := model.QueueToJobs([]model.QueuedCommand{command}); len(jobs) > 0 {
+		return jobs[0]
+	}
+	return model.JobSpec{}
+}
+
+// formatChanges renders definition changes as key=value fields, as
+// " timeout=5s->60s environment+=LR=0.1", so a preview shows what a change
+// does; a status mark, which is not a definition, is not among them.
+func formatChanges(changes []runlineage.Change) string {
+	var builder strings.Builder
+	for _, change := range changes {
+		if len(change.Added) > 0 || len(change.Removed) > 0 {
+			if len(change.Added) > 0 {
+				fmt.Fprintf(&builder, " %s+=%s", change.Field, strings.Join(change.Added, ","))
+			}
+			if len(change.Removed) > 0 {
+				fmt.Fprintf(&builder, " %s-=%s", change.Field, strings.Join(change.Removed, ","))
+			}
+			continue
+		}
+		from, to := change.From, change.To
+		if from == "" {
+			from = "-"
+		}
+		if to == "" {
+			to = "-"
+		}
+		fmt.Fprintf(&builder, " %s=%s->%s", change.Field, from, to)
+	}
+	return builder.String()
 }
 
 func applyMutation(queue model.Queue, jobIndex int, mutation Mutation) error {

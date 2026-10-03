@@ -282,3 +282,18 @@ func TestAsyncDryRunRefusalShowsTheWayToPreview(t *testing.T) {
 		}
 	}
 }
+
+// TestChangePreviewNamesTheFieldsItChanges previews a change of a job's
+// timeout and environment and checks that each changed job's line names the
+// fields with their old and new values, before and when it applies.
+func TestChangePreviewNamesTheFieldsItChanges(t *testing.T) {
+	covers(t, "CLI-7")
+	e := support.NewEnv(t)
+	job := support.AddedJobID(t, e.MustRotari("add", "-p", "p1", "--job-name", "train", "--timeout", "5s", "--", "true"))
+	for _, args := range [][]string{{"--dry-run"}, nil} {
+		out := e.MustRotari(append([]string{"change", "-p", "p1", "-j", job, "--timeout", "60s", "--env", "LR=0.1"}, args...)...).Stdout
+		if !strings.Contains(out, "job="+job+" environment+=LR=0.1 timeout=5s->60s") {
+			t.Fatalf("change %v does not name the changed fields:\n%s", args, out)
+		}
+	}
+}
