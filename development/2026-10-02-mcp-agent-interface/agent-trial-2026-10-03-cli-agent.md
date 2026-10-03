@@ -145,3 +145,27 @@ New findings:
 4. Repeated from earlier runs:
    - `show --report` says "Executor: default" where the table says `local`.
    - The `show` run table is very wide, because of `DEPENDS ON`.
+
+## Fifth run, complete
+
+The fixture moved into the repository's ignored `.example-state-agent6/` (`/.example-state*/` in `.gitignore`), built at `87e6034`. The agent's writes were then allowed without any change to the permission settings. The agent completed the task:
+
+- It raised the `train` timeout with `change --dry-run`, then `--if-revision`.
+- It previewed and started `run --failed --filter-failure-kind timeout --dry-run`, then `--async --if-revision`, which reran `train[12]` and the eval jobs and carried 12 results.
+- It waited with `wait --json` and compared with `lineage OLD NEW`: fixed 1, still failing 6, newly failing 0.
+
+| | First | Second | Third | Fifth |
+| --- | --- | --- | --- | --- |
+| rotari calls | 27 | 23 | 21 | 16 |
+| output | about 140 KB | about 45 KB | about 57 KB | about 41 KB |
+
+The agent made one failed call: the expected project lookup, whose error named both state directories with their last runs. No call failed on a path, and no command was denied.
+
+New findings:
+
+1. **`retry` with an edited queue.** The `--run-id` help says it defaults to the latest run. So the agent could not tell whether a plain `retry` would rebuild the queue from that run and drop its timeout change, and it used `run --failed` instead. In fact, `retry` copies the last run only into an empty queue (`projectrun.RunSource`), but neither the help nor the guide says so.
+2. **No per-cause rerun hint.** `lineage` groups failures by cause, but shows no command to rerun one cause. The agent found `--filter-failure-kind timeout` in the filter list.
+3. **Dependents and filters.** The help of `--failed` and the filters does not say that dependents of selected jobs execute too; only `--job-id` does.
+4. **No `fix:` line for the timeout cause.** It appears in `lineage` without a suggestion, which `show --report` has.
+5. **`wait --json` is long.** It prints every result in full.
+6. **"changed 12" in `lineage`.** Next to carried results, the count of changed definitions reads like re-execution.
