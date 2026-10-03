@@ -60,3 +60,15 @@ func TestRunDiffNamesTheJobsItHides(t *testing.T) {
 		t.Fatalf("comparison does not name the hidden jobs, want %q:\n%s", want, output.String())
 	}
 }
+
+// TestRunDiffSummaryNamesDefinitionChanges checks that the summary line
+// calls the count of changed definitions what it is, so that it does not
+// read as jobs that ran again beside the carried count.
+func TestRunDiffSummaryNamesDefinitionChanges(t *testing.T) {
+	result := runlineage.Result{Summary: runlineage.Summary{Changed: 12, Carried: 7}}
+	var output bytes.Buffer
+	writeRunDiff(&output, state.ProjectPaths{ProjectName: "exp"}, result, false)
+	if !strings.Contains(output.String(), "definition changed 12, carried 7") {
+		t.Fatalf("summary line does not name definition changes:\n%s", output.String())
+	}
+}

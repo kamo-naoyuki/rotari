@@ -49,7 +49,7 @@ func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result runlineage.
 		fmt.Fprintf(writer, "%s %s -> %s\n", cyan("Elapsed:"), firstNonEmpty(result.From.Elapsed, "-"), firstNonEmpty(result.To.Elapsed, "-"))
 	}
 	summary := result.Summary
-	fmt.Fprintf(writer, "%s fixed %d, still failing %d, newly failing %d, added %d, removed %d, changed %d, carried %d, cause changed %d\n",
+	fmt.Fprintf(writer, "%s fixed %d, still failing %d, newly failing %d, added %d, removed %d, definition changed %d, carried %d, cause changed %d\n",
 		cyan("Summary:"), summary.Fixed, summary.StillFailing, summary.NewlyFailing, summary.Added, summary.Removed, summary.Changed, summary.Carried, summary.CauseChanged)
 
 	shown := make([]runlineage.JobDiff, 0, len(result.Jobs))
