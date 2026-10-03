@@ -459,3 +459,42 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - Failure groups name every member.
 - Comparisons repeat a definition change per array task.
 - The destructive rest of M7.
+
+## M7: MCP job control and reset
+
+**Commits:** 2026-10-03 11:16:59 `a7d6637`; 2026-10-03 11:19:27 `b7e51d1`; 2026-10-03 11:23:13 `8ef98d3`.
+
+**Change:**
+- `a7d6637`:
+  - Added `rotari_preview_job_control`, which lists the unfinished jobs of a running run that an operation reaches, through `jobcontrol.Controller.Select`.
+  - Added `rotari_cancel`, `rotari_suspend`, and `rotari_resume`, which call `Controller.Cancel` and `Control` with the run ID. A run that is no longer active is refused.
+  - The states each operation reaches moved from `cmd/rotari` into `jobcontrol.States`.
+  - Contract MCP-4.
+- `b7e51d1`:
+  - Added `project.Reset`, which clears an idle queue or recovers a confirmed interrupted run, and refuses a running project.
+  - `rotari reset` keeps its confirmation and cancellation wait and calls it.
+  - `resetQueueCommands`, with its own copy of the new-project dry run, is removed in favour of `CreateQueueGuarded`.
+- `8ef98d3`: added `rotari_preview_reset` and `rotari_reset`, revision-guarded, with `recover_interrupted`. Contract MCP-5.
+
+**Reason:**
+- M7 of the plan; the user said to go on after being asked for a go-ahead for the destructive tools.
+- `gc` was left CLI-only: its subject is stale registry paths, which the MCP principles keep out of results, and an agent has no decision to make there.
+
+**Plan impact:**
+- M7 is done.
+- The server has 17 tools: 11.3 KB of model-facing definitions, plus 1 KB of instructions.
+- Next: an agent trial of job control and reset.
+
+**Validation:**
+- New tests:
+  - `TestResetByProjectState` (idle; interrupted, confirmed and unconfirmed; running; each as a dry run and applied)
+  - conformance `TestMCPJobControlActsOnlyOnThePreviewedRunningRun` (MCP-4)
+  - conformance `TestMCPResetRecoversOnlyAConfirmedInterruptedRun` (MCP-5)
+- The existing reset and cancel conformance tests passed unchanged.
+- `go vet ./...` passed.
+- `scripts/check.sh` failed only in `TestCLIFlagPairEdits`, which belongs to another thread's uncommitted `conformance/03-interfaces/flag_pair_*` edits (see the previous entry).
+- `go test -count=1 ./conformance/... ./internal/archtest ./internal/doclinks -skip 'TestCLIFlagPairEdit'` passed.
+
+**Remaining:**
+- An agent trial of these tools.
+- Failure groups and comparisons that grow with the number of jobs.

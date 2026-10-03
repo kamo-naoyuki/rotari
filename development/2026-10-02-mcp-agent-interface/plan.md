@@ -173,9 +173,22 @@ Outcome:
 - `export` moved into `workflowstate.LoadSettledRun`. `rotari_export_run` returns a redacted view (environment values, executor options, and detected paths); the MCP import tools refuse it, and the full manifest stays with `rotari export` (contract MCP-2).
 - Not yet exposed through MCP: `add`, `change`, `remove`, `copy`, and `delete`. Their CLI forms are guarded already.
 
-### M7: Execution and destructive operations
+### M7: Execution and destructive operations (done; `gc` not exposed)
 
 `run` / `retry` (asynchronous start returning a stable run identity), progress inspection, `cancel` / `suspend` / `resume`, and `gc` / `reset`. Destructive operations are individually named tools, never reachable through a read.
+
+Outcome:
+
+- Run start came with M6 (`rotari_start_run`), and waiting with `rotari_wait_run` (MCP-3).
+- Job control (MCP-4):
+  - `rotari_preview_job_control` lists the jobs that cancel, suspend, or resume would reach, chosen as the CLI chooses them.
+  - `rotari_cancel`, `rotari_suspend`, and `rotari_resume` act only while the named run is still the active run. Only cancel is annotated as destructive.
+  - A run ID is the guard, not a revision, because a running run changes its state continuously.
+- Reset (MCP-5):
+  - `rotari_preview_reset` and `rotari_reset` use the new `project.Reset`, which `rotari reset` also calls.
+  - The reset applies at the previewed revision.
+  - An interrupted run is recovered only with `recover_interrupted`, and the preview reports whether its jobs may still be running.
+- `gc` is not exposed. It removes stale registry entries for directories that no longer exist; its output is their absolute paths, and an agent has nothing to decide there. It stays a CLI maintenance command.
 
 ## Current status
 
@@ -191,7 +204,8 @@ Outcome:
 - The [M6 agent trial](agent-trial-2026-10-03-m6.md) fixed and reran a project through MCP alone. It found and fixed a run preview that left out whole-array tasks, and a run summary that could not follow a started run (MCP-3). A project that has only been added is still unreachable (ISSUES.md).
 - After the trial: `add` registers its basedir (`c24dc25`), and `rotari_wait_run` (MCP-3) replaced polling, so following the trial's run took one call instead of 31. This covers the waiting part of M7's progress inspection.
 - Import plans and comparisons are summarized by default (`7922a08`). The write scenario now takes about 11 KB of results. Tool definitions cost 7.4 KB of model context; their output schemas are not part of it.
-- Next step: the rest of M7 (cancel, suspend, resume, gc, reset), which is destructive and needs the user's go-ahead. Remaining output costs are a run summary that names every failed task, and a comparison that repeats a definition change per array task.
+- M7 is done with the user's go-ahead: job control (MCP-4) and reset (MCP-5); `gc` stays CLI-only. The server has 17 tools, whose model-facing definitions take 11.3 KB, plus 1 KB of instructions.
+- Next step: an agent trial of job control and reset, such as cancelling a run that hangs and recovering an interrupted project. Remaining output costs are a run summary that names every failed task, and a comparison that repeats a definition change per array task.
 
 ## Open decisions
 
