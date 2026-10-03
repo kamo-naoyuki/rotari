@@ -6,6 +6,11 @@ cannot run shell commands. Agents that can should use the `rotari` CLI, as
 the same information. The tools below only read; importing a manifest and
 starting a run are described in [Changing a project](#changing-a-project).
 
+The server uses stdin and stdout for the MCP protocol. Closing stdin ends
+the session cleanly (exit status 0), including when responses are still in
+flight. Malformed input and other transport errors remain failures reported
+on stderr.
+
 | Tool | Input | Returns | CLI equivalent |
 | --- | --- | --- | --- |
 | `rotari_list_projects` | none | every project of every registered state directory, with its state, queue size, run count, and last run's ID, status, and failed and total job counts | `rotari show` |

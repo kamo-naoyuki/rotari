@@ -330,3 +330,10 @@ as the CLI and hold no rules of their own.
   [`internal/mcp/reset.go`](../internal/mcp/reset.go); checked by
   `TestMCPResetRecoversOnlyAConfirmedInterruptedRun` in
   [`conformance/03-interfaces/mcp_test.go`](../conformance/03-interfaces/mcp_test.go).
+- **MCP-6** Closing stdin ends `rotari mcp` cleanly (exit status 0),
+  including when responses are still in flight. Malformed input remains a
+  failure reported on stderr. Implemented in
+  [`cmd/rotari/mcp.go`](../cmd/rotari/mcp.go), with error classification checks
+  in [`cmd/rotari/mcp_test.go`](../cmd/rotari/mcp_test.go); checked through the
+  binary by `TestMCPStdinEOF` in
+  [`conformance/03-interfaces/flag_pair_mcp_test.go`](../conformance/03-interfaces/flag_pair_mcp_test.go).

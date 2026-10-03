@@ -201,6 +201,7 @@ the IDs, this table, and those calls disagree.
 | MCP-3 | `rotari_run_summary` and `rotari_wait_run` report the run's state as `wait` decides it, from right after the start, and tool errors name no state directory | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision`, `TestMCPWaitReturnsOnTheFirstFinalFailure` |
 | MCP-4 | MCP job control previews the jobs it reaches and acts only on the named running run | conformance | `TestMCPJobControlActsOnlyOnThePreviewedRunningRun` |
 | MCP-5 | MCP reset previews, applies at the revision, and recovers an interrupted run only when confirmed | conformance | `TestMCPResetRecoversOnlyAConfirmedInterruptedRun` |
+| MCP-6 | MCP stdin EOF ends the session cleanly, even with responses in flight; malformed input remains an error | conformance | `TestMCPStdinEOF` |
 | SEL-1 | A run ID or attempt ID alone resolves its location in every command | partial | `TestPositionalArguments`, `TestSelectorTable` |
 | SEL-2 | Each command reads the run or queue its row names | partial | `TestSelectorTable` |
 | SEL-3 | `show` resolves each selector form as its column says | conformance | `TestSelectorTable` |

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,6 +27,65 @@ type pairMCPObservation struct {
 	ServerName   string
 	Capabilities json.RawMessage
 	Tools        []string
+}
+
+func TestMCPStdinEOF(t *testing.T) {
+	covers(t, "MCP-6")
+	e := support.NewEnv(t)
+	for _, test := range []struct {
+		name, input, wantError string
+	}{
+		{name: "empty"},
+		{name: "requests in flight", input: mcpEOFRequests(t)},
+		{name: "truncated input", input: "{", wantError: "unexpected EOF"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			command := e.Command("mcp")
+			command.Stdin = strings.NewReader(test.input)
+			var stdout, stderr bytes.Buffer
+			command.Stdout, command.Stderr = &stdout, &stderr
+			err := command.Run()
+			if test.wantError != "" {
+				if err == nil || !strings.Contains(stderr.String(), test.wantError) {
+					t.Fatalf("MCP malformed input: err=%v stderr=%q, want %q", err, stderr.String(), test.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("MCP stdin EOF: %v; stderr=%s", err, stderr.String())
+			}
+			if stderr.Len() != 0 {
+				t.Fatalf("MCP stdin EOF stderr = %q", stderr.String())
+			}
+		})
+	}
+}
+
+func mcpEOFRequests(t *testing.T) string {
+	t.Helper()
+	var input bytes.Buffer
+	if err := writePairMCPMessage(&input, map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{
+			"protocolVersion": "2025-06-18", "capabilities": map[string]any{},
+			"clientInfo": map[string]any{"name": "eof-test", "version": "1"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writePairMCPMessage(&input, map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"}); err != nil {
+		t.Fatal(err)
+	}
+	// EOF may arrive before the queued responses are written. The client has
+	// disconnected, so shutdown must not depend on whether those writes win.
+	for id := 2; id < 130; id++ {
+		if err := writePairMCPMessage(&input, map[string]any{
+			"jsonrpc": "2.0", "id": id, "method": "tools/list", "params": map[string]any{},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return input.String()
 }
 
 func TestCLIFlagPairMCP(t *testing.T) {
