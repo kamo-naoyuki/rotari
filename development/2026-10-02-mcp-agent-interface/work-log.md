@@ -557,3 +557,31 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - A fresh `control` trial pass on `12b5395` gave the counts above.
 
 **Remaining:** output sizes of failure groups and comparisons.
+
+## Limits on MCP summaries and comparisons
+
+**Commits:** 2026-10-03 12:40:33 `82b1769`.
+
+**Change:**
+- Added `runlineage.LimitMembers` and `FailureGroup.JobsOmitted`.
+- `rotari_run_summary` and `rotari_wait_run` list the first 10 jobs of each failure group, and take `all_jobs` to list all.
+- `rotari_compare_runs` lists at most 20 changed jobs, keeping jobs whose result changed first, and reports the jobs left out, whose only change is their definition, as `hidden_changed`.
+- Updated `docs/MCP.md`.
+
+**Reason:** the remaining output costs named in the plan. A failure group named every member, and a comparison listed every changed definition.
+
+**Plan impact:**
+- labC's run summary in the read scenario fell from 7.3 KB to 3.7 KB.
+- The write scenario's comparison stayed at 3.7 KB, because its 15 changed jobs are under the limit.
+- Collapsing a definition change repeated over an array's tasks stays open.
+
+**Validation:**
+- New tests:
+  - `TestLimitMembersKeepsTheFirstJobsAndCountsTheRest`
+  - `TestLimitComparedJobsKeepsResultChangesFirstInOrder`, whose result changes sit beyond the limit, so priority is what keeps them
+  - `TestRunSummaryListsTenJobsPerGroupUnlessAllAreAsked`
+- The tool fixture now numbers results past 9 with `strconv.Itoa`; it had built IDs from runes.
+- `scripts/check.sh` and `go test -count=1 ./conformance/... ./internal/archtest ./internal/doclinks` passed.
+- Fresh read and write trial passes on `82b1769` gave the sizes above.
+
+**Remaining:** none planned; see the plan's open decisions.

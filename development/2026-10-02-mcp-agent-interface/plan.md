@@ -209,11 +209,12 @@ Outcome:
   - a cancelled pending job still started (CAN-6);
   - reset never warned that an interrupted run's jobs might still run (SAFE-7).
 - Carried jobs now read as carried from the start of their run (DUR-7, `12b5395`): a run records its carried results in `carried.json` before dispatching, as the user chose.
-- Next step: the remaining output costs, a run summary that names every failed task and a comparison that repeats a definition change per array task. ISSUES.md has no open item from this plan.
+- MCP summaries list 10 jobs per failure group and comparisons 20 changed jobs by default (`82b1769`). labC's summary fell from 7.3 KB to 3.7 KB. A comparison still repeats a definition change for each listed task, which only matters below the limit.
+- Next step: none is planned. The remaining open decisions are below; a new agent task, such as one with a scheduler executor, would be the next trial.
 
 ## Open decisions
 
-- Output size limits and defaults for groups, members, and excerpts: failure groups list every member (7.3 KB for 84 failures), and a comparison repeats a definition change for each array task.
+- Output size limits: groups and comparisons now have defaults (10 members, 20 changed jobs). Whether to collapse a definition change repeated over an array's tasks is open.
 - The cursor format for incremental progress and how long a cursor stays valid. `rotari_wait_run` blocks for at most 300 seconds (default 30); revisit if MCP clients time out sooner.
 - Which command and configuration details are safe and useful to return.
 - Whether Web history search (`web.SearchHistory`) should back an MCP log-search tool.
