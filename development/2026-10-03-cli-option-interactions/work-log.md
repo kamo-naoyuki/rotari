@@ -370,3 +370,55 @@
   Unrelated projection and configuration-link changes remain uncommitted.
 - **Remaining:** Diagnose and control adapters, live-server behavior, and the
   semantic/mode gaps listed in the coverage notes.
+
+## Diagnose pair adapter and rule-mode option guard
+
+**Commit:** `fb96c72` — 2026-10-04T00:02:58+09:00
+
+- **Change:** Added `pairdiagnose`: all 55 `diagnose` pairs in both orders and
+  standalone samples. LLM-mode invocations go only to an in-process fake
+  endpoint that checks the model, language prompt, endpoint path, and
+  authentication; local-rule invocations make no request, and the fixture
+  must stay unchanged. `diagnose --rules` now rejects `--provider`,
+  `--endpoint`, `--model`, and `--language` from CLI, environment, or config
+  (CLI-13). Updated the schema description, generated CLI references, guide,
+  coverage, and plan; added CLI-4's newly covering test to its status row.
+- **Reason:** Before the fix, `--rules` accepted all four LLM options and
+  silently ignored them (exit 0).
+- **Plan impact:** 6,294/6,826 pairs executed; 532 job-control pairs remained.
+- **Validation:** The rule-option test failed on the pre-fix commit in a
+  temporary worktree for all four CLI options and the config source, then
+  passed. Pair package normal and race, focused CLI diagnose tests, inventory,
+  contract/layout, document links, generated CLI reference check, and
+  `scripts/check.sh --short` passed (exit 0). The full race script was run
+  with the following job-control work.
+- **Remaining:** Job-control pairs (next entry).
+
+## Job-control pair adapter and stage/matrix exclusion
+
+**Commit:** `626607e` — 2026-10-04T01:17:35+09:00
+
+- **Change:** Added `pairjobcontrol`: all 171 `suspend`, 171 `resume`, and
+  190 `cancel` pairs in both orders against live local runs of five sleeping
+  jobs. An independent SEL-8/SEL-12 model predicts the jobs acted on or the
+  diagnosed rejection. Suspend/resume share one run reset before each
+  invocation; acting cancels get fresh runs, two pairs at a time; expected
+  rejections share a run that must stay untouched. Every run is reaped.
+  `jobcontrol.Controller.Select` now rejects a stage scope with a matrix
+  scope for every caller. Updated SEL-12, coverage, plan, and architecture.
+- **Reason:** The adapter found `--stage`/`--filter-stage` with
+  `--matrix`/`--filter-matrix` acting on the stage's jobs and silently
+  ignoring the matrix, while `show`, `run`, and `copy` reject it.
+- **Plan impact:** All 6,826 inventoried pairs now execute; none are deferred.
+  A repeated single-value option keeping its last value was recorded in
+  `development/ISSUES.md`.
+- **Validation:** Before the fix, all three commands failed exactly the four
+  stage/matrix pairs (exit 1); after it, the package passed normally and with
+  race (141s race), and no sleeping job remained. Unit, inventory,
+  contract/layout, and link tests passed. A first full `scripts/check.sh`
+  failed in race with five-second invocation timeouts across several pair
+  packages while cancels ran four pairs at a time; parallelism was lowered.
+  A second failed because a duplicated `package` line appeared in a new file;
+  it was removed. The final full `scripts/check.sh` passed (vet, normal,
+  race; exit 0). Logs are retained.
+- **Remaining:** Semantic/mode gaps listed in the coverage notes.
