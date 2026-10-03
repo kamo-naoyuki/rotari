@@ -189,7 +189,8 @@ follows:
   the supervisor when it begins the run.
 - **CLI-11** When a command names a project that its state directory does not
   have, the error lists the other registered state directories that have a
-  project of that name and says to select one with `--basedir`; `jobs`,
+  project of that name, each with its last run's ID, status, and failure
+  count, and says to select one with `--basedir`; `jobs`,
   which lists state directories itself, points to `--all-basedirs`. A
   project that no registered state directory has gets the plain error.
   Implemented once in `resolve.RegisteredProjectBaseDirs`, used by

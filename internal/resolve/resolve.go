@@ -389,11 +389,29 @@ func RequireProject(baseDir, projectName string) error {
 	if elsewhere := RegisteredProjectBaseDirs(projectName, baseDir); len(elsewhere) > 0 {
 		quoted := make([]string, len(elsewhere))
 		for index, other := range elsewhere {
-			quoted[index] = strconv.Quote(other)
+			quoted[index] = strconv.Quote(other) + lastRunNote(other, projectName)
 		}
 		message += fmt.Sprintf("; registered state directories that have it: %s (select one with --basedir)", strings.Join(quoted, ", "))
 	}
 	return errors.New(message)
+}
+
+// lastRunNote describes projectName's last run in baseDir, as the project
+// list shows it, so that same-named projects in several state directories
+// can be told apart: " (last run RUN_ID failed, 7 of 15 failed)", or "" for a
+// project without a readable run.
+func lastRunNote(baseDir, projectName string) string {
+	overviews, err := project.Overviews(baseDir, false)
+	if err != nil {
+		return ""
+	}
+	for _, overview := range overviews {
+		if overview.Name == projectName && overview.LastRun.ID != "" && overview.LastRun.Status != "" {
+			last := overview.LastRun
+			return fmt.Sprintf(" (last run %s %s, %d of %d failed)", last.ID, last.Status, last.Failed, last.Jobs)
+		}
+	}
+	return ""
 }
 
 // RegisteredProjectBaseDirs returns, sorted, the state directories registered

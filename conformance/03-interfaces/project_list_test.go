@@ -94,6 +94,12 @@ func TestMissingProjectNamesWhereItIs(t *testing.T) {
 	if result := e.Rotari("jobs", "exp"); result.Code == 0 || !strings.Contains(result.Stderr, "1 registered state directory has it") || !strings.Contains(result.Stderr, "--all-basedirs") {
 		t.Errorf("jobs exp = %s, want a pointer to --all-basedirs", result)
 	}
+	// A state directory with runs is named with its last run's result, which
+	// tells same-named projects apart.
+	e.MustRotari("run", "-b", elsewhere, "-p", "exp", "--quiet")
+	if result := e.Rotari("show", "-p", "exp"); !strings.Contains(result.Stderr, "last run ") || !strings.Contains(result.Stderr, "finished, 0 of 1 failed") {
+		t.Errorf("show -p exp = %s, want the last run's result beside %s", result, elsewhere)
+	}
 	if result := e.Rotari("show", "-p", "nowhere"); strings.Contains(result.Stderr, elsewhere) {
 		t.Errorf("a project no state directory has points to %s: %s", elsewhere, result)
 	}
