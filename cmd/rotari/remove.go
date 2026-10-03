@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"os"
+	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
@@ -43,8 +45,8 @@ func cmdRemove(args []string) int {
 	if scope.Matrix != "" {
 		selector.Matrix = scope.Matrix
 	}
-	if selector.Kinds() != 1 {
-		printError("usage: " + cliUsage("remove"))
+	if err := validateRemoveSelector(fs, selector); err != nil {
+		printError(err)
 		return 1
 	}
 
@@ -68,4 +70,59 @@ func cmdRemove(args []string) int {
 	}
 	guard.printResult(message, *quiet)
 	return 0
+}
+
+func validateRemoveSelector(fs *flag.FlagSet, selector model.CommandSelector) error {
+	switch selector.Kinds() {
+	case 0:
+		return errors.New("usage: " + cliUsage("remove"))
+	case 1:
+		return nil
+	default:
+		return errors.New(removeSelectorConflict(fs, selector))
+	}
+}
+
+func removeSelectorConflict(fs *flag.FlagSet, selector model.CommandSelector) string {
+	visited := make(map[string]bool)
+	fs.Visit(func(f *flag.Flag) { visited[f.Name] = true })
+	options := make([]string, 0, selector.Kinds())
+	if len(selector.IDs) > 0 {
+		switch {
+		case visited["job-id"]:
+			options = append(options, "--job-id")
+		case visited["j"]:
+			options = append(options, "-j")
+		case len(fs.Args()) > 0:
+			options = append(options, "positional job IDs")
+		default:
+			options = append(options, "--job-id")
+		}
+	}
+	if selector.Name != "" {
+		options = append(options, "--job-name")
+	}
+	if selector.Stage != "" {
+		options = append(options, visitedSelectorOption(visited, "stage", "filter-stage"))
+	}
+	if selector.Matrix != "" {
+		options = append(options, visitedSelectorOption(visited, "matrix", "filter-matrix"))
+	}
+	if selector.All {
+		options = append(options, "--all")
+	}
+	return "remove selectors cannot be combined: " + strings.Join(options, " and ")
+}
+
+func visitedSelectorOption(visited map[string]bool, short, long string) string {
+	switch {
+	case visited[short] && visited[long]:
+		return "--" + short + "/--" + long
+	case visited[long]:
+		return "--" + long
+	case visited[short]:
+		return "--" + short
+	default:
+		return "--" + short
+	}
 }

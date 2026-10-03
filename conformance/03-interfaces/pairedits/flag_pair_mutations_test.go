@@ -185,9 +185,6 @@ func assertPairMutationOutcome(t *testing.T, command string, flags []pairFlag, r
 		assertPairEditOutcome(t, command, flags, r)
 		return
 	}
-	if r.Code == 1 && command == "remove" && pairMutationSelectorCount(flags) > 1 && strings.HasPrefix(r.Stderr, "usage: rotari remove ") {
-		return
-	}
 	if r.Code == 1 && command == "delete" && pairHasFlag(flags, "all") && pairHasFlag(flags, "run-id") &&
 		strings.TrimSpace(r.Stderr) == "pass a run ID to delete one run, or --all to delete every run of the project" {
 		return

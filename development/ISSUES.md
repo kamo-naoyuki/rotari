@@ -14,9 +14,9 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 - **File-pair fixture snapshot can race supervisor cleanup** (`conformance/03-interfaces/flag_pair_files_test.go`): the unlock expansion's short check failed in `TestCLIFlagPairFiles` while taking its initial snapshot, with `lstat .../base/projects/pairs/server.pid: no such file or directory`. A directory entry disappeared between enumeration and stat. Expected: the read-only fixture is quiescent before snapshotting. Inspect supervisor shutdown/cleanup synchronization before assigning the cause; the original full log and exit 1 are retained. This is not a sandbox-access failure.
 
-- **`remove` rejects a selector conflict with only its usage line** (`cmd/rotari/remove.go`): `--filter-stage` and `--filter-matrix` are the long forms of `--stage` and `--matrix`, so `remove --all --filter-stage S` (and any two selector kinds, such as `--job-id` with `--stage`) count as two selectors and exit 1 with `usage: rotari remove ...`. Nothing is ignored or changed, but the message does not name the conflicting options, and a reader may expect `--filter-stage` to narrow `--all` as the definition filters do. Expected: an error naming the conflict, as `show` and `delete` give. Found by `TestCLIFlagPairMutationObservability`; the pair checks accept only this exact usage rejection for two selector kinds.
-
 ## Resolved
+
+- **`remove` selector conflicts gave only a usage line** (`cmd/rotari/remove.go`): multi-kind target conflicts now name the supplied flags and exit 1, while valid `--all` plus narrowing filters keep working. Covered by the selector table, flag-pair mutation checks, and `TestCmdRemoveNamesConflictingSelectors`.
 
 - **MCP stdin EOF could fail a normal disconnect** (`cmd/rotari/mcp.go`): go-sdk v1.4.1 ignores a read EOF, but a response racing with that EOF records the typed `server is closing: EOF` write error, wrapping the closing error but not EOF. The stdio command now treats only that exact typed error as a clean disconnect; malformed input and other I/O errors still fail. `TestMCPStdinEOF` reproduces the failure before the fix with requests in flight (MCP-6); `TestMCPStdioError` checks the narrow error classification.
 

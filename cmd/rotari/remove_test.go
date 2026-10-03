@@ -230,6 +230,48 @@ func TestCmdRemoveRejectsInvalidUsage(t *testing.T) {
 	}
 }
 
+func TestCmdRemoveNamesConflictingSelectors(t *testing.T) {
+	baseDir := t.TempDir()
+	cases := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{
+			name: "all and long stage selector",
+			args: []string{"--all", "--filter-stage", "sweep"},
+			want: []string{"--all", "--filter-stage"},
+		},
+		{
+			name: "job ID and stage",
+			args: []string{"--job-id", "job-1", "--stage", "sweep"},
+			want: []string{"--job-id", "--stage"},
+		},
+		{
+			name: "matrix and job name",
+			args: []string{"--matrix", "matrix-1", "--job-name", "job"},
+			want: []string{"--matrix", "--job-name"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args := append([]string{"--basedir", baseDir, "--project-name", "default"}, tc.args...)
+			code, stderr := captureStderr(t, func() int { return cmdRemove(args) })
+			if code != 1 {
+				t.Fatalf("cmdRemove(%v) exit code = %d, want 1; stderr = %q", args, code, stderr)
+			}
+			if strings.HasPrefix(stderr, "usage: ") || !strings.Contains(stderr, "cannot be combined") {
+				t.Fatalf("cmdRemove(%v) stderr = %q, want a selector conflict diagnostic", args, stderr)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(stderr, want) {
+					t.Errorf("cmdRemove(%v) stderr = %q, want conflicting selector %q", args, stderr, want)
+				}
+			}
+		})
+	}
+}
+
 func TestCmdRemoveStageRemovesEveryJobInStage(t *testing.T) {
 	baseDir, paths := writeChangeTestQueue(t, []model.QueuedCommand{
 		{ID: "a", Command: []string{"a"}, Stage: "sweep"},

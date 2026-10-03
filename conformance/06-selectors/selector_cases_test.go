@@ -115,6 +115,8 @@ var selectorCases = []selectorCase{
 	{name: "stage", cmd: "remove", args: "-b {B} -p sweep --stage evaluation", queued: true, jobs: []string{"eval"}},
 	{name: "matrix of latest run", cmd: "remove", args: "-b {B} -p sweep --run-id latest --matrix train", jobs: []string{"train-SEED1", "train-SEED2"}},
 	{name: "all", cmd: "remove", args: "-b {B} -p sweep --all", queued: true, jobs: []string{"eval", "late", "prep", "report", "train-SEED1", "train-SEED2"}},
+	{name: "all and long stage selector", cmd: "remove", args: "-b {B} -p sweep --all --filter-stage training", queued: true, err: "--filter-stage and --all"},
+	{name: "job ID and stage selectors", cmd: "remove", args: "-b {B} -p sweep --job-id {job:prep} --stage setup", queued: true, err: "--job-id and --stage"},
 	{name: "array task ID", cmd: "remove", args: "-b {B} -p sweep -j {job:eval}-2", queued: true, err: "task of array job {job:eval}"},
 	{name: "attempt ID", cmd: "remove", args: "-b {B} -p sweep -j {att:train-SEED2/0}", queued: true, err: "is an attempt ID; queue edits take a job ID, such as {job:train-SEED2}"},
 

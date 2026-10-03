@@ -151,6 +151,10 @@ hold:
 - `--stage`, `--matrix`, and `--all` exclude each other and the job
   selectors in `change` and `remove`; `--stage` and `--matrix` exclude job
   selectors in `copy`, `run`, and `retry`, and combine with a result filter.
+  When `remove` receives conflicting target selectors, it names the conflicting
+  options in its error instead of printing only usage; see
+  [cmd/rotari/remove.go](../cmd/rotari/remove.go) and
+  [selector cases](../conformance/06-selectors/selector_cases_test.go).
 - Job selectors exclude result filters in `copy`, `run`, and `retry`, and
   `run.PlanRerun` and `queueedit.Copy` reject the combination from any caller.
   The Web UI's copy endpoint rejects `job_id` with a `selection` the same way.
