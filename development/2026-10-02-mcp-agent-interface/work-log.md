@@ -387,3 +387,44 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - The ISSUES.md entry on basedir registration by `add`.
 - A bounded wait tool.
 - Output sizes of import plans, comparisons, and tool schemas.
+
+## After the M6 trial: basedir registration by `add` and a bounded wait tool
+
+**Commits:** 2026-10-03 03:24:12 `c24dc25`; 2026-10-03 10:51:05 `cc8ca55`.
+
+**Change:**
+- `c24dc25`:
+  - `add` registered the basedir only when an option was invalid. Applied `add` and `copy` now register through `queueops.Editor.RegisterBaseDir`, and a dry run registers nothing; `copy` used to register even on a dry run.
+  - `add --dry-run` of a new project failed while locking a directory that a dry run does not create. `project.CreateQueueGuarded` now previews and creates a project for `add` and `import`; it replaces import's own copy of that case.
+  - The ISSUES.md entry moved to Resolved, and the contract's registry note names the implementation and test.
+- `cc8ca55`:
+  - Added `rotari_wait_run`: it waits for at most `timeout_seconds` (1 to 300, default 30) until the run settles or, with `until_failure`, until a job has failed with no retry left. It returns the run summary and the reason it returned. A cancelled call stops waiting.
+  - `rotari wait --until-failure`'s failure check moved into `runview.FinalFailureGroups`, which both share.
+  - `addTool` passes the request context to the tools.
+  - Contract MCP-3 was extended.
+
+**Reason:**
+- Two findings of the [M6 trial](agent-trial-2026-10-03-m6.md):
+  - A project that had only been added was unreachable through MCP.
+  - Following a run took 31 polls.
+- The registry note in contract 01 already required registration when a project is created.
+
+**Plan impact:**
+- The waiting part of M7's progress inspection is done.
+- The next decision is between trimming outputs and schemas (20.6 KB for eleven tools) and the destructive rest of M7.
+
+**Validation:**
+- `TestCommandsThatCreateAProjectRegisterItsBasedir` fails on `0d783c3` for both causes:
+  - As written, `add --dry-run` exits 1.
+  - Without the dry-run step, `add did not register`.
+- New unit tests:
+  - `TestCreateQueueGuardedPreviewsANewProjectWithoutCreatingIt`
+  - `TestAddRegistersTheBaseDirOnlyWhenApplied`
+  - three `rotari_wait_run` tests
+- New conformance test: `TestMCPWaitReturnsOnTheFirstFinalFailure`.
+- Before each commit, `scripts/check.sh` passed, and `go test -count=1 ./conformance/... ./internal/archtest ./internal/doclinks` passed.
+- A fresh trial pass on `cc8ca55` followed the run in one `rotari_wait_run` call.
+
+**Remaining:**
+- Output sizes of import plans, comparisons, and tool schemas.
+- The destructive rest of M7.

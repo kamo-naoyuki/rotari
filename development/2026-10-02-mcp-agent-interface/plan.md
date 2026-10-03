@@ -189,12 +189,13 @@ Outcome:
 - M6 CLI half is done: `add`, `change`, `copy`, `delete`, `import`, `remove`, `reset`, `run`, and `retry` take `--dry-run` and `--if-revision` (contract CLI-7), `check` reports the revision, and `gc` applies by default with `--dry-run`.
 - M6 MCP half is done for import, export, and run start (MCP-1, MCP-2), served by `rotari mcp`.
 - The [M6 agent trial](agent-trial-2026-10-03-m6.md) fixed and reran a project through MCP alone. It found and fixed a run preview that left out whole-array tasks, and a run summary that could not follow a started run (MCP-3). A project that has only been added is still unreachable (ISSUES.md).
-- Next step: the trial needed no MCP queue edit; export, edit, and import covered the change. Its main cost was polling a running run. A bounded wait tool is the next candidate, from M7's progress inspection, before job control and history deletion.
+- After the trial: `add` registers its basedir (`c24dc25`), and `rotari_wait_run` (MCP-3) replaced polling, so following the trial's run took one call instead of 31. This covers the waiting part of M7's progress inspection.
+- Next step: decide between trimming outputs (import plans, comparisons, and tool schemas, now 20.6 KB) and the rest of M7 (cancel, suspend, resume, gc, reset), which are destructive and need the user's go-ahead.
 
 ## Open decisions
 
 - Output size limits and defaults for groups, members, and excerpts; also for import plans and run comparisons, which list every job (3 to 4 KB in the M6 trial).
-- The cursor format for incremental progress and how long a cursor stays valid, and how long a bounded wait tool may block an MCP call.
+- The cursor format for incremental progress and how long a cursor stays valid. `rotari_wait_run` blocks for at most 300 seconds (default 30); revisit if MCP clients time out sooner.
 - Which command and configuration details are safe and useful to return.
 - Whether Web history search (`web.SearchHistory`) should back an MCP log-search tool.
 - Where redaction is owned once outputs other than `report` return paths, hostnames, or commands.

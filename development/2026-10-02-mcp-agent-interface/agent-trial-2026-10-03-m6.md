@@ -62,3 +62,11 @@ The agent finished the task through MCP in 10 distinct tool calls and about 23 K
   - `tools/list` grew to 17 KB for ten tools.
   - Output size limits are still an open decision.
 - **The redaction rule held.** labA's manifest has no environment values or working directories, so its view could be edited and imported. A manifest with them would be refused, and the agent would need the CLI's `rotari export`.
+
+## After the fixes (`cc8ca55`)
+
+The basedir registration (`c24dc25`) and `rotari_wait_run` (`cc8ca55`) followed from the findings above. The script now follows the run with `rotari_wait_run`, calling it again while it returns `timeout`. A fresh pass on `cc8ca55`:
+
+- `rotari_wait_run` returned once, after the run settled. It used 1 call and 1.4 KB, where polling took 31 calls and 7.2 KB.
+- The other calls and sizes were as above. The task took 10 tool calls and about 17 KB of results.
+- `tools/list` grew to 20.6 KB for eleven tools, which makes schema size the largest fixed cost of a session.

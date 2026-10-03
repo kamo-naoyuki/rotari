@@ -11,7 +11,6 @@ import json
 import re
 import subprocess
 import sys
-import time
 
 proc = subprocess.Popen(
     [sys.argv[1], "mcp"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True
@@ -130,16 +129,21 @@ def write_scenario():
     preview = call("rotari_preview_run", rerun)
     print("  ", len(preview["execute"]), "of", preview["jobs"], "jobs execute")
     started = call("rotari_start_run", dict(rerun, if_revision=preview["revision"]))
-    polls = 0
+    waits = 0
     while True:
-        polls += 1
-        followed = call(
-            "rotari_run_summary", {"run_id": started["run_id"]}, quiet=polls > 1
-        )
-        if followed["state"] != "running":
+        waits += 1
+        followed = call("rotari_wait_run", {"run_id": started["run_id"]})
+        if followed["reason"] != "timeout":
             break
-        time.sleep(1)
-    print("   polls", polls, "state", followed["state"], followed["summary"]["counts"])
+    print(
+        "   waits",
+        waits,
+        "reason",
+        followed["reason"],
+        "state",
+        followed["state"],
+        followed["summary"]["counts"],
+    )
     comparison = call("rotari_compare_runs", {"run_id": started["run_id"]})
     print("  ", comparison["comparison"]["summary"])
     for job in comparison["comparison"]["jobs"]:
