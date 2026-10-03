@@ -1,6 +1,6 @@
-# Inspecting and diagnosing
+# Inspecting runs and jobs
 
-Checking status and logs, checking run readiness, and diagnosing failed jobs.
+Checking status and logs, run readiness, and execution history.
 
 ## Inspect
 
@@ -184,41 +184,3 @@ The command is read-only and does not reserve the project or remove a stale
 lock. `run` and `reset` repeat the applicable checks before changing state, so
 they remain safe if the project changes after `check` returns. Inconsistent
 saved state is reported instead of starting or recovering a run.
-
-## Diagnosis
-**Experimental:** The `diagnose` command/API is an early feature. Its command
-options, prompts, supported providers, and response format may change in future
-releases.
-
-### LLM error diagnosis
-See the [LLM diagnosis guide](LLM_DIAGNOSIS.md) for setup,
-provider details, configuration, and execution examples.
-
-### Local rule-based error diagnosis
-
-For common, recognizable failures, rotari runs local rule-based diagnosis when
-a failed job is finalized. The saved analysis is informational only: it never
-changes job status, retries, dependencies, or scheduler control. View it with:
-
-```sh
-rotari show ATTEMPT_ID
-```
-
-Every finalized failed job records a recognized diagnosis, an explicit no-match
-result, or an analysis-unavailable result when its output cannot be read.
-The Web UI shows a `Diagnosis` button beside every job's log button and enables
-it when a finalized failed job has saved analysis. Saved analysis is not
-updated when the rules change; `show`, reports, and the Web UI note when it was
-produced by earlier rules.
-
-To check a saved job manually, run:
-
-```sh
-rotari diagnose -j ATTEMPT_ID --rules
-```
-
-The `diagnose` command/API is experimental. With `--rules`, it sends nothing
-over the network and needs no API key or model. It checks the scheduler error
-and recorded output against the documented [local diagnosis
-rules](LOCAL_DIAGNOSIS.md), which cover common scheduler, GPU,
-distributed-compute, Python, filesystem, network, and HTTP failures.

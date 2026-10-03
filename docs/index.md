@@ -12,7 +12,7 @@ LSF, or Sun Grid Engine cluster while keeping commands, results, and logs togeth
 - [Concepts](CONCEPTS.md): projects, queues, runs, IDs, and state.
 - [Running and recovering](RUNNING.md): schedule, execute, inspect, rerun, retry, and use array and matrix jobs.
 - [Executors and schedulers](EXECUTORS.md): local, SSH, Slurm, PBS, LSF, and SGE execution backends.
-- [Inspecting and diagnosing](INSPECT.md): status, logs, and failure diagnosis.
+- [Inspecting runs and jobs](INSPECT.md): status, logs, run readiness, and history.
 
 The repository [README](https://github.com/kamo-naoyuki/rotari) provides the
 project overview; installation and quick start instructions are maintained in
