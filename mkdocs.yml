@@ -68,6 +68,9 @@ plugins:
             show_root_heading: true
             show_source: false
 
+hooks:
+  - scripts/mkdocs_llms.py
+
 validation:
   links:
     not_found: ignore

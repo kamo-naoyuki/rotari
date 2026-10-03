@@ -15,6 +15,8 @@ are not part of the `rotari` command-line interface. Runnable samples are in
   for all public methods from the CLI schema.
 - `generate_python_cli.py`: generate the Python CLI wrapper from the CLI schema.
 - `generate_pypi_index.py`: generate the static package index used by GitHub Pages.
+- `mkdocs_llms.py`: generate `llms.txt` and `llms-full.txt` from rendered pages during
+  the MkDocs build.
 - `sync_readme.py`: synchronize `docs/GETTING_STARTED.md` into the GitHub README.
 
 Run `python3 scripts/sync_readme.py --check` to verify that the README is in
@@ -52,6 +54,8 @@ PYTHONPATH=python python3 scripts/generate_cli_reference.py --check
 PYTHONPATH=python python3 scripts/generate_python_api_docs.py --check
 python3 scripts/sync_readme.py --check
 PYTHONPATH=python python3 -m mkdocs build --strict --site-dir "$TMPDIR/mkdocs-site"
+test -s "$TMPDIR/mkdocs-site/llms.txt"
+test -s "$TMPDIR/mkdocs-site/llms-full.txt"
 ```
 
 CI runs these synchronization checks and the strict MkDocs build for pull

@@ -12,6 +12,8 @@ on:
       - "cmd/rotari/environment.go"
       - "scripts/generate_python_api_docs.py"
       - "scripts/generate_cli_reference.py"
+      - "scripts/mkdocs_llms.py"
+      - "scripts/test_mkdocs_llms.py"
       - "scripts/sync_readme.py"
       - "mkdocs.yml"
       - "README.md"
@@ -25,6 +27,8 @@ on:
       - "cmd/rotari/environment.go"
       - "scripts/generate_python_api_docs.py"
       - "scripts/generate_cli_reference.py"
+      - "scripts/mkdocs_llms.py"
+      - "scripts/test_mkdocs_llms.py"
       - "scripts/sync_readme.py"
       - "mkdocs.yml"
       - "README.md"
@@ -54,4 +58,7 @@ jobs:
           python3 scripts/generate_cli_reference.py --check
           python3 scripts/generate_python_api_docs.py --check
           python3 scripts/sync_readme.py --check
+          python3 -m unittest discover -s scripts -p 'test_mkdocs_llms.py' -v
           python -m mkdocs build --strict --site-dir "$RUNNER_TEMP/mkdocs-site"
+          test -s "$RUNNER_TEMP/mkdocs-site/llms.txt"
+          test -s "$RUNNER_TEMP/mkdocs-site/llms-full.txt"

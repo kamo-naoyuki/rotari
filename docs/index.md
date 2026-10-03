@@ -26,3 +26,9 @@ the [Getting started](GETTING_STARTED.md) guide.
 - [Python API](python-api.md)
 - [Go API](go-api.md)
 - [MCP server](MCP.md): experimental VS Code/agent integration for inspecting one job.
+
+## For LLMs
+
+The documentation build publishes an [LLM-friendly index](https://kamo-naoyuki.github.io/rotari/docs/llms.txt)
+and a [single file with the rendered documentation](https://kamo-naoyuki.github.io/rotari/docs/llms-full.txt).
+Share the index when the LLM can access links, or attach the full file when it cannot.
