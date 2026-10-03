@@ -669,3 +669,53 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 - `retry`'s spec (ISSUES.md).
 - A way to rerun one array task without its dependents.
 - A fifth trial, once writes can be allowed for the agent.
+
+## The fifth CLI agent trial and its fixes
+
+**Commits:** 2026-10-03 21:58:59 `989b452`; 2026-10-03 22:10:19 `5f58781`; 2026-10-03 22:19:35 `b4d61ec`; 2026-10-03 23:22:51 `b59af78`; 2026-10-03 23:35:22 `ff5b5c3`; 2026-10-03 23:35:22 `7f2f333`; 2026-10-03 23:50:56 `e02286e`; 2026-10-03 23:51:08 `f7dac7c`; 2026-10-04 00:27:46 `06429d3`; 2026-10-04 00:27:55 `3e687a6`; 2026-10-04 00:53:17 `a78b4aa`.
+
+**Change:**
+- `989b452`: the plan's decision that dependents rerun with their dependency. The user chose not to add an option to skip them, since nobody would use an option for that edge case.
+- `5f58781`:
+  - `retry`'s help and schema list every option it takes. `runCommandFlags(retry)` gives the options whose meaning differs, such as `--run-id` and `--failed`, their retry wording.
+  - An earlier attempt rejected those options in `retry`. It was reverted because the contract and `TestSelectorTable` say `retry` takes them.
+  - The pinned flag-pair inventory and the coverage document were updated for `retry`'s new options.
+- `b4d61ec`: `runview.LoadRun` reads a running run without `commands.json` as having no jobs yet, through `project.RunPhaseOf`, instead of failing. This fixes the async start race that the CLI option interaction work recorded in ISSUES.md. The MCP tool's special case for it was removed.
+- `b59af78`: the fifth trial in [agent-trial-2026-10-03-cli-agent.md](agent-trial-2026-10-03-cli-agent.md). Its fixture lived in the repository's ignored `.example-state-agent6/`, where the agent's writes were allowed.
+- `ff5b5c3`: the timeout, cancelled, and blocked failure groups get a `fix:` line, from `runlineage.recordedCauseSuggestions`.
+- `7f2f333`:
+  - The `--run-id` help of `retry` says that it copies the latest run only into an empty queue and otherwise keeps the queued jobs, such as ones changed with `change -r`.
+  - The `run` and `retry` descriptions and the result filters say that dependents execute.
+  - The guide's loop uses `retry --dry-run`, then `--async --if-revision`.
+- `e02286e`: `lineage`'s summary says "definition changed N" instead of "changed N", which read like re-execution next to carried results.
+- `f7dac7c`: each failure group in `lineage` and `show` prints a `retry:` command that previews the rerun of that cause, with `--filter-diagnosis` or `--filter-failure-kind` and `--dry-run`. It is printed only for the project's last run, once it has finished.
+- `06429d3`: the guide stops recommending `--json` to agents. `--json` is the Python client's full-detail output, and the user did not want it read as an agent format. In the trial's run, `wait --json` printed 4.4 KB and the text 2.3 KB.
+- `3e687a6`: ISSUES.md recorded that `wait` repeated the Summary, Diagnosis, and Origin lines of `run`'s completion message. The other thread fixed it in `43cfbf5`, which builds `wait`'s text from the same completion message as `run`.
+- `a78b4aa`:
+  - Command help lists the per-executor options, such as `--slurm-concurrency`, once per kind under "Executor options", naming every executor's option.
+  - It states a default or the choices once.
+  - The generated CLI and Python API references list each option's choices from the schema.
+  - `retry --help` fell from 6.6 KB to 5.4 KB.
+
+**Reason:** the fifth CLI agent trial, the first to complete since the auto-mode denials. It took 16 calls and about 41 KB.
+
+**Plan impact:**
+- All six findings of the fifth trial are addressed. For finding 5, the user chose not to add an output option for agents, and the guide's advice was changed instead.
+- The remaining large outputs are command help and the `show -r` table.
+
+**Validation:**
+- Tests by commit:
+  - `5f58781`: `guide_test.go` and the flag-pair inventory.
+  - `b4d61ec`: `internal/runview`.
+  - `ff5b5c3`: `internal/runlineage`.
+  - `e02286e`: `lineage_diff_test.go`.
+  - `f7dac7c`: the conformance failure-group test.
+  - `a78b4aa`: `TestCommandHelpStatesEachNoteOnce`, which fails on the commit before it, as checked in a temporary worktree.
+  - `7f2f333` changes only help and guide wording and has no test of its own.
+- `b4d61ec`'s race did not reproduce in 40 async starts before the fix. Its unit test builds the state of a run that has started but has not written `commands.json`.
+- Before each commit, `scripts/check.sh`, the conformance suite, and `internal/archtest` passed. For `a78b4aa`, the Python tests passed too. The exceptions were failures in the CLI option interaction work's in-progress tests (`TestCLIFlagPairFiles`, `TestCLIFlagPairMCP`, `TestContractStatus`), which passed when rerun or after that work committed.
+- Commits were made through a separate index, because that work had files staged and edited in the same tree.
+
+**Remaining:**
+- The `show -r` table is wide because of `DEPENDS ON`.
+- Whether to remove `.example-state-agent6/` and `.claude/settings.local.json`, both ignored by git.

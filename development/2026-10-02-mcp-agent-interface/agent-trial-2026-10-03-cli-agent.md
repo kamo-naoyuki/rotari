@@ -169,3 +169,12 @@ New findings:
 4. **No `fix:` line for the timeout cause.** It appears in `lineage` without a suggestion, which `show --report` has.
 5. **`wait --json` is long.** It prints every result in full.
 6. **"changed 12" in `lineage`.** Next to carried results, the count of changed definitions reads like re-execution.
+
+After the fifth run, these were fixed:
+
+- `7f2f333`: `retry`'s `--run-id` help says that it keeps a queue changed with `change -r`, and the run and filter help says that dependents execute (findings 1 and 3).
+- `f7dac7c`: each failure group prints a `retry:` command that previews the rerun of that cause (finding 2).
+- `ff5b5c3`: the timeout, cancelled, and blocked groups get a `fix:` line (finding 4).
+- `06429d3`: the guide stops recommending `--json`, which is the Python client's full-detail output (finding 5). `43cfbf5`, from other work, made `wait`'s text the same as `run`'s completion message.
+- `e02286e`: `lineage` says "definition changed" (finding 6).
+- `a78b4aa`: command help lists the per-executor options once per kind. `retry --help`, the largest output of this run, fell from 6.6 KB to 5.4 KB.

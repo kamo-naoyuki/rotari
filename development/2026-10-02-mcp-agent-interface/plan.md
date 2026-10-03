@@ -211,14 +211,14 @@ Outcome:
   - reset never warned that an interrupted run's jobs might still run (SAFE-7).
 - Carried jobs now read as carried from the start of their run (DUR-7, `12b5395`): a run records its carried results in `carried.json` before dispatching, as the user chose.
 - MCP summaries list 10 jobs per failure group and comparisons 20 changed jobs by default (`82b1769`). labC's summary fell from 7.3 KB to 3.7 KB. A comparison still repeats a definition change for each listed task, which only matters below the limit.
-- Real agents use the CLI, because the user cannot connect MCP servers. Four [CLI agent trials](agent-trial-2026-10-03-cli-agent.md) drove the fixes that followed:
+- Real agents use the CLI, because the user cannot connect MCP servers. Five [CLI agent trials](agent-trial-2026-10-03-cli-agent.md) drove the fixes that followed:
   - the guide and help, the missing-project error, and relative state directories;
   - `lineage` grouping and hidden-job names, previews that say why and what changes, and the async start hints;
-  - the executor display, job names in results, and dependency ranges.
-  - The task fell from 27 calls and about 140 KB to about 21 calls.
-- Next step:
-  - `retry`'s spec (ISSUES.md), with the CLI option interaction work.
-  - A fifth trial that measures the rerun steps, once the agent's writes can be allowed.
+  - the executor display, job names in results, and dependency ranges;
+  - `retry`'s help and the queue it keeps, a `fix:` and a `retry:` line for each failure group, and shorter command help.
+  - The task fell from 27 calls and about 140 KB to 16 calls and about 41 KB.
+- The guide does not recommend `--json` to agents: it is the Python client's full-detail output, and the default text is what agents should read.
+- Next step: the `show -r` table, which is wide because of `DEPENDS ON`, and another trial to measure the fixes.
 
 ## Open decisions
 
