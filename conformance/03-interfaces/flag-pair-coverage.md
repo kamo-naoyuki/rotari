@@ -127,6 +127,12 @@ implementation imports. The staged rollout is tracked in the
   signal. An alternate-registry witness proves config selection and explicit
   masterdir precedence in both orders. Shutdown and live lease behavior are
   still outside this adapter.
+- `TestCLIFlagPairMCP` checks the `--config`/`--masterdir` pair and standalone
+  samples by sending only JSON-RPC `initialize` and `tools/list`. It compares
+  server identity/capabilities and sorted tool names, ignores asynchronous
+  notifications, closes stdin after the final reply, and requires a clean
+  bounded exit, empty stderr, and an unchanged fixture. No MCP tool is called,
+  so tool-side effects and masterdir precedence inside tools remain untested.
 - `TestCLIFlagPairUnlock` executes all six `unlock` pairs in both orders from
   an identical synthetic interrupted state. It uses a stale local lock for an
   already-finished fixture run, so no process or scheduler is running. Each
@@ -162,18 +168,18 @@ only robustness/order coverage; they do not claim a semantic ignore oracle.
 
 ## Deferred command adapters
 
-Every pair is inventoried, and nineteen commands have adapters. The remaining
-616 pairs are **not executed** by this suite.
+Every pair is inventoried, and twenty commands have adapters. The remaining
+615 pairs are **not executed** by this suite.
 
 | Commands | Pairs | Required next work |
 | --- | ---: | --- |
 | `cancel`, `suspend`, `resume` | 532 | Active/interrupted fixtures, barriers, signals, prompts, and bounded cleanup |
-| `web`, `mcp`, `diagnose` | 84 | Isolated daemon/stdio/HTTP adapters; fake external diagnosis services |
+| `web`, `diagnose` | 83 | Isolated daemon/HTTP adapters; fake external diagnosis services |
 | `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
-The 5,865 executed pairs consist of 783 read-only, 36 file-output, 178
-queue-mutation, 1,520 edit, 3,336 run/retry/wait, 6 unlock, and 6 registry
-pairs. The edit pair loop accepted
+The 5,866 executed pairs consist of 783 read-only, 36 file-output, 178
+queue-mutation, 1,520 edit, 3,336 run/retry/wait, 6 unlock, 6 gc/server, and
+1 MCP pair. The edit pair loop accepted
 1,187 and explicitly rejected 333 pairs in 3,040 invocations; one run took
 4m01s including setup.
 
