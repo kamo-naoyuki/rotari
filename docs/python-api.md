@@ -60,12 +60,12 @@ Add a command to a queue.
 Rotari.run(**options: object) -> Run
 ```
 
-Execute queued commands, optionally selecting jobs from a run.
+Execute queued commands, optionally selecting jobs from a run; jobs that depend on a selected job execute too.
 
 | Option | Value | Description |
 | --- | --- | --- |
 | `config` | `str` | config file to use |
-| `run_id` | `str` | repopulate the queue from this run before executing (copy --run-id + run); defaults to the latest run when a result filter is used |
+| `run_id` | `str` | copy this run's jobs into the queue first (copy --run-id + run); without it, a result filter copies the latest run only into an empty queue and otherwise uses the queued jobs, such as ones changed with change -r |
 | `overwrite` | `bool` | replace a non-empty queue without prompting; requires --run-id |
 | `run_name` | `str` | run name label |
 | `local_concurrency` | `str` | local worker concurrency |
@@ -130,12 +130,12 @@ Execute queued commands, optionally selecting jobs from a run.
 Rotari.retry(**options: object) -> Run
 ```
 
-Run failed and unfinished jobs; with --job-id, run those jobs.
+Run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend on them execute too.
 
 | Option | Value | Description |
 | --- | --- | --- |
 | `config` | `str` | config file to use |
-| `run_id` | `str` | repopulate the queue from this run before executing; defaults to the latest run |
+| `run_id` | `str` | copy this run's jobs into the queue first; without it, retry copies the latest run only into an empty queue and otherwise uses the queued jobs, such as ones changed with change -r |
 | `overwrite` | `bool` | replace a non-empty queue without prompting; requires --run-id |
 | `run_name` | `str` | run name label |
 | `local_concurrency` | `str` | local worker concurrency |

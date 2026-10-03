@@ -479,7 +479,7 @@ Usage: `rotari copy [RUN_ID]`
 
 ### `rotari run`
 
-execute queued commands, optionally selecting jobs from a run
+execute queued commands, optionally selecting jobs from a run; jobs that depend on a selected job execute too
 
 Usage: `rotari run [RUN_ID]`
 
@@ -488,7 +488,7 @@ Usage: `rotari run [RUN_ID]`
 | `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
-| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | repopulate the queue from this run before executing (copy --run-id + run); defaults to the latest run when a result filter is used |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | copy this run's jobs into the queue first (copy --run-id + run); without it, a result filter copies the latest run only into an empty queue and otherwise uses the queued jobs, such as ones changed with change -r |
 | `--overwrite` | `` | `` | replace a non-empty queue without prompting; requires --run-id |
 | `--run-name` | `NAME` | `ROTARI_RUN_NAME` | run name label |
 | `--local-concurrency` | `N` | `ROTARI_RUN_LOCAL_CONCURRENCY` | local worker concurrency |
@@ -549,7 +549,7 @@ Usage: `rotari run [RUN_ID]`
 
 ### `rotari retry`
 
-run failed and unfinished jobs; with --job-id, run those jobs
+run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend on them execute too
 
 Usage: `rotari retry [RUN_ID]`
 
@@ -558,7 +558,7 @@ Usage: `rotari retry [RUN_ID]`
 | `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
-| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | repopulate the queue from this run before executing; defaults to the latest run |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | copy this run's jobs into the queue first; without it, retry copies the latest run only into an empty queue and otherwise uses the queued jobs, such as ones changed with change -r |
 | `--overwrite` | `` | `` | replace a non-empty queue without prompting; requires --run-id |
 | `--run-name` | `NAME` | `ROTARI_RUN_NAME` | run name label |
 | `--local-concurrency` | `N` | `ROTARI_RUN_LOCAL_CONCURRENCY` | local worker concurrency |

@@ -60,7 +60,9 @@ rotari lineage RUN_ID
 # One job's evidence, taking ATTEMPT_ID from the cause's "show:" line:
 rotari show -j ATTEMPT_ID --report
 # Fix the cause, preview the rerun of failed and unfinished jobs, then
-# start exactly that, taking REVISION from the preview's last line:
+# start exactly that, taking REVISION from the preview's last line. retry
+# keeps a queue changed with change -r; it copies the last run only into an
+# empty queue:
 rotari retry -p sweep --dry-run
 rotari retry -p sweep --async --if-revision REVISION
 rotari wait sweep --json

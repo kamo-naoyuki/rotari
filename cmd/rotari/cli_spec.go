@@ -387,13 +387,13 @@ var cliCommandSpecs = []cliCommandSpec{
 	},
 	{
 		Name:        "run",
-		Description: "execute queued commands, optionally selecting jobs from a run",
+		Description: "execute queued commands, optionally selecting jobs from a run; jobs that depend on a selected job execute too",
 		Flags:       runCommandFlags(false),
 		Positional:  "[RUN_ID]",
 	},
 	{
 		Name:        "retry",
-		Description: "run failed and unfinished jobs; with --job-id, run those jobs",
+		Description: "run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend on them execute too",
 		Flags:       runCommandFlags(true),
 		Positional:  "[RUN_ID]",
 	},
@@ -546,7 +546,7 @@ func cliUsage(name string) string {
 // unfinished jobs, are described for it.
 func runCommandFlags(retry bool) []cliFlagSpec {
 	flags := append(append(commonCLIFlags(),
-		cliFlagSpec{Name: "run-id", Description: "repopulate the queue from this run before executing (copy --run-id + run); defaults to the latest run when a result filter is used", ValueName: "ID"},
+		cliFlagSpec{Name: "run-id", Description: "copy this run's jobs into the queue first (copy --run-id + run); without it, a result filter copies the latest run only into an empty queue and otherwise uses the queued jobs, such as ones changed with change -r", ValueName: "ID"},
 		cliFlagSpec{Name: "overwrite", Description: "replace a non-empty queue without prompting; requires --run-id"},
 		cliFlagSpec{Name: "run-name", Description: "run name label", ValueName: "NAME"},
 		cliFlagSpec{Name: "local-concurrency", Description: "local worker concurrency", ValueName: "N"},
@@ -589,7 +589,7 @@ func runCommandFlags(retry bool) []cliFlagSpec {
 		return flags
 	}
 	retryDescriptions := map[string]string{
-		"run-id":     "repopulate the queue from this run before executing; defaults to the latest run",
+		"run-id":     "copy this run's jobs into the queue first; without it, retry copies the latest run only into an empty queue and otherwise uses the queued jobs, such as ones changed with change -r",
 		"failed":     "only execute failed jobs, instead of failed and unfinished jobs; others carry forward their previous result",
 		"unfinished": "only execute unfinished jobs, instead of failed and unfinished jobs; others carry forward their previous result",
 		"success":    "only execute successful jobs, instead of failed and unfinished jobs; others carry forward their previous result",

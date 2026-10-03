@@ -1793,7 +1793,7 @@ CLI_SCHEMA: dict[str, Any] = {
         },
         {
             "description": "execute queued commands, optionally selecting jobs from "
-            "a run",
+            "a run; jobs that depend on a selected job execute too",
             "flags": [
                 {
                     "description": "config file to use",
@@ -1815,9 +1815,11 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "repopulate the queue from this run before "
-                    "executing (copy --run-id + run); defaults to "
-                    "the latest run when a result filter is used",
+                    "description": "copy this run's jobs into the queue first "
+                    "(copy --run-id + run); without it, a result "
+                    "filter copies the latest run only into an "
+                    "empty queue and otherwise uses the queued "
+                    "jobs, such as ones changed with change -r",
                     "environment": "ROTARI_RUN_ID",
                     "name": "run-id",
                     "short": "r",
@@ -2194,7 +2196,7 @@ CLI_SCHEMA: dict[str, Any] = {
         },
         {
             "description": "run failed and unfinished jobs; with --job-id, run "
-            "those jobs",
+            "those jobs; jobs that depend on them execute too",
             "flags": [
                 {
                     "description": "config file to use",
@@ -2216,8 +2218,11 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "repopulate the queue from this run before "
-                    "executing; defaults to the latest run",
+                    "description": "copy this run's jobs into the queue first; "
+                    "without it, retry copies the latest run only "
+                    "into an empty queue and otherwise uses the "
+                    "queued jobs, such as ones changed with "
+                    "change -r",
                     "environment": "ROTARI_RUN_ID",
                     "name": "run-id",
                     "short": "r",
