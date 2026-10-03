@@ -41,15 +41,19 @@ The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers ins
 | <img src="https://kamo-naoyuki.github.io/rotari/demo-shell.gif" alt="shell background jobs demo" width="400"> | <img src="https://kamo-naoyuki.github.io/rotari/demo-rotari.gif" alt="rotari demo" width="400"> |
 
 
-You don't need a separate workflow language: define experiment batches with
-`rotari add` lines in a shell script or add commands interactively, then start
-runs yourself with `rotari run`. For transient host failures,
-`rotari run --retry N` retries failed jobs within the same run.
+Compared with background jobs in a plain shell, rotari limits how many jobs run
+at once and records each job's result and log, so you can see what failed and
+rerun only that.
 
-On clusters, rotari dispatches jobs to the site's scheduler, which handles
-placement and resource allocation. By default, jobs inherit the working
-directory and environment of the shell that runs `rotari run`; set
-`--working-directory` or `--env` to override them ([details](docs/CONCEPTS.md#workflow-and-execution-environment)).
+Compared with a workflow engine, rotari needs no separate workflow language:
+you write `rotari add` lines in an ordinary shell script, and you start each
+run yourself with `rotari run`. Jobs run in the working directory and
+environment of that shell, as the commands would in the script
+([details](docs/CONCEPTS.md#workflow-and-execution-environment)).
+
+Compared with a personal queue on one machine, rotari can also run jobs over
+SSH or hand them to the site's scheduler, which handles placement and resource
+allocation.
 
 ### Choosing a tool
 
