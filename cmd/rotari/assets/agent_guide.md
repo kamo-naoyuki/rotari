@@ -33,7 +33,9 @@ successful results are carried forward.
   `--overwrite`, and `run --run-id` into a non-empty queue needs
   `--overwrite`.
 - Pass `--project-name/-p` (or set `ROTARI_PROJECT_NAME`) so each command
-  targets the intended project.
+  targets the intended project. A project in another state directory is
+  named in the error, with how to select it; `rotari show` with no project
+  lists the projects of every registered state directory.
 - Use `--no-pager` with log views such as `show --logs`.
 - In `add` and `change`, put rotari options before the job command and
   separate them with `--`: every argument after the command's first word goes

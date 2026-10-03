@@ -63,7 +63,15 @@ func cmdJobs(args []string) int {
 			found = found || resolve.ProjectExists(baseDir, *projectName)
 		}
 		if !found {
-			printErrorf("project %q does not exist in the listed state directories", *projectName)
+			message := fmt.Sprintf("project %q does not exist in the listed state directories", *projectName)
+			if elsewhere := resolve.RegisteredProjectBaseDirs(*projectName, ""); len(elsewhere) > 0 && !*allBaseDirs {
+				verb := "have"
+				if len(elsewhere) == 1 {
+					verb = "has"
+				}
+				message += fmt.Sprintf("; %d registered state director%s %s it (list them with --all-basedirs, or select one with --basedir)", len(elsewhere), pluralSuffix(len(elsewhere)), verb)
+			}
+			printError(message)
 			return 1
 		}
 	}

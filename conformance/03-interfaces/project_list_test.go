@@ -74,3 +74,27 @@ func TestProjectListHintsWork(t *testing.T) {
 		})
 	}
 }
+
+// TestMissingProjectNamesWhereItIs asks the default state directory for a
+// project that only another registered state directory has, as an agent does
+// before it knows the basedir, and checks that the error names that
+// directory and how to select it; jobs, which lists state directories, points
+// to --all-basedirs.
+func TestMissingProjectNamesWhereItIs(t *testing.T) {
+	covers(t, "CLI-11")
+	e := support.NewEnv(t)
+	elsewhere := filepath.Join(e.Root, "elsewhere")
+	e.MustRotari("add", "-b", elsewhere, "-p", "exp", "--", "true")
+	for _, args := range [][]string{{"show", "-p", "exp"}, {"lineage", "-p", "exp"}} {
+		result := e.Rotari(args...)
+		if result.Code == 0 || !strings.Contains(result.Stderr, elsewhere) || !strings.Contains(result.Stderr, "--basedir") {
+			t.Errorf("%v = %s, want an error naming %s and --basedir", args, result, elsewhere)
+		}
+	}
+	if result := e.Rotari("jobs", "exp"); result.Code == 0 || !strings.Contains(result.Stderr, "1 registered state directory has it") || !strings.Contains(result.Stderr, "--all-basedirs") {
+		t.Errorf("jobs exp = %s, want a pointer to --all-basedirs", result)
+	}
+	if result := e.Rotari("show", "-p", "nowhere"); strings.Contains(result.Stderr, elsewhere) {
+		t.Errorf("a project no state directory has points to %s: %s", elsewhere, result)
+	}
+}

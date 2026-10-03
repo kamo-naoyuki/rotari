@@ -15,8 +15,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/runregistry"
@@ -380,10 +382,41 @@ func ProjectExists(baseDir, name string) bool {
 // RequireProject reports a project that does not exist, for commands that
 // read or edit a project rather than create one.
 func RequireProject(baseDir, projectName string) error {
-	if !ProjectExists(baseDir, projectName) {
-		return fmt.Errorf("project %q does not exist in state directory %q", projectName, baseDir)
+	if ProjectExists(baseDir, projectName) {
+		return nil
 	}
-	return nil
+	message := fmt.Sprintf("project %q does not exist in state directory %q", projectName, baseDir)
+	if elsewhere := RegisteredProjectBaseDirs(projectName, baseDir); len(elsewhere) > 0 {
+		quoted := make([]string, len(elsewhere))
+		for index, other := range elsewhere {
+			quoted[index] = strconv.Quote(other)
+		}
+		message += fmt.Sprintf("; registered state directories that have it: %s (select one with --basedir)", strings.Join(quoted, ", "))
+	}
+	return errors.New(message)
+}
+
+// RegisteredProjectBaseDirs returns, sorted, the state directories registered
+// in the master directory, other than except, that have projectName. A
+// registry that cannot be read gives none, since callers only add it to an
+// error as a hint.
+func RegisteredProjectBaseDirs(projectName, except string) []string {
+	masterDir, err := state.ResolveMasterDir("")
+	if err != nil {
+		return nil
+	}
+	baseDirs, _, err := basedirregistry.Discover(masterDir)
+	if err != nil {
+		return nil
+	}
+	var found []string
+	for _, baseDir := range baseDirs {
+		if filepath.Clean(baseDir) != filepath.Clean(except) && ProjectExists(baseDir, projectName) {
+			found = append(found, baseDir)
+		}
+	}
+	sort.Strings(found)
+	return found
 }
 
 // ProjectNames lists the projects a search covers: the explicitly chosen

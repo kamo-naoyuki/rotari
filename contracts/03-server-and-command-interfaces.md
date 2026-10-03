@@ -186,6 +186,15 @@ follows:
   with each task of an array that runs whole listed (`run.PlanRerun` keys the
   plan by job ID), and `--if-revision` starts the run only at that revision, compared again by
   the supervisor when it begins the run.
+- **CLI-11** When a command names a project that its state directory does not
+  have, the error lists the other registered state directories that have a
+  project of that name and says to select one with `--basedir`; `jobs`,
+  which lists state directories itself, points to `--all-basedirs`. A
+  project that no registered state directory has gets the plain error.
+  Implemented once in `resolve.RegisteredProjectBaseDirs`, used by
+  `resolve.RequireProject` and `rotari jobs`; checked by
+  `TestMissingProjectNamesWhereItIs` in
+  [`conformance/03-interfaces/project_list_test.go`](../conformance/03-interfaces/project_list_test.go).
 
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.
