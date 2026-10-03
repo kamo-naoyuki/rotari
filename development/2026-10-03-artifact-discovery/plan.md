@@ -128,8 +128,8 @@ Apply exclusions before ordinary positive rules:
   Unsupported application-specific interpolation is not evaluated.
 - **PATH-X3:** exclude known special sinks such as `/dev/null`. Do not require
   an existence check to identify ordinary references or infer regular-file type.
-- **PATH-X4:** for a recognized interpreter invocation at the command position
-  or behind a recognized launcher, exclude the complete code operand from
+- **PATH-X4:** for a recognized interpreter invocation at argv[0] or found by
+  scanning behind a supported launcher, exclude the complete code operand from
   ordinary classification. A code operand is not one path even if its source
   text contains slashes or filename suffixes.
   Shell `-c` bodies are inspected only by shell inspection (section 3); bodies
@@ -197,9 +197,9 @@ paths and use existence to make an ambiguous interpretation appear certain.
 
 #### Recognizing code-bearing interpreter invocations (PATH-X4)
 
-Do not search arbitrary argument values for interpreter-looking words. Start at
-the command position: argv[0] for a direct command, or the command position
-identified by one of the recognized launchers below. This avoids treating
+Look for an interpreter only at argv[0], or by scanning the arguments of a
+supported launcher (see Recognized launchers below). Do not search the arguments
+of any other command for interpreter-looking words. This avoids treating
 `echo bash -c output.csv` or an option value such as `--engine python` as a
 nested interpreter invocation. Match executable basenames case-insensitively,
 so `/bin/bash` and `bash` are equivalent. Use this closed initial list of
@@ -211,42 +211,34 @@ interpreters:
 | `bash` | A `c` flag in a valid short-option bundle (`-c`, `-lc`, `-ce`, `-xec`) | `-o/+o VALUE`, `-O/+O VALUE`, `--rcfile FILE`, `--init-file FILE` | none |
 | `zsh` | A `c` flag in a valid short-option bundle | `-o/+o VALUE`, `-O/+O VALUE` | none |
 | `python`, `python2`, `python3`, `python3.N`, `pypy`, `pypy3` | Exactly `-c` | `-W VALUE`, `-X VALUE`, `--check-hash-based-pycs VALUE` | none |
-| `perl` | `-e` or `-E` | `-I DIR`; `-M MODULE`/`-m MODULE` (separate form since Perl 5.39.8; attached forms also supported); `-C [VALUE]` (optional separate number/list value) | `-Fpattern`, `-0[VALUE]`, `-i[EXT]`, `-l[VALUE]`, `-x[DIR]`; optional values are attached only |
-| `node` | `-e`/`--eval` or `-p`/`--print`; `--eval=CODE` and `--print=CODE` carry code in the same token | See the Node required-value groups below | `--inspect[=HOST:PORT]`, `--inspect-brk[=HOST:PORT]`, `--inspect-wait[=HOST:PORT]`, `--inspect-port[=HOST:PORT]`; optional values are attached only |
+| `perl` | `-e` or `-E` | `-I DIR`; `-M MODULE`/`-m MODULE` (separate form since Perl 5.39.8; attached forms also supported) | `-C[VALUE]`, `-Fpattern`, `-0[VALUE]`, `-i[EXT]`, `-l[VALUE]`, `-x[DIR]`; optional values are attached only |
+| `node` | `-e`/`--eval` or `-p`/`--print`; `--eval=CODE` and `--print=CODE` carry code in the same token | `-r/--require MODULE`, `--import MODULE` | none; any `--name=value` is one self-contained token |
 
-Node.js has a much larger, release-varying CLI than the other listed
-interpreters. For separate-value options before the program/eval operand, cover
-the documented Node.js 26 groups below; accept any `--name=value` as a single
-self-contained option token, without requiring it in this list. That general
-equals-form rule prevents boundary shifts but does not validate the option name.
+Node.js has a much larger, release-varying CLI than the other interpreters. Do
+not catalog it. List only the module-loading options above, which commonly
+precede `-e`, and treat any `--name=value` as one self-contained token. Other
+Node options follow the unlisted-option rule below.
 
-| Node.js option group | Separate-value options |
-| --- | --- |
-| Modules, conditions, and input | `-C/--conditions`, `-r/--require`, `--import`, `--input-type`, `--env-file`, `--env-file-if-exists`, `--entry-url` |
-| Files and diagnostics | `--allow-fs-read`, `--allow-fs-write`, `--cpu-prof-dir`, `--cpu-prof-interval`, `--cpu-prof-name`, `--diagnostic-dir`, `--heap-prof-dir`, `--heap-prof-interval`, `--heap-prof-name`, `--heapsnapshot-near-heap-limit`, `--heapsnapshot-signal`, `--icu-data-dir`, `--localstorage-file`, `--openssl-config`, `--redirect-warnings`, `--report-dir/--report-directory`, `--report-filename`, `--report-signal`, `--snapshot-blob` |
-| Runtime settings | `--disable-proto`, `--disable-warning`, `--dns-result-order`, `--max-http-header-size`, `--max-old-space-size-percentage`, `--secure-heap`, `--secure-heap-min`, `--title`, `--tls-cipher-list`, `--tls-keylog`, `--unhandled-rejections`, `--v8-pool-size` |
-| Test runner | `--test-concurrency`, `--test-coverage-branches`, `--test-coverage-exclude`, `--test-coverage-functions`, `--test-coverage-include`, `--test-coverage-lines`, `--test-global-setup`, `--test-isolation`, `--test-name-pattern`, `--test-random-seed`, `--test-reporter`, `--test-reporter-destination`, `--test-rerun-failures`, `--test-shard`, `--test-skip-pattern`, `--test-timeout` |
-| Tracing, watch, and V8 | `--trace-event-categories`, `--trace-event-file-pattern`, `--watch-kill-signal`, `--watch-path`, `--max-heap-size`, `--max-old-space-size`, `--max-semi-space-size`, `--stack-trace-limit` |
-
-`--experimental-config-file[=PATH]`, `--experimental-loader=MODULE`,
-`--experimental-package-map=PATH`, `--experimental-sea-config=PATH`, and other
-documented equals-only forms are handled by the generic equals-form rule, not
-as a space-separated option/value pair. `--inspect-port=VALUE` is the attached
-form of an optional-value option. Keep the recognized set tied to the referenced
-documentation version and add fixtures when extending it.
-
-This is a broad initial grammar, not a promise to model every option ever added
+This is a small initial grammar, not a promise to model every option ever added
 to every interpreter release. The option metadata must also recognize attached
 short values (`-Wignore`, `-Xdev`, `-Idir`, `-MModule`) and equals forms for long
-options (`--check-hash-based-pycs=always`, `--conditions=development`). For an
-option declared as optional-value, consume only its attached value; never steal
-the next word, which may be the code operand. Boolean options consume no word.
-Do not apply a generic "next word is an option value" rule to unlisted options.
+options (`--check-hash-based-pycs=always`, `--experimental-loader=./loader.mjs`).
+For an option declared as optional-value, consume only its attached value; never
+steal the next word, which may be the code operand.
+
+**Unlisted options are boolean.** An option not in the table (for example
+`python -u`, `bash --login`, `node --no-warnings`) consumes no word, so
+`python -u -c CODE` is recognized without a catalog of boolean flags. If such an
+option actually takes a separate value, that value is read as the first operand,
+which ends option parsing before any code option; recognition stops and the
+remaining words are classified as usual. A wrong guess therefore loses at most
+the code-body exclusion. It goes wrong in the other direction only when the
+value itself looks like a code option (`--opt -c`), which is accepted.
 
 Use the documented option syntax as the source of truth and keep positive and
 negative fixtures for each option arity. The initial reference set is POSIX
 `sh`, Bash, zsh, Python 3.14 command-line documentation, the current Perl 5
-`perlrun` documentation, and Node.js 26 CLI documentation: [POSIX sh](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/sh.html),
+`perlrun` documentation, and the Node.js CLI documentation: [POSIX sh](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/sh.html),
 [Bash invocation](https://www.gnu.org/software/bash/manual/html_node/Invoking-Bash.html),
 [zsh invocation](https://zsh.sourceforge.io/Doc/Release/Invocation.html),
 [Python command line](https://docs.python.org/3/using/cmdline.html),
@@ -256,9 +248,7 @@ do not apply Bash or zsh options to `sh`/`dash` unless POSIX defines them.
 
 Interpreter options evolve. Supporting more releases means adding documented
 forms and fixtures; it does not mean consulting the executing machine's
-environment or running the interpreter to ask for help. Unknown or ambiguous
-option arity stops PATH-X4 for that invocation, and its remaining words stay
-subject to ordinary classification (so code text may be a false candidate).
+environment or running the interpreter to ask for help.
 
 For each interpreter, parse options after its command word according to that
 interpreter's option grammar. Options may appear before the code option; options
@@ -294,7 +284,12 @@ before the interpreter.
 
 For direct commands, identify an interpreter only at argv[0]. For a supported
 launcher, scan its arguments for listed interpreter basenames without requiring
-a complete launcher grammar. Match basenames case-insensitively. Suppress a
+a complete launcher grammar. The scan stops at the first listed interpreter it
+finds, whether or not that interpreter has a code option; it never continues
+into the wrapped command's arguments. Without this,
+`srun python train.py --engine bash -c x.yaml` would find `bash -c` and drop
+`x.yaml`. A nested supported launcher found first is entered and scanned the
+same way. Match basenames case-insensitively. Suppress a
 token as an interpreter candidate only when it is the separate value of a
 small, explicit set of free-text options whose values plausibly resemble
 commands. Initially protect `srun --job-name`/`-J` and `srun --partition`/`-p`,
@@ -313,7 +308,7 @@ listed launchers may be followed up to depth four.
 
 | Launcher | Initially accepted prefix before the wrapped command | Examples |
 | --- | --- | --- |
-| `env` | Skip literal `NAME=value` assignment tokens; other env option forms are not fully parsed | `env A=1 python -c CODE` |
+| `env` | Scan like the other launchers; `NAME=value` assignments never match an interpreter basename. Env options are not parsed | `env A=1 python -c CODE` |
 | `timeout` | Scan past launcher arguments, including the required positional duration | `timeout 1h bash -c CODE`; `timeout -s TERM -k 5s 1h python -c CODE` |
 | `srun` | Scan argument tokens; skip only separate values of protected free-text options above. Other options are not exhaustively parsed | `srun -n 2 python -c CODE`; `srun --job-name python -n 2 bash -c CODE` |
 
@@ -330,7 +325,7 @@ or an argument to the wrapped command happens to look like an interpreter.
 | `uv run python -c "open('out/a.txt')"` | `uv` is not listed | Same |
 | `conda run -n ENV bash -c "..."` | `conda` is not listed | Same |
 | `srun --job-name python -n 2 bash -c CODE` | protected `--job-name` value is skipped | Correctly finds `bash` rather than mistaking `python` for the command |
-| `srun --mpi bash -n 2` | `--mpi` is not in the protected-value list | Possible false match: `bash` may be the `--mpi` value |
+| `srun --comment bash -c out.csv python train.py` | `--comment` is not in the protected-value list | False match: `bash` is taken as the command and `out.csv` is dropped as its code operand |
 | `srun echo bash -c output.csv` | Wrapped command arguments are not parsed | Possible false match: `bash -c` may be ordinary arguments to `echo` |
 
 Add launcher or protected-option support when its expected benefit justifies
@@ -348,11 +343,11 @@ Examples that define the interpreter/launcher boundary:
 | `env A=1 python3.12 -c "open('out/a.txt')"` | the quoted string | none |
 | `python -W ignore -X dev --check-hash-based-pycs always -c CODE` | `CODE` | none |
 | `perl -I ./lib -M Data::Dumper -e CODE` | `CODE` | `./lib` remains a PATH-R2 candidate; `Data::Dumper` is skipped |
-| `node --require ./hook.js --import ./setup.mjs -p CODE` | `CODE` | `./hook.js` is a PATH-R4 candidate; `./setup.mjs` remains a PATH-R2 candidate |
+| `node --require ./hook.js --import ./setup.mjs -p CODE` | `CODE` | `./hook.js` and `./setup.mjs` remain PATH-R2 candidates |
 | `node --experimental-loader=./loader.mjs --eval CODE` | `CODE` | Equals-form option is self-contained; `./loader.mjs` remains a PATH-R2 candidate |
-| `node --inspect -e CODE` | `CODE` | `--inspect` has no separate value here; it must not consume `-e` |
+| `node --inspect -e CODE`, `python -u -c CODE`, `bash --login -c CODE` | `CODE` | Unlisted options are boolean; they must not consume the code option |
 | `node --eval=CODE`, `node --print=CODE` | the value within the same token | The code value is excluded; do not pass it through ordinary path classification |
-| `node --unknown-option VALUE --eval "out/result.csv"` | undetermined | Stop PATH-X4 at the unknown option; the remaining code-like value is subject to ordinary classification and may be a false candidate |
+| `node --unlisted-option VALUE --eval "out/result.csv"` | none: `VALUE` is read as the script operand | Recognition stops; `out/result.csv` is classified as usual and may be a false candidate |
 | `srun python train.py --out results/model.pt` | none | `train.py`, `results/model.pt` |
 | `srun --ntasks 2 python -c CODE` | `CODE` | none |
 | `python train.py -c config.yaml` | none: `-c` follows the script | `train.py`, `config.yaml` |
@@ -600,8 +595,9 @@ related implementation commits exist, following [development tracking rules](../
   `python --check-hash-based-pycs=always -c CODE`,
   `perl -I ./lib -M Data::Dumper -e CODE`,
   `node --require ./hook.js --import ./setup.mjs -p CODE`,
-  `node --eval=CODE`/`--print=CODE`, unknown option arity before the code option,
-  `node --inspect -e CODE`, `node --experimental-loader=./loader.mjs -e CODE`),
+  `node --eval=CODE`/`--print=CODE`, unlisted options treated as boolean
+  (`python -u -c CODE`, `node --inspect -e CODE`) and an unlisted option that
+  actually takes a value, the launcher scan stopping at the first interpreter, `node --experimental-loader=./loader.mjs -e CODE`),
   versioned `python3.N -c`, recognized `env`/`timeout`/`srun` launcher forms,
   unsupported launchers kept as known false positives, `-c` after the script such
   as `python train.py -c config.yaml`, interpreter-looking words in ordinary
