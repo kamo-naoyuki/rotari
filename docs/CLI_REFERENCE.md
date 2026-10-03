@@ -564,13 +564,19 @@ Usage: `rotari retry [RUN_ID]`
 | `--local-concurrency` | `N` | `ROTARI_RUN_LOCAL_CONCURRENCY` | local worker concurrency |
 | `--batch-concurrency` | `N` | `ROTARI_RUN_BATCH_CONCURRENCY` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
 | `--retry` | `N` | `ROTARI_RUN_RETRY` | retry failed jobs up to N times; explicit cancellations are not retried |
+| `--failed` | `` | `` | only execute failed jobs, instead of failed and unfinished jobs; others carry forward their previous result |
+| `--unfinished` | `` | `` | only execute unfinished jobs, instead of failed and unfinished jobs; others carry forward their previous result |
+| `--success` | `` | `` | only execute successful jobs, instead of failed and unfinished jobs; others carry forward their previous result |
 | `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | only execute this job and the jobs that depend on it, through --depends-on or --depends-on-finished, instead of failed and unfinished jobs; may be repeated |
+| `--job-name` | `NAME` | `ROTARI_JOB_NAME` | only execute this job by name |
 | `--stage` | `STAGE` | `` | only retry jobs in this stage |
 | `--matrix` | `NAME` | `` | only retry jobs of this matrix, named by its base job name |
+| `--partial-array` | `` | `` | with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches |
 | `--async` | `` | `ROTARI_RUN_ASYNC` | return after starting the run |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress progress and completion output |
 | `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | execution executor override |
 | `--env` | `ALL\|NONE` | `` | caller environment propagation mode (default ALL) |
+| `--match-by` | `MODE` | `` | job identity matching |
 | `--executor-option` | `OPTION (repeatable)` | `ROTARI_EXECUTOR_OPTIONS` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
 | `--ssh-concurrency` | `N` | `ROTARI_RUN_SSH_CONCURRENCY` | SSH executor concurrency |
 | `--ssh-options` | `OPTION (repeatable)` | `ROTARI_RUN_SSH_OPTIONS` | SSH executor dispatch options; may be repeated |

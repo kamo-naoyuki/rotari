@@ -2254,6 +2254,24 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "N",
                 },
                 {
+                    "description": "only execute failed jobs, instead of failed "
+                    "and unfinished jobs; others carry forward "
+                    "their previous result",
+                    "name": "failed",
+                },
+                {
+                    "description": "only execute unfinished jobs, instead of "
+                    "failed and unfinished jobs; others carry "
+                    "forward their previous result",
+                    "name": "unfinished",
+                },
+                {
+                    "description": "only execute successful jobs, instead of "
+                    "failed and unfinished jobs; others carry "
+                    "forward their previous result",
+                    "name": "success",
+                },
+                {
                     "description": "only execute this job and the jobs that "
                     "depend on it, through --depends-on or "
                     "--depends-on-finished, instead of failed and "
@@ -2265,6 +2283,12 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "ID",
                 },
                 {
+                    "description": "only execute this job by name",
+                    "environment": "ROTARI_JOB_NAME",
+                    "name": "job-name",
+                    "value_name": "NAME",
+                },
+                {
                     "description": "only retry jobs in this stage",
                     "name": "stage",
                     "value_name": "STAGE",
@@ -2274,6 +2298,13 @@ CLI_SCHEMA: dict[str, Any] = {
                     "base job name",
                     "name": "matrix",
                     "value_name": "NAME",
+                },
+                {
+                    "description": "with a result filter, select array jobs per "
+                    "task instead of all-or-nothing (default "
+                    "true); pass =false to re-execute the whole "
+                    "array when any task matches",
+                    "name": "partial-array",
                 },
                 {
                     "description": "return after starting the run",
@@ -2298,6 +2329,12 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "env",
                     "value_name": "ALL|NONE",
                     "values": ["ALL", "NONE"],
+                },
+                {
+                    "description": "job identity matching",
+                    "name": "match-by",
+                    "value_name": "MODE",
+                    "values": ["job-id", "fingerprint", "id-and-fingerprint"],
                 },
                 {
                     "description": "option passed to the selected scheduler "

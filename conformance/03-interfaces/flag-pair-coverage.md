@@ -104,7 +104,7 @@ implementation imports. The staged rollout is tracked in the
   leaves state unchanged while overwrite applies the manifest. These focused
   witnesses supplement the pair loop, rather than treating a successful exit as
   proof that each option took effect.
-- `TestCLIFlagPairPreviews` executes all 1,830 `run` and 1,485 `retry`
+- `TestCLIFlagPairPreviews` executes all 1,830 `run` and 1,830 `retry`
   pairs in both orders through `--dry-run`. Four concurrent cases compare
   output and exit status and verify that fixture state stays unchanged.
   Standalone samples and dedicated async-conflict, run-name, and selection
@@ -186,14 +186,15 @@ Every pair is inventoried, and twenty-two commands have adapters. The remaining
 | `diagnose` | 55 | Isolated local-rule and fake external diagnosis service modes |
 | `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
-The 5,894 executed pairs consist of 783 read-only, 36 file-output, 178
-queue-mutation, 1,520 edit, 3,336 run/retry/wait, 6 unlock, 6 gc/server,
+The 6,239 executed pairs consist of 783 read-only, 36 file-output, 178
+queue-mutation, 1,520 edit, 3,681 run/retry/wait, 6 unlock, 6 gc/server,
 1 MCP, and 28 web static-export pairs. The edit pair loop accepted
 1,187 and explicitly rejected 333 pairs in 3,040 invocations; one run took
 4m01s including setup.
 
-The run/retry dry-run pair loop accepted 3,016 and explicitly rejected 299
-pairs, with 6,630 invocations in 88.95 seconds. This excludes actual execution,
+The run/retry dry-run pair loop accepted 3,322 and explicitly rejected 338
+pairs, with 7,320 invocations in 19.9 seconds, after `retry`'s spec came to
+list every `run` option it takes (61 flags, as `run` has). This excludes actual execution,
 supervisor/async lifecycle, scheduler submission, and host effects.
 
 ## Remaining observation gaps

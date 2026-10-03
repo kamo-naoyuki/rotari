@@ -12,16 +12,11 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 - **File-pair fixture snapshot can race supervisor cleanup** (`conformance/03-interfaces/flag_pair_files_test.go`): the unlock expansion's short check failed in `TestCLIFlagPairFiles` while taking its initial snapshot, with `lstat .../base/projects/pairs/server.pid: no such file or directory`. A directory entry disappeared between enumeration and stat. Expected: the read-only fixture is quiescent before snapshotting. Inspect supervisor shutdown/cleanup synchronization before assigning the cause; the original full log and exit 1 are retained. This is not a sandbox-access failure.
 
-- **`retry`'s help and schema omit options it takes** (`cmd/rotari/cli_spec.go`, `retry` entry):
-  - `retry` parses `run`'s options. The contract (`02-run-lifecycle-and-execution.md`) and `TestSelectorTable` make `--failed`, `--unfinished`, and `--success` replace its default selection.
-  - But its `cliCommandSpecs` entry lists none of these, nor `--job-name`, `--partial-array`, or `--match-by`. So `retry --help`, `rotari schema`, completion, and the CLI reference do not show options that `retry` accepts.
-  - Found in the CLI agent trial ([agent-trial-2026-10-03-cli-agent.md](2026-10-02-mcp-agent-interface/agent-trial-2026-10-03-cli-agent.md)): the agent could not tell which options `retry` takes.
-  - Expected: `retry`'s spec lists every option it accepts, from one list shared with `run`.
-  - Changing it moves `retry`'s pinned flag count in `conformance/03-interfaces/flag_pairs_test.go`, which the CLI option interaction work is changing now; coordinate with that work.
-
 - **`remove` rejects a selector conflict with only its usage line** (`cmd/rotari/remove.go`): `--filter-stage` and `--filter-matrix` are the long forms of `--stage` and `--matrix`, so `remove --all --filter-stage S` (and any two selector kinds, such as `--job-id` with `--stage`) count as two selectors and exit 1 with `usage: rotari remove ...`. Nothing is ignored or changed, but the message does not name the conflicting options, and a reader may expect `--filter-stage` to narrow `--all` as the definition filters do. Expected: an error naming the conflict, as `show` and `delete` give. Found by `TestCLIFlagPairMutationObservability`; the pair checks accept only this exact usage rejection for two selector kinds.
 
 ## Resolved
+
+- **`retry`'s help and schema omitted options it takes** (`cmd/rotari/cli_spec.go`): `retry` parses `run`'s options, and the contract makes `--failed`, `--unfinished`, and `--success` replace its default selection, but its spec listed none of them, nor `--job-name`, `--partial-array`, or `--match-by`. `runCommandFlags` now gives both commands one option list, describing for `retry` the options whose meaning differs. `TestRetryDocumentsEveryOptionRunTakes` fails on the previous commit; the flag-pair inventory pins `retry` at 61 flags, and `TestCLIFlagPairPreviews` now runs all 1,830 `retry` pairs.
 
 - **Interface flag-pair suites exceeded Go's ten-minute package timeout**: with `wait` added, the single interface package timed out at 606.14s. The suites now share `conformance/support/pairs.go` and run in `03-interfaces`, `pairedits`, and `pairruns`, with no removed tests or short/race exclusions. An uncached normal run took 104.87/354.09/156.48s; an uncached race run took 85.56/414.96/148.14s. Full repository checks passed with the default timeout; CI timeout settings are unchanged.
 

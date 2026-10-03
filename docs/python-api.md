@@ -141,13 +141,19 @@ Run failed and unfinished jobs; with --job-id, run those jobs.
 | `local_concurrency` | `str` | local worker concurrency |
 | `batch_concurrency` | `str` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
 | `retry` | `str` | retry failed jobs up to N times; explicit cancellations are not retried |
+| `failed` | `bool` | only execute failed jobs, instead of failed and unfinished jobs; others carry forward their previous result |
+| `unfinished` | `bool` | only execute unfinished jobs, instead of failed and unfinished jobs; others carry forward their previous result |
+| `success` | `bool` | only execute successful jobs, instead of failed and unfinished jobs; others carry forward their previous result |
 | `job_ids` | `Sequence[str]` | only execute this job and the jobs that depend on it, through --depends-on or --depends-on-finished, instead of failed and unfinished jobs; may be repeated |
+| `job_name` | `str` | only execute this job by name |
 | `stage` | `str` | only retry jobs in this stage |
 | `matrix` | `str` | only retry jobs of this matrix, named by its base job name |
+| `partial_array` | `bool` | with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches |
 | `async_` | `bool` | return after starting the run |
 | `quiet` | `bool` | suppress progress and completion output |
 | `executor` | `str` | execution executor override |
 | `env` | `str` | caller environment propagation mode (default ALL) |
+| `match_by` | `str` | job identity matching |
 | `executor_options` | `Sequence[str]` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
 | `ssh_concurrency` | `str` | SSH executor concurrency |
 | `ssh_options` | `Sequence[str]` | SSH executor dispatch options; may be repeated |
