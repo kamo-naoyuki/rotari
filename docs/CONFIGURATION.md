@@ -39,7 +39,7 @@ locations. Both `--config FILE` and `--config=FILE` are supported. An explicitly
 selected file must exist and parse successfully; `--config` itself cannot be
 set by an environment variable or another config file.
 This value precedence applies across commands; see the
-[CLI contract](../contracts/03-server-and-command-interfaces.md#cli-presentation).
+[CLI contract](https://github.com/kamo-naoyuki/rotari/blob/main/contracts/03-server-and-command-interfaces.md#cli-presentation).
 
 Without `--config`, the selected configuration file is the first one found in
 the project, basedir, then global locations. Lower-priority files are not
