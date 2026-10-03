@@ -8,6 +8,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **The Web UI repeats the diagnosis guidance text** (`internal/webui/assets/web_app_logs.js`): the diagnosis modal hard-codes the no-match, unavailable, and earlier-rules messages that `internal/diagnose/analysis.go` defines as `NoMatchNext`, `UnavailableNext`, and `OutdatedNote` for `show` and reports. Changing one side leaves the other stale, as removing `diagnose` required editing both. The Web API could carry the guidance with each analysis, or the page could receive the constants, so the text is defined once.
+
 ## Resolved
 
 - **Fixture snapshots raced supervisor PID cleanup** (`conformance/support/pairs.go`): `NewPairFixture` returned after the run client finished but before the supervisor necessarily released its lease and removed `server.pid`. It now shuts down any remaining supervisor and waits for lease release before returning, so both static-Web and file-pair snapshots observe settled fixture state.
