@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -57,25 +59,26 @@ func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result runlineage.
 		}
 	}
 	if len(shown) > 0 {
-		width := len("JOB")
-		for _, job := range shown {
-			width = max(width, len(job.Name))
+		rows := groupArrayTasks(shown, sameDiffRow)
+		width, resultWidth, changesWidth := len("JOB"), len("RESULT"), len("CHANGES")
+		for _, row := range rows {
+			width = max(width, len(row.label))
+			resultWidth = max(resultWidth, len(diffResult(row.job)))
+			changesWidth = max(changesWidth, len(diffChanges(row.job)))
 		}
-		changesWidth := len("CHANGES")
-		for _, job := range shown {
-			changesWidth = max(changesWidth, len(diffChanges(job)))
-		}
-		fmt.Fprintf(writer, "\n%s\n", cyan(fmt.Sprintf("%-*s  %-10s  %-10s  %-14s  %-*s  %s", width, "JOB", "FROM", "TO", "RESULT", changesWidth, "CHANGES", "CAUSE")))
-		for _, job := range shown {
-			fmt.Fprintf(writer, "%-*s  %-10s  %-10s  %s  %-*s  %s\n", width, job.Name, firstNonEmpty(job.FromStatus, "-"), firstNonEmpty(job.ToStatus, "-"),
-				colorTransition(fmt.Sprintf("%-14s", strings.ReplaceAll(job.Transition, "_", " ")), job.Transition), changesWidth, diffChanges(job), diffCause(job))
+		fmt.Fprintf(writer, "\n%s\n", cyan(fmt.Sprintf("%-*s  %-10s  %-10s  %-*s  %-*s  %s", width, "JOB", "FROM", "TO", resultWidth, "RESULT", changesWidth, "CHANGES", "CAUSE")))
+		for _, row := range rows {
+			job := row.job
+			fmt.Fprintf(writer, "%-*s  %-10s  %-10s  %s  %-*s  %s\n", width, row.label, firstNonEmpty(job.FromStatus, "-"), firstNonEmpty(job.ToStatus, "-"),
+				colorTransition(fmt.Sprintf("%-*s", resultWidth, diffResult(job)), job.Transition), changesWidth, diffChanges(job), diffCause(job))
 		}
 	}
 	if hidden := len(result.Jobs) - len(shown); hidden > 0 {
 		fmt.Fprintf(writer, "\n%d unchanged job(s) hidden.\n", hidden)
 	}
 	wroteHeader := false
-	for _, job := range shown {
+	for _, row := range groupArrayTasks(shown, func(a, b runlineage.JobDiff) bool { return reflect.DeepEqual(a.Changes, b.Changes) }) {
+		job := row.job
 		if len(job.Changes) == 0 {
 			continue
 		}
@@ -83,7 +86,7 @@ func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result runlineage.
 			fmt.Fprintf(writer, "\n%s\n", cyan("Definition changes:"))
 			wroteHeader = true
 		}
-		fmt.Fprintf(writer, "  %s\n", job.Name)
+		fmt.Fprintf(writer, "  %s\n", row.label)
 		for _, change := range job.Changes {
 			if len(change.Added) > 0 || len(change.Removed) > 0 {
 				parts := make([]string, 0, len(change.Added)+len(change.Removed))
@@ -107,11 +110,71 @@ func diffChanges(job runlineage.JobDiff) string {
 	for _, change := range job.Changes {
 		fields = append(fields, change.Field)
 	}
-	changes := firstNonEmpty(strings.Join(fields, ","), "-")
+	return firstNonEmpty(strings.Join(fields, ","), "-")
+}
+
+// diffResult names a compared job's transition, marking a result that the
+// newer run carried from an earlier one instead of executing the job.
+func diffResult(job runlineage.JobDiff) string {
+	result := strings.ReplaceAll(job.Transition, "_", " ")
 	if job.Carried {
-		changes += " (carried)"
+		result += " (carried)"
 	}
-	return changes
+	return result
+}
+
+// diffRow is one line of a comparison: a job, or the tasks of one array
+// that read the same, labeled NAME[1,2,3].
+type diffRow struct {
+	label string
+	job   runlineage.JobDiff
+}
+
+var arrayTaskName = regexp.MustCompile(`^(.*)\[(\d+)\]$`)
+
+// groupArrayTasks joins the tasks of one array that read the same, as same
+// decides against the row's first task, into one row placed where the first
+// of them was. Other jobs get rows of their own.
+func groupArrayTasks(jobs []runlineage.JobDiff, same func(a, b runlineage.JobDiff) bool) []diffRow {
+	type group struct {
+		base  string
+		job   runlineage.JobDiff
+		tasks []string
+	}
+	groups := make([]*group, 0, len(jobs))
+	for _, job := range jobs {
+		match := arrayTaskName.FindStringSubmatch(job.Name)
+		if match == nil {
+			groups = append(groups, &group{job: job})
+			continue
+		}
+		joined := false
+		for _, existing := range groups {
+			if existing.tasks != nil && existing.base == match[1] && same(existing.job, job) {
+				existing.tasks = append(existing.tasks, match[2])
+				joined = true
+				break
+			}
+		}
+		if !joined {
+			groups = append(groups, &group{base: match[1], job: job, tasks: []string{match[2]}})
+		}
+	}
+	rows := make([]diffRow, 0, len(groups))
+	for _, group := range groups {
+		label := group.job.Name
+		if group.tasks != nil {
+			label = group.base + "[" + strings.Join(group.tasks, ",") + "]"
+		}
+		rows = append(rows, diffRow{label: label, job: group.job})
+	}
+	return rows
+}
+
+// sameDiffRow reports whether two compared jobs read the same in the table.
+func sameDiffRow(a, b runlineage.JobDiff) bool {
+	return a.FromStatus == b.FromStatus && a.ToStatus == b.ToStatus && a.Transition == b.Transition && a.Carried == b.Carried &&
+		a.FromCause == b.FromCause && a.ToCause == b.ToCause && reflect.DeepEqual(a.Changes, b.Changes)
 }
 
 // diffCause shows a compared job's failure cause in each run: one cause

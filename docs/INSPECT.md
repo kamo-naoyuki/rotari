@@ -150,7 +150,10 @@ with each run's failure cause as `show` groups it (the `CAUSE` column, and
 fails for a different reason stands out; jobs
 added or removed; jobs whose command, executor, executor options, environment,
 working directory, stage, or dependencies changed; and jobs whose result was
-carried forward instead of re-executed. Jobs are matched by origin when the
+carried forward instead of re-executed, marked `(carried)` in the `RESULT`
+column. The tasks of an array that read the same share one row, such as
+`train[1,2,4]`, and so do the tasks listed under a shared definition change.
+Jobs are matched by origin when the
 origin points to the compared run; otherwise named jobs are matched by name.
 The one-run summary also counts failed jobs by diagnosis, groups them by
 cause as `show` does, and reports their source-run origins, including `new`
