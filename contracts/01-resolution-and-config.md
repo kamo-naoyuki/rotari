@@ -305,12 +305,20 @@ Implementation and tests for these rules:
 
 - `rotari guide` prints the hand-written rules in
   [`cmd/rotari/assets/agent_guide.md`](../cmd/rotari/assets/agent_guide.md),
-  embedded with Go `embed`, followed by a command reference generated from
-  `cliCommandSpecs`. Flag lines use `cliFlagDescription`, so choices and
-  environment variables match `--help`.
-- `TestAgentGuideCoversEveryCommandAndFlag` fails when a command or flag is
-  missing from the reference. Keep the hand-written part free of flag lists
-  and update its examples when the commands they use change.
+  embedded with Go `embed`, followed by the common options and a one-line
+  index of the commands generated from `cliCommandSpecs`. It stays short
+  because agents read it first, and points to `rotari COMMAND --help` for
+  options. `TestAgentGuideIndexesEveryCommand` fails when a command is
+  missing from the index. Keep the hand-written part free of flag lists and
+  update its examples when the commands they use change.
+- `rotari COMMAND --help` (or `-h`) prints, to stdout with exit 0, the
+  command's description, usage, subcommands, and every option of its
+  `cliCommandSpecs` entry, with `cliFlagDescription` and the option's
+  effective default after config files and the environment; the `--filter-*`
+  options come under their own heading. The help names the command the user
+  typed, also where commands share a FlagSet, as `retry` shares `run`'s.
+  Implemented once in `writeCommandHelp`; covered by
+  `TestCommandHelpCoversEveryOptionAndExitsZero`.
 - Like `schema`, `guide` skips config loading, so a broken config file does not
   hide it.
 - The top-level usage (bare `rotari`, `rotari --help`, `-h`, or `help`) starts

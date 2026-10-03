@@ -27,7 +27,18 @@ func main() {
 	os.Exit(code)
 }
 
+// run runs the command args name. A command that printed its help exits 0,
+// although its parse reported flag.ErrHelp.
 func run(args []string) int {
+	helpShown = false
+	code := dispatch(args)
+	if helpShown {
+		return 0
+	}
+	return code
+}
+
+func dispatch(args []string) int {
 	if len(args) == 0 {
 		printUsage()
 		return 1
@@ -40,6 +51,11 @@ func run(args []string) int {
 		return 0
 	}
 	cliConfigCommand = args[0]
+	// Commands that parse no options of their own still answer --help.
+	if len(args) == 2 && isHelpArgument(args[1]) && (args[0] == "schema" || args[0] == "env" || args[0] == "version") {
+		writeCommandHelp(os.Stdout, args[0], nil)
+		return 0
+	}
 	if args[0] != "config" && args[0] != "schema" && args[0] != "guide" && args[0] != "--version" && args[0] != "version" {
 		if err := loadCLIConfig(args[1:]); err != nil {
 			printErrorf("failed to load config: %v", err)
@@ -129,7 +145,7 @@ func run(args []string) int {
 func printUsage() {
 	fmt.Println("rotari: lightweight local job queue")
 	fmt.Println("")
-	fmt.Println("Coding agents: run `rotari guide` first for the recommended workflow and a command reference.")
+	fmt.Println("Coding agents: run `rotari guide` first for the recommended workflow and a command index; `rotari COMMAND --help` lists a command's options.")
 	fmt.Println("")
 	fmt.Println("Usage:")
 	for _, command := range cliCommandSpecs {

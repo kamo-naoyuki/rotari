@@ -186,7 +186,7 @@ Usage: `rotari unlock [PROJECT]`
 
 ### `rotari change`
 
-change jobs in the current or previous batch
+change queued jobs, or with --run-id the jobs of that run, which replace the queue first; a command after the options replaces the jobs' command
 
 Usage: `rotari change <command ...>`
 
@@ -195,7 +195,7 @@ Usage: `rotari change <command ...>`
 | `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
-| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run ID to use when restoring a batch |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | first replace the queue with this run's jobs, then change them |
 | `-j` / `--job-id` | `ID` | `ROTARI_JOB_ID` | target job ID |
 | `--job-name` | `NAME` | `ROTARI_JOB_NAME` | target job name |
 | `--stage` | `STAGE` | `` | change every job in a stage |
@@ -265,7 +265,7 @@ Usage: `rotari import FILE [PROJECT]`
 
 ### `rotari remove`
 
-remove jobs from the current or previous batch
+remove queued jobs, or with --run-id jobs of that run, which replace the queue first
 
 Usage: `rotari remove [JOB_ID ...]`
 
@@ -274,7 +274,7 @@ Usage: `rotari remove [JOB_ID ...]`
 | `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
-| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run ID to use when restoring a batch |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | first replace the queue with this run's jobs, then remove from them |
 | `-j` / `--job-id` | `ID (repeatable)` | `ROTARI_JOB_ID` | remove a job; may be repeated |
 | `--job-name` | `NAME` | `ROTARI_JOB_NAME` | remove a job by name |
 | `--stage` | `STAGE` | `` | remove every job in a stage |

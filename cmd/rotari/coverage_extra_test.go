@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"io"
 	"os"
@@ -122,9 +123,11 @@ func TestSubcommandCommandsPrintHelp(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			code, text := captureStderr(t, func() int { return tc.run(tc.args) })
-			if code != 1 {
-				t.Fatalf("exit code = %d, want 1 like FlagSet help", code)
+			var output bytes.Buffer
+			captureShowStdout(t, &output, func() int { return tc.run(tc.args) })
+			text := output.String()
+			if !helpShown {
+				t.Fatal("the help was not recorded, so run would not exit 0")
 			}
 			if strings.Contains(text, "unsupported shell") || strings.Contains(text, "unknown server command") {
 				t.Fatalf("help argument was treated as a subcommand:\n%s", text)

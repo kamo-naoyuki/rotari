@@ -8,9 +8,9 @@ import (
 	"strings"
 )
 
-// agentGuideIntro holds the hand-written workflow rules. The command
-// reference that follows it is generated from cliCommandSpecs so it cannot
-// drift from the CLI.
+// agentGuideIntro holds the hand-written workflow rules. The command index
+// that follows it is generated from cliCommandSpecs so it cannot drift from
+// the CLI; each command's options are in its --help (writeCommandHelp).
 //
 //go:embed assets/agent_guide.md
 var agentGuideIntro string
@@ -35,45 +35,14 @@ func agentGuide() string {
 	var builder strings.Builder
 	builder.WriteString(strings.TrimRight(agentGuideIntro, "\n"))
 	builder.WriteString("\n\n## Common options\n\n")
-	builder.WriteString("Commands that accept both are marked below instead of repeating them.\n\n")
-	common := make(map[string]bool)
+	builder.WriteString("Most commands accept these:\n\n")
 	for _, flagSpec := range commonCLIFlags() {
-		common[agentGuideFlag(flagSpec)] = true
 		builder.WriteString("- " + agentGuideFlag(flagSpec) + "\n")
 	}
-	builder.WriteString("\n## Command reference\n")
+	builder.WriteString("\n## Commands\n\n")
+	builder.WriteString("Run `rotari COMMAND --help` for a command's usage and every option, with its default.\n\n")
 	for _, command := range cliCommandSpecs {
-		fmt.Fprintf(&builder, "\n### %s\n\n", command.Name)
-		if command.Description != "" {
-			fmt.Fprintf(&builder, "%s.\n\n", upperFirst(command.Description))
-		}
-		fmt.Fprintf(&builder, "```\n%s\n```\n", cliUsage(command.Name))
-		if len(command.Subcommands) > 0 {
-			builder.WriteString("\n")
-			for _, subcommand := range command.Subcommands {
-				fmt.Fprintf(&builder, "- `%s`: %s\n", subcommand.Name, subcommand.Description)
-			}
-		}
-		commonCount := 0
-		for _, flagSpec := range command.Flags {
-			if common[agentGuideFlag(flagSpec)] {
-				commonCount++
-			}
-		}
-		hasCommon := commonCount == len(common)
-		if hasCommon {
-			builder.WriteString("\nAccepts the common options.\n")
-		}
-		flagLines := make([]string, 0, len(command.Flags))
-		for _, flagSpec := range command.Flags {
-			if hasCommon && common[agentGuideFlag(flagSpec)] {
-				continue
-			}
-			flagLines = append(flagLines, "- "+agentGuideFlag(flagSpec)+"\n")
-		}
-		if len(flagLines) > 0 {
-			builder.WriteString("\n" + strings.Join(flagLines, ""))
-		}
+		fmt.Fprintf(&builder, "- `%s`: %s\n", command.Name, command.Description)
 	}
 	return builder.String()
 }

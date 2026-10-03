@@ -1,6 +1,6 @@
 rotari: lightweight local job queue
 
-Coding agents: run `rotari guide` first for the recommended workflow and a command reference.
+Coding agents: run `rotari guide` first for the recommended workflow and a command index; `rotari COMMAND --help` lists a command's options.
 
 Usage:
   rotari config [-b DIR|--basedir DIR] [-p NAME|--project-name NAME] [--list] [--notifications] [-o FORMAT|--format FORMAT] [--output FILE]

@@ -48,7 +48,7 @@ func cmdAdd(args []string) int {
 	cliValue(fs, &matrixValues, "matrix")
 	quiet := cliBool(fs, "quiet", false)
 	guard := cliGuardFlags(fs)
-	if err := fs.Parse(args); err != nil {
+	if err := parseLeadingFlags(fs, args); err != nil {
 		return 1
 	}
 	left := fs.Args()

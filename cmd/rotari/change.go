@@ -51,7 +51,7 @@ func cmdChange(args []string) int {
 	clearStatus := cliBool(fs, "clear-status", false)
 	quiet := cliBool(fs, "quiet", false)
 	guard := cliGuardFlags(fs)
-	if err := fs.Parse(args); err != nil {
+	if err := parseLeadingFlags(fs, args); err != nil {
 		return 1
 	}
 	scope, err := filterOptions.scope()

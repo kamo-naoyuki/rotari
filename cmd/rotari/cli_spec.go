@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -201,9 +203,9 @@ var cliCommandSpecs = []cliCommandSpec{
 	},
 	{
 		Name:        "change",
-		Description: "change jobs in the current or previous batch",
+		Description: "change queued jobs, or with --run-id the jobs of that run, which replace the queue first; a command after the options replaces the jobs' command",
 		Flags: append(append(commonCLIFlags(),
-			cliFlagSpec{Name: "run-id", Description: "run ID to use when restoring a batch", ValueName: "ID"},
+			cliFlagSpec{Name: "run-id", Description: "first replace the queue with this run's jobs, then change them", ValueName: "ID"},
 			cliFlagSpec{Name: "job-id", Description: "target job ID", ValueName: "ID"},
 			cliFlagSpec{Name: "job-name", Description: "target job name", ValueName: "NAME"},
 			cliFlagSpec{Name: "stage", Description: "change every job in a stage", ValueName: "STAGE"},
@@ -256,9 +258,9 @@ var cliCommandSpecs = []cliCommandSpec{
 	},
 	{
 		Name:        "remove",
-		Description: "remove jobs from the current or previous batch",
+		Description: "remove queued jobs, or with --run-id jobs of that run, which replace the queue first",
 		Flags: append(append(commonCLIFlags(),
-			cliFlagSpec{Name: "run-id", Description: "run ID to use when restoring a batch", ValueName: "ID"},
+			cliFlagSpec{Name: "run-id", Description: "first replace the queue with this run's jobs, then remove from them", ValueName: "ID"},
 			cliFlagSpec{Name: "job-id", Description: "remove a job; may be repeated", ValueName: "ID"},
 			cliFlagSpec{Name: "job-name", Description: "remove a job by name", ValueName: "NAME"},
 			cliFlagSpec{Name: "stage", Description: "remove every job in a stage", ValueName: "STAGE"},
@@ -615,16 +617,63 @@ func isHelpArgument(arg string) bool {
 	return arg == "-h" || arg == "--help" || arg == "-help"
 }
 
-// printSubcommandHelp writes usage and subcommand descriptions for commands
-// that dispatch on a subcommand instead of parsing a FlagSet. Like FlagSet
-// help, it writes to stderr and the caller returns exit status 1.
+// printSubcommandHelp writes the help of a command that dispatches on a
+// subcommand instead of parsing a FlagSet; see writeCommandHelp.
 func printSubcommandHelp(name string) {
-	var builder strings.Builder
-	fmt.Fprintf(&builder, "usage: %s\n", cliUsage(name))
-	for _, command := range cliCommandSpecs {
-		if command.Name != name || len(command.Subcommands) == 0 {
-			continue
+	writeCommandHelp(os.Stdout, name, nil)
+}
+
+// helpShown records that a command printed its help, so run exits 0 although
+// the command returns 1 for the flag.ErrHelp its parse reported.
+var helpShown bool
+
+// helpCommandName names the command whose help fs belongs to: the command the
+// user typed, which differs from fs.Name() when commands share a FlagSet, as
+// retry shares run's.
+func helpCommandName(fs *flag.FlagSet) string {
+	if cliConfigCommand != "" {
+		return cliConfigCommand
+	}
+	return fs.Name()
+}
+
+// writeCommandHelp writes command name's help from its cliCommandSpecs entry:
+// its description, usage, subcommands, and each option with its
+// description and, from fs when given, its effective default, which config
+// files and the environment can change. `rotari guide` points here for
+// options instead of listing them.
+func writeCommandHelp(w io.Writer, name string, fs *flag.FlagSet) {
+	helpShown = true
+	var command cliCommandSpec
+	for _, candidate := range cliCommandSpecs {
+		if candidate.Name == name {
+			command = candidate
 		}
+	}
+	if command.Name == "" {
+		fmt.Fprintf(w, "usage: rotari %s\n", name)
+		if fs != nil {
+			fs.SetOutput(w)
+			fs.PrintDefaults()
+		}
+		return
+	}
+	var builder strings.Builder
+	if command.Description != "" {
+		fmt.Fprintf(&builder, "rotari %s: %s.\n\n", command.Name, upperFirst(command.Description))
+	}
+	usage := []string{"rotari", command.Name}
+	if len(command.Subcommands) > 0 {
+		usage = append(usage, "<"+strings.Join(cliSubcommandNames(command.Name), "|")+">")
+	}
+	if len(command.Flags) > 0 {
+		usage = append(usage, "[options]")
+	}
+	if command.Positional != "" {
+		usage = append(usage, command.Positional)
+	}
+	fmt.Fprintf(&builder, "usage: %s\n", strings.Join(usage, " "))
+	if len(command.Subcommands) > 0 {
 		width := 0
 		for _, subcommand := range command.Subcommands {
 			width = max(width, len(subcommand.Name))
@@ -634,7 +683,59 @@ func printSubcommandHelp(name string) {
 			fmt.Fprintf(&builder, "  %-*s  %s\n", width, subcommand.Name, subcommand.Description)
 		}
 	}
-	fmt.Fprint(os.Stderr, builder.String())
+	// The --filter-* options get a heading of their own, after the others.
+	var general, filters strings.Builder
+	for _, flagSpec := range command.Flags {
+		target := &general
+		if strings.HasPrefix(flagSpec.Name, filterFlagPrefix) {
+			target = &filters
+		}
+		option := "--" + flagSpec.Name
+		if flagSpec.ValueName != "" {
+			option += " " + flagSpec.ValueName
+		}
+		if short := cliShortFlagNames[flagSpec.Name]; short != "" {
+			option += ", -" + short
+		}
+		description := cliFlagDescription(flagSpec)
+		if fs != nil {
+			if defined := fs.Lookup(flagSpec.Name); defined != nil && !isZeroDefault(defined.DefValue) {
+				// Quoted for string flags, as the flag package prints it.
+				if kind, _ := flag.UnquoteUsage(defined); kind == "string" {
+					description += fmt.Sprintf(" (default %q)", defined.DefValue)
+				} else {
+					description += " (default " + defined.DefValue + ")"
+				}
+			}
+		}
+		fmt.Fprintf(target, "  %s\n      %s\n", option, description)
+	}
+	if general.Len() > 0 {
+		builder.WriteString("\nOptions:\n" + general.String())
+	}
+	if filters.Len() > 0 {
+		builder.WriteString("\nFilters:\n" + filters.String())
+	}
+	fmt.Fprint(w, builder.String())
+}
+
+// parseLeadingFlags parses the options before a job command, for add and
+// change: unlike cliParse it stops at the first argument that is not an
+// option, which begins the job's command. Help is written as cliParse writes
+// it.
+func parseLeadingFlags(fs *flag.FlagSet, args []string) error {
+	fs.Usage = func() {}
+	err := fs.Parse(args)
+	if errors.Is(err, flag.ErrHelp) {
+		writeCommandHelp(os.Stdout, helpCommandName(fs), fs)
+	}
+	return err
+}
+
+// isZeroDefault reports a default that help leaves out, as the flag package
+// does.
+func isZeroDefault(value string) bool {
+	return value == "" || value == "false" || value == "0" || value == "[]"
 }
 
 func cliSubcommandNames(name string) []string {
@@ -729,9 +830,6 @@ func cliParse(fs *flag.FlagSet, args []string) error {
 	fs.SetOutput(&parseOutput)
 	defer fs.SetOutput(originalOutput)
 
-	if fs.Lookup(filterFlagPrefix+"stage") != nil {
-		fs.Usage = func() { printFlagUsage(fs) }
-	}
 	var positional []string
 	for {
 		if err := fs.Parse(args); err != nil {
@@ -744,7 +842,7 @@ func cliParse(fs *flag.FlagSet, args []string) error {
 					printError(strings.TrimSuffix(output, "\n"))
 				}
 			} else {
-				fmt.Fprint(originalOutput, output)
+				writeCommandHelp(os.Stdout, helpCommandName(fs), fs)
 			}
 			return err
 		}
@@ -760,31 +858,6 @@ func cliParse(fs *flag.FlagSet, args []string) error {
 		args = rest[1:]
 	}
 	return fs.Parse(append([]string{"--"}, positional...))
-}
-
-// printFlagUsage writes the flag package's help for fs, with the --filter-*
-// options under their own heading.
-func printFlagUsage(fs *flag.FlagSet) {
-	var defaults strings.Builder
-	output := fs.Output()
-	fs.SetOutput(&defaults)
-	fs.PrintDefaults()
-	fs.SetOutput(output)
-	var general, filters strings.Builder
-	target := &general
-	for _, line := range strings.SplitAfter(defaults.String(), "\n") {
-		if name, ok := strings.CutPrefix(line, "  -"); ok {
-			target = &general
-			if strings.HasPrefix(name, filterFlagPrefix) {
-				target = &filters
-			}
-		}
-		target.WriteString(line)
-	}
-	fmt.Fprintf(output, "Usage of %s:\n%s", fs.Name(), general.String())
-	if filters.Len() > 0 {
-		fmt.Fprintf(output, "\nFilters:\n%s", filters.String())
-	}
 }
 
 func cliOptionSet(fs *flag.FlagSet, name string) bool {

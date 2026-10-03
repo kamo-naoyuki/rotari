@@ -176,23 +176,17 @@ func TestEachCommandAcceptsOnlyItsFilterSet(t *testing.T) {
 }
 
 func TestHelpListsFilterOptionsUnderTheirOwnHeading(t *testing.T) {
-	fs := flag.NewFlagSet("show", flag.ContinueOnError)
-	var output strings.Builder
-	fs.SetOutput(&output)
-	cliString(fs, "basedir", "")
-	cliJobFilterOptions(fs, queueRunJobFilters)
-	if err := cliParse(fs, []string{"--help"}); err != flag.ErrHelp {
-		t.Fatalf("cliParse(--help) error = %v", err)
-	}
+	var output bytes.Buffer
+	captureShowStdout(t, &output, func() int { return run([]string{"show", "--help"}) })
 	help := output.String()
 	general, filters, found := strings.Cut(help, "\nFilters:\n")
 	if !found {
 		t.Fatalf("help has no Filters heading:\n%s", help)
 	}
-	if strings.Contains(general, "-filter-") || !strings.Contains(general, "-basedir") || !strings.Contains(general, "-stage") {
+	if strings.Contains(general, "--filter-") || !strings.Contains(general, "--basedir") || !strings.Contains(general, "--stage") {
 		t.Fatalf("general options = %q, want every option except --filter-*", general)
 	}
-	for _, name := range []string{"-filter-result", "-filter-stage", "-filter-command", "-filter-not-stage", "-filter-matrix", "-filter-not-matrix"} {
+	for _, name := range []string{"--filter-result", "--filter-stage", "--filter-command", "--filter-not-stage", "--filter-matrix", "--filter-not-matrix"} {
 		if !strings.Contains(filters, name) {
 			t.Fatalf("filters = %q, want %s", filters, name)
 		}

@@ -6,43 +6,42 @@ import (
 	"testing"
 )
 
-func TestAgentGuideCoversEveryCommandAndFlag(t *testing.T) {
+func TestAgentGuideIndexesEveryCommand(t *testing.T) {
 	guide := agentGuide()
 	for _, command := range cliCommandSpecs {
-		if !strings.Contains(guide, "\n### "+command.Name+"\n") {
-			t.Fatalf("guide does not describe command %q", command.Name)
+		if !strings.Contains(guide, "\n- `"+command.Name+"`: "+command.Description+"\n") {
+			t.Fatalf("guide does not index command %q", command.Name)
 		}
-		if !strings.Contains(guide, "\n"+cliUsage(command.Name)+"\n") {
-			t.Fatalf("guide does not contain usage for %q", command.Name)
-		}
-		for _, flagSpec := range command.Flags {
-			if !strings.Contains(guide, "`--"+flagSpec.Name) {
-				t.Fatalf("guide does not describe flag --%s of %q", flagSpec.Name, command.Name)
-			}
-		}
+	}
+	if !strings.Contains(guide, "rotari COMMAND --help") {
+		t.Fatal("guide does not point to the commands' help for their options")
 	}
 }
 
-func TestAgentGuideListsCommonOptionsOnlyWhenCommandHasAll(t *testing.T) {
-	guide := agentGuide()
-	section := func(name string) string {
-		start := strings.Index(guide, "\n### "+name+"\n")
-		if start < 0 {
-			t.Fatalf("guide has no section for %q", name)
-		}
-		rest := guide[start+1:]
-		if end := strings.Index(rest, "\n### "); end >= 0 {
-			rest = rest[:end]
-		}
-		return rest
+// TestCommandHelpCoversEveryOptionAndExitsZero asks every command for its
+// help, which the guide points to: it exits 0, names the command the user
+// typed, and describes every option of the command's spec.
+func TestCommandHelpCoversEveryOptionAndExitsZero(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	for _, command := range cliCommandSpecs {
+		t.Run(command.Name, func(t *testing.T) {
+			var output bytes.Buffer
+			code := captureShowStdout(t, &output, func() int { return run([]string{command.Name, "--help"}) })
+			help := output.String()
+			if code != 0 || !strings.Contains(help, "usage: rotari "+command.Name) {
+				t.Fatalf("%s --help exit %d:\n%s", command.Name, code, help)
+			}
+			for _, flagSpec := range command.Flags {
+				if !strings.Contains(help, "  --"+flagSpec.Name+"\n") && !strings.Contains(help, "  --"+flagSpec.Name+" ") && !strings.Contains(help, "  --"+flagSpec.Name+",") {
+					t.Errorf("%s --help does not describe --%s:\n%s", command.Name, flagSpec.Name, help)
+				}
+			}
+		})
 	}
-	show := section("show")
-	if !strings.Contains(show, "Accepts the common options.") || strings.Contains(show, "- `--basedir DIR`") {
-		t.Fatalf("show section should refer to the common options instead of listing them:\n%s", show)
-	}
-	server := section("server")
-	if strings.Contains(server, "Accepts the common options.") || !strings.Contains(server, "- `--basedir DIR`") {
-		t.Fatalf("server section should list --basedir because it lacks --project-name:\n%s", server)
+	var output bytes.Buffer
+	captureShowStdout(t, &output, func() int { return run([]string{"retry", "--help"}) })
+	if !strings.HasPrefix(output.String(), "rotari retry: ") || strings.Contains(output.String(), "  --failed") {
+		t.Fatalf("retry --help shows run's options:\n%s", output.String())
 	}
 }
 

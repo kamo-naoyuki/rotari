@@ -588,7 +588,9 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "[PROJECT]",
         },
         {
-            "description": "change jobs in the current or previous batch",
+            "description": "change queued jobs, or with --run-id the jobs of that "
+            "run, which replace the queue first; a command after the "
+            "options replaces the jobs' command",
             "flags": [
                 {
                     "description": "config file to use",
@@ -610,7 +612,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "run ID to use when restoring a batch",
+                    "description": "first replace the queue with this run's "
+                    "jobs, then change them",
                     "environment": "ROTARI_RUN_ID",
                     "name": "run-id",
                     "short": "r",
@@ -881,7 +884,8 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "FILE [PROJECT]",
         },
         {
-            "description": "remove jobs from the current or previous batch",
+            "description": "remove queued jobs, or with --run-id jobs of that run, "
+            "which replace the queue first",
             "flags": [
                 {
                     "description": "config file to use",
@@ -903,7 +907,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "run ID to use when restoring a batch",
+                    "description": "first replace the queue with this run's "
+                    "jobs, then remove from them",
                     "environment": "ROTARI_RUN_ID",
                     "name": "run-id",
                     "short": "r",
