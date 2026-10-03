@@ -312,3 +312,30 @@
   plan changes were excluded from this work's commits.
 - **Remaining:** 616 pairs and all documented mode/semantic gaps. Next:
   finite MCP stdin/stdout requests, then isolated Web and diagnosis adapters.
+
+## MCP initialization and tool-discovery pair
+
+**Commit:** `0ea7fc4` — 2026-10-03T18:09:08+09:00
+
+- **Change:** Added the one `mcp` pair (`--config`/`--masterdir`) in both
+  orders and standalone samples. The public subprocess receives only
+  JSON-RPC initialize, initialized notification, and tools/list. It matches
+  replies by ID while ignoring notifications, compares server identity,
+  capabilities, and sorted tool names, then closes stdin and requires a clean
+  bounded exit with empty stderr and unchanged fixture state.
+- **Reason:** Exercise stdio-mode option parsing and protocol startup without
+  calling any project-writing or run-control MCP tool. Existing `startMCP`
+  fixes arguments and lacks bounded stderr/process cleanup, so the isolated
+  handshake uses its own bounded lifecycle helper.
+- **Plan impact:** Inventory is 5,866/6,481 pairs across twenty commands;
+  615 remain. This does not prove `--masterdir` precedence inside tools,
+  registry-derived tool effects, or any MCP operation behavior.
+- **Validation:** Focused handshake and standalone samples passed normally and
+  with race (3.14s); inventory, contract/layout, and document links passed.
+  Full `scripts/check.sh` after adding this adapter passed vet, normal,
+  and race with the default timeout. Interface packages took
+  108.24/365.50/163.75s normal and 84.04/452.51/162.45s race.
+  Gofmt and diff checks passed; pre-commit unavailable. Unrelated projection
+  and artifact-discovery edits were excluded from the implementation commit.
+- **Remaining:** 615 web/diagnosis/control/external pairs and the MCP tool-side
+  master-directory observation gap.
