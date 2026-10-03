@@ -781,7 +781,7 @@ async function showConfig(notifications = false) {
     modal.dataset.editing = "true";
   }
   modal.querySelector("strong").textContent = notifications
-    ? "Notification config (read only)"
+    ? "Notification config"
     : "Config";
   modal.dataset.view = "config";
   openOutputModal(false);
@@ -1194,7 +1194,7 @@ function addConfigButton() {
     const notificationPaths = pageConfigPaths(true);
     const notificationButton = document.createElement("button");
     notificationButton.className = "notification-config-button";
-    notificationButton.textContent = "Notification config (read only)";
+    notificationButton.textContent = "Notification config";
     notificationButton.disabled = !notificationPaths.length;
     notificationButton.title = notificationPaths.length
       ? "View the notification config copied for this run"
