@@ -47,6 +47,7 @@ Record any reversal here with its reason.
 - **MCP mechanism.** Tools only at first. Resources and Prompts may be added later without changing the shared functions.
 - **Task-shaped tools.** MCP exposes a small number of tools named after use cases (for example, find recent failures, summarize a run's failures, show a job's evidence, compare runs), not a generic query tool. Results do not advertise `available_operations`; tool schemas describe what exists.
 - **Structured output.** Results are structured records. Human-formatted text, such as `report.Build` output, may be one field, not the whole result.
+- **Dependents rerun with their dependency.** When a rerun executes a job, the jobs that depend on it execute too, through `--depends-on` or `--depends-on-finished`, so that they do not keep results computed from the dependency's earlier output. Discussed after the CLI agent trials, where an agent wanted to rerun one array task alone. There is no option to skip dependents: the user judged that options for this edge case would not be used. Previews show why a dependent executes (`depends_on_rerun=NAME`), and the `--job-id` help says so.
 
 ## Gaps found by the trial
 
