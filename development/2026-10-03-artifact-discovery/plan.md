@@ -130,8 +130,8 @@ Apply exclusions before ordinary positive rules:
   an existence check to identify ordinary references or infer regular-file type.
 - **PATH-X4:** for a recognized interpreter invocation at the command position
   or behind a recognized launcher, exclude the complete code operand from
-  ordinary classification. A code operand is
-  not one path even if its source text contains slashes or filename suffixes.
+  ordinary classification. A code operand is not one path even if its source
+  text contains slashes or filename suffixes.
   Shell `-c` bodies are inspected only by shell inspection (section 3); bodies
   for other languages are opaque and are not inspected.
 
@@ -207,7 +207,7 @@ interpreters:
 
 | Executable basename | Code option | Options that take a separate value |
 | --- | --- | --- |
-| `sh`, `dash`, `bash`, `zsh` | `-c`, or a short-option bundle whose final character is `c` (for example `-lc`, `-xec`) | `-o`, `+o`, `-O`, `+O` |
+| `sh`, `dash`, `bash`, `zsh` | A `c` flag anywhere in a short-option bundle (for example `-c`, `-lc`, `-ce`, `-xec`) | `-o`, `+o`, `-O`, `+O` |
 | `python`, `python2`, `python3`, `python3.N`, `pypy`, `pypy3` | Exactly `-c` | `-W`, `-X` |
 | `perl` | Exactly `-e` | none |
 | `node` | `-e` or `--eval` | none |
@@ -216,11 +216,19 @@ For each interpreter, parse options after its command word according to that
 interpreter's option grammar. Options may appear before the code option; options
 that consume a separate value consume exactly that next element. Stop at the
 first script/positional operand or `--`; a later `-c`/`-e` belongs to the script,
-not the interpreter. If a code option appears before that boundary, its next
-element is the code operand and is excluded from ordinary classification.
-Arguments after the code operand remain eligible (for `bash -c CODE NAME ARG...`
-they are positional parameters). Attached code operands such as `python -cCODE`
-are unsupported initially.
+not the interpreter. Which element is the code operand differs by interpreter:
+
+- **Shells:** `-c` is a flag meaning "read commands from the first operand".
+  If a `c` flag appeared among the options, the code operand is the first
+  element after option parsing ends (after `--` if present), not necessarily
+  the element right after `-c`. So `bash -c -e CODE`, `bash -ce CODE`, and
+  `bash -c -- CODE` all have `CODE` as the operand.
+- **Python, Perl, Node:** the code option takes its value, so the code operand is
+  the element right after it.
+
+The code operand is excluded from ordinary classification. Arguments after it
+remain eligible (for `bash -c CODE NAME ARG...` they are positional parameters).
+Attached code operands such as `python -cCODE` are unsupported initially.
 
 #### Recognized launchers
 
@@ -234,8 +242,8 @@ its remaining arguments as commands.
 | Launcher | Initially accepted prefix before the wrapped command | Examples |
 | --- | --- | --- |
 | `env` | Zero or more literal `NAME=value` assignments; env options such as `-i`, `-u`, and `-S` are not supported initially | `env A=1 python -c CODE` |
-| `timeout` | `--foreground`, `--preserve-status`, `--verbose`; `-s VALUE`/`--signal VALUE`; `-k VALUE`/`--kill-after VALUE`; then the required duration and wrapped command | `timeout 1h bash -c CODE`; `timeout -s TERM -k 5s 1h python -c CODE` |
-| `srun` | No-option form; `--name=value` options; and the listed boolean flags `--pty`, `--unbuffered`, `--label`, `--overlap`, `--exclusive`. Separate-value options are limited to `-n`/`--ntasks`, `-c`/`--cpus-per-task`, `-p`/`--partition`, `-t`/`--time`, `-o`/`--output`, `-e`/`--error`, `-J`/`--job-name`, and `-A`/`--account` | `srun python train.py`; `srun --ntasks=2 python -c CODE`; `srun -n 2 python -c CODE` |
+| `timeout` | `--foreground`, `--preserve-status`, `--verbose`; `-s VALUE`/`--signal VALUE`/`--signal=VALUE`; `-k VALUE`/`--kill-after VALUE`/`--kill-after=VALUE`; then the required duration and wrapped command | `timeout 1h bash -c CODE`; `timeout -s TERM -k 5s 1h python -c CODE` |
+| `srun` | No-option form; `--name=value` options; and the listed boolean flags `--pty`, `--unbuffered`, `--label`, `--overlap`, `--exclusive`. Separate-value options are limited to `-n`/`--ntasks`, `-N`/`--nodes`, `-G`/`--gpus`, `-c`/`--cpus-per-task`, `-p`/`--partition`, `-t`/`--time`, `-o`/`--output`, `-e`/`--error`, `-J`/`--job-name`, and `-A`/`--account` | `srun python train.py`; `srun --ntasks=2 python -c CODE`; `srun -n 2 python -c CODE` |
 
 Examples that define the boundary:
 
@@ -243,22 +251,34 @@ Examples that define the boundary:
 | --- | --- | --- |
 | `bash -c "python train.py > out/log.txt"` | the quoted string | none |
 | `bash -l -c "..."`, `bash -o pipefail -c "..."` | the quoted string | none |
+| `bash -c -e "..."`, `bash -ce "..."` | the quoted string, not `-e` | none |
 | `timeout 1h bash -c "..."` | the quoted string | none |
 | `env A=1 python3.12 -c "open('out/a.txt')"` | the quoted string | none |
 | `srun python train.py --out results/model.pt` | none | `train.py`, `results/model.pt` |
 | `srun --ntasks 2 python -c CODE` | `CODE` | none |
 | `python train.py -c config.yaml` | none: `-c` follows the script | `train.py`, `config.yaml` |
 | `cat bash` | none: no code option | as usual |
-
 | `echo bash -c output.csv` | none | `output.csv` remains subject to ordinary classification |
 | `python train.py --engine python -c config.yaml` | none: the inner `python` is an option value, not a command | `train.py`, `config.yaml` remain eligible |
 
 An unsupported option or launcher form is not searched through. Its remaining
-arguments stay ordinary argv values; the result may miss a code body as an
-artifact candidate, but it will not suppress a value based only on an
-interpreter-looking word. Add launcher forms only with accepted and rejected
-command examples. Never infer that a string is code just because it contains
-shell syntax.
+arguments stay ordinary argv values, so a code body behind it is classified as
+one value and can become a false candidate. The shell body is also not inspected,
+so the paths inside it are missed. This is accepted in exchange for never
+suppressing a value based only on an interpreter-looking word. Keep these cases
+in the fixture table as known false positives, so adding a launcher shows up as
+a fixture change:
+
+| Argument list | Result in the initial version |
+| --- | --- |
+| `nice bash -c "python train.py > out/log.txt"` | Whole code string accepted (PATH-R3/R4) |
+| `nohup bash -c "..."` | Same |
+| `uv run python -c "open('out/a.txt')"` | Same |
+| `conda run -n ENV bash -c "..."` | Same |
+| `srun --mpi pmix bash -c "..."` (unlisted separate-value option) | Same |
+
+Add launcher forms only with accepted and rejected command examples. Never infer
+that a string is code just because it contains shell syntax.
 
 If the interpreter is a listed shell, pass the code operand to shell inspection
 (section 3) instead of classifying it; the parser then finds literal command
@@ -492,8 +512,9 @@ related implementation commits exist, following [development tracking rules](../
   standalone and equals-style values, duplicate references, extensionless names,
   URLs, numeric values, expressions, nonexistent paths, interpreter code bodies
   (`bash -c`/`-lc`, options and value-taking options before the code option,
+  shell code operand after later flags or `--` (`bash -c -e CODE`, `-ce`),
   versioned `python3.N -c`, `perl -e`, `node --eval`, recognized `env`/`timeout`/
-  `srun` launcher forms, unsupported launcher forms, `-c` after the script such
+  `srun` launcher forms, unsupported launchers kept as known false positives, `-c` after the script such
   as `python train.py -c config.yaml`, interpreter-looking words in ordinary
   arguments such as `echo bash -c output.csv`, positional args after `-c`, and
   the same recognizer applied to words parsed from shell source), environment
