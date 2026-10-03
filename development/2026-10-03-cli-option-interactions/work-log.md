@@ -173,3 +173,43 @@
   excluded from this work's commit.
 - **Remaining:** Run/control adapters, more semantic value/boolean/repeated
   witnesses, and all gaps recorded in the coverage notes.
+
+## Run and retry dry-run pair adapter
+
+**Commit:** `09d19f3` — 2026-10-03T14:01:57+09:00
+
+- **Change:** Added schema-sampled `run`/`retry` pairs through `--dry-run`, with
+  a semaphore limiting concurrent subprocesses and full fixture non-interference
+  checks. Added standalone value samples, result/stage intersection and
+  partial-array plan witnesses, run-name output, and async/dry-run regression.
+  Updated CLI-8/9/10, selector/guard contract status, running guide, and issue
+  history.
+- **Reason:** Complete the next highest-priority command group while ensuring
+  pair checks do not launch jobs or contact schedulers.
+- **Plan impact:** Executed all 3,315 `run`/`retry` pairs in both orders;
+  3,016 accepted, 299 explicitly rejected (6,630 invocations). A run took
+  88.95s at concurrency four. Total executable inventory is 5,832/6,481, with
+  649 control/external pairs deferred.
+- **Validation:** Before the fix, `run` and `retry` with `--async --dry-run`
+  returned exit 0 in both orders and printed a plan. The focused regression
+  failed for all four cases, then passed after a shared guard was added.
+  The run/retry pair matrix, samples, selector/partial-array witness, run-name
+  witness and CLI contract/layout checks passed. The latest focused matrix
+  passed in 114.83s (package 118.58s). An unlimited-parallel trial timed out
+  previews; the suite bounds concurrency at four and then passed.
+  An earlier short check passed, but subsequent short and full checks failed
+  while a concurrent undocumented-option guard misidentified commands as
+  `config` and refused retry's existing result selectors. The full check also
+  hit the interface package's default ten-minute timeout in an existing show
+  observability case; it did not reach race. These are not full-check passes,
+  nor the carried-result race build failure from the preceding edit phase.
+  Full logs retain the original failures. After the owning thread removed
+  the guard, the final `GOFLAGS='-timeout=30m' scripts/check.sh` passed
+  (exit 0), including vet, normal tests, and race. The interface package
+  passed in 568.32s normal and 676.47s race; the larger package timeout
+  accommodates the expanded matrix without dropping cases. Contract and
+  document-link tests, gofmt, and diff checks also passed. Pre-commit is
+  unavailable. Unrelated projection edits are excluded from the commit.
+- **Remaining:** 649 pairs in control/daemon/external commands, retry-specific
+  selection expectations, actual execution and scheduler effects, plus the
+  gaps listed in the coverage report.
