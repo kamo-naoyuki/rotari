@@ -339,3 +339,34 @@
   and artifact-discovery edits were excluded from the implementation commit.
 - **Remaining:** 615 web/diagnosis/control/external pairs and the MCP tool-side
   master-directory observation gap.
+
+## Web static-export pair adapter and explicit mode guards
+
+**Commit:** `8fe6304` — 2026-10-03T21:29:53+09:00
+
+- **Change:** Added a separate `pairweb` package with all 28 Web pairs in
+  both orders and eight standalone samples. Static exports compare asset paths
+  and modes, preserve source state, and independently check the notifications
+  toggle. Static mode now rejects explicitly supplied host, port, auth-token,
+  and allow-control options from CLI, environment, or configuration. Updated
+  WEB-3/4, schema descriptions, generated CLI references, guides, and coverage.
+- **Reason:** Before the fix, static exports accepted all four live-server-only
+  options and silently ignored them. Random HTML session tokens prohibit a
+  raw byte-equality oracle; the notification witness checks meaningful content.
+- **Plan impact:** Public schema inventory confirms 5,894 executable pairs of
+  6,481, with 587 deferred (532 control and 55 diagnose). There are four pair
+  packages. This adapter never starts an HTTP server. The inventory, rather
+  than earlier handoff arithmetic, is the source of these totals.
+- **Validation:** Focused Web tests passed uncached (16.40s normal, 16.65s
+  race), as did existing CLI Web mode tests, contract/layout, inventory,
+  document links, generated CLI reference synchronization, and diff checks.
+  The full script passed vet and normal tests but exited 1 during race in
+  `TestAsyncStartHintsWork`, reading a missing `commands.json` immediately
+  after async start. The subsequent short script exited 1 for the same error;
+  all four pair packages passed. Isolated lifecycle checks have both failed
+  and passed, including the latest race check; this is not a full-suite pass
+  or a resolved readiness defect. Original full/short logs and exit codes
+  were retained, and the issue is recorded in `development/ISSUES.md`.
+  Unrelated projection and configuration-link changes remain uncommitted.
+- **Remaining:** Diagnose and control adapters, live-server behavior, and the
+  semantic/mode gaps listed in the coverage notes.
