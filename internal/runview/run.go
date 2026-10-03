@@ -10,18 +10,26 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/runlineage"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 // LoadRun loads a run's command snapshot and resolves every job through the
-// shared jobstatus fallback chain.
+// shared jobstatus fallback chain. A run that holds the project's lock but
+// has not written its snapshot yet, as one does right after an async start,
+// has no jobs yet; for any other run a missing snapshot is an error.
 func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runlineage.Run, error) {
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return runlineage.Run{}, fmt.Errorf("run %q not found", runID)
 	}
 	commands, err := state.ReadQueueFile(filepath.Join(runDir, "commands.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		if phase, phaseErr := project.RunPhaseOf(paths, runID); phaseErr == nil && phase == project.RunPhaseRunning {
+			return runlineage.Run{ID: runID}, nil
+		}
+	}
 	if err != nil {
 		return runlineage.Run{}, fmt.Errorf("failed to load run %s commands: %w", runID, err)
 	}

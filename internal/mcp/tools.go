@@ -1,9 +1,7 @@
 package mcp
 
 import (
-	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
@@ -117,13 +115,9 @@ func runSummary(masterDir string, input RunSummaryInput) (RunSummaryOutput, erro
 		return RunSummaryOutput{}, err
 	}
 	output := RunSummaryOutput{BaseDirRef: basedirregistry.Ref(location.BaseDir), Project: location.ProjectName, State: phase}
+	// A run that has just started has no jobs yet; runview.LoadRun says so.
 	summary, err := runview.Summary(paths, location.RunID, state.NewStore(state.DirectoryMode(), state.FileMode()))
 	if err != nil {
-		// A run that has just started has not written its jobs yet.
-		if phase == project.RunPhaseRunning && errors.Is(err, os.ErrNotExist) {
-			output.Summary.Run.ID = location.RunID
-			return output, nil
-		}
 		return RunSummaryOutput{}, err
 	}
 	for index := range summary.Failures {

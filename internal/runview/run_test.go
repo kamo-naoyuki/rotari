@@ -138,3 +138,37 @@ func TestPreviousRunFollowsStartOrder(t *testing.T) {
 		t.Fatal("PreviousRun(first) found an earlier run")
 	}
 }
+
+// TestLoadRunOfAStartingRunHasNoJobsYet loads a run that holds the
+// project's lock but has not written its jobs, as one does right after an
+// async start, and a run in the same state that is no longer active.
+func TestLoadRunOfAStartingRunHasNoJobsYet(t *testing.T) {
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, value := range map[string]any{
+		paths.LockFile: model.LockInfo{PID: os.Getpid(), RunID: "starting", Host: host},
+		paths.MetaFile: model.Meta{Phase: "running", LastRunID: "starting"},
+	} {
+		if err := state.WriteJSON(path, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, runID := range []string{"starting", "abandoned"} {
+		if err := os.MkdirAll(filepath.Join(paths.RunsDir, runID), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store := state.NewStore(0o700, 0o600)
+	if run, err := LoadRun(paths, "starting", store); err != nil || run.ID != "starting" || len(run.Jobs) != 0 {
+		t.Fatalf("LoadRun(starting) = %+v, %v; want the run with no jobs yet", run, err)
+	}
+	if _, err := LoadRun(paths, "abandoned", store); err == nil {
+		t.Fatal("LoadRun of an inactive run without commands.json succeeded")
+	}
+}
