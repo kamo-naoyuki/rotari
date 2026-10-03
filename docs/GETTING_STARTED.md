@@ -34,12 +34,6 @@ Run `rotari version` to check the installed version. Use
 `rotari completion install` for Bash, Zsh, or Fish; see
 [Shell completion](CONFIGURATION.md#shell-completion).
 
-### Documentation for LLMs
-
-The documentation site provides an [LLM-friendly index](https://kamo-naoyuki.github.io/rotari/llms.txt)
-and [all rendered documentation in one file](https://kamo-naoyuki.github.io/rotari/llms-full.txt).
-Share the index with an LLM that can follow links, or attach the full file directly.
-
 ### Docker
 
 For the published image, persistent state, and runtime requirements, see the
