@@ -2598,13 +2598,15 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "DIR",
                 },
                 {
-                    "description": "HTTP listen host",
+                    "description": "HTTP listen host (live server only; cannot "
+                    "be combined with --static-dir)",
                     "environment": "ROTARI_WEB_HOST",
                     "name": "host",
                     "value_name": "HOST",
                 },
                 {
-                    "description": "HTTP listen port",
+                    "description": "HTTP listen port (live server only; cannot "
+                    "be combined with --static-dir)",
                     "environment": "ROTARI_WEB_PORT",
                     "name": "port",
                     "value_name": "PORT",
@@ -2617,14 +2619,16 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {
                     "description": "enable job control "
-                    "(copy/change/remove/cancel/clear); pass "
-                    "--allow-control=false for a read-only UI",
+                    "(copy/change/remove/cancel/clear) in the "
+                    "live server; false makes it read-only; "
+                    "incompatible with --static-dir",
                     "environment": "ROTARI_WEB_ALLOW_CONTROL",
                     "name": "allow-control",
                 },
                 {
                     "description": "require this token in Authorization: Bearer "
-                    "or X-Rotari-Token; prefer "
+                    "or X-Rotari-Token on the live server; cannot "
+                    "be combined with --static-dir; prefer "
                     "ROTARI_WEB_AUTH_TOKEN for secrets",
                     "environment": "ROTARI_WEB_AUTH_TOKEN",
                     "name": "auth-token",

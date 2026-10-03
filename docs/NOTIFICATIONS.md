@@ -53,7 +53,10 @@ opens the exact run page; removing it disables click navigation.
 The current basedir's `/api/state` is checked every two seconds. Selected other
 basedirs use `/api/active-runs`. Completed run details are not repeatedly
 loaded. Static exports have no server to load notification settings, so they
-provide neither the editor nor live notifications.
+provide neither the editor nor live notifications. `--notifications` still
+selects the initial local toggle shown in a static export. Live-server options
+(`--host`, `--port`, `--auth-token`, and `--allow-control`) cannot be combined
+with `--static-dir`; use them only when starting the HTTP server.
 
 ## Webhook notifications
 

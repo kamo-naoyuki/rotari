@@ -368,9 +368,6 @@ hidden there.
 The ordinary Web UI and GitHub Pages static demo use the same JavaScript.
 `pageParts()` abstracts route parsing:
 
-- normal Web mode reads `location.pathname`;
-- static mode uses the injected `routeParts()` helper.
-
 `staticPath()` prefixes links with the repository base path, and
 `rewriteStaticLinks()` repairs dynamically created absolute links. Keep links in
 the HTML template relative where possible.
@@ -389,6 +386,24 @@ and briefly render that HTML as application text.
 Static pages receive a copy of `web_styles.css` beside every generated
 `index.html`. If a new asset or static API endpoint is added, update both the
 normal Web handler and `webui.GenerateStatic`/its bootstrap.
+
+## Web CLI modes
+
+**WEB-3** `rotari web --static-dir DIR` writes a static export and exits; it
+does not start the live HTTP server. Options that configure that server
+(`--host`, `--port`, `--auth-token`) or its control endpoints
+(`--allow-control`) are rejected when explicitly supplied by flag, environment,
+or config, rather than accepted and silently ignored. The shared web command
+boundary is in [cmd/rotari/web.go](../cmd/rotari/web.go); static-mode pair and
+standalone checks are in
+[conformance/03-interfaces/pairweb/web_static_pairs_test.go](../conformance/03-interfaces/pairweb/web_static_pairs_test.go).
+
+**WEB-4** The static export's initial browser notification toggle follows
+`--notifications`. This does not provide live event polling or load saved
+notification settings: the static export has no server. The marker is rendered
+by [internal/webui/assets.go](../internal/webui/assets.go) and checked by
+`TestCLIFlagPairWebNotificationsEffect` in
+[conformance/03-interfaces/pairweb/web_static_pairs_test.go](../conformance/03-interfaces/pairweb/web_static_pairs_test.go).
 
 ## Editing rules
 

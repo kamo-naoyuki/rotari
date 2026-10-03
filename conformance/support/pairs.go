@@ -51,6 +51,8 @@ func PairAdapter(command string) string {
 		return "registry"
 	case "mcp":
 		return "mcp"
+	case "web":
+		return "static"
 	default:
 		return ""
 	}

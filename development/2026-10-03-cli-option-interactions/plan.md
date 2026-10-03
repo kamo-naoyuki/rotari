@@ -272,19 +272,22 @@ duplicating its lifecycle or status-projection work.
 
 ## Current status and next action
 
-The schema inventory generates 6,481 pairs. Adapters execute 5,866 pairs across
-20 commands in three conformance packages: 783 read-only, 36 file-output,
-178 queue mutations, 1,520 edits, 3,315 run/retry previews, 6 unlock, and 21
-wait pairs, plus 6 registry pairs and one MCP handshake pair. The remaining 615
-pairs are control/external commands. Registry checks exercise GC preview/apply
-and server status/list; server shutdown and live leases are not implied by that
-coverage. MCP checks only initialization/tool discovery and never invoke a tool.
+The schema inventory generates 6,481 pairs. Adapters execute 5,894 pairs across
+22 commands in four conformance packages: 783 read-only, 36 file-output, 178
+queue mutations, 1,520 edits, 3,315 run/retry previews, 6 unlock, 21 wait,
+6 registry, 1 MCP, and 28 web static-export pairs. The remaining 587 pairs are
+control/external commands. Registry checks exercise GC preview/apply and server
+status/list; server shutdown and live leases are not implied. MCP checks only
+initialization/tool discovery, never a tool call. Web static mode rejects
+live-server-only options rather than silently ignoring them; the adapter never
+starts an HTTP server.
 
 The pair tests share their public-binary harness through `conformance/support`.
-Splitting the CLI checks across `03-interfaces`, `pairedits`, and `pairruns`
-keeps each Go package below the default ten-minute test timeout without
-excluding pairs or witnesses. One uncached normal run took 104.87s, 354.09s,
-and 156.48s for those packages, respectively.
+Splitting the CLI checks across `03-interfaces`, `pairedits`, `pairruns`, and
+`pairweb` keeps each current Go package below the default ten-minute test
+timeout without excluding pairs or witnesses. Diagnose remains deferred and
+will receive a dedicated adapter package. One uncached normal run took 104.87s,
+354.09s, and 156.48s for the first three; the web suite takes about 16s.
 
 Run/retry preview checks accept 3,016 pairs and explicitly reject 299 in 6,630
 invocations, measured at 88.95 seconds with four concurrent cases. They never
@@ -323,7 +326,7 @@ failures were fixed and not waived as intended behavior.
 
 See [coverage and triage](../../conformance/03-interfaces/flag-pair-coverage.md)
 for measured results and explicit gaps. Milestone 1 is **not complete**:
-615 control/external pairs still need adapters; execution, scheduler submission,
+587 control/external pairs still need adapters; execution, scheduler submission,
 async lifecycle, clear/set, active-state, provenance, boolean/repeated-value,
 and cross-interface witnesses remain. Compatibility declarations are an
 evidence-gated follow-up. Run/retry previews and synthetic wait locks do not

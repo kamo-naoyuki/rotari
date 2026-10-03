@@ -2,7 +2,7 @@
 
 The shared harness (schema inventory types, finished-run fixture, bounded
 invocation, and NFS-aware tree restoration) is
-[conformance/support/pairs.go](../support/pairs.go). The suites run in three
+[conformance/support/pairs.go](../support/pairs.go). The suites run in four
 packages so the full pair matrix does not put any single package near Go's
 default ten-minute test timeout:
 
@@ -12,9 +12,11 @@ default ten-minute test timeout:
 - [pairedits](pairedits/): the restored mutation and edit adapters and their
   effect witnesses.
 - [pairruns](pairruns/): `run`/`retry` previews, `unlock`, and `wait`.
+- [pairweb](pairweb/): safe static exports; it never starts an HTTP server.
 
-In an uncached run, the packages took 104.87s, 354.09s, and 156.48s in normal
-mode. No pair or semantic witness is excluded from short or race mode.
+In the latest uncached run, the first three packages took 104.87s, 354.09s,
+and 156.48s in normal mode; pairweb takes about 16s. No pair or semantic
+witness is excluded from short or race mode.
 
 Tests obtain flags from the built binary's `schema --json`, not from CLI
 implementation imports. The staged rollout is tracked in the
@@ -127,6 +129,13 @@ implementation imports. The staged rollout is tracked in the
   signal. An alternate-registry witness proves config selection and explicit
   masterdir precedence in both orders. Shutdown and live lease behavior are
   still outside this adapter.
+- `TestCLIFlagPairWeb` executes all 28 `web` pairs in static-export mode, with
+  generated output compared by relative asset paths and permissions in both
+  orders. Server-only options (`--host`, `--port`, `--auth-token`, and
+  `--allow-control`) are explicitly rejected whenever supplied by the CLI,
+  environment, or config rather than silently ignored. `--notifications` is
+  checked as a content-affecting option on the exported browser toggle.
+  `web` never starts a live HTTP server in this adapter.
 - `TestCLIFlagPairMCP` checks the `--config`/`--masterdir` pair and standalone
   samples by sending only JSON-RPC `initialize` and `tools/list`. It compares
   server identity/capabilities and sorted tool names, ignores asynchronous
@@ -168,18 +177,18 @@ only robustness/order coverage; they do not claim a semantic ignore oracle.
 
 ## Deferred command adapters
 
-Every pair is inventoried, and twenty commands have adapters. The remaining
-615 pairs are **not executed** by this suite.
+Every pair is inventoried, and twenty-two commands have adapters. The remaining
+587 pairs are **not executed** by this suite.
 
 | Commands | Pairs | Required next work |
 | --- | ---: | --- |
 | `cancel`, `suspend`, `resume` | 532 | Active/interrupted fixtures, barriers, signals, prompts, and bounded cleanup |
-| `web`, `diagnose` | 83 | Isolated daemon/HTTP adapters; fake external diagnosis services |
+| `diagnose` | 55 | Isolated local-rule and fake external diagnosis service modes |
 | `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
-The 5,866 executed pairs consist of 783 read-only, 36 file-output, 178
-queue-mutation, 1,520 edit, 3,336 run/retry/wait, 6 unlock, 6 gc/server, and
-1 MCP pair. The edit pair loop accepted
+The 5,894 executed pairs consist of 783 read-only, 36 file-output, 178
+queue-mutation, 1,520 edit, 3,336 run/retry/wait, 6 unlock, 6 gc/server,
+1 MCP, and 28 web static-export pairs. The edit pair loop accepted
 1,187 and explicitly rejected 333 pairs in 3,040 invocations; one run took
 4m01s including setup.
 

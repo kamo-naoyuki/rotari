@@ -635,11 +635,11 @@ serve the web status UI
 | --- | --- | --- | --- |
 | `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
-| `--host` | `HOST` | `ROTARI_WEB_HOST` | HTTP listen host |
-| `--port` | `PORT` | `ROTARI_WEB_PORT` | HTTP listen port |
+| `--host` | `HOST` | `ROTARI_WEB_HOST` | HTTP listen host (live server only; cannot be combined with --static-dir) |
+| `--port` | `PORT` | `ROTARI_WEB_PORT` | HTTP listen port (live server only; cannot be combined with --static-dir) |
 | `--static-dir` | `DIR` | `ROTARI_WEB_STATIC_DIR` | generate a static web UI |
-| `--allow-control` | `` | `ROTARI_WEB_ALLOW_CONTROL` | enable job control (copy/change/remove/cancel/clear); pass --allow-control=false for a read-only UI |
-| `--auth-token` | `TOKEN` | `ROTARI_WEB_AUTH_TOKEN` | require this token in Authorization: Bearer or X-Rotari-Token; prefer ROTARI_WEB_AUTH_TOKEN for secrets |
+| `--allow-control` | `` | `ROTARI_WEB_ALLOW_CONTROL` | enable job control (copy/change/remove/cancel/clear) in the live server; false makes it read-only; incompatible with --static-dir |
+| `--auth-token` | `TOKEN` | `ROTARI_WEB_AUTH_TOKEN` | require this token in Authorization: Bearer or X-Rotari-Token on the live server; cannot be combined with --static-dir; prefer ROTARI_WEB_AUTH_TOKEN for secrets |
 | `--notifications` | `` | `ROTARI_WEB_NOTIFICATIONS` | default state of the browser desktop-notification toggle; pass --notifications=false to default it off |
 
 ### `rotari mcp`

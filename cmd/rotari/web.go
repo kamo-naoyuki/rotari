@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
@@ -17,6 +18,36 @@ import (
 
 // cmdWeb serves the embedded Web UI or writes a static export of project state.
 func cmdWeb(args []string) int {
+	flags, code := parseWebFlags(args)
+	if code != 0 {
+		return code
+	}
+	baseDir, _, err := stateinternal.ResolveBaseDir(flags.basedir)
+	if err != nil {
+		printErrorf("failed to resolve state directory: %v", err)
+		return 1
+	}
+	options := webOptions(baseDir, flags.allowControl, flags.notifications)
+	loadedNotifications, err := notification.Load(baseDir, "")
+	if err != nil {
+		printErrorf("failed to load notification configuration: %v", err)
+		return 1
+	}
+	options.NotificationSettings = loadedNotifications.Settings.Browser
+	if flags.staticDir != "" {
+		return generateStaticWeb(flags.staticDir, options)
+	}
+	return serveWeb(flags, baseDir, options)
+}
+
+type webCommandFlags struct {
+	basedir, host, staticDir, authToken string
+	port                                int
+	allowControl, notifications         bool
+	portExplicit                        bool
+}
+
+func parseWebFlags(args []string) (webCommandFlags, int) {
 	fs := newFlagSet("web")
 	basedir := cliString(fs, "basedir", "")
 	host := cliString(fs, "host", "127.0.0.1")
@@ -26,59 +57,57 @@ func cmdWeb(args []string) int {
 	authToken := cliString(fs, "auth-token", "")
 	notifications := cliBool(fs, "notifications", true)
 	if err := cliParse(fs, args); err != nil {
-		return 1
+		return webCommandFlags{}, 1
 	}
 	if len(fs.Args()) != 0 || *port < 0 || *port > 65535 {
 		printError("usage: " + cliUsage("web"))
-		return 1
-	}
-	portExplicit := false
-	fs.Visit(func(flag *flag.Flag) {
-		portExplicit = portExplicit || flag.Name == "port"
-	})
-	baseDir, _, err := stateinternal.ResolveBaseDir(*basedir)
-	if err != nil {
-		printErrorf("failed to resolve state directory: %v", err)
-		return 1
-	}
-	options := webOptions(baseDir, *allowControl, *notifications)
-	loadedNotifications, err := notification.Load(baseDir, "")
-	if err != nil {
-		printErrorf("failed to load notification configuration: %v", err)
-		return 1
-	}
-	options.NotificationSettings = loadedNotifications.Settings.Browser
-	if *staticDir == "" {
-		registry, err := basedirregistry.Default()
-		if err != nil {
-			printErrorf("failed to resolve base directory registry: %v", err)
-			return 1
-		}
-		options.BaseDirs, err = registry.BaseDirs()
-		if err != nil {
-			printErrorf("failed to list registered base directories: %v", err)
-			return 1
-		}
+		return webCommandFlags{}, 1
 	}
 	if *staticDir != "" {
-		if err := webui.GenerateStatic(*staticDir, options); err != nil {
-			printErrorf("failed to generate static web: %v", err)
-			return 1
+		serverOptions := webStaticServerOptions(fs)
+		if len(serverOptions) > 0 {
+			printErrorf("--%s cannot be combined with --static-dir; these options only apply to the live web server", strings.Join(serverOptions, ", --"))
+			return webCommandFlags{}, 1
 		}
-		return 0
 	}
-	if !webui.IsLoopbackHost(*host) && *authToken == "" {
+	flags := webCommandFlags{basedir: *basedir, host: *host, port: *port, staticDir: *staticDir, authToken: *authToken, allowControl: *allowControl, notifications: *notifications}
+	fs.Visit(func(flag *flag.Flag) {
+		flags.portExplicit = flags.portExplicit || flag.Name == "port"
+	})
+	return flags, 0
+}
+
+func generateStaticWeb(output string, options webui.Options) int {
+	if err := webui.GenerateStatic(output, options); err != nil {
+		printErrorf("failed to generate static web: %v", err)
+		return 1
+	}
+	return 0
+}
+
+func serveWeb(flags webCommandFlags, baseDir string, options webui.Options) int {
+	registry, err := basedirregistry.Default()
+	if err != nil {
+		printErrorf("failed to resolve base directory registry: %v", err)
+		return 1
+	}
+	options.BaseDirs, err = registry.BaseDirs()
+	if err != nil {
+		printErrorf("failed to list registered base directories: %v", err)
+		return 1
+	}
+	if !webui.IsLoopbackHost(flags.host) && flags.authToken == "" {
 		controlWarning := "registered basedir paths, job logs, and environment variable names"
-		if *allowControl {
+		if flags.allowControl {
 			controlWarning = "registered basedir paths, job logs, environment variable names, and job control (cancel/suspend/resume/change/remove/copy) operations"
 		}
-		printErrorf("WARNING: --host %s exposes %s over unauthenticated HTTP.", *host, controlWarning)
+		printErrorf("WARNING: --host %s exposes %s over unauthenticated HTTP.", flags.host, controlWarning)
 	}
 	handler := webui.Handler(options)
-	if *authToken != "" {
-		handler = webui.WithAuthToken(handler, *authToken)
+	if flags.authToken != "" {
+		handler = webui.WithAuthToken(handler, flags.authToken)
 	}
-	listener, err := webui.Listen(*host, *port, !portExplicit)
+	listener, err := webui.Listen(flags.host, flags.port, !flags.portExplicit)
 	if err != nil {
 		printErrorf("web server failed: %v", err)
 		return 1
@@ -94,6 +123,25 @@ func cmdWeb(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+func webStaticServerOptions(fs *flag.FlagSet) []string {
+	var incompatible []string
+	for _, name := range []string{"allow-control", "auth-token", "host", "port"} {
+		provided := cliOptionSet(fs, name)
+		if !provided {
+			if envName := cliEnvironmentVariable(name); envName != "" {
+				_, provided = os.LookupEnv(envName)
+			}
+		}
+		if !provided {
+			_, provided = configValue(name)
+		}
+		if provided {
+			incompatible = append(incompatible, name)
+		}
+	}
+	return incompatible
 }
 
 func newFlagSet(name string) *flag.FlagSet {
