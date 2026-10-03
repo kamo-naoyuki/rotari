@@ -128,12 +128,11 @@ Apply exclusions before ordinary positive rules:
   Unsupported application-specific interpolation is not evaluated.
 - **PATH-X3:** exclude known special sinks such as `/dev/null`. Do not require
   an existence check to identify ordinary references or infer regular-file type.
-- **PATH-X4:** skip the value that follows a code option of a recognized
-  interpreter (`sh`/`bash`/`zsh`/`dash -c`, `python -c`, `perl -e`, `node -e`,
-  and similar), and do not classify it as one value. Otherwise
-  `bash -c "python train.py > out/log.txt"` would be accepted whole by PATH-R3
-  or PATH-R4. Shell `-c` bodies are inspected only by shell inspection (section
-  3); bodies for other languages are not inspected.
+- **PATH-X4:** for a recognized direct interpreter invocation, exclude the
+  complete code operand from ordinary argv classification. A code operand is
+  not one path even if its source text contains slashes or filename suffixes.
+  Shell `-c` bodies are inspected only by shell inspection (section 3); bodies
+  for other languages are opaque and are not inspected.
 
 Then accept the first matching positive rule:
 
@@ -194,6 +193,50 @@ accepted string is a path. Unknown expressions that resemble paths can still be
 misclassified. Keep the rules explainable, skip ambiguous unsupported forms, and
 add distinguishing negative fixtures when adjusting a rule. Do not probe several
 paths and use existence to make an ambiguous interpretation appear certain.
+
+#### Recognizing code-bearing interpreter invocations (PATH-X4)
+
+The initial recognizer examines argv structure; it never searches arbitrary
+arguments for a token that merely looks like an interpreter name. Match the
+basename of argv[0] case-insensitively, so `/bin/bash` and `bash` are equivalent.
+Use this closed initial list:
+
+| Executable basename | Code option | Code operand |
+| --- | --- | --- |
+| `sh`, `dash`, `bash`, `zsh` | `-c`, or a short-option bundle whose final character is `c` (for example `-lc`, `-xec`) | The immediately following argv element |
+| `python`, `python2`, `python3`, `python3.N`, `pypy`, `pypy3` | Exactly `-c` | The immediately following argv element |
+| `perl` | Exactly `-e` | The immediately following argv element |
+| `node` | `-e` or `--eval` | The immediately following argv element |
+
+For this first version, recognize the code option only when it is argv[1]. This
+intentionally handles the unambiguous common forms (`bash -lc CODE`,
+`python -c CODE`, `perl -e CODE`, `node --eval CODE`) without implementing each
+interpreter's full option grammar. Do not recognize attached operands such as
+`python -cCODE`, options before the code option, later options, `--`, REPL input,
+or language-specific stdin modes. Those forms are deferred; tests must establish
+that the recognized forms exclude exactly one code operand and leave later argv
+arguments eligible for ordinary classification.
+
+Also recognize the simple `env` prefix only when argv[0] has basename `env`,
+argv[1..n] contains zero or more literal `NAME=value` assignments, and the next
+element is one of the listed interpreter executables followed immediately by its
+recognized code option and operand. Do not parse `env` options (`-S`, `-i`, `-u`,
+`-C`, etc.), nested launchers (`nice`, `sudo`, `timeout`, `srun`, and similar),
+or shell command strings embedded under an unrecognized wrapper. For such an
+unrecognized wrapper, do not classify the wrapper's remaining argv values as
+independent paths; this avoids treating an opaque code body as a candidate. The
+wrapper and its script path are not discovered by PATH-X4 in this initial slice.
+
+If the executable is a recognized shell and PATH-X4 matches, pass only its code
+operand to the shell inspection phase. Do not run generic PATH-R2/R3/R4 over the
+entire code string first. The shell parser can then find literal command
+arguments and PATH-R1 redirections without executing the source. For Python,
+Perl, and Node, suppress that operand entirely; do not parse those languages.
+
+This is intentionally a narrow boundary, not a promise to understand all ways
+to launch an interpreter. Add new executable aliases, wrappers, or option forms
+only with positive and negative argv fixtures. In particular, never infer that
+an arbitrary string argument is code just because it contains shell syntax.
 
 #### Job log destinations (PATH-D1)
 
@@ -393,7 +436,9 @@ related implementation commits exist, following [development tracking rules](../
 - Table-driven classifier tests: absolute/relative paths, spaces, Unicode,
   standalone and equals-style values, duplicate references, extensionless names,
   URLs, numeric values, expressions, nonexistent paths, interpreter code bodies
-  (`bash -c`, `python -c`), environment entries, and the known false positives.
+  (`bash -c`/`-lc`, versioned `python3.N -c`, `perl -e`, `node --eval`,
+  simple `env` assignments), environment entries, unsupported code-option
+  positions and wrappers, and the known false positives.
 - Log-destination tests: relative and absolute `Output`/`Error` for each executor,
   resolved on the same base the executor opens them on.
 - Configuration tests: nested mappings/sequences, malformed input, empty sources,
