@@ -1,6 +1,7 @@
 package state
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -13,6 +14,15 @@ const (
 )
 
 func ResolveBaseDir(cliBaseDir string) (string, bool, error) {
+	baseDir, explicit, err := resolveBaseDir(cliBaseDir)
+	if err != nil {
+		return "", false, err
+	}
+	baseDir, err = absoluteDir(baseDir)
+	return baseDir, explicit, err
+}
+
+func resolveBaseDir(cliBaseDir string) (string, bool, error) {
 	if cliBaseDir != "" {
 		return cliBaseDir, true, nil
 	}
@@ -39,6 +49,14 @@ func ResolveBaseDir(cliBaseDir string) (string, bool, error) {
 // server registries: cliMasterDir, then ROTARI_MASTERDIR, then
 // $XDG_STATE_HOME/rotari/master, then ~/.local/state/rotari/master.
 func ResolveMasterDir(cliMasterDir string) (string, error) {
+	masterDir, err := resolveMasterDir(cliMasterDir)
+	if err != nil {
+		return "", err
+	}
+	return absoluteDir(masterDir)
+}
+
+func resolveMasterDir(cliMasterDir string) (string, error) {
 	if cliMasterDir != "" {
 		return cliMasterDir, nil
 	}
@@ -69,3 +87,15 @@ func mode(privateMode, sharedMode os.FileMode) os.FileMode {
 func DirectoryMode() os.FileMode { return mode(0o700, 0o755) }
 func FileMode() os.FileMode      { return mode(0o600, 0o644) }
 func ScriptMode() os.FileMode    { return mode(0o700, 0o755) }
+
+// absoluteDir resolves a state directory given relative to the working
+// directory, as `--basedir ../lab` is, to an absolute, clean path: state file
+// paths are validated as absolute paths without "..", and registries record
+// state directories by their absolute path.
+func absoluteDir(dir string) (string, error) {
+	absolute, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve state directory %q: %w", dir, err)
+	}
+	return absolute, nil
+}

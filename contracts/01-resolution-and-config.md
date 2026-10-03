@@ -137,6 +137,14 @@ The per-command view of these rules, with job selectors, is in
   the detected or requested shell.
 - **RES-21** Missing state directories produce no completion candidates instead of a shell
   error.
+- **RES-22** A state directory or master directory given relative to the
+  working directory, by `--basedir`, `ROTARI_BASEDIR`, `--masterdir`, or
+  `ROTARI_MASTERDIR`, including one that goes up with `..`, is resolved to
+  its absolute path before use, so every command accepts it and the
+  registries record the absolute path. Implemented once in
+  `state.ResolveBaseDir` and `state.ResolveMasterDir` in
+  [internal/state/config.go](../internal/state/config.go); checked by
+  `TestRelativeStateDirectoriesResolveAgainstTheWorkingDirectory`.
 
 Implementation and tests for these rules:
 

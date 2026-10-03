@@ -234,3 +234,31 @@ func TestCommandsThatCreateAProjectRegisterItsBasedir(t *testing.T) {
 		})
 	}
 }
+
+// TestRelativeStateDirectoriesResolveAgainstTheWorkingDirectory gives a
+// --basedir, a ROTARI_BASEDIR, and a --masterdir relative to the working
+// directory, including ones that go up with "..", as an agent does from its
+// job directory, and checks that commands that create, run, and read a
+// project all accept them.
+func TestRelativeStateDirectoriesResolveAgainstTheWorkingDirectory(t *testing.T) {
+	covers(t, "RES-22")
+	e := support.NewEnv(t)
+	work := filepath.Join(e.Root, "work")
+	if err := os.MkdirAll(work, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	inWork := e.In(work)
+	inWork.MustRotari("add", "-b", "../lab", "-p", "rel", "--", "true")
+	inWork.MustRotari("run", "-b", "../lab", "-p", "rel", "--quiet")
+	runID := showRunID(t, inWork.MustRotari("show", "-b", "../lab", "-p", "rel", "--json").Stdout)
+	inWork.MustRotari("lineage", "-b", "../lab", "-p", "rel", runID)
+	if out := inWork.WithVar("ROTARI_BASEDIR", "../lab").MustRotari("show", "-p", "rel", "-r", runID).Stdout; !strings.Contains(out, "Status: finished") {
+		t.Fatalf("a relative ROTARI_BASEDIR did not show the run:\n%s", out)
+	}
+	if out := e.MustRotari("show", "--basedirs").Stdout; !strings.Contains(out, filepath.Join(e.Root, "lab")) {
+		t.Fatalf("the relative basedir was not registered by its absolute path:\n%s", out)
+	}
+	if out := inWork.MustRotari("gc", "--dry-run", "--masterdir", "../master").Stdout; !strings.Contains(out, "dry run") {
+		t.Fatalf("gc with a relative --masterdir:\n%s", out)
+	}
+}
