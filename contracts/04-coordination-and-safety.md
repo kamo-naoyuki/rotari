@@ -269,6 +269,10 @@ run data. How it implements these rules and the rest of the state layout:
   and `TestLoadStateAcceptsLegacyAndRejectsNewerVersions` in
   [`internal/state/store_test.go`](../internal/state/store_test.go).
 - Version policy: an added optional field does not change the version.
+  For example, each result of a run summary carries the job's `name`, such
+  as `train[3]`, so that `wait --json`, `show --json`, and the MCP tools can
+  tell array tasks apart; summaries written before it have no `name`, and
+  readers must not require it.
   Renaming, removing, or reinterpreting a field bumps `model.StateVersion`;
   the loaders then convert every older version in memory after decoding, and
   the conversion is recorded here with the old and new field mapping.

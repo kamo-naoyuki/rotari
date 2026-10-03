@@ -145,7 +145,7 @@ the IDs, this table, and those calls disagree.
 | DUR-2 | The wrapper records status independently of its launcher | partial | `TestJobOutlivesKilledSupervisor` |
 | DUR-3 | An orphaned local job still records its own status | conformance | `TestJobOutlivesKilledSupervisor` |
 | DUR-4 | Supervisors are not restarted; crash detection is file-backed | conformance | `TestJobOutlivesKilledSupervisor` |
-| DUR-5 | `show`, `jobs`, reports, and the Web UI share one status fallback chain | partial | `TestCLIAndWebAgreeOnJobResults`, `TestCLIShowSelectedOlderAttemptIgnoresLatestSummary`, `TestReportNamesTheExecutorTheAttemptRanOn`, `TestStatusFallbackChainAgreesAcrossViews` |
+| DUR-5 | `show`, `jobs`, reports, and the Web UI share one status fallback chain | partial | `TestCLIAndWebAgreeOnJobResults`, `TestCLIShowSelectedOlderAttemptIgnoresLatestSummary`, `TestReportNamesTheExecutorTheAttemptRanOn`, `TestRunResultsCarryJobNames`, `TestStatusFallbackChainAgreesAcrossViews` |
 | DUR-6 | Recovery does not kill or reconcile leftover jobs | partial | `TestRecoveryLeavesJobsRunning` |
 | DUR-7 | A run records its carried results at start, and every view and job control reads carried jobs from them during the run | conformance | `TestCarriedJobsReadAsCarriedDuringTheRun` |
 | SAFE-1 | `check` and `show` report a project as idle, running, or interrupted; a killed coordinator leaves it interrupted | conformance | `TestControlFromAnotherHost`, `TestProjectStates` |

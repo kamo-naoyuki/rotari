@@ -345,7 +345,10 @@ type RuleDiagnosis struct {
 // unavailable analysis could not run; and DiagnosisRules identifies the rule
 // set that produced the analysis.
 type JobResult struct {
-	ID              string          `json:"id"`
+	ID string `json:"id"`
+	// Name is the job's name, such as train[3], in a run summary; results
+	// written before it was recorded have none.
+	Name            string          `json:"name,omitempty"`
 	AttemptID       string          `json:"attempt_id,omitempty"`
 	ExitCode        int             `json:"exit_code"`
 	Accepted        bool            `json:"accepted,omitempty"`

@@ -318,3 +318,29 @@ func TestReportNamesTheExecutorTheAttemptRanOn(t *testing.T) {
 		t.Fatalf("the report does not name the attempt's executor:\n%s", report)
 	}
 }
+
+// TestRunResultsCarryJobNames runs a named job and an array and checks that
+// the results wait --json and show --json report carry each job's name, so
+// array tasks that share a command can be told apart.
+func TestRunResultsCarryJobNames(t *testing.T) {
+	covers(t, "DUR-5")
+	e := support.NewEnv(t)
+	e.MustRotari("add", "-p", "names", "--job-name", "prep", "--", "true")
+	e.MustRotari("add", "-p", "names", "--job-name", "train", "--array", "1-2", "--", "true")
+	e.MustRotari("run", "-p", "names", "--async", "--quiet")
+	var waited struct {
+		Results []struct {
+			Name string `json:"name"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("wait", "-p", "names", "--json").Stdout), &waited); err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, result := range waited.Results {
+		names = append(names, result.Name)
+	}
+	if strings.Join(names, ",") != "prep,train[1],train[2]" {
+		t.Fatalf("wait --json result names = %v, want prep, train[1], train[2]", names)
+	}
+}

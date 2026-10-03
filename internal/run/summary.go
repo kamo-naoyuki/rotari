@@ -19,6 +19,7 @@ func BuildRunSummary(runID, runName, startedAt string, jobs []model.JobSpec, fin
 		if diagnose != nil {
 			result = diagnose(result)
 		}
+		result.Name = job.Name
 		summary.Results = append(summary.Results, result)
 		if result.ExitCode != 0 {
 			summary.ExitCode = 1
