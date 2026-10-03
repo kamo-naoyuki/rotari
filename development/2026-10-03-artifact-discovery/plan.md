@@ -280,46 +280,61 @@ Attached code operands such as `python -cCODE` are unsupported initially.
 
 #### Recognized launchers
 
-The launcher parser must identify the wrapped command boundary from that
-launcher’s grammar. Do **not** treat every word before the wrapped command as an
-option: the words can be option values or positional operands. For example,
-`timeout 1h bash ...` has a positional duration, while `srun -n 4 python ...`
-has an option value before the command.
+Launcher handling is deliberately heuristic, not a full command-line parser.
+Do **not** treat every word before an interpreter as an option: the words can
+be option values or positional operands. For example, `timeout 1h bash ...`
+has a positional duration, while `srun -n 4 python ...` has an option value
+before the interpreter.
 
 | Strategy | Benefit | Cost / failure mode | Decision |
 | --- | --- | --- | --- |
-| Treat every intervening word as an option | No launcher-specific parsing | Misses that `1h` is a positional operand to `timeout`; can mistake `python` in `srun --job-name python -n 2 bash -c CODE` for the command | Reject |
-| Parse each supported launcher’s options, values, and positional operands | Finds the command boundary and avoids most interpreter-looking option-value false matches | Requires a launcher table; unsupported options can hide an inner interpreter | Use |
-| Search every argv word for interpreter names | Finds interpreters behind arbitrary wrappers | Can misread ordinary arguments as nested commands; e.g. `echo bash -c output.csv` | Reject |
+| Treat every word between launcher and interpreter as an option | No option metadata | Positional operands such as `timeout`'s `1h` are not options; arbitrary values can be mistaken for the wrapped command | Reject |
+| Fully parse every launcher option and operand | Most accurate command boundary | Requires a large, version-sensitive option catalog | Defer |
+| Scan for interpreter names behind supported launchers; suppress values of a short list of free-text options | Small metadata list for plausible false matches such as `--job-name python` | An unlisted option value can still be mistaken for an interpreter; command arguments can also match | Use; best-effort |
 
-Walk inward only through the explicit launcher table below. Match launcher
-basenames case-insensitively. Each entry defines its accepted options, which
-values they consume, and where its wrapped command starts. Nested listed
-launchers may be followed up to depth four. An unknown launcher or an option
-whose arity/boundary is not listed stops PATH-X4; do not guess by scanning ahead.
+For direct commands, identify an interpreter only at argv[0]. For a supported
+launcher, scan its arguments for listed interpreter basenames without requiring
+a complete launcher grammar. Match basenames case-insensitively. Suppress a
+token as an interpreter candidate only when it is the separate value of a
+small, explicit set of free-text options whose values plausibly resemble
+commands. Initially protect `srun --job-name`/`-J` and `srun --partition`/`-p`,
+in both separate and equals forms (`--job-name python`, `--job-name=python`).
+Do not build a catalog of every launcher option. Add a protected option only
+when a concrete false match is demonstrated.
+
+Do not treat positional launcher operands such as `timeout`'s duration as
+options; they simply do not match an interpreter basename. `timeout` is scanned
+past its fixed duration position. For `srun`, protected free-text values are
+skipped and other tokens are scanned, including values of unlisted options.
+Thus an unlisted option value that equals an interpreter name may be mistaken
+for a command; this is accepted rather than maintaining a complete,
+version-sensitive option catalog. Unknown launchers are not traversed. Nested
+listed launchers may be followed up to depth four.
 
 | Launcher | Initially accepted prefix before the wrapped command | Examples |
 | --- | --- | --- |
-| `env` | Zero or more literal `NAME=value` assignments; env options such as `-i`, `-u`, and `-S` are not supported initially | `env A=1 python -c CODE` |
-| `timeout` | `--foreground`, `--preserve-status`, `--verbose`; `-s VALUE`/`--signal VALUE`/`--signal=VALUE`; `-k VALUE`/`--kill-after VALUE`/`--kill-after=VALUE`; then the required positional duration, then the wrapped command | `timeout 1h bash -c CODE`; `timeout -s TERM -k 5s 1h python -c CODE` |
-| `srun` | No-option form; `--name=value` options; and the listed boolean flags `--pty`, `--unbuffered`, `--label`, `--overlap`, `--exclusive`. Separate-value options are limited to `-n`/`--ntasks`, `-N`/`--nodes`, `-G`/`--gpus`, `-c`/`--cpus-per-task`, `-p`/`--partition`, `-t`/`--time`, `-o`/`--output`, `-e`/`--error`, `-J`/`--job-name`, and `-A`/`--account` | `srun python train.py`; `srun --ntasks=2 python -c CODE`; `srun -n 2 python -c CODE` |
+| `env` | Skip literal `NAME=value` assignment tokens; other env option forms are not fully parsed | `env A=1 python -c CODE` |
+| `timeout` | Scan past launcher arguments, including the required positional duration | `timeout 1h bash -c CODE`; `timeout -s TERM -k 5s 1h python -c CODE` |
+| `srun` | Scan argument tokens; skip only separate values of protected free-text options above. Other options are not exhaustively parsed | `srun -n 2 python -c CODE`; `srun --job-name python -n 2 bash -c CODE` |
 
-If launcher parsing stops, leave unconsumed words eligible for ordinary path
-classification. This can misclassify opaque code text as a candidate and miss
-paths inside that code, but avoids silently discarding a candidate merely
-because an arbitrary word resembled an interpreter. These are deliberate
-trade-offs, not claims that unsupported forms were successfully analyzed.
+When a protected free-text option is found, skip its value so an interpreter-
+looking value is not treated as a command. All other launcher arguments remain
+eligible for interpreter matching. This deliberately favors recall over exact
+command-boundary parsing; a match can be wrong when an unprotected option value
+or an argument to the wrapped command happens to look like an interpreter.
 
-| Unsupported form | Why traversal stops | Expected limitation |
+| Unsupported form | Why traversal is incomplete | Expected limitation |
 | --- | --- | --- |
-| `nice bash -c "python train.py > out/log.txt"` | `nice` is not listed | Code text may be a false candidate; inner paths are missed |
+| `nice bash -c "python train.py > out/log.txt"` | `nice` is not listed | Inner shell is not inspected; code string may be a false path candidate |
 | `nohup bash -c "..."` | `nohup` is not listed | Same |
-| `uv run python -c "..."` | `uv` is not listed | Same |
+| `uv run python -c "open('out/a.txt')"` | `uv` is not listed | Same |
 | `conda run -n ENV bash -c "..."` | `conda` is not listed | Same |
-| `srun --mpi pmix bash -c "..."` | `--mpi` arity is not listed | Same |
+| `srun --job-name python -n 2 bash -c CODE` | protected `--job-name` value is skipped | Correctly finds `bash` rather than mistaking `python` for the command |
+| `srun --mpi bash -n 2` | `--mpi` is not in the protected-value list | Possible false match: `bash` may be the `--mpi` value |
+| `srun echo bash -c output.csv` | Wrapped command arguments are not parsed | Possible false match: `bash -c` may be ordinary arguments to `echo` |
 
-Add launcher or option support when its expected benefit justifies the parsing
-and maintenance cost; include accepted and rejected command-line fixtures. The
+Add launcher or protected-option support when its expected benefit justifies
+the maintenance cost; include accepted and rejected command-line fixtures. The
 initial list is intentionally useful rather than exhaustive.
 
 Examples that define the interpreter/launcher boundary:
