@@ -211,7 +211,7 @@ the IDs, this table, and those calls disagree.
 | SEL-9 | `cancel`, `suspend`, and `resume` resolve each form as the job control table says | conformance | `TestJobControlSelectors` |
 | SEL-10 | Each command takes its positional arguments with their meaning and exclusions | conformance | `TestPositionalArguments` |
 | SEL-11 | The `--filter-*` options select jobs as the Filters section says | conformance | `TestCLIFlagPairObservability`, `TestSelectorTable`, `TestShowLogResultSelection` |
-| SEL-12 | `--job-name` and filters choose unfinished jobs for `cancel`, `suspend`, and `resume`, confirmed before acting | partial | `TestJobControlSelectors` |
+| SEL-12 | `--job-name` and filters choose unfinished jobs for `cancel`, `suspend`, and `resume`, confirmed before acting | partial | `TestCLIFlagPairCancel`, `TestCLIFlagPairResume`, `TestCLIFlagPairSuspend`, `TestJobControlSelectors` |
 | WEB-1 | Run timelines start at the actual run start, show carried results at start, and include timestamped events for executed jobs with origins, without origin-time rewinds | conformance | `TestFilteredRerunCarriesCompletedResults`, `TestBlockedOriginJobsDoNotRewindWebTimeline`, `TestRunTimelineStartsAtActualRunStart` |
 | WEB-2 | Live history search covers user-selected basedir/project/run scopes with validated, read-only hierarchical filters and pagination | partial | `TestHistorySearchAcrossProjects` |
 | WEB-3 | Static export rejects live-server-only web options instead of silently ignoring them | conformance | `TestCLIFlagPairWebStaticServerOptions` |

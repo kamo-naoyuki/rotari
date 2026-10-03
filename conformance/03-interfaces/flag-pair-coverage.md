@@ -2,7 +2,7 @@
 
 The shared harness (schema inventory types, finished-run fixture, bounded
 invocation, and NFS-aware tree restoration) is
-[conformance/support/pairs.go](../support/pairs.go). The suites run in five
+[conformance/support/pairs.go](../support/pairs.go). The suites run in six
 packages so the full pair matrix does not put any single package near Go's
 default ten-minute test timeout:
 
@@ -15,6 +15,8 @@ default ten-minute test timeout:
 - [pairweb](pairweb/): safe static exports; it never starts an HTTP server.
 - [pairdiagnose](pairdiagnose/): local rules and a local fake LLM endpoint;
   no external provider is contacted.
+- [pairjobcontrol](pairjobcontrol/): `cancel`, `suspend`, and `resume`
+  against live local runs that are cancelled and reaped afterward.
 
 In the latest uncached run, the first three packages took 104.87s, 354.09s,
 and 156.48s in normal mode; pairweb takes about 16s. No pair or semantic
@@ -144,6 +146,19 @@ implementation imports. The staged rollout is tracked in the
   local-rule pairs make no request. `--rules` with an explicitly supplied
   provider, endpoint, model, or language is rejected from CLI, environment, or
   config rather than silently ignoring that option.
+- `TestCLIFlagPairSuspend`, `TestCLIFlagPairResume`, and
+  `TestCLIFlagPairCancel` execute all 171 `suspend`, 171 `resume`, and 190
+  `cancel` pairs in both orders against live local runs of five sleeping
+  jobs (a two-task array, a single job, and a two-member matrix in three
+  stages). Every sample selects a distinguishing subset, and an independent
+  model of SEL-8/SEL-12 predicts the jobs acted on or the diagnosed
+  rejection. Suspend and resume share one run and reset every job's state
+  before each invocation, observing `scheduler_status.json`; cancels expected
+  to act each get a fresh run and are observed through `finished_at`, while
+  expected rejections share one run that must stay untouched. `--yes` is
+  injected unless under test (the terminal prompt is covered by the selector
+  table). Every run is cancelled and its processes reaped when its test ends.
+  This adapter found `--stage` with `--matrix` silently ignoring the matrix.
 - `TestCLIFlagPairMCP` checks the `--config`/`--masterdir` pair and standalone
   samples by sending only JSON-RPC `initialize` and `tools/list`. It compares
   server identity/capabilities and sorted tool names, ignores asynchronous
@@ -185,17 +200,17 @@ only robustness/order coverage; they do not claim a semantic ignore oracle.
 
 ## Deferred command adapters
 
-Every pair is inventoried, and twenty-three commands have adapters. The remaining
-532 pairs are **not executed** by this suite.
+Every pair is inventoried, and all twenty-six commands with at least two
+advertised flags have adapters; no generated pair is deferred.
 
 | Commands | Pairs | Required next work |
 | --- | ---: | --- |
-| `cancel`, `suspend`, `resume` | 532 | Active/interrupted fixtures, barriers, signals, prompts, and bounded cleanup |
 | `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
-The 6,294 executed pairs consist of 783 read-only, 36 file-output, 178
+The 6,826 executed pairs consist of 783 read-only, 36 file-output, 178
 queue-mutation, 1,520 edit, 3,660 run/retry previews, 6 unlock, 21 wait,
-6 gc/server, 1 MCP, 28 web static-export, and 55 diagnose pairs. The edit pair
+6 gc/server, 1 MCP, 28 web static-export, 55 diagnose, and 532 job-control
+pairs. The edit pair
 loop accepted 1,187 and explicitly rejected 333 pairs in 3,040 invocations;
 one run took 4m01s including setup.
 

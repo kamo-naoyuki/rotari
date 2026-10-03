@@ -55,6 +55,8 @@ func PairAdapter(command string) string {
 		return "static"
 	case "diagnose":
 		return "diagnose"
+	case "cancel", "suspend", "resume":
+		return "jobcontrol"
 	default:
 		return ""
 	}

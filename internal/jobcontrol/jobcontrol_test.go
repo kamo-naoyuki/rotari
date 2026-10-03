@@ -168,6 +168,9 @@ func TestSelectJobsFiltersUnfinishedJobs(t *testing.T) {
 	if _, err := controller.selectJobs(runDir, Selection{Names: []string{"done"}}, now); err == nil || err.Error() != "no unfinished jobs match the selection" {
 		t.Fatalf("finished-only selection error = %v", err)
 	}
+	if _, err := controller.selectJobs(runDir, Selection{Scope: model.CommandSelector{Stage: "fit", Matrix: "grid"}}, now); err == nil || err.Error() != "--stage cannot be combined with --matrix" {
+		t.Fatalf("stage and matrix scope error = %v", err)
+	}
 }
 
 func TestControlRejectsUnsupportedOperationAndIdleProject(t *testing.T) {

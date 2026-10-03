@@ -298,6 +298,10 @@ func (controller Controller) Select(baseDir, project, runID string, selection Se
 }
 
 func (controller Controller) selectJobs(runDir string, selection Selection, now time.Time) ([]string, error) {
+	// model.CommandSelector matches one kind; a second scope would be ignored.
+	if selection.Scope.Kinds() > 1 {
+		return nil, errors.New("--stage cannot be combined with --matrix")
+	}
 	snapshot, err := loadCommandSnapshot(runDir)
 	if err != nil {
 		return nil, err

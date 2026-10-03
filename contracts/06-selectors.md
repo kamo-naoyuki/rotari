@@ -281,6 +281,10 @@ active run, array tasks one by one, through `jobcontrol.Controller.Select`:
   job's duration ends now. `suspend` and `resume` accept only `running`.
 - Job IDs, `--job-name`, and the filters exclude one another, and all exclude
   `cancel --wait`; a bare run ID may still name the run.
+- `--stage` (or `--filter-stage`) and `--matrix` (or `--filter-matrix`)
+  exclude each other, as in `show`, `copy`, and `run`; neither is ignored in
+  favor of the other. `jobcontrol.Controller.Select` rejects the combination
+  for every caller.
 - Without `--filter-state`, `cancel` selects running and pending jobs and
   `suspend` and `resume` running ones.
 - A selection matching no job is an error, never a whole-run cancel.

@@ -272,22 +272,24 @@ duplicating its lifecycle or status-projection work.
 
 ## Current status and next action
 
-The current schema inventory generates 6,826 pairs. Adapters execute 6,294
-pairs across 23 commands in five conformance packages: 783 read-only, 36
+The current schema inventory generates 6,826 pairs, and adapters execute all
+of them across 26 commands in six conformance packages: 783 read-only, 36
 file-output, 178 queue mutations, 1,520 edits, 3,660 run/retry previews, 6
-unlock, 21 wait, 6 registry, 1 MCP, 28 web static-export, and 55 diagnose
-pairs. The remaining 532 pairs are `cancel`, `suspend`, and `resume`. Registry
+unlock, 21 wait, 6 registry, 1 MCP, 28 web static-export, 55 diagnose, and
+532 job-control pairs. Registry
 checks exercise GC preview/apply and server status/list; server shutdown and
 live leases are not implied. MCP checks only initialization/tool discovery,
 never a tool call. Web static mode rejects live-server-only options, and the
-diagnose adapter routes all LLM calls to a local fake endpoint.
+diagnose adapter routes all LLM calls to a local fake endpoint. Job-control
+pairs act on live local runs and compare the jobs acted on with a model.
 
 The pair tests share their public-binary harness through `conformance/support`.
 Splitting the CLI checks across `03-interfaces`, `pairedits`, `pairruns`,
-`pairweb`, and `pairdiagnose` keeps each Go package below the default ten-minute
+`pairweb`, `pairdiagnose`, and `pairjobcontrol` keeps each Go package below the default ten-minute
 test timeout without excluding pairs or witnesses. One uncached normal run
 took 104.87s, 354.09s, and 156.48s for the first three; the web suite takes
-about 16s and diagnosis takes about 10s including state-integrity checks.
+about 16s, diagnosis about 10s, and job control about 140s (race, cancels two
+pairs at a time).
 
 Run/retry preview checks accept 3,322 pairs and explicitly reject 338 in 7,320
 invocations, measured at about 20 seconds with four concurrent cases. They never
@@ -325,8 +327,8 @@ IDs are normalized while original IDs/provenance are retained. Harness setup
 failures were fixed and not waived as intended behavior.
 
 See [coverage and triage](../../conformance/03-interfaces/flag-pair-coverage.md)
-for measured results and explicit gaps. Milestone 1 is **not complete**:
-532 active-control pairs still need adapters; execution, scheduler submission,
+for measured results and explicit gaps. Milestone 1 pair execution is
+complete; execution, scheduler submission,
 async lifecycle, clear/set, active-state, provenance, boolean/repeated-value,
 and cross-interface witnesses remain. Compatibility declarations are an
 evidence-gated follow-up. Run/retry previews and synthetic wait locks do not

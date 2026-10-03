@@ -253,8 +253,9 @@ The interface flag-pair suites are split between
 [03-interfaces](../conformance/03-interfaces/),
 [pairedits](../conformance/03-interfaces/pairedits/), and
 [pairruns](../conformance/03-interfaces/pairruns/),
-[pairweb](../conformance/03-interfaces/pairweb/), and
-[pairdiagnose](../conformance/03-interfaces/pairdiagnose/) to keep each Go
+[pairweb](../conformance/03-interfaces/pairweb/),
+[pairdiagnose](../conformance/03-interfaces/pairdiagnose/), and
+[pairjobcontrol](../conformance/03-interfaces/pairjobcontrol/) to keep each Go
 package within the default test timeout. They share the public-binary fixture,
 schema sampling, bounded subprocess invocation, and restored state through
 [conformance/support/pairs.go](../conformance/support/pairs.go). No pair is
