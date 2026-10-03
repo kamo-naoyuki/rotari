@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -107,25 +106,17 @@ func cmdReset(args []string) int {
 				return 1
 			}
 		}
-		queue, err := state.LoadQueue(paths.QueueFile)
-		if err != nil {
-			printErrorf("failed to load queue: %v", err)
-			return 1
-		}
-		cleared := len(queue.Commands)
-		if err := project.RecoverInterruptedGuarded(paths, runID, true, guard.guard()); err != nil {
-			printErrorf("failed to recover interrupted run: %v", err)
-			return 1
-		}
-		guard.printResult(fmt.Sprintf("reset project=%s cleared=%d job(s); recovered interrupted run=%s", queueName, cleared, runID), *quiet)
-		return 0
 	}
-	cleared, err := resetQueueCommands(paths, guard.guard())
+	result, err := project.Reset(paths, projectState == project.Interrupted, guard.guard())
 	if err != nil {
-		printErrorf("failed to reset queue: %v", err)
+		printError(err)
 		return 1
 	}
-	guard.printResult(fmt.Sprintf("reset project=%s cleared=%d job(s)", queueName, cleared), *quiet)
+	message := fmt.Sprintf("reset project=%s cleared=%d job(s)", queueName, result.Cleared)
+	if result.RecoveredRunID != "" {
+		message += "; recovered interrupted run=" + result.RecoveredRunID
+	}
+	guard.printResult(message, *quiet)
 	return 0
 }
 
@@ -138,32 +129,4 @@ func confirmResetOfInterruptedRun(input io.Reader, output io.Writer, paths state
 	}
 	answer = strings.TrimSpace(strings.ToLower(answer))
 	return answer == "y" || answer == "yes", nil
-}
-
-// resetQueueCommands empties the queue under guard, preserving its defaults
-// and the run history. A dry run of a project that does not exist yet
-// creates nothing.
-func resetQueueCommands(paths state.ProjectPaths, guard project.Guard) (int, error) {
-	if _, err := os.Stat(paths.ProjectDir); errors.Is(err, os.ErrNotExist) && guard.DryRun {
-		revision, err := project.CheckRevision(paths, guard)
-		if err != nil {
-			return 0, err
-		}
-		if guard.Report != nil {
-			guard.Report(project.Outcome{Revision: revision})
-		}
-		return 0, nil
-	}
-	if !guard.DryRun {
-		if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
-			return 0, fmt.Errorf("failed to create project directory: %w", err)
-		}
-	}
-	cleared := 0
-	err := project.EditQueueGuarded(paths, "reset", guard, func(queue *model.Queue) error {
-		cleared = len(queue.Commands)
-		queue.Commands = nil
-		return nil
-	})
-	return cleared, err
 }

@@ -46,7 +46,7 @@ func TestIdleQueueCommandsMarkProjectCollecting(t *testing.T) {
 			}
 		},
 		"reset": func(t *testing.T, baseDir string, paths state.ProjectPaths) {
-			if _, err := resetQueueCommands(paths, project.Guard{}); err != nil {
+			if _, err := project.Reset(paths, false, project.Guard{}); err != nil {
 				t.Fatal(err)
 			}
 		},
