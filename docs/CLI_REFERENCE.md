@@ -24,7 +24,7 @@ generate a config file template
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--list` | `` | `` | list existing config files |
 | `--notifications` | `` | `` | generate notifications.toml instead of command defaults |
-| `-o` / `--format` | `FORMAT` | `` | config format: yaml, toml, or json |
+| `-o` / `--format` | `FORMAT` | `` | config format: yaml, toml, or json (choices: yaml, toml, json) |
 | `--output` | `FILE` | `` | output config file path |
 
 ### `rotari check`
@@ -75,7 +75,7 @@ Usage: `rotari cancel [JOB_ID|ATTEMPT_ID|RUN_ID ...]`
 | `--matrix` | `NAME` | `` | cancel the unfinished jobs of this matrix |
 | `--wait` | `` | `` | wait until cancellation is complete |
 | `--yes` | `` | `` | cancel the jobs that filters select without asking |
-| `--filter-state` | `STATE (repeatable)` | `` | select jobs in this state; may be repeated |
+| `--filter-state` | `STATE (repeatable)` | `` | select jobs in this state; may be repeated (choices: running, pending) |
 | `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
 | `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
 | `--filter-started-before` | `TIME` | `` | select jobs started before this time |
@@ -103,7 +103,7 @@ Usage: `rotari suspend [JOB_ID|ATTEMPT_ID|RUN_ID ...]`
 | `--stage` | `STAGE` | `` | suspend the running jobs of this stage |
 | `--matrix` | `NAME` | `` | suspend the running jobs of this matrix |
 | `--yes` | `` | `` | suspend the jobs that filters select without asking |
-| `--filter-state` | `STATE (repeatable)` | `` | select jobs in this state; may be repeated |
+| `--filter-state` | `STATE (repeatable)` | `` | select jobs in this state; may be repeated (choices: running) |
 | `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
 | `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
 | `--filter-started-before` | `TIME` | `` | select jobs started before this time |
@@ -131,7 +131,7 @@ Usage: `rotari resume [JOB_ID|ATTEMPT_ID|RUN_ID ...]`
 | `--stage` | `STAGE` | `` | resume the suspended jobs of this stage |
 | `--matrix` | `NAME` | `` | resume the suspended jobs of this matrix |
 | `--yes` | `` | `` | resume the jobs that filters select without asking |
-| `--filter-state` | `STATE (repeatable)` | `` | select jobs in this state; may be repeated |
+| `--filter-state` | `STATE (repeatable)` | `` | select jobs in this state; may be repeated (choices: running) |
 | `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
 | `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
 | `--filter-started-before` | `TIME` | `` | select jobs started before this time |
@@ -201,7 +201,7 @@ Usage: `rotari change <command ...>`
 | `--stage` | `STAGE` | `` | change every job in a stage |
 | `--matrix` | `NAME` | `` | change every job of a matrix, named by its base job name |
 | `--all` | `` | `` | change every job |
-| `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | replace job executor |
+| `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | replace job executor (choices: local, lsf, pbs, sge, slurm, ssh) |
 | `--executor-option` | `OPTION` | `ROTARI_EXECUTOR_OPTIONS` | replace executor options |
 | `--clear-executor-options` | `` | `` | clear executor options |
 | `--working-directory` | `DIR` | `` | working directory for the job |
@@ -220,7 +220,7 @@ Usage: `rotari change <command ...>`
 | `--retry-delay` | `DURATION` | `` | replace the wait before the job's first retry, such as 30s |
 | `--retry-backoff` | `FACTOR` | `` | replace the factor applied to the retry delay for each further retry |
 | `--retry-max-delay` | `DURATION` | `` | replace the upper limit of the retry delay |
-| `--status` | `STATUS` | `` | mark the job with a status that result filters of the next run read in place of its recorded result |
+| `--status` | `STATUS` | `` | mark the job with a status that result filters of the next run read in place of its recorded result (choices: success, failed, cancelled, unfinished) |
 | `--clear-status` | `` | `` | remove the job's status mark |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
 | `--filter-command` | `RE` | `` | select jobs whose argv matches this Go regexp |
@@ -243,7 +243,7 @@ Usage: `rotari export [TARGET] [FILE]`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID (repeatable)` | `ROTARI_RUN_ID` | run ID to export; may be repeated |
-| `-o` / `--format` | `FORMAT` | `` | manifest format: yaml, toml, or json |
+| `-o` / `--format` | `FORMAT` | `` | manifest format: yaml, toml, or json (choices: yaml, toml, json) |
 | `--template` | `` | `` | print a starter workflow manifest |
 | `--output` | `FILE` | `` | write the workflow manifest to a file |
 
@@ -318,9 +318,9 @@ Usage: `rotari show [SELECTOR]`
 | `--basedirs` | `` | `` | list state directories known to the master registry |
 | `--json` | `` | `` | print machine-readable JSON for a run |
 | `--report` | `` | `` | print an AI-ready Markdown report |
-| `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
-| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `--filter-diagnosis` | `VALUE (repeatable)` | `` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `--filter-changed` | `` | `` | select queued jobs whose definition changed from the reference run |
 | `--filter-new` | `` | `` | select queued jobs with no matching job in the reference run |
@@ -381,7 +381,7 @@ Usage: `rotari diagnose [JOB_ID]`
 | `-j` / `--job-id` | `ID` | `ROTARI_JOB_ID` | failed job ID |
 | `--job-name` | `NAME` | `ROTARI_JOB_NAME` | failed job name |
 | `--rules` | `` | `` | use local rule-based diagnosis without calling an LLM; cannot be combined with --provider, --endpoint, --model, or --language |
-| `--provider` | `PROVIDER` | `ROTARI_LLM_PROVIDER` | LLM provider: openai, openai-chat, anthropic, gemini, or cohere |
+| `--provider` | `PROVIDER` | `ROTARI_LLM_PROVIDER` | LLM provider: openai, openai-chat, anthropic, gemini, or cohere (choices: openai, openai-chat, anthropic, gemini, cohere) |
 | `--endpoint` | `URL` | `ROTARI_LLM_ENDPOINT` | LLM API endpoint |
 | `--model` | `MODEL` | `ROTARI_LLM_MODEL` | LLM model name |
 | `--language` | `TAG` | `ROTARI_LLM_LANGUAGE` | response language BCP 47 tag |
@@ -413,12 +413,12 @@ Usage: `rotari add <command ...>`
 | `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
-| `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | job executor |
+| `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | job executor (choices: local, lsf, pbs, sge, slurm, ssh) |
 | `--executor-option` | `OPTION (repeatable)` | `ROTARI_EXECUTOR_OPTIONS` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
 | `--output` | `FILE (repeatable)` | `` | stdout destination; stderr also goes here unless --error is specified; may be repeated |
 | `--error` | `FILE (repeatable)` | `` | stderr destination; defaults to --output destinations; may be repeated |
-| `--log-mode` | `MODE` | `` | internal log mode |
-| `--open-mode` | `MODE` | `` | external output file mode |
+| `--log-mode` | `MODE` | `` | internal log mode (choices: merge, separate) |
+| `--open-mode` | `MODE` | `` | external output file mode (choices: append, truncate) |
 | `--working-directory` | `DIR` | `` | working directory for the job |
 | `--env` | `KEY=VALUE (repeatable)` | `` | environment variable for the job; may be repeated |
 | `--job-name` | `NAME` | `ROTARI_JOB_NAME` | job name label |
@@ -458,9 +458,9 @@ Usage: `rotari copy [RUN_ID]`
 | `--append` | `` | `` | append to a non-empty queue |
 | `--overwrite` | `` | `` | replace a non-empty queue |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
-| `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
-| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `--filter-diagnosis` | `VALUE (repeatable)` | `` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `--filter-host` | `PATTERN (repeatable)` | `` | select jobs run on a matching host; may be repeated |
 | `--filter-started-after` | `TIME` | `` | select jobs started at or after this time |
@@ -504,9 +504,9 @@ Usage: `rotari run [RUN_ID]`
 | `--partial-array` | `` | `` | with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches |
 | `--async` | `` | `ROTARI_RUN_ASYNC` | return after starting the run |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress progress and completion output |
-| `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | execution executor override |
-| `--env` | `ALL\|NONE` | `` | caller environment propagation mode (default ALL) |
-| `--match-by` | `MODE` | `` | job identity matching |
+| `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | execution executor override (choices: local, lsf, pbs, sge, slurm, ssh) |
+| `--env` | `ALL\|NONE` | `` | caller environment propagation mode (default ALL) (choices: ALL, NONE) |
+| `--match-by` | `MODE` | `` | job identity matching (choices: job-id, fingerprint, id-and-fingerprint) |
 | `--executor-option` | `OPTION (repeatable)` | `ROTARI_EXECUTOR_OPTIONS` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
 | `--ssh-concurrency` | `N` | `ROTARI_RUN_SSH_CONCURRENCY` | SSH executor concurrency |
 | `--ssh-options` | `OPTION (repeatable)` | `ROTARI_RUN_SSH_OPTIONS` | SSH executor dispatch options; may be repeated |
@@ -526,9 +526,9 @@ Usage: `rotari run [RUN_ID]`
 | `--sge-options` | `OPTION (repeatable)` | `ROTARI_RUN_SGE_OPTIONS` | SGE executor dispatch options; may be repeated |
 | `--sge-submit-interval` | `DURATION` | `ROTARI_RUN_SGE_SUBMIT_INTERVAL` | minimum SGE submission interval |
 | `--sge-submit-retry-limit` | `N` | `ROTARI_RUN_SGE_SUBMIT_RETRY_LIMIT` | maximum retries for transient SGE submission failures |
-| `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
-| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `--filter-diagnosis` | `VALUE (repeatable)` | `` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `--filter-changed` | `` | `` | select queued jobs whose definition changed from the reference run |
 | `--filter-new` | `` | `` | select queued jobs with no matching job in the reference run |
@@ -574,9 +574,9 @@ Usage: `rotari retry [RUN_ID]`
 | `--partial-array` | `` | `` | with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches |
 | `--async` | `` | `ROTARI_RUN_ASYNC` | return after starting the run |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress progress and completion output |
-| `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | execution executor override |
-| `--env` | `ALL\|NONE` | `` | caller environment propagation mode (default ALL) |
-| `--match-by` | `MODE` | `` | job identity matching |
+| `-e` / `--executor` | `EXECUTOR` | `ROTARI_EXECUTOR` | execution executor override (choices: local, lsf, pbs, sge, slurm, ssh) |
+| `--env` | `ALL\|NONE` | `` | caller environment propagation mode (default ALL) (choices: ALL, NONE) |
+| `--match-by` | `MODE` | `` | job identity matching (choices: job-id, fingerprint, id-and-fingerprint) |
 | `--executor-option` | `OPTION (repeatable)` | `ROTARI_EXECUTOR_OPTIONS` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
 | `--ssh-concurrency` | `N` | `ROTARI_RUN_SSH_CONCURRENCY` | SSH executor concurrency |
 | `--ssh-options` | `OPTION (repeatable)` | `ROTARI_RUN_SSH_OPTIONS` | SSH executor dispatch options; may be repeated |
@@ -596,9 +596,9 @@ Usage: `rotari retry [RUN_ID]`
 | `--sge-options` | `OPTION (repeatable)` | `ROTARI_RUN_SGE_OPTIONS` | SGE executor dispatch options; may be repeated |
 | `--sge-submit-interval` | `DURATION` | `ROTARI_RUN_SGE_SUBMIT_INTERVAL` | minimum SGE submission interval |
 | `--sge-submit-retry-limit` | `N` | `ROTARI_RUN_SGE_SUBMIT_RETRY_LIMIT` | maximum retries for transient SGE submission failures |
-| `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
-| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `--filter-diagnosis` | `VALUE (repeatable)` | `` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `--filter-changed` | `` | `` | select queued jobs whose definition changed from the reference run |
 | `--filter-new` | `` | `` | select queued jobs with no matching job in the reference run |

@@ -1112,9 +1112,7 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "N",
                 },
                 {
-                    "description": "select jobs of this failure kind; may be "
-                    "repeated; valid values: timeout, cancelled, "
-                    "blocked, oom, signal, error",
+                    "description": "select jobs of this failure kind; may be repeated",
                     "name": "filter-failure-kind",
                     "repeated": True,
                     "value_name": "KIND",
@@ -1690,9 +1688,7 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "N",
                 },
                 {
-                    "description": "select jobs of this failure kind; may be "
-                    "repeated; valid values: timeout, cancelled, "
-                    "blocked, oom, signal, error",
+                    "description": "select jobs of this failure kind; may be repeated",
                     "name": "filter-failure-kind",
                     "repeated": True,
                     "value_name": "KIND",
@@ -2083,9 +2079,7 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "N",
                 },
                 {
-                    "description": "select jobs of this failure kind; may be "
-                    "repeated; valid values: timeout, cancelled, "
-                    "blocked, oom, signal, error",
+                    "description": "select jobs of this failure kind; may be repeated",
                     "name": "filter-failure-kind",
                     "repeated": True,
                     "value_name": "KIND",
@@ -2484,9 +2478,7 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "N",
                 },
                 {
-                    "description": "select jobs of this failure kind; may be "
-                    "repeated; valid values: timeout, cancelled, "
-                    "blocked, oom, signal, error",
+                    "description": "select jobs of this failure kind; may be repeated",
                     "name": "filter-failure-kind",
                     "repeated": True,
                     "value_name": "KIND",

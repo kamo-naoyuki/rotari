@@ -53,7 +53,7 @@ func jobFilterFlagSpecs(set jobFilterSet) []cliFlagSpec {
 		specs = append(specs,
 			cliFlagSpec{Name: "filter-result", Description: "select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms", ValueName: "RESULT", Values: resultFilterValues, Repeated: true, CommandLineOnly: true},
 			cliFlagSpec{Name: "filter-exit-code", Description: "select jobs with this exit code; may be repeated", ValueName: "N", Repeated: true, CommandLineOnly: true},
-			cliFlagSpec{Name: "filter-failure-kind", Description: "select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error", ValueName: "KIND", Values: model.FailureKindValues(), Repeated: true, CommandLineOnly: true},
+			cliFlagSpec{Name: "filter-failure-kind", Description: "select jobs of this failure kind; may be repeated", ValueName: "KIND", Values: model.FailureKindValues(), Repeated: true, CommandLineOnly: true},
 			cliFlagSpec{Name: "filter-diagnosis", Description: "select failed jobs matching a current diagnosis rule; may be repeated", ValueName: "VALUE", Repeated: true, CommandLineOnly: true},
 		)
 	}

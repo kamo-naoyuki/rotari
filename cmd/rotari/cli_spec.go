@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -676,9 +677,19 @@ func writeCommandHelp(w io.Writer, name string, fs *flag.FlagSet) {
 			fmt.Fprintf(&builder, "  %-*s  %s\n", width, subcommand.Name, subcommand.Description)
 		}
 	}
-	// The --filter-* options get a heading of their own, after the others.
+	// The per-executor and --filter-* options get headings of their own,
+	// after the others.
 	var general, filters strings.Builder
+	executorOptions := map[string][]executorOption{}
+	var executorKinds []string
 	for _, flagSpec := range command.Flags {
+		if kind, executorName := executorOptionKind(flagSpec.Name); kind != "" {
+			if executorOptions[kind] == nil {
+				executorKinds = append(executorKinds, kind)
+			}
+			executorOptions[kind] = append(executorOptions[kind], executorOption{spec: flagSpec, executor: executorName, defaultValue: helpDefault(fs, flagSpec.Name)})
+			continue
+		}
 		target := &general
 		if strings.HasPrefix(flagSpec.Name, filterFlagPrefix) {
 			target = &filters
@@ -691,20 +702,21 @@ func writeCommandHelp(w io.Writer, name string, fs *flag.FlagSet) {
 			option += ", -" + short
 		}
 		description := cliFlagDescription(flagSpec)
-		if fs != nil {
-			if defined := fs.Lookup(flagSpec.Name); defined != nil && !isZeroDefault(defined.DefValue) {
-				// Quoted for string flags, as the flag package prints it.
-				if kind, _ := flag.UnquoteUsage(defined); kind == "string" {
-					description += fmt.Sprintf(" (default %q)", defined.DefValue)
-				} else {
-					description += " (default " + defined.DefValue + ")"
-				}
-			}
+		// Some descriptions state their default, which the generated
+		// references show; do not repeat it.
+		if defaultValue := helpDefault(fs, flagSpec.Name); defaultValue != "" && !strings.Contains(description, "(default ") {
+			description += " (default " + defaultValue + ")"
 		}
 		fmt.Fprintf(target, "  %s\n      %s\n", option, description)
 	}
 	if general.Len() > 0 {
 		builder.WriteString("\nOptions:\n" + general.String())
+	}
+	if len(executorKinds) > 0 {
+		builder.WriteString("\nExecutor options, each for the executor it names:\n")
+		for _, kind := range executorKinds {
+			writeExecutorOptions(&builder, kind, executorOptions[kind])
+		}
 	}
 	if filters.Len() > 0 {
 		builder.WriteString("\nFilters:\n" + filters.String())
@@ -723,6 +735,90 @@ func parseLeadingFlags(fs *flag.FlagSet, args []string) error {
 		writeCommandHelp(os.Stdout, helpCommandName(fs), fs)
 	}
 	return err
+}
+
+// helpDefault returns how help shows the default of the option name, or ""
+// when help leaves it out.
+func helpDefault(fs *flag.FlagSet, name string) string {
+	if fs == nil {
+		return ""
+	}
+	defined := fs.Lookup(name)
+	if defined == nil || isZeroDefault(defined.DefValue) {
+		return ""
+	}
+	// Quoted for string flags, as the flag package prints it.
+	if kind, _ := flag.UnquoteUsage(defined); kind == "string" {
+		return strconv.Quote(defined.DefValue)
+	}
+	return defined.DefValue
+}
+
+// executorOptionDescriptions describes each kind of per-executor option,
+// such as --slurm-concurrency, which the scheduler and SSH executors repeat
+// under their own names. Help lists each kind once.
+var executorOptionDescriptions = map[string]string{
+	"concurrency":        "executor concurrency",
+	"options":            "executor dispatch options; may be repeated",
+	"submit-interval":    "minimum submission interval",
+	"submit-retry-limit": "maximum retries for transient submission failures",
+}
+
+type executorOption struct {
+	spec         cliFlagSpec
+	executor     string
+	defaultValue string
+}
+
+// executorOptionKind returns the kind and executor of a per-executor option,
+// such as "concurrency" and "slurm" for slurm-concurrency, or "" for another
+// option. --local-concurrency stays among the general options, because the
+// local executor is the default.
+func executorOptionKind(name string) (kind, executorName string) {
+	for _, candidate := range executorRegistry.Names() {
+		if candidate == "local" {
+			continue
+		}
+		if rest, ok := strings.CutPrefix(name, candidate+"-"); ok {
+			if _, known := executorOptionDescriptions[rest]; known {
+				return rest, candidate
+			}
+		}
+	}
+	return "", ""
+}
+
+// writeExecutorOptions writes one kind of per-executor option: every option
+// name on one line, then the shared description. An environment variable or
+// default shared by the options is shown once, with <EXECUTOR> standing for
+// the executor in the variable's name.
+func writeExecutorOptions(builder *strings.Builder, kind string, options []executorOption) {
+	names := make([]string, 0, len(options))
+	var environment, defaults, assignments []string
+	for _, option := range options {
+		names = append(names, "--"+option.spec.Name)
+		if envName := cliEnvironmentVariable(option.spec.Name); envName != "" && !option.spec.CommandLineOnly {
+			environment = append(environment, strings.Replace(envName, "_"+strings.ToUpper(option.executor)+"_", "_<EXECUTOR>_", 1))
+		}
+		defaults = append(defaults, option.defaultValue)
+		if option.defaultValue != "" {
+			assignments = append(assignments, option.spec.Name+"="+option.defaultValue)
+		}
+	}
+	line := "  " + strings.Join(names, ", ")
+	if valueName := options[0].spec.ValueName; valueName != "" {
+		line += " " + valueName
+	}
+	description := executorOptionDescriptions[kind]
+	if environment = slices.Compact(environment); len(environment) > 0 {
+		description += " (env: " + strings.Join(environment, ", ") + ")"
+	}
+	if len(slices.Compact(defaults)) == 1 && defaults[0] != "" {
+		description += " (default " + defaults[0] + ")"
+	} else if len(assignments) > 0 {
+		description += " (defaults: " + strings.Join(assignments, ", ") + ")"
+	}
+	fmt.Fprintf(builder, "%s\n      %s\n", line, description)
 }
 
 // isZeroDefault reports a default that help leaves out, as the flag package

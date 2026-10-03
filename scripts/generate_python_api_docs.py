@@ -43,7 +43,10 @@ def render_table(command: dict[str, Any]) -> str:
             continue
         if flag["name"] == "json" and command["name"] in {"wait", "show"}:
             continue
-        description = flag.get("description", "").replace("|", "\\|")
+        description = flag.get("description", "")
+        if flag.get("values"):
+            description += f" (choices: {', '.join(flag['values'])})"
+        description = description.replace("|", "\\|")
         if flag.get("repeated") and "may be repeated" not in description.lower():
             description += " May be repeated."
         rows.append(

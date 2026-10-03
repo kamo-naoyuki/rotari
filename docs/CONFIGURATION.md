@@ -66,7 +66,10 @@ variables are injected into command processes and can also be passed
 explicitly to another rotari command.
 
 Each command's `--help` output identifies an option's matching environment
-variable, when one is available.
+variable, when one is available. For the per-executor options, such as
+`--slurm-concurrency`, it writes the variable once as
+`ROTARI_RUN_<EXECUTOR>_CONCURRENCY`, where `<EXECUTOR>` is the executor in
+upper case, such as `SLURM`.
 
 See the [environment variable reference](ENVIRONMENT_VARIABLES.md) for the
 complete definitions and meanings. Use `rotari env` to print the same list with

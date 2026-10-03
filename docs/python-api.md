@@ -31,12 +31,12 @@ Add a command to a queue.
 | Option | Value | Description |
 | --- | --- | --- |
 | `config` | `str` | config file to use |
-| `executor` | `str` | job executor |
+| `executor` | `str` | job executor (choices: local, lsf, pbs, sge, slurm, ssh) |
 | `executor_options` | `Sequence[str]` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
 | `output` | `Sequence[str]` | stdout destination; stderr also goes here unless --error is specified; may be repeated |
 | `error` | `Sequence[str]` | stderr destination; defaults to --output destinations; may be repeated |
-| `log_mode` | `str` | internal log mode |
-| `open_mode` | `str` | external output file mode |
+| `log_mode` | `str` | internal log mode (choices: merge, separate) |
+| `open_mode` | `str` | external output file mode (choices: append, truncate) |
 | `working_directory` | `str` | working directory for the job |
 | `env` | `Sequence[str]` | environment variable for the job; may be repeated |
 | `job_name` | `str` | job name label |
@@ -81,9 +81,9 @@ Execute queued commands, optionally selecting jobs from a run; jobs that depend 
 | `partial_array` | `bool` | with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches |
 | `async_` | `bool` | return after starting the run |
 | `quiet` | `bool` | suppress progress and completion output |
-| `executor` | `str` | execution executor override |
-| `env` | `str` | caller environment propagation mode (default ALL) |
-| `match_by` | `str` | job identity matching |
+| `executor` | `str` | execution executor override (choices: local, lsf, pbs, sge, slurm, ssh) |
+| `env` | `str` | caller environment propagation mode (default ALL) (choices: ALL, NONE) |
+| `match_by` | `str` | job identity matching (choices: job-id, fingerprint, id-and-fingerprint) |
 | `executor_options` | `Sequence[str]` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
 | `ssh_concurrency` | `str` | SSH executor concurrency |
 | `ssh_options` | `Sequence[str]` | SSH executor dispatch options; may be repeated |
@@ -103,9 +103,9 @@ Execute queued commands, optionally selecting jobs from a run; jobs that depend 
 | `sge_options` | `Sequence[str]` | SGE executor dispatch options; may be repeated |
 | `sge_submit_interval` | `str` | minimum SGE submission interval |
 | `sge_submit_retry_limit` | `str` | maximum retries for transient SGE submission failures |
-| `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
-| `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `filter_diagnosis` | `Sequence[str]` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `filter_changed` | `bool` | select queued jobs whose definition changed from the reference run |
 | `filter_new` | `bool` | select queued jobs with no matching job in the reference run |
@@ -151,9 +151,9 @@ Run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend 
 | `partial_array` | `bool` | with a result filter, select array jobs per task instead of all-or-nothing (default true); pass =false to re-execute the whole array when any task matches |
 | `async_` | `bool` | return after starting the run |
 | `quiet` | `bool` | suppress progress and completion output |
-| `executor` | `str` | execution executor override |
-| `env` | `str` | caller environment propagation mode (default ALL) |
-| `match_by` | `str` | job identity matching |
+| `executor` | `str` | execution executor override (choices: local, lsf, pbs, sge, slurm, ssh) |
+| `env` | `str` | caller environment propagation mode (default ALL) (choices: ALL, NONE) |
+| `match_by` | `str` | job identity matching (choices: job-id, fingerprint, id-and-fingerprint) |
 | `executor_options` | `Sequence[str]` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
 | `ssh_concurrency` | `str` | SSH executor concurrency |
 | `ssh_options` | `Sequence[str]` | SSH executor dispatch options; may be repeated |
@@ -173,9 +173,9 @@ Run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend 
 | `sge_options` | `Sequence[str]` | SGE executor dispatch options; may be repeated |
 | `sge_submit_interval` | `str` | minimum SGE submission interval |
 | `sge_submit_retry_limit` | `str` | maximum retries for transient SGE submission failures |
-| `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
-| `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `filter_diagnosis` | `Sequence[str]` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `filter_changed` | `bool` | select queued jobs whose definition changed from the reference run |
 | `filter_new` | `bool` | select queued jobs with no matching job in the reference run |
@@ -253,9 +253,9 @@ Show queue or run status.
 | `no_pager` | `bool` | print logs directly instead of using a pager |
 | `basedirs` | `bool` | list state directories known to the master registry |
 | `report` | `bool` | print an AI-ready Markdown report |
-| `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms |
+| `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
-| `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated; valid values: timeout, cancelled, blocked, oom, signal, error |
+| `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |
 | `filter_diagnosis` | `Sequence[str]` | select failed jobs matching a current diagnosis rule; may be repeated |
 | `filter_changed` | `bool` | select queued jobs whose definition changed from the reference run |
 | `filter_new` | `bool` | select queued jobs with no matching job in the reference run |

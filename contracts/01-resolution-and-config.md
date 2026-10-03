@@ -330,10 +330,16 @@ Implementation and tests for these rules:
   command's description, usage, subcommands, and every option of its
   `cliCommandSpecs` entry, with `cliFlagDescription` and the option's
   effective default after config files and the environment; the `--filter-*`
-  options come under their own heading. The help names the command the user
-  typed, also where commands share a FlagSet, as `retry` shares `run`'s.
-  Implemented once in `writeCommandHelp`; covered by
-  `TestCommandHelpCoversEveryOptionAndExitsZero`.
+  options come under their own heading. The per-executor options, such as
+  `--slurm-concurrency`, come under an "Executor options" heading, one entry
+  per kind that names every executor's option, with the environment variable
+  written as `ROTARI_RUN_<EXECUTOR>_...`. A default or the choices are stated
+  once, also where the description states the default. The help names the
+  command the user typed, also where commands share a FlagSet, as `retry`
+  shares `run`'s. Implemented once in `writeCommandHelp`; covered by
+  `TestCommandHelpCoversEveryOptionAndExitsZero` and
+  `TestCommandHelpStatesEachNoteOnce`. The generated CLI and Python API
+  references list an option's choices from the schema.
 - Like `schema`, `guide` skips config loading, so a broken config file does not
   hide it.
 - The top-level usage (bare `rotari`, `rotari --help`, `-h`, or `help`) starts

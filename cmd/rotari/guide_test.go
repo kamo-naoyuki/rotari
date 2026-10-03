@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -33,7 +34,10 @@ func TestCommandHelpCoversEveryOptionAndExitsZero(t *testing.T) {
 				t.Fatalf("%s --help exit %d:\n%s", command.Name, code, help)
 			}
 			for _, flagSpec := range command.Flags {
-				if !strings.Contains(help, "  --"+flagSpec.Name+"\n") && !strings.Contains(help, "  --"+flagSpec.Name+" ") && !strings.Contains(help, "  --"+flagSpec.Name+",") {
+				// An option heads its entry, or follows another name in a
+				// per-executor entry.
+				named := regexp.MustCompile(`(?m)^  (--[a-z-]+, )*--` + regexp.QuoteMeta(flagSpec.Name) + `[ ,\n]`)
+				if !named.MatchString(help) {
 					t.Errorf("%s --help does not describe --%s:\n%s", command.Name, flagSpec.Name, help)
 				}
 			}
@@ -43,6 +47,30 @@ func TestCommandHelpCoversEveryOptionAndExitsZero(t *testing.T) {
 	captureShowStdout(t, &output, func() int { return run([]string{"retry", "--help"}) })
 	if !strings.HasPrefix(output.String(), "rotari retry: ") {
 		t.Fatalf("retry --help is not titled by retry:\n%s", output.String())
+	}
+}
+
+// TestCommandHelpStatesEachNoteOnce checks that run --help lists the
+// per-executor options once per kind, not once per executor, and states an
+// option's default and choices once.
+func TestCommandHelpStatesEachNoteOnce(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	var output bytes.Buffer
+	captureShowStdout(t, &output, func() int { return run([]string{"run", "--help"}) })
+	help := output.String()
+	for _, want := range []string{
+		"\n  --ssh-concurrency, --slurm-concurrency, --pbs-concurrency, --lsf-concurrency, --sge-concurrency N\n      executor concurrency (env: ROTARI_RUN_<EXECUTOR>_CONCURRENCY)\n",
+		"\n  --slurm-submit-interval, --pbs-submit-interval, --lsf-submit-interval, --sge-submit-interval DURATION\n      minimum submission interval (env: ROTARI_RUN_<EXECUTOR>_SUBMIT_INTERVAL) (default 0s)\n",
+		"\n  --local-concurrency N\n",
+	} {
+		if !strings.Contains(help, want) {
+			t.Errorf("run --help lacks %q:\n%s", want, help)
+		}
+	}
+	for _, line := range strings.Split(help, "\n") {
+		if strings.Count(line, "(default ") > 1 || strings.Count(line, "(choices: ")+strings.Count(line, "valid values") > 1 {
+			t.Errorf("run --help repeats a note: %q", line)
+		}
 	}
 }
 
