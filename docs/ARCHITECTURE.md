@@ -401,6 +401,55 @@ CLI and Web UI agree.
 3. The run loop sees the cancelled results and the `cancelling` phase, and
    stops starting or retrying jobs.
 
+### `rotari mcp`
+
+`rotari mcp` ([mcp.go](../cmd/rotari/mcp.go)) serves the MCP tools of
+[internal/mcp](../internal/mcp/) over stdio. The user guide is
+[docs/MCP.md](MCP.md), the rules are MCP-1 to MCP-5 in
+[contracts/03-server-and-command-interfaces.md](../contracts/03-server-and-command-interfaces.md),
+and how the design was chosen is in the
+[agent interface plan](../development/2026-10-02-mcp-agent-interface/plan.md).
+
+- **A presentation layer.** Each tool calls the functions the CLI uses:
+  - `runview` and `runlineage` for summaries and comparisons;
+  - `workflowstate` for import and export;
+  - `projectrun` to plan a run;
+  - `jobcontrol` for cancel, suspend, and resume;
+  - `project.Reset` for reset.
+
+  `internal/mcp` adds no selection, status, or grouping rule of its own, so a
+  fix in a shared package reaches the CLI, the Web UI, and MCP together.
+  What only the binary can do comes in as `mcp.Options`: starting a
+  supervisor (`startRunForMCP`) and new job IDs. `internal/mcp` does not
+  import `cmd/rotari`.
+- **Located through the master directory.** A run is found by its ID in the
+  run registry (`resolve.RegisteredRun`). A project is found by
+  `basedir_ref`, a hash from the basedir registry, and its name. No tool
+  takes or returns a path. Every tool is added through `addTool`, which
+  replaces registered directories in error messages with `BASEDIR`.
+- **Preview, then apply at a revision.** Each tool that changes a project
+  comes as a read-only preview and a write:
+  - the preview returns `project.Revision`, a hash of `queue.json` and
+    `meta.json`;
+  - the write requires that revision and applies through the same
+    `project.Guard` as the CLI's `--dry-run` / `--if-revision`, so it fails
+    without effect if anything wrote the project in between.
+
+  Job control guards by run ID instead, because a running run's state
+  changes continuously: it acts only while that run is the active one. The
+  MCP client's per-tool permission is the approval. Previews are annotated
+  read-only, and `rotari_cancel` and `rotari_reset` destructive.
+- **Starting and following a run.** `rotari_start_run` copies from the last
+  run under the guard when `projectrun.RunSource` says to, then sends an
+  async run request whose `IfRevision` the supervisor checks again before
+  `Begin`. It returns the run ID. `rotari_wait_run` and `rotari_run_summary`
+  read the run's state through `project.RunPhaseOf`, which `rotari wait`
+  also uses.
+- **Bounded, redacted output.** Evidence lines and the export view are
+  redacted by pattern, and the full manifest stays with `rotari export`.
+  Summaries list 10 jobs per failure group, and comparisons list 20 changed
+  jobs, unless `all_jobs` is set; the rest are counted.
+
 ## Naming pitfalls
 
 - **Project vs. queue.** A project owns one queue, and much of the code still
