@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from html.parser import HTMLParser
 from pathlib import Path
-import re
 from urllib.parse import urljoin
 
 _PAGES: list[tuple[str, str, str]] = []
@@ -203,7 +203,9 @@ def _write_outputs(
         )
 
     site_dir.mkdir(parents=True, exist_ok=True)
-    (site_dir / "llms.txt").write_text("\n".join(index).rstrip() + "\n", encoding="utf-8")
+    (site_dir / "llms.txt").write_text(
+        "\n".join(index).rstrip() + "\n", encoding="utf-8"
+    )
     (site_dir / "llms-full.txt").write_text(
         "\n".join(full).rstrip() + "\n", encoding="utf-8"
     )
