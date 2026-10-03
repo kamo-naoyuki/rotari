@@ -207,6 +207,71 @@ func TestParseAndExpandMatrix(t *testing.T) {
 	}
 }
 
+func TestExpandMatrixWithExclusions(t *testing.T) {
+	dimensions := []MatrixDimension{
+		{Name: "SEED", Values: []string{"1", "2"}},
+		{Name: "MODEL", Values: []string{"small", "large"}},
+	}
+	exclusions := []MatrixExclusion{
+		{Values: []MatrixValue{{Name: "MODEL", Value: "large"}, {Name: "SEED", Value: "2"}}},
+		{Values: []MatrixValue{{Name: "SEED", Value: "2"}}},
+	}
+	combinations, normalized, err := ExpandMatrixWithExclusions(dimensions, exclusions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := [][]MatrixValue{
+		{{Name: "SEED", Value: "1"}, {Name: "MODEL", Value: "small"}},
+		{{Name: "SEED", Value: "1"}, {Name: "MODEL", Value: "large"}},
+	}
+	if !reflect.DeepEqual(combinations, want) {
+		t.Fatalf("combinations = %#v, want %#v", combinations, want)
+	}
+	wantNormalized := []MatrixExclusion{
+		{Values: []MatrixValue{{Name: "SEED", Value: "2"}, {Name: "MODEL", Value: "large"}}},
+		{Values: []MatrixValue{{Name: "SEED", Value: "2"}}},
+	}
+	if !reflect.DeepEqual(normalized, wantNormalized) {
+		t.Fatalf("normalized exclusions = %#v, want %#v", normalized, wantNormalized)
+	}
+}
+
+func TestExpandMatrixWithExclusionsRejectsInvalidRules(t *testing.T) {
+	dimensions := []MatrixDimension{
+		{Name: "SEED", Values: []string{"1", "2"}},
+		{Name: "MODEL", Values: []string{"small", "large"}},
+	}
+	tests := []struct {
+		name       string
+		exclusions []MatrixExclusion
+		want       string
+	}{
+		{name: "empty", exclusions: []MatrixExclusion{{}}, want: "must not be empty"},
+		{name: "unknown dimension", exclusions: []MatrixExclusion{{Values: []MatrixValue{{Name: "OS", Value: "linux"}}}}, want: "unknown dimension"},
+		{name: "undeclared value", exclusions: []MatrixExclusion{{Values: []MatrixValue{{Name: "SEED", Value: "3"}}}}, want: "undeclared value"},
+		{name: "repeated dimension", exclusions: []MatrixExclusion{{Values: []MatrixValue{{Name: "SEED", Value: "1"}, {Name: "SEED", Value: "2"}}}}, want: "repeats dimension"},
+		{name: "duplicate rule", exclusions: []MatrixExclusion{
+			{Values: []MatrixValue{{Name: "SEED", Value: "1"}, {Name: "MODEL", Value: "small"}}},
+			{Values: []MatrixValue{{Name: "MODEL", Value: "small"}, {Name: "SEED", Value: "1"}}},
+		}, want: "repeats an exclusion rule"},
+		{name: "all combinations", exclusions: []MatrixExclusion{
+			{Values: []MatrixValue{{Name: "SEED", Value: "1"}}},
+			{Values: []MatrixValue{{Name: "SEED", Value: "2"}}},
+		}, want: "removes every matrix combination"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, _, err := ExpandMatrixWithExclusions(dimensions, test.exclusions)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v, want substring %q", err, test.want)
+			}
+		})
+	}
+	if _, _, err := ExpandMatrixWithExclusions(nil, []MatrixExclusion{{Values: []MatrixValue{{Name: "SEED", Value: "1"}}}}); err == nil || !strings.Contains(err.Error(), "requires matrix dimensions") {
+		t.Fatalf("exclusion without dimensions error = %v", err)
+	}
+}
+
 func TestParseMatrixDimensionRejectsInvalidValues(t *testing.T) {
 	for _, value := range []string{"", "=value", "bad-key=value", "key=", "key=a,,b", "key=a,a"} {
 		if _, err := ParseMatrixDimension(value); err == nil {

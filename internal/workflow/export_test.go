@@ -45,6 +45,37 @@ func TestFromRunCompactsMatrixAndListsFailedInstances(t *testing.T) {
 	}
 }
 
+func TestFromRunPreservesMatrixExclusionsAndActualInstances(t *testing.T) {
+	manifest := Manifest{Version: 1, Jobs: []Job{{
+		Name: "train", Command: []string{"train"},
+		Matrix:        []string{"SEED=1,2", "MODEL=small,large"},
+		MatrixExclude: []map[string]string{{"SEED": "2", "MODEL": "large"}},
+	}}}
+	queue, err := Compile(manifest, sequentialIDs())
+	if err != nil {
+		t.Fatal(err)
+	}
+	results := make([]model.JobResult, len(queue.Commands))
+	for index, command := range queue.Commands {
+		results[index] = model.JobResult{ID: command.ID, ExitCode: 0}
+	}
+	results[1].ExitCode = 1
+	exported, err := FromRun(queue, model.RunSummary{Results: results}, Source{Project: "demo", RunIDs: []string{"run"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(exported.Jobs) != 1 {
+		t.Fatalf("exported jobs = %#v", exported.Jobs)
+	}
+	job := exported.Jobs[0]
+	if !reflect.DeepEqual(job.MatrixExclude, manifest.Jobs[0].MatrixExclude) {
+		t.Fatalf("matrix_exclude = %#v, want %#v", job.MatrixExclude, manifest.Jobs[0].MatrixExclude)
+	}
+	if len(job.Instances) != 1 || job.Instances[0].Matrix["SEED"] != "1" || job.Instances[0].Matrix["MODEL"] != "large" {
+		t.Fatalf("instances = %#v, want only the actual failed matrix member", job.Instances)
+	}
+}
+
 func TestFromRunAggregatesExpandedStatuses(t *testing.T) {
 	dimensions := []model.MatrixDimension{{Name: "SEED", Values: []string{"1", "2"}}}
 	queue := model.Queue{Commands: []model.QueuedCommand{

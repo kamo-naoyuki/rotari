@@ -98,10 +98,15 @@ type MatrixValue struct {
 	Value string `json:"value"`
 }
 
+type MatrixExclusion struct {
+	Values []MatrixValue `json:"values"`
+}
+
 type MatrixSpec struct {
 	GroupID         string            `json:"group_id"`
 	Dimensions      []MatrixDimension `json:"dimensions"`
 	Values          []MatrixValue     `json:"values"`
+	Exclusions      []MatrixExclusion `json:"exclusions,omitempty"`
 	BaseName        string            `json:"base_name,omitempty"`
 	BaseEnvironment []string          `json:"base_environment,omitempty"`
 }
@@ -144,6 +149,137 @@ func ExpandMatrix(dimensions []MatrixDimension) [][]MatrixValue {
 		combinations = next
 	}
 	return combinations
+}
+
+// ExpandMatrixWithExclusions expands dimensions in their declared order and
+// removes combinations matching any partial exclusion. Exclusion assignments
+// are normalized to dimension order for stable provenance and export.
+func ExpandMatrixWithExclusions(dimensions []MatrixDimension, exclusions []MatrixExclusion) ([][]MatrixValue, []MatrixExclusion, error) {
+	if len(dimensions) == 0 {
+		if len(exclusions) > 0 {
+			return nil, nil, fmt.Errorf("matrix_exclude requires matrix dimensions")
+		}
+		return nil, nil, nil
+	}
+	dimensionValues, err := matrixDimensionValueLookup(dimensions)
+	if err != nil {
+		return nil, nil, err
+	}
+	normalized, err := normalizeMatrixExclusions(dimensions, dimensionValues, exclusions)
+	if err != nil {
+		return nil, nil, err
+	}
+	remaining := filterMatrixCombinations(ExpandMatrix(dimensions), normalized)
+	if len(remaining) == 0 {
+		return nil, nil, fmt.Errorf("matrix_exclude removes every matrix combination")
+	}
+	return remaining, normalized, nil
+}
+
+func matrixDimensionValueLookup(dimensions []MatrixDimension) (map[string]map[string]bool, error) {
+	dimensionValues := make(map[string]map[string]bool, len(dimensions))
+	for _, dimension := range dimensions {
+		if !ValidEnvironmentName(dimension.Name) || len(dimension.Values) == 0 || dimensionValues[dimension.Name] != nil {
+			return nil, fmt.Errorf("invalid matrix dimension %q", dimension.Name)
+		}
+		values := make(map[string]bool, len(dimension.Values))
+		for _, value := range dimension.Values {
+			if value == "" || values[value] {
+				return nil, fmt.Errorf("invalid value in matrix dimension %q", dimension.Name)
+			}
+			values[value] = true
+		}
+		dimensionValues[dimension.Name] = values
+	}
+	return dimensionValues, nil
+}
+
+func normalizeMatrixExclusions(dimensions []MatrixDimension, dimensionValues map[string]map[string]bool, exclusions []MatrixExclusion) ([]MatrixExclusion, error) {
+	normalized := make([]MatrixExclusion, 0, len(exclusions))
+	seenRules := make(map[string]bool, len(exclusions))
+	for _, exclusion := range exclusions {
+		ordered, err := normalizeMatrixExclusion(dimensions, dimensionValues, exclusion)
+		if err != nil {
+			return nil, err
+		}
+		key := matrixValuesKey(ordered.Values)
+		if seenRules[key] {
+			return nil, fmt.Errorf("matrix_exclude repeats an exclusion rule")
+		}
+		seenRules[key] = true
+		normalized = append(normalized, ordered)
+	}
+	if len(normalized) == 0 {
+		normalized = nil
+	}
+	return normalized, nil
+}
+
+func normalizeMatrixExclusion(dimensions []MatrixDimension, dimensionValues map[string]map[string]bool, exclusion MatrixExclusion) (MatrixExclusion, error) {
+	if len(exclusion.Values) == 0 {
+		return MatrixExclusion{}, fmt.Errorf("matrix_exclude entries must not be empty")
+	}
+	assignments, err := matrixExclusionAssignments(dimensionValues, exclusion.Values)
+	if err != nil {
+		return MatrixExclusion{}, err
+	}
+	ordered := make([]MatrixValue, 0, len(assignments))
+	for _, dimension := range dimensions {
+		if value, exists := assignments[dimension.Name]; exists {
+			ordered = append(ordered, MatrixValue{Name: dimension.Name, Value: value})
+		}
+	}
+	return MatrixExclusion{Values: ordered}, nil
+}
+
+func matrixExclusionAssignments(dimensionValues map[string]map[string]bool, values []MatrixValue) (map[string]string, error) {
+	assignments := make(map[string]string, len(values))
+	for _, assignment := range values {
+		declaredValues, exists := dimensionValues[assignment.Name]
+		if !exists {
+			return nil, fmt.Errorf("matrix_exclude names unknown dimension %q", assignment.Name)
+		}
+		if !declaredValues[assignment.Value] {
+			return nil, fmt.Errorf("matrix_exclude has undeclared value %q for dimension %q", assignment.Value, assignment.Name)
+		}
+		if _, exists := assignments[assignment.Name]; exists {
+			return nil, fmt.Errorf("matrix_exclude repeats dimension %q", assignment.Name)
+		}
+		assignments[assignment.Name] = assignment.Value
+	}
+	return assignments, nil
+}
+
+func filterMatrixCombinations(combinations [][]MatrixValue, exclusions []MatrixExclusion) [][]MatrixValue {
+	remaining := make([][]MatrixValue, 0, len(combinations))
+	for _, combination := range combinations {
+		if !matrixCombinationExcluded(combination, exclusions) {
+			remaining = append(remaining, combination)
+		}
+	}
+	return remaining
+}
+
+func matrixCombinationExcluded(combination []MatrixValue, exclusions []MatrixExclusion) bool {
+	for _, exclusion := range exclusions {
+		if matrixCombinationMatches(combination, exclusion.Values) {
+			return true
+		}
+	}
+	return false
+}
+
+func matrixCombinationMatches(combination, assignments []MatrixValue) bool {
+	values := make(map[string]string, len(combination))
+	for _, value := range combination {
+		values[value.Name] = value.Value
+	}
+	for _, assignment := range assignments {
+		if values[assignment.Name] != assignment.Value {
+			return false
+		}
+	}
+	return true
 }
 
 func MatrixJobName(baseName string, values []MatrixValue) string {

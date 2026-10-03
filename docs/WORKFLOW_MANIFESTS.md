@@ -56,6 +56,9 @@ jobs:
     matrix:
       SEED: [1, 2]
       MODEL: [small, large]
+    matrix_exclude:
+      - SEED: 2
+        MODEL: large
   - name: collect
     command: [python, collect.py]
     depends_on_finished: [train]
@@ -66,6 +69,13 @@ jobs:
 and `retry_max_delay` correspond to the `add` options of the same names.
 Each YAML `matrix` key defines one dimension, and its sequence lists that
 dimension's values. The compact form `matrix: ["SEED=1,2,3"]` is also accepted.
+`matrix_exclude` omits combinations matching every assignment in an entry;
+entries may name only declared dimensions and values. A partial entry omits
+all matching combinations, so `- SEED: 2` excludes every combination whose
+`SEED` is `2`. Entries must be non-empty and unique, and the rules together
+must leave at least one combination. The field is also supported in JSON and
+TOML. Queue and run exports preserve the declared exclusions, and import
+expands only the remaining combinations.
 `env` accepts either a name-to-value mapping or a `KEY=VALUE` sequence, such as
 `env: ["EPOCHS=20", "DATA_ROOT=./data"]`. The previous YAML `environment` key
 is still accepted as an alias for `env`. `array` accepts either its string range

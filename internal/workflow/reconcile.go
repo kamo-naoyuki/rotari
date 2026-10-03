@@ -68,11 +68,10 @@ func Reconcile(manifest Manifest, queue model.Queue, store SourceStore) (model.Q
 }
 
 // removedJobs lists exported source commands that no manifest job refers to.
-// A source command is kept when the manifest names one of its attempts, when
-// another member of its matrix group is kept, when its name is still queued,
-// or, for an unnamed command without attempts, when an identical definition
-// is still queued. The result is informational; import never infers identity
-// from it.
+// A source command is kept when it remains queued by ID or name, when its
+// attempt is named by a scalar job, or, for an unnamed command without
+// attempts, when an identical definition remains queued. The result is
+// informational; import never infers identity from it.
 func (catalog *sourceCatalog) removedJobs(manifest Manifest, queue model.Queue) []RemovedJob {
 	attempts := make(map[string]bool)
 	for _, job := range manifest.Jobs {
@@ -83,30 +82,21 @@ func (catalog *sourceCatalog) removedJobs(manifest Manifest, queue model.Queue) 
 	}
 	delete(attempts, "")
 	names := make(map[string]bool, len(queue.Commands))
+	queuedIDs := make(map[string]bool, len(queue.Commands))
 	for _, command := range queue.Commands {
+		queuedIDs[command.ID] = true
 		if command.Name != "" {
 			names[command.Name] = true
 		}
 	}
 	sources := catalog.exportedCommands()
-	kept := make([]bool, len(sources))
-	keptGroups := make(map[string]bool)
-	for index, source := range sources {
-		for _, attemptID := range leafAttemptIDs(source) {
-			if attempts[attemptID] {
-				kept[index] = true
-			}
-		}
-		if kept[index] && source.command.Matrix != nil {
-			keptGroups[source.run.ID+"\x00"+source.command.Matrix.GroupID] = true
-		}
-	}
 	removed := make([]RemovedJob, 0)
-	for index, source := range sources {
+	for _, source := range sources {
 		command := source.command
 		switch {
-		case kept[index]:
-		case command.Matrix != nil && keptGroups[source.run.ID+"\x00"+command.Matrix.GroupID]:
+		case command.Matrix != nil && queuedIDs[command.ID]:
+		case command.Matrix != nil && command.Name != "" && names[command.Name]:
+		case command.Matrix == nil && hasAttempt(attempts, source):
 		case command.Name != "" && names[command.Name]:
 		case command.Name == "" && len(leafAttemptIDs(source)) == 0 && queueHasEquivalentCommand(queue, command):
 		default:
@@ -114,6 +104,15 @@ func (catalog *sourceCatalog) removedJobs(manifest Manifest, queue model.Queue) 
 		}
 	}
 	return removed
+}
+
+func hasAttempt(attempts map[string]bool, source sourceLeaf) bool {
+	for _, attemptID := range leafAttemptIDs(source) {
+		if attempts[attemptID] {
+			return true
+		}
+	}
+	return false
 }
 
 // exportedCommands returns the latest listed snapshot of each source command
@@ -270,15 +269,14 @@ func instanceCommandKey(instance Instance, command model.QueuedCommand) (string,
 }
 
 func jobCommandCount(job Job) (int, error) {
-	count := 1
-	for _, value := range job.Matrix {
-		dimension, err := model.ParseMatrixDimension(value)
-		if err != nil {
-			return 0, err
-		}
-		count *= len(dimension.Values)
+	expansion, err := parseExpansion(job)
+	if err != nil {
+		return 0, err
 	}
-	return count, nil
+	if len(expansion.dimensions) == 0 {
+		return 1, nil
+	}
+	return len(expansion.combinations), nil
 }
 
 func loadSourceCatalog(store SourceStore, source Source) (*sourceCatalog, error) {
@@ -390,11 +388,17 @@ func (catalog *sourceCatalog) matchCommand(anchor sourceLeaf, destination model.
 	if destination.Matrix == nil || anchor.command.Matrix == nil {
 		return sourceLeaf{run: anchor.run, command: anchor.command}, true
 	}
+	sourceMember, sourceMemberExists := matrixGroupMember(anchor.run, anchor.command.Matrix.GroupID, destination.Matrix.Values)
+	selected := catalog.latestMatrixMember(anchor, destination, sourceMember, sourceMemberExists)
+	return selected, selected.run != nil
+}
+
+func (catalog *sourceCatalog) latestMatrixMember(anchor sourceLeaf, destination model.QueuedCommand, sourceMember model.QueuedCommand, sourceMemberExists bool) sourceLeaf {
 	var selected sourceLeaf
 	selectedTimestamp := ""
 	for _, run := range catalog.ordered {
 		for _, command := range run.Queue.Commands {
-			if command.Matrix == nil || command.Matrix.GroupID != anchor.command.Matrix.GroupID || !reflect.DeepEqual(command.Matrix.Values, destination.Matrix.Values) {
+			if !matrixCandidateMatches(command, anchor, destination, sourceMember, sourceMemberExists) {
 				continue
 			}
 			timestamp := run.CommandTimestamp(command)
@@ -404,7 +408,44 @@ func (catalog *sourceCatalog) matchCommand(anchor sourceLeaf, destination model.
 			}
 		}
 	}
-	return selected, selected.run != nil
+	return selected
+}
+
+func matrixCandidateMatches(command model.QueuedCommand, anchor sourceLeaf, destination model.QueuedCommand, sourceMember model.QueuedCommand, sourceMemberExists bool) bool {
+	if command.Matrix == nil || !reflect.DeepEqual(command.Matrix.Values, destination.Matrix.Values) {
+		return false
+	}
+	return command.Matrix.GroupID == anchor.command.Matrix.GroupID || matrixMemberFollowsSource(command, anchor.run, sourceMember, sourceMemberExists)
+}
+
+func matrixGroupMember(run *SourceRun, groupID string, values []model.MatrixValue) (model.QueuedCommand, bool) {
+	if run == nil {
+		return model.QueuedCommand{}, false
+	}
+	for _, command := range run.Queue.Commands {
+		if command.Matrix != nil && command.Matrix.GroupID == groupID && reflect.DeepEqual(command.Matrix.Values, values) {
+			return command, true
+		}
+	}
+	return model.QueuedCommand{}, false
+}
+
+func matrixMemberFollowsSource(command model.QueuedCommand, sourceRun *SourceRun, source model.QueuedCommand, sourceExists bool) bool {
+	if !sourceExists {
+		return false
+	}
+	if command.ID == source.ID {
+		return true
+	}
+	if command.Origin != nil && command.Origin.RunID == sourceRun.ID && command.Origin.JobID == source.ID {
+		return true
+	}
+	for _, origin := range command.TaskOrigins {
+		if origin != nil && origin.RunID == sourceRun.ID && origin.JobID == source.ID {
+			return true
+		}
+	}
+	return false
 }
 
 func reconcileCommandLeaves(destination *model.QueuedCommand, source sourceLeaf, manifestJob Job, catalog *sourceCatalog) error {

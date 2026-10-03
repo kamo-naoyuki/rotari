@@ -232,8 +232,9 @@ By default, only matching tasks rerun. Use `--partial-array=false` to rerun the 
 Yes. Repeat `--matrix KEY=VALUE[,VALUE...]` with `add`. Rotari registers each
 Cartesian-product combination as an independent job and exposes its values as
 ordinary `KEY=VALUE` environment variables. Matrix jobs can be combined with
-`--array`; the array is applied to each matrix combination. `include` and
-`exclude` customization is not supported by the version 1 workflow manifest.
+`--array`; the array is applied to each matrix combination. Workflow manifests
+can use `matrix_exclude` to omit selected combinations; the rule is retained by
+queue and run exports. `rotari add --matrix` does not currently accept exclusions.
 
 ### Can I reference a matrix value inside the command string, like `$KEY`?
 

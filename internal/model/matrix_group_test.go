@@ -2,6 +2,7 @@ package model
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -47,6 +48,70 @@ func TestValidateMatrixGroupsAcceptsCompleteGroups(t *testing.T) {
 	commands = append(commands, QueuedCommand{ID: "plain", Name: "plain", Command: []string{"true"}})
 	if err := ValidateMatrixGroups(commands); err != nil {
 		t.Fatalf("ValidateMatrixGroups: %v", err)
+	}
+}
+
+func TestMatrixGroupWithExclusionsIsCompleteAndPartialEditClearsProvenance(t *testing.T) {
+	dimensions := []MatrixDimension{
+		{Name: "SEED", Values: []string{"1", "2"}},
+		{Name: "MODEL", Values: []string{"small", "large"}},
+	}
+	exclusions := []MatrixExclusion{{Values: []MatrixValue{{Name: "SEED", Value: "2"}, {Name: "MODEL", Value: "large"}}}}
+	combinations, exclusions, err := ExpandMatrixWithExclusions(dimensions, exclusions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commands := make([]QueuedCommand, 0, len(combinations))
+	for index, combination := range combinations {
+		commands = append(commands, QueuedCommand{
+			ID: "member-" + strconv.Itoa(index), Name: MatrixJobName("train", combination), Command: []string{"train"},
+			Environment: MatrixEnvironment(nil, combination),
+			Matrix: &MatrixSpec{
+				GroupID: "group", Dimensions: dimensions, Values: combination, Exclusions: exclusions, BaseName: "train",
+			},
+		})
+	}
+	if len(commands) != 3 {
+		t.Fatalf("matrix members = %d, want 3", len(commands))
+	}
+	if err := ValidateMatrixGroups(commands); err != nil {
+		t.Fatalf("ValidateMatrixGroups: %v", err)
+	}
+	ClearIncompleteMatrixGroups(commands)
+	if commands[0].Matrix == nil {
+		t.Fatal("complete excluded matrix lost its provenance")
+	}
+
+	partial := append([]QueuedCommand(nil), commands[:2]...)
+	ClearIncompleteMatrixGroups(partial)
+	if partial[0].Matrix != nil || partial[1].Matrix != nil {
+		t.Fatal("partially removed excluded matrix kept its provenance")
+	}
+}
+
+func TestValidateMatrixGroupsRejectsInconsistentExclusions(t *testing.T) {
+	dimensions := []MatrixDimension{
+		{Name: "SEED", Values: []string{"1", "2"}},
+		{Name: "MODEL", Values: []string{"small", "large"}},
+	}
+	exclusions := []MatrixExclusion{{Values: []MatrixValue{{Name: "SEED", Value: "2"}, {Name: "MODEL", Value: "large"}}}}
+	combinations, exclusions, err := ExpandMatrixWithExclusions(dimensions, exclusions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commands := make([]QueuedCommand, 0, len(combinations))
+	for index, combination := range combinations {
+		commands = append(commands, QueuedCommand{
+			ID: "member-" + strconv.Itoa(index), Name: MatrixJobName("train", combination), Command: []string{"train"},
+			Environment: MatrixEnvironment(nil, combination),
+			Matrix: &MatrixSpec{
+				GroupID: "group", Dimensions: dimensions, Values: combination, Exclusions: exclusions, BaseName: "train",
+			},
+		})
+	}
+	commands[1].Matrix.Exclusions = []MatrixExclusion{{Values: []MatrixValue{{Name: "SEED", Value: "2"}}}}
+	if err := ValidateMatrixGroups(commands); err == nil || !strings.Contains(err.Error(), "inconsistent provenance") {
+		t.Fatalf("ValidateMatrixGroups error = %v, want inconsistent provenance", err)
 	}
 }
 

@@ -522,6 +522,57 @@ func TestImportedWorkflowRunsFreshJobs(t *testing.T) {
 	}
 }
 
+func TestWorkflowMatrixExclusionExportImport(t *testing.T) {
+	covers(t, "RUN-8")
+	e := support.NewEnv(t)
+	manifestPath := filepath.Join(e.Root, "matrix.yaml")
+	manifest := `version: 1
+jobs:
+  - name: train
+    command: [sh, -c, 'test "$SEED:$MODEL" != "2:large"']
+    matrix:
+      SEED: [1, 2]
+      MODEL: [small, large]
+    matrix_exclude:
+      - SEED: 2
+        MODEL: large
+`
+	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.MustRotari("import", manifestPath, "source")
+	exportedPath := filepath.Join(e.Root, "exported.yaml")
+	e.MustRotari("export", "source", exportedPath)
+	exported, err := os.ReadFile(exportedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(exported), "matrix_exclude:") || !strings.Contains(string(exported), "MODEL: large") {
+		t.Fatalf("queue export lost matrix_exclude:\n%s", exported)
+	}
+	e.MustRotari("import", exportedPath, "copy")
+	e.MustRotari("run", "-p", "copy", "--quiet")
+	summary := readSummary(t, e, "copy")
+	if len(summary.Results) != 3 {
+		t.Fatalf("imported matrix produced %d results, want 3 after exclusion: %#v", len(summary.Results), summary.Results)
+	}
+	runExportPath := filepath.Join(e.Root, "run-exported.yaml")
+	e.MustRotari("export", summary.RunID, runExportPath)
+	runExported, err := os.ReadFile(runExportPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(runExported), "matrix_exclude:") {
+		t.Fatalf("run export lost matrix_exclude:\n%s", runExported)
+	}
+	e.MustRotari("import", "--overwrite", runExportPath, "copy")
+	e.MustRotari("run", "-p", "copy", "--quiet")
+	reusedSummary := readSummary(t, e, "copy")
+	if len(reusedSummary.Results) != 3 {
+		t.Fatalf("run round trip produced %d results, want 3", len(reusedSummary.Results))
+	}
+}
+
 func TestJobStreamsPersistSeparately(t *testing.T) {
 	covers(t, "LOG-1")
 	e := support.NewEnv(t)

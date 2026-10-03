@@ -38,7 +38,7 @@ func equivalentMatrix(left, right *model.MatrixSpec) bool {
 		return left == right
 	}
 	return reflect.DeepEqual(left.Dimensions, right.Dimensions) &&
-		reflect.DeepEqual(left.Values, right.Values) && left.BaseName == right.BaseName &&
+		reflect.DeepEqual(left.Values, right.Values) && reflect.DeepEqual(left.Exclusions, right.Exclusions) && left.BaseName == right.BaseName &&
 		reflect.DeepEqual(left.BaseEnvironment, right.BaseEnvironment)
 }
 
@@ -80,6 +80,7 @@ func fromQueue(queue model.Queue, results map[string]model.JobResult) (Manifest,
 		for _, dimension := range command.Matrix.Dimensions {
 			job.Matrix = append(job.Matrix, dimension.Name+"="+strings.Join(dimension.Values, ","))
 		}
+		job.MatrixExclude = matrixExclusionsToManifest(command.Matrix.Exclusions)
 		for _, member := range queue.Commands {
 			if member.Matrix == nil || member.Matrix.GroupID != groupID {
 				continue
@@ -89,6 +90,20 @@ func fromQueue(queue model.Queue, results map[string]model.JobResult) (Manifest,
 		manifest.Jobs = append(manifest.Jobs, job)
 	}
 	return manifest, nil
+}
+
+func matrixExclusionsToManifest(exclusions []model.MatrixExclusion) []map[string]string {
+	if len(exclusions) == 0 {
+		return nil
+	}
+	converted := make([]map[string]string, len(exclusions))
+	for index, exclusion := range exclusions {
+		converted[index] = make(map[string]string, len(exclusion.Values))
+		for _, value := range exclusion.Values {
+			converted[index][value.Name] = value.Value
+		}
+	}
+	return converted
 }
 
 func exportJob(command model.QueuedCommand, matrixBase bool) Job {

@@ -42,22 +42,23 @@ type Job struct {
 	Retry *int `json:"retry,omitempty" yaml:"retry,omitempty" toml:"retry,omitempty"`
 	// RetryDelay, RetryBackoff, and RetryMaxDelay match add --retry-delay,
 	// --retry-backoff, and --retry-max-delay.
-	RetryDelay       string     `json:"retry_delay,omitempty" yaml:"retry_delay,omitempty" toml:"retry_delay,omitempty"`
-	RetryBackoff     float64    `json:"retry_backoff,omitempty" yaml:"retry_backoff,omitempty" toml:"retry_backoff,omitempty"`
-	RetryMaxDelay    string     `json:"retry_max_delay,omitempty" yaml:"retry_max_delay,omitempty" toml:"retry_max_delay,omitempty"`
-	Executor         string     `json:"executor,omitempty" yaml:"executor,omitempty" toml:"executor,omitempty"`
-	ExecutorOptions  []string   `json:"executor_options,omitempty" yaml:"executor_options,omitempty" toml:"executor_options,omitempty"`
-	Output           []string   `json:"output,omitempty" yaml:"output,omitempty" toml:"output,omitempty"`
-	Error            []string   `json:"error,omitempty" yaml:"error,omitempty" toml:"error,omitempty"`
-	LogMode          string     `json:"log_mode,omitempty" yaml:"log_mode,omitempty" toml:"log_mode,omitempty"`
-	OpenMode         string     `json:"open_mode,omitempty" yaml:"open_mode,omitempty" toml:"open_mode,omitempty"`
-	WorkingDirectory string     `json:"working_directory,omitempty" yaml:"working_directory,omitempty" toml:"working_directory,omitempty"`
-	Environment      []string   `json:"environment,omitempty" yaml:"env,omitempty" toml:"environment,omitempty"`
-	Array            string     `json:"array,omitempty" yaml:"array,omitempty" toml:"array,omitempty"`
-	Matrix           []string   `json:"matrix,omitempty" yaml:"matrix,omitempty" toml:"matrix,omitempty"`
-	Status           string     `json:"status,omitempty" yaml:"status,omitempty" toml:"status,omitempty"`
-	AttemptID        string     `json:"attempt_id,omitempty" yaml:"attempt_id,omitempty" toml:"attempt_id,omitempty"`
-	Instances        []Instance `json:"instances,omitempty" yaml:"instances,omitempty" toml:"instances,omitempty"`
+	RetryDelay       string              `json:"retry_delay,omitempty" yaml:"retry_delay,omitempty" toml:"retry_delay,omitempty"`
+	RetryBackoff     float64             `json:"retry_backoff,omitempty" yaml:"retry_backoff,omitempty" toml:"retry_backoff,omitempty"`
+	RetryMaxDelay    string              `json:"retry_max_delay,omitempty" yaml:"retry_max_delay,omitempty" toml:"retry_max_delay,omitempty"`
+	Executor         string              `json:"executor,omitempty" yaml:"executor,omitempty" toml:"executor,omitempty"`
+	ExecutorOptions  []string            `json:"executor_options,omitempty" yaml:"executor_options,omitempty" toml:"executor_options,omitempty"`
+	Output           []string            `json:"output,omitempty" yaml:"output,omitempty" toml:"output,omitempty"`
+	Error            []string            `json:"error,omitempty" yaml:"error,omitempty" toml:"error,omitempty"`
+	LogMode          string              `json:"log_mode,omitempty" yaml:"log_mode,omitempty" toml:"log_mode,omitempty"`
+	OpenMode         string              `json:"open_mode,omitempty" yaml:"open_mode,omitempty" toml:"open_mode,omitempty"`
+	WorkingDirectory string              `json:"working_directory,omitempty" yaml:"working_directory,omitempty" toml:"working_directory,omitempty"`
+	Environment      []string            `json:"environment,omitempty" yaml:"env,omitempty" toml:"environment,omitempty"`
+	Array            string              `json:"array,omitempty" yaml:"array,omitempty" toml:"array,omitempty"`
+	Matrix           []string            `json:"matrix,omitempty" yaml:"matrix,omitempty" toml:"matrix,omitempty"`
+	MatrixExclude    []map[string]string `json:"matrix_exclude,omitempty" yaml:"matrix_exclude,omitempty" toml:"matrix_exclude,omitempty"`
+	Status           string              `json:"status,omitempty" yaml:"status,omitempty" toml:"status,omitempty"`
+	AttemptID        string              `json:"attempt_id,omitempty" yaml:"attempt_id,omitempty" toml:"attempt_id,omitempty"`
+	Instances        []Instance          `json:"instances,omitempty" yaml:"instances,omitempty" toml:"instances,omitempty"`
 }
 
 type Instance struct {
@@ -210,6 +211,8 @@ func normalizeYAMLJob(job *yaml.Node) error {
 		switch key {
 		case "matrix":
 			err = normalizeYAMLMappingField(job, index, normalizeYAMLMatrixMapping)
+		case "matrix_exclude":
+			err = normalizeYAMLSequenceField(job, index, normalizeYAMLMatrixExclusions)
 		case "array":
 			err = normalizeYAMLSequenceField(job, index, normalizeYAMLArraySequence)
 		case "executor_options":
@@ -347,6 +350,33 @@ func normalizeYAMLMatrixValue(value *yaml.Node) (string, error) {
 	return value.Value, nil
 }
 
+func normalizeYAMLMatrixExclusions(exclusions *yaml.Node) (*yaml.Node, error) {
+	normalized := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+	for _, exclusion := range exclusions.Content {
+		if exclusion.Kind != yaml.MappingNode {
+			return nil, errors.New("decode YAML manifest: matrix_exclude entries must be mappings")
+		}
+		mapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		seen := make(map[string]bool, len(exclusion.Content)/2)
+		for index := 0; index+1 < len(exclusion.Content); index += 2 {
+			key, value := exclusion.Content[index], exclusion.Content[index+1]
+			if key.Kind != yaml.ScalarNode || key.Tag == yamlNullTag || value.Kind != yaml.ScalarNode || value.Tag == yamlNullTag {
+				return nil, errors.New("decode YAML manifest: matrix_exclude must map dimension names to non-null scalar values")
+			}
+			if seen[key.Value] {
+				return nil, fmt.Errorf("decode YAML manifest: matrix_exclude repeats dimension %q", key.Value)
+			}
+			seen[key.Value] = true
+			mapping.Content = append(mapping.Content,
+				&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key.Value},
+				&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value.Value},
+			)
+		}
+		normalized.Content = append(normalized.Content, mapping)
+	}
+	return normalized, nil
+}
+
 func Validate(manifest Manifest) error {
 	if manifest.Version != Version {
 		return fmt.Errorf("unsupported workflow manifest version %d", manifest.Version)
@@ -403,7 +433,7 @@ func validateJob(job Job, index int, hasSource bool, seenNames map[string]bool) 
 	if job.OpenMode != "" && job.OpenMode != model.OpenModeAppend && job.OpenMode != model.OpenModeTruncate {
 		return fmt.Errorf("%s has invalid output open mode %q", label, job.OpenMode)
 	}
-	if _, _, err := parseExpansion(job); err != nil {
+	if _, err := parseExpansion(job); err != nil {
 		return fmt.Errorf("%s: %w", label, err)
 	}
 	if !validStatus(job.Status) {
@@ -452,11 +482,11 @@ func Compile(manifest Manifest, nextID func() string) (model.Queue, error) {
 	}
 	queue := model.Queue{}
 	for _, job := range manifest.Jobs {
-		array, dimensions, err := parseExpansion(job)
+		expansion, err := parseExpansion(job)
 		if err != nil {
 			return model.Queue{}, err
 		}
-		combinations := model.ExpandMatrix(dimensions)
+		array, dimensions, exclusions, combinations := expansion.array, expansion.dimensions, expansion.exclusions, expansion.combinations
 		if len(combinations) == 0 {
 			combinations = [][]model.MatrixValue{{}}
 		}
@@ -478,7 +508,7 @@ func Compile(manifest Manifest, nextID func() string) (model.Queue, error) {
 			}
 			if matrixGroupID != "" {
 				command.Matrix = &model.MatrixSpec{
-					GroupID: matrixGroupID, Dimensions: cloneDimensions(dimensions), Values: append([]model.MatrixValue(nil), combination...),
+					GroupID: matrixGroupID, Dimensions: cloneDimensions(dimensions), Values: append([]model.MatrixValue(nil), combination...), Exclusions: cloneMatrixExclusions(exclusions),
 					BaseName: job.Name, BaseEnvironment: append([]string(nil), job.Environment...),
 				}
 			}
@@ -499,29 +529,62 @@ func cloneDimensions(dimensions []model.MatrixDimension) []model.MatrixDimension
 	return cloned
 }
 
-func parseExpansion(job Job) (*model.ArraySpec, []model.MatrixDimension, error) {
-	var array *model.ArraySpec
+func cloneMatrixExclusions(exclusions []model.MatrixExclusion) []model.MatrixExclusion {
+	if len(exclusions) == 0 {
+		return nil
+	}
+	cloned := make([]model.MatrixExclusion, len(exclusions))
+	for index, exclusion := range exclusions {
+		cloned[index].Values = append([]model.MatrixValue(nil), exclusion.Values...)
+	}
+	return cloned
+}
+
+type jobExpansion struct {
+	array        *model.ArraySpec
+	dimensions   []model.MatrixDimension
+	exclusions   []model.MatrixExclusion
+	combinations [][]model.MatrixValue
+}
+
+func parseExpansion(job Job) (jobExpansion, error) {
+	var expansion jobExpansion
 	if job.Array != "" {
 		parsed, err := model.ParseArrayRange(job.Array)
 		if err != nil {
-			return nil, nil, fmt.Errorf("invalid array: %w", err)
+			return jobExpansion{}, fmt.Errorf("invalid array: %w", err)
 		}
-		array = &parsed
+		expansion.array = &parsed
 	}
 	dimensions := make([]model.MatrixDimension, 0, len(job.Matrix))
 	seen := make(map[string]bool, len(job.Matrix))
 	for _, value := range job.Matrix {
 		dimension, err := model.ParseMatrixDimension(value)
 		if err != nil {
-			return nil, nil, fmt.Errorf("invalid matrix: %w", err)
+			return jobExpansion{}, fmt.Errorf("invalid matrix: %w", err)
 		}
 		if seen[dimension.Name] {
-			return nil, nil, fmt.Errorf("invalid matrix: duplicate key %q", dimension.Name)
+			return jobExpansion{}, fmt.Errorf("invalid matrix: duplicate key %q", dimension.Name)
 		}
 		seen[dimension.Name] = true
 		dimensions = append(dimensions, dimension)
 	}
-	return array, dimensions, nil
+	exclusions := make([]model.MatrixExclusion, 0, len(job.MatrixExclude))
+	for _, raw := range job.MatrixExclude {
+		exclusion := model.MatrixExclusion{Values: make([]model.MatrixValue, 0, len(raw))}
+		for name, value := range raw {
+			exclusion.Values = append(exclusion.Values, model.MatrixValue{Name: name, Value: value})
+		}
+		exclusions = append(exclusions, exclusion)
+	}
+	combinations, normalizedExclusions, err := model.ExpandMatrixWithExclusions(dimensions, exclusions)
+	if err != nil {
+		return jobExpansion{}, fmt.Errorf("invalid matrix_exclude: %w", err)
+	}
+	expansion.dimensions = dimensions
+	expansion.exclusions = normalizedExclusions
+	expansion.combinations = combinations
+	return expansion, nil
 }
 
 func cloneArray(array *model.ArraySpec) *model.ArraySpec {

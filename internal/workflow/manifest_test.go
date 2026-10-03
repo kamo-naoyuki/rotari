@@ -38,6 +38,73 @@ func TestDecodeFormatsCompileEquivalentQueues(t *testing.T) {
 	}
 }
 
+func TestDecodeFormatsCompileAndExportMatrixExclusions(t *testing.T) {
+	inputs := map[string]string{
+		"yaml": `version: 1
+jobs:
+  - name: train
+    command: [train]
+    matrix:
+      SEED: [1, 2]
+      MODEL: [small, large]
+    matrix_exclude:
+      - MODEL: large
+        SEED: 2
+`,
+		"json": `{"version":1,"jobs":[{"name":"train","command":["train"],"matrix":["SEED=1,2","MODEL=small,large"],"matrix_exclude":[{"MODEL":"large","SEED":"2"}]}]}`,
+		"toml": `version = 1
+[[jobs]]
+name = "train"
+command = ["train"]
+matrix = ["SEED=1,2", "MODEL=small,large"]
+matrix_exclude = [{ MODEL = "large", SEED = "2" }]
+`,
+	}
+	wantNames := []string{"train-SEED1-MODELsmall", "train-SEED1-MODELlarge", "train-SEED2-MODELsmall"}
+	for format, input := range inputs {
+		t.Run(format, func(t *testing.T) {
+			manifest, err := Decode(strings.NewReader(input), format)
+			if err != nil {
+				t.Fatalf("Decode(%s): %v", format, err)
+			}
+			queue, err := Compile(manifest, sequentialIDs())
+			if err != nil {
+				t.Fatalf("Compile(%s): %v", format, err)
+			}
+			if len(queue.Commands) != len(wantNames) {
+				t.Fatalf("Compile(%s) commands = %d, want %d", format, len(queue.Commands), len(wantNames))
+			}
+			for index, want := range wantNames {
+				if queue.Commands[index].Name != want {
+					t.Errorf("command %d name = %q, want %q", index, queue.Commands[index].Name, want)
+				}
+			}
+			wantExclusions := []model.MatrixExclusion{{Values: []model.MatrixValue{{Name: "SEED", Value: "2"}, {Name: "MODEL", Value: "large"}}}}
+			if !reflect.DeepEqual(queue.Commands[0].Matrix.Exclusions, wantExclusions) {
+				t.Fatalf("exclusions = %#v, want %#v", queue.Commands[0].Matrix.Exclusions, wantExclusions)
+			}
+			exported, err := FromQueue(queue)
+			if err != nil {
+				t.Fatalf("FromQueue: %v", err)
+			}
+			if !reflect.DeepEqual(exported, manifest) {
+				t.Fatalf("FromQueue = %#v, want %#v", exported, manifest)
+			}
+			data, err := Encode(exported, format)
+			if err != nil {
+				t.Fatalf("Encode(%s): %v", format, err)
+			}
+			decoded, err := Decode(strings.NewReader(string(data)), format)
+			if err != nil {
+				t.Fatalf("Decode(exported %s): %v\n%s", format, err, data)
+			}
+			if !reflect.DeepEqual(decoded, manifest) {
+				t.Fatalf("round trip %s = %#v, want %#v", format, decoded, manifest)
+			}
+		})
+	}
+}
+
 func TestDecodeYAMLEnvironmentMappingAndLegacySequence(t *testing.T) {
 	inputs := []string{
 		"version: 1\njobs:\n  - command: [true]\n    environment:\n      EPOCHS: 20\n      DATA_ROOT: ./data\n",
@@ -161,6 +228,20 @@ func TestDecodeRejectsMalformedYAMLMatrixMapping(t *testing.T) {
 		input := "version: 1\njobs:\n  - command: [true]\n    matrix:\n      " + matrix + "\n"
 		if _, err := Decode(strings.NewReader(input), "yaml"); err == nil {
 			t.Errorf("Decode accepted malformed matrix mapping %q", matrix)
+		}
+	}
+}
+
+func TestDecodeRejectsMalformedYAMLMatrixExclusions(t *testing.T) {
+	for _, exclusion := range []string{
+		"- SEED: null",
+		"- SEED: [2]",
+		"- SEED: 1\n      SEED: 2",
+		"- 2",
+	} {
+		input := "version: 1\njobs:\n  - command: [true]\n    matrix:\n      SEED: [1, 2]\n    matrix_exclude:\n      " + exclusion + "\n"
+		if _, err := Decode(strings.NewReader(input), "yaml"); err == nil {
+			t.Errorf("Decode accepted malformed matrix_exclude %q", exclusion)
 		}
 	}
 }

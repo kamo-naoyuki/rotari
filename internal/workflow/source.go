@@ -77,6 +77,7 @@ func MergeRuns(project string, runs []SourceRun) (Manifest, error) {
 		queue.Commands = append(queue.Commands, selected.command)
 		summary.Results = append(summary.Results, selected.results...)
 	}
+	model.ClearIncompleteMatrixGroups(queue.Commands)
 	if err := model.ValidateQueueDependencies(queue.Commands); err != nil {
 		return Manifest{}, fmt.Errorf("cannot merge runs: %w", err)
 	}

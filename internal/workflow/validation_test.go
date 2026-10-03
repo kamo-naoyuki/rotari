@@ -88,6 +88,11 @@ func TestEquivalentCommandComparesMatrixDefinitionButNotGroupID(t *testing.T) {
 	if EquivalentCommand(left, right) {
 		t.Fatal("different matrix combinations are considered equivalent")
 	}
+	right.Matrix = matrix("destination", []string{"1", "2"}, "1")
+	right.Matrix.Exclusions = []model.MatrixExclusion{{Values: []model.MatrixValue{{Name: "SEED", Value: "2"}}}}
+	if EquivalentCommand(left, right) {
+		t.Fatal("different matrix exclusions are considered equivalent")
+	}
 }
 
 func TestDecodeRejectsTrailingDocumentsAndUnsupportedFormat(t *testing.T) {
@@ -111,19 +116,25 @@ func TestDecodeRejectsTrailingDocumentsAndUnsupportedFormat(t *testing.T) {
 func TestValidateRejectsInconsistentSourceState(t *testing.T) {
 	source := &Source{Project: "demo", RunIDs: []string{"run"}}
 	tests := map[string]Manifest{
-		"source without project":    {Version: 1, Source: &Source{RunIDs: []string{"run"}}, Jobs: []Job{{Command: []string{"true"}}}},
-		"source without runs":       {Version: 1, Source: &Source{Project: "demo"}, Jobs: []Job{{Command: []string{"true"}}}},
-		"status without source":     {Version: 1, Jobs: []Job{{Command: []string{"true"}, Status: "success"}}},
-		"attempt without source":    {Version: 1, Jobs: []Job{{Command: []string{"true"}, AttemptID: "att_x"}}},
-		"instances without source":  {Version: 1, Jobs: []Job{{Command: []string{"true"}, Array: "1", Instances: []Instance{{Status: "failed"}}}}},
-		"instances on scalar job":   {Version: 1, Source: source, Jobs: []Job{{Command: []string{"true"}, Instances: []Instance{{Status: "failed"}}}}},
-		"instance without status":   {Version: 1, Source: source, Jobs: []Job{{Command: []string{"true"}, Array: "1", Instances: []Instance{{}}}}},
-		"instance invalid status":   {Version: 1, Source: source, Jobs: []Job{{Command: []string{"true"}, Array: "1", Instances: []Instance{{Status: "running"}}}}},
-		"empty command executable":  {Version: 1, Jobs: []Job{{Command: []string{""}}}},
-		"empty matrix values":       {Version: 1, Jobs: []Job{{Command: []string{"true"}, Matrix: []string{"SEED="}}}},
-		"malformed matrix":          {Version: 1, Jobs: []Job{{Command: []string{"true"}, Matrix: []string{"SEED"}}}},
-		"malformed array":           {Version: 1, Jobs: []Job{{Command: []string{"true"}, Array: "one"}}},
-		"invalid environment entry": {Version: 1, Jobs: []Job{{Command: []string{"true"}, Environment: []string{"=value"}}}},
+		"source without project":           {Version: 1, Source: &Source{RunIDs: []string{"run"}}, Jobs: []Job{{Command: []string{"true"}}}},
+		"source without runs":              {Version: 1, Source: &Source{Project: "demo"}, Jobs: []Job{{Command: []string{"true"}}}},
+		"status without source":            {Version: 1, Jobs: []Job{{Command: []string{"true"}, Status: "success"}}},
+		"attempt without source":           {Version: 1, Jobs: []Job{{Command: []string{"true"}, AttemptID: "att_x"}}},
+		"instances without source":         {Version: 1, Jobs: []Job{{Command: []string{"true"}, Array: "1", Instances: []Instance{{Status: "failed"}}}}},
+		"instances on scalar job":          {Version: 1, Source: source, Jobs: []Job{{Command: []string{"true"}, Instances: []Instance{{Status: "failed"}}}}},
+		"instance without status":          {Version: 1, Source: source, Jobs: []Job{{Command: []string{"true"}, Array: "1", Instances: []Instance{{}}}}},
+		"instance invalid status":          {Version: 1, Source: source, Jobs: []Job{{Command: []string{"true"}, Array: "1", Instances: []Instance{{Status: "running"}}}}},
+		"empty command executable":         {Version: 1, Jobs: []Job{{Command: []string{""}}}},
+		"empty matrix values":              {Version: 1, Jobs: []Job{{Command: []string{"true"}, Matrix: []string{"SEED="}}}},
+		"malformed matrix":                 {Version: 1, Jobs: []Job{{Command: []string{"true"}, Matrix: []string{"SEED"}}}},
+		"matrix exclude without matrix":    {Version: 1, Jobs: []Job{{Command: []string{"true"}, MatrixExclude: []map[string]string{{"SEED": "1"}}}}},
+		"matrix exclude unknown dimension": {Version: 1, Jobs: []Job{{Command: []string{"true"}, Matrix: []string{"SEED=1,2"}, MatrixExclude: []map[string]string{{"MODEL": "small"}}}}},
+		"matrix exclude undeclared value":  {Version: 1, Jobs: []Job{{Command: []string{"true"}, Matrix: []string{"SEED=1,2"}, MatrixExclude: []map[string]string{{"SEED": "3"}}}}},
+		"empty matrix exclude rule":        {Version: 1, Jobs: []Job{{Command: []string{"true"}, Matrix: []string{"SEED=1,2"}, MatrixExclude: []map[string]string{{}}}}},
+		"duplicate matrix exclude rule":    {Version: 1, Jobs: []Job{{Command: []string{"true"}, Matrix: []string{"SEED=1,2"}, MatrixExclude: []map[string]string{{"SEED": "1"}, {"SEED": "1"}}}}},
+		"matrix exclude removes all":       {Version: 1, Jobs: []Job{{Command: []string{"true"}, Matrix: []string{"SEED=1,2"}, MatrixExclude: []map[string]string{{"SEED": "1"}, {"SEED": "2"}}}}},
+		"malformed array":                  {Version: 1, Jobs: []Job{{Command: []string{"true"}, Array: "one"}}},
+		"invalid environment entry":        {Version: 1, Jobs: []Job{{Command: []string{"true"}, Environment: []string{"=value"}}}},
 	}
 	for name, manifest := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -173,20 +184,35 @@ func TestCompileRejectsInvalidExpandedGraph(t *testing.T) {
 }
 
 func TestCompileExpandsMatrixWithArrayAndDependencies(t *testing.T) {
+	for _, excluded := range []bool{false, true} {
+		t.Run(fmt.Sprintf("excluded=%t", excluded), func(t *testing.T) {
+			testCompileMatrixWithArrayAndDependencies(t, excluded)
+		})
+	}
+}
+
+func testCompileMatrixWithArrayAndDependencies(t *testing.T, excluded bool) {
+	t.Helper()
 	manifest := Manifest{Version: 1, Jobs: []Job{
 		{Name: "prepare", Stage: "inputs", Command: []string{"prepare"}},
 		{Name: "train", Command: []string{"train"}, DependsOn: []string{"inputs"}, Environment: []string{"BASE=1"},
 			Matrix: []string{"SEED=1,2", "MODEL=small,large"}, Array: "1-2"},
 		{Name: "evaluate", Command: []string{"evaluate"}, DependsOn: []string{"train"}},
 	}}
+	wantNames := []string{"prepare", "train-SEED1-MODELsmall", "train-SEED1-MODELlarge", "train-SEED2-MODELsmall", "train-SEED2-MODELlarge", "evaluate"}
+	wantDependencies := 8
+	if excluded {
+		manifest.Jobs[1].MatrixExclude = []map[string]string{{"SEED": "2", "MODEL": "large"}}
+		wantNames = append(wantNames[:4], "evaluate")
+		wantDependencies = 6
+	}
 	queue, err := Compile(manifest, sequentialIDs())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(queue.Commands) != 6 {
-		t.Fatalf("commands = %d, want 6", len(queue.Commands))
+	if len(queue.Commands) != len(wantNames) {
+		t.Fatalf("commands = %d, want %d", len(queue.Commands), len(wantNames))
 	}
-	wantNames := []string{"prepare", "train-SEED1-MODELsmall", "train-SEED1-MODELlarge", "train-SEED2-MODELsmall", "train-SEED2-MODELlarge", "evaluate"}
 	for index, want := range wantNames {
 		if queue.Commands[index].Name != want {
 			t.Fatalf("command %d name = %q, want %q", index, queue.Commands[index].Name, want)
@@ -201,8 +227,8 @@ func TestCompileExpandsMatrixWithArrayAndDependencies(t *testing.T) {
 	}
 	jobs := model.QueueToJobs(queue.Commands)
 	evaluate := jobs[len(jobs)-1]
-	if len(evaluate.DependsOn) != 8 {
-		t.Fatalf("evaluate dependencies = %#v, want all 8 matrix/array tasks", evaluate.DependsOn)
+	if len(evaluate.DependsOn) != wantDependencies {
+		t.Fatalf("evaluate dependencies = %#v, want all %d matrix/array tasks", evaluate.DependsOn, wantDependencies)
 	}
 }
 

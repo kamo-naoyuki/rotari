@@ -94,7 +94,13 @@ func ValidateMatrixGroups(commands []QueuedCommand) error {
 
 func validateMatrixGroup(groupID string, members []QueuedCommand) error {
 	first := members[0].Matrix
-	expected := ExpandMatrix(first.Dimensions)
+	expected, normalizedExclusions, err := ExpandMatrixWithExclusions(first.Dimensions, first.Exclusions)
+	if err != nil {
+		return fmt.Errorf("matrix group %q has invalid exclusions: %w", groupID, err)
+	}
+	if !equalMatrixExclusions(first.Exclusions, normalizedExclusions) {
+		return fmt.Errorf("matrix group %q has non-normalized exclusions", groupID)
+	}
 	if len(members) != len(expected) {
 		return fmt.Errorf("matrix group %q is incomplete: got %d combinations, want %d", groupID, len(members), len(expected))
 	}
@@ -120,13 +126,37 @@ func validateMatrixGroup(groupID string, members []QueuedCommand) error {
 func validateMatrixMember(groupID string, member, base QueuedCommand) error {
 	matrix := member.Matrix
 	first := base.Matrix
-	if !equalMatrixDimensions(matrix.Dimensions, first.Dimensions) || matrix.BaseName != first.BaseName || !equalStrings(matrix.BaseEnvironment, first.BaseEnvironment) || !equalMatrixCommandBase(member, base) {
+	if !equalMatrixDimensions(matrix.Dimensions, first.Dimensions) || !equalMatrixExclusions(matrix.Exclusions, first.Exclusions) || matrix.BaseName != first.BaseName || !equalStrings(matrix.BaseEnvironment, first.BaseEnvironment) || !equalMatrixCommandBase(member, base) {
 		return fmt.Errorf("matrix group %q has inconsistent provenance", groupID)
 	}
 	if member.Name != MatrixJobName(matrix.BaseName, matrix.Values) || !equalStrings(member.Environment, MatrixEnvironment(matrix.BaseEnvironment, matrix.Values)) {
 		return fmt.Errorf("matrix group %q has an inconsistent expanded job %q", groupID, member.ID)
 	}
 	return nil
+}
+
+func equalMatrixExclusions(left, right []MatrixExclusion) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if !equalMatrixValues(left[index].Values, right[index].Values) {
+			return false
+		}
+	}
+	return true
+}
+
+func equalMatrixValues(left, right []MatrixValue) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func equalMatrixCommandBase(left, right QueuedCommand) bool {
@@ -157,13 +187,21 @@ func equalInts(left, right []int) bool {
 	return true
 }
 
-// ClearMatrixGroup drops matrix provenance from every member of a group. The
-// group's base name stops resolving as a dependency target once provenance is
-// gone, so dependencies on it are rewritten to the members' own names.
+// ClearMatrixGroup drops matrix provenance from every member of a group. If no
+// other group retains the same base name, dependencies on that name are
+// rewritten to the remaining members' own names.
 func ClearMatrixGroup(commands []QueuedCommand, groupID string) {
 	if groupID == "" {
 		return
 	}
+	baseName, memberNames := clearMatrixGroupProvenance(commands, groupID)
+	if baseName == "" || hasMatrixGroup(commands, baseName) {
+		return
+	}
+	replaceDependency(commands, baseName, memberNames)
+}
+
+func clearMatrixGroupProvenance(commands []QueuedCommand, groupID string) (string, []string) {
 	baseName := ""
 	var memberNames []string
 	for index := range commands {
@@ -175,9 +213,16 @@ func ClearMatrixGroup(commands []QueuedCommand, groupID string) {
 			commands[index].Matrix = nil
 		}
 	}
-	if baseName != "" {
-		replaceDependency(commands, baseName, memberNames)
+	return baseName, memberNames
+}
+
+func hasMatrixGroup(commands []QueuedCommand, baseName string) bool {
+	for _, command := range commands {
+		if command.Matrix != nil && command.Matrix.BaseName == baseName {
+			return true
+		}
 	}
+	return false
 }
 
 func replaceDependency(commands []QueuedCommand, target string, replacements []string) {
@@ -238,21 +283,15 @@ func ClearInconsistentMatrixGroups(commands []QueuedCommand, groupIDs []string) 
 }
 
 func ClearIncompleteMatrixGroups(commands []QueuedCommand) {
-	counts := make(map[string]int)
-	wants := make(map[string]int)
+	groups := make(map[string][]QueuedCommand)
 	for _, command := range commands {
 		if command.Matrix == nil || command.Matrix.GroupID == "" {
 			continue
 		}
-		counts[command.Matrix.GroupID]++
-		want := 1
-		for _, dimension := range command.Matrix.Dimensions {
-			want *= len(dimension.Values)
-		}
-		wants[command.Matrix.GroupID] = want
+		groups[command.Matrix.GroupID] = append(groups[command.Matrix.GroupID], command)
 	}
-	for groupID, count := range counts {
-		if count != wants[groupID] {
+	for groupID, members := range groups {
+		if validateMatrixGroup(groupID, members) != nil {
 			ClearMatrixGroup(commands, groupID)
 		}
 	}

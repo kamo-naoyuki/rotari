@@ -99,6 +99,12 @@
   [internal/model/model.go](../internal/model/model.go); covered by
   `TestArrayNameDependsOnEveryTask` in
   [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
+- **RUN-8** A workflow manifest's `matrix_exclude` omits each Cartesian
+  combination matching all assignments in any exclusion rule. The normalized
+  exclusions are stored with matrix provenance, and queue/run export followed
+  by import preserves the same effective combinations. Covered by
+  `TestWorkflowMatrixExclusionExportImport` in
+  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,
@@ -213,7 +219,12 @@
   base command has one, and ordinary `KEY=VALUE` environment entries.
   Matrix and array expansion can be combined; the array is applied to each
   matrix combination. Expanded commands also store matrix group provenance so
-  queue and run export can reconstruct the compact declaration. Partial
+  queue and run export can reconstruct the compact declaration. Workflow
+  manifests may add `matrix_exclude` partial assignments; a generated
+  combination is omitted when it matches every assignment in any rule. The
+  normalized rules are part of matrix provenance, and queue/run export retains
+  them. Group validation and manifest reconciliation use the effective
+  combinations after exclusion, not the full Cartesian product. Partial
   `copy` or `remove`, and a `change` that leaves the group's members
   inconsistent with it, clear provenance for the affected group rather
   than presenting an incomplete group as the original matrix. A `change
@@ -229,7 +240,12 @@
   [matrix validation](../internal/model/dependencies.go),
   [matrix queue mutation tests](../internal/queueops/carry_state_test.go),
   [manifest compilation](../internal/workflow/manifest.go), and
-  [matrix export tests](../internal/workflow/export_test.go).
+  [matrix export tests](../internal/workflow/export_test.go). The
+  `matrix_exclude` export/import contract is covered by
+  [matrix expansion tests](../internal/model/model_test.go),
+  [workflow manifest tests](../internal/workflow/manifest_test.go),
+  [workflow reconciliation tests](../internal/workflow/reconcile_test.go), and
+  [binary conformance](../conformance/02-lifecycle/lifecycle_test.go).
 - Result-based selection (`--failed`/`--unfinished`/`--success` in `copy`, and
   in rerun when `--partial-array=false`) and copied-job origin status operate on
   the unexpanded `QueuedCommand`, but results are recorded per expanded task ID.
@@ -295,9 +311,11 @@
   successful queue changes such as `add`, `reuse` lines are cyan because they
   only report a carried result, and `accept` and `remove` lines are yellow, following the CLI color rules in
   [03](03-server-and-command-interfaces.md#cli-presentation). A source job is kept when the manifest names
-  one of its attempts, another member of its matrix group is kept, its name is
-  still queued, or it is unnamed, has no attempts, and an identical definition
-  is still queued; this report never affects reconciliation. See
+  one of its attempts for a non-matrix job, its matrix member ID or its name
+  is still queued, or it is unnamed, has no attempts, and an identical
+  definition is still queued. A `matrix_exclude` rule that removes a source
+  member reports that member as `remove`, even when other members remain;
+  this report never affects reconciliation. See
   [workflow reconciliation](../internal/workflow/reconcile.go) and its
   [unit tests](../internal/workflow/reconcile_test.go),
   [run planning](../internal/run/rerun.go) and its

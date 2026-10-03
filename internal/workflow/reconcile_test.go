@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -105,6 +106,213 @@ func TestReconcileLinksSourcesAndMarksEditedStatuses(t *testing.T) {
 	}
 	if fresh.Origin != nil || fresh.MarkedStatus != "" {
 		t.Fatalf("new job = %#v, want no origin or mark", fresh)
+	}
+}
+
+func TestReconcileCountsMatrixExcludedMembers(t *testing.T) {
+	dimensions := []model.MatrixDimension{
+		{Name: "SEED", Values: []string{"1", "2"}},
+		{Name: "MODEL", Values: []string{"small", "large"}},
+	}
+	exclusions := []model.MatrixExclusion{{Values: []model.MatrixValue{{Name: "SEED", Value: "2"}, {Name: "MODEL", Value: "large"}}}}
+	combinations, exclusions, err := model.ExpandMatrixWithExclusions(dimensions, exclusions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceCommands := make([]model.QueuedCommand, 0, len(combinations)+1)
+	results := make([]model.JobResult, 0, len(combinations)+1)
+	for index, combination := range combinations {
+		id := fmt.Sprintf("matrix-%d", index)
+		sourceCommands = append(sourceCommands, model.QueuedCommand{
+			ID: id, Name: model.MatrixJobName("train", combination), Command: []string{"train"},
+			Environment: model.MatrixEnvironment(nil, combination),
+			Matrix: &model.MatrixSpec{
+				GroupID: "source-group", Dimensions: dimensions, Values: combination, Exclusions: exclusions, BaseName: "train",
+			},
+		})
+		results = append(results, model.JobResult{ID: id, ExitCode: 0})
+	}
+	sourceCommands = append(sourceCommands, model.QueuedCommand{ID: "tail", Name: "tail", Command: []string{"true"}})
+	results = append(results, model.JobResult{ID: "tail", ExitCode: 0})
+	store, attempts := sourceStore(sourceCommands, results...)
+	queue, removed, err := reconcileManifest(t, store,
+		Job{
+			Name: "train", Command: []string{"train"}, Matrix: []string{"SEED=1,2", "MODEL=small,large"},
+			MatrixExclude: []map[string]string{{"SEED": "2", "MODEL": "large"}}, AttemptID: attempts["matrix-0"],
+		},
+		Job{Name: "tail", Command: []string{"true"}, AttemptID: attempts["tail"]},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(removed) != 0 {
+		t.Fatalf("removed = %#v, want none", removed)
+	}
+	if len(queue.Commands) != len(combinations)+1 {
+		t.Fatalf("reconciled commands = %d, want %d", len(queue.Commands), len(combinations)+1)
+	}
+	if queue.Commands[len(queue.Commands)-1].ID != "tail" || queue.Commands[len(queue.Commands)-1].Origin == nil {
+		t.Fatalf("tail command = %#v, want its source origin", queue.Commands[len(queue.Commands)-1])
+	}
+}
+
+func TestReconcileListsExcludedMatrixSourceMemberAsRemoved(t *testing.T) {
+	dimensions := []model.MatrixDimension{
+		{Name: "SEED", Values: []string{"1", "2"}},
+		{Name: "MODEL", Values: []string{"small", "large"}},
+	}
+	combinations := model.ExpandMatrix(dimensions)
+	sourceCommands := make([]model.QueuedCommand, 0, len(combinations))
+	results := make([]model.JobResult, 0, len(combinations))
+	for index, combination := range combinations {
+		id := fmt.Sprintf("matrix-%d", index)
+		sourceCommands = append(sourceCommands, model.QueuedCommand{
+			ID: id, Name: model.MatrixJobName("train", combination), Command: []string{"train"},
+			Environment: model.MatrixEnvironment(nil, combination),
+			Matrix: &model.MatrixSpec{
+				GroupID: "source-group", Dimensions: dimensions, Values: combination, BaseName: "train",
+			},
+		})
+		results = append(results, model.JobResult{ID: id, ExitCode: 0})
+	}
+	store, attempts := sourceStore(sourceCommands, results...)
+	_, removed, err := reconcileManifest(t, store, Job{
+		Name: "train", Command: []string{"train"}, Matrix: []string{"SEED=1,2", "MODEL=small,large"},
+		MatrixExclude: []map[string]string{{"SEED": "2", "MODEL": "large"}}, AttemptID: attempts["matrix-0"],
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []RemovedJob{{RunID: sourceRunID, JobID: "matrix-3", Name: "train-SEED2-MODELlarge", Command: []string{"train"}}}
+	if !reflect.DeepEqual(removed, want) {
+		t.Fatalf("removed = %#v, want %#v", removed, want)
+	}
+}
+
+func TestReconcileCarriesExcludedMatrixMembersAcrossRunExport(t *testing.T) {
+	dimensions := []model.MatrixDimension{
+		{Name: "SEED", Values: []string{"1", "2"}},
+		{Name: "MODEL", Values: []string{"small", "large"}},
+	}
+	combinations := model.ExpandMatrix(dimensions)
+	sourceCommands := make([]model.QueuedCommand, 0, len(combinations))
+	results := make([]model.JobResult, 0, len(combinations))
+	for index, combination := range combinations {
+		id := fmt.Sprintf("matrix-%d", index)
+		sourceCommands = append(sourceCommands, model.QueuedCommand{
+			ID: id, Name: model.MatrixJobName("train", combination), Command: []string{"train"},
+			Environment: model.MatrixEnvironment(nil, combination),
+			Matrix: &model.MatrixSpec{
+				GroupID: "original-group", Dimensions: dimensions, Values: combination, BaseName: "train",
+			},
+		})
+		results = append(results, model.JobResult{ID: id, ExitCode: 0})
+	}
+	store, attempts := sourceStore(sourceCommands, results...)
+	job := Job{
+		Name: "train", Command: []string{"train"}, Matrix: []string{"SEED=1,2", "MODEL=small,large"},
+		MatrixExclude: []map[string]string{{"SEED": "2", "MODEL": "large"}}, AttemptID: attempts["matrix-0"],
+	}
+	firstQueue, _, err := reconcileManifest(t, store, job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	carriedResults := make([]model.JobResult, 0, len(firstQueue.Commands))
+	for _, command := range firstQueue.Commands {
+		carriedResults = append(carriedResults, model.JobResult{ID: command.ID, AttemptID: attempts[command.ID], ExitCode: 0})
+	}
+	secondRun := SourceRun{
+		ID: laterRunID, Queue: model.Queue{Commands: firstQueue.Commands},
+		Summary: model.RunSummary{Results: carriedResults}, CWD: "/work", JobTimestamps: noTimestamps,
+	}
+	store.runs[laterRunID] = secondRun
+	exported, err := MergeRuns("demo", []SourceRun{secondRun})
+	if err != nil {
+		t.Fatalf("MergeRuns: %v", err)
+	}
+	queue, err := Compile(exported, sequentialIDs())
+	if err != nil {
+		t.Fatalf("Compile exported manifest: %v", err)
+	}
+	reconciled, _, err := Reconcile(exported, queue, store)
+	if err != nil {
+		t.Fatalf("Reconcile exported manifest: %v", err)
+	}
+	if len(reconciled.Commands) != len(firstQueue.Commands) {
+		t.Fatalf("reconciled commands = %d, want %d", len(reconciled.Commands), len(firstQueue.Commands))
+	}
+	for index, command := range reconciled.Commands {
+		if command.ID != firstQueue.Commands[index].ID || command.Origin == nil {
+			t.Errorf("command %d = %#v, want carried ID %q and origin", index, command, firstQueue.Commands[index].ID)
+		}
+	}
+}
+
+func TestMergeRunsKeepsExcludedHistoricalMatrixMemberAsStandalone(t *testing.T) {
+	dimensions := []model.MatrixDimension{
+		{Name: "SEED", Values: []string{"1", "2"}},
+		{Name: "MODEL", Values: []string{"small", "large"}},
+	}
+	combinations := model.ExpandMatrix(dimensions)
+	sourceCommands := make([]model.QueuedCommand, 0, len(combinations))
+	results := make([]model.JobResult, 0, len(combinations))
+	for index, combination := range combinations {
+		id := fmt.Sprintf("matrix-%d", index)
+		sourceCommands = append(sourceCommands, model.QueuedCommand{
+			ID: id, Name: model.MatrixJobName("train", combination), Command: []string{"train"},
+			Environment: model.MatrixEnvironment(nil, combination),
+			Matrix: &model.MatrixSpec{
+				GroupID: "original-group", Dimensions: dimensions, Values: combination, BaseName: "train",
+			},
+		})
+		results = append(results, model.JobResult{ID: id, ExitCode: 0})
+	}
+	sourceCommands = append(sourceCommands, model.QueuedCommand{ID: "evaluate", Name: "evaluate", Command: []string{"evaluate"}, DependsOn: []string{"train"}})
+	results = append(results, model.JobResult{ID: "evaluate", ExitCode: 0})
+	store, attempts := sourceStore(sourceCommands, results...)
+	firstQueue, _, err := reconcileManifest(t, store,
+		Job{
+			Name: "train", Command: []string{"train"}, Matrix: []string{"SEED=1,2", "MODEL=small,large"},
+			MatrixExclude: []map[string]string{{"SEED": "2", "MODEL": "large"}}, AttemptID: attempts["matrix-0"],
+		},
+		Job{Name: "evaluate", Command: []string{"evaluate"}, DependsOn: []string{"train"}, AttemptID: attempts["evaluate"]},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	carriedResults := make([]model.JobResult, 0, len(firstQueue.Commands))
+	for _, command := range firstQueue.Commands {
+		carriedResults = append(carriedResults, model.JobResult{ID: command.ID, AttemptID: attempts[command.ID], ExitCode: 0})
+	}
+	secondRun := SourceRun{
+		ID: laterRunID, Queue: model.Queue{Commands: firstQueue.Commands},
+		Summary: model.RunSummary{Results: carriedResults}, CWD: "/work", JobTimestamps: noTimestamps,
+	}
+	merged, err := MergeRuns("demo", []SourceRun{secondRun, store.runs[sourceRunID]})
+	if err != nil {
+		t.Fatalf("MergeRuns: %v", err)
+	}
+	var matrixJob, historicalJob, evaluateJob *Job
+	for index := range merged.Jobs {
+		job := &merged.Jobs[index]
+		switch job.Name {
+		case "train":
+			matrixJob = job
+		case "train-SEED2-MODELlarge":
+			historicalJob = job
+		case "evaluate":
+			evaluateJob = job
+		}
+	}
+	if matrixJob == nil || !reflect.DeepEqual(matrixJob.MatrixExclude, []map[string]string{{"MODEL": "large", "SEED": "2"}}) || historicalJob == nil || len(historicalJob.Matrix) != 0 || evaluateJob == nil || !reflect.DeepEqual(evaluateJob.DependsOn, []string{"train"}) {
+		t.Fatalf("merged jobs = %#v, want excluded matrix, standalone historical leaf, and intact base-name dependency", merged.Jobs)
+	}
+	queue, err := Compile(merged, sequentialIDs())
+	if err != nil {
+		t.Fatalf("Compile merged manifest: %v", err)
+	}
+	if len(queue.Commands) != 5 {
+		t.Fatalf("merged queue commands = %d, want 5", len(queue.Commands))
 	}
 }
 
