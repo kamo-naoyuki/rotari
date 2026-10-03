@@ -250,3 +250,35 @@
 - **Remaining:** 643 control/external pairs, alternate-location/config
   witnesses, and the existing observation gaps. Investigate file-pair fixture
   quiescence separately; a successful rerun does not resolve that issue.
+
+## Wait adapter and per-package runtime budget
+
+**Commit:** `dd5cd67` — 2026-10-03T17:27:54+09:00
+
+- **Change:** Added all 21 `wait` pairs in both orders and seven standalone
+  samples. Completed failed runs must return the fixture's exit 1 with empty
+  stderr, correct text/JSON output, and unchanged state. Synthetic remote
+  locks without a summary demonstrate timeout, CLI timeout precedence over
+  config/environment, and early final-failure output in text and JSON.
+  Added CLI-12 and extended RUN-6 coverage; no production semantics changed.
+- **Reason:** Extend control coverage safely while preventing the combined
+  interface package from exceeding Go's default ten-minute timeout.
+- **Plan impact:** 5,859 executed of 6,481 pairs; 622 deferred. The user chose
+  package splitting rather than changing CI timeouts. Fixture/schema/bounded
+  invocation/NFS restoration moved to `conformance/support/pairs.go`; edit
+  suites moved to `pairedits`, run/recovery/wait suites to `pairruns`, while
+  read/file/projection checks stay in the parent group. Contract discovery
+  already recurses into child packages, so layout mapping is unchanged.
+  All 24 pre-existing pair test functions are retained, with no short/race
+  exclusions and no change to CI timeout settings.
+- **Validation:** Wait samples, 21 pairs, semantic witnesses, focused race,
+  contract/layout, document links, and uncached architecture checks passed.
+  Before splitting, default-timeout short checks failed at 606.14s, while
+  a 30-minute-budget run passed; logs retain the failure and original exit 1.
+  After splitting, uncached normal packages passed in 104.87/354.09/156.48s;
+  uncached race packages passed in 85.56/414.96/148.14s. Full
+  `scripts/check.sh` passed with the default timeout, including vet and race,
+  exit 0. Gofmt and diff checks passed; pre-commit is unavailable. Unrelated
+  projection edits were excluded from the commit.
+- **Remaining:** 622 control/external pairs and the documented observation
+  gaps, including actual run synchronization and retry-in-progress behavior.
