@@ -51,6 +51,9 @@ func (f pairMutationFixture) editArgs(t *testing.T, command string, flags []pair
 	}
 	switch command {
 	case "add":
+		if pairHasFlag(flags, "matrix-exclude") && !pairHasFlag(flags, "matrix") {
+			args = append(args, "--matrix", "SEED=4,6")
+		}
 		args = append(args, "--", "true")
 	case "change":
 		if !selector {
@@ -116,6 +119,9 @@ func pairEditSample(t *testing.T, f pairMutationFixture, command string, flag pa
 	}
 	if command == "add" && flag.Name == "matrix" {
 		values[flag.Name] = "SEED=4,6"
+	}
+	if command == "add" && flag.Name == "matrix-exclude" {
+		values[flag.Name] = "SEED=4"
 	}
 	if command == "add" && flag.Name == "job-name" {
 		values[flag.Name] = "pair-added"

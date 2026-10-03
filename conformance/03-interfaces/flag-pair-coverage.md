@@ -95,19 +95,20 @@ implementation imports. The staged rollout is tracked in the
   check JSON remains emitted, export's explicit run source wins over a distinct
   current queue with file output, and template/notification modes produce their
   own distinct content. These are not blanket equal-output exceptions.
-- `TestCLIFlagPairEdits` executes all 300 `add`, 703 `change`, 496 `copy`, and
-  21 `import` pairs (1,520 pairs; 3,040 invocations). Each flag order starts
+- `TestCLIFlagPairEdits` executes all 325 `add`, 703 `change`, 496 `copy`, and
+  21 `import` pairs (1,545 pairs; 3,090 invocations). Each flag order starts
   from the restored root, and rejected edits/previews must leave it byte-identical.
   Import plan revisions are checked against `check` before normalization. Newly
   allocated command/matrix IDs use a one-to-one mapping in encounter order;
   existing fixture IDs and provenance remain literal. A normalization check
   guards against lost identity/collision distinctions.
-- Edit effect witnesses verify 19 added command fields survive `--quiet`,
-  ten change settings have visible values, copy's failed/stage selection is the
+- Edit effect witnesses verify 19 added command fields survive `--quiet`, ten
+  change settings have visible values, copy's failed/stage selection is the
   same intersection in both orders and in long forms, and JSON import preview
-  leaves state unchanged while overwrite applies the manifest. These focused
-  witnesses supplement the pair loop, rather than treating a successful exit as
-  proof that each option took effect.
+  leaves state unchanged while overwrite applies the manifest. A separate add
+  witness verifies `--matrix-exclude` persists its rule and removes the
+  requested combination. These focused witnesses supplement the pair loop,
+  rather than treating a successful exit as proof that each option took effect.
 - `TestCLIFlagPairPreviews` executes all 1,830 `run` and 1,830 `retry`
   pairs in both orders through `--dry-run`. Four concurrent cases compare
   output and exit status and verify that fixture state stays unchanged.

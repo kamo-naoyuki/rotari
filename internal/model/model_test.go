@@ -280,6 +280,22 @@ func TestParseMatrixDimensionRejectsInvalidValues(t *testing.T) {
 	}
 }
 
+func TestParseMatrixExclusion(t *testing.T) {
+	exclusion, err := ParseMatrixExclusion("SEED=2,MODEL=large")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := MatrixExclusion{Values: []MatrixValue{{Name: "SEED", Value: "2"}, {Name: "MODEL", Value: "large"}}}
+	if !reflect.DeepEqual(exclusion, want) {
+		t.Fatalf("ParseMatrixExclusion = %#v, want %#v", exclusion, want)
+	}
+	for _, value := range []string{"", "SEED", "=2", "SEED=", "SEED=2,,MODEL=large", "bad-key=value", "SEED=1,SEED=2"} {
+		if _, err := ParseMatrixExclusion(value); err == nil {
+			t.Errorf("ParseMatrixExclusion(%q) returned nil error", value)
+		}
+	}
+}
+
 func TestClearIncompleteMatrixGroups(t *testing.T) {
 	dimensions := []MatrixDimension{{Name: "SEED", Values: []string{"1", "2"}}}
 	commands := []QueuedCommand{

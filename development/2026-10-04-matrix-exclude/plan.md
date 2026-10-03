@@ -1,10 +1,10 @@
-# Plan: Matrix Exclusions in Workflow Manifests
+# Plan: Matrix Exclusions in Workflow Manifests and CLI
 
 **Created:** 2026-10-04
 
-**Status:** Implemented; focused normal and race tests pass. Full-check
-failures outside the feature are recorded below; a clean full-check pass has
-not been obtained.
+**Status:** Workflow-manifest and `rotari add --matrix-exclude` implementations
+are complete. Focused unit, binary conformance, add flag-pair, and generated-doc
+checks pass. The changes are ready for final review and commit.
 
 ## Purpose
 
@@ -17,8 +17,13 @@ group's expected members.
 
 - Add **exclude only**. `include` and GitHub Actions-style row merging are
   non-goals; adding another matrix remains expressible as another job.
-- Scope the feature to workflow manifests and their import/export path. The
-  existing `rotari add --matrix` interface remains unchanged.
+- Support both workflow manifests (`matrix_exclude`) and `rotari add`
+  (`--matrix-exclude`). The CLI option is repeatable and each occurrence is
+  one partial assignment rule in `KEY=VALUE[,KEY=VALUE...]` form.
+- `--matrix-exclude` requires at least one `--matrix`; without it, `add` must
+  fail with an error naming the required option. Do not silently ignore it.
+- The CLI option is command-line-only; configuration and environment variables
+  must not apply it to an unrelated `add` invocation.
 - Proposed manifest syntax: an optional matrix-specific `matrix_exclude` list
   of partial dimension assignments, alongside the existing `matrix` field.
   For example:
@@ -46,9 +51,10 @@ group's expected members.
   Older rotari versions may reject queues containing excluded groups because
   their validator expects the full Cartesian product; they must not silently
   accept such a group as complete.
-- Web matrix grids need no new interaction in this scope. An excluded
-  combination has no queued member and remains displayed like another absent
-  cell; adding a distinct visual marker is a non-goal.
+- Web matrix grids need no exclusion-specific API field: the UI already builds
+  cells from the dimensions and actual members, so excluded combinations
+  naturally render as empty cells. No distinct visual marker or interactive
+  exclusion editor is in scope.
 
 ## Implementation approach
 
@@ -57,8 +63,7 @@ group's expected members.
 - Add a model representation for normalized exclusions and a shared expansion
   helper that returns the Cartesian combinations in existing order, minus any
   combination matched by an exclusion rule.
-- Keep `ExpandMatrix` behavior for callers that do not pass exclusions, or
-  provide a small wrapper so existing CLI matrix expansion is unchanged.
+- Keep `ExpandMatrix` behavior for callers that do not pass exclusions.
 - Normalize each rule against declared dimension order for persisted metadata
   and deterministic comparison. Reject unknown dimensions, undeclared values,
   empty rules, duplicate rules, and an empty effective matrix with actionable
@@ -102,10 +107,14 @@ group's expected members.
   limitations if needed.
 - Update the matrix behavior in
   `contracts/02-run-lifecycle-and-execution.md` and its status/representative
-  test entry in `contracts/README.md`.
-- Add a binary-level conformance case for importing an excluded matrix and
-  exporting it again. Do not change Web rendering unless implementation
-  evidence shows that an existing Web contract is violated.
+  test entry in `contracts/README.md`; document both CLI and manifest surfaces.
+- Add binary-level conformance for manifest and CLI add/export behavior.
+- Add `matrix-exclude` to the schema-driven `add` flag-pair inventory and
+  samples. Supply a witness matrix when testing `matrix-exclude` alone, and
+  separately check persisted matrix values/exclusions so an accepted but
+  ignored option cannot pass a generic baseline comparison.
+- Regenerate CLI references and goldens. Do not change Web rendering unless
+  implementation evidence shows that an existing Web contract is violated.
 
 ## Tests and completion criteria
 
@@ -119,8 +128,14 @@ group's expected members.
   excluded member.
 - Queue mutation tests prove that a complete excluded matrix retains
   provenance and that removing/copying only some effective members clears it.
-- Conformance verifies the user-visible import/export behavior through the
-  built binary and checks the relevant contract ID.
+- Conformance verifies manifest and CLI add/import/export behavior, matrix-less
+  CLI rejection, and the relevant contract ID through the built binary.
+- CLI tests verify repeatable exclusions, array composition, no-matrix
+  rejection, malformed/undeclared values, all-excluded rejection, and stored
+  exclusion provenance. The add flag-pair inventory, valid sample strategy,
+  and distinguishing effect witness include the new option.
+- Generated CLI reference, schema/help goldens, Python CLI wrapper, and Python
+  API documentation are regenerated and verified.
 - Run focused model/workflow tests first, then affected package tests,
   conformance tests, formatting/vet, and the repository's full check before
   completion. Inspect the final diff and update this plan with decisions and
@@ -128,8 +143,7 @@ group's expected members.
 
 ## Non-goals
 
-- Adding matrix `include`, row merging, CLI `add --exclude`, or a Web control
-  for exclusions.
+- Adding matrix `include`, row merging, or a Web control for exclusions.
 - Changing the order or naming of existing matrix combinations.
 - Treating manually deleted combinations as declared exclusions; partial
   queue edits continue to drop matrix provenance.
@@ -142,6 +156,20 @@ group's expected members.
   race detector, including both queue and settled-run export/import.
 - Contract status, conformance layout, Markdown links, Go formatting, and
   diff whitespace checks passed. `pre-commit` was unavailable in PATH.
+- Added repeatable command-line-only `rotari add --matrix-exclude`; supplying
+  it without `--matrix` errors. The parser/add/array/config tests passed, as
+  did the binary CLI/manifest export-import and no-matrix conformance case.
+  The add flag-pair inventory now has 26 flags and 325 pairs; the complete
+  `TestCLIFlagPairEdits` suite passed (1,545 pairs across add/change/copy/import,
+  3,090 invocations). The dedicated exclusion-effect witness and all add pairs
+  involving the new flag passed. CLI/Python/API docs and help/schema goldens
+  were regenerated; generated CLI reference checks, README sync, and strict
+  MkDocs build passed.
+- After the CLI change, `go vet ./...`, uncached affected Go package tests,
+  `TestWorkflowMatrixExclusionExportImport` (normal and race),
+  `TestCLIFlagPairInventory`, `TestCLIFlagPairEditSamples`, and
+  `TestCLIAddMatrixExclusionEffect` passed. The focused race run for
+  `cmd/rotari`, model, workflow, queueedit, and queueops also passed.
 - Full checks were attempted. Earlier runs completed all normal tests, but
   race validation failed once at the pairedits package's ten-minute timeout
   and once at a CLI vet dependency import error. The CLI race package passed

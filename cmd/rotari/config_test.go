@@ -574,7 +574,10 @@ func TestExecutorRunSettingsIncludeCommandLineValues(t *testing.T) {
 
 func TestCommandLineOnlyFlagIgnoresConfigAndStaysOutOfTemplate(t *testing.T) {
 	oldConfig, oldCommand := cliConfig, cliConfigCommand
-	cliConfig = map[string]any{"output": "top.yaml", "export": map[string]any{"output": "section.yaml"}}
+	cliConfig = map[string]any{
+		"output": "top.yaml", "export": map[string]any{"output": "section.yaml"},
+		"add": map[string]any{"matrix-exclude": "SEED=1"},
+	}
 	cliConfigCommand = "export"
 	t.Cleanup(func() {
 		cliConfig = oldConfig
@@ -589,6 +592,18 @@ func TestCommandLineOnlyFlagIgnoresConfigAndStaysOutOfTemplate(t *testing.T) {
 	for _, name := range sections["export"] {
 		if name == "output" {
 			t.Fatalf("config template lists command-line-only export option %q", name)
+		}
+	}
+	cliConfigCommand = "add"
+	var exclusions stringSliceFlag
+	cliValue(flag.NewFlagSet("add", flag.ContinueOnError), &exclusions, "matrix-exclude")
+	if len(exclusions) != 0 {
+		t.Fatalf("add --matrix-exclude read config value %v", exclusions)
+	}
+	sections, _ = configSections()
+	for _, name := range sections["add"] {
+		if name == "matrix-exclude" {
+			t.Fatal("config template lists command-line-only add option matrix-exclude")
 		}
 	}
 }

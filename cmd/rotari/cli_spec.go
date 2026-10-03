@@ -364,6 +364,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "retry-max-delay", Description: "upper limit of the retry delay, such as 10m", ValueName: "DURATION"},
 			cliFlagSpec{Name: "array", Description: "create an array job range or selected tasks", ValueName: "FIRST-LAST|TASK[,TASK...]"},
 			cliFlagSpec{Name: "matrix", Description: "expand a command into jobs from KEY=VALUE[,VALUE...] dimensions; may be repeated", ValueName: "KEY=VALUE[,VALUE...]"},
+			cliFlagSpec{Name: "matrix-exclude", Description: "exclude matrix combinations matching KEY=VALUE[,KEY=VALUE...]; requires --matrix and may be repeated", ValueName: "KEY=VALUE[,KEY=VALUE...]", Repeated: true, CommandLineOnly: true},
 			cliFlagSpec{Name: "quiet", Description: "suppress success output"},
 		),
 		Positional: "<command ...>",

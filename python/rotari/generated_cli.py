@@ -1576,6 +1576,14 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "KEY=VALUE[,VALUE...]",
                 },
                 {
+                    "description": "exclude matrix combinations matching "
+                    "KEY=VALUE[,KEY=VALUE...]; requires --matrix "
+                    "and may be repeated",
+                    "name": "matrix-exclude",
+                    "repeated": True,
+                    "value_name": "KEY=VALUE[,KEY=VALUE...]",
+                },
+                {
                     "description": "suppress success output",
                     "environment": "ROTARI_QUIET",
                     "name": "quiet",

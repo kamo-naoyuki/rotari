@@ -180,6 +180,69 @@ func TestCmdAddCombinesMatrixWithSparseArray(t *testing.T) {
 	}
 }
 
+func TestCmdAddMatrixExclusions(t *testing.T) {
+	baseDir := t.TempDir()
+	args := []string{
+		"--basedir", baseDir, "--project-name", "demo", "--job-name", "train",
+		"--matrix", "SEED=1,2", "--matrix", "MODEL=small,large",
+		"--matrix-exclude", "SEED=2,MODEL=large", "--matrix-exclude", "MODEL=small,SEED=1",
+		"--array", "1-2", "echo", "hello",
+	}
+	if code := cmdAdd(args); code != 0 {
+		t.Fatalf("cmdAdd exit code = %d, want 0", code)
+	}
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.Commands) != 2 {
+		t.Fatalf("queue commands = %d, want 2 remaining combinations", len(queue.Commands))
+	}
+	want := []model.MatrixValue{{Name: "SEED", Value: "1"}, {Name: "MODEL", Value: "large"}}
+	if !reflect.DeepEqual(queue.Commands[0].Matrix.Values, want) {
+		t.Fatalf("first matrix values = %#v, want %#v", queue.Commands[0].Matrix.Values, want)
+	}
+	wantExclusions := []model.MatrixExclusion{
+		{Values: []model.MatrixValue{{Name: "SEED", Value: "2"}, {Name: "MODEL", Value: "large"}}},
+		{Values: []model.MatrixValue{{Name: "SEED", Value: "1"}, {Name: "MODEL", Value: "small"}}},
+	}
+	if !reflect.DeepEqual(queue.Commands[0].Matrix.Exclusions, wantExclusions) || !reflect.DeepEqual(queue.Commands[1].Matrix.Exclusions, wantExclusions) {
+		t.Fatalf("matrix exclusions = %#v / %#v, want %#v", queue.Commands[0].Matrix.Exclusions, queue.Commands[1].Matrix.Exclusions, wantExclusions)
+	}
+	for _, command := range queue.Commands {
+		if command.Array == nil || command.Array.First != 1 || command.Array.Last != 2 {
+			t.Errorf("matrix command array = %#v, want 1-2", command.Array)
+		}
+	}
+}
+
+func TestCmdAddMatrixExclusionRequiresValidMatrix(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "without matrix", args: []string{"--matrix-exclude", "SEED=1", "true"}, want: "--matrix-exclude requires --matrix"},
+		{name: "malformed exclusion", args: []string{"--matrix", "SEED=1,2", "--matrix-exclude", "SEED", "true"}, want: "invalid --matrix-exclude"},
+		{name: "unknown dimension", args: []string{"--matrix", "SEED=1,2", "--matrix-exclude", "MODEL=small", "true"}, want: "unknown dimension"},
+		{name: "undeclared value", args: []string{"--matrix", "SEED=1,2", "--matrix-exclude", "SEED=3", "true"}, want: "undeclared value"},
+		{name: "all combinations excluded", args: []string{"--matrix", "SEED=1,2", "--matrix-exclude", "SEED=1", "--matrix-exclude", "SEED=2", "true"}, want: "removes every matrix combination"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			args := append([]string{"--basedir", t.TempDir(), "--project-name", "demo"}, test.args...)
+			code, stderr := captureStderr(t, func() int { return cmdAdd(args) })
+			if code != 1 || !strings.Contains(stderr, test.want) {
+				t.Fatalf("cmdAdd = (%d, %q), want error containing %q", code, stderr, test.want)
+			}
+		})
+	}
+}
+
 func TestSanitizeMatrixName(t *testing.T) {
 	for value, want := range map[string]string{
 		"3.10":       "3.10",

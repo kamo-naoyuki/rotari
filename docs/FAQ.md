@@ -234,7 +234,9 @@ Cartesian-product combination as an independent job and exposes its values as
 ordinary `KEY=VALUE` environment variables. Matrix jobs can be combined with
 `--array`; the array is applied to each matrix combination. Workflow manifests
 can use `matrix_exclude` to omit selected combinations; the rule is retained by
-queue and run exports. `rotari add --matrix` does not currently accept exclusions.
+queue and run exports. `rotari add` also accepts repeatable
+`--matrix-exclude KEY=VALUE[,KEY=VALUE...]` rules, which require `--matrix` and
+are retained in queue and run exports.
 
 ### Can I reference a matrix value inside the command string, like `$KEY`?
 

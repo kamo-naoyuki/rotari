@@ -44,8 +44,11 @@ independent job IDs and can be combined with `--array`; the array is applied to
 each matrix combination. `--depends-on` can name the matrix's `--job-name` (for
 example `--depends-on train`) to wait for every combination. If `copy`,
 `remove`, or `change` later touches only part of the matrix, such dependencies
-are rewritten to the remaining combination names. `include` and `exclude`
-customization is not supported by the version 1 workflow manifest.
+are rewritten to the remaining combination names. Repeat
+`--matrix-exclude KEY=VALUE[,KEY=VALUE...]` to omit matching combinations; all
+assignments in a rule must match, and separate rules are alternatives. The
+option requires `--matrix`, and workflow export retains the exclusion rules.
+Workflow manifests accept the equivalent `matrix_exclude` list.
 
 The Slurm and PBS executors are integration-tested in CI against a Slurm
 container and an OpenPBS container. These tests do not certify compatibility

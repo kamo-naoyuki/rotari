@@ -432,6 +432,7 @@ Usage: `rotari add <command ...>`
 | `--retry-max-delay` | `DURATION` | `` | upper limit of the retry delay, such as 10m |
 | `--array` | `FIRST-LAST\|TASK[,TASK...]` | `ROTARI_ARRAY_RANGE` | create an array job range or selected tasks |
 | `--matrix` | `KEY=VALUE[,VALUE...] (repeatable)` | `` | expand a command into jobs from KEY=VALUE[,VALUE...] dimensions; may be repeated |
+| `--matrix-exclude` | `KEY=VALUE[,KEY=VALUE...] (repeatable)` | `` | exclude matrix combinations matching KEY=VALUE[,KEY=VALUE...]; requires --matrix and may be repeated |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
 | `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
 | `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |

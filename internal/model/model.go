@@ -111,6 +111,17 @@ type MatrixSpec struct {
 	BaseEnvironment []string          `json:"base_environment,omitempty"`
 }
 
+func CloneMatrixExclusions(exclusions []MatrixExclusion) []MatrixExclusion {
+	if len(exclusions) == 0 {
+		return nil
+	}
+	cloned := make([]MatrixExclusion, len(exclusions))
+	for index, exclusion := range exclusions {
+		cloned[index].Values = append([]MatrixValue(nil), exclusion.Values...)
+	}
+	return cloned
+}
+
 func ParseMatrixDimension(value string) (MatrixDimension, error) {
 	name, valuesText, ok := strings.Cut(value, "=")
 	if !ok || !ValidEnvironmentName(name) {
@@ -130,6 +141,29 @@ func ParseMatrixDimension(value string) (MatrixDimension, error) {
 		values = append(values, part)
 	}
 	return MatrixDimension{Name: name, Values: values}, nil
+}
+
+// ParseMatrixExclusion parses one partial matrix exclusion in KEY=VALUE form,
+// with comma-separated assignments for a multi-dimension rule.
+func ParseMatrixExclusion(value string) (MatrixExclusion, error) {
+	parts := strings.Split(value, ",")
+	assignments := make([]MatrixValue, 0, len(parts))
+	seen := make(map[string]bool, len(parts))
+	for _, part := range parts {
+		name, assignedValue, ok := strings.Cut(part, "=")
+		if !ok || !ValidEnvironmentName(name) {
+			return MatrixExclusion{}, fmt.Errorf("want KEY=VALUE[,KEY=VALUE...]")
+		}
+		if assignedValue == "" {
+			return MatrixExclusion{}, fmt.Errorf("matrix exclusion %q has an empty value", name)
+		}
+		if seen[name] {
+			return MatrixExclusion{}, fmt.Errorf("matrix exclusion repeats dimension %q", name)
+		}
+		seen[name] = true
+		assignments = append(assignments, MatrixValue{Name: name, Value: assignedValue})
+	}
+	return MatrixExclusion{Values: assignments}, nil
 }
 
 func ExpandMatrix(dimensions []MatrixDimension) [][]MatrixValue {

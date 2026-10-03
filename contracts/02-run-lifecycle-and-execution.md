@@ -99,10 +99,12 @@
   [internal/model/model.go](../internal/model/model.go); covered by
   `TestArrayNameDependsOnEveryTask` in
   [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
-- **RUN-8** A workflow manifest's `matrix_exclude` omits each Cartesian
-  combination matching all assignments in any exclusion rule. The normalized
-  exclusions are stored with matrix provenance, and queue/run export followed
-  by import preserves the same effective combinations. Covered by
+- **RUN-8** A workflow manifest's `matrix_exclude` and `rotari add`'s
+  `--matrix-exclude` omit each Cartesian combination matching all assignments
+  in any exclusion rule. The CLI option requires `--matrix`; supplying it
+  without a matrix is an error. Normalized exclusions are stored with matrix
+  provenance, and queue/run export followed by import preserves the same
+  effective combinations. Covered by
   `TestWorkflowMatrixExclusionExportImport` in
   [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
 
@@ -220,7 +222,8 @@
   Matrix and array expansion can be combined; the array is applied to each
   matrix combination. Expanded commands also store matrix group provenance so
   queue and run export can reconstruct the compact declaration. Workflow
-  manifests may add `matrix_exclude` partial assignments; a generated
+  manifests may add `matrix_exclude` partial assignments, and `add` may take
+  repeatable `--matrix-exclude KEY=VALUE[,KEY=VALUE...]` rules; a generated
   combination is omitted when it matches every assignment in any rule. The
   normalized rules are part of matrix provenance, and queue/run export retains
   them. Group validation and manifest reconciliation use the effective

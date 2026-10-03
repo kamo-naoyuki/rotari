@@ -525,6 +525,10 @@ func TestImportedWorkflowRunsFreshJobs(t *testing.T) {
 func TestWorkflowMatrixExclusionExportImport(t *testing.T) {
 	covers(t, "RUN-8")
 	e := support.NewEnv(t)
+	withoutMatrix := e.Rotari("add", "-p", "invalid", "--matrix-exclude", "SEED=1", "--", "true")
+	if withoutMatrix.Code == 0 || !strings.Contains(withoutMatrix.Stderr, "--matrix-exclude requires --matrix") {
+		t.Fatalf("add without --matrix result = %s, want a matrix requirement error", withoutMatrix)
+	}
 	manifestPath := filepath.Join(e.Root, "matrix.yaml")
 	manifest := `version: 1
 jobs:
@@ -570,6 +574,26 @@ jobs:
 	reusedSummary := readSummary(t, e, "copy")
 	if len(reusedSummary.Results) != 3 {
 		t.Fatalf("run round trip produced %d results, want 3", len(reusedSummary.Results))
+	}
+	e.MustRotari(
+		"add", "-p", "cli-source", "--job-name", "train",
+		"--matrix", "SEED=1,2", "--matrix", "MODEL=small,large",
+		"--matrix-exclude", "SEED=2,MODEL=large", "--", "true",
+	)
+	cliExportPath := filepath.Join(e.Root, "cli-exported.yaml")
+	e.MustRotari("export", "cli-source", cliExportPath)
+	cliExported, err := os.ReadFile(cliExportPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(cliExported), "matrix_exclude:") {
+		t.Fatalf("CLI matrix exclusion was not retained in export:\n%s", cliExported)
+	}
+	e.MustRotari("import", cliExportPath, "cli-copy")
+	e.MustRotari("run", "-p", "cli-copy", "--quiet")
+	cliSummary := readSummary(t, e, "cli-copy")
+	if len(cliSummary.Results) != 3 {
+		t.Fatalf("CLI matrix export/import produced %d results, want 3", len(cliSummary.Results))
 	}
 }
 

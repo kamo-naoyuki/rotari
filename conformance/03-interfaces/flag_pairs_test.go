@@ -38,7 +38,7 @@ var pairInventory = map[string]struct {
 	"jobs":       {7, "1e1d7aac6605a457"},
 	"diagnose":   {11, "35f246a94a4dc9c5"},
 	"wait":       {7, "9b5b3531f64908b2"},
-	"add":        {25, "b5634affd2752931"},
+	"add":        {26, "a05e6b70ac64e066"},
 	"copy":       {32, "25806ce2d014cab0"},
 	"run":        {61, "e862f91f6923f288"},
 	"retry":      {61, "e862f91f6923f288"},

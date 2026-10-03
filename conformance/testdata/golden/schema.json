@@ -1168,6 +1168,10 @@
           "value_name": "KEY=VALUE[,VALUE...]"
         },
         {
+          "name": "matrix-exclude",
+          "value_name": "KEY=VALUE[,KEY=VALUE...]"
+        },
+        {
           "name": "quiet"
         },
         {

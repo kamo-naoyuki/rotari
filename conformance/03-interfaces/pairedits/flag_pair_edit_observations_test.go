@@ -164,6 +164,27 @@ func TestCLIFlagPairAddObservability(t *testing.T) {
 	}
 }
 
+func TestCLIAddMatrixExclusionEffect(t *testing.T) {
+	f := newPairMutationFixture(t)
+	baseline := pairAddDefinition(t, f, []pairFlag{{Name: "matrix", ValueName: "KEY=VALUE[,VALUE...]"}})
+	combined := pairAddDefinition(t, f, []pairFlag{
+		{Name: "matrix", ValueName: "KEY=VALUE[,VALUE...]"},
+		{Name: "matrix-exclude", ValueName: "KEY=VALUE[,KEY=VALUE...]"},
+	})
+	var matrix struct {
+		Values     []struct{ Name, Value string } `json:"values"`
+		Exclusions []struct {
+			Values []struct{ Name, Value string } `json:"values"`
+		} `json:"exclusions"`
+	}
+	if err := json.Unmarshal(combined["matrix"], &matrix); err != nil {
+		t.Fatal(err)
+	}
+	if reflect.DeepEqual(combined["matrix"], baseline["matrix"]) || len(matrix.Exclusions) != 1 || len(matrix.Values) != 1 || matrix.Values[0].Name != "SEED" || matrix.Values[0].Value != "6" {
+		t.Fatalf("--matrix-exclude did not remove the seeded matrix value: baseline=%s combined=%s", baseline["matrix"], combined["matrix"])
+	}
+}
+
 func pairCopyNames(t *testing.T, f pairMutationFixture, args ...string) []string {
 	t.Helper()
 	f.Initial.Restore(t, f.E.Root, *f.Current)

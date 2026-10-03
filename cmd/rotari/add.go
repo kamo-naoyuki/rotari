@@ -46,6 +46,8 @@ func cmdAdd(args []string) int {
 	arrayRange := cliString(fs, "array", "")
 	var matrixValues stringSliceFlag
 	cliValue(fs, &matrixValues, "matrix")
+	var matrixExclusionValues stringSliceFlag
+	cliValue(fs, &matrixExclusionValues, "matrix-exclude")
 	quiet := cliBool(fs, "quiet", false)
 	guard := cliGuardFlags(fs)
 	if err := parseLeadingFlags(fs, args); err != nil {
@@ -65,20 +67,10 @@ func cmdAdd(args []string) int {
 		}
 		array = &parsed
 	}
-	dimensions := make([]model.MatrixDimension, 0, len(matrixValues))
-	dimensionNames := make(map[string]bool, len(matrixValues))
-	for _, value := range matrixValues {
-		dimension, parseErr := model.ParseMatrixDimension(value)
-		if parseErr != nil {
-			printErrorf("invalid --matrix: %v", parseErr)
-			return 1
-		}
-		if dimensionNames[dimension.Name] {
-			printErrorf("invalid --matrix: duplicate key %q", dimension.Name)
-			return 1
-		}
-		dimensionNames[dimension.Name] = true
-		dimensions = append(dimensions, dimension)
+	matrix, err := parseAddMatrix(matrixValues, matrixExclusionValues)
+	if err != nil {
+		printError(err)
+		return 1
 	}
 	baseDir, _, err := state.ResolveBaseDir(*basedir)
 	if err != nil {
@@ -134,7 +126,11 @@ func cmdAdd(args []string) int {
 		printError(err)
 		return 1
 	}
-	commands := expandMatrixCommands(left, *executor, executorOptions, environment, *workingDirectory, *jobName, *stage, dependsOn, dimensions)
+	commands := expandMatrixCommands(left, addCommandOptions{
+		executor: *executor, executorOptions: executorOptions, environment: environment,
+		workingDirectory: *workingDirectory, jobName: *jobName, stage: *stage,
+		dependsOn: dependsOn, matrix: matrix,
+	})
 	for index := range commands {
 		commands[index].Output = normalizeOutputPaths(outputPaths)
 		commands[index].Error = normalizeOutputPaths(errorPaths)
@@ -185,21 +181,71 @@ func normalizeOutputPaths(paths []string) []string {
 	return result
 }
 
-func expandMatrixCommands(command []string, executor string, executorOptions, environment []string, workingDirectory, jobName, stage string, dependsOn []string, dimensions []model.MatrixDimension) []model.QueuedCommand {
-	if len(dimensions) == 0 {
-		return []model.QueuedCommand{{Command: command, Executor: executor, ExecutorOptions: executorOptions, Environment: environment, WorkingDirectory: workingDirectory, Name: jobName, Stage: stage, DependsOn: dependsOn}}
+type addMatrixExpansion struct {
+	dimensions   []model.MatrixDimension
+	exclusions   []model.MatrixExclusion
+	combinations [][]model.MatrixValue
+}
+
+func parseAddMatrix(matrixValues, exclusionValues []string) (addMatrixExpansion, error) {
+	dimensions := make([]model.MatrixDimension, 0, len(matrixValues))
+	dimensionNames := make(map[string]bool, len(matrixValues))
+	for _, value := range matrixValues {
+		dimension, err := model.ParseMatrixDimension(value)
+		if err != nil {
+			return addMatrixExpansion{}, fmt.Errorf("invalid --matrix: %w", err)
+		}
+		if dimensionNames[dimension.Name] {
+			return addMatrixExpansion{}, fmt.Errorf("invalid --matrix: duplicate key %q", dimension.Name)
+		}
+		dimensionNames[dimension.Name] = true
+		dimensions = append(dimensions, dimension)
+	}
+	if len(exclusionValues) > 0 && len(dimensions) == 0 {
+		return addMatrixExpansion{}, fmt.Errorf("--matrix-exclude requires --matrix")
+	}
+	exclusions := make([]model.MatrixExclusion, 0, len(exclusionValues))
+	for _, value := range exclusionValues {
+		exclusion, err := model.ParseMatrixExclusion(value)
+		if err != nil {
+			return addMatrixExpansion{}, fmt.Errorf("invalid --matrix-exclude: %w", err)
+		}
+		exclusions = append(exclusions, exclusion)
+	}
+	combinations, exclusions, err := model.ExpandMatrixWithExclusions(dimensions, exclusions)
+	if err != nil {
+		return addMatrixExpansion{}, fmt.Errorf("invalid --matrix-exclude: %w", err)
+	}
+	return addMatrixExpansion{dimensions: dimensions, exclusions: exclusions, combinations: combinations}, nil
+}
+
+type addCommandOptions struct {
+	executor         string
+	executorOptions  []string
+	environment      []string
+	workingDirectory string
+	jobName          string
+	stage            string
+	dependsOn        []string
+	matrix           addMatrixExpansion
+}
+
+func expandMatrixCommands(command []string, options addCommandOptions) []model.QueuedCommand {
+	if len(options.matrix.dimensions) == 0 {
+		return []model.QueuedCommand{{Command: command, Executor: options.executor, ExecutorOptions: options.executorOptions, Environment: options.environment, WorkingDirectory: options.workingDirectory, Name: options.jobName, Stage: options.stage, DependsOn: options.dependsOn}}
 	}
 	groupID := makeJobID()
-	commands := make([]model.QueuedCommand, 0)
-	for _, combination := range model.ExpandMatrix(dimensions) {
-		matrixEnvironment := model.MatrixEnvironment(environment, combination)
-		matrixName := model.MatrixJobName(jobName, combination)
+	commands := make([]model.QueuedCommand, 0, len(options.matrix.combinations))
+	for _, combination := range options.matrix.combinations {
+		matrixEnvironment := model.MatrixEnvironment(options.environment, combination)
+		matrixName := model.MatrixJobName(options.jobName, combination)
 		commands = append(commands, model.QueuedCommand{
-			Command: command, Executor: executor, ExecutorOptions: executorOptions, Environment: matrixEnvironment,
-			WorkingDirectory: workingDirectory, Name: matrixName, Stage: stage, DependsOn: dependsOn,
+			Command: command, Executor: options.executor, ExecutorOptions: options.executorOptions, Environment: matrixEnvironment,
+			WorkingDirectory: options.workingDirectory, Name: matrixName, Stage: options.stage, DependsOn: options.dependsOn,
 			Matrix: &model.MatrixSpec{
-				GroupID: groupID, Dimensions: cloneMatrixDimensions(dimensions), Values: append([]model.MatrixValue(nil), combination...),
-				BaseName: jobName, BaseEnvironment: append([]string(nil), environment...),
+				GroupID: groupID, Dimensions: cloneMatrixDimensions(options.matrix.dimensions), Values: append([]model.MatrixValue(nil), combination...),
+				Exclusions: model.CloneMatrixExclusions(options.matrix.exclusions),
+				BaseName:   options.jobName, BaseEnvironment: append([]string(nil), options.environment...),
 			},
 		})
 	}

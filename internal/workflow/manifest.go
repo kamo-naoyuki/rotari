@@ -508,7 +508,7 @@ func Compile(manifest Manifest, nextID func() string) (model.Queue, error) {
 			}
 			if matrixGroupID != "" {
 				command.Matrix = &model.MatrixSpec{
-					GroupID: matrixGroupID, Dimensions: cloneDimensions(dimensions), Values: append([]model.MatrixValue(nil), combination...), Exclusions: cloneMatrixExclusions(exclusions),
+					GroupID: matrixGroupID, Dimensions: cloneDimensions(dimensions), Values: append([]model.MatrixValue(nil), combination...), Exclusions: model.CloneMatrixExclusions(exclusions),
 					BaseName: job.Name, BaseEnvironment: append([]string(nil), job.Environment...),
 				}
 			}
@@ -525,17 +525,6 @@ func cloneDimensions(dimensions []model.MatrixDimension) []model.MatrixDimension
 	cloned := make([]model.MatrixDimension, len(dimensions))
 	for index, dimension := range dimensions {
 		cloned[index] = model.MatrixDimension{Name: dimension.Name, Values: append([]string(nil), dimension.Values...)}
-	}
-	return cloned
-}
-
-func cloneMatrixExclusions(exclusions []model.MatrixExclusion) []model.MatrixExclusion {
-	if len(exclusions) == 0 {
-		return nil
-	}
-	cloned := make([]model.MatrixExclusion, len(exclusions))
-	for index, exclusion := range exclusions {
-		cloned[index].Values = append([]model.MatrixValue(nil), exclusion.Values...)
 	}
 	return cloned
 }
