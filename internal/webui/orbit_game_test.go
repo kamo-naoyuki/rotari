@@ -96,6 +96,8 @@ setTimeout(() => {
   dom.window.__runFrame(100);
   const afterRight = balls.map(ball => Number(ball.dataset.angularVelocity));
   if (afterRight.some((velocity, index) => velocity <= beforeRight[index])) process.exit(5);
+  const redControlDelta = afterRight[0] - beforeRight[0];
+  if (afterRight.slice(1).some((velocity, index) => redControlDelta <= velocity - beforeRight[index + 1])) process.exit(18);
   dialog.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }));
 
   const beforeLeft = balls.map(ball => Number(ball.dataset.angularVelocity));

@@ -40,6 +40,8 @@ function initOrbitGame() {
   const whiteRadiusMin = 7;
   const whiteRadiusMax = 17;
   const gravityStrength = 4;
+  const redControlStrength = 4;
+  const whiteControlStrength = 1.7;
   let returnFocus = null;
   let turnDirection = 0;
   let animationFrame = 0;
@@ -111,16 +113,17 @@ function initOrbitGame() {
         ? 0
         : Math.min((timestamp - lastFrameTime) / 1000, 0.05);
     lastFrameTime = timestamp;
-    const turnAcceleration = turnDirection * 1.7;
     redAngularVelocity +=
-      (gravityAcceleration(redRadius, redAngle) + turnAcceleration) * elapsed;
+      (gravityAcceleration(redRadius, redAngle) +
+        turnDirection * redControlStrength) *
+      elapsed;
     redAngle += redAngularVelocity * elapsed;
     drawBall(player, redAngle, redAngularVelocity);
     for (const white of whiteStates) {
       const sizeFactor = 0.45 + (whiteRadiusMax - white.radius) * 0.065;
       white.angularVelocity +=
         (gravityAcceleration(white.radius, white.angle) +
-          turnAcceleration * sizeFactor) *
+          turnDirection * whiteControlStrength * sizeFactor) *
         elapsed;
       white.angle += white.angularVelocity * elapsed;
       drawBall(white.element, white.angle, white.angularVelocity);
@@ -154,10 +157,13 @@ function initOrbitGame() {
   };
   const nudge = (direction) => {
     if (!running) return;
-    redAngularVelocity += direction * 0.12 * 0.81;
+    redAngularVelocity += direction * 0.12 * redControlStrength;
     for (const white of whiteStates) {
       white.angularVelocity +=
-        direction * 0.12 * (0.45 + (whiteRadiusMax - white.radius) * 0.065);
+        direction *
+        0.12 *
+        whiteControlStrength *
+        (0.45 + (whiteRadiusMax - white.radius) * 0.065);
       drawBall(white.element, white.angle, white.angularVelocity);
     }
     drawBall(player, redAngle, redAngularVelocity);
