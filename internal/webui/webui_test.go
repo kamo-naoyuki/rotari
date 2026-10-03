@@ -2163,7 +2163,10 @@ func TestWebConfigAPIReadsRunConfigSnapshots(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("config snapshot status = %d, body = %q", recorder.Code, recorder.Body.String())
 	}
-	for _, want := range []string{"project: original"} {
+	for _, want := range []string{
+		"project: original",
+		filepath.Join(paths.RunsDir, "run-1", "configs", "config.yaml"),
+	} {
 		if !strings.Contains(recorder.Body.String(), want) {
 			t.Fatalf("config snapshot body does not contain %q: %s", want, recorder.Body.String())
 		}

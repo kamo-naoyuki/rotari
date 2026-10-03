@@ -1057,7 +1057,7 @@ func (s site) loadRunConfigFiles(baseDir, projectName, runID string) ([]webproje
 		return nil, err
 	}
 	files := make([]webprojection.ConfigFile, 0, len(context.ConfigSnapshotFiles))
-	for index, fileName := range context.ConfigSnapshotFiles {
+	for _, fileName := range context.ConfigSnapshotFiles {
 		snapshotPath, err := stateinternal.SafeJoin(snapshotDir, fileName)
 		if err != nil {
 			return nil, err
@@ -1067,7 +1067,7 @@ func (s site) loadRunConfigFiles(baseDir, projectName, runID string) ([]webproje
 		if err != nil {
 			return nil, err
 		}
-		files = append(files, webprojection.ConfigFile{Path: context.ConfigPaths[index], Content: string(data)})
+		files = append(files, webprojection.ConfigFile{Path: snapshotPath, Content: string(data)})
 	}
 	return files, nil
 }
