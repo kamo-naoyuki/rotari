@@ -268,3 +268,14 @@ as the CLI and hold no rules of their own.
   [`internal/mcp/wait.go`](../internal/mcp/wait.go); checked by
   `TestMCPWritesApplyOnlyAtThePreviewedRevision`, which follows a started
   run through MCP alone, and `TestMCPWaitReturnsOnTheFirstFinalFailure`.
+- **MCP-4** `rotari_preview_job_control` lists, without changing anything,
+  the unfinished jobs of a running run that an operation reaches, chosen as
+  `rotari cancel`, `suspend`, and `resume` choose them
+  (`jobcontrol.Controller.Select` with `jobcontrol.States`). `rotari_cancel`,
+  `rotari_suspend`, and `rotari_resume` take the run ID and optional job IDs
+  and act as the CLI does with `--run-id`: only while that run is still the
+  project's active run, otherwise failing without effect. Without job IDs,
+  cancel stops the whole run. Implemented in
+  [`internal/mcp/control.go`](../internal/mcp/control.go); checked by
+  `TestMCPJobControlActsOnlyOnThePreviewedRunningRun` in
+  [`conformance/03-interfaces/mcp_test.go`](../conformance/03-interfaces/mcp_test.go).

@@ -246,6 +246,14 @@ const (
 	StatePending = "pending"
 )
 
+// States are the job states each operation acts on: cancel reaches pending
+// jobs too, and suspend and resume only running ones.
+var States = map[string][]string{
+	"cancel":  {StateRunning, StatePending},
+	"suspend": {StateRunning},
+	"resume":  {StateRunning},
+}
+
 // Selection chooses unfinished jobs of a run by job name or by filters. Names
 // select jobs whose name, or whose command's name, is one of them. Scope,
 // Filter, and States narrow further; a job is running once its executor owns

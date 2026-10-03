@@ -50,6 +50,15 @@ carries the other results, as `rotari retry` does: those of the queue, such
 as one just imported, or of the project's last run, which it copies into an
 empty queue first.
 
+To stop or pause a running run, preview first with
+`rotari_preview_job_control` (`run_id`, `operation`: `cancel`, `suspend`, or
+`resume`, optional `job_names`), which lists the unfinished jobs the operation
+reaches. Then call `rotari_cancel`, `rotari_suspend`, or `rotari_resume` with
+the `run_id` and, to act on some jobs only, their `job_ids`; without job IDs,
+cancel stops the whole run, and suspend and resume act on every running job.
+Each fails without effect when the run is no longer running, as
+`rotari cancel --run-id` does. `rotari_cancel` is annotated as destructive.
+
 A started run uses `rotari run`'s defaults, and its jobs run in the working
 directory and with the environment of the `rotari mcp` process, which is
 usually the MCP client's.
@@ -63,8 +72,8 @@ reference that does not reveal its path, and by `basedir_name`, the last
 element of its path; they contain no absolute paths, and errors write
 `BASEDIR` for a registered state directory's path. Reports and evidence
 lines redact paths and hostnames where detected; redaction is not guaranteed
-to catch every secret. Queue edits other than import, job control,
-and deleting history are not exposed, and the server does not remove stale
+to catch every secret. Queue edits other than import, deleting history,
+`gc`, and `reset` are not exposed, and the server does not remove stale
 locks or migrate registries.
 
 ## Start the server

@@ -169,10 +169,10 @@ func cmdCancel(args []string) int {
 }
 
 // cancelStates are the job states cancel selects; suspend and resume act on
-// running jobs only.
+// running jobs only. See jobcontrol.States.
 var (
-	cancelStates = []string{jobcontrol.StateRunning, jobcontrol.StatePending}
-	signalStates = []string{jobcontrol.StateRunning}
+	cancelStates = jobcontrol.States["cancel"]
+	signalStates = jobcontrol.States["suspend"]
 )
 
 // cmdJobSignal suspends or resumes selected running jobs.

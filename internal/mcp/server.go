@@ -40,7 +40,8 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 			"and rotari_compare_runs to see what a later run fixed. Runs are named by run ID; the server finds their state directory " +
 			"and project itself and returns no absolute paths. Paths and hostnames in logs and evidence are redacted where detected. " +
 			"To change a project, preview first (rotari_preview_import, rotari_preview_run), show the user what will happen, " +
-			"then apply with the preview's revision (rotari_import, rotari_start_run); a write fails if the project changed since.",
+			"then apply with the preview's revision (rotari_import, rotari_start_run); a write fails if the project changed since. " +
+			"To stop or pause a running run, list its jobs with rotari_preview_job_control, then call rotari_cancel, rotari_suspend, or rotari_resume with its run_id.",
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_list_projects",
@@ -132,6 +133,30 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 		output, err := writes.startRun(input)
 		return output, err
 	})
+	addTool(server, masterDir, &mcpsdk.Tool{
+		Name:        "rotari_preview_job_control",
+		Description: "List the unfinished jobs of a running run that cancel (running and pending jobs), suspend, or resume (running jobs) would act on, optionally only those with given names. Changes nothing.",
+		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
+	}, func(_ context.Context, input JobControlInput) (JobControlPreview, error) {
+		return writes.previewJobControl(input)
+	})
+	for _, control := range []struct {
+		operation, description string
+		destructive            bool
+	}{
+		{"cancel", "Cancel jobs of a running run, as rotari cancel --run-id does: the job_ids from rotari_preview_job_control, or without them the whole run, which then starts no more jobs. Cancelled jobs do not resume; rerun them with rotari_start_run and retry.", true},
+		{"suspend", "Suspend running jobs of a running run, as rotari suspend --run-id does: the job_ids from rotari_preview_job_control, or without them every running job. rotari_resume continues them.", false},
+		{"resume", "Resume suspended jobs of a running run, as rotari resume --run-id does: the job_ids from rotari_preview_job_control, or without them every running job.", false},
+	} {
+		operation := control.operation
+		addTool(server, masterDir, &mcpsdk.Tool{
+			Name:        "rotari_" + operation,
+			Description: control.description,
+			Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPointer(control.destructive)},
+		}, func(_ context.Context, input ControlJobsInput) (ControlJobsOutput, error) {
+			return writes.controlJobs(input, operation)
+		})
+	}
 	return server
 }
 

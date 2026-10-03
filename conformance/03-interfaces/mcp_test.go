@@ -6,8 +6,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
@@ -287,5 +289,59 @@ func TestMCPWaitReturnsOnTheFirstFinalFailure(t *testing.T) {
 	summary := waitWithMCP(t, session, started.RunID, true)
 	if summary.Reason != "failure" || summary.State != "running" || summary.Summary.Counts.Failed != 1 {
 		t.Fatalf("wait until failure = %+v, want the failure while the run goes on", summary)
+	}
+}
+
+// TestMCPJobControlActsOnlyOnThePreviewedRunningRun previews job control on
+// a running run, suspends, resumes, and cancels one job, cancels the rest of
+// the run, and checks that a cancel naming the run fails once it has ended.
+func TestMCPJobControlActsOnlyOnThePreviewedRunningRun(t *testing.T) {
+	covers(t, "MCP-4")
+	e := support.NewEnv(t)
+	run := e.StartRun("live", 2, true)
+	t.Cleanup(func() { e.Rotari("cancel", "-p", run.Project, "--wait") })
+	session := startMCP(t, e)
+	first, second := run.Jobs[0], run.Jobs[1]
+
+	var preview struct {
+		RunID  string   `json:"run_id"`
+		JobIDs []string `json:"job_ids"`
+	}
+	if message := session.call("rotari_preview_job_control", map[string]any{"run_id": run.RunID, "operation": "cancel"}, &preview); message != "" {
+		t.Fatal(message)
+	}
+	want := append([]string(nil), run.Jobs...)
+	sort.Strings(want)
+	if preview.RunID != run.RunID || strings.Join(preview.JobIDs, ",") != strings.Join(want, ",") {
+		t.Fatalf("cancel preview = %+v, want %v", preview, want)
+	}
+	if message := session.call("rotari_preview_job_control", map[string]any{"run_id": run.RunID, "operation": "stop"}, nil); !strings.Contains(message, "cancel, suspend, or resume") {
+		t.Fatalf("unknown operation: %q", message)
+	}
+
+	one := map[string]any{"run_id": run.RunID, "job_ids": []string{first}}
+	for _, operation := range []string{"rotari_suspend", "rotari_resume", "rotari_cancel"} {
+		var output struct {
+			Message string `json:"message"`
+		}
+		if message := session.call(operation, one, &output); message != "" || !strings.Contains(output.Message, "Jobs: 1") {
+			t.Fatalf("%s of %s: %q %+v", operation, first, message, output)
+		}
+	}
+	support.WaitUntil(t, 30*time.Second, func() (bool, string) {
+		return support.JobProcesses(t, e.Root, first) == 0, "the cancelled job is still running"
+	})
+	if support.JobProcesses(t, e.Root, second) == 0 {
+		t.Fatalf("job %s stopped too; only %s was cancelled", second, first)
+	}
+
+	if message := session.call("rotari_cancel", map[string]any{"run_id": run.RunID}, nil); message != "" {
+		t.Fatal(message)
+	}
+	if summary := waitWithMCP(t, session, run.RunID, false); summary.State != "finished" {
+		t.Fatalf("the cancelled run: %+v", summary)
+	}
+	if message := session.call("rotari_cancel", map[string]any{"run_id": run.RunID}, nil); !strings.Contains(message, "is not running") {
+		t.Fatalf("cancel of an ended run: %q", message)
 	}
 }
