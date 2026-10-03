@@ -205,7 +205,10 @@ Outcome:
 - After the trial: `add` registers its basedir (`c24dc25`), and `rotari_wait_run` (MCP-3) replaced polling, so following the trial's run took one call instead of 31. This covers the waiting part of M7's progress inspection.
 - Import plans and comparisons are summarized by default (`7922a08`). The write scenario now takes about 11 KB of results. Tool definitions cost 7.4 KB of model context; their output schemas are not part of it.
 - M7 is done with the user's go-ahead: job control (MCP-4) and reset (MCP-5); `gc` stays CLI-only. The server has 17 tools, whose model-facing definitions take 11.3 KB, plus 1 KB of instructions.
-- Next step: an agent trial of job control and reset, such as cancelling a run that hangs and recovering an interrupted project. Remaining output costs are a run summary that names every failed task, and a comparison that repeats a definition change per array task.
+- The [M7 agent trial](agent-trial-2026-10-03-m7.md) stopped a hanging job and recovered a crashed run through MCP alone. It found and fixed two defects that the CLI shares:
+  - a cancelled pending job still started (CAN-6);
+  - reset never warned that an interrupted run's jobs might still run (SAFE-7).
+- Next step: the open ISSUES.md entry on carried jobs reading as running during their run. Its fix adds persistent run state and needs the user's decision on the design. Remaining output costs are a run summary that names every failed task, and a comparison that repeats a definition change per array task.
 
 ## Open decisions
 

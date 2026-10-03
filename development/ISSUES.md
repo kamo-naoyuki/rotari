@@ -8,6 +8,18 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **Carried jobs read as running while their run is active** (`internal/jobstatus`, `internal/runview`, `internal/jobcontrol`):
+  - A run executes some jobs and carries the others' results, but it records which is which only in its final `summary.json`.
+  - Until then, a carried job has no job directory in the run, and the run's `commands.json` gives an origin to every job, including those that will execute. So readers cannot tell a carried job from a pending one.
+  - Observed in the M7 MCP agent trial, and with two jobs where a retry carries one:
+    - `rotari show -r RUN` lists the carried job as `running`.
+    - `rotari lineage RUN` and `rotari_run_summary` count it as unfinished (`succeeded 0`).
+    - `jobcontrol.Controller.Select` lists it as pending. So `rotari_preview_job_control` and `rotari cancel --filter-*` offer it, and a cancel writes a `cancelled` marker into it.
+  - The final summary is right.
+  - Expected: a carried job reads as its carried result from the start of the run, in every view.
+  - Likely fix: the run records its carried results (or the jobs it executes) beside `commands.json` before dispatching. `jobstatus` then resolves a carried job from that record, and `jobcontrol` skips it.
+  - This adds persistent run state, so it needs a contract note.
+
 - **`remove` rejects a selector conflict with only its usage line** (`cmd/rotari/remove.go`): `--filter-stage` and `--filter-matrix` are the long forms of `--stage` and `--matrix`, so `remove --all --filter-stage S` (and any two selector kinds, such as `--job-id` with `--stage`) count as two selectors and exit 1 with `usage: rotari remove ...`. Nothing is ignored or changed, but the message does not name the conflicting options, and a reader may expect `--filter-stage` to narrow `--all` as the definition filters do. Expected: an error naming the conflict, as `show` and `delete` give. Found by `TestCLIFlagPairMutationObservability`; the pair checks accept only this exact usage rejection for two selector kinds.
 
 ## Resolved

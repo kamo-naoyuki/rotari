@@ -498,3 +498,36 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 **Remaining:**
 - An agent trial of these tools.
 - Failure groups and comparisons that grow with the number of jobs.
+
+## M7 agent trial: stopping a hang and recovering a crash
+
+**Commits:** 2026-10-03 11:42:20 `64df260`; 2026-10-03 11:51:42 `418bbcf`.
+
+**Change:**
+- `64df260`: `Dispatcher.cancelledBeforeStart` checks the `cancelled` marker on every path that submits jobs. A native array is submitted without its cancelled tasks, falling back to single jobs when the scheduler cannot take the array that is left. Contract CAN-6.
+- `418bbcf`:
+  - `state.LatestAttemptDirs` replaces `ListRunJobDirs` and returns each job's latest attempt directory. The interrupted-run scan behind reset's warning now finds the jobs.
+  - Added `support.KillSupervisors`, which kills only a run's supervisor, as a crash would.
+  - Contract SAFE-7.
+- The trial script gained a `control` scenario. Added the trial note [agent-trial-2026-10-03-m7.md](agent-trial-2026-10-03-m7.md).
+- ISSUES.md records that carried jobs read as running during their run.
+
+**Reason:** the plan repeats the agent trial after each milestone. The M7 tools were tried by an agent that may change rotari state only through MCP, on a hanging job and a killed supervisor.
+
+**Plan impact:**
+- M7 is confirmed by the trial.
+- Both defects were in shared code, so the CLI's `cancel JOB_ID` and `reset` are fixed too.
+- The carried-job view needs a design decision, because it adds persistent run state.
+
+**Validation:**
+- `TestDispatcherNeverSubmitsACancelledJob` fails on `026722a` in its local and two array cases; the batch case already passed.
+- `TestCancelledPendingJobNeverStarts` failed before the fix, with the cancelled job's marker file present.
+- `TestInterruptedResetWarnsAboutRunningJobs` failed before the fix, with no job detail in the message.
+- New `TestScanInterruptedRunJobsReadsLatestAttempts`; `TestLatestAttemptDirsIncludesOnlyJobSnapshots` replaces the flat-layout test.
+- Before each commit, `scripts/check.sh` and `go test -count=1 ./conformance/... ./internal/archtest ./internal/doclinks` passed.
+- `64df260` was amended before any further work to drop two `contracts/README.md` hunks that belong to another thread's uncommitted work.
+- The final trial pass on `418bbcf` left no job process behind.
+
+**Remaining:**
+- The ISSUES.md entry on carried jobs.
+- Output sizes of failure groups and comparisons.

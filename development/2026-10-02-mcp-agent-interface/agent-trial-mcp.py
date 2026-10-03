@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Drive `rotari mcp` over stdio like an MCP-only agent and print response sizes.
 
-Usage: XDG_STATE_HOME=DIR/xdg agent-trial-mcp.py PATH_TO_ROTARI [read|write],
-after agent-trial-fixture.sh DIR. The read scenario triages and compares runs
-(agent-trial-2026-10-03-m4.md). The write scenario, run from DIR/work on a
-fresh fixture, fixes labA and reruns it (agent-trial-2026-10-03-m6.md).
+Usage: XDG_STATE_HOME=DIR/xdg agent-trial-mcp.py PATH_TO_ROTARI
+[read|write|control], after agent-trial-fixture.sh DIR. The read scenario
+triages and compares runs (agent-trial-2026-10-03-m4.md). The write scenario,
+run from DIR/work on a fresh fixture, fixes labA and reruns it
+(agent-trial-2026-10-03-m6.md). The control scenario, also from DIR/work on a
+fresh fixture, cancels a hanging job and recovers a run whose supervisor was
+killed (agent-trial-2026-10-03-m7.md).
 """
 
 import json
 import re
 import subprocess
 import sys
+import time
 
 proc = subprocess.Popen(
     [sys.argv[1], "mcp"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True
@@ -158,6 +162,68 @@ def write_scenario():
             )
 
 
+def start(target, retry):
+    """Preview and start a run of target, returning its run ID."""
+    rerun = dict(target, retry=retry)
+    preview = call("rotari_preview_run", rerun)
+    print("  ", len(preview["execute"]), "of", preview["jobs"], "jobs execute")
+    started = call("rotari_start_run", dict(rerun, if_revision=preview["revision"]))
+    return started["run_id"]
+
+
+def control_scenario():
+    """Cancel a hanging job, then recover a run whose supervisor died."""
+    # The environment: the data server that task 12 waits for never answers.
+    with open("train.sh") as script:
+        text = script.read()
+    with open("train.sh", "w") as script:
+        script.write(text.replace("sleep 30", "sleep 600"))
+    projects = call("rotari_list_projects", {})
+    lab = [p for p in projects["projects"] if p["basedir_name"] == "labA"][0]
+    target = {"basedir_ref": lab["basedir_ref"], "project": lab["project"]}
+    # The agent drops the 5s timeout that killed task 12, and reruns.
+    exported = call("rotari_export_run", {"run_id": lab["last_run_id"]})
+    manifest = exported["manifest"].replace("    timeout: 5s\n", "")
+    edit = dict(target, manifest=manifest, overwrite=True)
+    plan = call("rotari_preview_import", edit)
+    call("rotari_import", dict(edit, if_revision=plan["revision"]))
+    run_id = start(target, True)
+    waited = call("rotari_wait_run", {"run_id": run_id, "timeout_seconds": 20, "until_failure": True})
+    print("   reason", waited["reason"], "state", waited["state"], waited["summary"]["counts"])
+    waited = call("rotari_wait_run", {"run_id": run_id, "timeout_seconds": 10})
+    print("   reason", waited["reason"], "state", waited["state"], waited["summary"]["counts"])
+    if waited["reason"] == "timeout":
+        preview = call("rotari_preview_job_control", {"run_id": run_id, "operation": "cancel"})
+        print("   would cancel", preview["job_ids"])
+        call("rotari_cancel", {"run_id": run_id, "job_ids": preview["job_ids"]})
+        waited = call("rotari_wait_run", {"run_id": run_id})
+        print("   reason", waited["reason"], "state", waited["state"], waited["summary"]["counts"])
+        for group in waited["summary"].get("failures", []):
+            print("  ", group["count"], group["cause"], [j["name"] for j in group["jobs"]])
+
+    # The environment: the supervisor of the next run is killed, and its
+    # hanging job keeps running.
+    run_id = start(target, True)
+    time.sleep(3)
+    subprocess.run(["pkill", "-9", "-f", "__server --basedir .*/labA"], check=False)
+    waited = call("rotari_wait_run", {"run_id": run_id, "timeout_seconds": 20})
+    print("   reason", waited["reason"], "state", waited["state"], waited["summary"]["counts"])
+    projects = call("rotari_list_projects", {})
+    print("   labA state", [p["state"] for p in projects["projects"] if p["basedir_name"] == "labA"])
+    reset = call("rotari_preview_reset", target)
+    print("  ", {k: reset.get(k) for k in ("cleared", "interrupted_run_id", "interrupted_run", "jobs_may_be_running")})
+    if reset.get("jobs_may_be_running"):
+        preview = call("rotari_preview_job_control", {"run_id": run_id, "operation": "cancel"})
+        print("   would cancel", preview["job_ids"])
+        call("rotari_cancel", {"run_id": run_id, "job_ids": preview["job_ids"]})
+        time.sleep(2)
+        reset = call("rotari_preview_reset", target)
+        print("  ", {k: reset.get(k) for k in ("cleared", "interrupted_run_id", "interrupted_run", "jobs_may_be_running")})
+    call("rotari_reset", dict(target, if_revision=reset["revision"], recover_interrupted=True))
+    check = call("rotari_check_project", target)
+    print("   check", check["state"], "runnable", check["runnable"])
+
+
 request(
     "initialize",
     {
@@ -169,7 +235,7 @@ request(
 request("notifications/initialized", notify=True)
 tools = request("tools/list")["result"]["tools"]
 print(f"== tools/list -> {len(json.dumps(tools))} bytes: {[t['name'] for t in tools]}")
-{"read": read_scenario, "write": write_scenario}[
+{"read": read_scenario, "write": write_scenario, "control": control_scenario}[
     sys.argv[2] if len(sys.argv) > 2 else "read"
 ]()
 proc.stdin.close()
