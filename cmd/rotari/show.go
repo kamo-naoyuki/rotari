@@ -918,7 +918,13 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		} else {
 			jobCounts.pending++
 		}
-		executorText := queueExecutorText(runQueue, jobSpec)
+		// An attempt records the executor it ran on, which a run-level
+		// --executor can make differ from the job's definition.
+		executorSpec := jobSpec
+		if recorded := state.ReadAttemptExecutor(jobDir); recorded != "" {
+			executorSpec.Executor = recorded
+		}
+		executorText := queueExecutorText(runQueue, executorSpec)
 		jobResult, _ := resolved.Result(jobSpec)
 		if !selectsShownJob(paths, runID, jobID, jobResult, statusOK, filter.selection, filter.filter) {
 			continue

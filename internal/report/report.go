@@ -216,7 +216,10 @@ func writeJobAIReport(builder *strings.Builder, paths state.ProjectPaths, run we
 	if name == "" {
 		name = job.ID
 	}
-	executor := job.Executor
+	executor := state.ReadAttemptExecutor(job.AttemptDir)
+	if executor == "" {
+		executor = job.Executor
+	}
 	if executor == "" {
 		executor = "default"
 	}

@@ -179,6 +179,21 @@ func ReadJobName(jobDir string) string {
 	return ""
 }
 
+// ReadAttemptExecutor returns the executor an attempt ran on, as its
+// command.json records it once submitted, or "" for an attempt that has
+// none. It reflects a run-level --executor and the queue's default, which
+// the job's definition alone does not.
+func ReadAttemptExecutor(attemptDir string) string {
+	var recorded struct {
+		Executor string `json:"executor"`
+	}
+	data, err := os.ReadFile(filepath.Join(attemptDir, "command.json"))
+	if err != nil || json.Unmarshal(data, &recorded) != nil {
+		return ""
+	}
+	return recorded.Executor
+}
+
 func ReadJobTimestamp(runDir, jobID, name string) string {
 	jobDir, err := LatestAttemptJobDir(runDir, jobID)
 	if err != nil {

@@ -294,3 +294,27 @@ func removeFile(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 }
+
+// TestReportNamesTheExecutorTheAttemptRanOn runs a job that names no
+// executor and checks that its report names the executor its attempt ran
+// on, as the run's job table does, instead of "default".
+func TestReportNamesTheExecutorTheAttemptRanOn(t *testing.T) {
+	covers(t, "DUR-5")
+	e := support.NewEnv(t)
+	e.MustRotari("add", "-p", "exec", "--", "true")
+	e.MustRotari("run", "-p", "exec", "--quiet")
+	var shown struct {
+		Summary struct {
+			Results []struct {
+				AttemptID string `json:"attempt_id"`
+			} `json:"results"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "exec", "--json").Stdout), &shown); err != nil || len(shown.Summary.Results) != 1 {
+		t.Fatalf("show --json: %v", err)
+	}
+	report := e.MustRotari("show", "-j", shown.Summary.Results[0].AttemptID, "--report").Stdout
+	if !strings.Contains(report, "- Executor: local\n") {
+		t.Fatalf("the report does not name the attempt's executor:\n%s", report)
+	}
+}
