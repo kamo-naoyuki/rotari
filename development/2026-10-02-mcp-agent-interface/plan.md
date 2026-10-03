@@ -208,7 +208,8 @@ Outcome:
 - The [M7 agent trial](agent-trial-2026-10-03-m7.md) stopped a hanging job and recovered a crashed run through MCP alone. It found and fixed two defects that the CLI shares:
   - a cancelled pending job still started (CAN-6);
   - reset never warned that an interrupted run's jobs might still run (SAFE-7).
-- Next step: the open ISSUES.md entry on carried jobs reading as running during their run. Its fix adds persistent run state and needs the user's decision on the design. Remaining output costs are a run summary that names every failed task, and a comparison that repeats a definition change per array task.
+- Carried jobs now read as carried from the start of their run (DUR-7, `12b5395`): a run records its carried results in `carried.json` before dispatching, as the user chose.
+- Next step: the remaining output costs, a run summary that names every failed task and a comparison that repeats a definition change per array task. ISSUES.md has no open item from this plan.
 
 ## Open decisions
 

@@ -48,10 +48,18 @@ No job process remained after the scenario.
   - In the first pass, `rotari_preview_reset` returned no detail, and the reset recovered the run while its hanging job kept running.
   - The scan looked for `command.json` in each job directory instead of in the latest attempt.
   - Contract SAFE-7. The CLI's `reset` message had the same defect.
-- **Open: carried jobs read as running while their run is active.** This is recorded in [ISSUES.md](../ISSUES.md).
+- **Fixed afterwards: carried jobs read as running while their run was active** (`12b5395`). It was open at the first pass; see below.
   - During the run, the summary reported `succeeded 0, unfinished 10`, although 7 results were carried.
   - The cancel preview listed the 7 carried jobs with the 3 that were still unfinished, and the agent cancelled all 10. That did no harm, because carried jobs are not dispatched, but the preview misled.
-  - `rotari show` has the same view.
-  - A fix needs the run to record its carried results at start, which is new persistent state.
+  - `rotari show` had the same view.
+  - The fix needed the run to record its carried results at start, which is new persistent state.
 - **Usage: job control works on an interrupted run.** `rotari_cancel` with the interrupted run's ID reached its still-running job through the stale lock. So an agent can stop the jobs before recovering, without leaving MCP.
 - **Limit: the scan reads files only.** A job killed without writing its status still appears to be running. The warning says "appear to" for this reason.
+
+## After recording carried results (`12b5395`)
+
+The user chose to have a run record its carried results at start (`carried.json`, contract DUR-7). A fresh pass of the same scenario on `12b5395`:
+
+- While the run ran, `rotari_wait_run` reported `succeeded 7, unfinished 3`, where it had reported `succeeded 0, unfinished 10`.
+- `rotari_preview_job_control` listed only the 3 jobs that were still unfinished: `train[12]` and both `eval` jobs.
+- The rest of the scenario went as before, and no job process remained.

@@ -531,3 +531,29 @@ See [plan.md](plan.md) for current scope and status. Historical one-line notes d
 **Remaining:**
 - The ISSUES.md entry on carried jobs.
 - Output sizes of failure groups and comparisons.
+
+## Carried results recorded at the start of a run
+
+**Commits:** 2026-10-03 12:20:43 `12b5395`.
+
+**Change:**
+- Before it dispatches any job, a run writes the results it carries to `carried.json` (`state.CarriedResultsFileName`), a `model.RunSummary` holding only those results; `CheckRunVersions` covers it.
+- Added `jobstatus.RecordedResults`, which returns the summary's results, or before the summary the carried ones. `show` (run, job, and JSON views), `joblist`, `runview`, and the Web loader use it.
+- `runlineage.IsCarried` takes whether the job has a recorded result.
+- `jobcontrol` skips carried jobs in selections, whole-run cancels, and array expansion, and refuses a cancel that names one.
+- Contracts: added DUR-7, updated the DUR-5 wording, and added the state layout entry.
+- The ISSUES.md entry moved to Resolved.
+
+**Reason:** the M7 trial's open finding. The user chose option A: record carried results at run start, not create job directories for carried jobs or write an early summary.
+
+**Plan impact:** no open ISSUES.md item remains from this plan. The remaining work is output size.
+
+**Validation:**
+- `TestCarriedJobsReadAsCarriedDuringTheRun` (DUR-7) fails on `40a95e0` for `show`, `lineage`, the Web API, the MCP run summary, and the cancel preview. Its `jobs` check already passed and stays as a regression check.
+- New `TestRecordedResultsPrefersTheSummaryToCarriedResults` and `TestIsCarriedNeedsARecordedResult`.
+- The first full check failed in five `internal/web` loader tests: the loader had decided by `summary.json` on disk instead of by the summary it is given. It now uses the given summary's results when it has any.
+- After that fix, `scripts/check.sh` and `go test -count=1 ./conformance/... ./internal/archtest ./internal/doclinks` passed.
+- While staging, a hand-built `development/ISSUES.md` had dropped another thread's committed open item. It was rebuilt from HEAD before the commit.
+- A fresh `control` trial pass on `12b5395` gave the counts above.
+
+**Remaining:** output sizes of failure groups and comparisons.
