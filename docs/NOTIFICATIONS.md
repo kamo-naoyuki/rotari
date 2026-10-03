@@ -8,6 +8,12 @@ Generate the file with `rotari config --notifications`, or edit it from the
 Web UI's **Notifications** button. Rotari uses the first file it finds in the
 project, the basedir, then the global config directory; scopes are not merged.
 
+On a run page, **Notification config (read only)** displays the notification
+config copied when that run started, rather than the current project settings.
+You can copy its contents, but cannot edit, save, or reload it. The button is
+disabled if the run has no notification config snapshot. This also works in
+static exports. Run pages do not offer **Generate config**.
+
 ## Browser notifications
 
 The Web UI can show a desktop notification when a run finishes or a job reaches

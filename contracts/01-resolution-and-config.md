@@ -222,6 +222,13 @@ Implementation and tests for these rules:
   path and may replace an existing TOML config. It refuses to add a second
   supported config format in the same directory; run pages stay view-only
   because their paths describe historical execution context.
+  Run pages omit `Generate config` and instead offer
+  `Notification config (read only)` for the copied `notifications.toml`,
+  separately from `View config`. The snapshot viewer allows copying, not
+  editing, saving, or reloading current notification settings; its button is
+  disabled when no notification snapshot exists. Live and static pages use
+  the same snapshot viewer. Covered by `TestWebHTMLRendersState` in
+  [`internal/webui/webui_test.go`](../internal/webui/webui_test.go).
 - The control-gated `save-config` endpoint writes only the currently resolved
   config for an all-projects or project page. It accepts a project name and
   content, never a filesystem path or run ID. Run pages expose only the copied

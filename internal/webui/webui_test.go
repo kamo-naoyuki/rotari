@@ -732,7 +732,9 @@ setTimeout(() => {
 	dom.window.eval("state.projects = [{project_name: 'default', runs: [{run_id: 'run-1', context: {config_snapshot_paths: ['/state/projects/default/runs/run-1/configs/config.yaml', '/state/projects/default/runs/run-1/configs/notifications.toml']}}]}];");
 	if (JSON.stringify(dom.window.pageConfigPaths()) !== JSON.stringify(['/state/projects/default/runs/run-1/configs/config.yaml'])) process.exit(58);
 	dom.window.addConfigButton();
-	if (dom.window.document.querySelector('.notification-config-button') || dom.window.document.querySelector('.notification-generate-config-button')) process.exit(43);
+	if (dom.window.document.querySelector('.generate-config-button') || dom.window.document.querySelector('.notification-generate-config-button')) { console.error('run page must not offer config generation'); process.exit(43); }
+	const snapshotButton = dom.window.document.querySelector('.notification-config-button');
+	if (!snapshotButton || snapshotButton.disabled || snapshotButton.textContent !== 'Notification config (read only)') process.exit(60);
 	let notificationConfigReads = 0;
 	let generatedNotificationRequest = null;
 	const notificationSaveRequests = [];
@@ -770,6 +772,17 @@ setTimeout(() => {
 		if (configPath.hidden || !configPath.textContent.includes('/state/projects/demo/runs/run-1/configs/config.yaml') || configPath.textContent.includes('notifications.toml')) process.exit(52);
 		if (configPath.querySelector('[data-copy-value="/state/projects/demo/runs/run-1/configs/config.yaml"]') === null) process.exit(53);
 		if (dom.window.document.querySelector('.output-box').textContent.includes('notifications.toml')) process.exit(59);
+		await snapshotButton.onclick();
+		if (modal.querySelector('strong').textContent !== 'Notification config (read only)' || !dom.window.document.getElementById('modal-log').textContent.includes('[webhook]')) process.exit(61);
+		if (!editor.hidden || !dom.window.document.getElementById('notification-config-editor').hidden || dom.window.document.getElementById('copy-modal').hidden) process.exit(62);
+		if (!dom.window.document.getElementById('notification-config-save').hidden || !dom.window.document.getElementById('notification-config-reload').hidden || configPath.textContent.includes('config.yaml')) process.exit(63);
+		let copiedSnapshot = '';
+		dom.window.copyText = async text => { copiedSnapshot = text; };
+		await dom.window.copyModalOutput(dom.window.document.getElementById('copy-modal'));
+		if (!copiedSnapshot.includes('[webhook]') || copiedSnapshot.includes('config.yaml')) process.exit(65);
+		dom.window.eval("state.projects[0].runs[0].context.config_snapshot_paths = []");
+		dom.window.addConfigButton();
+		if (!dom.window.document.querySelector('.notification-config-button').disabled) process.exit(64);
 		await dom.window.showGenerateNotificationConfig();
 		if (modal.querySelector('strong').textContent !== 'Generate notification config') process.exit(31);
 		if (!dom.window.document.getElementById('notification-config-editor').hidden || dom.window.document.getElementById('config-generator').hidden) process.exit(41);

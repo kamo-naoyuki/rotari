@@ -683,7 +683,7 @@ function isNotificationConfigPath(path) {
   );
   return basename === "notifications.toml";
 }
-function pageConfigPaths() {
+function pageConfigPaths(notifications = false) {
   const parts = pageParts();
   if (parts[0] !== "project")
     return state.config_path ? [state.config_path] : [];
@@ -696,12 +696,12 @@ function pageConfigPaths() {
       (item) => item.run_id === decodeURIComponent(parts[3]),
     );
     return (run?.context?.config_snapshot_paths || []).filter(
-      (path) => !isNotificationConfigPath(path),
+      (path) => isNotificationConfigPath(path) === notifications,
     );
   }
   return project.config_path ? [project.config_path] : [];
 }
-async function showConfig() {
+async function showConfig(notifications = false) {
   const modal = document.getElementById("output-modal");
   const generator = document.getElementById("config-generator");
   const editor = document.getElementById("config-editor");
@@ -728,7 +728,8 @@ async function showConfig() {
   const payload = JSON.parse(text);
   const isRunPage = parts[0] === "project" && parts[2] === "run";
   const files = (payload.configs || []).filter(
-    (file) => !isRunPage || !isNotificationConfigPath(file.path),
+    (file) =>
+      !isRunPage || isNotificationConfigPath(file.path) === notifications,
   );
   setModalConfigPaths(files.map((file) => file.path));
   const content = files
@@ -779,7 +780,9 @@ async function showConfig() {
     };
     modal.dataset.editing = "true";
   }
-  modal.querySelector("strong").textContent = "Config";
+  modal.querySelector("strong").textContent = notifications
+    ? "Notification config (read only)"
+    : "Config";
   modal.dataset.view = "config";
   openOutputModal(false);
 }
@@ -1185,8 +1188,24 @@ function addConfigButton() {
   viewButton.textContent = "View config";
   viewButton.disabled = !paths.length;
   viewButton.title = paths.length ? "View config" : "No config file";
-  if (paths.length) viewButton.onclick = showConfig;
+  if (paths.length) viewButton.onclick = () => showConfig();
   toolbar.insertBefore(viewButton, document.getElementById("refresh-button"));
+  if (configGenerationProject() === null) {
+    const notificationPaths = pageConfigPaths(true);
+    const notificationButton = document.createElement("button");
+    notificationButton.className = "notification-config-button";
+    notificationButton.textContent = "Notification config (read only)";
+    notificationButton.disabled = !notificationPaths.length;
+    notificationButton.title = notificationPaths.length
+      ? "View the notification config copied for this run"
+      : "No notification config snapshot";
+    notificationButton.onclick = () => showConfig(true);
+    toolbar.insertBefore(
+      notificationButton,
+      document.getElementById("refresh-button"),
+    );
+    return;
+  }
   const generateConfigButton = document.createElement("button");
   generateConfigButton.className = "generate-config-button";
   generateConfigButton.textContent = "Generate config";
