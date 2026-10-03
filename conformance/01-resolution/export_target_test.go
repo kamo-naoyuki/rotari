@@ -159,11 +159,78 @@ func TestWaitResolvesActiveAndFinishedSelectors(t *testing.T) {
 	})
 
 	t.Run("finished project returns its latest run", func(t *testing.T) {
-		e := support.NewEnv(t)
-		runID, _ := e.FinishedJobRun("finished")
-		r := e.MustRotari("wait", "finished")
-		if !strings.Contains(r.Stdout, runID) {
-			t.Fatalf("wait project selector omitted run %q: %s", runID, r)
+		for _, outcome := range []string{"success", "failure"} {
+			t.Run(outcome, func(t *testing.T) {
+				e := support.NewEnv(t)
+				project, runID, wantCode := "finished", "", 0
+				if outcome == "failure" {
+					run := e.CreateFinishedRun()
+					project, runID, wantCode = run.Project, run.RunID, 1
+				} else {
+					runID, _ = e.FinishedJobRun(project)
+				}
+				checkWaitFinishedProjectSelections(t, e, project, runID, wantCode)
+			})
 		}
 	})
+}
+
+func checkWaitFinishedProjectSelections(t *testing.T, e *support.Env, project, runID string, wantCode int) {
+	t.Helper()
+	for _, selection := range []struct {
+		name string
+		args []string
+		env  *support.Env
+	}{
+		{"positional", []string{project}, e},
+		{"short option", []string{"-p", project}, e},
+		{"long option", []string{"--project-name", project}, e},
+		{"environment", nil, e.WithVar("ROTARI_PROJECT_NAME", project)},
+	} {
+		t.Run(selection.name, func(t *testing.T) {
+			args := append([]string{"wait", "--timeout", "1s"}, selection.args...)
+			r := selection.env.Rotari(args...)
+			if r.Code != wantCode || !strings.Contains(r.Stdout, runID) {
+				t.Fatalf("wait omitted completed run %q or returned the wrong result (want exit %d): %s", runID, wantCode, r)
+			}
+		})
+	}
+}
+
+// TestCommandsThatCreateAProjectRegisterItsBasedir creates a project in a
+// basedir of its own with each command that can create one, and checks that
+// `show --basedirs` lists the basedir after the write but not after its dry
+// run, which writes nothing. (copy cannot create a project: it copies from
+// one of the project's own runs.)
+func TestCommandsThatCreateAProjectRegisterItsBasedir(t *testing.T) {
+	covers(t, "RES-8")
+	for _, test := range []struct {
+		name string
+		args func(e *support.Env, baseDir string) []string
+	}{
+		{"add", func(_ *support.Env, baseDir string) []string {
+			return []string{"add", "-b", baseDir, "-p", "fresh", "--", "true"}
+		}},
+		{"import", func(e *support.Env, baseDir string) []string {
+			manifest := filepath.Join(e.Root, "manifest.json")
+			if err := os.WriteFile(manifest, []byte(`{"version":1,"jobs":[{"name":"imported","command":["true"]}]}`), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			return []string{"import", "-b", baseDir, manifest, "fresh"}
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			e := support.NewEnv(t)
+			baseDir := filepath.Join(e.Root, "other-basedir")
+			args := test.args(e, baseDir)
+			e.MustRotari(append([]string{args[0], "--dry-run"}, args[1:]...)...)
+			if out := e.MustRotari("show", "--basedirs").Stdout; strings.Contains(out, baseDir) {
+				t.Fatalf("%s --dry-run registered %s:\n%s", test.name, baseDir, out)
+			}
+			e.MustRotari(args...)
+			if out := e.MustRotari("show", "--basedirs").Stdout; !strings.Contains(out, baseDir) {
+				t.Fatalf("%s did not register %s:\n%s", test.name, baseDir, out)
+			}
+		})
+	}
 }

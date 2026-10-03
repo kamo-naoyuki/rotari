@@ -12,19 +12,19 @@ import (
 // Remove removes the selected jobs from the current queue, or from the batch
 // restored from requestedRunID. A job that a remaining job depends on is not
 // removed.
-func (Editor) Remove(baseDir, projectName, requestedRunID string, selector model.CommandSelector) (string, error) {
-	return Editor{}.RemoveWithFilter(baseDir, projectName, requestedRunID, selector, jobfilter.Filter{})
+func (editor Editor) Remove(baseDir, projectName, requestedRunID string, selector model.CommandSelector) (string, error) {
+	return editor.RemoveWithFilter(baseDir, projectName, requestedRunID, selector, jobfilter.Filter{})
 }
 
 // RemoveWithFilter removes the jobs selected by selector and further narrowed by
 // filter from the current queue or from the batch restored from requestedRunID.
-func (Editor) RemoveWithFilter(baseDir, projectName, requestedRunID string, selector model.CommandSelector, filter jobfilter.Filter) (string, error) {
+func (editor Editor) RemoveWithFilter(baseDir, projectName, requestedRunID string, selector model.CommandSelector, filter jobfilter.Filter) (string, error) {
 	paths, err := state.ResolveProjectPaths(baseDir, projectName)
 	if err != nil {
 		return "", err
 	}
 	var removed []model.QueuedCommand
-	err = project.EditQueue(paths, "remove", func(queue *model.Queue) error {
+	err = project.EditQueueGuarded(paths, "remove", editor.Guard, func(queue *model.Queue) error {
 		if err := restoreSnapshot(paths, requestedRunID, queue); err != nil {
 			return err
 		}

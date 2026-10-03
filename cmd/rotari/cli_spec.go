@@ -189,7 +189,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Flags: []cliFlagSpec{
 			{Name: "config", Description: "config file to use", ValueName: "FILE", CommandLineOnly: true},
 			{Name: "masterdir", Description: "master registry directory", ValueName: "DIR"},
-			{Name: "apply", Description: "remove the cached orphan entries"},
+			{Name: "dry-run", Description: "list the orphan entries without removing them", CommandLineOnly: true},
 		},
 		Positional: "[MASTERDIR]",
 	},
@@ -250,7 +250,6 @@ var cliCommandSpecs = []cliCommandSpec{
 		Description: "validate and replace a queue from a workflow manifest",
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "overwrite", Description: "replace a non-empty queue"},
-			cliFlagSpec{Name: "dry-run", Description: "validate and print the import plan without writing"},
 			cliFlagSpec{Name: "json", Description: "print the import plan as JSON"},
 		),
 		Positional: "FILE [PROJECT]",
@@ -309,7 +308,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "masterdir", Description: "master registry directory for --all", ValueName: "DIR"},
 			cliFlagSpec{Name: "all-basedirs", Description: "include all basedirs known to the master registry"},
 			cliFlagSpec{Name: "format", Description: "output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time)", ValueName: "FORMAT"},
-			cliFlagSpec{Name: "since", Description: "include jobs finished within this duration; use 0 for running jobs only", ValueName: "DURATION"},
+			cliFlagSpec{Name: "since", Description: "include jobs finished within this duration, such as 24h or 7d; use 0 for running jobs only", ValueName: "DURATION"},
 		),
 		Positional: "[PROJECT]",
 	},
@@ -334,6 +333,7 @@ var cliCommandSpecs = []cliCommandSpec{
 		Flags: append(commonCLIFlags(),
 			cliFlagSpec{Name: "run-id", Description: "run ID; may be repeated", ValueName: "ID"},
 			cliFlagSpec{Name: "timeout", Description: "maximum wait duration", ValueName: "DURATION"},
+			cliFlagSpec{Name: "until-failure", Description: "return as soon as a job of the run has failed with no retry left, without waiting for the rest"},
 			cliFlagSpec{Name: "json", Description: "print each completed run as one JSON object"},
 		),
 		Positional: "[PROJECT_OR_RUN_NAME_OR_RUN_ID ...]",
@@ -492,6 +492,14 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "auth-token", Description: "require this token in Authorization: Bearer or X-Rotari-Token; prefer ROTARI_WEB_AUTH_TOKEN for secrets", ValueName: "TOKEN"},
 			cliFlagSpec{Name: "notifications", Description: "default state of the browser desktop-notification toggle; pass --notifications=false to default it off"},
 		),
+	},
+	{
+		Name:        "mcp",
+		Description: "serve rotari's tools for agents over MCP on stdio",
+		Flags: []cliFlagSpec{
+			{Name: "config", Description: "config file to use", ValueName: "FILE", CommandLineOnly: true},
+			{Name: "masterdir", Description: "master registry directory whose runs and basedirs the tools serve", ValueName: "DIR"},
+		},
 	},
 	{
 		Name:        "completion",

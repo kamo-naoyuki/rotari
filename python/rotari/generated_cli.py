@@ -113,6 +113,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "environment": "ROTARI_QUIET",
                     "name": "quiet",
                 },
+                {
+                    "description": "print what the command would change, and the "
+                    "project revision, without writing",
+                    "name": "dry-run",
+                },
+                {
+                    "description": "apply only if the project is still at this "
+                    "revision, as printed by --dry-run",
+                    "name": "if-revision",
+                    "value_name": "REVISION",
+                },
             ],
             "name": "reset",
             "positional": "[PROJECT]",
@@ -506,6 +517,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "ID",
                 },
                 {"description": "delete every run of the project", "name": "all"},
+                {
+                    "description": "print what the command would change, and the "
+                    "project revision, without writing",
+                    "name": "dry-run",
+                },
+                {
+                    "description": "apply only if the project is still at this "
+                    "revision, as printed by --dry-run",
+                    "name": "if-revision",
+                    "value_name": "REVISION",
+                },
             ],
             "name": "delete",
             "positional": "[RUN_ID]",
@@ -524,7 +546,10 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "masterdir",
                     "value_name": "DIR",
                 },
-                {"description": "remove the cached orphan entries", "name": "apply"},
+                {
+                    "description": "list the orphan entries without removing them",
+                    "name": "dry-run",
+                },
             ],
             "name": "gc",
             "positional": "[MASTERDIR]",
@@ -750,6 +775,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "repeated": True,
                     "value_name": "NAME",
                 },
+                {
+                    "description": "print what the command would change, and the "
+                    "project revision, without writing",
+                    "name": "dry-run",
+                },
+                {
+                    "description": "apply only if the project is still at this "
+                    "revision, as printed by --dry-run",
+                    "name": "if-revision",
+                    "value_name": "REVISION",
+                },
             ],
             "name": "change",
             "positional": "<command ...>",
@@ -828,11 +864,18 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {"description": "replace a non-empty queue", "name": "overwrite"},
+                {"description": "print the import plan as JSON", "name": "json"},
                 {
-                    "description": "validate and print the import plan without writing",
+                    "description": "print what the command would change, and the "
+                    "project revision, without writing",
                     "name": "dry-run",
                 },
-                {"description": "print the import plan as JSON", "name": "json"},
+                {
+                    "description": "apply only if the project is still at this "
+                    "revision, as printed by --dry-run",
+                    "name": "if-revision",
+                    "value_name": "REVISION",
+                },
             ],
             "name": "import",
             "positional": "FILE [PROJECT]",
@@ -925,6 +968,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "filter-not-matrix",
                     "repeated": True,
                     "value_name": "NAME",
+                },
+                {
+                    "description": "print what the command would change, and the "
+                    "project revision, without writing",
+                    "name": "dry-run",
+                },
+                {
+                    "description": "apply only if the project is still at this "
+                    "revision, as printed by --dry-run",
+                    "name": "if-revision",
+                    "value_name": "REVISION",
                 },
             ],
             "name": "remove",
@@ -1225,8 +1279,9 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "FORMAT",
                 },
                 {
-                    "description": "include jobs finished within this duration; "
-                    "use 0 for running jobs only",
+                    "description": "include jobs finished within this duration, "
+                    "such as 24h or 7d; use 0 for running jobs "
+                    "only",
                     "name": "since",
                     "value_name": "DURATION",
                 },
@@ -1353,6 +1408,12 @@ CLI_SCHEMA: dict[str, Any] = {
                     "environment": "ROTARI_WAIT_TIMEOUT",
                     "name": "timeout",
                     "value_name": "DURATION",
+                },
+                {
+                    "description": "return as soon as a job of the run has "
+                    "failed with no retry left, without waiting "
+                    "for the rest",
+                    "name": "until-failure",
                 },
                 {
                     "description": "print each completed run as one JSON object",
@@ -1513,6 +1574,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "description": "suppress success output",
                     "environment": "ROTARI_QUIET",
                     "name": "quiet",
+                },
+                {
+                    "description": "print what the command would change, and the "
+                    "project revision, without writing",
+                    "name": "dry-run",
+                },
+                {
+                    "description": "apply only if the project is still at this "
+                    "revision, as printed by --dry-run",
+                    "name": "if-revision",
+                    "value_name": "REVISION",
                 },
             ],
             "name": "add",
@@ -1698,6 +1770,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "filter-not-matrix",
                     "repeated": True,
                     "value_name": "NAME",
+                },
+                {
+                    "description": "print what the command would change, and the "
+                    "project revision, without writing",
+                    "name": "dry-run",
+                },
+                {
+                    "description": "apply only if the project is still at this "
+                    "revision, as printed by --dry-run",
+                    "name": "if-revision",
+                    "value_name": "REVISION",
                 },
             ],
             "name": "copy",
@@ -2087,6 +2170,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "repeated": True,
                     "value_name": "NAME",
                 },
+                {
+                    "description": "print what the command would change, and the "
+                    "project revision, without writing",
+                    "name": "dry-run",
+                },
+                {
+                    "description": "apply only if the project is still at this "
+                    "revision, as printed by --dry-run",
+                    "name": "if-revision",
+                    "value_name": "REVISION",
+                },
             ],
             "name": "run",
             "positional": "[RUN_ID]",
@@ -2435,6 +2529,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "repeated": True,
                     "value_name": "NAME",
                 },
+                {
+                    "description": "print what the command would change, and the "
+                    "project revision, without writing",
+                    "name": "dry-run",
+                },
+                {
+                    "description": "apply only if the project is still at this "
+                    "revision, as printed by --dry-run",
+                    "name": "if-revision",
+                    "value_name": "REVISION",
+                },
             ],
             "name": "retry",
             "positional": "[RUN_ID]",
@@ -2525,6 +2630,24 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
             ],
             "name": "web",
+        },
+        {
+            "description": "serve rotari's tools for agents over MCP on stdio",
+            "flags": [
+                {
+                    "description": "config file to use",
+                    "name": "config",
+                    "value_name": "FILE",
+                },
+                {
+                    "description": "master registry directory whose runs and "
+                    "basedirs the tools serve",
+                    "environment": "ROTARI_MASTERDIR",
+                    "name": "masterdir",
+                    "value_name": "DIR",
+                },
+            ],
+            "name": "mcp",
         },
         {
             "description": "print shell completion script",

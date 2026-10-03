@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -18,8 +19,9 @@ type showJSONJob struct {
 
 // showRunJobJSON resolves each expanded job through the same status fallback
 // used by the human-readable run and job views. An array command includes
-// its tasks, rather than pretending that the command has one attempt.
-func showRunJobJSON(paths state.ProjectPaths, runID, jobID string) int {
+// its tasks, rather than pretending that the command has one attempt. A
+// non-empty selection keeps only the jobs it selects.
+func showRunJobJSON(paths state.ProjectPaths, runID, jobID, selection string) int {
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		printError(err)
@@ -57,6 +59,19 @@ func showRunJobJSON(paths state.ProjectPaths, runID, jobID string) int {
 	if err != nil {
 		printError(err)
 		return 1
+	}
+	if selection != "" {
+		kept := make([]showJSONJob, 0, len(output.Jobs))
+		for _, entry := range output.Jobs {
+			var result model.JobResult
+			if entry.Result != nil {
+				result = *entry.Result
+			}
+			if selectsShownJob(paths, runID, entry.Job.ID, result, entry.Finished, selection, jobfilter.Filter{}) {
+				kept = append(kept, entry)
+			}
+		}
+		output.Jobs = kept
 	}
 	if err := json.NewEncoder(os.Stdout).Encode(output); err != nil {
 		printErrorf("failed to write JSON: %v", err)

@@ -26,6 +26,201 @@ function esc(v) {
       ],
   );
 }
+function initOrbitGame() {
+  const dialog = document.getElementById("orbit-game");
+  const player = document.getElementById("orbit-game-player");
+  const board = dialog?.querySelector(".orbit-game-board");
+  const whiteBalls = document.getElementById("orbit-game-white-balls");
+  const gameOver = document.getElementById("orbit-game-over");
+  if (!dialog || !player || !board || !whiteBalls || !gameOver) return;
+
+  const ringRadius = 84;
+  const redRadius = 13;
+  const ballCount = 6;
+  const whiteRadiusMin = 7;
+  const whiteRadiusMax = 17;
+  let returnFocus = null;
+  let turnDirection = 0;
+  let animationFrame = 0;
+  let lastFrameTime = null;
+  let running = false;
+  let redAngle = -Math.PI / 2;
+  let whiteStates = [];
+
+  const angleDelta = (from, to) => {
+    let difference = Math.abs(from - to) % (Math.PI * 2);
+    if (difference > Math.PI) difference = Math.PI * 2 - difference;
+    return difference;
+  };
+  const drawBall = (element, angle) => {
+    element.setAttribute("cx", (ringRadius * Math.cos(angle)).toFixed(2));
+    element.setAttribute("cy", (ringRadius * Math.sin(angle)).toFixed(2));
+    element.dataset.angle = String(angle);
+  };
+  const makeWhiteBalls = () => {
+    whiteBalls.replaceChildren();
+    whiteStates = Array.from({ length: ballCount }, (_, index) => {
+      const radius =
+        whiteRadiusMin + Math.random() * (whiteRadiusMax - whiteRadiusMin);
+      const angle =
+        -Math.PI / 2 + ((index + 1) * Math.PI * 2) / (ballCount + 1);
+      const element = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "circle",
+      );
+      element.setAttribute("class", "orbit-game-node");
+      element.setAttribute("r", radius.toFixed(2));
+      whiteBalls.append(element);
+      drawBall(element, angle);
+      return { angle, radius, element };
+    });
+    redAngle = -Math.PI / 2;
+    drawBall(player, redAngle);
+    gameOver.hidden = true;
+  };
+  const hasCollision = () =>
+    whiteStates.some(
+      (white) =>
+        angleDelta(redAngle, white.angle) <=
+        (redRadius + white.radius) / ringRadius,
+    );
+  const stop = () => {
+    running = false;
+    turnDirection = 0;
+    lastFrameTime = null;
+    if (animationFrame) cancelAnimationFrame(animationFrame);
+    animationFrame = 0;
+  };
+  const endGame = () => {
+    stop();
+    gameOver.hidden = false;
+    document.getElementById("orbit-game-restart").focus();
+  };
+  const tick = (timestamp) => {
+    if (!running || dialog.hidden) return;
+    const elapsed =
+      lastFrameTime === null
+        ? 0
+        : Math.min((timestamp - lastFrameTime) / 1000, 0.05);
+    lastFrameTime = timestamp;
+    const turnSpeed = turnDirection * 1.7 * elapsed;
+    redAngle += turnSpeed * 0.81;
+    drawBall(player, redAngle);
+    for (const white of whiteStates) {
+      const sizeFactor = 0.45 + (whiteRadiusMax - white.radius) * 0.065;
+      white.angle +=
+        elapsed * (0.55 / white.radius + turnDirection * 1.7 * sizeFactor);
+      drawBall(white.element, white.angle);
+    }
+    if (hasCollision()) {
+      endGame();
+      return;
+    }
+    animationFrame = requestAnimationFrame(tick);
+  };
+  const start = () => {
+    stop();
+    makeWhiteBalls();
+    running = true;
+    animationFrame = requestAnimationFrame(tick);
+  };
+  const open = () => {
+    returnFocus = document.activeElement;
+    dialog.hidden = false;
+    start();
+    document.getElementById("orbit-game-left").focus();
+  };
+  const close = () => {
+    stop();
+    dialog.hidden = true;
+    if (returnFocus && typeof returnFocus.focus === "function")
+      returnFocus.focus();
+  };
+  const setTurnDirection = (direction) => {
+    if (running) turnDirection = direction;
+  };
+  const nudge = (direction) => {
+    if (!running) return;
+    redAngle += direction * 0.12 * 0.81;
+    for (const white of whiteStates) {
+      white.angle +=
+        direction * 0.12 * (0.45 + (whiteRadiusMax - white.radius) * 0.065);
+      drawBall(white.element, white.angle);
+    }
+    drawBall(player, redAngle);
+    if (hasCollision()) endGame();
+  };
+
+  for (const link of document.querySelectorAll(
+    ".sidebar-brand, .header-home",
+  )) {
+    link.addEventListener("click", (event) => {
+      if (!event.shiftKey || event.button !== 0) return;
+      event.preventDefault();
+      open();
+    });
+  }
+  document.getElementById("orbit-game-close").addEventListener("click", close);
+  for (const button of dialog.querySelectorAll("[data-orbit-direction]")) {
+    const direction = Number(button.dataset.orbitDirection);
+    button.addEventListener("pointerdown", (event) => {
+      setTurnDirection(direction);
+      if (button.setPointerCapture) button.setPointerCapture(event.pointerId);
+    });
+    for (const eventName of [
+      "pointerup",
+      "pointercancel",
+      "lostpointercapture",
+    ]) {
+      button.addEventListener(eventName, () => setTurnDirection(0));
+    }
+    button.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ")
+        setTurnDirection(direction);
+    });
+    button.addEventListener("keyup", (event) => {
+      if (event.key === "Enter" || event.key === " ") setTurnDirection(0);
+    });
+    button.addEventListener("click", () => nudge(direction));
+  }
+  document
+    .getElementById("orbit-game-restart")
+    .addEventListener("click", start);
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) close();
+  });
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key === "Tab") {
+      const focusable = [
+        ...dialog.querySelectorAll(
+          'button:not([disabled]):not([hidden]), [tabindex="0"]',
+        ),
+      ].filter((element) => !element.closest("[hidden]"));
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      setTurnDirection(-1);
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      setTurnDirection(1);
+    }
+  });
+  dialog.addEventListener("keyup", (event) => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight")
+      setTurnDirection(0);
+  });
+}
 const originalRender = render;
 render = function () {
   if (pageParts()[0] !== "search")
@@ -84,6 +279,7 @@ render = function () {
   applyBasedirLinks();
   focusHistorySearchJob();
 };
+initOrbitGame();
 window.addEventListener("popstate", () => refresh(true));
 initSidebarResizer();
 refresh(true);

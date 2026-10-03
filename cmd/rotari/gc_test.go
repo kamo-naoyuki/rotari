@@ -1,28 +1,29 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
-	"github.com/kamo-naoyuki/rotari/internal/runregistry"
 )
 
-func TestRunRegistryGCFindsAndAppliesOnlyOrphans(t *testing.T) {
-	masterDir := t.TempDir()
+// gcFixture registers an orphan run, a live run, and a basedir that is gone.
+func gcFixture(t *testing.T) (masterDir, missingBaseDir string) {
+	t.Helper()
+	masterDir = t.TempDir()
 	baseDir := t.TempDir()
-	missingBaseDir := filepath.Join(t.TempDir(), "removed-basedir")
+	missingBaseDir = filepath.Join(t.TempDir(), "removed-basedir")
 	t.Setenv("ROTARI_MASTERDIR", masterDir)
 	if err := basedirregistry.Open(masterDir).Register(missingBaseDir); err != nil {
 		t.Fatal(err)
 	}
-	locations := []runLocation{
+	for _, location := range []runLocation{
 		{BaseDir: baseDir, ProjectName: "demo", RunID: "missing"},
 		{BaseDir: baseDir, ProjectName: "demo", RunID: "live"},
-	}
-	for _, location := range locations {
+	} {
 		if err := registerRunLocation(location); err != nil {
 			t.Fatal(err)
 		}
@@ -30,125 +31,51 @@ func TestRunRegistryGCFindsAndAppliesOnlyOrphans(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(baseDir, "projects", "demo", "runs", "live"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	return masterDir, missingBaseDir
+}
 
-	orphans, skipped, err := runregistry.Open(masterDir).Orphans()
+func registered(t *testing.T, runID string) bool {
+	t.Helper()
+	_, found, err := resolveRunLocation(runID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(orphans) != 1 || orphans[0].RunID != "missing" {
-		t.Fatalf("orphans = %+v, want only missing run", orphans)
-	}
-	if len(skipped) != 0 {
-		t.Fatalf("skipped = %v, want none", skipped)
-	}
-	cache := runRegistryGCCache{CreatedAt: nowRFC3339(), Entries: orphans, Basedirs: []string{missingBaseDir}}
-	if err := writeJSON(filepath.Join(masterDir, "gc.json"), cache); err != nil {
-		t.Fatal(err)
-	}
-
-	if code := applyRunRegistryGC(masterDir); code != 0 {
-		t.Fatalf("applyRunRegistryGC() = %d, want 0", code)
-	}
-	if _, found, err := resolveRunLocation("missing"); err != nil || found {
-		t.Fatalf("missing entry: found=%v, err=%v; want removed", found, err)
-	}
-	if _, found, err := resolveRunLocation("live"); err != nil || !found {
-		t.Fatalf("live entry: found=%v, err=%v; want retained", found, err)
-	}
-	baseDirs, err := basedirregistry.Open(masterDir).BaseDirs()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(baseDirs) != 0 {
-		t.Fatalf("basedir registry after GC = %v, want empty", baseDirs)
-	}
+	return found
 }
 
-func TestApplyRunRegistryGCRejectsExpiredPlan(t *testing.T) {
-	masterDir := t.TempDir()
-	t.Setenv("ROTARI_MASTERDIR", masterDir)
-	cache := runRegistryGCCache{CreatedAt: "2000-01-01T00:00:00Z"}
-	if err := writeJSON(filepath.Join(masterDir, "gc.json"), cache); err != nil {
-		t.Fatal(err)
-	}
-	if code := applyRunRegistryGC(masterDir); code == 0 {
-		t.Fatal("applyRunRegistryGC() succeeded with an expired plan")
-	}
-}
+func TestCmdGCRemovesOnlyOrphansAndDryRunKeepsThem(t *testing.T) {
+	masterDir, missingBaseDir := gcFixture(t)
 
-func TestApplyRunRegistryGCSkipsChangedOrReappearedEntries(t *testing.T) {
-	masterDir := t.TempDir()
-	baseDir := t.TempDir()
-	t.Setenv("ROTARI_MASTERDIR", masterDir)
-	changed := runLocation{BaseDir: baseDir, ProjectName: "demo", RunID: "changed"}
-	reappeared := runLocation{BaseDir: baseDir, ProjectName: "demo", RunID: "reappeared"}
-	for _, location := range []runLocation{changed, reappeared} {
-		if err := registerRunLocation(location); err != nil {
-			t.Fatal(err)
+	var output bytes.Buffer
+	if code := captureShowStdout(t, &output, func() int { return cmdGC([]string{"--dry-run", masterDir}) }); code != 0 {
+		t.Fatalf("gc --dry-run = %d:\n%s", code, output.String())
+	}
+	for _, want := range []string{"dry run: found 1 orphan run registry entry", "missing ->", "dry run: found 1 missing basedir registry", missingBaseDir} {
+		if !strings.Contains(output.String(), want) {
+			t.Errorf("gc --dry-run output does not contain %q:\n%s", want, output.String())
 		}
 	}
-	if err := writeJSON(filepath.Join(masterDir, "gc.json"), runRegistryGCCache{
-		CreatedAt: nowRFC3339(), Entries: []runLocation{changed, reappeared},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	changed.ProjectName = "other"
-	if err := writeJSON(filepath.Join(masterDir, "runs", "changed.json"), changed); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(baseDir, "projects", "demo", "runs", "reappeared"), 0o755); err != nil {
-		t.Fatal(err)
+	if !registered(t, "missing") {
+		t.Fatal("gc --dry-run removed the orphan entry")
 	}
 
-	if code := applyRunRegistryGC(masterDir); code != 0 {
-		t.Fatalf("applyRunRegistryGC() = %d, want 0", code)
+	output.Reset()
+	if code := captureShowStdout(t, &output, func() int { return cmdGC([]string{"--masterdir", masterDir}) }); code != 0 {
+		t.Fatalf("gc = %d:\n%s", code, output.String())
 	}
-	if _, found, err := resolveRunLocation("changed"); err != nil || !found {
-		t.Fatalf("changed entry: found=%v, err=%v; want retained", found, err)
+	if !strings.Contains(output.String(), "removed 1 orphan run registry entry") || !strings.Contains(output.String(), "removed 1 missing basedir registry") {
+		t.Errorf("gc output:\n%s", output.String())
 	}
-	if _, found, err := resolveRunLocation("reappeared"); err != nil || !found {
-		t.Fatalf("reappeared entry: found=%v, err=%v; want retained", found, err)
+	if registered(t, "missing") || !registered(t, "live") {
+		t.Fatal("gc did not remove only the orphan entry")
+	}
+	if baseDirs, err := basedirregistry.Open(masterDir).BaseDirs(); err != nil || len(baseDirs) != 0 {
+		t.Fatalf("basedir registry after gc = %v, %v; want empty", baseDirs, err)
 	}
 }
 
-func TestApplyRunRegistryGCRejectsFuturePlan(t *testing.T) {
+func TestCmdGCRejectsTwoMasterDirectories(t *testing.T) {
 	masterDir := t.TempDir()
-	t.Setenv("ROTARI_MASTERDIR", masterDir)
-	if err := writeJSON(filepath.Join(masterDir, "gc.json"), runRegistryGCCache{
-		CreatedAt: time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if applyRunRegistryGC(masterDir) == 0 {
-		t.Fatal("applyRunRegistryGC() succeeded with a future-dated plan")
-	}
-}
-
-func TestCmdGCUsesExplicitMasterDirectory(t *testing.T) {
-	masterDir := t.TempDir()
-	if code := cmdGC([]string{"--masterdir", masterDir}); code != 0 {
-		t.Fatalf("cmdGC() = %d, want 0", code)
-	}
-	if _, err := os.Stat(filepath.Join(masterDir, "gc.json")); err != nil {
-		t.Fatalf("GC plan was not written: %v", err)
-	}
-}
-
-func TestCmdGCAcceptsPositionalMasterDirectory(t *testing.T) {
-	masterDir := t.TempDir()
-	t.Setenv(envMasterDir, t.TempDir())
-	if code := cmdGC([]string{masterDir}); code != 0 {
-		t.Fatalf("cmdGC positional master directory = %d, want 0", code)
-	}
-	if _, err := os.Stat(filepath.Join(masterDir, "gc.json")); err != nil {
-		t.Fatalf("GC plan was not written to positional master directory: %v", err)
-	}
-	if code := cmdGC([]string{"--apply", masterDir}); code != 0 {
-		t.Fatalf("cmdGC positional master directory apply = %d, want 0", code)
-	}
-	if _, err := os.Stat(filepath.Join(masterDir, "gc.json")); !os.IsNotExist(err) {
-		t.Fatalf("GC plan was not removed after positional apply: %v", err)
-	}
 	if code := cmdGC([]string{"--masterdir", masterDir, t.TempDir()}); code != 1 {
 		t.Fatalf("cmdGC accepted positional master directory with --masterdir: exit code = %d", code)
 	}

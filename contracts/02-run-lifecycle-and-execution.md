@@ -81,6 +81,24 @@
   result. Implemented in [internal/run/rerun.go](../internal/run/rerun.go) and
   covered by `TestImportedWorkflowRunsFreshJobs` in
   [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
+- **RUN-6** `wait --until-failure` returns, with status 1 and the failures
+  grouped by cause, as soon as a job of the waited run has failed with no
+  retry left; a failed attempt that the run will retry does not count, and a
+  run that finishes first is reported as `wait` reports any run. A job's
+  result is final once the run records `final_result.json` for its attempt;
+  [internal/runview/run.go](../internal/runview/run.go) marks it `Final`, and
+  [cmd/rotari/wait.go](../cmd/rotari/wait.go) waits on it. Covered by
+  `TestWaitUntilFailureReturnsAtAFinalFailure` and
+  `TestWaitUntilFailureIgnoresAFailureTheRunRetries` in
+  [conformance/02-lifecycle/wait_failure_test.go](../conformance/02-lifecycle/wait_failure_test.go).
+- **RUN-7** In `--depends-on` and `--depends-on-finished`, a named array
+  job's name stands for all of its tasks, as a stage name stands for its jobs
+  and a matrix name for its members: `--depends-on train` waits for every
+  task of the array `train` to succeed, and `--depends-on-finished train` for
+  every task to finish. The expansion is in `QueueToJobs` in
+  [internal/model/model.go](../internal/model/model.go); covered by
+  `TestArrayNameDependsOnEveryTask` in
+  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,
@@ -388,6 +406,14 @@ the request, on the host that owns the run.
   cancel-job) stops only that job. The rest of the run keeps running and
   finishes normally, and the run's `--retry` does not start the cancelled job
   again.
+- **CAN-5** A job that a cancel stopped, whether the whole run's or its own,
+  records a cancelled result: its error is `cancelled`, keeping an earlier
+  error in parentheses. `--filter-failure-kind cancelled` selects it, and
+  failure groups list it as `cancelled` rather than by its exit code or
+  signal. The result is set once, when the job reaches its final result, in
+  [internal/projectrun/execute.go](../internal/projectrun/execute.go); covered
+  by `TestCancelledJobsReadAsCancelled` in
+  [conformance/02-lifecycle/cancel_test.go](../conformance/02-lifecycle/cancel_test.go).
 
 Whole-run and job cancel go through `jobcontrol.Controller`
 ([internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go)).

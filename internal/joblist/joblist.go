@@ -38,11 +38,19 @@ type Row struct {
 	Elapsed     time.Duration
 }
 
-// ParseSince parses a listing window such as "24h"; empty means
-// DefaultSince.
+// ParseSince parses a listing window: a Go duration such as "24h" or "90m",
+// or a whole number of days such as "7d", which Go durations lack. Empty
+// means DefaultSince.
 func ParseSince(value string) (time.Duration, error) {
 	if value == "" {
 		return DefaultSince, nil
+	}
+	if days, ok := strings.CutSuffix(value, "d"); ok {
+		count, err := strconv.Atoi(days)
+		if err != nil || count < 0 {
+			return 0, fmt.Errorf("invalid duration")
+		}
+		return time.Duration(count) * 24 * time.Hour, nil
 	}
 	window, err := time.ParseDuration(value)
 	if err != nil || window < 0 {

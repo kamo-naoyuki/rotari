@@ -37,6 +37,9 @@ type Request struct {
 	SourceRunID  string           `json:"source_run_id,omitempty"`
 	PartialArray bool             `json:"partial_array,omitempty"`
 	MatchBy      string           `json:"match_by,omitempty"`
+	// IfRevision, when set, starts the run only if the project is still at
+	// this revision; see project.Guard.
+	IfRevision string `json:"if_revision,omitempty"`
 }
 
 type Response struct {
@@ -51,4 +54,6 @@ type Response struct {
 	Total     int    `json:"total,omitempty"`
 	Succeeded int    `json:"succeeded,omitempty"`
 	Failed    int    `json:"failed,omitempty"`
+	// RunID is the run an asynchronous run request started.
+	RunID string `json:"run_id,omitempty"`
 }

@@ -26,7 +26,7 @@ func (editor Editor) Copy(baseDir, projectName, runID string, request queueedit.
 		return "", err
 	}
 	var copied int
-	err = project.EditQueue(paths, "copy", func(queue *model.Queue) error {
+	err = project.EditQueueGuarded(paths, "copy", editor.Guard, func(queue *model.Queue) error {
 		sourceRunDir, err := state.SafeJoin(paths.RunsDir, runID)
 		if err != nil {
 			return err
@@ -78,6 +78,9 @@ func (editor Editor) Copy(baseDir, projectName, runID string, request queueedit.
 		return nil
 	})
 	if err != nil {
+		return "", err
+	}
+	if err := editor.registerBaseDir(paths.BaseDir); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("copied jobs=%d from run=%s to queue=%s", copied, runID, projectName), nil

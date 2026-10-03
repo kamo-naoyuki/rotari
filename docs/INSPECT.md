@@ -13,6 +13,10 @@ rotari jobs --all-basedirs # list jobs across basedirs known to the master regis
 rotari jobs --all-basedirs --format "%s %b %p %a %n %c %t %e" # choose displayed fields
 ```
 
+When `jobs` finds nothing, it names the state directory it searched and the
+time window, and suggests `--all-basedirs` to search every registered state
+directory.
+
 Use `show` to inspect a project's runs and pending queue, or a specific run/job.
 
 ```sh
@@ -34,11 +38,54 @@ rotari show RUN_ID --report # describe the whole run and include recent logs
 rotari show -p sweep --run-id latest --job-id JOB_ID --json # one run job (or all tasks of an array) as JSON
 ```
 
+`show --logs --failed` (or `--logs --filter-result failed`) selects the same
+failed jobs as `--failed-logs`, including output carried from an older run.
+
+The project list shows each project's last run and its result, such as
+`failed 7/15` when 7 of its 15 jobs failed. Its suggested commands name the
+basedir (`-b BASEDIR`) when a listed project lies outside the default state
+directory; with `ROTARI_BASEDIR` set, `show` lists only that directory, so use
+`rotari show -b DIR` for another one.
+
 The run/job JSON view includes the resolved run and project, a `jobs` array
 with each job's definition, a `finished` flag, and a `result` when available.
-For a running job, `finished` is false and no `result` is present. Passing
+For a running job, `finished` is false and no `result` is present. With
+`--failed`, the run JSON keeps only the failed jobs' summary results and
+failure groups (the `commands` snapshot stays whole), and the job and array
+JSON keeps only the failed jobs, as the job table does. Passing
 `--run-id latest` selects the latest saved run even when the project has a
 non-empty queue; an unknown job ID fails instead of showing the queue.
+
+For a run with failed jobs, `show` prints a `Failure summary:` line before
+the job table, with the `rotari lineage` command that prints only the run's
+summary and failure causes. It also ends its job table with
+`Failures by cause:`, one entry per cause with the number of jobs, their exit
+codes, the jobs (array tasks as `train[3,7,11]`, at most ten), an example
+line, the command that shows the first job, and the diagnosis rule's
+suggestion:
+
+```text
+Failures by cause:
+  42 CUDA/GPU memory exhausted (exit 1): sweep[7,14,21,28,35,42,49,56,63,70] +32 more
+    e.g. torch.OutOfMemoryError: CUDA out of memory (task 7)
+    show: rotari show -j att_20261002-124301-d7741cfe-32ab8e9d1-7-0
+    fix: Reduce batch size or model memory use, select a GPU with more free memory, and check for other processes using the GPU.
+  1 timeout (exit 124): slow
+    e.g. timed out after 5s
+```
+
+Each job is classified on its own result: a block by a failed dependency, a
+cancellation, or a timeout comes first, then the job's latest saved rule
+diagnosis, and otherwise its failure kind (`oom`, `signal`, or `error`; see
+`--filter-failure-kind`). The most frequent cause is listed first. With result
+selections or filters, only the listed jobs are grouped. `show --run-id RUN_ID
+--json` carries the same groups, with every job ID, as `failures`; so do
+`lineage RUN_ID --json` and the Web UI's run summary.
+
+A report's log section shows, for a job whose saved diagnosis cites a line
+found in its log, the lines around that evidence and the last 20 lines, with
+the skipped lines marked as `[... N lines omitted ...]`. Otherwise it shows
+the last 100 lines. Either way it keeps at most 12000 characters.
 
 An older `ATTEMPT_ID` shows that attempt's own status, timestamps, and logs.
 Logs are merged by default; use `add --log-mode separate` when adding a job to
@@ -97,13 +144,17 @@ rotari lineage -p sweep --json RUN_A RUN_B
 rotari lineage -p sweep RUN_A RUN_B RUN_C
 ```
 
-`lineage` summarizes jobs that were fixed, are still failing, or newly fail; jobs
+`lineage` summarizes jobs that were fixed, are still failing, or newly fail,
+with each run's failure cause as `show` groups it (the `CAUSE` column, and
+`from_cause`, `to_cause`, and `cause_changed` in JSON), so a job that still
+fails for a different reason stands out; jobs
 added or removed; jobs whose command, executor, executor options, environment,
 working directory, stage, or dependencies changed; and jobs whose result was
 carried forward instead of re-executed. Jobs are matched by origin when the
 origin points to the compared run; otherwise named jobs are matched by name.
-The one-run summary also groups failed jobs by diagnosis and reports their
-source-run origins, including `new` for jobs without an origin.
+The one-run summary also counts failed jobs by diagnosis, groups them by
+cause as `show` does, and reports their source-run origins, including `new`
+for jobs without an origin.
 
 ### Check run readiness
 

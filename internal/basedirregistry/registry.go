@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/kamo-naoyuki/rotari/internal/runregistry"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -37,8 +38,52 @@ func Default() (Registry, error) {
 }
 
 func recordPath(dir, baseDir string) string {
+	return filepath.Join(dir, ref(baseDir)+recordSuffix)
+}
+
+// Ref returns a short, stable reference to an absolute baseDir: the key of
+// its registry record. It names a basedir without revealing its path.
+func Ref(baseDir string) string {
+	return ref(baseDir)
+}
+
+func ref(baseDir string) string {
 	sum := sha256.Sum256([]byte(baseDir))
-	return filepath.Join(dir, hex.EncodeToString(sum[:])[:32]+recordSuffix)
+	return hex.EncodeToString(sum[:])[:32]
+}
+
+// Find returns the basedir registered under masterDir whose Ref is ref, as
+// Discover lists them.
+func Find(masterDir, ref string) (string, error) {
+	baseDirs, _, err := Discover(masterDir)
+	if err != nil {
+		return "", err
+	}
+	for _, baseDir := range baseDirs {
+		if Ref(baseDir) == ref {
+			return baseDir, nil
+		}
+	}
+	return "", fmt.Errorf("basedir_ref %q is not registered", ref)
+}
+
+// Discover lists the basedirs registered under masterDir without writing.
+// A master directory from before the basedir registry existed has only run
+// records; their basedirs are listed instead and fromRuns is set, so that a
+// caller allowed to write can register them.
+func Discover(masterDir string) (baseDirs []string, fromRuns bool, err error) {
+	baseDirs, err = Open(masterDir).BaseDirs()
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to read basedir registry: %w", err)
+	}
+	if len(baseDirs) > 0 {
+		return baseDirs, false, nil
+	}
+	baseDirs, err = runregistry.Open(masterDir).BaseDirs()
+	if err != nil {
+		return nil, false, err
+	}
+	return baseDirs, len(baseDirs) > 0, nil
 }
 
 // Register adds baseDir to the discovery index. Registration is idempotent.

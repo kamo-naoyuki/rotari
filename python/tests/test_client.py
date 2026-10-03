@@ -2,8 +2,8 @@ import inspect
 import json
 from unittest.mock import patch
 
+import pytest
 from rotari import Job, Rotari, RotariError, Run
-from rotari.client import CommandResult
 
 
 def completed(stdout="", stderr="", returncode=0):
@@ -158,14 +158,10 @@ def test_run_passes_false_for_boolean_value_flag():
 
 
 def test_unknown_options_are_rejected_before_invoking_cli():
+    client = Rotari()
     with patch("subprocess.run") as run:
-        try:
-            Rotari().add(["true"], job_nam="train")
-        except TypeError as error:
-            assert "job-nam" in str(error)
-        else:
-            raise AssertionError("unknown option was silently ignored")
-
+        with pytest.raises(TypeError, match="job-nam"):
+            client.add(["true"], job_nam="train")
         run.assert_not_called()
 
 
@@ -203,34 +199,25 @@ def test_quiet_does_not_hide_ids_and_matrix_does_not_claim_one_id():
 
 
 def test_failed_run_exposes_started_id_on_error_result():
+    client = Rotari()
     with patch(
         "subprocess.run",
         return_value=completed("=== Run started ===\n  Run ID: run-3\n", returncode=1),
     ):
-        try:
-            Rotari().run()
-        except RotariError as error:
-            assert error.result.run_id == "run-3"
-        else:
-            raise AssertionError("RotariError was not raised")
+        with pytest.raises(RotariError) as error:
+            client.run()
+    assert error.value.result.run_id == "run-3"
 
 
 def test_missing_ids_do_not_silently_produce_unidentified_objects():
+    client = Rotari()
     with patch("subprocess.run", return_value=completed("no job ID")):
-        try:
-            Rotari().add(["true"])
-        except ValueError as error:
-            assert "job ID" in str(error)
-        else:
-            raise AssertionError("missing job ID was accepted")
+        with pytest.raises(ValueError, match="job ID"):
+            client.add(["true"])
 
     with patch("subprocess.run", return_value=completed("no run ID")):
-        try:
-            Rotari().run()
-        except ValueError as error:
-            assert "run ID" in str(error)
-        else:
-            raise AssertionError("missing run ID was accepted")
+        with pytest.raises(ValueError, match="run ID"):
+            client.run()
 
 
 def test_wait_returns_failed_run_summary_instead_of_raising():
@@ -241,6 +228,27 @@ def test_wait_returns_failed_run_summary_instead_of_raising():
         result = Rotari().wait("nightly")
 
     assert result == payload
+
+
+def test_wait_until_failure_returns_the_running_runs_failures():
+    payload = {
+        "run_id": "run-1",
+        "status": "running",
+        "failures": [{"kind": "timeout", "cause": "timeout", "count": 1}],
+    }
+    with patch(
+        "subprocess.run", return_value=completed(json.dumps(payload), returncode=1)
+    ) as run:
+        result = Rotari().wait("run-1", until_failure=True)
+
+    assert result == payload
+    assert run.call_args.args[0] == [
+        "rotari",
+        "wait",
+        "--until-failure",
+        "--json",
+        "run-1",
+    ]
 
 
 def test_wait_without_selector_lets_cli_find_the_active_run():
@@ -261,15 +269,13 @@ def test_wait_without_selector_lets_cli_find_the_active_run():
 
 
 def test_command_raises_for_cli_errors():
+    client = Rotari()
     with patch(
         "subprocess.run", return_value=completed(stderr="bad option", returncode=1)
     ):
-        try:
-            Rotari().command("show")
-        except RotariError as error:
-            assert error.result.returncode == 1
-        else:
-            raise AssertionError("RotariError was not raised")
+        with pytest.raises(RotariError) as error:
+            client.command("show")
+    assert error.value.result.returncode == 1
 
 
 def test_cli_signatures_are_generated_from_schema():

@@ -1,69 +1,102 @@
 # MCP server (experimental)
 
-rotari includes an experimental read-only MCP server for asking an agent to
-inspect one job. It exposes the `rotari_get_job_info` tool, which takes the
-state directory (`basedir`), project name, exact run ID, and exact job ID. It
-returns an AI-oriented report with the job's status, result, diagnosis, and a
-bounded tail of recent log output. Known paths and hostnames are redacted where
-detected; redaction is not guaranteed to catch every secret.
+rotari includes an experimental MCP server, `rotari mcp`, for agents that
+cannot run shell commands. Agents that can should use the `rotari` CLI, as
+`rotari guide` describes; each tool below names the CLI command that returns
+the same information. The tools below only read; importing a manifest and
+starting a run are described in [Changing a project](#changing-a-project).
 
-The tool currently requires the caller to supply all four identifiers. It does
-not search the basedir registry, list projects, or discover a job from its ID
-alone. No queue edits, job execution, or job control are exposed.
+| Tool | Input | Returns | CLI equivalent |
+| --- | --- | --- | --- |
+| `rotari_list_projects` | none | every project of every registered state directory, with its state, queue size, run count, and last run's ID, status, and failed and total job counts | `rotari show` |
+| `rotari_run_summary` | `run_id` | the run's `state` (`running`, `finished`, `interrupted`, or `ended` without a summary), job counts, and failed and blocked jobs grouped by cause, each with its jobs, exit codes, an example evidence line, the attempt to inspect, and a suggested fix | `rotari lineage RUN_ID` |
+| `rotari_get_job_info` | `run_id`, `job_id` | a report on one job: status, result, diagnosis, and the log lines around the diagnosis evidence | `rotari show -j ATTEMPT_ID --report` |
+| `rotari_check_project` | `basedir_ref`, `project` | whether the project's queued run can start: its state (`ready`, `empty`, `running`, `locked`, or `interrupted`), queued job count, and lock, after validating the queue's jobs, dependencies, and executors | `rotari check PROJECT` (without `--deep`) |
+| `rotari_export_run` | `run_id`, optional `format` (`yaml`, `json`, or `toml`) | the finished run as a workflow manifest for reading, with environment values, executor options, and paths redacted; the MCP import tools refuse it until the placeholders are replaced, and `rotari export` gives the full manifest | `rotari export RUN_ID` |
+| `rotari_compare_runs` | `run_id`, optional `previous_run_id` | which jobs were fixed, still fail, or newly fail, each run's failure cause and whether it changed, and which job definitions changed; `previous_run_id` defaults to the run that started just before `run_id` | `rotari lineage PREVIOUS_RUN_ID RUN_ID` |
 
-## Build both entry points
+A typical session lists projects, summarizes the run with failures, inspects
+one job from a failure group's attempt, and compares a later run with it.
+Tools that act on a project rather than a run take the `basedir_ref` and
+`project` that `rotari_list_projects` returns.
 
-Build the MCP stdio server and the terminal command from the repository:
+## Changing a project
+
+The tools that change a project come in pairs: a read-only preview and a
+write that applies only at the revision the preview returned. An MCP client
+can let previews run freely and ask its user before each write; the
+read-only tools are annotated as such.
+
+| Preview | Write | Input | CLI equivalent |
+| --- | --- | --- | --- |
+| `rotari_preview_import` | `rotari_import` | `basedir_ref`, `project`, `manifest` (text), optional `format` (`yaml`, `json`, or `toml`) and `overwrite`; the write also `if_revision` | `rotari import --dry-run` / `--if-revision` |
+| `rotari_preview_run` | `rotari_start_run` | `basedir_ref`, `project`, optional `retry`; the write also `if_revision` and optional `run_name` | `rotari run` or `retry`, with `--dry-run` / `--async --if-revision` |
+
+A preview returns the plan and `revision`; pass that revision as
+`if_revision` to the write. If anything wrote the project in between, the
+write fails with `project changed since the planned revision` and changes
+nothing; preview again. `rotari_preview_run` lists the jobs the run would
+execute, planned as the run itself is, and `rotari_start_run` returns the
+`run_id` of the run it started in the background; follow it with
+`rotari_run_summary` until its `state` is no longer `running`, as
+`rotari wait` would. Right after the start, the run may have no jobs yet.
+With `retry`, the run executes only the failed and unfinished jobs and
+carries the other results, as `rotari retry` does: those of the queue, such
+as one just imported, or of the project's last run, which it copies into an
+empty queue first.
+
+A started run uses `rotari run`'s defaults, and its jobs run in the working
+directory and with the environment of the `rotari mcp` process, which is
+usually the MCP client's.
+
+The server finds a run's state directory and project through the run
+registry of its master directory, the same registry the `rotari` CLI uses to
+resolve `--run-id`. It serves only runs and state directories registered
+there: it does not fall back to a default state directory or walk other
+directories. Results name a state directory by `basedir_ref`, a stable
+reference that does not reveal its path, and by `basedir_name`, the last
+element of its path; they contain no absolute paths, and errors write
+`BASEDIR` for a registered state directory's path. Reports and evidence
+lines redact paths and hostnames where detected; redaction is not guaranteed
+to catch every secret. Queue edits other than import, job control,
+and deleting history are not exposed, and the server does not remove stale
+locks or migrate registries.
+
+## Start the server
+
+The server is part of the `rotari` binary:
 
 ```sh
-mkdir -p ./bin
-go build -o ./bin/rotari-mcp ./cmd/mcp/server
-go build -o ./bin/rotari-agent ./cmd/mcp/agent
+rotari mcp
 ```
 
-Both commands call `internal/mcp.GetJobInfo`; the MCP server exposes it as
-`rotari_get_job_info`, while `rotari-agent` prints the same report in a
-terminal. The MCP server uses the official Go MCP SDK, which currently requires
-Go 1.23 or newer.
-
-Run the terminal form with the same four identifiers:
-
-```sh
-./bin/rotari-agent --basedir /path/to/rotari-state --project experiment \
-  --run-id 20261002-120000-12345678 --job-id abc123def
-```
+It speaks MCP on stdin and stdout, so an MCP client starts it as a
+subprocess. It resolves its master directory when it starts: `--masterdir`,
+then the same order as the CLI, `ROTARI_MASTERDIR`, then
+`$XDG_STATE_HOME/rotari/master`, then `~/.local/state/rotari/master`. It exits
+with a non-zero status if the master directory cannot be resolved or the
+server fails.
 
 ## Configure VS Code
 
-Add an MCP server entry to the workspace's `.vscode/mcp.json`, changing the
-command to the absolute path of the built binary:
+Add an MCP server entry to the workspace's `.vscode/mcp.json`, giving the
+absolute path of the `rotari` binary when it is not on the client's `PATH`:
 
 ```json
 {
   "servers": {
     "rotari": {
       "type": "stdio",
-      "command": "/absolute/path/to/rotari/bin/rotari-mcp",
-      "args": []
+      "command": "rotari",
+      "args": ["mcp"]
     }
   }
 }
 ```
 
-Then ask the agent to call `rotari_get_job_info` with all four values. For
-example, it needs a request equivalent to:
+Set `ROTARI_MASTERDIR` in the entry's `env` when your runs are registered
+under a non-default master directory.
 
-```json
-{
-  "basedir": "/path/to/rotari-state",
-  "project": "experiment",
-  "run_id": "20261002-120000-12345678",
-  "job_id": "abc123def"
-}
-```
-
-The `basedir` is an explicit tool argument in this first prototype. The server
-does not walk arbitrary directories or infer a basedir from the job ID. When
-MCP is unavailable, use `rotari-agent` with the same `basedir`, `project`,
-`run-id`, and `job-id` values; both entry points call the same lookup and
-report code.
+A run ID that is not registered in the master directory, or whose run
+directory is gone, is reported as a tool error, as is a comparison of runs
+from different projects. Run and job IDs must not contain `/` or `\`.

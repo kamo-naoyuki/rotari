@@ -1,6 +1,10 @@
 package model
 
-import "testing"
+import (
+	"reflect"
+	"strings"
+	"testing"
+)
 
 func TestQueueToJobsPreservesName(t *testing.T) {
 	jobs := QueueToJobs([]QueuedCommand{{ID: "fixed-id", Command: []string{"echo", "hello"}, Name: "greeting"}})
@@ -73,5 +77,29 @@ func TestQueueOriginOfChecksCommandAndTaskOrigins(t *testing.T) {
 	}
 	if got := queue.OriginOf("array-1"); got != nil {
 		t.Fatalf("OriginOf(array-1) = %#v, want nil for an executed task", got)
+	}
+}
+
+func TestQueueToJobsExpandsArrayNameDependency(t *testing.T) {
+	commands := []QueuedCommand{
+		{ID: "tr", Name: "train", Array: &ArraySpec{First: 1, Last: 2}, Command: []string{"train"}},
+		{ID: "sw", Name: "sweep", Array: &ArraySpec{Tasks: []int{3, 5}}, Command: []string{"sweep"}},
+		{ID: "ev", Name: "eval", DependsOn: []string{"train"}, DependsOnFinished: []string{"sweep"}, Command: []string{"eval"}},
+	}
+	jobs := QueueToJobs(commands)
+	eval := jobs[len(jobs)-1]
+	if got, want := eval.DependsOn, []string{"train[1]", "train[2]"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("depends_on = %v, want %v", got, want)
+	}
+	if got, want := eval.DependsOnFinished, []string{"sweep[3]", "sweep[5]"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("depends_on_finished = %v, want %v", got, want)
+	}
+	if err := ValidateQueueDependencies(commands); err != nil {
+		t.Fatalf("ValidateQueueDependencies() error = %v", err)
+	}
+	// An array that depends on its own name depends on itself.
+	commands[0].DependsOn = []string{"train"}
+	if err := ValidateQueueDependencies(commands); err == nil || !strings.Contains(err.Error(), "depends on itself") {
+		t.Fatalf("self-dependency error = %v", err)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/queueops"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -45,7 +46,7 @@ func TestIdleQueueCommandsMarkProjectCollecting(t *testing.T) {
 			}
 		},
 		"reset": func(t *testing.T, baseDir string, paths state.ProjectPaths) {
-			if _, err := resetQueueCommands(paths); err != nil {
+			if _, err := resetQueueCommands(paths, project.Guard{}); err != nil {
 				t.Fatal(err)
 			}
 		},

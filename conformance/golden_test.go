@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
 
 var updateGolden = flag.Bool("update", false, "update conformance golden files")
@@ -30,6 +32,7 @@ func TestGoldenOutputs(t *testing.T) {
 
 func commandOutput(t *testing.T, args ...string) string {
 	t.Helper()
+	support.TrackBuildInputs(t)
 	cmd := exec.Command(rotariBin, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

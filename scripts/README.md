@@ -69,3 +69,11 @@ requests and pushes to `main`.
 - `generate-dep-graph.sh`: generate the Go package dependency graph.
 - `install.sh`: install a released `rotari` binary.
 - `templates/`: templates used by the documentation generators.
+
+Dependency graph generation requires Graphviz (`dot`). If no `goda` binary is
+available, the script installs `goda v0.7.1`, which supports the project's Go
+1.23 minimum without downloading a newer Go toolchain. Keep that compatibility
+when updating the pinned version. Set `GODA_BINARY` to reuse a specific binary.
+
+Run `python3 -m unittest discover -s scripts -p test_generate_dep_graph.py -v`
+to check the dependency graph bootstrap without downloading tools.

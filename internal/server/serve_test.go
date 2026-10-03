@@ -20,8 +20,8 @@ type fakeOperations struct {
 	startErr  error
 }
 
-func (ops *fakeOperations) StartRun(_ Request, _ func()) (string, error) {
-	return "", ops.startErr
+func (ops *fakeOperations) StartRun(_ Request, _ func()) (string, string, error) {
+	return "", "", ops.startErr
 }
 
 func (ops *fakeOperations) Run(_ Request, progress func(Response)) (string, int, error) {

@@ -111,7 +111,7 @@ func TestExpandArrayPlanAndApplyCarriedOrigins(t *testing.T) {
 	}
 	jobs := []model.JobSpec{{ID: "array-1", ArrayGroup: "array"}, {ID: "array-2", ArrayGroup: "array"}}
 	execute := map[string]bool{"plain": true, "array": true}
-	ExpandArrayPlan(commands, jobs, execute)
+	expandArrayPlan(commands, jobs, execute)
 	if execute["array"] || !execute["plain"] || !execute["array-1"] || !execute["array-2"] {
 		t.Fatalf("execute = %#v", execute)
 	}

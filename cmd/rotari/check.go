@@ -7,18 +7,12 @@ import (
 	"io"
 	"os"
 
-	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-type projectCheck struct {
-	State       string
-	Runnable    bool
-	RunID       string
-	Queued      int
-	QueuedKnown bool
-	Lock        string
-}
+type projectCheck = projectrun.Check
 
 // cmdCheck validates whether the selected project state is ready for queue
 // edits, runs, and optional deep local execution checks.
@@ -87,7 +81,8 @@ func writeProjectCheck(writer io.Writer, projectName string, result projectCheck
 			Queued   *int   `json:"queued"`
 			Lock     string `json:"lock"`
 			RunID    string `json:"run_id,omitempty"`
-		}{projectName, result.State, result.Runnable, queued, result.Lock, result.RunID})
+			Revision string `json:"revision"`
+		}{projectName, result.State, result.Runnable, queued, result.Lock, result.RunID, result.Revision})
 	}
 
 	fmt.Fprintf(writer, "project=%s state=%s runnable=%t queued=", projectName, result.State, result.Runnable)
@@ -100,6 +95,7 @@ func writeProjectCheck(writer io.Writer, projectName string, result projectCheck
 	if result.RunID != "" {
 		fmt.Fprintf(writer, " run_id=%s", result.RunID)
 	}
+	fmt.Fprintf(writer, " revision=%s", result.Revision)
 	_, err := fmt.Fprintln(writer)
 	return err
 }
@@ -109,55 +105,9 @@ func checkProject(paths state.ProjectPaths) (projectCheck, error) {
 }
 
 func checkProjectWithOptions(paths state.ProjectPaths, deep bool) (projectCheck, error) {
-	release, err := state.AcquireStateReadLock(paths.StateLockFile)
-	if err != nil {
-		return projectCheck{}, fmt.Errorf("lock project state: %w", err)
-	}
-	defer release()
-
-	inspection, err := project.InspectConsistent(paths, false)
-	if err != nil {
-		return projectCheck{}, fmt.Errorf("inspect project state: %w", err)
-	}
-	result := projectCheck{Lock: string(inspection.Lock), RunID: inspection.RunID}
-	switch inspection.State {
-	case project.Running:
-		if inspection.Lock == state.LockRemote {
-			result.State = "locked"
-		} else {
-			result.State = "running"
-		}
-		if queue, err := state.LoadQueue(paths.QueueFile); err == nil {
-			result.Queued = len(queue.Commands)
-			result.QueuedKnown = true
-		}
-		return result, nil
-	case project.Interrupted:
-		result.State = "interrupted"
-		if queue, err := state.LoadQueue(paths.QueueFile); err == nil {
-			result.Queued = len(queue.Commands)
-			result.QueuedKnown = true
-		}
-		return result, nil
-	}
-
-	queue, err := projectRunner().LoadQueue(paths, "", nil, nil)
-	if err != nil {
-		return projectCheck{}, fmt.Errorf("validate queue: %w", err)
-	}
-	result.Queued = len(queue.Commands)
-	result.QueuedKnown = true
-
-	if result.Queued == 0 {
-		result.State = "empty"
-		return result, nil
-	}
+	var deepCheck func(model.Queue) error
 	if deep {
-		if err := validateLocalExecutionEnvironment(queue); err != nil {
-			return projectCheck{}, fmt.Errorf("validate execution environment: %w", err)
-		}
+		deepCheck = validateLocalExecutionEnvironment
 	}
-	result.State = "ready"
-	result.Runnable = true
-	return result, nil
+	return projectRunner().Check(paths, deepCheck)
 }

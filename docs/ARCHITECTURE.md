@@ -21,8 +21,7 @@ flowchart LR
     runcli(["rotari run / retry"])
     direct(["rotari add / copy / change / cancel<br/>show / jobs / export ..."])
     webcli(["rotari web<br/>(HTTP)"])
-      mcpcli(["rotari-mcp<br/>(stdio MCP)"])
-      agentcli(["rotari-agent<br/>(terminal agent interface)"])
+      mcpcli(["rotari mcp<br/>(stdio MCP)"])
   end
   subgraph sup["one per active run of a project"]
     supervisor["supervisor<br/>rotari __server<br/>executes the run's jobs"]
@@ -37,7 +36,6 @@ flowchart LR
   direct -->|"read / write under state lock"| files
   webcli -->|"read, edit queue"| files
    mcpcli -->|"read job report"| files
-   agentcli -->|"read job report"| files
   nodes -->|write attempt status.json| files
 
    classDef command fill:#e0e7ff,stroke:#4f46e5,color:#1e1b4b
@@ -109,9 +107,7 @@ no `internal` package imports `cmd/rotari`.
 ```mermaid
 flowchart TB
   cmd["cmd/rotari<br/>CLI flags, wiring, output"]
-   mcpserver["cmd/mcp/server<br/>MCP stdio entry point"]
-   agentcmd["cmd/mcp/agent<br/>terminal agent entry point"]
-   mcpadapter["internal/mcp<br/>shared job report and MCP tool"]
+   mcpadapter["internal/mcp<br/>MCP tools over shared packages"]
   projectrun["projectrun<br/>run lifecycle"]
   project["project<br/>state machine, idle edits"]
   resolve["resolve<br/>selectors to run and job"]
@@ -151,9 +147,11 @@ flowchart TB
   queueops --> state
   queueops --> jobstatus
   cmd --> report
-   mcpserver --> mcpadapter
-   agentcmd --> mcpadapter
+   cmd --> mcpadapter
    mcpadapter --> report
+   mcpadapter --> resolve
+   mcpadapter --> runview
+   mcpadapter --> project
    mcpadapter --> state
   report --> web
   report --> project
@@ -222,7 +220,7 @@ are checked against this graph by
 | [internal/model](../internal/model/) | Domain types and pure rules: queue, queued command, job spec, result, summary, selections, command selectors, dependencies, arrays. No I/O. | `model.go`, `selection.go`, `command_selector.go`, `dependencies.go` |
 | [internal/state](../internal/state/) | The filesystem: path resolution and validation, JSON load/write, locks, run and attempt directory listing. No execution policy. | `paths.go`, `project_paths.go`, `store.go`, `lock.go` |
 | [internal/executor](../internal/executor/) | How one job attempt is started, waited for, cancelled, and suspended: local processes, Slurm, PBS, LSF, SGE, SSH, wrapper scripts. No run semantics. | `contracts.go` (`JobExecutor`), `local.go`, `slurm.go`, `sge.go` |
-| [internal/project](../internal/project/) | A project's run state (idle, running, interrupted) from `running.lock` and `meta.json`, consistency checks, recovery, and the idle-edit sequence: state lock, idle check, load, edit, metadata-then-queue write. | `inspect.go` (`Inspect`, `EnsureIdle`), `edit.go` (`EditQueue`) |
+| [internal/project](../internal/project/) | A project's run state (idle, running, interrupted) from `running.lock` and `meta.json`, one run's phase (running, interrupted, finished, ended) for `wait` and the MCP run summary, consistency checks, recovery, and the idle-edit sequence: state lock, idle check, load, edit, metadata-then-queue write. | `inspect.go` (`Inspect`, `EnsureIdle`), `run_phase.go` (`RunPhaseOf`), `edit.go` (`EditQueue`, `CreateQueueGuarded`) |
 | [internal/resolve](../internal/resolve/) | Location and job-name rules shared by the commands that read existing state: a run ID through the run registry, an `att_` attempt ID, the latest-run fallback, run names, and job IDs or names looked up in the queue and latest runs. show's and wait's own selector orders build on it. | `resolve.go` (`ExistingRun`, `RunID`, `Jobs`, `JobIDsByName`) |
 | [internal/config](../internal/config/) | Config file locations (global, base directory, project), which scope applies, and parsing YAML, TOML, and JSON. What the keys mean stays in `cmd/rotari`. | `config.go` (`PathsForRun`, `LoadFile`) |
 | [internal/notification](../internal/notification/) | `notifications.toml`: its schema, scope lookup, validation, serialization, and the shared job/run event and batch model used by both webhook and browser notifications. Delivery stays in `cmd/rotari` and the Web assets. | `config.go` (`Load`, `Marshal`), `event.go` (`NewBatch`) |
@@ -230,7 +228,7 @@ are checked against this graph by
 | [internal/projectrun](../internal/projectrun/) | One project's run against its files: `Begin` (context, run lock, registry, running metadata), `Execute` (snapshot, plan, dispatch, summary), and `Finish` (final context, queue and metadata finalization, lock removal). Shared by sync and async runs and by cancellation. Also checks that a queue can run with the known executors (`ValidateQueue`). | `lifecycle.go`, `execute.go`, `validate.go` |
 | [internal/run](../internal/run/) | Run rules without file access: which jobs execute or are carried forward, dependency unblocking, retries, per-executor lanes and concurrency, the summary contents. | `rerun.go` (`PlanRerun`), `engine.go` (`ExecuteJobs`), `dispatch.go` (`Dispatcher`) |
 | [internal/jobstatus](../internal/jobstatus/) | Read side: turns attempt files and the summary into one displayed result and timestamps, and reads the hosts, times, and log that job filters judge, following carried jobs to their attempt. Shared by CLI and Web. | `job.go`, `attempt.go`, `times.go`, `facts.go` |
-| [internal/runview](../internal/runview/) | Read-side loading of a persisted run snapshot and resolution of each job's displayed status. Shared by run comparison and history views. | `run.go` (`LoadRun`) |
+| [internal/runview](../internal/runview/) | Read-side loading of a persisted run snapshot and resolution of each job's displayed status, a project's runs in start order, and the one-run summary. Shared by run comparison, history views, and the MCP tools. | `run.go` (`LoadRun`), `order.go` (`RunsByStart`, `Summary`) |
 | [internal/supervisor](../internal/supervisor/) | The work behind supervisor requests: sync and async runs, including preflight selection planning. Implements `server.Operations` and returns plain-text messages. | `run.go` (`Operations.Run`, `StartRun`) |
 | [internal/server](../internal/server/) | Supervisor transport: request/response types, the pipe connection between `run` and its supervisor, the lease and liveness check, idle shutdown, attached-run streaming. Work is delegated to an `Operations` interface. | `protocol.go`, `serve.go`, `client.go`, `lease.go` |
 | [internal/jobcontrol](../internal/jobcontrol/) | Cancel, suspend, resume of running jobs through executors. | `jobcontrol.go` |
@@ -239,15 +237,16 @@ are checked against this graph by
 | [internal/queueops](../internal/queueops/) | Queue and run-history edits shared by the CLI, the Web UI, and the supervisor: add, change, remove, copy, and deleting runs. Loads and saves the files around `internal/queueedit` through the `internal/project` idle-edit sequence, and owns `ValidateJobs`. | `editor.go` (`Editor`), `change.go`, `copy.go` |
 | [internal/queueedit](../internal/queueedit/) | Pure queue edits, such as building a queue from an earlier run (`copy`, `retry`). | `copy.go` |
 | [internal/workflow](../internal/workflow/) | Workflow manifests: `export` merge and `import` reconciliation. | `manifest.go`, `export.go`, `reconcile.go` |
+| [internal/workflowstate](../internal/workflowstate/) | Applies workflow manifests to saved project state: reads saved runs as sources to reconcile a manifest, imports a manifest into the queue under a `project.Guard`, and loads a settled run for export. Shared by `rotari import`, `rotari export`, and the MCP import and export tools. | `import.go` (`Import.Apply`), `sources.go`, `export.go` (`LoadSettledRun`) |
 | [internal/joblist](../internal/joblist/) | Recent job attempts across a base directory's projects for `rotari jobs` and the Web UI's jobs page: which attempts are listed, their order, and how their times read. | `joblist.go` (`Collect`) |
 | [internal/report](../internal/report/) | The redacted evidence report for AI-assisted diagnosis, shared by `show --report` and the Web UI. Reads jobs through `internal/web`'s projection. | `report.go` (`Build`) |
-| [internal/mcp](../internal/mcp/) | Read-only MCP tools that adapt explicit basedir/project/run/job identifiers to existing rotari reports. It does not depend on `cmd/rotari`. | `server.go` (`NewServer`) |
-| [internal/runlineage](../internal/runlineage/) | Comparison and summaries of loaded runs for `lineage`. | `runlineage.go` |
+| [internal/mcp](../internal/mcp/) | MCP tools that `rotari mcp` (`cmd/rotari/mcp.go`) serves: read-only project list, run summary, job report, project check, run comparison, and redacted run export, and previewed, revision-guarded import and run start. They present the shared functions the CLI uses (`project.Overviews`, `basedirregistry.Discover`, `runview.Summary`, `projectrun.Runner.Check`, `runlineage.Compare`, `report.Build`, `workflowstate.Import`, `projectrun.RunSource`, `projectrun.Runner.PreviewRun`), locate runs only through the master directory's run registry (`resolve.RegisteredRun`), and return no absolute paths; every tool is added through `addTool`, which hides state directories in errors. Starting a supervisor and new job IDs come from `cmd/rotari` as `Options`; it does not import `cmd/rotari`. | `server.go` (`NewServer`), `tools.go`, `export.go`, `write.go` |
+| [internal/runlineage](../internal/runlineage/) | Comparison and summaries of loaded runs for `lineage`, and the grouping of a run's failures by cause that `show`, `lineage`, and the Web UI share. | `runlineage.go`, `failures.go` (`FailureGroups`) |
 | [internal/jobfilter](../internal/jobfilter/) | The conditions of the `--filter-*` options that narrow a job selection, evaluated without file access; callers supply what a condition needs about each job. | `filter.go` (`Filter`, `Selects`) |
 | [internal/diagnose](../internal/diagnose/) | Rule-based and provider-backed failure diagnosis. | `analysis.go` |
 | [internal/archtest](../internal/archtest/) | Tests only: the package boundary rules checked against the import graph. | `boundaries_test.go` |
 | [internal/doclinks](../internal/doclinks/) | Tests only: relative links and `#anchor` links in the root Markdown files, `contracts/`, and `docs/`. | `links_test.go` |
-| [conformance](../conformance/) | Tests only: contract checks against the built binary and the Web API, importing only the standard library. Document-to-directory mapping is in `layout.json`; tests are being migrated under the matching contract groups. | `harness_test.go`, `contracts_test.go`, `layout.json` |
+| [conformance](../conformance/) | Tests only: contract checks against the built binary and the Web API, importing only the standard library and their own harness, `conformance/support`. Document-to-directory mapping is in `layout.json`; tests are being migrated under the matching contract groups. | `harness_test.go`, `contracts_test.go`, `layout.json` |
 
 Many `internal` functions take callbacks or hook fields
 (`projectrun.Runner`, `run.BatchLaneCallbacks`, `run.OriginResults`, `server.Operations`). This is

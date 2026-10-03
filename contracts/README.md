@@ -90,6 +90,7 @@ A rule in the pages of this directory gets an ID by starting with
 | `LOG` | "Job logs" in [02-run-lifecycle-and-execution.md](02-run-lifecycle-and-execution.md#job-logs) |
 | `RUN` | "Run lifecycle" in [02-run-lifecycle-and-execution.md](02-run-lifecycle-and-execution.md#run-lifecycle) |
 | `CLI` | "CLI presentation" in [03-server-and-command-interfaces.md](03-server-and-command-interfaces.md#cli-presentation) |
+| `MCP` | "MCP tools" in [03-server-and-command-interfaces.md](03-server-and-command-interfaces.md#mcp-tools) |
 | `COORD` | "Shared-state coordination" in [04-coordination-and-safety.md](04-coordination-and-safety.md#shared-state-coordination) |
 | `STATE` | "State load and write contracts" in [04-coordination-and-safety.md](04-coordination-and-safety.md#state-load-and-write-contracts) |
 | `SAFE` | "Concurrency and safety" in [04-coordination-and-safety.md](04-coordination-and-safety.md#concurrency-and-safety) |
@@ -125,7 +126,7 @@ the IDs, this table, and those calls disagree.
 | RES-5 | `jobs` takes an optional positional project that overrides defaults | partial | `TestPositionalProject` |
 | RES-6 | `export TARGET [FILE]` names a project or saved run | conformance | `TestExportResolvesProjectAndRunTargets` |
 | RES-7 | `unlock` derives the run from the lock or interrupted metadata | conformance | `TestUnlockDerivesInterruptedRun` |
-| RES-8 | `show --basedirs` lists registered state directories | conformance | `TestShowBasedirsListsKnownStateDirectories` |
+| RES-8 | `show --basedirs` lists registered state directories | conformance | `TestShowBasedirsListsKnownStateDirectories`, `TestCommandsThatCreateAProjectRegisterItsBasedir` |
 | RES-9 | Project names and job IDs are single path elements | conformance | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
 | RES-10 | Unsafe path elements are rejected before filesystem access, locally and remotely | partial | `TestCLIRejectsUnsafePathElements`, `TestWebAPIRejectsUnsafePathElements` |
 | RES-11 | Stored times are UTC RFC3339; displayed times follow `TZ` | partial | `TestDisplayTimesFollowTZ` |
@@ -164,6 +165,7 @@ the IDs, this table, and those calls disagree.
 | CAN-2 | A cancelled run finishes with a summary and leaves the project idle, not interrupted | conformance | `TestWholeRunCancelFinishesRun` |
 | CAN-3 | `cancel --wait` returns once the run has finished and exits 0 | conformance | `TestCancelWaitReturnsAfterRunFinishes` |
 | CAN-4 | Cancelling one job stops only that job, which the run does not retry | conformance | `TestCancelJobStopsOnlyThatJob` |
+| CAN-5 | A job stopped by a cancel records a cancelled result, read as the `cancelled` failure kind | conformance | `TestCancelledJobsReadAsCancelled` |
 | LOG-1 | Attempts use the selected internal merge or separate log mode, independently of external destinations | conformance | `TestJobStreamsPersistSeparately` |
 | LOG-2 | Repeatable `--output`/`--error` sinks; absent `--error`, stderr follows `--output`; independent of internal log mode | conformance | `TestExternalLogDestinations` |
 | LOG-3 | Destination parents are created on the execution host; setup errors fail before the command starts | conformance | `TestExternalLogDestinations` |
@@ -173,9 +175,18 @@ the IDs, this table, and those calls disagree.
 | RUN-3 | Executor working-directory defaults are portable; run `--env=ALL|NONE` controls caller environment propagation and job overrides consistently | partial | `TestRunUsesCallersDirectoryAndEnvironment` |
 | RUN-4 | New-run fingerprint matching prioritizes Job ID/Origin, matches remaining expanded jobs by fingerprint and occurrence, and treats count mismatches as new work | conformance | `TestFingerprintMatchingIgnoresNonInputMetadata`, `TestFingerprintMatchingNormalizesDirectoryAndIgnoresArrayRange`, `TestFingerprintMatchingPreservesArrayTasksAndMatrixLeaves`, `TestFingerprintMatchingPrioritizesIDsAndQueueOccurrence`, `TestFingerprintMatchingRejectsChangedCommand`, `TestFingerprintMatchingRejectsChangedExplicitInputs`, `TestFingerprintMatchingRejectsChangedMatrixValue`, `TestFingerprintMatchingTreatsMissingHistoryAsNewWork`, `TestFingerprintMatchingUsesIDsAndRejectsCountMismatches` |
 | RUN-5 | Imported manifest jobs without source provenance execute as new work without a previous-run lookup | conformance | `TestImportedWorkflowRunsFreshJobs` |
+| RUN-6 | `wait --until-failure` returns at a job's final failure, not at a failure the run retries | conformance | `TestWaitUntilFailureIgnoresAFailureTheRunRetries`, `TestWaitUntilFailureReturnsAtAFinalFailure` |
+| RUN-7 | A named array job's name in a dependency stands for all of its tasks | conformance | `TestArrayNameDependsOnEveryTask` |
 | CLI-1 | `check --json` reports the same project state, run identifier, queue count, lock, and runnable result as the human-readable `check` output | partial | `TestCheckJSONMatchesText` |
 | CLI-2 | Human-readable `jobs` columns keep their visible start positions aligned across rows; ANSI color sequences do not count toward column width | conformance | `TestJobsTableKeepsVisibleColumnsAligned` |
 | CLI-3 | All command options shared by CLI, environment, and config use the same source precedence | conformance | `TestCLIOptionPrecedence` |
+| CLI-4 | `show`, `lineage RUN`, and the Web API group a run's failed and blocked jobs by the same causes | conformance | `TestFailureGroupsAgreeAcrossViews` |
+| CLI-5 | The project list shows each project's last result, and its suggested commands work for every listed project | conformance | `TestProjectListHintsWork` |
+| CLI-6 | `jobs --since` and the Web jobs page take a Go duration or whole days such as `7d` | conformance | `TestJobsWindowAcceptsDays` |
+| CLI-7 | Commands that change a project take `--dry-run` and `--if-revision`, applying only at the previewed revision | conformance | `TestGuardedCommandsPreviewAndCheckTheRevision`, `TestRunPreviewMatchesTheRun`, `TestRunPreviewListsTheTasksOfAWholeArray` |
+| MCP-1 | MCP tools that change a project preview first and apply only at the previewed revision | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision`, `TestRunPreviewListsTheTasksOfAWholeArray` |
+| MCP-2 | `rotari_export_run` is a redacted view that the MCP import tools refuse | conformance | `TestMCPExportIsARedactedViewThatImportRefuses` |
+| MCP-3 | `rotari_run_summary` reports the run's state as `wait` decides it, from right after the start, and tool errors name no state directory | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision` |
 | SEL-1 | A run ID or attempt ID alone resolves its location in every command | partial | `TestPositionalArguments`, `TestSelectorTable` |
 | SEL-2 | Each command reads the run or queue its row names | partial | `TestSelectorTable` |
 | SEL-3 | `show` resolves each selector form as its column says | conformance | `TestSelectorTable` |
@@ -186,7 +197,7 @@ the IDs, this table, and those calls disagree.
 | SEL-8 | Selectors combine by kind, with the listed exclusions | conformance | `TestSelectorTable` |
 | SEL-9 | `cancel`, `suspend`, and `resume` resolve each form as the job control table says | conformance | `TestJobControlSelectors` |
 | SEL-10 | Each command takes its positional arguments with their meaning and exclusions | conformance | `TestPositionalArguments` |
-| SEL-11 | The `--filter-*` options select jobs as the Filters section says | conformance | `TestSelectorTable` |
+| SEL-11 | The `--filter-*` options select jobs as the Filters section says | conformance | `TestCLIFlagPairObservability`, `TestSelectorTable`, `TestShowLogResultSelection` |
 | SEL-12 | `--job-name` and filters choose unfinished jobs for `cancel`, `suspend`, and `resume`, confirmed before acting | partial | `TestJobControlSelectors` |
 | WEB-1 | Run timelines start at the actual run start, show carried results at start, and include timestamped events for executed jobs with origins, without origin-time rewinds | conformance | `TestFilteredRerunCarriesCompletedResults`, `TestBlockedOriginJobsDoNotRewindWebTimeline`, `TestRunTimelineStartsAtActualRunStart` |
 | WEB-2 | Live history search covers user-selected basedir/project/run scopes with validated, read-only hierarchical filters and pagination | partial | `TestHistorySearchAcrossProjects` |

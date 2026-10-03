@@ -73,7 +73,20 @@ func cmdJobs(args []string) int {
 		return 1
 	}
 	if len(rows) == 0 {
-		fmt.Println("No running or recently finished jobs found.")
+		// Name where rotari looked, so an empty result is not mistaken for
+		// no activity in other state directories.
+		scope := fmt.Sprintf("%d state directories", len(baseDirs))
+		if len(baseDirs) == 1 {
+			scope = "state directory " + baseDirs[0]
+		}
+		if *projectName != "" {
+			scope = fmt.Sprintf("project %q in %s", *projectName, scope)
+		}
+		fmt.Printf("No running or recently finished jobs found in %s (finished within %s).\n", scope, *since)
+		if !*allBaseDirs {
+			fmt.Println(cyan("To include every registered state directory:"))
+			fmt.Println("  rotari jobs --all-basedirs")
+		}
 		return 0
 	}
 	joblist.Sort(rows)

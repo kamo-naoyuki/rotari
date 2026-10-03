@@ -24,11 +24,8 @@ Remove the directory when finished.
 | Import a stage and matrix manifest, then export | `./examples/workflow.sh` | rotari |
 | Fix and accept results from an exported run | `./examples/workflow-reconcile.sh` | rotari |
 | Diagnose a failure with local rules | `./examples/diagnose-rules.sh` | Python 3 |
-| Diagnose a failure with an LLM | `./examples/diagnose-llm.sh` | Python 3, `ROTARI_LLM_API_KEY` and `ROTARI_LLM_MODEL` |
 
 The [workflow manifest](workflow.yaml) can be edited before importing it. The
 [reconciliation manifest](workflow-reconcile.yaml) intentionally fails two
 jobs; its example edits one command and accepts the other's result, so the
 next run reuses completed work.
-The LLM example sends the failure log to the configured provider; see the
-[LLM diagnosis guide](../docs/LLM_DIAGNOSIS.md) before running it.

@@ -211,7 +211,7 @@ func TestImportedWorkflowPlansNewJobsWithoutPreviousRunLookup(t *testing.T) {
 	}
 	other := queuedCommandByName(t, queue, "other")
 	added := queuedCommandByName(t, queue, "added")
-	if !plan.Execute[other.ID] || !plan.Execute[added.ID] || !plan.Execute["prepare-id"] || !plan.Execute["train-id"] {
+	if !plan.Execute[other.ID] || !plan.Execute[added.ID+"-1"] || !plan.Execute[added.ID+"-2"] || !plan.Execute["prepare-id"] || !plan.Execute["train-id"] {
 		t.Fatalf("execute = %#v", plan.Execute)
 	}
 	if _, carried := plan.CarriedOrigins[other.ID]; carried {

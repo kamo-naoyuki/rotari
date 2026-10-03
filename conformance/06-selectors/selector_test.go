@@ -32,6 +32,9 @@ type selectorCase struct {
 	// table reads show's jobs from the rows of a job table instead of a
 	// single job's details.
 	table bool
+	// json reads show's jobs from its JSON: a run's summary results, or the
+	// jobs of a job or array view.
+	json bool
 	// jobs are the jobs the command acted on: the job shown, the commands
 	// copied, changed, or removed, or the jobs a run executed.
 	jobs []string
@@ -115,6 +118,9 @@ func (f selectorFixture) runSelectorCase(tc selectorCase) selectorResult {
 	}
 	switch tc.cmd {
 	case "show":
+		if tc.json {
+			return f.observeShowJSON(r.stdout)
+		}
 		return f.observeShow(r.stdout, tc.table)
 	case "copy":
 		return f.observeQueue(func(queuedCommand) bool { return true })
@@ -157,6 +163,37 @@ func (f selectorFixture) observeShow(output string, table bool) selectorResult {
 			result.jobs = []string{f.jobKey(jobID)}
 		}
 	}
+	return result
+}
+
+// observeShowJSON reads the run and jobs of a show --json view.
+func (f selectorFixture) observeShowJSON(output string) selectorResult {
+	var shown struct {
+		RunID   string `json:"run_id"`
+		Summary *struct {
+			Results []struct {
+				ID string `json:"id"`
+			} `json:"results"`
+		} `json:"summary"`
+		Jobs []struct {
+			Job struct {
+				ID string `json:"id"`
+			} `json:"job"`
+		} `json:"jobs"`
+	}
+	if err := json.Unmarshal([]byte(output), &shown); err != nil {
+		return selectorResult{err: "invalid JSON: " + err.Error()}
+	}
+	result := selectorResult{run: f.runKey(shown.RunID)}
+	if shown.Summary != nil {
+		for _, item := range shown.Summary.Results {
+			result.jobs = append(result.jobs, f.jobKey(item.ID))
+		}
+	}
+	for _, item := range shown.Jobs {
+		result.jobs = append(result.jobs, f.jobKey(item.Job.ID))
+	}
+	sort.Strings(result.jobs)
 	return result
 }
 

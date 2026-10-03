@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -24,6 +25,7 @@ func cmdReset(args []string) int {
 	queueNameOption := cliString(fs, "project-name", "")
 	recoverOption := cliBool(fs, "recover", false)
 	quiet := cliBool(fs, "quiet", false)
+	guard := cliGuardFlags(fs)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -55,13 +57,13 @@ func cmdReset(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	inspection, err := project.InspectConsistent(paths, true)
+	inspection, err := project.InspectConsistent(paths, !*guard.dryRun)
 	projectState, runID := inspection.State, inspection.RunID
 	if err != nil {
 		printErrorf("failed to check project state: %v", err)
 		return 1
 	}
-	if projectState == project.Running {
+	if projectState == project.Running && !*guard.dryRun {
 		meta, metaErr := state.LoadMeta(paths.MetaFile)
 		if metaErr == nil && meta.Phase == "cancelling" {
 			if !waitForCancellation(paths, queueName) {
@@ -80,7 +82,8 @@ func cmdReset(args []string) int {
 		return 1
 	}
 	if projectState == project.Interrupted {
-		confirmed := *recoverOption
+		// A dry run changes nothing, so it needs no confirmation.
+		confirmed := *recoverOption || *guard.dryRun
 		if !confirmed {
 			if !stdinIsTerminal() {
 				detail, stillRunning := project.InterruptedRunDetail(paths, runID)
@@ -110,28 +113,19 @@ func cmdReset(args []string) int {
 			return 1
 		}
 		cleared := len(queue.Commands)
-		if err := project.RecoverInterrupted(paths, runID, true); err != nil {
+		if err := project.RecoverInterruptedGuarded(paths, runID, true, guard.guard()); err != nil {
 			printErrorf("failed to recover interrupted run: %v", err)
 			return 1
 		}
-		if !*quiet {
-			fmt.Printf("%s\n", colorKeyValueMessage(fmt.Sprintf("reset project=%s cleared=%d job(s); recovered interrupted run=%s", queueName, cleared, runID), yellow))
-		}
+		guard.printResult(fmt.Sprintf("reset project=%s cleared=%d job(s); recovered interrupted run=%s", queueName, cleared, runID), *quiet)
 		return 0
 	}
-	cleared, err := resetQueueCommands(paths)
+	cleared, err := resetQueueCommands(paths, guard.guard())
 	if err != nil {
 		printErrorf("failed to reset queue: %v", err)
 		return 1
 	}
-	if *quiet {
-		return 0
-	}
-	color := green
-	if cleared > 0 {
-		color = yellow
-	}
-	fmt.Printf("%s\n", colorKeyValueMessage(fmt.Sprintf("reset project=%s cleared=%d job(s)", queueName, cleared), color))
+	guard.printResult(fmt.Sprintf("reset project=%s cleared=%d job(s)", queueName, cleared), *quiet)
 	return 0
 }
 
@@ -146,34 +140,30 @@ func confirmResetOfInterruptedRun(input io.Reader, output io.Writer, paths state
 	return answer == "y" || answer == "yes", nil
 }
 
-// resetQueueCommands preserves queue defaults and run history.
-func resetQueueCommands(paths state.ProjectPaths) (int, error) {
-	if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
-		return 0, fmt.Errorf("failed to create project directory: %w", err)
+// resetQueueCommands empties the queue under guard, preserving its defaults
+// and the run history. A dry run of a project that does not exist yet
+// creates nothing.
+func resetQueueCommands(paths state.ProjectPaths, guard project.Guard) (int, error) {
+	if _, err := os.Stat(paths.ProjectDir); errors.Is(err, os.ErrNotExist) && guard.DryRun {
+		revision, err := project.CheckRevision(paths, guard)
+		if err != nil {
+			return 0, err
+		}
+		if guard.Report != nil {
+			guard.Report(project.Outcome{Revision: revision})
+		}
+		return 0, nil
 	}
-	release, err := state.AcquireStateLock(paths.StateLockFile)
-	if err != nil {
-		return 0, fmt.Errorf("failed to lock queue: %w", err)
+	if !guard.DryRun {
+		if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
+			return 0, fmt.Errorf("failed to create project directory: %w", err)
+		}
 	}
-	defer release()
-	running, err := isRunning(paths.LockFile)
-	if err != nil {
-		return 0, fmt.Errorf("failed to check queue: %w", err)
-	}
-	if running {
-		return 0, fmt.Errorf("project %q is running; reset is not allowed", paths.ProjectName)
-	}
-	queue, err := state.LoadQueue(paths.QueueFile)
-	if err != nil {
-		return 0, fmt.Errorf("failed to load queue: %w", err)
-	}
-	cleared := len(queue.Commands)
-	if cleared == 0 {
-		return 0, project.MarkCollecting(paths)
-	}
-	queue.Commands = nil
-	if err := project.WriteIdleQueue(paths, queue); err != nil {
-		return 0, err
-	}
-	return cleared, nil
+	cleared := 0
+	err := project.EditQueueGuarded(paths, "reset", guard, func(queue *model.Queue) error {
+		cleared = len(queue.Commands)
+		queue.Commands = nil
+		return nil
+	})
+	return cleared, err
 }

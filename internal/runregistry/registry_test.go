@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
 func TestRegisterIsIdempotentAndRejectsConflict(t *testing.T) {
@@ -126,5 +128,40 @@ func TestLookupRejectsIncompleteEntry(t *testing.T) {
 	}
 	if _, found, err := registry.Lookup("run-1"); err == nil || found {
 		t.Fatalf("Lookup() err=%v found=%v, want invalid registry metadata rejection", err, found)
+	}
+}
+
+func TestRemoveOrphanKeepsChangedAndReappearedEntries(t *testing.T) {
+	registry := Open(t.TempDir())
+	baseDir := t.TempDir()
+	orphan := Location{BaseDir: baseDir, ProjectName: "demo", RunID: "orphan"}
+	changed := Location{BaseDir: baseDir, ProjectName: "demo", RunID: "changed"}
+	reappeared := Location{BaseDir: baseDir, ProjectName: "demo", RunID: "reappeared"}
+	for _, location := range []Location{orphan, changed, reappeared} {
+		if err := registry.Register(location); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// After the scan, one entry is rewritten and one run directory returns.
+	moved := changed
+	moved.ProjectName = "other"
+	path, err := registry.entryPath(changed.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(path, moved); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(baseDir, "projects", "demo", "runs", "reappeared"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		planned Location
+		removed bool
+	}{{orphan, true}, {changed, false}, {reappeared, false}} {
+		removed, err := registry.RemoveOrphan(test.planned)
+		if err != nil || removed != test.removed {
+			t.Errorf("RemoveOrphan(%s) = %v, %v; want %v", test.planned.RunID, removed, err, test.removed)
+		}
 	}
 }

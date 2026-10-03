@@ -100,6 +100,8 @@ func run(args []string) int {
 		return cmdServer(args[1:])
 	case "web":
 		return cmdWeb(args[1:])
+	case "mcp":
+		return cmdMCP(args[1:])
 	case "env":
 		return cmdEnvironment(args[1:])
 	case "completion":
@@ -256,7 +258,7 @@ func jobController() jobcontrol.Controller {
 }
 
 func queueEditor() queueops.Editor {
-	return queueops.Editor{Store: jsonStore(), Executors: executorRegistry, NewJobID: makeJobID, UnregisterRun: unregisterRun}
+	return queueops.Editor{Store: jsonStore(), Executors: executorRegistry, NewJobID: makeJobID, UnregisterRun: unregisterRun, RegisterBaseDir: registerBasedir}
 }
 
 func loadWrapperStatus(path string) (executor.WrapperStatus, bool) {

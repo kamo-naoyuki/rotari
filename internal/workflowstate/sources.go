@@ -1,4 +1,4 @@
-package main
+package workflowstate
 
 import (
 	"fmt"
@@ -12,9 +12,16 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
 )
 
-// reconcileWorkflowManifest matches a queue compiled from manifest to the
-// source runs it was exported from; see workflow.Reconcile.
-func reconcileWorkflowManifest(baseDir string, manifest workflow.Manifest, queue model.Queue) (model.Queue, []workflow.RemovedJob, error) {
+const (
+	submittedAtFileName = "submitted_at"
+	finishedAtFileName  = "finished_at"
+	wrapperStatusName   = "status.json"
+)
+
+// Reconcile matches a queue compiled from manifest to the source runs it was
+// exported from; see workflow.Reconcile. A manifest without a source is
+// returned unchanged.
+func Reconcile(store state.Store, baseDir string, manifest workflow.Manifest, queue model.Queue) (model.Queue, []workflow.RemovedJob, error) {
 	if manifest.Source == nil {
 		return queue, nil, nil
 	}
@@ -22,7 +29,7 @@ func reconcileWorkflowManifest(baseDir string, manifest workflow.Manifest, queue
 	if err != nil {
 		return model.Queue{}, nil, err
 	}
-	queue, removed, err := workflow.Reconcile(manifest, queue, projectWorkflowSources{paths: paths})
+	queue, removed, err := workflow.Reconcile(manifest, queue, Sources{Paths: paths, Store: store})
 	if err != nil {
 		return model.Queue{}, nil, err
 	}
@@ -32,17 +39,18 @@ func reconcileWorkflowManifest(baseDir string, manifest workflow.Manifest, queue
 	return queue, removed, nil
 }
 
-// projectWorkflowSources reads a project's runs and attempts for workflow
-// import.
-type projectWorkflowSources struct {
-	paths state.ProjectPaths
+// Sources reads a project's runs and attempts as workflow sources.
+type Sources struct {
+	Paths state.ProjectPaths
+	Store state.Store
 }
 
-func (sources projectWorkflowSources) Run(runID string) (workflow.SourceRun, error) {
+// Run reads runID as a workflow source run.
+func (sources Sources) Run(runID string) (workflow.SourceRun, error) {
 	if !state.IsValidPathElement(runID) {
 		return workflow.SourceRun{}, fmt.Errorf("invalid source run ID %q", runID)
 	}
-	runDir := filepath.Join(sources.paths.RunsDir, runID)
+	runDir := filepath.Join(sources.Paths.RunsDir, runID)
 	queue, err := state.LoadQueue(filepath.Join(runDir, "commands.json"))
 	if err != nil {
 		return workflow.SourceRun{}, fmt.Errorf("failed to load source run %q commands: %w", runID, err)
@@ -51,15 +59,16 @@ func (sources projectWorkflowSources) Run(runID string) (workflow.SourceRun, err
 	if err != nil {
 		return workflow.SourceRun{}, fmt.Errorf("failed to load source run %q summary: %w", runID, err)
 	}
-	run := workflowSourceRun(runID, runDir, queue, summary)
-	if context, contextErr := state.LoadContext(jsonStore(), runDir); contextErr == nil {
+	run := SourceRun(runID, runDir, queue, summary)
+	if context, contextErr := state.LoadContext(sources.Store, runDir); contextErr == nil {
 		run.CWD = context.CWD
 	}
 	return run, nil
 }
 
-func (sources projectWorkflowSources) Attempt(runID, jobID, attemptID string, command []string) (model.JobResult, bool, error) {
-	runDir, err := state.SafeJoin(sources.paths.RunsDir, runID)
+// Attempt reads one attempt's result, or reports false while it has none.
+func (sources Sources) Attempt(runID, jobID, attemptID string, command []string) (model.JobResult, bool, error) {
+	runDir, err := state.SafeJoin(sources.Paths.RunsDir, runID)
 	if err != nil {
 		return model.JobResult{}, false, err
 	}
@@ -74,29 +83,31 @@ func (sources projectWorkflowSources) Attempt(runID, jobID, attemptID string, co
 		local.AttemptID = attemptID
 		return local, true, nil
 	}
-	status, ok := executor.LoadWrapperStatus(jsonStore(), filepath.Join(attemptDir, statusJSONName))
+	status, ok := executor.LoadWrapperStatus(sources.Store, filepath.Join(attemptDir, wrapperStatusName))
 	if !ok || (status.Phase != "finished" && status.Phase != "failed" && status.Phase != "cancelled") {
 		return model.JobResult{}, false, nil
 	}
 	return model.JobResult{ID: jobID, AttemptID: attemptID, ExitCode: status.ExitCode, Error: status.Error, Hosts: status.Hosts}, true, nil
 }
 
-func (sources projectWorkflowSources) AttemptTimestamps(runID, jobID, attemptID string) (string, string) {
-	runDir, err := state.SafeJoin(sources.paths.RunsDir, runID)
+// AttemptTimestamps returns when an attempt was submitted and finished.
+func (sources Sources) AttemptTimestamps(runID, jobID, attemptID string) (string, string) {
+	runDir, err := state.SafeJoin(sources.Paths.RunsDir, runID)
 	if err != nil {
 		return "", ""
 	}
 	if attemptDir, err := state.SpecificAttemptJobDir(runDir, jobID, attemptID); err == nil {
-		return state.ReadAttemptTimestamp(attemptDir, stateFileSubmittedAt), state.ReadAttemptTimestamp(attemptDir, stateFileFinishedAt)
+		return state.ReadAttemptTimestamp(attemptDir, submittedAtFileName), state.ReadAttemptTimestamp(attemptDir, finishedAtFileName)
 	}
-	return state.ReadJobTimestamp(runDir, jobID, stateFileSubmittedAt), state.ReadJobTimestamp(runDir, jobID, stateFileFinishedAt)
+	return state.ReadJobTimestamp(runDir, jobID, submittedAtFileName), state.ReadJobTimestamp(runDir, jobID, finishedAtFileName)
 }
 
-func workflowSourceRun(runID, runDir string, queue model.Queue, summary model.RunSummary) workflow.SourceRun {
+// SourceRun describes a loaded run as a workflow source.
+func SourceRun(runID, runDir string, queue model.Queue, summary model.RunSummary) workflow.SourceRun {
 	return workflow.SourceRun{
 		ID: runID, Queue: queue, Summary: summary,
 		JobTimestamps: func(jobID string) (string, string) {
-			return state.ReadJobTimestamp(runDir, jobID, stateFileSubmittedAt), state.ReadJobTimestamp(runDir, jobID, stateFileFinishedAt)
+			return state.ReadJobTimestamp(runDir, jobID, submittedAtFileName), state.ReadJobTimestamp(runDir, jobID, finishedAtFileName)
 		},
 	}
 }

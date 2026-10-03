@@ -62,3 +62,18 @@ func TestQueuedStatusText(t *testing.T) {
 		}
 	}
 }
+
+func TestCancelledErrorRecordsCancellation(t *testing.T) {
+	for _, test := range []struct{ previous, want string }{
+		{"", "cancelled"},
+		{"  ", "cancelled"},
+		{"exit status 143", "cancelled (exit status 143)"},
+		{"cancelled before start", "cancelled before start"},
+		{MarkedCancelledError, MarkedCancelledError},
+	} {
+		got := CancelledError(test.previous)
+		if got != test.want || !IsCancelledError(got) {
+			t.Errorf("CancelledError(%q) = %q, want %q read as cancelled", test.previous, got, test.want)
+		}
+	}
+}

@@ -442,9 +442,17 @@ func QueueToJobs(commands []QueuedCommand) []JobSpec {
 	jobs := make([]JobSpec, 0, len(commands))
 	stageJobs := make(map[string][]string)
 	matrixJobs := make(map[string][]string)
+	// A named array's name stands for its tasks, as a stage or matrix name
+	// stands for its members.
+	arrayJobs := make(map[string][]string)
 	for _, queued := range commands {
 		commandJobs := queueCommandToJobs(queued)
 		jobs = append(jobs, commandJobs...)
+		if queued.Array != nil && queued.Name != "" {
+			for _, job := range commandJobs {
+				arrayJobs[queued.Name] = append(arrayJobs[queued.Name], job.Name)
+			}
+		}
 		if queued.Stage != "" {
 			for _, job := range commandJobs {
 				stageJobs[queued.Stage] = append(stageJobs[queued.Stage], job.Name)
@@ -458,6 +466,7 @@ func QueueToJobs(commands []QueuedCommand) []JobSpec {
 	}
 	expandStageDependencies(jobs, stageJobs)
 	expandStageDependencies(jobs, matrixJobs)
+	expandStageDependencies(jobs, arrayJobs)
 	return jobs
 }
 

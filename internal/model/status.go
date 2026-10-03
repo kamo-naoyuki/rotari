@@ -29,6 +29,19 @@ func ValidMarkedStatus(status string) bool {
 	return false
 }
 
+// CancelledError returns the error a cancelled job's result records:
+// "cancelled", keeping an earlier error in parentheses. An error that
+// already records a cancellation is kept as it is.
+func CancelledError(previous string) string {
+	switch {
+	case IsCancelledError(previous):
+		return previous
+	case strings.TrimSpace(previous) == "":
+		return "cancelled"
+	}
+	return "cancelled (" + previous + ")"
+}
+
 // IsCancelledError reports whether a result's error text records a
 // cancellation.
 func IsCancelledError(text string) bool {

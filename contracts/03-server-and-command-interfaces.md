@@ -143,6 +143,49 @@ follows:
   [`cmd/rotari/config.go`](../cmd/rotari/config.go); the external check
   enumerates each command exposing `--config` in the CLI schema in
   [`conformance/03-interfaces/options_test.go`](../conformance/03-interfaces/options_test.go).
+- **CLI-4** `show` for a run, `lineage RUN`, and the Web API's run
+  `lineage_summary` group the run's failed and blocked jobs by the same
+  causes, in text and in their `failures` JSON. Each job is classified on its
+  own result, so array tasks and matrix members fall into their own causes: a
+  block, cancellation, or timeout that rotari recorded comes first, then the
+  job's latest saved rule diagnosis, then its remaining failure kind. Groups
+  list the most frequent cause first. `show` groups only the jobs its table
+  lists. The rule is implemented once in
+  [`internal/runlineage/failures.go`](../internal/runlineage/failures.go)
+  (`FailureGroups`); the CLI text is in
+  [`cmd/rotari/failure_groups.go`](../cmd/rotari/failure_groups.go), and the
+  end-to-end check is
+  [`conformance/03-interfaces/failure_groups_test.go`](../conformance/03-interfaces/failure_groups_test.go).
+- **CLI-5** The project list (`show` without a project) shows each project's
+  last run and its result, and the commands it suggests work as printed, with
+  their placeholders filled in, for every listed project. A suggestion names
+  the basedir when a listed project lies outside the default state
+  directory, since `ROTARI_BASEDIR` counts as an explicit `--basedir`. The
+  list is in [`cmd/rotari/show.go`](../cmd/rotari/show.go)
+  (`showProjectsForBaseDirs`), with the end-to-end check in
+  [`conformance/03-interfaces/project_list_test.go`](../conformance/03-interfaces/project_list_test.go).
+- **CLI-6** The job listing window, `jobs --since` and the Web jobs page's
+  `since`, takes a Go duration such as `24h` or `90m`, or a whole number of
+  days such as `7d`; anything else is rejected. Both parse it with
+  `joblist.ParseSince` in [`internal/joblist/joblist.go`](../internal/joblist/joblist.go),
+  with the end-to-end check in
+  [`conformance/03-interfaces/jobs_presentation_test.go`](../conformance/03-interfaces/jobs_presentation_test.go).
+- **CLI-7** The commands that change a project's queue or run history
+  (`add`, `change`, `copy`, `delete`, `import`, `remove`, `reset`) take
+  `--dry-run`, which writes nothing and prints the change and the project
+  revision that `check` also reports, and `--if-revision REVISION`, which applies the
+  change only while the project is still at that revision, compared under the
+  state lock, and prints the new revision. A stale revision fails and changes
+  nothing. The rule is implemented once in `project.EditGuarded` and
+  `project.EditQueueGuarded` in
+  [`internal/project/edit.go`](../internal/project/edit.go); the end-to-end
+  check is
+  [`conformance/03-interfaces/guard_test.go`](../conformance/03-interfaces/guard_test.go).
+  `run` and `retry` take the same options: `--dry-run` lists the jobs the run
+  would execute, planned by `projectrun.Runner.PlanRun` as the run itself is,
+  with each task of an array that runs whole listed (`run.PlanRerun` keys the
+  plan by job ID), and `--if-revision` starts the run only at that revision, compared again by
+  the supervisor when it begins the run.
 
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.
@@ -183,3 +226,39 @@ follows:
   with client behavior covered by
   [`cmd/rotari/server_test.go`](../cmd/rotari/server_test.go).
   The machine-readable `check --json` output is not suppressed by quiet.
+
+## MCP tools
+
+`rotari mcp` serves MCP tools over stdio for one master directory; see
+[docs/MCP.md](../docs/MCP.md). The tools present the same shared functions
+as the CLI and hold no rules of their own.
+
+- **MCP-1** A tool that changes a project comes as a read-only preview and a
+  write. The preview (`rotari_preview_import`, `rotari_preview_run`) changes
+  nothing and returns the project revision that `check` reports, planned as
+  the CLI's `--dry-run` plans it. The write (`rotari_import`,
+  `rotari_start_run`) requires that revision and applies only while the
+  project is still at it; otherwise it fails and changes nothing. A run the
+  write starts executes the jobs its preview listed. The tools are in
+  [`internal/mcp/write.go`](../internal/mcp/write.go), with the end-to-end
+  check in
+  [`conformance/03-interfaces/mcp_test.go`](../conformance/03-interfaces/mcp_test.go).
+- **MCP-2** `rotari_export_run` returns a run's workflow manifest as a
+  view for reading: environment values and executor options are replaced
+  with `[REDACTED]` and paths are redacted where detected, while
+  `rotari export` keeps them. The MCP import tools refuse a manifest that
+  still holds such a placeholder. Implemented in
+  [`internal/mcp/export.go`](../internal/mcp/export.go); checked by
+  `TestMCPExportIsARedactedViewThatImportRefuses` in
+  [`conformance/03-interfaces/mcp_test.go`](../conformance/03-interfaces/mcp_test.go).
+- **MCP-3** `rotari_run_summary` reports a run's `state` as `rotari wait`
+  decides it, with `project.RunPhaseOf`: `running` while the run holds the
+  project's run lock, from the moment `rotari_start_run` returns its ID,
+  then `finished`, `interrupted`, or `ended`. A run that has not written its
+  jobs yet is `running` with no jobs, not an error. No MCP tool's error
+  names a state directory: each tool is added through one wrapper that
+  replaces registered basedirs with `BASEDIR`. Implemented in
+  [`internal/project/run_phase.go`](../internal/project/run_phase.go) and
+  [`internal/mcp/server.go`](../internal/mcp/server.go); checked by
+  `TestMCPWritesApplyOnlyAtThePreviewedRevision`, which follows a started
+  run with `rotari_run_summary` alone.

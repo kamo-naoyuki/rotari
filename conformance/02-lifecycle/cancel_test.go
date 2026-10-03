@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -114,4 +115,58 @@ func runResults(t *testing.T, e *support.Env, run support.ActiveRun) []json.RawM
 func jobAttempts(t *testing.T, e *support.Env, run support.ActiveRun) int {
 	t.Helper()
 	return strings.Count(e.MustRotari("jobs", run.Project, "--format", "%a").Stdout, "-"+run.Jobs[0]+"-")
+}
+
+func TestCancelledJobsReadAsCancelled(t *testing.T) {
+	covers(t, "CAN-5")
+	for _, test := range []struct {
+		name string
+		// jobFirst cancels the first job alone before the whole run.
+		jobFirst bool
+	}{{"whole run", false}, {"one job, then the run", true}} {
+		t.Run(test.name, func(t *testing.T) {
+			e := support.NewEnv(t)
+			run := e.StartRun("live", 2, true)
+			if test.jobFirst {
+				e.MustRotari("cancel", "-p", run.Project, run.Jobs[0])
+				support.WaitUntil(t, 30*time.Second, func() (bool, string) {
+					return support.JobProcesses(t, e.Root, run.Jobs[0]) == 0, "cancelled job is still running"
+				})
+			}
+			e.MustRotari("cancel", "-p", run.Project, "--wait")
+
+			var summary struct {
+				Failures []struct {
+					Kind string `json:"kind"`
+					Jobs []struct {
+						ID string `json:"id"`
+					} `json:"jobs"`
+				} `json:"failures"`
+			}
+			if err := json.Unmarshal([]byte(e.MustRotari("lineage", "-p", run.Project, "--json", run.RunID).Stdout), &summary); err != nil {
+				t.Fatal(err)
+			}
+			var cancelled []string
+			for _, group := range summary.Failures {
+				if group.Kind != "cancelled" {
+					t.Errorf("failure group %+v, want every stopped job cancelled", group)
+				}
+				for _, job := range group.Jobs {
+					cancelled = append(cancelled, job.ID)
+				}
+			}
+			sort.Strings(cancelled)
+			want := append([]string(nil), run.Jobs...)
+			sort.Strings(want)
+			if strings.Join(cancelled, ",") != strings.Join(want, ",") {
+				t.Fatalf("cancelled jobs = %v, want %v", cancelled, want)
+			}
+			table := e.MustRotari("show", "-p", run.Project, "--run-id", run.RunID, "--filter-failure-kind", "cancelled").Stdout
+			for _, job := range run.Jobs {
+				if !strings.Contains(table, job) {
+					t.Errorf("--filter-failure-kind cancelled does not list %s:\n%s", job, table)
+				}
+			}
+		})
+	}
 }

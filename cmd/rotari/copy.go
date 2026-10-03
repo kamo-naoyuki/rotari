@@ -57,6 +57,7 @@ func cmdCopy(args []string) int {
 	appendJobs := cliBool(fs, "append", false)
 	overwriteJobs := cliBool(fs, "overwrite", false)
 	quiet := cliBool(fs, "quiet", false)
+	guard := cliGuardFlags(fs)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -193,19 +194,13 @@ func cmdCopy(args []string) int {
 		printError(err)
 		return 1
 	}
-	message, err := queueEditor().Copy(baseDir, queueName, *runID, queueedit.CopyRequest{
+	message, err := guard.editor().Copy(baseDir, queueName, *runID, queueedit.CopyRequest{
 		Selection: selection, JobIDs: jobIDs, Scope: scope, Filter: filter, Append: *appendJobs, Overwrite: overwriteConfirmed,
 	})
 	if err != nil {
 		printError(err)
 		return 1
 	}
-	if err := registerBasedir(baseDir); err != nil {
-		printErrorf("failed to register state directory: %v", err)
-		return 1
-	}
-	if !*quiet {
-		fmt.Println(colorKeyValueMessage(message, green))
-	}
+	guard.printResult(message, *quiet)
 	return 0
 }

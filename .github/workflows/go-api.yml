@@ -6,6 +6,8 @@ on:
       - "cmd/**/*.go"
       - "internal/**/*.go"
       - "scripts/generate_go_docs.py"
+      - "scripts/generate-dep-graph.sh"
+      - "scripts/test_generate_dep_graph.py"
       - "go.mod"
       - "go.sum"
       - ".github/workflows/go-api.yml"
@@ -14,6 +16,8 @@ on:
       - "cmd/**/*.go"
       - "internal/**/*.go"
       - "scripts/generate_go_docs.py"
+      - "scripts/generate-dep-graph.sh"
+      - "scripts/test_generate_dep_graph.py"
       - "go.mod"
       - "go.sum"
       - ".github/workflows/go-api.yml"
@@ -42,6 +46,9 @@ jobs:
 
       - name: Install graphviz
         run: sudo apt-get update && sudo apt-get install -y graphviz
+
+      - name: Test dependency graph bootstrap
+        run: python3 -m unittest discover -s scripts -p test_generate_dep_graph.py -v
 
       - name: Generate Go API documentation
         run: >-

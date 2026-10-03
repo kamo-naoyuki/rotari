@@ -44,6 +44,9 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Test dependency graph bootstrap
+        run: python3 -m unittest discover -s scripts -p test_generate_dep_graph.py -v
+
       - name: Generate Go API documentation
         run: |
           python3 scripts/generate_go_docs.py \

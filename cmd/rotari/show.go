@@ -149,8 +149,8 @@ func cmdShow(args []string) int {
 	selector := ""
 	if len(fs.Args()) == 1 {
 		selector = fs.Args()[0]
-		if *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || *showBaseDirsList || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput {
-			printError("a run name selector cannot be combined with run, job, queue, list, log, follow, JSON, or report options")
+		if *runIDOption != "" || *jobIDOption != "" || *jobNameOption != "" || *showQueueOption || *showBaseDirsList {
+			printError("a positional selector cannot be combined with run, job, queue, or list options")
 			return 1
 		}
 	}
@@ -198,6 +198,13 @@ func cmdShow(args []string) int {
 			*queueNameOption = selector
 			selector = ""
 		}
+	}
+	// An attempt ID, run ID, latest, or project has been applied above like
+	// its option. A selector left here is searched for as a run name, job
+	// ID, or job name, which the output options do not take.
+	if selector != "" && (*showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
+		printError("a run name, job ID, or job name selector cannot be combined with log, follow, JSON, or report options; use --run-id or --job-id")
+		return 1
 	}
 	if strings.HasPrefix(*jobIDOption, "att_") {
 		attemptID = *jobIDOption
@@ -365,11 +372,11 @@ func cmdShow(args []string) int {
 				}
 				return showQueue(paths, queue, scope, filter)
 			}
-			if countProjectRuns(paths.RunsDir) == 0 && runOnly {
+			if project.CountRuns(paths) == 0 && runOnly {
 				printErrorf("project %q has no runs; logs, failed filters, and reports need one", paths.ProjectName)
 				return 1
 			}
-			if countProjectRuns(paths.RunsDir) == 0 {
+			if project.CountRuns(paths) == 0 {
 				printErrorf("WARNING: project %q has no runs or queued jobs; nothing to show", paths.ProjectName)
 				writeShowTargetHeaderWithMode(os.Stdout, paths, "project")
 				fmt.Println("\nNo runs or queued jobs found.")
@@ -385,7 +392,7 @@ func cmdShow(args []string) int {
 	if runQueue, err := state.LoadQueue(filepath.Join(paths.RunsDir, runID, "commands.json")); err == nil && !*reportOutput {
 		if arrayScope, ok := arrayCommandScope(runQueue.Commands, *jobIDOption); ok {
 			if *jsonOutput {
-				return showRunJobJSON(paths, runID, *jobIDOption)
+				return showRunJobJSON(paths, runID, *jobIDOption, resultSelection)
 			}
 			return showRun(paths, runID, showJobFilter{selection: resultSelection, scope: arrayScope})
 		}
@@ -401,7 +408,7 @@ func cmdShow(args []string) int {
 			return 0
 		}
 		if *jsonOutput {
-			return showRunJobJSON(paths, runID, *jobIDOption)
+			return showRunJobJSON(paths, runID, *jobIDOption, resultSelection)
 		}
 		running, err := isRunning(paths.LockFile)
 		if err != nil {
@@ -429,7 +436,7 @@ func cmdShow(args []string) int {
 			return 1
 		}
 		return showWithPager(!*noPager, func(writer io.Writer) int {
-			return showRunLogs(writer, paths, runID, *showFailedLogs, *streamOption)
+			return showRunLogs(writer, paths, runID, *showFailedLogs || failedOnly, *streamOption)
 		})
 	}
 	if *reportOutput {
@@ -442,7 +449,7 @@ func cmdShow(args []string) int {
 		return 0
 	}
 	if *jsonOutput {
-		return showRunJSON(paths, runID)
+		return showRunJSON(paths, runID, resultSelection)
 	}
 	return showRun(paths, runID, showJobFilter{selection: resultSelection, scope: scope, filter: filter})
 }
@@ -465,12 +472,13 @@ func hasMultipleProjects(baseDir string) (bool, error) {
 }
 
 type showJSON struct {
-	BaseDir  string            `json:"base_dir"`
-	Project  string            `json:"project_name"`
-	RunID    string            `json:"run_id"`
-	RunDir   string            `json:"run_dir"`
-	Summary  *model.RunSummary `json:"summary,omitempty"`
-	Commands model.Queue       `json:"commands"`
+	BaseDir  string                    `json:"base_dir"`
+	Project  string                    `json:"project_name"`
+	RunID    string                    `json:"run_id"`
+	RunDir   string                    `json:"run_dir"`
+	Summary  *model.RunSummary         `json:"summary,omitempty"`
+	Failures []runlineage.FailureGroup `json:"failures,omitempty"`
+	Commands model.Queue               `json:"commands"`
 }
 
 type showJobCounts struct {
@@ -535,9 +543,24 @@ func scopedJobIDs(commands []model.QueuedCommand, scope model.CommandSelector, f
 	return ids, nil
 }
 
-func showRunJSON(paths state.ProjectPaths, runID string) int {
+// showRunJSON prints a run's summary, failure groups, and command snapshot.
+// A non-empty selection keeps only the summary results and failure groups of
+// the jobs it selects; the command snapshot stays whole.
+func showRunJSON(paths state.ProjectPaths, runID, selection string) int {
 	result := showJSON{BaseDir: paths.BaseDir, Project: paths.ProjectName, RunID: runID, RunDir: filepath.Join(paths.RunsDir, runID)}
+	var selected map[string]bool
 	if summary, err := state.LoadRunSummary(filepath.Join(result.RunDir, "summary.json")); err == nil {
+		if selection != "" {
+			selected = make(map[string]bool)
+			kept := summary.Results[:0]
+			for _, jobResult := range summary.Results {
+				if selectsShownJob(paths, runID, jobResult.ID, jobResult, true, selection, jobfilter.Filter{}) {
+					kept = append(kept, jobResult)
+					selected[jobResult.ID] = true
+				}
+			}
+			summary.Results = kept
+		}
 		result.Summary = &summary
 	} else if !os.IsNotExist(err) {
 		printErrorf("failed to read summary: %v", err)
@@ -549,11 +572,24 @@ func showRunJSON(paths state.ProjectPaths, runID string) int {
 		return 1
 	}
 	result.Commands = commands
+	failures, err := runFailureGroups(paths, runID, selected)
+	if err != nil {
+		printErrorf("failed to group failures: %v", err)
+		return 1
+	}
+	result.Failures = failures
 	if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
 		printErrorf("failed to write JSON: %v", err)
 		return 1
 	}
 	return 0
+}
+
+// selectsShownJob reports whether a show view of runID keeps the job, given
+// its result. jobfilter.Filter.Selects decides; this only gathers the facts.
+func selectsShownJob(paths state.ProjectPaths, runID, jobID string, result model.JobResult, finished bool, selection string, filter jobfilter.Filter) bool {
+	job := jobstatus.FilterJob(jsonStore(), paths.RunsDir, model.JobOrigin{RunID: runID, JobID: jobID}, jobID, result, finished, time.Now())
+	return filter.Selects(selection, job)
 }
 
 func showQueueJSON(paths state.ProjectPaths, queue model.Queue) int {
@@ -697,7 +733,7 @@ func writeShowTargetHeaderWithMode(writer io.Writer, paths state.ProjectPaths, m
 	} else {
 		fmt.Fprintf(writer, "%s stopped\n", cyan("Runner server:"))
 	}
-	fmt.Fprintf(writer, "%s %d\n", cyan("Runs:"), countProjectRuns(paths.RunsDir))
+	fmt.Fprintf(writer, "%s %d\n", cyan("Runs:"), project.CountRuns(paths))
 	if configPath := config.EffectivePath(paths.BaseDir, paths.ProjectName); configPath != "" {
 		fmt.Fprintf(writer, "%s %s\n", cyan("Config:"), configPath)
 	}
@@ -726,20 +762,6 @@ func showViewLabel(mode string) string {
 	default:
 		return strings.ToUpper(mode)
 	}
-}
-
-func countProjectRuns(runsDir string) int {
-	entries, err := os.ReadDir(runsDir)
-	if err != nil {
-		return 0
-	}
-	count := 0
-	for _, entry := range entries {
-		if entry.IsDir() {
-			count++
-		}
-	}
-	return count
 }
 
 func printInterruptedRunNotice(paths state.ProjectPaths, runID string) {
@@ -791,6 +813,11 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		fmt.Printf("%s %s\n%s %s\n%s %s\n%s %d\n", cyan("Status:"), summary.Status, cyan("Started:"), model.FormatDisplayTimestamp(summary.StartedAt), cyan("Finished:"), model.FormatDisplayTimestamp(summary.FinishedAt), cyan("Exit code:"), summary.ExitCode)
 	}
 	fmt.Printf("%s %s\n", cyan("Output directory:"), runDir)
+	if _, failed := model.CountRunResults(summary.Results); failed > 0 {
+		// The job table can be long; point to the compact summary before it.
+		fmt.Printf("%s rotari lineage --basedir %s --project-name %s %s\n", cyan("Failure summary:"),
+			executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
+	}
 	queue, queueErr := state.LoadQueue(paths.QueueFile)
 	if queueErr == nil && len(queue.Commands) > 0 {
 		if diff, err := compareQueueWithRun(paths.QueueFile, filepath.Join(runDir, "commands.json")); err == nil && diff.HasChanges() {
@@ -826,6 +853,7 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 			}
 		}
 	}
+	displayed := make(map[string]bool)
 	fmt.Println("\n" + cyan("Jobs:"))
 	changeHints := make([]model.JobSpec, 0)
 	fmt.Printf("%s\n", cyan(fmt.Sprintf("%-12s %-42s %-6s %-15s %-15s %-20s %-10s %-30s %-24s %-24s %-24s %s", "JOB ID", "LATEST ATTEMPT", "TASK", "NAME", "STAGE", "DEPENDS ON", "STATUS", "EXECUTOR", "SUBMITTED", "FINISHED", "HOSTS", "COMMAND")))
@@ -888,10 +916,10 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 		executorText := queueExecutorText(runQueue, jobSpec)
 		jobResult, _ := resolved.Result(jobSpec)
-		job := jobstatus.FilterJob(jsonStore(), paths.RunsDir, model.JobOrigin{RunID: runID, JobID: jobID}, jobID, jobResult, statusOK, time.Now())
-		if !filter.filter.Selects(filter.selection, job) {
+		if !selectsShownJob(paths, runID, jobID, jobResult, statusOK, filter.selection, filter.filter) {
 			continue
 		}
+		displayed[jobID] = true
 		origin := originByID[jobID]
 		carried := runlineage.IsCarried(origin, latestAttemptID, blocked)
 		submittedAt, finishedAt := jobstatus.Timestamps(runDir, jobID, origin, carried)
@@ -923,6 +951,19 @@ func showRun(paths state.ProjectPaths, runID string, filter showJobFilter) int {
 		}
 	}
 	fmt.Printf("\n%s success: %d, failed: %d, blocked: %d, running: %d, pending: %d\n", cyan("Job status:"), jobCounts.success, jobCounts.failed, jobCounts.blocked, jobCounts.running, jobCounts.pending)
+	// Grouping needs the job definitions, which a run without a readable
+	// command snapshot lacks; its table above lists job IDs only.
+	if runQueueErr == nil {
+		failures, err := runFailureGroups(paths, runID, displayed)
+		if err != nil {
+			printErrorf("failed to group failures: %v", err)
+			return 1
+		}
+		if len(failures) > 0 {
+			fmt.Println()
+			writeFailureGroups(os.Stdout, failures)
+		}
+	}
 	fmt.Println("\n" + cyan("To show a job:"))
 	fmt.Println("  rotari show -j ATTEMPT_ID")
 	printChangeHints(paths, runID, runQueue, changeHints)
@@ -1362,53 +1403,25 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 	fmt.Printf("%s\n", cyan("=== SHOW MODE: "+showViewLabel("projects")+" ==="))
 
 	type projectInfo struct {
-		baseDir string
-		name    string
-		queued  int
-		runs    int
-		state   string
-		lastRun string
+		baseDir    string
+		name       string
+		queued     int
+		runs       int
+		state      string
+		lastRun    string
+		lastResult string
 	}
 	projects := make([]projectInfo, 0)
 	for _, baseDir := range baseDirs {
-		entries, err := os.ReadDir(filepath.Join(baseDir, "projects"))
+		overviews, err := project.Overviews(baseDir, true)
 		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			printErrorf("failed to read projects directory %q: %v", baseDir, err)
+			printError(err)
 			return 1
 		}
-		for _, entry := range entries {
-			if !entry.IsDir() || !state.IsValidPathElement(entry.Name()) {
-				continue
-			}
-			paths, err := state.ResolveProjectPaths(baseDir, entry.Name())
-			if err != nil {
-				printErrorf("failed to resolve project %q: %v", entry.Name(), err)
-				return 1
-			}
-			queue, err := state.LoadQueue(paths.QueueFile)
-			if err != nil {
-				printErrorf("failed to load queue for project %q: %v", entry.Name(), err)
-				return 1
-			}
-			inspection, err := project.Inspect(paths, true)
-			projectState := inspection.State
-			if err != nil {
-				printErrorf("failed to check project %q state: %v", entry.Name(), err)
-				return 1
-			}
-			meta, err := state.LoadMeta(paths.MetaFile)
-			if err != nil {
-				printErrorf("failed to load project %q metadata: %v", entry.Name(), err)
-				return 1
-			}
-			lastRun := meta.LastRunID
-			if lastRun == "" {
-				lastRun = "-"
-			}
-			projects = append(projects, projectInfo{baseDir: baseDir, name: entry.Name(), queued: len(queue.Commands), runs: countProjectRuns(paths.RunsDir), state: projectStateName(projectState), lastRun: lastRun})
+		for _, overview := range overviews {
+			lastRun := firstNonEmpty(overview.LastRun.ID, "-")
+			projects = append(projects, projectInfo{baseDir: baseDir, name: overview.Name, queued: overview.Queued, runs: overview.Runs,
+				state: projectStateName(overview.State), lastRun: lastRun, lastResult: lastRunResult(overview)})
 		}
 	}
 
@@ -1417,13 +1430,47 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 		return 0
 	}
 	fmt.Printf("\n%s\n", cyan(fmt.Sprintf("Projects: %d", len(projects))))
-	fmt.Println(cyan(fmt.Sprintf("%-36s %-24s %-8s %-8s %-14s %s", "BASEDIR", "PROJECT", "QUEUED", "RUNS", "STATE", "LAST RUN")))
+	fmt.Println(cyan(fmt.Sprintf("%-36s %-24s %-8s %-8s %-14s %-24s %s", "BASEDIR", "PROJECT", "QUEUED", "RUNS", "STATE", "LAST RUN", "LAST RESULT")))
+	// Without -b, `show -p` resolves the default state directory, so the
+	// hint names the basedir when a listed project lives elsewhere.
+	defaultBaseDir, _, defaultErr := state.ResolveBaseDir("")
+	otherBaseDir, hasRun := false, false
 	for _, project := range projects {
-		fmt.Printf("%-36s %-24s %-8d %-8d %-14s %s\n", project.baseDir, project.name, project.queued, project.runs, project.state, project.lastRun)
+		fmt.Printf("%-36s %-24s %-8d %-8d %-14s %-24s %s\n", project.baseDir, project.name, project.queued, project.runs, project.state, project.lastRun, project.lastResult)
+		otherBaseDir = otherBaseDir || defaultErr != nil || filepath.Clean(project.baseDir) != filepath.Clean(defaultBaseDir)
+		hasRun = hasRun || project.lastRun != "-"
 	}
 	fmt.Println("\n" + cyan("To show runs in a project:"))
-	fmt.Println("  rotari show -p PROJECT")
+	if otherBaseDir {
+		fmt.Println("  rotari show -b BASEDIR -p PROJECT")
+	} else {
+		fmt.Println("  rotari show -p PROJECT")
+	}
+	if hasRun {
+		fmt.Println(cyan("To summarize a run's failures by cause:"))
+		if otherBaseDir {
+			fmt.Println("  rotari lineage -b BASEDIR RUN_ID")
+		} else {
+			fmt.Println("  rotari lineage RUN_ID")
+		}
+	}
 	return 0
+}
+
+// lastRunResult describes a project's last run for the project list:
+// "running" while it runs, its status, with failed and total job counts once
+// any job failed, or "-" without a readable summary.
+func lastRunResult(overview project.Overview) string {
+	last := overview.LastRun
+	switch {
+	case overview.State == project.Running:
+		return "running"
+	case last.Status == "":
+		return "-"
+	case last.Failed == 0:
+		return last.Status
+	}
+	return fmt.Sprintf("%s %d/%d", last.Status, last.Failed, last.Jobs)
 }
 
 func showBaseDirs(masterDir string) int {

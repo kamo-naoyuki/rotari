@@ -120,7 +120,6 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 	if err != nil {
 		return 1, fmt.Errorf("failed to prepare job selection: %w", err)
 	}
-	run.ExpandArrayPlan(queue.Commands, jobs, plan.Execute)
 	run.ApplyCarriedOrigins(queue.Commands, plan.CarriedOrigins)
 	// The first snapshot keeps a failed plan inspectable; this one records origins.
 	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
@@ -177,6 +176,9 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 			}
 		},
 		FinalResult: func(job model.JobSpec, result model.JobResult) model.JobResult {
+			if result.ExitCode != 0 && runner.WasExplicitlyCancelled(runDir, job.ID, result) {
+				result.Error = model.CancelledError(result.Error)
+			}
 			if runner.Diagnose != nil {
 				result = runner.Diagnose(runDir, result)
 			}

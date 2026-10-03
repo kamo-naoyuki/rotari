@@ -83,7 +83,9 @@ rotari run
 ```
 
 `--depends-on` accepts either a job name or a stage name. A job name and stage
-name cannot be the same within one queue.
+name cannot be the same within one queue. The name of an array job stands for
+all of its tasks, like a stage name: `--depends-on train` waits until every
+task of the array `train` succeeds.
 
 Use `--depends-on-finished NAME` for a job that should run once its
 prerequisites finish, whatever their result, like Slurm's `afterany`. It suits
@@ -135,12 +137,28 @@ run. `wait` returns the overall run exit code. Pass a project name, run name,
 or run ID as a positional selector. Rotari checks them in that order, so a
 project name wins over a run name and a run ID when the same string is used for
 more than one kind of identifier. Use `--run-id/-r` to select a run explicitly.
+Selecting a project by name, `--project-name/-p`, or `ROTARI_PROJECT_NAME`
+waits for its active run, or returns its latest run's result immediately if
+the run has already finished. This also works when a short async run finishes
+before `wait` starts.
 Pass multiple selectors to wait for independent async runs together:
 
 ```sh
 rotari run -p sweep --async
 rotari run -p eval --async
 rotari wait sweep eval
+```
+
+To learn of a failure without waiting for the rest of a long run, pass
+`--until-failure`. `wait` then also returns, with status 1, as soon as a job
+of the run has failed with no retry left: it prints the failures grouped by
+cause (see [Inspecting](INSPECT.md#inspect)) and the commands to keep waiting
+or cancel. A failed attempt that the run will retry does not count. With
+`--json`, it prints `{"run_id": ..., "status": "running", "failures": [...]}`
+instead of a completed run's summary.
+
+```sh
+rotari wait sweep --until-failure
 ```
 
 Waiting for a project that has not been created yet succeeds immediately and
@@ -151,8 +169,9 @@ like a run ID; use explicit run IDs when a missing run must be reported.
 
 `--async` starts the run in a detached session (`setsid`), so it survives
 terminal closure. Use `rotari wait` with a project, run name, or run ID from any
-terminal, and `rotari cancel` to stop it. Without a selector, `wait` scans the
-resolved basedir: it waits when exactly one project is running, and lists the
+terminal, and `rotari cancel` to stop it. Without a selector or an explicit
+project, `wait` scans the resolved basedir: it waits when exactly one project
+is running, and lists the
 running projects and run IDs and asks for a selector when several are running.
 If the run stops without finishing, for example because its supervisor was
 killed, `wait` reports the interrupted run and exits with status 1.
@@ -571,6 +590,37 @@ timed-out job is an ordinary failure, so `run --retry`, `retry`, and
 way for every executor and is independent of scheduler walltime options such
 as Slurm `--time`, which still apply.
 
+## Previewing and guarding changes
+
+The commands that change a project's queue or run history (`add`, `change`,
+`copy`, `delete`, `import`, `remove`, and `reset`) take `--dry-run` and
+`--if-revision REVISION`. `--dry-run` checks the change and prints what it
+would do, prefixed with `dry run:`, and the project's revision, without
+writing anything. `--if-revision` applies the change only if the project is
+still at that revision, and prints the revision it produced; if anything has
+written the project in between, such as another edit or a run, it fails with
+`project changed since the planned revision` and changes nothing. `rotari
+check` also prints the revision. Neither option is read from the environment
+or a config file.
+
+```sh
+rotari remove -p sweep --dry-run JOB_ID         # prints revision=REVISION
+rotari remove -p sweep --if-revision REVISION JOB_ID
+```
+
+`run` and `retry` take the same options. `--dry-run` lists the jobs the run
+would execute and how many results it would carry, planned the way the run
+itself is, without copying a run into the queue or starting anything.
+`--if-revision` starts the run only if the project is still at that revision.
+
+```sh
+rotari retry -p sweep --dry-run                 # lists the jobs it would execute
+rotari retry -p sweep --if-revision REVISION --async
+```
+
+A revision identifies the project's queue and metadata files; any write to
+either changes it.
+
 ## Queue and job control
 
 Remove jobs from the current queue without affecting saved run history:
@@ -605,6 +655,10 @@ all of its unfinished tasks. A `RUN_ID` or `ATTEMPT_ID` must belong to the
 project's active run; `rotari cancel` of an earlier run's ID fails instead of
 cancelling the run that is active now. Without `-p`, a `JOB_ID` is looked for
 in the active run of every project.
+
+A cancelled job's result records the error `cancelled`, so
+`--filter-failure-kind cancelled` selects it and failure summaries list it
+under `cancelled` rather than by its exit code.
 
 Whole-run cancel (no `--job-id/-j`) and, for `local`-executor jobs, `--job-id/-j`
 cancel/suspend/resume all signal jobs by PID, which only means

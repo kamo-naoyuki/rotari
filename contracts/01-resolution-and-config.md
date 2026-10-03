@@ -107,9 +107,13 @@ The per-command view of these rules, with job selectors, is in
   whose latest runs are in several projects is ambiguous. If a selected
   project does not yet exist, `wait` succeeds as a no-op; a name that matches
   neither a project nor a run is treated as an uncreated project unless it
-  looks like a run ID. An explicit project without a selector follows the
-  same rule, but no selector and no project still reports no active runs.
+  looks like a run ID. A project selected by `--project-name/-p` or
+  `ROTARI_PROJECT_NAME` without a selector follows the same active-then-latest
+  rule, but no selector and no project still reports no active runs.
   An explicit `--run-id` bypasses this selector resolution.
+  Implementation: [project wait resolution](../cmd/rotari/wait.go).
+  Tests: [option and environment resolution](../cmd/rotari/wait_project_test.go)
+  and [selector conformance](../conformance/01-resolution/export_target_test.go).
 - **RES-17** Run lookup applies to history commands (`show`, `wait`, `copy`, `change`,
   `remove`, `delete`, and rerun selection), not state-creating commands such as
   `add` or a plain new `run`.
@@ -341,10 +345,12 @@ order:
 - The registry is only an index. Run files remain authoritative.
 - Deleting a run through CLI or web history controls removes its registry entry
   after the run files and metadata are updated.
-- Runs deleted outside rotari can leave orphaned registry entries. `rotari gc`
-  caches their plan for ten minutes; its optional positional master directory
-  is an alternative to `--masterdir`; `rotari gc --apply [MASTERDIR]` removes
-  only unchanged entries whose run directories are still absent.
+- Runs deleted outside rotari can leave orphaned registry entries.
+  `rotari gc [MASTERDIR]` removes them, and basedir records whose basedir is
+  gone; its optional positional master directory is an alternative to
+  `--masterdir`. Each removal checks again that the entry is unchanged and its
+  directory still absent. `rotari gc --dry-run` lists the candidates without
+  removing anything.
 - Automatic garbage collection is not performed. Malformed or invalid registry
   files are reported and left untouched for manual inspection.
 
@@ -360,7 +366,11 @@ maintain a separate one-record-per-basedir index under the master directory:
 
 Register a basedir idempotently when a command creates or adopts state there:
 queue/project creation, run creation, import, copy, and server startup. Do
-not register from read-only commands such as `show` or `jobs`. The basedir
+not register from read-only commands such as `show` or `jobs`, or from a
+`--dry-run`, which writes nothing. `add` and `copy` register through
+`queueops.Editor.RegisterBaseDir`, import through `workflowstate.Import`;
+`TestCommandsThatCreateAProjectRegisterItsBasedir` checks the commands that
+create a project. The basedir
 registry is used for discovery by bare `show` and `show --basedirs`, so those
 commands do not need to scan every historical run record. Existing
 installations are backfilled from the run registry when the basedir index is

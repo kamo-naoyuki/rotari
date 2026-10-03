@@ -51,6 +51,8 @@ Add a command to a queue.
 | `array` | `str` | create an array job range or selected tasks |
 | `matrix` | `Sequence[str]` | expand a command into jobs from KEY=VALUE[,VALUE...] dimensions; may be repeated |
 | `quiet` | `bool` | suppress success output |
+| `dry_run` | `bool` | print what the command would change, and the project revision, without writing |
+| `if_revision` | `str` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ## `Rotari.run`
 
@@ -119,6 +121,8 @@ Execute queued commands, optionally selecting jobs from a run.
 | `filter_not_stage` | `Sequence[str]` | exclude jobs in this stage; may be repeated |
 | `filter_matrix` | `str` | select jobs of this matrix, named by its base job name; same as --matrix |
 | `filter_not_matrix` | `Sequence[str]` | exclude jobs of this matrix, named by its base job name; may be repeated |
+| `dry_run` | `bool` | print what the command would change, and the project revision, without writing |
+| `if_revision` | `str` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ## `Rotari.retry`
 
@@ -181,6 +185,8 @@ Run failed and unfinished jobs; with --job-id, run those jobs.
 | `filter_not_stage` | `Sequence[str]` | exclude jobs in this stage; may be repeated |
 | `filter_matrix` | `str` | select jobs of this matrix, named by its base job name; same as --matrix |
 | `filter_not_matrix` | `Sequence[str]` | exclude jobs of this matrix, named by its base job name; may be repeated |
+| `dry_run` | `bool` | print what the command would change, and the project revision, without writing |
+| `if_revision` | `str` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ## `Rotari.reset`
 
@@ -195,6 +201,8 @@ Discard the current, not-yet-run queue.
 | `config` | `str` | config file to use |
 | `recover` | `bool` | confirm an interrupted run has stopped without prompting |
 | `quiet` | `bool` | suppress success output |
+| `dry_run` | `bool` | print what the command would change, and the project revision, without writing |
+| `if_revision` | `str` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ## `Rotari.wait`
 
@@ -209,6 +217,7 @@ Wait for an asynchronous run by project, run name, or run id.
 | `config` | `str` | config file to use |
 | `run_id` | `Sequence[str]` | run ID; may be repeated |
 | `timeout` | `str` | maximum wait duration |
+| `until_failure` | `bool` | return as soon as a job of the run has failed with no retry left, without waiting for the rest |
 
 ## `Rotari.show`
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -11,44 +10,16 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
-	"github.com/kamo-naoyuki/rotari/internal/project"
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
+	"github.com/kamo-naoyuki/rotari/internal/workflowstate"
 )
 
-type importPlan struct {
-	Version int                   `json:"version"`
-	Project string                `json:"project"`
-	Jobs    []importPlanJob       `json:"jobs"`
-	Removed []workflow.RemovedJob `json:"removed"`
-}
-
-type importPlanJob struct {
-	ID      string            `json:"id"`
-	Name    string            `json:"name,omitempty"`
-	Status  string            `json:"status"`
-	Command []string          `json:"command"`
-	Source  *importPlanSource `json:"source,omitempty"`
-	Tasks   []importPlanTask  `json:"tasks,omitempty"`
-}
-
-// importPlanTask reports the status of one array task that has source
-// provenance.
-type importPlanTask struct {
-	ID     string            `json:"id"`
-	Status string            `json:"status"`
-	Source *importPlanSource `json:"source,omitempty"`
-}
-
-// importPlanSource names the decoded source attempt so a reviewer can check
-// which earlier result a queued job refers to.
-type importPlanSource struct {
-	RunID     string `json:"run_id"`
-	JobID     string `json:"job_id"`
-	AttemptID string `json:"attempt_id,omitempty"`
-	Status    string `json:"status"`
-}
+type (
+	importPlan       = workflowstate.Plan
+	importPlanJob    = workflowstate.PlanJob
+	importPlanSource = workflowstate.PlanSource
+)
 
 func cmdImport(args []string) int {
 	manifestPath := ""
@@ -61,8 +32,8 @@ func cmdImport(args []string) int {
 	basedir := cliString(fs, "basedir", "")
 	projectName := cliString(fs, "project-name", "")
 	overwrite := cliBool(fs, "overwrite", false)
-	dryRun := cliBool(fs, "dry-run", false)
 	jsonOutput := cliBool(fs, "json", false)
+	guard := cliGuardFlags(fs)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -113,90 +84,21 @@ func cmdImport(args []string) int {
 		printError(err)
 		return 1
 	}
-	if !resolve.ProjectExists(baseDir, resolvedProject) {
-		if err := model.ValidateReservedName("project", resolvedProject); err != nil {
-			printError(err)
-			return 1
-		}
-	}
-	if manifest.Source != nil && manifest.Source.Project != resolvedProject {
-		printErrorf("workflow source project %q does not match destination project %q", manifest.Source.Project, resolvedProject)
-		return 1
-	}
-	queue, err := workflow.Compile(manifest, makeJobID)
+	plan, err := workflowstate.Import{
+		Store: jsonStore(), BaseDir: baseDir, Project: resolvedProject, Manifest: manifest,
+		Overwrite: *overwrite, Guard: guard.guard(), NewJobID: makeJobID,
+		Validate: func(queue model.Queue) error { return projectRunner().ValidateQueue(queue, "", nil, nil) },
+		Register: registerBasedir,
+	}.Apply()
 	if err != nil {
 		printError(err)
 		return 1
-	}
-	queue, removed, err := reconcileWorkflowManifest(baseDir, manifest, queue)
-	if err != nil {
-		printError(err)
-		return 1
-	}
-	if err := model.ValidateReservedNames(queue.Commands); err != nil {
-		printError(err)
-		return 1
-	}
-	if err := projectRunner().ValidateQueue(queue, "", nil, nil); err != nil {
-		printErrorf("invalid workflow queue: %v", err)
-		return 1
-	}
-	plan := newImportPlan(resolvedProject, queue, removed)
-	if *dryRun {
-		if err := validateImportDestination(baseDir, resolvedProject, *overwrite); err != nil {
-			printError(err)
-			return 1
-		}
-	} else {
-		if err := writeImportedQueue(baseDir, resolvedProject, queue, *overwrite); err != nil {
-			printError(err)
-			return 1
-		}
-		if err := registerBasedir(baseDir); err != nil {
-			printErrorf("failed to register state directory: %v", err)
-			return 1
-		}
 	}
 	if err := writeImportPlan(plan, *jsonOutput); err != nil {
 		printErrorf("failed to encode import plan: %v", err)
 		return 1
 	}
 	return 0
-}
-
-func validateImportDestination(baseDir, projectName string, overwrite bool) error {
-	paths, err := state.ResolveProjectPaths(baseDir, projectName)
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stat(paths.ProjectDir); errors.Is(err, os.ErrNotExist) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-	release, err := state.AcquireStateReadLock(paths.StateLockFile)
-	if err != nil {
-		return fmt.Errorf("failed to lock queue for reading: %w", err)
-	}
-	defer release()
-	inspection, err := project.InspectConsistent(paths, false)
-	if err != nil {
-		return fmt.Errorf("failed to check project state: %w", err)
-	}
-	if inspection.State == project.Running {
-		return fmt.Errorf("project %q is running; import is not allowed", projectName)
-	}
-	if inspection.State == project.Interrupted {
-		return fmt.Errorf("project %q has interrupted run %q; import is not allowed", projectName, inspection.RunID)
-	}
-	existing, err := state.LoadQueue(paths.QueueFile)
-	if err != nil {
-		return err
-	}
-	if len(existing.Commands) > 0 && !overwrite {
-		return fmt.Errorf("project %q has queued jobs; use --overwrite", projectName)
-	}
-	return nil
 }
 
 func writeImportPlan(plan importPlan, jsonOutput bool) error {
@@ -219,6 +121,7 @@ func writeImportPlan(plan importPlan, jsonOutput bool) error {
 		fields = append(fields, "source_run_id="+removed.RunID)
 		printImportPlanLine("remove", append(fields, importCommandField(removed.Command)))
 	}
+	fmt.Printf("revision=%s\n", plan.Revision)
 	return nil
 }
 
@@ -273,72 +176,4 @@ func workflowFormatFromPath(path string) (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported workflow manifest extension %q", filepath.Ext(path))
 	}
-}
-
-func newImportPlan(project string, queue model.Queue, removed []workflow.RemovedJob) importPlan {
-	if removed == nil {
-		removed = []workflow.RemovedJob{}
-	}
-	plan := importPlan{Version: 2, Project: project, Jobs: make([]importPlanJob, 0, len(queue.Commands)), Removed: removed}
-	for _, command := range queue.Commands {
-		job := importPlanJob{ID: command.ID, Name: command.Name, Command: command.Command}
-		if command.Array == nil || len(command.TaskOrigins) == 0 {
-			job.Status = importPlanStatus(command.Origin, command.MarkedStatus)
-			job.Source = newImportPlanSource(command.Origin)
-		} else {
-			job.Tasks = importPlanTasks(command)
-			job.Status = job.Tasks[0].Status
-			for _, task := range job.Tasks[1:] {
-				if task.Status != job.Status {
-					job.Status = "mixed"
-				}
-			}
-		}
-		plan.Jobs = append(plan.Jobs, job)
-	}
-	return plan
-}
-
-// importPlanStatus is the status a job has in the imported queue, as `show`
-// lists it: a job without a source result is unfinished.
-func importPlanStatus(origin *model.JobOrigin, marked string) string {
-	if text := model.QueuedStatusText(origin, marked); text != "-" {
-		return text
-	}
-	return model.StatusUnfinished
-}
-
-func importPlanTasks(command model.QueuedCommand) []importPlanTask {
-	tasks := make([]importPlanTask, 0, len(command.TaskOrigins))
-	for _, task := range model.ArrayTaskIDs(command.Array) {
-		taskID := fmt.Sprintf("%s-%d", command.ID, task)
-		origin := command.TaskOrigins[taskID]
-		status := importPlanStatus(origin, command.MarkedStatusOf(taskID))
-		tasks = append(tasks, importPlanTask{ID: taskID, Status: status, Source: newImportPlanSource(origin)})
-	}
-	return tasks
-}
-
-func newImportPlanSource(origin *model.JobOrigin) *importPlanSource {
-	if origin == nil {
-		return nil
-	}
-	return &importPlanSource{RunID: origin.RunID, JobID: origin.JobID, AttemptID: origin.AttemptID, Status: origin.Status}
-}
-
-func writeImportedQueue(baseDir, projectName string, queue model.Queue, overwrite bool) error {
-	paths, err := state.ResolveProjectPaths(baseDir, projectName)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
-		return err
-	}
-	return project.EditQueue(paths, "import", func(existing *model.Queue) error {
-		if len(existing.Commands) > 0 && !overwrite {
-			return fmt.Errorf("project %q has queued jobs; use --overwrite", projectName)
-		}
-		*existing = queue
-		return nil
-	})
 }

@@ -60,6 +60,28 @@ func TestBuildLineageSummaryCountsBlockedJobsSeparately(t *testing.T) {
 	}
 }
 
+func TestBuildLineageSummaryGroupsFailuresByCause(t *testing.T) {
+	task := func(number int) *int { return &number }
+	oom := []model.RuleDiagnosis{{Name: "CUDA/GPU memory exhausted", Evidence: "CUDA out of memory"}}
+	summary := buildLineageSummary(model.RunSummary{RunID: "run-2"}, []Job{
+		{ID: "tr-1", Name: "train[1]", ArrayTaskID: task(1), Result: &model.JobResult{ID: "tr-1", ExitCode: 1, Diagnoses: oom}},
+		{ID: "tr-2", Name: "train[2]", ArrayTaskID: task(2), Result: &model.JobResult{ID: "tr-2", ExitCode: 0}},
+		{ID: "tr-3", Name: "train[3]", ArrayTaskID: task(3), Carried: true, Result: &model.JobResult{ID: "tr-3", ExitCode: 2, Diagnoses: oom}},
+		{ID: "ev", Name: "eval", Result: &model.JobResult{ID: "ev", ExitCode: 124, Error: "timed out after 5s"}},
+	})
+	if len(summary.Failures) != 2 {
+		t.Fatalf("failures = %+v, want OOM and timeout groups", summary.Failures)
+	}
+	group := summary.Failures[0]
+	if group.Cause != "CUDA/GPU memory exhausted" || group.Count != 2 || group.Carried != 1 ||
+		len(group.Jobs) != 2 || *group.Jobs[0].ArrayTaskID != 1 || *group.Jobs[1].ArrayTaskID != 3 || !group.Jobs[1].Carried {
+		t.Fatalf("OOM group = %+v", group)
+	}
+	if timeout := summary.Failures[1]; timeout.Kind != model.FailureKindTimeout || timeout.Jobs[0].ID != "ev" {
+		t.Fatalf("timeout group = %+v", timeout)
+	}
+}
+
 func TestLoadQueueStateMarksRunsFromNewerRotariUnreadable(t *testing.T) {
 	newer := fmt.Errorf("%w: summary.json has state version 99", state.ErrNewerStateVersion)
 	loaded, err := LoadQueueState(QueueLoader{

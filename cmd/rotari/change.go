@@ -50,6 +50,7 @@ func cmdChange(args []string) int {
 	status := cliString(fs, "status", "")
 	clearStatus := cliBool(fs, "clear-status", false)
 	quiet := cliBool(fs, "quiet", false)
+	guard := cliGuardFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -107,7 +108,7 @@ func cmdChange(args []string) int {
 		printError(err)
 		return 1
 	}
-	message, err := queueEditor().ChangeWithFilter(baseDir, queueName, *runID, selector, filter, queueops.Mutation{
+	message, err := guard.editor().ChangeWithFilter(baseDir, queueName, *runID, selector, filter, queueops.Mutation{
 		Executor: *executor, ExecutorOptions: executorOptions, ClearExecutorOptions: *clearExecutorOptions,
 		Environment: environment, ClearEnvironment: *clearEnvironment,
 		WorkingDirectory: *workingDirectory, ClearWorkingDirectory: *clearWorkingDirectory, SetJobName: *setJobName,
@@ -122,9 +123,7 @@ func cmdChange(args []string) int {
 		printError(err)
 		return 1
 	}
-	if !*quiet {
-		fmt.Println(colorKeyValueMessage(message, green))
-	}
+	guard.printResult(message, *quiet)
 	return 0
 }
 

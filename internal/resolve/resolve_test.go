@@ -204,6 +204,49 @@ func TestExistingRunRejectsStaleRegistryEntry(t *testing.T) {
 	}
 }
 
+func TestRegisteredRunHasNoFallback(t *testing.T) {
+	masterDir := t.TempDir()
+	baseDir := t.TempDir()
+	registry := runregistry.Open(masterDir)
+	for _, location := range []runLocation{
+		{BaseDir: baseDir, ProjectName: "demo", RunID: "run-1"},
+		{BaseDir: baseDir, ProjectName: "demo", RunID: "missing-run"},
+	} {
+		if err := registry.Register(location); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(baseDir, "projects", "demo", "runs", "run-1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A run that exists only in the default master directory must stay unreachable.
+	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
+	if err := registerRunLocation(runLocation{BaseDir: baseDir, ProjectName: "demo", RunID: "other-run"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(baseDir, "projects", "demo", "runs", "other-run"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := RegisteredRun(masterDir, "run-1")
+	if err != nil || got.BaseDir != baseDir || got.ProjectName != "demo" {
+		t.Fatalf("RegisteredRun(run-1) = %+v, %v; want %q, demo", got, err, baseDir)
+	}
+	for _, test := range []struct {
+		runID string
+		want  string
+	}{
+		{"other-run", `run "other-run" is not registered`},
+		{"missing-run", `run "missing-run" is registered but its run directory is missing`},
+		{"../run-1", `invalid run id "../run-1"`},
+		{`run\1`, `invalid run id "run\\1"`},
+	} {
+		if _, err := RegisteredRun(masterDir, test.runID); err == nil || !strings.Contains(err.Error(), test.want) {
+			t.Errorf("RegisteredRun(%q) error = %v, want %q", test.runID, err, test.want)
+		}
+	}
+}
+
 func TestAttemptUsesRunRegistry(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")

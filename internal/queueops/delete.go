@@ -17,13 +17,15 @@ func (editor Editor) DeleteHistory(baseDir, projectName, runID string) (string, 
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve paths: %w", err)
 	}
-	if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
-		return "", fmt.Errorf("failed to create queue directory: %w", err)
+	if !editor.Guard.DryRun {
+		if err := os.MkdirAll(paths.ProjectDir, state.DirectoryMode()); err != nil {
+			return "", fmt.Errorf("failed to create queue directory: %w", err)
+		}
 	}
 	var message string
-	err = project.Edit(paths, "delete", func() error {
+	err = project.EditGuarded(paths, "delete", editor.Guard, func(dryRun bool) error {
 		var err error
-		message, err = editor.deleteHistory(paths, runID)
+		message, err = editor.deleteHistory(paths, runID, dryRun)
 		return err
 	})
 	if err != nil {
@@ -38,20 +40,23 @@ func (editor Editor) DeleteRun(baseDir, projectName, runID string) error {
 	if err != nil {
 		return err
 	}
-	return project.Edit(paths, "delete", func() error { return editor.deleteRun(paths, runID) })
+	return project.EditGuarded(paths, "delete", editor.Guard, func(dryRun bool) error { return editor.deleteRun(paths, runID, dryRun) })
 }
 
 // deleteHistory deletes one run, or every run when runID is empty, and
-// returns the message to report. The caller holds the state lock of an idle
-// project.
-func (editor Editor) deleteHistory(paths state.ProjectPaths, runID string) (string, error) {
+// returns the message to report; a dry run only checks the run exists. The
+// caller holds the state lock of an idle project.
+func (editor Editor) deleteHistory(paths state.ProjectPaths, runID string, dryRun bool) (string, error) {
 	if runID != "" {
-		if err := editor.deleteRun(paths, runID); err != nil {
+		if err := editor.deleteRun(paths, runID, dryRun); err != nil {
 			return "", fmt.Errorf("failed to clear run %q: %w", runID, err)
 		}
 		return fmt.Sprintf("cleared logs project=%s run=%s", paths.ProjectName, runID), nil
 	}
 	deletedRunIDs := runIDsInDirectory(paths.RunsDir)
+	if dryRun {
+		return fmt.Sprintf("cleared logs project=%s runs=%d", paths.ProjectName, len(deletedRunIDs)), nil
+	}
 	if err := os.RemoveAll(paths.RunsDir); err != nil {
 		return "", fmt.Errorf("failed to clear run history: %w", err)
 	}
@@ -88,7 +93,7 @@ func runIDsInDirectory(runsDir string) []string {
 	return runIDs
 }
 
-func (editor Editor) deleteRun(paths state.ProjectPaths, runID string) error {
+func (editor Editor) deleteRun(paths state.ProjectPaths, runID string, dryRun bool) error {
 	if !state.IsValidPathElement(runID) {
 		return fmt.Errorf("run %q not found", runID)
 	}
@@ -100,6 +105,9 @@ func (editor Editor) deleteRun(paths state.ProjectPaths, runID string) error {
 	info, err := os.Stat(runDir) // NOSONAR: runDir is produced by validatedRunDir.
 	if err != nil || !info.IsDir() {
 		return fmt.Errorf("run %q not found", runID)
+	}
+	if dryRun {
+		return nil
 	}
 	// codeql[go/path-injection]: runDir is produced by validatedRunDir.
 	if err := os.RemoveAll(runDir); err != nil { // NOSONAR: runDir is produced by validatedRunDir.

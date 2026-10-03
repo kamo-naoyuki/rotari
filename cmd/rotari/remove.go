@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -23,6 +22,7 @@ func cmdRemove(args []string) int {
 	cliValue(fs, &jobIDs, "job-id")
 	allJobs := cliBool(fs, "all", false)
 	quiet := cliBool(fs, "quiet", false)
+	guard := cliGuardFlags(fs)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -61,13 +61,11 @@ func cmdRemove(args []string) int {
 		printError(err)
 		return 1
 	}
-	message, err := queueEditor().RemoveWithFilter(baseDir, queueName, *runID, selector, filterOptions.filter())
+	message, err := guard.editor().RemoveWithFilter(baseDir, queueName, *runID, selector, filterOptions.filter())
 	if err != nil {
 		printError(err)
 		return 1
 	}
-	if !*quiet {
-		fmt.Println(colorKeyValueMessage(message, green))
-	}
+	guard.printResult(message, *quiet)
 	return 0
 }

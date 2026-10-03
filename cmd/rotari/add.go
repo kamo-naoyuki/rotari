@@ -47,6 +47,7 @@ func cmdAdd(args []string) int {
 	var matrixValues stringSliceFlag
 	cliValue(fs, &matrixValues, "matrix")
 	quiet := cliBool(fs, "quiet", false)
+	guard := cliGuardFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -130,10 +131,6 @@ func cmdAdd(args []string) int {
 		err = model.ValidateRetryBackoff(*retryDelay, retryBackoff, *retryMaxDelay)
 	}
 	if err != nil {
-		if err := registerBasedir(baseDir); err != nil {
-			printErrorf("failed to register state directory: %v", err)
-			return 1
-		}
 		printError(err)
 		return 1
 	}
@@ -154,14 +151,12 @@ func cmdAdd(args []string) int {
 		commands[index].RetryBackoff = retryBackoff
 		commands[index].RetryMaxDelay = *retryMaxDelay
 	}
-	message, err := queueEditor().Add(baseDir, queueName, commands, array)
+	message, err := guard.editor().Add(baseDir, queueName, commands, array)
 	if err != nil {
 		printError(err)
 		return 1
 	}
-	if !*quiet {
-		fmt.Println(colorKeyValueMessage(message, green))
-	}
+	guard.printResult(message, *quiet)
 	return 0
 }
 

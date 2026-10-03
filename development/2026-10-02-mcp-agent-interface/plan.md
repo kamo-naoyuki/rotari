@@ -42,7 +42,7 @@ Non-goals:
 Record any reversal here with its reason.
 
 - **No `rotari-agent`.** The prototype's `rotari-agent` printed the same report as `rotari show --report`. It is removed rather than extended (M0).
-- **MCP configuration.** One MCP server process serves one master directory. Only basedirs registered in that master directory's `basedirregistry` are reachable.
+- **MCP configuration.** One MCP server process serves one master directory, resolved at startup like the CLI's. A run is reachable only through that master directory's run registry (`resolve.RegisteredRun`), with no fallback to a default or working-directory basedir. Discovery tools (M4) will list basedirs from the same master directory.
 - **Basedir reference in MCP.** A basedir is addressed by its registry record key (the 32-hex prefix of the SHA-256 of its absolute path, as `basedirregistry` already uses), which is stable while the path is unchanged. MCP results do not return the absolute path by default. Run and attempt IDs remain the primary handles because they already resolve their basedir and project.
 - **MCP mechanism.** Tools only at first. Resources and Prompts may be added later without changing the shared functions.
 - **Task-shaped tools.** MCP exposes a small number of tools named after use cases (for example, find recent failures, summarize a run's failures, show a job's evidence, compare runs), not a generic query tool. Results do not advertise `available_operations`; tool schemas describe what exists.
@@ -68,14 +68,14 @@ Agent-facing work must reach these owners rather than re-implement their rules. 
 
 | Capability | Owning package(s) | CLI / Web entry | MCP |
 | --- | --- | --- | --- |
-| Failure grouping | new; next to `diagnose` / `report` (decide in M1) | `show` (M1), Web run page | M4 |
+| Failure grouping | `runlineage` (`FailureGroups`, beside `SummarizeDiagnoses`) | `show` run view and `--json`, `lineage RUN`, Web run summary (done in M1) | M4 |
 | Excerpt selection | `report` | `show --report`, Web report endpoints | M4 |
 | Diagnosis | `diagnose` | `diagnose`, `show` | via `report` |
 | Run comparison | `runlineage` | `lineage` | M4 |
 | Incremental progress | `projectrun` / `runview` (decide in M3) | `wait` | M4 |
 | Basedir discovery | `basedirregistry` | `show`, `show --basedirs`, Web | M4 |
 | Recent jobs across projects | `joblist` | `jobs`, Web jobs page | M4 |
-| Project resolution | `resolve`, `state` | all commands | M0 (no raw basedir) |
+| Project resolution | `resolve` (`RegisteredRun` for MCP), `state` | all commands | done in M0 (run ID only) |
 | Job result / status | `jobstatus` | `show`, Web `loadWebJobs` | via shared functions |
 | Result selection and `--filter-*` | `jobfilter` (`Filter.Selects`, `Filter.SelectsArray`) | `show`, `copy`, `run`, `retry` | via shared functions |
 | Run snapshot and display | `runview`, `runregistry` | `show`, Web | via shared functions |
@@ -92,42 +92,86 @@ Agent-facing work must reach these owners rather than re-implement their rules. 
 
 Each milestone is checked by repeating the trial's scenario: triage of the mixed-failure `labA` fixture and the 300-task `labC` fixture, and the fix loop. Record call counts and output sizes in a new trial note and compare them with the [first trial](agent-trial-2026-10-02.md).
 
-### M0: Retire `rotari-agent` and clean up the prototype
+### M0: Retire `rotari-agent` and clean up the prototype (done)
 
 - Remove `cmd/mcp/agent`; its output equals `rotari show --report`.
-- Make `rotari-mcp` resolve the job through the master directory's registry instead of taking a raw basedir path, and return structured fields alongside the report text.
+- Make `rotari-mcp` resolve the job through the master directory's registry instead of taking a raw basedir path.
+- Structured result fields beyond the identity (project, run, job) are deferred to M4, where they come from the M1-M3 shared capabilities rather than from a second projection inside the adapter.
 - Make `rotari-mcp` exit non-zero when the server fails.
 - Update `docs/ARCHITECTURE.md` for the `cmd/mcp` and `internal/mcp` entries.
 
-### M1: Failure grouping
+### M1: Failure grouping (done)
 
 Add the shared grouping and use it in `show` for a run (human output and `--json`), then in the Web run page.
 
 Done when, for the `labC` fixture, one `show` call answers which causes failed, how many tasks each, which tasks, and a representative error per cause, in under 2 KB of human output; and the JSON form carries the same groups with drill-down IDs. Grouping must be evaluated per job and then combined (array tasks, matrix members, carried results), never decided on an array's aggregate result.
 
-### M2: Relevant excerpts and cause-aware comparison
+Outcome ([measurements](agent-trial-2026-10-02-m1.md)):
+
+- The grouping lives in `runlineage`, which already counted diagnoses for `lineage RUN` and the Web run summary; the first trial had missed that `lineage RUN` existed. A cause is a recorded block, cancellation, or timeout, else the latest saved rule diagnosis, else the `model.FailureKinds` kind, so no new error-line normalization was needed.
+- `lineage RUN` answers the done question for `labC` in 1.5 KB. `show -r RUN` prints the same groups but stays at 77 KB because its 300-row job table comes first, so the criterion is met by `lineage RUN`, not by `show`. Making the compact view the obvious first call moved to M3.
+- `show --json` and `lineage RUN --json` carry the groups with every member ID (6.9 KB for `labC`). Contract CLI-4 and `TestFailureGroupsAgreeAcrossViews` require `show`, `lineage RUN`, and the Web API to agree.
+
+### M2: Relevant excerpts and cause-aware comparison (done)
 
 - Excerpt selection by relevance in `report`, used by `show --report` and the Web report endpoints.
-- Timeout as a known diagnosis cause.
+- Timeout as a known diagnosis cause in reports. Failure groups already classify timeouts (M1), but `show --report` still says "No known rule matched" for them.
 - `lineage` comparison reports each side's cause and whether it changed.
 
-### M3: Discovery and progress
+Outcome ([measurements](agent-trial-2026-10-02-m2.md)):
+
+- Reports keep the lines around each saved diagnosis's evidence plus the last 20 lines when the evidence is in the log, and the last 100 lines otherwise. Short fixture logs shrink only about 10% (`labC` `--report --failed` 108.4 KB to 97.3 KB); the change matters for long logs whose cause is far from the end.
+- A "Job timeout reached" rule matches only rotari's own timeout line and error.
+- `lineage RUN_A RUN_B` shows each run's cause (`CAUSE` column; `from_cause`, `to_cause`, `cause_changed` in JSON). The fix loop's mistake from the first trial, a timeout change that did not apply, now shows as `train[12] still failing timeout` in one call.
+- Contract CLI-4 was not extended to comparisons, which have package tests but no conformance check.
+
+### M3: Discovery and progress (done)
 
 - Project list with last results; basedir-correct hints; `jobs` states its scope.
+- Make the compact run summary the obvious first call: an agent that starts with `show -r RUN` reads the whole job table before the failure groups. Options include pointing to `lineage RUN` early in `show` output or a summary-only `show` view.
 - Incremental progress for `wait` (changes since a cursor, return at first failure).
 - Effective per-job settings in run output.
 
-### M4: Read-only MCP tools
+Outcome ([measurements](agent-trial-2026-10-02-m3.md)):
+
+- The project list shows `LAST RESULT` (for example `failed 84/300`), and its hints work for projects outside the default state directory. Contract CLI-5 covers this, and it resolved the ISSUES entry. `jobs` names the state directory and window it searched.
+- `show -r RUN` prints a `Failure summary:` line with the exact `rotari lineage` command before its job table.
+- `wait --until-failure` returns at the first failure with no retry left (contract RUN-6). In the trial it returned after 1 s instead of after a 20 s job. A cursor of changes since the last call was not built: returning at the first final failure covered the trial's need, and the run's state is cheap to re-read with `lineage RUN`.
+- Effective per-job settings were not added. The first trial's failure was an ignored `change` error, which `lineage RUN RUN2` now exposes as `still failing ... timeout`, and `show --json` already carries each job's settings in `commands`.
+- `rotari guide`, the agent entry point, now leads with `lineage RUN_ID`, `show -j ATTEMPT_ID --report`, and `wait --until-failure`. It no longer suggests `--failed-logs` or the broken positional `--report` form.
+
+### M4: Read-only MCP tools (done)
 
 Expose M1-M3 through a small set of task-shaped MCP tools for clients without a shell. Done when an MCP-only agent completes the trial's triage and comparison with at most a documented number of calls and comparable output size to the CLI path, against a master directory with a same-named project in two basedirs.
 
-### M5: Read-only operations
+Outcome ([measurements](agent-trial-2026-10-03-m4.md)):
+
+- Tools: `rotari_list_projects`, `rotari_run_summary`, `rotari_get_job_info`, and `rotari_compare_runs`, each documented in `docs/MCP.md` with its CLI equivalent. The MCP-only trial used four calls and about 6 KB, plus a one-time 7 KB of tool schemas.
+- The shared functions they need moved out of `cmd/rotari` first: `runview.RunsByStart`, `PreviousRun`, and `Summary`; `project.Overviews` and `CountRuns`; and `basedirregistry.Discover` and `Ref`. The CLI now calls the same functions, so each rule still has one implementation.
+- Paths: results carry `basedir_ref` (the registry key) and `basedir_name`, never an absolute path. Evidence lines are redacted by `report.RedactPatterns`, the pattern part of the report's redaction. Redaction of known per-run values (cwd, hostname) still happens only in reports.
+- Read-only: the MCP list does not remove stale locks or migrate registries, which the CLI's `show` does.
+- `wait --until-failure` is not an MCP tool, because a tool call that blocks for a long time is a poor fit for MCP clients. It remains a CLI feature.
+
+### M5: Read-only operations (done for `check`; `export` moved to M6)
 
 Extract `check` (structured findings) and `export` (bounded or paged manifest) from `cmd/rotari` into shared packages, then expose them. Neither changes state.
 
-### M6: State-changing queue and workflow operations
+Outcome:
 
-`import`, queue edits (`add`, `change`, `remove`, `copy`), and run deletion, each with a separate preview and apply step. Do not start until the preview/apply contract, authorization, audit, idempotency, and recovery behavior are designed.
+- `check` moved into `projectrun.Runner.Check`, which `rotari check` calls; the `--deep` host checks are passed in as an optional function. `rotari_check_project` exposes it without `--deep`. It names the project by `basedir_ref` and name; `basedirregistry.Find` resolves the reference, and error messages hide the basedir path. In the MCP trial script it answered in 135 bytes.
+- `export` is not exposed, and not extracted yet. A run's manifest holds job environment values, absolute working directories, and commands, which the principles keep out of default results. A redacted manifest could not be imported, and its main use is to be edited and imported. Which details an exported manifest may carry, and who approves an import, are M6 decisions. The extraction will be done then, when it has a caller.
+
+### M6: State-changing queue and workflow operations (done for import, export, and run start; MCP queue edits remain)
+
+`import`, queue edits (`add`, `change`, `remove`, `copy`), and run deletion, each with a separate preview and apply step. Do not start until the preview/apply contract, authorization, audit, idempotency, and recovery behavior are designed. Extract `export` from `cmd/rotari` with it, and decide what an exported manifest may carry through MCP (environment values, working directories, commands).
+
+Outcome:
+
+- Every CLI command that changes a project takes `--dry-run` and `--if-revision` (contract CLI-7).
+- The MCP server is `rotari mcp`, in the same binary, so it can start a supervisor; `rotari-mcp` is removed.
+- MCP previews (`rotari_preview_import`, `rotari_preview_run`) are read-only tools that return a revision. The writes (`rotari_import`, `rotari_start_run`) require it, and the MCP client's per-tool permission is the approval (contract MCP-1). Run start was brought forward from M7 because the trials need it.
+- `export` moved into `workflowstate.LoadSettledRun`. `rotari_export_run` returns a redacted view (environment values, executor options, and detected paths); the MCP import tools refuse it, and the full manifest stays with `rotari export` (contract MCP-2).
+- Not yet exposed through MCP: `add`, `change`, `remove`, `copy`, and `delete`. Their CLI forms are guarded already.
 
 ### M7: Execution and destructive operations
 
@@ -135,19 +179,26 @@ Extract `check` (structured findings) and `export` (bounded or paged manifest) f
 
 ## Current status
 
-- A read-only `rotari_get_job_info` MCP tool and a `rotari-agent` command exist (`internal/mcp`, `cmd/mcp/server`, `cmd/mcp/agent`); both call `report.Build` through one shared function.
+- M0 is done. `rotari-agent` is removed. `rotari_get_job_info` takes only `run_id` and `job_id`; `rotari-mcp` locates the run through its master directory's run registry and exits non-zero on failure.
 - The [agent trial](agent-trial-2026-10-02.md) (2026-10-02) established the gaps above. The CLI issues it found are recorded in [ISSUES.md](../ISSUES.md): `show --json` ignoring `--failed`, a positional run ID rejected with `--json`, an array job name accepted as an unresolvable dependency, and a `show` hint missing the basedir.
-- Next step: M0, then M1.
+- M1 is done: failures are grouped by cause in `show`, `lineage RUN`, and the Web run summary (contract CLI-4).
+- M2 is done: evidence-aware report excerpts, a timeout diagnosis rule, and failure causes in `lineage` comparisons.
+- M3 is done: project list results and working hints (CLI-5), `jobs` scope, a failure-summary pointer in `show`, `wait --until-failure` (RUN-6), and an updated `rotari guide`.
+- M4 is done: four read-only MCP tools over the shared functions, with no absolute paths in results.
+- M5 is done for `check` (`rotari_check_project`); `export` moved to M6.
+- M6 CLI half is done: `add`, `change`, `copy`, `delete`, `import`, `remove`, `reset`, `run`, and `retry` take `--dry-run` and `--if-revision` (contract CLI-7), `check` reports the revision, and `gc` applies by default with `--dry-run`.
+- M6 MCP half is done for import, export, and run start (MCP-1, MCP-2), served by `rotari mcp`.
+- The [M6 agent trial](agent-trial-2026-10-03-m6.md) fixed and reran a project through MCP alone. It found and fixed a run preview that left out whole-array tasks, and a run summary that could not follow a started run (MCP-3). A project that has only been added is still unreachable (ISSUES.md).
+- Next step: the trial needed no MCP queue edit; export, edit, and import covered the change. Its main cost was polling a running run. A bounded wait tool is the next candidate, from M7's progress inspection, before job control and history deletion.
 
 ## Open decisions
 
-- The package that owns failure grouping, and the normalization of an error line when no diagnosis rule matches.
-- Output size limits and defaults for groups, members, and excerpts.
-- The cursor format for incremental progress and how long a cursor stays valid.
+- Output size limits and defaults for groups, members, and excerpts; also for import plans and run comparisons, which list every job (3 to 4 KB in the M6 trial).
+- The cursor format for incremental progress and how long a cursor stays valid, and how long a bounded wait tool may block an MCP call.
 - Which command and configuration details are safe and useful to return.
 - Whether Web history search (`web.SearchHistory`) should back an MCP log-search tool.
 - Where redaction is owned once outputs other than `report` return paths, hostnames, or commands.
-- For M6/M7: the preview, confirmation, apply, and result-reporting sequence; authorization and audit; idempotency and retries after a transport timeout; asynchronous run handles; cancellation; partial failure.
+- For M7: audit of MCP writes; retries after a transport timeout (a write repeated at the old revision is refused, so the client must re-preview); cancellation; partial failure.
 
 ## Validation
 

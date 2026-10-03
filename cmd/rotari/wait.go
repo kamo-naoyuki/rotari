@@ -31,6 +31,7 @@ func cmdWait(args []string) int {
 	var explicitRunIDs stringSliceFlag
 	cliValue(fs, &explicitRunIDs, "run-id")
 	timeout := cliDuration(fs, "timeout", 0)
+	untilFailure := cliBool(fs, "until-failure", false)
 	jsonOutput := cliBool(fs, "json", false)
 	if err := cliParse(fs, args); err != nil {
 		return 1
@@ -80,7 +81,7 @@ func cmdWait(args []string) int {
 		if target.RunID == "" {
 			continue // A project that does not exist yet has nothing to wait for.
 		}
-		result := waitForRun(target.BaseDir, target.ProjectName, target.RunID, deadline, *jsonOutput)
+		result := waitForRun(target.BaseDir, target.ProjectName, target.RunID, deadline, *untilFailure, *jsonOutput)
 		if result.exitCode > exitCode {
 			exitCode = result.exitCode
 		}
@@ -107,15 +108,7 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 	// latest matching run's result, so a run that ends before wait is called
 	// is not an error.
 	if resolve.ProjectExists(baseDir, selector) {
-		runID, err := resolveActiveRunTarget(baseDir, selector)
-		if err != nil {
-			baseDir, projectName, latestRunID, latestErr := resolve.ExistingRunID(baseDir, selector, model.Latest)
-			if latestErr != nil {
-				return resolve.Run{}, latestErr
-			}
-			return resolve.Run{BaseDir: baseDir, ProjectName: projectName, RunID: latestRunID}, nil
-		}
-		return resolve.Run{BaseDir: baseDir, ProjectName: selector, RunID: runID}, nil
+		return resolveProjectWaitTarget(baseDir, selector)
 	}
 	selectedProject := cliProjectName
 	if selectedProject == "" {
@@ -165,6 +158,19 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 	return resolve.Run{}, fmt.Errorf("no project, run name, or run ID matches %q", selector)
 }
 
+// resolveProjectWaitTarget applies the same active-then-latest rule to a
+// project selected by a positional argument, option, or environment variable.
+func resolveProjectWaitTarget(baseDir, projectName string) (resolve.Run, error) {
+	runID, err := resolveActiveRunTarget(baseDir, projectName)
+	if err != nil {
+		baseDir, projectName, runID, err = resolve.ExistingRunID(baseDir, projectName, model.Latest)
+		if err != nil {
+			return resolve.Run{}, err
+		}
+	}
+	return resolve.Run{BaseDir: baseDir, ProjectName: projectName, RunID: runID}, nil
+}
+
 // latestRunPerProject keeps the newest of runs in each project. Run IDs
 // start with their creation time, so the greatest ID is the newest.
 func latestRunPerProject(runs []resolve.Run) []resolve.Run {
@@ -200,11 +206,11 @@ func resolveActiveWaitTargets(cliBaseDir, cliProjectName string) ([]resolve.Run,
 		if !resolve.ProjectExists(baseDir, projectName) {
 			return []resolve.Run{{BaseDir: baseDir, ProjectName: projectName}}, nil
 		}
-		runID, err := resolveActiveRunTarget(cliBaseDir, cliProjectName)
+		target, err := resolveProjectWaitTarget(baseDir, projectName)
 		if err != nil {
 			return nil, err
 		}
-		return []resolve.Run{{BaseDir: baseDir, ProjectName: projectName, RunID: runID}}, nil
+		return []resolve.Run{target}, nil
 	}
 	baseDir, _, err := state.ResolveBaseDir(cliBaseDir)
 	if err != nil {
@@ -275,7 +281,9 @@ type waitResult struct {
 	timedOut bool
 }
 
-func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, jsonOutput bool) waitResult {
+// waitForRun waits until runID finishes, or with untilFailure until one of
+// its jobs has failed with no retry left, whichever comes first.
+func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, untilFailure, jsonOutput bool) waitResult {
 	baseDir, queueName, runID, err := resolve.ExistingRunID(basedir, queueNameOption, runID)
 	if err != nil {
 		printError(err)
@@ -299,12 +307,12 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 		}
 		summary, err := state.LoadRunSummary(summaryPath)
 		if err == nil {
-			inspection, inspectErr := project.Inspect(paths, false)
-			if inspectErr != nil {
-				printErrorf("failed to check project state: %v", inspectErr)
+			phase, phaseErr := project.RunPhaseOf(paths, runID)
+			if phaseErr != nil {
+				printErrorf("failed to check project state: %v", phaseErr)
 				return waitResult{exitCode: 1}
 			}
-			if inspection.State == project.Running && inspection.RunID == runID {
+			if phase == project.RunPhaseRunning {
 				if !deadline.IsZero() && time.Now().After(deadline) {
 					printErrorf("timed out waiting for run %s", runID)
 					return waitResult{exitCode: 1, timedOut: true}
@@ -312,7 +320,7 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 				time.Sleep(500 * time.Millisecond)
 				continue
 			}
-			if inspection.State == project.Interrupted && inspection.RunID == runID {
+			if phase == project.RunPhaseInterrupted {
 				printErrorf("run %s was interrupted after writing its summary; inspect it with 'rotari show --basedir %s --project-name %s --run-id %s', then recover with 'rotari unlock --basedir %s --project-name %s --run-id %s'",
 					runID, executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID),
 					executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
@@ -326,14 +334,14 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 			return waitResult{exitCode: summary.ExitCode}
 		}
 		if runInfo, statErr := os.Stat(runDir); os.IsNotExist(statErr) || (statErr == nil && !runInfo.IsDir()) {
-			printErrorf("run %q is registered but its run directory is missing; run 'rotari gc' to inspect stale registry entries", runID)
+			printErrorf("run %q is registered but its run directory is missing; run 'rotari gc --dry-run' to list stale registry entries and 'rotari gc' to remove them", runID)
 			return waitResult{exitCode: 1}
 		} else if statErr != nil {
 			printErrorf("failed to inspect run directory %s: %v", runDir, statErr)
 			return waitResult{exitCode: 1}
 		}
 		if errors.Is(err, os.ErrNotExist) {
-			if message, ended := runEndedWithoutSummary(paths, runID, summaryPath); ended {
+			if message, ended := runEndedWithoutSummary(paths, runID); ended {
 				printError(message)
 				return waitResult{exitCode: 1}
 			}
@@ -341,13 +349,19 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 			printError(err)
 			return waitResult{exitCode: 1}
 		} else if errors.Is(err, state.ErrInvalidJSON) {
-			if message, ended := runEndedWithInvalidSummary(paths, runID, summaryPath); ended {
+			if message, ended := runEndedWithInvalidSummary(paths, runID); ended {
 				printError(message)
 				return waitResult{exitCode: 1}
 			}
 		} else {
 			printErrorf("failed to read run summary %s: %v", summaryPath, err)
 			return waitResult{exitCode: 1}
+		}
+		if untilFailure {
+			if failures := finalFailureGroups(paths, runID); len(failures) > 0 {
+				writeEarlyFailures(paths, runID, failures, jsonOutput)
+				return waitResult{exitCode: 1}
+			}
 		}
 		if !deadline.IsZero() && time.Now().After(deadline) {
 			printErrorf("timed out waiting for run %s", runID)
@@ -357,19 +371,57 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, json
 	}
 }
 
+// finalFailureGroups groups the jobs of an active run that have failed with
+// no retry left. A failed attempt that the run will retry does not count.
+func finalFailureGroups(paths state.ProjectPaths, runID string) []runlineage.FailureGroup {
+	run, err := runview.LoadRun(paths, runID, jsonStore())
+	if err != nil {
+		return nil
+	}
+	final := run.Jobs[:0]
+	for _, job := range run.Jobs {
+		if job.Final {
+			final = append(final, job)
+		}
+	}
+	run.Jobs = final
+	return runlineage.FailureGroups(run)
+}
+
+// earlyFailureJSON is what wait --until-failure --json prints for a run that
+// is still running when a job has failed.
+type earlyFailureJSON struct {
+	RunID    string                    `json:"run_id"`
+	Status   string                    `json:"status"`
+	Failures []runlineage.FailureGroup `json:"failures"`
+}
+
+// writeEarlyFailures reports that runID, still running, has failed jobs.
+func writeEarlyFailures(paths state.ProjectPaths, runID string, failures []runlineage.FailureGroup, jsonOutput bool) {
+	if jsonOutput {
+		_ = json.NewEncoder(os.Stdout).Encode(earlyFailureJSON{RunID: runID, Status: "running", Failures: failures})
+		return
+	}
+	fmt.Println(red(fmt.Sprintf("Run %s is still running, and jobs have failed.", runID)))
+	writeFailureGroups(os.Stdout, failures)
+	target := fmt.Sprintf("--basedir %s --project-name %s --run-id %s",
+		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
+	fmt.Println(cyan("To keep waiting:"))
+	fmt.Printf("  rotari wait %s\n", target)
+	fmt.Println(cyan("To cancel the run:"))
+	fmt.Printf("  rotari cancel --basedir %s --project-name %s\n", executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName))
+}
+
 // runEndedWithInvalidSummary reports an invalid summary only after its run is
 // no longer active, allowing wait to tolerate a summary being atomically replaced.
-func runEndedWithInvalidSummary(paths state.ProjectPaths, runID, summaryPath string) (string, bool) {
-	inspection, err := project.Inspect(paths, false)
-	if err != nil || (inspection.State == project.Running && inspection.RunID == runID) {
-		return "", false
-	}
-	if _, err := state.LoadRunSummary(summaryPath); err == nil {
+func runEndedWithInvalidSummary(paths state.ProjectPaths, runID string) (string, bool) {
+	phase, err := project.RunPhaseOf(paths, runID)
+	if err != nil || phase == project.RunPhaseRunning || phase == project.RunPhaseFinished {
 		return "", false
 	}
 	target := fmt.Sprintf("--basedir %s --project-name %s --run-id %s",
 		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
-	if inspection.State == project.Interrupted && inspection.RunID == runID {
+	if phase == project.RunPhaseInterrupted {
 		return fmt.Sprintf("run %s was interrupted without a valid summary; inspect it with 'rotari show %s', then recover with 'rotari unlock %s'", runID, target, target), true
 	}
 	return fmt.Sprintf("run %s is not active and has no valid summary; inspect it with 'rotari show %s'", runID, target), true
@@ -378,18 +430,16 @@ func runEndedWithInvalidSummary(paths state.ProjectPaths, runID, summaryPath str
 // runEndedWithoutSummary reports whether runID is no longer active although it
 // never wrote summaryPath, for example because its supervisor exited early.
 // It leaves a stale run lock in place for show, unlock, and reset --recover.
-func runEndedWithoutSummary(paths state.ProjectPaths, runID, summaryPath string) (string, bool) {
-	inspection, err := project.Inspect(paths, false)
-	if err != nil || (inspection.State == project.Running && inspection.RunID == runID) {
-		return "", false
-	}
-	// The run may have finished between the summary read and the state check.
-	if _, err := os.Stat(summaryPath); !errors.Is(err, os.ErrNotExist) {
+func runEndedWithoutSummary(paths state.ProjectPaths, runID string) (string, bool) {
+	// RunPhaseOf reads the summary again, so a run that finished since the
+	// caller's read is not reported as ended.
+	phase, err := project.RunPhaseOf(paths, runID)
+	if err != nil || phase == project.RunPhaseRunning || phase == project.RunPhaseFinished {
 		return "", false
 	}
 	target := fmt.Sprintf("--basedir %s --project-name %s --run-id %s",
 		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
-	if inspection.State == project.Interrupted && inspection.RunID == runID {
+	if phase == project.RunPhaseInterrupted {
 		return fmt.Sprintf("run %s was interrupted before it wrote a summary; inspect it with 'rotari show %s', then recover with 'rotari unlock %s'", runID, target, target), true
 	}
 	return fmt.Sprintf("run %s is not active and has no summary; inspect it with 'rotari show %s'", runID, target), true

@@ -54,6 +54,9 @@ type OriginJobs interface {
 // their results like non-matching jobs.
 // jobIDs are the whole selection, and only with selection "job-id": jobs
 // named directly are not combined with a result selection or a filter.
+//
+// The plan's Execute is keyed by job ID: an array that executes as a whole
+// is listed by its tasks, so a preview and the run read it the same way.
 func PlanRerun(queue model.Queue, selection string, jobIDs []string, scope model.CommandSelector, filter jobfilter.Filter, referenceRunID string, partialArray bool, source OriginResults) (Plan, error) {
 	if len(jobIDs) > 0 && selection != "job-id" {
 		return Plan{}, fmt.Errorf("job IDs cannot be combined with result selection %q", selection)
@@ -66,6 +69,7 @@ func PlanRerun(queue model.Queue, selection string, jobIDs []string, scope model
 		for _, command := range queue.Commands {
 			plan.Execute[command.ID] = true
 		}
+		expandArrayPlan(queue.Commands, model.QueueToJobs(queue.Commands), plan.Execute)
 		return plan, nil
 	}
 	inScope := filter.MatchesCommand
@@ -81,6 +85,7 @@ func PlanRerun(queue model.Queue, selection string, jobIDs []string, scope model
 	if err != nil {
 		return Plan{}, err
 	}
+	expandArrayPlan(queue.Commands, model.QueueToJobs(queue.Commands), plan.Execute)
 	expandDownstream(queue, &plan)
 	return plan, nil
 }
@@ -98,9 +103,7 @@ func forceExecution(jobID string, plan *Plan) {
 // longer supports.
 func expandDownstream(queue model.Queue, plan *Plan) {
 	jobs := model.QueueToJobs(queue.Commands)
-	executing := func(job model.JobSpec) bool {
-		return plan.Execute[job.ID] || (job.ArrayGroup != "" && plan.Execute[job.ArrayGroup])
-	}
+	executing := func(job model.JobSpec) bool { return plan.Execute[job.ID] }
 	executingNames := make(map[string]bool)
 	for _, job := range jobs {
 		if executing(job) && job.Name != "" {

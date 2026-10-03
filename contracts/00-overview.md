@@ -161,7 +161,7 @@ The import-level parts of these rules (what `internal/model`, `internal/state`,
 `internal/executor`, `internal/run`, `internal/runlineage`, and
 `internal/jobfilter` may import, no
 `internal` package importing `cmd/`, and `conformance` importing only the
-standard library) are enforced by
+standard library and its harness `conformance/support`) are enforced by
 [`internal/archtest/boundaries_test.go`](../internal/archtest/boundaries_test.go).
 Change a rule there in the same change as this list.
 

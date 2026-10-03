@@ -55,6 +55,8 @@ Usage: `rotari reset [PROJECT]`
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--recover` | `` | `ROTARI_RESET_RECOVER` | confirm an interrupted run has stopped without prompting |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari cancel`
 
@@ -154,6 +156,8 @@ Usage: `rotari delete [RUN_ID]`
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | run to delete |
 | `--all` | `` | `` | delete every run of the project |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari gc`
 
@@ -165,7 +169,7 @@ Usage: `rotari gc [MASTERDIR]`
 | --- | --- | --- | --- |
 | `--config` | `FILE` | `` | config file to use |
 | `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory |
-| `--apply` | `` | `` | remove the cached orphan entries |
+| `--dry-run` | `` | `` | list the orphan entries without removing them |
 
 ### `rotari unlock`
 
@@ -224,6 +228,8 @@ Usage: `rotari change <command ...>`
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
 | `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
 | `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari export`
 
@@ -253,8 +259,9 @@ Usage: `rotari import FILE [PROJECT]`
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `--overwrite` | `` | `` | replace a non-empty queue |
-| `--dry-run` | `` | `` | validate and print the import plan without writing |
 | `--json` | `` | `` | print the import plan as JSON |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari remove`
 
@@ -279,6 +286,8 @@ Usage: `rotari remove [JOB_ID ...]`
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
 | `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
 | `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari show`
 
@@ -355,7 +364,7 @@ Usage: `rotari jobs [PROJECT]`
 | `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory for --all |
 | `--all-basedirs` | `` | `` | include all basedirs known to the master registry |
 | `-o` / `--format` | `FORMAT` | `` | output fields; use %s %b %p %a %n %c %t %f %e (%f is finished time) |
-| `--since` | `DURATION` | `` | include jobs finished within this duration; use 0 for running jobs only |
+| `--since` | `DURATION` | `` | include jobs finished within this duration, such as 24h or 7d; use 0 for running jobs only |
 
 ### `rotari diagnose`
 
@@ -390,6 +399,7 @@ Usage: `rotari wait [PROJECT_OR_RUN_NAME_OR_RUN_ID ...]`
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
 | `-r` / `--run-id` | `ID (repeatable)` | `ROTARI_RUN_ID` | run ID; may be repeated |
 | `--timeout` | `DURATION` | `ROTARI_WAIT_TIMEOUT` | maximum wait duration |
+| `--until-failure` | `` | `` | return as soon as a job of the run has failed with no retry left, without waiting for the rest |
 | `--json` | `` | `` | print each completed run as one JSON object |
 
 ### `rotari add`
@@ -423,6 +433,8 @@ Usage: `rotari add <command ...>`
 | `--array` | `FIRST-LAST\|TASK[,TASK...]` | `ROTARI_ARRAY_RANGE` | create an array job range or selected tasks |
 | `--matrix` | `KEY=VALUE[,VALUE...] (repeatable)` | `` | expand a command into jobs from KEY=VALUE[,VALUE...] dimensions; may be repeated |
 | `--quiet` | `` | `ROTARI_QUIET` | suppress success output |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari copy`
 
@@ -462,6 +474,8 @@ Usage: `rotari copy [RUN_ID]`
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
 | `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
 | `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari run`
 
@@ -530,6 +544,8 @@ Usage: `rotari run [RUN_ID]`
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
 | `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
 | `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari retry`
 
@@ -592,6 +608,8 @@ Usage: `rotari retry [RUN_ID]`
 | `--filter-not-stage` | `NAME (repeatable)` | `` | exclude jobs in this stage; may be repeated |
 | `--filter-matrix` | `NAME` | `` | select jobs of this matrix, named by its base job name; same as --matrix |
 | `--filter-not-matrix` | `NAME (repeatable)` | `` | exclude jobs of this matrix, named by its base job name; may be repeated |
+| `--dry-run` | `` | `` | print what the command would change, and the project revision, without writing |
+| `--if-revision` | `REVISION` | `` | apply only if the project is still at this revision, as printed by --dry-run |
 
 ### `rotari server`
 
@@ -623,6 +641,15 @@ serve the web status UI
 | `--allow-control` | `` | `ROTARI_WEB_ALLOW_CONTROL` | enable job control (copy/change/remove/cancel/clear); pass --allow-control=false for a read-only UI |
 | `--auth-token` | `TOKEN` | `ROTARI_WEB_AUTH_TOKEN` | require this token in Authorization: Bearer or X-Rotari-Token; prefer ROTARI_WEB_AUTH_TOKEN for secrets |
 | `--notifications` | `` | `ROTARI_WEB_NOTIFICATIONS` | default state of the browser desktop-notification toggle; pass --notifications=false to default it off |
+
+### `rotari mcp`
+
+serve rotari's tools for agents over MCP on stdio
+
+| Option | Value | Environment | Description |
+| --- | --- | --- | --- |
+| `--config` | `FILE` | `` | config file to use |
+| `--masterdir` | `DIR` | `ROTARI_MASTERDIR` | master registry directory whose runs and basedirs the tools serve |
 
 ### `rotari completion`
 

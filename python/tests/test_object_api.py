@@ -7,6 +7,7 @@ import tempfile
 from typing import Any, cast
 from unittest.mock import patch
 
+import pytest
 from rotari import Job, Rotari, RotariError, Run
 from rotari.client import CommandResult
 
@@ -263,12 +264,8 @@ def test_json_output_options_are_managed_by_python_api():
     ]
     with patch("subprocess.run") as invoke:
         for action in cases:
-            try:
+            with pytest.raises(TypeError, match="always returns JSON"):
                 action()
-            except TypeError as error:
-                assert "always returns JSON" in str(error)
-            else:
-                raise AssertionError("managed json option was accepted")
         invoke.assert_not_called()
 
     for method in (Rotari.check, Rotari.wait, Rotari.show):

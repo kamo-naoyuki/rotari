@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
 
 var rotariBin string
@@ -49,9 +51,8 @@ func runTests(m *testing.M) int {
 	}
 	defer os.RemoveAll(dir)
 	rotariBin = filepath.Join(dir, "rotari")
-	b := exec.Command("go", "build", "-o", rotariBin, "github.com/kamo-naoyuki/rotari/cmd/rotari")
-	if out, err := b.CombinedOutput(); err != nil {
-		fmt.Fprintf(os.Stderr, "build: %v\n%s", err, out)
+	if err := support.BuildRotari(rotariBin); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 	return m.Run()
@@ -72,6 +73,7 @@ func newEnv(t *testing.T) *env {
 	return e
 }
 func (e *env) command(a ...string) *exec.Cmd {
+	support.TrackBuildInputs(e.t)
 	c := exec.Command(rotariBin, a...)
 	c.Env = e.vars
 	c.Dir = e.root

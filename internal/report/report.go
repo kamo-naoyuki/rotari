@@ -18,10 +18,16 @@ import (
 )
 
 const (
-	jobNotFoundMessage      = "job %q not found in run %q"
-	runNotFoundMessage      = "run %q not found"
-	reportLogLines          = 100
-	reportLogChars          = 12000
+	jobNotFoundMessage = "job %q not found in run %q"
+	runNotFoundMessage = "run %q not found"
+	reportLogLines     = 100
+	reportLogChars     = 12000
+	// When the log contains diagnosis evidence, the excerpt keeps these
+	// lines around the latest line with each evidence, and this many final
+	// lines, instead of the last reportLogLines lines.
+	reportEvidenceBefore    = 20
+	reportEvidenceAfter     = 5
+	reportEvidenceTail      = 20
 	redactedPathPlaceholder = "[REDACTED_PATH]"
 )
 
@@ -193,10 +199,16 @@ func redactAIReport(report string, paths state.ProjectPaths, run webprojection.R
 	if len(replacements) > 0 {
 		report = strings.NewReplacer(replacements...).Replace(report)
 	}
-	report = reportUnixPathPattern.ReplaceAllString(report, redactedPathPlaceholder)
-	report = reportWindowsPathPattern.ReplaceAllString(report, redactedPathPlaceholder)
-	report = reportFQDNPattern.ReplaceAllString(report, "[REDACTED_HOST]")
-	return report + "\n> Paths and hostnames are redacted where detected. Review logs before sharing; complete redaction is not guaranteed.\n"
+	return RedactPatterns(report) + "\n> Paths and hostnames are redacted where detected. Review logs before sharing; complete redaction is not guaranteed.\n"
+}
+
+// RedactPatterns replaces text that looks like an absolute path or a
+// hostname, the generic part of a report's redaction. It does not know the
+// run's own paths and hostname, so it can miss some; see Build.
+func RedactPatterns(text string) string {
+	text = reportUnixPathPattern.ReplaceAllString(text, redactedPathPlaceholder)
+	text = reportWindowsPathPattern.ReplaceAllString(text, redactedPathPlaceholder)
+	return reportFQDNPattern.ReplaceAllString(text, "[REDACTED_HOST]")
 }
 
 func writeJobAIReport(builder *strings.Builder, paths state.ProjectPaths, run webprojection.Run, job webprojection.Job, status string, includeLog bool) {
@@ -228,8 +240,14 @@ func writeJobAIReport(builder *strings.Builder, paths state.ProjectPaths, run we
 		writeReportDiagnoses(builder, *result)
 	}
 	if includeLog {
-		if output := readReportLog(paths, run.RunID, job); output != "" {
-			fmt.Fprintf(builder, "\n### Log (last %d lines, at most %d characters)\n```text\n%s\n```\n", reportLogLines, reportLogChars, output)
+		var evidence []string
+		if result != nil {
+			for _, diagnosis := range result.Diagnoses {
+				evidence = append(evidence, diagnosis.Evidence)
+			}
+		}
+		if output, description := reportLogExcerpt(readReportLog(paths, run.RunID, job), evidence); output != "" {
+			fmt.Fprintf(builder, "\n### Log (%s)\n```text\n%s\n```\n", description, output)
 		}
 	}
 }
@@ -255,7 +273,7 @@ func reportJobStatus(job webprojection.Job, running bool) string {
 
 func readReportLog(paths state.ProjectPaths, runID string, job webprojection.Job) string {
 	if job.AttemptDir != "" {
-		return tailReportLog(readSeparateJobLogs(job.AttemptDir))
+		return readSeparateJobLogs(job.AttemptDir)
 	}
 	jobID := job.ID
 	if job.Origin != nil {
@@ -270,7 +288,7 @@ func readReportLog(paths state.ProjectPaths, runID string, job webprojection.Job
 	if err != nil {
 		return ""
 	}
-	return tailReportLog(readSeparateJobLogs(jobDir))
+	return readSeparateJobLogs(jobDir)
 }
 
 func readSeparateJobLogs(jobDir string) string {
@@ -297,16 +315,66 @@ func readSeparateJobLogs(jobDir string) string {
 	return logs.String()
 }
 
-func tailReportLog(data string) string {
+// reportLogExcerpt selects the log lines a report shows and describes the
+// selection. When the log contains diagnosis evidence, it keeps the lines
+// around the latest line containing each evidence and the final lines,
+// marking the lines it omits, so the cause is shown even when it is far from
+// the end. Otherwise it keeps the last reportLogLines lines. Either way it
+// keeps at most reportLogChars characters, from the end.
+func reportLogExcerpt(data string, evidence []string) (string, string) {
 	lines := strings.Split(data, "\n")
-	if len(lines) > reportLogLines {
-		lines = lines[len(lines)-reportLogLines:]
+	keep := make([]bool, len(lines))
+	found := false
+	for _, text := range evidence {
+		text = strings.TrimSpace(text)
+		if text == "" {
+			continue
+		}
+		for index := len(lines) - 1; index >= 0; index-- {
+			if strings.Contains(lines[index], text) {
+				keepLines(keep, index-reportEvidenceBefore, index+reportEvidenceAfter)
+				found = true
+				break
+			}
+		}
 	}
-	output := []rune(strings.Join(lines, "\n"))
-	if len(output) > reportLogChars {
-		output = output[len(output)-reportLogChars:]
+	if !found {
+		if len(lines) > reportLogLines {
+			lines = lines[len(lines)-reportLogLines:]
+		}
+		return limitReportLog(strings.Join(lines, "\n")), fmt.Sprintf("last %d lines, at most %d characters", reportLogLines, reportLogChars)
 	}
-	return string(output)
+	keepLines(keep, len(lines)-reportEvidenceTail, len(lines)-1)
+	selected := make([]string, 0, len(lines))
+	omitted := 0
+	for index, line := range lines {
+		if !keep[index] {
+			omitted++
+			continue
+		}
+		if omitted > 0 {
+			selected = append(selected, fmt.Sprintf("[... %d lines omitted ...]", omitted))
+			omitted = 0
+		}
+		selected = append(selected, line)
+	}
+	return limitReportLog(strings.Join(selected, "\n")), fmt.Sprintf("lines around the diagnosis evidence and the last %d lines, at most %d characters", reportEvidenceTail, reportLogChars)
+}
+
+// keepLines marks lines first through last, clamped to keep's bounds.
+func keepLines(keep []bool, first, last int) {
+	for index := max(first, 0); index <= last && index < len(keep); index++ {
+		keep[index] = true
+	}
+}
+
+// limitReportLog keeps the last reportLogChars characters of output.
+func limitReportLog(output string) string {
+	runes := []rune(output)
+	if len(runes) > reportLogChars {
+		runes = runes[len(runes)-reportLogChars:]
+	}
+	return string(runes)
 }
 
 func reportValue(value string) string {
