@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -650,11 +651,54 @@ func FormatRetry(retry *int) string {
 // FormatDependencies joins dependsOn and dependsOnFinished for display,
 // marking each name that only needs to finish with a "finished:" prefix.
 func FormatDependencies(dependsOn, dependsOnFinished []string, separator string) string {
-	names := append([]string(nil), dependsOn...)
-	for _, name := range dependsOnFinished {
+	names := joinArrayTasks(dependsOn)
+	for _, name := range joinArrayTasks(dependsOnFinished) {
 		names = append(names, "finished:"+name)
 	}
 	return strings.Join(names, separator)
+}
+
+var arrayTaskDependency = regexp.MustCompile(`^(.*)\[(\d+)\]$`)
+
+// joinArrayTasks joins the tasks of one array among names, which a stage or
+// array name expands to, into one name with task ranges, such as
+// train[1-12] or train[1-2,4], placed where the first of them was.
+func joinArrayTasks(names []string) []string {
+	joined := make([]string, 0, len(names))
+	tasks := make(map[string][]int)
+	position := make(map[string]int)
+	for _, name := range names {
+		match := arrayTaskDependency.FindStringSubmatch(name)
+		if match == nil {
+			joined = append(joined, name)
+			continue
+		}
+		task, _ := strconv.Atoi(match[2])
+		if _, seen := position[match[1]]; !seen {
+			position[match[1]] = len(joined)
+			joined = append(joined, "")
+		}
+		tasks[match[1]] = append(tasks[match[1]], task)
+	}
+	for base, index := range position {
+		ids := tasks[base]
+		sort.Ints(ids)
+		var ranges []string
+		for start := 0; start < len(ids); {
+			end := start
+			for end+1 < len(ids) && ids[end+1] == ids[end]+1 {
+				end++
+			}
+			if end == start {
+				ranges = append(ranges, strconv.Itoa(ids[start]))
+			} else {
+				ranges = append(ranges, strconv.Itoa(ids[start])+"-"+strconv.Itoa(ids[end]))
+			}
+			start = end + 1
+		}
+		joined[index] = base + "[" + strings.Join(ranges, ",") + "]"
+	}
+	return joined
 }
 
 // AllDependencies returns the names in DependsOn followed by those in
