@@ -82,3 +82,38 @@ New findings:
    - `lineage` counts carried jobs with a definition change as "changed" and does not name its hidden jobs.
    - The queue table shows neither the timeout nor the source of a queue restored by `change -r`, and its `DEPENDS ON` column is very wide.
    - `wait --json` exits 1 for a failed run, which reads like a failure of `wait`.
+
+## Third run
+
+After the second run, three more of its findings were fixed:
+
+- `9b66c8e`: relative state directories, including `..`.
+- `d5e4359`: the async start message ends its line, and its hints name the run.
+- `62e644a`: run previews mark a dependent job with `depends_on_rerun=NAME`.
+
+A new subagent got the same task and rules on a fresh fixture, built at `62e644a`. It completed the task:
+
+- It raised the `train` timeout with `change --dry-run`, then `--if-revision`.
+- It reran `train[12]` with `run -j ... --dry-run`, then `--async --if-revision`.
+- It left the same three failures, with reasons, and asked to confirm labA.
+
+| | First | Second | Third |
+| --- | --- | --- | --- |
+| rotari calls | 27 | 23 | 21 |
+| output | about 140 KB | about 45 KB | about 57 KB |
+| failed calls from wrong paths or projects | 4 | 3 | 1 |
+
+The third agent read more help (`--help`, `run --help`; 16.5 KB), which accounts for the larger output. No call failed on a path, and the only failed calls were the planned project lookup and `--async --dry-run`.
+
+New findings:
+
+1. **The guide says to start runs with `--async` and to preview first, but `run --async --dry-run` is rejected.** The agent had to drop `--async` to preview.
+2. **`change --dry-run` prints only the job IDs it changes, not the fields.** The agent could not see "timeout 5s -> 60s" until `lineage`.
+3. **Hints without `--basedir` looked broken.** The agent assumed that hints such as `rotari show -j ATTEMPT_ID` and `rotari change -r RUN_ID ...` need `--basedir`. They do not: run and attempt IDs locate their state directory, as checked after the trial. The guide does not say so.
+4. **`run --help` does not say that `--job-id` also executes dependent jobs.** The dry run showed it.
+5. **Still open from before:**
+   - `lineage` does not name the jobs it hides, so a rerun and passed `eval-splitval` was invisible in the comparison.
+   - `wait --json` results have no job names.
+6. **Smaller points:**
+   - `show --report` says "Executor: default" where the table says `local`.
+   - The timeout failure group has no "fix:" suggestion.
