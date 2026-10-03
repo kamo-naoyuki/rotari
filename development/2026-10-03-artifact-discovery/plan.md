@@ -281,6 +281,16 @@ and control-flow-dependent `cd` are not initially resolved. When the base is
 ambiguous, skip the affected reference. A script's own location is not its
 execution directory. Do not inspect Python or other program source as shell.
 
+Some commands provide their script through a heredoc rather than a script path.
+When a recognized shell command consumes a literal heredoc as its stdin script
+(for example, `bash <<'SH' ... SH`), inspect that body as shell source, with the
+same static-only rules and provenance pointing to the heredoc body. The parser
+must associate the heredoc with the command that consumes it; do not scan every
+heredoc body as shell. In particular, heredocs used as data (`cat <<'EOF'`),
+here-strings, and bodies passed to non-shell interpreters such as `python <<'PY'`
+are not shell source and are not parsed in this phase. Do not evaluate the body
+or perform shell expansion while inspecting it.
+
 Choose a parser only when this phase starts; add a dependency only if necessary.
 Shell inspection must not block delivery of argument/configuration discovery.
 
@@ -330,6 +340,9 @@ sinks and skip targets requiring unsupported expansion or an ambiguous base.
 | `> "$OUTPUT"`, `> "$(choose_path)"` | Skip: unresolved expansion |
 | `> >(consumer)` | Skip: process substitution |
 | `> /dev/null` | Skip: known special sink |
+| `cat <<'EOF'` with body containing `results.csv` | Do not inspect body as shell; it is data |
+| `bash <<'SH'` with body `python train.py > result.csv` | Inspect body as shell source; retain literal path candidates |
+| `python <<'PY'` with body containing `open('result.csv')` | Skip body in this phase; it is Python source |
 
 This rule applies to parsed shell scripts and recognized shell `-c` bodies only.
 An ordinary argv value containing `>` is not a redirection. Redirection establishes
@@ -445,7 +458,8 @@ related implementation commits exist, following [development tracking rules](../
   YAML aliases/tags, interpolation, separate directory/name keys, and size/depth
   limits. Confirm no custom-tag evaluation or unbounded alias expansion.
 - Shell tests: literal redirections and arguments, quoted spaces, numeric target
-  names, FD duplication/closure, here-documents/strings, special sinks, variables,
+  names, FD duplication/closure, here-documents/strings, heredoc-fed shell script
+  versus heredoc data and non-shell script, special sinks, variables,
   substitutions, globbing, `cd`, and non-shell source rejection. PATH-E1: each
   array task and matrix member resolves its own path; `${NAME:-x}`, unknown
   names, and inherited environment variables are skipped.
