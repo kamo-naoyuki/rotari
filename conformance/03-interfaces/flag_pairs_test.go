@@ -41,6 +41,8 @@ func pairAdapter(command string) string {
 		return "file"
 	case "remove", "reset", "delete":
 		return "mutation"
+	case "add", "change", "copy", "import":
+		return "edit"
 	default:
 		return ""
 	}

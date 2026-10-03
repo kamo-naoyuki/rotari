@@ -294,28 +294,20 @@ only with a direct selector, fail them. Triage found no ignored option. It
 recorded one open diagnostic issue: `remove` rejects two selector kinds,
 including `--all` with `--filter-stage`, with only its usage line.
 
-Observation tests exercise 23 selection flags against four output modes (92
-combinations), plus formatted `jobs` time windows. Most output/filter
-combinations explicitly reject; accepted combinations must match the job table
-and show an effect, except for two documented redundant failed-log selections.
-Standalone sample checks also exercise boolean false and repeated values.
-Further witnesses cover missing executables under `check --deep` with quiet/JSON,
-check quiet/JSON mode precedence, all three file formats, export run-vs-queue
-source selection with file output, and distinct template/notification content.
-The expansion's 57 additional pairs passed (50 accepted, 7 explicitly rejected),
-without finding another production bug or adding an equality exception.
-
-Initial harness errors were repaired. Semantic checks found one confirmed bug:
-run-wide `show --logs` ignored `--failed` and `--filter-result failed`. A focused
-unit regression and external regression both failed before the fix, and the
-existing log selector now receives the parsed failed selection. The JSON/failed
-witness also detected the historical bug on the pre-fix commit `fddf05a`, with
-only current test/harness files copied into the temporary worktree.
+The restored adapter now also covers `add`, `change`, `copy`, and `import`: 1,520 pairs
+(1,187 accepted, 333 explicitly rejected) in 3,040 invocations. Total executed
+coverage is 2,517 pairs across 13 commands; 3,964 remain. The edit pair loop took
+4m01s in one uncached run, and the whole uncached interface package took 438.88s.
+Semantic witnesses verify added/changed definition fields with quiet, copy's
+result/stage intersection, import's JSON preview versus applied overwrite, and
+restored-state behavior. Import revisions are checked against `check`; only new
+IDs are normalized while original IDs/provenance are retained. Harness setup
+failures were fixed and not waived as intended behavior.
 
 See [coverage and triage](../../conformance/03-interfaces/flag-pair-coverage.md)
-for measured coverage, reasoned exceptions, and explicit observation gaps.
-Milestone 1 is **not complete**: 5,484 pairs still need safe command adapters,
-and queue, direct-selector, active/unfinished, and cross-interface semantic
-witnesses remain. Next, extend the mutation adapter to `add`, `change`,
-`copy`, and `import`, then add run adapters. Compatibility declarations remain
-an evidence-gated follow-up.
+for measured results and explicit gaps. Milestone 1 is **not complete**:
+3,964 pairs still need execution/control adapters, and clear/set, active-state,
+provenance, boolean/repeated-value, and cross-interface witnesses remain.
+Compatibility declarations are still an evidence-gated follow-up. The next
+implementation step is a safe run/control adapter, without claiming that
+preview-only validation tests execution or scheduler behavior.

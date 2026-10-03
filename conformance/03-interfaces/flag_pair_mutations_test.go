@@ -231,6 +231,7 @@ type pairMutationFixture struct {
 	current   *pairSavedTree
 	revision  string
 	secondRun string
+	manifest  string
 }
 
 func newPairMutationFixture(t *testing.T) pairMutationFixture {
@@ -252,9 +253,14 @@ func newPairMutationFixture(t *testing.T) pairMutationFixture {
 	if stopped.Code != 0 && !(stopped.Code == 1 && strings.TrimSpace(stopped.Stderr) == "server is not running") {
 		t.Fatalf("could not stop fixture supervisor: %s", stopped)
 	}
+	manifest := filepath.Join(f.e.Root, "pair-manifest.json")
+	manifestBytes := []byte(`{"version":1,"jobs":[{"name":"import-added","command":["true"]}]}`)
+	if err := os.WriteFile(manifest, manifestBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	initial := savePairTree(t, f.e.Root)
 	current := initial
-	return pairMutationFixture{pairFixture: f, initial: initial, current: &current, revision: pairMutationRevision(t, f.e), secondRun: shown.RunID}
+	return pairMutationFixture{pairFixture: f, initial: initial, current: &current, revision: pairMutationRevision(t, f.e), secondRun: shown.RunID, manifest: manifest}
 }
 
 func pairMutationRevision(t *testing.T, e *support.Env) string {
@@ -271,6 +277,9 @@ func pairMutationRevision(t *testing.T, e *support.Env) string {
 
 func (f pairMutationFixture) args(t *testing.T, command string, flags []pairFlag) []string {
 	t.Helper()
+	if pairAdapter(command) == "edit" {
+		return f.editArgs(t, command, flags)
+	}
 	args := []string{command}
 	for _, flag := range flags {
 		if flag.Name == "if-revision" {
@@ -288,6 +297,110 @@ func (f pairMutationFixture) args(t *testing.T, command string, flags []pairFlag
 		args = append(args, "--run-id", f.run)
 	}
 	return args
+}
+
+func (f pairMutationFixture) editArgs(t *testing.T, command string, flags []pairFlag) []string {
+	t.Helper()
+	args := []string{command}
+	for _, flag := range flags {
+		args = append(args, pairEditSample(t, f, command, flag)...)
+	}
+	selector := pairMutationHasSelector(flags)
+	modified := false
+	for _, flag := range flags {
+		modified = modified || pairEditMutationFlag(command, flag.Name)
+	}
+	switch command {
+	case "add":
+		args = append(args, "--", "true")
+	case "change":
+		if !selector {
+			args = append(args, "--all")
+		}
+		if !modified {
+			args = append(args, "--timeout", "17m")
+		}
+	case "copy":
+		if !pairHasFlag(flags, "run-id") {
+			args = append(args, "--run-id", f.run)
+		}
+		if !pairHasFlag(flags, "append") && !pairHasFlag(flags, "overwrite") {
+			args = append(args, "--overwrite")
+		}
+	case "import":
+		args = append(args[:1], append([]string{f.manifest}, args[1:]...)...)
+		if !pairHasFlag(flags, "overwrite") {
+			args = append(args, "--overwrite")
+		}
+	}
+	return args
+}
+
+func pairEditMutationFlag(command, name string) bool {
+	if command == "add" {
+		return name != "basedir" && name != "project-name" && name != "config" && name != "quiet" && name != "dry-run" && name != "if-revision"
+	}
+	if command == "change" {
+		if strings.HasPrefix(name, "filter-") {
+			return false
+		}
+		switch name {
+		case "basedir", "project-name", "config", "run-id", "job-id", "job-name", "stage", "matrix", "all", "quiet", "dry-run", "if-revision":
+			return false
+		default:
+			return true
+		}
+	}
+	return false
+}
+
+func pairEditSample(t *testing.T, f pairMutationFixture, command string, flag pairFlag) []string {
+	t.Helper()
+	values := map[string]string{
+		"basedir": f.e.Base, "project-name": f.project, "config": f.config,
+		"if-revision": f.revision,
+		"run-id":      f.run, "job-id": f.bad, "job-name": "bad",
+		"stage": "training", "matrix": "train", "filter-stage": "training", "filter-matrix": "train",
+		"filter-command": "exit 3", "filter-not-stage": "training", "filter-not-matrix": "train",
+		"executor": "local", "executor-option": "--partition=debug", "working-directory": f.e.Root,
+		"env": "PAIR_VALUE=1", "output": filepath.Join(f.e.Root, "job-stdout.log"),
+		"error": filepath.Join(f.e.Root, "job-stderr.log"), "log-mode": "separate", "open-mode": "truncate",
+		"depends-on": "ok", "depends-on-finished": "ok", "timeout": "17m", "retry": "2",
+		"retry-delay": "5s", "retry-backoff": "2", "retry-max-delay": "1m",
+		"array": "4-6", "set-job-name": "renamed-pair", "status": "failed",
+		"format": "json", "run-name": "pair-copy", "overwrite": "true", "partial-array": "false",
+		"filter-exit-code": "3", "filter-failure-kind": "error", "filter-result": "failed",
+		"filter-diagnosis": "CUDA/GPU memory exhausted", "filter-host": "*",
+		"filter-started-after": "2000-01-01T00:00:00Z", "filter-started-before": "2000-01-01T00:00:00Z",
+		"filter-finished-after": "2000-01-01T00:00:00Z", "filter-finished-before": "2000-01-01T00:00:00Z",
+		"filter-longer-than": "1h", "filter-shorter-than": "1h",
+	}
+	if command == "add" && flag.Name == "matrix" {
+		values[flag.Name] = "SEED=4,6"
+	}
+	if command == "add" && flag.Name == "job-name" {
+		values[flag.Name] = "pair-added"
+	}
+	if flag.Name == "retry" && command == "change" {
+		values[flag.Name] = "2"
+	}
+	if flag.ValueName == "" {
+		return []string{"--" + flag.Name + "=true"}
+	}
+	value, ok := values[flag.Name]
+	if !ok {
+		t.Fatalf("no --%s sample for %s", flag.Name, command)
+	}
+	if len(flag.Values) > 0 {
+		valid := false
+		for _, option := range flag.Values {
+			valid = valid || option == value
+		}
+		if !valid {
+			t.Fatalf("sample %q not allowed for --%s (%q)", value, flag.Name, flag.Values)
+		}
+	}
+	return []string{"--" + flag.Name, value}
 }
 
 func pairMutationHasSelector(flags []pairFlag) bool {
@@ -316,13 +429,17 @@ func (f pairMutationFixture) invoke(t *testing.T, command string, flags []pairFl
 		}
 	}
 	assertPairMutationOutcome(t, command, flags, r)
-	if r.Code == 0 && (pairHasFlag(flags, "if-revision") || pairHasFlag(flags, "dry-run")) {
-		if reported := revisionOf(t, r); reported != pairMutationRevision(t, f.e) {
+	if r.Code == 0 && (command == "import" || pairHasFlag(flags, "if-revision") || pairHasFlag(flags, "dry-run")) {
+		reported := pairReportedRevision(t, command, flags, r)
+		if reported != pairMutationRevision(t, f.e) {
 			t.Fatalf("guard revision differs from check: %s", r)
 		}
 		// Revision hashes incorporate meta.updated_at. Verify them against the
 		// actual state first, then normalize only that line for order parity.
-		r.Stdout = revisionLine.ReplaceAllString(r.Stdout, "revision=<verified>")
+		r.Stdout = strings.ReplaceAll(r.Stdout, reported, "<verified-revision>")
+	}
+	if pairAdapter(command) == "edit" {
+		return pairNormalizeEdit(t, f, r, after)
 	}
 	r.Args = nil
 	return pairMutationResult{process: r, state: after.observation(t)}
@@ -330,6 +447,10 @@ func (f pairMutationFixture) invoke(t *testing.T, command string, flags []pairFl
 
 func assertPairMutationOutcome(t *testing.T, command string, flags []pairFlag, r support.Result) {
 	t.Helper()
+	if pairAdapter(command) == "edit" {
+		assertPairEditOutcome(t, command, flags, r)
+		return
+	}
 	if r.Code == 1 && command == "remove" && pairMutationSelectorCount(flags) > 1 && strings.HasPrefix(r.Stderr, "usage: rotari remove ") {
 		return
 	}
@@ -338,6 +459,40 @@ func assertPairMutationOutcome(t *testing.T, command string, flags []pairFlag, r
 		return
 	}
 	assertPairOutcome(t, r)
+}
+
+func assertPairEditOutcome(t *testing.T, command string, flags []pairFlag, r support.Result) {
+	t.Helper()
+	if strings.Contains(r.Stderr, "panic:") || strings.Contains(r.Stderr, "fatal error:") || strings.Contains(r.Stderr, "internal error") {
+		t.Fatalf("internal failure: %s", r)
+	}
+	if r.Code == 0 {
+		return
+	}
+	message := strings.TrimSpace(r.Stderr)
+	if r.Code != 1 {
+		t.Fatalf("unexpected exit status: %s", r)
+	}
+	if command == "change" && pairMutationSelectorCount(flags) > 1 && strings.HasPrefix(message, "usage: rotari change ") {
+		return
+	}
+	if command == "copy" && pairHasFlag(flags, "append") && pairHasFlag(flags, "overwrite") && strings.HasPrefix(message, "usage: rotari copy ") {
+		return
+	}
+	for _, expected := range []string{
+		"cannot be combined",
+		"depends on itself", "dependency cycle", "both depends_on and depends_on_finished",
+		"a new command or --set-job-name needs a single job",
+		"invalid dependencies: duplicate job name:", "invalid dependencies: duplicate matrix name:",
+	} {
+		if strings.Contains(message, expected) {
+			return
+		}
+	}
+	if command == "copy" && strings.HasPrefix(message, "run ") && strings.HasSuffix(message, " has no jobs matching selection") {
+		return
+	}
+	t.Fatalf("unclassified edit-command failure: %s", r)
 }
 
 func pairMutationSelectorCount(flags []pairFlag) int {
@@ -375,6 +530,44 @@ func TestCLIFlagPairMutations(t *testing.T) {
 		})
 	}
 	t.Logf("mutation pairs accepted=%d explicitly rejected=%d invocations=%d elapsed=%s", outcomes[0], outcomes[1], 2*(outcomes[0]+outcomes[1]), time.Since(start))
+}
+
+func TestCLIFlagPairEditSamples(t *testing.T) {
+	f := newPairMutationFixture(t)
+	for _, command := range readPairSchema(t, f.e) {
+		if pairAdapter(command.Name) != "edit" {
+			continue
+		}
+		for _, flag := range command.Flags {
+			t.Run(command.Name+"/"+flag.Name, func(t *testing.T) {
+				f.invoke(t, command.Name, []pairFlag{flag})
+			})
+		}
+	}
+}
+
+func TestCLIFlagPairEdits(t *testing.T) {
+	start := time.Now()
+	f := newPairMutationFixture(t)
+	outcomes := [2]int{}
+	for _, command := range readPairSchema(t, f.e) {
+		if pairAdapter(command.Name) != "edit" {
+			continue
+		}
+		t.Run(command.Name, func(t *testing.T) {
+			for _, pair := range commandFlagPairs(command) {
+				t.Run(pair.a.Name+"+"+pair.b.Name, func(t *testing.T) {
+					ab := f.invoke(t, command.Name, []pairFlag{pair.a, pair.b})
+					ba := f.invoke(t, command.Name, []pairFlag{pair.b, pair.a})
+					outcomes[ab.process.Code]++
+					if !reflect.DeepEqual(ab, ba) {
+						t.Fatalf("order-dependent edit: %s\n%s\nstate equal=%t", ab.process, ba.process, reflect.DeepEqual(ab.state, ba.state))
+					}
+				})
+			}
+		})
+	}
+	t.Logf("edit pairs accepted=%d explicitly rejected=%d invocations=%d elapsed=%s", outcomes[0], outcomes[1], 2*(outcomes[0]+outcomes[1]), time.Since(start))
 }
 
 func pairQueuedIDs(t *testing.T, f pairMutationFixture) []string {

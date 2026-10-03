@@ -77,6 +77,19 @@ The staged rollout is tracked in the
   check JSON remains emitted, export's explicit run source wins over a distinct
   current queue with file output, and template/notification modes produce their
   own distinct content. These are not blanket equal-output exceptions.
+- `TestCLIFlagPairEdits` executes all 300 `add`, 703 `change`, 496 `copy`, and
+  21 `import` pairs (1,520 pairs; 3,040 invocations). Each flag order starts
+  from the restored root, and rejected edits/previews must leave it byte-identical.
+  Import plan revisions are checked against `check` before normalization. Newly
+  allocated command/matrix IDs use a one-to-one mapping in encounter order;
+  existing fixture IDs and provenance remain literal. A normalization check
+  guards against lost identity/collision distinctions.
+- Edit effect witnesses verify 19 added command fields survive `--quiet`,
+  ten change settings have visible values, copy's failed/stage selection is the
+  same intersection in both orders and in long forms, and JSON import preview
+  leaves state unchanged while overwrite applies the manifest. These focused
+  witnesses supplement the pair loop, rather than treating a successful exit as
+  proof that each option took effect.
 
 The fixture uses public `add`/`run`/`copy` commands. It contains successes,
 distinct failure codes (1, 3, 7, 9), two failing tasks in a three-task array,
@@ -102,27 +115,30 @@ only robustness/order coverage; they do not claim a semantic ignore oracle.
 
 ## Deferred command adapters
 
-Every pair is inventoried, and nine commands have execution adapters. The
-remaining 5,484 pairs are **not executed** by this suite.
+Every pair is inventoried, and thirteen commands have execution adapters. The
+remaining 3,964 pairs are **not executed** by this suite.
 
 | Commands | Pairs | Required next work |
 | --- | ---: | --- |
-| `add`, `change`, `copy`, `import` | 1,520 | Reuse the restored mutation adapter; add job-definition samples and effect witnesses |
 | `run`, `retry` | 3,315 | Independent run state, harmless execution, fake scheduler settings, async cleanup, persisted observations |
 | `cancel`, `suspend`, `resume`, `unlock`, `wait` | 559 | Active/interrupted fixtures, barriers, signals, prompts, and bounded cleanup |
 | `gc`, `server`, `web`, `mcp`, `diagnose` | 90 | Isolated registry/daemon/stdio/HTTP adapters; fake external diagnosis services |
 | `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
-The 997 executed pairs consist of 783 read-only, 36 file-output, and 178
-mutation pairs.
-Deferred cases are not equality exceptions and are not counted as passes.
-New commands/flags require revisiting this accounting. Subcommands are not
-expanded by the inventory yet; the current execution targets have none.
-The generic lineage adapter covers the one-run summary, not every positional
-count/view. Interactive config destination selection is separate coverage.
+The 2,517 executed pairs consist of 783 read-only, 36 file-output, 178
+mutation, and 1,520 edit pairs. The edit pair loop accepted 1,187 and explicitly
+rejected 333 pairs in 3,040 invocations; one run took 4m01s including setup.
+The whole uncached interface package took 438.88s in the repository check.
 
 ## Remaining observation gaps
 
+- Edit samples represent a single value and a finished source fixture. Clear/set
+  precedence, dependency-cycle effects, append-vs-overwrite collision behavior,
+  source/destination conflicts, stdin import, new-project creation, repeated
+  values, and boolean-false behavior need additional witnesses. Copy filters for
+  host/time/diagnosis and unfinished may give a precise empty-selection error;
+  that is an explicit rejection, not positive semantic coverage. The injected
+  overwrite mode does not test omission/confirmation.
 - Only the finished run view is used for mode/selector comparisons. Queue-only
   `filter-new`/`filter-changed` are checked for explicit rejection in that view,
   not for semantic selection on a modified queue.
@@ -182,3 +198,15 @@ line. Two harness defects were repaired, not allowlisted: the fixture assumed a
 supervisor was still running for `server shutdown`, and the first exclusion
 sample excluded a stage no selector picks, so it could not detect an ignored
 `--filter-not-stage`.
+
+The edit expansion added `add`, `change`, `copy`, and `import`: 1,520 pairs
+(1,187 accepted, 333 explicitly rejected) without a production bug or equality
+exception. Initial failures were harness defects and were corrected: standalone
+samples now restore state, preventing prior edits from clearing later matrix
+selectors; add uses a name that does not collide with a matrix base name;
+dependency validation failures are classified narrowly; import revisions are
+verified before normalization; and newly allocated IDs are normalized without
+rewriting existing IDs. `TestCLIFlagPairEditSamples` exercises every individual
+schema flag. Tests for definition fields, copy selector intersection, JSON
+preview, and `--quiet` provide semantic witnesses; the remaining cases above are
+not claimed as ignored-option coverage.
