@@ -32,7 +32,9 @@ function initOrbitGame() {
   const board = dialog?.querySelector(".orbit-game-board");
   const whiteBalls = document.getElementById("orbit-game-white-balls");
   const gameOver = document.getElementById("orbit-game-over");
-  if (!dialog || !player || !board || !whiteBalls || !gameOver) return;
+  const scoreDisplay = document.getElementById("orbit-game-score");
+  if (!dialog || !player || !board || !whiteBalls || !gameOver || !scoreDisplay)
+    return;
 
   const ringRadius = 84;
   const redRadius = 13;
@@ -50,6 +52,7 @@ function initOrbitGame() {
   let redAngle = -Math.PI / 2 - 0.18;
   let redAngularVelocity = 0;
   let whiteStates = [];
+  let survivalTime = 0;
 
   const angleDelta = (from, to) => {
     let difference = Math.abs(from - to) % (Math.PI * 2);
@@ -85,6 +88,8 @@ function initOrbitGame() {
     });
     redAngle = -Math.PI / 2 - 0.18;
     redAngularVelocity = 0;
+    survivalTime = 0;
+    scoreDisplay.textContent = "Score: 0";
     drawBall(player, redAngle, redAngularVelocity);
     gameOver.hidden = true;
   };
@@ -113,6 +118,8 @@ function initOrbitGame() {
         ? 0
         : Math.min((timestamp - lastFrameTime) / 1000, 0.05);
     lastFrameTime = timestamp;
+    survivalTime += elapsed;
+    scoreDisplay.textContent = `Score: ${Math.floor(survivalTime)}`;
     redAngularVelocity +=
       (gravityAcceleration(redRadius, redAngle) +
         turnDirection * redControlStrength) *

@@ -51,8 +51,9 @@ setTimeout(() => {
   const { document, MouseEvent, KeyboardEvent } = dom.window;
   const dialog = document.getElementById('orbit-game');
   const player = document.getElementById('orbit-game-player');
+  const score = document.getElementById('orbit-game-score');
   const logo = document.querySelector('.sidebar-brand');
-  if (!dialog || !player || !logo || !dialog.hidden) process.exit(1);
+  if (!dialog || !player || !score || !logo || !dialog.hidden) process.exit(1);
   const whites = () => [...document.querySelectorAll('#orbit-game-white-balls circle')];
 
   logo.focus();
@@ -62,6 +63,7 @@ setTimeout(() => {
   if (whites().length !== 6 || whites().some(ball => Number(ball.getAttribute('r')) < 7 || Number(ball.getAttribute('r')) > 17)) process.exit(2);
 
   dom.window.__runFrame(0);
+  if (score.textContent.trim() !== 'Score: 0') process.exit(19);
   let balls = [player, ...whites()];
   const initial = balls.map(ball => Number(ball.dataset.angle));
   dom.window.__runFrame(50);
@@ -123,8 +125,10 @@ setTimeout(() => {
   }
   const gameOver = document.getElementById('orbit-game-over');
   if (gameOver.hidden || !gameOver.textContent.includes('Game over')) process.exit(8);
+  const finalScore = Number(score.textContent.replace(/\D/g, ''));
+  if (!Number.isFinite(finalScore)) process.exit(20);
   document.getElementById('orbit-game-restart').click();
-  if (!gameOver.hidden || whites().length !== 6) process.exit(9);
+  if (!gameOver.hidden || whites().length !== 6 || score.textContent.trim() !== 'Score: 0') process.exit(9);
   dom.window.__runFrame(0);
   document.getElementById('orbit-game-close').click();
   if (!dialog.hidden) process.exit(10);

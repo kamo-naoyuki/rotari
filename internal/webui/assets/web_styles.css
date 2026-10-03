@@ -434,6 +434,13 @@ section {
   font-size: 13px;
   line-height: 1.6;
 }
+.orbit-game-score {
+  margin: 12px 0 0;
+  color: var(--text);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
 .orbit-game-board {
   display: block;
   width: min(280px, 78vw);
