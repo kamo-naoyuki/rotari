@@ -36,12 +36,17 @@ class MkDocsLLMOutputTests(unittest.TestCase):
             full = (site_dir / "llms-full.txt").read_text(encoding="utf-8")
 
         self.assertLess(index.index("[Home]"), index.index("[Getting started]"))
+        self.assertIn(
+            "[llms-full.txt](https://example.test/rotari/docs/llms-full.txt)", index
+        )
+        self.assertIn("Go API site", index)
         self.assertIn("https://example.test/rotari/docs/GETTING_STARTED/", index)
         self.assertIn("Start\nSee FAQ", full)
         self.assertIn("https://example.test/rotari/docs/FAQ/", full)
         self.assertIn("Run jobs.", full)
         self.assertIn("```sh\nrotari run\n```", full)
         self.assertNotIn("not documentation", full)
+        self.assertIn("Go API site is not included", full)
 
 
 if __name__ == "__main__":

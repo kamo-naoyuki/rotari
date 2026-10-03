@@ -165,13 +165,22 @@ def _write_outputs(
         "",
         "> Documentation for rotari, an execution manager for experiment batches.",
         "",
+        "## Full documentation",
+        "",
+        f"- [llms-full.txt]({_absolute_url(base_url, 'llms-full.txt')}): "
+        "all rendered MkDocs documentation in one file.",
+        "",
+        "The full file includes the rendered documentation pages listed below. "
+        "The generated Go API reference is published separately at "
+        "[the Go API site](https://kamo-naoyuki.github.io/rotari/go-api/).",
+        "",
         "## Documentation",
         "",
     ]
     full = [
         "# rotari documentation (full)",
         "",
-        "> Generated from the rendered MkDocs pages.",
+        "> Generated from the rendered MkDocs pages; the separate Go API site is not included.",
         "",
     ]
 
