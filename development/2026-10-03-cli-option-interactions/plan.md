@@ -272,10 +272,12 @@ duplicating its lifecycle or status-projection work.
 
 ## Current status and next action
 
-The schema inventory generates 6,481 pairs. Adapters execute 5,859 pairs across
-17 commands in three conformance packages: 783 read-only, 36 file-output,
+The schema inventory generates 6,481 pairs. Adapters execute 5,865 pairs across
+19 commands in three conformance packages: 783 read-only, 36 file-output,
 178 queue mutations, 1,520 edits, 3,315 run/retry previews, 6 unlock, and 21
-wait pairs. The remaining 622 pairs are control/external commands.
+wait pairs, plus 6 registry pairs. The remaining 616 pairs are control/external
+commands. Registry checks exercise GC preview/apply and server status/list;
+server shutdown and live leases are not implied by that coverage.
 
 The pair tests share their public-binary harness through `conformance/support`.
 Splitting the CLI checks across `03-interfaces`, `pairedits`, and `pairruns`
@@ -320,7 +322,7 @@ failures were fixed and not waived as intended behavior.
 
 See [coverage and triage](../../conformance/03-interfaces/flag-pair-coverage.md)
 for measured results and explicit gaps. Milestone 1 is **not complete**:
-622 control/external pairs still need adapters; execution, scheduler submission,
+616 control/external pairs still need adapters; execution, scheduler submission,
 async lifecycle, clear/set, active-state, provenance, boolean/repeated-value,
 and cross-interface witnesses remain. Compatibility declarations are an
 evidence-gated follow-up. Run/retry previews and synthetic wait locks do not

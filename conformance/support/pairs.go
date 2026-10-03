@@ -47,6 +47,8 @@ func PairAdapter(command string) string {
 		return "control"
 	case "wait":
 		return "wait"
+	case "gc", "server":
+		return "registry"
 	default:
 		return ""
 	}
