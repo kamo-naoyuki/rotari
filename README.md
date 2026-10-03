@@ -16,7 +16,7 @@ matrix jobs. If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or
 [ESPnet](https://github.com/espnet)'s `run.pl`/`queue.pl`, the basic idea should
 feel familiar.
 
-The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers installation, concepts, command reference, and running rotari on clusters. For LLMs, use the [documentation index](https://kamo-naoyuki.github.io/rotari/docs/llms.txt) or [full documentation](https://kamo-naoyuki.github.io/rotari/docs/llms-full.txt).
+AI agents helping users understand or use rotari can consult the [documentation index](https://kamo-naoyuki.github.io/rotari/docs/llms.txt) to find relevant guides, or read the [full documentation](https://kamo-naoyuki.github.io/rotari/docs/llms-full.txt) for a broader understanding of rotari and its behavior. The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) is also available for browsing.
 
 ## Why use rotari?
 
