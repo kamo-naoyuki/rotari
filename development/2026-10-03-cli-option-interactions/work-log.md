@@ -213,3 +213,40 @@
 - **Remaining:** 649 pairs in control/daemon/external commands, retry-specific
   selection expectations, actual execution and scheduler effects, plus the
   gaps listed in the coverage report.
+
+## Unlock recovery pair adapter
+
+**Commit:** `29d5f7f` — 2026-10-03T15:32:40+09:00
+
+- **Change:** Added all six schema-advertised `unlock` pairs in both orders
+  and four standalone samples. Each invocation restores the finished fixture,
+  seeds coherent interrupted metadata and a synthetic stale lock, then checks
+  lock removal, recovery metadata, and unchanged queue/history/registry state.
+  Safety witnesses check live-local refusal with the test process's PID,
+  an existing sibling run mismatch, remote recovery, and lockless recovery,
+  each in both project/run flag orders. Registered the tests under SAFE-4.
+- **Reason:** Begin control-command coverage without launching live jobs or
+  sending control signals. Existing fixture execution stops before synthetic
+  recovery cases begin; public CLI subprocesses keep the five-second bound.
+- **Plan impact:** Six accepted pairs, twelve pair-loop invocations; inventory
+  now executes 5,838/6,481 pairs across sixteen commands, leaving 643 deferred.
+  No production behavior changed and no ignored-option bug was found.
+  Location samples still share fixture defaults and an empty config; they do
+  not independently prove override or config effects. Next adapter: `wait`.
+- **Validation:** Focused samples, all pairs, safety cases, inventory,
+  contract/layout, and document-link checks passed. The pair test took 2.85s
+  including setup in one focused run. Final focused race after extracting
+  helpers to resolve complexity diagnostics passed uncached (10.92s package).
+  The first short check exited 1 when the existing file-pair snapshot lost
+  `server.pid` between enumeration and stat; recorded in `../ISSUES.md`, with
+  no unsupported root-cause claim. Its complete log and exit code remain
+  retained. A subsequent short check passed. Full checks with
+  `GOFLAGS='-timeout=30m' scripts/check.sh` passed vet, normal, and race
+  (exit 0; interface package 528.73s normal, 632.87s race), before the final
+  behavior-preserving helper extraction. Final focused race and contract/link
+  rechecks passed afterward. Gofmt, diff checks, and new-file diagnostics
+  passed; pre-commit remains unavailable. Unrelated projection edits were
+  excluded from the commit.
+- **Remaining:** 643 control/external pairs, alternate-location/config
+  witnesses, and the existing observation gaps. Investigate file-pair fixture
+  quiescence separately; a successful rerun does not resolve that issue.
