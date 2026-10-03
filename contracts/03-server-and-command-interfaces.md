@@ -228,6 +228,11 @@ follows:
   silently ignored in local-rule mode. Implemented by
   [`cmd/rotari/diagnose.go`](../cmd/rotari/diagnose.go) and checked by
   [`conformance/03-interfaces/pairdiagnose/diagnose_pairs_test.go`](../conformance/03-interfaces/pairdiagnose/diagnose_pairs_test.go).
+- **CLI-14** For a completed run, text `wait` prints the same completion
+  message as `run`, including each summary, diagnosis, and origin line exactly
+  once and ending with a newline. Both use
+  [`internal/supervisor/messages.go`](../internal/supervisor/messages.go);
+  checked by [`conformance/03-interfaces/wait_test.go`](../conformance/03-interfaces/wait_test.go).
 
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.

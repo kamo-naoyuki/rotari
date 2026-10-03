@@ -14,6 +14,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
+	"github.com/kamo-naoyuki/rotari/internal/supervisor"
 )
 
 func TestExecuteMixedRunPersistsMarkedSuccess(t *testing.T) {
@@ -354,7 +355,7 @@ func TestExecuteMixedRunPersistsRunName(t *testing.T) {
 	}
 }
 
-func TestFormatRunCompletionIncludesRunNameAndFailedJobHint(t *testing.T) {
+func TestCompletionMessageIncludesRunNameAndFailedJobHint(t *testing.T) {
 	paths, err := state.ResolveProjectPaths(t.TempDir(), "build")
 	if err != nil {
 		t.Fatal(err)
@@ -362,7 +363,7 @@ func TestFormatRunCompletionIncludesRunNameAndFailedJobHint(t *testing.T) {
 	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"false"}}}}); err != nil {
 		t.Fatal(err)
 	}
-	message := formatRunCompletion(paths, "run-1", model.RunSummary{
+	message := supervisor.CompletionMessage(paths, "run-1", model.RunSummary{
 		RunID: "run-1", RunName: "nightly", Status: "failed", ExitCode: 1,
 		Results: []model.JobResult{{ID: "job-1", ExitCode: 1, Hosts: []string{"compute-01"}}},
 	})

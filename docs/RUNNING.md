@@ -133,7 +133,8 @@ environment variables for that run. The default `--env=ALL` propagates them;
 job `--env` values and rotari metadata still apply in either mode.
 
 The async start message prints commands for checking status and cancelling the
-run. `wait` returns the overall run exit code. Pass a project name, run name,
+run. When it finishes, `wait` prints the same completion message as `run` and
+returns the overall run exit code. Pass a project name, run name,
 or run ID as a positional selector. Rotari checks them in that order, so a
 project name wins over a run name and a run ID when the same string is used for
 more than one kind of identifier. Use `--run-id/-r` to select a run explicitly.

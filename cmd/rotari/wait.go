@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
@@ -441,23 +440,5 @@ func runEndedWithoutSummary(paths state.ProjectPaths, runID string) (string, boo
 }
 
 func formatRunCompletion(paths state.ProjectPaths, runID string, summary model.RunSummary) string {
-	title, details, _ := strings.Cut(supervisor.CompletionMessage(paths, runID, summary), "\n")
-	if summary.ExitCode != 0 {
-		title = red(title)
-	} else {
-		title = green(title)
-	}
-	message := title + "\n" + colorLabeledDetails(details, summary.ExitCode != 0)
-	if run, err := runview.LoadRun(paths, runID, jsonStore()); err == nil {
-		counts := runlineage.Summarize(run)
-		message += fmt.Sprintf("\nSummary: jobs %d, succeeded %d, failed %d, blocked %d, unfinished %d",
-			counts.Jobs, counts.Succeeded, counts.Failed, counts.Blocked, counts.Unfinished)
-		for _, diagnosis := range runlineage.SummarizeDiagnoses(run) {
-			message += fmt.Sprintf("\nDiagnosis: %s %d", diagnosis.Name, diagnosis.Count)
-		}
-		for _, origin := range runlineage.SummarizeOrigins(run) {
-			message += fmt.Sprintf("\nOrigin: %s %d", firstNonEmpty(origin.RunID, "new"), origin.Count)
-		}
-	}
-	return message
+	return colorMessage(supervisor.CompletionMessage(paths, runID, summary))
 }
