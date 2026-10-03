@@ -3,6 +3,7 @@ package runlineage
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -65,19 +66,19 @@ func TestFailureGroupsClassifiesEachJobByCause(t *testing.T) {
 				{ID: "train-05", Name: "train[5]", ArrayTaskID: intPointer(5)},
 				{ID: "train-09", Name: "train[9]", ArrayTaskID: intPointer(9)},
 			}},
-		{Kind: model.FailureKindTimeout, Cause: model.FailureKindTimeout, Count: 1, ExitCodes: []int{model.TimeoutExitCode},
+		{Kind: model.FailureKindTimeout, Cause: model.FailureKindTimeout, Suggestion: recordedCauseSuggestions[model.FailureKindTimeout], Count: 1, ExitCodes: []int{model.TimeoutExitCode},
 			Example: FailureExample{JobID: "train-12", AttemptID: "att-train-12", Evidence: "timed out after 5s"},
 			Jobs:    []FailureMember{{ID: "train-12", Name: "train[12]", ArrayTaskID: intPointer(12)}}},
 		{Kind: model.FailureKindSignal, Cause: model.FailureKindSignal, Count: 1, ExitCodes: []int{137},
 			Example: FailureExample{JobID: "train-13", AttemptID: "att-train-13", Evidence: "exit status 137"},
 			Jobs:    []FailureMember{{ID: "train-13", Name: "train[13]", ArrayTaskID: intPointer(13)}}},
-		{Kind: model.FailureKindCancelled, Cause: model.FailureKindCancelled, Count: 1, ExitCodes: []int{1},
+		{Kind: model.FailureKindCancelled, Cause: model.FailureKindCancelled, Suggestion: recordedCauseSuggestions[model.FailureKindCancelled], Count: 1, ExitCodes: []int{1},
 			Example: FailureExample{JobID: "train-14", AttemptID: "att-train-14", Evidence: "cancelled by user"},
 			Jobs:    []FailureMember{{ID: "train-14", Name: "train[14]", ArrayTaskID: intPointer(14)}}},
 		{Kind: model.FailureKindError, Cause: model.FailureKindError, Count: 1, ExitCodes: []int{3},
 			Example: FailureExample{JobID: "train-15", AttemptID: "att-train-15", Evidence: "exit status 3"},
 			Jobs:    []FailureMember{{ID: "train-15", Name: "train[15]", ArrayTaskID: intPointer(15)}}},
-		{Kind: model.FailureKindBlocked, Cause: model.FailureKindBlocked, Count: 1, ExitCodes: []int{1},
+		{Kind: model.FailureKindBlocked, Cause: model.FailureKindBlocked, Suggestion: recordedCauseSuggestions[model.FailureKindBlocked], Count: 1, ExitCodes: []int{1},
 			Example: FailureExample{JobID: "eval-test", Evidence: "blocked by failed dependency"},
 			Jobs:    []FailureMember{{ID: "eval-test", Name: "eval-splittest"}}},
 	}
@@ -146,5 +147,28 @@ func TestLimitMembersKeepsTheFirstJobsAndCountsTheRest(t *testing.T) {
 	}
 	if len(groups[1].Jobs) != 3 || groups[1].JobsOmitted != 0 {
 		t.Errorf("small group = %d jobs, %d omitted", len(groups[1].Jobs), groups[1].JobsOmitted)
+	}
+}
+
+// TestFailureGroupsSuggestAFixForCausesRotariRecords groups a timeout, a
+// cancellation, and a blocked job, whose causes rotari records itself rather
+// than a diagnosis rule, and checks that each group still suggests a fix.
+func TestFailureGroupsSuggestAFixForCausesRotariRecords(t *testing.T) {
+	timedOut := failedTask(1, StatusFailed, model.JobResult{ExitCode: model.TimeoutExitCode, Error: "timed out after 5s"})
+	cancelled := failedTask(2, StatusFailed, model.JobResult{ExitCode: 143, Error: model.CancelledError("")})
+	blocked := failedTask(3, StatusBlocked, model.JobResult{ExitCode: 1, Error: "blocked by failed dependency"})
+	want := map[string]string{
+		model.FailureKindTimeout:   "change --timeout",
+		model.FailureKindCancelled: "retry",
+		model.FailureKindBlocked:   "dependency",
+	}
+	groups := FailureGroups(Run{Jobs: []Job{timedOut, cancelled, blocked}})
+	if len(groups) != 3 {
+		t.Fatalf("groups = %+v, want three", groups)
+	}
+	for _, group := range groups {
+		if !strings.Contains(group.Suggestion, want[group.Kind]) {
+			t.Errorf("%s group suggestion = %q, want one mentioning %q", group.Kind, group.Suggestion, want[group.Kind])
+		}
 	}
 }

@@ -115,6 +115,14 @@ type failureCause struct {
 	name string
 }
 
+// recordedCauseSuggestions are the fixes for causes rotari records itself,
+// which no diagnosis rule describes.
+var recordedCauseSuggestions = map[string]string{
+	model.FailureKindTimeout:   "rotari stopped the job when its timeout expired. Raise it with rotari change --timeout if the job needs longer, or find why it was slower than expected.",
+	model.FailureKindCancelled: "A cancel stopped the job. Run it again with rotari retry if it should still run.",
+	model.FailureKindBlocked:   "The job never ran because a dependency failed. Fix that dependency; a retry then runs this job with it.",
+}
+
 // classifyFailure returns a failed job's cause, the suggestion for it, and
 // the line that shows it. Causes rotari records itself (blocked, cancelled,
 // timeout) come first because they are certain; then the latest saved rule
@@ -124,7 +132,7 @@ func classifyFailure(job Job) (failureCause, string, string) {
 	kinds := model.FailureKinds(result)
 	for _, kind := range []string{model.FailureKindBlocked, model.FailureKindCancelled, model.FailureKindTimeout} {
 		if slices.Contains(kinds, kind) {
-			return failureCause{kind: kind, name: kind}, "", result.Error
+			return failureCause{kind: kind, name: kind}, recordedCauseSuggestions[kind], result.Error
 		}
 	}
 	if len(result.Diagnoses) > 0 {
