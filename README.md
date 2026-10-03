@@ -20,10 +20,19 @@ The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers ins
 
 ## Why use Rotari?
 
-When a batch of commands becomes hard to monitor and recover with ad hoc shell
-scripts, Rotari keeps a queue and records each run's commands, results, and
-logs. Retry failed work without rerunning successful jobs, while continuing to
-use ordinary shell commands on a workstation or through a cluster scheduler.
+Rotari helps when experiment batches make everyday work difficult:
+
+- **Lose track of successes and failures:** see each job's status, result, and
+  log in its run history instead of piecing together terminal output.
+- **Hunt for remote logs:** use `rotari show --logs` to inspect per-job output
+  from run history instead of searching SSH hosts or scheduler work directories
+  ([inspect](docs/INSPECT.md), [executors](docs/EXECUTORS.md)).
+- **Reproduce a past experiment:** review the saved command snapshot and job
+  settings; pin the working directory and environment when they must be the
+  same on a rerun
+  ([execution environment](docs/CONCEPTS.md#workflow-and-execution-environment)).
+- **Rerun only what failed:** `rotari retry` selects failed and unfinished jobs
+  while carrying successful results forward.
 
 ## How is rotari different?
 
