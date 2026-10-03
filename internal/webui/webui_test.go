@@ -1147,6 +1147,81 @@ setTimeout(() => {
 	}
 }
 
+func TestStaticWebReportRedactionToggle(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	baseDir := t.TempDir()
+	paths, err := stateinternal.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stateinternal.WriteJSON(paths.QueueFile, model.Queue{}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	writeTestJobsRun(t, baseDir, "default", "run-1", "job-1", now.Add(-time.Minute), now, 1)
+	if err := writeTestFile(filepath.Join(paths.RunsDir, "run-1", "context.json"), []byte(`{"cwd":"/work/demo","hostname":"worker-1"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeTestFile(filepath.Join(paths.RunsDir, "run-1", "job-1", stateinternal.StderrFileName), []byte("failed at /home/alice/private.txt on node-1.example.com\n")); err != nil {
+		t.Fatal(err)
+	}
+	outputDir := filepath.Join(t.TempDir(), "web")
+	if err := siteFor(baseDir).generateStaticWeb(outputDir); err != nil {
+		t.Fatal(err)
+	}
+	script := `
+const fs = require('fs');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.stack || String(error)));
+const dom = new JSDOM(fs.readFileSync(process.argv[1], 'utf8'), {
+	runScripts: 'dangerously',
+	url: 'https://example.test/',
+	virtualConsole,
+	beforeParse(window) {
+		window.Response = class Response {
+			constructor(body, init = {}) { this.body = body; this.status = init.status || 200; this.ok = this.status >= 200 && this.status < 300; }
+			text() { return Promise.resolve(this.body); }
+		};
+		window.Notification = { permission: 'default', requestPermission: async () => 'default' };
+		window.setInterval = () => 1;
+	},
+});
+setTimeout(async () => {
+	try {
+		const project = { project_name: 'default' };
+		const run = { run_id: 'run-1' };
+		await dom.window.showAIReport(project, run, { id: 'job-1' });
+		const toggle = dom.window.document.getElementById('report-redact-toggle');
+		const output = dom.window.document.getElementById('modal-log');
+		if (toggle.hidden || toggle.textContent.trim() !== 'Redact: On' || !output.textContent.includes('[REDACTED_HOST]') || output.textContent.includes('node-1.example.com')) process.exit(1);
+		await dom.window.toggleReportRedaction();
+		if (toggle.textContent.trim() !== 'Redact: Off' || !output.textContent.includes('worker-1')) {
+			console.error('single-job unredacted report mismatch:', toggle.textContent, output.textContent);
+			process.exit(2);
+		}
+		await dom.window.showAIReport(project, run, null, ['job-1']);
+		if (toggle.textContent.trim() !== 'Redact: On' || !output.textContent.includes('[REDACTED_HOST]')) {
+			console.error('selected-job redacted report mismatch:', toggle.textContent, output.textContent);
+			process.exit(3);
+		}
+		await dom.window.toggleReportRedaction();
+		if (toggle.textContent.trim() !== 'Redact: Off' || !output.textContent.includes('worker-1')) process.exit(4);
+		if (errors.length) throw new Error(errors.join('\\n'));
+	} catch (error) {
+		console.error(error.stack || error);
+		process.exit(5);
+	}
+}, 50);
+`
+	if output, err := exec.Command("node", "-e", script, filepath.Join(outputDir, "index.html")).CombinedOutput(); err != nil {
+		t.Fatalf("static report redaction toggle failed: %v\n%s", err, output)
+	}
+}
+
 func TestWebRunAttemptSelectionUpdatesDisplayedJob(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")

@@ -118,6 +118,11 @@ type webCancelRunRequest struct {
 	RunID     string `json:"run_id"`
 }
 
+type staticReportVariants struct {
+	Redacted   string `json:"redacted"`
+	Unredacted string `json:"unredacted,omitempty"`
+}
+
 type webClearRequest struct {
 	QueueName string `json:"project_name"`
 	RunID     string `json:"run_id"`
@@ -1509,7 +1514,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 		return err
 	}
 	logs := map[string]string{}
-	reports := map[string]string{}
+	reports := map[string]staticReportVariants{}
 	wordClouds := map[string]outputWordCloud{}
 	configTargets := map[string][]webConfigTarget{}
 	configs := map[string][]webprojection.ConfigFile{}
@@ -1541,8 +1546,12 @@ func (s site) generateStaticWeb(outputDir string) error {
 			if files, configErr := s.loadWebConfigFiles(baseDir, queue.QueueName, run.RunID); configErr == nil {
 				configs[staticConfigKey(queue.QueueName, run.RunID)] = files
 			}
-			if report, reportErr := report.Build(s.Store, paths, run.RunID, "", false, "", true); reportErr == nil {
-				reports[staticReportKey(queue.QueueName, run.RunID, "")] = report
+			if redacted, reportErr := report.Build(s.Store, paths, run.RunID, "", false, "", true); reportErr == nil {
+				variants := staticReportVariants{Redacted: redacted}
+				if unredacted, unredactedErr := report.Build(s.Store, paths, run.RunID, "", false, "", false); unredactedErr == nil {
+					variants.Unredacted = unredacted
+				}
+				reports[staticReportKey(queue.QueueName, run.RunID, "")] = variants
 			}
 			for _, job := range run.Jobs {
 				for _, stream := range []string{stateinternal.StdoutFileName, stateinternal.StderrFileName} {
@@ -1570,8 +1579,12 @@ func (s site) generateStaticWeb(outputDir string) error {
 						}
 					}
 				}
-				if report, reportErr := report.Build(s.Store, paths, run.RunID, job.ID, false, "", true); reportErr == nil {
-					reports[staticReportKey(queue.QueueName, run.RunID, job.ID)] = report
+				if redacted, reportErr := report.Build(s.Store, paths, run.RunID, job.ID, false, "", true); reportErr == nil {
+					variants := staticReportVariants{Redacted: redacted}
+					if unredacted, unredactedErr := report.Build(s.Store, paths, run.RunID, job.ID, false, "", false); unredactedErr == nil {
+						variants.Unredacted = unredacted
+					}
+					reports[staticReportKey(queue.QueueName, run.RunID, job.ID)] = variants
 				}
 			}
 		}

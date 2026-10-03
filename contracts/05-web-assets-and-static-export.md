@@ -356,12 +356,11 @@ cells stay open across re-renders. Covered by `TestWebRunViewClampsLongCells`.
 Report generation redacts known hostnames and paths, then applies heuristic
 redaction to common absolute paths and FQDNs in log text. This is best-effort
 privacy protection, not complete secret detection; users must review reports
-before sharing them externally. `rotari web` (not the static export) exposes
-a `Redact: On` / `Redact: Off` button in the report modal; turning it off
-requests `/api/report` with `redact=false` and re-fetches the unredacted
-report. Redaction stays on by default and the static export always serves
-its precomputed, redacted report regardless of the button, so the button is
-hidden there.
+before sharing them externally. Both `rotari web` and the static export expose
+a `Redact: On` / `Redact: Off` button in the report modal. Turning it off
+requests the unredacted report; the static export includes both report variants
+in its generated files, so treat the export as containing sensitive data even
+when the UI initially displays redacted reports. Redaction is on by default.
 
 ## Runtime and static mode
 

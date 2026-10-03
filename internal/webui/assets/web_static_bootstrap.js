@@ -59,6 +59,7 @@ window.fetch = async function (input, init) {
     });
   }
   if (request.pathname.endsWith("/api/report")) {
+    const redact = request.searchParams.get("redact") !== "false";
     const jobIDs = request.searchParams.getAll("job_ids");
     if (jobIDs.length) {
       const selectedReports = jobIDs.map(
@@ -69,7 +70,7 @@ window.fetch = async function (input, init) {
               request.searchParams.get("run_id"),
               jobID,
             )
-          ],
+          ]?.[redact ? "redacted" : "unredacted"],
       );
       const found = selectedReports.every(Boolean);
       if (!found) {
@@ -100,7 +101,10 @@ window.fetch = async function (input, init) {
       request.searchParams.get("run_id"),
       request.searchParams.get("job_id"),
     );
-    const report = window.__ROTARI_STATIC_REPORTS__[key];
+    const report =
+      window.__ROTARI_STATIC_REPORTS__[key]?.[
+        redact ? "redacted" : "unredacted"
+      ];
     return new Response(report || "Report not found", {
       status: report ? 200 : 404,
       headers: { "Content-Type": "text/markdown" },

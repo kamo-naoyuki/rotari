@@ -261,8 +261,7 @@ function updateModalActions() {
   copyTail.dataset.copyIcon ||= copyTail.innerHTML;
   document.getElementById("report-note").hidden = view !== "ai";
   const redactToggle = document.getElementById("report-redact-toggle");
-  redactToggle.hidden =
-    view !== "ai" || typeof window.__ROTARI_STATIC_STATE__ !== "undefined";
+  redactToggle.hidden = view !== "ai";
   const copyButton = document.getElementById("copy-modal");
   copyButton.hidden =
     view === "generate-config" ||
