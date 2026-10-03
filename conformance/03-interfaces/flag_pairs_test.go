@@ -45,6 +45,8 @@ func pairAdapter(command string) string {
 		return "edit"
 	case "run", "retry":
 		return "preview"
+	case "unlock":
+		return "control"
 	default:
 		return ""
 	}

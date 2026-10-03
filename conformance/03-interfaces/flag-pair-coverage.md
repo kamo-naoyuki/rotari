@@ -95,6 +95,16 @@ The staged rollout is tracked in the
   output and exit status and verify that fixture state stays unchanged.
   Standalone samples and dedicated async-conflict, run-name, and selection
   witnesses supplement this mode-specific matrix; no job or scheduler starts.
+- `TestCLIFlagPairUnlock` executes all six `unlock` pairs in both orders from
+  an identical synthetic interrupted state. It uses a stale local lock for an
+  already-finished fixture run, so no process or scheduler is running. Each
+  successful recovery removes that lock, returns metadata to `collecting`,
+  retains the recorded last-run ID, and leaves queue and run history unchanged.
+  The pair adapter therefore validates parser/order behavior and this recovery
+  path. `TestCLIFlagPairUnlockSafety` also checks both orders of project/run
+  flags for live-local refusal using the test process's PID, existing sibling
+  run mismatch, remote-lock recovery, and recovery without a lock. These
+  synthetic cases do not start or signal a real coordinator.
 
 The fixture uses public `add`/`run`/`copy` commands. It contains successes,
 distinct failure codes (1, 3, 7, 9), two failing tasks in a three-task array,
@@ -120,17 +130,17 @@ only robustness/order coverage; they do not claim a semantic ignore oracle.
 
 ## Deferred command adapters
 
-Every pair is inventoried, and fifteen commands have adapters. The remaining
-649 pairs are **not executed** by this suite.
+Every pair is inventoried, and sixteen commands have adapters. The remaining
+643 pairs are **not executed** by this suite.
 
 | Commands | Pairs | Required next work |
 | --- | ---: | --- |
-| `cancel`, `suspend`, `resume`, `unlock`, `wait` | 559 | Active/interrupted fixtures, barriers, signals, prompts, and bounded cleanup |
+| `cancel`, `suspend`, `resume`, `wait` | 553 | Active/interrupted fixtures, barriers, signals, prompts, and bounded cleanup |
 | `gc`, `server`, `web`, `mcp`, `diagnose` | 90 | Isolated registry/daemon/stdio/HTTP adapters; fake external diagnosis services |
 | `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
-The 5,832 executed pairs consist of 783 read-only, 36 file-output, 178
-mutation, 1,520 edit, and 3,315 run-preview pairs. The edit pair loop accepted
+The 5,838 executed pairs consist of 783 read-only, 36 file-output, 184
+mutation/control, 1,520 edit, and 3,315 run-preview pairs. The edit pair loop accepted
 1,187 and explicitly rejected 333 pairs in 3,040 invocations; one run took
 4m01s including setup.
 
@@ -140,6 +150,11 @@ supervisor/async lifecycle, scheduler submission, and host effects.
 
 ## Remaining observation gaps
 
+- Unlock location samples use the fixture's existing basedir/project defaults
+  and an empty explicit config. Their success does not independently prove
+  location override or config precedence; distinguishing alternate-location
+  witnesses remain to be added. No-op coverage remains in existing SAFE-4
+  tests, not the generated recovery matrix.
 - Run/retry pairs only preview plans. `--async` with `--dry-run` is explicitly
   rejected after this adapter exposed it being accepted and ignored; see CLI-8.
   Every generated pair containing async therefore exercises this early mode

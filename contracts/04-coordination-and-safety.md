@@ -168,6 +168,11 @@ A project is in one of three states, derived from `running.lock` and
   `unlock` removes it once the operator has confirmed that the run stopped.
   Without `--run-id`, `unlock` of an idle project with no lock, or a project
   that does not exist, succeeds as a no-op and does not modify or create state.
+  `TestCLIFlagPairUnlock` and `TestCLIFlagPairUnlockSafety` in
+  [conformance/03-interfaces/flag_pair_unlock_test.go](../conformance/03-interfaces/flag_pair_unlock_test.go)
+  check flag-order parity, retained state, and local-live, mismatched-run,
+  remote, and lockless recovery using synthetic locks after fixture execution
+  has stopped.
 - **SAFE-5** `reset` discards the queue and keeps the run history. It
   rejects a running project. For an interrupted project it needs the
   operator's confirmation that jobs stopped, then also recovers the run.

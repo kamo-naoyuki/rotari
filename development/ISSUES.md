@@ -8,6 +8,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **File-pair fixture snapshot can race supervisor cleanup** (`conformance/03-interfaces/flag_pair_files_test.go`): the unlock expansion's short check failed in `TestCLIFlagPairFiles` while taking its initial snapshot, with `lstat .../base/projects/pairs/server.pid: no such file or directory`. A directory entry disappeared between enumeration and stat. Expected: the read-only fixture is quiescent before snapshotting. Inspect supervisor shutdown/cleanup synchronization before assigning the cause; the original full log and exit 1 are retained. This is not a sandbox-access failure.
+
 - **`retry`'s help and schema omit options it takes** (`cmd/rotari/cli_spec.go`, `retry` entry):
   - `retry` parses `run`'s options. The contract (`02-run-lifecycle-and-execution.md`) and `TestSelectorTable` make `--failed`, `--unfinished`, and `--success` replace its default selection.
   - But its `cliCommandSpecs` entry lists none of these, nor `--job-name`, `--partial-array`, or `--match-by`. So `retry --help`, `rotari schema`, completion, and the CLI reference do not show options that `retry` accepts.

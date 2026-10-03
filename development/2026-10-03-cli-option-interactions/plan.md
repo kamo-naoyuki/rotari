@@ -272,9 +272,10 @@ duplicating its lifecycle or status-projection work.
 
 ## Current status and next action
 
-The schema inventory generates 6,481 pairs. Adapters execute 5,832 pairs across
-15 commands: 783 read-only, 36 file-output, 178 mutation, 1,520 edit, and 3,315
-run-preview pairs. The remaining 649 pairs are control/external commands.
+The schema inventory generates 6,481 pairs. Adapters execute 5,838 pairs across
+16 commands: 783 read-only, 36 file-output, 184 mutation/control, 1,520 edit,
+and 3,315 run-preview pairs. The remaining 643 pairs are control/external
+commands.
 
 Run/retry preview checks accept 3,016 pairs and explicitly reject 299 in 6,630
 invocations, measured at 88.95 seconds with four concurrent cases. They never
@@ -313,8 +314,8 @@ failures were fixed and not waived as intended behavior.
 
 See [coverage and triage](../../conformance/03-interfaces/flag-pair-coverage.md)
 for measured results and explicit gaps. Milestone 1 is **not complete**:
-649 control/external pairs still need adapters; execution, scheduler submission,
+643 control/external pairs still need adapters; execution, scheduler submission,
 async lifecycle, clear/set, active-state, provenance, boolean/repeated-value,
 and cross-interface witnesses remain. Compatibility declarations are an
-evidence-gated follow-up. The next implementation step is a safe control
+evidence-gated follow-up. The next implementation step is a safe `wait`
 adapter; run/retry pair previews are not execution or scheduler tests.

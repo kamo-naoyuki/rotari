@@ -151,7 +151,7 @@ the IDs, this table, and those calls disagree.
 | SAFE-1 | `check` and `show` report a project as idle, running, or interrupted; a killed coordinator leaves it interrupted | conformance | `TestControlFromAnotherHost`, `TestProjectStates` |
 | SAFE-2 | A running project rejects the commands that would change it, so no second runner starts | conformance | `TestRunningProjectRejectsChanges` |
 | SAFE-3 | An interrupted project rejects them, naming the run and how to inspect and recover it | conformance | `TestInterruptedProjectNeedsRecovery` |
-| SAFE-4 | `unlock` recovers an interrupted run, no-ops without one, and refuses one whose coordinator is alive | conformance | `TestControlFromAnotherHost`, `TestInterruptedProjectNeedsRecovery`, `TestUnlockRefusesLiveRun`, `TestUnlockWithoutInterruptedRunIsNoOp` |
+| SAFE-4 | `unlock` recovers an interrupted run, no-ops without one, and refuses one whose coordinator is alive | conformance | `TestCLIFlagPairUnlock`, `TestCLIFlagPairUnlockSamples`, `TestCLIFlagPairUnlockSafety`, `TestControlFromAnotherHost`, `TestInterruptedProjectNeedsRecovery`, `TestUnlockRefusesLiveRun`, `TestUnlockWithoutInterruptedRunIsNoOp` |
 | SAFE-5 | `reset` discards the queue, rejects a running project, and needs confirmation for an interrupted one | conformance | `TestResetOfInterruptedProject`, `TestRunningProjectRejectsChanges` |
 | SAFE-6 | Commands ask for confirmation only on a terminal, otherwise naming the option that confirms | conformance | `TestCopyIntoQueueWithoutTerminal`, `TestResetOfInterruptedProject` |
 | SAFE-7 | Reset of an interrupted run warns while its jobs appear to be running | conformance | `TestInterruptedResetWarnsAboutRunningJobs` |
