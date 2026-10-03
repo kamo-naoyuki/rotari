@@ -38,3 +38,6 @@ slurm-*.out
 /docs/REFACTORING_PLAN.md
 
 .vscode/
+
+# Local Claude Code settings
+/.claude/settings.local.json
