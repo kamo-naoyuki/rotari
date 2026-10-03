@@ -93,6 +93,13 @@ type JobDiff struct {
 	Changes      []Change `json:"changes,omitempty"`
 }
 
+// Notable reports whether a comparison lists job by default: its result or
+// its definition changed. `rotari lineage FROM TO` and rotari_compare_runs
+// list only these unless asked for every job.
+func (job JobDiff) Notable() bool {
+	return job.Transition != TransitionUnchanged || len(job.Changes) > 0
+}
+
 // RunInfo identifies a compared run.
 type RunInfo struct {
 	ID      string `json:"run_id"`

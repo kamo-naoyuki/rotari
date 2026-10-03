@@ -32,8 +32,13 @@ func TestImportToolsPreviewThenApplyAtTheRevision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(preview.Jobs) != 1 || preview.Revision == "" {
+	if len(preview.Jobs) != 1 || preview.Revision == "" || preview.Counts["unfinished"] != 1 || preview.Plan != nil {
 		t.Fatalf("preview = %+v", preview)
+	}
+	detailed := input
+	detailed.Detail = true
+	if full, err := tools.importManifest(detailed, project.Guard{DryRun: true}); err != nil || full.Plan == nil || len(full.Plan.Jobs[0].Command) == 0 {
+		t.Fatalf("detailed preview = %+v, %v", full, err)
 	}
 	if queue, _ := state.LoadQueue(paths.QueueFile); len(queue.Commands) != 0 {
 		t.Fatal("the preview wrote the queue")

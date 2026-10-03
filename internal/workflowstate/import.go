@@ -49,6 +49,45 @@ type PlanSource struct {
 	Status    string `json:"status"`
 }
 
+// PlanSummary is a Plan without commands and source attempts: each job's
+// status, an array's tasks counted by status, and the statuses counted over
+// the plan, where an array with task statuses counts each task instead of
+// itself.
+type PlanSummary struct {
+	Project  string                `json:"project"`
+	Counts   map[string]int        `json:"counts"`
+	Jobs     []PlanJobSummary      `json:"jobs"`
+	Removed  []workflow.RemovedJob `json:"removed"`
+	Revision string                `json:"revision"`
+}
+
+// PlanJobSummary is one job of a PlanSummary.
+type PlanJobSummary struct {
+	ID     string         `json:"id"`
+	Name   string         `json:"name,omitempty"`
+	Status string         `json:"status"`
+	Tasks  map[string]int `json:"tasks,omitempty"`
+}
+
+// Summary summarizes plan.
+func (plan Plan) Summary() PlanSummary {
+	summary := PlanSummary{Project: plan.Project, Counts: map[string]int{}, Jobs: make([]PlanJobSummary, 0, len(plan.Jobs)), Removed: plan.Removed, Revision: plan.Revision}
+	for _, job := range plan.Jobs {
+		brief := PlanJobSummary{ID: job.ID, Name: job.Name, Status: job.Status}
+		if len(job.Tasks) == 0 {
+			summary.Counts[job.Status]++
+		} else {
+			brief.Tasks = map[string]int{}
+			for _, task := range job.Tasks {
+				brief.Tasks[task.Status]++
+				summary.Counts[task.Status]++
+			}
+		}
+		summary.Jobs = append(summary.Jobs, brief)
+	}
+	return summary
+}
+
 // Import is one import of a manifest into a project.
 type Import struct {
 	Store    state.Store

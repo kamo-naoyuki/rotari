@@ -162,6 +162,26 @@ func TestCompareRunsDefaultsToThePreviousRun(t *testing.T) {
 	}
 }
 
+func TestCompareRunsCountsUnchangedJobsUnlessAllAreAsked(t *testing.T) {
+	f := newToolFixture(t)
+	again := "20260101-000000-dddddddd"
+	f.writeRun(t, f.secondBaseDir, again, "2026-01-01T00:00:01Z", []model.JobResult{{ExitCode: 0}, {ExitCode: 0}, {ExitCode: 0}})
+	output, err := compareRuns(f.masterDir, CompareRunsInput{RunID: again})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(output.Comparison.Jobs) != 0 || output.HiddenUnchanged != 3 {
+		t.Fatalf("default comparison lists %+v, hides %d; want the three unchanged tasks hidden", output.Comparison.Jobs, output.HiddenUnchanged)
+	}
+	output, err = compareRuns(f.masterDir, CompareRunsInput{RunID: again, AllJobs: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(output.Comparison.Jobs) != 3 || output.HiddenUnchanged != 0 {
+		t.Fatalf("all_jobs comparison lists %d, hides %d", len(output.Comparison.Jobs), output.HiddenUnchanged)
+	}
+}
+
 func TestCompareRunsRejectsRunsOfDifferentProjects(t *testing.T) {
 	f := newToolFixture(t)
 	tests := []struct {

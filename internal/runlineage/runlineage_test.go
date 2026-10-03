@@ -219,3 +219,21 @@ func TestLineageCountsRunsAndChangesFromPrevious(t *testing.T) {
 		t.Fatalf("second changes = %+v", changes)
 	}
 }
+
+func TestNotableListsChangedResultsAndDefinitions(t *testing.T) {
+	for _, test := range []struct {
+		job  JobDiff
+		want bool
+	}{
+		{JobDiff{Transition: TransitionUnchanged}, false},
+		{JobDiff{Transition: TransitionUnchanged, Changes: []Change{{Field: "timeout", From: "5s", To: "60s"}}}, true},
+		{JobDiff{Transition: TransitionFixed}, true},
+		{JobDiff{Transition: TransitionStillFailing}, true},
+		{JobDiff{Transition: TransitionAdded}, true},
+		{JobDiff{Transition: TransitionRemoved}, true},
+	} {
+		if got := test.job.Notable(); got != test.want {
+			t.Errorf("Notable(%+v) = %v, want %v", test.job, got, test.want)
+		}
+	}
+}

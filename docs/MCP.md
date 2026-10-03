@@ -14,7 +14,7 @@ starting a run are described in [Changing a project](#changing-a-project).
 | `rotari_get_job_info` | `run_id`, `job_id` | a report on one job: status, result, diagnosis, and the log lines around the diagnosis evidence | `rotari show -j ATTEMPT_ID --report` |
 | `rotari_check_project` | `basedir_ref`, `project` | whether the project's queued run can start: its state (`ready`, `empty`, `running`, `locked`, or `interrupted`), queued job count, and lock, after validating the queue's jobs, dependencies, and executors | `rotari check PROJECT` (without `--deep`) |
 | `rotari_export_run` | `run_id`, optional `format` (`yaml`, `json`, or `toml`) | the finished run as a workflow manifest for reading, with environment values, executor options, and paths redacted; the MCP import tools refuse it until the placeholders are replaced, and `rotari export` gives the full manifest | `rotari export RUN_ID` |
-| `rotari_compare_runs` | `run_id`, optional `previous_run_id` | which jobs were fixed, still fail, or newly fail, each run's failure cause and whether it changed, and which job definitions changed; `previous_run_id` defaults to the run that started just before `run_id` | `rotari lineage PREVIOUS_RUN_ID RUN_ID` |
+| `rotari_compare_runs` | `run_id`, optional `previous_run_id` and `all_jobs` | which jobs were fixed, still fail, or newly fail, each run's failure cause and whether it changed, and which job definitions changed; `previous_run_id` defaults to the run that started just before `run_id`, and jobs that did not change are only counted in `hidden_unchanged`, as `rotari lineage` hides them, unless `all_jobs` is set | `rotari lineage PREVIOUS_RUN_ID RUN_ID` |
 
 A typical session lists projects, summarizes the run with failures, inspects
 one job from a failure group's attempt, and compares a later run with it.
@@ -30,10 +30,14 @@ read-only tools are annotated as such.
 
 | Preview | Write | Input | CLI equivalent |
 | --- | --- | --- | --- |
-| `rotari_preview_import` | `rotari_import` | `basedir_ref`, `project`, `manifest` (text), optional `format` (`yaml`, `json`, or `toml`) and `overwrite`; the write also `if_revision` | `rotari import --dry-run` / `--if-revision` |
+| `rotari_preview_import` | `rotari_import` | `basedir_ref`, `project`, `manifest` (text), optional `format` (`yaml`, `json`, or `toml`), `overwrite`, and `detail`; the write also `if_revision` | `rotari import --dry-run` / `--if-revision` |
 | `rotari_preview_run` | `rotari_start_run` | `basedir_ref`, `project`, optional `retry`; the write also `if_revision` and optional `run_name` | `rotari run` or `retry`, with `--dry-run` / `--async --if-revision` |
 
-A preview returns the plan and `revision`; pass that revision as
+An import tool returns the plan's summary: each job with its status, an
+array's tasks counted by status, the statuses counted over the plan, the
+source jobs it drops, and `revision`; with `detail`, also the full plan,
+with each command and source attempt, as `rotari import --dry-run --json`
+gives it. A preview returns the plan and `revision`; pass that revision as
 `if_revision` to the write. If anything wrote the project in between, the
 write fails with `project changed since the planned revision` and changes
 nothing; preview again. `rotari_preview_run` lists the jobs the run would

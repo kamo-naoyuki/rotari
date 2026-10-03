@@ -41,6 +41,13 @@ type ImportInput struct {
 	Manifest   string `json:"manifest" jsonschema:"workflow manifest text, as rotari export writes it"`
 	Format     string `json:"format,omitempty" jsonschema:"manifest format: yaml (default), json, or toml"`
 	Overwrite  bool   `json:"overwrite,omitempty" jsonschema:"replace a queue that already has jobs"`
+	Detail     bool   `json:"detail,omitempty" jsonschema:"also return the full plan, with each job's command and each task's source attempt"`
+}
+
+// ImportOutput is an import plan's summary and, when asked for, the plan.
+type ImportOutput struct {
+	workflowstate.PlanSummary
+	Plan *workflowstate.Plan `json:"plan,omitempty"`
 }
 
 type ApplyImportInput struct {
@@ -98,8 +105,21 @@ type writeTools struct {
 	options   Options
 }
 
-// importManifest previews or applies an import as `rotari import` does.
-func (tools writeTools) importManifest(input ImportInput, guard project.Guard) (workflowstate.Plan, error) {
+// importManifest previews or applies an import as `rotari import` does and
+// returns the plan's summary, with the plan itself when input.Detail is set.
+func (tools writeTools) importManifest(input ImportInput, guard project.Guard) (ImportOutput, error) {
+	plan, err := tools.importPlan(input, guard)
+	if err != nil {
+		return ImportOutput{}, err
+	}
+	output := ImportOutput{PlanSummary: plan.Summary()}
+	if input.Detail {
+		output.Plan = &plan
+	}
+	return output, nil
+}
+
+func (tools writeTools) importPlan(input ImportInput, guard project.Guard) (workflowstate.Plan, error) {
 	baseDir, paths, err := projectPaths(tools.masterDir, input.BaseDirRef, input.Project)
 	if err != nil {
 		return workflowstate.Plan{}, err

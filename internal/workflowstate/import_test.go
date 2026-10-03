@@ -2,6 +2,7 @@ package workflowstate
 
 import (
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -56,5 +57,28 @@ func TestImportPreviewsThenWritesUnderTheRevision(t *testing.T) {
 	request.Guard = project.Guard{}
 	if _, err := request.Apply(); err == nil || !strings.Contains(err.Error(), "use --overwrite") {
 		t.Fatalf("import into a non-empty queue: %v", err)
+	}
+}
+
+func TestPlanSummaryCountsTasksInsteadOfTheirArray(t *testing.T) {
+	source := &PlanSource{RunID: "run-1", JobID: "x", AttemptID: "att", Status: "success"}
+	plan := Plan{Project: "demo", Revision: "rev", Removed: []workflow.RemovedJob{{Name: "gone"}}, Jobs: []PlanJob{
+		{ID: "prep", Name: "prep", Status: "success", Command: []string{"true"}, Source: source},
+		{ID: "train", Name: "train", Status: "mixed", Command: []string{"./train.sh"}, Tasks: []PlanTask{
+			{ID: "train-1", Status: "success", Source: source},
+			{ID: "train-2", Status: "failed", Source: source},
+			{ID: "train-3", Status: "failed", Source: source},
+		}},
+		{ID: "new", Name: "new", Status: model.StatusUnfinished, Command: []string{"true"}},
+	}}
+	summary := plan.Summary()
+	if want := map[string]int{"success": 2, "failed": 2, model.StatusUnfinished: 1}; !reflect.DeepEqual(summary.Counts, want) {
+		t.Fatalf("counts = %v, want %v", summary.Counts, want)
+	}
+	if train := summary.Jobs[1]; train.Status != "mixed" || !reflect.DeepEqual(train.Tasks, map[string]int{"success": 1, "failed": 2}) {
+		t.Fatalf("train = %+v", train)
+	}
+	if summary.Jobs[0].Tasks != nil || summary.Project != "demo" || summary.Revision != "rev" || len(summary.Removed) != 1 || len(summary.Jobs) != 3 {
+		t.Fatalf("summary = %+v", summary)
 	}
 }

@@ -12,7 +12,6 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/report"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
-	"github.com/kamo-naoyuki/rotari/internal/workflowstate"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -84,7 +83,7 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_compare_runs",
-		Description: "Compare two runs of one project: which jobs were fixed, still fail, or newly fail, each run's failure cause and whether it changed, and which job definitions changed.",
+		Description: "Compare two runs of one project: which jobs were fixed, still fail, or newly fail, each run's failure cause and whether it changed, and which job definitions changed. Jobs that did not change are only counted unless all_jobs is set.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
 	}, func(_ context.Context, input CompareRunsInput) (CompareRunsOutput, error) {
 		output, err := compareRuns(masterDir, input)
@@ -100,19 +99,19 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_preview_import",
-		Description: "Preview importing a workflow manifest into a project's queue, as rotari import --dry-run does: the jobs it would queue, their source results, the source jobs it would drop, and the project revision. Changes nothing.",
+		Description: "Preview importing a workflow manifest into a project's queue, as rotari import --dry-run does: the jobs it would queue with their statuses (an array's tasks counted by status), status counts, the source jobs it would drop, and the project revision; detail adds each command and source attempt. Changes nothing.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
-	}, func(_ context.Context, input ImportInput) (workflowstate.Plan, error) {
+	}, func(_ context.Context, input ImportInput) (ImportOutput, error) {
 		output, err := writes.importManifest(input, project.Guard{DryRun: true})
 		return output, err
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_import",
-		Description: "Import a workflow manifest into a project's queue, as rotari import does, only if the project is still at the revision rotari_preview_import returned. Returns the plan and the new revision.",
+		Description: "Import a workflow manifest into a project's queue, as rotari import does, only if the project is still at the revision rotari_preview_import returned. Returns the plan's summary, as the preview does, and the new revision.",
 		Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPointer(true)},
-	}, func(_ context.Context, input ApplyImportInput) (workflowstate.Plan, error) {
+	}, func(_ context.Context, input ApplyImportInput) (ImportOutput, error) {
 		if input.IfRevision == "" {
-			return workflowstate.Plan{}, errors.New("if_revision is required; take it from rotari_preview_import")
+			return ImportOutput{}, errors.New("if_revision is required; take it from rotari_preview_import")
 		}
 		output, err := writes.importManifest(input.ImportInput, project.Guard{IfRevision: input.IfRevision})
 		return output, err

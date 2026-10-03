@@ -52,7 +52,7 @@ func writeRunDiff(writer io.Writer, paths state.ProjectPaths, result runlineage.
 
 	shown := make([]runlineage.JobDiff, 0, len(result.Jobs))
 	for _, job := range result.Jobs {
-		if showAll || job.Transition != runlineage.TransitionUnchanged || len(job.Changes) > 0 {
+		if showAll || job.Notable() {
 			shown = append(shown, job)
 		}
 	}

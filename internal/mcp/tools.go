@@ -131,12 +131,15 @@ func runSummary(masterDir string, input RunSummaryInput) (RunSummaryOutput, erro
 type CompareRunsInput struct {
 	RunID         string `json:"run_id" jsonschema:"exact ID of the newer run"`
 	PreviousRunID string `json:"previous_run_id,omitempty" jsonschema:"exact ID of the older run of the same project; defaults to the run that started just before run_id"`
+	AllJobs       bool   `json:"all_jobs,omitempty" jsonschema:"list every job; by default jobs whose result and definition did not change are only counted in hidden_unchanged"`
 }
 
 type CompareRunsOutput struct {
 	BaseDirRef string            `json:"basedir_ref"`
 	Project    string            `json:"project"`
 	Comparison runlineage.Result `json:"comparison"`
+	// HiddenUnchanged counts the jobs left out of Comparison.Jobs.
+	HiddenUnchanged int `json:"hidden_unchanged,omitempty"`
 }
 
 // compareRuns compares two runs of one project as
@@ -169,7 +172,18 @@ func compareRuns(masterDir string, input CompareRunsInput) (CompareRunsOutput, e
 	if err != nil {
 		return CompareRunsOutput{}, err
 	}
-	return CompareRunsOutput{BaseDirRef: basedirregistry.Ref(location.BaseDir), Project: location.ProjectName, Comparison: runlineage.Compare(from, to)}, nil
+	output := CompareRunsOutput{BaseDirRef: basedirregistry.Ref(location.BaseDir), Project: location.ProjectName, Comparison: runlineage.Compare(from, to)}
+	if !input.AllJobs {
+		shown := output.Comparison.Jobs[:0]
+		for _, job := range output.Comparison.Jobs {
+			if job.Notable() {
+				shown = append(shown, job)
+			}
+		}
+		output.HiddenUnchanged = len(output.Comparison.Jobs) - len(shown)
+		output.Comparison.Jobs = shown
+	}
+	return output, nil
 }
 
 type CheckProjectInput struct {
