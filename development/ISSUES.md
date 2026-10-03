@@ -6,10 +6,9 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 ## Open
 
-- **Static-Web fixture snapshot can race supervisor cleanup** (`conformance/03-interfaces/pairweb/web_static_pairs_test.go`): the matrix-exclusion final full check exited 1 in `TestCLIFlagPairWebStaticServerOptions/allow-control` with `lstat .../base/projects/pairs/server.pid: no such file or directory` while snapshotting the fixture. Expected: the read-only snapshot observes settled fixture state. This resembles the file-pair snapshot failure below, but the cause is not yet established. The complete log is retained at `$TMPDIR/matrix-exclude-final-check.log`; the pipeline preserved exit 1, and the script did not reach its race phase.
-
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **Static-Web fixture snapshot can race supervisor cleanup** (`conformance/03-interfaces/pairweb/web_static_pairs_test.go`): the matrix-exclusion final full check exited 1 in `TestCLIFlagPairWebStaticServerOptions/allow-control` with `lstat .../base/projects/pairs/server.pid: no such file or directory` while snapshotting the fixture. Expected: the read-only snapshot observes settled fixture state. This resembles the file-pair snapshot failure below, but the cause is not yet established. The complete log is retained at `$TMPDIR/matrix-exclude-final-check.log`; the pipeline preserved exit 1, and the script did not reach its race phase.
 
 - **A repeated single-value option keeps only its last value** (`cmd/rotari/cli_spec.go`, Go `flag` string options): while building the job-control pair adapter, `suspend --stage single --stage batch --yes` suspended only the `batch` jobs; the first `--stage` was accepted and ignored. Options not marked `Repeated` in the CLI spec behave this way in every command. Expected: either reject a second value of a single-value option or document last-wins explicitly. The pair suites pass each option once, so they do not cover repetition.
 
@@ -73,8 +72,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 - **The unreproduced intermittent `go test ./cmd/rotari` failure was not actionable**: during sandbox investigation on 2026-09-29, `go test ./cmd/rotari ./internal/state` reported `FAIL github.com/kamo-naoyuki/rotari/cmd/rotari 32.326s`, but the output was incomplete and the failing test was not identified. Subsequent uncached runs all passed: 5 CLI-only runs, 5 runs of both packages, and 15 verbose CLI-only runs. The issue was treated as a suspected flaky test, but no concrete failure was reproduced, so there was no code-level bug to fix. On recurrence, preserve full output and the actual `go test` exit code and identify the failing test before investigating timing or environment dependencies.
 
 <!-- Keep only short records of resolved items when they may help prevent recurrence. -->
-- **`wait` duplicated completion summaries** (`cmd/rotari/wait.go`): `run` and `wait` now print the shared supervisor completion message; conformance verifies their text matches.
 
+- **`wait` duplicated completion summaries** (`cmd/rotari/wait.go`): `run` and `wait` now print the shared supervisor completion message; conformance verifies their text matches.
 
 - **`wait` could remove recovery locks and report incomplete runs as finished** (`cmd/rotari/wait.go`): selector inspection now preserves stale locks, `wait` rejects newer or invalid summaries once their run is no longer active, and it waits for project finalization before returning a summary. If finalization was interrupted after summary writing, `wait` reports the interrupted state. Covered by `TestCmdWaitProjectSelectorPreservesInterruptedRunLock`, `TestResolveActiveWaitTargetsPreservesStaleRunLock`, `TestCmdWaitDoesNotReturnSummaryBeforeProjectFinalization`, and related summary tests.
 
