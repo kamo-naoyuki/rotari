@@ -10,6 +10,7 @@ starting a run are described in [Changing a project](#changing-a-project).
 | --- | --- | --- | --- |
 | `rotari_list_projects` | none | every project of every registered state directory, with its state, queue size, run count, and last run's ID, status, and failed and total job counts | `rotari show` |
 | `rotari_run_summary` | `run_id` | the run's `state` (`running`, `finished`, `interrupted`, or `ended` without a summary), job counts, and failed and blocked jobs grouped by cause, each with its jobs, exit codes, an example evidence line, the attempt to inspect, and a suggested fix | `rotari lineage RUN_ID` |
+| `rotari_wait_run` | `run_id`, optional `timeout_seconds` (1 to 300, default 30) and `until_failure` | waits until the run is no longer running, or with `until_failure` until a job has failed with no retry left, then returns what `rotari_run_summary` does and `reason`: `settled`, `failure`, or `timeout` (call again to keep waiting) | `rotari wait RUN_ID --timeout` (`--until-failure`) |
 | `rotari_get_job_info` | `run_id`, `job_id` | a report on one job: status, result, diagnosis, and the log lines around the diagnosis evidence | `rotari show -j ATTEMPT_ID --report` |
 | `rotari_check_project` | `basedir_ref`, `project` | whether the project's queued run can start: its state (`ready`, `empty`, `running`, `locked`, or `interrupted`), queued job count, and lock, after validating the queue's jobs, dependencies, and executors | `rotari check PROJECT` (without `--deep`) |
 | `rotari_export_run` | `run_id`, optional `format` (`yaml`, `json`, or `toml`) | the finished run as a workflow manifest for reading, with environment values, executor options, and paths redacted; the MCP import tools refuse it until the placeholders are replaced, and `rotari export` gives the full manifest | `rotari export RUN_ID` |
@@ -38,8 +39,8 @@ write fails with `project changed since the planned revision` and changes
 nothing; preview again. `rotari_preview_run` lists the jobs the run would
 execute, planned as the run itself is, and `rotari_start_run` returns the
 `run_id` of the run it started in the background; follow it with
-`rotari_run_summary` until its `state` is no longer `running`, as
-`rotari wait` would. Right after the start, the run may have no jobs yet.
+`rotari_wait_run`, calling it again while it returns `timeout`. Right after
+the start, the run may have no jobs yet.
 With `retry`, the run executes only the failed and unfinished jobs and
 carries the other results, as `rotari retry` does: those of the queue, such
 as one just imported, or of the project's last run, which it copies into an

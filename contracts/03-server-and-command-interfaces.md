@@ -257,8 +257,14 @@ as the CLI and hold no rules of their own.
   then `finished`, `interrupted`, or `ended`. A run that has not written its
   jobs yet is `running` with no jobs, not an error. No MCP tool's error
   names a state directory: each tool is added through one wrapper that
-  replaces registered basedirs with `BASEDIR`. Implemented in
-  [`internal/project/run_phase.go`](../internal/project/run_phase.go) and
-  [`internal/mcp/server.go`](../internal/mcp/server.go); checked by
+  replaces registered basedirs with `BASEDIR`. `rotari_wait_run` waits for
+  at most `timeout_seconds` (1 to 300, default 30) until the run is no
+  longer running (`settled`), or with `until_failure` until a job has failed
+  with no retry left (`failure`, from `runview.FinalFailureGroups`, which
+  `rotari wait --until-failure` also uses), and otherwise returns `timeout`.
+  Implemented in
+  [`internal/project/run_phase.go`](../internal/project/run_phase.go),
+  [`internal/mcp/server.go`](../internal/mcp/server.go), and
+  [`internal/mcp/wait.go`](../internal/mcp/wait.go); checked by
   `TestMCPWritesApplyOnlyAtThePreviewedRevision`, which follows a started
-  run with `rotari_run_summary` alone.
+  run through MCP alone, and `TestMCPWaitReturnsOnTheFirstFinalFailure`.

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
@@ -132,31 +131,28 @@ func baseDirRef(t *testing.T, session *mcpSession, project string) string {
 
 type mcpRunSummary struct {
 	State   string `json:"state"`
+	Reason  string `json:"reason"`
 	Summary struct {
 		Counts struct {
-			Jobs int `json:"jobs"`
+			Jobs   int `json:"jobs"`
+			Failed int `json:"failed"`
 		} `json:"counts"`
 	} `json:"summary"`
 }
 
-// waitWithMCP follows a run with rotari_run_summary, from right after it
-// starts, until it is no longer running, as an agent without the CLI does.
-func waitWithMCP(t *testing.T, session *mcpSession, runID string) mcpRunSummary {
+// waitWithMCP follows a run with rotari_run_summary right after it starts,
+// and then with rotari_wait_run, as an agent without the CLI does.
+func waitWithMCP(t *testing.T, session *mcpSession, runID string, untilFailure bool) mcpRunSummary {
 	t.Helper()
-	deadline := time.Now().Add(30 * time.Second)
-	for {
-		var summary mcpRunSummary
-		if message := session.call("rotari_run_summary", map[string]any{"run_id": runID}, &summary); message != "" {
-			t.Fatalf("rotari_run_summary of run %s: %s", runID, message)
-		}
-		if summary.State != "running" {
-			return summary
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("run %s still running", runID)
-		}
-		time.Sleep(100 * time.Millisecond)
+	var summary mcpRunSummary
+	if message := session.call("rotari_run_summary", map[string]any{"run_id": runID}, &summary); message != "" {
+		t.Fatalf("rotari_run_summary of run %s: %s", runID, message)
 	}
+	arguments := map[string]any{"run_id": runID, "timeout_seconds": 30, "until_failure": untilFailure}
+	if message := session.call("rotari_wait_run", arguments, &summary); message != "" || summary.Reason == "timeout" {
+		t.Fatalf("rotari_wait_run of run %s: %q %+v", runID, message, summary)
+	}
+	return summary
 }
 
 func TestMCPWritesApplyOnlyAtThePreviewedRevision(t *testing.T) {
@@ -201,7 +197,7 @@ func TestMCPWritesApplyOnlyAtThePreviewedRevision(t *testing.T) {
 	if message := session.call("rotari_start_run", apply, &started); message != "" || started.RunID == "" {
 		t.Fatalf("start at the previewed revision: %q %+v", message, started)
 	}
-	if summary := waitWithMCP(t, session, started.RunID); summary.State != "finished" || summary.Summary.Counts.Jobs != 2 {
+	if summary := waitWithMCP(t, session, started.RunID, false); summary.State != "finished" || summary.Reason != "settled" || summary.Summary.Counts.Jobs != 2 {
 		t.Fatalf("summary of the started run: %+v", summary)
 	}
 
@@ -258,5 +254,38 @@ func TestMCPExportIsARedactedViewThatImportRefuses(t *testing.T) {
 	importInput := map[string]any{"basedir_ref": exported.BaseDirRef, "project": "secret", "manifest": exported.Manifest, "overwrite": true}
 	if message := session.call("rotari_preview_import", importInput, nil); !strings.Contains(message, "redacted placeholders") {
 		t.Fatalf("import of the redacted view: %q", message)
+	}
+}
+
+// TestMCPWaitReturnsOnTheFirstFinalFailure starts a run whose first job
+// fails while the second still runs, and checks that rotari_wait_run with
+// until_failure returns while the run goes on, as wait --until-failure does.
+func TestMCPWaitReturnsOnTheFirstFinalFailure(t *testing.T) {
+	covers(t, "MCP-3")
+	e := support.NewEnv(t)
+	e.MustRotari("add", "-p", "p1", "--job-name", "bad", "--", "sh", "-c", "exit 3")
+	e.MustRotari("add", "-p", "p1", "--job-name", "slow", "--", "sleep", "30")
+	session := startMCP(t, e)
+	target := map[string]any{"basedir_ref": baseDirRef(t, session, "p1"), "project": "p1"}
+	var preview struct {
+		Revision string `json:"revision"`
+	}
+	if message := session.call("rotari_preview_run", target, &preview); message != "" {
+		t.Fatal(message)
+	}
+	target["if_revision"] = preview.Revision
+	var started struct {
+		RunID string `json:"run_id"`
+	}
+	if message := session.call("rotari_start_run", target, &started); message != "" {
+		t.Fatal(message)
+	}
+	t.Cleanup(func() {
+		e.Rotari("cancel", "-p", "p1")
+		e.Rotari("wait", "-p", "p1", "-r", started.RunID, "--timeout", "30s")
+	})
+	summary := waitWithMCP(t, session, started.RunID, true)
+	if summary.Reason != "failure" || summary.State != "running" || summary.Summary.Counts.Failed != 1 {
+		t.Fatalf("wait until failure = %+v, want the failure while the run goes on", summary)
 	}
 }

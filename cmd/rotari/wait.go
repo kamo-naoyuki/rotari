@@ -372,20 +372,14 @@ func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, unti
 }
 
 // finalFailureGroups groups the jobs of an active run that have failed with
-// no retry left. A failed attempt that the run will retry does not count.
+// no retry left; see runview.FinalFailureGroups. A run that cannot be read
+// yet has none.
 func finalFailureGroups(paths state.ProjectPaths, runID string) []runlineage.FailureGroup {
-	run, err := runview.LoadRun(paths, runID, jsonStore())
+	groups, err := runview.FinalFailureGroups(paths, runID, jsonStore())
 	if err != nil {
 		return nil
 	}
-	final := run.Jobs[:0]
-	for _, job := range run.Jobs {
-		if job.Final {
-			final = append(final, job)
-		}
-	}
-	run.Jobs = final
-	return runlineage.FailureGroups(run)
+	return groups
 }
 
 // earlyFailureJSON is what wait --until-failure --json prints for a run that

@@ -98,3 +98,21 @@ func runStartTime(paths state.ProjectPaths, runID string) time.Time {
 	}
 	return time.Time{}
 }
+
+// FinalFailureGroups groups the jobs of runID that have failed with no retry
+// left, by cause. A failed attempt that an active run will retry does not
+// count. `rotari wait --until-failure` and the MCP wait tool stop on it.
+func FinalFailureGroups(paths state.ProjectPaths, runID string, store state.Store) ([]runlineage.FailureGroup, error) {
+	run, err := LoadRun(paths, runID, store)
+	if err != nil {
+		return nil, err
+	}
+	final := run.Jobs[:0]
+	for _, job := range run.Jobs {
+		if job.Final {
+			final = append(final, job)
+		}
+	}
+	run.Jobs = final
+	return runlineage.FailureGroups(run), nil
+}
