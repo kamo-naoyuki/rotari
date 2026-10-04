@@ -314,3 +314,54 @@ the uncached reader temporarily wired in. `./internal/artifact`,
 "full check not rerun".
 
 **Remaining:** None.
+
+## Shell code inspection (phase 4, steps a, c, d)
+
+**Commit:** `9cffb94` — 2026-10-04T15:49:19+09:00
+
+**Change:** Added `internal/artifact/shell.go`, which parses the code operand
+of a recognized shell with `mvdan.cc/sh/v3/syntax` v3.13.1 (POSIX for
+`sh`/`dash`, Bash, Zsh) and never runs it. Each simple command's words go
+through the shared walker (`commandWords`, refactored out of `arguments`,
+so the interpreter and text-command rules apply unchanged). Literal
+file-opening redirection targets are PATH-R1 references with their operator.
+Plain `$NAME`/`${NAME}` expand for `ROTARI_ARRAY_TASK_ID`, `ROTARI_JOB_DIR`,
+and the job's own variables unless the source assigns the name (PATH-E1).
+Other expansions, substitutions, globs, brace expansion, and a leading `~`
+skip the word, and relative references after `cd`/`pushd`/`popd` are
+skipped. Nested shells and quoted-delimiter heredocs read by a shell are
+inspected up to three levels. The recognizer now reports the shell dialect,
+script operand, and standard-input use. Configuration files named in shell
+code are read. `artifact.Job.Variables` carries the attempt values, filled by
+`artifactRecorder` from the prepared environment. Sources gain `direction`
+and `expanded`. `DiscoveryVersion` is 5. Added the contract's "Shell source"
+table (17 rows), updated the interpreter rows and examples whose shell code
+is now inspected, added `TestShellVariablesDifferPerArrayTask`, and updated
+`TestStartedAttemptRecordsArtifactCandidates`, whose `sh -c` body now
+yields `code/unused.csv`. Updated the status row, docs/INSPECT.md,
+docs/ARCHITECTURE.md, and the plan. `go.mod` gains `mvdan.cc/sh/v3`;
+`golang.org/x/sys` rises to v0.42.0 by minimum version selection.
+
+**Reason:** The user agreed to phase 4 after asking whether `echo aa >
+output.txt` could be found; the dependency was confirmed with the plan. v3.14
+requires Go 1.26, so v3.13.1 is the newest usable release.
+
+**Plan impact:** Steps (a), (c), and (d) are done; (b), referenced script
+files, remains. New decision: configuration files named in shell code are
+read.
+
+**Validation:** `TestShellInspection` (30 cases: the plan's redirection table,
+heredoc cases, `cd`, globs, PATH-E1 forms, nesting, zsh) and
+`TestShellProvenanceAndDiagnostics` passed; the one wrong expectation (an
+absolute path is PATH-R2) was a test error. `TestDiscoverReadsConfigsNamedInShellSource`
+failed before the change and passed after it.
+`TestExecuteExpandsTaskVariablesInShellSource` (array tasks, members by
+environment, attempt directory) passed once the test configured the run
+directory name as real runs do. Conformance: `TestArtifactCandidateExamples`
+(81 rows), `TestShellVariablesDifferPerArrayTask`, and
+`TestStartedAttemptRecordsArtifactCandidates` passed; `TestContractStatus`,
+`TestConformanceLayout`, `go vet ./internal/...`, `gofmt`, and the
+artifact, artifactsource, projectrun, jobstatus, archtest, and doclinks
+packages passed. A full `scripts/check.sh` was not rerun.
+
+**Remaining:** Phase 4 step (b), referenced shell script files.
