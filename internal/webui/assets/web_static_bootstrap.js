@@ -187,10 +187,13 @@ function staticArtifactEntryKey(params) {
 }
 
 // staticArtifactFileURL is the export's copy of a listed file, for img,
-// audio, video, and download links, or "" when none was copied.
+// audio, video, and download links, or "" when none was copied. The copy is
+// under the export's root, which a nested page such as project/P/run/R/ is
+// not, so the path starts from the root.
 function staticArtifactFileURL(params) {
   const files = window.__ROTARI_STATIC_ARTIFACT_CONTENTS__.files || {};
-  return files[staticArtifactEntryKey(params)] || "";
+  const copy = files[staticArtifactEntryKey(params)];
+  return copy ? staticRootPath().replace(/\/$/, "") + "/" + copy : "";
 }
 
 function staticReportKey(project, run, job) {

@@ -47,7 +47,8 @@ const entries = JSON.parse(process.argv[3]);
 const fail = (code, detail) => { console.error(code, detail || ''); process.exit(1); };
 const html = fs.readFileSync(output + '/index.html', 'utf8');
 const dom = new JSDOM(html, {
-  runScripts: 'dangerously', url: 'http://export.local/', virtualConsole: new VirtualConsole(),
+  // A nested route of a site served under a path, as GitHub Pages serves it.
+  runScripts: 'dangerously', url: 'http://export.local/site/project/default/run/' + runID + '/', virtualConsole: new VirtualConsole(),
   beforeParse(window) { window.setInterval = () => 1; window.Response = Response; },
 });
 const window = dom.window;
@@ -61,12 +62,12 @@ setTimeout(async () => {
 
     await window.openArtifact(entries['plot.png'], '', 'file');
     const src = preview().querySelector('img').getAttribute('src');
-    if (!/^artifact-files\/\d+\.png$/.test(src)) fail('image src', src);
-    if (fs.readFileSync(output + '/' + src, 'latin1') !== '\x89PNG-bytes') fail('copied image');
-    if (!preview().querySelector('.artifact-download').getAttribute('href').startsWith('artifact-files/')) fail('download link');
+    if (!/^\/site\/artifact-files\/\d+\.png$/.test(src)) fail('image src', src);
+    if (fs.readFileSync(output + src.slice('/site'.length), 'latin1') !== '\x89PNG-bytes') fail('copied image');
+    if (!preview().querySelector('.artifact-download').getAttribute('href').startsWith('/site/artifact-files/')) fail('download link');
 
     await window.openArtifact(entries['clip.wav'], '', 'file');
-    if (!/^artifact-files\/\d+\.wav$/.test(preview().querySelector('audio').getAttribute('src'))) fail('audio');
+    if (!/^\/site\/artifact-files\/\d+\.wav$/.test(preview().querySelector('audio').getAttribute('src'))) fail('audio');
 
     await window.openArtifact(entries['run.log'], '', 'file');
     const text = preview().querySelector('.artifact-text').textContent;
