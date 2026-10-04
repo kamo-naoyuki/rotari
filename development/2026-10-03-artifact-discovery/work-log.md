@@ -229,3 +229,25 @@ passed. `go vet` and `gofmt` were clean. A full `scripts/check.sh` was not
 rerun.
 
 **Remaining:** None.
+
+## Configuration file contract examples
+
+**Commit:** `a3d128c` — 2026-10-04T15:17:22+09:00
+
+**Change:** Added a "Configuration files" table with nine fixture files to
+the artifact candidate examples in contracts/02-run-lifecycle-and-execution.md:
+nested YAML, skipped values, uncombined separate keys, aliases and custom
+tags, JSON and TOML key order, a configuration named inside another (not
+read), a parse failure, a missing file, and a YAML log destination (not read).
+
+**Reason:** The user asked for configuration parsing examples in the
+contract, executed like the argument examples.
+
+**Plan impact:** None; the rows document the phase 2 behavior.
+
+**Validation:** `go test -count=1 -run TestArtifactCandidateExamples -v
+./conformance/02-lifecycle` passed with all ten new rows listed as
+subtests. `./internal/doclinks` and `TestContractStatus` passed. No code
+changed.
+
+**Remaining:** None.
