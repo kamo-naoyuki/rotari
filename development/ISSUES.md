@@ -18,6 +18,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
   - Consider allowing help requests to continue with a warning and fallback defaults when configuration cannot be loaded, while preserving configuration errors for normal execution. Keep effective configured defaults in help when configuration loads successfully; do not mistake a job command's arguments after `--` for a CLI help request.
   - `TestRunDispatchesTopLevelCommands` and `TestCommandHelpCoversEveryOptionAndExitsZero` passed during review, but do not cover configuration failures with help. Add regression tests and binary-level conformance coverage when fixing this issue.
 
+- **`suspend`/`resume` can fail after signalling some jobs** ([internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go), `Control`): jobs are signalled one at a time, and the first job that cannot be signalled returns an error: its executor has no `Suspend` (`ssh`), it runs on another host, or the scheduler command fails. Jobs signalled before it stay suspended or resumed, but the error does not say so. `TestControlAllJobsFailsAtUnsupportedExecutor` shows this with fake executors, one without `Suspend`. Consider checking every target's executor before signalling any job, or reporting which jobs were signalled.
+
 ## Resolved
 
 - **The Web UI repeated the diagnosis guidance text** (`internal/webui/assets/web_app_logs.js`): `composeWebHTML` now injects the guidance from `internal/diagnose` into the page bundle, and the modal renders those values rather than maintaining its own copies. `TestWebShowDiagnosisRendersAnalysisStatus` compares the browser output with the Go constants.
