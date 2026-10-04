@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/notification"
 )
@@ -79,12 +80,20 @@ func composeWebHTMLWithSession(executors []string, notifications bool, bootstrap
 func composeWebHTMLWithNotificationSettings(executors []string, notifications bool, settings notification.ChannelSettings, bootstrap, notificationSession string, basedirLists ...[]webBaseDir) string {
 	executorJSON, _ := json.Marshal(executors)
 	notificationSettingsJSON, _ := json.Marshal(settings)
+	diagnosisGuidanceJSON, _ := json.Marshal(struct {
+		NoMatchNext     string `json:"noMatchNext"`
+		UnavailableNext string `json:"unavailableNext"`
+		OutdatedNote    string `json:"outdatedNote"`
+	}{diagnose.NoMatchNext, diagnose.UnavailableNext, diagnose.OutdatedNote})
 	basedirs := []webBaseDir{}
 	if len(basedirLists) > 0 {
 		basedirs = basedirLists[0]
 	}
 	basedirJSON, _ := json.Marshal(basedirs)
-	webAppJS := strings.Join([]string{webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppArtifactsJS, webAppTablesJS, webAppChartsJS, webAppMatrixJS, webAppNotificationsJS, webAppSearchJS, webAppBootstrapJS}, "\n")
+	webAppJS := strings.Join([]string{
+		"const diagnosisGuidance = " + string(diagnosisGuidanceJSON) + ";",
+		webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppArtifactsJS, webAppTablesJS, webAppChartsJS, webAppMatrixJS, webAppNotificationsJS, webAppSearchJS, webAppBootstrapJS,
+	}, "\n")
 	template := strings.Replace(webTemplateHTML, "__ROTARI_WEB_APP__", webAppJS, 1)
 	template = strings.Replace(template, "__ROTARI_BASEDIRS__", string(basedirJSON), 1)
 	template = strings.Replace(template, "__ROTARI_EXECUTORS__", string(executorJSON), 1)

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/config"
+	"github.com/kamo-naoyuki/rotari/internal/diagnose"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
@@ -1038,8 +1039,8 @@ setTimeout(() => {
   };
   const checks = [
     [{status: 'matched', diagnoses: [{name: 'Rule', evidence: 'line', suggestion: 'fix'}]}, ['Rule', 'Evidence: line', 'Next: fix'], ['earlier diagnosis rules']],
-    [{status: 'no_match', outdated: true, diagnoses: []}, ['No known rule matched.', 'earlier diagnosis rules'], ['Evidence:']],
-    [{status: 'unavailable', note: 'read failed', diagnoses: []}, ['Unavailable: read failed'], ['earlier diagnosis rules']],
+    [{status: 'no_match', outdated: true, diagnoses: []}, ['No known rule matched.', 'Next: ' + process.argv[2], 'Note: ' + process.argv[4]], ['Evidence:']],
+    [{status: 'unavailable', note: 'read failed', diagnoses: []}, ['Unavailable: read failed', 'Next: ' + process.argv[3]], ['earlier diagnosis rules']],
   ];
   for (const [analysis, wanted, unwanted] of checks) {
     const text = render(analysis);
@@ -1056,7 +1057,7 @@ setTimeout(() => {
 	if err := os.WriteFile(htmlPath, []byte(testSite().webHTML()), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if output, err := exec.Command("node", "-e", script, htmlPath).CombinedOutput(); err != nil {
+	if output, err := exec.Command("node", "-e", script, htmlPath, diagnose.NoMatchNext, diagnose.UnavailableNext, diagnose.OutdatedNote).CombinedOutput(); err != nil {
 		t.Fatalf("web diagnosis check failed: %v\n%s", err, output)
 	}
 }

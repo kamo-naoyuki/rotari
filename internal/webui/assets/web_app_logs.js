@@ -106,19 +106,18 @@ function showDiagnosis(trigger) {
   );
   if (analysis.status === "no_match") {
     sections.push(
-      "No known rule matched.\nNext: Inspect the full job output and scheduler accounting for the failure details.",
+      "No known rule matched.\nNext: " + diagnosisGuidance.noMatchNext,
     );
   } else if (analysis.status === "unavailable") {
     sections.push(
       "Unavailable: " +
         analysis.note +
-        "\nNext: Resolve the read error, then inspect the full job output.",
+        "\nNext: " +
+        diagnosisGuidance.unavailableNext,
     );
   }
   if (analysis.outdated) {
-    sections.push(
-      "Note: Saved with earlier diagnosis rules; --filter-diagnosis selects by the current rules.",
-    );
+    sections.push("Note: " + diagnosisGuidance.outdatedNote);
   }
   selectedOutput = sections.join("\n\n");
   const output = ensureModalOutput();

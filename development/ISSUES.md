@@ -8,9 +8,9 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **The Web UI repeats the diagnosis guidance text** (`internal/webui/assets/web_app_logs.js`): the diagnosis modal hard-codes the no-match, unavailable, and earlier-rules messages that `internal/diagnose/analysis.go` defines as `NoMatchNext`, `UnavailableNext`, and `OutdatedNote` for `show` and reports. Changing one side leaves the other stale, as removing `diagnose` required editing both. The Web API could carry the guidance with each analysis, or the page could receive the constants, so the text is defined once.
-
 ## Resolved
+
+- **The Web UI repeated the diagnosis guidance text** (`internal/webui/assets/web_app_logs.js`): `composeWebHTML` now injects the guidance from `internal/diagnose` into the page bundle, and the modal renders those values rather than maintaining its own copies. `TestWebShowDiagnosisRendersAnalysisStatus` compares the browser output with the Go constants.
 
 - **Runs finishing in the same second merged in random order** (`internal/workflow/source.go`, `newerSnapshot`): export and import's source catalog now use the last-listed run as the deterministic tie-breaker, not the random run ID suffix. Covered by same-timestamp tests for `MergeRuns` and source catalog selection; the workflow contract records this ordering rule.
 
