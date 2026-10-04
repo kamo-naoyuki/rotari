@@ -50,14 +50,14 @@ func TestFromRunRejectsEmptyQueue(t *testing.T) {
 	}
 }
 
-func TestFromRunMarksSuccessfulArrayWithoutInstances(t *testing.T) {
+func TestFromRunLinksSuccessfulArrayWithoutInstances(t *testing.T) {
 	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "array", Command: []string{"work"}, Array: &model.ArraySpec{First: 2, Last: 2}}}}
 	manifest, err := FromRun(queue, model.RunSummary{Results: []model.JobResult{{ID: "array-2", AttemptID: "att", ExitCode: 0}}}, Source{Project: "demo", RunIDs: []string{"run"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	job := manifest.Jobs[0]
-	if job.Array != "2" || job.Status != "success" || job.AttemptID != "att" || len(job.Instances) != 0 {
+	if job.Array != "2" || job.Status != "" || job.AttemptID != "att" || len(job.Instances) != 0 {
 		t.Fatalf("job = %#v", job)
 	}
 }

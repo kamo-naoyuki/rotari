@@ -381,7 +381,7 @@ func TestCmdImportDetectsDefinitionChanges(t *testing.T) {
 		"executor options":  func(m *workflow.Manifest) { m.Jobs[2].ExecutorOptions = []string{"--option"} },
 		"stage":             func(m *workflow.Manifest) { m.Jobs[2].Stage = "extra" },
 		"dependencies":      func(m *workflow.Manifest) { m.Jobs[2].DependsOn = []string{"prepare"} },
-		"array":             func(m *workflow.Manifest) { m.Jobs[2].Array = "1-2" },
+		"array":             func(m *workflow.Manifest) { m.Jobs[2].Array, m.Jobs[2].Status = "1-2", "" },
 		"matrix":            func(m *workflow.Manifest) { m.Jobs[2].Matrix = []string{"SEED=1"} },
 		"name":              func(m *workflow.Manifest) { m.Jobs[2].Name = "renamed" },
 	}
@@ -397,7 +397,7 @@ func TestCmdImportDetectsDefinitionChanges(t *testing.T) {
 			queue := loadCarryStateQueue(t, paths)
 			changed := queue.Commands[len(queue.Commands)-1]
 			if name == "array" {
-				if changed.Origin != nil || len(changed.TaskOrigins) != 2 || changed.TaskMarkedStatus["other-id-1"] != model.StatusSuccess || changed.TaskMarkedStatus["other-id-2"] != model.StatusSuccess {
+				if changed.Origin != nil || len(changed.TaskOrigins) != 2 || len(changed.TaskMarkedStatus) != 0 || changed.TaskOrigins["other-id-1"].Status != model.StatusUnfinished {
 					t.Fatalf("changed array job was not reconciled: %#v", changed)
 				}
 			} else if changed.Origin == nil || changed.ID != "other-id" || changed.MarkedStatus != "" {
@@ -650,11 +650,21 @@ func intPointerForTest(value int) *int {
 	return &value
 }
 
-func TestCmdImportGroupSuccessAcceptsEveryFailedInstance(t *testing.T) {
+// A matrix job has no status of its own; each failed member is accepted by
+// editing its own instance, and the job-level status cannot do it for them.
+func TestCmdImportInstanceSuccessAcceptsEachFailedMember(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, runID := writeWorkflowMatrixRun(t, baseDir)
 	manifest := mustExportWorkflow(t, baseDir, runID)
-	manifest.Jobs[0].Status = "success"
+	rejected := manifest
+	rejected.Jobs = append([]workflow.Job(nil), manifest.Jobs...)
+	rejected.Jobs[0].Status = "success"
+	if code := importEditedWorkflow(t, baseDir, rejected); code != 1 {
+		t.Fatalf("cmdImport with a matrix job status exit code = %d, want 1", code)
+	}
+	for index := range manifest.Jobs[0].Instances {
+		manifest.Jobs[0].Instances[index].Status = "success"
+	}
 	if code := importEditedWorkflow(t, baseDir, manifest); code != 0 {
 		t.Fatalf("cmdImport exit code = %d", code)
 	}
@@ -685,7 +695,7 @@ func TestCmdImportInstanceSuccessAcceptsOnlyThatArrayTask(t *testing.T) {
 	writeWorkflowSourceRun(t, paths, runID, model.Queue{Commands: []model.QueuedCommand{{ID: "array", Name: "array", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 3}}}}, results)
 	manifest := mustExportWorkflow(t, baseDir, runID)
 	job := &manifest.Jobs[0]
-	if job.Status != "failed" || len(job.Instances) != 2 {
+	if job.Status != "" || len(job.Instances) != 2 {
 		t.Fatalf("exported array job = %#v", job)
 	}
 	for index := range job.Instances {

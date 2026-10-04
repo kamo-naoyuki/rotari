@@ -331,7 +331,7 @@ func TestCmdImportReconcilesArrayTaskStatuses(t *testing.T) {
 	baseDir := t.TempDir()
 	paths := writeWorkflowArrayRun(t, baseDir)
 	manifest := mustExportWorkflow(t, baseDir, workflowArrayRunID)
-	if job := manifest.Jobs[0]; job.Status != "failed" || len(job.Instances) != 3 {
+	if job := manifest.Jobs[0]; job.Status != "" || len(job.Instances) != 3 {
 		t.Fatalf("exported array job = %#v", job)
 	}
 	if code := importEditedWorkflow(t, baseDir, manifest); code != 0 {
@@ -413,7 +413,7 @@ func TestWorkflowExportImportOfFilteredArrayRetryReusesRetriedTask(t *testing.T)
 		{ID: "array-2", AttemptID: retriedTaskAttempt, ExitCode: 0},
 	})
 	manifest := mustExportWorkflow(t, baseDir, retryRun)
-	if job := manifest.Jobs[0]; job.Status != "success" || len(job.Instances) != 0 {
+	if job := manifest.Jobs[0]; job.Status != "" || len(job.Instances) != 0 {
 		t.Fatalf("exported retried array = %#v", job)
 	}
 	if code := importEditedWorkflow(t, baseDir, manifest); code != 0 {

@@ -76,27 +76,37 @@ func TestFromRunPreservesMatrixExclusionsAndActualInstances(t *testing.T) {
 	}
 }
 
-func TestFromRunAggregatesExpandedStatuses(t *testing.T) {
+// A matrix or array job has no status of its own: each non-success leaf
+// carries its status under instances, while a plain job keeps its status.
+func TestFromRunGivesGroupStatusesOnlyToInstances(t *testing.T) {
 	dimensions := []model.MatrixDimension{{Name: "SEED", Values: []string{"1", "2"}}}
 	queue := model.Queue{Commands: []model.QueuedCommand{
-		{ID: "one", Command: []string{"train"}, Environment: []string{"SEED=1"}, Matrix: &model.MatrixSpec{GroupID: "group", Dimensions: dimensions, Values: []model.MatrixValue{{Name: "SEED", Value: "1"}}}},
-		{ID: "two", Command: []string{"train"}, Environment: []string{"SEED=2"}, Matrix: &model.MatrixSpec{GroupID: "group", Dimensions: dimensions, Values: []model.MatrixValue{{Name: "SEED", Value: "2"}}}},
+		{ID: "one", Name: "train-SEED1", Command: []string{"train"}, Environment: []string{"SEED=1"}, Matrix: &model.MatrixSpec{GroupID: "group", Dimensions: dimensions, Values: []model.MatrixValue{{Name: "SEED", Value: "1"}}, BaseName: "train"}},
+		{ID: "two", Name: "train-SEED2", Command: []string{"train"}, Environment: []string{"SEED=2"}, Matrix: &model.MatrixSpec{GroupID: "group", Dimensions: dimensions, Values: []model.MatrixValue{{Name: "SEED", Value: "2"}}, BaseName: "train"}},
+		{ID: "tasks", Name: "tasks", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 3}},
+		{ID: "plain", Name: "plain", Command: []string{"true"}},
 	}}
-	manifest, err := FromRun(queue, model.RunSummary{}, Source{Project: "demo", RunIDs: []string{"run"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if manifest.Jobs[0].Status != "unfinished" || len(manifest.Jobs[0].Instances) != 2 {
-		t.Fatalf("unfinished manifest = %#v", manifest.Jobs[0])
-	}
-	manifest, err = FromRun(queue, model.RunSummary{Results: []model.JobResult{
-		{ID: "one", ExitCode: 130, Error: "cancelled"}, {ID: "two", ExitCode: 0},
+	manifest, err := FromRun(queue, model.RunSummary{Results: []model.JobResult{
+		{ID: "one", AttemptID: "att-one", ExitCode: 130, Error: "cancelled"}, {ID: "two", AttemptID: "att-two", ExitCode: 0},
+		{ID: "tasks-1", AttemptID: "att-t1", ExitCode: 0}, {ID: "tasks-2", AttemptID: "att-t2", ExitCode: 4},
+		{ID: "plain", AttemptID: "att-plain", ExitCode: 1},
 	}}, Source{Project: "demo", RunIDs: []string{"run"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Jobs[0].Status != "cancelled" || len(manifest.Jobs[0].Instances) != 1 || manifest.Jobs[0].Instances[0].Status != "cancelled" {
-		t.Fatalf("cancelled manifest = %#v", manifest.Jobs[0])
+	train, tasks, plain := manifest.Jobs[0], manifest.Jobs[1], manifest.Jobs[2]
+	if train.Status != "" || train.AttemptID != "att-one" || len(train.Instances) != 1 || train.Instances[0].Status != "cancelled" || train.Instances[0].Matrix["SEED"] != "1" {
+		t.Fatalf("matrix job = %#v, want no job status, its attempt, and the cancelled instance", train)
+	}
+	statuses := make(map[int]string)
+	for _, instance := range tasks.Instances {
+		statuses[*instance.Task] = instance.Status
+	}
+	if tasks.Status != "" || tasks.AttemptID != "att-t1" || !reflect.DeepEqual(statuses, map[int]string{2: "failed", 3: "unfinished"}) {
+		t.Fatalf("array job = %#v (instances %v), want no job status and failed/unfinished instances", tasks, statuses)
+	}
+	if plain.Status != "failed" || plain.AttemptID != "att-plain" {
+		t.Fatalf("plain job = %#v, want its own failed status", plain)
 	}
 }
 

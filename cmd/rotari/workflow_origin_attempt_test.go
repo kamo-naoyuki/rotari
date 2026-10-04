@@ -191,7 +191,7 @@ func TestWorkflowExportImportOfFilteredMatrixRetryKeepsEachOrigin(t *testing.T) 
 	baseDir := t.TempDir()
 	paths, firstRun, retryRun := writeWorkflowMatrixRetryRuns(t, baseDir)
 	manifest := mustExportWorkflow(t, baseDir, retryRun)
-	if job := manifest.Jobs[0]; job.Status != "success" || len(job.Instances) != 0 {
+	if job := manifest.Jobs[0]; job.Status != "" || len(job.Instances) != 0 {
 		t.Fatalf("exported retried matrix = %#v", job)
 	}
 	if code := importEditedWorkflow(t, baseDir, manifest); code != 0 {

@@ -132,17 +132,21 @@
 - **RUN-10** An edited `status` in an imported manifest applies to what it is
   written on. A plain job's `status` is the job's own. An `instances` entry's
   `status` applies to that matrix combination or array task. A matrix or array
-  job's job-level `status` is an aggregate: `success` accepts every leaf, and
-  any other value marks none, so a leaf missing from `instances` keeps its
-  source result even when `instances` is empty. A leaf the source never ran,
-  such as a task added by widening an array, has no result to keep and stays
-  unfinished rather than accepted. The rule is `desiredStatus`
-  in [internal/workflow/reconcile.go](../internal/workflow/reconcile.go);
-  covered by `TestImportedGroupStatusKeepsUnlistedLeafResults` and
-  `TestImportedArrayWideningExecutesNewTasks` in
-  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go)
-  and `TestReconcileGroupStatusDoesNotOverrideUnlistedLeaves` in
-  [internal/workflow/reconcile_test.go](../internal/workflow/reconcile_test.go).
+  job has no status of its own: export writes none, a leaf missing from
+  `instances` keeps its source result, even when `instances` is empty, and
+  import rejects a job-level `status` rather than ignoring it. The one value accepted is the
+  aggregate of the linked source results that earlier exports wrote, so those
+  manifests still import. A leaf the source never ran, such as a task added
+  by widening an array, has no result to keep and stays unfinished rather
+  than accepted. The rules are `desiredStatus` and `checkGroupStatus` in
+  [internal/workflow/reconcile.go](../internal/workflow/reconcile.go);
+  covered by `TestImportedArrayWideningExecutesNewTasks` and
+  `TestImportedGroupStatusKeepsUnlistedLeafResults` in
+  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go),
+  and by `TestReconcileGroupStatusComesOnlyFromInstances`,
+  `TestReconcileLeavesNewArrayTasksUnfinished`, and
+  `TestFromRunGivesGroupStatusesOnlyToInstances` in
+  [internal/workflow](../internal/workflow/).
 - **RUN-11** Export and import select the latest command snapshot by the
   latest leaf finish time (or submission time for unfinished leaves), falling
   back to run finish time. If timestamps tie, the last listed run wins; random

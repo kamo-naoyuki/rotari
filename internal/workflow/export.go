@@ -140,12 +140,11 @@ func annotateCommand(job *Job, command model.QueuedCommand, values []model.Matri
 		}
 		return
 	}
+	// A matrix or array job has no status of its own; each non-success leaf
+	// carries its status under instances.
 	leafIDs := commandLeafIDs(command)
 	for _, leafID := range leafIDs {
 		annotateLeaf(job, command, values, leafID, results)
-	}
-	if job.Status == "" {
-		job.Status = "success"
 	}
 }
 
@@ -163,7 +162,6 @@ func commandLeafIDs(command model.QueuedCommand) []string {
 func annotateLeaf(job *Job, command model.QueuedCommand, values []model.MatrixValue, leafID string, results map[string]model.JobResult) {
 	result, ok := results[leafID]
 	status := resultStatus(result, ok)
-	job.Status = mergeStatus(job.Status, status)
 	if ok && job.AttemptID == "" {
 		job.AttemptID = result.AttemptID
 	}
@@ -179,14 +177,6 @@ func annotateLeaf(job *Job, command model.QueuedCommand, values []model.MatrixVa
 		instance.AttemptID = result.AttemptID
 	}
 	job.Instances = append(job.Instances, instance)
-}
-
-func mergeStatus(current, next string) string {
-	priority := map[string]int{"": 0, "success": 1, "unfinished": 2, "cancelled": 3, "failed": 4}
-	if priority[next] > priority[current] {
-		return next
-	}
-	return current
 }
 
 func resultStatus(result model.JobResult, ok bool) string {

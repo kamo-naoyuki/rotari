@@ -109,10 +109,11 @@ func TestReconcileLinksSourcesAndMarksEditedStatuses(t *testing.T) {
 	}
 }
 
-// A group's job-level status is an aggregate, so apart from accepting every
-// leaf with success it does not apply to leaves that instances omit, even
-// when instances is empty; those leaves keep their source result.
-func TestReconcileGroupStatusDoesNotOverrideUnlistedLeaves(t *testing.T) {
+// A matrix or array job's job-level status is not an instruction: a leaf
+// takes its status from its instance or keeps its source result. An older
+// export's job-level status, the aggregate of the source results, is still
+// accepted; any other value is rejected rather than ignored.
+func TestReconcileGroupStatusComesOnlyFromInstances(t *testing.T) {
 	dimensions := []model.MatrixDimension{{Name: "SEED", Values: []string{"1", "2"}}}
 	combinations := model.ExpandMatrix(dimensions)
 	commands := make([]model.QueuedCommand, 0, len(combinations)+1)
@@ -124,23 +125,54 @@ func TestReconcileGroupStatusDoesNotOverrideUnlistedLeaves(t *testing.T) {
 		})
 	}
 	commands = append(commands, model.QueuedCommand{ID: "tasks", Name: "tasks", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 2}})
-	store, attempts := sourceStore(commands,
-		model.JobResult{ID: "seed-1", ExitCode: 0},
-		model.JobResult{ID: "seed-2", ExitCode: 3},
-		model.JobResult{ID: "tasks-1", ExitCode: 0},
-		model.JobResult{ID: "tasks-2", ExitCode: 2},
-	)
-	queue, _, err := reconcileManifest(t, store,
-		Job{Name: "train", Command: []string{"train"}, Matrix: []string{"SEED=1,2"}, AttemptID: attempts["seed-1"], Status: "unfinished"},
-		Job{Name: "tasks", Command: []string{"work"}, Array: "1-2", AttemptID: attempts["tasks-1"], Status: "unfinished"},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, command := range queue.Commands {
-		if command.MarkedStatus != "" || len(command.TaskMarkedStatus) != 0 {
-			t.Errorf("%s marked %q / %v, want its source results unmarked", command.Name, command.MarkedStatus, command.TaskMarkedStatus)
-		}
+	task := 2
+	for name, test := range map[string]struct {
+		status    string
+		instances bool
+		wantError bool
+		wantSeed2 string
+		wantTask2 string
+	}{
+		"no job status keeps source results":         {},
+		"legacy aggregate status is accepted":        {status: "failed"},
+		"instance edits apply under a legacy status": {status: "failed", instances: true, wantSeed2: "success", wantTask2: "success"},
+		"success is rejected":                        {status: "success", wantError: true},
+		"another status is rejected":                 {status: "unfinished", wantError: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			store, attempts := sourceStore(append([]model.QueuedCommand(nil), commands...),
+				model.JobResult{ID: "seed-1", ExitCode: 0},
+				model.JobResult{ID: "seed-2", ExitCode: 3},
+				model.JobResult{ID: "tasks-1", ExitCode: 0},
+				model.JobResult{ID: "tasks-2", ExitCode: 2},
+			)
+			train := Job{Name: "train", Command: []string{"train"}, Matrix: []string{"SEED=1,2"}, AttemptID: attempts["seed-1"], Status: test.status}
+			tasks := Job{Name: "tasks", Command: []string{"work"}, Array: "1-2", AttemptID: attempts["tasks-1"], Status: test.status}
+			if test.instances {
+				train.Instances = []Instance{{Matrix: map[string]string{"SEED": "2"}, Status: "success", AttemptID: attempts["seed-2"]}}
+				tasks.Instances = []Instance{{Task: &task, Status: "success", AttemptID: attempts["tasks-2"]}}
+			}
+			queue, _, err := reconcileManifest(t, store, train, tasks)
+			if test.wantError {
+				if err == nil || !strings.Contains(err.Error(), "instances") {
+					t.Fatalf("Reconcile error = %v, want a job status error pointing to instances", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			seed1, seed2, array := queue.Commands[0], queue.Commands[1], queue.Commands[2]
+			if seed1.MarkedStatus != "" || seed2.MarkedStatus != test.wantSeed2 || seed2.Origin == nil || seed2.Origin.Status != "failed" {
+				t.Fatalf("matrix marks = %q, %q (origin %#v), want \"\", %q over the failed source", seed1.MarkedStatus, seed2.MarkedStatus, seed2.Origin, test.wantSeed2)
+			}
+			if array.TaskMarkedStatus["tasks-1"] != "" {
+				t.Fatalf("task 1 marked %v, want its source success", array.TaskMarkedStatus)
+			}
+			if got := array.TaskMarkedStatus["tasks-2"]; got != test.wantTask2 {
+				t.Fatalf("task 2 marked %q (all %v), want %q", got, array.TaskMarkedStatus, test.wantTask2)
+			}
+		})
 	}
 }
 

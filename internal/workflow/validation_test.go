@@ -321,7 +321,7 @@ func TestFromRunListsFailedArrayTasksInMatrixGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 	job := manifest.Jobs[0]
-	if len(manifest.Jobs) != 1 || job.Status != "failed" || len(job.Instances) != 1 {
+	if len(manifest.Jobs) != 1 || job.Status != "" || len(job.Instances) != 1 {
 		t.Fatalf("manifest = %#v", manifest)
 	}
 	instance := job.Instances[0]

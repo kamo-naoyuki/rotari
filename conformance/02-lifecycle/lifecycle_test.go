@@ -597,9 +597,11 @@ jobs:
 	}
 }
 
-// Removing every instance from an exported matrix or array job leaves its
-// aggregate job-level status, which must not mark the members' source
-// results: retry executes only the failed leaves again.
+// A matrix or array job has no status of its own: export writes statuses
+// only under instances, and import rejects an edited job-level status
+// rather than ignoring it. An older export's job-level status, the aggregate
+// of the source results, still imports, and with every instance removed the
+// members keep their source results: retry executes only the failed leaves.
 func TestImportedGroupStatusKeepsUnlistedLeafResults(t *testing.T) {
 	covers(t, "RUN-10")
 	e := support.NewEnv(t)
@@ -615,23 +617,36 @@ func TestImportedGroupStatusKeepsUnlistedLeafResults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var manifest map[string]any
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		t.Fatal(err)
-	}
-	for _, job := range manifest["jobs"].([]any) {
-		fields := job.(map[string]any)
-		if fields["status"] != "failed" || fields["instances"] == nil {
-			t.Fatalf("exported group = %v, want failed status with instances", fields)
+	writeGroups := func(edit func(fields map[string]any)) {
+		t.Helper()
+		var manifest map[string]any
+		if err := json.Unmarshal(data, &manifest); err != nil {
+			t.Fatal(err)
 		}
+		for _, job := range manifest["jobs"].([]any) {
+			edit(job.(map[string]any))
+		}
+		edited, err := json.Marshal(manifest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(manifestPath, edited, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeGroups(func(fields map[string]any) {
+		if _, ok := fields["status"]; ok || fields["instances"] == nil {
+			t.Fatalf("exported group = %v, want instances and no job-level status", fields)
+		}
+		fields["status"] = "success"
+	})
+	if rejected := e.Rotari("import", "--overwrite", manifestPath, "groups"); rejected.Code == 0 || !strings.Contains(rejected.Stderr, "instances") {
+		t.Fatalf("import with an edited group status = %s, want an error pointing to instances", rejected)
+	}
+	writeGroups(func(fields map[string]any) {
+		fields["status"] = "failed"
 		delete(fields, "instances")
-	}
-	if data, err = json.Marshal(manifest); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(manifestPath, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	})
 	if err := os.Remove(logPath); err != nil {
 		t.Fatal(err)
 	}

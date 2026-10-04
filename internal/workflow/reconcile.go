@@ -169,7 +169,7 @@ func reconcileJob(job Job, remaining []model.QueuedCommand, catalog *sourceCatal
 	anchorAttempt := anchorAttempt(job)
 	if anchorAttempt == "" {
 		// A job without an attempt is new work, with no result to link.
-		return count, nil
+		return count, checkGroupStatus(job, commands)
 	}
 	anchor, err := catalog.resolveAttempt(anchorAttempt)
 	if err != nil {
@@ -180,7 +180,40 @@ func reconcileJob(job Job, remaining []model.QueuedCommand, catalog *sourceCatal
 			return 0, err
 		}
 	}
-	return count, nil
+	return count, checkGroupStatus(job, commands)
+}
+
+// checkGroupStatus rejects a job-level status on a matrix or array job. Its
+// leaves take their status from instances, so the field would otherwise be
+// ignored. Exports before rotari stopped writing it held the aggregate of the
+// source results; that value is accepted so those manifests still import.
+func checkGroupStatus(job Job, commands []model.QueuedCommand) error {
+	if job.Status == "" || len(job.Matrix) == 0 && job.Array == "" {
+		return nil
+	}
+	aggregate := ""
+	for _, command := range commands {
+		if command.Origin != nil {
+			aggregate = mergeStatus(aggregate, command.Origin.Status)
+		}
+		for _, origin := range command.TaskOrigins {
+			aggregate = mergeStatus(aggregate, origin.Status)
+		}
+	}
+	if job.Status != aggregate {
+		return fmt.Errorf("job %q: a matrix or array job has no status of its own; set the status of each combination or task under instances", job.Name)
+	}
+	return nil
+}
+
+// mergeStatus returns the more severe of two leaf statuses, the aggregate
+// that earlier exports wrote as a matrix or array job's status.
+func mergeStatus(current, next string) string {
+	priority := map[string]int{"": 0, "success": 1, "unfinished": 2, "cancelled": 3, "failed": 4}
+	if priority[next] > priority[current] {
+		return next
+	}
+	return current
 }
 
 func validateAttempts(job Job, catalog *sourceCatalog) error {
@@ -562,14 +595,11 @@ func commandMatrixValues(matrix *model.MatrixSpec) map[string]string {
 }
 
 func desiredStatus(job Job, matrix *model.MatrixSpec, task *int, leaf sourceLeaf) string {
-	if job.Status == "success" {
-		return "success"
-	}
 	if instance := findInstance(job, matrix, task); instance != nil {
 		return instance.Status
 	}
-	// A plain job's status is its own. A group's is an aggregate, so its
-	// unlisted leaves keep their source result.
+	// A plain job's status is its own. A matrix or array job has none, so
+	// its unlisted leaves keep their source result.
 	if matrix == nil && task == nil && job.Status != "" {
 		return job.Status
 	}
