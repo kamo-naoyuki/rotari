@@ -10,6 +10,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 - **The Web UI repeats the diagnosis guidance text** (`internal/webui/assets/web_app_logs.js`): the diagnosis modal hard-codes the no-match, unavailable, and earlier-rules messages that `internal/diagnose/analysis.go` defines as `NoMatchNext`, `UnavailableNext`, and `OutdatedNote` for `show` and reports. Changing one side leaves the other stale, as removing `diagnose` required editing both. The Web API could carry the guidance with each analysis, or the page could receive the constants, so the text is defined once.
 
+- **Runs finishing in the same second merge in random order** (`internal/workflow/source.go`, `newerSnapshot`): `export -r R1 -r R2` and import's source catalog pick each command's latest snapshot by its second-resolution timestamp and break ties by comparing run IDs. A run ID ends in a random hex suffix, so of two runs finishing in the same second the older one can win and its results are exported instead of the newer ones. Reproduced with two short local runs of one queue (`20261004-113827-c05c3134` beat the later `20261004-113827-7dcbca0a`). A tie could fall back to the run's start order or the listed order rather than the ID.
+
 ## Resolved
 
 - **Fixture snapshots raced supervisor PID cleanup** (`conformance/support/pairs.go`): `NewPairFixture` returned after the run client finished but before the supervisor necessarily released its lease and removed `server.pid`. It now shuts down any remaining supervisor and waits for lease release before returning, so both static-Web and file-pair snapshots observe settled fixture state.
