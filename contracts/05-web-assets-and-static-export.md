@@ -90,6 +90,7 @@ internal/webui/assets/
 ├── web_app_core.js
 ├── web_app_actions.js
 ├── web_app_logs.js
+├── web_app_artifacts.js
 ├── web_app_tables.js
 ├── web_app_charts.js
 ├── web_app_matrix.js
@@ -111,12 +112,13 @@ order and delivered as one script; they intentionally share the global scope:
 1. `web_app_core.js`
 2. `web_app_actions.js`
 3. `web_app_logs.js`
-4. `web_app_tables.js`
-5. `web_app_charts.js`
-6. `web_app_matrix.js`
-7. `web_app_notifications.js`
-8. `web_app_search.js`
-9. `web_app_bootstrap.js`
+4. `web_app_artifacts.js`
+5. `web_app_tables.js`
+6. `web_app_charts.js`
+7. `web_app_matrix.js`
+8. `web_app_notifications.js`
+9. `web_app_search.js`
+10. `web_app_bootstrap.js`
 
 Do not reorder these files without running the full Web test suite. The
 separation is for source readability and ownership, not JavaScript module
@@ -414,8 +416,30 @@ of every job's latest attempt and of each of its attempts, so the button
 works there too; what each path holds is observed when the export is made.
 The handler is in [internal/webui/artifacts.go](../internal/webui/artifacts.go)
 and the view in `showArtifacts` in
-[web_app_logs.js](../internal/webui/assets/web_app_logs.js); covered by
+[web_app_artifacts.js](../internal/webui/assets/web_app_artifacts.js); covered by
 `TestWebShowsArtifactCandidates` in
+[conformance/05-web/artifacts_test.go](../conformance/05-web/artifacts_test.go).
+
+**WEB-6** The live server previews and downloads an artifact candidate's
+content only when (a) the request names an entry of the attempt's recorded
+listing by index, optionally with a clean relative child path inside a listed
+directory, never a free path; (b) the path is under the job's recorded
+working directory or an `rotari web --artifact-root DIR`; and (c) opening it
+through `os.Root` does not leave that root, including through a symlink.
+`/api/artifacts` adds `previewable` per entry; a refused request is 403, a
+missing file 404. Images (png, jpg, jpeg, gif, svg) are served inline and
+every other file, or any file with `download=1`, as an attachment, all with
+`Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, and a
+`sandbox` Content-Security-Policy, so an SVG's scripts never run. Files are
+streamed without a size limit; text is served 64 KiB at a time on line
+boundaries, from the start or, for `.log` and `.txt` in the UI, from the end,
+and a file with a NUL byte is not text. A directory lists its immediate
+children, directories first and then by name, 200 per page, reading at most
+100,000 names. `--artifact-root` must name a directory and is rejected with
+`--static-dir`; static exports contain listings but no file contents. The
+handlers are in [internal/webui/artifact_files.go](../internal/webui/artifact_files.go)
+and the view in [web_app_artifacts.js](../internal/webui/assets/web_app_artifacts.js);
+covered by `TestWebPreviewsArtifactsUnderAllowedRoots` in
 [conformance/05-web/artifacts_test.go](../conformance/05-web/artifacts_test.go).
 
 ## Editing rules

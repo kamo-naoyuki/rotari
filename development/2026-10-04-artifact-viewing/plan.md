@@ -2,8 +2,7 @@
 
 Created: 2026-10-04
 
-Status: steps 1 (CLI-16) and 2 (WEB-5) done; step 3 (content preview)
-designed, not implemented.
+Status: steps 1 (CLI-16), 2 (WEB-5), and 3 (WEB-6) done.
 
 ## Purpose
 
@@ -92,7 +91,12 @@ into memory. Only how much the browser renders at once is bounded:
 | `.log`, `.txt` | Text from the end, with earlier chunks loaded on demand, like job logs |
 | json, yaml, yml, toml, py, sh, and other text | Text from the start, with later chunks loaded on demand |
 | Anything else (pdf, npy, pt, h5, ...) | Size and modification time, and a download |
-| Directory | Its immediate children (name, type, size), each openable under the same rules; no recursive listing |
+| Directory | Its immediate children (name, type, size, modified), directories first and then by name, 200 per page with more on demand; each child openable under the same rules; no recursive listing |
+
+A directory's names are read up to 100,000 entries, so a directory with
+millions of children cannot stall the server; beyond that the view says only
+the first 100,000 are listed. Size and modification time are read only for
+the page shown.
 
 Downloads are allowed without a size limit (`Content-Disposition:
 attachment`, streamed). Every content response carries

@@ -1880,6 +1880,10 @@
         },
         {
           "name": "notifications"
+        },
+        {
+          "name": "artifact-root",
+          "value_name": "DIR"
         }
       ],
       "name": "web"

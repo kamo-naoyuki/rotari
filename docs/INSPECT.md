@@ -142,7 +142,16 @@ of them, with notes on files discovery could not read, instead of the logs,
 and `show -j JOB --json` includes the same listing as `artifacts`. In the
 Web UI, a job row's Artifacts button shows the same listing for the attempt
 its Output button shows, also in a static export, where the listing
-describes the files as they were when the export was made. A carried
+describes the files as they were when the export was made.
+
+In the live Web UI, a listed file or directory under the job's working
+directory can be opened: images are shown, CSV and TSV files as tables, logs
+and `.txt` files from the end, other text from the start, each loading more
+on demand, and a directory as its immediate children, 200 at a time. Any
+file can be downloaded. A path outside the working directory, or a symlink
+leading out of it, is listed but not opened; add a directory with
+`rotari web --artifact-root DIR` to allow it. Static exports never contain
+file contents. A carried
 job shows the candidates of the attempt that produced its result. Runs from
 before this record existed show `(not recorded)`.
 

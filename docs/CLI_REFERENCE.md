@@ -629,6 +629,7 @@ serve the web status UI
 | `--allow-control` | `` | `ROTARI_WEB_ALLOW_CONTROL` | enable job control (copy/change/remove/cancel/clear) in the live server; false makes it read-only; incompatible with --static-dir |
 | `--auth-token` | `TOKEN` | `ROTARI_WEB_AUTH_TOKEN` | require this token in Authorization: Bearer or X-Rotari-Token on the live server; cannot be combined with --static-dir; prefer ROTARI_WEB_AUTH_TOKEN for secrets |
 | `--notifications` | `` | `ROTARI_WEB_NOTIFICATIONS` | default state of the browser desktop-notification toggle; pass --notifications=false to default it off |
+| `--artifact-root` | `DIR (repeatable)` | `` | also serve recorded artifact files under this directory, besides each job's working directory (live server only; may be repeated; cannot be combined with --static-dir) |
 
 ### `rotari mcp`
 

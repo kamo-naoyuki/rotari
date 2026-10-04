@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -44,11 +45,16 @@ func TestWebShowsArtifactCandidates(t *testing.T) {
 	if response.Status != 200 {
 		t.Fatalf("/api/artifacts = (%d, %s)", response.Status, response.Body)
 	}
-	var fromWeb any
+	var fromWeb map[string]any
 	if err := json.Unmarshal([]byte(response.Body), &fromWeb); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(fromWeb, fromCLI) {
+	// The Web adds whether the live server previews each entry (WEB-6).
+	if previewable, ok := fromWeb["previewable"].([]any); !ok || len(previewable) != 2 || previewable[0] != true || previewable[1] != false {
+		t.Fatalf("previewable = %v", fromWeb["previewable"])
+	}
+	delete(fromWeb, "previewable")
+	if !reflect.DeepEqual(any(fromWeb), fromCLI) {
 		t.Fatalf("Web and CLI listings differ:\nweb %s\ncli %s", response.Body, shown.Jobs[0].Artifacts)
 	}
 	if !strings.Contains(response.Body, `"display_path":"out.txt","basis":"working_directory","type":"file"`) ||
@@ -76,5 +82,81 @@ func TestWebShowsArtifactCandidates(t *testing.T) {
 	}
 	if listing, ok := embedded["art/"+runShown.RunID+"/"+jobID+"/"]; !ok || !reflect.DeepEqual(listing, fromCLI) {
 		t.Fatalf("static listing = %v, want the CLI's %v", listing, fromCLI)
+	}
+}
+
+func TestWebPreviewsArtifactsUnderAllowedRoots(t *testing.T) {
+	covers(t, "WEB-6")
+	e := support.NewEnv(t)
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := `printf 'PNG' > plot.png; mkdir -p d; echo a > d/x.txt; seq 1 5 > n.log; ln -s "$1" link.txt`
+	jobID := support.AddedJobID(t, e.MustRotari("add", "-p", "pv", "--", "sh", "-c", script, "sh",
+		filepath.Join(outside, "secret.txt"), "plot.png", "d/", "n.log", "link.txt"))
+	e.MustRotari("run", "-p", "pv", "--quiet")
+	var shown struct {
+		RunID string `json:"run_id"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "pv", "--json").Stdout), &shown); err != nil {
+		t.Fatal(err)
+	}
+	entries := map[string]int{}
+	var parsed struct {
+		Jobs []struct {
+			Artifacts struct {
+				Entries []struct {
+					DisplayPath string `json:"display_path"`
+				} `json:"entries"`
+			} `json:"artifacts"`
+		} `json:"jobs"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "pv", "-j", jobID, "--json").Stdout), &parsed); err != nil {
+		t.Fatal(err)
+	}
+	for index, entry := range parsed.Jobs[0].Artifacts.Entries {
+		entries[filepath.Base(entry.DisplayPath)] = index
+	}
+	get := func(base, route, name string, extra url.Values) support.HTTPResult {
+		query := url.Values{"project_name": {"pv"}, "run_id": {shown.RunID}, "job_id": {jobID}, "entry": {strconv.Itoa(entries[name])}}
+		for key, values := range extra {
+			query[key] = values
+		}
+		return e.HTTPGet(base + route + "?" + query.Encode())
+	}
+
+	base := e.StartWeb()
+	if r := get(base, "/api/artifact-file", "plot.png", nil); r.Status != 200 || r.Body != "PNG" {
+		t.Fatalf("image under the working directory = (%d, %q)", r.Status, r.Body)
+	}
+	for name, extra := range map[string]url.Values{
+		"secret.txt": nil,                        // outside every allowed root
+		"link.txt":   nil,                        // a symlink leaving the root
+		"d":          {"child": {"../plot.png"}}, // a child path leaving the directory
+	} {
+		if r := get(base, "/api/artifact-file", name, extra); r.Status == 200 {
+			t.Fatalf("%s %v was served: %s", name, extra, r.Body)
+		}
+	}
+	if r := get(base, "/api/artifact-text", "n.log", url.Values{"from": {"end"}}); r.Status != 200 || !strings.Contains(r.Body, `"text":"1\n2\n3\n4\n5\n"`) {
+		t.Fatalf("text page = (%d, %s)", r.Status, r.Body)
+	}
+	if r := get(base, "/api/artifact-directory", "d", nil); r.Status != 200 || !strings.Contains(r.Body, `"name":"x.txt","type":"file","size":2`) {
+		t.Fatalf("directory page = (%d, %s)", r.Status, r.Body)
+	}
+	if r := get(base, "/api/artifact-file", "d", url.Values{"child": {"x.txt"}, "download": {"1"}}); r.Status != 200 || r.Body != "a\n" {
+		t.Fatalf("child download = (%d, %q)", r.Status, r.Body)
+	}
+
+	extended := e.StartWeb("--artifact-root", outside)
+	if r := get(extended, "/api/artifact-file", "secret.txt", url.Values{"download": {"1"}}); r.Status != 200 || r.Body != "secret" {
+		t.Fatalf("--artifact-root file = (%d, %q)", r.Status, r.Body)
+	}
+	if r := get(extended, "/api/artifact-file", "link.txt", url.Values{"download": {"1"}}); r.Status == 200 {
+		t.Fatalf("a symlink out of the working directory was served though its target is under another root: %s", r.Body)
+	}
+	if r := e.Rotari("web", "--artifact-root", filepath.Join(outside, "secret.txt"), "--port", "0"); r.Code != 1 || !strings.Contains(r.Stderr, "is not a directory") {
+		t.Fatalf("--artifact-root of a file = %s", r)
 	}
 }

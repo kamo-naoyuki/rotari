@@ -26,6 +26,9 @@ var webAppActionsJS string
 //go:embed assets/web_app_logs.js
 var webAppLogsJS string
 
+//go:embed assets/web_app_artifacts.js
+var webAppArtifactsJS string
+
 //go:embed assets/web_app_tables.js
 var webAppTablesJS string
 
@@ -81,7 +84,7 @@ func composeWebHTMLWithNotificationSettings(executors []string, notifications bo
 		basedirs = basedirLists[0]
 	}
 	basedirJSON, _ := json.Marshal(basedirs)
-	webAppJS := strings.Join([]string{webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppTablesJS, webAppChartsJS, webAppMatrixJS, webAppNotificationsJS, webAppSearchJS, webAppBootstrapJS}, "\n")
+	webAppJS := strings.Join([]string{webAppCoreJS, webAppActionsJS, webAppLogsJS, webAppArtifactsJS, webAppTablesJS, webAppChartsJS, webAppMatrixJS, webAppNotificationsJS, webAppSearchJS, webAppBootstrapJS}, "\n")
 	template := strings.Replace(webTemplateHTML, "__ROTARI_WEB_APP__", webAppJS, 1)
 	template = strings.Replace(template, "__ROTARI_BASEDIRS__", string(basedirJSON), 1)
 	template = strings.Replace(template, "__ROTARI_EXECUTORS__", string(executorJSON), 1)

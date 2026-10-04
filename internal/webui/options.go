@@ -23,6 +23,9 @@ type Options struct {
 	AllowControl bool
 	// Notifications is the default of the desktop notification toggle.
 	Notifications bool
+	// ArtifactRoots are directories, besides each job's working directory,
+	// whose recorded artifact candidates the live server may serve.
+	ArtifactRoots []string
 	// NotificationSettings controls which browser events and fields are shown.
 	NotificationSettings notification.ChannelSettings
 

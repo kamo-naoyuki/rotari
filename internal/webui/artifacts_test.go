@@ -106,25 +106,18 @@ func TestWebArtifactsAPI(t *testing.T) {
 	}
 }
 
-// TestWebArtifactsFormatMatchesCLI checks that the Web UI lays out a
-// listing line for line as `show -j JOB --artifacts` prints it (see
-// TestWriteArtifactListing in cmd/rotari), and requests the right attempt.
+// TestWebArtifactsFormatMatchesCLI checks that the Web UI's copy text of a
+// listing is line for line what `show -j JOB --artifacts` prints (see
+// TestWriteArtifactListing in cmd/rotari).
 func TestWebArtifactsFormatMatchesCLI(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
 	}
 	script := `
 const vm = require('vm');
-const code = ` + strconv.Quote(webAppLogsJS) + `;
-const output = { textContent: '' };
-const requests = [];
-const context = {
-  console, URLSearchParams, modalOutput: output,
-  document: { getElementById: () => ({ dataset: {}, querySelector: () => ({}) }) },
-  ensureModalOutput: () => output,
-  openOutputModal() {}, isCompactOutput: () => true,
-  fetch: async (url) => { requests.push(url); return { ok: true, json: async () => listing }; },
-};
+const context = { console };
+vm.createContext(context);
+vm.runInContext(` + strconv.Quote(webAppArtifactsJS) + ` + '; this.formatArtifactListing = formatArtifactListing;', context);
 const listing = {
   recorded: true, working_directory: '/work',
   entries: [
@@ -133,10 +126,6 @@ const listing = {
   ],
   diagnostics: [{ source: '/x.yaml', message: 'not inspected: no such file' }, { message: 'limit reached' }],
 };
-vm.createContext(context);
-// The file defines the modal helpers; replace them with stubs after loading.
-vm.runInContext(code + '; this.formatArtifactListing = formatArtifactListing; this.showArtifacts = showArtifacts; followTimer = null;' +
-  ' openOutputModal = function () {}; ensureModalOutput = function () { return modalOutput; }; isCompactOutput = function () { return true; };', context);
 const checks = [
   [context.formatArtifactListing(listing),
    'Artifacts: relative to /work\n  directory  results  (a.yaml: out_dir)\n  missing    /workspace/x.csv  (--in)\nDiscovery notes:\n  /x.yaml: not inspected: no such file\n  limit reached\n'],
@@ -146,13 +135,6 @@ const checks = [
 for (const [got, want] of checks) {
   if (got !== want) { console.error(JSON.stringify({ got, want })); process.exit(1); }
 }
-(async () => {
-  await context.showArtifacts('demo', 'run-1', 'job-1', 'att_x');
-  if (requests[0] !== '/api/artifacts?project_name=demo&run_id=run-1&job_id=job-1&attempt_id=att_x' || !output.textContent.startsWith('Artifacts: relative to /work')) {
-    console.error(JSON.stringify({ requests, output: output.textContent }));
-    process.exit(1);
-  }
-})();
 `
 	path := filepath.Join(t.TempDir(), "artifacts.js")
 	if err := os.WriteFile(path, []byte(script), 0o600); err != nil {

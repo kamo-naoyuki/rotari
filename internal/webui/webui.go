@@ -605,8 +605,19 @@ func (s site) baseHandler() http.Handler {
 			writeWebError(writer, err)
 			return
 		}
-		writeWebJSON(writer, listing)
+		writeWebJSON(writer, webArtifactListing{ArtifactListing: listing, Previewable: s.previewable(listing)})
 	})
+	for path, serve := range map[string]func(string, http.ResponseWriter, *http.Request){
+		"/api/artifact-file": s.serveArtifactFile, "/api/artifact-text": s.serveArtifactText, "/api/artifact-directory": s.serveArtifactDirectory,
+	} {
+		mux.HandleFunc(path, func(writer http.ResponseWriter, request *http.Request) {
+			if request.Method != http.MethodGet && request.Method != http.MethodHead {
+				methodNotAllowed(writer)
+				return
+			}
+			serve(baseDir, writer, request)
+		})
+	}
 	mux.HandleFunc("/api/log", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			methodNotAllowed(writer)

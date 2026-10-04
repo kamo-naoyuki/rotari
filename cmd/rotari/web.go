@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -45,6 +46,8 @@ type webCommandFlags struct {
 	port                                int
 	allowControl, notifications         bool
 	portExplicit                        bool
+	// artifactRoots are absolute --artifact-root directories.
+	artifactRoots []string
 }
 
 func parseWebFlags(args []string) (webCommandFlags, int) {
@@ -56,6 +59,8 @@ func parseWebFlags(args []string) (webCommandFlags, int) {
 	allowControl := cliBool(fs, "allow-control", true)
 	authToken := cliString(fs, "auth-token", "")
 	notifications := cliBool(fs, "notifications", true)
+	var artifactRoots stringSliceFlag
+	cliValue(fs, &artifactRoots, "artifact-root")
 	if err := cliParse(fs, args); err != nil {
 		return webCommandFlags{}, 1
 	}
@@ -71,6 +76,14 @@ func parseWebFlags(args []string) (webCommandFlags, int) {
 		}
 	}
 	flags := webCommandFlags{basedir: *basedir, host: *host, port: *port, staticDir: *staticDir, authToken: *authToken, allowControl: *allowControl, notifications: *notifications}
+	for _, root := range artifactRoots {
+		absolute, err := filepath.Abs(root)
+		if info, statErr := os.Stat(absolute); err != nil || statErr != nil || !info.IsDir() {
+			printErrorf("--artifact-root %s is not a directory", root)
+			return webCommandFlags{}, 1
+		}
+		flags.artifactRoots = append(flags.artifactRoots, absolute)
+	}
 	fs.Visit(func(flag *flag.Flag) {
 		flags.portExplicit = flags.portExplicit || flag.Name == "port"
 	})
@@ -96,10 +109,11 @@ func serveWeb(flags webCommandFlags, baseDir string, options webui.Options) int 
 		printErrorf("failed to list registered base directories: %v", err)
 		return 1
 	}
+	options.ArtifactRoots = flags.artifactRoots
 	if !webui.IsLoopbackHost(flags.host) && flags.authToken == "" {
-		controlWarning := "registered basedir paths, job logs, and environment variable names"
+		controlWarning := "registered basedir paths, job logs, artifact files under job working directories and --artifact-root, and environment variable names"
 		if flags.allowControl {
-			controlWarning = "registered basedir paths, job logs, environment variable names, and job control (cancel/suspend/resume/change/remove/copy) operations"
+			controlWarning = "registered basedir paths, job logs, artifact files under job working directories and --artifact-root, environment variable names, and job control (cancel/suspend/resume/change/remove/copy) operations"
 		}
 		printErrorf("WARNING: --host %s exposes %s over unauthenticated HTTP.", flags.host, controlWarning)
 	}
@@ -127,7 +141,7 @@ func serveWeb(flags webCommandFlags, baseDir string, options webui.Options) int 
 
 func webStaticServerOptions(fs *flag.FlagSet) []string {
 	var incompatible []string
-	for _, name := range []string{"allow-control", "auth-token", "host", "port"} {
+	for _, name := range []string{"allow-control", "artifact-root", "auth-token", "host", "port"} {
 		provided := cliOptionSet(fs, name)
 		if !provided {
 			if envName := cliEnvironmentVariable(name); envName != "" {

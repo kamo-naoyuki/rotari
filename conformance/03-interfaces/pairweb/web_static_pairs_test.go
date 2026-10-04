@@ -19,6 +19,7 @@ func webArgs(t *testing.T, f pairFixture, output string, flags []pairFlag) []str
 	values := map[string]string{
 		"config": f.Config, "basedir": f.E.Base, "host": "127.0.0.1",
 		"port": "23456", "static-dir": output, "auth-token": "static-token",
+		"artifact-root": f.E.Root,
 	}
 	args := []string{"web"}
 	for _, flag := range flags {
@@ -99,7 +100,7 @@ func webServerOnlyFlags(flags []pairFlag) []string {
 	var names []string
 	for _, flag := range flags {
 		switch flag.Name {
-		case "allow-control", "auth-token", "host", "port":
+		case "allow-control", "artifact-root", "auth-token", "host", "port":
 			names = append(names, flag.Name)
 		}
 	}
@@ -186,7 +187,7 @@ func TestCLIFlagPairWeb(t *testing.T) {
 func TestCLIFlagPairWebStaticServerOptions(t *testing.T) {
 	covers(t, "WEB-3")
 	f := newPairFixture(t)
-	for _, name := range []string{"allow-control", "auth-token", "host", "port"} {
+	for _, name := range []string{"allow-control", "artifact-root", "auth-token", "host", "port"} {
 		t.Run(name, func(t *testing.T) {
 			result, _ := invokeStaticWeb(t, f, []pairFlag{{Name: name}}, filepath.Join(f.E.Root, "static-rejected"))
 			if !strings.Contains(result.Stderr, "only apply to the live web server") {

@@ -2605,6 +2605,16 @@ CLI_SCHEMA: dict[str, Any] = {
                     "environment": "ROTARI_WEB_NOTIFICATIONS",
                     "name": "notifications",
                 },
+                {
+                    "description": "also serve recorded artifact files under "
+                    "this directory, besides each job's working "
+                    "directory (live server only; may be "
+                    "repeated; cannot be combined with "
+                    "--static-dir)",
+                    "name": "artifact-root",
+                    "repeated": True,
+                    "value_name": "DIR",
+                },
             ],
             "name": "web",
         },

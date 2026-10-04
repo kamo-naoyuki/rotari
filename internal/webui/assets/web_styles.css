@@ -1602,3 +1602,35 @@ pre,
     transition-duration: 0.01ms !important;
   }
 }
+
+.artifact-view {
+  overflow: auto;
+  max-height: 75vh;
+  padding: 0.5rem;
+}
+.artifact-view .artifact-open {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.artifact-preview {
+  margin-top: 1rem;
+}
+.artifact-image {
+  max-width: 100%;
+  height: auto;
+  background: #fff;
+}
+.artifact-table-scroll {
+  overflow: auto;
+  max-height: 60vh;
+}
+.artifact-text {
+  max-height: 60vh;
+  overflow: auto;
+}
