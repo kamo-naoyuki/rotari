@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -69,7 +68,7 @@ func writeArtifactListing(writer io.Writer, listing jobstatus.ArtifactListing, l
 			shown = shown[:limit]
 		}
 		for _, entry := range shown {
-			fmt.Fprintf(writer, "  %-9s  %s  (%s)\n", entry.Type, displayArtifactPath(listing.WorkingDirectory, entry.Path), entry.Origin)
+			fmt.Fprintf(writer, "  %-9s  %s  (%s)\n", entry.Type, entry.DisplayPath, entry.Origin)
 		}
 		if hidden := len(listing.Entries) - len(shown); hidden > 0 {
 			fmt.Fprintf(writer, "  ... and %d more: %s\n", hidden, more)
@@ -78,20 +77,11 @@ func writeArtifactListing(writer io.Writer, listing jobstatus.ArtifactListing, l
 	if limit == 0 && len(listing.Diagnostics) > 0 {
 		fmt.Fprintln(writer, cyan("Discovery notes:"))
 		for _, diagnostic := range listing.Diagnostics {
-			fmt.Fprintf(writer, "  %s: %s\n", diagnostic.Source, diagnostic.Message)
+			if diagnostic.Source != "" {
+				fmt.Fprintf(writer, "  %s: %s\n", diagnostic.Source, diagnostic.Message)
+			} else {
+				fmt.Fprintf(writer, "  %s\n", diagnostic.Message)
+			}
 		}
 	}
-}
-
-// displayArtifactPath writes a path under the working directory relative to
-// it, and any other path as it is.
-func displayArtifactPath(workingDirectory, path string) string {
-	if workingDirectory == "" || !filepath.IsAbs(path) {
-		return path
-	}
-	relative, err := filepath.Rel(workingDirectory, path)
-	if err != nil || relative == ".." || strings.HasPrefix(relative, "../") {
-		return path
-	}
-	return relative
 }

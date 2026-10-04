@@ -221,3 +221,4 @@ the IDs, this table, and those calls disagree.
 | WEB-2 | Live history search covers user-selected basedir/project/run scopes with validated, read-only hierarchical filters and pagination | partial | `TestHistorySearchAcrossProjects` |
 | WEB-3 | Static export rejects live-server-only web options instead of silently ignoring them | conformance | `TestCLIFlagPairWebStaticServerOptions` |
 | WEB-4 | Static export applies `--notifications` to the initial browser-notification toggle | conformance | `TestCLIFlagPairWebNotificationsEffect` |
+| WEB-5 | The Web UI and `/api/artifacts` show a job attempt's artifact listing as the CLI does, including in the static export | conformance | `TestWebShowsArtifactCandidates` |

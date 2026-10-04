@@ -1478,6 +1478,15 @@ function renderRun(q, runID) {
           "','" +
           esc(logMode) +
           "')\">Output</button>" +
+          ' <button class="view-artifacts" onclick="showArtifacts(\'' +
+          esc(q.project_name) +
+          "','" +
+          esc(logRun) +
+          "','" +
+          esc(logJob) +
+          "','" +
+          esc(logAttemptID) +
+          "')\">Artifacts</button>" +
           diagnosisControl
         : diagnosisControl;
       const jobName = esc(j.name || "-");

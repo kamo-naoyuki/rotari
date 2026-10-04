@@ -404,6 +404,20 @@ by [internal/webui/assets.go](../internal/webui/assets.go) and checked by
 `TestCLIFlagPairWebNotificationsEffect` in
 [conformance/03-interfaces/pairweb/web_static_pairs_test.go](../conformance/03-interfaces/pairweb/web_static_pairs_test.go).
 
+**WEB-5** A job row's Artifacts button shows the artifact candidates of the
+attempt its Output button shows, laid out as `show -j JOB --artifacts`
+prints them (CLI-16). `GET /api/artifacts?project_name=P&run_id=R&job_id=J`
+(with an optional `attempt_id` of that job) returns the same
+`jobstatus.ListArtifacts` JSON that `show -j J --json` carries, and rejects
+an unknown job or another job's attempt. The static export embeds the listing
+of every job's latest attempt and of each of its attempts, so the button
+works there too; what each path holds is observed when the export is made.
+The handler is in [internal/webui/artifacts.go](../internal/webui/artifacts.go)
+and the view in `showArtifacts` in
+[web_app_logs.js](../internal/webui/assets/web_app_logs.js); covered by
+`TestWebShowsArtifactCandidates` in
+[conformance/05-web/artifacts_test.go](../conformance/05-web/artifacts_test.go).
+
 ## Editing rules
 
 - Edit HTML, CSS, and JavaScript in `internal/webui/assets/`, not in `webui.go`.

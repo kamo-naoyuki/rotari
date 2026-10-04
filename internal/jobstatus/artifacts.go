@@ -3,6 +3,7 @@ package jobstatus
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/artifact"
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -54,9 +55,12 @@ type ArtifactListing struct {
 // ArtifactEntry is one candidate with what the viewing host finds at its
 // path now. A missing path may exist on another host, such as an SSH job's.
 type ArtifactEntry struct {
-	Path  string `json:"path"`
-	Basis string `json:"basis"`
-	Type  string `json:"type"`
+	Path string `json:"path"`
+	// DisplayPath is Path relative to the listing's working directory when
+	// under it, and Path otherwise.
+	DisplayPath string `json:"display_path"`
+	Basis       string `json:"basis"`
+	Type        string `json:"type"`
 	// Origin is a one-line account of where the candidate was found.
 	Origin  string            `json:"origin"`
 	Sources []artifact.Source `json:"sources"`
@@ -73,7 +77,8 @@ func ListArtifacts(store state.Store, runsDir string, origin model.JobOrigin) Ar
 	listing := ArtifactListing{Recorded: true, Version: record.Version, WorkingDirectory: record.WorkingDirectory, Diagnostics: record.Diagnostics}
 	for _, candidate := range record.Candidates {
 		listing.Entries = append(listing.Entries, ArtifactEntry{
-			Path: candidate.Path, Basis: candidate.Basis, Type: observeArtifact(candidate),
+			Path: candidate.Path, DisplayPath: displayArtifactPath(record.WorkingDirectory, candidate.Path),
+			Basis: candidate.Basis, Type: observeArtifact(candidate),
 			Origin: artifact.Describe(candidate.Sources), Sources: candidate.Sources,
 		})
 	}
@@ -94,4 +99,17 @@ func observeArtifact(candidate artifact.Candidate) string {
 		return ArtifactDirectory
 	}
 	return ArtifactOther
+}
+
+// displayArtifactPath writes a path under the working directory relative to
+// it, and any other path as it is.
+func displayArtifactPath(workingDirectory, path string) string {
+	if workingDirectory == "" || !filepath.IsAbs(path) {
+		return path
+	}
+	relative, err := filepath.Rel(workingDirectory, path)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return path
+	}
+	return relative
 }

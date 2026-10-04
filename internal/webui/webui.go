@@ -19,6 +19,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
+	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/notification"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
@@ -591,6 +592,20 @@ func (s site) baseHandler() http.Handler {
 		}
 		writer.Header().Set(headerContentType, "text/markdown; charset=utf-8")
 		_, _ = writer.Write([]byte(report))
+	})
+	mux.HandleFunc("/api/artifacts", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			methodNotAllowed(writer)
+			return
+		}
+		query := request.URL.Query()
+		projectName, runID, jobID, attemptID := query.Get("project_name"), query.Get("run_id"), query.Get("job_id"), query.Get("attempt_id")
+		listing, err := webArtifacts(s.Store, baseDir, projectName, runID, jobID, attemptID)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writeWebJSON(writer, listing)
 	})
 	mux.HandleFunc("/api/log", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
@@ -1514,6 +1529,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 		return err
 	}
 	logs := map[string]string{}
+	artifacts := map[string]jobstatus.ArtifactListing{}
 	reports := map[string]staticReportVariants{}
 	wordClouds := map[string]outputWordCloud{}
 	configTargets := map[string][]webConfigTarget{}
@@ -1579,6 +1595,11 @@ func (s site) generateStaticWeb(outputDir string) error {
 						}
 					}
 				}
+				for _, attemptID := range staticArtifactAttempts(job) {
+					if listing, listErr := webArtifacts(s.Store, baseDir, queue.QueueName, run.RunID, job.ID, attemptID); listErr == nil {
+						artifacts[staticArtifactsKey(queue.QueueName, run.RunID, job.ID, attemptID)] = listing
+					}
+				}
 				if redacted, reportErr := report.Build(s.Store, paths, run.RunID, job.ID, false, "", true); reportErr == nil {
 					variants := staticReportVariants{Redacted: redacted}
 					if unredacted, unredactedErr := report.Build(s.Store, paths, run.RunID, job.ID, false, "", false); unredactedErr == nil {
@@ -1613,14 +1634,19 @@ func (s site) generateStaticWeb(outputDir string) error {
 	if err != nil {
 		return err
 	}
-	var escapedState, escapedLogs, escapedReports, escapedConfigTargets, escapedConfigs, escapedWordClouds bytes.Buffer
+	artifactsJSON, err := json.Marshal(artifacts)
+	if err != nil {
+		return err
+	}
+	var escapedState, escapedLogs, escapedReports, escapedConfigTargets, escapedConfigs, escapedWordClouds, escapedArtifacts bytes.Buffer
 	json.HTMLEscape(&escapedState, stateJSON)
 	json.HTMLEscape(&escapedLogs, logsJSON)
 	json.HTMLEscape(&escapedReports, reportsJSON)
 	json.HTMLEscape(&escapedConfigTargets, configTargetsJSON)
 	json.HTMLEscape(&escapedConfigs, configsJSON)
 	json.HTMLEscape(&escapedWordClouds, wordCloudsJSON)
-	bootstrap := "<script>\n" + composeStaticBootstrap(escapedState.String(), escapedLogs.String(), escapedReports.String(), escapedConfigTargets.String(), escapedConfigs.String(), escapedWordClouds.String()) + "\n</script>"
+	json.HTMLEscape(&escapedArtifacts, artifactsJSON)
+	bootstrap := "<script>\n" + composeStaticBootstrap(escapedState.String(), escapedLogs.String(), escapedReports.String(), escapedConfigTargets.String(), escapedConfigs.String(), escapedWordClouds.String(), escapedArtifacts.String()) + "\n</script>"
 	baseTemplate := s.webHTMLWithStaticBootstrap(bootstrap)
 	template := strings.Replace(baseTemplate, `href="/web_styles.css"`, `href="web_styles.css"`, 1)
 	template = strings.Replace(template, `href="/web_sidebar_styles.css"`, `href="web_sidebar_styles.css"`, 1)

@@ -95,6 +95,68 @@ async function showLog(queue, run, job, attemptID, stream, logMode) {
   attachLogLoader(output);
   followTimer = setInterval(followOutput, 2000);
 }
+async function showArtifacts(queue, run, job, attemptID) {
+  const modal = document.getElementById("output-modal");
+  modal.dataset.view = "artifacts";
+  modal.querySelector("strong").textContent = "Artifacts";
+  if (followTimer) clearInterval(followTimer);
+  followTimer = null;
+  selectedLog = null;
+  selectedOutput = "Loading...";
+  ensureModalOutput().textContent = selectedOutput;
+  openOutputModal(true);
+  const params = new URLSearchParams({
+    project_name: queue,
+    run_id: run,
+    job_id: job,
+  });
+  if (attemptID) params.set("attempt_id", attemptID);
+  try {
+    const response = await fetch("/api/artifacts?" + params);
+    if (!response.ok) throw new Error(await response.text());
+    selectedOutput = formatArtifactListing(await response.json());
+  } catch (error) {
+    selectedOutput = "Failed to load artifacts: " + error.message;
+  }
+  ensureModalOutput().textContent = selectedOutput;
+  openOutputModal(isCompactOutput(selectedOutput));
+}
+// formatArtifactListing lays out a listing from /api/artifacts line for
+// line as `rotari show -j JOB --artifacts` prints it; the server computes
+// every field.
+function formatArtifactListing(listing) {
+  if (!listing.recorded) return "Artifacts: (not recorded)";
+  const entries = listing.entries || [];
+  const lines = [];
+  if (!entries.length) {
+    lines.push("Artifacts: none found");
+  } else {
+    lines.push(
+      listing.working_directory
+        ? "Artifacts: relative to " + listing.working_directory
+        : "Artifacts:",
+    );
+    entries.forEach((entry) =>
+      lines.push(
+        "  " +
+          entry.type.padEnd(9) +
+          "  " +
+          entry.display_path +
+          "  (" +
+          entry.origin +
+          ")",
+      ),
+    );
+  }
+  const notes = listing.diagnostics || [];
+  if (notes.length) {
+    lines.push("Discovery notes:");
+    notes.forEach((note) =>
+      lines.push("  " + (note.source ? note.source + ": " : "") + note.message),
+    );
+  }
+  return lines.join("\n") + "\n";
+}
 function showDiagnosis(trigger) {
   if (followTimer) clearInterval(followTimer);
   followTimer = null;

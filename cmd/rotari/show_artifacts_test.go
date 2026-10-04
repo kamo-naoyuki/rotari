@@ -13,7 +13,8 @@ func TestWriteArtifactListing(t *testing.T) {
 	entries := func(count int) []jobstatus.ArtifactEntry {
 		var list []jobstatus.ArtifactEntry
 		for index := range count {
-			list = append(list, jobstatus.ArtifactEntry{Path: "/work/out/" + strconv.Itoa(index) + ".csv", Type: jobstatus.ArtifactMissing, Origin: "argument"})
+			path := "/work/out/" + strconv.Itoa(index) + ".csv"
+			list = append(list, jobstatus.ArtifactEntry{Path: path, DisplayPath: path, Type: jobstatus.ArtifactMissing, Origin: "argument"})
 		}
 		return list
 	}
@@ -28,10 +29,10 @@ func TestWriteArtifactListing(t *testing.T) {
 		{name: "none found", listing: jobstatus.ArtifactListing{Recorded: true}, limit: shownArtifacts,
 			want: "Artifacts: none found\n"},
 		{name: "relative to the working directory", listing: jobstatus.ArtifactListing{Recorded: true, WorkingDirectory: "/work", Entries: []jobstatus.ArtifactEntry{
-			{Path: "/work/results", Type: jobstatus.ArtifactDirectory, Origin: "a.yaml: out_dir"},
-			{Path: "/etc/hostname", Type: jobstatus.ArtifactFile, Origin: "argument"},
-			{Path: "/workspace/x.csv", Type: jobstatus.ArtifactMissing, Origin: "--in"},
-			{Path: "rel.csv", Type: jobstatus.ArtifactUnknown, Origin: "argument"},
+			{Path: "/work/results", DisplayPath: "results", Type: jobstatus.ArtifactDirectory, Origin: "a.yaml: out_dir"},
+			{Path: "/etc/hostname", DisplayPath: "/etc/hostname", Type: jobstatus.ArtifactFile, Origin: "argument"},
+			{Path: "/workspace/x.csv", DisplayPath: "/workspace/x.csv", Type: jobstatus.ArtifactMissing, Origin: "--in"},
+			{Path: "rel.csv", DisplayPath: "rel.csv", Type: jobstatus.ArtifactUnknown, Origin: "argument"},
 		}}, limit: shownArtifacts,
 			want: "Artifacts: relative to /work\n" +
 				"  directory  results  (a.yaml: out_dir)\n" +

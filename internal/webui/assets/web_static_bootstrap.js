@@ -4,6 +4,7 @@ window.__ROTARI_STATIC_REPORTS__ = __ROTARI_STATIC_REPORTS_DATA__;
 window.__ROTARI_STATIC_CONFIG_TARGETS__ = __ROTARI_STATIC_CONFIG_TARGETS_DATA__;
 window.__ROTARI_STATIC_CONFIGS__ = __ROTARI_STATIC_CONFIGS_DATA__;
 window.__ROTARI_STATIC_WORD_CLOUDS__ = __ROTARI_STATIC_WORD_CLOUDS_DATA__;
+window.__ROTARI_STATIC_ARTIFACTS__ = __ROTARI_STATIC_ARTIFACTS_DATA__;
 
 window.fetch = async function (input, init) {
   const request = new URL(input, window.location.href);
@@ -43,6 +44,21 @@ window.fetch = async function (input, init) {
     const cloud = window.__ROTARI_STATIC_WORD_CLOUDS__[key];
     return new Response(JSON.stringify(cloud || { terms: [] }), {
       status: cloud ? 200 : 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (request.pathname.endsWith("/api/artifacts")) {
+    const listing =
+      window.__ROTARI_STATIC_ARTIFACTS__[
+        staticArtifactsKey(
+          request.searchParams.get("project_name"),
+          request.searchParams.get("run_id"),
+          request.searchParams.get("job_id"),
+          request.searchParams.get("attempt_id"),
+        )
+      ];
+    if (!listing) return new Response("Artifacts not found", { status: 404 });
+    return new Response(JSON.stringify(listing), {
       headers: { "Content-Type": "application/json" },
     });
   }
@@ -118,6 +134,10 @@ window.fetch = async function (input, init) {
 
 function staticLogKey(queue, run, job, stream, attempt) {
   return [queue, run, job, stream, attempt || ""].join("/");
+}
+
+function staticArtifactsKey(project, run, job, attempt) {
+  return [project, run, job, attempt || ""].join("/");
 }
 
 function staticReportKey(project, run, job) {

@@ -139,7 +139,10 @@ Artifacts: relative to /work/exp
 `missing` only means the path is not there for this host: an SSH job's files
 may exist on its own host. `rotari show -j ATTEMPT_ID --artifacts` lists all
 of them, with notes on files discovery could not read, instead of the logs,
-and `show -j JOB --json` includes the same listing as `artifacts`. A carried
+and `show -j JOB --json` includes the same listing as `artifacts`. In the
+Web UI, a job row's Artifacts button shows the same listing for the attempt
+its Output button shows, also in a static export, where the listing
+describes the files as they were when the export was made. A carried
 job shows the candidates of the attempt that produced its result. Runs from
 before this record existed show `(not recorded)`.
 

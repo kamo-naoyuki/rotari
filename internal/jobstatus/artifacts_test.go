@@ -100,6 +100,14 @@ func TestListArtifactsObservesEachPath(t *testing.T) {
 	if !listing.Recorded || listing.Version != 7 || !reflect.DeepEqual(got, want) || len(listing.Diagnostics) != 1 {
 		t.Fatalf("listing = %+v\nentries %q, want %q", listing, got, want)
 	}
+	for path, want := range map[string]string{"/work/a/b.csv": "a/b.csv", "/work": ".", "/workspace/x": "/workspace/x", "/etc/x": "/etc/x", "rel.csv": "rel.csv"} {
+		if got := displayArtifactPath("/work", path); got != want {
+			t.Errorf("displayArtifactPath(/work, %s) = %s, want %s", path, got, want)
+		}
+	}
+	if got := displayArtifactPath("", "/work/a.csv"); got != "/work/a.csv" {
+		t.Errorf("displayArtifactPath without a working directory = %s", got)
+	}
 	if missing := ListArtifacts(testStore(), runsDir, model.JobOrigin{RunID: runID, JobID: "other"}); missing.Recorded || len(missing.Entries) != 0 {
 		t.Fatalf("listing without a record = %+v", missing)
 	}

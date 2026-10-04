@@ -2,7 +2,8 @@
 
 Created: 2026-10-04
 
-Status: step 1 done (CLI-16); steps 2 and 3 pending.
+Status: steps 1 (CLI-16) and 2 (WEB-5) done; step 3 (content preview)
+pending its safety design.
 
 ## Purpose
 
@@ -42,6 +43,13 @@ without reading `artifacts.json`.
   rejected, since one attempt is listed.
 - The record also keeps the effective working directory, so text views list
   paths relative to it; JSON keeps absolute paths.
+
+- The Web UI fetches the listing only when a job's Artifacts button is
+  pressed (`/api/artifacts`), so loading a run does not observe every
+  candidate of every job. A static export embeds the listing of each job's
+  latest attempt and of each attempt, observed at export time.
+- `display_path` is computed with the listing, so the CLI and the Web UI only
+  lay out fields; a jsdom test checks the Web layout against the CLI's.
 
 ## Validation
 
