@@ -41,6 +41,12 @@ func newArtifactRecorder(runDir string, jobs []model.JobSpec, store state.Store,
 // prepare discovers the candidates of job's attempt, whose working directory
 // is resolved and whose attempt ID is assigned.
 func (recorder *artifactRecorder) prepare(job model.JobSpec) {
+	// Discovery is best-effort; a defect in it must not stop the run.
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			recorder.logf("WARNING: artifact discovery failed for job %s: %v", job.ID, recovered)
+		}
+	}()
 	read := artifactsource.Read
 	if job.Executor == "ssh" {
 		read = func(string) ([]byte, error) { return nil, errRemoteSource }
