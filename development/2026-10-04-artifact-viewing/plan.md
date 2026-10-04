@@ -106,9 +106,30 @@ Downloads are allowed without a size limit (`Content-Disposition:
 attachment`, streamed). Every content response carries
 `Cache-Control: no-store`.
 
+### Contents in a static export (`--static-artifact-contents`)
+
+Agreed 2026-10-04 as an opt-in for demos and shared snapshots:
+
+- `rotari web --static-dir DIR --static-artifact-contents` copies the
+  contents of previewable candidates into the export; without `--static-dir`
+  the flag is an error. The same three rules apply as on the live server,
+  with the job's working directory as the only root (`--artifact-root` stays
+  live-only).
+- Each file of at most 10 MiB is copied to `artifact-files/` in the export,
+  up to 100 MiB in all; images, audio, video, and downloads refer to the
+  copy by a relative path. Larger files, and files beyond the total, stay
+  listed without a preview.
+- The first answer of every other preview is embedded: a text file of at
+  most 1 MiB as one page, an `.npy`/`.npz` description, and a directory's
+  first page. Opening a directory's children or its later pages is not in
+  the export and says so.
+- The export prints how many files and bytes it copied, since anyone who can
+  read the export can read them.
+
 ### Out of scope
 
-- Static exports keep the listing only, never file contents.
+- Static exports keep the listing only, never file contents, unless
+  `--static-artifact-contents` is given.
 - Only files visible to the Web server's host are previewed; an SSH job's
   files are not fetched.
 - The CLI does not preview; it prints the paths.

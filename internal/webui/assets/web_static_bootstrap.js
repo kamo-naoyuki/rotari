@@ -5,6 +5,8 @@ window.__ROTARI_STATIC_CONFIG_TARGETS__ = __ROTARI_STATIC_CONFIG_TARGETS_DATA__;
 window.__ROTARI_STATIC_CONFIGS__ = __ROTARI_STATIC_CONFIGS_DATA__;
 window.__ROTARI_STATIC_WORD_CLOUDS__ = __ROTARI_STATIC_WORD_CLOUDS_DATA__;
 window.__ROTARI_STATIC_ARTIFACTS__ = __ROTARI_STATIC_ARTIFACTS_DATA__;
+window.__ROTARI_STATIC_ARTIFACT_CONTENTS__ =
+  __ROTARI_STATIC_ARTIFACT_CONTENTS_DATA__;
 
 window.fetch = async function (input, init) {
   const request = new URL(input, window.location.href);
@@ -59,6 +61,35 @@ window.fetch = async function (input, init) {
       ];
     if (!listing) return new Response("Artifacts not found", { status: 404 });
     return new Response(JSON.stringify(listing), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  const artifactRoute = request.pathname.match(
+    /\/api\/artifact-(text|array|directory|file)$/,
+  );
+  if (artifactRoute) {
+    const contents = window.__ROTARI_STATIC_ARTIFACT_CONTENTS__;
+    const key = staticArtifactEntryKey(request.searchParams);
+    if (artifactRoute[1] === "file") {
+      const meta = (contents.meta || {})[key];
+      if (!meta)
+        return new Response("Not included in this static export", {
+          status: 404,
+        });
+      return new Response(null, {
+        headers: {
+          "Content-Length": String(meta.size),
+          "Last-Modified": meta.modified,
+        },
+      });
+    }
+    const page = (contents.pages || {})[key + artifactRoute[1]];
+    if (!page || (request.searchParams.get("offset") || "0") !== "0") {
+      return new Response("Not included in this static export", {
+        status: 404,
+      });
+    }
+    return new Response(JSON.stringify(page), {
       headers: { "Content-Type": "application/json" },
     });
   }
@@ -138,6 +169,28 @@ function staticLogKey(queue, run, job, stream, attempt) {
 
 function staticArtifactsKey(project, run, job, attempt) {
   return [project, run, job, attempt || ""].join("/");
+}
+
+// staticArtifactEntryKey identifies a listed entry's embedded contents,
+// matching staticArtifactEntryKey in internal/webui/static_artifacts.go.
+// Children of a listed directory are not embedded, so their keys match
+// nothing.
+function staticArtifactEntryKey(params) {
+  return [
+    params.get("project_name"),
+    params.get("run_id"),
+    params.get("job_id"),
+    params.get("attempt_id") || "",
+    params.get("entry"),
+    params.get("child") || "",
+  ].join("/");
+}
+
+// staticArtifactFileURL is the export's copy of a listed file, for img,
+// audio, video, and download links, or "" when none was copied.
+function staticArtifactFileURL(params) {
+  const files = window.__ROTARI_STATIC_ARTIFACT_CONTENTS__.files || {};
+  return files[staticArtifactEntryKey(params)] || "";
 }
 
 function staticReportKey(project, run, job) {

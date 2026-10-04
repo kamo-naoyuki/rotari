@@ -26,7 +26,7 @@ implementation imports. The staged rollout is tracked in the
 
 ## Current layers
 
-- `TestCLIFlagPairInventory` enumerates all 6,843 unordered flag-name pairs.
+- `TestCLIFlagPairInventory` enumerates all 6,852 unordered flag-name pairs.
   Sorted flag-name fingerprints require an explicit coverage review when a
   command or flag is added, removed, or renamed. This is not exhaustive value
   coverage; changes to descriptions/types without a name change are not
@@ -132,7 +132,7 @@ implementation imports. The staged rollout is tracked in the
   signal. An alternate-registry witness proves config selection and explicit
   masterdir precedence in both orders. Shutdown and live lease behavior are
   still outside this adapter.
-- `TestCLIFlagPairWeb` executes all 36 `web` pairs in static-export mode, with
+- `TestCLIFlagPairWeb` executes all 45 `web` pairs in static-export mode, with
   generated output compared by relative asset paths and permissions in both
   orders. Server-only options (`--host`, `--port`, `--auth-token`,
   `--allow-control`, and `--artifact-root`) are explicitly rejected whenever supplied by the CLI,
@@ -200,9 +200,9 @@ advertised flags have adapters; no generated pair is deferred.
 | --- | ---: | --- |
 | `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
-The 6,818 executed pairs consist of 822 read-only, 36 file-output, 178
+The 6,827 executed pairs consist of 822 read-only, 36 file-output, 178
 queue-mutation, 1,520 edit, 3,660 run/retry previews, 6 unlock, 21 wait,
-6 gc/server, 1 MCP, 36 web static-export, and 532 job-control
+6 gc/server, 1 MCP, 45 web static-export, and 532 job-control
 pairs. The edit pair
 loop accepted 1,187 and explicitly rejected 333 pairs in 3,040 invocations;
 one run took 4m01s including setup.

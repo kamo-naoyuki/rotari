@@ -26,6 +26,12 @@ type Options struct {
 	// ArtifactRoots are directories, besides each job's working directory,
 	// whose recorded artifact candidates the live server may serve.
 	ArtifactRoots []string
+	// StaticArtifactContents makes a static export copy the contents of
+	// previewable artifact candidates, so previews work without a server.
+	StaticArtifactContents bool
+	// StaticArtifactsCopied, when set, is told how many files and bytes a
+	// static export copied for StaticArtifactContents.
+	StaticArtifactsCopied func(files int, bytes int64)
 	// NotificationSettings controls which browser events and fields are shown.
 	NotificationSettings notification.ChannelSettings
 

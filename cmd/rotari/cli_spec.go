@@ -405,6 +405,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "allow-control", Description: "enable job control (copy/change/remove/cancel/clear) in the live server; false makes it read-only; incompatible with --static-dir"},
 			cliFlagSpec{Name: "auth-token", Description: "require this token in Authorization: Bearer or X-Rotari-Token on the live server; cannot be combined with --static-dir; prefer ROTARI_WEB_AUTH_TOKEN for secrets", ValueName: "TOKEN"},
 			cliFlagSpec{Name: "notifications", Description: "default state of the browser desktop-notification toggle; pass --notifications=false to default it off"},
+			cliFlagSpec{Name: "static-artifact-contents", Description: "copy previewable artifact files (up to 10 MiB each, 100 MiB in all) into the static export so previews work there; requires --static-dir", CommandLineOnly: true},
 			cliFlagSpec{Name: "artifact-root", Description: "also serve recorded artifact files under this directory, besides each job's working directory (live server only; may be repeated; cannot be combined with --static-dir)", ValueName: "DIR", Repeated: true, CommandLineOnly: true},
 		),
 	},

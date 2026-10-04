@@ -97,7 +97,7 @@ func composeWebHTMLWithNotificationSettings(executors []string, notifications bo
 	return template
 }
 
-func composeStaticBootstrap(state, logs, reports, configTargets, configs, wordClouds, artifacts string) string {
+func composeStaticBootstrap(state, logs, reports, configTargets, configs, wordClouds, artifacts, artifactData string) string {
 	bootstrap := webStaticBootstrapJS
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_STATE_DATA__", state, 1)
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_LOGS_DATA__", logs, 1)
@@ -106,6 +106,7 @@ func composeStaticBootstrap(state, logs, reports, configTargets, configs, wordCl
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_CONFIGS_DATA__", configs, 1)
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_WORD_CLOUDS_DATA__", wordClouds, 1)
 	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_ARTIFACTS_DATA__", artifacts, 1)
+	bootstrap = strings.Replace(bootstrap, "__ROTARI_STATIC_ARTIFACT_CONTENTS_DATA__", artifactData, 1)
 	return bootstrap
 }
 

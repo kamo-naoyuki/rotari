@@ -1882,6 +1882,9 @@
           "name": "notifications"
         },
         {
+          "name": "static-artifact-contents"
+        },
+        {
           "name": "artifact-root",
           "value_name": "DIR"
         }

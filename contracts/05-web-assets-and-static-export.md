@@ -442,10 +442,27 @@ boundaries, from the start or, for `.log` and `.txt` in the UI, from the end,
 and a file with a NUL byte is not text. A directory lists its immediate
 children, directories first and then by name, 200 per page, reading at most
 100,000 names. `--artifact-root` must name a directory and is rejected with
-`--static-dir`; static exports contain listings but no file contents. The
+`--static-dir`; static exports contain listings but no file contents unless
+WEB-7 applies. The
 handlers are in [internal/webui/artifact_files.go](../internal/webui/artifact_files.go)
 and the view in [web_app_artifacts.js](../internal/webui/assets/web_app_artifacts.js);
 covered by `TestWebPreviewsArtifactsUnderAllowedRoots` in
+[conformance/05-web/artifacts_test.go](../conformance/05-web/artifacts_test.go).
+
+**WEB-7** `rotari web --static-dir DIR --static-artifact-contents` copies the
+contents of the candidates WEB-6 would serve, with the job's working
+directory as the only root, into `DIR/artifact-files/`: each file of at most
+10 MiB, up to 100 MiB in all, one copy per file however many attempts list it.
+It embeds the first answer of the other previews (a text file of at most
+1 MiB as one page, an `.npy`/`.npz` description, a directory's first page),
+marks those entries previewable, and prints how many files and bytes it
+copied when it copied any. Opening a directory's children or later pages in
+the export says they are not included. The flag requires `--static-dir`.
+Without it, a static export has no file contents. Implemented in
+[internal/webui/static_artifacts.go](../internal/webui/static_artifacts.go)
+and `staticArtifactFileURL` in
+[web_static_bootstrap.js](../internal/webui/assets/web_static_bootstrap.js);
+covered by `TestStaticExportCopiesArtifactContents` in
 [conformance/05-web/artifacts_test.go](../conformance/05-web/artifacts_test.go).
 
 ## Editing rules

@@ -152,8 +152,11 @@ and `.txt` files from the end, other text from the start, each loading more
 on demand, and a directory as its immediate children, 200 at a time. Any
 file can be downloaded. A path outside the working directory, or a symlink
 leading out of it, is listed but not opened; add a directory with
-`rotari web --artifact-root DIR` to allow it. Static exports never contain
-file contents. A carried
+`rotari web --artifact-root DIR` to allow it. A static export contains no
+file contents unless it is made with `--static-artifact-contents`, which
+copies previewable files from the jobs' working directories (up to 10 MiB
+each, 100 MiB in all) so previews work in the export; anyone who can read the
+export can then read those files. A carried
 job shows the candidates of the attempt that produced its result. Runs from
 before this record existed show `(not recorded)`.
 

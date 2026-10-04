@@ -146,7 +146,7 @@ function renderArtifactListing() {
     .join("");
   const hint = listing.previewable
     ? ""
-    : '<p class="meta">Previews need the live Web UI.</p>';
+    : '<p class="meta">Previews need the live Web UI, or a static export made with --static-artifact-contents.</p>';
   artifactView().innerHTML =
     (listing.working_directory
       ? '<p class="meta">Relative to ' + esc(listing.working_directory) + "</p>"
@@ -184,6 +184,13 @@ function artifactPath(path, index, child, extra) {
   );
 }
 function artifactURL(path, index, child, extra) {
+  // A static export made with --static-artifact-contents serves its copy.
+  if (typeof staticArtifactFileURL === "function") {
+    const copy = staticArtifactFileURL(
+      artifactParams(selectedArtifacts, { entry: String(index), child }),
+    );
+    if (copy) return copy;
+  }
   return appURL(artifactPath(path, index, child, extra));
 }
 function artifactExtension(index, child) {

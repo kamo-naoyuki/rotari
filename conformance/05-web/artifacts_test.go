@@ -160,3 +160,67 @@ func TestWebPreviewsArtifactsUnderAllowedRoots(t *testing.T) {
 		t.Fatalf("--artifact-root of a file = %s", r)
 	}
 }
+
+func TestStaticExportCopiesArtifactContents(t *testing.T) {
+	covers(t, "WEB-7")
+	e := support.NewEnv(t)
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := `printf 'PNG' > plot.png; seq 1 3 > n.log; ln -s "$1" link.txt`
+	e.MustRotari("add", "-p", "st", "--", "sh", "-c", script, "sh", filepath.Join(outside, "secret.txt"), "plot.png", "n.log", "link.txt")
+	e.MustRotari("run", "-p", "st", "--quiet")
+
+	plain := filepath.Join(e.Root, "plain")
+	e.MustRotari("web", "--static-dir", plain)
+	if _, err := os.Stat(filepath.Join(plain, "artifact-files")); !os.IsNotExist(err) {
+		t.Fatalf("a static export without the flag copied files: %v", err)
+	}
+
+	output := filepath.Join(e.Root, "static")
+	result := e.MustRotari("web", "--static-dir", output, "--static-artifact-contents")
+	if !strings.Contains(result.Stderr, "Copied 2 artifact files (9 bytes)") {
+		t.Fatalf("copy notice = %q", result.Stderr)
+	}
+	files, err := os.ReadDir(filepath.Join(output, "artifact-files"))
+	if err != nil || len(files) != 2 {
+		t.Fatalf("artifact-files = %v, %v; want plot.png and n.log only", files, err)
+	}
+	page, err := os.ReadFile(filepath.Join(output, "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	match := regexp.MustCompile(`window\.__ROTARI_STATIC_ARTIFACT_CONTENTS__ =\s*(\{.*\});`).FindSubmatch(page)
+	if match == nil {
+		t.Fatal("static export has no artifact contents")
+	}
+	var contents struct {
+		Files map[string]string          `json:"files"`
+		Pages map[string]json.RawMessage `json:"pages"`
+	}
+	if err := json.Unmarshal(match[1], &contents); err != nil {
+		t.Fatal(err)
+	}
+	copied := map[string]string{}
+	for _, path := range contents.Files {
+		data, err := os.ReadFile(filepath.Join(output, path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		copied[filepath.Ext(path)] = string(data)
+	}
+	if copied[".png"] != "PNG" || copied[".log"] != "1\n2\n3\n" {
+		t.Fatalf("copied contents = %q", copied)
+	}
+	textPage := false
+	for key, value := range contents.Pages {
+		textPage = textPage || (strings.HasSuffix(key, "text") && strings.Contains(string(value), `"text":"1\n2\n3\n"`))
+	}
+	if !textPage {
+		t.Fatalf("no embedded text page: %v", contents.Pages)
+	}
+	if r := e.Rotari("web", "--static-artifact-contents", "--port", "0"); r.Code != 1 || !strings.Contains(r.Stderr, "requires --static-dir") {
+		t.Fatalf("flag without --static-dir = %s", r)
+	}
+}

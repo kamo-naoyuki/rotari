@@ -28,6 +28,8 @@ func webArgs(t *testing.T, f pairFixture, output string, flags []pairFlag) []str
 			args = append(args, "--allow-control=false")
 		case "notifications":
 			args = append(args, "--notifications=false")
+		case "static-artifact-contents":
+			args = append(args, "--static-artifact-contents")
 		default:
 			value, ok := values[flag.Name]
 			if !ok {

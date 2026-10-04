@@ -36,6 +36,13 @@ func cmdWeb(args []string) int {
 	}
 	options.NotificationSettings = loadedNotifications.Settings.Browser
 	if flags.staticDir != "" {
+		options.StaticArtifactContents = flags.staticArtifactContents
+		options.StaticArtifactsCopied = func(files int, bytes int64) {
+			if files == 0 {
+				return
+			}
+			printWarningf("Copied %d artifact files (%d bytes) into %s; anyone who can read the export can read them.", files, bytes, flags.staticDir)
+		}
 		return generateStaticWeb(flags.staticDir, options)
 	}
 	return serveWeb(flags, baseDir, options)
@@ -48,6 +55,8 @@ type webCommandFlags struct {
 	portExplicit                        bool
 	// artifactRoots are absolute --artifact-root directories.
 	artifactRoots []string
+	// staticArtifactContents copies artifact files into a static export.
+	staticArtifactContents bool
 }
 
 func parseWebFlags(args []string) (webCommandFlags, int) {
@@ -61,6 +70,7 @@ func parseWebFlags(args []string) (webCommandFlags, int) {
 	notifications := cliBool(fs, "notifications", true)
 	var artifactRoots stringSliceFlag
 	cliValue(fs, &artifactRoots, "artifact-root")
+	staticArtifactContents := cliBool(fs, "static-artifact-contents", false)
 	if err := cliParse(fs, args); err != nil {
 		return webCommandFlags{}, 1
 	}
@@ -75,7 +85,11 @@ func parseWebFlags(args []string) (webCommandFlags, int) {
 			return webCommandFlags{}, 1
 		}
 	}
-	flags := webCommandFlags{basedir: *basedir, host: *host, port: *port, staticDir: *staticDir, authToken: *authToken, allowControl: *allowControl, notifications: *notifications}
+	if *staticArtifactContents && *staticDir == "" {
+		printError("--static-artifact-contents requires --static-dir")
+		return webCommandFlags{}, 1
+	}
+	flags := webCommandFlags{basedir: *basedir, host: *host, port: *port, staticDir: *staticDir, authToken: *authToken, allowControl: *allowControl, notifications: *notifications, staticArtifactContents: *staticArtifactContents}
 	for _, root := range artifactRoots {
 		absolute, err := filepath.Abs(root)
 		if info, statErr := os.Stat(absolute); err != nil || statErr != nil || !info.IsDir() {

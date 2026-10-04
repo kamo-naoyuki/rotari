@@ -2606,6 +2606,13 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "notifications",
                 },
                 {
+                    "description": "copy previewable artifact files (up to 10 "
+                    "MiB each, 100 MiB in all) into the static "
+                    "export so previews work there; requires "
+                    "--static-dir",
+                    "name": "static-artifact-contents",
+                },
+                {
                     "description": "also serve recorded artifact files under "
                     "this directory, besides each job's working "
                     "directory (live server only; may be "

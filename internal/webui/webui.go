@@ -19,7 +19,6 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
-	"github.com/kamo-naoyuki/rotari/internal/jobstatus"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/notification"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
@@ -1541,7 +1540,11 @@ func (s site) generateStaticWeb(outputDir string) error {
 		return err
 	}
 	logs := map[string]string{}
-	artifacts := map[string]jobstatus.ArtifactListing{}
+	artifacts := map[string]webArtifactListing{}
+	var contents *staticArtifactCollector
+	if s.StaticArtifactContents {
+		contents = newStaticArtifactCollector(s, baseDir)
+	}
 	reports := map[string]staticReportVariants{}
 	wordClouds := map[string]outputWordCloud{}
 	configTargets := map[string][]webConfigTarget{}
@@ -1609,7 +1612,11 @@ func (s site) generateStaticWeb(outputDir string) error {
 				}
 				for _, attemptID := range staticArtifactAttempts(job) {
 					if listing, listErr := webArtifacts(s.Store, baseDir, queue.QueueName, run.RunID, job.ID, attemptID); listErr == nil {
-						artifacts[staticArtifactsKey(queue.QueueName, run.RunID, job.ID, attemptID)] = listing
+						entry := webArtifactListing{ArtifactListing: listing}
+						if contents != nil {
+							entry.Previewable = contents.collect(queue.QueueName, run.RunID, job.ID, attemptID, entry)
+						}
+						artifacts[staticArtifactsKey(queue.QueueName, run.RunID, job.ID, attemptID)] = entry
 					}
 				}
 				if redacted, reportErr := report.Build(s.Store, paths, run.RunID, job.ID, false, "", true); reportErr == nil {
@@ -1650,7 +1657,15 @@ func (s site) generateStaticWeb(outputDir string) error {
 	if err != nil {
 		return err
 	}
-	var escapedState, escapedLogs, escapedReports, escapedConfigTargets, escapedConfigs, escapedWordClouds, escapedArtifacts bytes.Buffer
+	artifactData := staticArtifactData{}
+	if contents != nil {
+		artifactData = contents.data
+	}
+	artifactDataJSON, err := json.Marshal(artifactData)
+	if err != nil {
+		return err
+	}
+	var escapedState, escapedLogs, escapedReports, escapedConfigTargets, escapedConfigs, escapedWordClouds, escapedArtifacts, escapedArtifactData bytes.Buffer
 	json.HTMLEscape(&escapedState, stateJSON)
 	json.HTMLEscape(&escapedLogs, logsJSON)
 	json.HTMLEscape(&escapedReports, reportsJSON)
@@ -1658,7 +1673,8 @@ func (s site) generateStaticWeb(outputDir string) error {
 	json.HTMLEscape(&escapedConfigs, configsJSON)
 	json.HTMLEscape(&escapedWordClouds, wordCloudsJSON)
 	json.HTMLEscape(&escapedArtifacts, artifactsJSON)
-	bootstrap := "<script>\n" + composeStaticBootstrap(escapedState.String(), escapedLogs.String(), escapedReports.String(), escapedConfigTargets.String(), escapedConfigs.String(), escapedWordClouds.String(), escapedArtifacts.String()) + "\n</script>"
+	json.HTMLEscape(&escapedArtifactData, artifactDataJSON)
+	bootstrap := "<script>\n" + composeStaticBootstrap(escapedState.String(), escapedLogs.String(), escapedReports.String(), escapedConfigTargets.String(), escapedConfigs.String(), escapedWordClouds.String(), escapedArtifacts.String(), escapedArtifactData.String()) + "\n</script>"
 	baseTemplate := s.webHTMLWithStaticBootstrap(bootstrap)
 	template := strings.Replace(baseTemplate, `href="/web_styles.css"`, `href="web_styles.css"`, 1)
 	template = strings.Replace(template, `href="/web_sidebar_styles.css"`, `href="web_sidebar_styles.css"`, 1)
@@ -1711,6 +1727,15 @@ func (s site) generateStaticWeb(outputDir string) error {
 	}
 	if err := os.WriteFile(filepath.Join(outputDir, ".nojekyll"), nil, 0o644); err != nil {
 		return err
+	}
+	if contents != nil {
+		files, written, err := contents.write(outputDir)
+		if err != nil {
+			return err
+		}
+		if s.StaticArtifactsCopied != nil {
+			s.StaticArtifactsCopied(files, written)
+		}
 	}
 	for _, queue := range state.Queues {
 		queuePath := filepath.Join(outputDir, "project", url.PathEscape(queue.QueueName))
