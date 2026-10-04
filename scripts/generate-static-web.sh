@@ -63,6 +63,29 @@ fi
     sh -c 'echo collected the finished sweep results'
 "${binary}" run -p sweep --run-name "Hyperparameter sweep" || true
 
+# A training job that writes files, so its job details list artifact
+# candidates: the script it runs and what that script writes, the --config
+# file and the paths inside it, and its --output log. The files live in the
+# temporary work directory; the export records what was there when it ran.
+workspace="${work_dir}/workspace"
+mkdir -p "${workspace}/conf" "${workspace}/data"
+printf 'x,y\n0.1,0.3\n0.4,0.9\n0.7,1.6\n' >"${workspace}/data/train.csv"
+cat >"${workspace}/conf/train.yaml" <<'YAML'
+data_path: data/train.csv
+output_dir: results
+epochs: 3
+YAML
+cat >"${workspace}/train.sh" <<'SCRIPT'
+mkdir -p results
+printf 'epoch,loss,accuracy\n1,0.92,0.61\n2,0.55,0.78\n3,0.41,0.84\n' > results/metrics.csv
+printf '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="120"><polyline fill="none" stroke="#4f46e5" stroke-width="3" points="20,20 120,70 220,90"/></svg>\n' > results/loss.svg
+echo "epoch 3: loss 0.41 accuracy 0.84" > results/train.log
+echo "training complete"
+SCRIPT
+"${binary}" add -p artifacts --job-name train --working-directory "${workspace}" \
+    --output logs/train.log -- sh train.sh --config conf/train.yaml
+"${binary}" run -p artifacts --run-name "Training with artifacts"
+
 echo "generating static pages in ${output_dir}..."
 # Export every project, not only the one ROTARI_PROJECT_NAME selects.
 env -u ROTARI_PROJECT_NAME "${binary}" web --static-dir "${output_dir}"
