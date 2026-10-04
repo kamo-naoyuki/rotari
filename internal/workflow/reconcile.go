@@ -564,7 +564,9 @@ func desiredStatus(job Job, matrix *model.MatrixSpec, task *int, result model.Jo
 	if instance := findInstance(job, matrix, task); instance != nil {
 		return instance.Status
 	}
-	if len(job.Instances) == 0 && job.Status != "" {
+	// A plain job's status is its own. A group's is an aggregate, so its
+	// unlisted leaves keep their source result.
+	if matrix == nil && task == nil && job.Status != "" {
 		return job.Status
 	}
 	return resultStatus(result, true)

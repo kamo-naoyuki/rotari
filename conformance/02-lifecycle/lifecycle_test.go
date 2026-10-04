@@ -597,6 +597,55 @@ jobs:
 	}
 }
 
+// Removing every instance from an exported matrix or array job leaves its
+// aggregate job-level status, which must not mark the members' source
+// results: retry executes only the failed leaves again.
+func TestImportedGroupStatusKeepsUnlistedLeafResults(t *testing.T) {
+	covers(t, "RUN-10")
+	e := support.NewEnv(t)
+	logPath := filepath.Join(e.Root, "executed.log")
+	e.MustRotari("add", "-p", "groups", "--job-name", "train", "--matrix", "SEED=1,2", "--",
+		"sh", "-c", `echo train$SEED >> "$0"; [ "$SEED" = 1 ]`, logPath)
+	e.MustRotari("add", "-p", "groups", "--job-name", "tasks", "--array", "1-2", "--",
+		"sh", "-c", `echo task$ROTARI_ARRAY_TASK_ID >> "$0"; [ "$ROTARI_ARRAY_TASK_ID" = 1 ]`, logPath)
+	e.Rotari("run", "-p", "groups", "--quiet")
+	manifestPath := filepath.Join(e.Root, "groups.json")
+	e.MustRotari("export", "-p", "groups", "-o", "json", "--output", manifestPath)
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest map[string]any
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	for _, job := range manifest["jobs"].([]any) {
+		fields := job.(map[string]any)
+		if fields["status"] != "failed" || fields["instances"] == nil {
+			t.Fatalf("exported group = %v, want failed status with instances", fields)
+		}
+		delete(fields, "instances")
+	}
+	if data, err = json.Marshal(manifest); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifestPath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(logPath); err != nil {
+		t.Fatal(err)
+	}
+	e.MustRotari("import", "--overwrite", manifestPath, "groups")
+	e.Rotari("retry", "-p", "groups", "--quiet")
+	executed, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Fields(string(executed)); strings.Join(got, ",") != "train2,task2" && strings.Join(got, ",") != "task2,train2" {
+		t.Fatalf("executed leaves = %v, want only the failed train2 and task2", got)
+	}
+}
+
 // A rule naming one dimension twice is rejected by the CLI and by every
 // manifest format, rather than keeping one of the values.
 func TestMatrixExclusionRejectsRepeatedDimension(t *testing.T) {

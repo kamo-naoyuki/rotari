@@ -108,4 +108,9 @@ IDs are retained, while duplicate non-empty job names are rejected.
 `attempt_id` is provenance and should normally remain unchanged. Import rejects
 malformed, missing, or unreachable attempts. Status is intentionally editable.
 Matrix and array manifests keep only non-success leaves under `instances`, while
-successful leaves are recovered from the source runs.
+successful leaves are recovered from the source runs. Edit a leaf's status in
+its `instances` entry. A matrix or array job's own `status` is the aggregate of
+its leaves: changing it to `success` accepts every leaf, and any other value
+changes none, so a leaf missing from `instances` keeps its source result even
+after every entry is removed. To execute a whole matrix again, use
+`rotari run --matrix NAME` after importing.

@@ -109,6 +109,41 @@ func TestReconcileLinksSourcesAndMarksEditedStatuses(t *testing.T) {
 	}
 }
 
+// A group's job-level status is an aggregate, so apart from accepting every
+// leaf with success it does not apply to leaves that instances omit, even
+// when instances is empty; those leaves keep their source result.
+func TestReconcileGroupStatusDoesNotOverrideUnlistedLeaves(t *testing.T) {
+	dimensions := []model.MatrixDimension{{Name: "SEED", Values: []string{"1", "2"}}}
+	combinations := model.ExpandMatrix(dimensions)
+	commands := make([]model.QueuedCommand, 0, len(combinations)+1)
+	for index, combination := range combinations {
+		commands = append(commands, model.QueuedCommand{
+			ID: fmt.Sprintf("seed-%d", index+1), Name: model.MatrixJobName("train", combination), Command: []string{"train"},
+			Environment: model.MatrixEnvironment(nil, combination),
+			Matrix:      &model.MatrixSpec{GroupID: "source-group", Dimensions: dimensions, Values: combination, BaseName: "train"},
+		})
+	}
+	commands = append(commands, model.QueuedCommand{ID: "tasks", Name: "tasks", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 2}})
+	store, attempts := sourceStore(commands,
+		model.JobResult{ID: "seed-1", ExitCode: 0},
+		model.JobResult{ID: "seed-2", ExitCode: 3},
+		model.JobResult{ID: "tasks-1", ExitCode: 0},
+		model.JobResult{ID: "tasks-2", ExitCode: 2},
+	)
+	queue, _, err := reconcileManifest(t, store,
+		Job{Name: "train", Command: []string{"train"}, Matrix: []string{"SEED=1,2"}, AttemptID: attempts["seed-1"], Status: "unfinished"},
+		Job{Name: "tasks", Command: []string{"work"}, Array: "1-2", AttemptID: attempts["tasks-1"], Status: "unfinished"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range queue.Commands {
+		if command.MarkedStatus != "" || len(command.TaskMarkedStatus) != 0 {
+			t.Errorf("%s marked %q / %v, want its source results unmarked", command.Name, command.MarkedStatus, command.TaskMarkedStatus)
+		}
+	}
+}
+
 func TestReconcileCountsMatrixExcludedMembers(t *testing.T) {
 	dimensions := []model.MatrixDimension{
 		{Name: "SEED", Values: []string{"1", "2"}},

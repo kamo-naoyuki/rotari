@@ -129,6 +129,17 @@
   [conformance/02-lifecycle/artifacts_test.go](../conformance/02-lifecycle/artifacts_test.go).
   [Artifact candidate rules](#artifact-candidate-rules) lists every rule
   with examples of what is recorded and what is not.
+- **RUN-10** An edited `status` in an imported manifest applies to what it is
+  written on. A plain job's `status` is the job's own. An `instances` entry's
+  `status` applies to that matrix combination or array task. A matrix or array
+  job's job-level `status` is an aggregate: `success` accepts every leaf, and
+  any other value marks none, so a leaf missing from `instances` keeps its
+  source result even when `instances` is empty. The rule is `desiredStatus`
+  in [internal/workflow/reconcile.go](../internal/workflow/reconcile.go);
+  covered by `TestImportedGroupStatusKeepsUnlistedLeafResults` in
+  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go)
+  and `TestReconcileGroupStatusDoesNotOverrideUnlistedLeaves` in
+  [internal/workflow/reconcile_test.go](../internal/workflow/reconcile_test.go).
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,
