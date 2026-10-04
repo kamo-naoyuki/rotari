@@ -241,3 +241,45 @@ proxies disabled. ruff, `bash -n`, and doclinks passed. A full
 
 **Remaining:** The static export shows listings only; previews in the demo
 would need file contents embedded in the export.
+
+## Contents in static exports
+
+**Commits:**
+
+- `8b44549` — 2026-10-04T21:02:50+09:00 (`--static-artifact-contents`)
+- `764dcbf` — 2026-10-04T21:02:50+09:00 (demo uses it)
+
+**Change:** `rotari web --static-dir DIR --static-artifact-contents` (command
+line only; an error without `--static-dir`) runs
+`internal/webui/static_artifacts.go`. It resolves each entry under the live
+server's rules, with the job's working directory as the only root, and
+copies files of at most 10 MiB, up to 100 MiB in all and once per file, to
+`DIR/artifact-files/`. It embeds text pages (whole files of at most 1 MiB
+without NUL bytes), `.npy`/`.npz` descriptions, directory first pages, and
+size and time. The export's listings gain `previewable`. The static
+bootstrap answers the content routes from the embedded data ("Not included
+in this static export" otherwise), and `staticArtifactFileURL` points img,
+audio, video, and download links at the copies. A warning reports the files
+and bytes copied, only when there are any. Added WEB-7, the `web` flag-pair
+inventory (10 flags, 45 pairs) and its static sample, regenerated goldens,
+the CLI reference, and Python CLI metadata, and updated docs/INSPECT.md and
+the plan. The demo generator passes the flag.
+
+**Reason:** The user asked to build the proposed flag so the static demo can
+show previews.
+
+**Validation:** `TestStaticExportWithArtifactContents` exported the fixture
+(8 files copied, none outside the root or through an escaping symlink) and,
+in jsdom with no server, opened an image, audio, a whole log, a table, an
+array, a file without a preview, a directory, and the "not included"
+answers. `TestStaticArtifactContentsRules` covers the per-file limit, the
+total limit, and reuse of a copied file; its first version wrongly expected
+an already-copied file to count against the total. The pair harness rejected
+the notice on stderr for exports that copied nothing, so the notice is
+printed only when something was copied. `TestStaticExportCopiesArtifactContents`
+(binary) and `pairweb` passed. The generated demo copied 17 files
+(33,410 bytes), and every one of its 19 openable entries previewed in jsdom.
+A full `scripts/check.sh` (vet, test, race) started after these commits
+passed with "all checks passed".
+
+**Remaining:** None.
