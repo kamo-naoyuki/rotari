@@ -107,7 +107,8 @@ such as `--output png`), in
 Relative paths are resolved on the job's working directory. These are
 candidates, found without running anything: rotari does not check that they
 exist or tell inputs from outputs, and finding them never affects the job.
-The code given to `bash -c` or `python -c` is not searched. Configuration
+The code given to `bash -c` or `python -c` and the text given to `echo` or
+`printf` are not searched. Configuration
 files are read on the host that runs `rotari run`, also for SSH and scheduler
 jobs; a file that host cannot read is skipped. There is no command to list
 them yet.

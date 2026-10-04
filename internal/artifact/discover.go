@@ -166,6 +166,9 @@ func (c *collector) arguments(command []string) {
 	if shape.code >= 0 {
 		skip[shape.code] = true
 	}
+	if shape.text >= 0 {
+		command = command[:shape.text]
+	}
 	previousOption := ""
 	for index, word := range command {
 		option := previousOption
@@ -239,7 +242,7 @@ func (c *collector) destination(kind string, index int, value, stream string) {
 // DiscoveryVersion identifies the discovery rules that produced a Record.
 // Bump it when a rule change means older records would be discovered
 // differently today; older records are kept as they are, not recomputed.
-const DiscoveryVersion = 2
+const DiscoveryVersion = 3
 
 // Record is the persisted discovery of one job attempt.
 type Record struct {

@@ -110,7 +110,8 @@ func Classify(value, key string, syntax Syntax) (Rule, bool) {
 }
 
 // excluded applies PATH-X1 to PATH-X3, which take precedence over every
-// positive rule.
+// positive rule. PATH-X4 (interpreter code operands) and PATH-X5 (arguments
+// of echo and printf) apply to argv words in recognizeCommand.
 func excluded(value string, syntax Syntax) bool {
 	if strings.TrimSpace(value) == "" || containsControl(value) {
 		return true

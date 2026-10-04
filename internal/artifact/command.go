@@ -19,6 +19,9 @@ type commandShape struct {
 	// shell reports that the code operand is shell source, which only shell
 	// inspection may read.
 	shell bool
+	// text is the index of a text command such as echo, or -1. Its
+	// arguments are text to print, not references (PATH-X5).
+	text int
 }
 
 // maxLauncherDepth bounds how many nested listed launchers are followed.
@@ -56,6 +59,16 @@ func interpreterOf(word string) interpreterKind {
 	return notInterpreter
 }
 
+// isTextCommand reports whether word runs a command whose arguments are
+// text it prints, never files it opens: echo and printf.
+func isTextCommand(word string) bool {
+	switch strings.ToLower(path.Base(word)) {
+	case "echo", "printf":
+		return true
+	}
+	return false
+}
+
 func isLauncher(word string) bool {
 	switch strings.ToLower(path.Base(word)) {
 	case "env", "timeout", "srun":
@@ -69,15 +82,20 @@ func isLauncher(word string) bool {
 // option only for a demonstrated false match.
 var srunFreeTextOptions = []string{"--job-name", "-J", "--partition", "-p"}
 
-// recognizeCommand finds a code-bearing interpreter invocation: an
-// interpreter at words[0], or one found by scanning the arguments of a
-// recognized launcher (env, timeout, srun). The arguments of any other
-// command are never searched, so an interpreter-looking word passed to it
-// stays an ordinary argument.
+// recognizeCommand finds a code-bearing interpreter invocation or a text
+// command (echo, printf): one at words[0], or one found by scanning the
+// arguments of a recognized launcher (env, timeout, srun). The arguments of
+// any other command are never searched, so an interpreter-looking word
+// passed to it stays an ordinary argument.
 func recognizeCommand(words []string) commandShape {
-	shape := commandShape{code: -1}
+	shape := commandShape{code: -1, text: -1}
 	index := 0
 	for depth := 0; index < len(words); depth++ {
+		if isTextCommand(words[index]) {
+			shape.commandWords = append(shape.commandWords, index)
+			shape.text = index
+			return shape
+		}
 		if kind := interpreterOf(words[index]); kind != notInterpreter {
 			shape.commandWords = append(shape.commandWords, index)
 			shape.code, shape.shell = codeOperand(kind, words, index+1)
@@ -96,8 +114,8 @@ func recognizeCommand(words []string) commandShape {
 	return shape
 }
 
-// scanLauncher returns the index of the first listed interpreter or
-// launcher among the launcher's arguments, or -1. It is a best-effort scan,
+// scanLauncher returns the index of the first listed interpreter, text
+// command, or launcher among the launcher's arguments, or -1. It is a best-effort scan,
 // not a launcher grammar: only srun's free-text option values are skipped.
 func scanLauncher(words []string, launcher int) int {
 	srun := strings.EqualFold(path.Base(words[launcher]), "srun")
@@ -106,7 +124,7 @@ func scanLauncher(words []string, launcher int) int {
 			index++
 			continue
 		}
-		if interpreterOf(words[index]) != notInterpreter || isLauncher(words[index]) {
+		if interpreterOf(words[index]) != notInterpreter || isTextCommand(words[index]) || isLauncher(words[index]) {
 			return index
 		}
 	}

@@ -459,7 +459,6 @@ Recorded:
 | `rotari add --env OUTPUT_DIR=results/sweep --env LR=0.1 -- true` | `results/sweep` | An environment value that looks like a path |
 | `rotari add --output logs/train.log -- true` | `logs/train.log` | The job's own log destination |
 | `rotari add -- train metrics.csv` | `metrics.csv` | A path need not exist |
-| `rotari add -- echo bash -c output.csv` | `output.csv` | `bash` is an argument of `echo`, not a shell invocation |
 | `rotari add -- train '>' out.txt` | `out.txt` | argv is not shell code: `>` is a literal word, and `out.txt` an ordinary argument |
 | `rotari add -- train meta-llama/Llama-3-8B` | `meta-llama/Llama-3-8B` | Known false positive: any relative reference with `/` is accepted |
 
@@ -474,6 +473,8 @@ Not recorded:
 | `rotari add -- bash -c 'python train.py > out/log.txt'` | nothing | Shell code given to `-c` is not searched |
 | `rotari add -- timeout 1h bash -c 'cat conf/train.yaml'` | nothing | The same through a recognized launcher |
 | `rotari add -- python3 -c "print('out/a.txt')"` | nothing | Python code given to `-c` is not searched |
+| `rotari add -- echo bash -c output.csv` | nothing | `echo` and `printf` print their arguments as text; they never open them |
+| `rotari add -- timeout 5s echo results/done.txt` | nothing | The same behind a recognized launcher |
 | `rotari add --env PYTHONPATH=src:lib -- true` | nothing | A search-path list is not one path |
 | `rotari add --output /dev/null -- true` | nothing | A special device |
 

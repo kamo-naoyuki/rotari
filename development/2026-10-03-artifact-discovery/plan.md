@@ -137,6 +137,11 @@ Apply exclusions before ordinary positive rules:
   text contains slashes or filename suffixes.
   Shell `-c` bodies are inspected only by shell inspection (section 3); bodies
   for other languages are opaque and are not inspected.
+- **PATH-X5:** the arguments of a text command, `echo` or `printf`, recognized
+  where PATH-X4 recognizes an interpreter (argv[0] or behind a supported
+  launcher), are text to print, never files to open, and are not classified.
+  The launcher scan stops at a text command as it does at an interpreter.
+  (Added 2026-10-04; discovery version 3.)
 
 Then accept the first matching positive rule:
 
@@ -338,7 +343,7 @@ or an argument to the wrapped command happens to look like an interpreter.
 | `conda run -n ENV bash -c "..."` | `conda` is not listed | Same |
 | `srun --job-name python -n 2 bash -c CODE` | protected `--job-name` value is skipped | Correctly finds `bash` rather than mistaking `python` for the command |
 | `srun --comment bash -c out.csv python train.py` | `--comment` is not in the protected-value list | False match: `bash` is taken as the command and `out.csv` is dropped as its code operand |
-| `srun echo bash -c output.csv` | Wrapped command arguments are not parsed | Possible false match: `bash -c` may be ordinary arguments to `echo` |
+| `srun echo bash -c output.csv` | The scan stops at `echo`, a text command (PATH-X5) | No false match: nothing is classified |
 
 Add launcher or protected-option support when its expected benefit justifies
 the maintenance cost; include accepted and rejected command-line fixtures. The
@@ -364,7 +369,7 @@ Examples that define the interpreter/launcher boundary:
 | `srun --ntasks 2 python -c CODE` | `CODE` | none |
 | `python train.py -c config.yaml` | none: `-c` follows the script | `train.py`, `config.yaml` |
 | `cat bash` | none: no code option | as usual |
-| `echo bash -c output.csv` | none | `output.csv` remains subject to ordinary classification |
+| `echo bash -c output.csv` | none | `echo` is a text command (PATH-X5): no argument is classified |
 | `python train.py --engine python -c config.yaml` | none: the inner `python` is an option value, not a command | `train.py`, `config.yaml` remain eligible |
 
 Never infer that a string is code just because it contains shell syntax.
