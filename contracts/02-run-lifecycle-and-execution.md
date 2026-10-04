@@ -107,6 +107,20 @@
   effective combinations. Covered by
   `TestWorkflowMatrixExclusionExportImport` in
   [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
+- **RUN-9** Each attempt that a run submits records its artifact candidates
+  in the attempt's `artifacts.json`: file and directory references found
+  statically in the job's command arguments (except interpreter code
+  operands), its own `--env` and matrix values, its `--output`/`--error`
+  destinations, and the configuration files those reference, each with the
+  accepting rule and where it was found. Relative references are resolved on
+  the attempt's working directory. A candidate is not a claim that the path
+  exists or was written by the job, and discovery never changes the job's
+  execution or result. An attempt without the file has no discovery
+  information, not no associated files. The rules are in
+  [internal/artifact](../internal/artifact/) and the recording in
+  [internal/projectrun/artifacts.go](../internal/projectrun/artifacts.go);
+  covered by `TestStartedAttemptRecordsArtifactCandidates` in
+  [conformance/02-lifecycle/artifacts_test.go](../conformance/02-lifecycle/artifacts_test.go).
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,

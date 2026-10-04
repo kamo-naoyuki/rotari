@@ -96,6 +96,18 @@ by default; `--open-mode truncate` truncates them before execution.
 The run's saved hosts and diagnoses belong to the latest attempt, so they are
 not shown for an older one.
 
+Each attempt also records the files and directories its job definition
+refers to, in `artifacts.json` in the attempt directory: paths found in the
+command's arguments (such as `train.py` or `--config conf/run.yaml`), in
+`--env` and matrix values (a value that looks like a path, or any value of a
+variable whose name ends in `_DIR`, `_PATH`, or `_FILE`), in
+`--output`/`--error`, and in the YAML, JSON, or TOML files those name.
+Relative paths are resolved on the job's working directory. These are
+candidates, found without running anything: rotari does not check that they
+exist or tell inputs from outputs, and finding them never affects the job.
+The code given to `bash -c` or `python -c` is not searched, and configuration
+files of SSH jobs are not read. There is no command to list them yet.
+
 If a runner exits before finalizing its run, `show` reports the interrupted run
 and blocks `add`, `copy`, and `run` until you acknowledge it. First confirm
 that all jobs have stopped:

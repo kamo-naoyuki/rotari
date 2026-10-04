@@ -183,6 +183,7 @@ the IDs, this table, and those calls disagree.
 | RUN-6 | `wait --until-failure` returns at a job's final failure, not at a failure the run retries | conformance | `TestCLIFlagPairWaitJSONAndEarlyFailure`, `TestWaitUntilFailureIgnoresAFailureTheRunRetries`, `TestWaitUntilFailureReturnsAtAFinalFailure` |
 | RUN-7 | A named array job's name in a dependency stands for all of its tasks | conformance | `TestArrayNameDependsOnEveryTask` |
 | RUN-8 | Manifest and CLI matrix exclusions omit matching combinations and survive queue/run export/import | conformance | `TestWorkflowMatrixExclusionExportImport` |
+| RUN-9 | Each submitted attempt records its statically discovered artifact candidates in `artifacts.json` without affecting execution | conformance | `TestStartedAttemptRecordsArtifactCandidates` |
 | CLI-1 | `check --json` reports the same project state, run identifier, queue count, lock, and runnable result as the human-readable `check` output | partial | `TestCLIFlagPairCheckObservability`, `TestCheckJSONMatchesText` |
 | CLI-2 | Human-readable `jobs` columns keep their visible start positions aligned across rows; ANSI color sequences do not count toward column width | conformance | `TestJobsTableKeepsVisibleColumnsAligned` |
 | CLI-3 | All command options shared by CLI, environment, and config use the same source precedence | conformance | `TestCLIOptionPrecedence` |

@@ -2,9 +2,10 @@
 
 Created: 2026-10-03
 
-Status: phases 0 to 3 implemented (`internal/artifact`,
-`internal/artifactsource`, the run's `artifactRecorder`, and
-`jobstatus.Artifacts`); phase 5 pending; phase 4 deferred.
+Status: phases 0 to 3 and 5 implemented (`internal/artifact`,
+`internal/artifactsource`, the run's `artifactRecorder`,
+`jobstatus.Artifacts`, and contract RUN-9); phase 4 (shell inspection)
+deferred. No CLI or Web view reads the records yet.
 
 ## Purpose
 
@@ -690,7 +691,7 @@ in [classify_test.go](../../internal/artifact/classify_test.go) and
 | 2. Configuration extraction | Bounded YAML/JSON/TOML parsing of directly referenced sources | Nested strings and provenance covered; ambiguous/dynamic values skipped | Done |
 | 3. Lifecycle and persistence | Attempt-bound resolution and storage shared by all job creation paths | Plain/array/matrix/retry/carried cases and old state covered; execution behavior unchanged | Done |
 | 4. Shell inspection | Conservative syntax-aware extraction of literals and PATH-E1 task variables | Array tasks and matrix members get distinct candidates for `$ROTARI_ARRAY_TASK_ID`/matrix-variable paths; other dynamic or ambiguous cases skipped; no execution during inspection | Deferred until phases 1-3 are validated |
-| 5. Contracts and documentation | Document implemented guarantees and limitations | Representative conformance tests, contract IDs/status rows, architecture and affected guides agree | Pending |
+| 5. Contracts and documentation | Document implemented guarantees and limitations | Representative conformance tests, contract IDs/status rows, architecture and affected guides agree | Done: RUN-9, `TestStartedAttemptRecordsArtifactCandidates`, docs/INSPECT.md |
 
 Argument/configuration discovery can be completed without shell inspection or a
 viewer. Add implementation history to this directory's `work-log.md` after
