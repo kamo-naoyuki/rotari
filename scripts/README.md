@@ -8,6 +8,9 @@ are not part of the `rotari` command-line interface. Runnable samples are in
 
 - `generate-demos.sh`: record the terminal demo GIFs.
 - `generate-static-web.sh`: build the static web demo.
+- `demo_artifacts.py`: write the static web demo's sample artifact files
+  (images, audio, video, tables, text, NumPy arrays) with the standard
+  library; the demo's video clip is `templates/demo/clip.mp4`.
 - `generate_go_docs.py`: generate the Go API HTML reference.
 - `generate_cli_reference.py`: generate the CLI and environment reference from
   the CLI schema.
