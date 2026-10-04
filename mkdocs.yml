@@ -20,7 +20,8 @@ nav:
       - CLI reference: CLI_REFERENCE.md
       - Concepts: CONCEPTS.md
       - Executors and schedulers: EXECUTORS.md
-      - Running and recovering: RUNNING.md
+      - Running jobs: RUNNING.md
+      - Recovering failed runs: RECOVERING.md
       - Inspecting and diagnosing: INSPECT.md
       - Configuration: CONFIGURATION.md
       - Environment variables: ENVIRONMENT_VARIABLES.md

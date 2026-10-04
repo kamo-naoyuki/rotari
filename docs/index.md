@@ -10,7 +10,8 @@ LSF, or Sun Grid Engine cluster while keeping commands, results, and logs togeth
 
 - [Getting started](GETTING_STARTED.md): installation and the first run.
 - [Concepts](CONCEPTS.md): projects, queues, runs, IDs, and state.
-- [Running and recovering](RUNNING.md): schedule, execute, inspect, rerun, retry, and use array and matrix jobs.
+- [Running jobs](RUNNING.md): schedule and execute jobs, use array and matrix jobs, and retry failures automatically.
+- [Recovering failed runs](RECOVERING.md): rerun failed jobs, optionally after editing them.
 - [Executors and schedulers](EXECUTORS.md): local, SSH, Slurm, PBS, LSF, and SGE execution backends.
 - [Inspecting runs and jobs](INSPECT.md): status, logs, run readiness, and history.
 

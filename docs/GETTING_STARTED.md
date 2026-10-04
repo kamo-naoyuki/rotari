@@ -93,8 +93,8 @@ rotari metadata.
 
 See [Projects, queues, runs, and state](CONCEPTS.md#projects-queues-runs-and-state)
 for project selection and state layout, [Inspect](INSPECT.md#inspect) for
-status and logs, [Recover and rerun](RUNNING.md#recover-and-rerun) for
-retries and asynchronous runs, [Executors and schedulers](EXECUTORS.md#executors-and-schedulers)
+status and logs, [Recovering failed runs](RECOVERING.md) for
+retries, [Async runs](RUNNING.md#async-runs) for asynchronous runs, [Executors and schedulers](EXECUTORS.md#executors-and-schedulers)
 for execution backends, and [Array and matrix jobs](RUNNING.md#array-and-matrix-jobs)
 for task expansion and matrix combinations.
 
