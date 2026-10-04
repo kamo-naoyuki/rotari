@@ -666,12 +666,15 @@ in [classify_test.go](../../internal/artifact/classify_test.go) and
   `add --env` values and, for a matrix member, its matrix values. Variables
   the run adds (`ROTARI_*`, `PWD`) and the caller's environment are not
   candidates.
-- **Execution hosts.** Local and scheduler (Slurm, PBS, LSF, SGE) attempts
-  read configuration files from the supervisor's host, which rotari already
-  assumes shares the run directory with scheduler jobs; a working directory
-  that is not shared is read as whatever the supervisor sees there. SSH
-  attempts do not read them, because the paths name files on the SSH host; a
-  diagnostic says so. Paths are still recorded for every executor.
+- **Execution hosts.** Every executor's attempts, local, SSH, and scheduler
+  (Slurm, PBS, LSF, SGE), read configuration files from the supervisor's
+  host, assuming the execution host shares the filesystem. A file the
+  supervisor cannot read, for example one that exists only on the execution
+  host, is not inspected and gets a diagnostic; its path is still recorded.
+  A non-shared path that names a different file on the supervisor's host is
+  read as that file, which is accepted. (Revised 2026-10-04: SSH attempts
+  first skipped configuration files; the user chose the shared-filesystem
+  assumption for SSH as well.)
 - **Queue views.** Queue-time candidates are not stored: `artifact.FromJob`
   computes them from the current definition, with relative references
   unresolved unless the job has an absolute working directory.

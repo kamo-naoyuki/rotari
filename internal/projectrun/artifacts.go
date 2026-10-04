@@ -1,7 +1,6 @@
 package projectrun
 
 import (
-	"errors"
 	"path/filepath"
 	"sync"
 
@@ -10,11 +9,6 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
-
-// errRemoteSource explains why an SSH job's configuration files are not
-// inspected: its paths name files on the execution host, and a file with the
-// same path on the supervisor's host may be a different one.
-var errRemoteSource = errors.New("on the SSH execution host")
 
 // artifactRecorder discovers each attempt's artifact candidates when the
 // attempt is prepared, before it starts, and records them in the attempt
@@ -39,7 +33,9 @@ func newArtifactRecorder(runDir string, jobs []model.JobSpec, store state.Store,
 }
 
 // prepare discovers the candidates of job's attempt, whose working directory
-// is resolved and whose attempt ID is assigned.
+// is resolved and whose attempt ID is assigned. Configuration files are read
+// on the supervisor's host for every executor, assuming the execution host
+// shares the filesystem; a file the supervisor cannot read is a diagnostic.
 func (recorder *artifactRecorder) prepare(job model.JobSpec) {
 	// Discovery is best-effort; a defect in it must not stop the run.
 	defer func() {
@@ -47,17 +43,13 @@ func (recorder *artifactRecorder) prepare(job model.JobSpec) {
 			recorder.logf("WARNING: artifact discovery failed for job %s: %v", job.ID, recovered)
 		}
 	}()
-	read := artifactsource.Read
-	if job.Executor == "ssh" {
-		read = func(string) ([]byte, error) { return nil, errRemoteSource }
-	}
 	result := artifact.Discover(artifact.Job{
 		Command:          job.Command,
 		Environment:      recorder.environments[job.ID],
 		Output:           job.Output,
 		Error:            job.Error,
 		WorkingDirectory: job.WorkingDirectory,
-	}, read)
+	}, artifactsource.Read)
 	recorder.pending.Store(job.AttemptID, artifact.Record{Version: artifact.DiscoveryVersion, Result: result})
 }
 

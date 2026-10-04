@@ -114,30 +114,38 @@ func TestExecuteRecordsArtifactCandidatesPerAttempt(t *testing.T) {
 	}
 }
 
-func TestArtifactRecorderDoesNotReadSSHSources(t *testing.T) {
-	runner, _ := testRunner(t)
-	work := t.TempDir()
-	if err := os.WriteFile(filepath.Join(work, "a.yaml"), []byte("out_dir: results\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	runDir := t.TempDir()
-	job := model.JobSpec{ID: "job", AttemptID: state.MakeAttemptID("20260101-000000-aaaaaaaa", "job", 0), Executor: "ssh", Command: []string{"train", "a.yaml"}, WorkingDirectory: work}
-	recorder := newArtifactRecorder(runDir, []model.JobSpec{job}, runner.Store, func(string, ...any) {})
-	recorder.prepare(job)
-	attemptDir, err := state.AttemptJobDir(runDir, job)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(attemptDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	recorder.started(job)
-	record, ok := readArtifactRecord(t, runner, runDir, "job", job.AttemptID)
-	if !ok || !slices.Equal(candidatePaths(record), []string{filepath.Join(work, "a.yaml")}) {
-		t.Fatalf("record = %+v, %v; want the argument only", record, ok)
-	}
-	if len(record.Diagnostics) != 1 || !strings.Contains(record.Diagnostics[0].Message, "SSH execution host") {
-		t.Fatalf("diagnostics = %+v", record.Diagnostics)
+// TestArtifactRecorderReadsSourcesForEveryExecutor checks that remote
+// executors read configuration files through the shared filesystem, and that
+// a file the supervisor cannot see is skipped with a diagnostic.
+func TestArtifactRecorderReadsSourcesForEveryExecutor(t *testing.T) {
+	for _, executorName := range []string{"local", "ssh", "slurm"} {
+		t.Run(executorName, func(t *testing.T) {
+			runner, _ := testRunner(t)
+			work := t.TempDir()
+			if err := os.WriteFile(filepath.Join(work, "a.yaml"), []byte("out_dir: results\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			runDir := t.TempDir()
+			job := model.JobSpec{ID: "job", AttemptID: state.MakeAttemptID("20260101-000000-aaaaaaaa", "job", 0), Executor: executorName, Command: []string{"train", "a.yaml", "missing.json"}, WorkingDirectory: work}
+			recorder := newArtifactRecorder(runDir, []model.JobSpec{job}, runner.Store, func(string, ...any) {})
+			recorder.prepare(job)
+			attemptDir, err := state.AttemptJobDir(runDir, job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(attemptDir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			recorder.started(job)
+			record, ok := readArtifactRecord(t, runner, runDir, "job", job.AttemptID)
+			want := []string{filepath.Join(work, "a.yaml"), filepath.Join(work, "missing.json"), filepath.Join(work, "results")}
+			if !ok || !slices.Equal(candidatePaths(record), want) {
+				t.Fatalf("record = %+v, %v; want candidates %q", record, ok, want)
+			}
+			if len(record.Diagnostics) != 1 || record.Diagnostics[0].Source != filepath.Join(work, "missing.json") {
+				t.Fatalf("diagnostics = %+v, want one for the missing file", record.Diagnostics)
+			}
+		})
 	}
 }
 
