@@ -166,3 +166,35 @@ contract says [\"results\"]"; the contract was then restored.
 
 **Remaining:** None. Examples need commands that are harmless to run (no
 `srun`), because each row runs.
+
+## Output and input keys in PATH-R5
+
+**Commit:** `4879815` — 2026-10-04T15:11:38+09:00
+
+**Change:** PATH-R5 also accepts a value under an output or input key
+(`output`, `out`, `input`, or a key ending in `_output`, `_out`, `_input`)
+unless the value is a format name (a PATH-R4 extension without its dot,
+`text`, `html`, `xml`, `md`, `markdown`, `table`, `stdout`, `stderr`, `stdin`,
+`-`). `DiscoveryVersion` is now 2. Added classifier fixtures, a recorded
+contract example (`--output results --input data`), and a format key to the
+not-recorded `--output png` example. Updated the conformance version check,
+the plan's PATH-R5 text and anchor table, and docs/INSPECT.md.
+
+**Reason:** The user noted that a bare directory name such as `--output
+results` was never found. Since a false positive only costs a candidate that
+cannot be shown, the user chose to add output/input keys while still skipping
+format names.
+
+**Plan impact:** Revises the PATH-R5 decision that generic `output`/`input`
+names alone were insufficient. Bare positional names (`cp -r src results`)
+remain undiscovered.
+
+**Validation:** The seven new acceptance fixtures failed before the rule
+change and passed after it. `go test -count=1` of `./internal/artifact`,
+`./internal/projectrun`, `./internal/jobstatus`, and `./internal/doclinks`
+passed. `TestArtifactCandidateExamples` (with the new rows listed under `-v`),
+`TestStartedAttemptRecordsArtifactCandidates`, and `TestContractStatus`
+passed. `go vet` and `gofmt` were clean. A full `scripts/check.sh` was not
+rerun.
+
+**Remaining:** None.
