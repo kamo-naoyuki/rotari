@@ -99,6 +99,15 @@ chain is checked across `show`, `jobs`, reports, and the Web API by
   `0755`/`0644`, less the umask. Existing paths keep their mode, so changing
   the setting can leave mixed permissions. The static Web export
   (`web --static-dir`) always writes publishable `0755`/`0644` output.
+- **COORD-6** `suspend` and `resume` validate every selected running job's
+  host and executor support before signalling any job. If a scheduler command
+  itself fails after earlier jobs were acted on, the error names those jobs.
+  The shared implementation is
+  [`internal/jobcontrol/jobcontrol.go`](../internal/jobcontrol/jobcontrol.go);
+  unit coverage is in
+  [`internal/jobcontrol/active_run_test.go`](../internal/jobcontrol/active_run_test.go)
+  and CLI/Web conformance is in
+  [`conformance/04-coordination/private_state_test.go`](../conformance/04-coordination/private_state_test.go).
 
 Design and implementation notes:
 

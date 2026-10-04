@@ -1,6 +1,7 @@
 package jobcontrol
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -17,15 +18,22 @@ import (
 // suspendableExecutor records the jobs it suspends, resumes, and cancels.
 type suspendableExecutor struct {
 	fakeExecutor
-	suspended, resumed []string
+	suspended, resumed      []string
+	failSuspend, failResume string
 }
 
 func (fake *suspendableExecutor) Suspend(jobDir string) error {
+	if filepath.Base(jobDir) == fake.failSuspend {
+		return errors.New("suspend failed")
+	}
 	fake.suspended = append(fake.suspended, filepath.Base(jobDir))
 	return nil
 }
 
 func (fake *suspendableExecutor) Resume(jobDir string) error {
+	if filepath.Base(jobDir) == fake.failResume {
+		return errors.New("resume failed")
+	}
 	fake.resumed = append(fake.resumed, filepath.Base(jobDir))
 	return nil
 }
@@ -153,8 +161,9 @@ func TestControlAllJobsFailsAtUnsupportedExecutor(t *testing.T) {
 	if _, err := fixture.controller.Control(fixture.baseDir, "demo", "", nil, "suspend"); err == nil || err.Error() != `executor "slurm" does not support suspend` {
 		t.Fatalf("Control(all) error = %v", err)
 	}
-	// Jobs signalled before the error stay suspended; see development/ISSUES.md.
-	fixture.pbs.suspended = nil
+	if len(fixture.pbs.suspended) != 0 {
+		t.Fatalf("preflight error partially suspended jobs: %v", fixture.pbs.suspended)
+	}
 	if err := os.WriteFile(filepath.Join(fixture.runDir, "on-slurm", "finished_at"), []byte(now()), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -164,6 +173,46 @@ func TestControlAllJobsFailsAtUnsupportedExecutor(t *testing.T) {
 	}
 	if want := []string{"grid-1", "on-pbs"}; !reflect.DeepEqual(sorted(fixture.pbs.suspended), want) {
 		t.Fatalf("suspended = %v, want %v", fixture.pbs.suspended, want)
+	}
+}
+
+func TestControlSelectedJobsPreflightsBeforeSignalling(t *testing.T) {
+	fixture := newActiveRunFixture(t)
+	_, err := fixture.controller.Control(fixture.baseDir, "demo", testRunID, []string{"on-pbs", "on-slurm"}, "suspend")
+	if err == nil || err.Error() != `executor "slurm" does not support suspend` {
+		t.Fatalf("Control(selected jobs) error = %v", err)
+	}
+	if len(fixture.pbs.suspended) != 0 {
+		t.Fatalf("preflight error partially suspended jobs: %v", fixture.pbs.suspended)
+	}
+}
+
+func TestControlReportsJobsSignalledBeforeSchedulerFailure(t *testing.T) {
+	for _, test := range []struct {
+		operation, verb string
+	}{
+		{"suspend", "suspended"},
+		{"resume", "resumed"},
+	} {
+		t.Run(test.operation, func(t *testing.T) {
+			fixture := newActiveRunFixture(t)
+			if test.operation == "suspend" {
+				fixture.pbs.failSuspend = "grid-1"
+			} else {
+				fixture.pbs.failResume = "grid-1"
+			}
+			_, err := fixture.controller.Control(fixture.baseDir, "demo", "", []string{"on-pbs", "grid"}, test.operation)
+			if err == nil || !strings.Contains(err.Error(), "already "+test.verb+" jobs: on-pbs") || !strings.Contains(err.Error(), test.operation+" failed") {
+				t.Fatalf("Control(scheduler failure) error = %v, want partial action details", err)
+			}
+			actedOn := fixture.pbs.suspended
+			if test.operation == "resume" {
+				actedOn = fixture.pbs.resumed
+			}
+			if !reflect.DeepEqual(actedOn, []string{"on-pbs"}) {
+				t.Fatalf("jobs acted on = %v, want only on-pbs before failure", actedOn)
+			}
+		})
 	}
 }
 

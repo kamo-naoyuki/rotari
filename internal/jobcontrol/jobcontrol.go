@@ -32,6 +32,12 @@ type Controller struct {
 	Executors executor.Registry
 }
 
+type controlTarget struct {
+	jobID     string
+	jobDir    string
+	suspender executor.Suspender
+}
+
 // Control suspends or resumes, as named by operation, the selected running
 // jobs of project in baseDir, or every running job when jobIDs is empty. A
 // non-empty runID must be the project's active run. Attempt IDs must name the
@@ -61,63 +67,101 @@ func (controller Controller) Control(baseDir, project, runID string, jobIDs []st
 	if err != nil {
 		return "", err
 	}
+	prepared, err := controller.prepareControlTargets(runDir, jobIDs, operation)
+	if err != nil {
+		return "", err
+	}
+	controlled, err := controller.applyControlTargets(prepared, operation)
+	if err != nil {
+		return "", err
+	}
+	if len(controlled) == 0 {
+		return "", fmt.Errorf("no running jobs found in queue %q", project)
+	}
+	return fmt.Sprintf("%s requested\n  Project: %s\n  Run: %s\n  Jobs: %d", strings.ToUpper(operation[:1])+operation[1:], project, lock.RunID, len(controlled)), nil
+}
+
+func (controller Controller) prepareControlTargets(runDir string, jobIDs []string, operation string) ([]controlTarget, error) {
 	allJobs := len(jobIDs) == 0
-	targets := append([]string(nil), jobIDs...)
+	targetIDs := append([]string(nil), jobIDs...)
 	if allJobs {
 		// codeql[go/path-injection]: runDir is produced by the validated run path helper.
 		entries, err := os.ReadDir(runDir)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		for _, entry := range entries {
 			if entry.IsDir() {
-				targets = append(targets, entry.Name())
+				targetIDs = append(targetIDs, entry.Name())
 			}
 		}
 	}
-	controlled := 0
-	for _, jobID := range targets {
-		jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
+	prepared := make([]controlTarget, 0, len(targetIDs))
+	for _, jobID := range targetIDs {
+		target, include, err := controller.prepareControlTarget(runDir, jobID, operation, allJobs)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		if controller.jobFinished(jobDir) {
-			if allJobs {
-				continue
-			}
-			return "", fmt.Errorf("job %q is not running", jobID)
+		if include {
+			prepared = append(prepared, target)
 		}
-		owner, err := controller.Executors.Owner(controller.Store, jobDir)
-		if err != nil {
-			if allJobs {
-				continue
-			}
-			return "", fmt.Errorf("job %q is not running", jobID)
+	}
+	return prepared, nil
+}
+
+func (controller Controller) prepareControlTarget(runDir, jobID, operation string, allJobs bool) (controlTarget, bool, error) {
+	jobDir, err := state.LatestAttemptJobDir(runDir, jobID)
+	if err != nil {
+		return controlTarget{}, false, err
+	}
+	if controller.jobFinished(jobDir) {
+		if allJobs {
+			return controlTarget{}, false, nil
 		}
-		if host, mismatch := executor.LocalHostMismatch(controller.Store, owner, runDir); mismatch {
-			return "", fmt.Errorf("job %q runs on host %q; run %s from that host", jobID, host, operation)
+		return controlTarget{}, false, fmt.Errorf("job %q is not running", jobID)
+	}
+	owner, err := controller.Executors.Owner(controller.Store, jobDir)
+	if err != nil {
+		if allJobs {
+			return controlTarget{}, false, nil
 		}
-		suspender, ok := owner.(executor.Suspender)
-		if !ok {
-			return "", fmt.Errorf("executor %q does not support %s", owner.Name(), operation)
-		}
+		return controlTarget{}, false, fmt.Errorf("job %q is not running", jobID)
+	}
+	if host, mismatch := executor.LocalHostMismatch(controller.Store, owner, runDir); mismatch {
+		return controlTarget{}, false, fmt.Errorf("job %q runs on host %q; run %s from that host", jobID, host, operation)
+	}
+	suspender, ok := owner.(executor.Suspender)
+	if !ok {
+		return controlTarget{}, false, fmt.Errorf("executor %q does not support %s", owner.Name(), operation)
+	}
+	return controlTarget{jobID: jobID, jobDir: jobDir, suspender: suspender}, true, nil
+}
+
+func (controller Controller) applyControlTargets(prepared []controlTarget, operation string) ([]string, error) {
+	controlled := make([]string, 0, len(prepared))
+	for _, target := range prepared {
 		schedulerState := "suspended"
+		var err error
 		if operation == "resume" {
-			err = suspender.Resume(jobDir)
+			err = target.suspender.Resume(target.jobDir)
 			schedulerState = "running"
 		} else {
-			err = suspender.Suspend(jobDir)
+			err = target.suspender.Suspend(target.jobDir)
 		}
 		if err != nil {
-			return "", fmt.Errorf("%s job %s: %w", operation, jobID, err)
+			if len(controlled) == 0 {
+				return nil, fmt.Errorf("%s job %s: %w", operation, target.jobID, err)
+			}
+			completedAction := "suspended"
+			if operation == "resume" {
+				completedAction = "resumed"
+			}
+			return nil, fmt.Errorf("%s job %s: %w; already %s jobs: %s", operation, target.jobID, err, completedAction, strings.Join(controlled, ", "))
 		}
-		executor.WriteSchedulerStatus(controller.Store, jobDir, schedulerState, time.Now())
-		controlled++
+		executor.WriteSchedulerStatus(controller.Store, target.jobDir, schedulerState, time.Now())
+		controlled = append(controlled, target.jobID)
 	}
-	if controlled == 0 {
-		return "", fmt.Errorf("no running jobs found in queue %q", project)
-	}
-	return fmt.Sprintf("%s requested\n  Project: %s\n  Run: %s\n  Jobs: %d", strings.ToUpper(operation[:1])+operation[1:], project, lock.RunID, controlled), nil
+	return controlled, nil
 }
 
 // Cancel cancels the selected running jobs of project in baseDir, or its

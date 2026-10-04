@@ -160,6 +160,7 @@ the IDs, this table, and those calls disagree.
 | COORD-3 | A lock from another host keeps the project locked until `unlock` | conformance | `TestControlFromAnotherHost` |
 | COORD-4 | A missing scheduler command fails the job with an error naming it | partial | `TestMissingSchedulerCommand` |
 | COORD-5 | `ROTARI_PRIVATE_STATE` makes new paths owner-only; the static export stays publishable | partial | `TestPrivateStateModes` |
+| COORD-6 | Suspend/resume preflight every selected target; errors after partial scheduler actions identify already-acted jobs | partial | `TestSuspendAndResumePreflightAllSelectedJobs` |
 | STATE-1 | Reading state from a newer rotari fails asking to upgrade, and leaves the file; the Web UI marks such a run unreadable | conformance | `TestNewerStateVersionIsRejected`, `TestWebShowsNewerRunAsUnreadable`, `TestJobNameLookupReportsSnapshotErrors` |
 | STATE-2 | State without `state_version` reads as version 1 | conformance | `TestUnversionedStateIsVersionOne` |
 | STATE-3 | Reading history never rewrites it | conformance | `TestReadingHistoryDoesNotRewriteIt` |

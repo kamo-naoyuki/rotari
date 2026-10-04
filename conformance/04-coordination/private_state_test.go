@@ -137,6 +137,70 @@ func TestControlFromAnotherHost(t *testing.T) {
 	}
 }
 
+func TestSuspendAndResumePreflightAllSelectedJobs(t *testing.T) {
+	covers(t, "COORD-6")
+	e := support.NewEnv(t)
+	run := e.StartRun("live", 2, false)
+	project := filepath.Join(e.Base, "projects", "live")
+	jobMeta := findAttemptJobMetadata(t, filepath.Join(project, "runs", run.RunID, run.Jobs[1]))
+	writeFile(t, jobMeta, `{"executor":"ssh"}`)
+	base := e.StartWeb("--allow-control")
+	for _, operation := range []string{"suspend", "resume"} {
+		for _, call := range []string{"cli", "web"} {
+			t.Run(operation+"/"+call, func(t *testing.T) {
+				assertControlPreflightFailure(t, e, base, project, run, operation, call)
+			})
+		}
+	}
+	for _, jobID := range run.Jobs {
+		if alive := support.JobProcesses(t, e.Root, jobID); alive != 1 {
+			t.Errorf("preflight failure stopped job %s: process count %d", jobID, alive)
+		}
+	}
+}
+
+func assertControlPreflightFailure(t *testing.T, e *support.Env, webBase, project string, run support.ActiveRun, operation, call string) {
+	t.Helper()
+	want := `executor "ssh" does not support ` + operation
+	if call == "cli" {
+		got := e.Rotari(operation, "-p", "live", "--job-id", run.Jobs[0], "--job-id", run.Jobs[1])
+		if got.Code == 0 || !strings.Contains(got.Stderr, want) {
+			t.Fatalf("CLI %s should reject the unsupported target: %s", operation, got)
+		}
+	} else {
+		got := e.HTTPPostJSON(webBase+"/api/"+operation+"-job", map[string]any{"project_name": "live", "run_id": run.RunID, "job_ids": run.Jobs})
+		if got.Status == 200 || !strings.Contains(got.Body, want) {
+			t.Fatalf("Web %s should reject the unsupported target: %d %s", operation, got.Status, got.Body)
+		}
+	}
+	firstJobMeta := findAttemptJobMetadata(t, filepath.Join(project, "runs", run.RunID, run.Jobs[0]))
+	statusPath := filepath.Join(filepath.Dir(firstJobMeta), "scheduler_status.json")
+	if _, err := os.Stat(statusPath); !os.IsNotExist(err) {
+		t.Fatalf("failed %s partially changed the first job's scheduler status: stat error %v", operation, err)
+	}
+}
+
+func findAttemptJobMetadata(t *testing.T, jobDir string) string {
+	t.Helper()
+	var found string
+	err := filepath.WalkDir(jobDir, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() && entry.Name() == "pid" {
+			found = filepath.Join(filepath.Dir(path), "job.json")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found == "" {
+		t.Fatalf("no job.json found under %s", jobDir)
+	}
+	return found
+}
+
 func setJSONField(t *testing.T, path, field, value string) {
 	t.Helper()
 	data, err := os.ReadFile(path)

@@ -8,9 +8,9 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **`suspend`/`resume` can fail after signalling some jobs** ([internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go), `Control`): jobs are signalled one at a time, and the first job that cannot be signalled returns an error: its executor has no `Suspend` (`ssh`), it runs on another host, or the scheduler command fails. Jobs signalled before it stay suspended or resumed, but the error does not say so. `TestControlAllJobsFailsAtUnsupportedExecutor` shows this with fake executors, one without `Suspend`. Consider checking every target's executor before signalling any job, or reporting which jobs were signalled.
-
 ## Resolved
+
+- **`suspend`/`resume` could partially act before rejecting a target** ([internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go), `Controller.Control`): every selected target's running state, host, and executor capability is now checked before any signal. If the scheduler call itself fails mid-operation, the error names jobs already suspended/resumed. Unit tests cover unsupported executors and runtime failures for both operations; CLI and Web conformance verifies no scheduler-status side effect or stopped local process when a later target is unsupported (COORD-6).
 
 - **Configuration errors prevented command help from being displayed** ([cmd/rotari/config_help.go](../cmd/rotari/config_help.go)): failed configuration loads now warn and allow command help with built-in and environment defaults, while normal execution still fails. A side-effect-free parse of public option shapes distinguishes help from option values and `add`/`change` job arguments. `TestCommandHelpSurvivesConfigurationErrors` reproduces the old failure across every schema command accepting config, and `TestConfigurationErrorsStillPreventExecution` preserves rejection of non-help invocations (CLI-17). Valid configuration still supplies help defaults, checked by `TestCLIOptionPrecedence`.
 
