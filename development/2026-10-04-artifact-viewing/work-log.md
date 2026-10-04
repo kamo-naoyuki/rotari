@@ -69,3 +69,62 @@ and the static export's embedded listing with `show -j --json` and passed.
 race) started after this commit passed with "all checks passed".
 
 **Remaining:** Step 3, content preview, after a safety design.
+
+## Design of content preview
+
+**Commit:** `34d2f09` — design recorded in plan.md (no code).
+
+**Change:** Recorded the step 3 design agreed with the user: entries named by
+index only, the job's working directory plus `--artifact-root` as allowed
+roots, `os.Root` against symlink escapes, a warning (not a refusal) on a
+non-loopback host without a token, no file-size limits, `.log`/`.txt` from the
+end and other text from the start, immediate directory children 200 per page
+reading at most 100,000 names, unlimited streamed downloads, and no file
+contents in static exports.
+
+**Validation:** `./internal/doclinks` passed.
+
+## Content preview (step 3)
+
+**Commit:** `5e68129` — 2026-10-04T19:58:25+09:00
+
+**Change:** Added `internal/webui/artifact_files.go`:
+`/api/artifact-file` (inline images, everything else or `download=1` as a
+streamed attachment), `/api/artifact-text` (64 KiB pages on line boundaries,
+forward or backward, NUL means binary), and `/api/artifact-directory`
+(immediate children, directories first, 200 per page, at most 100,000 names
+read). All three resolve an entry index of the recorded listing and an
+optional clean child path, require an allowed root, open through `os.Root`,
+and set `no-store`, `nosniff`, and a sandbox CSP. `/api/artifacts` adds
+`previewable`. `rotari web --artifact-root DIR` (repeatable, command line
+only, must be a directory, rejected with `--static-dir`) adds roots, and the
+non-loopback warning names artifact files. The UI moved to a new
+`web_app_artifacts.js`: a listing table with open buttons, image, table, text,
+and directory previews with paging, and downloads. Handler arguments are
+written with `JSON.stringify` before HTML escaping. Added WEB-6, regenerated
+goldens, the CLI reference, and Python CLI metadata, and updated the `web`
+flag-pair inventory (9 flags, 36 pairs), the static-export server-only list,
+the coverage totals (also correcting the read-only count missed in step 1),
+the asset layout in the contract, docs/INSPECT.md, and docs/ARCHITECTURE.md.
+
+**Reason:** Step 3 of the plan, as designed.
+
+**Plan impact:** All three steps are done.
+
+**Validation:** `TestArtifactPreviewableFlags`, `TestArtifactFileServing` (11
+refusals including outside roots, symlink escapes of a file and of a child,
+`..`, absolute and unclean child paths, missing, unresolved, a directory as a
+file, bad entries; `--artifact-root`; POST), `TestArtifactTextPages`, and
+`TestArtifactDirectoryPages` passed on their first run. The jsdom test
+`TestWebArtifactPreviewInBrowser`, which drives the real page against the real
+handler (listing, image fetch, log tail and an earlier page, CSV table,
+directory pages, a child named with a quote, a file without a preview), first
+failed on test errors only (module resolution, two escaping mistakes, and a
+wrong expected byte count) and then passed. `TestWebPreviewsArtifactsUnderAllowedRoots`
+(binary, live server) and the updated `TestWebShowsArtifactCandidates`
+passed, as did `pairweb`, `TestCLIFlagPairInventory`, `./internal/webui`,
+`./cmd/rotari`, goldens, contract status, doclinks, prettier, the Python
+tests, ruff, and the generator checks. A full `scripts/check.sh` (vet, test,
+race) started after this commit passed with "all checks passed".
+
+**Remaining:** None in this plan.
