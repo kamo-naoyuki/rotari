@@ -163,3 +163,28 @@ generator through a nested shell heredoc ran stray lines with an empty
 `workspace`; they failed with permission errors and created no files.
 
 **Remaining:** None.
+
+## Copy button for listings without entries
+
+**Commit:** `bde9b20` — 2026-10-04T20:25:30+09:00
+
+**Change:** A listing that is not recorded or has no candidates, and a failed
+load, now show as plain text in the modal's log box (view
+`artifacts-text`), where the copy button sits as it does for logs. Before,
+the text was a box inside the padded artifact view, so the button, pinned 8px
+from the output box's corner, landed on that box's border. The entry table's
+view leaves 52px on the right for the button.
+
+**Reason:** The user reported the copy button out of place for
+`Artifacts: (not recorded)`.
+
+**Plan impact:** None. (A request to disable the Artifacts button for
+attempts without a record was withdrawn before any code changed.)
+
+**Validation:** `TestWebArtifactPreviewInBrowser` now opens a job without a
+record and a missing job and checks that the text is in the log box with the
+artifact view hidden; it failed against the previous script ("not recorded")
+and passed after the fix. `./internal/webui`, the Web conformance tests, and
+prettier passed. A full `scripts/check.sh` was not rerun.
+
+**Remaining:** None.
