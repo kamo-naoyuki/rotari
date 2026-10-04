@@ -396,15 +396,17 @@ func (catalog *sourceCatalog) matchCommand(anchor sourceLeaf, destination model.
 func (catalog *sourceCatalog) latestMatrixMember(anchor sourceLeaf, destination model.QueuedCommand, sourceMember model.QueuedCommand, sourceMemberExists bool) sourceLeaf {
 	var selected sourceLeaf
 	selectedTimestamp := ""
-	for _, run := range catalog.ordered {
+	selectedOrder := -1
+	for runOrder, run := range catalog.ordered {
 		for _, command := range run.Queue.Commands {
 			if !matrixCandidateMatches(command, anchor, destination, sourceMember, sourceMemberExists) {
 				continue
 			}
 			timestamp := run.CommandTimestamp(command)
-			if selected.run == nil || newerSnapshot(timestamp, run.ID, selectedTimestamp, selected.run.ID) {
+			if selected.run == nil || newerSnapshot(timestamp, runOrder, selectedTimestamp, selectedOrder) {
 				selected = sourceLeaf{run: run, command: command}
 				selectedTimestamp = timestamp
+				selectedOrder = runOrder
 			}
 		}
 	}
@@ -520,16 +522,18 @@ func (catalog *sourceCatalog) sourceLeafForCommand(source sourceLeaf, jobID, att
 func (catalog *sourceCatalog) listedCommandRun(source sourceLeaf) sourceLeaf {
 	selected := source
 	selectedTimestamp := ""
+	selectedOrder := -1
 	found := false
-	for _, run := range catalog.ordered {
+	for runOrder, run := range catalog.ordered {
 		for _, command := range run.Queue.Commands {
 			if command.ID != source.command.ID {
 				continue
 			}
 			timestamp := run.CommandTimestamp(command)
-			if !found || newerSnapshot(timestamp, run.ID, selectedTimestamp, selected.run.ID) {
+			if !found || newerSnapshot(timestamp, runOrder, selectedTimestamp, selectedOrder) {
 				selected = sourceLeaf{run: run, command: command}
 				selectedTimestamp = timestamp
+				selectedOrder = runOrder
 				found = true
 			}
 		}

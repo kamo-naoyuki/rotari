@@ -40,10 +40,11 @@ func (run SourceRun) CommandTimestamp(command model.QueuedCommand) string {
 	return latest
 }
 
-// newerSnapshot reports whether a command snapshot from run, with timestamp,
-// replaces the one selected so far from selectedRunID.
-func newerSnapshot(timestamp, runID, selectedTimestamp, selectedRunID string) bool {
-	return timestamp > selectedTimestamp || timestamp == selectedTimestamp && runID > selectedRunID
+// newerSnapshot reports whether a command snapshot with timestamp and listed
+// order replaces the one selected so far. When timestamps tie, the later
+// listed run wins; run IDs contain random suffixes and do not order runs.
+func newerSnapshot(timestamp string, order int, selectedTimestamp string, selectedOrder int) bool {
+	return timestamp > selectedTimestamp || timestamp == selectedTimestamp && order > selectedOrder
 }
 
 // MergeRuns exports the listed runs of project as one manifest. Each command
@@ -53,19 +54,19 @@ func MergeRuns(project string, runs []SourceRun) (Manifest, error) {
 		command   model.QueuedCommand
 		results   []model.JobResult
 		timestamp string
-		runID     string
+		order     int
 	}
 	candidates := make(map[string]candidate)
 	order := make([]string, 0)
-	for _, run := range runs {
+	for runOrder, run := range runs {
 		results := model.ResultsByID(run.Summary.Results)
 		for _, command := range run.Queue.Commands {
-			next := candidate{command: command, results: commandResults(command, results), timestamp: run.CommandTimestamp(command), runID: run.ID}
+			next := candidate{command: command, results: commandResults(command, results), timestamp: run.CommandTimestamp(command), order: runOrder}
 			previous, exists := candidates[command.ID]
 			if !exists {
 				order = append(order, command.ID)
 			}
-			if !exists || newerSnapshot(next.timestamp, next.runID, previous.timestamp, previous.runID) {
+			if !exists || newerSnapshot(next.timestamp, next.order, previous.timestamp, previous.order) {
 				candidates[command.ID] = next
 			}
 		}

@@ -143,6 +143,19 @@
   [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go)
   and `TestReconcileGroupStatusDoesNotOverrideUnlistedLeaves` in
   [internal/workflow/reconcile_test.go](../internal/workflow/reconcile_test.go).
+- **RUN-11** Export and import select the latest command snapshot by the
+  latest leaf finish time (or submission time for unfinished leaves), falling
+  back to run finish time. If timestamps tie, the last listed run wins; random
+  run ID suffixes do not define ordering. Selection is implemented in
+  [internal/workflow/source.go](../internal/workflow/source.go) and
+  [internal/workflow/reconcile.go](../internal/workflow/reconcile.go), covered
+  by `TestMergeRunsUsesListedOrderForSameTimestamp`,
+  `TestListedCommandRunUsesListedOrderForSameTimestamp`, and
+  `TestLatestMatrixMemberUsesListedOrderForSameTimestamp` in
+  [internal/workflow/reconcile_test.go](../internal/workflow/reconcile_test.go),
+  and through the CLI by
+  `TestWorkflowExportUsesListedRunOrderForTimestampTies` in
+  [conformance/02-lifecycle/workflow_snapshots_test.go](../conformance/02-lifecycle/workflow_snapshots_test.go).
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,
@@ -334,7 +347,10 @@
   changed, and downstream jobs execute. Matrix combinations and array tasks
   retain independent dispositions. A leaf without its own manifest attempt is
   recovered from the listed source run that supplied its command (the same
-  latest-run rule as export), and a result carried into that run resolves to
+  latest-run rule as export): snapshots are ordered by the latest leaf finish
+  or submission time, falling back to run finish time, and ties select the
+  last run in the manifest's `run_ids` order. Run ID suffixes are not an
+  ordering signal. A result carried into that run resolves to
   the attempt's original run, so a task re-executed by a filtered retry is
   reused rather than replaced by its earlier failure. Manual acceptance creates a destination
   result with exit code zero and `accepted: true`, while `Origin` continues to

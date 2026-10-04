@@ -350,9 +350,11 @@ func TestMergeRunsKeepsExcludedHistoricalMatrixMemberAsStandalone(t *testing.T) 
 	}
 	secondRun := SourceRun{
 		ID: laterRunID, Queue: model.Queue{Commands: firstQueue.Commands},
-		Summary: model.RunSummary{Results: carriedResults}, CWD: "/work", JobTimestamps: noTimestamps,
+		Summary: model.RunSummary{FinishedAt: "2026-09-25T01:00:00Z", Results: carriedResults}, CWD: "/work", JobTimestamps: noTimestamps,
 	}
-	merged, err := MergeRuns("demo", []SourceRun{secondRun, store.runs[sourceRunID]})
+	olderRun := store.runs[sourceRunID]
+	olderRun.Summary.FinishedAt = "2026-09-25T00:00:00Z"
+	merged, err := MergeRuns("demo", []SourceRun{secondRun, olderRun})
 	if err != nil {
 		t.Fatalf("MergeRuns: %v", err)
 	}
@@ -435,6 +437,75 @@ func TestMergeRunsUsesLatestSnapshot(t *testing.T) {
 	}
 	if len(manifest.Jobs) != 2 || manifest.Jobs[0].Name != "a" || !reflect.DeepEqual(manifest.Jobs[0].Command, []string{"new"}) || manifest.Jobs[0].Status != "success" || manifest.Jobs[1].Name != "b" {
 		t.Fatalf("jobs = %#v, want latest a then b", manifest.Jobs)
+	}
+}
+
+func TestMergeRunsUsesListedOrderForSameTimestamp(t *testing.T) {
+	timestamp := "2026-10-04T11:38:27Z"
+	times := func(string) (string, string) { return "", timestamp }
+	listedFirst := SourceRun{
+		ID:            "20261004-113827-c05c3134",
+		Queue:         model.Queue{Commands: []model.QueuedCommand{{ID: "job", Name: "job", Command: []string{"first"}}}},
+		Summary:       model.RunSummary{Results: []model.JobResult{{ID: "job", ExitCode: 1}}},
+		JobTimestamps: times,
+	}
+	listedLast := SourceRun{
+		ID:            "20261004-113827-7dcbca0a",
+		Queue:         model.Queue{Commands: []model.QueuedCommand{{ID: "job", Name: "job", Command: []string{"last"}}}},
+		Summary:       model.RunSummary{Results: []model.JobResult{{ID: "job", ExitCode: 0}}},
+		JobTimestamps: times,
+	}
+
+	manifest, err := MergeRuns("demo", []SourceRun{listedFirst, listedLast})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := manifest.Jobs[0]; !reflect.DeepEqual(got.Command, []string{"last"}) || got.Status != "success" {
+		t.Fatalf("merged job = %#v, want the last listed snapshot", got)
+	}
+}
+
+func TestListedCommandRunUsesListedOrderForSameTimestamp(t *testing.T) {
+	timestamp := "2026-10-04T11:38:27Z"
+	times := func(string) (string, string) { return "", timestamp }
+	first := &SourceRun{
+		ID:            "20261004-113827-c05c3134",
+		Queue:         model.Queue{Commands: []model.QueuedCommand{{ID: "job", Name: "job", Command: []string{"first"}}}},
+		JobTimestamps: times,
+	}
+	last := &SourceRun{
+		ID:            "20261004-113827-7dcbca0a",
+		Queue:         model.Queue{Commands: []model.QueuedCommand{{ID: "job", Name: "job", Command: []string{"last"}}}},
+		JobTimestamps: times,
+	}
+	catalog := sourceCatalog{ordered: []*SourceRun{first, last}}
+
+	selected := catalog.listedCommandRun(sourceLeaf{run: first, command: first.Queue.Commands[0]})
+	if selected.run != last || !reflect.DeepEqual(selected.command.Command, []string{"last"}) {
+		t.Fatalf("selected = %#v, want the last listed source run", selected)
+	}
+}
+
+func TestLatestMatrixMemberUsesListedOrderForSameTimestamp(t *testing.T) {
+	values := []model.MatrixValue{{Name: "SEED", Value: "1"}}
+	firstCommand := model.QueuedCommand{ID: "first-member", Matrix: &model.MatrixSpec{GroupID: "group", Values: values}}
+	lastCommand := model.QueuedCommand{ID: "last-member", Matrix: &model.MatrixSpec{GroupID: "group", Values: values}}
+	timestamp := "2026-10-04T11:38:27Z"
+	times := func(string) (string, string) { return "", timestamp }
+	first := &SourceRun{
+		ID: "20261004-113827-c05c3134", Queue: model.Queue{Commands: []model.QueuedCommand{firstCommand}},
+		JobTimestamps: times,
+	}
+	last := &SourceRun{
+		ID: "20261004-113827-7dcbca0a", Queue: model.Queue{Commands: []model.QueuedCommand{lastCommand}},
+		JobTimestamps: times,
+	}
+	catalog := sourceCatalog{ordered: []*SourceRun{first, last}}
+	destination := model.QueuedCommand{Matrix: &model.MatrixSpec{GroupID: "group", Values: values}}
+
+	selected := catalog.latestMatrixMember(sourceLeaf{run: first, command: firstCommand}, destination, firstCommand, true)
+	if selected.run != last || selected.command.ID != lastCommand.ID {
+		t.Fatalf("selected = %#v, want the last listed matrix member", selected)
 	}
 }
 
