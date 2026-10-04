@@ -2,8 +2,8 @@
 
 Created: 2026-10-03
 
-Status: phases 0 and 1 implemented in `internal/artifact`; phases 2, 3, and 5
-pending; phase 4 deferred.
+Status: phases 0 to 2 implemented in `internal/artifact` and
+`internal/artifactsource`; phases 3 and 5 pending; phase 4 deferred.
 
 ## Purpose
 
@@ -614,13 +614,43 @@ in [classify_test.go](../../internal/artifact/classify_test.go) and
   clean to the same path are merged. One job records at most
   `MaxCandidates` (1000) candidates; the overflow is a diagnostic.
 
+### Configuration inspection decisions (phase 2)
+
+- `internal/artifact` parses bytes it is given (`ConfigReferences`) and asks a
+  caller-supplied `SourceReader` for each referenced configuration file
+  (`Discover`). `internal/artifactsource.Read` is that reader: the only file
+  access of discovery.
+- Only a `.yaml`/`.yml`/`.json`/`.toml` candidate referenced by a command
+  argument or environment value and resolved to an absolute path is read. Log
+  destinations, unresolved references, and references found inside a
+  configuration file are not read.
+- **Symlinks** are followed, because configuration files are often linked;
+  the target must be a regular file. There is no confinement: the reader runs
+  as the job's own user, and only classified path references are recorded,
+  never contents. Directories, FIFOs, devices, and sockets are rejected
+  without blocking (the open uses `O_NONBLOCK` and re-checks the opened file).
+- **Budgets:** 1 MiB per source (`MaxSourceBytes`), nesting depth 64, and
+  100,000 scalar values per source. References found before a limit are kept,
+  with a diagnostic.
+- Configuration strings use interpolated syntax (PATH-X2). YAML aliases and
+  merge keys are not followed, custom tags and non-string scalars are skipped,
+  non-string mapping keys are skipped, and each document of a multi-document
+  YAML file is walked (`$1.key` locates the second document). JSON and TOML
+  mapping keys are walked in sorted order; YAML keeps source order.
+- Locations use `a.b[2].c`; a key containing `.`, brackets, quotes, or spaces
+  is written `["key"]`. The key context of a sequence element is the key of
+  its sequence.
+- Diagnostics name the source and the reason (`not inspected: ...`); parse
+  errors are reported only as `cannot parse YAML/JSON/TOML`, so no source
+  text reaches them.
+
 ## Implementation phases
 
 | Phase | Deliverable | Exit criteria | Status |
 | --- | --- | --- | --- |
 | 0. Rules and schema | Accepted/rejected path fixtures, lifecycle placement, persistence and inspection safety decisions, log-destination base per executor | No unresolved assumption about add/run CWD, argv semantics, or remote visibility | Rules and log base done; persistence decided in phase 3 |
 | 1. Argument extraction | Shared classifier; argv, environment, and log-destination extraction with provenance, role hints, and deduplication | Deterministic unit tests; nonexistent output references retained; interpreter code bodies skipped | Done |
-| 2. Configuration extraction | Bounded YAML/JSON/TOML parsing of directly referenced sources | Nested strings and provenance covered; ambiguous/dynamic values skipped | Pending |
+| 2. Configuration extraction | Bounded YAML/JSON/TOML parsing of directly referenced sources | Nested strings and provenance covered; ambiguous/dynamic values skipped | Done |
 | 3. Lifecycle and persistence | Attempt-bound resolution and storage shared by all job creation paths | Plain/array/matrix/retry/carried cases and old state covered; execution behavior unchanged | Pending |
 | 4. Shell inspection | Conservative syntax-aware extraction of literals and PATH-E1 task variables | Array tasks and matrix members get distinct candidates for `$ROTARI_ARRAY_TASK_ID`/matrix-variable paths; other dynamic or ambiguous cases skipped; no execution during inspection | Deferred until phases 1-3 are validated |
 | 5. Contracts and documentation | Document implemented guarantees and limitations | Representative conformance tests, contract IDs/status rows, architecture and affected guides agree | Pending |

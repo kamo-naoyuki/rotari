@@ -93,11 +93,7 @@ var overrideKey = regexp.MustCompile(`^(\+\+|\+|~)?[A-Za-z_][A-Za-z0-9_.\-]*$`)
 // environment values, and log destinations. Referenced configuration files
 // are not read; see Discover.
 func FromJob(job Job) Result {
-	collector := newCollector(job.WorkingDirectory)
-	collector.arguments(job.Command)
-	collector.environment(job.Environment)
-	collector.destinations(job.Output, job.Error)
-	return collector.result
+	return Discover(job, nil)
 }
 
 type collector struct {
