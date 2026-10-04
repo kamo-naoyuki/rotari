@@ -254,6 +254,7 @@ Show queue or run status.
 | `no_pager` | `bool` | print logs directly instead of using a pager |
 | `basedirs` | `bool` | list state directories known to the master registry |
 | `report` | `bool` | print an AI-ready Markdown report |
+| `artifacts` | `bool` | list every artifact candidate of one job attempt instead of its logs |
 | `filter_result` | `Sequence[str]` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
 | `filter_exit_code` | `Sequence[str]` | select jobs with this exit code; may be repeated |
 | `filter_failure_kind` | `Sequence[str]` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |

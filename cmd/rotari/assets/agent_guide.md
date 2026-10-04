@@ -44,6 +44,8 @@ successful results are carried forward.
   `lineage` prints, finds its state directory and project itself, so those
   hints work as printed without `--basedir`.
 - Use `--no-pager` with log views such as `show --logs`.
+- `show -j ATTEMPT_ID --artifacts` lists the files and directories the job's
+  command, scripts, and configuration name, with whether each exists now.
 - In `add` and `change`, put rotari options before the job command and
   separate them with `--`: every argument after the command's first word goes
   to the job, so `add python train.py --timeout 30` passes `--timeout 30` to

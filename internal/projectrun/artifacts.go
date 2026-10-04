@@ -64,7 +64,7 @@ func (recorder *artifactRecorder) prepare(job model.JobSpec) {
 		WorkingDirectory: job.WorkingDirectory,
 		Variables:        variables,
 	}, artifact.Sources{Config: recorder.sources.References, Script: recorder.sources.Script})
-	recorder.pending.Store(job.AttemptID, artifact.Record{Version: artifact.DiscoveryVersion, Result: result})
+	recorder.pending.Store(job.AttemptID, artifact.Record{Version: artifact.DiscoveryVersion, WorkingDirectory: job.WorkingDirectory, Result: result})
 }
 
 // started writes the record prepared for job's attempt.

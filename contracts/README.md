@@ -198,6 +198,7 @@ the IDs, this table, and those calls disagree.
 | CLI-12 | `wait --json` reports completed and early-failure runs as structured JSON | conformance | `TestCLIFlagPairWaitJSONAndEarlyFailure`, `TestCLIFlagPairWaitSamples` |
 | CLI-14 | Text `wait` prints the same single, newline-terminated completion message as `run` | conformance | `TestWaitPrintsSameCompletionMessageAsRun` |
 | CLI-15 | Single-value CLI options reject duplicate occurrences while repeatable options remain repeatable | conformance | `TestCLIRejectsRepeatedSingleValueOption` |
+| CLI-16 | `show` of one job lists its attempt's artifact candidates, `--artifacts` lists all of them, and `--json` carries them | conformance | `TestShowListsArtifactCandidates` |
 | MCP-1 | MCP tools that change a project preview first and apply only at the previewed revision | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision`, `TestRunPreviewListsTheTasksOfAWholeArray` |
 | MCP-2 | `rotari_export_run` is a redacted view that the MCP import tools refuse | conformance | `TestMCPExportIsARedactedViewThatImportRefuses` |
 | MCP-3 | `rotari_run_summary` and `rotari_wait_run` report the run's state as `wait` decides it, from right after the start, and tool errors name no state directory | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision`, `TestMCPWaitReturnsOnTheFirstFinalFailure` |

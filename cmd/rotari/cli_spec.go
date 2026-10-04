@@ -289,6 +289,7 @@ var cliCommandSpecs = []cliCommandSpec{
 			cliFlagSpec{Name: "basedirs", Description: "list state directories known to the master registry"},
 			cliFlagSpec{Name: "json", Description: "print machine-readable JSON for a run"},
 			cliFlagSpec{Name: "report", Description: "print an AI-ready Markdown report"},
+			cliFlagSpec{Name: "artifacts", Description: "list every artifact candidate of one job attempt instead of its logs"},
 		), jobFilterFlagSpecs(queueRunJobFilters)...),
 		Positional: "[SELECTOR]",
 	},

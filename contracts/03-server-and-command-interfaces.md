@@ -235,6 +235,22 @@ follows:
   [`cmd/rotari/cli_spec_test.go`](../cmd/rotari/cli_spec_test.go) and an
   executable-level check in
   [`conformance/03-interfaces/flag_pair_projections_test.go`](../conformance/03-interfaces/flag_pair_projections_test.go).
+- **CLI-16** `show` of one executed job lists the artifact candidates its
+  attempt recorded (RUN-9) after the command: what the showing host finds at
+  each path now (`file`, `directory`, `other`, `missing`, or `unknown` for a
+  path whose base was never known), the path relative to the job's working
+  directory when under it, and where it was found. It lists at most 20 and
+  names `show -j ATTEMPT --artifacts` for the rest; an attempt without a
+  record reads `(not recorded)`, unlike `none found`. `--artifacts` lists
+  every candidate and the discovery notes instead of the logs, requires one
+  job, and is rejected with log, follow, stream, JSON, report, queue, list,
+  and result-filter options. `show -j JOB --json` carries the same listing per
+  job. A carried job shows the candidates of the attempt that produced its
+  result. The listing is built once in `jobstatus.ListArtifacts`
+  ([internal/jobstatus/artifacts.go](../internal/jobstatus/artifacts.go)) and
+  printed by [`cmd/rotari/show_artifacts.go`](../cmd/rotari/show_artifacts.go);
+  covered by `TestShowListsArtifactCandidates` in
+  [conformance/03-interfaces/artifacts_test.go](../conformance/03-interfaces/artifacts_test.go).
 
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.

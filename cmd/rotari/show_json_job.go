@@ -15,6 +15,9 @@ type showJSONJob struct {
 	Job      model.JobSpec    `json:"job"`
 	Finished bool             `json:"finished"`
 	Result   *model.JobResult `json:"result,omitempty"`
+	// Artifacts are the candidates of the attempt that produced the job's
+	// result, as `show -j JOB --artifacts` lists them.
+	Artifacts jobstatus.ArtifactListing `json:"artifacts"`
 }
 
 // showRunJobJSON resolves each expanded job through the same status fallback
@@ -104,7 +107,8 @@ func resolveRunJSONJobs(runDir string, selected []model.JobSpec, summary *model.
 		}
 		saved, hasSummary := results[spec.ID]
 		resolved := jobstatus.ReadJob(jsonStore(), jobDir, saved, hasSummary)
-		item := showJSONJob{Job: spec, Finished: resolved.Finished()}
+		item := showJSONJob{Job: spec, Finished: resolved.Finished(),
+			Artifacts: jobstatus.ListArtifacts(jsonStore(), filepath.Dir(runDir), model.JobOrigin{RunID: filepath.Base(runDir), JobID: spec.ID})}
 		if result, ok := resolved.Result(spec); ok {
 			item.Result = &result
 		}

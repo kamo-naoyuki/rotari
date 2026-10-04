@@ -318,6 +318,7 @@ Usage: `rotari show [SELECTOR]`
 | `--basedirs` | `` | `` | list state directories known to the master registry |
 | `--json` | `` | `` | print machine-readable JSON for a run |
 | `--report` | `` | `` | print an AI-ready Markdown report |
+| `--artifacts` | `` | `` | list every artifact candidate of one job attempt instead of its logs |
 | `--filter-result` | `RESULT (repeatable)` | `` | select jobs with this result; may be repeated; --failed, --unfinished, and --success are short forms (choices: failed, unfinished, success) |
 | `--filter-exit-code` | `N (repeatable)` | `` | select jobs with this exit code; may be repeated |
 | `--filter-failure-kind` | `KIND (repeatable)` | `` | select jobs of this failure kind; may be repeated (choices: timeout, cancelled, blocked, oom, signal, error) |

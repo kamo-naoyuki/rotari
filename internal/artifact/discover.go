@@ -289,5 +289,8 @@ const DiscoveryVersion = 7
 // Record is the persisted discovery of one job attempt.
 type Record struct {
 	Version int `json:"version"`
+	// WorkingDirectory is the effective directory relative references were
+	// resolved on, or "" when it was not known.
+	WorkingDirectory string `json:"working_directory,omitempty"`
 	Result
 }

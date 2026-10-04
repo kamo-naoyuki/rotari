@@ -1,9 +1,13 @@
 package jobstatus
 
 import (
+	"encoding/json"
+	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/artifact"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -59,5 +63,44 @@ func TestArtifactsIgnoresUnreadableRecord(t *testing.T) {
 	writeFile(t, filepath.Join(attemptDir, state.ArtifactsFileName), "{not json")
 	if record, ok := Artifacts(testStore(), runsDir, model.JobOrigin{RunID: runID, JobID: "job"}); ok {
 		t.Fatalf("Artifacts = %+v, want no record for a corrupt file", record)
+	}
+}
+
+func TestListArtifactsObservesEachPath(t *testing.T) {
+	runsDir := t.TempDir()
+	work := t.TempDir()
+	writeFile(t, filepath.Join(work, "a.csv"), "x")
+	if err := os.Symlink(filepath.Join(work, "a.csv"), filepath.Join(work, "link.csv")); err != nil {
+		t.Fatal(err)
+	}
+	const runID = "20260101-000000-aaaaaaaa"
+	attemptDir := filepath.Join(runsDir, runID, "job", "attempts", state.MakeAttemptID(runID, "job", 0))
+	record := artifact.Record{Version: 7, Result: artifact.Result{
+		Candidates: []artifact.Candidate{
+			{Path: filepath.Join(work, "a.csv"), Basis: artifact.BasisWorkingDirectory, Sources: []artifact.Source{{Kind: artifact.KindArgument, Key: "--in"}}},
+			{Path: work, Basis: artifact.BasisAbsolute, Sources: []artifact.Source{{Kind: artifact.KindEnvironment, Key: "OUT_DIR"}}},
+			{Path: filepath.Join(work, "link.csv"), Basis: artifact.BasisWorkingDirectory, Sources: []artifact.Source{{Kind: artifact.KindArgument}}},
+			{Path: filepath.Join(work, "gone.csv"), Basis: artifact.BasisWorkingDirectory, Sources: []artifact.Source{{Kind: artifact.KindOutput}}},
+			{Path: "rel.csv", Basis: artifact.BasisUnresolved, Sources: []artifact.Source{{Kind: artifact.KindArgument}}},
+		},
+		Diagnostics: []artifact.Diagnostic{{Source: "/x.yaml", Message: "not inspected: no such file"}},
+	}}
+	data, err := json.Marshal(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(attemptDir, state.ArtifactsFileName), string(data))
+
+	listing := ListArtifacts(testStore(), runsDir, model.JobOrigin{RunID: runID, JobID: "job"})
+	var got []string
+	for _, entry := range listing.Entries {
+		got = append(got, entry.Type+" "+filepath.Base(entry.Path)+" "+entry.Origin)
+	}
+	want := []string{"file a.csv --in", "directory " + filepath.Base(work) + " env OUT_DIR", "file link.csv argument", "missing gone.csv --output", "unknown rel.csv argument"}
+	if !listing.Recorded || listing.Version != 7 || !reflect.DeepEqual(got, want) || len(listing.Diagnostics) != 1 {
+		t.Fatalf("listing = %+v\nentries %q, want %q", listing, got, want)
+	}
+	if missing := ListArtifacts(testStore(), runsDir, model.JobOrigin{RunID: runID, JobID: "other"}); missing.Recorded || len(missing.Entries) != 0 {
+		t.Fatalf("listing without a record = %+v", missing)
 	}
 }

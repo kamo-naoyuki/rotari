@@ -109,6 +109,7 @@ func cmdShow(args []string) int {
 	noPager := cliBool(fs, "no-pager", false)
 	jsonOutput := cliBool(fs, "json", false)
 	reportOutput := cliBool(fs, "report", false)
+	artifactsOutput := cliBool(fs, "artifacts", false)
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
@@ -263,6 +264,16 @@ func cmdShow(args []string) int {
 		}
 		applyShowSelectorTarget(targets[0], basedir, queueNameOption, runIDOption, jobIDOption, showQueueOption)
 	}
+	if *artifactsOutput {
+		if *jobIDOption == "" {
+			printError("--artifacts requires --job-id, a job selector, or an attempt ID")
+			return 1
+		}
+		if *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput || *showQueueOption || *showBaseDirsList || resultFilter || cliOptionSet(fs, "stream") {
+			printError("--artifacts cannot be combined with log, follow, stream, JSON, report, queue, list, or result filter options")
+			return 1
+		}
+	}
 	if cliOptionSet(fs, "stream") && (*reportOutput || (!*showLogs && !*showFailedLogs && !*followLogs && *jobIDOption == "")) {
 		printError("--stream requires a job log, --logs, or --failed-logs view")
 		return 1
@@ -359,7 +370,7 @@ func cmdShow(args []string) int {
 			}
 			// Options that only apply to runs look past a non-empty queue to
 			// the latest run; other views show the queue.
-			runOnly := *showLogs || *showFailedLogs || *followLogs || resultFilter || *reportOutput || cliOptionSet(fs, "stream")
+			runOnly := *showLogs || *showFailedLogs || *followLogs || resultFilter || *reportOutput || *artifactsOutput || cliOptionSet(fs, "stream")
 			if len(queue.Commands) > 0 && !runOnly {
 				if arrayScope, ok := arrayCommandScope(queue.Commands, *jobIDOption); ok {
 					return showQueue(paths, queue, arrayScope, jobfilter.Filter{})
@@ -391,6 +402,10 @@ func cmdShow(args []string) int {
 	}
 	if runQueue, err := state.LoadQueue(filepath.Join(paths.RunsDir, runID, "commands.json")); err == nil && !*reportOutput {
 		if arrayScope, ok := arrayCommandScope(runQueue.Commands, *jobIDOption); ok {
+			if *artifactsOutput {
+				printErrorf("--artifacts requires --job-id of one task, not of the array %q", *jobIDOption)
+				return 1
+			}
 			if *jsonOutput {
 				return showRunJobJSON(paths, runID, *jobIDOption, resultSelection)
 			}
@@ -398,6 +413,11 @@ func cmdShow(args []string) int {
 		}
 	}
 	if *jobIDOption != "" {
+		if *artifactsOutput {
+			return showWithPager(!*noPager, func(writer io.Writer) int {
+				return showJobArtifacts(writer, paths, runID, *jobIDOption, attemptID)
+			})
+		}
 		if *reportOutput {
 			report, err := report.Build(jsonStore(), paths, runID, *jobIDOption, false, attemptID, true)
 			if err != nil {
@@ -1701,6 +1721,8 @@ func showJobAttempt(writer io.Writer, paths state.ProjectPaths, runID, jobID, at
 		fmt.Fprintf(writer, "%s -\n", cyan("Logs:"))
 		return 0
 	}
+	listing := jobstatus.ListArtifacts(jsonStore(), paths.RunsDir, model.JobOrigin{RunID: runID, JobID: jobID, AttemptID: selectedAttemptID})
+	writeArtifactListing(writer, listing, shownArtifacts, "rotari show -j "+selectedAttemptID+" --artifacts")
 	printJobStreams(writer, jobDir, selectedStreamNames(selectedStreams...))
 	return 0
 }

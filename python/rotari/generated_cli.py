@@ -1097,6 +1097,11 @@ CLI_SCHEMA: dict[str, Any] = {
                 },
                 {"description": "print an AI-ready Markdown report", "name": "report"},
                 {
+                    "description": "list every artifact candidate of one job "
+                    "attempt instead of its logs",
+                    "name": "artifacts",
+                },
+                {
                     "description": "select jobs with this result; may be "
                     "repeated; --failed, --unfinished, and "
                     "--success are short forms",

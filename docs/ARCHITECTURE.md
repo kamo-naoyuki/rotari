@@ -307,7 +307,7 @@ dispatched from `run` in [main.go](../cmd/rotari/main.go).
 | Wiring the run lifecycle (`projectRunner`) and its failure diagnosis | `project_run.go`, `diagnosis.go` |
 | Supervisor process wiring, its server registry, and `show --basedirs` discovery | `server.go`, `registry.go` |
 | Job control | `job_control.go`, `wait.go` |
-| Reading results | `show.go`, `jobs.go`, `diff.go`, `check.go` |
+| Reading results | `show.go`, `show_artifacts.go`, `jobs.go`, `diff.go`, `check.go` |
 | Workflow manifests | `export.go`, `import.go`, `workflow_source.go` |
 | `web` command and the Web UI's CLI metadata (`webOptions`) | `web.go` |
 | Notifications and terminal output | `webhook.go`, `webhook_batch.go`, `color.go`, `terminal*.go` |

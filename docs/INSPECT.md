@@ -120,8 +120,28 @@ recorded, but not paths the code builds with f-strings, `.format`, or
 `os.path.join`. Code given to `python -c` and the text given to `echo` or
 `printf` are not searched. Configuration
 files are read on the host that runs `rotari run`, also for SSH and scheduler
-jobs; a file that host cannot read is skipped. There is no command to list
-them yet.
+jobs; a file that host cannot read is skipped.
+
+`rotari show -j JOB` lists the first 20 of them after the command, each with
+what is at the path now on the host running `show` (`file`, `directory`,
+`other`, `missing`, or `unknown` for a relative path whose directory was
+never known), the path relative to the job's working directory, and where it
+was found:
+
+```text
+Artifacts: relative to /work/exp
+  file       train.py  (argument)
+  file       conf/a.yaml  (--config)
+  directory  results  (a.yaml: out_dir)
+  missing    out/3.log  (> (run.sh:2:15))
+```
+
+`missing` only means the path is not there for this host: an SSH job's files
+may exist on its own host. `rotari show -j ATTEMPT_ID --artifacts` lists all
+of them, with notes on files discovery could not read, instead of the logs,
+and `show -j JOB --json` includes the same listing as `artifacts`. A carried
+job shows the candidates of the attempt that produced its result. Runs from
+before this record existed show `(not recorded)`.
 
 If a runner exits before finalizing its run, `show` reports the interrupted run
 and blocks `add`, `copy`, and `run` until you acknowledge it. First confirm
