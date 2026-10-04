@@ -101,5 +101,5 @@ SCRIPT
 
 echo "generating static pages in ${output_dir}..."
 # Export every project, not only the one ROTARI_PROJECT_NAME selects.
-env -u ROTARI_PROJECT_NAME "${binary}" web --static-dir "${output_dir}"
+env -u ROTARI_PROJECT_NAME "${binary}" web --static-dir "${output_dir}" --static-artifact-contents
 echo "done"
