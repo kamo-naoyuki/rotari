@@ -145,7 +145,9 @@ its Output button shows, also in a static export, where the listing
 describes the files as they were when the export was made.
 
 In the live Web UI, a listed file or directory under the job's working
-directory can be opened: images are shown, CSV and TSV files as tables, logs
+directory can be opened: images are shown, audio and video play, NumPy
+`.npy` and `.npz` files show each array's dtype, shape, and first values,
+CSV and TSV files show as tables, logs
 and `.txt` files from the end, other text from the start, each loading more
 on demand, and a directory as its immediate children, 200 at a time. Any
 file can be downloaded. A path outside the working directory, or a symlink

@@ -427,10 +427,16 @@ directory, never a free path; (b) the path is under the job's recorded
 working directory or an `rotari web --artifact-root DIR`; and (c) opening it
 through `os.Root` does not leave that root, including through a symlink.
 `/api/artifacts` adds `previewable` per entry; a refused request is 403, a
-missing file 404. Images (png, jpg, jpeg, gif, svg) are served inline and
-every other file, or any file with `download=1`, as an attachment, all with
-`Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, and a
-`sandbox` Content-Security-Policy, so an SVG's scripts never run. Files are
+missing file 404. Images (png, jpg, jpeg, gif, svg), audio (wav, mp3, flac,
+ogg, oga, opus, m4a), and video (mp4, webm, mov) are served inline, with
+range requests so media can seek, and every other file, or any file with
+`download=1`, as an attachment, all with `Cache-Control: no-store`,
+`X-Content-Type-Options: nosniff`, and a `sandbox` Content-Security-Policy,
+so an SVG's scripts never run. `/api/artifact-array` describes a `.npy`
+file, or each of up to 200 arrays in a `.npz` file, from their headers:
+dtype, shape, order, and the first 50 values in memory order for boolean,
+integer, and floating dtypes; object arrays are pickles and their values are
+never read. Files are
 streamed without a size limit; text is served 64 KiB at a time on line
 boundaries, from the start or, for `.log` and `.txt` in the UI, from the end,
 and a file with a NUL byte is not text. A directory lists its immediate

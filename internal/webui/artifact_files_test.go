@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -43,7 +44,10 @@ func newArtifactFixture(t *testing.T) artifactFixture {
 		fmt.Fprintf(&log, "line %05d\n", index)
 	}
 	write(t, filepath.Join(f.work, "run.log"), log.String())
-	write(t, filepath.Join(f.work, "weights.npy"), "\x93NUMPY\x00\x01")
+	write(t, filepath.Join(f.work, "weights.npy"), string(npy(1, "{'descr': '<f4', 'fortran_order': False, 'shape': (3,), }", values(binary.LittleEndian, float32(1), float32(2), float32(3)))))
+	write(t, filepath.Join(f.work, "model.pt"), "PK\x00\x01torch")
+	write(t, filepath.Join(f.work, "clip.wav"), "RIFF\x00\x00\x00\x00WAVE")
+	write(t, filepath.Join(f.work, "clip.mp4"), "\x00\x00\x00\x18ftypmp42")
 	for index := range 250 {
 		write(t, filepath.Join(f.work, "many", fmt.Sprintf("f%03d.txt", index)), "x")
 	}
@@ -73,6 +77,7 @@ func newArtifactFixture(t *testing.T) artifactFixture {
 		filepath.Join(f.work, "plot.png"), filepath.Join(f.work, "pic.svg"), filepath.Join(f.work, "data.csv"),
 		filepath.Join(f.work, "run.log"), filepath.Join(f.work, "weights.npy"), filepath.Join(f.work, "many"),
 		filepath.Join(f.outside, "secret.txt"), filepath.Join(f.work, "link.csv"), filepath.Join(f.work, "gone.csv"),
+		filepath.Join(f.work, "model.pt"), filepath.Join(f.work, "clip.wav"), filepath.Join(f.work, "clip.mp4"),
 	} {
 		f.entries[filepath.Base(path)] = index
 		record.Candidates = append(record.Candidates, artifact.Candidate{Path: path, Basis: artifact.BasisAbsolute,
@@ -112,7 +117,7 @@ func TestArtifactPreviewableFlags(t *testing.T) {
 	// Files and directories under the working directory are previewable; a
 	// path outside it, a missing one, and one without a base are not. A
 	// symlink is judged when opened.
-	want := []bool{true, true, true, true, true, true, false, true, false, false}
+	want := []bool{true, true, true, true, true, true, false, true, false, true, true, true, false}
 	if fmt.Sprint(listing.Previewable) != fmt.Sprint(want) {
 		t.Fatalf("previewable = %v, want %v", listing.Previewable, want)
 	}
@@ -139,6 +144,12 @@ func TestArtifactFileServing(t *testing.T) {
 	csv := f.get(t, options, "/api/artifact-file", "data.csv", nil)
 	if csv.Code != http.StatusOK || csv.Header().Get("Content-Type") != "application/octet-stream" || !strings.HasPrefix(csv.Header().Get("Content-Disposition"), "attachment") {
 		t.Fatalf("non-image file is not a download: %d %v", csv.Code, csv.Header())
+	}
+	for name, contentType := range map[string]string{"clip.wav": "audio/wav", "clip.mp4": "video/mp4"} {
+		media := f.get(t, options, "/api/artifact-file", name, nil)
+		if media.Code != http.StatusOK || media.Header().Get("Content-Type") != contentType || media.Header().Get("Content-Disposition") != "" || media.Header().Get("Accept-Ranges") != "bytes" {
+			t.Fatalf("%s = %d %v", name, media.Code, media.Header())
+		}
 	}
 	download := f.get(t, options, "/api/artifact-file", "plot.png", url.Values{"download": {"1"}})
 	if !strings.Contains(download.Header().Get("Content-Disposition"), `filename="plot.png"`) {

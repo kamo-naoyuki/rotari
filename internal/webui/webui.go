@@ -609,6 +609,7 @@ func (s site) baseHandler() http.Handler {
 	})
 	for path, serve := range map[string]func(string, http.ResponseWriter, *http.Request){
 		"/api/artifact-file": s.serveArtifactFile, "/api/artifact-text": s.serveArtifactText, "/api/artifact-directory": s.serveArtifactDirectory,
+		"/api/artifact-array": s.serveArtifactArray,
 	} {
 		mux.HandleFunc(path, func(writer http.ResponseWriter, request *http.Request) {
 			if request.Method != http.MethodGet && request.Method != http.MethodHead {

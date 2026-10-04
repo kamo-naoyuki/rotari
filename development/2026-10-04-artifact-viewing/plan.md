@@ -90,7 +90,11 @@ into memory. Only how much the browser renders at once is bounded:
 | csv, tsv | A table of a first chunk of rows, with more loaded on demand |
 | `.log`, `.txt` | Text from the end, with earlier chunks loaded on demand, like job logs |
 | json, yaml, yml, toml, py, sh, and other text | Text from the start, with later chunks loaded on demand |
-| Anything else (pdf, npy, pt, h5, ...) | Size and modification time, and a download |
+| wav, mp3, flac, ogg, oga, opus, m4a | `<audio controls>`, served inline with range requests so seeking works |
+| mp4, webm, mov | `<video controls>`, the same way |
+| npy | dtype, shape, order, and the first 50 values in memory order, read from the header without numpy; object (pickled) arrays never have values shown, since unpickling runs code |
+| npz | The same for each array inside, at most 200 arrays |
+| Anything else (pdf, pt, h5, ...) | Size and modification time, and a download; HDF5 structure would need a cgo library or an external tool, so it is not shown |
 | Directory | Its immediate children (name, type, size, modified), directories first and then by name, 200 per page with more on demand; each child openable under the same rules; no recursive listing |
 
 A directory's names are read up to 100,000 entries, so a directory with

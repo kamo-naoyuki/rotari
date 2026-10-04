@@ -31,10 +31,14 @@ const (
 	artifactDirectoryScan = 100000
 )
 
-// artifactImageTypes are the files served inline, as images.
-var artifactImageTypes = map[string]string{
+// artifactInlineTypes are the files served inline: images, audio, and
+// video, which the page shows with img, audio, and video elements.
+var artifactInlineTypes = map[string]string{
 	".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
 	".gif": "image/gif", ".svg": "image/svg+xml",
+	".wav": "audio/wav", ".mp3": "audio/mpeg", ".flac": "audio/flac",
+	".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg", ".m4a": "audio/mp4",
+	".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime",
 }
 
 // webArtifactListing is the /api/artifacts response: the listing the CLI
@@ -142,8 +146,9 @@ func noStore(writer http.ResponseWriter) {
 	writer.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
 }
 
-// serveArtifactFile streams a file: an image inline, anything else, or any
-// file with download=1, as an attachment.
+// serveArtifactFile streams a file: an image, audio, or video file inline,
+// with range requests so media can seek; anything else, or any file with
+// download=1, as an attachment.
 func (s site) serveArtifactFile(baseDir string, writer http.ResponseWriter, request *http.Request) {
 	served, err := s.resolveArtifact(baseDir, request.URL.Query())
 	if err != nil {
@@ -166,8 +171,8 @@ func (s site) serveArtifactFile(baseDir string, writer http.ResponseWriter, requ
 		return
 	}
 	noStore(writer)
-	contentType, image := artifactImageTypes[strings.ToLower(filepath.Ext(served.name()))]
-	if !image || request.URL.Query().Get("download") == "1" {
+	contentType, inline := artifactInlineTypes[strings.ToLower(filepath.Ext(served.name()))]
+	if !inline || request.URL.Query().Get("download") == "1" {
 		contentType = "application/octet-stream"
 		writer.Header().Set("Content-Disposition", "attachment; filename="+strconv.Quote(served.name()))
 	}

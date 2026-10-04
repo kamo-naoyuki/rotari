@@ -3,6 +3,8 @@
 // computes every field; this file only lays them out.
 let selectedArtifacts = null;
 const artifactImageTypes = ["png", "jpg", "jpeg", "gif", "svg"];
+const artifactAudioTypes = ["wav", "mp3", "flac", "ogg", "oga", "opus", "m4a"];
+const artifactVideoTypes = ["mp4", "webm", "mov"];
 // Text shown from the end, like a job log; other text starts at the top.
 const artifactTailTypes = ["log", "txt"];
 const artifactTextTypes = [
@@ -225,6 +227,25 @@ async function openArtifact(index, child, type) {
       esc(artifactURL("/api/artifact-file", index, child)) +
       '">';
     return;
+  }
+  if (
+    artifactAudioTypes.includes(extension) ||
+    artifactVideoTypes.includes(extension)
+  ) {
+    const tag = artifactAudioTypes.includes(extension) ? "audio" : "video";
+    preview.innerHTML =
+      header +
+      "<" +
+      tag +
+      ' class="artifact-media" controls preload="metadata" src="' +
+      esc(artifactURL("/api/artifact-file", index, child)) +
+      '"></' +
+      tag +
+      ">";
+    return;
+  }
+  if (extension === "npy" || extension === "npz") {
+    return loadArtifactArrays(index, child, header);
   }
   if (extension === "csv" || extension === "tsv") {
     return loadArtifactTable(index, child, extension === "tsv" ? "\t" : ",");
@@ -485,5 +506,47 @@ async function loadArtifactDirectory(index, child, offset) {
         "," +
         end +
         ')">More</button>'
+      : "");
+}
+// loadArtifactArrays describes a .npy file, or each array of a .npz file:
+// dtype, shape, and its first values, which the server reads from the
+// file's headers without numpy.
+async function loadArtifactArrays(index, child, header) {
+  let result;
+  try {
+    result = await fetchArtifactJSON("/api/artifact-array", index, child);
+  } catch (error) {
+    return artifactFailure(index, child, error);
+  }
+  const arrays = result.arrays
+    .map(
+      (array) =>
+        '<div class="artifact-array"><p>' +
+        (array.name ? "<strong>" + esc(array.name) + "</strong> " : "") +
+        esc(
+          (array.dtype || "?") +
+            " shape (" +
+            (array.shape || []).join(", ") +
+            (array.shape && array.shape.length === 1 ? "," : "") +
+            ")" +
+            (array.fortran_order ? " Fortran order" : "") +
+            (array.dtype ? ", " + array.size + " values" : ""),
+        ) +
+        "</p>" +
+        (array.values && array.values.length
+          ? '<pre class="log artifact-values">[' +
+            esc(array.values.join(", ")) +
+            (array.values.length < array.size ? ", …" : "") +
+            "]</pre>"
+          : "") +
+        (array.note ? '<p class="meta">' + esc(array.note) + "</p>" : "") +
+        "</div>",
+    )
+    .join("");
+  artifactPreview().innerHTML =
+    header +
+    (arrays || '<p class="meta">No arrays.</p>') +
+    (result.truncated
+      ? '<p class="meta">Only the first arrays are listed.</p>'
       : "");
 }

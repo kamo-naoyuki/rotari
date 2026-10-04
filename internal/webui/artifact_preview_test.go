@@ -50,10 +50,10 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   const view = document.getElementById('artifact-view');
   if (view.hidden || document.getElementById('modal-log').hidden !== true) fail('view toggling');
   const rows = view.querySelectorAll('.artifact-table tbody tr');
-  if (rows.length !== 10) fail('rows', rows.length);
+  if (rows.length !== 13) fail('rows', rows.length);
   const buttons = [...view.querySelectorAll('.artifact-table .artifact-open')].map(button => button.textContent);
   if (buttons.some(text => text.includes('secret.txt'))) fail('outside entry is openable');
-  if (buttons.length !== 7) fail('buttons', buttons);
+  if (buttons.length !== 10) fail('buttons', buttons);
 
   await window.openArtifact(entries['plot.png'], '', 'file');
   const image = view.querySelector('.artifact-image');
@@ -91,7 +91,19 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   if (!view.querySelector('.artifact-preview-title').textContent.includes("many/it's.txt")) fail('quoted child title', view.querySelector('.artifact-preview').textContent);
 
   await window.openArtifact(entries['weights.npy'], '', 'file');
-  if (!view.querySelector('.artifact-preview').textContent.includes('No preview for this file type. 8 B')) fail('no preview', view.querySelector('.artifact-preview').textContent);
+  const arrayText = view.querySelector('.artifact-preview').textContent;
+  if (!arrayText.includes('<f4 shape (3,), 3 values') || view.querySelector('.artifact-values').textContent !== '[1, 2, 3]') fail('array', arrayText);
+
+  for (const [name, tag, type] of [['clip.wav', 'audio', 'audio/wav'], ['clip.mp4', 'video', 'video/mp4']]) {
+    await window.openArtifact(entries[name], '', 'file');
+    const media = view.querySelector('.artifact-preview ' + tag + '[controls]');
+    if (!media) fail(tag, view.querySelector('.artifact-preview').innerHTML);
+    const mediaResponse = await fetch(new URL(media.getAttribute('src'), base));
+    if (mediaResponse.status !== 200 || mediaResponse.headers.get('content-type') !== type) fail(tag + ' response', mediaResponse.status);
+  }
+
+  await window.openArtifact(entries['model.pt'], '', 'file');
+  if (!view.querySelector('.artifact-preview').textContent.includes('No preview for this file type. 9 B')) fail('no preview', view.querySelector('.artifact-preview').textContent);
   process.exit(0);
 })().catch(error => fail('error', error.stack));
 `

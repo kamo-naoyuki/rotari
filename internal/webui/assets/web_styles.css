@@ -1635,3 +1635,13 @@ pre,
   max-height: 60vh;
   overflow: auto;
 }
+.artifact-media {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+}
+.artifact-values {
+  height: auto;
+  max-height: 12rem;
+  overflow: auto;
+}
