@@ -153,8 +153,8 @@
   run ID suffixes do not define ordering. Selection is implemented in
   [internal/workflow/source.go](../internal/workflow/source.go) and
   [internal/workflow/reconcile.go](../internal/workflow/reconcile.go), covered
-  by `TestMergeRunsUsesListedOrderForSameTimestamp`,
-  `TestListedCommandRunUsesListedOrderForSameTimestamp`, and
+  by `TestMergeRunsUsesListedOrderForSameTimestamp` and
+  `TestListedCommandRunUsesListedOrderForSameTimestamp` and
   `TestLatestMatrixMemberUsesListedOrderForSameTimestamp` in
   [internal/workflow/reconcile_test.go](../internal/workflow/reconcile_test.go),
   and through the CLI by
