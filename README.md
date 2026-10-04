@@ -36,7 +36,7 @@ The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers ins
 - **Do I have to rerun everything after one failure?**
   `rotari retry` reruns only failed and unfinished jobs while carrying
   successful results
-  ([running](docs/RUNNING.md)).
+  ([recovering](docs/RECOVERING.md)).
 
 ## How is rotari different?
 
