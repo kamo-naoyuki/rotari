@@ -198,3 +198,34 @@ passed. `go vet` and `gofmt` were clean. A full `scripts/check.sh` was not
 rerun.
 
 **Remaining:** None.
+
+## Text commands (PATH-X5)
+
+**Commit:** `778857d` — 2026-10-04T15:14:07+09:00
+
+**Change:** Added PATH-X5: `echo` and `printf`, recognized by the shared
+`recognizeCommand` at argv[0] or behind `env`, `timeout`, or `srun`, have
+none of their arguments classified, and the launcher scan stops at them.
+`DiscoveryVersion` is now 3. Added argument fixtures (direct, absolute
+`/bin/echo`, `printf`, behind `env`, `srun` stopping at `echo`, and `echo`
+as an ordinary argument of another command), moved the `echo bash -c
+output.csv` contract example to "Not recorded", added a launcher example,
+and updated the conformance version check, the plan (PATH-X5, the launcher
+limitation and boundary tables), and docs/INSPECT.md.
+
+**Reason:** The user asked to exclude `echo bash -c output.csv` by making
+`echo` a known command; `printf` is the same kind of command.
+
+**Plan impact:** Resolves the `srun echo bash -c output.csv` false-match
+limitation.
+
+**Validation:** Five new argument fixtures failed before the change (the
+`srun` case after adding a trailing `x.csv` so it could tell the scan
+stopping at `echo` from `bash -c` hiding the word) and passed after it.
+`go test -count=1` of `./internal/artifact`, `./internal/projectrun`, and
+`./internal/doclinks`, `TestArtifactCandidateExamples`,
+`TestStartedAttemptRecordsArtifactCandidates`, and `TestContractStatus`
+passed. `go vet` and `gofmt` were clean. A full `scripts/check.sh` was not
+rerun.
+
+**Remaining:** None.
