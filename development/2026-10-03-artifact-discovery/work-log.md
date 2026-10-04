@@ -281,3 +281,36 @@ passed. `srun` rows are left to package tests because running them would
 submit jobs on a host with Slurm. A full `scripts/check.sh` was not rerun.
 
 **Remaining:** None.
+
+## Per-run configuration cache and size limit
+
+**Commit:** `cd6a968` — 2026-10-04T15:33:26+09:00
+
+**Change:** Added `artifactsource.Cache`, which parses a configuration file
+once per version (path, size, modification time) for one run and caches
+parse errors too; the run's `artifactRecorder` uses one per run.
+`artifact.Discover` now takes a `ConfigReader` (`ParseSources` keeps the
+byte-reader form). `MaxSourceBytes` is 256 KiB (was 1 MiB): a larger file is
+rejected from its stat, without being read or parsed. `MaxSourceValues` is
+50,000 (was 100,000). `DiscoveryVersion` is 4. Updated the plan and
+docs/ARCHITECTURE.md.
+
+**Reason:** Benchmarks showed YAML parsing at about 3.5 MB/s (4 KB in
+1.3 ms, 100 KB in 30 ms) and discovery running once per attempt in the engine
+loop, so a 1000-task array with a 100 KB configuration delayed submission by
+about 30 s. The user also asked that abnormally large files stop analysis.
+
+**Plan impact:** Revises the phase 2 budgets and the reader design.
+
+**Validation:** The cache test (same size and time returns the cached
+parse; a new time or size reparses; parse errors cached; an oversized file
+that is unreadable is still rejected by size) and
+`TestArtifactRecorderParsesAConfigOncePerRun` passed. The latter failed with
+the uncached reader temporarily wired in. `./internal/artifact`,
+`./internal/projectrun`, `./internal/jobstatus`, `./internal/archtest`,
+`./internal/doclinks`, and the RUN-9 conformance tests passed. A full
+`scripts/check.sh` (vet, test, race) started after this commit passed with
+"all checks passed"; it also covers the commits since `4879815` that recorded
+"full check not rerun".
+
+**Remaining:** None.

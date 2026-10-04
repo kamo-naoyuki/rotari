@@ -4,8 +4,9 @@ Created: 2026-10-03
 
 Status: phases 0 to 3 and 5 implemented (`internal/artifact`,
 `internal/artifactsource`, the run's `artifactRecorder`,
-`jobstatus.Artifacts`, and contract RUN-9); phase 4 (shell inspection)
-deferred. No CLI or Web view reads the records yet.
+`jobstatus.Artifacts`, and contract RUN-9); phase 4 (shell inspection) in
+progress; phase 6 (Python source) planned. No CLI or Web view reads the
+records yet.
 
 ## Purpose
 
@@ -706,6 +707,51 @@ in [classify_test.go](../../internal/artifact/classify_test.go) and
 - **Failures.** A record that cannot be written is a warning in the
   supervisor log; the job's execution and result are unchanged.
 
+### Shell inspection decisions (phase 4)
+
+- **Parser.** `mvdan.cc/sh/v3/syntax` v3.13.1, the newest release that
+  supports this module's Go 1.25 (v3.14 requires Go 1.26). Only the `syntax`
+  package is used: it parses and never runs anything. `sh` and `dash` source
+  is parsed as POSIX, `bash` source as Bash; `zsh` source is not parsed.
+- **Steps.** (a) the `-c` code operand of a recognized shell: redirection
+  targets (PATH-R1) and the arguments of each simple command, classified with
+  the same recognizer and argv rules; (b) referenced shell scripts: a `.sh`
+  candidate from argv or the environment, or the script operand of a
+  recognized shell, read through the same cache, size limit, and diagnostics
+  as configuration files; (c) PATH-E1 expansion; (d) quoted-delimiter
+  heredocs consumed by a recognized shell. Each step lands with its contract
+  rows.
+- **Words.** A word counts only when every part is literal after quote
+  removal, or a plain `$NAME`/`${NAME}` that PATH-E1 expands. Any other
+  expansion, a command or process substitution, an arithmetic expansion, a
+  glob, or brace expansion skips the whole word.
+- **`cd`.** After the first `cd`, `pushd`, or `popd` in source order,
+  relative references in that source are skipped; absolute ones are kept.
+- **Nesting.** A `bash -c` found inside shell source is inspected the same way,
+  up to three levels of shell source.
+- **Provenance.** A shell source records the kind `shell`, the argv index of
+  a `-c` body or the script file, the `line:column` location, the redirection
+  operator for PATH-R1, and whether PATH-E1 expanded the word.
+- **PATH-E1 values.** `ROTARI_ARRAY_TASK_ID`, `ROTARI_JOB_DIR`, and the job's
+  own environment names (`--env`, matrix values) take their values for the
+  attempt. A name the source assigns itself is not expanded.
+
+### Python source (phase 6)
+
+Agreed 2026-10-04 to take up after shell inspection. Python source stays
+opaque to shell inspection, and `python -c` code stays excluded (PATH-X4).
+A `.py` file referenced directly by argv may later be read at the lexical
+level only, with no Python parser:
+
+- `argparse` defaults: `add_argument('--output-dir', default='results')`
+  classifies `results` with `--output-dir` as key context, since that default
+  is where the job writes when argv does not say;
+- string literals, classified with PATH-R2 to R4 (`open('data/train.csv')`,
+  `savefig('plot.png')`).
+
+Paths built from variables, f-strings, `os.path.join`, or `Path` operators are
+not reconstructed. Whether to implement this is decided after phase 4.
+
 ## Implementation phases
 
 | Phase | Deliverable | Exit criteria | Status |
@@ -714,7 +760,8 @@ in [classify_test.go](../../internal/artifact/classify_test.go) and
 | 1. Argument extraction | Shared classifier; argv, environment, and log-destination extraction with provenance, role hints, and deduplication | Deterministic unit tests; nonexistent output references retained; interpreter code bodies skipped | Done |
 | 2. Configuration extraction | Bounded YAML/JSON/TOML parsing of directly referenced sources | Nested strings and provenance covered; ambiguous/dynamic values skipped | Done |
 | 3. Lifecycle and persistence | Attempt-bound resolution and storage shared by all job creation paths | Plain/array/matrix/retry/carried cases and old state covered; execution behavior unchanged | Done |
-| 4. Shell inspection | Conservative syntax-aware extraction of literals and PATH-E1 task variables | Array tasks and matrix members get distinct candidates for `$ROTARI_ARRAY_TASK_ID`/matrix-variable paths; other dynamic or ambiguous cases skipped; no execution during inspection | Deferred until phases 1-3 are validated |
+| 4. Shell inspection | Conservative syntax-aware extraction of literals and PATH-E1 task variables | Array tasks and matrix members get distinct candidates for `$ROTARI_ARRAY_TASK_ID`/matrix-variable paths; other dynamic or ambiguous cases skipped; no execution during inspection | In progress |
+| 6. Python source | Lexical `argparse` defaults and string literals of directly referenced `.py` files | Decided after phase 4 | Not started |
 | 5. Contracts and documentation | Document implemented guarantees and limitations | Representative conformance tests, contract IDs/status rows, architecture and affected guides agree | Done: RUN-9 with its example tables, `TestStartedAttemptRecordsArtifactCandidates`, `TestArtifactCandidateExamples`, docs/INSPECT.md |
 
 Argument/configuration discovery can be completed without shell inspection or a
