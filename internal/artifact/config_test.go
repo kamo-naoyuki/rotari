@@ -191,7 +191,7 @@ func TestDiscoverInspectsReferencedConfigs(t *testing.T) {
 		Environment:      []string{"SETTINGS=/etc/env.json"},
 		Output:           []string{"out.toml"},
 		WorkingDirectory: "/work",
-	}, ParseSources(reader))
+	}, Sources{Config: ParseSources(reader)})
 	if want := []string{"/work/conf/train.yaml", "/work/missing.json", "/etc/env.json"}; !slices.Equal(read, want) {
 		t.Fatalf("read = %q, want %q (log destinations and nested configs are not inspected)", read, want)
 	}
@@ -219,10 +219,10 @@ func TestDiscoverInspectsReferencedConfigs(t *testing.T) {
 
 func TestDiscoverSkipsUnresolvedConfigs(t *testing.T) {
 	called := false
-	Discover(Job{Command: []string{"train", "conf/a.yaml"}}, func(string) ([]ConfigReference, error) {
+	Discover(Job{Command: []string{"train", "conf/a.yaml"}}, Sources{Config: func(string) ([]ConfigReference, error) {
 		called = true
 		return nil, nil
-	})
+	}})
 	if called {
 		t.Fatal("a configuration file without a known base was read")
 	}
@@ -235,7 +235,7 @@ func TestDiscoverReadsConfigsNamedInShellSource(t *testing.T) {
 		}
 		return nil, errors.New("no such file")
 	}
-	result := Discover(Job{Command: []string{"bash", "-c", "python train.py --config conf/a.yaml"}, WorkingDirectory: "/work"}, ParseSources(reader))
+	result := Discover(Job{Command: []string{"bash", "-c", "python train.py --config conf/a.yaml"}, WorkingDirectory: "/work"}, Sources{Config: ParseSources(reader)})
 	var got []string
 	for _, candidate := range result.Candidates {
 		got = append(got, candidate.Path)

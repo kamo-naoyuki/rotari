@@ -168,7 +168,7 @@ func (inspector *shellInspector) call(call *syntax.CallExpr) commandShape {
 		}
 		words[index], expanded[index] = value, wasExpanded
 	}
-	inspector.collector.commandWords(words, inspector.add, func(index int) Source {
+	shape := inspector.collector.commandWords(words, inspector.add, func(index int) Source {
 		source := inspector.origin.source(call.Args[index].Pos())
 		source.Expanded = expanded[index]
 		return source
@@ -177,13 +177,18 @@ func (inspector *shellInspector) call(call *syntax.CallExpr) commandShape {
 			inspector.collector.shell(code, dialect, inspector.origin.nested(call.Args[index].Pos()), inspector.depth+1)
 		}
 	})
+	if shape.script >= 0 {
+		if script := words[shape.script]; path.IsAbs(script) || !inspector.changedDirectory {
+			inspector.collector.queueScript(script, shape.dialect, inspector.depth+1)
+		}
+	}
 	if len(words) > 0 {
 		switch path.Base(words[0]) {
 		case "cd", "pushd", "popd":
 			inspector.changedDirectory = true
 		}
 	}
-	return recognizeCommand(words)
+	return shape
 }
 
 // literal returns the value of word after quote removal, and whether
@@ -371,4 +376,107 @@ func assignedNames(file *syntax.File) map[string]bool {
 		return true
 	})
 	return names
+}
+
+// pendingScript is a shell script found by discovery. dialect is the shell
+// that runs it, or notInterpreter to read it from the script's #! line.
+type pendingScript struct {
+	path    string
+	dialect interpreterKind
+	depth   int
+}
+
+// queueScript records a script a shell runs, given as written.
+func (c *collector) queueScript(value string, dialect interpreterKind, depth int) {
+	if value == "" || strings.Contains(value, "\x00") {
+		return
+	}
+	resolved, basis := c.resolve(value)
+	if basis == BasisUnresolved {
+		return
+	}
+	c.pendingScripts = append(c.pendingScripts, pendingScript{path: resolved, dialect: dialect, depth: depth})
+}
+
+// scripts inspects the shell scripts the job runs: the script operand of a
+// recognized shell, and every .sh candidate referenced by an argument, an
+// environment value, or shell source. Each is read once through read, and
+// scripts found in a script are inspected in turn, within maxShellDepth.
+// Relative references in a script resolve on the job's working directory,
+// not on the script's location.
+func (c *collector) scripts(read SourceReader) {
+	if c.inspectedScripts == nil {
+		c.inspectedScripts = map[string]bool{}
+	}
+	scanned := 0
+	scan := func(depth int) {
+		for ; scanned < len(c.result.Candidates); scanned++ {
+			candidate := c.result.Candidates[scanned]
+			if candidate.Basis == BasisUnresolved || !strings.EqualFold(path.Ext(candidate.Path), ".sh") {
+				continue
+			}
+			for _, source := range candidate.Sources {
+				if source.Kind == KindArgument || source.Kind == KindEnvironment || source.Kind == KindShell {
+					c.pendingScripts = append(c.pendingScripts, pendingScript{path: candidate.Path, depth: depth})
+					break
+				}
+			}
+		}
+	}
+	scan(1)
+	for len(c.pendingScripts) > 0 {
+		next := c.pendingScripts[0]
+		c.pendingScripts = c.pendingScripts[1:]
+		if c.inspectedScripts[next.path] {
+			continue
+		}
+		c.inspectedScripts[next.path] = true
+		if next.depth > maxShellDepth {
+			c.diagnose(next.path, fmt.Sprintf("not inspected: shell source nested deeper than %d", maxShellDepth))
+			continue
+		}
+		data, err := read(next.path)
+		if err != nil {
+			c.diagnose(next.path, "not inspected: "+err.Error())
+			continue
+		}
+		dialect := next.dialect
+		if dialect == notInterpreter {
+			var ok bool
+			if dialect, ok = shebangDialect(data); !ok {
+				c.diagnose(next.path, "not inspected: not a shell script")
+				continue
+			}
+		}
+		c.shell(string(data), dialect, shellOrigin{file: next.path}, next.depth)
+		scan(next.depth + 1)
+	}
+}
+
+// shebangDialect returns the shell a script's #! line names, directly or
+// through env. A script without one is read as Bash; one naming another
+// interpreter, such as python, is not a shell script.
+func shebangDialect(data []byte) (interpreterKind, bool) {
+	line, _, _ := strings.Cut(string(data), "\n")
+	if !strings.HasPrefix(line, "#!") {
+		return bashShell, true
+	}
+	fields := strings.Fields(line[2:])
+	if len(fields) == 0 {
+		return bashShell, true
+	}
+	name := fields[0]
+	if path.Base(name) == "env" {
+		name = ""
+		for _, field := range fields[1:] {
+			if !strings.HasPrefix(field, "-") && !strings.Contains(field, "=") {
+				name = field
+				break
+			}
+		}
+	}
+	if kind := interpreterOf(name); isShell(kind) {
+		return kind, true
+	}
+	return notInterpreter, false
 }

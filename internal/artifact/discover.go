@@ -104,7 +104,7 @@ var overrideKey = regexp.MustCompile(`^(\+\+|\+|~)?[A-Za-z_][A-Za-z0-9_.\-]*$`)
 // environment values, and log destinations. Referenced configuration files
 // are not read; see Discover.
 func FromJob(job Job) Result {
-	return Discover(job, nil)
+	return Discover(job, Sources{})
 }
 
 type collector struct {
@@ -114,6 +114,10 @@ type collector struct {
 	limited bool
 	// variables are the PATH-E1 values shell source may expand.
 	variables map[string]string
+	// pendingScripts are shell scripts found but not yet inspected, and
+	// inspectedScripts the ones already taken, so each is read once.
+	pendingScripts   []pendingScript
+	inspectedScripts map[string]bool
 }
 
 func newCollector(workingDirectory string) *collector {
@@ -172,19 +176,22 @@ func indexOf(value int) *int {
 // and reinterpreted as shell code, so a word containing > or $ is literal;
 // only the code operand of a recognized shell is shell source.
 func (c *collector) arguments(command []string) {
-	c.commandWords(command, c.add, func(index int) Source {
+	shape := c.commandWords(command, c.add, func(index int) Source {
 		return Source{Kind: KindArgument, Index: indexOf(index)}
 	}, func(code string, dialect interpreterKind, index int) {
 		c.shell(code, dialect, shellOrigin{index: index}, 1)
 	})
+	if shape.script >= 0 {
+		c.queueScript(command[shape.script], shape.dialect, 1)
+	}
 }
 
 // commandWords classifies the words of one command, from argv or from shell
 // source, and records each accepted one through add. source returns the
 // provenance of the word at an index; the rule and key are filled in here.
 // A recognized shell's code operand is handed to nested instead of being
-// classified.
-func (c *collector) commandWords(words []string, add func(string, Source), source func(index int) Source, nested func(code string, dialect interpreterKind, index int)) {
+// classified. It returns the command's shape.
+func (c *collector) commandWords(words []string, add func(string, Source), source func(index int) Source, nested func(code string, dialect interpreterKind, index int)) commandShape {
 	shape := recognizeCommand(words)
 	skip := map[int]bool{}
 	for _, index := range shape.commandWords {
@@ -196,11 +203,12 @@ func (c *collector) commandWords(words []string, add func(string, Source), sourc
 			nested(words[shape.code], shape.dialect, shape.code)
 		}
 	}
+	classified := words
 	if shape.text >= 0 {
-		words = words[:shape.text]
+		classified = words[:shape.text]
 	}
 	previousOption := ""
-	for index, word := range words {
+	for index, word := range classified {
 		option := previousOption
 		previousOption = ""
 		if skip[index] {
@@ -228,6 +236,7 @@ func (c *collector) commandWords(words []string, add func(string, Source), sourc
 			add(value, found)
 		}
 	}
+	return shape
 }
 
 // environment classifies KEY=value entries with the variable name as key
@@ -274,7 +283,7 @@ func (c *collector) destination(kind string, index int, value, stream string) {
 // DiscoveryVersion identifies the discovery rules that produced a Record.
 // Bump it when a rule change means older records would be discovered
 // differently today; older records are kept as they are, not recomputed.
-const DiscoveryVersion = 5
+const DiscoveryVersion = 6
 
 // Record is the persisted discovery of one job attempt.
 type Record struct {

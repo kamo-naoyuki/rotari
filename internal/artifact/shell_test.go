@@ -87,7 +87,7 @@ func TestShellInspection(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := shellFindings(Discover(Job{Command: test.argv, Environment: test.env, Variables: variables}, nil))
+			got := shellFindings(Discover(Job{Command: test.argv, Environment: test.env, Variables: variables}, Sources{}))
 			if !slices.Equal(got, test.want) {
 				t.Fatalf("shell findings = %q, want %q", got, test.want)
 			}
@@ -96,7 +96,7 @@ func TestShellInspection(t *testing.T) {
 }
 
 func TestShellProvenanceAndDiagnostics(t *testing.T) {
-	result := Discover(Job{Command: []string{"bash", "-c", "true\nbash -c 'cat > out.txt'"}, WorkingDirectory: "/work"}, nil)
+	result := Discover(Job{Command: []string{"bash", "-c", "true\nbash -c 'cat > out.txt'"}, WorkingDirectory: "/work"}, Sources{})
 	want := []Candidate{{Path: "/work/out.txt", Basis: BasisWorkingDirectory, Sources: []Source{
 		{Kind: KindShell, Value: "out.txt", Rule: RuleRedirection, Index: indexOf(2), Location: "2:9/1:7", Direction: ">"},
 	}}}
@@ -104,13 +104,13 @@ func TestShellProvenanceAndDiagnostics(t *testing.T) {
 		t.Fatalf("candidates = %#v, want %#v", result.Candidates, want)
 	}
 
-	broken := Discover(Job{Command: []string{"bash", "-c", "if then fi ("}}, nil)
+	broken := Discover(Job{Command: []string{"bash", "-c", "if then fi ("}}, Sources{})
 	if len(broken.Candidates) != 0 || len(broken.Diagnostics) != 1 || broken.Diagnostics[0].Source != "argument 2" ||
 		!strings.Contains(broken.Diagnostics[0].Message, "cannot parse shell source") {
 		t.Fatalf("broken shell source = %+v", broken)
 	}
 
-	deep := Discover(Job{Command: []string{"bash", "-c", `bash -c "bash -c 'bash -c \"cat a/b.csv\"'"`}}, nil)
+	deep := Discover(Job{Command: []string{"bash", "-c", `bash -c "bash -c 'bash -c \"cat a/b.csv\"'"`}}, Sources{})
 	if len(deep.Candidates) != 0 || len(deep.Diagnostics) != 1 || !strings.Contains(deep.Diagnostics[0].Message, "nested deeper than 3") {
 		t.Fatalf("deeply nested shell source = %+v", deep)
 	}

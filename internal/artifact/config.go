@@ -49,13 +49,22 @@ func ParseSources(read SourceReader) ConfigReader {
 	}
 }
 
-// Discover finds the candidates FromJob finds, then inspects each
-// configuration file (.yaml, .yml, .json, .toml) referenced by a command
-// argument, an environment value, or shell source and resolved to an
-// absolute path, through
-// read. References found in a configuration file are not inspected in turn.
-// A nil read inspects nothing.
-func Discover(job Job, read ConfigReader) Result {
+// Sources reads the files discovery inspects. A nil reader inspects no
+// file of its kind.
+type Sources struct {
+	// Config returns the references of a configuration file.
+	Config ConfigReader
+	// Script returns the contents of a shell script.
+	Script SourceReader
+}
+
+// Discover finds the candidates FromJob finds, then inspects the shell
+// scripts the job runs through sources.Script, then each configuration file
+// (.yaml, .yml, .json, .toml) referenced by a command argument, an
+// environment value, or shell source and resolved to an absolute path,
+// through sources.Config. References found in a configuration file are not
+// inspected in turn.
+func Discover(job Job, sources Sources) Result {
 	collector := newCollector(job.WorkingDirectory)
 	collector.variables = map[string]string{}
 	for _, entry := range job.Environment {
@@ -69,8 +78,11 @@ func Discover(job Job, read ConfigReader) Result {
 	collector.arguments(job.Command)
 	collector.environment(job.Environment)
 	collector.destinations(job.Output, job.Error)
-	if read != nil {
-		collector.configs(read)
+	if sources.Script != nil {
+		collector.scripts(sources.Script)
+	}
+	if sources.Config != nil {
+		collector.configs(sources.Config)
 	}
 	return collector.result
 }

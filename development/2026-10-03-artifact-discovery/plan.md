@@ -2,10 +2,10 @@
 
 Created: 2026-10-03
 
-Status: phases 0 to 3 and 5 implemented (`internal/artifact`,
+Status: phases 0 to 5 implemented (`internal/artifact`,
 `internal/artifactsource`, the run's `artifactRecorder`,
-`jobstatus.Artifacts`, and contract RUN-9); phase 4 (shell inspection) in
-progress; phase 6 (Python source) planned. No CLI or Web view reads the
+`jobstatus.Artifacts`, shell inspection, and contract RUN-9); phase 6
+(Python source) planned. No CLI or Web view reads the
 records yet.
 
 ## Purpose
@@ -740,6 +740,16 @@ in [classify_test.go](../../internal/artifact/classify_test.go) and
 - **PATH-E1 values.** `ROTARI_ARRAY_TASK_ID`, `ROTARI_JOB_DIR`, and the job's
   own environment names (`--env`, matrix values) take their values for the
   attempt. A name the source assigns itself is not expanded.
+- **Scripts (step b).** A script is the operand of a recognized shell, in
+  argv or in shell source, or any `.sh` candidate from an argument, an
+  environment value, or shell source. The invoking shell decides the
+  dialect; otherwise the `#!` line, directly or through `env` (options and
+  assignments skipped), and a script without one is read as Bash. A `#!`
+  naming another interpreter is a diagnostic, not an inspection. Each script
+  is read once per attempt, breadth first, within the three nesting levels;
+  a script found in a script is one level deeper. Contents are cached per
+  version for the run (`Cache.Script`, at most 16 MiB in total) but parsed
+  for each attempt, since PATH-E1 values differ.
 
 ### Python source (phase 6)
 
@@ -765,7 +775,7 @@ not reconstructed. Whether to implement this is decided after phase 4.
 | 1. Argument extraction | Shared classifier; argv, environment, and log-destination extraction with provenance, role hints, and deduplication | Deterministic unit tests; nonexistent output references retained; interpreter code bodies skipped | Done |
 | 2. Configuration extraction | Bounded YAML/JSON/TOML parsing of directly referenced sources | Nested strings and provenance covered; ambiguous/dynamic values skipped | Done |
 | 3. Lifecycle and persistence | Attempt-bound resolution and storage shared by all job creation paths | Plain/array/matrix/retry/carried cases and old state covered; execution behavior unchanged | Done |
-| 4. Shell inspection | Conservative syntax-aware extraction of literals and PATH-E1 task variables | Array tasks and matrix members get distinct candidates for `$ROTARI_ARRAY_TASK_ID`/matrix-variable paths; other dynamic or ambiguous cases skipped; no execution during inspection | Steps (a), (c), (d) done; (b) referenced script files pending |
+| 4. Shell inspection | Conservative syntax-aware extraction of literals and PATH-E1 task variables | Array tasks and matrix members get distinct candidates for `$ROTARI_ARRAY_TASK_ID`/matrix-variable paths; other dynamic or ambiguous cases skipped; no execution during inspection | Done |
 | 6. Python source | Lexical `argparse` defaults and string literals of directly referenced `.py` files | Decided after phase 4 | Not started |
 | 5. Contracts and documentation | Document implemented guarantees and limitations | Representative conformance tests, contract IDs/status rows, architecture and affected guides agree | Done: RUN-9 with its example tables, `TestStartedAttemptRecordsArtifactCandidates`, `TestArtifactCandidateExamples`, docs/INSPECT.md |
 

@@ -63,7 +63,7 @@ func (recorder *artifactRecorder) prepare(job model.JobSpec) {
 		Error:            job.Error,
 		WorkingDirectory: job.WorkingDirectory,
 		Variables:        variables,
-	}, recorder.sources.References)
+	}, artifact.Sources{Config: recorder.sources.References, Script: recorder.sources.Script})
 	recorder.pending.Store(job.AttemptID, artifact.Record{Version: artifact.DiscoveryVersion, Result: result})
 }
 

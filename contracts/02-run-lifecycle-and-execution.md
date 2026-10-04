@@ -109,8 +109,8 @@
   [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
 - **RUN-9** Each attempt that a run submits records its artifact candidates
   in the attempt's `artifacts.json`: file and directory references found
-  statically in the job's command arguments, the shell code it runs
-  (`bash -c`), its own `--env` and matrix values, its `--output`/`--error`
+  statically in the job's command arguments, the shell code and shell
+  scripts it runs, its own `--env` and matrix values, its `--output`/`--error`
   destinations, and the configuration files those reference, each with the
   accepting rule and where it was found. Relative references are resolved on
   the attempt's working directory. A candidate is not a claim that the path
@@ -556,6 +556,60 @@ heredoc read by a shell) is inspected up to three levels deep.
 Each array task and the attempt directory expand to their own values; that
 is checked by `TestShellVariablesDifferPerArrayTask`, because an array job has
 one row per task.
+
+#### Shell scripts
+
+A shell script the job runs is read and inspected like shell code: the
+script operand of a recognized shell, in argv or in shell source, and every
+`.sh` file an argument, environment value, or shell source names. The
+invoking shell decides the dialect; otherwise the script's `#!` line does,
+directly or through `env`, and a script without one is read as Bash. A
+script whose `#!` names another interpreter is not read. Each script is read
+once per attempt, within the same size limit as configuration files and the
+same three levels of nesting. Relative references in a script resolve on the
+job's working directory, not on the script's directory.
+
+<!-- artifact-example-file: scripts/run.sh -->
+```sh
+python train.py --config conf/train.yaml > logs/train.log
+```
+
+<!-- artifact-example-file: scripts/job -->
+```sh
+cat data/in.csv
+```
+
+<!-- artifact-example-file: scripts/outer.sh -->
+```sh
+#!/bin/sh
+bash scripts/inner.sh
+cat data/outer.csv
+```
+
+<!-- artifact-example-file: scripts/inner.sh -->
+```sh
+cat data/inner.csv
+```
+
+<!-- artifact-example-file: scripts/tool.sh -->
+```sh
+#!/usr/bin/env python3
+open("data/py.csv")
+```
+
+<!-- artifact-example-file: scripts/e1.sh -->
+```sh
+true > "res/$LR.csv"
+```
+
+| Script | Condition | Command | Recorded |
+| --- | --- | --- | --- |
+| Operand | The script a shell runs, and a configuration file it names | `rotari add -- bash scripts/run.sh` | `scripts/run.sh`, `train.py`, `conf/train.yaml`, `logs/train.log`, `results` |
+| Operand | Without a `.sh` extension | `rotari add -- sh scripts/job` | `scripts/job`, `data/in.csv` |
+| `.sh` | A `.sh` argument, and a script it runs | `rotari add -- timeout 5 scripts/outer.sh` | `scripts/outer.sh`, `scripts/inner.sh`, `data/outer.csv`, `data/inner.csv` |
+| `#!` | Not a script whose `#!` names another interpreter | `rotari add -- scripts/tool.sh` | `scripts/tool.sh` |
+| Missing | A script that cannot be read is still a candidate | `rotari add -- bash scripts/missing.sh` | `scripts/missing.sh` |
+| `PATH-E1` | The job's own variables expand in a script | `rotari add --env LR=0.1 -- bash scripts/e1.sh` | `scripts/e1.sh`, `res/0.1.csv` |
 
 #### Positive rules
 

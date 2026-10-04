@@ -94,3 +94,37 @@ func TestCacheKeepsParseErrorsAndRejectsLargeFilesWithoutReading(t *testing.T) {
 		t.Fatalf("References(directory) error = %v", err)
 	}
 }
+
+func TestCacheReadsAScriptOncePerVersion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.sh")
+	stamp := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	write := func(content string, modified time.Time) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, modified, modified); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cache := NewCache()
+	write("cat a.csv\n", stamp)
+	if data, err := cache.Script(path); err != nil || string(data) != "cat a.csv\n" {
+		t.Fatalf("first Script = %q, %v", data, err)
+	}
+	write("cat b.csv\n", stamp)
+	if data, _ := cache.Script(path); string(data) != "cat a.csv\n" {
+		t.Fatalf("Script with unchanged size and time = %q, want the cached contents", data)
+	}
+	write("cat b.csv\n", stamp.Add(time.Second))
+	if data, _ := cache.Script(path); string(data) != "cat b.csv\n" {
+		t.Fatalf("Script after modification = %q", data)
+	}
+	large := filepath.Join(filepath.Dir(path), "large.sh")
+	if err := os.WriteFile(large, make([]byte, artifact.MaxSourceBytes+1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cache.Script(large); err == nil || !strings.Contains(err.Error(), "larger than") {
+		t.Fatalf("Script(large) error = %v", err)
+	}
+}
