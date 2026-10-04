@@ -54,15 +54,15 @@ func ParseSources(read SourceReader) ConfigReader {
 type Sources struct {
 	// Config returns the references of a configuration file.
 	Config ConfigReader
-	// Script returns the contents of a shell script.
+	// Script returns the contents of a shell script or Python file.
 	Script SourceReader
 }
 
 // Discover finds the candidates FromJob finds, then inspects the shell
-// scripts the job runs through sources.Script, then each configuration file
-// (.yaml, .yml, .json, .toml) referenced by a command argument, an
-// environment value, or shell source and resolved to an absolute path,
-// through sources.Config. References found in a configuration file are not
+// scripts the job runs and the Python files it names through
+// sources.Script, then each configuration file (.yaml, .yml, .json, .toml)
+// referenced by a command argument, an environment value, shell source, or
+// Python source and resolved to an absolute path, through sources.Config. References found in a configuration file are not
 // inspected in turn.
 func Discover(job Job, sources Sources) Result {
 	collector := newCollector(job.WorkingDirectory)
@@ -80,6 +80,7 @@ func Discover(job Job, sources Sources) Result {
 	collector.destinations(job.Output, job.Error)
 	if sources.Script != nil {
 		collector.scripts(sources.Script)
+		collector.pythonFiles(sources.Script)
 	}
 	if sources.Config != nil {
 		collector.configs(sources.Config)
@@ -94,7 +95,7 @@ func (c *collector) configs(read ConfigReader) {
 			continue
 		}
 		if slices.ContainsFunc(candidate.Sources, func(source Source) bool {
-			return source.Kind == KindArgument || source.Kind == KindEnvironment || source.Kind == KindShell
+			return source.Kind == KindArgument || source.Kind == KindEnvironment || source.Kind == KindShell || source.Kind == KindPython
 		}) {
 			files = append(files, candidate.Path)
 		}

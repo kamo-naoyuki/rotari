@@ -113,7 +113,11 @@ running it: its commands' arguments and literal redirection targets such as
 and the job's own `--env` and matrix variables are filled in, so each array
 task records its own paths. Shell scripts the job runs, such as
 `bash run.sh` or a `.sh` argument, are read and inspected the same way.
-Other variables, `$(...)`, and globs are not evaluated. Code given to `python -c` and the text given to `echo` or
+Other variables, `$(...)`, and globs are not evaluated. A Python file the
+job names, such as `train.py`, is read without running it: the `default` of
+each `argparse` `add_argument` and the plain string literals in it are
+recorded, but not paths the code builds with f-strings, `.format`, or
+`os.path.join`. Code given to `python -c` and the text given to `echo` or
 `printf` are not searched. Configuration
 files are read on the host that runs `rotari run`, also for SSH and scheduler
 jobs; a file that host cannot read is skipped. There is no command to list

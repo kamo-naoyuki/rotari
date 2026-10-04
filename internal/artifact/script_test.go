@@ -65,7 +65,8 @@ func TestScriptInspection(t *testing.T) {
 		diagnostics []string
 	}{
 		{name: "script operand of a shell", argv: []string{"bash", "scripts/run.sh"},
-			want: []string{"scripts/run.sh", "train.py", "conf/a.yaml", "logs/train.log", "results"}, read: []string{"/work/scripts/run.sh"}},
+			want: []string{"scripts/run.sh", "train.py", "conf/a.yaml", "logs/train.log", "results"}, read: []string{"/work/scripts/run.sh", "/work/train.py"},
+			diagnostics: []string{"/work/train.py: not inspected: no such file"}},
 		{name: "script without extension run by sh", argv: []string{"sh", "scripts/job"},
 			want: []string{"scripts/job", "data/in.csv"}, read: []string{"/work/scripts/job"}},
 		{name: ".sh candidate behind an unparsed launcher", argv: []string{"srun", "./job.sh"},

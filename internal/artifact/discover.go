@@ -14,6 +14,7 @@ const (
 	KindError       = "error"
 	KindConfig      = "config"
 	KindShell       = "shell"
+	KindPython      = "python"
 )
 
 // Resolution bases say how a candidate's Path was obtained.
@@ -283,7 +284,7 @@ func (c *collector) destination(kind string, index int, value, stream string) {
 // DiscoveryVersion identifies the discovery rules that produced a Record.
 // Bump it when a rule change means older records would be discovered
 // differently today; older records are kept as they are, not recomputed.
-const DiscoveryVersion = 6
+const DiscoveryVersion = 7
 
 // Record is the persisted discovery of one job attempt.
 type Record struct {

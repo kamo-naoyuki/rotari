@@ -2,11 +2,10 @@
 
 Created: 2026-10-03
 
-Status: phases 0 to 5 implemented (`internal/artifact`,
+Status: phases 0 to 6 implemented (`internal/artifact`,
 `internal/artifactsource`, the run's `artifactRecorder`,
-`jobstatus.Artifacts`, shell inspection, and contract RUN-9); phase 6
-(Python source) planned. No CLI or Web view reads the
-records yet.
+`jobstatus.Artifacts`, shell and Python inspection, and contract RUN-9).
+No CLI or Web view reads the records yet.
 
 ## Purpose
 
@@ -765,7 +764,28 @@ level only, with no Python parser:
   `savefig('plot.png')`).
 
 Paths built from variables, f-strings, `os.path.join`, or `Path` operators are
-not reconstructed. Whether to implement this is decided after phase 4.
+not reconstructed. Agreed after phase 4 to implement it; decisions:
+
+- **Files.** Every `.py` candidate from an argument, an environment value, or
+  shell source, like `.sh`, read through the same reader, size limit, and
+  per-run cache as scripts. Python code does not lead to further Python
+  files; configuration files named in Python are read.
+- **Tokens.** A small lexer, not a parser: names, strings (all prefixes and
+  triple quotes, escapes in non-raw strings), and operators; comments,
+  numbers, and whitespace are dropped. An unterminated string is a
+  diagnostic for the file.
+- **argparse.** Within `add_argument(...)`, the `default=` string is
+  classified with the first `--` option, else `dest`, else the first option
+  as key. Defaults are recorded before other literals.
+- **Literals.** Other fixed strings are classified with key context `NAME`
+  in `NAME = s` or `NAME=s`, or `KEY` in `'KEY': s`; `==` is not an
+  assignment. f-, t-, and bytes strings are skipped, as are strings with
+  `{` or `}` or a printf placeholder (`%s`, `%05d`, `%(name)s`), and the
+  interpolated-syntax exclusions (globs, `~`, `$`). A one-line docstring that
+  looks like a path is a known false positive; multi-line strings contain a
+  newline and are excluded.
+- **Provenance.** Kind `python`, the file, `line:column`, and the key.
+  Discovery version 7.
 
 ## Implementation phases
 
@@ -776,7 +796,7 @@ not reconstructed. Whether to implement this is decided after phase 4.
 | 2. Configuration extraction | Bounded YAML/JSON/TOML parsing of directly referenced sources | Nested strings and provenance covered; ambiguous/dynamic values skipped | Done |
 | 3. Lifecycle and persistence | Attempt-bound resolution and storage shared by all job creation paths | Plain/array/matrix/retry/carried cases and old state covered; execution behavior unchanged | Done |
 | 4. Shell inspection | Conservative syntax-aware extraction of literals and PATH-E1 task variables | Array tasks and matrix members get distinct candidates for `$ROTARI_ARRAY_TASK_ID`/matrix-variable paths; other dynamic or ambiguous cases skipped; no execution during inspection | Done |
-| 6. Python source | Lexical `argparse` defaults and string literals of directly referenced `.py` files | Decided after phase 4 | Not started |
+| 6. Python source | Lexical `argparse` defaults and string literals of referenced `.py` files | Defaults keyed by option name; dynamic strings skipped; no execution or import | Done |
 | 5. Contracts and documentation | Document implemented guarantees and limitations | Representative conformance tests, contract IDs/status rows, architecture and affected guides agree | Done: RUN-9 with its example tables, `TestStartedAttemptRecordsArtifactCandidates`, `TestArtifactCandidateExamples`, docs/INSPECT.md |
 
 Argument/configuration discovery can be completed without shell inspection or a

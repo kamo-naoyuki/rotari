@@ -110,8 +110,9 @@
 - **RUN-9** Each attempt that a run submits records its artifact candidates
   in the attempt's `artifacts.json`: file and directory references found
   statically in the job's command arguments, the shell code and shell
-  scripts it runs, its own `--env` and matrix values, its `--output`/`--error`
-  destinations, and the configuration files those reference, each with the
+  scripts it runs, the Python files it names, its own `--env` and matrix
+  values, its `--output`/`--error` destinations, and the configuration files
+  those reference, each with the
   accepting rule and where it was found. Relative references are resolved on
   the attempt's working directory. A candidate is not a claim that the path
   exists or was written by the job, and discovery never changes the job's
@@ -610,6 +611,40 @@ true > "res/$LR.csv"
 | `#!` | Not a script whose `#!` names another interpreter | `rotari add -- scripts/tool.sh` | `scripts/tool.sh` |
 | Missing | A script that cannot be read is still a candidate | `rotari add -- bash scripts/missing.sh` | `scripts/missing.sh` |
 | `PATH-E1` | The job's own variables expand in a script | `rotari add --env LR=0.1 -- bash scripts/e1.sh` | `scripts/e1.sh`, `res/0.1.csv` |
+
+#### Python files
+
+A `.py` file named by an argument, an environment value, or shell source is
+read, never run or imported, and split into tokens only. The `default` of
+each `add_argument` call is classified with the call's option name as key;
+every other string literal is classified with the name it is assigned or
+passed to (`save_dir = "ckpt"`, `f(log_dir="logs")`) or the dictionary key
+before it as key. f-strings, bytes, strings with `{}` or `%` placeholders,
+globs, and `~` are skipped, and paths built in code are not reconstructed.
+Modules run with `-m`, imported files, and `-c` code are not read. A
+configuration file named in Python is read.
+
+<!-- artifact-example-file: py/train.py -->
+```python
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--output-dir", default="results")
+parser.add_argument("--config", default="conf/train.yaml")
+parser.add_argument("--format", default="png")
+args = parser.parse_args()
+SAVE_DIR = "checkpoints"
+# open("commented/out.csv")
+open("data/train.csv")
+open(f"results/{args.format}.pt")
+open("results/{}.pt".format(1))
+open("results/%d.pt" % 1)
+```
+
+| Python | Condition | Command | Recorded |
+| --- | --- | --- | --- |
+| File | argparse defaults, then other literals; placeholders and comments are not | `rotari add -- python3 py/train.py` | `py/train.py`, `results`, `conf/train.yaml`, `checkpoints`, `data/train.csv` |
+| File | The same through shell code | `rotari add -- bash -c 'python3 py/train.py'` | `py/train.py`, `results`, `conf/train.yaml`, `checkpoints`, `data/train.csv` |
+| Module | Not a module run with `-m` | `rotari add -- python3 -m py.train` | nothing |
 
 #### Positive rules
 
