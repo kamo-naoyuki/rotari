@@ -397,3 +397,38 @@ other RUN-9 conformance tests, `TestContractStatus`, and
 after this commit passed with "all checks passed".
 
 **Remaining:** Phase 6, Python source.
+
+## Python source (phase 6)
+
+**Commit:** `696184b` — 2026-10-04T16:02:27+09:00
+
+**Change:** Added `internal/artifact/python.go`, a small lexer, not a
+parser. Every `.py` candidate from an argument, environment value, or shell
+source is read through the script reader and cache, never run or imported.
+The `default=` of each `add_argument` call is classified with the first `--`
+option, else `dest`, as key. Other fixed string literals are classified with
+the name in `NAME = s`/`NAME=s` or the dictionary key before them. f-, t-, and
+bytes strings, `{}`/printf placeholders, globs, `~`, and comments are
+skipped. Configuration files named in Python are read. Sources have the kind
+`python`. `DiscoveryVersion` is 7. Added the contract's "Python files" table
+with a fixture script, and updated docs/INSPECT.md, docs/ARCHITECTURE.md,
+and the plan (phase 6 decisions; all phases done). The script test whose
+`run.sh` runs `python train.py` now expects `train.py` to be read too.
+
+**Reason:** The user agreed to implement phase 6 after shell inspection.
+
+**Plan impact:** Phase 6 is done; every planned phase is implemented.
+
+**Validation:** `TestPythonInspection` (6 cases: argparse defaults and
+`dest`, keyed literals, dynamic strings, comments and docstrings, string
+forms, `==`) and `TestPythonFilesAndProvenance` (provenance, configuration
+read, through a shell script, `-m` not read, unterminated string diagnostic)
+failed to compile before the implementation and passed after it. The first
+build hit name clashes with `command.go`, fixed by renaming the token kinds.
+`TestArtifactCandidateExamples` passed with 90 rows, along with the other
+RUN-9 conformance tests, `TestContractStatus`, `TestConformanceLayout`,
+`go vet ./internal/...`, and `gofmt`. A full `scripts/check.sh` (vet, test,
+race) started after this commit passed with "all checks passed".
+
+**Remaining:** None in this plan. Viewing the records (CLI, Web) is a
+separate design.
