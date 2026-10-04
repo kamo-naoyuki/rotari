@@ -121,6 +121,8 @@
   [internal/projectrun/artifacts.go](../internal/projectrun/artifacts.go);
   covered by `TestStartedAttemptRecordsArtifactCandidates` in
   [conformance/02-lifecycle/artifacts_test.go](../conformance/02-lifecycle/artifacts_test.go).
+  [Artifact candidate examples](#artifact-candidate-examples) shows, case by
+  case, what is recorded and what is not.
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,
@@ -419,6 +421,62 @@
   [internal/executor/timeout_test.go](../internal/executor/timeout_test.go)
   and `TestExecuteMixedRunRecordsJobTimeout`, and against real schedulers by
   `TestSchedulerContainerStopsTimedOutJob`.
+
+### Artifact candidate examples
+
+These examples define what RUN-9 records. Each row is a command typed in a
+working directory that contains `conf/train.yaml`. "Recorded" lists the
+candidates of the job's first attempt, in record order, written relative to
+the working directory (absolute paths stay absolute). Whether a file exists,
+and whether the job fails, does not matter. `TestArtifactCandidateExamples`
+in
+[conformance/02-lifecycle/artifacts_test.go](../conformance/02-lifecycle/artifacts_test.go)
+runs every row exactly as written, so a change to a row is a change to the
+contract.
+
+<!-- artifact-examples:start -->
+
+<!-- artifact-example-file: conf/train.yaml -->
+```yaml
+out_dir: results
+lr: 0.1
+format: png
+plot: ${out_dir}/plot.png
+data: https://example.org/data.csv
+```
+
+Recorded:
+
+| Command | Recorded | Why |
+| --- | --- | --- |
+| `rotari add -- python train.py --lr 0.1` | `train.py` | A recognized extension (`.py`); the job's own script is a candidate |
+| `rotari add -- python train.py --config conf/train.yaml` | `train.py`, `conf/train.yaml`, `results` | The configuration file is read: `out_dir` is a path key; `format`, the interpolated `plot`, and the URL are not paths |
+| `rotari add --env CONFIG=conf/train.yaml -- true` | `conf/train.yaml`, `results` | An environment value is classified like an argument, and a configuration file it names is read |
+| `rotari add -- ./run.sh /data/input` | `run.sh`, `/data/input` | Explicit relative and absolute path notation |
+| `rotari add -- train --save-dir checkpoints` | `checkpoints` | A bare name after a long option whose name ends in `-dir` |
+| `rotari add -- train trainer.log_dir=logs lr=0.1` | `logs` | A `key=value` override whose leaf key ends in `_dir` |
+| `rotari add --env OUTPUT_DIR=results/sweep --env LR=0.1 -- true` | `results/sweep` | An environment value that looks like a path |
+| `rotari add --output logs/train.log -- true` | `logs/train.log` | The job's own log destination |
+| `rotari add -- train metrics.csv` | `metrics.csv` | A path need not exist |
+| `rotari add -- echo bash -c output.csv` | `output.csv` | `bash` is an argument of `echo`, not a shell invocation |
+| `rotari add -- train '>' out.txt` | `out.txt` | argv is not shell code: `>` is a literal word, and `out.txt` an ordinary argument |
+| `rotari add -- train meta-llama/Llama-3-8B` | `meta-llama/Llama-3-8B` | Known false positive: any relative reference with `/` is accepted |
+
+Not recorded:
+
+| Command | Recorded | Why |
+| --- | --- | --- |
+| `rotari add -- train results` | nothing | A bare name without path context |
+| `rotari add -- train --output png --version v1.2.3` | nothing | `output` is not a path key, and `v1.2.3` has no recognized extension |
+| `rotari add -- train https://example.org/plot.png s3://bucket/results` | nothing | URLs and URIs |
+| `rotari add -- train 0.001 1e-3 1/2` | nothing | Numbers and ratios |
+| `rotari add -- bash -c 'python train.py > out/log.txt'` | nothing | Shell code given to `-c` is not searched |
+| `rotari add -- timeout 1h bash -c 'cat conf/train.yaml'` | nothing | The same through a recognized launcher |
+| `rotari add -- python3 -c "print('out/a.txt')"` | nothing | Python code given to `-c` is not searched |
+| `rotari add --env PYTHONPATH=src:lib -- true` | nothing | A search-path list is not one path |
+| `rotari add --output /dev/null -- true` | nothing | A special device |
+
+<!-- artifact-examples:end -->
 
 ## Cancellation
 
