@@ -14,20 +14,22 @@ import (
 	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
 
+type artifactSource struct {
+	Kind     string `json:"kind"`
+	Value    string `json:"value"`
+	Rule     string `json:"rule"`
+	Key      string `json:"key"`
+	Stream   string `json:"stream"`
+	File     string `json:"file"`
+	Location string `json:"location"`
+}
+
 type artifactRecord struct {
 	Version    int `json:"version"`
 	Candidates []struct {
-		Path    string `json:"path"`
-		Basis   string `json:"basis"`
-		Sources []struct {
-			Kind     string `json:"kind"`
-			Value    string `json:"value"`
-			Rule     string `json:"rule"`
-			Key      string `json:"key"`
-			Stream   string `json:"stream"`
-			File     string `json:"file"`
-			Location string `json:"location"`
-		} `json:"sources"`
+		Path    string           `json:"path"`
+		Basis   string           `json:"basis"`
+		Sources []artifactSource `json:"sources"`
 	} `json:"candidates"`
 }
 
@@ -102,23 +104,28 @@ func readArtifactRecord(t *testing.T, runDir, jobID, attemptID string) (artifact
 	return record, data
 }
 
-// artifactExample is one row of "Artifact candidate examples" in
+// artifactExample is one row of "Artifact candidate rules" in
 // contracts/02-run-lifecycle-and-execution.md.
 type artifactExample struct {
 	command  string
 	recorded []string
+	// rule, when set, is the positive rule that accepted every recorded
+	// candidate.
+	rule string
 }
 
 const artifactExamplesContract = "../../contracts/02-run-lifecycle-and-execution.md"
 
 var (
-	exampleFile = regexp.MustCompile(`^<!-- artifact-example-file: (\S+) -->$`)
-	codeSpan    = regexp.MustCompile("`([^`]*)`")
+	exampleFile  = regexp.MustCompile(`^<!-- artifact-example-file: (\S+) -->$`)
+	codeSpan     = regexp.MustCompile("`([^`]*)`")
+	positiveRule = regexp.MustCompile("^`(PATH-[RD][0-9]+)`$")
 )
 
 // readArtifactExamples parses the examples region of the contract: the
-// fixture files it declares and every table row whose command starts with
-// `rotari add`.
+// fixture files it declares and every table row with a cell that starts with
+// `rotari add`. That cell is the command, the next cell what it records, and
+// a first cell naming a PATH-R or PATH-D rule the rule that records it.
 func readArtifactExamples(t *testing.T) (map[string]string, []artifactExample) {
 	t.Helper()
 	data, err := os.ReadFile(artifactExamplesContract)
@@ -146,19 +153,26 @@ func readArtifactExamples(t *testing.T) (map[string]string, []artifactExample) {
 			files[match[1]] = strings.Join(content, "\n") + "\n"
 			continue
 		}
-		if !strings.HasPrefix(line, "| `rotari add ") {
+		if !strings.HasPrefix(line, "|") {
 			continue
 		}
-		cells := strings.Split(strings.Trim(line, "|"), " | ")
-		if len(cells) != 3 {
-			t.Fatalf("example row does not have three cells: %s", line)
+		cells := strings.Split(strings.Trim(line, "| "), " | ")
+		command := slices.IndexFunc(cells, func(cell string) bool { return strings.HasPrefix(cell, "`rotari add ") })
+		if command < 0 {
+			continue
 		}
-		example := artifactExample{command: codeSpan.FindStringSubmatch(cells[0])[1]}
-		for _, match := range codeSpan.FindAllStringSubmatch(cells[1], -1) {
+		if command+1 >= len(cells) {
+			t.Fatalf("example row has no Recorded cell after its command: %s", line)
+		}
+		example := artifactExample{command: codeSpan.FindStringSubmatch(cells[command])[1]}
+		for _, match := range codeSpan.FindAllStringSubmatch(cells[command+1], -1) {
 			example.recorded = append(example.recorded, match[1])
 		}
-		if len(example.recorded) == 0 && strings.TrimSpace(cells[1]) != "nothing" {
+		if len(example.recorded) == 0 && strings.TrimSpace(cells[command+1]) != "nothing" {
 			t.Fatalf("example row's Recorded cell is neither code spans nor nothing: %s", line)
+		}
+		if match := positiveRule.FindStringSubmatch(cells[0]); match != nil {
+			example.rule = match[1]
 		}
 		examples = append(examples, example)
 	}
@@ -225,6 +239,14 @@ func TestArtifactCandidateExamples(t *testing.T) {
 			}
 			if !slices.Equal(got, example.recorded) {
 				t.Fatalf("recorded %q, contract says %q\nrecord: %s", got, example.recorded, data)
+			}
+			if example.rule == "" {
+				return
+			}
+			for _, candidate := range record.Candidates {
+				if !slices.ContainsFunc(candidate.Sources, func(source artifactSource) bool { return source.Rule == example.rule }) {
+					t.Fatalf("%s was not recorded by %s\nrecord: %s", candidate.Path, example.rule, data)
+				}
 			}
 		})
 	}

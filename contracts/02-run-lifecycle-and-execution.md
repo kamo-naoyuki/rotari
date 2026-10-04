@@ -121,8 +121,8 @@
   [internal/projectrun/artifacts.go](../internal/projectrun/artifacts.go);
   covered by `TestStartedAttemptRecordsArtifactCandidates` in
   [conformance/02-lifecycle/artifacts_test.go](../conformance/02-lifecycle/artifacts_test.go).
-  [Artifact candidate examples](#artifact-candidate-examples) shows, case by
-  case, what is recorded and what is not.
+  [Artifact candidate rules](#artifact-candidate-rules) lists every rule
+  with examples of what is recorded and what is not.
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,
@@ -422,19 +422,121 @@
   and `TestExecuteMixedRunRecordsJobTimeout`, and against real schedulers by
   `TestSchedulerContainerStopsTimedOutJob`.
 
-### Artifact candidate examples
+### Artifact candidate rules
 
-These examples define what RUN-9 records. Each row is a command typed in a
-working directory that contains the files shown below. "Recorded" lists the
-candidates of the job's first attempt, in record order, written relative to
-the working directory (absolute paths stay absolute). Whether a file exists,
-and whether the job fails, does not matter. `TestArtifactCandidateExamples`
-in
+These rules and examples define what RUN-9 records. Each row is a command
+typed in a working directory that contains the files shown in this section.
+"Recorded" lists the candidates of the job's first attempt, in record order,
+written relative to the working directory (absolute paths stay absolute).
+Whether a file exists, and whether the job fails, does not matter. Where the
+first column names a `PATH-R` or `PATH-D` rule, every recorded candidate was
+accepted by that rule. `TestArtifactCandidateExamples` in
 [conformance/02-lifecycle/artifacts_test.go](../conformance/02-lifecycle/artifacts_test.go)
 runs every row exactly as written, so a change to a row is a change to the
-contract.
+contract. The rule IDs match
+[the discovery plan](../development/2026-10-03-artifact-discovery/plan.md).
+
+One value is decided in this order: a value an exclusion matches is not
+recorded; otherwise the first positive rule that matches records it;
+otherwise it is not recorded.
 
 <!-- artifact-examples:start -->
+
+#### Where values are read
+
+<!-- artifact-example-file: conf/keys.yaml -->
+```yaml
+log_dir: logs
+cache_dir: [c1, c2]
+```
+
+| Source | Key context | Command | Recorded |
+| --- | --- | --- | --- |
+| An argument | none | `rotari add -- train results/a` | `results/a` |
+| `--name=value` | `name` | `rotari add -- train --log-dir=logs` | `logs` |
+| `--name value` | `name`, for the next word unless it is an option | `rotari add -- train --log-dir logs` | `logs` |
+| `key=value` with an identifier key | `key` | `rotari add -- train log_dir=logs` | `logs` |
+| `=` after a non-identifier | none: one value | `rotari add -- train out/a=b.csv` | `out/a=b.csv` |
+| A word starting with one `-` | skipped whole | `rotari add -- train -oresults/a` | nothing |
+| An `--env` or matrix value | the variable name | `rotari add --env LOG_DIR=logs -- true` | `logs` |
+| A string in a configuration file named by an argument or environment value | its key; a sequence item takes its sequence's key | `rotari add -- train conf/keys.yaml` | `conf/keys.yaml`, `logs`, `c1`, `c2` |
+| `--output` / `--error` | not classified (`PATH-D1`) | `rotari add --output logs/a --error logs/b -- true` | `logs/a`, `logs/b` |
+
+#### Exclusions
+
+<!-- artifact-example-file: conf/interpolated.yaml -->
+```yaml
+a_dir: "${x}/a"
+b_dir: "$HOME/b"
+c_dir: "$(pwd)/c"
+d_dir: "`pwd`/d"
+e_dir: "{{ root }}/e"
+f_dir: "%(root)s/f"
+g_dir: "out/*.csv"
+h_dir: "out/run?.csv"
+i_dir: "out/run[0-9].csv"
+j_dir: "~/j"
+```
+
+| Rule | Condition | Command | Recorded |
+| --- | --- | --- | --- |
+| `PATH-X1` | Empty or blank | `rotari add -- train --log-dir '' --cache-dir ' '` | nothing |
+| `PATH-X1` | A URL or URI (`scheme://`, `mailto:`, `data:`, `urn:`) | `rotari add -- train https://example.org/a.png s3://bucket/a file:///a.csv mailto:me@example.org` | nothing |
+| `PATH-X1` | A number or numeric ratio | `rotari add -- train --log-dir 10 0.001 1e-3 inf 1/2 0.5/1.5` | nothing |
+| `PATH-X1` | A regular expression (`^…`, `.*`, `.+`, `\.`, `\d`, `\w`, `\s`, `(?`, `[^`) | `rotari add -- train '^results' '.*/a.csv' 'a\.csv' 'a/\d+'` | nothing |
+| `PATH-X1` | A control character, such as a newline in code | `rotari add -- train "$(printf 'a/b\nc.csv')"` | nothing |
+| `PATH-X1` | An environment search-path list (name ending in `PATH`, value with `:`) | `rotari add --env PYTHONPATH=src:lib --env LD_LIBRARY_PATH=/a:/b -- true` | nothing |
+| `PATH-X2` | In a configuration file: `$NAME`, `${…}`, `$(…)`, backquotes, `{{ }}`, `%(name)s`, glob characters, or a leading `~` | `rotari add -- train conf/interpolated.yaml` | `conf/interpolated.yaml` |
+| `PATH-X2` | Not in arguments: argv reaches the program literally | `rotari add -- train '${x}/a' 'out/*.csv' '~/data'` | `${x}/a`, `out/*.csv`, `~/data` |
+| `PATH-X3` | A special device or descriptor | `rotari add --output /dev/null -- train /dev/stderr /dev/fd/3 /proc/self/fd/1 /dev//null` | nothing |
+| `PATH-X5` | The arguments of `echo` or `printf` | `rotari add -- echo a/b.csv` | nothing |
+| `PATH-X5` | The same behind a launcher | `rotari add -- timeout 5 printf '%s' a/b.csv` | nothing |
+| `PATH-X5` | Not when `echo` is only an argument | `rotari add -- cat echo a/b.csv` | `a/b.csv` |
+
+#### Interpreter code (PATH-X4)
+
+The code operand of an interpreter at the start of the command, or behind
+`env`, `timeout`, or `srun` (up to four nested launchers), is not searched.
+Options before the code option are parsed; an option not listed here is
+taken as a flag that consumes no word. Words after the code operand are
+classified as usual. `srun`'s `--job-name`/`-J` and `--partition`/`-p` values
+are skipped when looking for the interpreter; `srun` rows are in the package
+tests, because running them would submit jobs.
+
+| Interpreter | Code option and value options | Command | Recorded |
+| --- | --- | --- | --- |
+| `sh`, `dash` | `-c` in an option bundle; `-o`/`+o VALUE`; the code is the first operand | `rotari add -- sh -c 'cat a/b' name x/y` | `x/y` |
+| `bash` | also `-O`/`+O VALUE`, `--rcfile FILE`, `--init-file FILE`; bundles such as `-lc`, `-xec` | `rotari add -- bash -o pipefail -lc 'cat a/b'` | nothing |
+| `bash` | the code is the first operand after `-c`, even after other flags or `--` | `rotari add -- bash -c -e -- 'cat a/b'` | nothing |
+| `zsh` | like `bash`, without `--rcfile`/`--init-file` | `rotari add -- zsh -c 'cat a/b'` | nothing |
+| `python`, `python2`, `python3`, `python3.N`, `pypy`, `pypy3` | exactly `-c CODE`; `-W`, `-X`, `--check-hash-based-pycs VALUE` (or attached/`=` forms) | `rotari add -- python3 -X dev -c 'print("a/b")'` | nothing |
+| `python` | a `-c` after the script belongs to the script | `rotari add -- python3 train.py -c a/b.yaml` | `train.py`, `a/b.yaml` |
+| `perl` | `-e`/`-E CODE`; `-I`, `-M`, `-m VALUE`; option values remain candidates | `rotari add -- perl -I ./lib -e 'print "a/b"'` | `lib` |
+| `node` | `-e`/`--eval`/`-p`/`--print CODE`; `-r`/`--require`, `--import VALUE` | `rotari add -- node --require ./hook.js -e '"a/b"'` | `hook.js` |
+| `node` | `--eval=CODE` / `--print=CODE` carry the code | `rotari add -- node --eval='"a/b"'` | nothing |
+| `env`, `timeout` | launchers are scanned for the first interpreter | `rotari add -- env A=1 timeout 5 python3 -c 'print("a/b")'` | nothing |
+| other commands | not launchers: the code is an ordinary argument (known false positive) | `rotari add -- nice bash -c 'cat a/b'` | `cat a/b` |
+
+#### Positive rules
+
+| Rule | Condition | Command | Recorded |
+| --- | --- | --- | --- |
+| `PATH-R2` | Starts with `/`, `./`, or `../` | `rotari add -- train /data/in ./x ../y` | `/data/in`, `x`, `../y` |
+| `PATH-R3` | Contains `/` | `rotari add -- train results/a results/` | `results/a`, `results` |
+| `PATH-R3` | Known false positives | `rotari add -- train meta-llama/Llama-3-8B origin/main 2026/10/03` | `meta-llama/Llama-3-8B`, `origin/main`, `2026/10/03` |
+| `PATH-R4` | A basename with one of these extensions, in any case | `rotari add -- train a.yaml a.yml a.json a.toml a.csv a.tsv a.jsonl a.txt a.png a.jpg a.jpeg a.svg a.pdf a.npy a.npz a.h5 a.hdf5 a.pt a.pth a.sh a.py B.PNG` | `a.yaml`, `a.yml`, `a.json`, `a.toml`, `a.csv`, `a.tsv`, `a.jsonl`, `a.txt`, `a.png`, `a.jpg`, `a.jpeg`, `a.svg`, `a.pdf`, `a.npy`, `a.npz`, `a.h5`, `a.hdf5`, `a.pt`, `a.pth`, `a.sh`, `a.py`, `B.PNG` |
+| `PATH-R4` | Any other suffix, a version, or an extension alone | `rotari add -- train a.ckpt a.log v1.2.3 .json results` | nothing |
+| `PATH-R5` | Key `path`, `file`, or `dir` | `rotari add -- train --path p1 --file f1 --dir d1` | `p1`, `f1`, `d1` |
+| `PATH-R5` | Key ending in `_path`, `_file`, or `_dir` | `rotari add -- train --data-path p2 --log-file f2 --save-dir d2` | `p2`, `f2`, `d2` |
+| `PATH-R5` | Key `output`, `out`, or `input`, value not a format name | `rotari add -- train --output o1 --out o2 --input i1` | `o1`, `o2`, `i1` |
+| `PATH-R5` | Key ending in `_output`, `_out`, or `_input`, value not a format name | `rotari add -- train --eval-output o3 --save-out o4 --train-input i2` | `o3`, `o4`, `i2` |
+| `PATH-R5` | Format names under an output or input key: every `PATH-R4` extension without its dot, `text`, `html`, `xml`, `md`, `markdown`, `table`, `stdout`, `stderr`, `stdin`, in any case | `rotari add -- train --output yaml --output yml --output json --output toml --output csv --output tsv --output jsonl --output txt --output png --output jpg --output jpeg --output svg --output pdf --output npy --output npz --output h5 --output hdf5 --output pt --output pth --output sh --output py --output text --output html --output xml --output md --output markdown --output table --output stdout --output stderr --input stdin --out JSON` | nothing |
+| `PATH-R5` | Other keys | `rotari add -- train --name n --format f --dir-name d --outdir o --output-format t --dropout r --filename x --paths y` | nothing |
+| `PATH-R5` | Keys compare case-insensitively, `-` as `_`, by the last dotted part, ignoring `--`, `+`, `++`, `~` | `rotari add -- train --LOG-DIR k1 trainer.log_dir=k2 +x.save_dir=k3 ++y.out_dir=k4 '~cache_dir=k5'` | `k1`, `k2`, `k3`, `k4`, `k5` |
+| `PATH-R5` | Environment variable names are keys | `rotari add --env OUTPUT=e1 --env CACHE_DIR=e2 --env MODEL=e3 -- true` | `e1`, `e2` |
+| `PATH-D1` | The job's log destinations; stderr follows `--output` without `--error` | `rotari add --output logs/out.log --output logs/copy.log -- true` | `logs/out.log`, `logs/copy.log` |
+
+#### Examples
 
 <!-- artifact-example-file: conf/train.yaml -->
 ```yaml
@@ -445,40 +547,18 @@ plot: ${out_dir}/plot.png
 data: https://example.org/data.csv
 ```
 
-Recorded:
-
 | Command | Recorded | Why |
 | --- | --- | --- |
-| `rotari add -- python train.py --lr 0.1` | `train.py` | A recognized extension (`.py`); the job's own script is a candidate |
+| `rotari add -- python train.py --lr 0.1` | `train.py` | The job's own script is a candidate (`.py`) |
 | `rotari add -- python train.py --config conf/train.yaml` | `train.py`, `conf/train.yaml`, `results` | The configuration file is read: `out_dir` is a path key; `format`, the interpolated `plot`, and the URL are not paths |
-| `rotari add --env CONFIG=conf/train.yaml -- true` | `conf/train.yaml`, `results` | An environment value is classified like an argument, and a configuration file it names is read |
-| `rotari add -- ./run.sh /data/input` | `run.sh`, `/data/input` | Explicit relative and absolute path notation |
-| `rotari add -- train --save-dir checkpoints` | `checkpoints` | A bare name after a long option whose name ends in `-dir` |
-| `rotari add -- train --output results --input data` | `results`, `data` | A bare name after an output or input option, which is often a directory |
-| `rotari add -- train trainer.log_dir=logs lr=0.1` | `logs` | A `key=value` override whose leaf key ends in `_dir` |
-| `rotari add --env OUTPUT_DIR=results/sweep --env LR=0.1 -- true` | `results/sweep` | An environment value that looks like a path |
-| `rotari add --output logs/train.log -- true` | `logs/train.log` | The job's own log destination |
+| `rotari add --env CONFIG=conf/train.yaml -- true` | `conf/train.yaml`, `results` | A configuration file named by an environment value is read too |
+| `rotari add -- ./run.sh /data/input` | `run.sh`, `/data/input` | A script path and an absolute input |
 | `rotari add -- train metrics.csv` | `metrics.csv` | A path need not exist |
 | `rotari add -- train '>' out.txt` | `out.txt` | argv is not shell code: `>` is a literal word, and `out.txt` an ordinary argument |
-| `rotari add -- train meta-llama/Llama-3-8B` | `meta-llama/Llama-3-8B` | Known false positive: any relative reference with `/` is accepted |
+| `rotari add -- bash -c 'python train.py > out/log.txt'` | nothing | The redirection is inside shell code, which is not searched |
+| `rotari add -- timeout 1h bash -c 'cat conf/train.yaml'` | nothing | The same through a launcher; the file the code reads is not recorded |
 
-Not recorded:
-
-| Command | Recorded | Why |
-| --- | --- | --- |
-| `rotari add -- train results` | nothing | A bare name without path context |
-| `rotari add -- train --output png --format results --version v1.2.3` | nothing | `png` under an output option is a format name, `format` is not a path key, and `v1.2.3` has no recognized extension |
-| `rotari add -- train https://example.org/plot.png s3://bucket/results` | nothing | URLs and URIs |
-| `rotari add -- train 0.001 1e-3 1/2` | nothing | Numbers and ratios |
-| `rotari add -- bash -c 'python train.py > out/log.txt'` | nothing | Shell code given to `-c` is not searched |
-| `rotari add -- timeout 1h bash -c 'cat conf/train.yaml'` | nothing | The same through a recognized launcher |
-| `rotari add -- python3 -c "print('out/a.txt')"` | nothing | Python code given to `-c` is not searched |
-| `rotari add -- echo bash -c output.csv` | nothing | `echo` and `printf` print their arguments as text; they never open them |
-| `rotari add -- timeout 5s echo results/done.txt` | nothing | The same behind a recognized launcher |
-| `rotari add --env PYTHONPATH=src:lib -- true` | nothing | A search-path list is not one path |
-| `rotari add --output /dev/null -- true` | nothing | A special device |
-
-Configuration files:
+#### Configuration files
 
 A YAML, JSON, or TOML file named by an argument or environment value is
 read, and each string value in it is classified like an argument, with its
