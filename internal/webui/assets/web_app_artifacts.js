@@ -38,11 +38,22 @@ async function showArtifacts(queue, run, job, attemptID) {
     if (!response.ok) throw new Error(await response.text());
     selectedArtifacts.listing = await response.json();
     selectedOutput = formatArtifactListing(selectedArtifacts.listing);
-    renderArtifactListing();
+    if ((selectedArtifacts.listing.entries || []).length) {
+      renderArtifactListing();
+    } else {
+      showArtifactText();
+    }
   } catch (error) {
     selectedOutput = "Failed to load artifacts: " + error.message;
-    artifactView().textContent = selectedOutput;
+    showArtifactText();
   }
+}
+// showArtifactText shows a listing without entries, or a failure, as plain
+// text in the log box, where the copy button sits as it does for logs.
+function showArtifactText() {
+  document.getElementById("output-modal").dataset.view = "artifacts-text";
+  ensureModalOutput().textContent = selectedOutput;
+  openOutputModal(isCompactOutput(selectedOutput));
 }
 function artifactView() {
   return document.getElementById("artifact-view");
@@ -97,12 +108,7 @@ function formatArtifactListing(listing) {
 }
 function renderArtifactListing() {
   const listing = selectedArtifacts.listing;
-  const entries = listing.entries || [];
-  if (!entries.length) {
-    artifactView().innerHTML =
-      '<pre class="log">' + esc(selectedOutput) + "</pre>";
-    return;
-  }
+  const entries = listing.entries;
   const previewable = listing.previewable || [];
   const rows = entries
     .map((entry, index) => {

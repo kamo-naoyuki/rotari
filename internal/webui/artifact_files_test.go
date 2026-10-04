@@ -65,7 +65,7 @@ func newArtifactFixture(t *testing.T) artifactFixture {
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := stateinternal.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}); err != nil {
+	if err := stateinternal.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}, {ID: "job-2", Command: []string{"true"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	record := artifact.Record{Version: 7, WorkingDirectory: f.work}

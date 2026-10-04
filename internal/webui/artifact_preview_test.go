@@ -39,6 +39,13 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   const window = dom.window;
   const document = window.document;
   await wait(200);
+  // A job without a record shows its text in the log box, like a log, so
+  // the copy button sits where it does for logs.
+  await window.showArtifacts('default', runID, 'job-2', '');
+  const log = document.getElementById('modal-log');
+  if (log.hidden || log.textContent !== 'Artifacts: (not recorded)' || !document.getElementById('artifact-view').hidden) fail('not recorded', log.textContent);
+  await window.showArtifacts('default', runID, 'missing-job', '');
+  if (log.hidden || !log.textContent.startsWith('Failed to load artifacts')) fail('failure', log.textContent);
   await window.showArtifacts('default', runID, 'job-1', '');
   const view = document.getElementById('artifact-view');
   if (view.hidden || document.getElementById('modal-log').hidden !== true) fail('view toggling');

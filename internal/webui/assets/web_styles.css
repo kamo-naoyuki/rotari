@@ -1606,7 +1606,8 @@ pre,
 .artifact-view {
   overflow: auto;
   max-height: 75vh;
-  padding: 0.5rem;
+  /* Room on the right for the modal's copy button. */
+  padding: 0.5rem 52px 0.5rem 0.5rem;
 }
 .artifact-view .artifact-open {
   background: none;
