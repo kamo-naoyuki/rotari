@@ -105,7 +105,11 @@ func cmdCopy(args []string) int {
 				return 1
 			}
 			target, found, err := resolve.JobInRun(paths, *runID, *jobName, true)
-			if err != nil || !found {
+			if err != nil {
+				printError(err)
+				return 1
+			}
+			if !found {
 				printErrorf("job name %q not found in run %q", *jobName, *runID)
 				return 1
 			}

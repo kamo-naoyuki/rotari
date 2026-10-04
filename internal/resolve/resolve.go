@@ -136,7 +136,11 @@ func activeRunWithJobs(cliBaseDir string, jobIDs []string) (Run, bool, error) {
 		}
 		holdsAll := true
 		for _, jobID := range jobIDs {
-			if _, found, _ := JobInRun(paths, lock.RunID, jobID, false); !found {
+			_, found, err := JobInRun(paths, lock.RunID, jobID, false)
+			if err != nil {
+				return Run{}, false, err
+			}
+			if !found {
 				holdsAll = false
 				break
 			}
@@ -646,11 +650,11 @@ func matchJobNames(commands []model.QueuedCommand, names []string) (map[string]b
 }
 
 // JobInRun finds a job by ID or name in runID's command snapshot. A run
-// without a readable snapshot has no jobs.
+// without a snapshot has no jobs; other snapshot read errors are returned.
 func JobInRun(paths state.ProjectPaths, runID, selector string, byName bool) (Job, bool, error) {
 	queue, err := state.LoadQueue(filepath.Join(paths.RunsDir, runID, "commands.json"))
 	if err != nil {
-		return Job{}, false, nil
+		return Job{}, false, err
 	}
 	jobID, found := JobInQueue(queue, selector, byName)
 	if !found {

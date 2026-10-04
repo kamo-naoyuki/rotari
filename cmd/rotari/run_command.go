@@ -128,7 +128,11 @@ func runJobs(args []string, defaultSelection string) int {
 				return 1
 			}
 			target, found, err := resolve.JobInRun(paths, *runIDOption, *jobNameOption, true)
-			if err != nil || !found {
+			if err != nil {
+				printError(err)
+				return 1
+			}
+			if !found {
 				printErrorf("job name %q not found in run %q", *jobNameOption, *runIDOption)
 				return 1
 			}

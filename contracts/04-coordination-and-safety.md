@@ -256,6 +256,12 @@ run data. How it implements these rules and the rest of the state layout:
   decode errors are returned. `ReadQueueFile` reads the same files but returns
   `os.ErrNotExist` for a missing one, for callers such as restoring a run's
   `commands.json`, where a missing snapshot is an error.
+  Job lookup through `resolve.JobInRun` likewise treats a missing snapshot as
+  no jobs (including a run still starting), but returns other read, decode,
+  and version errors rather than reporting a missing job. `run`, `retry`,
+  `copy`, and `show` preserve those errors for job-name lookup. Covered by
+  [`internal/resolve/job_snapshot_test.go`](../internal/resolve/job_snapshot_test.go)
+  and [`conformance/04-coordination/job_lookup_test.go`](../conformance/04-coordination/job_lookup_test.go).
 - `queue.json`, `commands.json`, `summary.json`, and `carried.json` carry `state_version`
   (`model.StateVersion`). `Store.WriteJSON` stamps the current version on every
   `model.Queue` and `model.RunSummary` it writes, without changing the
