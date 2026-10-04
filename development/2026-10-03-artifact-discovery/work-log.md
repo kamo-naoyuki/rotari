@@ -251,3 +251,33 @@ subtests. `./internal/doclinks` and `TestContractStatus` passed. No code
 changed.
 
 **Remaining:** None.
+
+## Contract rule tables
+
+**Commit:** `cfe7914` — 2026-10-04T15:21:23+09:00
+
+**Change:** Rewrote the contract section as "Artifact candidate rules": tables
+for where values are read (argv forms, environment, configuration, log
+destinations), every exclusion (PATH-X1 to X3, X5), interpreter code operands
+(PATH-X4, per interpreter), and every positive rule, listing all PATH-R4
+extensions, all PATH-R5 key patterns, key normalization, and all format names;
+then the remaining examples and the configuration file examples. Rows that
+the rule tables now cover were removed from the examples. The conformance
+harness now finds the command cell in tables of any layout and, for rows whose
+first column names a `PATH-R` or `PATH-D` rule, checks that every recorded
+candidate has a source accepted by that rule.
+
+**Reason:** The user agreed to list every key pattern as rules rather than
+scattered examples, keeping examples only for combined behavior.
+
+**Plan impact:** None; the tables document existing behavior.
+
+**Validation:** `TestArtifactCandidateExamples` passed with 64 row subtests
+counted under `-v`. Relabeling the PATH-R2 row as PATH-R3 failed with
+"/data/in was not recorded by PATH-R3"; the contract was restored.
+`TestStartedAttemptRecordsArtifactCandidates`, `TestContractStatus`,
+`TestConformanceLayout`, `./internal/doclinks`, `go vet`, and `gofmt`
+passed. `srun` rows are left to package tests because running them would
+submit jobs on a host with Slurm. A full `scripts/check.sh` was not rerun.
+
+**Remaining:** None.
