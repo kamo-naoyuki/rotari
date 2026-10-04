@@ -432,3 +432,51 @@ race) started after this commit passed with "all checks passed".
 
 **Remaining:** None in this plan. Viewing the records (CLI, Web) is a
 separate design.
+
+## Declared artifacts (phase 7)
+
+**Commit:** `c30d2e8` — 2026-10-04T21:41:04+09:00
+
+**Change:** `rotari add --artifact PATH` (repeatable, command line only)
+stores declared paths on the queued command (`artifacts`), validated once by
+`model.ValidateArtifacts` (non-empty, no NUL or newline, no duplicate after
+cleaning). Discovery records them under PATH-D2 without classification,
+expanding plain `$NAME`/`${NAME}` with the PATH-E1 values and leaving other
+`$` text and globs literal; `Describe` shows `--artifact`. `change
+--artifact`/`--clear-artifacts`, the Web change API (`artifacts`,
+`clear_artifacts`), workflow manifests (`artifacts:` in YAML, JSON, TOML),
+copy, export, import, lineage's changed fields, and matrix member equality
+carry them; MCP export redacts them like `output`. Fingerprints are built
+from an explicit field list and so exclude them. Updated RUN-9 (a PATH-D2
+example row and the text), the flag-pair inventory (`add` 27 flags, `change`
+40) with samples and observability fields, the coverage totals (also
+correcting an edit-pair count that was already stale at 1,520 instead of
+1,545), regenerated goldens, the CLI reference, Python CLI metadata and API
+docs, docs/INSPECT.md, docs/WORKFLOW_MANIFESTS.md, and the plan.
+
+**Reason:** The user proposed an explicit `add` option for artifacts and
+agreed to variable expansion, no globs, and covering change and manifests in
+one change.
+
+**Plan impact:** Phase 7 is done. The Web queue table's inline editor has no
+artifacts field; its save request omits `artifacts`, which leaves
+declarations unchanged.
+
+**Validation:** `TestDeclaredArtifacts` (expansion, unknown variables,
+globs, special sinks, merging with an argv candidate; its first version
+expected the wrong order), `TestValidateArtifacts`,
+`TestDeclaredArtifactsAreNotFingerprinted`, the three-format manifest test
+with `artifacts`, `TestManifestKeepsDeclaredArtifacts`, and
+`TestApplyMutationArtifacts` passed. The binary test
+`TestDeclaredArtifactsFollowTasksAndEdits` (per-task expansion, copy,
+export, change replace and clear, import, duplicate rejection) passed after
+its queue check was changed to parse JSON. The PATH-D2 contract row passed
+under `TestArtifactCandidateExamples`. `pairedits` passed (edit pairs
+accepted=1,309, rejected=339, 3,296 invocations). `TestContractStatus`
+first failed until the new test was listed in the RUN-9 row. A full
+`scripts/check.sh` (vet, test, race) passed with "all checks passed".
+`cmd/rotari/assets/agent_guide.md` and `development/ISSUES.md` held changes
+from outside this work, staged and unstaged; they were left as they were and
+not committed.
+
+**Remaining:** None.
