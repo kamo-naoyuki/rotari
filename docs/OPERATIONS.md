@@ -127,6 +127,20 @@ provides HTTP authentication, not encryption.
   its read API, but this does not encrypt the connection: a replacement URL is
   sent to the Web server when saved. Use HTTPS through a trusted reverse proxy
   whenever the browser-to-server network is not trusted.
+- **Artifact files:** `rotari run` reads the configuration files, shell
+  scripts, and Python files a job names, as the user running it, to find the
+  paths the job uses; it records only those paths, in each attempt's
+  `artifacts.json`, never the files' contents. The live Web UI, however,
+  serves the contents of recorded files and directories under each job's
+  working directory, so anyone who can open the Web UI can read them; with
+  job control enabled, they can also add a job that names another file there.
+  Paths outside the working directory, and symlinks leading out of it, are not
+  served unless `rotari web --artifact-root DIR` allows them; keep such roots
+  narrow. SVG files are shown only as images, so their scripts do not run.
+  A static export contains only paths, unless it is made with
+  `--static-artifact-contents`, which copies the files into the export: anyone
+  who can read the export, such as a published site, can then read them.
+  The command reports how many files and bytes it copied.
 
 None of this defends against another user with access to your own UID
 (e.g. root, or anyone who can read your home directory), only against other
