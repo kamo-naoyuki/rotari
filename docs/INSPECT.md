@@ -100,7 +100,9 @@ Each attempt also records the files and directories its job definition
 refers to, in `artifacts.json` in the attempt directory: paths found in the
 command's arguments (such as `train.py` or `--config conf/run.yaml`), in
 `--env` and matrix values (a value that looks like a path, or any value of a
-variable whose name ends in `_DIR`, `_PATH`, or `_FILE`), in
+variable whose name ends in `_DIR`, `_PATH`, or `_FILE`), bare names after
+options such as `--output results` or `--save-dir ckpt` (but not a format name
+such as `--output png`), in
 `--output`/`--error`, and in the YAML, JSON, or TOML files those name.
 Relative paths are resolved on the job's working directory. These are
 candidates, found without running anything: rotari does not check that they

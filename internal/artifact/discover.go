@@ -239,7 +239,7 @@ func (c *collector) destination(kind string, index int, value, stream string) {
 // DiscoveryVersion identifies the discovery rules that produced a Record.
 // Bump it when a rule change means older records would be discovered
 // differently today; older records are kept as they are, not recomputed.
-const DiscoveryVersion = 1
+const DiscoveryVersion = 2
 
 // Record is the persisted discovery of one job attempt.
 type Record struct {

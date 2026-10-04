@@ -54,8 +54,8 @@ func TestStartedAttemptRecordsArtifactCandidates(t *testing.T) {
 	runDir := filepath.Join(e.Base, "projects", "artifacts", "runs", summary.RunID)
 	cwd := runCWD(t, runDir)
 	record, data := readArtifactRecord(t, runDir, jobID, attemptID)
-	if record.Version != 1 {
-		t.Fatalf("version = %d", record.Version)
+	if record.Version != 2 {
+		t.Fatalf("version = %d, want 2", record.Version)
 	}
 	type found struct{ path, basis, kind, rule, key, stream, file, location string }
 	var got []found

@@ -146,7 +146,7 @@ Then accept the first matching positive rule:
 | PATH-R2 | Explicit absolute/relative path notation | `/work/results`, `./results`, `../results` | Not proof of existence or output role |
 | PATH-R3 | A directory-containing relative reference or trailing separator | `results/metrics`, `results/` | Slash alone is not proof; exclusions take precedence |
 | PATH-R4 | A basename with a recognized filename extension | `metrics.csv`, `plot.png`, `config.yaml` | A dot alone, unknown suffix, or version number is insufficient |
-| PATH-R5 | A literal value under a narrowly recognized path key/long option | `output_dir: results`, `--file-path results`, `checkpoint_file=latest` | Generic `output`, `input`, and `format` names alone are insufficient |
+| PATH-R5 | A literal value under a recognized path key/long option | `output_dir: results`, `--file-path results`, `checkpoint_file=latest`, `--output results` | Under an output/input key, a format name such as `png` is skipped; `format` is not a key |
 
 Initial PATH-R4 extensions (case-insensitive): `.yaml`, `.yml`, `.json`, `.toml`,
 `.csv`, `.tsv`, `.jsonl`, `.txt`, `.png`, `.jpg`, `.jpeg`, `.svg`, `.pdf`, `.npy`,
@@ -162,13 +162,22 @@ Initially recognize exact `path`, `file`, and `dir`, and keys ending in `_path`,
 Apply this context to a string value or each string in its sequence. These names
 are heuristics, not application contracts; they can still produce false positives.
 
+Output and input keys also count: exact `output`, `out`, and `input`, and keys
+ending in `_output`, `_out`, or `_input`, with the same normalization. Such a key
+may name a format instead (`--output png`), so a value that is a format name is
+skipped: a PATH-R4 extension without its dot, or `text`, `html`, `xml`, `md`,
+`markdown`, `table`, `stdout`, `stderr`, `stdin`, or `-`. (Added 2026-10-04 so
+bare directory names such as `--output results` are found; false positives only
+cost a candidate that cannot be shown. Discovery version 2.)
+
 Examples that must anchor the initial test table:
 
 | Value or context | Decision | Reason |
 | --- | --- | --- |
 | `results` without path context | Skip | Bare extensionless name |
 | `results` under `output_dir` | Accept, PATH-R5 | Narrow directory-key context |
-| `png` under `output` | Skip | Output could mean a format |
+| `png` under `output` | Skip | A format name under an output key |
+| `results` under `output` | Accept, PATH-R5 | An output key with a non-format value |
 | `metrics.csv` that does not exist yet | Accept, PATH-R4 | Existence is not required |
 | `v1.2.3` | Skip | Not a recognized filename extension |
 | `https://example.org/plot.png` | Skip, PATH-X1 | URL, despite slash and suffix |

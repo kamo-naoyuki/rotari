@@ -33,8 +33,9 @@ const (
 	RuleDirectoryReference Rule = "PATH-R3"
 	// RuleExtension accepts a basename with a recognized filename extension.
 	RuleExtension Rule = "PATH-R4"
-	// RulePathKey accepts a literal value under a narrowly recognized path
-	// key or long option: output_dir, --file-path, checkpoint_file.
+	// RulePathKey accepts a literal value under a recognized path key or long
+	// option: output_dir, --file-path, checkpoint_file, or an output or
+	// input key such as --output unless the value is a format name.
 	RulePathKey Rule = "PATH-R5"
 	// RuleLogDestination accepts a job's own stdout or stderr destination,
 	// which rotari writes itself, without classification.
@@ -102,7 +103,7 @@ func Classify(value, key string, syntax Syntax) (Rule, bool) {
 		return RuleDirectoryReference, true
 	case hasRecognizedExtension(value):
 		return RuleExtension, true
-	case IsPathKey(key):
+	case IsPathKey(key), isIOKey(key) && !isFormatName(value):
 		return RulePathKey, true
 	}
 	return "", false
@@ -165,16 +166,40 @@ func hasRecognizedExtension(value string) bool {
 // dotted key counts, and leading option dashes and Hydra override prefixes
 // (+, ++, ~) are ignored.
 func IsPathKey(key string) bool {
+	return hasKeyName(key, "path", "file", "dir")
+}
+
+// isIOKey reports whether key names an output or input: output, out, or
+// input, or a name ending in _output, _out, or _input. Such a key may name a
+// format instead (--output png), so its value must not be a format name.
+func isIOKey(key string) bool {
+	return hasKeyName(key, "output", "out", "input")
+}
+
+// hasKeyName reports whether the normalized leaf of key is one of names or
+// ends in _name for one of them.
+func hasKeyName(key string, names ...string) bool {
 	key = strings.TrimLeft(key, "-+~")
 	if index := strings.LastIndex(key, "."); index >= 0 {
 		key = key[index+1:]
 	}
 	key = strings.ToLower(strings.ReplaceAll(key, "-", "_"))
-	switch key {
-	case "path", "file", "dir":
-		return true
+	for _, name := range names {
+		if key == name || strings.HasSuffix(key, "_"+name) {
+			return true
+		}
 	}
-	return strings.HasSuffix(key, "_path") || strings.HasSuffix(key, "_file") || strings.HasSuffix(key, "_dir")
+	return false
+}
+
+// formatNames are values an output or input key takes when it names a
+// format or stream rather than a path: each PATH-R4 extension without its
+// dot, and the names below.
+var formatNames = []string{"text", "html", "xml", "md", "markdown", "table", "stdout", "stderr", "stdin", "-"}
+
+func isFormatName(value string) bool {
+	value = strings.ToLower(value)
+	return slices.Contains(formatNames, value) || slices.Contains(recognizedExtensions, "."+value)
 }
 
 // ConfigFormat returns "yaml", "json", or "toml" for a configuration file

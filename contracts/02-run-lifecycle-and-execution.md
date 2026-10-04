@@ -454,6 +454,7 @@ Recorded:
 | `rotari add --env CONFIG=conf/train.yaml -- true` | `conf/train.yaml`, `results` | An environment value is classified like an argument, and a configuration file it names is read |
 | `rotari add -- ./run.sh /data/input` | `run.sh`, `/data/input` | Explicit relative and absolute path notation |
 | `rotari add -- train --save-dir checkpoints` | `checkpoints` | A bare name after a long option whose name ends in `-dir` |
+| `rotari add -- train --output results --input data` | `results`, `data` | A bare name after an output or input option, which is often a directory |
 | `rotari add -- train trainer.log_dir=logs lr=0.1` | `logs` | A `key=value` override whose leaf key ends in `_dir` |
 | `rotari add --env OUTPUT_DIR=results/sweep --env LR=0.1 -- true` | `results/sweep` | An environment value that looks like a path |
 | `rotari add --output logs/train.log -- true` | `logs/train.log` | The job's own log destination |
@@ -467,7 +468,7 @@ Not recorded:
 | Command | Recorded | Why |
 | --- | --- | --- |
 | `rotari add -- train results` | nothing | A bare name without path context |
-| `rotari add -- train --output png --version v1.2.3` | nothing | `output` is not a path key, and `v1.2.3` has no recognized extension |
+| `rotari add -- train --output png --format results --version v1.2.3` | nothing | `png` under an output option is a format name, `format` is not a path key, and `v1.2.3` has no recognized extension |
 | `rotari add -- train https://example.org/plot.png s3://bucket/results` | nothing | URLs and URIs |
 | `rotari add -- train 0.001 1e-3 1/2` | nothing | Numbers and ratios |
 | `rotari add -- bash -c 'python train.py > out/log.txt'` | nothing | Shell code given to `-c` is not searched |
