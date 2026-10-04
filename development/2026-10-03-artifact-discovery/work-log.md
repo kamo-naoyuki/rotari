@@ -365,3 +365,35 @@ artifact, artifactsource, projectrun, jobstatus, archtest, and doclinks
 packages passed. A full `scripts/check.sh` was not rerun.
 
 **Remaining:** Phase 4 step (b), referenced shell script files.
+
+## Shell script files (phase 4, step b)
+
+**Commit:** `f824382` — 2026-10-04T15:53:14+09:00
+
+**Change:** The script operand of a recognized shell (in argv or shell
+source) and every `.sh` candidate from an argument, environment value, or
+shell source are read once per attempt and inspected like shell code,
+breadth first within three nesting levels. The invoking shell or the `#!`
+line (directly or through `env`) decides the dialect; a script without one
+is read as Bash, and one naming another interpreter is not read.
+`artifact.Discover` now takes `Sources` (configuration and script readers);
+`artifactsource.Cache.Script` caches script contents per version for the run,
+at most 16 MiB in total. `DiscoveryVersion` is 6. Added the contract's "Shell
+scripts" table with six fixture files, and updated docs/INSPECT.md,
+docs/ARCHITECTURE.md, and the plan (phase 4 done).
+
+**Reason:** Phase 4 step (b), completing shell inspection.
+
+**Plan impact:** Phase 4 is done.
+
+**Validation:** `TestScriptInspection` (13 cases: operands, extensionless
+scripts, `.sh` behind an unparsed launcher, shebangs, nested scripts, a
+cycle read once, the nesting limit, missing and unparsable scripts,
+PATH-E1, `cd`, scripts in shell code), `TestScriptProvenance`,
+`TestScriptsNeedAKnownBase`, and `TestCacheReadsAScriptOncePerVersion`
+passed. `TestArtifactCandidateExamples` passed with 87 rows, along with the
+other RUN-9 conformance tests, `TestContractStatus`, and
+`TestConformanceLayout`. A full `scripts/check.sh` (vet, test, race) started
+after this commit passed with "all checks passed".
+
+**Remaining:** Phase 6, Python source.
