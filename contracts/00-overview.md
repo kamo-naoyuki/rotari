@@ -151,6 +151,8 @@ The package map, process roles, and per-command walkthroughs are in
   sequence.
   `internal/jobfilter` evaluates job filters without file access; callers
   supply what a condition needs about each job.
+  `internal/artifact` classifies artifact candidates without file access;
+  callers supply the job definition and the contents of referenced sources.
   Executors implement job execution only.
 - Renderers do not read status files themselves: `show`, `jobs`, `report`,
   and the Web UI resolve outcomes through `internal/jobstatus` so they cannot
@@ -159,8 +161,8 @@ The package map, process roles, and per-command walkthroughs are in
   CLI or Web path, so no interface silently reimplements run semantics.
 
 The import-level parts of these rules (what `internal/model`, `internal/state`,
-`internal/executor`, `internal/run`, `internal/runlineage`, and
-`internal/jobfilter` may import, no
+`internal/executor`, `internal/run`, `internal/runlineage`,
+`internal/jobfilter`, and `internal/artifact` may import, no
 `internal` package importing `cmd/`, and `conformance` importing only the
 standard library and its harness `conformance/support`) are enforced by
 [`internal/archtest/boundaries_test.go`](../internal/archtest/boundaries_test.go).

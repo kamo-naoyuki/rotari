@@ -2,7 +2,8 @@
 
 Created: 2026-10-03
 
-Status: planning only; no implementation has started.
+Status: phases 0 and 1 implemented in `internal/artifact`; phases 2, 3, and 5
+pending; phase 4 deferred.
 
 ## Purpose
 
@@ -568,12 +569,57 @@ members must not accidentally share a mutable candidate list or resolution base.
 - Recording a path is not preserving its contents. Later runs can overwrite it;
   historical artifact snapshots require a separate collection design.
 
+## Phase 0 decisions
+
+These settle the rule details the sections above left open. The fixtures are
+in [classify_test.go](../../internal/artifact/classify_test.go) and
+[discover_test.go](../../internal/artifact/discover_test.go).
+
+- **Log-destination base.** Every executor (local, SSH, Slurm, PBS, LSF, SGE)
+  changes to the job's effective working directory before `__log-forward`
+  opens the `Output`/`Error` destinations with `filepath.Abs`, so PATH-D1
+  resolves them on the effective working directory, like every other
+  reference. When a job has no `Error` destination, stderr also goes to the
+  `Output` destinations, so those sources record both streams. Special sinks
+  (PATH-X3) are excluded from PATH-D1 too.
+- **Path semantics.** Paths are POSIX: rotari runs jobs through POSIX shells,
+  so the package uses `path`, not `path/filepath`, and reads no files.
+- **Argument forms.** `key=value` is split only when the key is an identifier,
+  optionally dotted and with a Hydra prefix (`+`, `++`, `~`); otherwise the
+  word is one value, so `out/a=b.csv` stays whole. Words starting with a single
+  `-` are option tokens and are skipped whole, including attached values such
+  as `-r./hook.js`. A standalone long option passes its name as key context to
+  the next word unless that word is itself an option.
+- **Command words.** Recognized launcher and interpreter words
+  (`/usr/bin/env`, `/bin/bash`) name programs, not artifacts, and are not
+  candidates. Other command words, such as `./run.sh`, are classified.
+- **Launcher depth.** At most four nested listed launchers are followed;
+  beyond that, recognition stops.
+- **Perl switch clusters** such as `-lne` are not split; the cluster is a
+  boolean word, so the code after it is read as the script operand and
+  classified as usual. Only separate `-e`/`-E` words are code options.
+- **Additional PATH-X1 cases.** Values containing control characters (a
+  newline in a code string) and recognized regular expressions (a leading `^`,
+  or `.*`, `.+`, `\.`, `\d`, `\w`, `\s`, `(?`, `[^`) are skipped.
+- **PATH-X2 in configuration/shell contexts** also covers Jinja `{{ }}`,
+  Python `%(name)s`, backquotes, and a leading `~`.
+- **Search-path lists.** An environment value whose variable name ends in
+  `PATH` and that contains `:` (`PATH`, `PYTHONPATH`, `LD_LIBRARY_PATH`) is a
+  list, not one path, and is skipped.
+- **Candidate shape and order.** A candidate is a cleaned path with its
+  resolution basis (`absolute`, `working_directory`, or `unresolved`) and every
+  source that referenced it, in order of first reference: argv, environment,
+  log destinations, then configuration. Sources keep the literal value, rule,
+  index or configuration location, key context, and stream. References that
+  clean to the same path are merged. One job records at most
+  `MaxCandidates` (1000) candidates; the overflow is a diagnostic.
+
 ## Implementation phases
 
 | Phase | Deliverable | Exit criteria | Status |
 | --- | --- | --- | --- |
-| 0. Rules and schema | Accepted/rejected path fixtures, lifecycle placement, persistence and inspection safety decisions, log-destination base per executor | No unresolved assumption about add/run CWD, argv semantics, or remote visibility | Pending |
-| 1. Argument extraction | Shared classifier; argv, environment, and log-destination extraction with provenance, role hints, and deduplication | Deterministic unit tests; nonexistent output references retained; interpreter code bodies skipped | Pending |
+| 0. Rules and schema | Accepted/rejected path fixtures, lifecycle placement, persistence and inspection safety decisions, log-destination base per executor | No unresolved assumption about add/run CWD, argv semantics, or remote visibility | Rules and log base done; persistence decided in phase 3 |
+| 1. Argument extraction | Shared classifier; argv, environment, and log-destination extraction with provenance, role hints, and deduplication | Deterministic unit tests; nonexistent output references retained; interpreter code bodies skipped | Done |
 | 2. Configuration extraction | Bounded YAML/JSON/TOML parsing of directly referenced sources | Nested strings and provenance covered; ambiguous/dynamic values skipped | Pending |
 | 3. Lifecycle and persistence | Attempt-bound resolution and storage shared by all job creation paths | Plain/array/matrix/retry/carried cases and old state covered; execution behavior unchanged | Pending |
 | 4. Shell inspection | Conservative syntax-aware extraction of literals and PATH-E1 task variables | Array tasks and matrix members get distinct candidates for `$ROTARI_ARRAY_TASK_ID`/matrix-variable paths; other dynamic or ambiguous cases skipped; no execution during inspection | Deferred until phases 1-3 are validated |

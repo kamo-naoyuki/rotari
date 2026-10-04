@@ -56,6 +56,12 @@ var boundaryRules = []boundaryRule{
 		forbidden: fileAccess,
 	},
 	{
+		pkg:       "internal/artifact",
+		reason:    "artifact classifies references from a job definition and source contents its callers supply, without file access",
+		allowed:   []string{},
+		forbidden: fileAccess,
+	},
+	{
 		pkg:       "internal/run",
 		reason:    "run owns run rules without file access",
 		allowed:   []string{"internal/model", "internal/executor", "internal/jobfilter"},

@@ -127,6 +127,7 @@ flowchart TB
    runlineage
     diagnose
       jobfilter
+      artifact
   end
   subgraph l1["adapters"]
     executor
@@ -244,6 +245,7 @@ are checked against this graph by
 | [internal/mcp](../internal/mcp/) | MCP tools that `rotari mcp` (`cmd/rotari/mcp.go`) serves: read-only project list, run summary, bounded run wait, job report, project check, run comparison, and redacted run export, previewed, revision-guarded import and run start, job control of a running run, and previewed, revision-guarded reset. They present the shared functions the CLI uses (`project.Overviews`, `basedirregistry.Discover`, `runview.Summary`, `projectrun.Runner.Check`, `runlineage.Compare`, `report.Build`, `workflowstate.Import`, `projectrun.RunSource`, `projectrun.Runner.PreviewRun`), locate runs only through the master directory's run registry (`resolve.RegisteredRun`), and return no absolute paths; every tool is added through `addTool`, which hides state directories in errors. Starting a supervisor and new job IDs come from `cmd/rotari` as `Options`; it does not import `cmd/rotari`. | `server.go` (`NewServer`), `tools.go`, `wait.go`, `export.go`, `write.go`, `control.go`, `reset.go` |
 | [internal/runlineage](../internal/runlineage/) | Comparison and summaries of loaded runs for `lineage`, and the grouping of a run's failures by cause that `show`, `lineage`, and the Web UI share. | `runlineage.go`, `failures.go` (`FailureGroups`) |
 | [internal/jobfilter](../internal/jobfilter/) | The conditions of the `--filter-*` options that narrow a job selection, evaluated without file access; callers supply what a condition needs about each job. | `filter.go` (`Filter`, `Selects`) |
+| [internal/artifact](../internal/artifact/) | Artifact candidate discovery: the one classifier that decides whether a command argument, environment value, or configuration string is a file or directory reference, with the accepting rule and provenance. Reads no files; callers supply the job definition and source contents. | `classify.go` (`Classify`), `command.go`, `discover.go` (`FromJob`) |
 | [internal/diagnose](../internal/diagnose/) | Rule-based failure diagnosis. | `analysis.go` |
 | [internal/archtest](../internal/archtest/) | Tests only: the package boundary rules checked against the import graph. | `boundaries_test.go` |
 | [internal/doclinks](../internal/doclinks/) | Tests only: relative links and `#anchor` links in the root Markdown files, `contracts/`, and `docs/`. | `links_test.go` |
