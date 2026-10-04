@@ -14,7 +14,7 @@ Remove the directory when finished.
 
 | Goal | Run | Requirement |
 | --- | --- | --- |
-| Dependencies and a local run | `./examples/basic.sh` | rotari |
+| Dependencies, a local run, and the files a job names | `./examples/basic.sh` | rotari |
 | Local array tasks | `./examples/array.sh` | rotari |
 | Matrix of independent jobs | `./examples/matrix.sh` | rotari |
 | Retry only failed work | `./examples/retry.sh` | rotari |
