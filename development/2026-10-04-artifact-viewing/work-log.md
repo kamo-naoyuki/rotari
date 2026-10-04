@@ -128,3 +128,38 @@ tests, ruff, and the generator checks. A full `scripts/check.sh` (vet, test,
 race) started after this commit passed with "all checks passed".
 
 **Remaining:** None in this plan.
+
+## Example and static demo
+
+**Commits:**
+
+- `dfd7e8c` — 2026-10-04T20:10:17+09:00 (basic example)
+- `df50ab2` — 2026-10-04T20:10:17+09:00 (static demo)
+
+**Change:** `examples/basic.sh` keeps its two jobs, now in a working
+directory under `.example-state`. `prepare` writes a CSV and a config, and
+`train` writes a metrics file and takes `--config config.yaml`. The script
+ends with `show --job-name train`, which lists the metrics file, the config,
+and the config's `out_dir`. The examples README row says so.
+`scripts/generate-static-web.sh` adds an `artifacts` project: a training
+script in the generator's temporary workspace with a `--config` file and an
+`--output` log, so the demo's Artifacts view lists eight candidates (the
+script, the CSV, SVG, and log it writes, the config and its two paths, and
+the log destination).
+
+**Reason:** The user asked for artifact examples in the static demo and an
+example, suggesting `basic.sh`.
+
+**Plan impact:** None.
+
+**Validation:** `examples/basic.sh` run with a fresh build printed
+"Success: 2" (the examples workflow's expectation) and the three candidates;
+`bash -n` passed. `scripts/generate-static-web.sh` with
+`GO_BINARY=$(command -v go)` generated a demo whose embedded listing has the
+eight candidates; a jsdom check of the generated page rendered eight rows,
+no open buttons, and the "Previews need the live Web UI" note (jsdom needs
+Node's `Response`, which browsers have). An earlier attempt at editing the
+generator through a nested shell heredoc ran stray lines with an empty
+`workspace`; they failed with permission errors and created no files.
+
+**Remaining:** None.
