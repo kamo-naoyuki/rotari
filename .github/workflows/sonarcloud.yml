@@ -46,7 +46,7 @@ jobs:
         run: go install gotest.tools/gotestsum@v1.13.0
 
       - name: Run Go tests with coverage
-        run: gotestsum --format pkgname-and-test-fails -- -coverprofile=coverage.out ./...
+        run: gotestsum --format pkgname-and-test-fails -- -coverpkg=./cmd/...,./internal/... -coverprofile=coverage.out ./...
 
       - name: Run Python tests with coverage
         run: |
