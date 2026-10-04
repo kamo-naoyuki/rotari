@@ -712,7 +712,12 @@ in [classify_test.go](../../internal/artifact/classify_test.go) and
 - **Parser.** `mvdan.cc/sh/v3/syntax` v3.13.1, the newest release that
   supports this module's Go 1.25 (v3.14 requires Go 1.26). Only the `syntax`
   package is used: it parses and never runs anything. `sh` and `dash` source
-  is parsed as POSIX, `bash` source as Bash; `zsh` source is not parsed.
+  is parsed as POSIX, `bash` as Bash, and `zsh` as Zsh, which this release
+  supports. Adding it raised the indirect `golang.org/x/sys` requirement to
+  v0.42.0.
+- **Configuration files named in shell source** (`bash -c 'python train.py
+  --config conf/a.yaml'`) are read like those named in argv; this form is
+  common enough that skipping it would lose the main configuration.
 - **Steps.** (a) the `-c` code operand of a recognized shell: redirection
   targets (PATH-R1) and the arguments of each simple command, classified with
   the same recognizer and argv rules; (b) referenced shell scripts: a `.sh`
@@ -760,7 +765,7 @@ not reconstructed. Whether to implement this is decided after phase 4.
 | 1. Argument extraction | Shared classifier; argv, environment, and log-destination extraction with provenance, role hints, and deduplication | Deterministic unit tests; nonexistent output references retained; interpreter code bodies skipped | Done |
 | 2. Configuration extraction | Bounded YAML/JSON/TOML parsing of directly referenced sources | Nested strings and provenance covered; ambiguous/dynamic values skipped | Done |
 | 3. Lifecycle and persistence | Attempt-bound resolution and storage shared by all job creation paths | Plain/array/matrix/retry/carried cases and old state covered; execution behavior unchanged | Done |
-| 4. Shell inspection | Conservative syntax-aware extraction of literals and PATH-E1 task variables | Array tasks and matrix members get distinct candidates for `$ROTARI_ARRAY_TASK_ID`/matrix-variable paths; other dynamic or ambiguous cases skipped; no execution during inspection | In progress |
+| 4. Shell inspection | Conservative syntax-aware extraction of literals and PATH-E1 task variables | Array tasks and matrix members get distinct candidates for `$ROTARI_ARRAY_TASK_ID`/matrix-variable paths; other dynamic or ambiguous cases skipped; no execution during inspection | Steps (a), (c), (d) done; (b) referenced script files pending |
 | 6. Python source | Lexical `argparse` defaults and string literals of directly referenced `.py` files | Decided after phase 4 | Not started |
 | 5. Contracts and documentation | Document implemented guarantees and limitations | Representative conformance tests, contract IDs/status rows, architecture and affected guides agree | Done: RUN-9 with its example tables, `TestStartedAttemptRecordsArtifactCandidates`, `TestArtifactCandidateExamples`, docs/INSPECT.md |
 

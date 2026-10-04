@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/artifact"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -128,7 +130,7 @@ func TestArtifactRecorderReadsSourcesForEveryExecutor(t *testing.T) {
 			}
 			runDir := t.TempDir()
 			job := model.JobSpec{ID: "job", AttemptID: state.MakeAttemptID("20260101-000000-aaaaaaaa", "job", 0), Executor: executorName, Command: []string{"train", "a.yaml", "missing.json"}, WorkingDirectory: work}
-			recorder := newArtifactRecorder(runDir, []model.JobSpec{job}, runner.Store, func(string, ...any) {})
+			recorder := newArtifactRecorder(runDir, []model.JobSpec{job}, nil, runner.Store, func(string, ...any) {})
 			recorder.prepare(job)
 			attemptDir, err := state.AttemptJobDir(runDir, job)
 			if err != nil {
@@ -154,7 +156,7 @@ func TestArtifactRecorderSkipsAttemptsThatNeverStarted(t *testing.T) {
 	runner, _ := testRunner(t)
 	runDir := t.TempDir()
 	job := model.JobSpec{ID: "job", AttemptID: state.MakeAttemptID("20260101-000000-aaaaaaaa", "job", 0), Command: []string{"true", "a.csv"}}
-	recorder := newArtifactRecorder(runDir, []model.JobSpec{job}, runner.Store, func(string, ...any) {})
+	recorder := newArtifactRecorder(runDir, []model.JobSpec{job}, nil, runner.Store, func(string, ...any) {})
 	recorder.started(job)
 	if _, err := os.Stat(filepath.Join(runDir, "job")); !os.IsNotExist(err) {
 		t.Fatalf("an attempt that was never prepared got a directory: %v", err)
@@ -184,7 +186,7 @@ func TestArtifactRecorderParsesAConfigOncePerRun(t *testing.T) {
 	for _, id := range []string{"task-0", "task-1"} {
 		jobs = append(jobs, model.JobSpec{ID: id, AttemptID: state.MakeAttemptID("20260101-000000-aaaaaaaa", id, 0), Command: []string{"train", "a.yaml"}, WorkingDirectory: work})
 	}
-	recorder := newArtifactRecorder(runDir, jobs, runner.Store, func(string, ...any) {})
+	recorder := newArtifactRecorder(runDir, jobs, nil, runner.Store, func(string, ...any) {})
 	write("out_dir: aaa\n")
 	recorder.prepare(jobs[0])
 	write("out_dir: bbb\n")
@@ -202,6 +204,58 @@ func TestArtifactRecorderParsesAConfigOncePerRun(t *testing.T) {
 		want := []string{config, filepath.Join(work, "aaa")}
 		if !ok || !slices.Equal(candidatePaths(record), want) {
 			t.Fatalf("%s: candidates = %q, want %q from the run's one parse", job.ID, candidatePaths(record), want)
+		}
+	}
+}
+
+// TestExecuteExpandsTaskVariablesInShellSource checks PATH-E1: each array
+// task and each member that differs by environment records its own path.
+func TestExecuteExpandsTaskVariablesInShellSource(t *testing.T) {
+	runner, paths := testRunner(t)
+	runner.Executors = executor.NewRegistry(runner.Store, func(string, ...any) {})
+	runner.Environment = run.EnvironmentNames{ArrayTaskID: "ROTARI_ARRAY_TASK_ID", JobDir: "ROTARI_JOB_DIR", RunDir: "ROTARI_RUN_DIR"}
+	work := t.TempDir()
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "arr", Command: []string{"bash", "-c", `true > "out/$ROTARI_ARRAY_TASK_ID.log"`}, Array: &model.ArraySpec{First: 0, Last: 1}},
+		{ID: "member-a", Command: []string{"bash", "-c", `true > "res/$LR.csv"`}, Environment: []string{"LR=0.1"}},
+		{ID: "member-b", Command: []string{"bash", "-c", `true > "res/$LR.csv"`}, Environment: []string{"LR=0.2"}},
+		{ID: "attempt", Command: []string{"bash", "-c", `true > "$ROTARI_JOB_DIR/result.txt"`}},
+	}}
+	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.Begin(paths, Start{RunID: "run-1", CWD: work}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runner.Execute(paths, Options{RunID: "run-1", EnvMode: model.EnvModeNone}, Observer{}); err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(paths.RunsDir, "run-1")
+	want := map[string]string{
+		"member-a": filepath.Join(work, "res/0.1.csv"),
+		"member-b": filepath.Join(work, "res/0.2.csv"),
+	}
+	for _, job := range model.QueueToJobs(queue.Commands) {
+		if job.ArrayTaskID != nil {
+			want[job.ID] = filepath.Join(work, "out", strconv.Itoa(*job.ArrayTaskID)+".log")
+		}
+	}
+	attemptID := state.ListAttemptIDs(runDir, "attempt")[0]
+	want["attempt"] = filepath.Join(runDir, "attempt", "attempts", attemptID, "result.txt")
+	if len(want) != 5 {
+		t.Fatalf("want = %v, expected two array tasks", want)
+	}
+	for jobID, path := range want {
+		attempts := state.ListAttemptIDs(runDir, jobID)
+		if len(attempts) != 1 {
+			t.Fatalf("%s: attempts = %v", jobID, attempts)
+		}
+		record, ok := readArtifactRecord(t, runner, runDir, jobID, attempts[0])
+		if !ok || !slices.Equal(candidatePaths(record), []string{path}) {
+			t.Fatalf("%s: record = %+v, %v; want %s", jobID, record, ok, path)
+		}
+		if source := record.Candidates[0].Sources[0]; source.Rule != artifact.RuleRedirection || !source.Expanded {
+			t.Fatalf("%s: source = %+v, want an expanded PATH-R1 redirection", jobID, source)
 		}
 	}
 }

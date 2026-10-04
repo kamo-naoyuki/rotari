@@ -109,8 +109,8 @@
   [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
 - **RUN-9** Each attempt that a run submits records its artifact candidates
   in the attempt's `artifacts.json`: file and directory references found
-  statically in the job's command arguments (except interpreter code
-  operands), its own `--env` and matrix values, its `--output`/`--error`
+  statically in the job's command arguments, the shell code it runs
+  (`bash -c`), its own `--env` and matrix values, its `--output`/`--error`
   destinations, and the configuration files those reference, each with the
   accepting rule and where it was found. Relative references are resolved on
   the attempt's working directory. A candidate is not a claim that the path
@@ -496,26 +496,66 @@ j_dir: "~/j"
 #### Interpreter code (PATH-X4)
 
 The code operand of an interpreter at the start of the command, or behind
-`env`, `timeout`, or `srun` (up to four nested launchers), is not searched.
-Options before the code option are parsed; an option not listed here is
-taken as a flag that consumes no word. Words after the code operand are
-classified as usual. `srun`'s `--job-name`/`-J` and `--partition`/`-p` values
+`env`, `timeout`, or `srun` (up to four nested launchers), is never
+classified as one value. A shell's code is inspected as shell source (see
+the next table); Python, Perl, and Node code is not searched. Options before
+the code option are parsed; an option not listed here is taken as a flag
+that consumes no word. Words after the code operand are classified as
+usual. `srun`'s `--job-name`/`-J` and `--partition`/`-p` values
 are skipped when looking for the interpreter; `srun` rows are in the package
 tests, because running them would submit jobs.
 
 | Interpreter | Code option and value options | Command | Recorded |
 | --- | --- | --- | --- |
-| `sh`, `dash` | `-c` in an option bundle; `-o`/`+o VALUE`; the code is the first operand | `rotari add -- sh -c 'cat a/b' name x/y` | `x/y` |
-| `bash` | also `-O`/`+O VALUE`, `--rcfile FILE`, `--init-file FILE`; bundles such as `-lc`, `-xec` | `rotari add -- bash -o pipefail -lc 'cat a/b'` | nothing |
-| `bash` | the code is the first operand after `-c`, even after other flags or `--` | `rotari add -- bash -c -e -- 'cat a/b'` | nothing |
-| `zsh` | like `bash`, without `--rcfile`/`--init-file` | `rotari add -- zsh -c 'cat a/b'` | nothing |
+| `sh`, `dash` | `-c` in an option bundle; `-o`/`+o VALUE`; the code is the first operand | `rotari add -- sh -c 'cat a/b' name x/y` | `a/b`, `x/y` |
+| `bash` | also `-O`/`+O VALUE`, `--rcfile FILE`, `--init-file FILE`; bundles such as `-lc`, `-xec` | `rotari add -- bash -o pipefail -lc 'cat a/b'` | `a/b` |
+| `bash` | the code is the first operand after `-c`, even after other flags or `--` | `rotari add -- bash -c -e -- 'cat a/b'` | `a/b` |
+| `zsh` | like `bash`, without `--rcfile`/`--init-file` | `rotari add -- zsh -c 'cat a/b'` | `a/b` |
 | `python`, `python2`, `python3`, `python3.N`, `pypy`, `pypy3` | exactly `-c CODE`; `-W`, `-X`, `--check-hash-based-pycs VALUE` (or attached/`=` forms) | `rotari add -- python3 -X dev -c 'print("a/b")'` | nothing |
 | `python` | a `-c` after the script belongs to the script | `rotari add -- python3 train.py -c a/b.yaml` | `train.py`, `a/b.yaml` |
 | `perl` | `-e`/`-E CODE`; `-I`, `-M`, `-m VALUE`; option values remain candidates | `rotari add -- perl -I ./lib -e 'print "a/b"'` | `lib` |
 | `node` | `-e`/`--eval`/`-p`/`--print CODE`; `-r`/`--require`, `--import VALUE` | `rotari add -- node --require ./hook.js -e '"a/b"'` | `hook.js` |
 | `node` | `--eval=CODE` / `--print=CODE` carry the code | `rotari add -- node --eval='"a/b"'` | nothing |
 | `env`, `timeout` | launchers are scanned for the first interpreter | `rotari add -- env A=1 timeout 5 python3 -c 'print("a/b")'` | nothing |
-| other commands | not launchers: the code is an ordinary argument (known false positive) | `rotari add -- nice bash -c 'cat a/b'` | `cat a/b` |
+| other commands | not launchers: the code is one ordinary argument, not shell source (known false positive) | `rotari add -- nice bash -c 'cat a/b'` | `cat a/b` |
+
+#### Shell source (PATH-R1, PATH-E1)
+
+The code of a recognized shell (`sh`, `dash`, `bash`, `zsh`) is parsed, never
+run. Each simple command's words are classified like argv, with the same
+interpreter and text-command rules, and the literal target of a
+file-opening redirection is a `PATH-R1` reference whatever it looks like.
+A word counts only when its value is fixed: quotes are removed, and a plain
+`$NAME` or `${NAME}` expands only for a value rotari fixes for the attempt
+(`PATH-E1`): `ROTARI_ARRAY_TASK_ID`, `ROTARI_JOB_DIR`, and the job's own
+`--env` and matrix values, unless the source assigns the name itself. After
+the first `cd`, `pushd`, or `popd`, relative references in that source are
+skipped. Shell source inside shell source (`bash -c`, or a quoted-delimiter
+heredoc read by a shell) is inspected up to three levels deep.
+
+| Rule | Condition | Command | Recorded |
+| --- | --- | --- | --- |
+| `PATH-R1` | `>`, `>>`, `<`, `2>`, `<>`, `>|` | `rotari add -- bash -c 'a > r1; b >> r2; c < r3; d 2> r4; e <> r5; f >\| r6'` | `r1`, `r2`, `r3`, `r4`, `r5`, `r6` |
+| `PATH-R1` | `&>` and `&>>` in `bash` and `zsh` | `rotari add -- bash -c 'a &> r7; b &>> r8'` | `r7`, `r8` |
+| `PATH-R1` | Any literal target, with quoted spaces, or a number | `rotari add -- sh -c 'a > "result table"; b > 123'` | `result table`, `123` |
+| `PATH-R1` | Not descriptor duplication or closing | `rotari add -- bash -c 'a 2>&1; b <&0; c >&-'` | nothing |
+| `PATH-R1` | Not a here-document or here-string read as data | `rotari add -- bash -c "$(printf 'cat <<EOF\nr.csv\nEOF\ncat <<< a/b.csv')"` | nothing |
+| `PATH-R1` | Not a target with an unresolved expansion or a process substitution | `rotari add -- bash -c 'a > "$OUTPUT"; b > "$(date)"; c > >(cat)'` | nothing |
+| `PATH-R1` | Not a special device | `rotari add -- bash -c 'a > /dev/null 2> /dev/stderr'` | nothing |
+| Commands | Words classified like argv; `echo` text is not | `rotari add -- bash -c 'python train.py --out results/x; echo a/b.csv > log.txt'` | `train.py`, `results/x`, `log.txt` |
+| Commands | Globs, brace expansion, and a leading `~` are not fixed | `rotari add -- bash -c 'cat *.csv a/{x,y}.csv ~/x.csv'` | nothing |
+| Commands | After `cd`, relative references are skipped | `rotari add -- bash -c 'cat a.csv; cd sub; cat b.csv > /nonexistent/out.txt'` | `a.csv`, `/nonexistent/out.txt` |
+| Nesting | A shell inside shell source | `rotari add -- bash -c "bash -c 'cat a/b.csv'"` | `a/b.csv` |
+| Nesting | A heredoc with a quoted delimiter read by a shell | `rotari add -- bash -c "$(printf "bash <<'SH'\npython train.py > result.csv\nSH")"` | `train.py`, `result.csv` |
+| Nesting | Not an unquoted delimiter, which the outer shell expands first | `rotari add -- bash -c "$(printf 'bash <<SH\ncat a/b.csv\nSH')"` | nothing |
+| Nesting | Not a heredoc read by another program | `rotari add -- bash -c "$(printf "python3 <<'PY'\nprint('a/b.csv')\nPY")"` | nothing |
+| `PATH-R1` | `PATH-E1`: a job's own variable expands | `rotari add --env LR=0.1 -- bash -c 'true > "res/$LR.csv"'` | `res/0.1.csv` |
+| `PATH-R1` | `PATH-E1`: not an operator form, an inherited variable, or a name the source assigns | `rotari add --env LR=0.1 -- bash -c 'a > "${LR:-x}.csv"; b > "$HOME/x.csv"; LR=5; c > "out/$LR.csv"'` | nothing |
+| Arguments | argv is not shell source: `$` stays literal | `rotari add --env LR=0.1 -- train 'res/$LR.csv'` | `res/$LR.csv` |
+
+Each array task and the attempt directory expand to their own values; that
+is checked by `TestShellVariablesDifferPerArrayTask`, because an array job has
+one row per task.
 
 #### Positive rules
 
@@ -555,8 +595,8 @@ data: https://example.org/data.csv
 | `rotari add -- ./run.sh /data/input` | `run.sh`, `/data/input` | A script path and an absolute input |
 | `rotari add -- train metrics.csv` | `metrics.csv` | A path need not exist |
 | `rotari add -- train '>' out.txt` | `out.txt` | argv is not shell code: `>` is a literal word, and `out.txt` an ordinary argument |
-| `rotari add -- bash -c 'python train.py > out/log.txt'` | nothing | The redirection is inside shell code, which is not searched |
-| `rotari add -- timeout 1h bash -c 'cat conf/train.yaml'` | nothing | The same through a launcher; the file the code reads is not recorded |
+| `rotari add -- bash -c 'python train.py > out/log.txt'` | `train.py`, `out/log.txt` | Shell code is parsed: the script is a command argument, and the redirection target a `PATH-R1` reference |
+| `rotari add -- timeout 1h bash -c 'cat conf/train.yaml'` | `conf/train.yaml`, `results` | The same through a launcher; a configuration file named in shell source is read too |
 
 #### Configuration files
 

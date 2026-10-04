@@ -7,6 +7,20 @@ import (
 	"testing"
 )
 
+// argumentValues returns the values of argv sources only; shell source
+// inside a code operand is covered by shell_test.go.
+func argumentValues(result Result) []string {
+	var found []string
+	for _, candidate := range result.Candidates {
+		for _, source := range candidate.Sources {
+			if source.Kind == KindArgument {
+				found = append(found, source.Value)
+			}
+		}
+	}
+	return found
+}
+
 func values(result Result) []string {
 	var found []string
 	for _, candidate := range result.Candidates {
@@ -102,7 +116,7 @@ func TestArgumentCandidates(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := values(FromJob(Job{Command: test.argv}))
+			got := argumentValues(FromJob(Job{Command: test.argv}))
 			if !slices.Equal(got, test.want) {
 				t.Fatalf("FromJob(%q) values = %q, want %q", test.argv, got, test.want)
 			}

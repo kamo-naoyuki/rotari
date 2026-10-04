@@ -22,6 +22,14 @@ type commandShape struct {
 	// text is the index of a text command such as echo, or -1. Its
 	// arguments are text to print, not references (PATH-X5).
 	text int
+	// dialect is the recognized shell, or notInterpreter.
+	dialect interpreterKind
+	// script is the index of a shell's script operand when it has no -c,
+	// or -1.
+	script int
+	// stdin reports a shell with neither -c nor a script operand, which
+	// reads its commands from standard input.
+	stdin bool
 }
 
 // maxLauncherDepth bounds how many nested listed launchers are followed.
@@ -88,7 +96,7 @@ var srunFreeTextOptions = []string{"--job-name", "-J", "--partition", "-p"}
 // any other command are never searched, so an interpreter-looking word
 // passed to it stays an ordinary argument.
 func recognizeCommand(words []string) commandShape {
-	shape := commandShape{code: -1, text: -1}
+	shape := commandShape{code: -1, text: -1, script: -1}
 	index := 0
 	for depth := 0; index < len(words); depth++ {
 		if isTextCommand(words[index]) {
@@ -98,7 +106,12 @@ func recognizeCommand(words []string) commandShape {
 		}
 		if kind := interpreterOf(words[index]); kind != notInterpreter {
 			shape.commandWords = append(shape.commandWords, index)
-			shape.code, shape.shell = codeOperand(kind, words, index+1)
+			if isShell(kind) {
+				shape.dialect, shape.shell = kind, true
+				shape.code, shape.script, shape.stdin = shellOperands(kind, words, index+1)
+				return shape
+			}
+			shape.code = codeOperand(kind, words, index+1)
 			return shape
 		}
 		if !isLauncher(words[index]) || depth >= maxLauncherDepth {
@@ -131,29 +144,34 @@ func scanLauncher(words []string, launcher int) int {
 	return -1
 }
 
-// codeOperand parses the interpreter options starting at words[start] and
-// returns the index of the code operand, or -1, and whether it is shell
-// source. Options not listed for the interpreter are boolean: they consume
-// no word. Parsing stops at the first operand or "--".
-func codeOperand(kind interpreterKind, words []string, start int) (int, bool) {
-	switch kind {
-	case posixShell, bashShell, zshShell:
-		return shellCodeOperand(kind, words, start), true
-	case pythonInterpreter:
-		return valueCodeOperand(words, start, pythonOptions), false
-	case perlInterpreter:
-		return valueCodeOperand(words, start, perlOptions), false
-	case nodeInterpreter:
-		return valueCodeOperand(words, start, nodeOptions), false
-	}
-	return -1, false
+func isShell(kind interpreterKind) bool {
+	return kind == posixShell || kind == bashShell || kind == zshShell
 }
 
-// shellCodeOperand handles sh, dash, bash, and zsh, where -c is a flag
-// meaning "read commands from the first operand". A c in a valid short
-// option bundle (-c, -lc, -ce, -xec) sets it; -o/+o, and for bash and zsh
-// -O/+O, consume the next word per occurrence in the bundle.
-func shellCodeOperand(kind interpreterKind, words []string, start int) int {
+// codeOperand parses the options of Python, Perl, or Node starting at
+// words[start] and returns the index of the code operand, or -1. Options not
+// listed for the interpreter are boolean: they consume no word. Parsing stops
+// at the first operand or "--".
+func codeOperand(kind interpreterKind, words []string, start int) int {
+	switch kind {
+	case pythonInterpreter:
+		return valueCodeOperand(words, start, pythonOptions)
+	case perlInterpreter:
+		return valueCodeOperand(words, start, perlOptions)
+	case nodeInterpreter:
+		return valueCodeOperand(words, start, nodeOptions)
+	}
+	return -1
+}
+
+// shellOperands handles sh, dash, bash, and zsh, where -c is a flag meaning
+// "read commands from the first operand". A c in a valid short option bundle
+// (-c, -lc, -ce, -xec) sets it; -o/+o, and for bash and zsh -O/+O, consume
+// the next word per occurrence in the bundle. It returns the index of the
+// code operand or, without -c, of the script operand, each -1 when absent,
+// and whether the shell reads its commands from standard input: neither -c
+// nor a script operand.
+func shellOperands(kind interpreterKind, words []string, start int) (code, script int, stdin bool) {
 	valueLetters := "o"
 	if kind != posixShell {
 		valueLetters = "oO"
@@ -186,10 +204,13 @@ func shellCodeOperand(kind interpreterKind, words []string, start int) int {
 			}
 		}
 	}
-	if !command || index >= len(words) {
-		return -1
+	switch {
+	case index >= len(words):
+		return -1, -1, !command
+	case command:
+		return index, -1, false
 	}
-	return index
+	return -1, index, false
 }
 
 func isLetters(value string) bool {

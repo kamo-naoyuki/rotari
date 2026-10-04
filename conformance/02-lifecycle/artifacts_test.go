@@ -42,7 +42,8 @@ func TestStartedAttemptRecordsArtifactCandidates(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(e.Root, "conf", "train.yaml"), []byte("out_dir: results\nlr: 0.1\nplot: ${out_dir}/plot.png\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// The shell code operand contains a path but is code, not a reference.
+	// The shell code operand is never one value; it is parsed as shell
+	// source, where "$1" has no fixed value and code/unused.csv is literal.
 	jobID := support.AddedJobID(t, e.MustRotari("add", "-p", "artifacts", "--env", "OUTPUT_DIR=out", "--output", "logs/run.log",
 		"--", "sh", "-c", `cat "$1" >/dev/null || cat code/unused.csv; exit 3`, "sh", "conf/train.yaml"))
 	if r := e.Rotari("run", "-p", "artifacts", "--quiet"); r.Code == 0 {
@@ -56,8 +57,8 @@ func TestStartedAttemptRecordsArtifactCandidates(t *testing.T) {
 	runDir := filepath.Join(e.Base, "projects", "artifacts", "runs", summary.RunID)
 	cwd := runCWD(t, runDir)
 	record, data := readArtifactRecord(t, runDir, jobID, attemptID)
-	if record.Version != 4 {
-		t.Fatalf("version = %d, want 4", record.Version)
+	if record.Version != 5 {
+		t.Fatalf("version = %d, want 5", record.Version)
 	}
 	type found struct{ path, basis, kind, rule, key, stream, file, location string }
 	var got []found
@@ -68,6 +69,7 @@ func TestStartedAttemptRecordsArtifactCandidates(t *testing.T) {
 	}
 	config := filepath.Join(cwd, "conf", "train.yaml")
 	want := []found{
+		{path: filepath.Join(cwd, "code", "unused.csv"), basis: "working_directory", kind: "shell", rule: "PATH-R3", location: "1:28"},
 		{path: config, basis: "working_directory", kind: "argument", rule: "PATH-R3"},
 		{path: filepath.Join(cwd, "out"), basis: "working_directory", kind: "environment", rule: "PATH-R5", key: "OUTPUT_DIR"},
 		{path: filepath.Join(cwd, "logs", "run.log"), basis: "working_directory", kind: "output", rule: "PATH-D1", stream: "stdout"},
@@ -157,6 +159,10 @@ func readArtifactExamples(t *testing.T) (map[string]string, []artifactExample) {
 			continue
 		}
 		cells := strings.Split(strings.Trim(line, "| "), " | ")
+		for index := range cells {
+			// GitHub Markdown writes a | inside a table cell as \|.
+			cells[index] = strings.ReplaceAll(cells[index], `\|`, "|")
+		}
 		command := slices.IndexFunc(cells, func(cell string) bool { return strings.HasPrefix(cell, "`rotari add ") })
 		if command < 0 {
 			continue
@@ -249,5 +255,38 @@ func TestArtifactCandidateExamples(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestShellVariablesDifferPerArrayTask checks PATH-E1 through the binary:
+// each array task records the path its own ROTARI_ARRAY_TASK_ID names, and
+// ROTARI_JOB_DIR expands to the attempt's own directory.
+func TestShellVariablesDifferPerArrayTask(t *testing.T) {
+	covers(t, "RUN-9")
+	e := support.NewEnv(t)
+	const project = "artifact-array"
+	e.MustRotari("add", "-p", project, "--array", "0-1", "--", "bash", "-c", `true > "out/$ROTARI_ARRAY_TASK_ID.log"; true > "$ROTARI_JOB_DIR/result.txt"`)
+	e.Rotari("run", "-p", project, "--quiet")
+	summary := readSummary(t, e, project)
+	runDir := filepath.Join(e.Base, "projects", project, "runs", summary.RunID)
+	cwd := runCWD(t, runDir)
+	if len(summary.Results) != 2 {
+		t.Fatalf("results = %+v, want two array tasks", summary.Results)
+	}
+	var logs []string
+	for _, result := range summary.Results {
+		record, data := readArtifactRecord(t, runDir, result.ID, result.AttemptID)
+		if len(record.Candidates) != 2 {
+			t.Fatalf("%s: record = %s, want two candidates", result.ID, data)
+		}
+		logs = append(logs, record.Candidates[0].Path)
+		attemptDir := filepath.Join(runDir, result.ID, "attempts", result.AttemptID)
+		if got, want := record.Candidates[1].Path, filepath.Join(attemptDir, "result.txt"); got != want {
+			t.Fatalf("%s: ROTARI_JOB_DIR expanded to %s, want %s", result.ID, got, want)
+		}
+	}
+	slices.Sort(logs)
+	if want := []string{filepath.Join(cwd, "out", "0.log"), filepath.Join(cwd, "out", "1.log")}; !slices.Equal(logs, want) {
+		t.Fatalf("array task logs = %q, want %q", logs, want)
 	}
 }

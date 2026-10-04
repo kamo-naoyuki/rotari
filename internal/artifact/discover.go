@@ -13,6 +13,7 @@ const (
 	KindOutput      = "output"
 	KindError       = "error"
 	KindConfig      = "config"
+	KindShell       = "shell"
 )
 
 // Resolution bases say how a candidate's Path was obtained.
@@ -40,6 +41,10 @@ type Job struct {
 	// WorkingDirectory is the effective directory the job runs in. When it
 	// is empty or relative, relative references stay unresolved.
 	WorkingDirectory string
+	// Variables are values rotari fixes for the attempt, such as
+	// ROTARI_ARRAY_TASK_ID and ROTARI_JOB_DIR. With the Environment entries
+	// they are the only variables shell source expands (PATH-E1).
+	Variables map[string]string
 }
 
 // Candidate is one discovered file or directory reference. It says nothing
@@ -67,8 +72,14 @@ type Source struct {
 	Stream string `json:"stream,omitempty"`
 	// File is the configuration source the reference was found in.
 	File string `json:"file,omitempty"`
-	// Location is the key or index path within File, such as train.paths[1].
+	// Location is the key or index path within File, such as train.paths[1],
+	// or the line:column within shell source.
 	Location string `json:"location,omitempty"`
+	// Direction is the redirection operator of a PATH-R1 target, such as >
+	// or <.
+	Direction string `json:"direction,omitempty"`
+	// Expanded reports that PATH-E1 expanded a variable in the value.
+	Expanded bool `json:"expanded,omitempty"`
 }
 
 // Diagnostic records a discovery problem. It never changes the job's
@@ -101,6 +112,8 @@ type collector struct {
 	result  Result
 	byPath  map[string]int
 	limited bool
+	// variables are the PATH-E1 values shell source may expand.
+	variables map[string]string
 }
 
 func newCollector(workingDirectory string) *collector {
@@ -156,21 +169,38 @@ func indexOf(value int) *int {
 }
 
 // arguments classifies the literal argv words. The argv is never joined
-// and reinterpreted as shell code, so a word containing > or $ is literal.
+// and reinterpreted as shell code, so a word containing > or $ is literal;
+// only the code operand of a recognized shell is shell source.
 func (c *collector) arguments(command []string) {
-	shape := recognizeCommand(command)
+	c.commandWords(command, c.add, func(index int) Source {
+		return Source{Kind: KindArgument, Index: indexOf(index)}
+	}, func(code string, dialect interpreterKind, index int) {
+		c.shell(code, dialect, shellOrigin{index: index}, 1)
+	})
+}
+
+// commandWords classifies the words of one command, from argv or from shell
+// source, and records each accepted one through add. source returns the
+// provenance of the word at an index; the rule and key are filled in here.
+// A recognized shell's code operand is handed to nested instead of being
+// classified.
+func (c *collector) commandWords(words []string, add func(string, Source), source func(index int) Source, nested func(code string, dialect interpreterKind, index int)) {
+	shape := recognizeCommand(words)
 	skip := map[int]bool{}
 	for _, index := range shape.commandWords {
 		skip[index] = true
 	}
 	if shape.code >= 0 {
 		skip[shape.code] = true
+		if shape.shell && nested != nil {
+			nested(words[shape.code], shape.dialect, shape.code)
+		}
 	}
 	if shape.text >= 0 {
-		command = command[:shape.text]
+		words = words[:shape.text]
 	}
 	previousOption := ""
-	for index, word := range command {
+	for index, word := range words {
 		option := previousOption
 		previousOption = ""
 		if skip[index] {
@@ -193,7 +223,9 @@ func (c *collector) arguments(command []string) {
 			}
 		}
 		if rule, ok := Classify(value, key, Literal); ok {
-			c.add(value, Source{Kind: KindArgument, Rule: rule, Index: indexOf(index), Key: key})
+			found := source(index)
+			found.Rule, found.Key = rule, key
+			add(value, found)
 		}
 	}
 }
@@ -242,7 +274,7 @@ func (c *collector) destination(kind string, index int, value, stream string) {
 // DiscoveryVersion identifies the discovery rules that produced a Record.
 // Bump it when a rule change means older records would be discovered
 // differently today; older records are kept as they are, not recomputed.
-const DiscoveryVersion = 4
+const DiscoveryVersion = 5
 
 // Record is the persisted discovery of one job attempt.
 type Record struct {

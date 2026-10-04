@@ -227,3 +227,20 @@ func TestDiscoverSkipsUnresolvedConfigs(t *testing.T) {
 		t.Fatal("a configuration file without a known base was read")
 	}
 }
+
+func TestDiscoverReadsConfigsNamedInShellSource(t *testing.T) {
+	reader := func(path string) ([]byte, error) {
+		if path == "/work/conf/a.yaml" {
+			return []byte("out_dir: results\n"), nil
+		}
+		return nil, errors.New("no such file")
+	}
+	result := Discover(Job{Command: []string{"bash", "-c", "python train.py --config conf/a.yaml"}, WorkingDirectory: "/work"}, ParseSources(reader))
+	var got []string
+	for _, candidate := range result.Candidates {
+		got = append(got, candidate.Path)
+	}
+	if want := []string{"/work/train.py", "/work/conf/a.yaml", "/work/results"}; !slices.Equal(got, want) {
+		t.Fatalf("candidates = %q, want %q", got, want)
+	}
+}

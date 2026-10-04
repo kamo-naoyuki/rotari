@@ -2,11 +2,13 @@ package projectrun
 
 import (
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/kamo-naoyuki/rotari/internal/artifact"
 	"github.com/kamo-naoyuki/rotari/internal/artifactsource"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -19,19 +21,22 @@ type artifactRecorder struct {
 	// environments holds each job's own environment entries (add --env and
 	// matrix values), without the variables the run adds.
 	environments map[string][]string
-	store        state.Store
-	logf         func(string, ...any)
+	// variables names the run variables whose attempt values shell source
+	// may expand (PATH-E1): the array task ID and the attempt directory.
+	variables []string
+	store     state.Store
+	logf      func(string, ...any)
 	// sources parses each configuration file once per version for the run.
 	sources *artifactsource.Cache
 	pending sync.Map // attempt ID -> artifact.Record
 }
 
-func newArtifactRecorder(runDir string, jobs []model.JobSpec, store state.Store, logf func(string, ...any)) *artifactRecorder {
+func newArtifactRecorder(runDir string, jobs []model.JobSpec, variables []string, store state.Store, logf func(string, ...any)) *artifactRecorder {
 	environments := make(map[string][]string, len(jobs))
 	for _, job := range jobs {
 		environments[job.ID] = append([]string(nil), job.Environment...)
 	}
-	return &artifactRecorder{runDir: runDir, environments: environments, store: store, logf: logf, sources: artifactsource.NewCache()}
+	return &artifactRecorder{runDir: runDir, environments: environments, variables: variables, store: store, logf: logf, sources: artifactsource.NewCache()}
 }
 
 // prepare discovers the candidates of job's attempt, whose working directory
@@ -45,12 +50,19 @@ func (recorder *artifactRecorder) prepare(job model.JobSpec) {
 			recorder.logf("WARNING: artifact discovery failed for job %s: %v", job.ID, recovered)
 		}
 	}()
+	variables := map[string]string{}
+	for _, name := range recorder.variables {
+		if entry, ok := run.EnvironmentEntry(job.Environment, name); name != "" && ok {
+			variables[name] = strings.TrimPrefix(entry, name+"=")
+		}
+	}
 	result := artifact.Discover(artifact.Job{
 		Command:          job.Command,
 		Environment:      recorder.environments[job.ID],
 		Output:           job.Output,
 		Error:            job.Error,
 		WorkingDirectory: job.WorkingDirectory,
+		Variables:        variables,
 	}, recorder.sources.References)
 	recorder.pending.Store(job.AttemptID, artifact.Record{Version: artifact.DiscoveryVersion, Result: result})
 }

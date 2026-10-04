@@ -51,11 +51,21 @@ func ParseSources(read SourceReader) ConfigReader {
 
 // Discover finds the candidates FromJob finds, then inspects each
 // configuration file (.yaml, .yml, .json, .toml) referenced by a command
-// argument or environment value and resolved to an absolute path, through
+// argument, an environment value, or shell source and resolved to an
+// absolute path, through
 // read. References found in a configuration file are not inspected in turn.
 // A nil read inspects nothing.
 func Discover(job Job, read ConfigReader) Result {
 	collector := newCollector(job.WorkingDirectory)
+	collector.variables = map[string]string{}
+	for _, entry := range job.Environment {
+		if name, value, found := strings.Cut(entry, "="); found {
+			collector.variables[name] = value
+		}
+	}
+	for name, value := range job.Variables {
+		collector.variables[name] = value
+	}
 	collector.arguments(job.Command)
 	collector.environment(job.Environment)
 	collector.destinations(job.Output, job.Error)
@@ -72,7 +82,7 @@ func (c *collector) configs(read ConfigReader) {
 			continue
 		}
 		if slices.ContainsFunc(candidate.Sources, func(source Source) bool {
-			return source.Kind == KindArgument || source.Kind == KindEnvironment
+			return source.Kind == KindArgument || source.Kind == KindEnvironment || source.Kind == KindShell
 		}) {
 			files = append(files, candidate.Path)
 		}

@@ -108,7 +108,7 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 	}
 	runDir := filepath.Join(paths.RunsDir, runID)
 	// Taken before the run adds its variables to each job's environment.
-	artifacts := newArtifactRecorder(runDir, jobs, runner.Store, runner.logf)
+	artifacts := newArtifactRecorder(runDir, jobs, []string{runner.Environment.ArrayTaskID, runner.Environment.JobDir}, runner.Store, runner.logf)
 	runner.ResolveJobWorkingDirectories(paths, options, jobs)
 	runner.PrepareJobEnvironments(paths, options, jobs)
 
