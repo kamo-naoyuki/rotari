@@ -134,3 +134,35 @@ with `-v`), `./internal/doclinks`, `./internal/archtest`, and
 were clean. A full `scripts/check.sh` was not rerun for this change.
 
 **Remaining:** None.
+
+## Executable contract examples
+
+**Commit:** `54cf5b6` — 2026-10-04T15:01:46+09:00
+
+**Change:** Added "Artifact candidate examples" under RUN-9 in
+contracts/02-run-lifecycle-and-execution.md: a fixture `conf/train.yaml` and
+two tables (12 recorded, 9 not recorded) of `rotari add` command lines with
+the candidates each records and why. `TestArtifactCandidateExamples` in
+conformance/02-lifecycle/artifacts_test.go parses that region, splits each
+line with `sh`, adds every example to one project, runs it, and compares each
+attempt's `artifacts.json` with its row. Shared the context and record readers
+with `TestStartedAttemptRecordsArtifactCandidates`, and listed the new test in
+the RUN-9 status row.
+
+**Reason:** The user asked for registered and ignored cases written as
+Markdown contract examples and executed by conformance, so developers can see
+at a glance what happens in which case.
+
+**Plan impact:** Phase 5 now has a document-driven contract; changing a row
+changes the test.
+
+**Validation:** `go test -count=1 -run
+'TestArtifactCandidateExamples|TestStartedAttempt' -v ./conformance/02-lifecycle`
+passed with all 21 example subtests listed. Temporarily changing the
+`train results` row to expect `results` made the test fail with "recorded [],
+contract says [\"results\"]"; the contract was then restored.
+`TestContractStatus`, `TestConformanceLayout`, `./internal/doclinks`,
+`go vet`, and `gofmt` passed. A full `scripts/check.sh` was not rerun.
+
+**Remaining:** None. Examples need commands that are harmless to run (no
+`srun`), because each row runs.
