@@ -27,8 +27,14 @@ the [Getting started](GETTING_STARTED.md) guide.
 - [Go API](go-api.md)
 - [MCP server](MCP.md): experimental VS Code/agent integration for inspecting one job.
 
-## For LLMs
+## Asking an AI assistant about rotari
 
-The documentation build publishes an [LLM-friendly index](https://kamo-naoyuki.github.io/rotari/docs/llms.txt)
-and a [single file with the rendered documentation](https://kamo-naoyuki.github.io/rotari/docs/llms-full.txt).
-Share the index when the LLM can access links, or attach the full file when it cannot.
+To get help from an AI assistant such as ChatGPT, Claude, or GitHub Copilot,
+give it this documentation:
+
+- If the assistant can open web links, share the
+  [documentation index](https://kamo-naoyuki.github.io/rotari/docs/llms.txt).
+  It lists every page, so the assistant can read the ones it needs.
+- If it cannot, download the
+  [full documentation as one text file](https://kamo-naoyuki.github.io/rotari/docs/llms-full.txt)
+  and attach it to the conversation.
