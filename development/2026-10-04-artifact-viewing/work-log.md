@@ -188,3 +188,56 @@ and passed after the fix. `./internal/webui`, the Web conformance tests, and
 prettier passed. A full `scripts/check.sh` was not rerun.
 
 **Remaining:** None.
+
+## Audio, video, and NumPy previews
+
+**Commit:** `7ad58e3` — 2026-10-04T20:30:33+09:00
+
+**Change:** Audio (wav, mp3, flac, ogg, oga, opus, m4a) and video (mp4,
+webm, mov) are served inline with range requests and shown with `<audio>`
+and `<video controls>`. The new `/api/artifact-array`
+(`internal/webui/artifact_arrays.go`) reads a `.npy` header as text, never
+evaluating it, and each array of a `.npz` archive (at most 200). It reports
+dtype, shape, order, and the first 50 values for boolean, integer, unsigned,
+and float16/32/64 dtypes in either byte order. Object arrays are pickles and
+their values are never read; other dtypes are described only. HDF5 keeps
+size and a download. Updated WEB-6, docs/INSPECT.md, and the plan's
+preview table.
+
+**Reason:** The user asked for audio, video, and the proposed `.npy`/`.npz`
+view.
+
+**Validation:** `TestReadNumpyArray` (13 cases, plus five malformed inputs)
+and `TestReadNumpyArchiveAndEndpoint` passed on their first run.
+`TestArtifactFileServing` checks inline media headers with
+`Accept-Ranges`, and `TestWebArtifactPreviewInBrowser` opens an `.npy`, a
+WAV, an MP4, and a file without a preview. The browser test first failed on
+a wrong expected byte count in the test. `./internal/webui`, contract
+status, doclinks, and prettier passed.
+
+## Every artifact view in the static demo
+
+**Commit:** `74aed43` — 2026-10-04T20:40:00+09:00
+
+**Change:** `scripts/demo_artifacts.py` (standard library only) writes a
+PNG, an SVG, CSV and TSV tables, a log, text, JSON, `.npy` and `.npz`
+arrays, a WAV tone, the MP4 clip committed as
+`scripts/templates/demo/clip.mp4` (2.9 KB, an ffmpeg test pattern), an
+opaque checkpoint, and a directory of checkpoints. The demo's `artifacts`
+job names them through an argument, `--config` and its keys, shell
+arguments and redirections, a Python file's argparse default, an `--env`
+value, and `--output`, with one file left missing.
+
+**Reason:** The user asked for the Web demo to cover every type.
+
+**Validation:** The generated demo's embedded listing has 20 candidates of
+every source and observed type. The samples were opened through a live
+`rotari web`: the `.npy` and `.npz` arrays, MP4 (`video/mp4`), WAV
+(`audio/wav`), PNG, and TSV pages came back correctly, and `file` confirmed
+the formats. Two earlier attempts with curl hung or reached the site's proxy
+because `--noproxy *` was glob-expanded; the check was redone in Python with
+proxies disabled. ruff, `bash -n`, and doclinks passed. A full
+`scripts/check.sh` was not rerun.
+
+**Remaining:** The static export shows listings only; previews in the demo
+would need file contents embedded in the export.
