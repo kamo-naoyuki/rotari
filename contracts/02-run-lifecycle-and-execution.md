@@ -425,7 +425,7 @@
 ### Artifact candidate examples
 
 These examples define what RUN-9 records. Each row is a command typed in a
-working directory that contains `conf/train.yaml`. "Recorded" lists the
+working directory that contains the files shown below. "Recorded" lists the
 candidates of the job's first attempt, in record order, written relative to
 the working directory (absolute paths stay absolute). Whether a file exists,
 and whether the job fails, does not matter. `TestArtifactCandidateExamples`
@@ -477,6 +477,99 @@ Not recorded:
 | `rotari add -- timeout 5s echo results/done.txt` | nothing | The same behind a recognized launcher |
 | `rotari add --env PYTHONPATH=src:lib -- true` | nothing | A search-path list is not one path |
 | `rotari add --output /dev/null -- true` | nothing | A special device |
+
+Configuration files:
+
+A YAML, JSON, or TOML file named by an argument or environment value is
+read, and each string value in it is classified like an argument, with its
+own key as context. The file itself is a candidate first. Relative values are
+resolved on the job's working directory, not on the file's directory.
+
+<!-- artifact-example-file: conf/nested.yaml -->
+```yaml
+train:
+  checkpoint_dir: ckpt
+  data:
+    - data/train.csv
+    - data/valid.csv
+  log_file: train.log
+eval:
+  output: eval_results
+  report: report.pdf
+```
+
+<!-- artifact-example-file: conf/skipped.yaml -->
+```yaml
+name: baseline
+optimizer: adam
+output: png
+dir_name: results
+lr: 0.001
+resume: true
+url: https://example.org/model.pt
+plot: ${out_dir}/plot.png
+home: ~/data
+pattern: logs/*.txt
+```
+
+<!-- artifact-example-file: conf/combine.yaml -->
+```yaml
+out_dir: results
+filename: plot.png
+```
+
+<!-- artifact-example-file: conf/anchors.yaml -->
+```yaml
+base: &base
+  cache_dir: cache
+run: *base
+extra: !include other.yaml
+explicit: !!str kept.csv
+```
+
+<!-- artifact-example-file: conf/run.json -->
+```json
+{"output_dir": "out", "inputs": ["a/1.csv", "a/2.csv"], "seed": 1, "model": {"weights_path": "/models/w.pt"}}
+```
+
+<!-- artifact-example-file: conf/run.toml -->
+```toml
+log_dir = "logs"
+[data]
+train = "data/train.tsv"
+[[stages]]
+out = "stage1"
+[[stages]]
+out = "stage2"
+```
+
+<!-- artifact-example-file: conf/parent.yaml -->
+```yaml
+child: conf/child.yaml
+```
+
+<!-- artifact-example-file: conf/child.yaml -->
+```yaml
+deep_dir: deep
+```
+
+<!-- artifact-example-file: conf/broken.json -->
+```json
+{"out_dir": "results",
+```
+
+| Command | Recorded | Why |
+| --- | --- | --- |
+| `rotari add -- train --config conf/nested.yaml` | `conf/nested.yaml`, `ckpt`, `data/train.csv`, `data/valid.csv`, `train.log`, `eval_results`, `report.pdf` | Nested mappings and sequences in source order; a sequence item takes its sequence's key (`data`); `ckpt` is resolved on the working directory, not on `conf/` |
+| `rotari add -- train --config conf/skipped.yaml` | `conf/skipped.yaml` | Bare names under other keys, a format name under `output`, `dir_name` (not a path key), numbers, booleans, URLs, interpolation, `~`, and globs are not recorded |
+| `rotari add -- train --config conf/combine.yaml` | `conf/combine.yaml`, `results`, `plot.png` | Separate keys are never joined into `results/plot.png` |
+| `rotari add -- train --config conf/anchors.yaml` | `conf/anchors.yaml`, `cache`, `kept.csv` | Aliases are not followed and custom tags such as `!include` are not evaluated; an explicit `!!str` is a string |
+| `rotari add -- train --config conf/run.json` | `conf/run.json`, `a/1.csv`, `a/2.csv`, `/models/w.pt`, `out` | JSON keys are read in sorted order |
+| `rotari add -- train --config conf/run.toml` | `conf/run.toml`, `data/train.tsv`, `logs`, `stage1`, `stage2` | TOML tables and arrays of tables, keys in sorted order |
+| `rotari add -- train --config conf/parent.yaml` | `conf/parent.yaml`, `conf/child.yaml` | A configuration file named inside one is recorded but not read |
+| `rotari add -- train --config conf/broken.json` | `conf/broken.json` | A file that does not parse yields no references |
+| `rotari add -- train --config missing.yaml` | `missing.yaml` | A file that cannot be read is still a candidate |
+| `rotari add --output logs/run.yaml -- true` | `logs/run.yaml` | A log destination is never read as configuration |
 
 <!-- artifact-examples:end -->
 
