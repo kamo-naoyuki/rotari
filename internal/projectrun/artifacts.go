@@ -21,7 +21,9 @@ type artifactRecorder struct {
 	environments map[string][]string
 	store        state.Store
 	logf         func(string, ...any)
-	pending      sync.Map // attempt ID -> artifact.Record
+	// sources parses each configuration file once per version for the run.
+	sources *artifactsource.Cache
+	pending sync.Map // attempt ID -> artifact.Record
 }
 
 func newArtifactRecorder(runDir string, jobs []model.JobSpec, store state.Store, logf func(string, ...any)) *artifactRecorder {
@@ -29,7 +31,7 @@ func newArtifactRecorder(runDir string, jobs []model.JobSpec, store state.Store,
 	for _, job := range jobs {
 		environments[job.ID] = append([]string(nil), job.Environment...)
 	}
-	return &artifactRecorder{runDir: runDir, environments: environments, store: store, logf: logf}
+	return &artifactRecorder{runDir: runDir, environments: environments, store: store, logf: logf, sources: artifactsource.NewCache()}
 }
 
 // prepare discovers the candidates of job's attempt, whose working directory
@@ -49,7 +51,7 @@ func (recorder *artifactRecorder) prepare(job model.JobSpec) {
 		Output:           job.Output,
 		Error:            job.Error,
 		WorkingDirectory: job.WorkingDirectory,
-	}, artifactsource.Read)
+	}, recorder.sources.References)
 	recorder.pending.Store(job.AttemptID, artifact.Record{Version: artifact.DiscoveryVersion, Result: result})
 }
 

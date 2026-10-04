@@ -633,9 +633,13 @@ in [classify_test.go](../../internal/artifact/classify_test.go) and
 ### Configuration inspection decisions (phase 2)
 
 - `internal/artifact` parses bytes it is given (`ConfigReferences`) and asks a
-  caller-supplied `SourceReader` for each referenced configuration file
-  (`Discover`). `internal/artifactsource.Read` is that reader: the only file
-  access of discovery.
+  caller-supplied `ConfigReader` for the references of each referenced
+  configuration file (`Discover`). `internal/artifactsource` is the only file
+  access of discovery: `Read` reads one file, and `Cache.References`, the
+  reader a run uses, parses each file once per version (path, size,
+  modification time) for that run, so array tasks, matrix members, and
+  retries share one parse. Parse results are cached with their errors; at
+  most 1024 versions are remembered per run.
 - Only a `.yaml`/`.yml`/`.json`/`.toml` candidate referenced by a command
   argument or environment value and resolved to an absolute path is read. Log
   destinations, unresolved references, and references found inside a
@@ -645,9 +649,12 @@ in [classify_test.go](../../internal/artifact/classify_test.go) and
   as the job's own user, and only classified path references are recorded,
   never contents. Directories, FIFOs, devices, and sockets are rejected
   without blocking (the open uses `O_NONBLOCK` and re-checks the opened file).
-- **Budgets:** 1 MiB per source (`MaxSourceBytes`), nesting depth 64, and
-  100,000 scalar values per source. References found before a limit are kept,
-  with a diagnostic.
+- **Budgets:** 256 KiB per source (`MaxSourceBytes`), nesting depth 64, and
+  50,000 string values per source. A file over the byte limit is abnormal for
+  a configuration file and is rejected from its stat, without being read or
+  parsed. References found before the depth or value limit are kept, with a
+  diagnostic. (Revised 2026-10-04 from 1 MiB and 100,000 values: YAML parses
+  at about 3.5 MB/s here, so 1 MiB took about 300 ms per parse.)
 - Configuration strings use interpolated syntax (PATH-X2). YAML aliases and
   merge keys are not followed, custom tags and non-string scalars are skipped,
   non-string mapping keys are skipped, and each document of a multi-document

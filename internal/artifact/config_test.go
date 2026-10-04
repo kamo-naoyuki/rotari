@@ -157,8 +157,11 @@ func TestConfigReferencesLimits(t *testing.T) {
 	if _, err := ConfigReferences("yaml", make([]byte, MaxSourceBytes+1)); err == nil {
 		t.Fatal("oversized source accepted")
 	}
-	many := "[" + strings.Repeat(`"a.csv",`, MaxSourceValues) + `"b.csv"]`
-	references, err := ConfigReferences("json", []byte(many))
+	many := "[" + strings.Repeat("a/b,", MaxSourceValues) + "b/c]"
+	if len(many) > MaxSourceBytes {
+		t.Fatalf("value-limit fixture is %d bytes, over the byte limit", len(many))
+	}
+	references, err := ConfigReferences("yaml", []byte(many))
 	if !errors.Is(err, errSourceLimit) {
 		t.Fatalf("many values: err = %v, want inspection limit", err)
 	}
@@ -188,7 +191,7 @@ func TestDiscoverInspectsReferencedConfigs(t *testing.T) {
 		Environment:      []string{"SETTINGS=/etc/env.json"},
 		Output:           []string{"out.toml"},
 		WorkingDirectory: "/work",
-	}, reader)
+	}, ParseSources(reader))
 	if want := []string{"/work/conf/train.yaml", "/work/missing.json", "/etc/env.json"}; !slices.Equal(read, want) {
 		t.Fatalf("read = %q, want %q (log destinations and nested configs are not inspected)", read, want)
 	}
@@ -216,7 +219,7 @@ func TestDiscoverInspectsReferencedConfigs(t *testing.T) {
 
 func TestDiscoverSkipsUnresolvedConfigs(t *testing.T) {
 	called := false
-	Discover(Job{Command: []string{"train", "conf/a.yaml"}}, func(string) ([]byte, error) {
+	Discover(Job{Command: []string{"train", "conf/a.yaml"}}, func(string) ([]ConfigReference, error) {
 		called = true
 		return nil, nil
 	})

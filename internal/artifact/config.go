@@ -16,12 +16,14 @@ import (
 
 // Limits on inspecting one configuration source.
 const (
-	// MaxSourceBytes is the largest source discovery parses.
-	MaxSourceBytes = 1 << 20
+	// MaxSourceBytes is the largest source discovery parses. A larger file
+	// is not read at all: a configuration file that size is abnormal, and
+	// YAML parses at only a few megabytes per second.
+	MaxSourceBytes = 256 << 10
 	// MaxSourceDepth bounds nesting of mappings and sequences.
 	MaxSourceDepth = 64
 	// MaxSourceValues bounds the scalar values inspected in one source.
-	MaxSourceValues = 100000
+	MaxSourceValues = 50000
 )
 
 // SourceReader returns the contents of a referenced source file, given its
@@ -29,12 +31,30 @@ const (
 // discovery records the error as a diagnostic and continues.
 type SourceReader func(path string) ([]byte, error)
 
+// ConfigReader returns the references in the configuration file at an
+// absolute path, as ConfigReferences finds them. With an error it may still
+// return the references found before a limit was reached. A ConfigReader
+// may cache results: they do not depend on the job.
+type ConfigReader func(path string) ([]ConfigReference, error)
+
+// ParseSources returns a ConfigReader that reads each file through read and
+// parses it with ConfigReferences, without caching.
+func ParseSources(read SourceReader) ConfigReader {
+	return func(path string) ([]ConfigReference, error) {
+		data, err := read(path)
+		if err != nil {
+			return nil, err
+		}
+		return ConfigReferences(ConfigFormat(path), data)
+	}
+}
+
 // Discover finds the candidates FromJob finds, then inspects each
 // configuration file (.yaml, .yml, .json, .toml) referenced by a command
 // argument or environment value and resolved to an absolute path, through
 // read. References found in a configuration file are not inspected in turn.
 // A nil read inspects nothing.
-func Discover(job Job, read SourceReader) Result {
+func Discover(job Job, read ConfigReader) Result {
 	collector := newCollector(job.WorkingDirectory)
 	collector.arguments(job.Command)
 	collector.environment(job.Environment)
@@ -45,7 +65,7 @@ func Discover(job Job, read SourceReader) Result {
 	return collector.result
 }
 
-func (c *collector) configs(read SourceReader) {
+func (c *collector) configs(read ConfigReader) {
 	var files []string
 	for _, candidate := range c.result.Candidates {
 		if candidate.Basis == BasisUnresolved || ConfigFormat(candidate.Path) == "" {
@@ -58,12 +78,7 @@ func (c *collector) configs(read SourceReader) {
 		}
 	}
 	for _, file := range files {
-		data, err := read(file)
-		if err != nil {
-			c.diagnose(file, "not inspected: "+err.Error())
-			continue
-		}
-		references, err := ConfigReferences(ConfigFormat(file), data)
+		references, err := read(file)
 		if err != nil {
 			c.diagnose(file, "not inspected: "+err.Error())
 		}

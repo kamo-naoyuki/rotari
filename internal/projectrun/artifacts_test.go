@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/artifact"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
@@ -157,5 +158,50 @@ func TestArtifactRecorderSkipsAttemptsThatNeverStarted(t *testing.T) {
 	recorder.started(job)
 	if _, err := os.Stat(filepath.Join(runDir, "job")); !os.IsNotExist(err) {
 		t.Fatalf("an attempt that was never prepared got a directory: %v", err)
+	}
+}
+
+// TestArtifactRecorderParsesAConfigOncePerRun checks that the attempts of a
+// run, such as array tasks, share one parse of an unchanged configuration
+// file: a second attempt sees the first parse even though the bytes changed
+// without changing the file's size or modification time.
+func TestArtifactRecorderParsesAConfigOncePerRun(t *testing.T) {
+	runner, _ := testRunner(t)
+	work := t.TempDir()
+	config := filepath.Join(work, "a.yaml")
+	stamp := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	write := func(content string) {
+		t.Helper()
+		if err := os.WriteFile(config, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(config, stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runDir := t.TempDir()
+	var jobs []model.JobSpec
+	for _, id := range []string{"task-0", "task-1"} {
+		jobs = append(jobs, model.JobSpec{ID: id, AttemptID: state.MakeAttemptID("20260101-000000-aaaaaaaa", id, 0), Command: []string{"train", "a.yaml"}, WorkingDirectory: work})
+	}
+	recorder := newArtifactRecorder(runDir, jobs, runner.Store, func(string, ...any) {})
+	write("out_dir: aaa\n")
+	recorder.prepare(jobs[0])
+	write("out_dir: bbb\n")
+	recorder.prepare(jobs[1])
+	for _, job := range jobs {
+		attemptDir, err := state.AttemptJobDir(runDir, job)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(attemptDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		recorder.started(job)
+		record, ok := readArtifactRecord(t, runner, runDir, job.ID, job.AttemptID)
+		want := []string{config, filepath.Join(work, "aaa")}
+		if !ok || !slices.Equal(candidatePaths(record), want) {
+			t.Fatalf("%s: candidates = %q, want %q from the run's one parse", job.ID, candidatePaths(record), want)
+		}
 	}
 }
