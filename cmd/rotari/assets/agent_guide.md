@@ -54,7 +54,7 @@ successful results are carried forward.
 ## Typical loop
 
 ```sh
-rotari add -p sweep --job-name train --matrix LR=0.1,0.01 --matrix-exclude LR=0.01 -- python train.py
+rotari add -p sweep --job-name train --matrix LR=0.1,0.01 -- python train.py
 rotari check sweep
 rotari run -p sweep --async
 rotari wait sweep
