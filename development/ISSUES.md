@@ -8,6 +8,11 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **Configuration errors prevent command help from being displayed** ([cmd/rotari/main.go](../cmd/rotari/main.go), `dispatch`; [cmd/rotari/config.go](../cmd/rotari/config.go), `loadCLIConfig`):
+  - Configuration is loaded before dispatching to a command's help parser. Reproduced through the built binary with `rotari run --config /nonexistent/config.toml --help`: it prints `failed to load config`, omits help, and exits 1. This prevents users from consulting command help while troubleshooting configuration errors.
+  - Consider allowing help requests to continue with a warning and fallback defaults when configuration cannot be loaded, while preserving configuration errors for normal execution. Keep effective configured defaults in help when configuration loads successfully; do not mistake a job command's arguments after `--` for a CLI help request.
+  - `TestRunDispatchesTopLevelCommands` and `TestCommandHelpCoversEveryOptionAndExitsZero` passed during review, but do not cover configuration failures with help. Add regression tests and binary-level conformance coverage when fixing this issue.
+
 ## Resolved
 
 - **The Web UI repeated the diagnosis guidance text** (`internal/webui/assets/web_app_logs.js`): `composeWebHTML` now injects the guidance from `internal/diagnose` into the page bundle, and the modal renders those values rather than maintaining its own copies. `TestWebShowDiagnosisRendersAnalysisStatus` compares the browser output with the Go constants.
