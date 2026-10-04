@@ -2,8 +2,9 @@
 
 Created: 2026-10-03
 
-Status: phases 0 to 2 implemented in `internal/artifact` and
-`internal/artifactsource`; phases 3 and 5 pending; phase 4 deferred.
+Status: phases 0 to 3 implemented (`internal/artifact`,
+`internal/artifactsource`, the run's `artifactRecorder`, and
+`jobstatus.Artifacts`); phase 5 pending; phase 4 deferred.
 
 ## Purpose
 
@@ -644,14 +645,50 @@ in [classify_test.go](../../internal/artifact/classify_test.go) and
   errors are reported only as `cannot parse YAML/JSON/TOML`, so no source
   text reaches them.
 
+### Lifecycle and persistence decisions (phase 3)
+
+- **Record.** Each started attempt gets `artifacts.json` in its attempt
+  directory: `artifact.Record`, a `version` (`DiscoveryVersion`, now 1) plus
+  the candidates and diagnostics. Older records keep the version they were
+  written with and are never recomputed. Nothing is added to `QueuedCommand`,
+  `JobSpec`, or `commands.json`, so fingerprints, matching, scheduling,
+  selection, retries, copy, import, and export are unaffected.
+- **Timing.** `artifactRecorder` (internal/projectrun/artifacts.go) runs
+  discovery in the engine's `AssignAttemptID` callback, where the attempt has
+  its resolved working directory and its own attempt ID, so configuration
+  files are read before the attempt is submitted. It writes the record from
+  the dispatcher's start callback, after the executor has created the attempt
+  directory; the local executor starts the process only after that callback.
+  An attempt that is cancelled before start or fails to submit gets no record.
+  A retry is a new attempt with its own record.
+- **Environment input.** Discovery reads the job's own environment entries:
+  `add --env` values and, for a matrix member, its matrix values. Variables
+  the run adds (`ROTARI_*`, `PWD`) and the caller's environment are not
+  candidates.
+- **Execution hosts.** Local and scheduler (Slurm, PBS, LSF, SGE) attempts
+  read configuration files from the supervisor's host, which rotari already
+  assumes shares the run directory with scheduler jobs; a working directory
+  that is not shared is read as whatever the supervisor sees there. SSH
+  attempts do not read them, because the paths name files on the SSH host; a
+  diagnostic says so. Paths are still recorded for every executor.
+- **Queue views.** Queue-time candidates are not stored: `artifact.FromJob`
+  computes them from the current definition, with relative references
+  unresolved unless the job has an absolute working directory.
+- **Carried results and older attempts.** `jobstatus.Artifacts` reads the
+  record of the attempt a `JobOrigin` names, following carried jobs with the
+  same `locateAttempt` chain as `FilterJob`. A missing or unreadable record
+  means discovery information is unavailable, not that the job had no files.
+- **Failures.** A record that cannot be written is a warning in the
+  supervisor log; the job's execution and result are unchanged.
+
 ## Implementation phases
 
 | Phase | Deliverable | Exit criteria | Status |
 | --- | --- | --- | --- |
-| 0. Rules and schema | Accepted/rejected path fixtures, lifecycle placement, persistence and inspection safety decisions, log-destination base per executor | No unresolved assumption about add/run CWD, argv semantics, or remote visibility | Rules and log base done; persistence decided in phase 3 |
+| 0. Rules and schema | Accepted/rejected path fixtures, lifecycle placement, persistence and inspection safety decisions, log-destination base per executor | No unresolved assumption about add/run CWD, argv semantics, or remote visibility | Done |
 | 1. Argument extraction | Shared classifier; argv, environment, and log-destination extraction with provenance, role hints, and deduplication | Deterministic unit tests; nonexistent output references retained; interpreter code bodies skipped | Done |
 | 2. Configuration extraction | Bounded YAML/JSON/TOML parsing of directly referenced sources | Nested strings and provenance covered; ambiguous/dynamic values skipped | Done |
-| 3. Lifecycle and persistence | Attempt-bound resolution and storage shared by all job creation paths | Plain/array/matrix/retry/carried cases and old state covered; execution behavior unchanged | Pending |
+| 3. Lifecycle and persistence | Attempt-bound resolution and storage shared by all job creation paths | Plain/array/matrix/retry/carried cases and old state covered; execution behavior unchanged | Done |
 | 4. Shell inspection | Conservative syntax-aware extraction of literals and PATH-E1 task variables | Array tasks and matrix members get distinct candidates for `$ROTARI_ARRAY_TASK_ID`/matrix-variable paths; other dynamic or ambiguous cases skipped; no execution during inspection | Deferred until phases 1-3 are validated |
 | 5. Contracts and documentation | Document implemented guarantees and limitations | Representative conformance tests, contract IDs/status rows, architecture and affected guides agree | Pending |
 

@@ -235,3 +235,14 @@ func (c *collector) destination(kind string, index int, value, stream string) {
 	}
 	c.add(value, Source{Kind: kind, Rule: RuleLogDestination, Index: indexOf(index), Stream: stream})
 }
+
+// DiscoveryVersion identifies the discovery rules that produced a Record.
+// Bump it when a rule change means older records would be discovered
+// differently today; older records are kept as they are, not recomputed.
+const DiscoveryVersion = 1
+
+// Record is the persisted discovery of one job attempt.
+type Record struct {
+	Version int `json:"version"`
+	Result
+}

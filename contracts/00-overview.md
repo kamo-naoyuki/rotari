@@ -83,6 +83,7 @@ The normal state layout is:
                 ├── stdout      # separate mode
                 ├── stderr      # separate mode
                 ├── status.json
+                ├── artifacts.json  # artifact candidates, written when the attempt starts
                 └── executor-specific state
 ```
 

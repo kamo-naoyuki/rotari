@@ -15,6 +15,11 @@ import (
 // FinalResultFileName marks an attempt whose job will not be retried.
 const FinalResultFileName = "final_result.json"
 
+// ArtifactsFileName holds the artifact candidates discovered for an attempt
+// when it started. It is best-effort metadata: an attempt without one has no
+// discovery information, not no associated files.
+const ArtifactsFileName = "artifacts.json"
+
 const runIDLength = len("20060102-150405-00000000")
 
 type AttemptIDPayload struct {

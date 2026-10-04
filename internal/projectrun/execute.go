@@ -106,10 +106,12 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 		}
 		jobs[index].EnvMode = options.EnvMode
 	}
+	runDir := filepath.Join(paths.RunsDir, runID)
+	// Taken before the run adds its variables to each job's environment.
+	artifacts := newArtifactRecorder(runDir, jobs, runner.Store, runner.logf)
 	runner.ResolveJobWorkingDirectories(paths, options, jobs)
 	runner.PrepareJobEnvironments(paths, options, jobs)
 
-	runDir := filepath.Join(paths.RunsDir, runID)
 	if err := os.MkdirAll(runDir, state.DirectoryMode()); err != nil {
 		return 1, fmt.Errorf("failed to create run directory: %w", err)
 	}
@@ -163,7 +165,12 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 			},
 			Logf: runner.logf,
 		},
-	}, observer.Started)
+	}, func(job model.JobSpec) {
+		artifacts.started(job)
+		if observer.Started != nil {
+			observer.Started(job)
+		}
+	})
 	pending = run.ExecuteJobs(pending, jobsByName, finalResults, run.EngineOptions{
 		RunRetry: options.Retry,
 		Start:    dispatcher.Start,
@@ -171,6 +178,7 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 			attempts := []model.JobSpec{*job}
 			runner.AssignAttemptIDs(attempts, runID, attempt)
 			*job = attempts[0]
+			artifacts.prepare(*job)
 		},
 		ShouldRetry: func(job model.JobSpec, result model.JobResult) bool {
 			return !runner.WasExplicitlyCancelled(runDir, job.ID, result)
