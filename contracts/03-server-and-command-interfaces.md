@@ -252,6 +252,17 @@ follows:
   covered by `TestShowListsArtifactCandidates` in
   [conformance/03-interfaces/artifacts_test.go](../conformance/03-interfaces/artifacts_test.go).
 
+- **CLI-17** Configuration-loading commands remain able to show their help
+  when configuration loading fails: they warn on stderr, show help using
+  built-in and environment defaults on stdout, and exit zero. Successfully
+  loaded configuration still supplies help defaults. Normal execution fails
+  on configuration errors; help tokens used as option values, after `--`, or
+  within `add`/`change` job commands do not bypass that failure. Implemented in
+  [`cmd/rotari/config_help.go`](../cmd/rotari/config_help.go), with parser tests
+  in [`cmd/rotari/config_help_test.go`](../cmd/rotari/config_help_test.go) and
+  binary coverage in
+  [`conformance/03-interfaces/config_help_test.go`](../conformance/03-interfaces/config_help_test.go).
+
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.
 - Red denotes errors and failed results; green denotes success; yellow denotes

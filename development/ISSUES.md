@@ -8,14 +8,11 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
-- **Configuration errors prevent command help from being displayed** ([cmd/rotari/main.go](../cmd/rotari/main.go), `dispatch`; [cmd/rotari/config.go](../cmd/rotari/config.go), `loadCLIConfig`):
-  - Configuration is loaded before dispatching to a command's help parser. Reproduced through the built binary with `rotari run --config /nonexistent/config.toml --help`: it prints `failed to load config`, omits help, and exits 1. This prevents users from consulting command help while troubleshooting configuration errors.
-  - Consider allowing help requests to continue with a warning and fallback defaults when configuration cannot be loaded, while preserving configuration errors for normal execution. Keep effective configured defaults in help when configuration loads successfully; do not mistake a job command's arguments after `--` for a CLI help request.
-  - `TestRunDispatchesTopLevelCommands` and `TestCommandHelpCoversEveryOptionAndExitsZero` passed during review, but do not cover configuration failures with help. Add regression tests and binary-level conformance coverage when fixing this issue.
-
 - **`suspend`/`resume` can fail after signalling some jobs** ([internal/jobcontrol/jobcontrol.go](../internal/jobcontrol/jobcontrol.go), `Control`): jobs are signalled one at a time, and the first job that cannot be signalled returns an error: its executor has no `Suspend` (`ssh`), it runs on another host, or the scheduler command fails. Jobs signalled before it stay suspended or resumed, but the error does not say so. `TestControlAllJobsFailsAtUnsupportedExecutor` shows this with fake executors, one without `Suspend`. Consider checking every target's executor before signalling any job, or reporting which jobs were signalled.
 
 ## Resolved
+
+- **Configuration errors prevented command help from being displayed** ([cmd/rotari/config_help.go](../cmd/rotari/config_help.go)): failed configuration loads now warn and allow command help with built-in and environment defaults, while normal execution still fails. A side-effect-free parse of public option shapes distinguishes help from option values and `add`/`change` job arguments. `TestCommandHelpSurvivesConfigurationErrors` reproduces the old failure across every schema command accepting config, and `TestConfigurationErrorsStillPreventExecution` preserves rejection of non-help invocations (CLI-17). Valid configuration still supplies help defaults, checked by `TestCLIOptionPrecedence`.
 
 - **Job-name lookup hid run snapshot read errors as missing jobs** ([internal/resolve/resolve.go](../internal/resolve/resolve.go), `JobInRun`): lookup now preserves decode, I/O, and newer-version errors, including active-run searches. `run`, `retry`, and `copy` report errors separately from absent names; `show` already propagates resolver errors. Missing snapshots still mean no jobs. `TestJobInRunSnapshotErrors`, `TestActiveRunWithJobsPropagatesSnapshotError`, and binary-level `TestJobNameLookupReportsSnapshotErrors` fail before the fix and pass after it; STATE-1 covers the newer-version cases.
 

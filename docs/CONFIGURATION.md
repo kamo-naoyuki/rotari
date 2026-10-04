@@ -41,6 +41,14 @@ set by an environment variable or another config file.
 This value precedence applies across commands; see the
 [CLI contract](https://github.com/kamo-naoyuki/rotari/blob/main/contracts/03-server-and-command-interfaces.md#cli-presentation).
 
+Command help remains available if the selected configuration file is missing
+or malformed: for example, `rotari run --config missing.toml --help` prints a
+warning on stderr and help on stdout, exiting successfully. In that case,
+help uses built-in and environment defaults rather than configuration values.
+When the file loads successfully, help still shows the configured defaults.
+Normal execution continues to fail on configuration errors; `--help` used as
+an option value or inside an `add`/`change` job command is not a help request.
+
 Without `--config`, the selected configuration file is the first one found in
 the project, basedir, then global locations. Lower-priority files are not
 merged. Output paths such as `export --output` are read only from the command

@@ -57,7 +57,7 @@ func dispatch(args []string) int {
 		return 0
 	}
 	if args[0] != "config" && args[0] != "schema" && args[0] != "guide" && args[0] != "--version" && args[0] != "version" {
-		if err := loadCLIConfig(args[1:]); err != nil {
+		if err := loadCLIConfigForCommand(args[0], args[1:]); err != nil {
 			printErrorf("failed to load config: %v", err)
 			return 1
 		}
