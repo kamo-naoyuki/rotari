@@ -3,6 +3,7 @@ package queueops
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -186,5 +187,18 @@ func TestChangeRejectsUnknownExecutor(t *testing.T) {
 	}
 	if queue.Commands[0].Executor != "" {
 		t.Fatalf("executor = %q, want unchanged", queue.Commands[0].Executor)
+	}
+}
+
+func TestApplyMutationArtifacts(t *testing.T) {
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "a", Command: []string{"train"}, Artifacts: []string{"old/"}}}}
+	if err := applyMutation(queue, 0, Mutation{Timeout: "1h"}); err != nil || !reflect.DeepEqual(queue.Commands[0].Artifacts, []string{"old/"}) {
+		t.Fatalf("an unrelated change touched artifacts: %v %v", queue.Commands[0].Artifacts, err)
+	}
+	if err := applyMutation(queue, 0, Mutation{Artifacts: []string{"results/", "out/$LR.csv"}}); err != nil || !reflect.DeepEqual(queue.Commands[0].Artifacts, []string{"results/", "out/$LR.csv"}) {
+		t.Fatalf("replaced artifacts = %v %v", queue.Commands[0].Artifacts, err)
+	}
+	if err := applyMutation(queue, 0, Mutation{ClearArtifacts: true}); err != nil || len(queue.Commands[0].Artifacts) != 0 {
+		t.Fatalf("cleared artifacts = %v %v", queue.Commands[0].Artifacts, err)
 	}
 }

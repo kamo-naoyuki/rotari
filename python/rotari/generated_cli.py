@@ -703,6 +703,17 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "clear-depends-on-finished",
                 },
                 {
+                    "description": "replace the declared artifact paths (see add "
+                    "--artifact); may be repeated",
+                    "name": "artifact",
+                    "repeated": True,
+                    "value_name": "PATH",
+                },
+                {
+                    "description": "clear the declared artifact paths",
+                    "name": "clear-artifacts",
+                },
+                {
                     "description": "replace the job timeout, such as 90m or 2h",
                     "name": "timeout",
                     "value_name": "DURATION",
@@ -1399,6 +1410,16 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "error",
                     "repeated": True,
                     "value_name": "FILE",
+                },
+                {
+                    "description": "a file or directory the job writes or reads, "
+                    "recorded as an artifact candidate of each "
+                    "attempt; $ROTARI_ARRAY_TASK_ID, "
+                    "$ROTARI_JOB_DIR, and the job's --env and "
+                    "matrix variables expand; may be repeated",
+                    "name": "artifact",
+                    "repeated": True,
+                    "value_name": "PATH",
                 },
                 {
                     "description": "internal log mode",

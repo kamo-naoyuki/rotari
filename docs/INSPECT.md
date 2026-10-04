@@ -104,8 +104,18 @@ variable whose name ends in `_DIR`, `_PATH`, or `_FILE`), bare names after
 options such as `--output results` or `--save-dir ckpt` (but not a format name
 such as `--output png`), in
 `--output`/`--error`, and in the YAML, JSON, or TOML files those name.
-Relative paths are resolved on the job's working directory. These are
-candidates, found without running anything: rotari does not check that they
+Relative paths are resolved on the job's working directory. Files a job
+builds in code that discovery cannot see can be declared with
+`rotari add --artifact PATH` (repeatable; `change --artifact` replaces and
+`change --clear-artifacts` removes the declarations). A declared path may use
+`$ROTARI_ARRAY_TASK_ID`, `$ROTARI_JOB_DIR`, and the job's own `--env` and
+matrix variables, so each array task or matrix member records its own file:
+
+```sh
+rotari add --array 0-9 --artifact 'results/$ROTARI_ARRAY_TASK_ID/plot.png' -- python train.py
+```
+
+These are candidates, found without running anything: rotari does not check that they
 exist or tell inputs from outputs, and finding them never affects the job.
 Shell code given to `bash -c` (or `sh`, `dash`, `zsh`) is parsed without
 running it: its commands' arguments and literal redirection targets such as

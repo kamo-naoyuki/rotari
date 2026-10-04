@@ -86,6 +86,11 @@ option names to values; mapping entries such as `--partition: gpu` become
 but keeps `executor_options` as a sequence. JSON and TOML manifests keep the
 `environment` and `executor_options` sequence fields and the string form of
 `array`.
+`artifacts` lists the files and directories a job declares, like
+`rotari add --artifact`, for example `artifacts: [results/, "out/$SEED.csv"]`;
+each attempt records them as artifact candidates, with `$SEED`-style job
+variables, `$ROTARI_ARRAY_TASK_ID`, and `$ROTARI_JOB_DIR` filled in.
+Declarations do not change whether a job counts as changed when matching runs.
 
 Use `rotari import --dry-run FILE` to validate and preview `execute`, `reuse`,
 and `accept` decisions without changing the queue. Jobs with provenance also

@@ -339,6 +339,7 @@ func SpecChanges(from, to model.JobSpec) []Change {
 	}
 	list("environment", from.Environment, to.Environment)
 	list("output", from.Output, to.Output)
+	list("artifact", from.Artifacts, to.Artifacts)
 	list("error", from.Error, to.Error)
 	scalar("log_mode", from.LogMode, to.LogMode)
 	scalar("open_mode", from.OpenMode, to.OpenMode)

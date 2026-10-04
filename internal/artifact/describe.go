@@ -44,6 +44,8 @@ func (source Source) describe() string {
 		return "--output"
 	case KindError:
 		return "--error"
+	case KindDeclared:
+		return "--artifact"
 	case KindConfig:
 		return path.Base(source.File) + ": " + source.Location
 	}

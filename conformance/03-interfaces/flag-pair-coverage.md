@@ -26,7 +26,7 @@ implementation imports. The staged rollout is tracked in the
 
 ## Current layers
 
-- `TestCLIFlagPairInventory` enumerates all 6,852 unordered flag-name pairs.
+- `TestCLIFlagPairInventory` enumerates all 6,955 unordered flag-name pairs.
   Sorted flag-name fingerprints require an explicit coverage review when a
   command or flag is added, removed, or renamed. This is not exhaustive value
   coverage; changes to descriptions/types without a name change are not
@@ -93,8 +93,8 @@ implementation imports. The staged rollout is tracked in the
   check JSON remains emitted, export's explicit run source wins over a distinct
   current queue with file output, and template/notification modes produce their
   own distinct content. These are not blanket equal-output exceptions.
-- `TestCLIFlagPairEdits` executes all 325 `add`, 703 `change`, 496 `copy`, and
-  21 `import` pairs (1,545 pairs; 3,090 invocations). Each flag order starts
+- `TestCLIFlagPairEdits` executes all 351 `add`, 780 `change`, 496 `copy`, and
+  21 `import` pairs (1,648 pairs; 3,296 invocations). Each flag order starts
   from the restored root, and rejected edits/previews must leave it byte-identical.
   Import plan revisions are checked against `check` before normalization. Newly
   allocated command/matrix IDs use a one-to-one mapping in encounter order;
@@ -200,12 +200,12 @@ advertised flags have adapters; no generated pair is deferred.
 | --- | ---: | --- |
 | `schema`, `completion`, `guide`, `version`, `env` | 0 | Fewer than two advertised flags; subcommand/positional coverage is separate |
 
-The 6,827 executed pairs consist of 822 read-only, 36 file-output, 178
-queue-mutation, 1,520 edit, 3,660 run/retry previews, 6 unlock, 21 wait,
+The 6,955 executed pairs consist of 822 read-only, 36 file-output, 178
+queue-mutation, 1,648 edit, 3,660 run/retry previews, 6 unlock, 21 wait,
 6 gc/server, 1 MCP, 45 web static-export, and 532 job-control
 pairs. The edit pair
-loop accepted 1,187 and explicitly rejected 333 pairs in 3,040 invocations;
-one run took 4m01s including setup.
+loop accepted 1,309 and explicitly rejected 339 pairs in 3,296 invocations;
+one run took 43s on the edit loop alone.
 
 The run/retry dry-run pair loop accepted 3,322 and explicitly rejected 338
 pairs, with 7,320 invocations in 19.9 seconds, after `retry`'s spec came to

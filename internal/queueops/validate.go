@@ -54,6 +54,9 @@ func ValidateJobs(queue model.Queue) error {
 				seen[cleaned] = true
 			}
 		}
+		if err := model.ValidateArtifacts(command.Artifacts); err != nil {
+			return fmt.Errorf("job %q: %w", command.ID, err)
+		}
 		if command.LogMode != "" && command.LogMode != model.LogModeMerge && command.LogMode != model.LogModeSeparate {
 			return fmt.Errorf("job %q has invalid log mode %q", command.ID, command.LogMode)
 		}

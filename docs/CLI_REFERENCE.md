@@ -213,6 +213,8 @@ Usage: `rotari change <command ...>`
 | `--clear-depends-on` | `` | `` | clear prerequisites |
 | `--depends-on-finished` | `NAME (repeatable)` | `` | replace prerequisites that only need to finish, whatever their result; may be repeated |
 | `--clear-depends-on-finished` | `` | `` | clear prerequisites that only need to finish |
+| `--artifact` | `PATH (repeatable)` | `` | replace the declared artifact paths (see add --artifact); may be repeated |
+| `--clear-artifacts` | `` | `` | clear the declared artifact paths |
 | `--timeout` | `DURATION` | `` | replace the job timeout, such as 90m or 2h |
 | `--clear-timeout` | `` | `` | remove the job timeout |
 | `--retry` | `N` | `` | replace the job's retry limit; 0 disables retries |
@@ -398,6 +400,7 @@ Usage: `rotari add <command ...>`
 | `--executor-option` | `OPTION (repeatable)` | `ROTARI_EXECUTOR_OPTIONS` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
 | `--output` | `FILE (repeatable)` | `` | stdout destination; stderr also goes here unless --error is specified; may be repeated |
 | `--error` | `FILE (repeatable)` | `` | stderr destination; defaults to --output destinations; may be repeated |
+| `--artifact` | `PATH (repeatable)` | `` | a file or directory the job writes or reads, recorded as an artifact candidate of each attempt; $ROTARI_ARRAY_TASK_ID, $ROTARI_JOB_DIR, and the job's --env and matrix variables expand; may be repeated |
 | `--log-mode` | `MODE` | `` | internal log mode (choices: merge, separate) |
 | `--open-mode` | `MODE` | `` | external output file mode (choices: append, truncate) |
 | `--working-directory` | `DIR` | `` | working directory for the job |

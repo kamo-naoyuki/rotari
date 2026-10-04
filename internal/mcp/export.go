@@ -69,6 +69,7 @@ func redactManifest(manifest workflow.Manifest) workflow.Manifest {
 		job.WorkingDirectory = report.RedactPatterns(job.WorkingDirectory)
 		job.Output = redactEach(job.Output)
 		job.Error = redactEach(job.Error)
+		job.Artifacts = redactEach(job.Artifacts)
 		if len(job.ExecutorOptions) > 0 {
 			job.ExecutorOptions = []string{redactedValue}
 		}

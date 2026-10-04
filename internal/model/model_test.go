@@ -440,3 +440,34 @@ func TestRetryDelayForAppliesBackoffAndCap(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateArtifacts(t *testing.T) {
+	if err := ValidateArtifacts([]string{"results/", "out/$ROTARI_ARRAY_TASK_ID.log", "/abs/model.pt", "with space.csv"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, artifacts := range [][]string{{""}, {" "}, {"a\x00b"}, {"a\nb"}, {"out/a.csv", "out/./a.csv"}} {
+		if err := ValidateArtifacts(artifacts); err == nil {
+			t.Errorf("ValidateArtifacts(%q) accepted invalid input", artifacts)
+		}
+	}
+}
+
+// TestDeclaredArtifactsAreNotFingerprinted checks that declaring artifacts
+// does not change a job's fingerprint: they do not change what it computes.
+func TestDeclaredArtifactsAreNotFingerprinted(t *testing.T) {
+	command := QueuedCommand{ID: "a", Command: []string{"train"}}
+	declared := command
+	declared.Artifacts = []string{"results/"}
+	plain, err := Fingerprint(command, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withArtifacts, err := Fingerprint(declared, nil)
+	if err != nil || plain != withArtifacts {
+		t.Fatalf("fingerprints differ: %s vs %s, %v", plain, withArtifacts, err)
+	}
+	jobs := QueueToJobs([]QueuedCommand{declared})
+	if len(jobs) != 1 || len(jobs[0].Artifacts) != 1 || jobs[0].Artifacts[0] != "results/" {
+		t.Fatalf("jobs = %+v, want the declared artifacts carried", jobs)
+	}
+}

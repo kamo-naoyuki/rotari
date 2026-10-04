@@ -40,6 +40,9 @@ const (
 	// RuleLogDestination accepts a job's own stdout or stderr destination,
 	// which rotari writes itself, without classification.
 	RuleLogDestination Rule = "PATH-D1"
+	// RuleDeclared accepts a path the user declared with add --artifact,
+	// without classification.
+	RuleDeclared Rule = "PATH-D2"
 )
 
 // Syntax says how a value is written, which decides whether unexpanded

@@ -35,6 +35,7 @@ Add a command to a queue.
 | `executor_options` | `Sequence[str]` | option passed to the selected scheduler (sbatch/qsub/...); may be repeated |
 | `output` | `Sequence[str]` | stdout destination; stderr also goes here unless --error is specified; may be repeated |
 | `error` | `Sequence[str]` | stderr destination; defaults to --output destinations; may be repeated |
+| `artifact` | `Sequence[str]` | a file or directory the job writes or reads, recorded as an artifact candidate of each attempt; $ROTARI_ARRAY_TASK_ID, $ROTARI_JOB_DIR, and the job's --env and matrix variables expand; may be repeated |
 | `log_mode` | `str` | internal log mode (choices: merge, separate) |
 | `open_mode` | `str` | external output file mode (choices: append, truncate) |
 | `working_directory` | `str` | working directory for the job |

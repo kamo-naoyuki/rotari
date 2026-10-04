@@ -42,13 +42,15 @@ type Job struct {
 	Retry *int `json:"retry,omitempty" yaml:"retry,omitempty" toml:"retry,omitempty"`
 	// RetryDelay, RetryBackoff, and RetryMaxDelay match add --retry-delay,
 	// --retry-backoff, and --retry-max-delay.
-	RetryDelay       string              `json:"retry_delay,omitempty" yaml:"retry_delay,omitempty" toml:"retry_delay,omitempty"`
-	RetryBackoff     float64             `json:"retry_backoff,omitempty" yaml:"retry_backoff,omitempty" toml:"retry_backoff,omitempty"`
-	RetryMaxDelay    string              `json:"retry_max_delay,omitempty" yaml:"retry_max_delay,omitempty" toml:"retry_max_delay,omitempty"`
-	Executor         string              `json:"executor,omitempty" yaml:"executor,omitempty" toml:"executor,omitempty"`
-	ExecutorOptions  []string            `json:"executor_options,omitempty" yaml:"executor_options,omitempty" toml:"executor_options,omitempty"`
-	Output           []string            `json:"output,omitempty" yaml:"output,omitempty" toml:"output,omitempty"`
-	Error            []string            `json:"error,omitempty" yaml:"error,omitempty" toml:"error,omitempty"`
+	RetryDelay      string   `json:"retry_delay,omitempty" yaml:"retry_delay,omitempty" toml:"retry_delay,omitempty"`
+	RetryBackoff    float64  `json:"retry_backoff,omitempty" yaml:"retry_backoff,omitempty" toml:"retry_backoff,omitempty"`
+	RetryMaxDelay   string   `json:"retry_max_delay,omitempty" yaml:"retry_max_delay,omitempty" toml:"retry_max_delay,omitempty"`
+	Executor        string   `json:"executor,omitempty" yaml:"executor,omitempty" toml:"executor,omitempty"`
+	ExecutorOptions []string `json:"executor_options,omitempty" yaml:"executor_options,omitempty" toml:"executor_options,omitempty"`
+	Output          []string `json:"output,omitempty" yaml:"output,omitempty" toml:"output,omitempty"`
+	Error           []string `json:"error,omitempty" yaml:"error,omitempty" toml:"error,omitempty"`
+	// Artifacts matches add --artifact.
+	Artifacts        []string            `json:"artifacts,omitempty" yaml:"artifacts,omitempty" toml:"artifacts,omitempty"`
 	LogMode          string              `json:"log_mode,omitempty" yaml:"log_mode,omitempty" toml:"log_mode,omitempty"`
 	OpenMode         string              `json:"open_mode,omitempty" yaml:"open_mode,omitempty" toml:"open_mode,omitempty"`
 	WorkingDirectory string              `json:"working_directory,omitempty" yaml:"working_directory,omitempty" toml:"working_directory,omitempty"`
@@ -469,6 +471,9 @@ func validateJob(job Job, index int, hasSource bool, seenNames map[string]bool) 
 			seen[cleaned] = true
 		}
 	}
+	if err := model.ValidateArtifacts(job.Artifacts); err != nil {
+		return fmt.Errorf("%s: %w", label, err)
+	}
 	if job.LogMode != "" && job.LogMode != model.LogModeMerge && job.LogMode != model.LogModeSeparate {
 		return fmt.Errorf("%s has invalid log mode %q", label, job.LogMode)
 	}
@@ -545,7 +550,8 @@ func Compile(manifest Manifest, nextID func() string) (model.Queue, error) {
 				DependsOnFinished: append([]string(nil), job.DependsOnFinished...), Timeout: job.Timeout, Retry: cloneRetry(job.Retry),
 				RetryDelay: job.RetryDelay, RetryBackoff: job.RetryBackoff, RetryMaxDelay: job.RetryMaxDelay,
 				Executor: job.Executor, ExecutorOptions: append([]string(nil), job.ExecutorOptions...),
-				Output: append([]string(nil), job.Output...), Error: append([]string(nil), job.Error...), LogMode: job.LogMode, OpenMode: job.OpenMode,
+				Output: append([]string(nil), job.Output...), Error: append([]string(nil), job.Error...), Artifacts: append([]string(nil), job.Artifacts...),
+				LogMode: job.LogMode, OpenMode: job.OpenMode,
 				WorkingDirectory: job.WorkingDirectory, Environment: environment, Array: cloneArray(array),
 			}
 			if matrixGroupID != "" {

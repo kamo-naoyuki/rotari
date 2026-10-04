@@ -113,12 +113,15 @@
   in the attempt's `artifacts.json`: file and directory references found
   statically in the job's command arguments, the shell code and shell
   scripts it runs, the Python files it names, its own `--env` and matrix
-  values, its `--output`/`--error` destinations, and the configuration files
-  those reference, each with the
+  values, its `--output`/`--error` destinations, the paths declared with
+  `add --artifact`, and the configuration files those reference, each with the
   accepting rule and where it was found. Relative references are resolved on
   the attempt's working directory. A candidate is not a claim that the path
   exists or was written by the job, and discovery never changes the job's
-  execution or result. An attempt without the file has no discovery
+  execution or result. Declared paths are kept by `change` (`--artifact`
+  replaces them, `--clear-artifacts` clears them), copy, export, and import,
+  and are not part of the job's fingerprint. An attempt without the file has
+  no discovery
   information, not no associated files. The rules are in
   [internal/artifact](../internal/artifact/) and the recording in
   [internal/projectrun/artifacts.go](../internal/projectrun/artifacts.go);
@@ -666,6 +669,7 @@ open("results/%d.pt" % 1)
 | `PATH-R5` | Keys compare case-insensitively, `-` as `_`, by the last dotted part, ignoring `--`, `+`, `++`, `~` | `rotari add -- train --LOG-DIR k1 trainer.log_dir=k2 +x.save_dir=k3 ++y.out_dir=k4 '~cache_dir=k5'` | `k1`, `k2`, `k3`, `k4`, `k5` |
 | `PATH-R5` | Environment variable names are keys | `rotari add --env OUTPUT=e1 --env CACHE_DIR=e2 --env MODEL=e3 -- true` | `e1`, `e2` |
 | `PATH-D1` | The job's log destinations; stderr follows `--output` without `--error` | `rotari add --output logs/out.log --output logs/copy.log -- true` | `logs/out.log`, `logs/copy.log` |
+| `PATH-D2` | Paths declared with `add --artifact`, not classified; a plain `$NAME` expands with `ROTARI_ARRAY_TASK_ID`, `ROTARI_JOB_DIR`, and the job's own variables; globs and other `$` text stay literal | `rotari add --env LR=0.1 --artifact 'sweep/$LR.csv' --artifact results/ --artifact 'logs/*.txt' -- true` | `sweep/0.1.csv`, `results`, `logs/*.txt` |
 
 #### Examples
 

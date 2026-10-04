@@ -19,6 +19,7 @@ func EquivalentCommand(left, right model.QueuedCommand) bool {
 		left.Executor == right.Executor &&
 		reflect.DeepEqual(left.ExecutorOptions, right.ExecutorOptions) &&
 		reflect.DeepEqual(left.Output, right.Output) && reflect.DeepEqual(left.Error, right.Error) &&
+		reflect.DeepEqual(left.Artifacts, right.Artifacts) &&
 		left.LogMode == right.LogMode && left.OpenMode == right.OpenMode &&
 		reflect.DeepEqual(left.Environment, right.Environment) &&
 		left.Name == right.Name && left.Stage == right.Stage &&
@@ -121,7 +122,8 @@ func exportJob(command model.QueuedCommand, matrixBase bool) Job {
 		Executor:        command.Executor,
 		ExecutorOptions: append([]string(nil), command.ExecutorOptions...),
 		Output:          append([]string(nil), command.Output...), Error: append([]string(nil), command.Error...),
-		LogMode: command.LogMode, OpenMode: command.OpenMode, WorkingDirectory: command.WorkingDirectory,
+		Artifacts: append([]string(nil), command.Artifacts...),
+		LogMode:   command.LogMode, OpenMode: command.OpenMode, WorkingDirectory: command.WorkingDirectory,
 		Environment: append([]string(nil), environment...), Array: formatArray(command.Array),
 	}
 }

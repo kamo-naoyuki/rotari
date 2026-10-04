@@ -139,7 +139,7 @@ func TestCLIFlagPairAddObservability(t *testing.T) {
 	base := pairAddDefinition(t, f, nil)
 	fields := map[string]string{
 		"job-name": "name", "stage": "stage", "array": "array", "matrix": "matrix",
-		"env": "environment", "output": "output", "error": "error", "log-mode": "log_mode", "open-mode": "open_mode",
+		"env": "environment", "output": "output", "error": "error", "artifact": "artifacts", "log-mode": "log_mode", "open-mode": "open_mode",
 		"working-directory": "working_directory", "executor": "executor", "executor-option": "executor_options",
 		"depends-on": "depends_on", "depends-on-finished": "depends_on_finished", "timeout": "timeout", "retry": "retry",
 		"retry-delay": "retry_delay", "retry-backoff": "retry_backoff", "retry-max-delay": "retry_max_delay",
@@ -265,7 +265,7 @@ func pairChangeDefinition(t *testing.T, f pairMutationFixture, options ...string
 
 func TestCLIFlagPairChangeObservability(t *testing.T) {
 	f := newPairMutationFixture(t)
-	fields := map[string]string{"timeout": "timeout", "retry": "retry", "env": "environment", "executor-option": "executor_options", "working-directory": "working_directory", "depends-on": "depends_on", "depends-on-finished": "depends_on_finished", "status": "marked_status", "set-job-name": "name", "executor": "executor"}
+	fields := map[string]string{"timeout": "timeout", "retry": "retry", "env": "environment", "executor-option": "executor_options", "working-directory": "working_directory", "depends-on": "depends_on", "depends-on-finished": "depends_on_finished", "artifact": "artifacts", "status": "marked_status", "set-job-name": "name", "executor": "executor"}
 	base := pairChangeDefinition(t, f, "--quiet", "--timeout", "1m")
 	for flag, field := range fields {
 		t.Run(flag+"+quiet", func(t *testing.T) {

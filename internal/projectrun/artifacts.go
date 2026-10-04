@@ -61,6 +61,7 @@ func (recorder *artifactRecorder) prepare(job model.JobSpec) {
 		Environment:      recorder.environments[job.ID],
 		Output:           job.Output,
 		Error:            job.Error,
+		Declared:         job.Artifacts,
 		WorkingDirectory: job.WorkingDirectory,
 		Variables:        variables,
 	}, artifact.Sources{Config: recorder.sources.References, Script: recorder.sources.Script})

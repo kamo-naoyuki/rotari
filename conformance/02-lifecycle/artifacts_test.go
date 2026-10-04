@@ -290,3 +290,68 @@ func TestShellVariablesDifferPerArrayTask(t *testing.T) {
 		t.Fatalf("array task logs = %q, want %q", logs, want)
 	}
 }
+
+// TestDeclaredArtifactsFollowTasksAndEdits checks add --artifact through the
+// binary: each array task records its own declared path, and change,
+// export, and import keep the declaration.
+func TestDeclaredArtifactsFollowTasksAndEdits(t *testing.T) {
+	covers(t, "RUN-9")
+	e := support.NewEnv(t)
+	const project = "declared"
+	e.MustRotari("add", "-p", project, "--job-name", "sweep", "--array", "0-1", "--artifact", "out/$ROTARI_ARRAY_TASK_ID.csv", "--", "true")
+	e.MustRotari("run", "-p", project, "--quiet")
+	summary := readSummary(t, e, project)
+	runDir := filepath.Join(e.Base, "projects", project, "runs", summary.RunID)
+	cwd := runCWD(t, runDir)
+	var declared []string
+	for _, result := range summary.Results {
+		record, data := readArtifactRecord(t, runDir, result.ID, result.AttemptID)
+		if len(record.Candidates) != 1 || record.Candidates[0].Sources[0].Rule != "PATH-D2" {
+			t.Fatalf("%s: record = %s", result.ID, data)
+		}
+		declared = append(declared, record.Candidates[0].Path)
+	}
+	slices.Sort(declared)
+	if want := []string{filepath.Join(cwd, "out", "0.csv"), filepath.Join(cwd, "out", "1.csv")}; !slices.Equal(declared, want) {
+		t.Fatalf("declared paths = %q, want %q", declared, want)
+	}
+
+	e.MustRotari("copy", "-p", project, "--run-id", summary.RunID, "--quiet")
+	// declarations reads the first queued command's declared artifacts.
+	declarations := func(project string) []string {
+		var queue struct {
+			Commands []struct {
+				Artifacts []string `json:"artifacts"`
+			} `json:"commands"`
+		}
+		data, err := os.ReadFile(filepath.Join(e.Base, "projects", project, "queue.json"))
+		if err != nil || json.Unmarshal(data, &queue) != nil || len(queue.Commands) == 0 {
+			t.Fatalf("queue.json of %s = %s, %v", project, data, err)
+		}
+		return queue.Commands[0].Artifacts
+	}
+	if got := declarations(project); !slices.Equal(got, []string{"out/$ROTARI_ARRAY_TASK_ID.csv"}) {
+		t.Fatalf("copy kept %q", got)
+	}
+	manifest := filepath.Join(e.Root, "declared.yaml")
+	e.MustRotari("export", project, manifest)
+	exported, err := os.ReadFile(manifest)
+	if err != nil || !strings.Contains(string(exported), "artifacts:") {
+		t.Fatalf("export = %s, %v", exported, err)
+	}
+	e.MustRotari("change", "-p", project, "--job-name", "sweep", "--artifact", "results/", "--quiet")
+	if got := declarations(project); !slices.Equal(got, []string{"results/"}) {
+		t.Fatalf("change --artifact left %q", got)
+	}
+	e.MustRotari("change", "-p", project, "--job-name", "sweep", "--clear-artifacts", "--quiet")
+	if got := declarations(project); len(got) != 0 {
+		t.Fatalf("change --clear-artifacts left %q", got)
+	}
+	e.MustRotari("import", manifest, "declared-copy")
+	if got := declarations("declared-copy"); !slices.Equal(got, []string{"out/$ROTARI_ARRAY_TASK_ID.csv"}) {
+		t.Fatalf("import kept %q", got)
+	}
+	if r := e.Rotari("add", "-p", project, "--artifact", "a.csv", "--artifact", "./a.csv", "--", "true"); r.Code != 1 || !strings.Contains(r.Stderr, "declared twice") {
+		t.Fatalf("duplicate --artifact = %s", r)
+	}
+}

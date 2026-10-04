@@ -15,6 +15,7 @@ const (
 	KindConfig      = "config"
 	KindShell       = "shell"
 	KindPython      = "python"
+	KindDeclared    = "declared"
 )
 
 // Resolution bases say how a candidate's Path was obtained.
@@ -42,6 +43,8 @@ type Job struct {
 	// WorkingDirectory is the effective directory the job runs in. When it
 	// is empty or relative, relative references stay unresolved.
 	WorkingDirectory string
+	// Declared are the paths the user declared with add --artifact.
+	Declared []string
 	// Variables are values rotari fixes for the attempt, such as
 	// ROTARI_ARRAY_TASK_ID and ROTARI_JOB_DIR. With the Environment entries
 	// they are the only variables shell source expands (PATH-E1).
@@ -293,4 +296,30 @@ type Record struct {
 	// resolved on, or "" when it was not known.
 	WorkingDirectory string `json:"working_directory,omitempty"`
 	Result
+}
+
+// declaredVariable is a plain $NAME or ${NAME} in a declared path.
+var declaredVariable = regexp.MustCompile(`\$(\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))`)
+
+// declared records the paths the user declared (PATH-D2) without
+// classification. Plain $NAME and ${NAME} expand with the PATH-E1 values, so
+// an array task or matrix member can declare its own path; any other $ text,
+// and a variable without a value, stays literal. Globs are not expanded.
+func (c *collector) declared(paths []string) {
+	for index, value := range paths {
+		expanded := false
+		value = declaredVariable.ReplaceAllStringFunc(value, func(reference string) string {
+			match := declaredVariable.FindStringSubmatch(reference)
+			name := match[2] + match[3]
+			if replacement, ok := c.variables[name]; ok {
+				expanded = true
+				return replacement
+			}
+			return reference
+		})
+		if strings.TrimSpace(value) == "" || IsSpecialSink(value) {
+			continue
+		}
+		c.add(value, Source{Kind: KindDeclared, Rule: RuleDeclared, Index: indexOf(index), Expanded: expanded})
+	}
 }

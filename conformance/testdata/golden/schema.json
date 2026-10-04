@@ -525,6 +525,13 @@
           "name": "clear-depends-on-finished"
         },
         {
+          "name": "artifact",
+          "value_name": "PATH"
+        },
+        {
+          "name": "clear-artifacts"
+        },
+        {
           "name": "timeout",
           "value_name": "DURATION"
         },
@@ -1042,6 +1049,10 @@
         {
           "name": "error",
           "value_name": "FILE"
+        },
+        {
+          "name": "artifact",
+          "value_name": "PATH"
         },
         {
           "name": "log-mode",

@@ -92,6 +92,10 @@ type webChangeRequest struct {
 	// --depends-on-finished and --clear-depends-on-finished.
 	DependsOnFinished      []string `json:"depends_on_finished,omitempty"`
 	ClearDependsOnFinished bool     `json:"clear_depends_on_finished"`
+	// Artifacts and ClearArtifacts mirror change --artifact and
+	// --clear-artifacts.
+	Artifacts      []string `json:"artifacts,omitempty"`
+	ClearArtifacts bool     `json:"clear_artifacts"`
 }
 
 type webRemoveRequest struct {
@@ -805,7 +809,8 @@ func (s site) baseHandler() http.Handler {
 			Environment: change.Environment, ClearEnvironment: change.ClearEnvironment,
 			WorkingDirectory: change.WorkingDirectory, ClearWorkingDirectory: change.ClearWorkingDirectory, SetJobName: change.SetJobName,
 			DependsOn: change.DependsOn, ClearDependsOn: change.ClearDependsOn,
-			DependsOnFinished: change.DependsOnFinished, ClearDependsOnFinished: change.ClearDependsOnFinished, Command: change.Command,
+			DependsOnFinished: change.DependsOnFinished, ClearDependsOnFinished: change.ClearDependsOnFinished,
+			Artifacts: change.Artifacts, ClearArtifacts: change.ClearArtifacts, Command: change.Command,
 		})
 		if err != nil {
 			writeWebError(writer, err)

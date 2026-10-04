@@ -30,6 +30,9 @@ type Mutation struct {
 	// DependsOnFinished replaces DependsOnFinished when non-empty.
 	DependsOnFinished      []string
 	ClearDependsOnFinished bool
+	// Artifacts replaces the declared artifact paths when non-empty.
+	Artifacts      []string
+	ClearArtifacts bool
 	// Timeout replaces Timeout when non-empty.
 	Timeout      string
 	ClearTimeout bool
@@ -212,6 +215,9 @@ func applyMutation(queue model.Queue, jobIndex int, mutation Mutation) error {
 	}
 	if len(mutation.DependsOnFinished) > 0 || mutation.ClearDependsOnFinished {
 		changed.DependsOnFinished = append([]string(nil), mutation.DependsOnFinished...)
+	}
+	if len(mutation.Artifacts) > 0 || mutation.ClearArtifacts {
+		changed.Artifacts = append([]string(nil), mutation.Artifacts...)
 	}
 	if mutation.Timeout != "" || mutation.ClearTimeout {
 		changed.Timeout = mutation.Timeout

@@ -78,6 +78,7 @@ func Discover(job Job, sources Sources) Result {
 	collector.arguments(job.Command)
 	collector.environment(job.Environment)
 	collector.destinations(job.Output, job.Error)
+	collector.declared(job.Declared)
 	if sources.Script != nil {
 		collector.scripts(sources.Script)
 		collector.pythonFiles(sources.Script)

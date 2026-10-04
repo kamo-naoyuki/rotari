@@ -40,6 +40,9 @@ func cmdChange(args []string) int {
 	var dependsOnFinished stringSliceFlag
 	cliValue(fs, &dependsOnFinished, "depends-on-finished")
 	clearDependsOnFinished := cliBool(fs, "clear-depends-on-finished", false)
+	var artifacts stringSliceFlag
+	cliValue(fs, &artifacts, "artifact")
+	clearArtifacts := cliBool(fs, "clear-artifacts", false)
 	timeout := cliString(fs, "timeout", "")
 	clearTimeout := cliBool(fs, "clear-timeout", false)
 	retry := cliInt(fs, "retry", 0)
@@ -71,7 +74,7 @@ func cmdChange(args []string) int {
 	}
 	if selector.Kinds() != 1 ||
 		(len(fs.Args()) == 0 && *executor == "" && len(executorOptions) == 0 && !*clearExecutorOptions && *workingDirectory == "" && !*clearWorkingDirectory && len(environment) == 0 && !*clearEnvironment &&
-			*setJobName == "" && len(dependsOn) == 0 && !*clearDependsOn && len(dependsOnFinished) == 0 && !*clearDependsOnFinished && *timeout == "" && !*clearTimeout && !cliOptionSet(fs, "retry") && !*clearRetry &&
+			*setJobName == "" && len(dependsOn) == 0 && !*clearDependsOn && len(dependsOnFinished) == 0 && !*clearDependsOnFinished && len(artifacts) == 0 && !*clearArtifacts && *timeout == "" && !*clearTimeout && !cliOptionSet(fs, "retry") && !*clearRetry &&
 			*retryDelay == "" && *retryBackoffText == "" && *retryMaxDelay == "" && *status == "" && !*clearStatus) ||
 		(*executor != "" && !executorRegistry.Known(*executor)) {
 		printError("usage: " + cliUsage("change"))
@@ -83,6 +86,10 @@ func cmdChange(args []string) int {
 	}
 	if err := model.ValidateEnvironment(environment); err != nil {
 		printErrorf("invalid --env: %v", err)
+		return 1
+	}
+	if err := model.ValidateArtifacts(artifacts); err != nil {
+		printErrorf("invalid --artifact: %v", err)
 		return 1
 	}
 	filter := filterOptions.filter()
@@ -114,6 +121,7 @@ func cmdChange(args []string) int {
 		WorkingDirectory: *workingDirectory, ClearWorkingDirectory: *clearWorkingDirectory, SetJobName: *setJobName,
 		DependsOn: dependsOn, ClearDependsOn: *clearDependsOn,
 		DependsOnFinished: dependsOnFinished, ClearDependsOnFinished: *clearDependsOnFinished,
+		Artifacts: artifacts, ClearArtifacts: *clearArtifacts,
 		Timeout: *timeout, ClearTimeout: *clearTimeout, Retry: optionalRetry(fs, *retry), ClearRetry: *clearRetry,
 		RetryDelay: *retryDelay, RetryBackoff: retryBackoff, RetryMaxDelay: *retryMaxDelay,
 		Status: *status, ClearStatus: *clearStatus,

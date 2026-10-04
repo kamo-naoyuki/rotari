@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"regexp"
 	"sort"
 	"strconv"
@@ -51,11 +52,15 @@ type QueuedCommand struct {
 	Environment      []string `json:"environment,omitempty"`
 	Output           []string `json:"output,omitempty"`
 	Error            []string `json:"error,omitempty"`
-	LogMode          string   `json:"log_mode,omitempty"`
-	OpenMode         string   `json:"open_mode,omitempty"`
-	Name             string   `json:"name,omitempty"`
-	Stage            string   `json:"stage,omitempty"`
-	DependsOn        []string `json:"depends_on,omitempty"`
+	// Artifacts are files or directories the user declared with add
+	// --artifact, recorded as artifact candidates of each attempt. They are
+	// not part of the job's fingerprint.
+	Artifacts []string `json:"artifacts,omitempty"`
+	LogMode   string   `json:"log_mode,omitempty"`
+	OpenMode  string   `json:"open_mode,omitempty"`
+	Name      string   `json:"name,omitempty"`
+	Stage     string   `json:"stage,omitempty"`
+	DependsOn []string `json:"depends_on,omitempty"`
 	// DependsOnFinished names prerequisites that must finish, whatever their
 	// result, before the job starts (Slurm's afterany).
 	DependsOnFinished []string `json:"depends_on_finished,omitempty"`
@@ -483,6 +488,7 @@ type JobSpec struct {
 	InheritedEnvironment []string `json:"-"`
 	Output               []string `json:"output,omitempty"`
 	Error                []string `json:"error,omitempty"`
+	Artifacts            []string `json:"artifacts,omitempty"`
 	LogMode              string   `json:"log_mode,omitempty"`
 	OpenMode             string   `json:"open_mode,omitempty"`
 }
@@ -674,7 +680,7 @@ func queueCommandJob(queued QueuedCommand, id, name string, taskID *int) JobSpec
 		Executor: queued.Executor, ExecutorOptions: queued.ExecutorOptions, Environment: queued.Environment, Stage: queued.Stage, DependsOn: queued.DependsOn,
 		DependsOnFinished: queued.DependsOnFinished, Timeout: queued.Timeout, Retry: queued.Retry,
 		RetryDelay: queued.RetryDelay, RetryBackoff: queued.RetryBackoff, RetryMaxDelay: queued.RetryMaxDelay,
-		Output: queued.Output, Error: queued.Error, LogMode: queued.LogMode,
+		Output: queued.Output, Error: queued.Error, Artifacts: queued.Artifacts, LogMode: queued.LogMode,
 		OpenMode: queued.OpenMode,
 	}
 	if taskID != nil {
@@ -911,4 +917,21 @@ func RunLabel(runID, runName string) string {
 		return runID
 	}
 	return fmt.Sprintf("%s (%s)", runName, runID)
+}
+
+// ValidateArtifacts checks declared artifact paths (add --artifact): each is
+// non-empty, has no NUL byte or newline, and appears once after cleaning.
+func ValidateArtifacts(artifacts []string) error {
+	seen := make(map[string]bool, len(artifacts))
+	for _, artifact := range artifacts {
+		if strings.TrimSpace(artifact) == "" || strings.ContainsAny(artifact, "\x00\n") {
+			return fmt.Errorf("invalid artifact path %q", artifact)
+		}
+		cleaned := path.Clean(artifact)
+		if seen[cleaned] {
+			return fmt.Errorf("artifact path %q is declared twice", artifact)
+		}
+		seen[cleaned] = true
+	}
+	return nil
 }

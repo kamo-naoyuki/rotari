@@ -28,6 +28,8 @@ func cmdAdd(args []string) int {
 	cliValue(fs, &outputPaths, "output")
 	var errorPaths stringSliceFlag
 	cliValue(fs, &errorPaths, "error")
+	var artifacts stringSliceFlag
+	cliValue(fs, &artifacts, "artifact")
 	logMode := cliString(fs, "log-mode", model.LogModeMerge)
 	openMode := cliString(fs, "open-mode", model.OpenModeAppend)
 	var environment stringSliceFlag
@@ -104,6 +106,10 @@ func cmdAdd(args []string) int {
 		printError(err)
 		return 1
 	}
+	if err := model.ValidateArtifacts(artifacts); err != nil {
+		printErrorf("invalid --artifact: %v", err)
+		return 1
+	}
 	if *timeout != "" {
 		if _, err := model.ParseTimeout(*timeout); err != nil {
 			printErrorf("invalid --timeout: %v", err)
@@ -134,6 +140,7 @@ func cmdAdd(args []string) int {
 	for index := range commands {
 		commands[index].Output = normalizeOutputPaths(outputPaths)
 		commands[index].Error = normalizeOutputPaths(errorPaths)
+		commands[index].Artifacts = append([]string(nil), artifacts...)
 		if cliOptionSet(fs, "log-mode") {
 			commands[index].LogMode = *logMode
 		}

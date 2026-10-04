@@ -1,6 +1,7 @@
 package artifact
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"strconv"
@@ -205,5 +206,40 @@ func TestFromJobCandidateLimit(t *testing.T) {
 	}
 	if len(result.Diagnostics) != 1 {
 		t.Fatalf("diagnostics = %#v, want one limit diagnostic", result.Diagnostics)
+	}
+}
+
+func TestDeclaredArtifacts(t *testing.T) {
+	result := Discover(Job{
+		Command:          []string{"train", "out/a.csv"},
+		Environment:      []string{"LR=0.1"},
+		Declared:         []string{"results/", "out/${ROTARI_ARRAY_TASK_ID}/plot.png", "sweep/$LR.csv", "keep/$UNKNOWN/x", "logs/*.txt", "/dev/null", "out/a.csv", "plain"},
+		Variables:        map[string]string{"ROTARI_ARRAY_TASK_ID": "3"},
+		WorkingDirectory: "/work",
+	}, Sources{})
+	var got []string
+	for _, candidate := range result.Candidates {
+		for _, source := range candidate.Sources {
+			if source.Kind == KindDeclared {
+				got = append(got, fmt.Sprintf("%s %s %d %v", candidate.Path, source.Rule, *source.Index, source.Expanded))
+			}
+		}
+	}
+	// Candidates keep first-reference order: out/a.csv came first, in argv.
+	want := []string{
+		"/work/out/a.csv PATH-D2 6 false",
+		"/work/results PATH-D2 0 false",
+		"/work/out/3/plot.png PATH-D2 1 true",
+		"/work/sweep/0.1.csv PATH-D2 2 true",
+		"/work/keep/$UNKNOWN/x PATH-D2 3 false",
+		"/work/logs/*.txt PATH-D2 4 false",
+		"/work/plain PATH-D2 7 false",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("declared = %q, want %q", got, want)
+	}
+	// A declared path also named in argv is one candidate with both sources.
+	if sources := result.Candidates[0].Sources; result.Candidates[0].Path != "/work/out/a.csv" || len(sources) != 2 || sources[1].Kind != KindDeclared {
+		t.Fatalf("first candidate = %+v", result.Candidates[0])
 	}
 }

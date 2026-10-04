@@ -2,7 +2,7 @@
 
 Created: 2026-10-03
 
-Status: phases 0 to 6 implemented (`internal/artifact`,
+Status: phases 0 to 7 implemented (`internal/artifact`,
 `internal/artifactsource`, the run's `artifactRecorder`,
 `jobstatus.Artifacts`, shell and Python inspection, and contract RUN-9).
 No CLI or Web view reads the records yet.
@@ -787,6 +787,29 @@ not reconstructed. Agreed after phase 4 to implement it; decisions:
 - **Provenance.** Kind `python`, the file, `line:column`, and the key.
   Discovery version 7.
 
+### Declared artifacts (phase 7)
+
+Agreed 2026-10-04: an optional way to name artifacts discovery cannot find,
+such as paths a program builds. It is not required and changes no other
+behavior.
+
+- `rotari add --artifact PATH` (repeatable, command line only), a file or a
+  directory, stored on the queued command as `artifacts`. Every candidate
+  path is recorded under rule PATH-D2 without classification, resolved on the
+  effective working directory like the log destinations.
+- Plain `$NAME` and `${NAME}` in a declared path expand with the PATH-E1
+  values (`ROTARI_ARRAY_TASK_ID`, `ROTARI_JOB_DIR`, the job's own `--env` and
+  matrix values), so each array task or matrix member can declare its own
+  path; anything else stays literal. Globs are not expanded: a declaration is
+  recorded when the attempt starts, before its outputs exist.
+- Declarations are not part of the fingerprint: they do not change what a job
+  computes.
+- `change --artifact` replaces and `change --clear-artifacts` clears them, the
+  Web change API takes the same fields, workflow manifests carry `artifacts`,
+  and copy, export, and import keep them like every other queued field.
+- Declaring a path does not widen what the Web UI previews: a path outside
+  the working directory still needs `--artifact-root`.
+
 ## Implementation phases
 
 | Phase | Deliverable | Exit criteria | Status |
@@ -796,6 +819,7 @@ not reconstructed. Agreed after phase 4 to implement it; decisions:
 | 2. Configuration extraction | Bounded YAML/JSON/TOML parsing of directly referenced sources | Nested strings and provenance covered; ambiguous/dynamic values skipped | Done |
 | 3. Lifecycle and persistence | Attempt-bound resolution and storage shared by all job creation paths | Plain/array/matrix/retry/carried cases and old state covered; execution behavior unchanged | Done |
 | 4. Shell inspection | Conservative syntax-aware extraction of literals and PATH-E1 task variables | Array tasks and matrix members get distinct candidates for `$ROTARI_ARRAY_TASK_ID`/matrix-variable paths; other dynamic or ambiguous cases skipped; no execution during inspection | Done |
+| 7. Declared artifacts | `add --artifact`, `change`, manifests, Web change API; PATH-D2 with PATH-E1 expansion | Declared paths recorded per attempt, every queue path keeps them, fingerprints unchanged | Done |
 | 6. Python source | Lexical `argparse` defaults and string literals of referenced `.py` files | Defaults keyed by option name; dynamic strings skipped; no execution or import | Done |
 | 5. Contracts and documentation | Document implemented guarantees and limitations | Representative conformance tests, contract IDs/status rows, architecture and affected guides agree | Done: RUN-9 with its example tables, `TestStartedAttemptRecordsArtifactCandidates`, `TestArtifactCandidateExamples`, docs/INSPECT.md |
 

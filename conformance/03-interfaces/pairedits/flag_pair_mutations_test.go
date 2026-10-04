@@ -107,6 +107,7 @@ func pairEditSample(t *testing.T, f pairMutationFixture, command string, flag pa
 		"executor": "local", "executor-option": "--partition=debug", "working-directory": f.E.Root,
 		"env": "PAIR_VALUE=1", "output": filepath.Join(f.E.Root, "job-stdout.log"),
 		"error": filepath.Join(f.E.Root, "job-stderr.log"), "log-mode": "separate", "open-mode": "truncate",
+		"artifact":   "results/pair-artifact.csv",
 		"depends-on": "ok", "depends-on-finished": "ok", "timeout": "17m", "retry": "2",
 		"retry-delay": "5s", "retry-backoff": "2", "retry-max-delay": "1m",
 		"array": "4-6", "set-job-name": "renamed-pair", "status": "failed",
