@@ -3,6 +3,8 @@ package runregistry
 import (
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -163,5 +165,78 @@ func TestRemoveOrphanKeepsChangedAndReappearedEntries(t *testing.T) {
 		if err != nil || removed != test.removed {
 			t.Errorf("RemoveOrphan(%s) = %v, %v; want %v", test.planned.RunID, removed, err, test.removed)
 		}
+	}
+}
+
+func TestUnregisterRemovesEntryAndToleratesMissing(t *testing.T) {
+	registry := Open(t.TempDir())
+	location := Location{BaseDir: t.TempDir(), ProjectName: "demo", RunID: "run-1"}
+	if err := registry.Register(location); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Unregister("run-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := registry.Lookup("run-1"); err != nil || found {
+		t.Fatalf("Lookup after Unregister = found %v, error %v", found, err)
+	}
+	if err := registry.Unregister("run-1"); err != nil {
+		t.Fatalf("Unregister of a missing entry = %v", err)
+	}
+	if err := registry.Unregister("../run-1"); err == nil {
+		t.Fatal("Unregister accepted an unsafe run ID")
+	}
+}
+
+func TestBaseDirsListsReadableEntries(t *testing.T) {
+	masterDir := t.TempDir()
+	registry := Open(masterDir)
+	if baseDirs, err := registry.BaseDirs(); err != nil || baseDirs != nil {
+		t.Fatalf("BaseDirs without a registry = %v, %v", baseDirs, err)
+	}
+	first, second := t.TempDir(), t.TempDir()
+	for _, location := range []Location{
+		{BaseDir: first, ProjectName: "demo", RunID: "run-1"},
+		{BaseDir: first, ProjectName: "demo", RunID: "run-2"},
+		{BaseDir: second, ProjectName: "other", RunID: "run-3"},
+	} {
+		if err := registry.Register(location); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runsDir := filepath.Join(masterDir, "runs")
+	for name, data := range map[string]string{
+		"broken.json":  "{broken\n",
+		"no-base.json": `{"project_name":"demo","run_id":"no-base"}`,
+		"notes.txt":    `{"base_dir":"/ignored"}`,
+	} {
+		if err := os.WriteFile(filepath.Join(runsDir, name), []byte(data), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Mkdir(filepath.Join(runsDir, "dir.json"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	baseDirs, err := registry.BaseDirs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sort.Strings(baseDirs)
+	want := []string{first, first, second}
+	sort.Strings(want)
+	if !reflect.DeepEqual(baseDirs, want) {
+		t.Fatalf("BaseDirs = %v, want %v", baseDirs, want)
+	}
+}
+
+func TestDefaultUsesMasterDirEnvironment(t *testing.T) {
+	masterDir := t.TempDir()
+	t.Setenv("ROTARI_MASTERDIR", masterDir)
+	registry, err := Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(masterDir, "runs"); registry.dir != want {
+		t.Fatalf("Default registry dir = %q, want %q", registry.dir, want)
 	}
 }
