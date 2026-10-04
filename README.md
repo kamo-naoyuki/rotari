@@ -16,6 +16,10 @@ matrix jobs. If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or
 [ESPnet](https://github.com/espnet)'s `run.pl`/`queue.pl`, the basic idea should
 feel familiar.
 
+| Plain shell (background jobs) | rotari |
+| --- | --- |
+| <img src="https://kamo-naoyuki.github.io/rotari/demo-shell.gif" alt="shell background jobs demo" width="400"> | <img src="https://kamo-naoyuki.github.io/rotari/demo-rotari.gif" alt="rotari demo" width="400"> |
+
 The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers installation, concepts, command reference, and running rotari on clusters. AI agents: use the [documentation index](https://kamo-naoyuki.github.io/rotari/docs/llms.txt) to find relevant guides, or the [full documentation](https://kamo-naoyuki.github.io/rotari/docs/llms-full.txt) for the complete set.
 
 ## Why use rotari?
@@ -35,10 +39,6 @@ The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers ins
   ([running](docs/RUNNING.md)).
 
 ## How is rotari different?
-
-| Plain shell (background jobs) | rotari |
-| --- | --- |
-| <img src="https://kamo-naoyuki.github.io/rotari/demo-shell.gif" alt="shell background jobs demo" width="400"> | <img src="https://kamo-naoyuki.github.io/rotari/demo-rotari.gif" alt="rotari demo" width="400"> |
 
 
 Compared with background jobs in a plain shell, rotari limits how many jobs run
