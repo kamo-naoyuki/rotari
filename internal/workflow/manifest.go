@@ -84,6 +84,9 @@ func Decode(reader io.Reader, format string) (Manifest, error) {
 		if err := requireEOF(decoder); err != nil {
 			return Manifest{}, err
 		}
+		if err := rejectJSONRepeatedExclusionDimensions(data); err != nil {
+			return Manifest{}, err
+		}
 	case "yaml", "yml":
 		var root yaml.Node
 		if err := yaml.Unmarshal(data, &root); err != nil {
@@ -136,6 +139,45 @@ func rejectYAMLDocuments(data []byte) error {
 			return errors.New("decode YAML manifest: multiple documents are not allowed")
 		}
 		return fmt.Errorf("decode YAML manifest: %w", err)
+	}
+	return nil
+}
+
+// rejectJSONRepeatedExclusionDimensions rejects a matrix_exclude rule that
+// names a dimension twice. encoding/json keeps the last value, which would
+// silently change the rule; YAML and TOML decoding reject the repeat.
+func rejectJSONRepeatedExclusionDimensions(data []byte) error {
+	var raw struct {
+		Jobs []struct {
+			MatrixExclude []json.RawMessage `json:"matrix_exclude"`
+		} `json:"jobs"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("decode JSON manifest: %w", err)
+	}
+	for _, job := range raw.Jobs {
+		for _, rule := range job.MatrixExclude {
+			decoder := json.NewDecoder(bytes.NewReader(rule))
+			if _, err := decoder.Token(); err != nil {
+				return fmt.Errorf("decode JSON manifest: %w", err)
+			}
+			seen := make(map[string]bool)
+			for decoder.More() {
+				token, err := decoder.Token()
+				if err != nil {
+					return fmt.Errorf("decode JSON manifest: %w", err)
+				}
+				key, _ := token.(string)
+				if seen[key] {
+					return fmt.Errorf("decode JSON manifest: matrix_exclude repeats dimension %q", key)
+				}
+				seen[key] = true
+				var value json.RawMessage
+				if err := decoder.Decode(&value); err != nil {
+					return fmt.Errorf("decode JSON manifest: %w", err)
+				}
+			}
+		}
 	}
 	return nil
 }

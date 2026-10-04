@@ -102,10 +102,12 @@
 - **RUN-8** A workflow manifest's `matrix_exclude` and `rotari add`'s
   `--matrix-exclude` omit each Cartesian combination matching all assignments
   in any exclusion rule. The CLI option requires `--matrix`; supplying it
-  without a matrix is an error. Normalized exclusions are stored with matrix
-  provenance, and queue/run export followed by import preserves the same
-  effective combinations. Covered by
-  `TestWorkflowMatrixExclusionExportImport` in
+  without a matrix is an error, as is a rule that names one dimension twice,
+  in the CLI and in every manifest format. Normalized exclusions are stored
+  with matrix provenance, and queue/run export followed by import preserves
+  the same effective combinations. Covered by
+  `TestWorkflowMatrixExclusionExportImport` and
+  `TestMatrixExclusionRejectsRepeatedDimension` in
   [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
 - **RUN-9** Each attempt that a run submits records its artifact candidates
   in the attempt's `artifacts.json`: file and directory references found

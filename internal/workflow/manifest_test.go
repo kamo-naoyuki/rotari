@@ -246,6 +246,21 @@ func TestDecodeRejectsMalformedYAMLMatrixExclusions(t *testing.T) {
 	}
 }
 
+// A repeated dimension in one rule is rejected in every format, as YAML and
+// the CLI do, rather than keeping only the last value.
+func TestDecodeRejectsRepeatedMatrixExclusionDimension(t *testing.T) {
+	for format, input := range map[string]string{
+		"json": `{"version":1,"jobs":[{"command":["true"],"matrix":["SEED=1,2","MODEL=small,large"],"matrix_exclude":[{"SEED":"2","SEED":"1"}]}]}`,
+		"yaml": "version: 1\njobs:\n  - command: [true]\n    matrix: [\"SEED=1,2\", \"MODEL=small,large\"]\n    matrix_exclude:\n      - {SEED: 2, SEED: 1}\n",
+		"toml": "version = 1\n[[jobs]]\ncommand = [\"true\"]\nmatrix = [\"SEED=1,2\", \"MODEL=small,large\"]\nmatrix_exclude = [{ SEED = \"2\", SEED = \"1\" }]\n",
+	} {
+		_, err := Decode(strings.NewReader(input), format)
+		if err == nil || !strings.Contains(err.Error(), "SEED") {
+			t.Errorf("%s: Decode error = %v, want a repeated SEED error", format, err)
+		}
+	}
+}
+
 func compileFormatFixture(t *testing.T, format, input string) model.Queue {
 	t.Helper()
 	manifest, err := Decode(strings.NewReader(input), format)

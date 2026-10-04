@@ -597,6 +597,31 @@ jobs:
 	}
 }
 
+// A rule naming one dimension twice is rejected by the CLI and by every
+// manifest format, rather than keeping one of the values.
+func TestMatrixExclusionRejectsRepeatedDimension(t *testing.T) {
+	covers(t, "RUN-8")
+	e := support.NewEnv(t)
+	cli := e.Rotari("add", "-p", "cli", "--matrix", "SEED=1,2", "--matrix", "MODEL=small,large", "--matrix-exclude", "SEED=2,SEED=1", "--", "true")
+	if cli.Code == 0 || !strings.Contains(cli.Stderr, `"SEED"`) {
+		t.Fatalf("add with a repeated exclusion dimension = %s, want an error naming SEED", cli)
+	}
+	for format, manifest := range map[string]string{
+		"json": `{"version":1,"jobs":[{"command":["true"],"matrix":["SEED=1,2","MODEL=small,large"],"matrix_exclude":[{"SEED":"2","SEED":"1"}]}]}`,
+		"yaml": "version: 1\njobs:\n  - command: [true]\n    matrix: [\"SEED=1,2\", \"MODEL=small,large\"]\n    matrix_exclude:\n      - {SEED: 2, SEED: 1}\n",
+		"toml": "version = 1\n[[jobs]]\ncommand = [\"true\"]\nmatrix = [\"SEED=1,2\", \"MODEL=small,large\"]\nmatrix_exclude = [{ SEED = \"2\", SEED = \"1\" }]\n",
+	} {
+		manifestPath := filepath.Join(e.Root, "repeated."+format)
+		if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		result := e.Rotari("import", manifestPath, "manifest-"+format)
+		if result.Code == 0 || !strings.Contains(result.Stderr, "SEED") {
+			t.Errorf("%s import with a repeated exclusion dimension = %s, want an error naming SEED", format, result)
+		}
+	}
+}
+
 func TestJobStreamsPersistSeparately(t *testing.T) {
 	covers(t, "LOG-1")
 	e := support.NewEnv(t)
