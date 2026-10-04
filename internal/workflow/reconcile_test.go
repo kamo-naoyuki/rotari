@@ -144,6 +144,35 @@ func TestReconcileGroupStatusDoesNotOverrideUnlistedLeaves(t *testing.T) {
 	}
 }
 
+// A leaf the source never ran, such as a task added by widening an array,
+// has no result to keep: it stays unfinished and is not accepted as success.
+func TestReconcileLeavesNewArrayTasksUnfinished(t *testing.T) {
+	task := 2
+	for name, job := range map[string]Job{
+		"without instances": {Name: "tasks", Command: []string{"work"}, Array: "1-3"},
+		"with instances":    {Name: "tasks", Command: []string{"work"}, Array: "1-3", Status: "failed", Instances: []Instance{{Task: &task, Status: "failed"}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			store, attempts := sourceStore([]model.QueuedCommand{{ID: "tasks", Name: "tasks", Command: []string{"work"}, Array: &model.ArraySpec{First: 1, Last: 2}}},
+				model.JobResult{ID: "tasks-1", ExitCode: 0},
+				model.JobResult{ID: "tasks-2", ExitCode: 2},
+			)
+			job.AttemptID = attempts["tasks-1"]
+			if len(job.Instances) > 0 {
+				job.Instances[0].AttemptID = attempts["tasks-2"]
+			}
+			queue, _, err := reconcileManifest(t, store, job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			command := queue.Commands[0]
+			if origin := command.TaskOrigins["tasks-3"]; origin == nil || origin.Status != model.StatusUnfinished || command.TaskMarkedStatus["tasks-3"] != "" {
+				t.Fatalf("new task origin %#v marked %q, want unfinished and unmarked", origin, command.TaskMarkedStatus["tasks-3"])
+			}
+		})
+	}
+}
+
 func TestReconcileCountsMatrixExcludedMembers(t *testing.T) {
 	dimensions := []model.MatrixDimension{
 		{Name: "SEED", Values: []string{"1", "2"}},

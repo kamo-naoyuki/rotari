@@ -465,7 +465,7 @@ func reconcileCommandLeaves(destination *model.QueuedCommand, source sourceLeaf,
 		if err != nil {
 			return err
 		}
-		status := desiredStatus(manifestJob, destination.Matrix, nil, leaf.result)
+		status := desiredStatus(manifestJob, destination.Matrix, nil, leaf)
 		catalog.applyLeaf(destination, "", leaf, status)
 		return nil
 	}
@@ -481,7 +481,7 @@ func reconcileCommandLeaves(destination *model.QueuedCommand, source sourceLeaf,
 		if err != nil {
 			return err
 		}
-		status := desiredStatus(manifestJob, destination.Matrix, &task, leaf.result)
+		status := desiredStatus(manifestJob, destination.Matrix, &task, leaf)
 		catalog.applyLeaf(destination, destinationID, leaf, status)
 	}
 	return nil
@@ -557,7 +557,7 @@ func commandMatrixValues(matrix *model.MatrixSpec) map[string]string {
 	return matrixValuesMap(matrix.Values)
 }
 
-func desiredStatus(job Job, matrix *model.MatrixSpec, task *int, result model.JobResult) string {
+func desiredStatus(job Job, matrix *model.MatrixSpec, task *int, leaf sourceLeaf) string {
 	if job.Status == "success" {
 		return "success"
 	}
@@ -569,7 +569,8 @@ func desiredStatus(job Job, matrix *model.MatrixSpec, task *int, result model.Jo
 	if matrix == nil && task == nil && job.Status != "" {
 		return job.Status
 	}
-	return resultStatus(result, true)
+	// A leaf the source never ran keeps no result, so it stays unfinished.
+	return resultStatus(leaf.result, leaf.finished)
 }
 
 func (catalog *sourceCatalog) applyLeaf(command *model.QueuedCommand, destinationID string, source sourceLeaf, desiredStatus string) {

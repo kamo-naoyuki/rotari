@@ -134,9 +134,12 @@
   `status` applies to that matrix combination or array task. A matrix or array
   job's job-level `status` is an aggregate: `success` accepts every leaf, and
   any other value marks none, so a leaf missing from `instances` keeps its
-  source result even when `instances` is empty. The rule is `desiredStatus`
+  source result even when `instances` is empty. A leaf the source never ran,
+  such as a task added by widening an array, has no result to keep and stays
+  unfinished rather than accepted. The rule is `desiredStatus`
   in [internal/workflow/reconcile.go](../internal/workflow/reconcile.go);
-  covered by `TestImportedGroupStatusKeepsUnlistedLeafResults` in
+  covered by `TestImportedGroupStatusKeepsUnlistedLeafResults` and
+  `TestImportedArrayWideningExecutesNewTasks` in
   [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go)
   and `TestReconcileGroupStatusDoesNotOverrideUnlistedLeaves` in
   [internal/workflow/reconcile_test.go](../internal/workflow/reconcile_test.go).

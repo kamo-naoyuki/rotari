@@ -646,6 +646,43 @@ func TestImportedGroupStatusKeepsUnlistedLeafResults(t *testing.T) {
 	}
 }
 
+// A task added by widening an exported array has no source result, so it
+// is not accepted as success: retry executes it along with the failed task.
+func TestImportedArrayWideningExecutesNewTasks(t *testing.T) {
+	covers(t, "RUN-10")
+	e := support.NewEnv(t)
+	logPath := filepath.Join(e.Root, "executed.log")
+	e.MustRotari("add", "-p", "widen", "--job-name", "tasks", "--array", "1-2", "--",
+		"sh", "-c", `echo task$ROTARI_ARRAY_TASK_ID >> "$0"; [ "$ROTARI_ARRAY_TASK_ID" != 2 ]`, logPath)
+	e.Rotari("run", "-p", "widen", "--quiet")
+	manifestPath := filepath.Join(e.Root, "widen.json")
+	e.MustRotari("export", "-p", "widen", "-o", "json", "--output", manifestPath)
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	widened := strings.Replace(string(data), `"array": "1-2"`, `"array": "1-3"`, 1)
+	if widened == string(data) {
+		t.Fatalf("exported manifest has no array 1-2:\n%s", data)
+	}
+	if err := os.WriteFile(manifestPath, []byte(widened), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(logPath); err != nil {
+		t.Fatal(err)
+	}
+	e.MustRotari("import", "--overwrite", manifestPath, "widen")
+	e.Rotari("retry", "-p", "widen", "--quiet")
+	executed, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Fields(string(executed))
+	if len(got) != 2 || !strings.Contains(string(executed), "task2") || !strings.Contains(string(executed), "task3") {
+		t.Fatalf("executed tasks = %v, want the failed task2 and the new task3", got)
+	}
+}
+
 // A rule naming one dimension twice is rejected by the CLI and by every
 // manifest format, rather than keeping one of the values.
 func TestMatrixExclusionRejectsRepeatedDimension(t *testing.T) {
