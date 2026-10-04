@@ -109,3 +109,28 @@ committed, so the recover change was checked separately with
 (vet, test, race), started after `4c6f6b4`, passed with "all checks passed".
 
 **Remaining:** Phase 4 (shell inspection) when the plan resumes it.
+
+## Shared-filesystem configuration reads for SSH
+
+**Commit:** `a8223c3` — 2026-10-04T14:55:52+09:00
+
+**Change:** Removed the SSH exception from `artifactRecorder`: SSH attempts
+read referenced configuration files from the supervisor's host like local and
+scheduler attempts. The recorder test now runs for local, SSH, and Slurm and
+checks that a file the supervisor cannot read gets a diagnostic while its
+path stays a candidate. Updated docs/INSPECT.md and the phase 3 decision in
+plan.md.
+
+**Reason:** The user chose the shared-filesystem assumption for SSH too: a
+file that is not found is simply not loaded.
+
+**Plan impact:** Reverses the phase 3 "Execution hosts" decision for SSH;
+the plan records the revision.
+
+**Validation:** `go test -count=1` of `./internal/projectrun` (including
+`TestArtifactRecorderReadsSourcesForEveryExecutor/{local,ssh,slurm}`, checked
+with `-v`), `./internal/doclinks`, `./internal/archtest`, and
+`TestStartedAttemptRecordsArtifactCandidates` passed. `go vet` and `gofmt`
+were clean. A full `scripts/check.sh` was not rerun for this change.
+
+**Remaining:** None.
