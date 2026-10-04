@@ -17,23 +17,23 @@ nav:
   - Home: index.md
   - User guide:
       - Getting started: GETTING_STARTED.md
-      - CLI reference: CLI_REFERENCE.md
       - Concepts: CONCEPTS.md
       - Executors and schedulers: EXECUTORS.md
       - Running jobs: RUNNING.md
       - Recovering failed runs: RECOVERING.md
       - Inspecting and diagnosing: INSPECT.md
+      - Workflow manifests: WORKFLOW_MANIFESTS.md
       - Configuration: CONFIGURATION.md
+      - CLI reference: CLI_REFERENCE.md
       - Environment variables: ENVIRONMENT_VARIABLES.md
       - Operations: OPERATIONS.md
-      - Workflow manifests: WORKFLOW_MANIFESTS.md
       - Comparison with other tools: TOOL_COMPARISON.md
       - Docker: DOCKER.md
       - Examples: examples.md
+      - Local diagnosis rules: LOCAL_DIAGNOSIS.md
       - FAQ: FAQ.md
   - Integrations:
       - Notifications: NOTIFICATIONS.md
-      - Local diagnosis rules: LOCAL_DIAGNOSIS.md
   - Development:
       - Architecture: ARCHITECTURE.md
   - API reference:
