@@ -2,7 +2,7 @@
 
 **Created:** 2026-10-05
 
-**Status:** Proposed; no implementation started. D1 to D4, D7, and D8
+**Status:** Proposed; no implementation started. D1 to D5, D7, and D8
 settled on 2026-10-06.
 
 ## Purpose
@@ -302,7 +302,8 @@ reason to create a second project. Phase 4 depends on phase 2.
 `rotari retry` with a result selection or job IDs, on a running project,
 starts a new attempt for each selected job in the active run and returns once
 the run accepts the request. On an idle project it keeps creating a new run.
-The output states which happened.
+The output states which happened. If the run ends before it accepts the
+request, the command fails instead of starting a new run (D5).
 
 - Selection uses the existing rule: `jobcontrol.Controller.Select` over
   `jobfilter.Filter.Selects` / `SelectsArray`. A job is eligible only when its
@@ -352,9 +353,10 @@ The output states which happened.
    requests, not only for job results.
 3. **End-of-run race.** The engine can return between the request check and
    pickup. `Finalize` answers any unanswered request with "run ended" under
-   the state lock, and the CLI then starts a normal retry run and says so
-   (decision D5). The CLI waits for a response with a timeout and reports a
-   missing supervisor as an error.
+   the state lock. The requester then fails with a non-zero exit, naming the
+   run that ended and saying that repeating the command starts a new retry
+   run (D5); it never starts one itself. The requester waits for a response
+   with a timeout and reports a missing supervisor as an error.
 4. **Final-result callbacks.** `FinalResult` becomes "once per final result":
    diagnosis, notification hooks, and `Observer.Finished` see a reopened job's
    new final result. Check the progress display, which may now see
@@ -380,8 +382,8 @@ SAFE-2 for `retry`, and `docs/RUNNING.md` (Automatic retries, plus a new
   awaiting automatic retry, carried; `DependsOn` dependents blocked and
   `DependsOnFinished` dependents finished; distinct exit codes so results
   cannot be confused.
-- Request/response handling, including the end-of-run race and a cancelling
-  run.
+- Request/response handling, including a cancelling run and the end-of-run
+  race: the request fails with the ended run's name and no new run starts.
 - Conformance: a run with one fast-failing job and one slow job; `retry
   --failed` while the slow job runs reruns only the failed job in the same
   run; option rejection rows; the same through the Web API.
@@ -446,6 +448,11 @@ Settled on 2026-10-06:
   supervisor from every interface and from other hosts on a shared state
   directory, like `cancel`; about a second of polling delay is acceptable
   for a retry.
+- **D5** A retry request that the run cannot accept because the run ended
+  fails with an error that names the ended run and says that repeating the
+  command starts a new retry run. It does not fall back to a new run on its
+  own: an in-run retry and a new run differ in history, carried results, and
+  run settings, so the user chooses.
 - **D7** Queue edits, including `reset`, are allowed while interrupted; `run`
   stays rejected until `unlock`. `reset --recover` is removed with an error
   naming `unlock`, because the queue it discarded is no longer the run's.
@@ -459,8 +466,6 @@ Settled on 2026-10-06:
 
 Open:
 
-- **D5** End-of-run race: fall back to a new retry run and say so
-  (recommended), or fail and ask the user to repeat the command.
 - **D6** Whether to add a per-directory project pin.
 
 ## Validation for each phase
