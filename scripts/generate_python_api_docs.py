@@ -71,7 +71,7 @@ def render() -> str:
         if name == "add":
             signature = "Rotari.add(command: Sequence[str], **options: object) -> Job"
         elif name == "reset":
-            signature = "Rotari.reset(*, recover: bool = False) -> CommandResult"
+            signature = "Rotari.reset() -> CommandResult"
         elif name == "wait":
             signature = (
                 "Rotari.wait(selector: Run | str | Sequence[Run | str] | None = None, "

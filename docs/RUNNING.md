@@ -206,8 +206,9 @@ after the supervisor disappeared. `show` then reports the interrupted run.
 After confirming jobs have stopped, use `unlock` to recover the run, then
 `retry --run-id RUN_ID` to rerun its failed and unfinished jobs: the run took
 its jobs from the queue when it started, so they are not queued again.
-`reset --recover` also recovers the run and empties the queue. Both refuse a
-run whose supervisor is still alive on this host; stop that one with `cancel`.
+`reset` independently clears only the next queue; it does not change or recover
+the interrupted run. `unlock` refuses a run whose supervisor is still alive on
+this host; stop that one with `cancel`.
 
 ## Automatic retries
 

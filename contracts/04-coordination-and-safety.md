@@ -40,10 +40,9 @@ Representative implementation and tests:
   disagree about a job. The summary result belongs to the latest attempt, so
   a selected older attempt (`show ATTEMPT_ID` or the Web UI attempt selector)
   resolves from its own files only and shows its own timestamps.
-- **DUR-6** This does not kill or reconcile leftover jobs during recovery; `reset
-  --recover` and `unlock` still require the operator to confirm that jobs have
-  stopped, and a job that was still running keeps running and records its
-  result.
+- **DUR-6** This does not kill or reconcile leftover jobs during recovery;
+  `unlock` requires the operator to confirm that jobs have stopped, and a job
+  that was still running keeps running and records its result.
 - **DUR-7** Before it dispatches any job, a run records the results it carries
   forward from earlier runs in `carried.json` beside `commands.json` (a
   `model.RunSummary` holding only those results). Until the run writes
@@ -153,8 +152,8 @@ A project is in one of three states, derived from `running.lock` and
 | State | `running.lock` | `meta.json` phase | `run`/`delete` | `add`/`copy`/`change`/`remove`/`import` | `reset` |
 | --- | --- | --- | --- | --- | --- |
 | `Idle` | absent, or present but stale (auto-removed) | `collecting`/`finished` | allowed | allowed | allowed |
-| `Running` | present; owning coordinator PID is alive, or it runs on another host | `running`/`cancelling` | rejected: "is running; ... is not allowed" | allowed, except `copy` of the running run | rejected |
-| `Interrupted` | absent, or present but the coordinator PID is dead | `running`/`cancelling` with `last_run_id` set | rejected: "has interrupted run ...", naming how to inspect and recover it | allowed, except `copy` of the interrupted run | requires confirmation |
+| `Running` | present; owning coordinator PID is alive, or it runs on another host | `running`/`cancelling` | rejected: "is running; ... is not allowed" | allowed, except `copy` of the running run | allowed; clears only the next queue |
+| `Interrupted` | absent, or present but the coordinator PID is dead | `running`/`cancelling` with `last_run_id` set | rejected: "has interrupted run ...", naming how to inspect and recover it | allowed, except `copy` of the interrupted run | allowed; clears only the next queue |
 
 - **SAFE-1** `check` and `show` report a project's state as the table says;
   `check` names an idle project `ready` or `empty` (with or without queued
@@ -163,9 +162,10 @@ A project is in one of three states, derived from `running.lock` and
   A run whose coordinator is gone, for example killed with SIGKILL, leaves
   the project interrupted, never idle; a dead local lock is removed, and the
   metadata alone then marks the run.
-- **SAFE-2** While a project is running, `run`, `delete`, and `reset` fail
-  and change nothing, so a second `run` of the project never starts a second
-  runner. Other projects are unaffected.
+- **SAFE-2** While a project is running, `run` and `delete` fail and change
+  nothing, so a second `run` of the project never starts a second runner.
+  Queue edits, including `reset`, still apply only to the next run. Other
+  projects are unaffected.
 - **SAFE-3** While a project is interrupted, `run` and `delete` fail with a
   message that names the interrupted run, the `show` and `unlock`
   commands to inspect and recover it, and the `retry --run-id` command that
@@ -173,7 +173,10 @@ A project is in one of three states, derived from `running.lock` and
 - **SAFE-4** `unlock` recovers an interrupted run: it leaves the queue as it
   is, returns the project to idle, and names the `retry --run-id` command that
   reruns the run's failed and unfinished jobs, since the run took them from
-  the queue when it started (CORE-3, RUN-12). A `--run-id` must name that run. It
+  the queue when it started (CORE-3, RUN-12). `rotari unlock` and the MCP
+  unlock tools share `project.Unlock` in
+  [internal/project/unlock.go](../internal/project/unlock.go), covered by
+  `TestUnlockByProjectState`. A `--run-id` must name that run. It
   refuses a run whose coordinator is alive on this host. A lock from another
   host, whose coordinator cannot be checked, is never removed automatically;
   `unlock` removes it once the operator has confirmed that the run stopped.
@@ -184,32 +187,35 @@ A project is in one of three states, derived from `running.lock` and
   check flag-order parity, retained state, and local-live, mismatched-run,
   remote, and lockless recovery using synthetic locks after fixture execution
   has stopped.
-- **SAFE-5** `reset` discards the queue and keeps the run history. It
-  rejects a running project. For an interrupted project it needs the
-  operator's confirmation that jobs stopped, then also recovers the run.
+- **SAFE-5** `reset` clears only the queue for the next run and keeps run
+  history. It is allowed while a run is running or interrupted, and never
+  changes that run's state. Recovery is done separately with `unlock`.
 - **SAFE-6** A command asks for confirmation only when stdin is a terminal.
-  Otherwise `reset` of an interrupted project and `copy` into a non-empty
-  queue fail with a message naming `--recover` or `--append`/`--overwrite`.
-- **SAFE-7** Before recovering an interrupted run, `reset` (and the MCP reset
-  preview) report how many of its jobs' latest attempts have not recorded a
-  final status, and warn not to recover while any appear to be running. The
+  Otherwise `copy` into a non-empty queue fails with a message naming
+  `--append`/`--overwrite`.
+- **SAFE-7** Before recovering an interrupted run, the MCP unlock preview
+  reports how many of its jobs' latest attempts have not recorded a final
+  status; `unlock` prints the same warning when it recovers such a run. The
   scan reads files only, so a job killed without writing its status still
   appears to be running. Implemented in `scanInterruptedRunJobs` in
   [internal/project/inspect.go](../internal/project/inspect.go) over
   `state.LatestAttemptDirs`; checked by
-  `TestInterruptedResetWarnsAboutRunningJobs`.
+  `TestUnlockWarnsAboutRunningJobs` and `TestMCPUnlockRecoversAnInterruptedRun`.
 - **SAFE-8** While a project is running or interrupted, `add`, `copy`,
-  `change`, `remove`, and `import` edit the queue for the next run, since the
-  run took its own jobs when it started (CORE-3). They leave the project's
-  `meta.json` phase, which belongs to the run, unchanged. `copy` rejects the
-  running run, whose results are not final, and the interrupted run until
-  `unlock`. Implemented by `project.EditQueueGuarded` in
+  `change`, `remove`, `import`, and `reset` edit the queue for the next run,
+  since the run took its own jobs when it started (CORE-3). They leave the
+  project's `meta.json` phase, which belongs to the run, unchanged. `copy`
+  rejects the running run, whose results are not final, and the interrupted
+  run until `unlock`. Implemented by `project.EditQueueGuarded` in
   [internal/project/edit.go](../internal/project/edit.go) and
   `project.EnsureRunSettled` in
   [internal/project/inspect.go](../internal/project/inspect.go), covered by
   `TestEditQueueKeepsTheRunsPhase` and through the binary by
-  `TestQueueEditsBesideAnActiveRun` in
+  `TestQueueEditsBesideAnActiveRun` and `TestResetClearsQueueBesideActiveRun` in
   [conformance/04-coordination/private_state_test.go](../conformance/04-coordination/private_state_test.go).
+- **SAFE-9** `reset --recover` and `ROTARI_RESET_RECOVER` are rejected with an
+  instruction to recover an interrupted run with `unlock`; neither is silently
+  accepted. Checked through the binary by `TestResetRejectsRemovedRecoveryOptions`.
 
 Further rules:
 
@@ -223,9 +229,8 @@ Further rules:
   succeed.
 - The message for an interrupted run lists the jobs whose `status` or
   `status.json` is still non-terminal, with phase and last-update time;
-  missing or unparseable job status counts as still running. The detail only
-  improves the message; it does not change what `reset --recover` or `unlock`
-  may do.
+  missing or unparseable job status counts as still running. The detail warns
+  before `unlock`; it does not change what recovery may do.
 - Server management is separate (`server status`, `server shutdown`); project
   commands do not stop or query a supervisor as a side effect. Only `run` and
   `retry` start one, for their own run.

@@ -787,7 +787,7 @@ func TestCmdResetClearsInvalidDuplicateNameQueue(t *testing.T) {
 	}
 }
 
-func TestCmdResetRejectsRunningProject(t *testing.T) {
+func TestCmdResetKeepsRunningProjectState(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
@@ -803,40 +803,9 @@ func TestCmdResetRejectsRunningProject(t *testing.T) {
 	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = os.Remove(paths.LockFile) })
 
-	code, output := captureResetStderr(t, []string{"--basedir", baseDir, "--project-name", "demo"})
-	if code == 0 {
-		t.Fatal("cmdReset accepted a running project")
-	}
-	for _, want := range []string{"project 'demo' is running", "rotari wait", "rotari cancel"} {
-		if !strings.Contains(output, want) {
-			t.Fatalf("stderr = %q, want it to contain %q", output, want)
-		}
-	}
-	queue, err := loadQueue(paths.QueueFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(queue.Commands) != 1 {
-		t.Fatalf("queue commands = %#v, want unchanged", queue.Commands)
-	}
-}
-
-func TestCmdResetRecoversInterruptedRunWithoutPrompt(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "retained", Command: []string{"retained"}}}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
-		t.Fatal(err)
-	}
-	writeTestRunStateFiles(t, paths, "run-1")
-
-	if code := cmdReset([]string{"--basedir", baseDir, "--project-name", "demo", "--recover"}); code != 0 {
+	if code := cmdReset([]string{"--basedir", baseDir, "--project-name", "demo", "--quiet"}); code != 0 {
 		t.Fatalf("cmdReset exit code = %d, want 0", code)
 	}
 	queue, err := loadQueue(paths.QueueFile)
@@ -847,42 +816,11 @@ func TestCmdResetRecoversInterruptedRunWithoutPrompt(t *testing.T) {
 		t.Fatalf("queue commands = %#v, want empty", queue.Commands)
 	}
 	meta, err := loadMeta(paths.MetaFile)
-	if err != nil {
-		t.Fatal(err)
+	if err != nil || meta.Phase != "running" {
+		t.Fatalf("metadata = %#v, error = %v; want running phase preserved", meta, err)
 	}
-	if meta.Phase != "collecting" {
-		t.Fatalf("metadata phase = %q, want collecting", meta.Phase)
-	}
-}
-
-func TestCmdResetRequiresRecoverFlagForInterruptedRun(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "retained", Command: []string{"retained"}}}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
-		t.Fatal(err)
-	}
-	writeTestRunStateFiles(t, paths, "run-1")
-	useNonTerminalStdin(t)
-
-	code, output := captureResetStderr(t, []string{"--basedir", baseDir, "--project-name", "demo"})
-	if code == 0 {
-		t.Fatal("cmdReset recovered an interrupted run without confirmation")
-	}
-	if !strings.Contains(output, "reset requires confirmation") {
-		t.Fatalf("stderr = %q, want non-interactive confirmation error", output)
-	}
-	queue, err := loadQueue(paths.QueueFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(queue.Commands) != 1 {
-		t.Fatalf("queue commands = %#v, want unchanged", queue.Commands)
+	if _, err := os.Stat(paths.LockFile); err != nil {
+		t.Fatalf("running lock was removed: %v", err)
 	}
 }
 
@@ -971,18 +909,6 @@ func TestCmdResetRejectsUnexpectedStateWithoutDiscardingQueue(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestConfirmResetOfInterruptedRun(t *testing.T) {
-	paths := state.ProjectPaths{ProjectName: "demo"}
-	confirmed, err := confirmResetOfInterruptedRun(strings.NewReader("yes\n"), io.Discard, paths, "run-1")
-	if err != nil || !confirmed {
-		t.Fatalf("confirmResetOfInterruptedRun(yes) = %v, %v", confirmed, err)
-	}
-	confirmed, err = confirmResetOfInterruptedRun(strings.NewReader("no\n"), io.Discard, paths, "run-1")
-	if err != nil || confirmed {
-		t.Fatalf("confirmResetOfInterruptedRun(no) = %v, %v", confirmed, err)
 	}
 }
 
@@ -2414,56 +2340,6 @@ func TestValidateDependencies(t *testing.T) {
 				t.Fatal("validateDependencies returned nil")
 			}
 		})
-	}
-}
-
-func TestFinalizeCompletedCancellationRemovesStaleServerLock(t *testing.T) {
-	baseDir := t.TempDir()
-	paths, err := state.ResolveProjectPaths(baseDir, "default")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(paths.RunsDir, "run-1"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-1", StartedAt: nowRFC3339()}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "cancelling", LastRunID: "run-1"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"echo", "stale"}}}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeJSON(filepath.Join(paths.RunsDir, "run-1", "summary.json"), model.RunSummary{
-		RunID: "run-1", Status: "failed", FinishedAt: nowRFC3339(), ExitCode: 143,
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	finalized, err := finalizeCompletedCancellation(paths)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !finalized {
-		t.Fatal("finalizeCompletedCancellation returned false")
-	}
-	if _, err := os.Stat(paths.LockFile); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("lock still exists, stat error = %v", err)
-	}
-	meta, err := loadMeta(paths.MetaFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if meta.Phase != "finished" {
-		t.Fatalf("meta phase = %q, want finished", meta.Phase)
-	}
-	queue, err := loadQueue(paths.QueueFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(queue.Commands) != 1 {
-		t.Fatalf("queue commands = %d, want the queued job kept", len(queue.Commands))
 	}
 }
 

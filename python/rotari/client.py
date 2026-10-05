@@ -409,10 +409,20 @@ class Rotari:
         arguments = build_command_arguments("import", options, ["-"])
         return self.command(*arguments, input_data=json.dumps(manifest))
 
-    def reset(self, *, recover: bool = False) -> CommandResult:
-        """Clear the current queue, optionally recovering an interrupted run."""
+    def reset(self) -> CommandResult:
+        """Clear queued jobs for the next run without changing run state."""
 
-        arguments = build_command_arguments("reset", {"recover": recover})
+        arguments = build_command_arguments("reset", {})
+        return self.command(*arguments)
+
+    def unlock(self, *, run_id: str | None = None) -> CommandResult:
+        """Recover an interrupted run, keeping the queue.
+
+        Confirm first that the run's jobs have stopped. Rerun its failed and
+        unfinished jobs afterwards with ``retry(run_id=...)``.
+        """
+
+        arguments = build_command_arguments("unlock", {"run_id": run_id})
         return self.command(*arguments)
 
     def check(self, **options: object) -> dict[str, object]:

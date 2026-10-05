@@ -187,16 +187,16 @@ did not finish from the run itself, as `unlock` suggests:
 rotari retry -p sweep --run-id RUN_ID
 ```
 
-`rotari reset --recover` also recovers the run, and empties the queue.
-
 Without an explicit run ID, `unlock` is also safe to call when the project
 does not exist or has no lock/interrupted run: it succeeds without changing
 state. With `--run-id`, a missing or mismatched run remains an error.
 
 Use `retry` or result filters when the interrupted run contains completed jobs.
-Outside an interrupted run, `rotari reset` simply discards the current queue.
-If the project does not exist yet, `reset` (also with `--recover`) initializes
-an empty project, so it can safely start a batch-building script.
+`rotari reset` clears only the queue for the next run, even while a run is
+active or interrupted; it does not recover the run. If the project does not
+exist yet, `reset` initializes an empty project, so it can safely start a
+batch-building script. Use `unlock` only after confirming interrupted jobs
+have stopped.
 When output is a terminal, log views (including `--job-id/-j`) longer than 24
 lines open in `$PAGER` (or `less -R` by default). Use `--no-pager` to print
 directly; piped and redirected output is always printed directly.

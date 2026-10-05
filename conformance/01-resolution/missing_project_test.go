@@ -38,18 +38,15 @@ func TestCheckMissingProjectIsEmptyWithoutCreatingIt(t *testing.T) {
 
 func TestResetMissingProjectCreatesEmptyQueue(t *testing.T) {
 	covers(t, "RES-3")
-	for _, flags := range [][]string{{}, {"--recover"}} {
-		e := support.NewEnv(t)
-		args := append([]string{"reset", "--project-name", "nope"}, flags...)
-		r := e.Rotari(args...)
-		if r.Code != 0 || !strings.Contains(r.Stdout, "reset project=nope cleared=0 job(s)") {
-			t.Fatalf("want successful reset: %s", r)
-		}
-		if _, err := os.Stat(filepath.Join(e.Base, "projects", "nope", "meta.json")); err != nil {
-			t.Fatalf("reset did not initialize the project: %v", err)
-		}
-		e.MustRotari("add", "--project-name", "nope", "--", "true")
+	e := support.NewEnv(t)
+	r := e.Rotari("reset", "--project-name", "nope")
+	if r.Code != 0 || !strings.Contains(r.Stdout, "reset project=nope cleared=0 job(s)") {
+		t.Fatalf("want successful reset: %s", r)
 	}
+	if _, err := os.Stat(filepath.Join(e.Base, "projects", "nope", "meta.json")); err != nil {
+		t.Fatalf("reset did not initialize the project: %v", err)
+	}
+	e.MustRotari("add", "--project-name", "nope", "--", "true")
 }
 
 func TestUnlockMissingProjectIsNoOp(t *testing.T) {

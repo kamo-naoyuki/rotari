@@ -114,9 +114,9 @@ the IDs, this table, and those calls disagree.
 | --- | --- | --- | --- |
 | CORE-1 | The filesystem is the source of truth; registries and memory are recoverable indexes | partial | `TestRunFilesRemainAuthoritativeWithoutRegistryEntry` |
 | CORE-2 | The supervisor coordinates but is not the authority for project or run state | partial | `TestPersistedRunStateIsReadableAfterServerShutdown` |
-| CORE-3 | One mutable queue per project, taken by a run when it starts and editable in every project state | partial | `TestFilteredRerunCarriesCompletedResults`, `TestQueueEditsBesideAnActiveRun`, `TestRunningProjectRejectsChanges` |
+| CORE-3 | One mutable queue per project, taken by a run when it starts and editable in every project state | partial | `TestFilteredRerunCarriesCompletedResults`, `TestQueueEditsBesideAnActiveRun`, `TestRunningProjectRejectsSecondRunAndDelete` |
 | CORE-4 | A project view is queue-first when idle and run-first when running or interrupted; a job selector looks in the queue first in every state | partial | `TestProjectStates` |
-| CORE-5 | At most one active run and runner per project | conformance | `TestRunningProjectRejectsChanges`, `TestUnlockRefusesLiveRun` |
+| CORE-5 | At most one active run and runner per project | conformance | `TestRunningProjectRejectsSecondRunAndDelete`, `TestUnlockRefusesLiveRun` |
 | CORE-6 | Completed runs are immutable; reruns change only their destination run | partial | `TestFilteredRerunCarriesCompletedResults` |
 | CORE-7 | Executors run jobs; run semantics stay in the shared execution path | partial | `TestRunRetrySucceedsWithinOneRun` |
 | RES-1 | Base directory resolution order | conformance | `TestBaseDirResolutionOrder` |
@@ -149,13 +149,14 @@ the IDs, this table, and those calls disagree.
 | DUR-6 | Recovery does not kill or reconcile leftover jobs | partial | `TestRecoveryLeavesJobsRunning` |
 | DUR-7 | A run records its carried results at start, and every view and job control reads carried jobs from them during the run | conformance | `TestCarriedJobsReadAsCarriedDuringTheRun` |
 | SAFE-1 | `check` and `show` report a project as idle, running, or interrupted; a killed coordinator leaves it interrupted | conformance | `TestControlFromAnotherHost`, `TestProjectStates` |
-| SAFE-2 | A running project rejects `run`, `delete`, and `reset`, so no second runner starts | conformance | `TestRunningProjectRejectsChanges` |
+| SAFE-2 | A running project rejects `run` and `delete`, so no second runner starts; reset only edits the next queue | conformance | `TestRunningProjectRejectsSecondRunAndDelete`, `TestResetClearsQueueBesideActiveRun` |
 | SAFE-3 | An interrupted project rejects `run` and `delete`, naming the run and how to inspect, recover, and rerun it | conformance | `TestInterruptedProjectNeedsRecovery` |
 | SAFE-4 | `unlock` recovers an interrupted run, no-ops without one, and refuses one whose coordinator is alive | conformance | `TestCLIFlagPairUnlock`, `TestCLIFlagPairUnlockSamples`, `TestCLIFlagPairUnlockSafety`, `TestControlFromAnotherHost`, `TestInterruptedProjectNeedsRecovery`, `TestUnlockRefusesLiveRun`, `TestUnlockWithoutInterruptedRunIsNoOp` |
-| SAFE-5 | `reset` discards the queue, rejects a running project, and needs confirmation for an interrupted one | conformance | `TestResetOfInterruptedProject`, `TestRunningProjectRejectsChanges` |
-| SAFE-6 | Commands ask for confirmation only on a terminal, otherwise naming the option that confirms | conformance | `TestCopyIntoQueueWithoutTerminal`, `TestResetOfInterruptedProject` |
-| SAFE-7 | Reset of an interrupted run warns while its jobs appear to be running | conformance | `TestInterruptedResetWarnsAboutRunningJobs` |
-| SAFE-8 | Queue edits apply beside a running or interrupted run and keep its phase; `copy` rejects that run | conformance | `TestQueueEditsBesideAnActiveRun` |
+| SAFE-5 | `reset` clears only the next queue, preserves run history, and does not change an active or interrupted run | conformance | `TestResetOfInterruptedProject`, `TestResetClearsQueueBesideActiveRun` |
+| SAFE-6 | Commands ask for confirmation only on a terminal, otherwise naming the option that confirms | conformance | `TestCopyIntoQueueWithoutTerminal` |
+| SAFE-7 | Unlock warns when an interrupted run's jobs appear to still be running; MCP preview reports the same | conformance | `TestUnlockWarnsAboutRunningJobs`, `TestMCPUnlockRecoversAnInterruptedRun` |
+| SAFE-8 | Queue edits, including reset, apply beside a running or interrupted run and keep its phase; `copy` rejects that run | conformance | `TestQueueEditsBesideAnActiveRun`, `TestResetClearsQueueBesideActiveRun`, `TestResetOfInterruptedProject` |
+| SAFE-9 | Removed reset recovery flag and environment variable fail with an unlock hint | conformance | `TestResetRejectsRemovedRecoveryOptions` |
 | COORD-1 | Controlling a local job from another host fails, naming that host | conformance | `TestControlFromAnotherHost` |
 | COORD-2 | Cancelling a run whose coordinator is on another host fails, naming that host | conformance | `TestControlFromAnotherHost` |
 | COORD-3 | A lock from another host keeps the project locked until `unlock` | conformance | `TestControlFromAnotherHost` |
@@ -209,8 +210,9 @@ the IDs, this table, and those calls disagree.
 | MCP-2 | `rotari_export_run` is a redacted view that the MCP import tools refuse | conformance | `TestMCPExportIsARedactedViewThatImportRefuses` |
 | MCP-3 | `rotari_run_summary` and `rotari_wait_run` report the run's state as `wait` decides it, from right after the start, and tool errors name no state directory | conformance | `TestMCPWritesApplyOnlyAtThePreviewedRevision`, `TestMCPWaitReturnsOnTheFirstFinalFailure` |
 | MCP-4 | MCP job control previews the jobs it reaches and acts only on the named running run | conformance | `TestMCPJobControlActsOnlyOnThePreviewedRunningRun` |
-| MCP-5 | MCP reset previews, applies at the revision, and recovers an interrupted run only when confirmed | conformance | `TestMCPResetRecoversOnlyAConfirmedInterruptedRun` |
+| MCP-5 | MCP reset previews and applies at the revision, clearing only the queue and leaving runs untouched | conformance | `TestMCPResetOnlyClearsTheQueue` |
 | MCP-6 | MCP stdin EOF ends the session cleanly, even with responses in flight; malformed input remains an error | conformance | `TestMCPStdinEOF` |
+| MCP-7 | MCP unlock previews the interrupted run, applies at the revision, refuses a live run, and keeps the queue | conformance | `TestMCPUnlockRecoversAnInterruptedRun` |
 | SEL-1 | A run ID or attempt ID alone resolves its location in every command | partial | `TestPositionalArguments`, `TestSelectorTable` |
 | SEL-2 | Each command reads the run or queue its row names | partial | `TestJobSelectorLooksInTheQueueBesideAnActiveRun`, `TestSelectorTable` |
 | SEL-3 | `show` resolves each selector form as its column says | conformance | `TestJobSelectorLooksInTheQueueBesideAnActiveRun`, `TestSelectorTable` |

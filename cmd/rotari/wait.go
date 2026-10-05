@@ -423,7 +423,7 @@ func runEndedWithInvalidSummary(paths state.ProjectPaths, runID string) (string,
 
 // runEndedWithoutSummary reports whether runID is no longer active although it
 // never wrote summaryPath, for example because its supervisor exited early.
-// It leaves a stale run lock in place for show, unlock, and reset --recover.
+// It leaves a stale run lock in place for show and unlock.
 func runEndedWithoutSummary(paths state.ProjectPaths, runID string) (string, bool) {
 	// RunPhaseOf reads the summary again, so a run that finished since the
 	// caller's read is not reported as ended.

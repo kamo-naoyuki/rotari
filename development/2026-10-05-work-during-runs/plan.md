@@ -2,8 +2,8 @@
 
 **Created:** 2026-10-05
 
-**Status:** Proposed; no implementation started. D1 to D5, D7, and D8
-settled on 2026-10-06.
+**Status:** Phase 1 implementation in progress; phases 2–4 have not started.
+D1 to D5, D7, and D8 settled on 2026-10-06.
 
 ## Purpose
 
@@ -88,9 +88,11 @@ reason to create a second project. Phase 4 depends on phase 2.
 
 - `project.EnsureIdle` in
   [internal/project/inspect.go](../../internal/project/inspect.go) rejects
-  running and interrupted projects. Every queue edit reaches it through
-  `project.Edit` / `project.EditQueue` in
-  [internal/project/edit.go](../../internal/project/edit.go), and
+  running and interrupted projects for operations that must not run then.
+  Queue edits instead use `project.EditQueue` in
+  [internal/project/edit.go](../../internal/project/edit.go), which checks
+  consistency but permits an active or interrupted run; `project.Edit` keeps
+  the idle-only gate for `delete`.
   `PreviewRun` in [internal/projectrun/plan.go](../../internal/projectrun/plan.go)
   and the supervisor in [internal/supervisor/run.go](../../internal/supervisor/run.go)
   call it directly.
@@ -99,27 +101,25 @@ reason to create a second project. Phase 4 depends on phase 2.
   `Stopped` callback polls it to detect cancellation.
 - `Runner.Begin` in
   [internal/projectrun/lifecycle.go](../../internal/projectrun/lifecycle.go)
-  writes the context, takes `running.lock`, registers the run, and marks the
-  project running. It does not snapshot the queue.
+  writes the context and `commands.json` snapshot, takes `running.lock`,
+  registers the run, marks the project running, and empties the queue while
+  retaining its defaults.
 - `Runner.Execute` in
   [internal/projectrun/execute.go](../../internal/projectrun/execute.go)
-  reads `queue.json` in the supervisor, possibly well after `Begin` for an
-  async run, and writes `runs/<run-id>/commands.json`.
-- `Runner.Finalize` clears `queue.json` commands (`state.FinalizeRun` in
-  [internal/state/run_files.go](../../internal/state/run_files.go)) on the
-  assumption that the queue is the one the run consumed.
+  reads the run's snapshot rather than `queue.json`; it updates that snapshot
+  with origins and carried-result information before execution.
+- `Runner.Finalize` calls `state.FinalizeRun` in
+  [internal/state/run_files.go](../../internal/state/run_files.go), marks run
+  metadata finished, and leaves the next queue untouched.
 - `RunSource` in [internal/projectrun/source.go](../../internal/projectrun/source.go)
   decides where `retry` gets its jobs: a result selection copies the last run
   only into an empty queue, so a queue restored and edited earlier is kept.
-- The queue of an interrupted run is "retained" only because `Finalize`,
-  which would have cleared it, never ran. `unlock` (`project.RecoverInterrupted`)
-  leaves it in place (SAFE-4). `reset` on an interrupted project discards it
-  and recovers the run in one step, after a confirmation that the run's jobs
-  stopped; `--recover` / `ROTARI_RESET_RECOVER` gives that confirmation
-  without a prompt (SAFE-5, SAFE-6), and the confirmation reports jobs that
-  still look running (SAFE-7). MCP recovers only through
-  `rotari_preview_reset` / `rotari_reset` ([internal/mcp/reset.go](../../internal/mcp/reset.go));
-  the Python client exposes the same option.
+- Queue edits while active or interrupted belong to the next run. `reset`
+  clears only that queue in every project state without changing run metadata;
+  `--recover` and `ROTARI_RESET_RECOVER` fail with a hint to use `unlock`.
+  `project.Unlock` is the shared recovery path, keeps the queue, and reports
+  jobs that may still be running. MCP exposes preview/apply unlock tools and
+  the Python client exposes `unlock`.
 - An interrupted run always has `commands.json`: the consistency check
   (`state.ValidateRunDirectory`) rejects one without it. Every recoverable
   interrupted run can therefore be resumed from the run itself with
@@ -217,8 +217,9 @@ reason to create a second project. Phase 4 depends on phase 2.
 6. **Copy sources.** `copy` and `retry --run-id` from the active run, or from
    an interrupted run before `unlock`, are rejected: their results are not
    final and their jobs may still run.
-7. **Recovery.** `project.RecoverInterrupted` loses its discard-queue mode.
-   Move the still-running-jobs report (SAFE-7) from `reset` to `unlock`.
+7. **Recovery.** `project.Unlock` is the shared recovery operation; it keeps
+  the next queue. The still-running-jobs report (SAFE-7) is on `unlock` and
+  the MCP unlock preview, never on `reset`.
 8. **`reset`.** Remove the interrupted-run branch, the confirmation, and the
    `--recover` option and environment variable; reject them with an error
    naming `unlock`. Update the schema-driven CLI reference.

@@ -346,11 +346,10 @@ func TestMCPJobControlActsOnlyOnThePreviewedRunningRun(t *testing.T) {
 	}
 }
 
-// TestMCPResetRecoversOnlyAConfirmedInterruptedRun interrupts a run, then
-// previews and applies a reset through MCP: the preview names the run and
-// changes nothing, a reset without confirmation or at a stale revision is
-// refused, and the confirmed reset recovers the run and keeps its history.
-func TestMCPResetRecoversOnlyAConfirmedInterruptedRun(t *testing.T) {
+// TestMCPResetOnlyClearsTheQueue interrupts a run, then previews and applies
+// a reset through MCP: it clears the next queue but leaves the interrupted run
+// and its history unchanged, and the removed recovery argument names unlock.
+func TestMCPResetOnlyClearsTheQueue(t *testing.T) {
 	covers(t, "MCP-5")
 	e := support.NewEnv(t)
 	run := e.StartRun("live", 1, false)
@@ -363,36 +362,85 @@ func TestMCPResetRecoversOnlyAConfirmedInterruptedRun(t *testing.T) {
 	target := map[string]any{"basedir_ref": baseDirRef(t, session, "live"), "project": "live"}
 
 	var preview struct {
-		InterruptedRunID string `json:"interrupted_run_id"`
-		Revision         string `json:"revision"`
+		Cleared  int    `json:"cleared"`
+		Revision string `json:"revision"`
 	}
-	if message := session.call("rotari_preview_reset", target, &preview); message != "" || preview.InterruptedRunID != run.RunID || preview.Revision == "" {
+	e.MustRotari("add", "-p", "live", "--", "true")
+	if message := session.call("rotari_preview_reset", target, &preview); message != "" || preview.Cleared != 1 || preview.Revision == "" {
 		t.Fatalf("reset preview: %q %+v", message, preview)
 	}
 	if state := e.CheckState("live"); state != "interrupted" {
 		t.Fatalf("after the preview: state %q", state)
 	}
 
-	apply := map[string]any{"basedir_ref": target["basedir_ref"], "project": "live", "if_revision": preview.Revision}
-	if message := session.call("rotari_reset", apply, nil); !strings.Contains(message, "interrupted run") {
-		t.Fatalf("unconfirmed reset: %q", message)
-	}
-	apply["recover_interrupted"] = true
-	apply["if_revision"] = "0000000000000000"
+	apply := map[string]any{"basedir_ref": target["basedir_ref"], "project": "live", "if_revision": "0000000000000000"}
 	if message := session.call("rotari_reset", apply, nil); !strings.Contains(message, "project changed since the planned revision") {
 		t.Fatalf("reset at a stale revision: %q", message)
 	}
 	if state := e.CheckState("live"); state != "interrupted" {
-		t.Fatalf("after refused resets: state %q", state)
+		t.Fatalf("after stale reset: state %q", state)
 	}
 	apply["if_revision"] = preview.Revision
+	apply["recover_interrupted"] = true
+	if message := session.call("rotari_reset", apply, nil); !strings.Contains(message, "unlock") {
+		t.Fatalf("removed recovery argument: %q", message)
+	}
+	delete(apply, "recover_interrupted")
 	if message := session.call("rotari_reset", apply, nil); message != "" {
 		t.Fatal(message)
 	}
-	if state := e.CheckState("live"); state != "empty" {
+	if state := e.CheckState("live"); state != "interrupted" {
 		t.Fatalf("after the reset: state %q", state)
+	}
+	if r := e.Rotari("check", "live"); !strings.Contains(r.Stdout, "queued=0") {
+		t.Fatalf("after the reset queue was not empty: %s", r)
 	}
 	if _, err := os.Stat(filepath.Join(e.Base, "projects", "live", "runs", run.RunID)); err != nil {
 		t.Errorf("the reset removed run history: %v", err)
+	}
+}
+
+// TestMCPUnlockRecoversAnInterruptedRun interrupts a run, then previews and
+// applies an unlock through MCP: the preview names the run and changes
+// nothing, an unlock at a stale revision is refused, and the unlock recovers
+// the run and keeps the queue.
+func TestMCPUnlockRecoversAnInterruptedRun(t *testing.T) {
+	covers(t, "MCP-7", "SAFE-7")
+	e := support.NewEnv(t)
+	run := e.StartRun("live", 1, false)
+	support.WaitUntil(t, 15*time.Second, func() (bool, string) {
+		return support.JobProcesses(t, e.Root, "") == 1, "the job did not start"
+	})
+	support.KillStrays(t, e.Root)
+	support.WaitForInterrupted(t, e, "live")
+	e.MustRotari("add", "-p", "live", "--", "true")
+	session := startMCP(t, e)
+	target := map[string]any{"basedir_ref": baseDirRef(t, session, "live"), "project": "live"}
+
+	var preview struct {
+		InterruptedRunID string `json:"interrupted_run_id"`
+		JobsMayBeRunning bool   `json:"jobs_may_be_running"`
+		Revision         string `json:"revision"`
+	}
+	if message := session.call("rotari_preview_unlock", target, &preview); message != "" || preview.InterruptedRunID != run.RunID || !preview.JobsMayBeRunning || preview.Revision == "" {
+		t.Fatalf("unlock preview: %q %+v", message, preview)
+	}
+	if state := e.CheckState("live"); state != "interrupted" {
+		t.Fatalf("after the preview: state %q", state)
+	}
+
+	apply := map[string]any{"basedir_ref": target["basedir_ref"], "project": "live", "if_revision": "0000000000000000"}
+	if message := session.call("rotari_unlock", apply, nil); !strings.Contains(message, "project changed since the planned revision") {
+		t.Fatalf("unlock at a stale revision: %q", message)
+	}
+	if state := e.CheckState("live"); state != "interrupted" {
+		t.Fatalf("after the refused unlock: state %q", state)
+	}
+	apply["if_revision"] = preview.Revision
+	if message := session.call("rotari_unlock", apply, nil); message != "" {
+		t.Fatal(message)
+	}
+	if r := e.Rotari("check", "live"); !strings.Contains(r.Stdout, "state=ready") || !strings.Contains(r.Stdout, "queued=1") {
+		t.Fatalf("after the unlock: %s", r)
 	}
 }

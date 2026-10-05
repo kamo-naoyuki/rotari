@@ -356,13 +356,12 @@ as the CLI and hold no rules of their own.
   `TestMCPJobControlActsOnlyOnThePreviewedRunningRun` in
   [`conformance/03-interfaces/mcp_test.go`](../conformance/03-interfaces/mcp_test.go).
 - **MCP-5** `rotari_preview_reset` reports, without changing anything, how
-  many queued jobs a reset removes and the interrupted run it would recover,
-  with what that run's jobs last reported, and the revision. `rotari_reset`
-  applies only at that revision, recovers an interrupted run only with
-  `recover_interrupted`, refuses a running project, and keeps run history,
-  as `rotari reset` does through `project.Reset`. Implemented in
-  [`internal/mcp/reset.go`](../internal/mcp/reset.go); checked by
-  `TestMCPResetRecoversOnlyAConfirmedInterruptedRun` in
+  many queued jobs a reset removes and the revision. `rotari_reset` applies
+  only at that revision, clears only the queue, and leaves active or
+  interrupted runs untouched, as `rotari reset` does through `project.Reset`.
+  An old `recover_interrupted` argument is rejected with an instruction to
+  use unlock. Implemented in [`internal/mcp/reset.go`](../internal/mcp/reset.go);
+  checked by `TestMCPResetOnlyClearsTheQueue` in
   [`conformance/03-interfaces/mcp_test.go`](../conformance/03-interfaces/mcp_test.go).
 - **MCP-6** Closing stdin ends `rotari mcp` cleanly (exit status 0),
   including when responses are still in flight. Malformed input remains a
@@ -371,3 +370,13 @@ as the CLI and hold no rules of their own.
   in [`cmd/rotari/mcp_test.go`](../cmd/rotari/mcp_test.go); checked through the
   binary by `TestMCPStdinEOF` in
   [`conformance/03-interfaces/flag_pair_mcp_test.go`](../conformance/03-interfaces/flag_pair_mcp_test.go).
+- **MCP-7** `rotari_preview_unlock` reports, without changing anything, the
+  interrupted run an unlock would recover, with what that run's jobs last
+  reported and whether some may still be running, and the revision.
+  `rotari_unlock` applies only at that revision, refuses a run whose
+  coordinator is alive on the server's host, and keeps the queue, as
+  `rotari unlock` does through `project.Unlock`. Implemented in
+  [`internal/mcp/unlock.go`](../internal/mcp/unlock.go) and
+  [`internal/project/unlock.go`](../internal/project/unlock.go); checked by
+  `TestMCPUnlockRecoversAnInterruptedRun` in
+  [`conformance/03-interfaces/mcp_test.go`](../conformance/03-interfaces/mcp_test.go).

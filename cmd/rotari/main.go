@@ -3,10 +3,8 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -157,62 +155,6 @@ func formatProjectRunningError(paths state.ProjectPaths, runID string) string {
 	return fmt.Sprintf("%s\n  Run: %s\n\nWait for completion:\n  rotari wait --basedir %s --project-name %s --run-id %s\n\nCancel run:\n  rotari cancel --basedir %s --project-name %s\n",
 		redError(fmt.Sprintf("project '%s' is running; new jobs are not allowed", projectName)),
 		runID, baseDir, projectName, runID, baseDir, projectName)
-}
-
-const cancellationWaitTimeout = 5 * time.Minute
-
-func waitForCancellation(paths state.ProjectPaths, projectName string) bool {
-	fmt.Println(yellow(fmt.Sprintf("project '%s' is cancelling", projectName)))
-	fmt.Println(yellow("Waiting for cancellation to finish..."))
-	deadline := time.Now().Add(cancellationWaitTimeout)
-	for {
-		if finalized, err := finalizeCompletedCancellation(paths); err != nil {
-			printErrorf("failed to finalize cancellation: %v", err)
-			return false
-		} else if finalized {
-			fmt.Println(green("Cancellation complete"))
-			return true
-		}
-		running, err := isRunning(paths.LockFile)
-		if err != nil {
-			printErrorf("failed to check queue: %v", err)
-			return false
-		}
-		if !running {
-			fmt.Println(green("Cancellation complete"))
-			return true
-		}
-		if time.Now().After(deadline) {
-			printError("cancellation is still in progress")
-			return false
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-}
-
-func finalizeCompletedCancellation(paths state.ProjectPaths) (bool, error) {
-	lock, err := state.LoadLock(paths.LockFile)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false, nil
-		}
-		return false, err
-	}
-	runDir, pathErr := state.SafeJoin(paths.RunsDir, lock.RunID)
-	if pathErr != nil {
-		return false, pathErr
-	}
-	summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
-	if err != nil || summary.FinishedAt == "" {
-		return false, nil
-	}
-	if err := finishRun(paths, lock.RunID, summary.ExitCode); err != nil {
-		return false, err
-	}
-	if err := os.Remove(paths.LockFile); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return false, err
-	}
-	return true, nil
 }
 
 func runOneJob(runDir string, job model.JobSpec) model.JobResult {

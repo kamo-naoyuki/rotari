@@ -110,32 +110,6 @@ func writeIdleQueueFixture(t *testing.T) state.ProjectPaths {
 	return paths
 }
 
-func TestRecoverInterruptedKeepsQueueOnlyWithoutDiscarding(t *testing.T) {
-	for _, discard := range []bool{false, true} {
-		paths, err := state.ResolveProjectPaths(t.TempDir(), "default")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := state.WriteJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job", Command: []string{"true"}, MarkedStatus: model.StatusUnfinished}}}); err != nil {
-			t.Fatal(err)
-		}
-		if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
-			t.Fatal(err)
-		}
-		writeTestRunStateFiles(t, paths, "run-1")
-		if err := RecoverInterrupted(paths, "run-1", discard); err != nil {
-			t.Fatalf("RecoverInterrupted(discard=%v): %v", discard, err)
-		}
-		queue := loadQueueForTest(t, paths)
-		if discard && len(queue.Commands) != 0 {
-			t.Fatalf("discarded queue = %#v", queue)
-		}
-		if !discard && (len(queue.Commands) != 1 || queue.Commands[0].MarkedStatus != model.StatusUnfinished) {
-			t.Fatalf("retained queue = %#v", queue)
-		}
-	}
-}
-
 func loadQueueForTest(t *testing.T, paths state.ProjectPaths) model.Queue {
 	t.Helper()
 	queue, err := state.LoadQueue(paths.QueueFile)
@@ -295,43 +269,6 @@ func TestEditGuardedPassesDryRunAndChecksTheRevision(t *testing.T) {
 	}
 	if !reflect.DeepEqual(sawDryRun, []bool{true}) {
 		t.Fatalf("edit saw dry runs %v, want one dry run and no call for the refused edit", sawDryRun)
-	}
-}
-
-func TestRecoverInterruptedGuardedPreviewsAndChecksTheRevision(t *testing.T) {
-	paths, err := state.ResolveProjectPaths(t.TempDir(), "default")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := state.WriteJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "job", Command: []string{"true"}}}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
-		t.Fatal(err)
-	}
-	writeTestRunStateFiles(t, paths, "run-1")
-	before, err := Revision(paths)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var preview Outcome
-	if err := RecoverInterruptedGuarded(paths, "run-1", true, Guard{DryRun: true, Report: func(outcome Outcome) { preview = outcome }}); err != nil {
-		t.Fatal(err)
-	}
-	if preview.Revision != before || preview.Applied {
-		t.Fatalf("dry run outcome = %+v", preview)
-	}
-	if now, _ := Revision(paths); now != before || len(loadQueueForTest(t, paths).Commands) != 1 {
-		t.Fatal("dry run recovered the interrupted run")
-	}
-	if err := RecoverInterruptedGuarded(paths, "run-1", true, Guard{IfRevision: "stale"}); !errors.Is(err, ErrRevisionChanged) {
-		t.Fatalf("stale revision error = %v", err)
-	}
-	if err := RecoverInterruptedGuarded(paths, "run-1", true, Guard{IfRevision: before}); err != nil {
-		t.Fatal(err)
-	}
-	if len(loadQueueForTest(t, paths).Commands) != 0 {
-		t.Fatal("recovery at the previewed revision did not discard the queue")
 	}
 }
 

@@ -4,7 +4,8 @@ set -eu
 export ROTARI_BASEDIR="$PWD/.example-state"
 export ROTARI_PROJECT_NAME=workflow-reconcile-example
 
-rotari reset --recover
+rotari unlock
+rotari reset
 rotari import "$(dirname "$0")/workflow-reconcile.yaml"
 rotari run || true
 rotari export --run-id latest > "$ROTARI_BASEDIR/exported.yaml"

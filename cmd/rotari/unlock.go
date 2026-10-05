@@ -59,77 +59,24 @@ func cmdUnlock(args []string) int {
 		printErrorf("failed to resolve paths: %v", err)
 		return 1
 	}
-	release, err := state.AcquireStateLock(paths.StateLockFile)
-	if err != nil {
-		printErrorf("failed to lock queue: %v", err)
+	result, err := project.Unlock(paths, *runID, project.Guard{})
+	switch {
+	case errors.Is(err, project.ErrRunAlive):
+		lock, _ := state.LoadLock(paths.LockFile)
+		fmt.Fprint(os.Stderr, formatProjectRunningError(paths, lock.RunID))
 		return 1
-	}
-	defer release()
-	lock, err := state.LoadLock(paths.LockFile)
-	removedLock := false
-	lockExists := err == nil
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			printErrorf("failed to read run lock: %v", err)
-			return 1
-		}
-	}
-	meta, err := state.LoadMeta(paths.MetaFile)
-	if err != nil {
-		printErrorf("failed to load metadata: %v", err)
+	case err != nil:
+		printError(err)
 		return 1
-	}
-	if !lockExists && *runID == "" && (meta.Phase == "collecting" || meta.Phase == "finished") {
+	case result.RunID == "":
 		fmt.Printf("project=%s already unlocked\n", queueName)
 		return 0
 	}
-	if *runID == "" {
-		if lockExists {
-			*runID = lock.RunID
-		} else {
-			*runID = meta.LastRunID
-		}
+	if result.JobsMayBeRunning {
+		printWarningf("%s; make sure they have stopped before rerunning them", result.Detail)
 	}
-	if *runID == "" {
-		printError("no matching interrupted run exists")
-		return 1
-	}
-	if lockExists {
-		if lock.RunID != *runID {
-			printErrorf("run lock belongs to %q, not %q", lock.RunID, *runID)
-			return 1
-		}
-		// A coordinator alive on this host is still running the run, and
-		// removing its lock would let a second runner start. A lock from
-		// another host cannot be checked, so it is removed on the operator's
-		// word, as is one whose coordinator is gone.
-		lockState, _, err := state.InspectLock(paths.LockFile, false)
-		if err != nil {
-			printErrorf("failed to inspect run lock: %v", err)
-			return 1
-		}
-		if lockState == state.LockActive {
-			fmt.Fprint(os.Stderr, formatProjectRunningError(paths, *runID))
-			return 1
-		}
-		if err := os.Remove(paths.LockFile); err != nil {
-			printErrorf("failed to remove run lock: %v", err)
-			return 1
-		}
-		removedLock = true
-	}
-	if !removedLock && (meta.Phase != "running" && meta.Phase != "cancelling" || meta.LastRunID != *runID) {
-		printError("no matching interrupted run exists")
-		return 1
-	}
-	meta.Phase = "collecting"
-	meta.UpdatedAt = nowRFC3339()
-	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
-		printErrorf("failed to update metadata: %v", err)
-		return 1
-	}
-	message := fmt.Sprintf("recovered queue project=%s run_id=%s", queueName, *runID)
+	message := fmt.Sprintf("recovered queue project=%s run_id=%s", queueName, result.RunID)
 	fmt.Println(colorKeyValueMessage(message, green))
-	fmt.Println("Rerun its failed and unfinished jobs: " + project.RerunCommand(paths, *runID))
+	fmt.Println("Rerun its failed and unfinished jobs: " + project.RerunCommand(paths, result.RunID))
 	return 0
 }

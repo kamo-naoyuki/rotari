@@ -5,9 +5,10 @@ the checkout with `go build -o rotari ./cmd/rotari` and add the repository root
 to `PATH`. Run the scripts from any directory; they accept no arguments.
 
 All examples use the same `.example-state` directory under the current working
-directory, with a separate project for each example. Each resets its project's
-queue with `--recover` before adding jobs, so re-running it starts with a clean
-queue; previous run history remains. From the repository root, the state
+directory, with a separate project for each example. Each unlocks any
+interrupted run and resets its project's next queue before adding jobs, so
+re-running it starts with a clean queue; previous run history remains. From
+the repository root, the state
 directory is ignored by Git. The scripts leave it in place so you can inspect
 results with `rotari show --basedir PATH --project-name NAME` afterward.
 Remove the directory when finished.

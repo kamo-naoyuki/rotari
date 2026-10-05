@@ -1,18 +1,15 @@
 package project
 
 import (
-	"errors"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-// TestResetByProjectState resets an idle, an interrupted, and a running
-// project, as a dry run and applied, and checks that only a confirmed reset
-// recovers an interrupted run and that a running project is refused.
+// TestResetByProjectState clears queued work without changing an active or
+// interrupted run, both in preview and when applied.
 func TestResetByProjectState(t *testing.T) {
 	host, err := os.Hostname()
 	if err != nil {
@@ -22,14 +19,12 @@ func TestResetByProjectState(t *testing.T) {
 		name    string
 		phase   string
 		lockPID int
-		recover bool
+		state   RunState
 		want    ResetResult
-		wantErr string
 	}{
-		{name: "idle", phase: "finished", want: ResetResult{Cleared: 2}},
-		{name: "interrupted, confirmed", phase: "running", recover: true, want: ResetResult{Cleared: 2, RecoveredRunID: "run-1"}},
-		{name: "interrupted, unconfirmed", phase: "running", wantErr: ErrInterruptedRun.Error()},
-		{name: "running", phase: "running", lockPID: os.Getpid(), recover: true, wantErr: "is running run"},
+		{name: "idle", phase: "finished", state: Idle, want: ResetResult{Cleared: 2}},
+		{name: "interrupted", phase: "running", state: Interrupted, want: ResetResult{Cleared: 2}},
+		{name: "running", phase: "running", lockPID: os.Getpid(), state: Running, want: ResetResult{Cleared: 2}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			paths, err := state.ResolveProjectPaths(t.TempDir(), "default")
@@ -51,33 +46,20 @@ func TestResetByProjectState(t *testing.T) {
 			}
 			before, _ := Revision(paths)
 
-			preview, err := Reset(paths, test.recover, Guard{DryRun: true})
-			if test.wantErr != "" {
-				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
-					t.Fatalf("dry run error = %v, want %q", err, test.wantErr)
-				}
-			} else if err != nil || preview != test.want {
+			preview, err := Reset(paths, Guard{DryRun: true})
+			if err != nil || preview != test.want {
 				t.Fatalf("dry run = %+v, %v; want %+v", preview, err, test.want)
 			}
 			if after, _ := Revision(paths); after != before {
 				t.Fatal("the dry run changed the project")
 			}
 
-			applied, err := Reset(paths, test.recover, Guard{})
-			if test.wantErr != "" {
-				if err == nil || (test.name == "interrupted, unconfirmed" && !errors.Is(err, ErrInterruptedRun)) {
-					t.Fatalf("reset error = %v, want %q", err, test.wantErr)
-				}
-				if len(loadQueueForTest(t, paths).Commands) != 2 {
-					t.Fatal("a refused reset cleared the queue")
-				}
-				return
-			}
+			applied, err := Reset(paths, Guard{})
 			if err != nil || applied != test.want || len(loadQueueForTest(t, paths).Commands) != 0 {
 				t.Fatalf("reset = %+v, %v; queue %+v", applied, err, loadQueueForTest(t, paths))
 			}
-			if state, _ := Inspect(paths, false); state.State != Idle {
-				t.Fatalf("project state after reset = %v", state.State)
+			if inspection, _ := Inspect(paths, false); inspection.State != test.state {
+				t.Fatalf("project state after reset = %v, want %v", inspection.State, test.state)
 			}
 		})
 	}

@@ -199,7 +199,7 @@ Run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend 
 ## `Rotari.reset`
 
 ```python
-Rotari.reset(*, recover: bool = False) -> CommandResult
+Rotari.reset() -> CommandResult
 ```
 
 Discard the current, not-yet-run queue.
@@ -207,7 +207,6 @@ Discard the current, not-yet-run queue.
 | Option | Value | Description |
 | --- | --- | --- |
 | `config` | `str` | config file to use |
-| `recover` | `bool` | confirm an interrupted run has stopped without prompting |
 | `quiet` | `bool` | suppress success output |
 | `dry_run` | `bool` | print what the command would change, and the project revision, without writing |
 | `if_revision` | `str` | apply only if the project is still at this revision, as printed by --dry-run |

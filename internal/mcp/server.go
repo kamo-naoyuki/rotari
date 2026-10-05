@@ -42,7 +42,7 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 			"To change a project, preview first (rotari_preview_import, rotari_preview_run), show the user what will happen, " +
 			"then apply with the preview's revision (rotari_import, rotari_start_run); a write fails if the project changed since. " +
 			"To stop or pause a running run, list its jobs with rotari_preview_job_control, then call rotari_cancel, rotari_suspend, or rotari_resume with its run_id. " +
-			"To clear a queue or recover an interrupted run, use rotari_preview_reset and rotari_reset.",
+			"To clear a queue, use rotari_preview_reset and rotari_reset; to recover an interrupted run, use rotari_preview_unlock and rotari_unlock.",
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_list_projects",
@@ -136,17 +136,31 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_preview_reset",
-		Description: "Preview resetting a project, as rotari reset --dry-run does: how many queued jobs it would remove, and any interrupted run it would recover, with what that run's jobs last reported, and the project revision. Run history is kept. Changes nothing.",
+		Description: "Preview clearing a project's queue for the next run, as rotari reset --dry-run does: how many queued jobs it would remove and the project revision. An active or interrupted run is left untouched. Changes nothing.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
 	}, func(_ context.Context, input ResetInput) (ResetOutput, error) {
-		return writes.reset(input, true, project.Guard{DryRun: true})
+		return writes.reset(input, project.Guard{DryRun: true})
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_reset",
-		Description: "Reset a project, as rotari reset does, only if it is still at the revision rotari_preview_reset returned: remove its queued jobs, keeping run history, and with recover_interrupted recover its interrupted run. A running project is refused.",
+		Description: "Clear a project's queue for the next run, as rotari reset does, and keep run history. An active or interrupted run is left untouched. To recover an interrupted run, use rotari_preview_unlock and rotari_unlock; confirm first that its jobs have stopped.",
 		Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPointer(true)},
 	}, func(_ context.Context, input ApplyResetInput) (ResetOutput, error) {
 		return writes.applyReset(input)
+	})
+	addTool(server, masterDir, &mcpsdk.Tool{
+		Name:        "rotari_preview_unlock",
+		Description: "Preview recovering a project's interrupted run, as rotari unlock does: which run it would recover, what that run's jobs last reported, whether some may still be running, and the project revision. The queue is left as it is. Changes nothing.",
+		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
+	}, func(_ context.Context, input UnlockInput) (UnlockOutput, error) {
+		return writes.unlock(input, project.Guard{DryRun: true})
+	})
+	addTool(server, masterDir, &mcpsdk.Tool{
+		Name:        "rotari_unlock",
+		Description: "Recover a project's interrupted run, as rotari unlock does, only if the project is still at the revision rotari_preview_unlock returned: remove its stale lock and return the project to idle, keeping the queue. A run whose coordinator is alive on the server's host is refused. Confirm first that the run's jobs have stopped. Then rotari_preview_run and rotari_start_run with retry rerun its failed and unfinished jobs while the queue is empty.",
+		Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPointer(true)},
+	}, func(_ context.Context, input ApplyUnlockInput) (UnlockOutput, error) {
+		return writes.applyUnlock(input)
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_preview_job_control",

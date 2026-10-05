@@ -71,7 +71,6 @@ configuration source; it does not change this precedence.
 | `ROTARI_ARRAY_FIRST` | no | no | yes | First array task number. |
 | `ROTARI_ARRAY_LAST` | no | no | yes | Last array task number. |
 | `ROTARI_ARRAY_SIZE` | no | no | yes | Number of tasks in the array. |
-| `ROTARI_RESET_RECOVER` | yes | no | no | --recover default for reset. |
 | `ROTARI_WAIT_TIMEOUT` | yes | no | no | --timeout default for wait. |
 | `ROTARI_WEB_HOST` | yes | no | no | --host default for web. |
 | `ROTARI_WEB_PORT` | yes | no | no | --port default for web. |

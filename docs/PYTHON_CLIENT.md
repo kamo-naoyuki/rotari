@@ -47,7 +47,8 @@ details = job.show(run=run)
 | `add(command, **options)` | Add a command with an optional name, dependencies, array or matrix, and executor settings; return a `Job`. |
 | `run(**options)` / `retry(**options)` | Start a run (or retry selected work) and return a `Run`. Pass `async_=True` to return after starting it. |
 | `check(**options)` | Return a JSON readiness dict even when the project is not runnable. |
-| `reset(recover=False)` | Discard queued work without deleting run history. |
+| `reset()` | Clear queued work for the next run without changing an active or interrupted run. |
+| `unlock(run_id=None)` | Recover an interrupted run, keeping the queue; then `retry(run_id=...)` reruns its failed and unfinished jobs. Confirm first that its jobs have stopped. |
 | `export(as_dict=True, **options)` / `import_(manifest, **options)` | Exchange workflow manifests as dictionaries; without `as_dict=True`, `export()` returns `CommandResult`. |
 | `command(*args)` | Invoke another CLI subcommand and return `CommandResult`. |
 

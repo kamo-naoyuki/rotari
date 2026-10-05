@@ -227,54 +227,9 @@ func writeIdleQueueWith(writeJSON func(string, any) error, paths state.ProjectPa
 	return nil
 }
 
-// RecoverInterrupted returns an interrupted project to collecting, keeping or
-// discarding the queue. It fails unless runID is still the
-// project's interrupted run.
-func RecoverInterrupted(paths state.ProjectPaths, runID string, discardQueue bool) error {
-	return RecoverInterruptedGuarded(paths, runID, discardQueue, Guard{})
-}
-
-// RecoverInterruptedGuarded is RecoverInterrupted under guard.
-func RecoverInterruptedGuarded(paths state.ProjectPaths, runID string, discardQueue bool, guard Guard) error {
-	release, err := state.AcquireStateLock(paths.StateLockFile)
-	if err != nil {
-		return fmt.Errorf("failed to lock queue: %w", err)
-	}
-	defer release()
-	inspection, err := InspectConsistent(paths, !guard.DryRun)
-	if err != nil {
-		return err
-	}
-	if inspection.State != Interrupted || inspection.RunID != runID {
-		return fmt.Errorf("project %q no longer has interrupted run %q", paths.ProjectName, runID)
-	}
-	revision, err := CheckRevision(paths, guard)
-	if err != nil {
-		return err
-	}
-	if guard.DryRun {
-		return report(paths, guard, Outcome{Revision: revision})
-	}
-	if err := recoverInterrupted(paths, discardQueue); err != nil {
-		return err
-	}
-	return report(paths, guard, Outcome{Revision: revision})
-}
-
-// recoverInterrupted writes the recovery; the caller holds the state lock.
-func recoverInterrupted(paths state.ProjectPaths, discardQueue bool) error {
-	// Queue first: a failed metadata write leaves the project interrupted and
-	// recoverable instead of idle with a stale queue.
-	if discardQueue {
-		queue, err := state.LoadQueue(paths.QueueFile)
-		if err != nil {
-			return err
-		}
-		queue.Commands = nil
-		if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
-			return err
-		}
-	}
+// recoverInterrupted returns an interrupted project to collecting while
+// keeping the queue. The caller holds the state lock and has verified the run.
+func recoverInterrupted(paths state.ProjectPaths) error {
 	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		return err

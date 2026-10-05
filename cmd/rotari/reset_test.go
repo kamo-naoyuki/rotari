@@ -50,7 +50,7 @@ func useNonTerminalStdin(t *testing.T) {
 	})
 }
 
-func TestCmdResetNonInteractiveRejectionWarnsWhenJobsMayStillRun(t *testing.T) {
+func TestCmdResetClearsQueueBesideInterruptedRun(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
@@ -78,32 +78,23 @@ func TestCmdResetNonInteractiveRejectionWarnsWhenJobsMayStillRun(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(jobDir, "command.json"), []byte("{}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	useNonTerminalStdin(t)
-
-	code, output := captureResetStderr(t, []string{"--basedir", baseDir, "--project-name", "demo"})
-	if code == 0 {
-		t.Fatal("cmdReset accepted an interrupted run without --recover")
-	}
-	for _, want := range []string{
-		"1 of 1 job(s) appear to still be running",
-		"Do not recover until you have independently confirmed those jobs have actually stopped.",
-		"rotari reset --basedir",
-		"--recover",
-	} {
-		if !strings.Contains(output, want) {
-			t.Fatalf("stderr = %q, want it to contain %q", output, want)
-		}
+	if code := cmdReset([]string{"--basedir", baseDir, "--project-name", "demo"}); code != 0 {
+		t.Fatalf("cmdReset exit code = %d, want 0", code)
 	}
 	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(queue.Commands) != 1 {
-		t.Fatalf("queue commands = %#v, want unchanged", queue.Commands)
+	if len(queue.Commands) != 0 {
+		t.Fatalf("queue commands = %#v, want empty", queue.Commands)
+	}
+	meta, err := loadMeta(paths.MetaFile)
+	if err != nil || meta.Phase != "running" {
+		t.Fatalf("metadata = %#v, error = %v; want interrupted run unchanged", meta, err)
 	}
 }
 
-func TestCmdResetFinishesCompletedCancellationBeforeReset(t *testing.T) {
+func TestCmdResetClearsQueueWithoutChangingActiveRun(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
@@ -127,8 +118,8 @@ func TestCmdResetFinishesCompletedCancellationBeforeReset(t *testing.T) {
 	if code := cmdReset([]string{"--basedir", baseDir, "--project-name", "demo", "--quiet"}); code != 0 {
 		t.Fatalf("cmdReset exit code = %d, want 0", code)
 	}
-	if _, err := os.Stat(paths.LockFile); !os.IsNotExist(err) {
-		t.Fatalf("run lock remains after finished cancellation: %v", err)
+	if _, err := os.Stat(paths.LockFile); err != nil {
+		t.Fatalf("active run lock was removed: %v", err)
 	}
 	queue, err := loadQueue(paths.QueueFile)
 	if err != nil {
@@ -141,8 +132,8 @@ func TestCmdResetFinishesCompletedCancellationBeforeReset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if meta.Phase != "collecting" {
-		t.Fatalf("metadata phase = %q, want collecting", meta.Phase)
+	if meta.Phase != "cancelling" {
+		t.Fatalf("metadata phase = %q, want cancelling", meta.Phase)
 	}
 }
 
@@ -168,37 +159,30 @@ func TestCmdResetRejectsProjectNameWithPathSeparator(t *testing.T) {
 }
 
 func TestCmdResetCreatesEmptyProject(t *testing.T) {
-	for _, recover := range []bool{false, true} {
-		t.Run(map[bool]string{false: "plain", true: "recover"}[recover], func(t *testing.T) {
-			baseDir := t.TempDir()
-			args := []string{"--basedir", baseDir, "--project-name", "demo", "--quiet"}
-			if recover {
-				args = append(args, "--recover")
-			}
-			if code := cmdReset(args); code != 0 {
-				t.Fatalf("cmdReset exit code = %d, want 0", code)
-			}
-			paths, err := state.ResolveProjectPaths(baseDir, "demo")
-			if err != nil {
-				t.Fatal(err)
-			}
-			meta, err := state.LoadMeta(paths.MetaFile)
-			if err != nil || meta.Phase != "collecting" {
-				t.Fatalf("metadata = %#v, error = %v", meta, err)
-			}
-			if _, err := os.Stat(paths.ProjectDir); err != nil {
-				t.Fatalf("project not created: %v", err)
-			}
-			if code := cmdReset(args); code != 0 {
-				t.Fatalf("repeated cmdReset exit code = %d, want 0", code)
-			}
-		})
+	baseDir := t.TempDir()
+	args := []string{"--basedir", baseDir, "--project-name", "demo", "--quiet"}
+	if code := cmdReset(args); code != 0 {
+		t.Fatalf("cmdReset exit code = %d, want 0", code)
+	}
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta, err := state.LoadMeta(paths.MetaFile)
+	if err != nil || meta.Phase != "collecting" {
+		t.Fatalf("metadata = %#v, error = %v", meta, err)
+	}
+	if _, err := os.Stat(paths.ProjectDir); err != nil {
+		t.Fatalf("project not created: %v", err)
+	}
+	if code := cmdReset(args); code != 0 {
+		t.Fatalf("repeated cmdReset exit code = %d, want 0", code)
 	}
 }
 
 func TestCmdResetRejectsReservedNewProject(t *testing.T) {
 	baseDir := t.TempDir()
-	code, output := captureResetStderr(t, []string{"--basedir", baseDir, "--project-name", "latest", "--recover"})
+	code, output := captureResetStderr(t, []string{"--basedir", baseDir, "--project-name", "latest"})
 	if code != 1 || !strings.Contains(output, `project "latest" is reserved`) {
 		t.Fatalf("cmdReset exit code = %d, stderr = %q", code, output)
 	}
@@ -223,51 +207,26 @@ func writeInterruptedResetProject(t *testing.T, baseDir string) state.ProjectPat
 	return paths
 }
 
-func TestCmdResetInteractiveDeclineKeepsInterruptedRun(t *testing.T) {
-	baseDir := t.TempDir()
-	paths := writeInterruptedResetProject(t, baseDir)
-	usePromptStdin(t, "n\n")
-
-	code, output := captureResetStderr(t, []string{"--basedir", baseDir, "--project-name", "demo"})
-	if code != 1 || !strings.Contains(output, "reset cancelled") {
-		t.Fatalf("cmdReset exit code = %d, stderr = %q, want reset cancelled", code, output)
-	}
-	queue, err := loadQueue(paths.QueueFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(queue.Commands) != 1 {
-		t.Fatalf("queue commands = %#v, want unchanged", queue.Commands)
-	}
-	meta, err := loadMeta(paths.MetaFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if meta.Phase != "running" {
-		t.Fatalf("metadata phase = %q, want running", meta.Phase)
-	}
-}
-
-func TestCmdResetInteractiveConfirmationRecoversInterruptedRun(t *testing.T) {
-	baseDir := t.TempDir()
-	paths := writeInterruptedResetProject(t, baseDir)
-	usePromptStdin(t, "yes\n")
-
-	if code := cmdReset([]string{"--basedir", baseDir, "--project-name", "demo", "--quiet"}); code != 0 {
-		t.Fatalf("cmdReset exit code = %d, want 0", code)
-	}
-	queue, err := loadQueue(paths.QueueFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(queue.Commands) != 0 {
-		t.Fatalf("queue commands = %#v, want empty", queue.Commands)
-	}
-	meta, err := loadMeta(paths.MetaFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if meta.Phase != "collecting" {
-		t.Fatalf("metadata phase = %q, want collecting", meta.Phase)
+func TestCmdResetRejectsRemovedRecoveryInputs(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		args []string
+		env  string
+	}{
+		{name: "flag", args: []string{"--recover"}},
+		{name: "flag value", args: []string{"--recover=false"}},
+		{name: "environment", env: "ROTARI_RESET_RECOVER"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if test.env != "" {
+				t.Setenv(test.env, "false")
+			}
+			baseDir := t.TempDir()
+			args := append([]string{"--basedir", baseDir, "--project-name", "demo"}, test.args...)
+			code, output := captureResetStderr(t, args)
+			if code != 1 || !strings.Contains(output, "unlock") {
+				t.Fatalf("cmdReset exit code = %d, stderr = %q; want unlock hint", code, output)
+			}
+		})
 	}
 }

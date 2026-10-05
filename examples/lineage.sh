@@ -5,7 +5,8 @@ export ROTARI_BASEDIR="$PWD/.example-state"
 export ROTARI_PROJECT_NAME=lineage-example
 
 # The first generation fails in train while eval succeeds.
-rotari reset --recover
+rotari unlock
+rotari reset
 rotari add --job-name train -- false
 rotari add --job-name eval -- true
 rotari run || true

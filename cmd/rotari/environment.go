@@ -132,7 +132,6 @@ func environmentDefinitions() []webprojection.EnvironmentDefinition {
 		{Name: envArrayFirst, Array: true, Description: "First array task number."},
 		{Name: envArrayLast, Array: true, Description: "Last array task number."},
 		{Name: envArraySize, Array: true, Description: "Number of tasks in the array."},
-		{Name: envResetRecover, CLIDefault: true, Description: "--recover default for reset."},
 		{Name: envWaitTimeout, CLIDefault: true, Description: "--timeout default for wait."},
 		{Name: envWebHost, CLIDefault: true, Description: "--host default for web."},
 		{Name: envWebPort, CLIDefault: true, Description: "--port default for web."},

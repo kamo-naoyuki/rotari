@@ -64,14 +64,23 @@ cancel stops the whole run, and suspend and resume act on every running job.
 Each fails without effect when the run is no longer running, as
 `rotari cancel --run-id` does. `rotari_cancel` is annotated as destructive.
 
-To clear a project's queue, or to recover a run left interrupted when its
-supervisor stopped, preview with `rotari_preview_reset` (`basedir_ref`,
-`project`). It reports how many queued jobs the reset removes and any
-interrupted run it would recover, with what that run's jobs last reported
-and whether some may still be running, and the revision. `rotari_reset`
-takes the same input and `if_revision`, and recovers an interrupted run only
-with `recover_interrupted`; confirm first that its jobs have stopped. A
-running project is refused, and run history is kept, as with `rotari reset`.
+To clear the next run's queue, preview with `rotari_preview_reset`
+(`basedir_ref`, `project`). It reports how many queued jobs the reset removes
+and the revision. `rotari_reset` takes the same input and `if_revision`;
+active and interrupted runs are left untouched, and run history is kept, as
+with `rotari reset`. The removed `recover_interrupted` argument is rejected
+with a hint to use the unlock tools.
+
+To recover a run left interrupted without touching the queue, preview with
+`rotari_preview_unlock` (`basedir_ref`, `project`, optional `run_id`). It
+reports the interrupted run it would recover, what that run's jobs last
+reported and whether some may still be running, and the revision.
+`rotari_unlock` takes the same input and `if_revision`, removes the run's
+stale lock, and returns the project to idle with its queue kept, as
+`rotari unlock` does; a run whose supervisor is alive on the server's host is
+refused. Confirm first that the run's jobs have stopped. While the queue is
+empty, `rotari_preview_run` and `rotari_start_run` with `retry` then rerun
+the run's failed and unfinished jobs.
 
 A started run uses `rotari run`'s defaults, and its jobs run in the working
 directory and with the environment of the `rotari mcp` process, which is
@@ -87,8 +96,8 @@ element of its path; they contain no absolute paths, and errors write
 `BASEDIR` for a registered state directory's path. Reports and evidence
 lines redact paths and hostnames where detected; redaction is not guaranteed
 to catch every secret. Queue edits other than import and reset, deleting
-history, and `gc` are not exposed, and the server does not remove stale
-locks or migrate registries.
+history, and `gc` are not exposed. The server removes a stale lock only
+through `rotari_unlock` and does not migrate registries.
 
 ## Start the server
 

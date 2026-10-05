@@ -5,7 +5,8 @@ export ROTARI_BASEDIR="$PWD/.example-state"
 export ROTARI_PROJECT_NAME=retry-example
 
 # This job fails once, then succeeds on the next run.
-rotari reset --recover
+rotari unlock
+rotari reset
 rm -f "$ROTARI_BASEDIR/first-attempt"
 rotari add --job-name flaky -- sh -c '
     test -f "$ROTARI_BASEDIR/first-attempt" || {

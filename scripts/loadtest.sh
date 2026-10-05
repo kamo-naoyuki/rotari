@@ -84,8 +84,9 @@ done
 export ROTARI_BASEDIR=${ROTARI_BASEDIR:-"${repo_dir}/.rotari-state"}
 export ROTARI_PROJECT_NAME=${ROTARI_PROJECT_NAME:-${project_name}}
 
-# Discard any queue left over from a previous, possibly interrupted run.
-rotari reset --recover
+# Recover an interrupted run, then clear any queue left for the next run.
+rotari unlock
+rotari reset
 
 job_names=()
 local_count=0

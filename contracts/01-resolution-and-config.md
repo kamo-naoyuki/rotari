@@ -51,8 +51,8 @@ The per-command view of these rules, with job selectors, is in
   `project "x" does not exist`, except `check` reports an empty, non-runnable queue without
   creating a project (exit status 1), and `unlock` without `--run-id` succeeds
   without creating a project. `add`, `import`, and `reset` create projects;
-  `reset` on a missing project succeeds with an empty queue, with or without
-  `--recover`. `wait` selecting an uncreated project by name also succeeds
+  `reset` on a missing project succeeds with an empty queue. `wait` selecting
+  an uncreated project by name also succeeds
   without creating it. Explicit `--run-id` selection still requires its run.
 - **RES-4** `check` and `reset` accept one optional positional project name as an
   alternative to `--project-name`; supplying both is a usage error.

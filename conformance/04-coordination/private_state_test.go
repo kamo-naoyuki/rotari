@@ -246,8 +246,8 @@ func TestCopyIntoQueueWithoutTerminal(t *testing.T) {
 	}
 }
 
-func TestRunningProjectRejectsChanges(t *testing.T) {
-	covers(t, "CORE-3", "SAFE-2", "SAFE-5", "CORE-5")
+func TestRunningProjectRejectsSecondRunAndDelete(t *testing.T) {
+	covers(t, "CORE-3", "SAFE-2", "CORE-5")
 	e := support.NewEnv(t)
 	e.FinishedJobRun("live")
 	run := e.StartRun("live", 1, false)
@@ -255,9 +255,10 @@ func TestRunningProjectRejectsChanges(t *testing.T) {
 	if r := e.Rotari("check", "live"); !strings.Contains(r.Stdout, "queued=0") {
 		t.Errorf("queue of a running project is not empty: %s", r)
 	}
-	commands := support.GuardedCommands("live")
-	commands["reset"] = []string{"reset", "live", "--recover"}
-	for name, args := range commands {
+	for name, args := range map[string][]string{
+		"run":    {"run", "-p", "live", "--async"},
+		"delete": {"delete", "-p", "live", "--all"},
+	} {
 		if r := e.Rotari(args...); r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "is running") {
 			t.Errorf("%s of a running project was not rejected: %s", name, r)
 		}
@@ -356,8 +357,22 @@ func TestQueueEditsBesideAnActiveRun(t *testing.T) {
 	}
 }
 
+func TestResetClearsQueueBesideActiveRun(t *testing.T) {
+	covers(t, "SAFE-2", "SAFE-5", "SAFE-8")
+	e := support.NewEnv(t)
+	e.StartRun("live", 1, true)
+	support.WaitUntil(t, 15*time.Second, func() (bool, string) {
+		return support.JobProcesses(t, e.Root, "") == 1, "the job did not start"
+	})
+	e.MustRotari("add", "-p", "live", "--", "true")
+	e.MustRotari("reset", "live")
+	if r := e.Rotari("check", "live"); !strings.Contains(r.Stdout, "state=running") || !strings.Contains(r.Stdout, "queued=0") {
+		t.Fatalf("reset changed the active run or kept queued work: %s", r)
+	}
+}
+
 func TestResetOfInterruptedProject(t *testing.T) {
-	covers(t, "SAFE-5", "SAFE-6")
+	covers(t, "SAFE-5", "SAFE-8")
 	e := support.NewEnv(t)
 	run := e.StartRun("live", 1, false)
 	support.WaitUntil(t, 15*time.Second, func() (bool, string) {
@@ -365,13 +380,13 @@ func TestResetOfInterruptedProject(t *testing.T) {
 	})
 	support.KillStrays(t, e.Root)
 	support.WaitForInterrupted(t, e, "live")
-	r := e.Rotari("reset", "live")
-	if r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "--recover") {
-		t.Errorf("reset did not require --recover: %s", r)
+	e.MustRotari("add", "-p", "live", "--", "true")
+	e.MustRotari("reset", "live")
+	if state := e.CheckState("live"); state != "interrupted" {
+		t.Errorf("after reset: state %q, want interrupted", state)
 	}
-	e.MustRotari("reset", "live", "--recover")
-	if state := e.CheckState("live"); state != "empty" {
-		t.Errorf("after reset: state %q", state)
+	if r := e.Rotari("check", "live"); !strings.Contains(r.Stdout, "queued=0") {
+		t.Errorf("reset left queued work: %s", r)
 	}
 	if _, err := os.Stat(filepath.Join(e.Base, "projects", "live", "runs", run.RunID)); err != nil {
 		t.Errorf("reset removed run history: %v", err)
@@ -639,10 +654,9 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
-// TestInterruptedResetWarnsAboutRunningJobs stops only the supervisor of a
-// run, so its job keeps running, and checks that reset of the interrupted
-// project says so and tells the operator not to recover yet.
-func TestInterruptedResetWarnsAboutRunningJobs(t *testing.T) {
+// TestUnlockWarnsAboutRunningJobs stops only the supervisor of a run, so its
+// job keeps running, and checks that unlock warns the operator before recovery.
+func TestUnlockWarnsAboutRunningJobs(t *testing.T) {
 	covers(t, "SAFE-7")
 	e := support.NewEnv(t)
 	e.StartRun("live", 1, true)
@@ -652,7 +666,25 @@ func TestInterruptedResetWarnsAboutRunningJobs(t *testing.T) {
 	t.Cleanup(func() { support.KillStrays(t, e.Root) })
 	support.KillSupervisors(t, e.Root)
 	support.WaitForInterrupted(t, e, "live")
-	if r := e.Rotari("reset", "live"); r.Code == 0 || !strings.Contains(r.Stderr, "1 of 1 job(s) appear to still be running") || !strings.Contains(r.Stderr, "Do not recover") {
-		t.Fatalf("reset with a running job: %s", r)
+	e.MustRotari("add", "-p", "live", "--", "true")
+	e.MustRotari("reset", "live")
+	if state := e.CheckState("live"); state != "interrupted" {
+		t.Fatalf("reset changed interrupted state to %q", state)
+	}
+	if r := e.Rotari("unlock", "live"); r.Code != 0 || !strings.Contains(r.Stderr, "1 of 1 job(s) appear to still be running") || !strings.Contains(r.Stderr, "make sure they have stopped") {
+		t.Fatalf("unlock with a running job: %s", r)
+	}
+}
+
+func TestResetRejectsRemovedRecoveryOptions(t *testing.T) {
+	covers(t, "SAFE-9")
+	e := support.NewEnv(t)
+	for _, r := range []support.Result{
+		e.Rotari("reset", "--recover"),
+		e.WithVar("ROTARI_RESET_RECOVER", "true").Rotari("reset"),
+	} {
+		if r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "unlock") {
+			t.Errorf("removed reset recovery option did not name unlock: %s", r)
+		}
 	}
 }

@@ -106,7 +106,7 @@ def test_import_accepts_a_manifest_dict_without_writing_a_file():
 
 def test_reset_builds_location_aware_argv():
     with patch("subprocess.run", return_value=completed()) as run:
-        Rotari("rotari", basedir="state", project="demo").reset(recover=True)
+        Rotari("rotari", basedir="state", project="demo").reset()
 
     assert run.call_args.args[0] == [
         "rotari",
@@ -115,7 +115,22 @@ def test_reset_builds_location_aware_argv():
         "state",
         "--project-name",
         "demo",
-        "--recover",
+    ]
+
+
+def test_unlock_builds_location_aware_argv():
+    with patch("subprocess.run", return_value=completed()) as run:
+        Rotari("rotari", basedir="state", project="demo").unlock(run_id="run-1")
+
+    assert run.call_args.args[0] == [
+        "rotari",
+        "unlock",
+        "--basedir",
+        "state",
+        "--project-name",
+        "demo",
+        "--run-id",
+        "run-1",
     ]
 
 

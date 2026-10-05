@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+
 CLI_SCHEMA: dict[str, Any] = {
     "commands": [
         {
@@ -101,12 +102,6 @@ CLI_SCHEMA: dict[str, Any] = {
                     "name": "project-name",
                     "short": "p",
                     "value_name": "NAME",
-                },
-                {
-                    "description": "confirm an interrupted run has stopped "
-                    "without prompting",
-                    "environment": "ROTARI_RESET_RECOVER",
-                    "name": "recover",
                 },
                 {
                     "description": "suppress success output",
@@ -3033,13 +3028,6 @@ CLI_SCHEMA: dict[str, Any] = {
             "description": "Number of tasks in the array.",
             "job": False,
             "name": "ROTARI_ARRAY_SIZE",
-        },
-        {
-            "array": False,
-            "cli_default": True,
-            "description": "--recover default for reset.",
-            "job": False,
-            "name": "ROTARI_RESET_RECOVER",
         },
         {
             "array": False,

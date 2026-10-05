@@ -12,7 +12,8 @@ mkdir -p "$work"
 # A dependent job starts only after prepare succeeds. Each run records the
 # files its jobs name as artifact candidates: prepare's redirections, and
 # train's --config file, the out_dir inside it, and its metrics file.
-rotari reset --recover
+rotari unlock
+rotari reset
 rotari add --job-name prepare --working-directory "$work" -- sh -c '
 	mkdir -p data
 	printf "x,y\n1,2\n3,4\n" > data/train.csv
