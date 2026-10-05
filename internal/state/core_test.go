@@ -66,11 +66,11 @@ func TestContextAndFinalizeRun(t *testing.T) {
 	if err != nil || loaded.CWD != input.CWD || loaded.Hostname != input.Hostname {
 		t.Fatalf("LoadContext() = %#v, %v", loaded, err)
 	}
-	queue, meta, err := FinalizeRun(model.Queue{Commands: []model.QueuedCommand{{ID: "job"}}}, model.Meta{}, "run-1", 3, time.Date(2026, 9, 24, 1, 2, 3, 0, time.FixedZone("JST", 9*60*60)))
-	if err != nil || len(queue.Commands) != 0 || meta.Phase != "finished" || meta.LastRunID != "run-1" || meta.LastRunExitCode != 3 || meta.UpdatedAt != "2026-09-23T16:02:03Z" {
-		t.Fatalf("FinalizeRun() = %#v, %#v, %v", queue, meta, err)
+	meta, err := FinalizeRun(model.Meta{}, "run-1", 3, time.Date(2026, 9, 24, 1, 2, 3, 0, time.FixedZone("JST", 9*60*60)))
+	if err != nil || meta.Phase != "finished" || meta.LastRunID != "run-1" || meta.LastRunExitCode != 3 || meta.UpdatedAt != "2026-09-23T16:02:03Z" {
+		t.Fatalf("FinalizeRun() = %#v, %v", meta, err)
 	}
-	if _, _, err := FinalizeRun(model.Queue{}, model.Meta{}, "", 0, time.Time{}); err == nil {
+	if _, err := FinalizeRun(model.Meta{}, "", 0, time.Time{}); err == nil {
 		t.Fatal("FinalizeRun() accepted empty run ID")
 	}
 }

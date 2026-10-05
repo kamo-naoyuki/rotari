@@ -356,8 +356,9 @@ Supervisor side:
    state lock, check the project is idle, and validate the queue. Then
    `projectrun.Runner.Begin`
    ([internal/projectrun/lifecycle.go](../internal/projectrun/lifecycle.go))
-   writes `context.json`, takes the run lock (`running.lock`), registers the
-   run, and marks `meta.json` as running.
+   writes `context.json` and the queue as `runs/<run-id>/commands.json`, takes
+   the run lock (`running.lock`), registers the run, marks `meta.json` as
+   running, and empties the queue, keeping its defaults.
 3. `Runner.Run` then executes the run in the supervisor: a synchronous run
    streams progress to its client, and an async run answers at once and
    continues in a goroutine. The supervisor stops once the run ends.
@@ -365,11 +366,12 @@ Supervisor side:
 Execution, in `Runner.Execute`
 ([internal/projectrun/execute.go](../internal/projectrun/execute.go)):
 
-1. Load the queue, convert it to `model.JobSpec`s, and validate IDs and
-   dependencies.
+1. Load the run's `commands.json`, the queue `Begin` took, convert it to
+   `model.JobSpec`s, and validate IDs and dependencies.
 2. `Runner.PlanSelection` → `run.PlanRerun`: decide which jobs execute and
    which results are carried from an earlier run.
-3. Write `runs/<run-id>/commands.json`.
+3. Rewrite `runs/<run-id>/commands.json` with fingerprint matches and carried
+   origins.
 4. `run.NewDispatcher` builds one lane per executor with its own concurrency.
    `run.ExecuteJobs` ([internal/run/engine.go](../internal/run/engine.go)) is
    the loop: start jobs whose dependencies are satisfied, collect results,
@@ -388,7 +390,7 @@ Execution, in `Runner.Execute`
 Finish, in `Runner.Finish`:
 
 1. Record the final load in `context.json`.
-2. `Finalize` clears the consumed queue and finalizes `meta.json`
+2. `Finalize` finalizes `meta.json`
    (`state.FinalizeRun`) after checking that the run lock is still this run's,
    then reports the finished run to the notification hook, which flushes any
    pending job events with it.

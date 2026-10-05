@@ -126,10 +126,10 @@ Without a project selector, `show` lists projects. Use `--project-name/-p` for a
 ### Why does `show` prefer a run over the queue when a project is running or interrupted?
 
 Because the queue is only the active work target while the project is `idle`.
-When a run starts, rotari snapshots the queue so the run has an immutable
-record of what it was supposed to execute. During `running` and `interrupted`
-states, the current subject is the run itself, while the queue remains a
-retained snapshot or recovery context.
+When a run starts, it takes the queue: the jobs move into the run's own
+record of what it was supposed to execute, and the queue is left empty for
+the next run. During `running` and `interrupted` states, the current subject
+is the run itself.
 
 In short: `idle` means queue-first, while `running` and `interrupted` mean
 run-first. This is why `show` often resolves the active run before the queued
@@ -300,7 +300,7 @@ It works when the shared filesystem correctly provides locking and atomic operat
 
 ### A runner or supervisor process died mid-run — what do I do?
 
-Confirm that jobs have stopped, inspect `rotari show --run-id RUN_ID`, then run `rotari unlock PROJECT`. Use `rotari reset --recover` to discard the retained queue. `unlock` refuses a run whose supervisor is still alive on this host, so it cannot start a second runner beside a live one; use `rotari cancel` for that.
+Confirm that jobs have stopped, inspect `rotari show --run-id RUN_ID`, then run `rotari unlock PROJECT`. The run took its jobs from the queue when it started, so rerun its failed and unfinished jobs with `rotari retry --run-id RUN_ID`, which `unlock` prints. `unlock` refuses a run whose supervisor is still alive on this host, so it cannot start a second runner beside a live one; use `rotari cancel` for that.
 Without `--run-id`, `unlock` of a project with no lock or a project not yet created succeeds without changing state.
 
 ### A remote host's lock looks stuck even though the job actually stopped — why won't `unlock` go away automatically?

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -19,16 +20,31 @@ type Start struct {
 	ConfigPath string
 }
 
-// Begin records a new run and marks the project running. The caller must hold
-// the project's state lock and have checked that the project is idle.
+// Begin records a new run, moves the queue into it, and marks the project
+// running. The caller must hold the project's state lock and have checked
+// that the project is idle.
 //
-// The run context is written before the run lock and metadata, so a project
-// that looks running always has its context.json. Begin takes the run lock
-// for the current process; a caller that hands the run to another process
-// rewrites the lock with that process's PID.
+// The run context and the queue's command snapshot are written before the
+// run lock and metadata, so a project that looks running always has its
+// context.json and commands.json. The queue is emptied last, keeping its
+// defaults: a crash before that leaves the jobs queued beside an interrupted
+// run instead of losing them. Begin takes the run lock for the current
+// process; a caller that hands the run to another process rewrites the lock
+// with that process's PID.
 func (runner Runner) Begin(paths state.ProjectPaths, start Start) error {
+	queue, err := state.LoadQueue(paths.QueueFile)
+	if err != nil {
+		return fmt.Errorf("failed to load queue: %w", err)
+	}
 	if err := runner.WriteContext(paths, start.RunID, start.CWD, start.ConfigPath); err != nil {
 		return fmt.Errorf("failed to save run context: %w", err)
+	}
+	runDir, err := state.SafeJoin(paths.RunsDir, start.RunID)
+	if err != nil {
+		return err
+	}
+	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
+		return fmt.Errorf("failed to save run commands: %w", err)
 	}
 	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: start.RunID, RunName: start.RunName, StartedAt: runner.timestamp()}); err != nil {
 		return fmt.Errorf("project %q is already running: %w", paths.ProjectName, err)
@@ -42,17 +58,25 @@ func (runner Runner) Begin(paths state.ProjectPaths, start Start) error {
 			return fmt.Errorf("failed to register run: %w", err)
 		}
 	}
-	meta, err := state.LoadMeta(paths.MetaFile)
+	previous, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		_ = removeLock(paths)
 		return fmt.Errorf("failed to load metadata: %w", err)
 	}
+	meta := previous
 	meta.Phase = "running"
 	meta.LastRunID = start.RunID
 	meta.UpdatedAt = runner.timestamp()
 	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		_ = removeLock(paths)
 		return fmt.Errorf("failed to update metadata: %w", err)
+	}
+	queue.Commands = nil
+	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
+		// The jobs are still queued; undo the start so they are not run twice.
+		_ = state.WriteJSON(paths.MetaFile, previous)
+		_ = removeLock(paths)
+		return fmt.Errorf("failed to take the queue: %w", err)
 	}
 	return nil
 }
@@ -86,9 +110,10 @@ func (runner Runner) Finish(paths state.ProjectPaths, runID string, exitCode int
 	return err
 }
 
-// Finalize clears the consumed queue and marks the project finished with the
-// run's exit code. It verifies, under the state lock, that the run lock still
-// belongs to runID. It does not remove the run lock.
+// Finalize marks the project finished with the run's exit code. It verifies,
+// under the state lock, that the run lock still belongs to runID. It leaves
+// the queue alone, since Begin already took the run's jobs from it and later
+// edits belong to the next run, and it does not remove the run lock.
 func (runner Runner) Finalize(paths state.ProjectPaths, runID string, exitCode int) error {
 	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
@@ -103,22 +128,13 @@ func (runner Runner) Finalize(paths state.ProjectPaths, runID string, exitCode i
 	if lock.RunID != runID {
 		return fmt.Errorf("run lock belongs to %q, not %q", lock.RunID, runID)
 	}
-	queue, err := state.LoadQueue(paths.QueueFile)
-	if err != nil {
-		return fmt.Errorf("failed to load queue: %w", err)
-	}
 	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
 		return fmt.Errorf("failed to load metadata: %w", err)
 	}
-	queue, meta, err = state.FinalizeRun(queue, meta, runID, exitCode, runner.now())
+	meta, err = state.FinalizeRun(meta, runID, exitCode, runner.now())
 	if err != nil {
 		return err
-	}
-	// Queue first: a failed metadata write leaves the project interrupted and
-	// recoverable instead of idle with a stale queue.
-	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
-		return fmt.Errorf("failed to clear queue: %w", err)
 	}
 	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
 		return fmt.Errorf("failed to finalize metadata: %w", err)

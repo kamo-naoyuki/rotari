@@ -168,10 +168,13 @@ A project is in one of three states, derived from `running.lock` and
   second `run` of the project never starts a second runner. Other projects
   are unaffected.
 - **SAFE-3** While a project is interrupted, the same commands except `reset`
-  fail with a message that names the interrupted run and the `show` and
-  `unlock` commands to inspect and recover it.
-- **SAFE-4** `unlock` recovers an interrupted run: it keeps the retained
-  queue and returns the project to idle. A `--run-id` must name that run. It
+  fail with a message that names the interrupted run, the `show` and `unlock`
+  commands to inspect and recover it, and the `retry --run-id` command that
+  reruns its failed and unfinished jobs afterwards.
+- **SAFE-4** `unlock` recovers an interrupted run: it leaves the queue as it
+  is, returns the project to idle, and names the `retry --run-id` command that
+  reruns the run's failed and unfinished jobs, since the run took them from
+  the queue when it started (CORE-3, RUN-12). A `--run-id` must name that run. It
   refuses a run whose coordinator is alive on this host. A lock from another
   host, whose coordinator cannot be checked, is never removed automatically;
   `unlock` removes it once the operator has confirmed that the run stopped.
@@ -203,8 +206,9 @@ Further rules:
   `reset` acts on that project state, rotari verifies that lock and metadata run
   IDs agree, the run ID is a safe path element, and the run directory and
   initial `context.json` exist. An interrupted run must also have its
-  `commands.json` snapshot. Active runs may temporarily lack `commands.json`
-  while the supervisor starts executing them. Stale locks are removed only after these checks
+  `commands.json` snapshot. A run writes `commands.json` before it takes the
+  run lock, so an active run has it as well; the check still tolerates an
+  active run without it, as an earlier rotari could leave one. Stale locks are removed only after these checks
   succeed.
 - The message for an interrupted run lists the jobs whose `status` or
   `status.json` is still non-terminal, with phase and last-update time;

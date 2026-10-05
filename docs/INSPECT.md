@@ -178,13 +178,16 @@ that all jobs have stopped:
 rotari show -p sweep
 ```
 
-To keep the retained queue for the next run, execute the `rotari unlock`
-command printed by `show` (for example, `rotari unlock -r RUN_ID`). To
-discard the queue while preserving the interrupted run's history, use:
+Then execute the `rotari unlock` command printed by `show` (for example,
+`rotari unlock -r RUN_ID`). The run took its jobs from the queue when it
+started, so the queue does not bring them back; rerun the ones that failed or
+did not finish from the run itself, as `unlock` suggests:
 
 ```sh
-rotari reset --recover
+rotari retry -p sweep --run-id RUN_ID
 ```
+
+`rotari reset --recover` also recovers the run, and empties the queue.
 
 Without an explicit run ID, `unlock` is also safe to call when the project
 does not exist or has no lock/interrupted run: it succeeds without changing

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"path/filepath"
+
 	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -14,9 +16,18 @@ var errNoPreviousRun = projectrun.ErrNoPreviousRun
 
 // executeMixedRun executes the project's queue as run runID without the
 // surrounding Begin and Finish steps, resolving the reference run as the
-// supervisor does.
+// supervisor does. It writes the command snapshot Begin would take, and
+// leaves the queue in place.
 func executeMixedRun(paths state.ProjectPaths, runID, runName string, localConcurrency, batchMaxActive, retry int, requestedExecutor string, executorOptions []string, selection string, jobIDs []string, referenceRunID string, partialArray bool, progress func(model.JobResult, int, int, int, int), onStart func(model.JobSpec), settings ...executor.RunSettingsMap) int {
 	referenceRunID, err := projectrun.ReferenceRun(paths, selection, referenceRunID)
+	if err != nil {
+		printError(err)
+		return 1
+	}
+	queue, err := state.LoadQueue(paths.QueueFile)
+	if err == nil {
+		err = state.WriteJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), queue)
+	}
 	if err != nil {
 		printError(err)
 		return 1

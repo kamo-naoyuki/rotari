@@ -47,10 +47,10 @@ type Observer struct {
 	Finished func(job model.JobSpec, result model.JobResult)
 }
 
-// Execute snapshots the queue into the run directory, plans the selected
-// work, runs local and batch jobs through the shared run engine, and writes
-// the run summary. It returns the run's exit code. An error means the run
-// could not be prepared or recorded; its exit code is then 1.
+// Execute reads the command snapshot Begin took from the queue, plans the
+// selected work, runs local and batch jobs through the shared run engine,
+// and writes the run summary. It returns the run's exit code. An error means
+// the run could not be prepared or recorded; its exit code is then 1.
 func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer Observer) (int, error) {
 	if options.EnvMode == "" {
 		options.EnvMode = model.EnvModeAll
@@ -66,9 +66,12 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 	if lock, err := state.LoadLock(paths.LockFile); err == nil && lock.RunID == runID && lock.StartedAt != "" {
 		startedAt = lock.StartedAt
 	}
-	queue, err := state.LoadQueue(paths.QueueFile)
+	runDir := filepath.Join(paths.RunsDir, runID)
+	// Begin moved the queue into the run's snapshot; later queue edits
+	// belong to the next run.
+	queue, err := state.ReadQueueFile(filepath.Join(runDir, "commands.json"))
 	if err != nil {
-		return 1, fmt.Errorf("failed to load queue: %w", err)
+		return 1, fmt.Errorf("failed to load run commands: %w", err)
 	}
 	jobs := model.QueueToJobs(queue.Commands)
 	if len(jobs) == 0 {
@@ -106,7 +109,6 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 		}
 		jobs[index].EnvMode = options.EnvMode
 	}
-	runDir := filepath.Join(paths.RunsDir, runID)
 	// Taken before the run adds its variables to each job's environment.
 	artifacts := newArtifactRecorder(runDir, jobs, []string{runner.Environment.ArrayTaskID, runner.Environment.JobDir}, runner.Store, runner.logf)
 	runner.ResolveJobWorkingDirectories(paths, options, jobs)

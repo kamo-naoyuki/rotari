@@ -212,7 +212,7 @@ func writeIdleQueueWith(writeJSON func(string, any) error, paths state.ProjectPa
 }
 
 // RecoverInterrupted returns an interrupted project to collecting, keeping or
-// discarding the retained queue. It fails unless runID is still the
+// discarding the queue. It fails unless runID is still the
 // project's interrupted run.
 func RecoverInterrupted(paths state.ProjectPaths, runID string, discardQueue bool) error {
 	return RecoverInterruptedGuarded(paths, runID, discardQueue, Guard{})

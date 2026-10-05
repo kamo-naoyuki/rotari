@@ -16,9 +16,9 @@ import (
 )
 
 // LoadRun loads a run's command snapshot and resolves every job through the
-// shared jobstatus fallback chain. A run that holds the project's lock but
-// has not written its snapshot yet, as one does right after an async start,
-// has no jobs yet; for any other run a missing snapshot is an error.
+// shared jobstatus fallback chain. An active run without a snapshot, which
+// only an earlier rotari could leave, has no jobs yet; for any other run a
+// missing snapshot is an error.
 func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runlineage.Run, error) {
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {

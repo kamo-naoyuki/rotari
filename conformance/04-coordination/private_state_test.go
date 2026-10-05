@@ -132,7 +132,7 @@ func TestControlFromAnotherHost(t *testing.T) {
 		t.Errorf("run accepted: %s", r)
 	}
 	e.MustRotari("unlock", "live")
-	if state := e.CheckState("live"); state != "ready" {
+	if state := e.CheckState("live"); state != "empty" {
 		t.Errorf("after unlock state %q", state)
 	}
 }
@@ -251,6 +251,10 @@ func TestRunningProjectRejectsChanges(t *testing.T) {
 	e := support.NewEnv(t)
 	manifest := e.ExportFinishedRun("live")
 	run := e.StartRun("live", 1, false)
+	// The run took the queue when it started (CORE-3).
+	if r := e.Rotari("check", "live"); !strings.Contains(r.Stdout, "queued=0") {
+		t.Errorf("queue of a running project is not empty: %s", r)
+	}
 	commands := support.GuardedCommands("live", manifest, run)
 	commands["reset"] = []string{"reset", "live", "--recover"}
 	for name, args := range commands {
@@ -278,15 +282,19 @@ func TestInterruptedProjectNeedsRecovery(t *testing.T) {
 	for name, args := range support.GuardedCommands("live", manifest, run) {
 		r := e.Rotari(args...)
 		out := r.Stdout + r.Stderr
-		if r.Code == 0 || !strings.Contains(out, "has interrupted run") || !strings.Contains(out, "rotari unlock") || !strings.Contains(out, "rotari show") {
-			t.Errorf("%s did not point to show and unlock: %s", name, r)
+		if r.Code == 0 || !strings.Contains(out, "has interrupted run") || !strings.Contains(out, "rotari unlock") || !strings.Contains(out, "rotari show") || !strings.Contains(out, "rotari retry") {
+			t.Errorf("%s did not point to show, unlock, and retry: %s", name, r)
 		}
 	}
 	if r := e.Rotari("unlock", "live", "--run-id", "20990101-000000-deadbeef"); r.Code == 0 {
 		t.Errorf("unlock accepted wrong run: %s", r)
 	}
-	e.MustRotari("unlock", "live", "--run-id", run.RunID)
-	if state := e.CheckState("live"); state != "ready" {
+	r := e.MustRotari("unlock", "live", "--run-id", run.RunID)
+	if !strings.Contains(r.Stdout, "rotari retry") || !strings.Contains(r.Stdout, run.RunID) {
+		t.Errorf("unlock did not name the retry of the run: %s", r)
+	}
+	// The run took its jobs from the queue when it started (CORE-3).
+	if state := e.CheckState("live"); state != "empty" {
 		t.Errorf("after unlock: state %q", state)
 	}
 	e.MustRotari("add", "-p", "live", "--", "true")

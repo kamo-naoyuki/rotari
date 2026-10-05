@@ -138,12 +138,21 @@ func EnsureIdle(paths state.ProjectPaths, operation string) error {
 		if stillRunning {
 			message += "Do not recover until you have independently confirmed those jobs have actually stopped.\n"
 		}
-		message += fmt.Sprintf("Recover with: rotari unlock --basedir %s --project-name %s --run-id %s",
+		message += fmt.Sprintf("Recover with: rotari unlock --basedir %s --project-name %s --run-id %s\n",
 			executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
+		message += "Then rerun its failed and unfinished jobs: " + RerunCommand(paths, runID)
 		return errors.New(message)
 	default:
 		return nil
 	}
+}
+
+// RerunCommand returns the command that reruns an interrupted run's failed
+// and unfinished jobs once it is recovered. The run took its jobs from the
+// queue when it started, so recovery does not bring them back into the queue.
+func RerunCommand(paths state.ProjectPaths, runID string) string {
+	return fmt.Sprintf("rotari retry --basedir %s --project-name %s --run-id %s",
+		executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
 }
 
 // interruptedRunJobs summarizes what a run's own job directories report

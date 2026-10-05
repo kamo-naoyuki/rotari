@@ -113,6 +113,80 @@ func TestBeginRollsBackWhenRegistrationFails(t *testing.T) {
 	}
 }
 
+func TestBeginMovesTheQueueIntoTheRun(t *testing.T) {
+	runner, paths := testRunner(t)
+	queue := model.Queue{DefaultExecutor: "local", DefaultExecutorOptions: []string{"--x"}, Commands: []model.QueuedCommand{
+		{ID: "job-1", Command: []string{"true"}},
+		{ID: "job-2", Command: []string{"false"}},
+	}}
+	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.Begin(paths, Start{RunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := state.ReadQueueFile(filepath.Join(paths.RunsDir, "run-1", "commands.json"))
+	if err != nil || !reflect.DeepEqual(snapshot.Commands, queue.Commands) || snapshot.DefaultExecutor != "local" {
+		t.Fatalf("snapshot = %+v, err = %v", snapshot, err)
+	}
+	left, err := state.LoadQueue(paths.QueueFile)
+	if err != nil || len(left.Commands) != 0 {
+		t.Fatalf("queue after Begin = %+v, err = %v", left, err)
+	}
+	if left.DefaultExecutor != "local" || !reflect.DeepEqual(left.DefaultExecutorOptions, []string{"--x"}) {
+		t.Fatalf("queue defaults after Begin = %+v", left)
+	}
+}
+
+func TestBeginKeepsTheQueueWhenItFails(t *testing.T) {
+	runner, paths := testRunner(t)
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "job-1", Command: []string{"true"}}}}
+	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+	runner.RegisterRun = func(state.ProjectPaths, string) error { return errors.New("registry full") }
+	if err := runner.Begin(paths, Start{RunID: "run-1"}); err == nil {
+		t.Fatal("Begin succeeded")
+	}
+	left, err := state.LoadQueue(paths.QueueFile)
+	if err != nil || !reflect.DeepEqual(left.Commands, queue.Commands) {
+		t.Fatalf("queue after failed Begin = %+v, err = %v", left, err)
+	}
+}
+
+// TestRunExecutesOnlyTheJobsItTook checks that jobs queued after a run starts
+// are left for the next run: Execute reads the run's snapshot, and Finish no
+// longer clears the queue.
+func TestRunExecutesOnlyTheJobsItTook(t *testing.T) {
+	runner, paths := testRunner(t)
+	runner.Executors = executor.NewRegistry(runner.Store, func(string, ...any) {})
+	taken := model.Queue{Commands: []model.QueuedCommand{{ID: "taken", Command: []string{"true"}}}}
+	if err := state.WriteJSON(paths.QueueFile, taken); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.Begin(paths, Start{RunID: "run-1", CWD: t.TempDir()}); err != nil {
+		t.Fatal(err)
+	}
+	next := model.Queue{Commands: []model.QueuedCommand{{ID: "next", Command: []string{"true"}}}}
+	if err := state.WriteJSON(paths.QueueFile, next); err != nil {
+		t.Fatal(err)
+	}
+	if code, err := runner.Run(paths, Options{RunID: "run-1", LocalConcurrency: 1, EnvMode: model.EnvModeNone}, Observer{}); err != nil || code != 0 {
+		t.Fatalf("Run = %d, %v", code, err)
+	}
+	runDir := filepath.Join(paths.RunsDir, "run-1")
+	if attempts := state.ListAttemptIDs(runDir, "taken"); len(attempts) != 1 {
+		t.Fatalf("taken attempts = %v", attempts)
+	}
+	if attempts := state.ListAttemptIDs(runDir, "next"); len(attempts) != 0 {
+		t.Fatalf("job queued after the start ran: %v", attempts)
+	}
+	left, err := state.LoadQueue(paths.QueueFile)
+	if err != nil || !reflect.DeepEqual(left.Commands, next.Commands) {
+		t.Fatalf("queue after Finish = %+v, err = %v", left, err)
+	}
+}
+
 func TestBeginRejectsActiveRun(t *testing.T) {
 	runner, paths := testRunner(t)
 	if err := runner.Begin(paths, Start{RunID: "run-1"}); err != nil {

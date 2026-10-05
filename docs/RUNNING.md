@@ -193,7 +193,7 @@ During a synchronous `rotari run`, the terminal keys behave as follows:
 
 | Key | Effect |
 | --- | --- |
-| Ctrl-C | Requests cancellation and returns immediately with exit code 130. The supervisor cancels the remaining jobs and then finishes its normal cleanup (run summary, queue clearing, and run-lock removal) in the background, so `run`, `add`, or `copy` on the same project may be rejected briefly. No `unlock` or `server shutdown` is needed. |
+| Ctrl-C | Requests cancellation and returns immediately with exit code 130. The supervisor cancels the remaining jobs and then finishes its normal cleanup (run summary, project metadata, and run-lock removal) in the background, so `run`, `add`, or `copy` on the same project may be rejected briefly. No `unlock` or `server shutdown` is needed. |
 | Ctrl-D | Detaches the client without cancelling. The run continues as if it had been started with `--async`; follow it with `rotari wait -r RUN_ID` or `rotari show -r RUN_ID`. |
 | Ctrl-Z | Only suspends the client through shell job control. The run continues, and `fg` resumes the progress view. Closing the terminal while the client is stopped disconnects it and requests cancellation, so use Ctrl-D or `--async` to leave the progress view. |
 
@@ -203,9 +203,11 @@ The supervisor is not restarted automatically if the process crashes or is
 killed. The run lock records its PID and host, and local jobs report their own
 status through wrappers, so `rotari show -r RUN_ID` still sees results written
 after the supervisor disappeared. `show` then reports the interrupted run.
-After confirming jobs have stopped, use `unlock` to keep the queue or
-`reset --recover` to discard it. Both refuse a run whose supervisor is still
-alive on this host; stop that one with `cancel`.
+After confirming jobs have stopped, use `unlock` to recover the run, then
+`retry --run-id RUN_ID` to rerun its failed and unfinished jobs: the run took
+its jobs from the queue when it started, so they are not queued again.
+`reset --recover` also recovers the run and empties the queue. Both refuse a
+run whose supervisor is still alive on this host; stop that one with `cancel`.
 
 ## Automatic retries
 

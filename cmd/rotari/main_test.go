@@ -2179,7 +2179,10 @@ func TestFollowJobLogReadsAppendedOutputUntilFinished(t *testing.T) {
 	}
 }
 
-func TestFinishRunClearsQueueAndKeepsRunHistory(t *testing.T) {
+// TestFinishRunKeepsQueueAndRunHistory checks that finishing a run leaves the
+// queue alone: the run took its jobs when it started, so what is queued now
+// belongs to the next run.
+func TestFinishRunKeepsQueueAndRunHistory(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
@@ -2210,8 +2213,8 @@ func TestFinishRunClearsQueueAndKeepsRunHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(gotQueue.Commands) != 0 {
-		t.Fatalf("queue commands = %d, want 0", len(gotQueue.Commands))
+	if len(gotQueue.Commands) != 1 {
+		t.Fatalf("queue commands = %d, want the queued job kept", len(gotQueue.Commands))
 	}
 	if gotQueue.DefaultExecutor != "slurm" {
 		t.Fatalf("queue default executor = %q, want slurm", gotQueue.DefaultExecutor)
@@ -2459,8 +2462,8 @@ func TestFinalizeCompletedCancellationRemovesStaleServerLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(queue.Commands) != 0 {
-		t.Fatalf("queue commands = %d, want 0", len(queue.Commands))
+	if len(queue.Commands) != 1 {
+		t.Fatalf("queue commands = %d, want the queued job kept", len(queue.Commands))
 	}
 }
 

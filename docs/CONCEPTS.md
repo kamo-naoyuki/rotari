@@ -5,19 +5,21 @@ Projects, queues, runs, IDs, dependencies, and how rotari resolves the state dir
 ## Projects, queues, runs, and state
 ### Project and queue
 A project has one mutable queue of jobs ready to run and an immutable history
-of completed runs. The live queue is `queue.json`; each run snapshots it under
-`runs/<run-id>/`, so retries and filtered reruns leave earlier history unchanged.
+of completed runs. The live queue is `queue.json`. A run takes the queue when
+it starts: its jobs move into `runs/<run-id>/commands.json`, and the queue is
+left empty, keeping its default executor settings. Retries and filtered reruns
+start new runs, so earlier history stays unchanged.
 
-The queue has different roles depending on the project state:
+The queue therefore always holds the next run's jobs, never the jobs of a run
+that has started:
 
 - While the project is `idle`, the queue is the current work target and the
   default place to add or edit jobs.
-- While a project is `running`, the queue is treated as a preserved execution
-  snapshot for that run. It still exists on disk, but it is not the primary
-  user-facing work target.
-- While a project is `interrupted`, the run remains the primary recovery target
-  and the queue is the retained snapshot/backup that explains what was running
-  when the interruption happened.
+- While a project is `running`, the run is the primary user-facing target. The
+  queue does not change.
+- While a project is `interrupted`, the run remains the primary recovery
+  target. After `unlock`, its failed and unfinished jobs are rerun from the run
+  with `rotari retry --run-id RUN_ID`.
 
 ```text
 <basedir>/projects/<project>/
@@ -46,8 +48,8 @@ success.
 ### Run and state
 
 Each run records its own command snapshot, success/failure status, logs, and
-metadata. When a run finishes, the runner updates the project state and leaves
-the completed run immutable, which makes retry loops and inspection easy to
+metadata. The run empties the queue when it starts, and when it finishes, the
+runner updates the project state and leaves the completed run immutable, which makes retry loops and inspection easy to
 reason about without losing the earlier outcome.
 
 ```mermaid

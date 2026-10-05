@@ -107,18 +107,18 @@ the user-facing documentation, and the affected tests together.
   not persistent authority for project or run state. See [`cmd/rotari/server.go`](../cmd/rotari/server.go)
   and [`cmd/rotari/server_test.go`](../cmd/rotari/server_test.go).
 - **CORE-3** Each project owns one mutable current queue as the staging area for the next
-  run. Queue edits change that queue only while the project is idle. A run that
-  starts snapshots the queue; the queue remains on disk as a preserved snapshot
-  while the run is active, and it stays as the retained recovery snapshot after
-  an interruption. Normal completion clears the consumed queue, at which point a
-  new batch can be prepared again. See [`internal/projectrun/lifecycle.go`](../internal/projectrun/lifecycle.go),
+  run. Queue edits change that queue only while the project is idle. A run
+  takes the queue when it starts: the queue's jobs move into the run's
+  `commands.json` and the queue is left empty, keeping its defaults. The queue
+  therefore never holds the active or interrupted run's jobs, and finishing a
+  run does not clear it. An interrupted run's jobs are rerun from the run
+  itself (RUN-12). See [`internal/projectrun/lifecycle.go`](../internal/projectrun/lifecycle.go),
   [`internal/project/edit.go`](../internal/project/edit.go),
   [`cmd/rotari/reset.go`](../cmd/rotari/reset.go), and
   [`internal/project/edit_test.go`](../internal/project/edit_test.go).
 - **CORE-4** The primary user-facing target depends on project state: `idle` projects show
   the queue as the active work target, while a `running` or `interrupted` project
-  treats the associated run as the primary subject and the queue as the retained
-  snapshot or recovery context. In other words, the contract is: `idle` =
+  treats the associated run as the primary subject. In other words, the contract is: `idle` =
   queue-first, `running`/`interrupted` = run-first. This keeps run state and
   queue semantics consistent across CLI, Web, and recovery flows.
 - **CORE-5** A project has at most one active run and runner at a time. That runner may

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -129,5 +130,6 @@ func cmdUnlock(args []string) int {
 	}
 	message := fmt.Sprintf("recovered queue project=%s run_id=%s", queueName, *runID)
 	fmt.Println(colorKeyValueMessage(message, green))
+	fmt.Println("Rerun its failed and unfinished jobs: " + project.RerunCommand(paths, *runID))
 	return 0
 }

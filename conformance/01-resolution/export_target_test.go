@@ -59,7 +59,8 @@ func TestUnlockDerivesInterruptedRun(t *testing.T) {
 				}
 			}
 			e.MustRotari("unlock", "unlock")
-			if state := e.CheckState("unlock"); state != "ready" {
+			// The run took the queue when it started, so recovery leaves it empty.
+			if state := e.CheckState("unlock"); state != "empty" {
 				t.Fatalf("after unlock: state %q", state)
 			}
 		})
