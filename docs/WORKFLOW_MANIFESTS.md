@@ -51,7 +51,8 @@ jobs:
     executor: slurm
     executor_options:
       --partition: gpu
-    env: ["EPOCHS=20"]
+    env: 
+      EPOCHS: "20"
     array: [1, 2, 3]
     matrix:
       SEED: [1, 2]

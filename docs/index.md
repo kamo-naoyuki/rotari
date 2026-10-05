@@ -22,11 +22,9 @@ the [Getting started](GETTING_STARTED.md) guide.
 ## Reference
 
 - [CLI reference](CLI_REFERENCE.md): commands and common options.
-- [Environment variables](ENVIRONMENT_VARIABLES.md): variable meanings and scope.
 - [Python client](PYTHON_CLIENT.md): installation and a short usage guide.
 - [Python API](python-api.md)
 - [Go API](go-api.md)
-- [MCP server](MCP.md): experimental VS Code/agent integration for inspecting one job.
 
 ## Asking an AI assistant about rotari
 

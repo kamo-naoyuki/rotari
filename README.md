@@ -39,24 +39,6 @@ The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers ins
   ([recovering](docs/RECOVERING.md)).
 
 ## How is rotari different?
-
-
-Compared with background jobs in a plain shell, rotari limits how many jobs run
-at once and records each job's result and log, so you can see what failed and
-rerun only that.
-
-Compared with a workflow engine, rotari needs no separate workflow language:
-you write `rotari add` lines in an ordinary shell script, and you start each
-run yourself with `rotari run`. Jobs run in the working directory and
-environment of that shell, as the commands would in the script
-([details](docs/CONCEPTS.md#workflow-and-execution-environment)).
-
-Compared with a personal queue on one machine, rotari can also run jobs over
-SSH or hand them to the site's scheduler, which handles placement and resource
-allocation.
-
-### Choosing a tool
-
 Rotari covers a narrow need, and other tools may fit yours better: [GNU Parallel](https://www.gnu.org/software/parallel/) for one command over many inputs, [pueue](https://github.com/Nukesor/pueue) or [task-spooler](https://github.com/justanhduc/task-spooler) for a personal queue on one machine, and a workflow engine such as [Snakemake](https://snakemake.github.io/), [Nextflow](https://www.nextflow.io/), [Dagu](https://dagu.sh/), or [Airflow](https://airflow.apache.org/) for a pipeline you share, rerun on new data, or run on a schedule. [Comparison with other tools](docs/TOOL_COMPARISON.md) explains what each one does and how rotari differs.
 
 <!-- Do not edit `README.md` directly. The `BEGIN GETTING STARTED` section is generated from `docs/GETTING_STARTED.md`; edit that source document and run `python3 scripts/sync_readme.py` instead.-->

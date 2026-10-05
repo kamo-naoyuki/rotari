@@ -21,19 +21,19 @@ nav:
       - Executors and schedulers: EXECUTORS.md
       - Running jobs: RUNNING.md
       - Recovering failed runs: RECOVERING.md
-      - Inspecting and diagnosing: INSPECT.md
+      - Inspecting: INSPECT.md
       - Workflow manifests: WORKFLOW_MANIFESTS.md
       - Configuration: CONFIGURATION.md
       - CLI reference: CLI_REFERENCE.md
       - Environment variables: ENVIRONMENT_VARIABLES.md
-      - Operations: OPERATIONS.md
-      - Comparison with other tools: TOOL_COMPARISON.md
-      - Docker: DOCKER.md
-      - Examples: examples.md
-      - Local diagnosis rules: LOCAL_DIAGNOSIS.md
-      - FAQ: FAQ.md
-  - Integrations:
       - Notifications: NOTIFICATIONS.md
+      - Operations: OPERATIONS.md
+      - Docker: DOCKER.md
+      - MCP Server: MCP.md
+      - Local diagnosis rules: LOCAL_DIAGNOSIS.md
+      - Examples: examples.md
+      - Comparison with other tools: TOOL_COMPARISON.md
+      - FAQ: FAQ.md
   - Development:
       - Architecture: ARCHITECTURE.md
   - API reference:

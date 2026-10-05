@@ -287,10 +287,6 @@ No. Dependencies are limited to the current queue. Chain separate runs with `rot
 
 Yes. When a run finishes, each failed job is checked locally against [diagnosis rules](LOCAL_DIAGNOSIS.md), and the result is shown by `rotari show --run-id RUN_ID --job-id JOB_ID`, reports, and the Web UI. It needs no network access or API key and does not affect execution or retries.
 
-### Can an LLM diagnose a failure?
-
-rotari does not call an LLM itself. `rotari show --run-id RUN_ID --job-id JOB_ID --report` prints a redacted evidence report, with the command, status, diagnosis, and the log lines around its evidence, that you can give to an AI assistant. Check it for sensitive data first.
-
 ## Interrupted runs and locking
 
 ### How can I check whether a project is ready to run without changing it?
