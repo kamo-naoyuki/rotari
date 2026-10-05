@@ -34,8 +34,8 @@ successful results are carried forward.
   `--if-revision REVISION`, which applies only if nothing changed the project
   since. `rotari check` also prints the revision.
 - Do not rely on prompts. `copy` into a non-empty queue needs `--append` or
-  `--overwrite`, and `run --run-id` into a non-empty queue needs
-  `--overwrite`.
+  `--overwrite`. `run --run-id` and `retry --run-id` start from the saved
+  run's snapshot and leave the next queue untouched.
 - Pass `--project-name/-p` (or set `ROTARI_PROJECT_NAME`) so each command
   targets the intended project. A project in another state directory is
   named in the error, with how to select it; `rotari show` with no project

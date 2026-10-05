@@ -472,8 +472,7 @@ Usage: `rotari run [RUN_ID]`
 | `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
-| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | copy this run's jobs into the queue first (copy --run-id + run); without it, a result filter copies the latest run only into an empty queue and otherwise uses the queued jobs, such as ones changed with change -r |
-| `--overwrite` | `` | `` | replace a non-empty queue without prompting; requires --run-id |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | build the run from this saved run without changing the next queue; without it, a result filter copies the latest run only into an empty queue and otherwise uses the queued jobs |
 | `--run-name` | `NAME` | `ROTARI_RUN_NAME` | run name label |
 | `--local-concurrency` | `N` | `ROTARI_RUN_LOCAL_CONCURRENCY` | local worker concurrency |
 | `--batch-concurrency` | `N` | `ROTARI_RUN_BATCH_CONCURRENCY` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
@@ -542,8 +541,7 @@ Usage: `rotari retry [RUN_ID]`
 | `--config` | `FILE` | `` | config file to use |
 | `-b` / `--basedir` | `DIR` | `ROTARI_BASEDIR` | state directory |
 | `-p` / `--project-name` | `NAME` | `ROTARI_PROJECT_NAME` | project name |
-| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | copy this run's jobs into the queue first; without it, retry copies the latest run only into an empty queue and otherwise uses the queued jobs, such as ones changed with change -r |
-| `--overwrite` | `` | `` | replace a non-empty queue without prompting; requires --run-id |
+| `-r` / `--run-id` | `ID` | `ROTARI_RUN_ID` | build the retry from this saved run without changing the next queue; without it, retry copies the latest run only into an empty queue and otherwise uses the queued jobs |
 | `--run-name` | `NAME` | `ROTARI_RUN_NAME` | run name label |
 | `--local-concurrency` | `N` | `ROTARI_RUN_LOCAL_CONCURRENCY` | local worker concurrency |
 | `--batch-concurrency` | `N` | `ROTARI_RUN_BATCH_CONCURRENCY` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |

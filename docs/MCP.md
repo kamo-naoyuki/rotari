@@ -36,7 +36,7 @@ read-only tools are annotated as such.
 | Preview | Write | Input | CLI equivalent |
 | --- | --- | --- | --- |
 | `rotari_preview_import` | `rotari_import` | `basedir_ref`, `project`, `manifest` (text), optional `format` (`yaml`, `json`, or `toml`), `overwrite`, and `detail`; the write also `if_revision` | `rotari import --dry-run` / `--if-revision` |
-| `rotari_preview_run` | `rotari_start_run` | `basedir_ref`, `project`, optional `retry`; the write also `if_revision` and optional `run_name` | `rotari run` or `retry`, with `--dry-run` / `--async --if-revision` |
+| `rotari_preview_run` | `rotari_start_run` | `basedir_ref`, `project`, optional `retry` and source `run_id`; the write also `if_revision` and optional `run_name` | `rotari run` or `retry`, with `--dry-run` / `--async --if-revision` |
 
 An import tool returns the plan's summary: each job with its status, an
 array's tasks counted by status, the statuses counted over the plan, the
@@ -52,8 +52,11 @@ execute, planned as the run itself is, and `rotari_start_run` returns the
 the start, the run may have no jobs yet.
 With `retry`, the run executes only the failed and unfinished jobs and
 carries the other results, as `rotari retry` does: those of the queue, such
-as one just imported, or of the project's last run, which it copies into an
-empty queue first.
+as one just imported, or of the project's last run when the queue is empty.
+With `run_id`, the specified saved run is used regardless of the queue.
+A saved-run source is built directly into the run snapshot
+without changing the next queue. Preview and start report failed or unfinished
+jobs from the latest run left out by a non-empty queue.
 
 To stop or pause a running run, preview first with
 `rotari_preview_job_control` (`run_id`, `operation`: `cancel`, `suspend`, or
@@ -74,13 +77,15 @@ with a hint to use the unlock tools.
 To recover a run left interrupted without touching the queue, preview with
 `rotari_preview_unlock` (`basedir_ref`, `project`, optional `run_id`). It
 reports the interrupted run it would recover, what that run's jobs last
-reported and whether some may still be running, and the revision.
+reported and whether some may still be running, and the revision. Any next-run
+queue work is retained and remains separate.
 `rotari_unlock` takes the same input and `if_revision`, removes the run's
 stale lock, and returns the project to idle with its queue kept, as
 `rotari unlock` does; a run whose supervisor is alive on the server's host is
-refused. Confirm first that the run's jobs have stopped. While the queue is
-empty, `rotari_preview_run` and `rotari_start_run` with `retry` then rerun
-the run's failed and unfinished jobs.
+refused. Confirm first that the run's jobs have stopped. Then call
+`rotari_preview_run` and `rotari_start_run` with `retry` and `run_id` set to
+the recovered run to rerun its failed and unfinished jobs while keeping the
+next queue untouched.
 
 A started run uses `rotari run`'s defaults, and its jobs run in the working
 directory and with the environment of the `rotari mcp` process, which is

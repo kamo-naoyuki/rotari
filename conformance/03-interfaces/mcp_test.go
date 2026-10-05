@@ -227,6 +227,85 @@ func TestMCPWritesApplyOnlyAtThePreviewedRevision(t *testing.T) {
 	}
 }
 
+func TestMCPRetryFromSavedRunKeepsNextQueue(t *testing.T) {
+	covers(t, "RUN-13")
+	e := support.NewEnv(t)
+	run := e.CreateFinishedRun()
+	e.MustRotari("add", "-p", run.Project, "--job-name", "next", "--", "true")
+	queuePath := filepath.Join(e.Base, "projects", run.Project, "queue.json")
+	before, err := os.ReadFile(queuePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := startMCP(t, e)
+	target := map[string]any{"basedir_ref": baseDirRef(t, session, run.Project), "project": run.Project, "retry": true, "run_id": run.RunID}
+	var preview struct {
+		Revision string `json:"revision"`
+	}
+	if message := session.call("rotari_preview_run", target, &preview); message != "" || preview.Revision == "" {
+		t.Fatalf("source preview: %q %+v", message, preview)
+	}
+	target["if_revision"] = preview.Revision
+	var started struct {
+		RunID string `json:"run_id"`
+	}
+	if message := session.call("rotari_start_run", target, &started); message != "" || started.RunID == "" {
+		t.Fatalf("source start: %q %+v", message, started)
+	}
+	if summary := waitWithMCP(t, session, started.RunID, false); summary.State != "finished" || summary.Summary.Counts.Jobs != 2 {
+		t.Fatalf("saved source run: %+v", summary)
+	}
+	if after, err := os.ReadFile(queuePath); err != nil || string(after) != string(before) {
+		t.Fatalf("saved-run retry changed next queue: %v", err)
+	}
+}
+
+func TestMCPRetryReportsFailedJobsOmittedByQueue(t *testing.T) {
+	covers(t, "RUN-14")
+	e := support.NewEnv(t)
+	run := e.CreateFinishedRun()
+	e.MustRotari("add", "-p", run.Project, "--job-name", "next", "--", "true")
+	session := startMCP(t, e)
+	ref := baseDirRef(t, session, run.Project)
+	target := map[string]any{"basedir_ref": ref, "project": run.Project, "retry": true}
+	var preview struct {
+		SourceRun string   `json:"source_run"`
+		Omitted   []string `json:"omitted_source_jobs"`
+		Revision  string   `json:"revision"`
+	}
+	if message := session.call("rotari_preview_run", target, &preview); message != "" || preview.SourceRun != run.RunID || len(preview.Omitted) != 1 || preview.Omitted[0] != run.BadJob || preview.Revision == "" {
+		t.Fatalf("retry preview: %q %+v, want failed source job %s omitted", message, preview, run.BadJob)
+	}
+	var started struct {
+		RunID   string   `json:"run_id"`
+		Source  string   `json:"source_run"`
+		Omitted []string `json:"omitted_source_jobs"`
+	}
+	apply := map[string]any{"basedir_ref": ref, "project": run.Project, "retry": true, "if_revision": preview.Revision}
+	if message := session.call("rotari_start_run", apply, &started); message != "" || started.RunID == "" || started.Source != preview.SourceRun || strings.Join(started.Omitted, ",") != strings.Join(preview.Omitted, ",") {
+		t.Fatalf("retry start: %q %+v", message, started)
+	}
+	if summary := waitWithMCP(t, session, started.RunID, false); summary.State != "finished" {
+		t.Fatalf("started retry: %+v", summary)
+	}
+	if after := e.Rotari("check", run.Project).Stdout; !strings.Contains(after, "queued=0") {
+		t.Fatalf("queue-based retry did not consume its selected queue: %s", after)
+	}
+	var summary struct {
+		Summary struct {
+			Results []struct {
+				ID string `json:"id"`
+			} `json:"results"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", run.Project, "--run-id", started.RunID, "--json").Stdout), &summary); err != nil {
+		t.Fatal(err)
+	}
+	if len(summary.Summary.Results) != 1 || summary.Summary.Results[0].ID == run.BadJob {
+		t.Fatalf("MCP retry executed source jobs instead of queue: %+v", summary.Summary.Results)
+	}
+}
+
 func TestMCPExportIsARedactedViewThatImportRefuses(t *testing.T) {
 	covers(t, "MCP-2")
 	e := support.NewEnv(t)

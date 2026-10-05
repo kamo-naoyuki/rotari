@@ -328,7 +328,7 @@ class Rotari:
         )
 
     def run(self, **options: object) -> Run:
-        """Run the current queue with the supplied CLI options."""
+        """Run the queue, or build from ``run_id`` without changing the next queue."""
 
         if options.get("partial_array") is not None:
             options["partial_array"] = str(options["partial_array"]).lower()
@@ -352,7 +352,7 @@ class Rotari:
         )
 
     def retry(self, **options: object) -> Run:
-        """Retry failed and unfinished jobs using the CLI retry alias."""
+        """Retry failed and unfinished jobs; ``run_id`` leaves the next queue untouched."""
 
         arguments = build_command_arguments("retry", {**options, "quiet": False})
         arguments.insert(1, _REQUIRE_OUTPUT)

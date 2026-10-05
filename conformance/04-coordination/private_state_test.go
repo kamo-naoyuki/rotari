@@ -345,7 +345,7 @@ func TestQueueEditsBesideAnActiveRun(t *testing.T) {
 			} `json:"results"`
 		} `json:"summary"`
 	}
-	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "live", "--json").Stdout), &shown); err != nil {
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "live", "--run-id", "latest", "--json").Stdout), &shown); err != nil {
 		t.Fatal(err)
 	}
 	ran := map[string]bool{}
@@ -368,6 +368,53 @@ func TestResetClearsQueueBesideActiveRun(t *testing.T) {
 	e.MustRotari("reset", "live")
 	if r := e.Rotari("check", "live"); !strings.Contains(r.Stdout, "state=running") || !strings.Contains(r.Stdout, "queued=0") {
 		t.Fatalf("reset changed the active run or kept queued work: %s", r)
+	}
+}
+
+func TestShowActiveRunIncludesNextQueue(t *testing.T) {
+	covers(t, "SAFE-10")
+	e := support.NewEnv(t)
+	run := e.StartRun("live", 1, true)
+	support.WaitUntil(t, 15*time.Second, func() (bool, string) {
+		return support.JobProcesses(t, e.Root, "") == 1, "the active job did not start"
+	})
+	next := support.AddedJobID(t, e.MustRotari("add", "-p", "live", "--job-name", "next", "--", "true"))
+	text := e.MustRotari("show", "-p", "live", "--run-id", run.RunID).Stdout
+	for _, want := range []string{run.RunID, "=== Next queue ===", next, "next"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("show output missing %q:\n%s", want, text)
+		}
+	}
+	var shown struct {
+		RunID    string `json:"run_id"`
+		Commands struct {
+			Commands []struct {
+				ID string `json:"id"`
+			} `json:"commands"`
+		} `json:"commands"`
+		NextQueue struct {
+			Commands []struct {
+				ID string `json:"id"`
+			} `json:"commands"`
+		} `json:"next_queue"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "live", "--run-id", run.RunID, "--json").Stdout), &shown); err != nil {
+		t.Fatal(err)
+	}
+	if shown.RunID != run.RunID || len(shown.Commands.Commands) != 1 || shown.Commands.Commands[0].ID == next || len(shown.NextQueue.Commands) != 1 || shown.NextQueue.Commands[0].ID != next {
+		t.Fatalf("show JSON = %+v; want active run snapshot and separate next queue", shown)
+	}
+	support.KillStrays(t, e.Root)
+	support.WaitForInterrupted(t, e, "live")
+	text = e.MustRotari("show", "-p", "live", "--run-id", run.RunID).Stdout
+	if !strings.Contains(text, "=== Next queue ===") || !strings.Contains(text, next) {
+		t.Fatalf("interrupted show omitted the next queue:\n%s", text)
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "live", "--json").Stdout), &shown); err != nil {
+		t.Fatal(err)
+	}
+	if shown.RunID != run.RunID || len(shown.NextQueue.Commands) != 1 || shown.NextQueue.Commands[0].ID != next {
+		t.Fatalf("interrupted show JSON = %+v; want run plus separate next queue", shown)
 	}
 }
 

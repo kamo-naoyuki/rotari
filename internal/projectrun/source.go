@@ -6,28 +6,34 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-// RunSource decides where a run request's queue comes from, as `rotari run`
-// and `retry` do. An explicit requestedRunID is copied into the queue first.
-// Without one, a selection (a result filter or job selection) refers to the
-// project's last run, which is copied only into an empty queue, so a queue
-// restored and edited earlier is kept. A plain run uses the queue as it is.
-func RunSource(paths state.ProjectPaths, selection, requestedRunID string) (sourceRunID string, copyFirst bool, err error) {
+// SourcePolicy says whether a run uses the current queue or constructs its
+// snapshot from a saved run. CopyIfEmpty is resolved against the queue under
+// the state lock, so a concurrent queue edit cannot change the decision.
+type SourcePolicy string
+
+const (
+	SourceKeepQueue   SourcePolicy = "queue"
+	SourceCopyIfEmpty SourcePolicy = "copy-if-empty"
+	SourceCopyRun     SourcePolicy = "copy-run"
+)
+
+// RunSource describes the input requested by `rotari run` or `retry` without
+// deciding from a potentially stale queue read. An explicit run is copied;
+// a selection copies the latest run only if the queue is empty when the
+// supervisor takes its state lock; a plain run keeps the queue.
+func RunSource(paths state.ProjectPaths, selection, requestedRunID string) (sourceRunID string, policy SourcePolicy, err error) {
 	if requestedRunID != "" {
-		return requestedRunID, true, nil
+		return requestedRunID, SourceCopyRun, nil
 	}
 	if selection == "" {
-		return "", false, nil
+		return "", SourceKeepQueue, nil
 	}
 	meta, err := state.LoadMeta(paths.MetaFile)
 	if err != nil {
-		return "", false, fmt.Errorf("failed to load metadata: %w", err)
+		return "", SourceKeepQueue, fmt.Errorf("failed to load metadata: %w", err)
 	}
 	if meta.LastRunID == "" {
-		return "", false, fmt.Errorf("queue %q has no previous run", paths.ProjectName)
+		return "", SourceKeepQueue, fmt.Errorf("queue %q has no previous run", paths.ProjectName)
 	}
-	queue, err := state.LoadQueue(paths.QueueFile)
-	if err != nil {
-		return "", false, fmt.Errorf("failed to load queue: %w", err)
-	}
-	return meta.LastRunID, len(queue.Commands) == 0, nil
+	return meta.LastRunID, SourceCopyIfEmpty, nil
 }

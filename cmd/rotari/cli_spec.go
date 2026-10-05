@@ -533,8 +533,7 @@ func cliUsage(name string) string {
 // unfinished jobs, are described for it.
 func runCommandFlags(retry bool) []cliFlagSpec {
 	flags := append(append(commonCLIFlags(),
-		cliFlagSpec{Name: "run-id", Description: "copy this run's jobs into the queue first (copy --run-id + run); without it, a result filter copies the latest run only into an empty queue and otherwise uses the queued jobs, such as ones changed with change -r", ValueName: "ID"},
-		cliFlagSpec{Name: "overwrite", Description: "replace a non-empty queue without prompting; requires --run-id"},
+		cliFlagSpec{Name: "run-id", Description: "build the run from this saved run without changing the next queue; without it, a result filter copies the latest run only into an empty queue and otherwise uses the queued jobs", ValueName: "ID"},
 		cliFlagSpec{Name: "run-name", Description: "run name label", ValueName: "NAME"},
 		cliFlagSpec{Name: "local-concurrency", Description: "local worker concurrency", ValueName: "N"},
 		cliFlagSpec{Name: "batch-concurrency", Description: "scheduler job concurrency (Slurm/PBS/LSF/SGE)", ValueName: "N"},
@@ -576,7 +575,7 @@ func runCommandFlags(retry bool) []cliFlagSpec {
 		return flags
 	}
 	retryDescriptions := map[string]string{
-		"run-id":     "copy this run's jobs into the queue first; without it, retry copies the latest run only into an empty queue and otherwise uses the queued jobs, such as ones changed with change -r",
+		"run-id":     "build the retry from this saved run without changing the next queue; without it, retry copies the latest run only into an empty queue and otherwise uses the queued jobs",
 		"failed":     "only execute failed jobs, instead of failed and unfinished jobs; others carry forward their previous result",
 		"unfinished": "only execute unfinished jobs, instead of failed and unfinished jobs; others carry forward their previous result",
 		"success":    "only execute successful jobs, instead of failed and unfinished jobs; others carry forward their previous result",

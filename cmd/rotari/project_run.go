@@ -18,6 +18,7 @@ func projectRunner() projectrun.Runner {
 	return projectrun.Runner{
 		Store:     jsonStore(),
 		Executors: executorRegistry,
+		NewJobID:  makeJobID,
 		// jobLogf is replaced in tests, so it is looked up on every call.
 		Logf:   func(format string, args ...any) { jobLogf(format, args...) },
 		Errorf: printErrorf,

@@ -2,8 +2,10 @@
 
 **Created:** 2026-10-05
 
-**Status:** Phase 1 implementation in progress; phases 2–4 have not started.
-D1 to D5, D7, and D8 settled on 2026-10-06.
+**Status:** Phase 1 implementation in progress. Queue/recovery, D3/D8, and
+active/interrupted run plus next-queue inspection are implemented; remaining
+phase-1 documentation/conformance review is in progress. Phases 2–4 have not
+started. D1 to D5, D7, and D8 settled on 2026-10-06.
 
 ## Purpose
 
@@ -112,8 +114,10 @@ reason to create a second project. Phase 4 depends on phase 2.
   [internal/state/run_files.go](../../internal/state/run_files.go), marks run
   metadata finished, and leaves the next queue untouched.
 - `RunSource` in [internal/projectrun/source.go](../../internal/projectrun/source.go)
-  decides where `retry` gets its jobs: a result selection copies the last run
-  only into an empty queue, so a queue restored and edited earlier is kept.
+  identifies the source run and source policy; the supervisor resolves
+  `copy-if-empty` under the state lock. A saved run is copied into memory by
+  `queueops.Editor.CopySnapshot` and passed to `Runner.Begin` as the run's
+  snapshot, never written into `queue.json`.
 - Queue edits while active or interrupted belong to the next run. `reset`
   clears only that queue in every project state without changing run metadata;
   `--recover` and `ROTARI_RESET_RECOVER` fail with a hint to use `unlock`.
@@ -244,8 +248,11 @@ reason to create a second project. Phase 4 depends on phase 2.
   interrupted project with a non-empty queue (show both the run and the next
   queue), `unlock` output, and `reset` option removal.
 - Web UI / API: the queue view of a running or interrupted project becomes
-  editable; the run view is unchanged. Check every handler that calls the
-  shared gate.
+  editable; the run view stays distinct and `show`-equivalent inspection
+  surfaces both run and next queue. Existing Web `Create queue` / `Append to
+  queue` controls remain copy operations; the run view's retry command uses
+  the D8 `retry --run-id` behavior. There is no Web API to start a run, so do
+  not turn copy controls into a new start API as part of this phase.
 - MCP: `rotari_preview_reset` / `rotari_reset` become queue-only, so add
   `rotari_preview_unlock` / `rotari_unlock` (or equivalent) to keep a
   recovery path with the running-jobs report. Check `rotari_import` and the

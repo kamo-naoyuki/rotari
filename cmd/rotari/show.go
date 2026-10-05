@@ -361,7 +361,9 @@ func cmdShow(args []string) int {
 			selectedRunID = stateRunID
 		} else if projectState == project.Interrupted {
 			selectedRunID = stateRunID
-			printInterruptedRunNotice(paths, stateRunID)
+			if !*jsonOutput {
+				printInterruptedRunNotice(paths, stateRunID)
+			}
 		} else {
 			queue, err := state.LoadQueue(paths.QueueFile)
 			if err != nil {
@@ -471,7 +473,19 @@ func cmdShow(args []string) int {
 	if *jsonOutput {
 		return showRunJSON(paths, runID, resultSelection)
 	}
-	return showRun(paths, runID, showJobFilter{selection: resultSelection, scope: scope, filter: filter})
+	nextQueue, err := nextQueueForRun(paths, runID)
+	if err != nil {
+		printErrorf("failed to load next queue: %v", err)
+		return 1
+	}
+	if code := showRun(paths, runID, showJobFilter{selection: resultSelection, scope: scope, filter: filter}); code != 0 {
+		return code
+	}
+	if nextQueue != nil {
+		fmt.Println("\n=== Next queue ===")
+		return showQueue(paths, *nextQueue, model.CommandSelector{}, jobfilter.Filter{})
+	}
+	return 0
 }
 
 func hasMultipleProjects(baseDir string) (bool, error) {
@@ -492,13 +506,14 @@ func hasMultipleProjects(baseDir string) (bool, error) {
 }
 
 type showJSON struct {
-	BaseDir  string                    `json:"base_dir"`
-	Project  string                    `json:"project_name"`
-	RunID    string                    `json:"run_id"`
-	RunDir   string                    `json:"run_dir"`
-	Summary  *model.RunSummary         `json:"summary,omitempty"`
-	Failures []runlineage.FailureGroup `json:"failures,omitempty"`
-	Commands model.Queue               `json:"commands"`
+	BaseDir   string                    `json:"base_dir"`
+	Project   string                    `json:"project_name"`
+	RunID     string                    `json:"run_id"`
+	RunDir    string                    `json:"run_dir"`
+	Summary   *model.RunSummary         `json:"summary,omitempty"`
+	Failures  []runlineage.FailureGroup `json:"failures,omitempty"`
+	Commands  model.Queue               `json:"commands"`
+	NextQueue *model.Queue              `json:"next_queue,omitempty"`
 }
 
 type showJobCounts struct {
@@ -592,6 +607,12 @@ func showRunJSON(paths state.ProjectPaths, runID, selection string) int {
 		return 1
 	}
 	result.Commands = commands
+	nextQueue, err := nextQueueForRun(paths, runID)
+	if err != nil {
+		printErrorf("failed to load next queue: %v", err)
+		return 1
+	}
+	result.NextQueue = nextQueue
 	failures, err := runFailureGroups(paths, runID, selected)
 	if err != nil {
 		printErrorf("failed to group failures: %v", err)
@@ -603,6 +624,24 @@ func showRunJSON(paths state.ProjectPaths, runID, selection string) int {
 		return 1
 	}
 	return 0
+}
+
+func nextQueueForRun(paths state.ProjectPaths, runID string) (*model.Queue, error) {
+	inspection, err := project.Inspect(paths, false)
+	if err != nil {
+		return nil, err
+	}
+	if inspection.State == project.Idle || inspection.RunID != runID {
+		return nil, nil
+	}
+	queue, err := state.LoadQueue(paths.QueueFile)
+	if err != nil {
+		return nil, err
+	}
+	if len(queue.Commands) == 0 {
+		return nil, nil
+	}
+	return &queue, nil
 }
 
 // selectsShownJob reports whether a show view of runID keeps the job, given

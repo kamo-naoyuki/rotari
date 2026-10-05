@@ -117,6 +117,97 @@ func TestFilteredRerunCarriesCompletedResults(t *testing.T) {
 	}
 }
 
+func TestRetryFromSavedRunLeavesNextQueueUntouched(t *testing.T) {
+	covers(t, "RUN-13")
+	e := support.NewEnv(t)
+	sourceJob := support.AddedJobID(t, e.MustRotari("add", "-p", "saved", "--job-name", "source", "--", "sh", "-c", "exit 3"))
+	if r := e.Rotari("run", "-p", "saved", "--quiet"); r.Code == 0 {
+		t.Fatalf("source run unexpectedly succeeded: %s", r)
+	}
+	source := readSummary(t, e, "saved")
+	nextJob := support.AddedJobID(t, e.MustRotari("add", "-p", "saved", "--job-name", "next", "--", "true"))
+	for _, args := range [][]string{
+		{"run", "-p", "saved", "--run-id", source.RunID, "--overwrite"},
+		{"retry", "-p", "saved", "--run-id", source.RunID, "--overwrite"},
+	} {
+		if r := e.Rotari(args...); r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "no longer accept --overwrite") {
+			t.Errorf("removed overwrite option was not rejected: %s", r)
+		}
+	}
+	queuePath := filepath.Join(e.Base, "projects", "saved", "queue.json")
+	queueBefore, err := os.ReadFile(queuePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	retry := e.Rotari("retry", "-p", "saved", "--run-id", source.RunID, "--quiet")
+	if retry.Code == 0 {
+		t.Fatalf("retry of failed source job unexpectedly succeeded: %s", retry)
+	}
+	if queueAfter, err := os.ReadFile(queuePath); err != nil || !bytes.Equal(queueAfter, queueBefore) {
+		t.Fatalf("next queue changed across retry: %v", err)
+	}
+	var shown struct {
+		RunID   string             `json:"run_id"`
+		Summary conformanceSummary `json:"summary"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "saved", "--run-id", "latest", "--json").Stdout), &shown); err != nil {
+		t.Fatal(err)
+	}
+	if shown.RunID == source.RunID || len(shown.Summary.Results) != 1 {
+		t.Fatalf("retry result = %s\nlatest run %s results = %+v; want a new run with one copied source job", retry, shown.RunID, shown.Summary.Results)
+	}
+	runDir := filepath.Join(e.Base, "projects", "saved", "runs", shown.RunID)
+	snapshot, err := os.ReadFile(filepath.Join(runDir, "commands.json"))
+	var commands struct {
+		Commands []struct {
+			ID     string `json:"id"`
+			Origin struct {
+				RunID string `json:"run_id"`
+				JobID string `json:"job_id"`
+			} `json:"origin"`
+		} `json:"commands"`
+	}
+	if err == nil {
+		err = json.Unmarshal(snapshot, &commands)
+	}
+	if err != nil || len(commands.Commands) != 1 || commands.Commands[0].Origin.RunID != source.RunID || commands.Commands[0].Origin.JobID != sourceJob {
+		t.Fatalf("retry snapshot contains next queue job %s: %v, %s", nextJob, err, snapshot)
+	}
+}
+
+func TestRetryReportsFailedJobsOmittedByNonEmptyQueue(t *testing.T) {
+	covers(t, "RUN-14")
+	e := support.NewEnv(t)
+	failedA := support.AddedJobID(t, e.MustRotari("add", "-p", "report", "--job-name", "failed-a", "--", "sh", "-c", "exit 2"))
+	failedB := support.AddedJobID(t, e.MustRotari("add", "-p", "report", "--job-name", "failed-b", "--", "sh", "-c", "exit 3"))
+	if r := e.Rotari("run", "-p", "report", "--quiet"); r.Code == 0 {
+		t.Fatalf("source run unexpectedly succeeded: %s", r)
+	}
+	latest := readSummary(t, e, "report")
+	e.MustRotari("add", "-p", "report", "--job-name", "next", "--", "true")
+	preview := e.MustRotari("retry", "-p", "report", "--dry-run")
+	for _, want := range []string{latest.RunID, failedA, failedB, "2 failed or unfinished job(s) not included", "--failed --unfinished --append"} {
+		if !strings.Contains(preview.Stdout, want) {
+			t.Errorf("retry preview missing %q:\n%s", want, preview.Stdout)
+		}
+	}
+	retry := e.MustRotari("retry", "-p", "report")
+	for _, want := range []string{
+		"Retry source: current queue; latest run " + latest.RunID + " has 2 failed or unfinished job(s) not included",
+		failedA,
+		failedB,
+		"--failed --unfinished --append",
+	} {
+		if !strings.Contains(retry.Stdout, want) {
+			t.Errorf("retry output missing %q:\n%s", want, retry.Stdout)
+		}
+	}
+	if strings.Contains(retry.Stdout, "run_id="+latest.RunID) {
+		t.Fatalf("source report uses the new run ID label and could confuse the client: %s", retry.Stdout)
+	}
+}
+
 func TestBlockedOriginJobsDoNotRewindWebTimeline(t *testing.T) {
 	covers(t, "WEB-1")
 	e := support.NewEnv(t)

@@ -159,7 +159,7 @@ func TestRunSnapshotsOnlyExplicitlyLoadedConfig(t *testing.T) {
 	}
 }
 
-func TestCmdRunOverwriteSkipsQueueConfirmation(t *testing.T) {
+func TestCmdRunRejectsRemovedOverwriteOption(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
@@ -188,11 +188,12 @@ func TestCmdRunOverwriteSkipsQueueConfirmation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 1 || !strings.Contains(string(output), "command snapshot has no jobs") {
+	if code != 1 || !strings.Contains(string(output), "no longer accept --overwrite") {
 		t.Fatalf("cmdRun exit code = %d, stderr = %q", code, output)
 	}
-	if strings.Contains(string(output), "queue is not empty") {
-		t.Fatalf("cmdRun prompted instead of honoring --overwrite: %q", output)
+	queue, err := state.LoadQueue(paths.QueueFile)
+	if err != nil || len(queue.Commands) != 1 || queue.Commands[0].ID != "existing" {
+		t.Fatalf("queue changed after rejected overwrite: %+v, %v", queue, err)
 	}
 }
 

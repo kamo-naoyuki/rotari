@@ -38,6 +38,10 @@ rotari show RUN_ID --report # describe the whole run and include recent logs
 rotari show -p sweep --run-id latest --job-id JOB_ID --json # one run job (or all tasks of an array) as JSON
 ```
 
+When the selected run is active or interrupted, a non-empty next queue is
+shown separately after the run. In JSON, `commands` remains the run snapshot
+and `next_queue` contains the queued work; `check` reports its queued count.
+
 `show --logs --failed` (or `--logs --filter-result failed`) selects the same
 failed jobs as `--failed-logs`, including output carried from an older run.
 

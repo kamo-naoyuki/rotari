@@ -12,7 +12,7 @@ import (
 // ProtocolVersion is reported by Ready. A `run` client talks only to the
 // supervisor it started from its own executable, so the version is for
 // diagnosis rather than negotiation.
-const ProtocolVersion = 10
+const ProtocolVersion = 11
 
 // DetachControl is the byte a synchronous run client sends before
 // disconnecting to leave the run going in the background.

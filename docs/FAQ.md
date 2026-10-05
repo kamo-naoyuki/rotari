@@ -197,13 +197,20 @@ those tasks independently.
 
 Failed and unfinished jobs rerun, while successful jobs carry their results forward. Add `--success` to rerun successful jobs too.
 
+If the queue is non-empty, `retry` uses it as-is. Its preview and output list
+failed or unfinished jobs from the latest run that are not in that queue and
+show `copy --failed --unfinished --append` to include them. Use
+`retry --run-id RUN_ID` to build the retry directly from a saved run without
+changing the next queue; `--overwrite` is not accepted by `run` or `retry`.
+
 ### How can I edit a previous queue before rerunning only failed jobs?
 
 Run `rotari copy` to restore every job from the latest run, edit the queue with
 `change` or `remove`, then run `rotari run --failed`. Use `copy --run-id ID` to
 restore a specific run. The result filter belongs on `run`, so the restored
 queue remains available for inspection and editing before execution. With an
-empty queue, `run --failed` restores the latest run automatically.
+empty queue, `run --failed` builds the new run directly from the latest run's
+snapshot without changing the queue.
 
 For a reproducible, reviewable edit, export and import a workflow manifest:
 

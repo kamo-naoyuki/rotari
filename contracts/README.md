@@ -157,6 +157,7 @@ the IDs, this table, and those calls disagree.
 | SAFE-7 | Unlock warns when an interrupted run's jobs appear to still be running; MCP preview reports the same | conformance | `TestUnlockWarnsAboutRunningJobs`, `TestMCPUnlockRecoversAnInterruptedRun` |
 | SAFE-8 | Queue edits, including reset, apply beside a running or interrupted run and keep its phase; `copy` rejects that run | conformance | `TestQueueEditsBesideAnActiveRun`, `TestResetClearsQueueBesideActiveRun`, `TestResetOfInterruptedProject` |
 | SAFE-9 | Removed reset recovery flag and environment variable fail with an unlock hint | conformance | `TestResetRejectsRemovedRecoveryOptions` |
+| SAFE-10 | `show` displays an active/interrupted run and a non-empty next queue separately | conformance | `TestShowActiveRunIncludesNextQueue` |
 | COORD-1 | Controlling a local job from another host fails, naming that host | conformance | `TestControlFromAnotherHost` |
 | COORD-2 | Cancelling a run whose coordinator is on another host fails, naming that host | conformance | `TestControlFromAnotherHost` |
 | COORD-3 | A lock from another host keeps the project locked until `unlock` | conformance | `TestControlFromAnotherHost` |
@@ -190,6 +191,8 @@ the IDs, this table, and those calls disagree.
 | RUN-10 | An imported manifest's edited status applies to the job or leaf it is written on; a matrix or array job has no status of its own, so unlisted leaves keep their source result and an edited job-level status is rejected | conformance | `TestImportedArrayWideningExecutesNewTasks`, `TestImportedGroupStatusKeepsUnlistedLeafResults` |
 | RUN-11 | Export and import select the latest timestamped command snapshot; ties go to the last listed run, not the random run ID suffix | conformance | `TestWorkflowExportUsesListedRunOrderForTimestampTies` |
 | RUN-12 | A run that ended without a summary, such as an interrupted run after unlock, can be the source of a filtered rerun; finished jobs keep their results and the rest are unfinished | conformance | `TestRerunOfAnInterruptedRun` |
+| RUN-13 | Saved-run starts build their snapshot without changing the next queue and reject `--overwrite` | conformance | `TestRetryFromSavedRunLeavesNextQueueUntouched`, `TestMCPRetryFromSavedRunKeepsNextQueue` |
+| RUN-14 | A non-empty queue retry reports failed/unfinished latest-run jobs it omits without changing selection | conformance | `TestRetryReportsFailedJobsOmittedByNonEmptyQueue`, `TestMCPRetryReportsFailedJobsOmittedByQueue` |
 | CLI-1 | `check --json` reports the same project state, run identifier, queue count, lock, and runnable result as the human-readable `check` output | partial | `TestCLIFlagPairCheckObservability`, `TestCheckJSONMatchesText` |
 | CLI-2 | Human-readable `jobs` columns keep their visible start positions aligned across rows; ANSI color sequences do not count toward column width | conformance | `TestJobsTableKeepsVisibleColumnsAligned` |
 | CLI-3 | All command options shared by CLI, environment, and config use the same source precedence | conformance | `TestCLIOptionPrecedence` |

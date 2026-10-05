@@ -11,8 +11,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
-	"github.com/kamo-naoyuki/rotari/internal/queueedit"
-	"github.com/kamo-naoyuki/rotari/internal/queueops"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
@@ -58,7 +57,8 @@ type ApplyImportInput struct {
 type RunInput struct {
 	BaseDirRef string `json:"basedir_ref" jsonschema:"basedir_ref of the project, from rotari_list_projects"`
 	Project    string `json:"project" jsonschema:"project name"`
-	Retry      bool   `json:"retry,omitempty" jsonschema:"run only the failed and unfinished jobs and carry the other results, as rotari retry does: those of the queue, such as one just imported, or of the last run when the queue is empty"`
+	RunID      string `json:"run_id,omitempty" jsonschema:"settled source run ID, or latest; build the new run from it without changing the next queue"`
+	Retry      bool   `json:"retry,omitempty" jsonschema:"run only failed and unfinished jobs and carry other results, as rotari retry does: use a non-empty next queue as-is, or build a run snapshot from the last run when the queue is empty"`
 }
 
 type StartRunInput struct {
@@ -76,16 +76,20 @@ type PlannedJob struct {
 }
 
 type RunPreviewOutput struct {
-	Project  string       `json:"project"`
-	Execute  []PlannedJob `json:"execute" jsonschema:"jobs the run would execute"`
-	Jobs     int          `json:"jobs" jsonschema:"jobs in the queue the run would start from"`
-	Carried  int          `json:"carried" jsonschema:"results the run would carry forward instead of executing"`
-	Revision string       `json:"revision" jsonschema:"revision to pass to rotari_start_run"`
+	Project           string       `json:"project"`
+	Execute           []PlannedJob `json:"execute" jsonschema:"jobs the run would execute"`
+	Jobs              int          `json:"jobs" jsonschema:"jobs in the run snapshot"`
+	Carried           int          `json:"carried" jsonschema:"results the run would carry forward instead of executing"`
+	SourceRun         string       `json:"source_run,omitempty" jsonschema:"saved run whose results the selection references"`
+	OmittedSourceJobs []string     `json:"omitted_source_jobs,omitempty" jsonschema:"failed or unfinished jobs in the latest run not represented in a non-empty queue"`
+	Revision          string       `json:"revision" jsonschema:"revision to pass to rotari_start_run"`
 }
 
 type StartRunOutput struct {
-	Project string `json:"project"`
-	RunID   string `json:"run_id"`
+	Project           string   `json:"project"`
+	RunID             string   `json:"run_id"`
+	SourceRun         string   `json:"source_run,omitempty"`
+	OmittedSourceJobs []string `json:"omitted_source_jobs,omitempty"`
 }
 
 // projectPaths resolves a project named by basedir_ref and name.
@@ -100,7 +104,10 @@ func projectPaths(masterDir, baseDirRef, projectName string) (string, state.Proj
 
 func (tools writeTools) runner() projectrun.Runner {
 	store := state.NewStore(state.DirectoryMode(), state.FileMode())
-	return projectrun.Runner{Store: store, Executors: executor.NewRegistry(store, func(string, ...any) {})}
+	// MCP run planning has no user-facing scheduler log stream; tool responses
+	// carry the plan and run ID, so executor diagnostics remain in run state.
+	quietLogger := func(string, ...any) {}
+	return projectrun.Runner{Store: store, Executors: executor.NewRegistry(store, quietLogger), NewJobID: tools.options.NewJobID}
 }
 
 type writeTools struct {
@@ -158,33 +165,23 @@ func runPlanRequest(retry bool) projectrun.PlanRequest {
 	return request
 }
 
-// runQueue returns the queue a run would start from and the request's
-// reference run: the project's queue, or the queue a copy from the last run
-// leaves when projectrun.RunSource says to copy first. The copy runs under
-// guard, so a dry run writes nothing.
-func (tools writeTools) runQueue(paths state.ProjectPaths, request *projectrun.PlanRequest, guard project.Guard) (*model.Queue, error) {
-	sourceRunID, copyFirst, err := projectrun.RunSource(paths, request.Selection, "")
+// configureRunSource selects queue or saved-run snapshot construction. The
+// supervisor resolves CopyIfEmpty while holding the state lock.
+func configureRunSource(paths state.ProjectPaths, request *projectrun.PlanRequest, requestedRunID string) error {
+	if requestedRunID != "" {
+		resolved, err := resolve.RunID(paths, requestedRunID)
+		if err != nil {
+			return err
+		}
+		requestedRunID = resolved
+	}
+	sourceRunID, policy, err := projectrun.RunSource(paths, request.Selection, requestedRunID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	request.SourceRunID = sourceRunID
-	if !copyFirst {
-		return nil, nil
-	}
-	var outcome project.Outcome
-	report := guard.Report
-	guard.Report = func(result project.Outcome) {
-		outcome = result
-		if report != nil {
-			report(result)
-		}
-	}
-	runner := tools.runner()
-	editor := queueops.Editor{Store: runner.Store, Executors: runner.Executors, NewJobID: tools.options.NewJobID, Guard: guard}
-	if _, err := editor.Copy(paths.BaseDir, paths.ProjectName, sourceRunID, queueedit.CopyRequest{Selection: "all", Overwrite: true}); err != nil {
-		return nil, err
-	}
-	return outcome.Queue, nil
+	request.SourcePolicy = policy
+	return nil
 }
 
 // previewRun plans a run as rotari_start_run would start it.
@@ -194,15 +191,17 @@ func (tools writeTools) previewRun(input RunInput) (RunPreviewOutput, error) {
 		return RunPreviewOutput{}, err
 	}
 	request := runPlanRequest(input.Retry)
-	queue, err := tools.runQueue(paths, &request, project.Guard{DryRun: true})
+	if err := configureRunSource(paths, &request, input.RunID); err != nil {
+		return RunPreviewOutput{}, err
+	}
+	planned, revision, err := tools.runner().PreviewRun(paths, nil, request, "")
 	if err != nil {
 		return RunPreviewOutput{}, err
 	}
-	planned, revision, err := tools.runner().PreviewRun(paths, queue, request, "")
-	if err != nil {
-		return RunPreviewOutput{}, err
+	output := RunPreviewOutput{
+		Project: paths.ProjectName, Execute: []PlannedJob{}, Carried: len(planned.Plan.CarriedResults),
+		SourceRun: planned.SourceRunID, OmittedSourceJobs: planned.OmittedSourceJobs, Revision: revision,
 	}
-	output := RunPreviewOutput{Project: paths.ProjectName, Execute: []PlannedJob{}, Carried: len(planned.Plan.CarriedResults), Revision: revision}
 	for _, job := range model.QueueToJobs(planned.Queue.Commands) {
 		output.Jobs++
 		if planned.Plan.Execute[job.ID] {
@@ -226,9 +225,11 @@ func (tools writeTools) startRun(input StartRunInput) (StartRunOutput, error) {
 		return StartRunOutput{}, err
 	}
 	request := runPlanRequest(input.Retry)
-	revision := input.IfRevision
-	guard := project.Guard{IfRevision: input.IfRevision, Report: func(outcome project.Outcome) { revision = outcome.NewRevision }}
-	if _, err := tools.runQueue(paths, &request, guard); err != nil {
+	if err := configureRunSource(paths, &request, input.RunID); err != nil {
+		return StartRunOutput{}, err
+	}
+	planned, _, err := tools.runner().PreviewRun(paths, nil, request, input.IfRevision)
+	if err != nil {
 		return StartRunOutput{}, err
 	}
 	cwd, err := os.Getwd()
@@ -239,7 +240,8 @@ func (tools writeTools) startRun(input StartRunInput) (StartRunOutput, error) {
 		Op: server.OpRun, QueueName: paths.ProjectName, LocalConcurrency: 8, BatchMaxActive: 8, Async: true,
 		RunName: input.RunName, EnvMode: model.EnvModeAll, CWD: cwd,
 		Selection: request.Selection, SourceRunID: request.SourceRunID, PartialArray: request.PartialArray, MatchBy: request.MatchBy,
-		IfRevision: revision,
+		SourcePolicy: string(request.SourcePolicy),
+		IfRevision:   input.IfRevision,
 	})
 	if err != nil {
 		return StartRunOutput{}, err
@@ -247,5 +249,8 @@ func (tools writeTools) startRun(input StartRunInput) (StartRunOutput, error) {
 	if !response.OK {
 		return StartRunOutput{}, errors.New(response.Message)
 	}
-	return StartRunOutput{Project: paths.ProjectName, RunID: response.RunID}, nil
+	return StartRunOutput{
+		Project: paths.ProjectName, RunID: response.RunID,
+		SourceRun: planned.SourceRunID, OmittedSourceJobs: planned.OmittedSourceJobs,
+	}, nil
 }

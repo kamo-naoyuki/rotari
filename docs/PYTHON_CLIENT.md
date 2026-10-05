@@ -45,7 +45,7 @@ details = job.show(run=run)
 | Method | Purpose |
 | --- | --- |
 | `add(command, **options)` | Add a command with an optional name, dependencies, array or matrix, and executor settings; return a `Job`. |
-| `run(**options)` / `retry(**options)` | Start a run (or retry selected work) and return a `Run`. Pass `async_=True` to return after starting it. |
+| `run(**options)` / `retry(**options)` | Start a run (or retry selected work) and return a `Run`. `run_id=...` builds from that saved run without changing the next queue. Pass `async_=True` to return after starting it. |
 | `check(**options)` | Return a JSON readiness dict even when the project is not runnable. |
 | `reset()` | Clear queued work for the next run without changing an active or interrupted run. |
 | `unlock(run_id=None)` | Recover an interrupted run, keeping the queue; then `retry(run_id=...)` reruns its failed and unfinished jobs. Confirm first that its jobs have stopped. |

@@ -25,7 +25,10 @@ executed, but they appear on the new run with a link to their original
 output, so the whole run can be inspected in one place.
 
 `retry` starts from the latest run when the queue is empty. When the queue
-holds jobs, such as ones edited with `change`, it uses those instead.
+holds jobs, such as ones edited with `change`, it uses those instead and
+does not silently add the latest run's failures. The preview and run report
+the latest run's failed or unfinished jobs that are not represented in the
+queue, with a `copy --failed --unfinished --append` command to include them.
 
 ## Edit jobs before rerunning
 
@@ -50,7 +53,9 @@ again.
 (unless they collide with queued ones) and dependencies, can restore only some jobs with the same selectors as
 `retry`, and asks before replacing a non-empty queue (`--append` adds,
 `--overwrite` replaces). See the [CLI reference](CLI_REFERENCE.md) for every
-option.
+option. In contrast, `retry --run-id RUN_ID` builds the new run directly from
+that saved run's snapshot and leaves the next queue untouched; `--overwrite`
+is not accepted by `run` or `retry`.
 
 For a reviewable edit kept in a file, export the run as a
 [workflow manifest](WORKFLOW_MANIFESTS.md), edit it, and import it.
@@ -88,13 +93,14 @@ full rules.
 For an array job, only the matching tasks rerun; `--partial-array=false`
 reruns every task of an array when any task matches.
 
-`-r RUN_ID` starts from a saved run instead of the latest one. It replaces the
-queue, asking first unless `--overwrite` is given.
+`-r RUN_ID` starts from a saved run instead of the latest one. It uses that
+run's snapshot directly and leaves the next queue untouched. The same applies
+to a result selection on an empty queue.
 
 `run` takes the same options. `retry` is `run --failed --unfinished` when no
 other selection is given; `run` without one executes the whole queue.
-`run --failed` on an empty queue restores the latest run first, as `retry`
-does.
+`run --failed` on an empty queue builds its snapshot from the latest run, as
+`retry` does, without writing that snapshot into the next queue.
 
 To guard a rerun against concurrent edits, see
 [Previewing and guarding changes](RUNNING.md#previewing-and-guarding-changes).

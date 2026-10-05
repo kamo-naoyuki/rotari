@@ -31,7 +31,11 @@ func TestResolveQueueExecutorUsesDefaultExecutor(t *testing.T) {
 
 	store := state.NewStore(0o755, 0o644)
 	ops := Operations{BaseDir: baseDir, Runner: projectrun.Runner{Store: store, Executors: executor.NewRegistry(store, nil)}}
-	got, err := ops.resolveQueueExecutor("default", "")
+	queue, err := state.LoadQueue(filepath.Join(queueDir, "queue.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := resolveQueueExecutor(ops.Runner.Executors, queue, "")
 	if err != nil {
 		t.Fatalf("resolveQueueExecutor returned error: %v", err)
 	}
@@ -39,7 +43,7 @@ func TestResolveQueueExecutorUsesDefaultExecutor(t *testing.T) {
 		t.Fatalf("resolved executor = %q, want slurm", got)
 	}
 
-	if _, err := ops.resolveQueueExecutor("default", "invalid"); err == nil {
+	if _, err := resolveQueueExecutor(ops.Runner.Executors, queue, "invalid"); err == nil {
 		t.Fatal("resolveQueueExecutor accepted unsupported executor")
 	}
 }
@@ -90,6 +94,56 @@ func TestPrepareRunResolvesReferenceRunBeforeBegin(t *testing.T) {
 				t.Fatalf("sourceRunID = %q, want %q", prepared.sourceRunID, test.want)
 			}
 		})
+	}
+}
+
+func TestBeginRunUsesSavedSnapshotAndLeavesQueueUntouched(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := state.NewStore(0o755, 0o644)
+	executors := executor.NewRegistry(store, func(string, ...any) {})
+	runner := projectrun.Runner{Store: store, Executors: executors, NewJobID: func() string { return "copied" }}
+	sourceQueue := model.Queue{Commands: []model.QueuedCommand{{ID: "source-job", Command: []string{"true"}}}}
+	if err := state.WriteJSON(paths.QueueFile, sourceQueue); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.Begin(paths, projectrun.Start{RunID: "source-run", CWD: t.TempDir()}); err != nil {
+		t.Fatal(err)
+	}
+	if code, err := runner.Run(paths, projectrun.Options{RunID: "source-run", LocalConcurrency: 1, EnvMode: model.EnvModeNone}, projectrun.Observer{}); err != nil || code != 0 {
+		t.Fatalf("source run = %d, %v", code, err)
+	}
+	nextQueue := model.Queue{DefaultExecutor: "local", Commands: []model.QueuedCommand{{ID: "next-job", Command: []string{"false"}}}}
+	if err := state.WriteJSON(paths.QueueFile, nextQueue); err != nil {
+		t.Fatal(err)
+	}
+	queueBytes, err := os.ReadFile(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ops := Operations{BaseDir: baseDir, Project: "default", Runner: runner, NewRunID: func() string { return "retry-run" }}
+	started, err := ops.beginRun(server.Request{
+		QueueName: "default", LocalConcurrency: 1, Executor: "local",
+		SourceRunID: "source-run", SourcePolicy: string(projectrun.SourceCopyRun),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runSnapshot, err := state.ReadQueueFile(filepath.Join(paths.RunsDir, started.runID, "commands.json"))
+	if err != nil || len(runSnapshot.Commands) != 1 || runSnapshot.Commands[0].Origin == nil || runSnapshot.Commands[0].Origin.RunID != "source-run" {
+		t.Fatalf("new run snapshot = %+v, %v", runSnapshot, err)
+	}
+	if queue, err := os.ReadFile(paths.QueueFile); err != nil || !reflect.DeepEqual(queue, queueBytes) {
+		t.Fatalf("next queue bytes after Begin = %q, %v; want unchanged %q", queue, err, queueBytes)
+	}
+	if err := runner.Finish(paths, started.runID, 0); err != nil {
+		t.Fatal(err)
+	}
+	if queue, err := os.ReadFile(paths.QueueFile); err != nil || !reflect.DeepEqual(queue, queueBytes) {
+		t.Fatalf("next queue bytes after Finish = %q, %v; want unchanged %q", queue, err, queueBytes)
 	}
 }
 

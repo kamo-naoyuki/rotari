@@ -35,6 +35,9 @@ type Request struct {
 	ScopeMatrix  string           `json:"scope_matrix,omitempty"`
 	Filter       jobfilter.Filter `json:"filter"`
 	SourceRunID  string           `json:"source_run_id,omitempty"`
+	SourcePolicy string           `json:"source_policy,omitempty"`
+	CopyAttempts bool             `json:"copy_attempts,omitempty"`
+	CopyJobIDs   []string         `json:"copy_job_ids,omitempty"`
 	PartialArray bool             `json:"partial_array,omitempty"`
 	MatchBy      string           `json:"match_by,omitempty"`
 	// IfRevision, when set, starts the run only if the project is still at

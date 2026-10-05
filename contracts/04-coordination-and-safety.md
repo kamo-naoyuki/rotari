@@ -216,6 +216,12 @@ A project is in one of three states, derived from `running.lock` and
 - **SAFE-9** `reset --recover` and `ROTARI_RESET_RECOVER` are rejected with an
   instruction to recover an interrupted run with `unlock`; neither is silently
   accepted. Checked through the binary by `TestResetRejectsRemovedRecoveryOptions`.
+- **SAFE-10** When the selected run is the project's active or interrupted
+  run and the next queue is non-empty, `show` displays the run snapshot and the
+  next queue separately. JSON keeps the run's `commands` snapshot and adds
+  `next_queue`; it never substitutes the next queue for the run's jobs.
+  `check` continues to report the next queue's count. Checked through the
+  binary by `TestShowActiveRunIncludesNextQueue`.
 
 Further rules:
 

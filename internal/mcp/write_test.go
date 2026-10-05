@@ -1,12 +1,14 @@
 package mcp
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
+	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	"github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -16,6 +18,13 @@ func testWriteTools(f toolFixture, started *[]server.Request) writeTools {
 	return writeTools{masterDir: f.masterDir, options: Options{
 		NewJobID: func() string { next++; return "new" + string(rune('a'+next)) },
 		StartRun: func(_ state.ProjectPaths, request server.Request) (server.Response, error) {
+			paths, err := state.ResolveProjectPaths(f.firstBaseDir, request.QueueName)
+			if err != nil {
+				return server.Response{}, err
+			}
+			if _, err := project.CheckRevision(paths, project.Guard{IfRevision: request.IfRevision}); err != nil {
+				return server.Response{}, err
+			}
 			*started = append(*started, request)
 			return server.Response{OK: true, RunID: "20260101-000001-dddddddd"}, nil
 		},
@@ -78,7 +87,7 @@ func TestRunToolsPreviewAndStartTheRetry(t *testing.T) {
 	for _, job := range preview.Execute {
 		ids = append(ids, job.ID)
 	}
-	if strings.Join(ids, ",") != "tr-2,tr-3" || preview.Jobs != 3 || preview.Carried != 1 {
+	if strings.Join(ids, ",") != "tr-2,tr-3" || preview.Jobs != 3 || preview.Carried != 1 || preview.SourceRun != f.secondRun {
 		t.Fatalf("retry preview = %+v", preview)
 	}
 	if queue, _ := state.LoadQueue(paths.QueueFile); len(queue.Commands) != 0 {
@@ -97,11 +106,50 @@ func TestRunToolsPreviewAndStartTheRetry(t *testing.T) {
 	}
 	request := started[0]
 	now, _ := project.Revision(paths)
-	if !request.Async || request.Selection != model.ResultSelection(true, true, false) || request.SourceRunID != f.secondRun || request.IfRevision != now || now == preview.Revision {
-		t.Fatalf("run request = %+v; want an async retry of %s at the revision after the copy (%s)", request, f.secondRun, now)
+	if !request.Async || request.Selection != model.ResultSelection(true, true, false) || request.SourceRunID != f.secondRun || request.SourcePolicy != string(projectrun.SourceCopyIfEmpty) || request.IfRevision != preview.Revision || now != preview.Revision || output.SourceRun != f.secondRun {
+		t.Fatalf("run request = %+v; want an async retry of %s at the unchanged preview revision %s (current %s)", request, f.secondRun, preview.Revision, now)
 	}
-	if queue, _ := state.LoadQueue(paths.QueueFile); len(queue.Commands) != 1 {
-		t.Fatal("the start did not copy the last run into the queue")
+	if queue, _ := state.LoadQueue(paths.QueueFile); len(queue.Commands) != 0 {
+		t.Fatal("the start copied the last run into the next queue")
+	}
+}
+
+func TestRunToolsReportFailedJobsOmittedByQueue(t *testing.T) {
+	f := newToolFixture(t)
+	var started []server.Request
+	tools := testWriteTools(f, &started)
+	paths, _ := state.ResolveProjectPaths(f.firstBaseDir, "exp")
+	queue := model.Queue{Commands: []model.QueuedCommand{{ID: "local-job", Command: []string{"true"}}}}
+	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+	before, err := project.Revision(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := RunInput{BaseDirRef: basedirregistry.Ref(f.firstBaseDir), Project: "exp", Retry: true}
+	preview, err := tools.previewRun(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preview.SourceRun != f.secondRun || !reflect.DeepEqual(preview.OmittedSourceJobs, []string{"tr-2", "tr-3"}) {
+		t.Fatalf("preview source report = %+v", preview)
+	}
+	if preview.Revision != before {
+		t.Fatalf("preview revision = %s, want %s", preview.Revision, before)
+	}
+	output, err := tools.startRun(StartRunInput{RunInput: input, IfRevision: preview.Revision})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.SourceRun != f.secondRun || !reflect.DeepEqual(output.OmittedSourceJobs, preview.OmittedSourceJobs) || len(started) != 1 {
+		t.Fatalf("start source report = %+v, requests %d", output, len(started))
+	}
+	if after, _ := project.Revision(paths); after != before {
+		t.Fatalf("start changed project revision: %s -> %s", before, after)
+	}
+	if got, err := state.LoadQueue(paths.QueueFile); err != nil || !reflect.DeepEqual(got.Commands, queue.Commands) {
+		t.Fatalf("next queue after start = %+v, %v", got, err)
 	}
 }
 

@@ -154,6 +154,35 @@ func TestBeginKeepsTheQueueWhenItFails(t *testing.T) {
 	}
 }
 
+func TestBeginAndFinishKeepQueueForSourceSnapshot(t *testing.T) {
+	runner, paths := testRunner(t)
+	queued := model.Queue{DefaultExecutor: "local", Commands: []model.QueuedCommand{{ID: "next", Command: []string{"true"}}}}
+	if err := state.WriteJSON(paths.QueueFile, queued); err != nil {
+		t.Fatal(err)
+	}
+	queueBytes, err := os.ReadFile(paths.QueueFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := model.Queue{Commands: []model.QueuedCommand{{ID: "saved", Command: []string{"true"}}}}
+	if err := runner.Begin(paths, Start{RunID: "run-1", Snapshot: &snapshot}); err != nil {
+		t.Fatal(err)
+	}
+	started, err := state.ReadQueueFile(filepath.Join(paths.RunsDir, "run-1", "commands.json"))
+	if err != nil || !reflect.DeepEqual(started.Commands, snapshot.Commands) {
+		t.Fatalf("run snapshot = %+v, %v; want %+v", started, err, snapshot)
+	}
+	if left, err := os.ReadFile(paths.QueueFile); err != nil || !reflect.DeepEqual(left, queueBytes) {
+		t.Fatalf("queue bytes after Begin = %q, %v; want unchanged %q", left, err, queueBytes)
+	}
+	if err := runner.Finish(paths, "run-1", 0); err != nil {
+		t.Fatal(err)
+	}
+	if left, err := os.ReadFile(paths.QueueFile); err != nil || !reflect.DeepEqual(left, queueBytes) {
+		t.Fatalf("queue bytes after Finish = %q, %v; want unchanged %q", left, err, queueBytes)
+	}
+}
+
 // TestRunExecutesOnlyTheJobsItTook checks that jobs queued after a run starts
 // are left for the next run: Execute reads the run's snapshot, and Finish no
 // longer clears the queue.

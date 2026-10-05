@@ -67,8 +67,7 @@ Execute queued commands, optionally selecting jobs from a run; jobs that depend 
 | Option | Value | Description |
 | --- | --- | --- |
 | `config` | `str` | config file to use |
-| `run_id` | `str` | copy this run's jobs into the queue first (copy --run-id + run); without it, a result filter copies the latest run only into an empty queue and otherwise uses the queued jobs, such as ones changed with change -r |
-| `overwrite` | `bool` | replace a non-empty queue without prompting; requires --run-id |
+| `run_id` | `str` | build the run from this saved run without changing the next queue; without it, a result filter copies the latest run only into an empty queue and otherwise uses the queued jobs |
 | `run_name` | `str` | run name label |
 | `local_concurrency` | `str` | local worker concurrency |
 | `batch_concurrency` | `str` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
@@ -137,8 +136,7 @@ Run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend 
 | Option | Value | Description |
 | --- | --- | --- |
 | `config` | `str` | config file to use |
-| `run_id` | `str` | copy this run's jobs into the queue first; without it, retry copies the latest run only into an empty queue and otherwise uses the queued jobs, such as ones changed with change -r |
-| `overwrite` | `bool` | replace a non-empty queue without prompting; requires --run-id |
+| `run_id` | `str` | build the retry from this saved run without changing the next queue; without it, retry copies the latest run only into an empty queue and otherwise uses the queued jobs |
 | `run_name` | `str` | run name label |
 | `local_concurrency` | `str` | local worker concurrency |
 | `batch_concurrency` | `str` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |

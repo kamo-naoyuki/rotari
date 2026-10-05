@@ -170,6 +170,30 @@
   [internal/projectrun/plan_test.go](../internal/projectrun/plan_test.go) and
   through the CLI by `TestRerunOfAnInterruptedRun` in
   [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
+- **RUN-13** `run --run-id RUN` and `retry --run-id RUN` build the new run's
+  command snapshot from the settled source run without copying it through
+  `queue.json`; the next queue's bytes remain unchanged. The project revision
+  still changes when the new run updates metadata. A result
+  selection on an empty queue follows the same path from the latest run.
+  `--overwrite` is rejected for both commands; replacing or appending to the
+  next queue remains the job of `copy`.
+  Implemented by [`PlanRun`](../internal/projectrun/plan.go),
+  [`queueops.Editor.CopySnapshot`](../internal/queueops/copy.go), and
+  [`Runner.Begin`](../internal/projectrun/lifecycle.go); checked by
+  `TestPreviewRunCopiesSavedSourceWithoutChangingNextQueue`,
+  `TestBeginAndFinishKeepQueueForSourceSnapshot`,
+  `TestBeginRunUsesSavedSnapshotAndLeavesQueueUntouched`, and
+  `TestRetryFromSavedRunLeavesNextQueueUntouched`.
+- **RUN-14** When `run` or `retry` uses a non-empty queue for a result
+  selection, the preview and run report which failed or unfinished jobs from
+  the latest run are absent from the queue and how to include them. The report
+  does not change queue selection or execution. MCP preview and start return
+  the same structured source run and omitted job IDs. Implemented in
+  [`PlanRun`](../internal/projectrun/plan.go) through
+  `OmittedFailedOrUnfinished`; checked by
+  `TestPlanRunReportsFailedSourceJobsOmittedByNonEmptyQueue`,
+  `TestRetryReportsFailedJobsOmittedByNonEmptyQueue`, and
+  `TestRunToolsReportFailedJobsOmittedByQueue`.
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,
@@ -252,8 +276,9 @@
   restored queue to be inspected or edited before execution. A filtered `run`
   selects work from each queued command's origin result and carries forward
   completed non-matching results. If the queue is empty, `run --failed` and
-  other result-filtered runs first restore the selected `--run-id`, or the
-  project's latest run when it is omitted. Copy-side result filters remain
+  other result-filtered runs build their snapshot directly from the selected
+  `--run-id`, or the project's latest run when it is omitted, without writing
+  the next queue. Copy-side result filters remain
   available for intentionally restoring only a subset.
 - Dependencies use unique job names within a queue. Unknown names, duplicates,
   and cycles are rejected before execution. `add` also rejects a duplicate job
@@ -432,8 +457,10 @@
   because an `afterany` job may have succeeded on a failed prerequisite's
   output. `copy` requires an omitted `DependsOnFinished` prerequisite to have
   finished with any result, rather than to have succeeded.
-- The server protocol version is 9 since a supervisor serves one run of one
-  project (8 moved `cancel`, `suspend`, and `resume` out of the server, 7 added
+- The server protocol version is 11: run requests carry their source policy
+  and exact-attempt copy intent (10 took the queue at Begin; 9 made a
+  supervisor serve one run of one project; 8 moved `cancel`, `suspend`, and
+  `resume` out of the server; 7 added
   a stage or matrix scope to run requests, 6 the retry delay fields, 5 per-job
   `retry`, 4 `timeout`, 3 `depends_on_finished`). A `run` client talks only
   to the supervisor it started from its own executable, so ping reports the

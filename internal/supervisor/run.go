@@ -36,8 +36,9 @@ func (ops Operations) StartRun(request server.Request, onDone func()) (string, s
 		}
 	}()
 	target := fmt.Sprintf("--basedir %s --project-name %s", executor.ShellQuote(started.paths.BaseDir), executor.ShellQuote(request.QueueName))
-	return started.runID, fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run: %s\n  Directory: %s\n\nWait for it:\n  rotari wait %s --run-id %s\n\nCheck status:\n  rotari show --run-id %s\n\nCancel run:\n  rotari cancel %s %s\n",
-		request.QueueName, model.RunLabel(started.runID, request.RunName), runDir, target, started.runID, started.runID, target, started.runID), nil
+	message := fmt.Sprintf("=== Run started ===\n  Project: %s\n  Run: %s\n  Directory: %s\n\nWait for it:\n  rotari wait %s --run-id %s\n\nCheck status:\n  rotari show --run-id %s\n\nCancel run:\n  rotari cancel %s %s\n",
+		request.QueueName, model.RunLabel(started.runID, request.RunName), runDir, target, started.runID, started.runID, target, started.runID)
+	return started.runID, message + sourceNotice(started), nil
 }
 
 // Run executes a run inside the supervisor, reporting progress to the
@@ -60,9 +61,9 @@ func (ops Operations) Run(request server.Request, progress func(server.Response)
 		return "", 1, err
 	}
 	if summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json")); err == nil {
-		return CompletionMessage(paths, runID, summary), exitCode, nil
+		return CompletionMessage(paths, runID, summary) + sourceNotice(started), exitCode, nil
 	}
-	return fmt.Sprintf("=== Run finished ===\n  Project: %s\n  Run: %s\n  Exit code: %d", request.QueueName, runID, exitCode), exitCode, nil
+	return fmt.Sprintf("=== Run finished ===\n  Project: %s\n  Run: %s\n  Exit code: %d", request.QueueName, runID, exitCode) + sourceNotice(started), exitCode, nil
 }
 
 // startedRun is a run that Begin has recorded and that is ready to execute.
@@ -72,7 +73,10 @@ type startedRun struct {
 	options projectrun.Options
 	// submitted and total count the jobs the run executes and the queue's
 	// jobs.
-	submitted, total int
+	submitted, total    int
+	sourceRunID         string
+	usedQueueWithSource bool
+	omittedSourceJobs   []string
 }
 
 // beginRun validates a run request and records the new run with Begin, under
@@ -85,21 +89,33 @@ func (ops Operations) beginRun(request server.Request) (startedRun, error) {
 	defer prepared.release()
 	request.SourceRunID = prepared.sourceRunID
 	runID := ops.NewRunID()
-	if err := ops.Runner.Begin(prepared.paths, projectrun.Start{RunID: runID, RunName: request.RunName, CWD: request.CWD, ConfigPath: request.ConfigPath}); err != nil {
+	start := projectrun.Start{RunID: runID, RunName: request.RunName, CWD: request.CWD, ConfigPath: request.ConfigPath}
+	if prepared.snapshotFromSource {
+		start.Snapshot = &prepared.queue
+	}
+	if err := ops.Runner.Begin(prepared.paths, start); err != nil {
 		return startedRun{}, err
 	}
 	options := runRequestOptions(request, runID)
 	options.Executor = prepared.executor
-	return startedRun{paths: prepared.paths, runID: runID, options: options, submitted: len(prepared.plan.Execute), total: len(model.QueueToJobs(prepared.queue.Commands))}, nil
+	return startedRun{
+		paths: prepared.paths, runID: runID, options: options,
+		submitted: len(prepared.plan.Execute), total: len(model.QueueToJobs(prepared.queue.Commands)),
+		sourceRunID: prepared.sourceRunID, usedQueueWithSource: prepared.usedQueueWithSource,
+		omittedSourceJobs: prepared.omittedSourceJobs,
+	}, nil
 }
 
 // preparedRun is a run request that passed validation while its caller holds
 // the project's state lock.
 type preparedRun struct {
-	paths    state.ProjectPaths
-	queue    model.Queue
-	plan     run.Plan
-	executor string
+	paths               state.ProjectPaths
+	queue               model.Queue
+	plan                run.Plan
+	executor            string
+	snapshotFromSource  bool
+	usedQueueWithSource bool
+	omittedSourceJobs   []string
 	// sourceRunID is the request's reference run, resolved before the new
 	// run is recorded; see projectrun.ReferenceRun.
 	sourceRunID string
@@ -114,10 +130,6 @@ func (ops Operations) prepareRun(request server.Request) (preparedRun, error) {
 	}
 	if ops.Project != "" && request.QueueName != ops.Project {
 		return preparedRun{}, fmt.Errorf("this supervisor runs project %q, not %q", ops.Project, request.QueueName)
-	}
-	resolvedExecutor, err := ops.resolveQueueExecutor(request.QueueName, request.Executor)
-	if err != nil {
-		return preparedRun{}, err
 	}
 	if request.LocalConcurrency < 1 {
 		return preparedRun{}, errors.New("local concurrency must be >= 1")
@@ -154,27 +166,40 @@ func (ops Operations) prepareRun(request server.Request) (preparedRun, error) {
 		return preparedRun{}, err
 	}
 	queue, plan, sourceRunID := planned.Queue, planned.Plan, planned.SourceRunID
-	return preparedRun{paths: paths, queue: queue, plan: plan, executor: resolvedExecutor, sourceRunID: sourceRunID, release: release}, nil
+	resolvedExecutor, err := resolveQueueExecutor(ops.Runner.Executors, queue, request.Executor)
+	if err != nil {
+		release()
+		return preparedRun{}, err
+	}
+	return preparedRun{
+		paths: paths, queue: queue, plan: plan, executor: resolvedExecutor,
+		snapshotFromSource: planned.SnapshotFromSource, usedQueueWithSource: planned.UsedQueueWithSource,
+		omittedSourceJobs: planned.OmittedSourceJobs, sourceRunID: sourceRunID, release: release,
+	}, nil
+}
+
+func sourceNotice(started startedRun) string {
+	if !started.usedQueueWithSource {
+		return ""
+	}
+	message := fmt.Sprintf("\nRetry source: current queue; latest run %s has %d failed or unfinished job(s) not included", started.sourceRunID, len(started.omittedSourceJobs))
+	if len(started.omittedSourceJobs) > 0 {
+		message += ": " + strings.Join(started.omittedSourceJobs, ", ")
+		message += fmt.Sprintf("\nInclude them with: rotari copy --basedir %s --project-name %s --run-id %s --failed --unfinished --append, then retry",
+			executor.ShellQuote(started.paths.BaseDir), executor.ShellQuote(started.paths.ProjectName), executor.ShellQuote(started.sourceRunID))
+	}
+	return message + "\n"
 }
 
 // resolveQueueExecutor returns the run's default executor, requested or the
-// queue's, and checks that it and every job's executor are known.
-func (ops Operations) resolveQueueExecutor(queueName, requested string) (string, error) {
-	paths, err := state.ResolveProjectPaths(ops.BaseDir, queueName)
-	if err != nil {
-		return "", err
-	}
-	queue, err := state.LoadQueue(paths.QueueFile)
-	if err != nil {
-		return "", err
-	}
+// planned snapshot's, and checks that it and every job's executor are known.
+func resolveQueueExecutor(executors executor.Registry, queue model.Queue, requested string) (string, error) {
 	if requested == "" {
 		requested = queue.DefaultExecutor
 		if requested == "" {
 			requested = "local"
 		}
 	}
-	executors := ops.Runner.Executors
 	if !executors.Known(requested) {
 		return "", fmt.Errorf("unsupported executor: %s", requested)
 	}
@@ -195,7 +220,9 @@ func planRequest(request server.Request) projectrun.PlanRequest {
 	return projectrun.PlanRequest{
 		Executor: request.Executor, ExecutorOptions: request.ExecutorOptions, Settings: request.ExecutorSettings,
 		Selection: request.Selection, JobIDs: request.JobIDs, Scope: requestScope(request), Filter: request.Filter,
-		SourceRunID: request.SourceRunID, PartialArray: request.PartialArray, MatchBy: request.MatchBy,
+		SourceRunID: request.SourceRunID, SourcePolicy: projectrun.SourcePolicy(request.SourcePolicy),
+		CopyAttempts: request.CopyAttempts, CopyJobIDs: request.CopyJobIDs,
+		PartialArray: request.PartialArray, MatchBy: request.MatchBy,
 	}
 }
 

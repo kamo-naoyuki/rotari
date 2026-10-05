@@ -10,6 +10,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
+	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -170,5 +171,82 @@ func TestPlanRunReadsResultsOfARunWithoutSummary(t *testing.T) {
 	}
 	if want := map[string]bool{"bad": true, "never": true}; !reflect.DeepEqual(planned.Plan.Execute, want) {
 		t.Fatalf("Execute = %v, want %v", planned.Plan.Execute, want)
+	}
+}
+
+func TestPreviewRunCopiesSavedSourceWithoutChangingNextQueue(t *testing.T) {
+	runner, paths := testRunner(t)
+	runner.Executors = executor.NewRegistry(runner.Store, func(string, ...any) {})
+	runner.NewJobID = func() string { return "copy-id" }
+	source := model.Queue{Commands: []model.QueuedCommand{{ID: "source-job", Command: []string{"true"}}}}
+	if err := state.WriteJSON(paths.QueueFile, source); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.Begin(paths, Start{RunID: "source-run", CWD: t.TempDir()}); err != nil {
+		t.Fatal(err)
+	}
+	if code, err := runner.Run(paths, Options{RunID: "source-run", LocalConcurrency: 1, EnvMode: model.EnvModeNone}, Observer{}); err != nil || code != 0 {
+		t.Fatalf("source run = %d, %v", code, err)
+	}
+	next := model.Queue{DefaultExecutor: "local", Commands: []model.QueuedCommand{{ID: "next-job", Command: []string{"false"}}}}
+	if err := state.WriteJSON(paths.QueueFile, next); err != nil {
+		t.Fatal(err)
+	}
+	before, err := project.Revision(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	planned, revision, err := runner.PreviewRun(paths, nil, PlanRequest{SourceRunID: "source-run", SourcePolicy: SourceCopyRun}, before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !planned.SnapshotFromSource || revision != before || len(planned.Queue.Commands) != 1 || planned.Queue.Commands[0].Origin == nil || planned.Queue.Commands[0].Origin.RunID != "source-run" {
+		t.Fatalf("planned source snapshot = %+v, revision %s; want copied source snapshot at revision %s", planned, revision, before)
+	}
+	left, err := state.LoadQueue(paths.QueueFile)
+	if err != nil || !reflect.DeepEqual(left.Commands, next.Commands) {
+		t.Fatalf("next queue = %+v, %v; want unchanged %+v", left, err, next)
+	}
+	if after, _ := project.Revision(paths); after != before {
+		t.Fatalf("preview changed revision: %s -> %s", before, after)
+	}
+}
+
+func TestPlanRunReportsFailedSourceJobsOmittedByNonEmptyQueue(t *testing.T) {
+	runner, paths := testRunner(t)
+	runner.Executors = executor.NewRegistry(runner.Store, func(string, ...any) {})
+	source := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "kept", Command: []string{"sh", "-c", "exit 2"}},
+		{ID: "omitted-a", Command: []string{"sh", "-c", "exit 3"}},
+		{ID: "omitted-b", Command: []string{"sh", "-c", "exit 4"}},
+	}}
+	if err := state.WriteJSON(paths.QueueFile, source); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.Begin(paths, Start{RunID: "source-run", CWD: t.TempDir()}); err != nil {
+		t.Fatal(err)
+	}
+	if code, err := runner.Run(paths, Options{RunID: "source-run", LocalConcurrency: 1, EnvMode: model.EnvModeNone}, Observer{}); err != nil || code == 0 {
+		t.Fatalf("source run = %d, %v; want failed run", code, err)
+	}
+	queue := model.Queue{Commands: []model.QueuedCommand{
+		{ID: "kept", Command: []string{"sh", "-c", "exit 2"}},
+		{ID: "new", Command: []string{"true"}},
+	}}
+	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
+		t.Fatal(err)
+	}
+	planned, _, err := runner.PreviewRun(paths, nil, PlanRequest{
+		Selection: model.ResultSelection(true, true, false), SourceRunID: "source-run",
+		SourcePolicy: SourceCopyIfEmpty,
+	}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(planned.OmittedSourceJobs, []string{"omitted-a", "omitted-b"}) {
+		t.Fatalf("omitted source jobs = %v; want [omitted-a omitted-b]", planned.OmittedSourceJobs)
+	}
+	if !reflect.DeepEqual(planned.Plan.Execute, map[string]bool{"kept": true, "new": true}) {
+		t.Fatalf("queue plan changed while reporting omissions: %v", planned.Plan.Execute)
 	}
 }

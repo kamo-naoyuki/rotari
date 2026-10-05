@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 CLI_SCHEMA: dict[str, Any] = {
     "commands": [
         {
@@ -1757,20 +1756,15 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "copy this run's jobs into the queue first "
-                    "(copy --run-id + run); without it, a result "
-                    "filter copies the latest run only into an "
-                    "empty queue and otherwise uses the queued "
-                    "jobs, such as ones changed with change -r",
+                    "description": "build the run from this saved run without "
+                    "changing the next queue; without it, a "
+                    "result filter copies the latest run only "
+                    "into an empty queue and otherwise uses the "
+                    "queued jobs",
                     "environment": "ROTARI_RUN_ID",
                     "name": "run-id",
                     "short": "r",
                     "value_name": "ID",
-                },
-                {
-                    "description": "replace a non-empty queue without prompting; "
-                    "requires --run-id",
-                    "name": "overwrite",
                 },
                 {
                     "description": "run name label",
@@ -2158,20 +2152,14 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "NAME",
                 },
                 {
-                    "description": "copy this run's jobs into the queue first; "
-                    "without it, retry copies the latest run only "
-                    "into an empty queue and otherwise uses the "
-                    "queued jobs, such as ones changed with "
-                    "change -r",
+                    "description": "build the retry from this saved run without "
+                    "changing the next queue; without it, retry "
+                    "copies the latest run only into an empty "
+                    "queue and otherwise uses the queued jobs",
                     "environment": "ROTARI_RUN_ID",
                     "name": "run-id",
                     "short": "r",
                     "value_name": "ID",
-                },
-                {
-                    "description": "replace a non-empty queue without prompting; "
-                    "requires --run-id",
-                    "name": "overwrite",
                 },
                 {
                     "description": "run name label",

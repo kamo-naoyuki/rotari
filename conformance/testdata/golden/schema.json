@@ -1301,9 +1301,6 @@
           "value_name": "ID"
         },
         {
-          "name": "overwrite"
-        },
-        {
           "name": "run-name",
           "value_name": "NAME"
         },
@@ -1573,9 +1570,6 @@
           "name": "run-id",
           "short": "r",
           "value_name": "ID"
-        },
-        {
-          "name": "overwrite"
         },
         {
           "name": "run-name",

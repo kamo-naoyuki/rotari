@@ -14,6 +14,9 @@ import (
 type Start struct {
 	RunID   string
 	RunName string
+	// Snapshot, when non-nil, is already built from a saved run. Begin writes
+	// it to the new run and leaves queue.json untouched.
+	Snapshot *model.Queue
 	// CWD is the working directory the run was requested from.
 	CWD string
 	// ConfigPath is the command config file that the client loaded.
@@ -32,9 +35,9 @@ type Start struct {
 // process; a caller that hands the run to another process rewrites the lock
 // with that process's PID.
 func (runner Runner) Begin(paths state.ProjectPaths, start Start) error {
-	queue, err := state.LoadQueue(paths.QueueFile)
+	queue, consumeQueue, err := queueForStart(paths, start)
 	if err != nil {
-		return fmt.Errorf("failed to load queue: %w", err)
+		return err
 	}
 	if err := runner.WriteContext(paths, start.RunID, start.CWD, start.ConfigPath); err != nil {
 		return fmt.Errorf("failed to save run context: %w", err)
@@ -71,6 +74,9 @@ func (runner Runner) Begin(paths state.ProjectPaths, start Start) error {
 		_ = removeLock(paths)
 		return fmt.Errorf("failed to update metadata: %w", err)
 	}
+	if !consumeQueue {
+		return nil
+	}
 	queue.Commands = nil
 	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
 		// The jobs are still queued; undo the start so they are not run twice.
@@ -79,6 +85,17 @@ func (runner Runner) Begin(paths state.ProjectPaths, start Start) error {
 		return fmt.Errorf("failed to take the queue: %w", err)
 	}
 	return nil
+}
+
+func queueForStart(paths state.ProjectPaths, start Start) (model.Queue, bool, error) {
+	if start.Snapshot != nil {
+		return *start.Snapshot, false, nil
+	}
+	queue, err := state.LoadQueue(paths.QueueFile)
+	if err != nil {
+		return model.Queue{}, false, fmt.Errorf("failed to load queue: %w", err)
+	}
+	return queue, true, nil
 }
 
 // Run executes a run that Begin recorded and then finishes it. It samples

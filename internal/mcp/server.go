@@ -120,7 +120,7 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_preview_run",
-		Description: "Preview a run of a project, as rotari run --dry-run (or with retry, rotari retry --dry-run) does: the jobs it would execute, the results it would carry, and the project revision. Changes nothing.",
+		Description: "Preview a run of a project, as rotari run --dry-run (or with retry, rotari retry --dry-run) does: the jobs it would execute, the results it would carry, the saved source run, any failed or unfinished jobs in that run omitted by a non-empty queue, and the project revision. A saved-run source is built into the run snapshot without changing the next queue. Changes nothing.",
 		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
 	}, func(_ context.Context, input RunInput) (RunPreviewOutput, error) {
 		output, err := writes.previewRun(input)
@@ -128,7 +128,7 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_start_run",
-		Description: "Start a run of a project in the background, as rotari run --async (or with retry, rotari retry --async) does, only if the project is still at the revision rotari_preview_run returned. Returns the run ID; follow it with rotari_wait_run.",
+		Description: "Start a run of a project in the background, as rotari run --async (or with retry, rotari retry --async) does, only if the project is still at the revision rotari_preview_run returned. A saved-run source leaves the next queue untouched. Returns the run ID and the source jobs omitted by a non-empty queue; follow the run with rotari_wait_run.",
 		Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPointer(false)},
 	}, func(_ context.Context, input StartRunInput) (StartRunOutput, error) {
 		output, err := writes.startRun(input)
@@ -157,7 +157,7 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_unlock",
-		Description: "Recover a project's interrupted run, as rotari unlock does, only if the project is still at the revision rotari_preview_unlock returned: remove its stale lock and return the project to idle, keeping the queue. A run whose coordinator is alive on the server's host is refused. Confirm first that the run's jobs have stopped. Then rotari_preview_run and rotari_start_run with retry rerun its failed and unfinished jobs while the queue is empty.",
+		Description: "Recover a project's interrupted run, as rotari unlock does, only if the project is still at the revision rotari_preview_unlock returned: remove its stale lock and return the project to idle, keeping the next queue. A run whose coordinator is alive on the server's host is refused. Confirm first that the run's jobs have stopped. Then rotari_preview_run and rotari_start_run with retry and run_id set to the recovered run rerun its failed and unfinished jobs without replacing next-queue jobs.",
 		Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPointer(true)},
 	}, func(_ context.Context, input ApplyUnlockInput) (UnlockOutput, error) {
 		return writes.applyUnlock(input)

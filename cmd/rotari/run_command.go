@@ -10,16 +10,16 @@ import (
 	"os/signal"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
-	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-// cmdRun starts a run, optionally repopulating the queue from historical run
-// results or selected attempts before submitting work to the background server.
+// cmdRun starts a run, optionally building its snapshot from historical run
+// results or selected attempts before submitting work to the supervisor.
 func cmdRun(args []string) int {
 	return runJobs(args, "")
 }
@@ -41,7 +41,9 @@ func runJobs(args []string, defaultSelection string) int {
 	queueNameOption := cliString(fs, "project-name", "")
 	runIDOption := cliString(fs, "run-id", "")
 	jobNameOption := cliString(fs, "job-name", "")
-	overwriteQueue := cliBool(fs, "overwrite", false)
+	if rejectRunOverwrite(args) {
+		return 1
+	}
 	runName := cliString(fs, "run-name", "")
 	localConcurrency := cliInt(fs, "local-concurrency", 8)
 	batchConcurrency := cliInt(fs, "batch-concurrency", 8)
@@ -195,10 +197,6 @@ func runJobs(args []string, defaultSelection string) int {
 			*runIDOption = target.RunID
 		}
 	}
-	if *overwriteQueue && *runIDOption == "" {
-		printError("usage: " + cliUsage("run"))
-		return 1
-	}
 	baseDir, queueName, resolvedRunID, err := resolve.ExistingRunID(*basedir, *queueNameOption, *runIDOption)
 	if err != nil {
 		printError(err)
@@ -210,13 +208,6 @@ func runJobs(args []string, defaultSelection string) int {
 		return 1
 	}
 
-	// A source run is needed whenever a selection filter is used, so the
-	// filter can be matched against that run's results. An explicit
-	// --run-id always repopulates the queue first ("run --run-id X"
-	// behaves like "copy --run-id X --overwrite" followed by "run"). When
-	// --run-id is omitted, the queue is only repopulated from the latest
-	// run if it is currently empty; a non-empty queue (e.g. already
-	// restored and edited via "change") is used as-is.
 	if attemptSelection {
 		selection = "job-id"
 	}
@@ -225,49 +216,15 @@ func runJobs(args []string, defaultSelection string) int {
 		printError(err)
 		return 1
 	}
-	sourceRunID, forceCopy, err := projectrun.RunSource(sourcePaths, selection, *runIDOption)
+	sourceRunID, sourcePolicy, err := projectrun.RunSource(sourcePaths, selection, *runIDOption)
 	if err != nil {
 		printError(err)
 		return 1
 	}
-	// The run starts from the queue as it is, or as the copy below leaves
-	// it; --dry-run plans that queue without writing, and --if-revision
-	// carries the revision the copy produced to the run's own check.
-	runQueue, runRevision := (*model.Queue)(nil), *guard.ifRevision
-	if forceCopy {
-		// Only prompts when the queue actually has jobs to lose; an empty
-		// queue (the common "auto-copy" case) is overwritten silently. A dry
-		// run writes nothing, so it does not ask.
-		overwriteConfirmed := true
-		if !*guard.dryRun {
-			confirmed, confirmErr := confirmQueueOverwrite(baseDir, queueName, false, *overwriteQueue)
-			if confirmErr != nil {
-				printError(confirmErr)
-				return 1
-			}
-			overwriteConfirmed = confirmed
-		}
-		copySelection := "all"
-		copyJobIDs := []string(nil)
-		if attemptSelection {
-			copySelection = "job-id"
-			copyJobIDs = jobIDs
-		}
-		message, copyErr := guard.editor().Copy(baseDir, queueName, sourceRunID, queueedit.CopyRequest{Selection: copySelection, JobIDs: copyJobIDs, Overwrite: overwriteConfirmed})
-		if copyErr != nil {
-			printError(copyErr)
-			return 1
-		}
-		if *guard.dryRun {
-			runQueue = guard.outcome.Queue
-		} else {
-			fmt.Println(colorKeyValueMessage(message, green))
-			if runRevision != "" {
-				runRevision = guard.outcome.NewRevision
-			}
-		}
-	}
+	runRevision := *guard.ifRevision
+	copyJobIDs := []string(nil)
 	if attemptSelection {
+		copyJobIDs = append(copyJobIDs, jobIDs...)
 		selection = ""
 		jobIDs = nil
 	}
@@ -278,9 +235,11 @@ func runJobs(args []string, defaultSelection string) int {
 		return 1
 	}
 	if *guard.dryRun {
-		return previewRun(paths, runQueue, projectrun.PlanRequest{
+		return previewRun(paths, nil, projectrun.PlanRequest{
 			Executor: *executor, ExecutorOptions: executorOptions, Settings: executorSettings(),
-			Selection: selection, JobIDs: jobIDs, Scope: scope, Filter: filter, SourceRunID: sourceRunID, PartialArray: *partialArray, MatchBy: *matchBy,
+			Selection: selection, JobIDs: jobIDs, Scope: scope, Filter: filter, SourceRunID: sourceRunID,
+			SourcePolicy: sourcePolicy, CopyAttempts: attemptSelection, CopyJobIDs: copyJobIDs,
+			PartialArray: *partialArray, MatchBy: *matchBy,
 		}, *guard.ifRevision, *runName)
 	}
 	cwd, err := os.Getwd()
@@ -297,7 +256,9 @@ func runJobs(args []string, defaultSelection string) int {
 	request := serverinternal.Request{
 		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings(), Retry: *retry, Async: *async, Quiet: *quiet,
 		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, EnvMode: *envMode, CWD: cwd, ConfigPath: cliConfigPath,
-		Selection: selection, JobIDs: jobIDs, ScopeStage: scope.Stage, ScopeMatrix: scope.Matrix, Filter: filter, SourceRunID: sourceRunID, PartialArray: *partialArray, MatchBy: *matchBy,
+		Selection: selection, JobIDs: jobIDs, ScopeStage: scope.Stage, ScopeMatrix: scope.Matrix, Filter: filter, SourceRunID: sourceRunID,
+		SourcePolicy: string(sourcePolicy), CopyAttempts: attemptSelection, CopyJobIDs: copyJobIDs,
+		PartialArray: *partialArray, MatchBy: *matchBy,
 		IfRevision: runRevision,
 	}
 	var response serverinternal.Response
@@ -318,6 +279,33 @@ func runJobs(args []string, defaultSelection string) int {
 		fmt.Print(colorMessage(response.Message))
 	}
 	return response.ExitCode
+}
+
+func rejectRunOverwrite(args []string) bool {
+	flagsWithValues := make(map[string]bool)
+	for _, spec := range runCommandFlags(false) {
+		if spec.ValueName != "" {
+			flagsWithValues[spec.Name] = true
+		}
+	}
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		if arg == "--" {
+			return false
+		}
+		if arg == "--overwrite" || arg == "-overwrite" || strings.HasPrefix(arg, "--overwrite=") || strings.HasPrefix(arg, "-overwrite=") {
+			printError("run and retry no longer accept --overwrite; saved-run retries leave the next queue untouched")
+			return true
+		}
+		if !strings.HasPrefix(arg, "-") {
+			continue
+		}
+		name, _, hasValue := strings.Cut(strings.TrimLeft(arg, "-"), "=")
+		if flagsWithValues[name] && !hasValue && index+1 < len(args) {
+			index++
+		}
+	}
+	return false
 }
 
 // cmdRetry reruns failed and unfinished jobs, or, given a result filter or a
@@ -409,8 +397,8 @@ func (printer *runProgressPrinter) print(response serverinternal.Response) {
 
 // previewRun prints what a run of the project would execute, planned with
 // projectrun.Runner.PlanRun as the run itself is, without starting it. queue,
-// when set, is the queue a copy would leave; otherwise the project's queue is
-// planned.
+// when set, is an explicitly supplied replacement queue; saved-run snapshots
+// are prepared by the shared planner without changing queue.json.
 func previewRun(paths state.ProjectPaths, queue *model.Queue, request projectrun.PlanRequest, ifRevision, runName string) int {
 	planned, revision, err := projectRunner().PreviewRun(paths, queue, request, ifRevision)
 	if err != nil {
@@ -428,6 +416,15 @@ func previewRun(paths state.ProjectPaths, queue *model.Queue, request projectrun
 	for _, job := range jobs {
 		if planned.Plan.Execute[job.ID] {
 			fmt.Printf("  execute job_id=%s%s%s\n", job.ID, strings.Join(optionalField(" job_name", job.Name), ""), strings.Join(optionalField(" depends_on_rerun", planned.Plan.RerunDependencies[job.ID]), ""))
+		}
+	}
+	if planned.UsedQueueWithSource {
+		fmt.Printf("Retry source: current queue; latest run %s has %d failed or unfinished job(s) not included", planned.SourceRunID, len(planned.OmittedSourceJobs))
+		if len(planned.OmittedSourceJobs) > 0 {
+			fmt.Printf(": %s\nInclude them with: rotari copy --basedir %s --project-name %s --run-id %s --failed --unfinished --append, then retry\n",
+				strings.Join(planned.OmittedSourceJobs, ", "), executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(planned.SourceRunID))
+		} else {
+			fmt.Println()
 		}
 	}
 	fmt.Printf("revision=%s\n", revision)

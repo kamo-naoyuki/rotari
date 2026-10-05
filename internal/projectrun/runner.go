@@ -14,6 +14,8 @@ import (
 type Runner struct {
 	Store     state.Store
 	Executors executor.Registry
+	// NewJobID supplies IDs for matrix groups and jobs copied into run snapshots.
+	NewJobID func() string
 	// Logf receives job submission, completion, and failure lines.
 	Logf func(string, ...any)
 	// Errorf reports a run that failed to prepare or record its jobs; the run
