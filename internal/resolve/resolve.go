@@ -492,11 +492,12 @@ func AmbiguousError(what string, targets []Job) error {
 	return errors.New(message.String())
 }
 
-// Candidate priorities for Jobs, best first.
+// Candidate priorities for Jobs, best first: a queued job, then one in an
+// active, interrupted, or latest run.
 const (
-	priorityActive = iota
+	priorityQueue = iota
+	priorityActive
 	priorityInterrupted
-	priorityQueue
 	priorityLatest
 )
 
@@ -506,28 +507,19 @@ type Job struct {
 	JobID string
 	// FromQueue reports a job found in the current queue rather than a run.
 	FromQueue bool
-	// priority orders candidates in Jobs: active, interrupted, queue, latest.
+	// priority orders candidates in Jobs: queue, active, interrupted, latest.
 	priority int
 }
 
-// defaultJobs finds a job in one project without a run ID: in the active or
-// interrupted run when there is one, otherwise in the queue and the latest run.
+// defaultJobs finds a job in one project without a run ID: in the queue
+// first, then in the project's run, which is the active or interrupted run
+// when there is one and otherwise the latest run. A run takes its jobs from
+// the queue when it starts, so the queue holds only the next run's jobs and
+// the same order applies in every project state.
 func defaultJobs(paths state.ProjectPaths, selector string, byName bool) ([]Job, error) {
 	inspection, err := project.Inspect(paths, true)
-	projectState, stateRunID := inspection.State, inspection.RunID
 	if err != nil {
 		return nil, err
-	}
-	if projectState == project.Running || projectState == project.Interrupted {
-		target, found, err := JobInRun(paths, stateRunID, selector, byName)
-		if err != nil || !found {
-			return nil, err
-		}
-		target.priority = priorityActive
-		if projectState == project.Interrupted {
-			target.priority = priorityInterrupted
-		}
-		return []Job{target}, nil
 	}
 	targets := make([]Job, 0, 2)
 	queue, err := state.LoadQueue(paths.QueueFile)
@@ -543,15 +535,21 @@ func defaultJobs(paths state.ProjectPaths, selector string, byName bool) ([]Job,
 			})
 		}
 	}
-	runID, err := RunID(paths, "")
-	if err != nil {
-		return targets, nil
+	runID, priority := inspection.RunID, priorityActive
+	switch inspection.State {
+	case project.Interrupted:
+		priority = priorityInterrupted
+	case project.Idle:
+		if runID, err = RunID(paths, ""); err != nil {
+			return targets, nil
+		}
+		priority = priorityLatest
 	}
 	target, found, err := JobInRun(paths, runID, selector, byName)
 	if err != nil || !found {
 		return targets, err
 	}
-	target.priority = priorityLatest
+	target.priority = priority
 	return append(targets, target), nil
 }
 

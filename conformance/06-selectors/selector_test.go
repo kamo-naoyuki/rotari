@@ -334,3 +334,23 @@ func TestRunJobIDRunsEditedQueue(t *testing.T) {
 		}
 	}
 }
+
+// TestJobSelectorLooksInTheQueueBesideAnActiveRun checks that a job selector
+// looks in the queue before the active run, as it does before the latest run
+// of an idle project, and finds a job only the run has in the run.
+func TestJobSelectorLooksInTheQueueBesideAnActiveRun(t *testing.T) {
+	covers(t, "SEL-2", "SEL-3")
+	t.Parallel()
+	e := newEnv(t)
+	run := e.startActiveRun("live", 1)
+	queued := addedJobID(t, e.mustRotari("add", "-p", "live", "--job-name", "hold1", "--", "echo", "next"))
+
+	r := e.mustRotari("show", "-p", "live", "--job-name", "hold1")
+	if !strings.Contains(r.stdout, "QUEUE / JOB") || !strings.Contains(r.stdout, "Job: "+queued) {
+		t.Errorf("show --job-name did not find the queued job %s: %s", queued, r.stdout)
+	}
+	r = e.mustRotari("show", "-p", "live", "--job-id", run.jobs[0])
+	if strings.Contains(r.stdout, "QUEUE / JOB") || !strings.Contains(r.stdout, run.runID) {
+		t.Errorf("show --job-id did not find the running job in run %s: %s", run.runID, r.stdout)
+	}
+}

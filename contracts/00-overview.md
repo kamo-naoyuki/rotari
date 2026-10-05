@@ -118,7 +118,10 @@ the user-facing documentation, and the affected tests together.
 - **CORE-4** The primary user-facing target depends on project state: `idle` projects show
   the queue as the active work target, while a `running` or `interrupted` project
   treats the associated run as the primary subject. In other words, the contract is: `idle` =
-  queue-first, `running`/`interrupted` = run-first. This keeps run state and
+  queue-first, `running`/`interrupted` = run-first. A job ID or name is the
+  exception: it is looked for in the queue first in every state, since the
+  queue holds only the next run's jobs, and then in the project's run; see
+  `defaultJobs` in [`internal/resolve/resolve.go`](../internal/resolve/resolve.go). This keeps run state and
   queue semantics consistent across CLI, Web, and recovery flows.
 - **CORE-5** A project has at most one active run and runner at a time. That runner may
   execute multiple jobs concurrently, while different projects can run

@@ -115,7 +115,7 @@ the IDs, this table, and those calls disagree.
 | CORE-1 | The filesystem is the source of truth; registries and memory are recoverable indexes | partial | `TestRunFilesRemainAuthoritativeWithoutRegistryEntry` |
 | CORE-2 | The supervisor coordinates but is not the authority for project or run state | partial | `TestPersistedRunStateIsReadableAfterServerShutdown` |
 | CORE-3 | One mutable queue per project, taken by a run when it starts and editable in every project state | partial | `TestFilteredRerunCarriesCompletedResults`, `TestQueueEditsBesideAnActiveRun`, `TestRunningProjectRejectsChanges` |
-| CORE-4 | Idle projects are queue-first; running and interrupted projects are run-first | partial | `TestProjectStates` |
+| CORE-4 | A project view is queue-first when idle and run-first when running or interrupted; a job selector looks in the queue first in every state | partial | `TestProjectStates` |
 | CORE-5 | At most one active run and runner per project | conformance | `TestRunningProjectRejectsChanges`, `TestUnlockRefusesLiveRun` |
 | CORE-6 | Completed runs are immutable; reruns change only their destination run | partial | `TestFilteredRerunCarriesCompletedResults` |
 | CORE-7 | Executors run jobs; run semantics stay in the shared execution path | partial | `TestRunRetrySucceedsWithinOneRun` |
@@ -212,8 +212,8 @@ the IDs, this table, and those calls disagree.
 | MCP-5 | MCP reset previews, applies at the revision, and recovers an interrupted run only when confirmed | conformance | `TestMCPResetRecoversOnlyAConfirmedInterruptedRun` |
 | MCP-6 | MCP stdin EOF ends the session cleanly, even with responses in flight; malformed input remains an error | conformance | `TestMCPStdinEOF` |
 | SEL-1 | A run ID or attempt ID alone resolves its location in every command | partial | `TestPositionalArguments`, `TestSelectorTable` |
-| SEL-2 | Each command reads the run or queue its row names | partial | `TestSelectorTable` |
-| SEL-3 | `show` resolves each selector form as its column says | conformance | `TestSelectorTable` |
+| SEL-2 | Each command reads the run or queue its row names | partial | `TestJobSelectorLooksInTheQueueBesideAnActiveRun`, `TestSelectorTable` |
+| SEL-3 | `show` resolves each selector form as its column says | conformance | `TestJobSelectorLooksInTheQueueBesideAnActiveRun`, `TestSelectorTable` |
 | SEL-4 | `copy` resolves each selector form as its column says | conformance | `TestCLIFlagPairCopyObservability`, `TestSelectorTable` |
 | SEL-5 | `run` and `retry` resolve each selector form as their column says | conformance | `TestCLIFlagPairRunSelectionEffects`, `TestRunJobIDRunsEditedQueue`, `TestSelectorTable` |
 | SEL-6 | `change` resolves each selector form as its column says | conformance | `TestSelectorTable` |

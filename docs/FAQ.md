@@ -137,6 +137,12 @@ In short: `idle` means queue-first, while `running` and `interrupted` mean
 run-first. This is why `show` often resolves the active run before the queued
 commands after a start or crash.
 
+A job ID or name is the exception: `show -j`, `--job-name`, and a positional
+job selector look in the queue first in every state, then in the active,
+interrupted, or latest run. Jobs queued during a run belong to the next run,
+so a queued job with the same name as a running one is the one found; add
+`--run-id RUN_ID` to select the running one.
+
 ### How do I clean up run registry entries left by manual deletion?
 
 Run `rotari gc --dry-run [MASTERDIR]` to review candidates, then `rotari gc [MASTERDIR]` to remove them. Reappeared or changed candidates are skipped.

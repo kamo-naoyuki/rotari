@@ -411,3 +411,58 @@ func TestJobIDsByNameExpandsCommandsAndArrayTasks(t *testing.T) {
 		t.Fatalf("command name selected %#v, missing %v; want both array tasks", ids, missing)
 	}
 }
+
+// TestJobsLooksInTheQueueFirstInEveryState checks that a job selector finds a
+// queued job before a job of the project's run, whether that run is finished,
+// active, or interrupted, and finds a job only the run has in the run.
+func TestJobsLooksInTheQueueFirstInEveryState(t *testing.T) {
+	for _, test := range []struct {
+		name, phase string
+		live        bool
+	}{
+		{"idle", "finished", false},
+		{"running", "running", true},
+		{"interrupted", "running", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			baseDir := t.TempDir()
+			paths, err := state.ResolveProjectPaths(baseDir, "demo")
+			if err != nil {
+				t.Fatal(err)
+			}
+			runDir := filepath.Join(paths.RunsDir, "run-1")
+			runJobs := model.Queue{Commands: []model.QueuedCommand{
+				{ID: "run-train", Name: "train", Command: []string{"true"}},
+				{ID: "run-eval", Name: "eval", Command: []string{"true"}},
+			}}
+			if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), runJobs); err != nil {
+				t.Fatal(err)
+			}
+			if err := state.WriteJSON(filepath.Join(runDir, "context.json"), model.RunContext{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: test.phase, LastRunID: "run-1"}); err != nil {
+				t.Fatal(err)
+			}
+			if test.live {
+				host, _ := os.Hostname()
+				if err := state.WriteJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-1", Host: host}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			queued := model.Queue{Commands: []model.QueuedCommand{{ID: "queued-train", Name: "train", Command: []string{"true"}}}}
+			if err := state.WriteJSON(paths.QueueFile, queued); err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := Jobs(baseDir, "demo", "train", true, true)
+			if err != nil || len(got) != 1 || !got[0].FromQueue || got[0].JobID != "queued-train" {
+				t.Fatalf("Jobs(train) = %+v, %v; want the queued job", got, err)
+			}
+			got, err = Jobs(baseDir, "demo", "eval", true, true)
+			if err != nil || len(got) != 1 || got[0].FromQueue || got[0].RunID != "run-1" || got[0].JobID != "run-eval" {
+				t.Fatalf("Jobs(eval) = %+v, %v; want the run's job", got, err)
+			}
+		})
+	}
+}
