@@ -25,7 +25,7 @@ func (editor Editor) RemoveWithFilter(baseDir, projectName, requestedRunID strin
 	}
 	var removed []model.QueuedCommand
 	var restored string
-	err = project.EditQueueGuarded(paths, "remove", editor.Guard, func(queue *model.Queue) error {
+	err = project.EditQueueGuarded(paths, editor.Guard, func(queue *model.Queue) error {
 		var err error
 		if restored, err = restoreSnapshot(paths, requestedRunID, queue); err != nil {
 			return err

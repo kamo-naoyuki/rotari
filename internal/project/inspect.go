@@ -130,7 +130,7 @@ func EnsureIdle(paths state.ProjectPaths, operation string) error {
 	runID := inspection.RunID
 	switch inspection.State {
 	case Running:
-		return fmt.Errorf("project %q is running; %s is not allowed", paths.ProjectName, operation)
+		return fmt.Errorf("project %q is running; %s is not allowed (queue edits for the next run are)", paths.ProjectName, operation)
 	case Interrupted:
 		detail, stillRunning := InterruptedRunDetail(paths, runID)
 		message := fmt.Sprintf("project %q has interrupted run %q%s; %s is not allowed\nInspect before deciding: rotari show --basedir %s --project-name %s --run-id %s\n",
@@ -142,6 +142,27 @@ func EnsureIdle(paths state.ProjectPaths, operation string) error {
 			executor.ShellQuote(paths.BaseDir), executor.ShellQuote(paths.ProjectName), executor.ShellQuote(runID))
 		message += "Then rerun its failed and unfinished jobs: " + RerunCommand(paths, runID)
 		return errors.New(message)
+	default:
+		return nil
+	}
+}
+
+// EnsureRunSettled rejects runID while it is the project's running or
+// interrupted run: its results are not final and its jobs may still run, so
+// it cannot be copied yet.
+func EnsureRunSettled(paths state.ProjectPaths, runID string) error {
+	inspection, err := Inspect(paths, false)
+	if err != nil {
+		return fmt.Errorf("failed to check project state: %w", err)
+	}
+	if inspection.RunID != runID {
+		return nil
+	}
+	switch inspection.State {
+	case Running:
+		return fmt.Errorf("run %q is still running; copy it after it finishes", runID)
+	case Interrupted:
+		return fmt.Errorf("run %q is interrupted; recover it with rotari unlock before copying it", runID)
 	default:
 		return nil
 	}

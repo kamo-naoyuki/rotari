@@ -61,7 +61,9 @@ func TestCmdChangeUpdatesExecutorEnvironmentAndCommandByJobID(t *testing.T) {
 	}
 }
 
-func TestCmdChangeRejectsRunningProject(t *testing.T) {
+// TestCmdChangeEditsTheQueueWhileRunning checks that a queued job can be
+// changed while a run is active: the run took its own jobs when it started.
+func TestCmdChangeEditsTheQueueWhileRunning(t *testing.T) {
 	baseDir := t.TempDir()
 	if _, err := enqueueCommand(baseDir, "default", []string{"echo", "job"}, "", nil, nil, "job", nil); err != nil {
 		t.Fatal(err)
@@ -79,23 +81,15 @@ func TestCmdChangeRejectsRunningProject(t *testing.T) {
 	writeTestRunStateFiles(t, paths, "active-run")
 	defer os.Remove(paths.LockFile)
 
-	oldStderr := os.Stderr
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
+	if code := cmdChange([]string{"--basedir", baseDir, "--project-name", "default", "--job-name", "job", "--executor", "local"}); code != 0 {
+		t.Fatalf("cmdChange exit code = %d", code)
 	}
-	os.Stderr = writer
-	code := cmdChange([]string{"--basedir", baseDir, "--project-name", "default", "--job-name", "job", "--executor", "local"})
-	os.Stderr = oldStderr
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil || len(queue.Commands) != 1 || queue.Commands[0].Executor != "local" {
+		t.Fatalf("queue = %#v, err = %v", queue, err)
 	}
-	output, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if code != 1 || !strings.Contains(string(output), `project "default" is running; change is not allowed`) {
-		t.Fatalf("cmdChange exit code = %d, stderr = %q", code, output)
+	if meta, err := loadMeta(paths.MetaFile); err != nil || meta.Phase != "running" {
+		t.Fatalf("meta = %+v, err = %v; want the run's phase kept", meta, err)
 	}
 }
 

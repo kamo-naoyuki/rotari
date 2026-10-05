@@ -488,7 +488,9 @@ func TestCmdImportFailureKeepsExistingQueueAndMeta(t *testing.T) {
 	}
 }
 
-func TestCmdImportRejectsRunningProject(t *testing.T) {
+// TestCmdImportQueuesWhileRunning checks that import edits the queue while a
+// run is active; a dry run still writes nothing.
+func TestCmdImportQueuesWhileRunning(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "demo")
 	if err != nil {
@@ -506,14 +508,21 @@ func TestCmdImportRejectsRunningProject(t *testing.T) {
 	}
 	writeTestRunStateFiles(t, paths, "active-run")
 	manifest := writeWorkflowFixture(t, "version: 1\njobs:\n  - command: [true]\n")
-	for _, extra := range [][]string{nil, {"--dry-run"}, {"--overwrite"}} {
-		args := append([]string{"--basedir", baseDir, "--project-name", "demo"}, extra...)
-		if code := cmdImport(append(args, manifest)); code != 1 {
-			t.Fatalf("cmdImport(%q) exit code = %d, want 1", extra, code)
-		}
+	args := []string{"--basedir", baseDir, "--project-name", "demo"}
+	if code := cmdImport(append(append(args, "--dry-run"), manifest)); code != 0 {
+		t.Fatalf("cmdImport --dry-run exit code = %d", code)
 	}
 	if _, err := os.Stat(paths.QueueFile); !os.IsNotExist(err) {
-		t.Fatalf("import wrote a queue for a running project: %v", err)
+		t.Fatalf("dry-run import wrote a queue: %v", err)
+	}
+	if code := cmdImport(append(args, manifest)); code != 0 {
+		t.Fatalf("cmdImport exit code = %d", code)
+	}
+	if queue, err := loadQueue(paths.QueueFile); err != nil || len(queue.Commands) != 1 {
+		t.Fatalf("queue = %#v, err = %v", queue, err)
+	}
+	if meta, err := loadMeta(paths.MetaFile); err != nil || meta.Phase != "running" {
+		t.Fatalf("meta = %+v, err = %v; want the run's phase kept", meta, err)
 	}
 }
 

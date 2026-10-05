@@ -142,28 +142,31 @@ func TestCmdImportReadsJSONManifest(t *testing.T) {
 	}
 }
 
-func TestCmdImportRejectsInterruptedProject(t *testing.T) {
-	for _, extra := range [][]string{nil, {"--dry-run"}} {
-		baseDir := t.TempDir()
-		paths, err := state.ResolveProjectPaths(baseDir, "demo")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "retained", Command: []string{"retained"}}}}); err != nil {
-			t.Fatal(err)
-		}
-		if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
-			t.Fatal(err)
-		}
-		writeTestRunStateFiles(t, paths, "run-1")
-		manifest := writeWorkflowFixture(t, "version: 1\njobs:\n  - command: [replacement]\n")
-		args := append([]string{"--basedir", baseDir, "--project-name", "demo", "--overwrite"}, extra...)
-		if code := cmdImport(append(args, manifest)); code != 1 {
-			t.Fatalf("cmdImport(%q) exit code = %d, want 1", extra, code)
-		}
-		if queue := loadCarryStateQueue(t, paths); len(queue.Commands) != 1 || queue.Commands[0].ID != "retained" {
-			t.Fatalf("interrupted project queue changed: %#v", queue.Commands)
-		}
+// TestCmdImportReplacesTheQueueBesideAnInterruptedRun checks that import
+// edits the queue while a run is interrupted, and leaves the run's phase for
+// unlock.
+func TestCmdImportReplacesTheQueueBesideAnInterruptedRun(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.QueueFile, model.Queue{Commands: []model.QueuedCommand{{ID: "queued", Command: []string{"queued"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
+		t.Fatal(err)
+	}
+	writeTestRunStateFiles(t, paths, "run-1")
+	manifest := writeWorkflowFixture(t, "version: 1\njobs:\n  - command: [replacement]\n")
+	if code := cmdImport([]string{"--basedir", baseDir, "--project-name", "demo", "--overwrite", manifest}); code != 0 {
+		t.Fatalf("cmdImport exit code = %d", code)
+	}
+	if queue := loadCarryStateQueue(t, paths); len(queue.Commands) != 1 || queue.Commands[0].Command[0] != "replacement" {
+		t.Fatalf("queue = %#v", queue.Commands)
+	}
+	if meta, err := loadMeta(paths.MetaFile); err != nil || meta.Phase != "running" || meta.LastRunID != "run-1" {
+		t.Fatalf("meta = %+v, err = %v; want the interrupted run kept", meta, err)
 	}
 }
 

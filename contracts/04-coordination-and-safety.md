@@ -150,11 +150,11 @@ A project is in one of three states, derived from `running.lock` and
 `meta.json` only, never from job-level files such as a job's own
 `status.json` (see "Job execution durability" above):
 
-| State | `running.lock` | `meta.json` phase | `run`/`add`/`copy`/`change`/`delete`/`remove`/`import` | `reset` |
-| --- | --- | --- | --- | --- |
-| `Idle` | absent, or present but stale (auto-removed) | `collecting`/`finished` | allowed | allowed |
-| `Running` | present; owning coordinator PID is alive, or it runs on another host | `running`/`cancelling` | rejected: "is running; ... is not allowed" | rejected |
-| `Interrupted` | absent, or present but the coordinator PID is dead | `running`/`cancelling` with `last_run_id` set | rejected: "has interrupted run ...", naming how to inspect and recover it | requires confirmation |
+| State | `running.lock` | `meta.json` phase | `run`/`delete` | `add`/`copy`/`change`/`remove`/`import` | `reset` |
+| --- | --- | --- | --- | --- | --- |
+| `Idle` | absent, or present but stale (auto-removed) | `collecting`/`finished` | allowed | allowed | allowed |
+| `Running` | present; owning coordinator PID is alive, or it runs on another host | `running`/`cancelling` | rejected: "is running; ... is not allowed" | allowed, except `copy` of the running run | rejected |
+| `Interrupted` | absent, or present but the coordinator PID is dead | `running`/`cancelling` with `last_run_id` set | rejected: "has interrupted run ...", naming how to inspect and recover it | allowed, except `copy` of the interrupted run | requires confirmation |
 
 - **SAFE-1** `check` and `show` report a project's state as the table says;
   `check` names an idle project `ready` or `empty` (with or without queued
@@ -163,12 +163,11 @@ A project is in one of three states, derived from `running.lock` and
   A run whose coordinator is gone, for example killed with SIGKILL, leaves
   the project interrupted, never idle; a dead local lock is removed, and the
   metadata alone then marks the run.
-- **SAFE-2** While a project is running, `run`, `add`, `copy`, `change`,
-  `delete`, `remove`, `import`, and `reset` fail and change nothing, so a
-  second `run` of the project never starts a second runner. Other projects
-  are unaffected.
-- **SAFE-3** While a project is interrupted, the same commands except `reset`
-  fail with a message that names the interrupted run, the `show` and `unlock`
+- **SAFE-2** While a project is running, `run`, `delete`, and `reset` fail
+  and change nothing, so a second `run` of the project never starts a second
+  runner. Other projects are unaffected.
+- **SAFE-3** While a project is interrupted, `run` and `delete` fail with a
+  message that names the interrupted run, the `show` and `unlock`
   commands to inspect and recover it, and the `retry --run-id` command that
   reruns its failed and unfinished jobs afterwards.
 - **SAFE-4** `unlock` recovers an interrupted run: it leaves the queue as it
@@ -199,6 +198,18 @@ A project is in one of three states, derived from `running.lock` and
   [internal/project/inspect.go](../internal/project/inspect.go) over
   `state.LatestAttemptDirs`; checked by
   `TestInterruptedResetWarnsAboutRunningJobs`.
+- **SAFE-8** While a project is running or interrupted, `add`, `copy`,
+  `change`, `remove`, and `import` edit the queue for the next run, since the
+  run took its own jobs when it started (CORE-3). They leave the project's
+  `meta.json` phase, which belongs to the run, unchanged. `copy` rejects the
+  running run, whose results are not final, and the interrupted run until
+  `unlock`. Implemented by `project.EditQueueGuarded` in
+  [internal/project/edit.go](../internal/project/edit.go) and
+  `project.EnsureRunSettled` in
+  [internal/project/inspect.go](../internal/project/inspect.go), covered by
+  `TestEditQueueKeepsTheRunsPhase` and through the binary by
+  `TestQueueEditsBesideAnActiveRun` in
+  [conformance/04-coordination/private_state_test.go](../conformance/04-coordination/private_state_test.go).
 
 Further rules:
 
@@ -227,10 +238,10 @@ Further rules:
 
 Implementation and tests: `project.Inspect` in
 [`internal/project/inspect.go`](../internal/project/inspect.go) derives the
-state, and `project.EnsureIdle` is the shared check for `run`, `add`, `copy`,
-`change`, `delete`, `remove`, and `import`; every idle edit except `run`
-reaches it through `project.Edit` or `project.EditQueue`, which take the
-state lock first. `project.InterruptedRunDetail` builds the job detail.
+state, and `project.EnsureIdle` is the shared check for `run` and `delete`,
+which reaches it through `project.Edit`. Queue edits go through
+`project.EditQueue`, which takes the state lock and checks only that the
+project state is consistent. `project.InterruptedRunDetail` builds the job detail.
 `unlock` is [`cmd/rotari/unlock.go`](../cmd/rotari/unlock.go). Prompts go
 through `isTerminal`, which asks for termios settings, so `/dev/null`, pipes,
 and files are not terminals; see

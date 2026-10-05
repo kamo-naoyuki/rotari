@@ -12,7 +12,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-// Guard conditions an idle edit. The zero Guard applies the edit
+// Guard conditions a project edit. The zero Guard applies the edit
 // unconditionally.
 type Guard struct {
 	// DryRun computes the edit without writing anything.
@@ -84,22 +84,25 @@ func EditGuarded(paths state.ProjectPaths, operation string, guard Guard, edit f
 	return report(paths, guard, Outcome{Revision: revision})
 }
 
-// EditQueue applies edit to the project's queue under Edit and saves the
-// result with WriteIdleQueue. When edit returns an error, nothing is written.
-func EditQueue(paths state.ProjectPaths, operation string, edit func(queue *model.Queue) error) error {
-	return EditQueueGuarded(paths, operation, Guard{}, edit)
+// EditQueue applies edit to the project's queue under the state lock and saves
+// the result. The queue holds only the next run's jobs, since a run takes the
+// queue when it starts, so it can be edited whether the project is idle,
+// running, or interrupted. When edit returns an error, nothing is written.
+func EditQueue(paths state.ProjectPaths, edit func(queue *model.Queue) error) error {
+	return EditQueueGuarded(paths, Guard{}, edit)
 }
 
 // EditQueueGuarded is EditQueue under guard: a dry run computes the queue
 // edit reports, without writing it.
-func EditQueueGuarded(paths state.ProjectPaths, operation string, guard Guard, edit func(queue *model.Queue) error) error {
+func EditQueueGuarded(paths state.ProjectPaths, guard Guard, edit func(queue *model.Queue) error) error {
 	release, err := state.AcquireStateLock(paths.StateLockFile)
 	if err != nil {
 		return fmt.Errorf("failed to lock queue: %w", err)
 	}
 	defer release()
-	if err := EnsureIdle(paths, operation); err != nil {
-		return err
+	inspection, err := InspectConsistent(paths, true)
+	if err != nil {
+		return fmt.Errorf("failed to check project state: %w", err)
 	}
 	revision, err := CheckRevision(paths, guard)
 	if err != nil {
@@ -113,7 +116,7 @@ func EditQueueGuarded(paths state.ProjectPaths, operation string, guard Guard, e
 		return err
 	}
 	if !guard.DryRun {
-		if err := WriteIdleQueue(paths, queue); err != nil {
+		if err := writeEditedQueue(paths, inspection.State, queue); err != nil {
 			return err
 		}
 	}
@@ -125,7 +128,7 @@ func EditQueueGuarded(paths state.ProjectPaths, operation string, guard Guard, e
 // first. A dry run of a project that does not exist yet edits an empty queue
 // without locking or creating anything, and reports the revision a new
 // project has.
-func CreateQueueGuarded(paths state.ProjectPaths, operation string, guard Guard, edit func(queue *model.Queue) error) error {
+func CreateQueueGuarded(paths state.ProjectPaths, guard Guard, edit func(queue *model.Queue) error) error {
 	if _, err := os.Stat(paths.ProjectDir); errors.Is(err, os.ErrNotExist) && guard.DryRun {
 		revision, err := CheckRevision(paths, guard)
 		if err != nil {
@@ -142,7 +145,7 @@ func CreateQueueGuarded(paths state.ProjectPaths, operation string, guard Guard,
 			return err
 		}
 	}
-	return EditQueueGuarded(paths, operation, guard, edit)
+	return EditQueueGuarded(paths, guard, edit)
 }
 
 // CheckRevision returns the project's revision, refusing the edit when it is
@@ -173,6 +176,19 @@ func report(paths state.ProjectPaths, guard Guard, outcome Outcome) error {
 		outcome.NewRevision = revision
 	}
 	guard.Report(outcome)
+	return nil
+}
+
+// writeEditedQueue saves an edited queue. Only an idle project is marked as
+// collecting: a running or interrupted project's phase belongs to its run,
+// whose engine reads it for cancellation.
+func writeEditedQueue(paths state.ProjectPaths, projectState RunState, queue model.Queue) error {
+	if projectState == Idle {
+		return WriteIdleQueue(paths, queue)
+	}
+	if err := state.WriteJSON(paths.QueueFile, queue); err != nil {
+		return fmt.Errorf("failed to write queue: %w", err)
+	}
 	return nil
 }
 

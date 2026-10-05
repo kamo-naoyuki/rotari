@@ -415,15 +415,13 @@ func (e *Env) ExportFinishedRun(project string) string {
 	return manifest
 }
 
-func GuardedCommands(project, manifest string, run ActiveRun) map[string][]string {
+// GuardedCommands are the project commands that a running or interrupted
+// project rejects. Queue edits are not among them: the queue holds only the
+// next run's jobs.
+func GuardedCommands(project string) map[string][]string {
 	return map[string][]string{
 		"run":    {"run", "-p", project},
-		"add":    {"add", "-p", project, "--", "true"},
-		"copy":   {"copy", "-p", project, "--run-id", run.RunID, "--overwrite"},
-		"change": {"change", "-p", project, "--job-id", run.Jobs[0], "--timeout", "1m"},
 		"delete": {"delete", "-p", project, "--all"},
-		"remove": {"remove", "-p", project, run.Jobs[0]},
-		"import": {"import", manifest, project, "--overwrite"},
 	}
 }
 

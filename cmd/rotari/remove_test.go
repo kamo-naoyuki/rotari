@@ -80,7 +80,9 @@ func TestCmdRemoveDeletesJobByName(t *testing.T) {
 	}
 }
 
-func TestCmdRemoveRejectsRunningProject(t *testing.T) {
+// TestCmdRemoveEditsTheQueueWhileRunning checks that a queued job can be
+// removed while a run is active.
+func TestCmdRemoveEditsTheQueueWhileRunning(t *testing.T) {
 	baseDir := t.TempDir()
 	if _, err := enqueueCommand(baseDir, "default", []string{"echo", "job"}, "", nil, nil, "job", nil); err != nil {
 		t.Fatal(err)
@@ -98,23 +100,14 @@ func TestCmdRemoveRejectsRunningProject(t *testing.T) {
 	writeTestRunStateFiles(t, paths, "active-run")
 	defer os.Remove(paths.LockFile)
 
-	oldStderr := os.Stderr
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
+	if code := cmdRemove([]string{"--basedir", baseDir, "--project-name", "default", "--job-name", "job"}); code != 0 {
+		t.Fatalf("cmdRemove exit code = %d", code)
 	}
-	os.Stderr = writer
-	code := cmdRemove([]string{"--basedir", baseDir, "--project-name", "default", "--job-name", "job"})
-	os.Stderr = oldStderr
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
+	if queue, err := loadQueue(paths.QueueFile); err != nil || len(queue.Commands) != 0 {
+		t.Fatalf("queue = %#v, err = %v", queue, err)
 	}
-	output, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if code != 1 || !strings.Contains(string(output), `project "default" is running; remove is not allowed`) {
-		t.Fatalf("cmdRemove exit code = %d, stderr = %q", code, output)
+	if meta, err := loadMeta(paths.MetaFile); err != nil || meta.Phase != "running" {
+		t.Fatalf("meta = %+v, err = %v; want the run's phase kept", meta, err)
 	}
 }
 

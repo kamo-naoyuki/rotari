@@ -249,18 +249,21 @@ func TestCopyIntoQueueWithoutTerminal(t *testing.T) {
 func TestRunningProjectRejectsChanges(t *testing.T) {
 	covers(t, "CORE-3", "SAFE-2", "SAFE-5", "CORE-5")
 	e := support.NewEnv(t)
-	manifest := e.ExportFinishedRun("live")
+	e.FinishedJobRun("live")
 	run := e.StartRun("live", 1, false)
 	// The run took the queue when it started (CORE-3).
 	if r := e.Rotari("check", "live"); !strings.Contains(r.Stdout, "queued=0") {
 		t.Errorf("queue of a running project is not empty: %s", r)
 	}
-	commands := support.GuardedCommands("live", manifest, run)
+	commands := support.GuardedCommands("live")
 	commands["reset"] = []string{"reset", "live", "--recover"}
 	for name, args := range commands {
 		if r := e.Rotari(args...); r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "is running") {
 			t.Errorf("%s of a running project was not rejected: %s", name, r)
 		}
+	}
+	if r := e.Rotari("copy", "-p", "live", "--run-id", run.RunID); r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "is still running") {
+		t.Errorf("copy of the active run was not rejected: %s", r)
 	}
 	if runs, _ := filepath.Glob(filepath.Join(e.Base, "projects", "live", "runs", "*")); len(runs) != 2 {
 		t.Errorf("project has %d runs, want two", len(runs))
@@ -275,11 +278,14 @@ func TestRunningProjectRejectsChanges(t *testing.T) {
 func TestInterruptedProjectNeedsRecovery(t *testing.T) {
 	covers(t, "SAFE-3", "SAFE-4")
 	e := support.NewEnv(t)
-	manifest := e.ExportFinishedRun("live")
+	e.FinishedJobRun("live")
 	run := e.StartRun("live", 1, false)
 	support.KillStrays(t, e.Root)
 	support.WaitForInterrupted(t, e, "live")
-	for name, args := range support.GuardedCommands("live", manifest, run) {
+	if r := e.Rotari("copy", "-p", "live", "--run-id", run.RunID); r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "rotari unlock") {
+		t.Errorf("copy of the interrupted run did not point to unlock: %s", r)
+	}
+	for name, args := range support.GuardedCommands("live") {
 		r := e.Rotari(args...)
 		out := r.Stdout + r.Stderr
 		if r.Code == 0 || !strings.Contains(out, "has interrupted run") || !strings.Contains(out, "rotari unlock") || !strings.Contains(out, "rotari show") || !strings.Contains(out, "rotari retry") {
@@ -298,6 +304,56 @@ func TestInterruptedProjectNeedsRecovery(t *testing.T) {
 		t.Errorf("after unlock: state %q", state)
 	}
 	e.MustRotari("add", "-p", "live", "--", "true")
+}
+
+// TestQueueEditsBesideAnActiveRun checks that the queue, which holds only the
+// next run's jobs, can be edited while a run is active or interrupted, and
+// that the next run executes those jobs and not the earlier run's.
+func TestQueueEditsBesideAnActiveRun(t *testing.T) {
+	covers(t, "CORE-3", "SAFE-8")
+	e := support.NewEnv(t)
+	finished, _ := e.FinishedJobRun("live")
+	manifest := filepath.Join(e.Root, "manifest.yaml")
+	e.MustRotari("export", finished, manifest)
+	run := e.StartRun("live", 1, false)
+
+	e.MustRotari("import", manifest, "live")
+	next := support.AddedJobID(t, e.MustRotari("add", "-p", "live", "--job-name", "next", "--", "true"))
+	e.MustRotari("change", "-p", "live", "--job-id", next, "--timeout", "1m")
+	e.MustRotari("copy", "-p", "live", "--run-id", finished, "--append")
+	dropped := support.AddedJobID(t, e.MustRotari("add", "-p", "live", "--", "false"))
+	e.MustRotari("remove", "-p", "live", dropped)
+	if r := e.Rotari("check", "live"); !strings.Contains(r.Stdout, "state=running") || !strings.Contains(r.Stdout, "queued=3") {
+		t.Fatalf("after queue edits beside the active run: %s", r)
+	}
+
+	support.KillStrays(t, e.Root)
+	support.WaitForInterrupted(t, e, "live")
+	late := support.AddedJobID(t, e.MustRotari("add", "-p", "live", "--job-name", "late", "--", "true"))
+	if r := e.Rotari("check", "live"); !strings.Contains(r.Stdout, "state=interrupted") || !strings.Contains(r.Stdout, "queued=4") {
+		t.Fatalf("after an add beside the interrupted run: %s", r)
+	}
+
+	e.MustRotari("unlock", "live", "--run-id", run.RunID)
+	e.MustRotari("run", "-p", "live", "--quiet")
+	var shown struct {
+		RunID   string `json:"run_id"`
+		Summary struct {
+			Results []struct {
+				ID string `json:"id"`
+			} `json:"results"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "live", "--json").Stdout), &shown); err != nil {
+		t.Fatal(err)
+	}
+	ran := map[string]bool{}
+	for _, result := range shown.Summary.Results {
+		ran[result.ID] = true
+	}
+	if shown.RunID == run.RunID || len(ran) != 4 || !ran[next] || !ran[late] || ran[run.Jobs[0]] || ran[dropped] {
+		t.Errorf("next run %s executed %v; want the four queued jobs only", shown.RunID, ran)
+	}
 }
 
 func TestResetOfInterruptedProject(t *testing.T) {

@@ -189,10 +189,6 @@ func cmdCopy(args []string) int {
 		return 1
 	}
 	*runID = resolvedRunID
-	if err := ensureProjectIdle(baseDir, queueName, "copy"); err != nil {
-		printError(err)
-		return 1
-	}
 	overwriteConfirmed, err := confirmQueueOverwrite(baseDir, queueName, *appendJobs, *overwriteJobs)
 	if err != nil {
 		printError(err)

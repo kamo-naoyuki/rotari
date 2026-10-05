@@ -167,7 +167,7 @@ func writeQueue(baseDir, projectName string, queue model.Queue, overwrite bool, 
 			report(result)
 		}
 	}
-	err = project.CreateQueueGuarded(paths, "import", guard, func(existing *model.Queue) error {
+	err = project.CreateQueueGuarded(paths, guard, func(existing *model.Queue) error {
 		if len(existing.Commands) > 0 && !overwrite {
 			return fmt.Errorf("project %q has queued jobs; use --overwrite", projectName)
 		}

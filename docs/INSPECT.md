@@ -171,7 +171,7 @@ job shows the candidates of the attempt that produced its result. Runs from
 before this record existed show `(not recorded)`.
 
 If a runner exits before finalizing its run, `show` reports the interrupted run
-and blocks `add`, `copy`, and `run` until you acknowledge it. First confirm
+and blocks `run` until you acknowledge it. First confirm
 that all jobs have stopped:
 
 ```sh

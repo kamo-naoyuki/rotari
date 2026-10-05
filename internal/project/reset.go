@@ -48,7 +48,7 @@ func Reset(paths state.ProjectPaths, recoverInterrupted bool, guard Guard) (Rese
 		return ResetResult{Cleared: len(queue.Commands), RecoveredRunID: inspection.RunID}, nil
 	}
 	cleared := 0
-	err = CreateQueueGuarded(paths, "reset", guard, func(queue *model.Queue) error {
+	err = CreateQueueGuarded(paths, guard, func(queue *model.Queue) error {
 		cleared = len(queue.Commands)
 		queue.Commands = nil
 		return nil

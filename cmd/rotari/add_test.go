@@ -20,7 +20,9 @@ func enqueueCommand(baseDir, queueName string, command []string, executor string
 	return queueEditor().Add(baseDir, queueName, []model.QueuedCommand{queued}, array)
 }
 
-func TestEnqueueCommandRejectsInterruptedRunWithoutChangingQueue(t *testing.T) {
+// TestEnqueueCommandAddsBesideAnInterruptedRun checks that add works while a
+// run is interrupted, leaving the interrupted run's phase for unlock.
+func TestEnqueueCommandAddsBesideAnInterruptedRun(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
@@ -35,16 +37,15 @@ func TestEnqueueCommandRejectsInterruptedRunWithoutChangingQueue(t *testing.T) {
 	}
 	writeTestRunStateFiles(t, paths, "interrupted-run")
 
-	_, err = enqueueCommand(baseDir, "default", []string{"duplicate"}, "", nil, nil, "", nil)
-	if err == nil || !strings.Contains(err.Error(), `project "default" has interrupted run "interrupted-run"; add is not allowed`) {
-		t.Fatalf("enqueueCommand error = %v, want interrupted run error", err)
-	}
-	queue, err := loadQueue(paths.QueueFile)
-	if err != nil {
+	if _, err := enqueueCommand(baseDir, "default", []string{"next"}, "", nil, nil, "", nil); err != nil {
 		t.Fatal(err)
 	}
-	if len(queue.Commands) != 1 || queue.Commands[0].ID != "existing" {
-		t.Fatalf("queue changed after rejected add: %#v", queue.Commands)
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil || len(queue.Commands) != 2 || queue.Commands[0].ID != "existing" {
+		t.Fatalf("queue = %#v, err = %v", queue.Commands, err)
+	}
+	if meta, err := loadMeta(paths.MetaFile); err != nil || meta.Phase != "running" || meta.LastRunID != "interrupted-run" {
+		t.Fatalf("meta = %+v, err = %v; want the interrupted run kept", meta, err)
 	}
 }
 

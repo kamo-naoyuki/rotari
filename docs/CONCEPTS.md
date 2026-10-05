@@ -15,11 +15,12 @@ that has started:
 
 - While the project is `idle`, the queue is the current work target and the
   default place to add or edit jobs.
-- While a project is `running`, the run is the primary user-facing target. The
-  queue does not change.
+- While a project is `running`, the run is the primary user-facing target, and
+  `add`, `copy`, `change`, `remove`, and `import` prepare the next run in the
+  queue. `run` waits until the active run ends.
 - While a project is `interrupted`, the run remains the primary recovery
-  target. After `unlock`, its failed and unfinished jobs are rerun from the run
-  with `rotari retry --run-id RUN_ID`.
+  target, and the queue can still be edited. After `unlock`, its failed and
+  unfinished jobs are rerun from the run with `rotari retry --run-id RUN_ID`.
 
 ```text
 <basedir>/projects/<project>/

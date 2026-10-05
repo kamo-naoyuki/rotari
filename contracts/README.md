@@ -114,7 +114,7 @@ the IDs, this table, and those calls disagree.
 | --- | --- | --- | --- |
 | CORE-1 | The filesystem is the source of truth; registries and memory are recoverable indexes | partial | `TestRunFilesRemainAuthoritativeWithoutRegistryEntry` |
 | CORE-2 | The supervisor coordinates but is not the authority for project or run state | partial | `TestPersistedRunStateIsReadableAfterServerShutdown` |
-| CORE-3 | One mutable queue per project, edited only while idle and snapshotted by a run | partial | `TestFilteredRerunCarriesCompletedResults`, `TestRunningProjectRejectsChanges` |
+| CORE-3 | One mutable queue per project, taken by a run when it starts and editable in every project state | partial | `TestFilteredRerunCarriesCompletedResults`, `TestQueueEditsBesideAnActiveRun`, `TestRunningProjectRejectsChanges` |
 | CORE-4 | Idle projects are queue-first; running and interrupted projects are run-first | partial | `TestProjectStates` |
 | CORE-5 | At most one active run and runner per project | conformance | `TestRunningProjectRejectsChanges`, `TestUnlockRefusesLiveRun` |
 | CORE-6 | Completed runs are immutable; reruns change only their destination run | partial | `TestFilteredRerunCarriesCompletedResults` |
@@ -149,12 +149,13 @@ the IDs, this table, and those calls disagree.
 | DUR-6 | Recovery does not kill or reconcile leftover jobs | partial | `TestRecoveryLeavesJobsRunning` |
 | DUR-7 | A run records its carried results at start, and every view and job control reads carried jobs from them during the run | conformance | `TestCarriedJobsReadAsCarriedDuringTheRun` |
 | SAFE-1 | `check` and `show` report a project as idle, running, or interrupted; a killed coordinator leaves it interrupted | conformance | `TestControlFromAnotherHost`, `TestProjectStates` |
-| SAFE-2 | A running project rejects the commands that would change it, so no second runner starts | conformance | `TestRunningProjectRejectsChanges` |
-| SAFE-3 | An interrupted project rejects them, naming the run and how to inspect and recover it | conformance | `TestInterruptedProjectNeedsRecovery` |
+| SAFE-2 | A running project rejects `run`, `delete`, and `reset`, so no second runner starts | conformance | `TestRunningProjectRejectsChanges` |
+| SAFE-3 | An interrupted project rejects `run` and `delete`, naming the run and how to inspect, recover, and rerun it | conformance | `TestInterruptedProjectNeedsRecovery` |
 | SAFE-4 | `unlock` recovers an interrupted run, no-ops without one, and refuses one whose coordinator is alive | conformance | `TestCLIFlagPairUnlock`, `TestCLIFlagPairUnlockSamples`, `TestCLIFlagPairUnlockSafety`, `TestControlFromAnotherHost`, `TestInterruptedProjectNeedsRecovery`, `TestUnlockRefusesLiveRun`, `TestUnlockWithoutInterruptedRunIsNoOp` |
 | SAFE-5 | `reset` discards the queue, rejects a running project, and needs confirmation for an interrupted one | conformance | `TestResetOfInterruptedProject`, `TestRunningProjectRejectsChanges` |
 | SAFE-6 | Commands ask for confirmation only on a terminal, otherwise naming the option that confirms | conformance | `TestCopyIntoQueueWithoutTerminal`, `TestResetOfInterruptedProject` |
 | SAFE-7 | Reset of an interrupted run warns while its jobs appear to be running | conformance | `TestInterruptedResetWarnsAboutRunningJobs` |
+| SAFE-8 | Queue edits apply beside a running or interrupted run and keep its phase; `copy` rejects that run | conformance | `TestQueueEditsBesideAnActiveRun` |
 | COORD-1 | Controlling a local job from another host fails, naming that host | conformance | `TestControlFromAnotherHost` |
 | COORD-2 | Cancelling a run whose coordinator is on another host fails, naming that host | conformance | `TestControlFromAnotherHost` |
 | COORD-3 | A lock from another host keeps the project locked until `unlock` | conformance | `TestControlFromAnotherHost` |

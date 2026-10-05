@@ -158,7 +158,7 @@ func writeTestRunStateFiles(t *testing.T, paths state.ProjectPaths, runID string
 
 func TestEditQueueSavesEditAndMarksCollecting(t *testing.T) {
 	paths := writeIdleQueueFixture(t)
-	err := EditQueue(paths, "add", func(queue *model.Queue) error {
+	err := EditQueue(paths, func(queue *model.Queue) error {
 		queue.Commands = append(queue.Commands, model.QueuedCommand{ID: "next", Command: []string{"true"}})
 		return nil
 	})
@@ -179,7 +179,7 @@ func TestEditQueueWritesNothingWhenEditFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = EditQueue(paths, "add", func(queue *model.Queue) error {
+	err = EditQueue(paths, func(queue *model.Queue) error {
 		queue.Commands = nil
 		return errors.New("invalid job")
 	})
@@ -194,22 +194,47 @@ func TestEditQueueWritesNothingWhenEditFails(t *testing.T) {
 	}
 }
 
-func TestEditQueueRejectsInterruptedProjectWithoutEditing(t *testing.T) {
-	paths := writeIdleQueueFixture(t)
-	if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: "running", LastRunID: "run-1"}); err != nil {
-		t.Fatal(err)
-	}
-	writeTestRunStateFiles(t, paths, "run-1")
-	called := false
-	err := EditQueue(paths, "change", func(*model.Queue) error {
-		called = true
-		return nil
-	})
-	if err == nil || !strings.Contains(err.Error(), `has interrupted run "run-1"; change is not allowed`) {
-		t.Fatalf("EditQueue error = %v", err)
-	}
-	if called {
-		t.Fatal("edit ran on an interrupted project")
+// TestEditQueueKeepsTheRunsPhase checks that the queue can be edited while a
+// run is active or interrupted, since it holds only the next run's jobs, and
+// that the edit leaves the phase of that run alone.
+func TestEditQueueKeepsTheRunsPhase(t *testing.T) {
+	for _, test := range []struct {
+		name, phase string
+		live        bool
+		want        RunState
+	}{
+		{"running", "running", true, Running},
+		{"cancelling", "cancelling", true, Running},
+		{"interrupted", "running", false, Interrupted},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			paths := writeIdleQueueFixture(t)
+			if err := state.WriteJSON(paths.MetaFile, model.Meta{Phase: test.phase, LastRunID: "run-1"}); err != nil {
+				t.Fatal(err)
+			}
+			writeTestRunStateFiles(t, paths, "run-1")
+			if test.live {
+				if err := state.WriteJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "run-1"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if inspection, err := Inspect(paths, false); err != nil || inspection.State != test.want {
+				t.Fatalf("fixture state = %v, %v; want %v", inspection.State, err, test.want)
+			}
+			err := EditQueue(paths, func(queue *model.Queue) error {
+				queue.Commands = append(queue.Commands, model.QueuedCommand{ID: "next", Command: []string{"true"}})
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if queue := loadQueueForTest(t, paths); len(queue.Commands) != 2 || queue.Commands[1].ID != "next" {
+				t.Fatalf("queue = %#v", queue)
+			}
+			if meta, err := state.LoadMeta(paths.MetaFile); err != nil || meta.Phase != test.phase || meta.LastRunID != "run-1" {
+				t.Fatalf("meta = %+v, %v; want the run's phase kept", meta, err)
+			}
+		})
 	}
 }
 
@@ -226,7 +251,7 @@ func TestEditQueueGuardedPreviewsAndChecksTheRevision(t *testing.T) {
 
 	// A dry run reports the edited queue and writes nothing.
 	var preview Outcome
-	if err := EditQueueGuarded(paths, "add", Guard{DryRun: true, Report: func(outcome Outcome) { preview = outcome }}, appendJob); err != nil {
+	if err := EditQueueGuarded(paths, Guard{DryRun: true, Report: func(outcome Outcome) { preview = outcome }}, appendJob); err != nil {
 		t.Fatal(err)
 	}
 	if preview.Applied || preview.Revision != before || preview.Queue == nil || len(preview.Queue.Commands) != 2 {
@@ -238,7 +263,7 @@ func TestEditQueueGuardedPreviewsAndChecksTheRevision(t *testing.T) {
 
 	// The previewed revision applies the edit and yields a new revision.
 	var applied Outcome
-	if err := EditQueueGuarded(paths, "add", Guard{IfRevision: preview.Revision, Report: func(outcome Outcome) { applied = outcome }}, appendJob); err != nil {
+	if err := EditQueueGuarded(paths, Guard{IfRevision: preview.Revision, Report: func(outcome Outcome) { applied = outcome }}, appendJob); err != nil {
 		t.Fatal(err)
 	}
 	if !applied.Applied || applied.NewRevision == before || len(loadQueueForTest(t, paths).Commands) != 2 {
@@ -249,7 +274,7 @@ func TestEditQueueGuardedPreviewsAndChecksTheRevision(t *testing.T) {
 	}
 
 	// The old revision is refused, and nothing is written.
-	err = EditQueueGuarded(paths, "add", Guard{IfRevision: before}, appendJob)
+	err = EditQueueGuarded(paths, Guard{IfRevision: before}, appendJob)
 	if !errors.Is(err, ErrRevisionChanged) || !strings.Contains(err.Error(), before) {
 		t.Fatalf("stale revision error = %v", err)
 	}
@@ -325,7 +350,7 @@ func TestCreateQueueGuardedPreviewsANewProjectWithoutCreatingIt(t *testing.T) {
 	}
 
 	var preview Outcome
-	if err := CreateQueueGuarded(paths, "add", Guard{DryRun: true, Report: func(outcome Outcome) { preview = outcome }}, appendJob); err != nil {
+	if err := CreateQueueGuarded(paths, Guard{DryRun: true, Report: func(outcome Outcome) { preview = outcome }}, appendJob); err != nil {
 		t.Fatal(err)
 	}
 	if preview.Applied || preview.Revision != empty || preview.Queue == nil || len(preview.Queue.Commands) != 1 {
@@ -336,7 +361,7 @@ func TestCreateQueueGuardedPreviewsANewProjectWithoutCreatingIt(t *testing.T) {
 	}
 
 	var applied Outcome
-	if err := CreateQueueGuarded(paths, "add", Guard{IfRevision: preview.Revision, Report: func(outcome Outcome) { applied = outcome }}, appendJob); err != nil {
+	if err := CreateQueueGuarded(paths, Guard{IfRevision: preview.Revision, Report: func(outcome Outcome) { applied = outcome }}, appendJob); err != nil {
 		t.Fatal(err)
 	}
 	if !applied.Applied || applied.NewRevision == empty || len(loadQueueForTest(t, paths).Commands) != 1 {

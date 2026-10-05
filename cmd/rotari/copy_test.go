@@ -11,13 +11,15 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-func TestCmdCopyRejectsRunningProjectBeforeQueueConfirmation(t *testing.T) {
+// TestCmdCopyRejectsTheActiveRunOnly checks that copy works while a run is
+// active, except from that run, whose results are not final yet.
+func TestCmdCopyRejectsTheActiveRunOnly(t *testing.T) {
 	baseDir := t.TempDir()
 	paths, err := state.ResolveProjectPaths(baseDir, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID := "copy-running-source"
+	runID := "copy-finished-source"
 	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "source", Command: []string{"source"}}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -31,6 +33,9 @@ func TestCmdCopyRejectsRunningProjectBeforeQueueConfirmation(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestRunStateFiles(t, paths, "active-run")
+	if err := writeJSON(filepath.Join(paths.RunsDir, "active-run", "commands.json"), model.Queue{Commands: []model.QueuedCommand{{ID: "running", Command: []string{"running"}}}}); err != nil {
+		t.Fatal(err)
+	}
 	defer os.Remove(paths.LockFile)
 
 	oldStderr := os.Stderr
@@ -39,7 +44,7 @@ func TestCmdCopyRejectsRunningProjectBeforeQueueConfirmation(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stderr = writer
-	code := cmdCopy([]string{"--basedir", baseDir, "--project-name", "default", runID})
+	code := cmdCopy([]string{"--basedir", baseDir, "--project-name", "default", "--append", "active-run"})
 	os.Stderr = oldStderr
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
@@ -48,11 +53,19 @@ func TestCmdCopyRejectsRunningProjectBeforeQueueConfirmation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 1 || !strings.Contains(string(output), `project "default" is running; copy is not allowed`) {
-		t.Fatalf("cmdCopy exit code = %d, stderr = %q", code, output)
+	if code != 1 || !strings.Contains(string(output), `run "active-run" is still running`) {
+		t.Fatalf("cmdCopy of the active run exit code = %d, stderr = %q", code, output)
 	}
-	if strings.Contains(string(output), "queue is not empty") {
-		t.Fatalf("cmdCopy checked queue before running state: %q", output)
+
+	if code := cmdCopy([]string{"--basedir", baseDir, "--project-name", "default", "--append", runID}); code != 0 {
+		t.Fatalf("cmdCopy of a finished run exit code = %d", code)
+	}
+	queue, err := loadQueue(paths.QueueFile)
+	if err != nil || len(queue.Commands) != 2 || queue.Commands[1].ID != "source" {
+		t.Fatalf("queue = %#v, err = %v", queue, err)
+	}
+	if meta, err := loadMeta(paths.MetaFile); err != nil || meta.Phase != "running" {
+		t.Fatalf("meta = %+v, err = %v; want the run's phase kept", meta, err)
 	}
 }
 

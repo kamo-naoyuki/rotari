@@ -60,12 +60,14 @@ to start it in the background.
 
 ### Can I add another job to a project while its run is active?
 
-No. A project has one active run at a time, and its queue is retained as that
-run's snapshot until it finishes. Jobs prepared together can execute
-concurrently within the same run; an independent job that must start before
-the current run finishes needs another project. That keeps its run history
-separate. Rotari does not provide a continuously accepting queue for jobs
-added after a run starts.
+Yes, for the next run. A run takes its jobs from the queue when it starts, so
+`add`, `copy`, `change`, `remove`, and `import` prepare the next run while it
+is active; `run` waits until the active run ends, since a project has one
+active run at a time. Jobs prepared together can execute concurrently within
+the same run; an independent job that must start before the current run
+finishes needs another project. That keeps its run history separate. Rotari
+does not provide a continuously accepting queue for jobs added after a run
+starts.
 
 ### I didn't pass `--project-name` — which project does rotari use?
 

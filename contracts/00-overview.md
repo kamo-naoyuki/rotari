@@ -107,11 +107,10 @@ the user-facing documentation, and the affected tests together.
   not persistent authority for project or run state. See [`cmd/rotari/server.go`](../cmd/rotari/server.go)
   and [`cmd/rotari/server_test.go`](../cmd/rotari/server_test.go).
 - **CORE-3** Each project owns one mutable current queue as the staging area for the next
-  run. Queue edits change that queue only while the project is idle. A run
-  takes the queue when it starts: the queue's jobs move into the run's
+  run. A run takes the queue when it starts: the queue's jobs move into the run's
   `commands.json` and the queue is left empty, keeping its defaults. The queue
-  therefore never holds the active or interrupted run's jobs, and finishing a
-  run does not clear it. An interrupted run's jobs are rerun from the run
+  therefore never holds the active or interrupted run's jobs, can be edited
+  in every project state (SAFE-8), and is not cleared when a run finishes. An interrupted run's jobs are rerun from the run
   itself (RUN-12). See [`internal/projectrun/lifecycle.go`](../internal/projectrun/lifecycle.go),
   [`internal/project/edit.go`](../internal/project/edit.go),
   [`cmd/rotari/reset.go`](../cmd/rotari/reset.go), and
