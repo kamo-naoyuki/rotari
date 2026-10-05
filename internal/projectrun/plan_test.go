@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kamo-naoyuki/rotari/internal/executor"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -130,5 +131,44 @@ func TestPreviewRunRefusesActiveProject(t *testing.T) {
 	}
 	if _, _, err := runner.PreviewRun(paths, nil, PlanRequest{}, ""); err == nil {
 		t.Fatal("PreviewRun planned a run of an interrupted project")
+	}
+}
+
+// TestPlanRunReadsResultsOfARunWithoutSummary checks that a run that ended
+// without writing summary.json, such as an interrupted run after unlock, can
+// be the reference of a filtered rerun: its jobs' results resolve from their
+// attempts, and jobs that never finished stay unfinished.
+func TestPlanRunReadsResultsOfARunWithoutSummary(t *testing.T) {
+	runner, paths := testRunner(t)
+	runner.Executors = executor.NewRegistry(runner.Store, func(string, ...any) {})
+	commands := []model.QueuedCommand{
+		{ID: "ok", Command: []string{"true"}},
+		{ID: "bad", Command: []string{"sh", "-c", "exit 3"}},
+	}
+	writePlanQueue(t, paths, commands...)
+	if err := runner.Begin(paths, Start{RunID: "run-1", CWD: t.TempDir()}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runner.Run(paths, Options{RunID: "run-1", LocalConcurrency: 1, EnvMode: model.EnvModeNone}, Observer{}); err != nil {
+		t.Fatal(err)
+	}
+	// Leave the run as an interrupted one would: no summary, and a job that
+	// never started.
+	runDir := filepath.Join(paths.RunsDir, "run-1")
+	if err := os.Remove(filepath.Join(runDir, "summary.json")); err != nil {
+		t.Fatal(err)
+	}
+	commands = append(commands, model.QueuedCommand{ID: "never", Command: []string{"true"}})
+	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), model.Queue{Commands: commands}); err != nil {
+		t.Fatal(err)
+	}
+	writePlanQueue(t, paths, commands...)
+
+	planned, _, err := runner.PreviewRun(paths, nil, PlanRequest{Selection: model.ResultSelection(true, true, false), SourceRunID: "run-1"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string]bool{"bad": true, "never": true}; !reflect.DeepEqual(planned.Plan.Execute, want) {
+		t.Fatalf("Execute = %v, want %v", planned.Plan.Execute, want)
 	}
 }

@@ -123,11 +123,6 @@ func TestImportedWorkflowRejectsBrokenOriginState(t *testing.T) {
 				t.Fatal(err)
 			}
 		}, want: "command"},
-		"missing origin summary": {setup: func(t *testing.T, paths state.ProjectPaths) {
-			if err := os.Remove(filepath.Join(paths.RunsDir, originAttemptRunID, "summary.json")); err != nil {
-				t.Fatal(err)
-			}
-		}, want: "summary"},
 		"accepted attempt without result": {accepted: true, setup: func(t *testing.T, paths state.ProjectPaths) {
 			writeOriginAttempt(t, paths, "source", olderAttempt, "", nil)
 		}, want: "marked success but has no recorded result"},

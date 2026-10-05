@@ -160,6 +160,16 @@
   and through the CLI by
   `TestWorkflowExportUsesListedRunOrderForTimestampTies` in
   [conformance/02-lifecycle/workflow_snapshots_test.go](../conformance/02-lifecycle/workflow_snapshots_test.go).
+- **RUN-12** A run that ended without writing `summary.json`, such as an
+  interrupted run after `unlock`, can be the source of a filtered rerun. Its
+  jobs' results resolve through the jobstatus chain from their latest
+  attempts or the results the run carried; a job that never finished has no
+  result and counts as unfinished. Implemented by `unsummarizedRunResults` in
+  [internal/projectrun/origins.go](../internal/projectrun/origins.go), covered
+  by `TestPlanRunReadsResultsOfARunWithoutSummary` in
+  [internal/projectrun/plan_test.go](../internal/projectrun/plan_test.go) and
+  through the CLI by `TestRerunOfAnInterruptedRun` in
+  [conformance/02-lifecycle/lifecycle_test.go](../conformance/02-lifecycle/lifecycle_test.go).
 
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,

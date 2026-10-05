@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kamo-naoyuki/rotari/conformance/support"
 )
@@ -963,5 +964,52 @@ func TestArrayNameDependsOnEveryTask(t *testing.T) {
 	}
 	if got := results[deploy]; !strings.HasPrefix(got, "exit 1 blocked") {
 		t.Errorf("deploy, after a failed train task: %q, want blocked", got)
+	}
+}
+
+// TestRerunOfAnInterruptedRun checks that an interrupted run, which never
+// wrote summary.json, can be the source of a filtered rerun after unlock:
+// jobs that finished keep their results and jobs cut off stay unfinished.
+func TestRerunOfAnInterruptedRun(t *testing.T) {
+	covers(t, "RUN-12")
+	e := support.NewEnv(t)
+	okJob := support.AddedJobID(t, e.MustRotari("add", "-p", "live", "--job-name", "ok", "--", "true"))
+	badJob := support.AddedJobID(t, e.MustRotari("add", "-p", "live", "--job-name", "bad", "--", "sh", "-c", "exit 3"))
+	run := e.StartRun("live", 1, false)
+	support.WaitUntil(t, 15*time.Second, func() (bool, string) {
+		listed := e.Rotari("jobs", "live", "--format", "%a %s").Stdout
+		return strings.Count(listed, " success") == 1 && strings.Count(listed, " failed") == 1, "jobs: " + listed
+	})
+	support.KillStrays(t, e.Root)
+	support.WaitForInterrupted(t, e, "live")
+	e.MustRotari("unlock", "live", "--run-id", run.RunID)
+
+	for _, test := range []struct {
+		args []string
+		want []string
+	}{
+		{[]string{"retry", "-p", "live", "--run-id", run.RunID, "--dry-run"}, []string{badJob, run.Jobs[0]}},
+		{[]string{"retry", "-p", "live", "--run-id", run.RunID, "--failed", "--dry-run"}, []string{badJob}},
+		{[]string{"retry", "-p", "live", "--run-id", run.RunID, "--unfinished", "--dry-run"}, []string{run.Jobs[0]}},
+	} {
+		r := e.Rotari(test.args...)
+		if r.Code != 0 {
+			t.Errorf("%v: %s", test.args, r)
+			continue
+		}
+		executed := map[string]bool{}
+		for _, line := range strings.Split(r.Stdout, "\n") {
+			if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "execute job_id="); ok {
+				executed[strings.Fields(rest)[0]] = true
+			}
+		}
+		if executed[okJob] || len(executed) != len(test.want) {
+			t.Errorf("%v executes %v, want %v: %s", test.args, executed, test.want, r)
+		}
+		for _, id := range test.want {
+			if !executed[id] {
+				t.Errorf("%v does not execute %s: %s", test.args, id, r)
+			}
+		}
 	}
 }

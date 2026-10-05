@@ -214,10 +214,43 @@ func (source originResults) RunResults(runID string) (map[string]model.JobResult
 		return nil, err
 	}
 	summary, err := state.LoadRunSummary(filepath.Join(runDir, "summary.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return unsummarizedRunResults(source.store, runDir)
+	}
 	if err != nil {
 		return nil, err
 	}
 	return model.ResultsByID(summary.Results), nil
+}
+
+// unsummarizedRunResults returns the results of a run that ended without
+// writing summary.json, such as an interrupted run after unlock: each job
+// resolves through the jobstatus chain from its latest attempt or the result
+// the run carried. A job that never finished has no result, so a rerun treats
+// it as unfinished.
+func unsummarizedRunResults(store state.Store, runDir string) (map[string]model.JobResult, error) {
+	commands, err := state.ReadQueueFile(filepath.Join(runDir, "commands.json"))
+	if err != nil {
+		return nil, err
+	}
+	recorded := jobstatus.RecordedResults(runDir, nil)
+	results := make(map[string]model.JobResult)
+	for _, spec := range model.QueueToJobs(commands.Commands) {
+		jobDir, err := state.LatestAttemptJobDir(runDir, spec.ID)
+		if err != nil {
+			return nil, err
+		}
+		recordedResult, carried := recorded[spec.ID]
+		result, finished := jobstatus.ReadJob(store, jobDir, recordedResult, carried).Result(spec)
+		if !finished {
+			continue
+		}
+		if !carried {
+			result.AttemptID, _ = state.LatestAttemptID(runDir, spec.ID)
+		}
+		results[spec.ID] = result
+	}
+	return results, nil
 }
 
 func (source originResults) AttemptResult(origin model.JobOrigin) (model.JobResult, bool, error) {
