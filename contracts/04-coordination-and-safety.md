@@ -164,8 +164,9 @@ A project is in one of three states, derived from `running.lock` and
   metadata alone then marks the run.
 - **SAFE-2** While a project is running, `run` and `delete` fail and change
   nothing, so a second `run` of the project never starts a second runner.
-  Queue edits, including `reset`, still apply only to the next run. Other
-  projects are unaffected.
+  Queue edits, including `reset`, still apply only to the next run. `retry`
+  may request final, run-owned jobs be reopened in the active run; that
+  request never starts a second runner. Other projects are unaffected.
 - **SAFE-3** While a project is interrupted, `run` and `delete` fail with a
   message that names the interrupted run, the `show` and `unlock`
   commands to inspect and recover it, and the `retry --run-id` command that
@@ -222,6 +223,16 @@ A project is in one of three states, derived from `running.lock` and
   `next_queue`; it never substitutes the next queue for the run's jobs.
   `check` continues to report the next queue's count. Checked through the
   binary by `TestShowActiveRunIncludesNextQueue`.
+- **SAFE-11** Active-run retry requests are written under the named run while
+  holding the project state lock, and the supervisor persists one versioned
+  response per request. Finishing the run closes the request channel and
+  rejects requests it did not accept. The requester names the ended run and
+  tells the user that repeating `retry` starts a new retry run; it never falls
+  back to one on its own. Implemented by
+  [`WatchRetryRequests`](../internal/jobcontrol/retry_request.go) and
+  [`Runner.Finish`](../internal/projectrun/lifecycle.go); CLI and Web API
+  coverage is in `TestRetryFinalJobInsideActiveRun` at
+  [conformance/02-lifecycle/active_retry_test.go](../conformance/02-lifecycle/active_retry_test.go).
 
 Further rules:
 
@@ -276,6 +287,11 @@ SAFE-6 are checked through the binary by
   they carry.
 - **STATE-4** Load samples are observational: blank or malformed lines in
   `load_samples.jsonl` are skipped, and `show` and the Web UI still work.
+- **STATE-5** Manual retry request/response files, the accepting marker, and
+  pending-result markers carry `state_version`. Run readers refuse newer
+  versions rather than silently misreading the coordination state.
+  Implemented by [`CheckRunVersions`](../internal/state/run_files.go) and
+  checked by `TestCheckRunVersionsReportsOnlyNewerFiles`.
 
 STATE-1 to STATE-4 are checked through the binary by
 [`conformance/04-coordination/private_state_test.go`](../conformance/04-coordination/private_state_test.go).

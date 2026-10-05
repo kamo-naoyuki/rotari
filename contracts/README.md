@@ -149,7 +149,7 @@ the IDs, this table, and those calls disagree.
 | DUR-6 | Recovery does not kill or reconcile leftover jobs | partial | `TestRecoveryLeavesJobsRunning` |
 | DUR-7 | A run records its carried results at start, and every view and job control reads carried jobs from them during the run | conformance | `TestCarriedJobsReadAsCarriedDuringTheRun` |
 | SAFE-1 | `check` and `show` report a project as idle, running, or interrupted; a killed coordinator leaves it interrupted | conformance | `TestControlFromAnotherHost`, `TestProjectStates` |
-| SAFE-2 | A running project rejects `run` and `delete`, so no second runner starts; reset only edits the next queue | conformance | `TestRunningProjectRejectsSecondRunAndDelete`, `TestResetClearsQueueBesideActiveRun` |
+| SAFE-2 | A running project rejects `run` and `delete`, while `retry` reopens final run-owned jobs without starting a second runner | partial | `TestRunningProjectRejectsSecondRunAndDelete`, `TestResetClearsQueueBesideActiveRun`, `TestRetryFinalJobInsideActiveRun` |
 | SAFE-3 | An interrupted project rejects `run` and `delete`, naming the run and how to inspect, recover, and rerun it | conformance | `TestInterruptedProjectNeedsRecovery` |
 | SAFE-4 | `unlock` recovers an interrupted run, no-ops without one, and refuses one whose coordinator is alive | conformance | `TestCLIFlagPairUnlock`, `TestCLIFlagPairUnlockSamples`, `TestCLIFlagPairUnlockSafety`, `TestControlFromAnotherHost`, `TestInterruptedProjectNeedsRecovery`, `TestUnlockRefusesLiveRun`, `TestUnlockWithoutInterruptedRunIsNoOp` |
 | SAFE-5 | `reset` clears only the next queue, preserves run history, and does not change an active or interrupted run | conformance | `TestResetOfInterruptedProject`, `TestResetClearsQueueBesideActiveRun` |
@@ -158,6 +158,7 @@ the IDs, this table, and those calls disagree.
 | SAFE-8 | Queue edits, including reset, apply beside a running or interrupted run and keep its phase; `copy` rejects that run | conformance | `TestQueueEditsBesideAnActiveRun`, `TestResetClearsQueueBesideActiveRun`, `TestResetOfInterruptedProject` |
 | SAFE-9 | Removed reset recovery flag and environment variable fail with an unlock hint | conformance | `TestResetRejectsRemovedRecoveryOptions` |
 | SAFE-10 | `show` displays an active/interrupted run and a non-empty next queue separately | conformance | `TestShowActiveRunIncludesNextQueue` |
+| SAFE-11 | Active-run retry requests are durably answered or rejected at run end and never fall back to a new run | partial | `TestRetryFinalJobInsideActiveRun` |
 | COORD-1 | Controlling a local job from another host fails, naming that host | conformance | `TestControlFromAnotherHost` |
 | COORD-2 | Cancelling a run whose coordinator is on another host fails, naming that host | conformance | `TestControlFromAnotherHost` |
 | COORD-3 | A lock from another host keeps the project locked until `unlock` | conformance | `TestControlFromAnotherHost` |
@@ -168,6 +169,7 @@ the IDs, this table, and those calls disagree.
 | STATE-2 | State without `state_version` reads as version 1 | conformance | `TestUnversionedStateIsVersionOne` |
 | STATE-3 | Reading history never rewrites it | conformance | `TestReadingHistoryDoesNotRewriteIt` |
 | STATE-4 | Malformed load samples are skipped | conformance | `TestMalformedLoadSamplesAreSkipped` |
+| STATE-5 | Versioned active-retry request state refuses newer versions | partial | `TestRetryFinalJobInsideActiveRun` |
 | CAN-1 | A whole-run cancel stops every running job of the run, from any caller | conformance | `TestWholeRunCancelFinishesRun` |
 | CAN-2 | A cancelled run finishes with a summary and leaves the project idle, not interrupted | conformance | `TestWholeRunCancelFinishesRun` |
 | CAN-3 | `cancel --wait` returns once the run has finished and exits 0 | conformance | `TestCancelWaitReturnsAfterRunFinishes` |
@@ -193,6 +195,7 @@ the IDs, this table, and those calls disagree.
 | RUN-12 | A run that ended without a summary, such as an interrupted run after unlock, can be the source of a filtered rerun; finished jobs keep their results and the rest are unfinished | conformance | `TestRerunOfAnInterruptedRun` |
 | RUN-13 | Saved-run starts build their snapshot without changing the next queue and reject `--overwrite` | conformance | `TestRetryFromSavedRunLeavesNextQueueUntouched`, `TestMCPRetryFromSavedRunKeepsNextQueue` |
 | RUN-14 | A non-empty queue retry reports failed/unfinished latest-run jobs it omits without changing selection | conformance | `TestRetryReportsFailedJobsOmittedByNonEmptyQueue`, `TestMCPRetryReportsFailedJobsOmittedByQueue` |
+| RUN-15 | Active-run retry reopens final run-owned jobs in the same run, honors array/dependency rules, and explicitly rejects the end race | partial | `TestRetryFinalJobInsideActiveRun` |
 | CLI-1 | `check --json` reports the same project state, run identifier, queue count, lock, and runnable result as the human-readable `check` output | partial | `TestCLIFlagPairCheckObservability`, `TestCheckJSONMatchesText` |
 | CLI-2 | Human-readable `jobs` columns keep their visible start positions aligned across rows; ANSI color sequences do not count toward column width | conformance | `TestJobsTableKeepsVisibleColumnsAligned` |
 | CLI-3 | All command options shared by CLI, environment, and config use the same source precedence | conformance | `TestCLIOptionPrecedence` |

@@ -12,13 +12,12 @@ import (
 	"time"
 )
 
-// StateVersion is the format version of queue.json, commands.json, and
-// summary.json. Files written before versioning have no version (0) and are
-// read as version 1. Bump it only for a change that older readers would
-// misread, such as a renamed, removed, or reinterpreted field, and keep
-// decoding every older version; adding an optional field does not need a new
-// version.
-const StateVersion = 2
+// StateVersion is the format version of persisted queue, run, and control
+// state, including the active-retry request protocol. Files written before
+// versioning have no version (0) and are read as version 1. Bump it when an
+// older reader could misread or fail to coordinate the new state, and keep
+// decoding every older version.
+const StateVersion = 3
 
 type Queue struct {
 	// StateVersion is set by the state package when the queue is written.

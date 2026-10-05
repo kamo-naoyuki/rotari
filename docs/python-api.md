@@ -131,7 +131,7 @@ Execute queued commands, optionally selecting jobs from a run; jobs that depend 
 Rotari.retry(**options: object) -> Run
 ```
 
-Run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend on them execute too.
+Retry failed and unfinished jobs in a new run, or request another attempt in the active run; an ended active run never falls back to a new run.
 
 | Option | Value | Description |
 | --- | --- | --- |
@@ -140,7 +140,7 @@ Run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend 
 | `run_name` | `str` | run name label |
 | `local_concurrency` | `str` | local worker concurrency |
 | `batch_concurrency` | `str` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
-| `retry` | `str` | retry failed jobs up to N times; explicit cancellations are not retried |
+| `retry` | `str` | retry failed jobs up to N times in a new run; when the project is running, retry requests keep that run's settings and cannot change its automatic retry limit |
 | `failed` | `bool` | only execute failed jobs, instead of failed and unfinished jobs; others carry forward their previous result |
 | `unfinished` | `bool` | only execute unfinished jobs, instead of failed and unfinished jobs; others carry forward their previous result |
 | `success` | `bool` | only execute successful jobs, instead of failed and unfinished jobs; others carry forward their previous result |

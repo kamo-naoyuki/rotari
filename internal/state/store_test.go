@@ -2,6 +2,7 @@ package state
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -252,7 +253,7 @@ func TestWriteJSONStampsStateVersion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(data), `"state_version": 2`) {
+		if !strings.Contains(string(data), fmt.Sprintf(`"state_version": %d`, model.StateVersion)) {
 			t.Fatalf("%s does not record the state version:\n%s", path, data)
 		}
 	}
@@ -355,5 +356,36 @@ func TestCheckRunVersionsReportsOnlyNewerFiles(t *testing.T) {
 		if err := os.WriteFile(path, []byte(`{"state_version": 1}`), 0o644); err != nil {
 			t.Fatal(err)
 		}
+	}
+	for _, path := range []string{filepath.Join(runDir, ManualRetryAcceptingFileName), filepath.Join(runDir, ManualRetryRequestPrefix+"r1.json"), filepath.Join(runDir, ManualRetryRequestPrefix+"r1"+ManualRetryResponseSuffix), filepath.Join(runDir, "job-1", ManualRetryPendingFileName)} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(`{"state_version": 1}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := CheckRunVersions(runDir); err != nil {
+			t.Fatalf("current retry state %s: %v", path, err)
+		}
+		if err := os.WriteFile(path, []byte(`{"state_version": 99}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := CheckRunVersions(runDir); !errors.Is(err, ErrNewerStateVersion) {
+			t.Fatalf("newer retry state %s: %v, want ErrNewerStateVersion", path, err)
+		}
+		if err := os.WriteFile(path, []byte(`{"state_version": 1}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestCheckRunVersionsRequiresRetryProtocolVersion(t *testing.T) {
+	runDir := t.TempDir()
+	path := filepath.Join(runDir, ManualRetryAcceptingFileName)
+	if err := os.WriteFile(path, []byte(`{"run_id":"run-1"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckRunVersions(runDir); err == nil || !strings.Contains(err.Error(), "missing state_version") {
+		t.Fatalf("CheckRunVersions() error = %v, want missing state_version", err)
 	}
 }

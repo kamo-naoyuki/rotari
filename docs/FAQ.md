@@ -203,6 +203,12 @@ show `copy --failed --unfinished --append` to include them. Use
 `retry --run-id RUN_ID` to build the retry directly from a saved run without
 changing the next queue; `--overwrite` is not accepted by `run` or `retry`.
 
+While a run is active, `retry` instead requests new attempts for selected jobs
+that have already reached a final result in that run; it keeps the same run ID.
+If the run ends before accepting the request, rotari reports the race and
+does not start a new run on its own. Repeat the command to choose a new retry
+run explicitly. See [Retry during a run](RUNNING.md#retry-during-a-run).
+
 ### How can I edit a previous queue before rerunning only failed jobs?
 
 Run `rotari copy` to restore every job from the latest run, edit the queue with

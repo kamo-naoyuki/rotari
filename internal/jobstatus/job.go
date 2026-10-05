@@ -1,6 +1,7 @@
 package jobstatus
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -44,6 +45,15 @@ func ResolveAttempt(attempt Attempt, latest bool, summary model.JobResult, hasSu
 // ReadJob reads the job's attempt directory and resolves it against the
 // job's summary result, if any.
 func ReadJob(store state.Store, jobDir string, summary model.JobResult, hasSummary bool) Job {
+	root := jobDir
+	if filepath.Base(filepath.Dir(jobDir)) == "attempts" {
+		root = filepath.Dir(filepath.Dir(jobDir))
+	}
+	if _, err := os.Stat(filepath.Join(root, state.ManualRetryPendingFileName)); err == nil {
+		attempt := ReadAttempt(store, jobDir)
+		attempt.Source = SourceNone
+		return Job{Attempt: attempt}
+	}
 	return ResolveJob(ReadAttempt(store, jobDir), summary, hasSummary)
 }
 

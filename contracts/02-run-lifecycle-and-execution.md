@@ -195,6 +195,21 @@
   `TestRetryReportsFailedJobsOmittedByNonEmptyQueue`, and
   `TestRunToolsReportFailedJobsOmittedByQueue`.
 
+- **RUN-15** `retry` against a running project submits selected jobs to the
+  active run and keeps its run ID; it never starts a replacement run when the
+  request loses the end race. Only final jobs executed by this run are
+  eligible; carried jobs, running jobs, and failures awaiting automatic retry
+  are rejected explicitly. `--partial-array=false` is atomic: every task in
+  the array must be selected and final. Retrying a failed `DependsOn`
+  prerequisite reopens its blocked dependents, but already-finished
+  `DependsOnFinished` dependents keep their results. Implemented by
+  [`ExecuteJobs`](../internal/run/engine.go),
+  [`SubmitSelectedRetry`](../internal/jobcontrol/retry_request.go), and
+  [`SelectRetry`](../internal/jobcontrol/retry_select.go); exercised through
+  the CLI and Web API by
+  `TestRetryFinalJobInsideActiveRun` in
+  [conformance/02-lifecycle/active_retry_test.go](../conformance/02-lifecycle/active_retry_test.go).
+
 - A queue, a run's command snapshot, and an exported workflow hold the command
   layer only: each job's command, its own `--env` and `--working-directory`,
   and its scheduling fields. The working directory and environment a run uses

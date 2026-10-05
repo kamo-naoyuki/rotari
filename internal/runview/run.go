@@ -24,6 +24,9 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runline
 	if err != nil {
 		return runlineage.Run{}, fmt.Errorf("run %q not found", runID)
 	}
+	if err := state.CheckRunVersions(runDir); err != nil {
+		return runlineage.Run{}, fmt.Errorf("failed to load run %s state versions: %w", runID, err)
+	}
 	commands, err := state.ReadQueueFile(filepath.Join(runDir, "commands.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		if phase, phaseErr := project.RunPhaseOf(paths, runID); phaseErr == nil && phase == project.RunPhaseRunning {
@@ -73,6 +76,9 @@ func LoadRun(paths state.ProjectPaths, runID string, store state.Store) (runline
 		// recorded it, diagnosis included, beside its attempt.
 		var finalResult model.JobResult
 		final := hasSummary || store.ReadJSON(filepath.Join(jobDir, state.FinalResultFileName), &finalResult) == nil
+		if _, err := os.Stat(filepath.Join(paths.RunsDir, runID, spec.ID, state.ManualRetryPendingFileName)); err == nil {
+			final = false
+		}
 		if !hasSummary && final {
 			finalResult.ExitCode = result.ExitCode
 			result = finalResult

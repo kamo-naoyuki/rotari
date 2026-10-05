@@ -2,9 +2,10 @@
 
 **Created:** 2026-10-05
 
-**Status:** Phase 1 implementation in progress. Queue/recovery, D3/D8, and
-active/interrupted run plus next-queue inspection are implemented; remaining
-phase-1 documentation/conformance review is in progress. Phases 2–4 have not
+**Status:** Phase 1 is implemented and committed. Phase 2 active-run retry is
+in progress: engine reopening, shared request persistence/selection, CLI, MCP,
+Web API, and initial tests are implemented; conformance, full option/variant
+coverage, final contract review, and validation remain. Phases 3–4 have not
 started. D1 to D5, D7, and D8 settled on 2026-10-06.
 
 ## Purpose
@@ -334,20 +335,21 @@ request, the command fails instead of starting a new run (D5).
 ### Phase 2: Implementation
 
 1. **Request channel (D4).** Requests are files under
-   `runs/<run-id>/requests/`, the way `cancel` marks the project in
+   `runs/<run-id>/retry_request-<id>.json` (with `retry_accepting.json` open
+   while the run accepts requests), the way `cancel` marks the project in
    `meta.json`; the supervisor has no endpoint other processes can reach.
    - The requester (CLI, Web UI process, MCP) takes the state lock, checks
      that the lock and metadata name this run as running (not cancelling),
      resolves the selection to job IDs with the shared rule
      (`jobcontrol.Controller.Select` over `jobfilter`), and writes
-     `<request-id>.json` with the job IDs, `--partial-array`, and the
+     `retry_request-<id>.json` with the job IDs, `--partial-array`, and the
      request time.
    - A supervisor goroutine polls the directory about once a second (no
      file-notification dependency). It decides eligibility, which only it
      can do because a failure awaiting an automatic retry looks final on
      disk: the result must be final, executed by this run, and not carried.
      It passes accepted jobs to the engine and writes
-     `<request-id>.response.json` with accepted job IDs and each rejected
+     `retry_request-<id>.response.json` with accepted job IDs and each rejected
      job with its reason.
    - The requester waits for the response with a timeout and prints both
      lists, so no selected job is dropped silently.
@@ -368,12 +370,16 @@ request, the command fails instead of starting a new run (D5).
 4. **Final-result callbacks.** `FinalResult` becomes "once per final result":
    diagnosis, notification hooks, and `Observer.Finished` see a reopened job's
    new final result. Check the progress display, which may now see
-   `completed` decrease.
+  `completed` decrease.
+5. **Atomic arrays and state format.** A request records `partial_array`;
+  whole-array retry is accepted only if every task in that array has a final
+  result. Request, response, acceptance, and pending-result files carry the
+  current `state_version`, and run readers refuse files from a newer version.
 
 ### Phase 2: Interfaces
 
 CLI `retry`; a Web UI action on failed jobs of the active run and its API;
-an MCP tool or an extension of the existing run tool; the Python client.
+MCP preview/apply tools; and the Python client's returned `Run` behavior.
 
 ### Phase 2: Contracts and documentation
 
@@ -448,7 +454,9 @@ Settled on 2026-10-06:
   `Origin` or fingerprint; empty queue: built from the latest run) and
   reports what a non-empty queue leaves out. A special case for queues edited
   during a run would make the same rule behave differently by history.
-- **D4** Phase 2 requests are files under `runs/<run-id>/requests/`,
+- **D4** Phase 2 requests are files in `runs/<run-id>/` named
+  `retry_request-<id>.json`, not a `requests/` subdirectory: a run's
+  subdirectories are its job IDs, and any name is a valid job ID. They are
   polled by the supervisor, with a response file per request. The
   supervisor is reachable only through its parent's pipes, so a new
   supervisor operation would need a new listener (socket path, permissions,

@@ -532,7 +532,7 @@ Usage: `rotari run [RUN_ID]`
 
 ### `rotari retry`
 
-run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend on them execute too
+retry failed and unfinished jobs in a new run, or request another attempt in the active run; an ended active run never falls back to a new run
 
 Usage: `rotari retry [RUN_ID]`
 
@@ -545,7 +545,7 @@ Usage: `rotari retry [RUN_ID]`
 | `--run-name` | `NAME` | `ROTARI_RUN_NAME` | run name label |
 | `--local-concurrency` | `N` | `ROTARI_RUN_LOCAL_CONCURRENCY` | local worker concurrency |
 | `--batch-concurrency` | `N` | `ROTARI_RUN_BATCH_CONCURRENCY` | scheduler job concurrency (Slurm/PBS/LSF/SGE) |
-| `--retry` | `N` | `ROTARI_RUN_RETRY` | retry failed jobs up to N times; explicit cancellations are not retried |
+| `--retry` | `N` | `ROTARI_RUN_RETRY` | retry failed jobs up to N times in a new run; when the project is running, retry requests keep that run's settings and cannot change its automatic retry limit |
 | `--failed` | `` | `` | only execute failed jobs, instead of failed and unfinished jobs; others carry forward their previous result |
 | `--unfinished` | `` | `` | only execute unfinished jobs, instead of failed and unfinished jobs; others carry forward their previous result |
 | `--success` | `` | `` | only execute successful jobs, instead of failed and unfinished jobs; others carry forward their previous result |

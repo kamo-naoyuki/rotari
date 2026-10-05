@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/config"
+	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
 	"github.com/kamo-naoyuki/rotari/internal/joblist"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/notification"
@@ -115,6 +116,15 @@ type webJobControlRequest struct {
 	RunID     string   `json:"run_id"`
 	JobID     string   `json:"job_id"`
 	JobIDs    []string `json:"job_ids,omitempty"`
+}
+
+type webActiveRetryRequest struct {
+	QueueName    string   `json:"project_name"`
+	RunID        string   `json:"run_id"`
+	JobIDs       []string `json:"job_ids,omitempty"`
+	Selection    string   `json:"selection,omitempty"`
+	PartialArray *bool    `json:"partial_array,omitempty"`
+	IfRevision   string   `json:"if_revision,omitempty"`
 }
 
 type webCancelRunRequest struct {
@@ -978,6 +988,53 @@ func (s site) baseHandler() http.Handler {
 			return
 		}
 		writeWebJSON(writer, map[string]string{"message": message})
+	})
+	mux.HandleFunc("/api/retry-active", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost {
+			methodNotAllowed(writer)
+			return
+		}
+		if !allowControl {
+			forbiddenReadOnly(writer)
+			return
+		}
+		var retry webActiveRetryRequest
+		if err := json.NewDecoder(request.Body).Decode(&retry); err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		if !stateinternal.IsValidPathElement(retry.QueueName) || !stateinternal.IsValidPathElement(retry.RunID) {
+			writeWebError(writer, fmt.Errorf("project_name and run_id are required"))
+			return
+		}
+		for _, jobID := range retry.JobIDs {
+			if !stateinternal.IsValidPathElement(jobID) {
+				writeWebError(writer, fmt.Errorf("job_ids must contain valid job IDs"))
+				return
+			}
+		}
+		selection := retry.Selection
+		if selection == "" {
+			selection = "failed"
+		}
+		for _, part := range strings.Split(selection, ",") {
+			if part != "failed" && part != "unfinished" && part != "success" {
+				writeWebError(writer, fmt.Errorf("unsupported retry selection %q", selection))
+				return
+			}
+		}
+		partialArray := true
+		if retry.PartialArray != nil {
+			partialArray = *retry.PartialArray
+		}
+		response, err := s.Controller.SubmitSelectedRetry(baseDir, retry.QueueName, retry.RunID, jobcontrol.RetrySelection{
+			JobIDs: retry.JobIDs, Selection: selection, PartialArray: partialArray,
+		}, retry.IfRevision, 30*time.Second)
+		if err != nil {
+			writeWebError(writer, err)
+			return
+		}
+		writeWebJSON(writer, response)
 	})
 	return mux
 }

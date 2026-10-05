@@ -379,6 +379,13 @@ function equalizeRunControlHeights() {
 function arrangeRunControls() {
   const parts = pageParts();
   if (parts[0] !== "project" || parts[2] !== "run") return;
+  const project = state.projects.find(
+    (item) => item.project_name === decodeURIComponent(parts[1]),
+  );
+  const run =
+    project &&
+    project.runs.find((item) => item.run_id === decodeURIComponent(parts[3]));
+  if (!run) return;
   const controls = document.querySelector(".web-copy-controls");
   const table = document.querySelector("#app table.runs");
   if (!controls || !table) return;
@@ -422,6 +429,15 @@ function arrangeRunControls() {
     "Suspend selected",
     "suspend-resume",
   );
+  let retrySelected = null;
+  if (run.running === true) {
+    retrySelected = document.createElement("button");
+    retrySelected.className = "retry-selected-jobs";
+    retrySelected.textContent = "Retry selected";
+    retrySelected.title = "Retry selected failed jobs in this run";
+    retrySelected.disabled = true;
+    retrySelected.onclick = retrySelectedRunJobs;
+  }
   const deleteButton = [...controls.querySelectorAll("button")].find((button) =>
     button.classList.contains("delete-run"),
   );
@@ -444,6 +460,7 @@ function arrangeRunControls() {
       report,
       cancelSelected,
       suspendResumeSelected,
+      retrySelected,
       deleteButton,
       cancel,
     ].filter(Boolean),

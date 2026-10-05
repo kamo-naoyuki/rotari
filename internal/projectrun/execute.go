@@ -1,6 +1,7 @@
 package projectrun
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/kamo-naoyuki/rotari/internal/executor"
+	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
 	"github.com/kamo-naoyuki/rotari/internal/jobfilter"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/run"
@@ -173,9 +175,12 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 			observer.Started(job)
 		}
 	})
+	manualRetries := make(chan run.ManualRetryRequest, 16)
+	stopManualRetries := jobcontrol.WatchRetryRequests(paths, runID, manualRetries)
 	pending = run.ExecuteJobs(pending, jobsByName, finalResults, run.EngineOptions{
-		RunRetry: options.Retry,
-		Start:    dispatcher.Start,
+		RunRetry:      options.Retry,
+		ManualRetries: manualRetries,
+		Start:         dispatcher.Start,
 		AssignAttemptID: func(job *model.JobSpec, attempt int) {
 			attempts := []model.JobSpec{*job}
 			runner.AssignAttemptIDs(attempts, runID, attempt)
@@ -196,6 +201,11 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 				observer.Progress(result, completed, total, succeeded, failed)
 			}
 		},
+		ManualRetryAccepted: func(response run.ManualRetryResponse, completed, total, succeeded, failed int) {
+			if observer.Progress != nil {
+				observer.Progress(model.JobResult{ID: response.ID, Error: "manual-retry"}, completed, total, succeeded, failed)
+			}
+		},
 		FinalResult: func(job model.JobSpec, result model.JobResult) model.JobResult {
 			if result.ExitCode != 0 && runner.WasExplicitlyCancelled(runDir, job.ID, result) {
 				result.Error = model.CancelledError(result.Error)
@@ -210,6 +220,9 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 					}
 				}
 			}
+			if err := os.Remove(filepath.Join(runDir, job.ID, state.ManualRetryPendingFileName)); err != nil && !errors.Is(err, os.ErrNotExist) {
+				runner.logf("WARNING: failed to clear manual retry marker for job %s: %v", job.ID, err)
+			}
 			if runner.JobFinished != nil {
 				runner.JobFinished(paths, runID, options.RunName, job, result)
 			}
@@ -219,6 +232,7 @@ func (runner Runner) Execute(paths state.ProjectPaths, options Options, observer
 			return result
 		},
 	})
+	stopManualRetries()
 	run.FinalizePendingResults(pending, finalResults)
 
 	summary := run.BuildRunSummary(runID, options.RunName, startedAt, jobs, finalResults, nil)

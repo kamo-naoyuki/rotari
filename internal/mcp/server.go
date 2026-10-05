@@ -41,6 +41,7 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 			"and project itself and returns no absolute paths. Paths and hostnames in logs and evidence are redacted where detected. " +
 			"To change a project, preview first (rotari_preview_import, rotari_preview_run), show the user what will happen, " +
 			"then apply with the preview's revision (rotari_import, rotari_start_run); a write fails if the project changed since. " +
+			"To retry a final job while its run is active, preview with rotari_preview_active_retry and apply with rotari_retry_active using the returned revision; this keeps the same run ID. " +
 			"To stop or pause a running run, list its jobs with rotari_preview_job_control, then call rotari_cancel, rotari_suspend, or rotari_resume with its run_id. " +
 			"To clear a queue, use rotari_preview_reset and rotari_reset; to recover an interrupted run, use rotari_preview_unlock and rotari_unlock.",
 	})
@@ -133,6 +134,20 @@ func NewServer(masterDir string, options Options) *mcpsdk.Server {
 	}, func(_ context.Context, input StartRunInput) (StartRunOutput, error) {
 		output, err := writes.startRun(input)
 		return output, err
+	})
+	addTool(server, masterDir, &mcpsdk.Tool{
+		Name:        "rotari_preview_active_retry",
+		Description: "Preview retrying final jobs in a running run without creating another run. Defaults to failed jobs; job_ids selects exact jobs, and partial_array defaults true. Returns the jobs that would be requested and a revision for rotari_retry_active. Changes nothing.",
+		Annotations: &mcpsdk.ToolAnnotations{ReadOnlyHint: true},
+	}, func(_ context.Context, input ActiveRetryInput) (ActiveRetryPreviewOutput, error) {
+		return writes.previewActiveRetry(input)
+	})
+	addTool(server, masterDir, &mcpsdk.Tool{
+		Name:        "rotari_retry_active",
+		Description: "Request new attempts for selected final jobs in the named active run, only if the project is still at the revision rotari_preview_active_retry returned. Accepted jobs run in the same run; blocked DependsOn dependents may reopen. It never falls back to a new run.",
+		Annotations: &mcpsdk.ToolAnnotations{DestructiveHint: boolPointer(true)},
+	}, func(_ context.Context, input ApplyActiveRetryInput) (ActiveRetryOutput, error) {
+		return writes.retryActive(input)
 	})
 	addTool(server, masterDir, &mcpsdk.Tool{
 		Name:        "rotari_preview_reset",

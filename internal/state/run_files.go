@@ -1,9 +1,12 @@
 package state
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -46,7 +49,50 @@ func CheckRunVersions(runDir string) error {
 			return err
 		}
 	}
+	entries, err := os.ReadDir(runDir)
+	if err != nil {
+		return nil
+	}
+	for _, entry := range entries {
+		path := filepath.Join(runDir, entry.Name())
+		if entry.IsDir() {
+			path = filepath.Join(path, ManualRetryPendingFileName)
+		} else if !isManualRetryRootFile(entry.Name()) {
+			continue
+		}
+		if err := checkRetryStateVersion(path); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// isManualRetryRootFile reports whether name is active-retry protocol state
+// stored in a run's root directory.
+func isManualRetryRootFile(name string) bool {
+	return name == ManualRetryAcceptingFileName || strings.HasPrefix(name, ManualRetryRequestPrefix) && strings.HasSuffix(name, ".json")
+}
+
+// checkRetryStateVersion checks one retry protocol file. Such files are
+// written and removed while the run is active, so a vanished file is fine.
+func checkRetryStateVersion(path string) error {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var versioned struct {
+		StateVersion int `json:"state_version"`
+	}
+	if err := json.Unmarshal(data, &versioned); err != nil {
+		return nil
+	}
+	if versioned.StateVersion == 0 {
+		return fmt.Errorf("%s is missing state_version", path)
+	}
+	return checkStateVersion(path, versioned.StateVersion)
 }
 
 // CarriedResultsFileName is the run file in which a run records, before it

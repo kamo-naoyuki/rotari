@@ -1471,7 +1471,7 @@ setTimeout(async () => {
 	try {
 		const controls = [...dom.window.document.querySelectorAll('.web-copy-controls button')];
 		const labels = controls.map(control => control.textContent.trim());
-		const positions = ['Report', 'Cancel selected', 'Suspend selected', 'Delete run'].map(label => labels.indexOf(label));
+		const positions = ['Report', 'Cancel selected', 'Suspend selected', 'Retry selected', 'Delete run'].map(label => labels.indexOf(label));
 		assert(positions.every(index => index >= 0) && positions.every((index, i) => i === 0 || positions[i - 1] < index), 'bulk job actions are not between Report and Delete run: ' + labels.join(' | '));
 		assert(button('.cancel-selected-jobs').disabled && button('.suspend-resume-selected-jobs').disabled, 'control buttons should start disabled');
 		select('suspended-1');
@@ -1517,7 +1517,7 @@ func TestWebRunGuidanceUsesRunIDOnly(t *testing.T) {
 			t.Fatalf("web command guidance is missing copy control %q", marker)
 		}
 	}
-	for _, marker := range []string{"select-all-jobs", "job-selection", "copySelectedJobs", "Select failed", "selectFailedJobs", "Select failed + unfinished", "Unselect all", `querySelectorAll(".unselect-all")`, "unselectAll.className = \"unselect-all\"", "unselectAll.disabled = true", ">Create</button>", ">Append</button>", "Cancel selected", "Suspend selected", "Resume selected", "suspend-resume-selected-jobs", "controlSelectedRunJobs", "job_ids:targets.map"} {
+	for _, marker := range []string{"select-all-jobs", "job-selection", "copySelectedJobs", "Select failed", "selectFailedJobs", "Select failed + unfinished", "Unselect all", `querySelectorAll(".unselect-all")`, "unselectAll.className = \"unselect-all\"", "unselectAll.disabled = true", ">Create</button>", ">Append</button>", "Cancel selected", "Suspend selected", "Resume selected", "suspend-resume-selected-jobs", "controlSelectedRunJobs", "retry-selected-jobs", "retrySelectedRunJobs", "/api/retry-active", "job_ids:targets.map"} {
 		if !webContains(html, marker) {
 			t.Fatalf("web run page is missing job queue selection control %q", marker)
 		}
@@ -1877,6 +1877,7 @@ func TestWebReadOnlyControlEndpointsRejectMutations(t *testing.T) {
 		path string
 	}{
 		{name: "cancel-job", path: "/api/cancel-job", body: `{"project_name":"demo","run_id":"run-1","job_id":"job-1"}`},
+		{name: "retry-active", path: "/api/retry-active", body: `{"project_name":"demo","run_id":"run-1","job_ids":["job-1"]}`},
 		{name: "remove", path: "/api/remove", body: `{"project_name":"demo","job_id":"job-1"}`},
 		{name: "clear-run", path: "/api/clear-run", body: `{"project_name":"demo","run_id":"run-1"}`},
 	} {
