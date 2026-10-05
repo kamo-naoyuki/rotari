@@ -2,7 +2,7 @@
 
 **Created:** 2026-10-05
 
-**Status:** Proposed; no implementation started.
+**Status:** Proposed; no implementation started. D1, D3, and D7 settled on 2026-10-06.
 
 ## Purpose
 
@@ -23,8 +23,9 @@ needs to run now is moved into the active run instead of into a second run.
 ## Scope and order
 
 1. **Edit the queue while a run is active.** The run takes the queue when it
-   starts, so `add`, `change`, `remove`, `copy`, and `import` can prepare the
-   next run.
+   starts, so the queue only ever holds the next run's jobs. `add`, `change`,
+   `remove`, `copy`, `import`, and `reset` can then edit it in any project
+   state, and recovering an interrupted run no longer involves the queue.
 2. **Retry jobs inside the active run.** `retry --failed` (or retry of
    selected jobs) on a running project starts new attempts in that run, the
    same way `run --retry` does, instead of being rejected.
@@ -47,7 +48,7 @@ reason to create a second project. Phase 4 depends on phase 2.
   rotari does not provide one stays true through phase 3; phase 4 revisits it
   only for an explicit request.
 - A global, mutable "current project" shared by every shell.
-- Allowing `run`, `reset`, or `delete` on a running project. They stay
+- Allowing `run` or `delete` on a running or interrupted project. They stay
   rejected; only queue edits change in phase 1.
 - Changing the executor, environment, or concurrency of a run that has
   already started.
@@ -79,8 +80,19 @@ reason to create a second project. Phase 4 depends on phase 2.
 - `RunSource` in [internal/projectrun/source.go](../../internal/projectrun/source.go)
   decides where `retry` gets its jobs: a result selection copies the last run
   only into an empty queue, so a queue restored and edited earlier is kept.
-- `unlock` / `reset --recover` (`project.RecoverInterrupted`) keep the
-  retained queue, which is today the interrupted run's queue (SAFE-4).
+- The queue of an interrupted run is "retained" only because `Finalize`,
+  which would have cleared it, never ran. `unlock` (`project.RecoverInterrupted`)
+  leaves it in place (SAFE-4). `reset` on an interrupted project discards it
+  and recovers the run in one step, after a confirmation that the run's jobs
+  stopped; `--recover` / `ROTARI_RESET_RECOVER` gives that confirmation
+  without a prompt (SAFE-5, SAFE-6), and the confirmation reports jobs that
+  still look running (SAFE-7). MCP recovers only through
+  `rotari_preview_reset` / `rotari_reset` ([internal/mcp/reset.go](../../internal/mcp/reset.go));
+  the Python client exposes the same option.
+- An interrupted run always has `commands.json`: the consistency check
+  (`state.ValidateRunDirectory`) rejects one without it. Every recoverable
+  interrupted run can therefore be resumed from the run itself with
+  `retry --run-id RUN`.
 - `resolve.defaultJobs` in [internal/resolve/resolve.go](../../internal/resolve/resolve.go)
   looks only in the active run while a project is running or interrupted,
   and only in the queue (then the latest run) while it is idle.
@@ -106,20 +118,42 @@ reason to create a second project. Phase 4 depends on phase 2.
 - `run` / `retry` take the queue when the run starts: the queue's commands
   move into the run's snapshot and `queue.json` is left empty, keeping its
   queue-level defaults (`default_executor`, `default_executor_options`).
-- While the project is running, `add`, `change`, `remove`, `copy`, and
-  `import` edit the queue for the next run. `run`, `reset`, and `delete`
-  stay rejected; their message says that the queue can be edited.
+- The queue holds only the next run's jobs and has no relation to the active
+  or interrupted run. `add`, `change`, `remove`, `copy`, `import`, and `reset`
+  edit it whether the project is idle, running, or interrupted.
+- `run` and `delete` stay rejected while a project is running or
+  interrupted; their message says that the queue can still be edited.
 - When the run finishes, the queue is left as edited; it is no longer cleared.
-- Interrupted projects keep rejecting queue edits until recovered (SAFE-3),
-  because recovery decides what the queue holds.
+- **Recovery is `unlock` alone.** It confirms that the interrupted run's jobs
+  stopped and returns the project to idle; it does not touch the queue. The
+  interrupted run's work is resumed from the run itself, for example with
+  `retry --run-id RUN --unfinished`, and the interrupted-run message and
+  `unlock` output name that command. Today `retry --run-id` copies the run
+  into the queue and asks before replacing queued jobs
+  (`cmd/rotari/run_command.go`), so it would clobber jobs added during the
+  run (decision D8).
+- **`reset` only clears the queue.** It needs no confirmation about running
+  jobs in any state. `reset --recover` and `ROTARI_RESET_RECOVER` are
+  removed: they fail with an error that names `unlock`, rather than being
+  accepted and ignored.
+- **`retry` keeps its source rule** (decision D3, settled): a non-empty queue
+  is used as is, and each job finds its earlier result through its `Origin`
+  or `--match-by` (default `id-and-fingerprint`); an empty queue is restored
+  from the latest run first. Jobs added during a run are in the same position
+  as jobs added after a run today, so no new rule is needed. Because the
+  latest run's failures are then not rerun unless they are in the queue,
+  `retry` on a non-empty queue says which source it used, how many of the
+  latest run's failed or unfinished jobs it leaves out, and how to include
+  them (`copy --failed --append`, then `retry`). `--dry-run` shows the same.
 
 ### Phase 1: Implementation
 
 1. **Snapshot at `Begin`.** Write the queue to `runs/<run-id>/commands.json`
    before taking the run lock, and clear `queue.json` commands after the
    metadata says running, all under the state lock the caller already holds.
-   A crash before the clear leaves today's state (queue still filled). On a
-   `Begin` failure after the clear, restore the queue.
+   A crash before the clear leaves a filled queue beside an interrupted run;
+   since recovery no longer reads the queue, that only leaves the user's jobs
+   queued. On a `Begin` failure after the clear, restore the queue.
 2. **Execute from the snapshot.** `Execute` reads the run's `commands.json`
    instead of `queue.json`. `RunSource` copying, fingerprint matching, and
    origin recording keep writing the same snapshot. Active runs then always
@@ -128,46 +162,66 @@ reason to create a second project. Phase 4 depends on phase 2.
    that lets an active run lack it.
 3. **Stop clearing at finish.** `state.FinalizeRun` updates metadata only;
    `Finalize` no longer writes the queue.
-4. **Split the idle check.** Replace the single `EnsureIdle` gate for queue
-   edits with a shared `EnsureQueueEditable` (idle or running; not
-   interrupted) in `internal/project`, used by `Edit` / `EditQueue`. Keep
-   `EnsureIdle` for `run`, `reset`, `delete`, and `PreviewRun`. Queue edits
-   during a run must not write the `collecting` phase; only an idle edit sets
-   it. Keep the per-command operation names so messages stay specific.
+4. **One gate for queue edits.** Queue edits (`project.Edit` / `EditQueue`,
+   and `reset`) no longer call `EnsureIdle`; they only require consistent
+   project state. An edit writes the `collecting` phase only when the project
+   is idle; a running or interrupted project's phase is left as is, since the
+   engine polls it for cancellation and it marks the interrupted run. Keep
+   `EnsureIdle` for `run`, `delete`, and `PreviewRun`. Keep the per-command
+   operation names so messages stay specific.
 5. **Selector resolution.** Queue-editing commands (`change`, `remove`, and
-   `show` of queued jobs) must find jobs in the queue while the project runs.
-   Inspection commands keep resolving the active run first (decision D2).
-6. **Recovery.** With the run's commands in `commands.json`, the queue no
-   longer explains an interrupted run. `unlock` and `reset --recover` keep the
-   current queue; when it is empty they restore the interrupted run's
-   commands into it, which preserves today's result for users who did not
-   edit during the run (decision D1). The interrupted-run message names
-   `retry --run-id RUN` as the way to resume that run's work.
-7. **Retry source.** A queue edited during a run is not "a queue restored
-   earlier". `RunSource` must not treat it as one (decision D3).
+   `show` of queued jobs) must find jobs in the queue while a run is active or
+   interrupted. Inspection commands keep resolving that run first (decision
+   D2).
+6. **Copy sources.** `copy` and `retry --run-id` from the active run, or from
+   an interrupted run before `unlock`, are rejected: their results are not
+   final and their jobs may still run.
+7. **Recovery.** `project.RecoverInterrupted` loses its discard-queue mode.
+   Move the still-running-jobs report (SAFE-7) from `reset` to `unlock`.
+8. **`reset`.** Remove the interrupted-run branch, the confirmation, and the
+   `--recover` option and environment variable; reject them with an error
+   naming `unlock`. Update the schema-driven CLI reference.
+9. **Retry source message.** In `RunSource`'s caller, when a selection uses a
+   non-empty queue, report the source and the latest run's failed or
+   unfinished jobs that are not in the queue, without changing which jobs
+   run.
 
 ### Phase 1: Interfaces
 
-- CLI: the commands above, `check` / `show` output for a running project with
-  a non-empty queue (show both the active run and the next queue).
-- Web UI / API: the queue view of a running project becomes editable; the run
-  view is unchanged. Check every handler that calls the shared gate.
-- MCP: `rotari_import` and the preview/revision flows
-  (`rotari_preview_run`, `rotari_start_run`). A run changes the revision, so
-  a preview made before a run starts must still fail its guard.
-- Python client: wraps the CLI; update its docs and tests for the new
-  acceptance.
+- CLI: the commands above, `check` / `show` output for a running or
+  interrupted project with a non-empty queue (show both the run and the next
+  queue), `unlock` output, and `reset` option removal.
+- Web UI / API: the queue view of a running or interrupted project becomes
+  editable; the run view is unchanged. Check every handler that calls the
+  shared gate.
+- MCP: `rotari_preview_reset` / `rotari_reset` become queue-only, so add
+  `rotari_preview_unlock` / `rotari_unlock` (or equivalent) to keep a
+  recovery path with the running-jobs report. Check `rotari_import` and the
+  preview/revision flows (`rotari_preview_run`, `rotari_start_run`): a run
+  changes the revision, so a preview made before a run starts must still fail
+  its guard.
+- Python client: remove the recover option from `reset`, add or document
+  `unlock`, and update its tests for the new acceptance.
 
 ### Phase 1: Contracts and documentation
 
-- Rewrite SAFE-2 and the state table in
-  [contracts/04-coordination-and-safety.md](../../contracts/04-coordination-and-safety.md);
-  add an ID for "a run takes the queue at start and leaves later edits".
-  Update SAFE-4 for recovery.
+- Rewrite the state table and SAFE-2 to SAFE-7 in
+  [contracts/04-coordination-and-safety.md](../../contracts/04-coordination-and-safety.md):
+  queue edits and `reset` in every state, `run` / `delete` still rejected,
+  recovery by `unlock` only, no `reset` confirmation. Add an ID for "a run
+  takes the queue at start and leaves later edits".
+- The `retry` source rule and its new message in
+  [contracts/02-run-lifecycle-and-execution.md](../../contracts/02-run-lifecycle-and-execution.md)
+  or [contracts/06-selectors.md](../../contracts/06-selectors.md), wherever
+  the rule is stated now.
 - [docs/CONCEPTS.md](../../docs/CONCEPTS.md): the queue roles per state and
   the run flow diagram (`queue.json: empty` happens at start, not at finish).
-- [docs/FAQ.md](../../docs/FAQ.md): the "another project" answer and the
-  idle/running queue-first explanation.
+- [docs/RECOVERING.md](../../docs/RECOVERING.md) and
+  [docs/INSPECT.md](../../docs/INSPECT.md): interrupted runs are resumed with
+  `unlock` then `retry --run-id`; the retained queue and `reset --recover`
+  are gone; `retry` on a non-empty queue.
+- [docs/FAQ.md](../../docs/FAQ.md): the "another project" answer, the
+  idle/running queue-first explanation, and the interrupted-run answers.
 - [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md): `Begin`, `Execute`, and
   `Finish` steps.
 
@@ -176,12 +230,16 @@ reason to create a second project. Phase 4 depends on phase 2.
 - `internal/projectrun`: `Begin` snapshots and clears; `Execute` ignores
   `queue.json`; `Finalize` keeps edits; `Begin` failure restores the queue.
 - `internal/project`: the edit gate for idle, running, cancelling, and
-  interrupted projects; no phase write while running.
+  interrupted projects; the phase is written only when idle; recovery leaves
+  the queue untouched.
 - Conformance: through the binary, add a job while a run is active (sync and
   async), let the run finish, and check that the run executed only its own
   jobs and the queue holds the added job. Cover each queue-editing command and
-  confirm `run`, `reset`, and `delete` are still rejected. Cover interrupted
-  recovery with an empty and a non-empty queue. Web API rows for the same.
+  `reset` in running and interrupted projects, and confirm `run` and `delete`
+  are still rejected. Cover `unlock` followed by `retry --run-id RUN
+  --unfinished`, `reset --recover` failing with the `unlock` hint, copying
+  from an active or interrupted run being rejected, and the `retry` message
+  for a non-empty queue. Web API and MCP rows for the same.
 
 ## Phase 2: Retry inside the active run
 
@@ -292,17 +350,35 @@ ends after phases 1 and 2. Sketch:
   its own decision record.
 - If the run has already ended, the request fails and the jobs stay queued.
 
-## Decisions to make
+## Decisions
 
-- **D1** Recovery with an edited queue: keep the edits and restore the
-  interrupted run only into an empty queue (recommended), always restore, or
-  never restore.
+Settled on 2026-10-06:
+
+- **D1** Recovery does not touch the queue. The queue was retained only
+  because `Finalize` did not run, and every recoverable interrupted run has
+  `commands.json`, so `unlock` returns the project to idle and the run's work
+  is resumed with `retry --run-id RUN`. The queue is never restored from the
+  interrupted run.
+- **D3** `retry` keeps its source rule (non-empty queue as is, matched by
+  `Origin` or fingerprint; empty queue restored from the latest run) and
+  reports what a non-empty queue leaves out. A special case for queues edited
+  during a run would make the same rule behave differently by history.
+- **D7** Queue edits, including `reset`, are allowed while interrupted; `run`
+  stays rejected until `unlock`. `reset --recover` is removed with an error
+  naming `unlock`, because the queue it discarded is no longer the run's.
+
+Open:
+
 - **D2** Selector resolution while running: queue-editing commands look in
   the queue; inspection commands keep the active run first (recommended).
-- **D3** `retry` after a run when the queue was edited during it: record in
-  the queue which run it was restored from and treat only such a queue as
-  restored (recommended), or require `--run-id` when the queue is not empty.
-  First check what `retry --failed` does today with a queue of new jobs.
+- **D8** A run started from a saved run (`retry --run-id`, and `retry` on an
+  empty queue): build the new run's snapshot directly from the source run
+  and leave the queue untouched (recommended), or keep copying into the queue
+  and ask before replacing it. With phase 1 the queue ends empty either way
+  when it started empty, so the recommendation changes only the case where
+  the queue holds jobs; it also removes the need for `--overwrite` on
+  `retry`. Check `copy`, MCP `rotari_start_run`, and the Web UI retry path,
+  which reach the same copy.
 - **D4** Phase 2 transport: file-based request (recommended) or a new
   supervisor operation.
 - **D5** End-of-run race: fall back to a new retry run and say so
