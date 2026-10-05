@@ -2,7 +2,7 @@
 
 **Created:** 2026-10-05
 
-**Status:** Proposed; no implementation started. D1, D2, D3, D7, and D8
+**Status:** Proposed; no implementation started. D1 to D4, D7, and D8
 settled on 2026-10-06.
 
 ## Purpose
@@ -324,12 +324,28 @@ The output states which happened.
 
 ### Phase 2: Implementation
 
-1. **Request channel (decision D4).** Recommended: a file-based request under
-   `runs/<run-id>/`, written under the state lock after checking that the
-   lock and metadata name this run as running, the same way `cancel` marks a
-   project. A supervisor goroutine picks requests up and answers each one in a
-   response file (accepted job IDs or a reason). This works from the CLI, the
-   Web UI process, and MCP without a new supervisor operation.
+1. **Request channel (D4).** Requests are files under
+   `runs/<run-id>/requests/`, the way `cancel` marks the project in
+   `meta.json`; the supervisor has no endpoint other processes can reach.
+   - The requester (CLI, Web UI process, MCP) takes the state lock, checks
+     that the lock and metadata name this run as running (not cancelling),
+     resolves the selection to job IDs with the shared rule
+     (`jobcontrol.Controller.Select` over `jobfilter`), and writes
+     `<request-id>.json` with the job IDs, `--partial-array`, and the
+     request time.
+   - A supervisor goroutine polls the directory about once a second (no
+     file-notification dependency). It decides eligibility, which only it
+     can do because a failure awaiting an automatic retry looks final on
+     disk: the result must be final, executed by this run, and not carried.
+     It passes accepted jobs to the engine and writes
+     `<request-id>.response.json` with accepted job IDs and each rejected
+     job with its reason.
+   - The requester waits for the response with a timeout and prints both
+     lists, so no selected job is dropped silently.
+   - Request and response files stay in the run as the record of manual
+     retries. Their format is new run state: give it a state version and a
+     contract entry.
+   - Phase 4 adds a request kind to the same directory.
 2. **Engine event.** Add an event to `run.ExecuteJobs` that reopens final
    jobs: clear `final`, return them and their blocked `DependsOn` dependents
    to `waiting`, and continue attempt numbering. The loop must also wake for
@@ -422,6 +438,14 @@ Settled on 2026-10-06:
   `Origin` or fingerprint; empty queue: built from the latest run) and
   reports what a non-empty queue leaves out. A special case for queues edited
   during a run would make the same rule behave differently by history.
+- **D4** Phase 2 requests are files under `runs/<run-id>/requests/`,
+  polled by the supervisor, with a response file per request. The
+  supervisor is reachable only through its parent's pipes, so a new
+  supervisor operation would need a new listener (socket path, permissions,
+  stale-socket cleanup) that works only on one host. File requests reach the
+  supervisor from every interface and from other hosts on a shared state
+  directory, like `cancel`; about a second of polling delay is acceptable
+  for a retry.
 - **D7** Queue edits, including `reset`, are allowed while interrupted; `run`
   stays rejected until `unlock`. `reset --recover` is removed with an error
   naming `unlock`, because the queue it discarded is no longer the run's.
@@ -435,8 +459,6 @@ Settled on 2026-10-06:
 
 Open:
 
-- **D4** Phase 2 transport: file-based request (recommended) or a new
-  supervisor operation.
 - **D5** End-of-run race: fall back to a new retry run and say so
   (recommended), or fail and ask the user to repeat the command.
 - **D6** Whether to add a per-directory project pin.
