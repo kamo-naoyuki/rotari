@@ -2,7 +2,7 @@
 
 **Created:** 2026-10-05
 
-**Status:** Proposed; no implementation started. D1, D3, and D7 settled on 2026-10-06.
+**Status:** Proposed; no implementation started. D1, D3, D7, and D8 settled on 2026-10-06.
 
 ## Purpose
 
@@ -19,6 +19,36 @@ One run per project stays: it keeps result resolution linear (one latest
 attempt per job, one active run), keeps `show` / `wait` / `cancel` defaults
 unambiguous, and keeps the three-state lock and recovery model. Work that
 needs to run now is moved into the active run instead of into a second run.
+
+### Model: the queue is the next run before it starts
+
+A run is one object that moves through **queued → running → finished**. An
+interrupted run is a running run that failed to reach finished; `unlock`
+finishes it.
+
+| State | Count | Operations |
+| --- | --- | --- |
+| queued | 0..1 | `add`, `change`, `remove`, `copy`, `import`, `reset` |
+| running | 0..1 | inspect, `cancel`, `suspend`, `resume`, in-run retry |
+| interrupted | 0..1 | inspect, `unlock` |
+| finished | any | inspect, compare, source of `copy` / `retry -r` |
+
+Counts are per project. The queued run is what the docs call the queue;
+in-run retry is phase 2.
+
+A project has at most one queued run, its next one, so the current storage
+already fits the model: the queued run lives in the project's single
+`queue.json`, and only started runs get a run ID and a directory under
+`runs/`, so history never contains runs that did not start. Starting a run
+moves the queued run into `runs/<run-id>/` and leaves the queue empty. The
+plan changes when that move happens and what may touch each state; it does
+not change file layout, the `queue` term, or command names.
+
+The decisions below follow from the model: the queued run and the
+running or interrupted run are different objects, so editing one never
+waits on the other (phase 1, D7); recovery finishes the interrupted run
+without touching the queued one (D1); and a run built from a saved run goes
+straight to running without passing through the queue (D8).
 
 ## Scope and order
 
@@ -128,18 +158,23 @@ reason to create a second project. Phase 4 depends on phase 2.
   stopped and returns the project to idle; it does not touch the queue. The
   interrupted run's work is resumed from the run itself, for example with
   `retry --run-id RUN --unfinished`, and the interrupted-run message and
-  `unlock` output name that command. Today `retry --run-id` copies the run
-  into the queue and asks before replacing queued jobs
-  (`cmd/rotari/run_command.go`), so it would clobber jobs added during the
-  run (decision D8).
+  `unlock` output name that command.
+- **A run built from a saved run bypasses the queue** (decision D8).
+  `retry --run-id RUN`, and `retry` / `run --failed` on an empty queue, copy
+  the source run with the same copy rule as today but into the new run's
+  snapshot, not into `queue.json`. The queue is left as it is, so jobs added
+  during a run are not replaced. `retry --overwrite` no longer applies and
+  fails with an error. `copy` still writes the queue, for the copy, `change`,
+  then `retry` flow. A run that fails before starting leaves nothing in the
+  queue; use `copy` to keep the jobs for editing.
 - **`reset` only clears the queue.** It needs no confirmation about running
   jobs in any state. `reset --recover` and `ROTARI_RESET_RECOVER` are
   removed: they fail with an error that names `unlock`, rather than being
   accepted and ignored.
 - **`retry` keeps its source rule** (decision D3, settled): a non-empty queue
   is used as is, and each job finds its earlier result through its `Origin`
-  or `--match-by` (default `id-and-fingerprint`); an empty queue is restored
-  from the latest run first. Jobs added during a run are in the same position
+  or `--match-by` (default `id-and-fingerprint`); on an empty queue the run
+  is built from the latest run (D8). Jobs added during a run are in the same position
   as jobs added after a run today, so no new rule is needed. Because the
   latest run's failures are then not rerun unless they are in the queue,
   `retry` on a non-empty queue says which source it used, how many of the
@@ -185,6 +220,16 @@ reason to create a second project. Phase 4 depends on phase 2.
    non-empty queue, report the source and the latest run's failed or
    unfinished jobs that are not in the queue, without changing which jobs
    run.
+10. **Runs from a saved run.** When `RunSource` says to copy first, build the
+    copied queue in memory with the same copy function, as `--dry-run`
+    already does (`runQueue` in
+    [cmd/rotari/run_command.go](../../cmd/rotari/run_command.go), passed to
+    `PreviewRun`), and hand it to `Begin` as the run's snapshot instead of
+    writing `queue.json`. Remove the overwrite prompt and reject
+    `--overwrite` on `run` / `retry`. Apply the same path to MCP
+    `rotari_start_run` ([internal/mcp/write.go](../../internal/mcp/write.go))
+    and the Web UI retry action, so every interface shares it. The revision
+    guard no longer changes between the copy and the start.
 
 ### Phase 1: Interfaces
 
@@ -219,7 +264,8 @@ reason to create a second project. Phase 4 depends on phase 2.
 - [docs/RECOVERING.md](../../docs/RECOVERING.md) and
   [docs/INSPECT.md](../../docs/INSPECT.md): interrupted runs are resumed with
   `unlock` then `retry --run-id`; the retained queue and `reset --recover`
-  are gone; `retry` on a non-empty queue.
+  are gone; `retry` on a non-empty queue; `retry -r` no longer replaces the
+  queue and has no `--overwrite`.
 - [docs/FAQ.md](../../docs/FAQ.md): the "another project" answer, the
   idle/running queue-first explanation, and the interrupted-run answers.
 - [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md): `Begin`, `Execute`, and
@@ -239,7 +285,9 @@ reason to create a second project. Phase 4 depends on phase 2.
   are still rejected. Cover `unlock` followed by `retry --run-id RUN
   --unfinished`, `reset --recover` failing with the `unlock` hint, copying
   from an active or interrupted run being rejected, and the `retry` message
-  for a non-empty queue. Web API and MCP rows for the same.
+  for a non-empty queue. Check that `retry --run-id` with jobs in the queue
+  leaves them queued and runs only the source run's jobs, and that
+  `retry --overwrite` fails. Web API and MCP rows for the same.
 
 ## Phase 2: Retry inside the active run
 
@@ -360,25 +408,24 @@ Settled on 2026-10-06:
   is resumed with `retry --run-id RUN`. The queue is never restored from the
   interrupted run.
 - **D3** `retry` keeps its source rule (non-empty queue as is, matched by
-  `Origin` or fingerprint; empty queue restored from the latest run) and
+  `Origin` or fingerprint; empty queue: built from the latest run) and
   reports what a non-empty queue leaves out. A special case for queues edited
   during a run would make the same rule behave differently by history.
 - **D7** Queue edits, including `reset`, are allowed while interrupted; `run`
   stays rejected until `unlock`. `reset --recover` is removed with an error
   naming `unlock`, because the queue it discarded is no longer the run's.
+- **D8** A run built from a saved run (`retry --run-id`, and `retry` on an
+  empty queue) takes the copy as its snapshot directly and leaves the queue
+  untouched. In the model, it is a new run that goes straight to running;
+  the queued run is a different object. `retry` keeps being copy then run,
+  but the copy is no longer written to `queue.json`. Costs accepted: a run
+  that fails before starting leaves no copied queue to edit, and
+  `retry --overwrite` is removed.
 
 Open:
 
 - **D2** Selector resolution while running: queue-editing commands look in
   the queue; inspection commands keep the active run first (recommended).
-- **D8** A run started from a saved run (`retry --run-id`, and `retry` on an
-  empty queue): build the new run's snapshot directly from the source run
-  and leave the queue untouched (recommended), or keep copying into the queue
-  and ask before replacing it. With phase 1 the queue ends empty either way
-  when it started empty, so the recommendation changes only the case where
-  the queue holds jobs; it also removes the need for `--overwrite` on
-  `retry`. Check `copy`, MCP `rotari_start_run`, and the Web UI retry path,
-  which reach the same copy.
 - **D4** Phase 2 transport: file-based request (recommended) or a new
   supervisor operation.
 - **D5** End-of-run race: fall back to a new retry run and say so
