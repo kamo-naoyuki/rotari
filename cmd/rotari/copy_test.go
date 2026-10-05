@@ -53,7 +53,7 @@ func TestCmdCopyRejectsTheActiveRunOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 1 || !strings.Contains(string(output), `run "active-run" is still running`) {
+	if code != 1 || !strings.Contains(string(output), "run active-run of project default is still running") {
 		t.Fatalf("cmdCopy of the active run exit code = %d, stderr = %q", code, output)
 	}
 

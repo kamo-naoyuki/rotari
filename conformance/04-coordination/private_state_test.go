@@ -282,7 +282,7 @@ func TestInterruptedProjectNeedsRecovery(t *testing.T) {
 	run := e.StartRun("live", 1, false)
 	support.KillStrays(t, e.Root)
 	support.WaitForInterrupted(t, e, "live")
-	if r := e.Rotari("copy", "-p", "live", "--run-id", run.RunID); r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "rotari unlock") {
+	if r := e.Rotari("copy", "-p", "live", "--run-id", run.RunID); r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "was interrupted") || !strings.Contains(r.Stderr+r.Stdout, "rotari unlock") {
 		t.Errorf("copy of the interrupted run did not point to unlock: %s", r)
 	}
 	for name, args := range support.GuardedCommands("live") {

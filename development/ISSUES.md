@@ -8,6 +8,8 @@ This file is not a replacement for GitHub issues. Remove an item when it has bee
 
 <!-- Add items here as they are discovered. Include the relevant file or area when possible. -->
 
+- **`latest` and a run-less `copy` select the active run** (`internal/resolve/resolve.go`, `RunID`; `cmd/rotari/copy.go`): RES-12 says `--run-id latest` is the project's latest settled run, but `RunID` returns `meta.json`'s last run, which is the active or interrupted run while there is one. Since queue edits are allowed beside a run (SAFE-8), `copy -p P`, `copy -p P -r latest`, and `copy -p P --job-name NAME` during a run pick the active run: the first two fail with "is still running; wait for it ... then copy", and the last reports the name as not found even when the previous finished run has it. Expected: these resolve to the latest settled run, as RES-12 states. `show -r latest` has the same gap. Found while implementing `development/2026-10-05-work-during-runs`.
+
 ## Resolved
 
 - **`retry` after `unlock` failed for an interrupted run** ([internal/projectrun/origins.go](../internal/projectrun/origins.go), `originResults.RunResults`): a filtered rerun read the source run's results only from `summary.json`, which an interrupted run never writes, so `retry` and `retry --run-id RUN` failed with "failed to load run summary for origin run". Results of a run without a summary now resolve through the jobstatus chain from its attempts and carried results; jobs that never finished are unfinished. Covered by `TestPlanRunReadsResultsOfARunWithoutSummary` and RUN-12 (`TestRerunOfAnInterruptedRun`).

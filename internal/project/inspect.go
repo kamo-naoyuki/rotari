@@ -147,22 +147,23 @@ func EnsureIdle(paths state.ProjectPaths, operation string) error {
 	}
 }
 
-// EnsureRunSettled rejects runID while it is the project's running or
-// interrupted run: its results are not final and its jobs may still run, so
-// it cannot be copied yet.
-func EnsureRunSettled(paths state.ProjectPaths, runID string) error {
-	inspection, err := Inspect(paths, false)
+// EnsureRunSettled refuses the project's active or interrupted run: runID, or
+// any when runID is empty. Its results are not final and its jobs may still
+// run, so operation, such as copy or export, would act on results that may
+// yet change. cleanupStale is passed to Inspect.
+func EnsureRunSettled(paths state.ProjectPaths, runID, operation string, cleanupStale bool) error {
+	inspection, err := Inspect(paths, cleanupStale)
 	if err != nil {
 		return fmt.Errorf("failed to check project state: %w", err)
 	}
-	if inspection.RunID != runID {
+	if runID != "" && inspection.RunID != runID {
 		return nil
 	}
 	switch inspection.State {
 	case Running:
-		return fmt.Errorf("run %q is still running; copy it after it finishes", runID)
+		return fmt.Errorf("run %s of project %s is still running; wait for it with 'rotari wait %s', then %s", inspection.RunID, paths.ProjectName, paths.ProjectName, operation)
 	case Interrupted:
-		return fmt.Errorf("run %q is interrupted; recover it with rotari unlock before copying it", runID)
+		return fmt.Errorf("run %s of project %s was interrupted; recover it with 'rotari unlock %s' first", inspection.RunID, paths.ProjectName, paths.ProjectName)
 	default:
 		return nil
 	}

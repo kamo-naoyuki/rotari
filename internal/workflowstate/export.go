@@ -12,23 +12,10 @@ import (
 
 // RequireSettledRun refuses an active or interrupted run of the project:
 // runID, or any when runID is empty. Their results are not final, so a
-// manifest of them would re-execute jobs that may yet succeed. cleanupStale
-// is passed to project.Inspect.
+// manifest of them would re-execute jobs that may yet succeed. See
+// project.EnsureRunSettled.
 func RequireSettledRun(paths state.ProjectPaths, runID string, cleanupStale bool) error {
-	inspection, err := project.Inspect(paths, cleanupStale)
-	if err != nil {
-		return fmt.Errorf("failed to check project state: %w", err)
-	}
-	if runID != "" && inspection.RunID != runID {
-		return nil
-	}
-	switch inspection.State {
-	case project.Running:
-		return fmt.Errorf("run %s of project %s is still running; wait for it with 'rotari wait %s', then export", inspection.RunID, paths.ProjectName, paths.ProjectName)
-	case project.Interrupted:
-		return fmt.Errorf("run %s of project %s was interrupted; recover it with 'rotari unlock %s' first", inspection.RunID, paths.ProjectName, paths.ProjectName)
-	}
-	return nil
+	return project.EnsureRunSettled(paths, runID, "export", cleanupStale)
 }
 
 // LoadSettledRun reads a settled run as a source for export, after checking
