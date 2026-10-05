@@ -2,7 +2,8 @@
 
 **Created:** 2026-10-05
 
-**Status:** Proposed; no implementation started. D1, D3, D7, and D8 settled on 2026-10-06.
+**Status:** Proposed; no implementation started. D1, D2, D3, D7, and D8
+settled on 2026-10-06.
 
 ## Purpose
 
@@ -204,10 +205,15 @@ reason to create a second project. Phase 4 depends on phase 2.
    engine polls it for cancellation and it marks the interrupted run. Keep
    `EnsureIdle` for `run`, `delete`, and `PreviewRun`. Keep the per-command
    operation names so messages stay specific.
-5. **Selector resolution.** Queue-editing commands (`change`, `remove`, and
-   `show` of queued jobs) must find jobs in the queue while a run is active or
-   interrupted. Inspection commands keep resolving that run first (decision
-   D2).
+5. **Selector resolution (D2).** `resolve.defaultJobs` drops its
+   running/interrupted branch: in every project state, a job selector looks
+   in the queue first, then in the project's active, interrupted, or latest
+   run, as idle projects do today. `show`, `copy`, and `run` / `retry`
+   share it. Job control (`cancel`, `suspend`, `resume`, and phase 2's
+   in-run retry) keeps resolving in the active run through
+   `resolve.JobSelection`, because it acts on running jobs. `show` marks a
+   queued match as queued, and `--run-id` selects the run's job when a name
+   is in both.
 6. **Copy sources.** `copy` and `retry --run-id` from the active run, or from
    an interrupted run before `unlock`, are rejected: their results are not
    final and their jobs may still run.
@@ -407,6 +413,11 @@ Settled on 2026-10-06:
   `commands.json`, so `unlock` returns the project to idle and the run's work
   is resumed with `retry --run-id RUN`. The queue is never restored from the
   interrupted run.
+- **D2** Job selectors look in the queue first, then the run, in every
+  project state, matching idle projects and `retry`'s queue-first source
+  rule. Running-only resolution existed because the queue duplicated the
+  running run; with the queue holding the next run, it would hide queued
+  jobs. Job control keeps resolving in the active run.
 - **D3** `retry` keeps its source rule (non-empty queue as is, matched by
   `Origin` or fingerprint; empty queue: built from the latest run) and
   reports what a non-empty queue leaves out. A special case for queues edited
@@ -424,8 +435,6 @@ Settled on 2026-10-06:
 
 Open:
 
-- **D2** Selector resolution while running: queue-editing commands look in
-  the queue; inspection commands keep the active run first (recommended).
 - **D4** Phase 2 transport: file-based request (recommended) or a new
   supervisor operation.
 - **D5** End-of-run race: fall back to a new retry run and say so
