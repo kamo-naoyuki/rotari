@@ -43,3 +43,25 @@ and separate active-run/next-queue inspection).
   see RUN-15 and SAFE-11 in `contracts/README.md`.
 
 Commit: jj change `rpkwxuzr`, commit `025e2a33`, 2026-10-06 12:37:26.
+
+## 2026-10-06 — Reconsider active retry configuration limits
+
+- **Change:** Updated the umbrella and Phase 3 plans to prefer a bounded
+  relaxation of run immutability: a selected final job may receive a revised
+  execution definition for its next attempt, while the initial run membership,
+  dependency graph, and array/matrix topology remain fixed. Listed the
+  per-attempt provenance, mutable-field, scheduler-option, and explicit-mode
+  questions that must be resolved before implementation.
+- **Reason:** Same-definition active retry cannot correct a bad command,
+  environment, or executor option during a long-running run; this limits the
+  feature's value for fix-and-retry workflows.
+- **Plan impact:** D10 now has a preferred design direction, not a complete
+  implementation specification. Phase 3's active-retry inference remains
+  paused until the request semantics are settled.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Define patchable execution fields and retry option semantics,
+  especially per-job versus run-level Slurm/PBS/LSF/SGE options, then implement
+  attempt-level provenance and views. D9 must be updated to match the final
+  retry mode.
+
+Commit: 2026-10-06 16:56:51 +09:00 `2621b67e`.
