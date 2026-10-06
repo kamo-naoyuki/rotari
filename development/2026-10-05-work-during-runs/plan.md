@@ -438,16 +438,26 @@ other run defaults remain those chosen at run start.
 
 Before implementation, settle these boundaries:
 
-- Which execution fields can be revised per attempt (candidate: command,
-  working directory, environment, timeout, executor, and executor options),
-  and which remain fixed (job identity, dependency edges, array/matrix shape,
-  run context, concurrency, and run-level retry policy).
-- Which scheduler submission options can be overridden for one selected job.
-  A per-job executor-option override can replace the executor lane's default
-  options for that job where the scheduler supports it; it must not change the
-  lane's run-wide defaults or affect other running/submitted jobs. A run-wide
-  Slurm/PBS/LSF/SGE option that has no valid per-job equivalent remains
-  unchangeable until a new run.
+- **Candidate V1 allowlist:** command/argv, job working directory, job
+  environment, timeout, executor, and per-job executor options. These are
+  settings for the selected job's next attempt, not for any already submitted
+  attempt. A command/CWD/environment/executor change must pass the same
+  validation and preparation used by a new run before the request is accepted.
+- **Keep fixed in V1:** job ID/name/stage, dependency edges, array/matrix
+  membership and shape, run working directory and environment mode,
+  concurrency, run-level automatic retry policy, executor lane settings,
+  submit interval/retry limit, and the next queue. In particular, do not
+  mutate a lane already serving other work.
+- **Scheduler option distinction:** `--slurm-options` / equivalent run flags
+  configure the executor lane and stay immutable. A selected job may replace
+  the lane defaults with its per-job executor options where the scheduler
+  supports that. Define an explicit replacement/clear mode: the current
+  `jobOptions` fallback treats an empty per-job slice as “inherit lane
+  defaults,” so empty cannot currently mean “submit with no options.” A bad
+  run-wide setting that has no valid per-job override still requires a new
+  run.
+- Defer per-job retry policy, declared artifacts, log/output destinations,
+  names, dependencies, and array/matrix shape until separately justified.
 - Whether active retry must opt in explicitly (for example `--in-run`) so a
   command does not silently change its history semantics based only on project
   state.
