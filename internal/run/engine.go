@@ -2,7 +2,6 @@ package run
 
 import (
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/model"
@@ -26,41 +25,11 @@ type EngineOptions struct {
 	// and jobs that have not started are recorded as cancelled.
 	Stopped  func() bool
 	Progress func(result model.JobResult, completed, total, succeeded, failed int)
-	// FinalResult is called whenever a job reaches a final result. A manual
-	// retry can reopen a job, so each completed generation is reported.
+	// FinalResult is called exactly once when a job reaches its final result.
+	// It may enrich the result before it is stored, for example with diagnosis.
 	FinalResult func(job model.JobSpec, result model.JobResult) model.JobResult
 	// After runs f after d; it defaults to time.AfterFunc.
 	After func(d time.Duration, f func())
-	// ManualRetries carries requests to reopen final jobs in this run. Commit
-	// persists and returns the canonical response before the engine mutates
-	// in-memory state; it can fence an acceptance after rechecking state.
-	ManualRetries <-chan ManualRetryRequest
-	// ManualRetryAccepted reports the progress reset after a retry request is
-	// durably accepted and before its jobs are scheduled again.
-	ManualRetryAccepted func(response ManualRetryResponse, completed, total, succeeded, failed int)
-}
-
-// ManualRetryRequest selects final jobs already owned by this run.
-type ManualRetryRequest struct {
-	ID           string
-	JobIDs       []string
-	PartialArray bool
-	Commit       func(ManualRetryResponse) (ManualRetryResponse, error)
-}
-
-// ManualRetryResponse records which requested jobs were accepted. Dependent
-// jobs reopened because a prerequisite was blocked are listed separately.
-type ManualRetryResponse struct {
-	ID       string                 `json:"id"`
-	Accepted []string               `json:"accepted_job_ids"`
-	Reopened []string               `json:"reopened_dependent_job_ids,omitempty"`
-	Rejected []ManualRetryRejection `json:"rejected,omitempty"`
-	RunEnded bool                   `json:"run_ended,omitempty"`
-}
-
-type ManualRetryRejection struct {
-	JobID  string `json:"job_id,omitempty"`
-	Reason string `json:"reason"`
 }
 
 // cancelledBeforeStart is the result of a job the run never started because
@@ -70,8 +39,7 @@ const cancelledBeforeStart = "cancelled before start"
 type engineEvent struct {
 	result model.JobResult
 	// retry carries a job whose retry delay has passed.
-	retry  *model.JobSpec
-	manual *ManualRetryRequest
+	retry *model.JobSpec
 }
 
 // ExecuteJobs runs pending jobs as soon as their dependencies allow and
@@ -202,49 +170,7 @@ func ExecuteJobs(pending []model.JobSpec, jobsByName map[string]model.JobSpec, r
 
 	schedule()
 	for running > 0 || delayed > 0 {
-		var event engineEvent
-		if options.ManualRetries == nil {
-			event = <-events
-		} else {
-			select {
-			case event = <-events:
-			case request, ok := <-options.ManualRetries:
-				if !ok {
-					options.ManualRetries = nil
-					continue
-				}
-				event.manual = &request
-			}
-		}
-		if event.manual != nil {
-			response, reopened := reopenFinalJobs(*event.manual, jobsByID, jobsByName, results, final, stopped())
-			if event.manual.Commit != nil {
-				committed, err := event.manual.Commit(response)
-				if err != nil {
-					response = ManualRetryResponse{ID: event.manual.ID, Rejected: rejectAll(event.manual.JobIDs, "failed to commit request: "+err.Error())}
-					reopened = nil
-					_, _ = event.manual.Commit(response)
-				} else {
-					response = committed
-					if len(response.Accepted) == 0 {
-						reopened = nil
-					}
-				}
-			}
-			if len(reopened) > 0 {
-				for _, job := range reopened {
-					delete(results, job.ID)
-					delete(final, job.ID)
-					waiting = append(waiting, job)
-				}
-				if options.ManualRetryAccepted != nil {
-					completed, succeeded, failed := progressCounts(jobsByID, final, results)
-					options.ManualRetryAccepted(response, completed, total, succeeded, failed)
-				}
-				schedule()
-			}
-			continue
-		}
+		event := <-events
 		if event.retry != nil {
 			delayed--
 			if stopped() {
@@ -281,134 +207,4 @@ func ExecuteJobs(pending []model.JobSpec, jobsByName map[string]model.JobSpec, r
 		return nil
 	}
 	return waiting
-}
-
-func progressCounts(jobs map[string]model.JobSpec, final map[string]bool, results map[string]model.JobResult) (completed, succeeded, failed int) {
-	for id := range jobs {
-		if !final[id] {
-			continue
-		}
-		completed++
-		if results[id].ExitCode == 0 {
-			succeeded++
-		} else {
-			failed++
-		}
-	}
-	return completed, succeeded, failed
-}
-
-func reopenFinalJobs(request ManualRetryRequest, jobsByID, jobsByName map[string]model.JobSpec, results map[string]model.JobResult, final map[string]bool, stopped bool) (ManualRetryResponse, []model.JobSpec) {
-	response := ManualRetryResponse{ID: request.ID, Accepted: []string{}, Reopened: []string{}, Rejected: []ManualRetryRejection{}}
-	if stopped {
-		response.Rejected = rejectAll(request.JobIDs, "run is cancelling")
-		return response, nil
-	}
-	selected := make(map[string]bool, len(request.JobIDs))
-	for _, id := range request.JobIDs {
-		if selected[id] {
-			response.Rejected = append(response.Rejected, ManualRetryRejection{JobID: id, Reason: "selected more than once"})
-			continue
-		}
-		selected[id] = true
-		_, owned := jobsByID[id]
-		if !owned {
-			response.Rejected = append(response.Rejected, ManualRetryRejection{JobID: id, Reason: "job is not executed by this run"})
-			continue
-		}
-		if !final[id] {
-			response.Rejected = append(response.Rejected, ManualRetryRejection{JobID: id, Reason: "job does not have a final result"})
-			continue
-		}
-		response.Accepted = append(response.Accepted, id)
-	}
-	if !request.PartialArray {
-		selected := make(map[string]bool, len(response.Accepted))
-		for _, id := range response.Accepted {
-			selected[id] = true
-		}
-		invalid := make(map[string]string)
-		for _, id := range response.Accepted {
-			job := jobsByID[id]
-			if job.ArrayGroup == "" {
-				continue
-			}
-			for memberID, member := range jobsByID {
-				if member.ArrayGroup != job.ArrayGroup {
-					continue
-				}
-				switch {
-				case !selected[memberID]:
-					invalid[job.ArrayGroup] = "whole-array retry did not select every task"
-				case !final[memberID]:
-					invalid[job.ArrayGroup] = "whole-array retry requires every task to have a final result"
-				}
-			}
-		}
-		if len(invalid) > 0 {
-			accepted := response.Accepted[:0]
-			for _, id := range response.Accepted {
-				job := jobsByID[id]
-				if reason := invalid[job.ArrayGroup]; reason != "" {
-					response.Rejected = append(response.Rejected, ManualRetryRejection{JobID: id, Reason: reason})
-					continue
-				}
-				accepted = append(accepted, id)
-			}
-			response.Accepted = accepted
-		}
-	}
-	if len(response.Accepted) == 0 {
-		return response, nil
-	}
-	toReopen := make(map[string]bool, len(response.Accepted))
-	for _, id := range response.Accepted {
-		toReopen[id] = true
-	}
-	changed := true
-	for changed {
-		changed = false
-		for id, job := range jobsByID {
-			if !final[id] || results[id].Error != "blocked by failed dependency" || toReopen[id] {
-				continue
-			}
-			for _, dependency := range job.DependsOn {
-				prerequisite, ok := jobsByName[dependency]
-				if !ok {
-					continue
-				}
-				if toReopen[prerequisite.ID] {
-					toReopen[id] = true
-					response.Reopened = append(response.Reopened, id)
-					changed = true
-					break
-				}
-			}
-		}
-	}
-	sort.Strings(response.Reopened)
-	return response, jobsForIDs(toReopen, jobsByID)
-}
-
-func rejectAll(jobIDs []string, reason string) []ManualRetryRejection {
-	rejected := make([]ManualRetryRejection, 0, len(jobIDs))
-	for _, id := range jobIDs {
-		rejected = append(rejected, ManualRetryRejection{JobID: id, Reason: reason})
-	}
-	return rejected
-}
-
-func jobsForIDs(ids map[string]bool, jobs map[string]model.JobSpec) []model.JobSpec {
-	keys := make([]string, 0, len(ids))
-	for id := range ids {
-		keys = append(keys, id)
-	}
-	sort.Strings(keys)
-	selected := make([]model.JobSpec, 0, len(ids))
-	for _, id := range keys {
-		if job, ok := jobs[id]; ok {
-			selected = append(selected, job)
-		}
-	}
-	return selected
 }

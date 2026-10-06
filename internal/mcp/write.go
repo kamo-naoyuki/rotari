@@ -5,16 +5,13 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/kamo-naoyuki/rotari/internal/basedirregistry"
 	"github.com/kamo-naoyuki/rotari/internal/executor"
-	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/project"
 	"github.com/kamo-naoyuki/rotari/internal/projectrun"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
-	"github.com/kamo-naoyuki/rotari/internal/run"
 	"github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"github.com/kamo-naoyuki/rotari/internal/workflow"
@@ -95,34 +92,6 @@ type StartRunOutput struct {
 	OmittedSourceJobs []string `json:"omitted_source_jobs,omitempty"`
 }
 
-type ActiveRetryInput struct {
-	RunID        string   `json:"run_id" jsonschema:"exact active run ID"`
-	JobIDs       []string `json:"job_ids,omitempty" jsonschema:"exact job IDs; omit with selection to select by result"`
-	Selection    string   `json:"selection,omitempty" jsonschema:"result selection: failed (default), unfinished, success, or comma-separated combinations"`
-	PartialArray *bool    `json:"partial_array,omitempty" jsonschema:"retry only selected array tasks; defaults true, false retries the whole array"`
-}
-
-type ActiveRetryPreviewOutput struct {
-	Project  string   `json:"project"`
-	RunID    string   `json:"run_id"`
-	Selected []string `json:"selected_job_ids"`
-	Revision string   `json:"revision"`
-}
-
-type ApplyActiveRetryInput struct {
-	ActiveRetryInput
-	IfRevision string `json:"if_revision" jsonschema:"revision from rotari_preview_active_retry"`
-}
-
-type ActiveRetryOutput struct {
-	Project  string                     `json:"project"`
-	RunID    string                     `json:"run_id"`
-	Accepted []string                   `json:"accepted_job_ids"`
-	Reopened []string                   `json:"reopened_dependent_job_ids,omitempty"`
-	Rejected []run.ManualRetryRejection `json:"rejected,omitempty"`
-	RunEnded bool                       `json:"run_ended,omitempty"`
-}
-
 // projectPaths resolves a project named by basedir_ref and name.
 func projectPaths(masterDir, baseDirRef, projectName string) (string, state.ProjectPaths, error) {
 	baseDir, err := basedirregistry.Find(masterDir, baseDirRef)
@@ -144,71 +113,6 @@ func (tools writeTools) runner() projectrun.Runner {
 type writeTools struct {
 	masterDir string
 	options   Options
-}
-
-func activeRetrySelection(input ActiveRetryInput) (jobcontrol.RetrySelection, error) {
-	selection := input.Selection
-	if selection == "" {
-		selection = "failed"
-	}
-	for _, part := range strings.Split(selection, ",") {
-		if part != "failed" && part != "unfinished" && part != "success" {
-			return jobcontrol.RetrySelection{}, fmt.Errorf("unsupported retry selection %q", selection)
-		}
-	}
-	partial := true
-	if input.PartialArray != nil {
-		partial = *input.PartialArray
-	}
-	return jobcontrol.RetrySelection{JobIDs: input.JobIDs, Selection: selection, PartialArray: partial}, nil
-}
-
-func (tools writeTools) previewActiveRetry(input ActiveRetryInput) (ActiveRetryPreviewOutput, error) {
-	location, paths, err := registeredRun(tools.masterDir, input.RunID)
-	if err != nil {
-		return ActiveRetryPreviewOutput{}, err
-	}
-	selection, err := activeRetrySelection(input)
-	if err != nil {
-		return ActiveRetryPreviewOutput{}, err
-	}
-	controller := jobcontrol.Controller{Store: state.NewStore(state.DirectoryMode(), state.FileMode())}
-	runID, selected, err := controller.SelectRetry(location.BaseDir, location.ProjectName, input.RunID, selection, time.Now())
-	if err != nil {
-		return ActiveRetryPreviewOutput{}, err
-	}
-	inspection, err := project.InspectConsistent(paths, false)
-	if err != nil {
-		return ActiveRetryPreviewOutput{}, err
-	}
-	if inspection.State != project.Running || inspection.RunID != runID {
-		return ActiveRetryPreviewOutput{}, fmt.Errorf("run %q is no longer active", runID)
-	}
-	revision, err := project.Revision(paths)
-	if err != nil {
-		return ActiveRetryPreviewOutput{}, err
-	}
-	return ActiveRetryPreviewOutput{Project: location.ProjectName, RunID: runID, Selected: selected, Revision: revision}, nil
-}
-
-func (tools writeTools) retryActive(input ApplyActiveRetryInput) (ActiveRetryOutput, error) {
-	if input.IfRevision == "" {
-		return ActiveRetryOutput{}, errors.New("if_revision is required; take it from rotari_preview_active_retry")
-	}
-	location, _, err := registeredRun(tools.masterDir, input.RunID)
-	if err != nil {
-		return ActiveRetryOutput{}, err
-	}
-	selection, err := activeRetrySelection(input.ActiveRetryInput)
-	if err != nil {
-		return ActiveRetryOutput{}, err
-	}
-	controller := jobcontrol.Controller{Store: state.NewStore(state.DirectoryMode(), state.FileMode())}
-	response, err := controller.SubmitSelectedRetry(location.BaseDir, location.ProjectName, input.RunID, selection, input.IfRevision, 30*time.Second)
-	if err != nil {
-		return ActiveRetryOutput{}, err
-	}
-	return ActiveRetryOutput{Project: location.ProjectName, RunID: input.RunID, Accepted: response.Accepted, Reopened: response.Reopened, Rejected: response.Rejected, RunEnded: response.RunEnded}, nil
 }
 
 // importManifest previews or applies an import as `rotari import` does and

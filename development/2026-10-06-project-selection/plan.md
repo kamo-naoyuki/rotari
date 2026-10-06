@@ -3,15 +3,12 @@
 **Created:** 2026-10-06
 
 **Status:** Steps 1 and 2 are complete as a repository behavior audit and
-resolution proposal. Implementation has not started and is paused pending the
-foundational comparison in
-[development/2026-10-06-execution-model-review/plan.md](../2026-10-06-execution-model-review/plan.md).
-Active-run retry inference assumes a run-based model and may need revision if
-immediate submission or open execution sessions are selected. Static behavior
+resolution proposal. Implementation is not scheduled. Same-run retry was
+removed on 2026-10-06, so D9's `retry` inference no longer applies; only
+selectorless `cancel`/`suspend`/`resume` remain candidates. Static behavior
 is inventoried below; user-frequency evidence is unavailable in the repository,
 so project pin D6 remains undecided. This plan is Phase 3 of
-[Work on a Project While Its Run Is Active](../2026-10-05-work-during-runs/plan.md);
-Phases 1 and 2 are complete.
+[Work on a Project While Its Run Is Active](../2026-10-05-work-during-runs/plan.md).
 
 ## Purpose
 

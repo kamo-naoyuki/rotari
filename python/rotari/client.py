@@ -352,12 +352,8 @@ class Rotari:
         )
 
     def retry(self, **options: object) -> Run:
-        """Retry failed and unfinished jobs; ``run_id`` leaves the next queue untouched.
+        """Retry failed and unfinished jobs; ``run_id`` leaves the next queue untouched."""
 
-        When the project is running, the retry is submitted to that run and the
-        returned ``Run`` keeps its ID. If that run ends before accepting the
-        request, the command fails instead of silently starting a new run.
-        """
         arguments = build_command_arguments("retry", {**options, "quiet": False})
         arguments.insert(1, _REQUIRE_OUTPUT)
         result = self.command(*arguments)

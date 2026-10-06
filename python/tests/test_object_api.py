@@ -72,14 +72,6 @@ def test_retry_returns_new_run_and_object_methods_delegate():
     assert "--quiet" not in invoke.call_args.args[0]
     assert "--quiet=false" in invoke.call_args.args[0]
     with patch(
-        "subprocess.run",
-        return_value=response(
-            "retry accepted run_id=active-run accepted=1 rejected=0\n"
-        ),
-    ):
-        retried_active = client.retry(job_id="job-1")
-    assert retried_active.id == "active-run"
-    with patch(
         "subprocess.run", return_value=response('{"run_id":"run-1"}\n')
     ) as invoke:
         assert run.wait()["run_id"] == "run-1"

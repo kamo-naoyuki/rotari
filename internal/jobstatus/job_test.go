@@ -75,19 +75,6 @@ func TestResolveJobWithoutOutcome(t *testing.T) {
 	}
 }
 
-func TestManualRetryPendingHidesSupersededTerminalResult(t *testing.T) {
-	jobDir := t.TempDir()
-	writeFile(t, filepath.Join(jobDir, "status"), "9\n")
-	writeFile(t, filepath.Join(jobDir, state.ManualRetryPendingFileName), `{"request_id":"req-1"}`)
-	job := ReadJob(testStore(), jobDir, model.JobResult{ID: "job-1", ExitCode: 9}, true)
-	if job.Finished() {
-		t.Fatalf("ReadJob with pending manual retry = %#v; old result must be superseded", job)
-	}
-	if _, ok := job.Result(model.JobSpec{ID: "job-1"}); ok {
-		t.Fatal("pending manual retry exposed the old terminal result")
-	}
-}
-
 func TestResolveAttemptIgnoresSummaryForOlderAttempt(t *testing.T) {
 	jobDir := t.TempDir()
 	writeFile(t, filepath.Join(jobDir, "status.json"), `{"phase":"running","hosts":["old-host"]}`)

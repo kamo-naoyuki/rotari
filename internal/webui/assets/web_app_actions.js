@@ -37,7 +37,6 @@ function updateSelectedRunControlButtons() {
   const hasSuspended = selected.some((item) => item.status === "suspended");
   const cancel = document.querySelector(".cancel-selected-jobs");
   const suspendResume = document.querySelector(".suspend-resume-selected-jobs");
-  const retry = document.querySelector(".retry-selected-jobs");
   if (cancel) cancel.disabled = runJobControlBusy || !hasRunning;
   if (suspendResume) {
     suspendResume.disabled =
@@ -47,9 +46,6 @@ function updateSelectedRunControlButtons() {
       operation === "suspend" ? "Suspend selected" : "Resume selected";
     suspendResume.dataset.operation = operation;
   }
-  if (retry)
-    retry.disabled =
-      runJobControlBusy || !selected.some((item) => item.status === "failed");
 }
 async function controlSelectedRunJobs(operation) {
   if (runJobControlBusy) return;
@@ -93,49 +89,6 @@ async function controlSelectedRunJobs(operation) {
     });
     const text = await response.text();
     if (!response.ok) alert(text);
-    await refresh();
-  } finally {
-    runJobControlBusy = false;
-    updateSelectedRunControlButtons();
-  }
-}
-async function retrySelectedRunJobs() {
-  if (runJobControlBusy) return;
-  const targets = selectedRunJobs().filter((item) => item.status === "failed");
-  if (
-    !targets.length ||
-    !confirm("Retry " + targets.length + " failed job(s) in this run?")
-  )
-    return;
-  runJobControlBusy = true;
-  updateSelectedRunControlButtons();
-  const { project, run } = targets[0];
-  try {
-    const response = await fetch("/api/retry-active", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        project_name: project.project_name,
-        run_id: run.run_id,
-        job_ids: targets.map((item) => item.job.id),
-        selection: "failed",
-        partial_array: true,
-      }),
-    });
-    const text = await response.text();
-    if (!response.ok) {
-      alert(text);
-      return;
-    }
-    const result = JSON.parse(text);
-    alert(
-      "Retry request for run " +
-        run.run_id +
-        ": accepted " +
-        (result.accepted_job_ids || []).length +
-        ", rejected " +
-        (result.rejected || []).length,
-    );
     await refresh();
   } finally {
     runJobControlBusy = false;

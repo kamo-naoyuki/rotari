@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
 	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
@@ -49,9 +48,6 @@ func (runner Runner) Begin(paths state.ProjectPaths, start Start) error {
 	}
 	if err := state.WriteJSON(filepath.Join(runDir, "commands.json"), queue); err != nil {
 		return fmt.Errorf("failed to save run commands: %w", err)
-	}
-	if err := state.WriteJSON(filepath.Join(runDir, state.ManualRetryAcceptingFileName), map[string]any{"state_version": model.StateVersion, "run_id": start.RunID}); err != nil {
-		return fmt.Errorf("failed to open manual retry channel: %w", err)
 	}
 	if err := state.AcquireRunLock(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: start.RunID, RunName: start.RunName, StartedAt: runner.timestamp()}); err != nil {
 		return fmt.Errorf("project %q is already running: %w", paths.ProjectName, err)
@@ -121,16 +117,12 @@ func (runner Runner) Run(paths state.ProjectPaths, options Options, observer Obs
 // the run lock. When the project cannot be finalized, the lock is still
 // removed so the project reads as interrupted rather than running.
 func (runner Runner) Finish(paths state.ProjectPaths, runID string, exitCode int) error {
-	closeRetryErr := jobcontrol.CloseRetryRequests(paths, runID)
 	err := runner.FinishContext(paths, runID)
 	if err == nil {
 		err = runner.Finalize(paths, runID, exitCode)
 	}
 	if removeErr := removeOwnLock(paths, runID); removeErr != nil && err == nil {
 		err = removeErr
-	}
-	if closeRetryErr != nil && err == nil {
-		err = closeRetryErr
 	}
 	return err
 }

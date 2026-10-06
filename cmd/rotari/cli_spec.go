@@ -378,7 +378,7 @@ var cliCommandSpecs = []cliCommandSpec{
 	},
 	{
 		Name:        "retry",
-		Description: "retry failed and unfinished jobs in a new run, or request another attempt in the active run; an ended active run never falls back to a new run",
+		Description: "run failed and unfinished jobs; with --job-id, run those jobs; jobs that depend on them execute too",
 		Flags:       runCommandFlags(true),
 		Positional:  "[RUN_ID]",
 	},
@@ -582,7 +582,6 @@ func runCommandFlags(retry bool) []cliFlagSpec {
 		"job-id":     "only execute this job and the jobs that depend on it, through --depends-on or --depends-on-finished, instead of failed and unfinished jobs; may be repeated",
 		"stage":      "only retry jobs in this stage",
 		"matrix":     "only retry jobs of this matrix, named by its base job name",
-		"retry":      "retry failed jobs up to N times in a new run; when the project is running, retry requests keep that run's settings and cannot change its automatic retry limit",
 	}
 	for index := range flags {
 		if description, ok := retryDescriptions[flags[index].Name]; ok {

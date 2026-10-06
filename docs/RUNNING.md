@@ -266,30 +266,6 @@ rotari add --retry 4 --retry-delay 30s --retry-backoff 2 --retry-max-delay 5m --
 The delay settings apply to retries from `run --retry` as well as the job's
 own `--retry`. Cancelling the run stops pending retries.
 
-## Retry during a run
-
-While a project is running, `rotari retry` with `--failed`, `--unfinished`,
-`--success`, `--job-id`, or `--job-name` submits a retry to that active run.
-It starts a new attempt for each selected job that has a final result and was
-executed by that run; jobs still running or waiting for an automatic retry are
-not eligible. Carried results are not executed by the active run and cannot be
-retried there. A selected but ineligible job is reported rather than silently
-skipped.
-
-The retry keeps the same run ID and run settings. A rejected run-level option
-such as `--executor`, `--env`, `--retry`, `--run-name`, or `--match-by` cannot
-change a run that has already started. For arrays, `--partial-array` retries
-the selected tasks; `--partial-array=false` retries the whole array only when
-every task has a final result. A retried prerequisite can unblock its
-`--depends-on` dependents, which run again if the prerequisite succeeds.
-`--depends-on-finished` dependents that already ran keep their results.
-
-The request is coordinated through the active run. If that run ends before it
-accepts the request, rotari reports the ended run and does not start a new one
-automatically. Repeat `retry` to explicitly start a new retry run. When the
-project is idle, `retry` continues to create a new run as described in
-[Recovering failed runs](RECOVERING.md).
-
 ## Job timeouts
 
 Stop a job that runs too long, for example one that hangs on a stalled file

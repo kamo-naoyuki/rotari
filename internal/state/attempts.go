@@ -15,18 +15,6 @@ import (
 // FinalResultFileName marks an attempt whose job will not be retried.
 const FinalResultFileName = "final_result.json"
 
-// ManualRetryPendingFileName marks the current result as superseded by an
-// accepted in-run retry whose next attempt has not yet produced a result.
-const ManualRetryPendingFileName = "manual_retry_pending.json"
-
-const (
-	// Retry protocol files live in the run root, never in a subdirectory,
-	// because a run's subdirectories are its job IDs.
-	ManualRetryAcceptingFileName = "retry_accepting.json"
-	ManualRetryRequestPrefix     = "retry_request-"
-	ManualRetryResponseSuffix    = ".response.json"
-)
-
 // ArtifactsFileName holds the artifact candidates discovered for an attempt
 // when it started. It is best-effort metadata: an attempt without one has no
 // discovery information, not no associated files.

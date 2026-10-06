@@ -2129,9 +2129,8 @@ CLI_SCHEMA: dict[str, Any] = {
             "positional": "[RUN_ID]",
         },
         {
-            "description": "retry failed and unfinished jobs in a new run, or "
-            "request another attempt in the active run; an ended "
-            "active run never falls back to a new run",
+            "description": "run failed and unfinished jobs; with --job-id, run "
+            "those jobs; jobs that depend on them execute too",
             "flags": [
                 {
                     "description": "config file to use",
@@ -2181,10 +2180,8 @@ CLI_SCHEMA: dict[str, Any] = {
                     "value_name": "N",
                 },
                 {
-                    "description": "retry failed jobs up to N times in a new "
-                    "run; when the project is running, retry "
-                    "requests keep that run's settings and cannot "
-                    "change its automatic retry limit",
+                    "description": "retry failed jobs up to N times; explicit "
+                    "cancellations are not retried",
                     "environment": "ROTARI_RUN_RETRY",
                     "name": "retry",
                     "value_name": "N",

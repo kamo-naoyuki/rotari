@@ -116,18 +116,6 @@ func runJobs(args []string, defaultSelection string) int {
 		// result.
 		selection = model.ResultSelection(true, true, true)
 	}
-	if len(jobIDs) > 0 && selection == "" {
-		selection = "job-id"
-	}
-	if defaultSelection != "" {
-		if code, handled := tryActiveRetry(fs, activeRetryOptions{
-			baseDir: *basedir, projectName: *queueNameOption, requestedRunID: *runIDOption, jobName: *jobNameOption,
-			jobIDs: jobIDs, selection: selection, scope: scope, filter: filter, partialArray: *partialArray,
-			dryRun: *guard.dryRun, ifRevision: *guard.ifRevision, quiet: *quiet,
-		}); handled {
-			return code
-		}
-	}
 	if *jobNameOption != "" {
 		if *runIDOption != "" {
 			baseDir, projectName, resolvedRunID, err := resolve.ExistingRunID(*basedir, *queueNameOption, *runIDOption)

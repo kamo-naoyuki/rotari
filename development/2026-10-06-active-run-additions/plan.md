@@ -2,7 +2,9 @@
 
 **Created:** 2026-10-06
 
-**Status:** Paused alternative; no implementation should start from this plan until the run/retry product decision is revisited. The user now questions whether immediate submission weakens the meaning of a run and makes retry confusing, and whether same-run retry of a finished job during unrelated work is useful. The `start` / `submit` / `wait` and queue-retirement design remains documented as an option, not the preferred direction. The current queue/run behavior remains the default. Same-run active retry is already shipped, so removal/deprecation requires a separate compatibility decision.
+**Status:** Not pursued (decided 2026-10-06). The run/queue model is kept and same-run retry was removed. Kept for reference only.
+
+**Previous status:** Paused alternative; no implementation should start from this plan until the run/retry product decision is revisited. The user now questions whether immediate submission weakens the meaning of a run and makes retry confusing, and whether same-run retry of a finished job during unrelated work is useful. The `start` / `submit` / `wait` and queue-retirement design remains documented as an option, not the preferred direction. The current queue/run behavior remains the default. Same-run active retry is already shipped, so removal/deprecation requires a separate compatibility decision.
 
 ## Goal
 

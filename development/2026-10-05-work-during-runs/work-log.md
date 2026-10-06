@@ -414,3 +414,26 @@ Commit: 2026-10-06 17:31:46 +09:00 `82993756`.
 - **Validation:** Documentation-only; `git diff --check` passed. No tests run.
 - **Remaining:** Decide whether to retain shipped active retry after comparing
   concrete fast-failure/slow-job workflows and successor-run retry behavior.
+
+## 2026-10-06 — Remove in-run retry; keep the run/queue model
+
+- **Change:** Removed Phase 2's same-run retry everywhere: the engine's manual
+  retry event path, the `jobcontrol` request/selection protocol, the
+  accepting/request/pending marker files and their version scan, the CLI
+  routing, the MCP `rotari_preview_active_retry`/`rotari_retry_active` tools,
+  the Web `/api/retry-active` endpoint and "Retry selected" button, and the
+  docs/contract text (RUN-15, SAFE-11, STATE-5 removed). `retry` on a running
+  project is rejected like `run`; SAFE-2 now says so and
+  `TestRunningProjectRejectsSecondRunAndDelete` checks it. Restored the
+  original `retry` help text and regenerated the CLI reference, Python CLI
+  schema, and Python API docs. Marked the execution-model review and
+  active-run additions plans as not pursued.
+- **Reason:** The user decided to return to the current model and drop
+  retrying inside a running run, keeping `retry` as a single new-run operation.
+- **Plan impact:** Automatic retries (`run --retry`, per-job `--retry`) and
+  successor-run `retry` are unchanged. `StateVersion` stays 3 so state written
+  by recent development builds remains readable; leftover protocol files in
+  old run directories are ignored.
+- **Validation:** Focused package and conformance tests, Python tests (29
+  passed), generated-reference/README/prettier checks, and
+  `GOFLAGS='-timeout=40m' scripts/check.sh` (including race tests) passed.

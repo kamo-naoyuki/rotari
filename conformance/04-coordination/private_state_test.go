@@ -257,6 +257,7 @@ func TestRunningProjectRejectsSecondRunAndDelete(t *testing.T) {
 	}
 	for name, args := range map[string][]string{
 		"run":    {"run", "-p", "live", "--async"},
+		"retry":  {"retry", "-p", "live", "--async"},
 		"delete": {"delete", "-p", "live", "--all"},
 	} {
 		if r := e.Rotari(args...); r.Code == 0 || !strings.Contains(r.Stderr+r.Stdout, "is running") {

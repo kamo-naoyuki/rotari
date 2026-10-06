@@ -2,24 +2,18 @@
 
 **Created:** 2026-10-05
 
-**Status:** Phase 1 is implemented. Phase 2's same-run retry implementation
-is committed and validated, but its product value is now under reconsideration.
-The queue-less immediate-execution proposal is paused: the user is concerned
-it weakens the run/retry mental model and that same-run retry during unrelated
-work may be unnecessary. Keep current behavior unless a separate compatibility
-decision changes it. The alternative transition is documented in
-[development/2026-10-06-active-run-additions/plan.md](../2026-10-06-active-run-additions/plan.md).
-D10's submitted-job definition revision is deferred. No queue removal or new
-active-run feature is currently approved. The broader comparison is tracked in
-[development/2026-10-06-execution-model-review/plan.md](../2026-10-06-execution-model-review/plan.md).
-Phase 3 has its own planning at
-[development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md)
-but its implementation, together with Phase 4 implementation, is paused
-until the active-add contract and project-targeting interactions are settled.
-D1 to D5, D7, D8, and D9 describe current or previously decided run-based
-behavior; D10 is deferred and D11 is provisional. Return to the current model
-unless the comparison demonstrates a concrete improvement without making run
-membership, cancellation, and retry harder to explain.
+**Status:** Closed. Phase 1 (queue edits beside an active run, `unlock`-only
+recovery, saved-run snapshots) remains shipped. Phase 2's same-run retry was
+implemented and then **removed** on 2026-10-06: the user decided retrying
+inside a running run is unnecessary and that `retry` should keep one meaning,
+a new run from a settled source. While a project is running, `retry` is
+rejected like `run` (SAFE-2). The queue/run model is kept; the queue-less
+immediate-execution and active-add proposals are not pursued
+([execution-model review](../2026-10-06-execution-model-review/plan.md),
+[active-run additions](../2026-10-06-active-run-additions/plan.md)). Phase 3
+([project selection](../2026-10-06-project-selection/plan.md)) and Phase 4
+are not scheduled. D4, D5, D10, and D11 are withdrawn with Phase 2; D9's
+retry inference no longer applies.
 
 ## Purpose
 
