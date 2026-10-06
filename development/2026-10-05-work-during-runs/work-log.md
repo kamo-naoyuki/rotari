@@ -87,3 +87,24 @@ Commit: 2026-10-06 16:56:51 +09:00 `2621b67e`.
   atomic validation, per-attempt provenance, and read-side presentation.
 
 Commit: 2026-10-06 17:03:55 +09:00 `ee118402`.
+
+## 2026-10-06 — Record the two-workspace interaction
+
+- **Change:** Added D11 to call out that active retry revisions and Phase 4
+  queue-to-run promotion create distinct next-queue and active-run write
+  targets. Phase 4's sketch now requires explicit targeting, defines promotion
+  consumption and collision questions, and preserves the initial snapshot via
+  append-only revision records. Phase 3 active-retry inference is gated on
+  resolving this model.
+- **Reason:** The user identified that allowing both queue edits and active-run
+  edits may make the queue/target model confusing.
+- **Plan impact:** No runtime behavior changed. D11 requires queue commands to
+  keep targeting the next run and active-run mutations to be explicit; if that
+  distinction is not understandable across interfaces, defer active-run
+  mutation features.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Decide promotion semantics, collision handling, and whether
+  the two-target UI/CLI model is sufficiently clear before implementing D10 or
+  Phase 4.
+
+Commit: 2026-10-06 17:07:08 +09:00 `a62c4a2f`.
