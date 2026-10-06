@@ -149,3 +149,19 @@ Commit: 2026-10-06 17:15:57 +09:00 `5cd12e49`.
   initial jobs without a hidden queue, and select the session closure contract.
 
 Commit: 2026-10-06 17:24:17 +09:00 `490a355e`.
+
+## 2026-10-06 — Consider `reset` as an open-run boundary
+
+- **Change:** Added reuse of `reset` as a candidate explicit session boundary
+  to the execution-model comparison, alongside a dedicated `run finish` /
+  `run seal` command and timeout-based closure. The plan now states that any
+  reset-based seal must preserve accepted jobs and history, and must reconcile
+  the current queue-only reset contract.
+- **Reason:** The user noted that their workflow already calls `reset` between
+  work cycles, so the existing command may provide a familiar run boundary.
+- **Plan impact:** No behavior change or command decision. Whether reset seals
+  an open run, seals and opens the next session, or remains queue-only is an
+  explicit question in the model review.
+- **Validation:** Documentation-only; no tests run.
+- **Remaining:** Compare the reset boundary with a dedicated seal command and
+  timeout/hybrid behavior before selecting the open-session lifecycle.

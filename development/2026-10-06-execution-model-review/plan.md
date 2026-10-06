@@ -75,12 +75,17 @@ This is not a fourth execution engine so much as a compatibility path between A 
 An open run cannot finish merely because its current pending/running count
 reaches zero: a user may be about to submit another dependent job. Compare:
 
-1. **Explicit close command (recommended starting point):** the session
-	remains accepting until `run finish`/`run seal --run-id RUN` is requested;
-	accepted jobs drain, but no new jobs are admitted. A foreground `run` can
-	wait for closure, and a detached session can be closed later. This gives a
-	deterministic boundary and predictable dependency admission. The cost is
-	one explicit lifecycle action and the possibility of a forgotten open run.
+1. **Explicit boundary command:** the session remains accepting until the
+	user closes/rotates it. Candidate syntax includes `run finish` /
+	`run seal --run-id RUN`, or reusing `reset` because users already reset
+	before preparing a new work cycle. If `reset` is considered, define whether
+	it seals the current session or seals it and opens a fresh one. It must not
+	cancel accepted jobs, erase their history, or drop accepted work. This is a
+	semantic change from today's `reset`, which only clears the next-run queue;
+	the command name and existing contract need explicit review. A foreground
+	`run` can wait for closure, and a detached session can be closed later.
+	Explicit closure gives a deterministic boundary, at the cost of one
+	lifecycle action and the possibility of a forgotten open run.
 2. **Inactivity timeout:** stop accepting after a configured quiet interval.
 	This can make one-shot work convenient but makes latency a dependency
 	contract: a dependent arriving just after the deadline is rejected, and
@@ -88,15 +93,19 @@ reaches zero: a user may be about to submit another dependent job. Compare:
 	completion from scheduler queue emptiness. If considered, require an
 	explicit timeout value or clearly visible default and report the exact
 	closing deadline.
-3. **Hybrid:** explicit close remains authoritative; an optional inactivity
-	timeout is only a safety net, with a visible warning/countdown and an
-	extension mechanism. This keeps deterministic explicit closure available
-	but adds policy/UI complexity.
+3. **Hybrid:** explicit close/reset remains authoritative; an optional
+	inactivity timeout is only a safety net, with a visible warning/countdown
+	and an extension mechanism. This keeps deterministic explicit closure
+	available but adds policy/UI complexity.
 
-**Working recommendation:** prefer explicit close initially, because it avoids
-making scheduler timing determine whether a dependency can be added. Consider
-an opt-in idle timeout only if users demonstrate that remembering to close a
-session is a real problem. Before choosing, define what foreground `run` does
+**Working recommendation:** prefer an explicit user-controlled boundary over
+automatic timeout, because it avoids making scheduler timing determine whether
+a dependency can be added. Reusing `reset` is worth evaluating against a
+separate `finish`/`seal` action since it matches the user's existing cycle
+habit, but it must be clear that reset closes admission rather than discarding
+running/accepted jobs. Consider an opt-in idle timeout only if users
+demonstrate that remembering to close a session is a real problem. Before
+choosing, define what foreground `run` does
 when current jobs drain but admission remains open, how `wait` distinguishes
 drained-but-accepting from finished, what `cancel` does to admission, and what
 `unlock` reports after a coordinator dies. Closure and submission must be
@@ -142,6 +151,9 @@ For every scenario record: desired user action, selected model behavior, persist
 - Is the primary abstraction a **run**, an **open execution session**, or an **individual submitted job**?
 - If the queue-less open-run model is selected, which operation opens the session, and does `add` submit immediately only while a session is open?
 - How is the open run sealed: explicit command, inactivity timeout, or a hybrid?
+- Should `reset` be the explicit run boundary, and if so does it seal only or
+	seal-and-open the next session? How does that coexist with the current
+	queue-only reset contract and preserve accepted work/history?
 - Are dependencies only allowed on already submitted jobs, or may a submitted job name a future prerequisite?
 - If there is no next-run queue, how are users expected to stage/preview a large batch before execution? Is a manifest or `run` plan still the batch-start interface?
 - Is an active retry without definition changes valuable enough to keep? If retry may change one job's next attempt, is that an explicit attempt revision or a new run?
