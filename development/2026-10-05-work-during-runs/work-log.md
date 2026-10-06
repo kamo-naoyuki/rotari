@@ -237,3 +237,18 @@ Commit: 2026-10-06 17:31:46 +09:00 `82993756`.
 - **Validation:** Documentation-only; `git diff --check` passed. No tests run.
 - **Remaining:** Compare the trade-off against concrete workflows and decide
   which capabilities must be preserved versus intentionally dropped.
+
+## 2026-10-06 — Identify gains of run-owned pending work
+
+- **Change:** Added the corresponding benefits to the model review: one
+  explicit in-project mutation target, late DAG submissions into the active
+  workflow, corrected retries without waiting for unrelated work, fewer
+  queue-to-run promotion steps, and a unified live DAG/status view.
+- **Reason:** The user asked what the proposed change gains, after reviewing
+  the capabilities it may put at risk.
+- **Plan impact:** The benefit is framed as unifying the target, not removing
+  pending work. These gains apply to current-workflow additions and do not
+  solve next-run preparation or whole-batch validation after execution starts.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Decide whether these gains justify losing or externalizing a
+  separately prepared successor batch.

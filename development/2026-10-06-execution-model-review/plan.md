@@ -74,6 +74,40 @@ name. Current queue editing, preview, and retry behavior is described in
 contract changes would also need updates to the corresponding run lifecycle
 and selector contracts.
 
+### Potential gains of run-owned pending work
+
+The proposal's value is not “pending disappears”; it is that pending work and
+the execution/history unit that will own it become the same target.
+
+- **One in-project mutation target:** while a run is open, `copy`, late `add`,
+	and eligible `change` operations target that explicitly identified run,
+	rather than silently editing a separate next-run queue. This removes the
+	need to explain which of two mutable project workspaces an operation affects.
+- **Late work can join the actual workflow:** a newly submitted job can depend
+	on earlier pending, running, or successful jobs and become runnable as soon
+	as its dependencies permit. It need not wait for the current run to finish
+	just because its definition arrived later.
+- **Correct-and-retry without waiting for unrelated work:** a finished job's
+	next-attempt definition can be corrected while unrelated jobs continue;
+	`retry` can then start the new attempt in the same open run if that policy is
+	selected. This extends the shipped active retry, which currently retries
+	using the definition captured by the run.
+- **No queue promotion/copy step for current-run additions:** if work belongs
+	to the active workflow, it can be submitted there directly instead of being
+	staged for a later run and then reconciled or copied. The distinction
+	“current run” versus “successor work” still needs to be explicit.
+- **A coherent live workflow view:** pending, running, finished, and blocked
+	jobs can be shown together with one run ID and one DAG, including who is
+	waiting on whom. This can make incremental workflows easier to inspect than
+	showing active-run state beside an unrelated next queue.
+
+These gains apply only when new work belongs to the currently open workflow.
+They do not make next-run preparation unnecessary, make whole-batch validation
+possible after execution has started, or remove the need for a run boundary.
+The decision should compare whether eliminating the duplicate target and
+enabling in-run corrections outweighs losing or externalizing a separately
+prepared successor batch.
+
 ### Initial jobs when there is no queue
 
 The queue-less model changes the current `add`-then-`run` workflow, so choose
