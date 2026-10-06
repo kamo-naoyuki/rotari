@@ -8,7 +8,6 @@ from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
-
 from rotari import Job, Rotari, RotariError, Run
 from rotari.client import CommandResult
 
