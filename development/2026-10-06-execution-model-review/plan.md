@@ -70,6 +70,49 @@ hidden queue.
 
 This is not a fourth execution engine so much as a compatibility path between A and C. It may preserve simple batch use while making in-progress corrections possible, at the cost of two visible workspaces and more explicit commands.
 
+### What happens to `copy` and `change`?
+
+In a queue-less model, the current **copy a saved run into the queue, edit it,
+then run/retry it** workflow cannot remain unchanged because its destination
+queue no longer exists. That does not automatically mean every capability
+behind `copy` and `change` should disappear:
+
+- `copy` currently supports two useful concepts: clone a saved run's job
+  definitions, and stage that clone for later execution. The staging part is
+  queue-specific; cloning/provenance may still be valuable as a new session
+  created directly from a saved run or an exported manifest.
+- `change` currently edits queued definitions (and `change --run-id` restores
+  a saved snapshot into the queue before editing). Under an open-run model, a
+  separate explicit edit might revise a job that has not started, or the next
+  attempt of a final job, but those are distinct lifecycle operations and must
+  not be silently inferred from whether a session is open.
+- A manifest-based workflow could preserve review-before-execution:
+  `export`/edit/`run` from a manifest or a new-session preview/apply API. This
+  is an alternative interface, not a hidden replacement queue.
+
+The repository documents and demonstrates `copy` + `change` as the fix-and-run
+workflow in [RECOVERING.md](../../docs/RECOVERING.md), [FAQ.md](../../docs/FAQ.md),
+and [examples/lineage.sh](../../examples/lineage.sh), and conformance covers
+copy/selector behavior. This confirms it is a supported and tested capability,
+not how frequently users rely on it; no usage data establishes its actual
+frequency. If the queue-oriented commands are retired, inventory and replace
+their user-facing purpose: restore/clone a saved workflow, edit before start,
+preview the edited execution, and preserve stable provenance. Do not equate
+“remove the queue” with “drop reproducible workflow editing” without deciding
+whether that capability has an acceptable replacement.
+
+Decision questions:
+
+1. Is pre-run draft editing still required, or is direct immediate submission
+	with per-job validation sufficient?
+2. Can a saved run be cloned directly into a new execution session without a
+	queue, while retaining copy's selector, origin, and provenance behavior?
+3. Does `change` apply only to not-yet-started jobs in an open session, only to
+	a final job's next attempt, or to neither? Prefer a distinct explicit form
+	if more than one target is supported.
+4. If the supported copy/change use case is removed, what replaces the
+	documented fix-before-rerun flow in CLI, Web, MCP, and Python?
+
 ## Open-run boundary: when does accepting work stop?
 
 An open run cannot finish merely because its current pending/running count
@@ -164,6 +207,7 @@ Evaluate each model against concrete workflows, not just feature counts:
 | Cancellation and recovery | What does cancel stop? What does unlock recover if a coordinator dies while accepting work? |
 | Interfaces | Can CLI, Web, MCP, and Python expose the same target and state transitions without implicit routing? |
 | Compatibility | Which current scripts depend on `add` not launching work, batch previews, or one run summary? |
+| Saved workflow editing | How much user-facing value is carried by `copy` + `change` before rerun, and what replaces its clone/edit/preview steps if queues disappear? |
 | Complexity cost | What new state machine, persistence protocol, UI concepts, and contracts does each model require? |
 
 ## Required workflow scenarios
