@@ -112,6 +112,41 @@ drained-but-accepting from finished, what `cancel` does to admission, and what
 serialized: a request is either admitted to the named open run or rejected as
 closed, never accepted after the summary is finalized.
 
+### Existing commands that already signal a boundary
+
+`reset` and `retry` are not neutral edits in the current user vocabulary:
+
+- `reset` means discard the not-yet-run batch. In the current queue model it
+  clears only the next-run queue, even while another run is active.
+- `retry` normally means take a finished run's failed/unfinished work and
+  create a successor run. The shipped active-retry path is an exception: it
+  revises/reopens work inside the same run.
+
+The queue-less model should decide whether these commands express lifecycle
+boundaries rather than add a new boundary verb by default. Candidate semantics
+to compare:
+
+1. `reset` seals the current session (or explicitly rotates it to a new
+   session) without canceling accepted work or erasing history. This matches
+   the user's existing “reset between cycles” habit, but changes today's
+   queue-only contract and must make “seal only” versus “seal and start next”
+   unmistakable.
+2. `retry` closes/admission-seals the source session and creates a successor
+   run for selected failed/unfinished jobs after the source's accepted work
+   settles. This preserves retry's usual new-run/history meaning, but cannot
+   promise an immediate retry while unrelated jobs are still running unless
+   the system allows concurrent sessions or queues the successor visibly.
+3. `retry` remains an in-session attempt revision. This is faster for transient
+   failures, but callers must understand that retry no longer creates a new
+   run in this mode; an explicit modifier or separate command may be needed
+   to distinguish it from successor-run retry.
+
+For each option, define how the source run is sealed, what happens to later
+submissions, when the retry attempt may start, how corrected job definitions
+are recorded, and what run ID/history the user receives. Do not use `reset` or
+`retry` as implicit session-boundary commands without updating their contract,
+CLI help, Web/MCP labels, and Python behavior together.
+
 ## Comparison criteria
 
 Evaluate each model against concrete workflows, not just feature counts:
@@ -152,8 +187,11 @@ For every scenario record: desired user action, selected model behavior, persist
 - If the queue-less open-run model is selected, which operation opens the session, and does `add` submit immediately only while a session is open?
 - How is the open run sealed: explicit command, inactivity timeout, or a hybrid?
 - Should `reset` be the explicit run boundary, and if so does it seal only or
-	seal-and-open the next session? How does that coexist with the current
-	queue-only reset contract and preserve accepted work/history?
+  seal-and-open the next session? How does that coexist with the current
+  queue-only reset contract and preserve accepted work/history?
+- Should `retry` be a session/run boundary that starts a successor run, or an
+  in-session re-execution? If both are needed, what explicit form distinguishes
+  them and what happens to the source session's admission state?
 - Are dependencies only allowed on already submitted jobs, or may a submitted job name a future prerequisite?
 - If there is no next-run queue, how are users expected to stage/preview a large batch before execution? Is a manifest or `run` plan still the batch-start interface?
 - Is an active retry without definition changes valuable enough to keep? If retry may change one job's next attempt, is that an explicit attempt revision or a new run?
