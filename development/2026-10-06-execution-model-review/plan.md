@@ -46,6 +46,34 @@ The current implementation is run-based. That is a fact about the shipped design
 
 This is the current leading hypothesis: it keeps useful run grouping and the existing DAG model while eliminating the second workspace (next-run queue versus active run). The pending state is not removed; it is unified with the run that will execute it. This may preserve the useful parts of `copy` and `change` without preserving their queue semantics. It does require defining how initial jobs are supplied and when the session stops accepting new work.
 
+### Existing capabilities at risk under the open-run model
+
+The model is not a pure improvement unless these current workflows are either
+deliberately dropped or replaced. The key trade-off is that a run-owned pending
+state handles work for the **current** open run; it does not automatically
+provide a place to prepare a **different next run** while that run is active.
+
+| Current capability | What the open-run model changes or can lose | What would preserve it |
+| --- | --- | --- |
+| Prepare a next batch while the current run is active (`add`/`change` edit the next queue) | If all pending work must belong to the sole active run, users cannot independently stage a successor batch while current work is running. They must wait until the run is sealed/finished, or risk adding work to the wrong lifecycle. | Permit a clearly separate successor draft (manifest or named session), or explicitly accept losing concurrent next-batch preparation. A draft is still a second workspace, even if it is not called a queue. |
+| Review and validate a whole batch before any execution | Immediate admission can start ready jobs before the user has submitted or reviewed the rest; errors in a later submission cannot roll back already-started jobs. | Keep a manifest/plan preview with whole-batch validation and an explicit start/apply step. Otherwise document that validation is incremental and partial execution is possible. |
+| Choose run-wide context and scheduling settings before start | Late submissions join a run whose working context, environment, concurrency, executor lanes, and run-wide scheduler options were fixed at opening. A late job may be unable to use a different run-level configuration. | Keep run settings immutable and require job-level overrides where supported; if a distinct environment/lane is needed, start a separate session after sealing or support multiple explicit sessions without violating project coordination. |
+| Stable run membership and a single complete run snapshot | Membership becomes time-dependent and append-only while accepting work. A run may be drained but still open, so “all jobs done” no longer means “run complete.” | Persist admission events/revisions, distinguish drained/open from sealed/finished in every interface, and define one final snapshot boundary. |
+| Copy a saved run, edit it, then selectively retry while carrying other results | Copying into an active run changes that run's membership and must resolve source/target ID collisions, dependency references, and whether successful results are carried or rerun. A saved run is no longer simply a template for a clean successor. | Make copy's target run explicit; define new IDs/origin links, result carry rules, and whether a successor can be prepared before the current run ends. |
+| Arrays/matrices have known membership for aggregate selection and atomic retry | Appending tasks or matrix members after some members start/finish changes aggregate status, “whole array” behavior, selection scope, and comparison against earlier snapshots. | Either freeze group topology once any member starts, or version membership and specify atomic admission, selectors, aggregation, export/import, and retries for each version. |
+| `retry` creates a successor run with carried-forward successes and distinct history | Same-session retries blur the boundary between a completed result and the current run's final result; a corrected definition also makes the run history mutable in meaning, even if attempts are append-only. | Preserve successor-run retry for stable comparison, or define an explicit in-session retry generation with per-attempt definitions and clear historical views. |
+| `run`, `wait`, and scripts observe a finite operation | If the session remains open after jobs drain, a foreground `run`/`wait` may wait indefinitely, or return while accepting work continues; scripts need an explicit close protocol. | Make seal/finish a first-class, deterministic operation and define foreground, detached, cancellation, and recovery behavior around it. |
+
+These are possible losses, not inevitable ones: manifests, explicit successor
+sessions, immutable attempt records, and versioned group membership can retain
+many capabilities. But preserving next-run preparation as a separately
+editable draft means there are still two workspaces conceptually; the design
+should state whether that is acceptable rather than hiding it behind a new
+name. Current queue editing, preview, and retry behavior is described in
+[RUNNING.md](../../docs/RUNNING.md) and [RECOVERING.md](../../docs/RECOVERING.md);
+contract changes would also need updates to the corresponding run lifecycle
+and selector contracts.
+
 ### Initial jobs when there is no queue
 
 The queue-less model changes the current `add`-then-`run` workflow, so choose

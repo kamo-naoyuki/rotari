@@ -220,3 +220,20 @@ Commit: 2026-10-06 17:31:46 +09:00 `82993756`.
 - **Remaining:** Decide whether `change` on a finished job makes a retry
   immediately eligible or requires explicit `retry`, including behavior when
   the session is sealed.
+
+## 2026-10-06 — Audit capabilities at risk in the open-run model
+
+- **Change:** Added a capability-loss table to the execution-model review for
+  next-batch preparation during an active run, whole-batch preview/validation,
+  run-wide context selection, stable membership, copy/result carry, array and
+  matrix topology, successor-run retry history, and finite `run`/`wait`
+  behavior.
+- **Reason:** The user asked whether the proposed model could remove things
+  that work today.
+- **Plan impact:** The open-run model may reduce target ambiguity but can also
+  remove independent next-run staging and batch semantics. Manifests or
+  successor drafts can preserve those capabilities, but are still a second
+  conceptual workspace; the decision should be explicit.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Compare the trade-off against concrete workflows and decide
+  which capabilities must be preserved versus intentionally dropped.
