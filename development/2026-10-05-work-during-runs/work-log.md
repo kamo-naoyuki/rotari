@@ -269,3 +269,21 @@ Commit: 2026-10-06 17:31:46 +09:00 `82993756`.
 - **Validation:** Documentation-only; `git diff --check` passed. No tests run.
 - **Remaining:** Identify a recurring late-add workflow and compare it with
   preserving the existing queue and run boundary before recommending a model.
+
+## 2026-10-06 — Concretize the active-run additions plan
+
+- **Change:** Added a detailed implementation proposal for bounded,
+  exact-run-targeted active additions. It preserves normal queue operations,
+  excludes submitted-job edits and queue promotion, defines an all-or-none
+  admission contract, and maps model/engine, durable protocol, projectrun/CLI,
+  Web/MCP/Python, tests, contracts, and later array/open-session phases.
+- **Reason:** The user asked to proceed and make the plan concrete enough to
+  organize what would change.
+- **Plan impact:** Recommended incremental experiment is explicit
+  `add --run-id RUN` while the run is executing, not a queue-less migration.
+  Bounded append does not wait after work drains; open/seal semantics and
+  whether to remove the queue remain later decisions. V1 group scope and
+  protocol/revision details remain decision gates before implementation.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Confirm V1 command shape and plain-job versus new-group scope,
+  admission record/revision design, then update contracts before coding.

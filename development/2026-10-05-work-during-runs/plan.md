@@ -3,18 +3,22 @@
 **Created:** 2026-10-05
 
 **Status:** Phase 1 is implemented. Phase 2's same-run retry implementation
-is committed and validated. The root execution model is now under review:
-compare run-based batches with immediate submission/open execution sessions
-before extending active-run retry or adding jobs to a run. D10's per-attempt
-revision and D11's queue-versus-active target are provisional pending that
-review. The comparison is tracked in
+is committed and validated. The root execution model is under review. The
+current proposed next step is a bounded, explicitly targeted active-run add
+while preserving all existing queue behavior; a detailed proposal is in
+[development/2026-10-06-active-run-additions/plan.md](../2026-10-06-active-run-additions/plan.md).
+Removing the queue or keeping a run open after it drains is not decided. D10's
+per-attempt definition revision is deferred unless a concrete need is
+established. The broader comparison is tracked in
 [development/2026-10-06-execution-model-review/plan.md](../2026-10-06-execution-model-review/plan.md).
 Phase 3 has its own planning at
 [development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md)
-but is paused, together with Phase 4, until the root model is chosen. D1 to D5,
-D7, D8, and D9 describe the shipped/current run-based behavior; D10 and D11
-remain provisional. Reconsider them against the execution-model review before
-further implementation.
+but its implementation, together with Phase 4 implementation, is paused
+until the active-add contract and project-targeting interactions are settled.
+D1 to D5, D7, D8,
+and D9 describe current or previously decided run-based behavior; D10 is
+deferred and D11 is updated below for explicit active-add targeting. Revisit
+queue removal only after evaluating the bounded-add experience.
 
 ## Purpose
 
@@ -78,24 +82,25 @@ straight to running without passing through the queue (D8).
 2. **Retry jobs inside the active run.** `retry --failed` (or retry of
    selected jobs) on a running project starts new attempts in that run, the
   same way `run --retry` does, instead of being rejected. The implementation
-  currently retries the run's existing job definition. D10 now prefers
-  allowing an explicit revised definition for the next attempt of a selected
-  final job, so a corrected command or per-job executor option can be retried
-  without waiting for unrelated work; the run itself must not become
-  generally mutable.
+  currently retries the run's existing job definition. Editing a submitted
+  job or changing its next-attempt definition is not included absent a
+  concrete requirement.
 3. **Reduce the cost of switching projects.** Tracked separately in
   [development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md):
   measure where multiple projects force `--project-name`, then remove only
   the cases that have one unambiguous answer.
-4. **Add jobs to the active run** (conditional). Only if phases 1 and 2 leave
-   a demonstrated need, let new jobs join the active run, reusing the phase 2
-   request channel.
+4. **Add jobs to the active run** (proposed next step, contract confirmation
+  required). Add an explicit `add --run-id RUN` path for bounded admission
+  to the exact executing run. Preserve ordinary `add` as a next-run queue
+  edit; do not add active-job `change`, queue promotion, or an open session
+  that waits after draining in this phase. Follow the detailed proposal in
+  [development/2026-10-06-active-run-additions/plan.md](../2026-10-06-active-run-additions/plan.md).
 
-Phases 1 and 2 were independent and shipped separately. Phase 3's measurement
-starts after Phase 1, because it removes the most common reason to create a
-second project; its separate plan is linked above. Phase 3 implementation is
-paused until active retry's invocation and attempt-revision behavior are
-specified. Phase 4 depends on Phase 2 and its request-channel design.
+Phases 1 and 2 were independent and shipped separately. Phase 3's repository
+audit is complete, but implementation remains paused until the active-add and
+project-targeting decisions are consistent. Phase 4 can build on the existing
+request-channel pattern, but its membership commit and recovery protocol is
+new.
 
 ### Non-goals
 
@@ -425,7 +430,7 @@ SAFE-2 for `retry`, and `docs/RUNNING.md` (Automatic retries, plus a new
   --failed` while the slow job runs reruns only the failed job in the same
   run; option rejection rows; the same through the Web API.
 
-### Phase 2: Attempt revision review (D10) — provisional pending model review
+### Phase 2: Attempt revision review (D10) — deferred
 
 The shipped active retry reopens a final job using the active run's existing
 `JobSpec` and run settings. It helps when the failure may disappear without
@@ -434,62 +439,24 @@ but cannot correct a bad per-job executor option, command, or environment
 before retrying. Editing the next queue does not mutate the active run's
 in-memory execution plan.
 
-**Previous preferred direction (2026-10-06; not yet selected as architecture):** retain same-run retry and allow the
-request to revise the selected final job's next attempt. Keep the initial
-`runs/<run-id>/commands.json` as the immutable declaration of run membership,
-dependencies, array/matrix shape, and original job definitions. Treat a retry
-override as an attempt-level revision: persist the effective `JobSpec` beside
-that attempt's existing `command.json`, and make every subsequent attempt,
-status, report, and UI view identify which definition it used. This is a
-bounded relaxation of immutability, not permission to rewrite arbitrary run
-state. The run-wide execution configuration is not hot-swapped: executor lane
-settings, concurrency, caller-environment mode, automatic retry policy, and
-other run defaults remain those chosen at run start.
+The shipped same-run retry reuses the job definition captured by the run.
+Changing a submitted job's definition for a later attempt is out of scope
+unless a concrete workflow demonstrates that it is needed. If revisited, it
+requires a separate decision about attempt-level provenance and presentation;
+it is not a prerequisite for active additions.
 
-**Cross-cutting concern:** this introduces two editable work domains: the
-next-run queue and the active run's next-attempt revision. Phase 4 would add a
-third action—promoting queued jobs into the active run. Do not let ordinary
-`add`/`change` silently switch targets based on project state. Before building
-either revised retry or Phase 4, define how the user sees and names the target
-(next queue versus exact active run), how promotion removes or retains queue
-entries, and how collisions between a queued job and an active-run job are
-handled. If the two-domain model cannot be made clear in CLI, Web, and MCP,
-prefer deferring active-run edits over making queue operations context-sensitive.
+**Cross-cutting concern:** ordinary queue edits and exact active-run additions
+remain two explicit destinations in the proposed incremental phase. Do not
+let `add`/`change` switch targets implicitly based on project state. The
+active-add plan excludes promoting queue entries, so there is no queue
+consumption/collision reconciliation between those destinations. Whether two
+explicit destinations are still too confusing is to be evaluated after the
+bounded feature is tried; do not remove the queue preemptively.
 
-Before implementation, settle these boundaries:
-
-- **Candidate V1 allowlist:** command/argv, job working directory, job
-  environment, timeout, executor, and per-job executor options. These are
-  settings for the selected job's next attempt, not for any already submitted
-  attempt. A command/CWD/environment/executor change must pass the same
-  validation and preparation used by a new run before the request is accepted.
-- **Keep fixed in V1:** job ID/name/stage, dependency edges, array/matrix
-  membership and shape, run working directory and environment mode,
-  concurrency, run-level automatic retry policy, executor lane settings,
-  submit interval/retry limit, and the next queue. In particular, do not
-  mutate a lane already serving other work.
-- **Scheduler option distinction:** `--slurm-options` / equivalent run flags
-  configure the executor lane and stay immutable. A selected job may replace
-  the lane defaults with its per-job executor options where the scheduler
-  supports that. Define an explicit replacement/clear mode: the current
-  `jobOptions` fallback treats an empty per-job slice as “inherit lane
-  defaults,” so empty cannot currently mean “submit with no options.” A bad
-  run-wide setting that has no valid per-job override still requires a new
-  run.
-- Defer per-job retry policy, declared artifacts, log/output destinations,
-  names, dependencies, and array/matrix shape until separately justified.
-- Whether active retry must opt in explicitly (for example `--in-run`) so a
-  command does not silently change its history semantics based only on project
-  state.
-- How array-wide retries validate and apply overrides atomically, how blocked
-  descendants use their original definitions, and how the next queue remains
-  separate.
-
-If corrected-definition retry is rejected after this design pass, keep the
-current capability explicitly documented as same-definition retry for
-transient failures, or defer/remove it. D9's active-run project inference
-remains provisional until this decision is implemented or the retry scope is
-narrowed.
+D10 is not a prerequisite for Phase 4. Keep the shipped same-definition
+active retry behavior and its current contracts unchanged during active-add
+work. Revisit retry scope only if a concrete workflow establishes a need to
+change submitted job definitions.
 
 ## Phase 3: Project selection
 
@@ -499,30 +466,28 @@ That plan owns the command inventory, measurement, active-run resolution
 decisions, and D6's project-pin decision gate. This umbrella plan keeps the
 phase number and points to the detailed work rather than duplicating it.
 
-## Phase 4: Add jobs to the active run (conditional; model review first)
+## Phase 4: Add jobs to the active run (proposed bounded append)
 
-The previous sketch below is not an implementation commitment. First compare
-run-based batches, immediate submission, and open execution sessions in
-[development/2026-10-06-execution-model-review/plan.md](../2026-10-06-execution-model-review/plan.md).
-After choosing a model, decide whether late additions are still needed and
-reconcile this phase and D10/D11 with that model before designing a protocol.
-If a run-based model remains, the earlier sketch is:
+The earlier queued-job promotion sketch is superseded. The current proposal
+adds a separate, explicit active-run destination without consuming or editing
+the next-run queue. Follow
+[development/2026-10-06-active-run-additions/plan.md](../2026-10-06-active-run-additions/plan.md)
+for lifecycle, persistence, package ownership, adapters, and tests.
 
-- A request over the phase 2 channel moves selected queued jobs into the
-  active run's execution set and the engine's pending set. Keep the queue as
-  the next-run staging area; define whether a successful promotion consumes
-  the selected queue entries atomically and leave rejected entries queued.
-- Require an explicit active-run target/action; ordinary queue `add` and
-  `change` continue to address only the next-run queue.
-- Reject or explicitly disambiguate IDs/names that collide with jobs already
-  in the active run.
-- New jobs may depend on jobs in the run; a dependency on a final failure
-  blocks them at once.
-- Record additions as append-only run revisions. Preserve the original
-  `commands.json` snapshot and keep it immutable; a separate versioned record
-  (or an explicitly versioned snapshot) must explain every job added during
-  execution. This changes the run contract and needs its own decision record.
-- If the run has already ended, the request fails and the jobs stay queued.
+- Target an exact running `RUN_ID`; do not infer a target or fall back after
+  an end/cancel race.
+- Keep ordinary `add` and `change` on the next-run queue. No state-dependent
+  routing, active-job definition edits, queue promotion, or empty open session
+  in this phase.
+- Admit a whole new-job batch atomically through the existing supervisor and
+  dispatcher. The request channel is reusable as a pattern, but durable
+  membership commit and crash recovery are new design work.
+- Start with plain jobs and DAG dependencies. Complete new array/matrix groups
+  are a follow-up unless confirmed as a V1 requirement; never extend an
+  existing group in V1.
+
+The queue-less open-session model and any `finish`/`seal` boundary remain later
+decisions. Reassess them after bounded active-add behavior is validated.
 
 ## Decisions
 
@@ -572,21 +537,15 @@ Open:
 
 - **D6** Whether to add a per-directory project pin; the decision gate is
   tracked in [development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md).
-- **D10** Preferred direction: allow a selected final job's next attempt to
-  use an explicit revised per-job execution definition, recorded per attempt,
-  while keeping run-wide settings, membership, and dependency/array topology
-  immutable. Run-wide executor/scheduler settings are not replaced while the
-  run is active. The exact patchable per-job fields, scheduler options that
-  support per-job override, explicit `--in-run` mode, and per-attempt read-side
-  representation remain undecided. Resolve these before Phase 3 implements
-  active `retry` inference or Phase 4 extends the request channel.
-- **D11** Before either D10's revised retry or Phase 4's queued-job promotion
-  is implemented, settle the two-workspace interaction: queue operations keep
-  targeting the next run; active-run changes must name the exact run and be
-  shown as a separate action. Decide promotion consumption, duplicate-ID/name
-  handling, and the durable record of active-run revisions. If explicit
-  targeting cannot be made understandable across CLI, Web, and MCP, defer the
-  active-run mutation features rather than making `add`/`change` state-dependent.
+- **D10** Submitted-job definition revision is deferred. The user questions
+  whether editing a job after submission is needed. Keep the shipped active
+  retry behavior (same run, original job definition) unless a concrete
+  workflow demonstrates that changing a next-attempt definition is required.
+- **D11** If active additions are implemented, they are a separate explicit
+  target: active `add` names the exact run and does not promote or consume
+  queue jobs. Ordinary `add`/`change` continue targeting the next-run queue.
+  This retains two destinations but makes routing explicit; whether that is
+  still confusing is an empirical question after bounded active-add use.
 
 ## Validation for each phase
 

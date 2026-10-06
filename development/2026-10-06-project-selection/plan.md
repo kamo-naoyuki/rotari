@@ -36,7 +36,9 @@ The goal is not to guess a project. Explicit choices and identifiers keep their 
 - Overriding explicit `--project-name`, `ROTARI_PROJECT_NAME`, run ID, attempt ID, or other existing selectors with an inferred target.
 - Changing queue-first job selection, retry source rules, or run lifecycle behavior.
 - Implementing a project pin before the audit justifies it.
-- Phase 4 work that adds jobs to an active run.
+- Inferring an active project/run for active additions. The proposed active-add
+  operation requires an exact run ID; see
+  [development/2026-10-06-active-run-additions/plan.md](../2026-10-06-active-run-additions/plan.md).
 
 ## Existing behavior and constraints
 
