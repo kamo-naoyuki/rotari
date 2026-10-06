@@ -56,12 +56,14 @@ Commit: jj change `rpkwxuzr`, commit `025e2a33`, 2026-10-06 12:37:26.
   environment, or executor option during a long-running run; this limits the
   feature's value for fix-and-retry workflows.
 - **Plan impact:** D10 now has a preferred design direction, not a complete
-  implementation specification. Phase 3's active-retry inference remains
-  paused until the request semantics are settled.
+  implementation specification. The user clarified that changing run-wide
+  settings while running is unnecessary; only a selected final job's next
+  attempt may receive per-job overrides. Phase 3's active-retry inference
+  remains paused until the request semantics are settled.
 - **Validation:** Documentation-only; `git diff --check` passed. No tests run.
-- **Remaining:** Define patchable execution fields and retry option semantics,
-  especially per-job versus run-level Slurm/PBS/LSF/SGE options, then implement
-  attempt-level provenance and views. D9 must be updated to match the final
-  retry mode.
+- **Remaining:** Define patchable per-job execution fields and which scheduler
+  options can validly override lane defaults for that job; run-wide settings
+  remain immutable. Then implement attempt-level provenance and views. D9 must
+  be updated to match the final retry mode.
 
 Commit: 2026-10-06 16:56:51 +09:00 `2621b67e`.

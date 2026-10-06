@@ -432,7 +432,9 @@ override as an attempt-level revision: persist the effective `JobSpec` beside
 that attempt's existing `command.json`, and make every subsequent attempt,
 status, report, and UI view identify which definition it used. This is a
 bounded relaxation of immutability, not permission to rewrite arbitrary run
-state.
+state. The run-wide execution configuration is not hot-swapped: executor lane
+settings, concurrency, caller-environment mode, automatic retry policy, and
+other run defaults remain those chosen at run start.
 
 Before implementation, settle these boundaries:
 
@@ -440,10 +442,12 @@ Before implementation, settle these boundaries:
   working directory, environment, timeout, executor, and executor options),
   and which remain fixed (job identity, dependency edges, array/matrix shape,
   run context, concurrency, and run-level retry policy).
-- How an explicit retry override differs from run-level flags, especially
-  Slurm/PBS/LSF/SGE submission options. A per-job override can replace an
-  executor lane's defaults for that job, but it cannot retroactively change
-  already-submitted work or safely mutate a lane used by other running jobs.
+- Which scheduler submission options can be overridden for one selected job.
+  A per-job executor-option override can replace the executor lane's default
+  options for that job where the scheduler supports it; it must not change the
+  lane's run-wide defaults or affect other running/submitted jobs. A run-wide
+  Slurm/PBS/LSF/SGE option that has no valid per-job equivalent remains
+  unchangeable until a new run.
 - Whether active retry must opt in explicitly (for example `--in-run`) so a
   command does not silently change its history semantics based only on project
   state.
@@ -528,12 +532,13 @@ Open:
 - **D6** Whether to add a per-directory project pin; the decision gate is
   tracked in [development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md).
 - **D10** Preferred direction: allow a selected final job's next attempt to
-  use an explicit revised execution definition, recorded per attempt, while
-  keeping run membership and dependency/array topology immutable. The exact
-  mutable fields, Slurm/run-level option boundary, explicit `--in-run` mode,
-  and per-attempt read-side representation remain undecided. Resolve these
-  before Phase 3 implements active `retry` inference or Phase 4 extends the
-  request channel.
+  use an explicit revised per-job execution definition, recorded per attempt,
+  while keeping run-wide settings, membership, and dependency/array topology
+  immutable. Run-wide executor/scheduler settings are not replaced while the
+  run is active. The exact patchable per-job fields, scheduler options that
+  support per-job override, explicit `--in-run` mode, and per-attempt read-side
+  representation remain undecided. Resolve these before Phase 3 implements
+  active `retry` inference or Phase 4 extends the request channel.
 
 ## Validation for each phase
 
