@@ -2,7 +2,7 @@
 
 **Created:** 2026-10-06
 
-**Status:** The preferred product direction is a run-centric immediate-execution model with no project-level next-run queue. The proposed lifecycle commands are `start` (open a run), `submit` (add work to the open run), and `wait` (seal admission and wait for completion). Manifests provide pre-run authoring; the user considers queue editing/copy uncommon and manifest workflows sufficient. Submitted-job edits remain out of scope. Exact bootstrap, behavior of `start` with a prior unfinished run, `reset` versus explicit seal, retry lifecycle, array/matrix admission, and migration remain open. See the [run-owned pending transition plan](../2026-10-06-active-run-additions/plan.md); implementation has not started.
+**Status:** Product direction is reconsidered; do not implement queue removal, the `start` / `submit` / `wait` replacement, or further in-run retry changes yet. The user identified that immediate submission may weaken the run abstraction and make retry confusing, and now questions the value of retrying a finished job while unrelated jobs are still running. Keep the current run/queue model as the default for now. Same-run active retry has already shipped; removing or deprecating it is a separate compatibility decision, not part of this pause. The alternatives and prior proposal remain documented for reference, but are no longer a preferred direction.
 
 ## Question
 
@@ -10,9 +10,14 @@ Which model should rotari make primary?
 
 1. **Run-based batches:** build a set of jobs, start a run that owns an immutable snapshot, and make later edits part of the next run.
 2. **Immediate submission:** adding a job makes it eligible for execution now, rather than waiting for an explicit `run` over a prepared queue.
-3. **Run-centric open execution session (preferred product direction):** `start [MANIFEST]` opens a run and starts ready work immediately; `submit` adds jobs to that run while it remains open; `wait` closes admission and waits for accepted work. A late job may depend on an earlier submitted job. The run itself owns a **pending / not-yet-started** state, rather than using a separate next-run queue. Initial jobs are authored/reviewed in a manifest or submitted after opening an empty run. The unresolved constraint is what `start` does if the previous run is sealed but still executing; under the current invariant it must not launch a second coordinator.
+3. **Run-centric open execution session (paused alternative):** `start [MANIFEST]` opens a run and starts ready work immediately; `submit` adds jobs to that run while it remains open; `wait` closes admission and waits for accepted work. A late job may depend on an earlier submitted job. The run itself owns a **pending / not-yet-started** state, rather than using a separate next-run queue. Initial jobs are authored/reviewed in a manifest or submitted after opening an empty run. This is not currently selected because it risks weakening the user's run/retry mental model.
 
 The current implementation is run-based. That is a fact about the shipped design, not a conclusion that it is the best user model. The review starts from user workflows and invariants rather than assuming Phase 1–4 are the desired final architecture.
+
+The current shipped behavior remains the baseline during this review. In
+particular, same-run active retry is already implemented; “it may be
+unnecessary” is a reason to evaluate its user value, not permission to remove
+it without an explicit compatibility decision.
 
 ## Candidate models
 
@@ -44,7 +49,7 @@ The current implementation is run-based. That is a fact about the shipped design
 - Run-wide environment, executor lanes, and concurrency are fixed at session start; job-level definitions can be supplied per appended job.
 - The run snapshot becomes an append-only event/revision history while open, then a stable final snapshot when sealed.
 
-This is the preferred product direction following the user's clarification: the queue structure itself is less intuitive than immediate execution, and manifests adequately cover pre-run editing/copy workflows. Pending work is not removed; it is unified with the run that will execute it. Submitted-job editing is not a goal. The migration plan must define manifest bootstrap and explicit run closure before changing user-facing behavior.
+This was previously preferred because the queue structure seemed less intuitive and manifests appeared sufficient for pre-run editing. That preference is paused: the user now questions whether immediate submissions make run membership and retry less understandable. Do not treat manifest bootstrap or queue migration as implementation work until the run/retry trade-off is resolved.
 
 ### Existing capabilities at risk under the open-run model
 
@@ -335,7 +340,11 @@ Use these scenarios to compare the models:
 1. Queue ten independent jobs, inspect/preview them, then run all with a chosen concurrency and environment.
 2. Start a slow run, add a forgotten independent job, and decide whether it should start now or belong to the next run.
 3. A fast job fails due to a typo or bad per-job Slurm option while unrelated jobs remain slow. First establish whether users need to correct the already-submitted job at all. If not, do not design active `change`; define the supported recovery path (for example, leave it failed and submit a separately identified replacement, or wait and prepare a successor run).
-4. A job fails because an external service was transiently unavailable; rerun unchanged while the rest of the run continues.
+4. A fast job fails transiently while unrelated jobs are still running. Compare
+  (a) same-run retry immediately, (b) wait for the run and use ordinary
+  successor-run retry, and (c) leave it failed until the run ends. Decide
+  whether the latency benefit of (a) is important enough to justify the
+  additional retry state and any confusion with successor-run `retry`.
 5. Add a job that depends on a running job, a successful job, and a failed-final job; define readiness and blocking in each case. DAGs are compatible with late submission: forward references to jobs not yet submitted are a separate question and may be rejected while backward dependencies remain supported.
 6. Widen an array/matrix or add one member after some members have completed; define selection, aggregate status, and comparison semantics.
 7. Kill the coordinator while work is running and while a late-add/retry request is being accepted; recover without losing, duplicating, or misattributing jobs.
@@ -358,6 +367,7 @@ For every scenario record: desired user action, selected model behavior, persist
 - Are dependencies only allowed on already submitted jobs, or may a submitted job name a future prerequisite?
 - If there is no separate next-run queue, how are users expected to stage/preview a large batch before execution? Is a manifest or `run` plan still the batch-start interface, and how is run-owned pending work displayed?
 - Is an active retry without definition changes valuable enough to keep? Treat definition-changing retries as out of scope unless a concrete workflow establishes their value.
+- Is the already-shipped same-run retry useful enough to justify its distinct semantics, or should a future compatibility change remove/deprecate it? Do not silently conflate this with successor-run retry.
 - Are run-wide executor settings intentionally immutable? The current preference is yes; determine whether job-specific executor/option overrides cover the real correction cases.
 - Is there a need for a continuously accepting mode, or only a way to append work to a bounded active session?
 - Is late addition to the active run valuable even if editing already-submitted jobs is explicitly out of scope? The proposed first step tests this while preserving current queue behavior.

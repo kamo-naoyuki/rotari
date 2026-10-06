@@ -3,24 +3,23 @@
 **Created:** 2026-10-05
 
 **Status:** Phase 1 is implemented. Phase 2's same-run retry implementation
-is committed and validated. The user now prefers a run-centric immediate
-execution model without a project-level next-run queue, using manifests for
-pre-run authoring and run-owned pending work for execution. The staged
-transition is planned in
+is committed and validated, but its product value is now under reconsideration.
+The queue-less immediate-execution proposal is paused: the user is concerned
+it weakens the run/retry mental model and that same-run retry during unrelated
+work may be unnecessary. Keep current behavior unless a separate compatibility
+decision changes it. The alternative transition is documented in
 [development/2026-10-06-active-run-additions/plan.md](../2026-10-06-active-run-additions/plan.md).
-D10's submitted-job definition revision is deferred. Manifest bootstrap,
-run sealing, retry lifecycle, and migration compatibility remain to be
-specified. The broader comparison is tracked in
+D10's submitted-job definition revision is deferred. No queue removal or new
+active-run feature is currently approved. The broader comparison is tracked in
 [development/2026-10-06-execution-model-review/plan.md](../2026-10-06-execution-model-review/plan.md).
 Phase 3 has its own planning at
 [development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md)
 but its implementation, together with Phase 4 implementation, is paused
 until the active-add contract and project-targeting interactions are settled.
-D1 to D5, D7, D8,
-and D9 describe current or previously decided run-based behavior; D10 is
-deferred and D11 is updated below for run-owned pending work. Queue removal is
-the preferred product direction; the remaining gates concern workflow parity,
-run lifecycle, and safe migration.
+D1 to D5, D7, D8, and D9 describe current or previously decided run-based
+behavior; D10 is deferred and D11 is provisional. Return to the current model
+unless the comparison demonstrates a concrete improvement without making run
+membership, cancellation, and retry harder to explain.
 
 ## Purpose
 
@@ -91,18 +90,17 @@ straight to running without passing through the queue (D8).
   [development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md):
   measure where multiple projects force `--project-name`, then remove only
   the cases that have one unambiguous answer.
-4. **Move to run-owned pending work** (preferred direction; contract
-  confirmation required). `start [MANIFEST]` opens a run and starts ready
-  jobs immediately; `submit` adds work to that open run; `wait` seals
-  admission and waits for completion. No next-run queue. Keep `change` on
-  manifests before execution. Follow the detailed transition proposal in
+4. **Reconsider run-owned pending work** (paused alternative). The proposed
+  `start` / `submit` / `wait` lifecycle would retire the next-run queue, but
+  may dilute run identity and complicate retry semantics. Do not implement
+  without resolving those concerns in the model review. Keep `change` and
+  `copy` as current queue workflows unless an explicit migration is chosen.
+  The detailed alternative is in
   [development/2026-10-06-active-run-additions/plan.md](../2026-10-06-active-run-additions/plan.md).
 
 Phases 1 and 2 were independent and shipped separately. Phase 3's repository
-audit is complete, but implementation remains paused until its project
-resolution assumptions are reconciled with run-scoped submission. Phase 4 can
-reuse the existing request-channel pattern, but run membership commit,
-open/seal lifecycle, and migration are new work.
+audit is complete; implementation remains paused. Phase 4 and additional
+active-retry changes are also paused pending a user-model decision.
 
 ### Non-goals
 

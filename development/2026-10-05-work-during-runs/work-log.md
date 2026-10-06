@@ -397,3 +397,20 @@ Commit: 2026-10-06 17:31:46 +09:00 `82993756`.
   run.
 - **Remaining:** Ensure active admission returns stable job/task IDs and that
   existing cancel selection includes committed but not-yet-started additions.
+
+## 2026-10-06 — Pause immediate model and reconsider in-run retry
+
+- **Change:** Marked queue retirement and the proposed `start` / `submit` /
+  `wait` migration as paused rather than the preferred direction. Added a
+  concrete comparison of same-run retry during unrelated work versus waiting
+  for successor-run retry. Clarified that active retry is already shipped and
+  should not be removed without a separate compatibility decision.
+- **Reason:** The user reconsidered whether immediate execution weakens the
+  run abstraction and whether retrying during a running run is needed.
+- **Plan impact:** Current behavior remains the baseline; no new active-run
+  implementation is approved. The decision review must compare the faster
+  retry benefit with its extra state/mental-model cost before recommending
+  retention, deprecation, or removal.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Decide whether to retain shipped active retry after comparing
+  concrete fast-failure/slow-job workflows and successor-run retry behavior.

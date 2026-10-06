@@ -2,7 +2,7 @@
 
 **Created:** 2026-10-06
 
-**Status:** Detailed transition plan; implementation has not started. The preferred product direction is now to retire the project-level queue: users find “edit a next-run queue” less intuitive than immediate submission, and the user reports that queue `change` / `copy` workflows are uncommon while manifests are sufficient for pre-run editing and reuse. The proposed command vocabulary is `start` (open a run, sealing any prior open run first), `submit` (add new work to the open run and schedule it immediately), and `wait` (seal the open run and wait for its work to finish). Keep submitted-job definitions immutable. Exact behavior when a prior run is sealed but still executing, manifest bootstrap, and command return/foreground semantics remain to be decided.
+**Status:** Paused alternative; no implementation should start from this plan until the run/retry product decision is revisited. The user now questions whether immediate submission weakens the meaning of a run and makes retry confusing, and whether same-run retry of a finished job during unrelated work is useful. The `start` / `submit` / `wait` and queue-retirement design remains documented as an option, not the preferred direction. The current queue/run behavior remains the default. Same-run active retry is already shipped, so removal/deprecation requires a separate compatibility decision.
 
 ## Goal
 
