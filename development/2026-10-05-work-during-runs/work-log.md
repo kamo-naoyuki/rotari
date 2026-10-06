@@ -150,6 +150,24 @@ Commit: 2026-10-06 17:15:57 +09:00 `5cd12e49`.
 
 Commit: 2026-10-06 17:24:17 +09:00 `490a355e`.
 
+## 2026-10-06 — Assess copy/change in a queue-less model
+
+- **Change:** Added a dedicated compatibility review for `copy` and `change`
+  to the execution-model plan. It distinguishes queue staging (which disappears
+  in a queue-less model) from cloning saved job definitions, editing before
+  execution, previewing, and preserving provenance. It notes existing docs,
+  examples, and conformance coverage without assuming actual usage frequency.
+- **Reason:** The user raised that `copy`/`change` may be uncommon enough to
+  retire if the queue goes away.
+- **Plan impact:** No commands are deprecated and no runtime behavior changes.
+  Any queue-less decision must say how the documented copy/fix/rerun workflow
+  is preserved or intentionally retired across interfaces.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Decide whether saved-run cloning and pre-run editing have a
+  replacement that is simpler than retaining queue-based operations.
+
+Commit: 2026-10-06 17:31:46 +09:00 `82993756`.
+
 ## 2026-10-06 — Consider `reset` as an open-run boundary
 
 - **Change:** Added reuse of `reset` as a candidate explicit session boundary
