@@ -2,7 +2,7 @@
 
 **Created:** 2026-10-06
 
-**Status:** Exploration. The leading hypothesis is now queue-less immediate execution: `run` starts jobs now and accepts additional submissions while its execution session is open; a later job may depend on an earlier submitted job. This is not yet the final decision. The initial-job submission contract and session close rule (explicit command versus time boundary) remain open. Phase 3 and Phase 4 implementation remain paused. The Phase 2 retry code is shipped, but its longer-term role is open.
+**Status:** Exploration. The leading hypothesis is a run-centric immediate-execution model: `run` starts ready jobs now, and the run owns both not-yet-started (pending) work and started attempts; more pending work can be added while admission is open. This removes the separate *next-run queue* workspace, but does not eliminate pending work as a state. A later job may depend on an earlier submitted job. This is not yet the final decision. Initial submission, copy/change targeting, and the session close rule remain open. Phase 3 and Phase 4 implementation remain paused. The Phase 2 retry code is shipped, but its longer-term role is open.
 
 ## Question
 
@@ -10,7 +10,7 @@ Which model should rotari make primary?
 
 1. **Run-based batches:** build a set of jobs, start a run that owns an immutable snapshot, and make later edits part of the next run.
 2. **Immediate submission:** adding a job makes it eligible for execution now, rather than waiting for an explicit `run` over a prepared queue.
-3. **Queue-less open run (current leading hypothesis):** `run` starts execution immediately; jobs submitted while its session remains open join that same run and become eligible as soon as dependencies permit. A late job may depend on an earlier submitted job. There is no separate next-run queue. The way the initial set of jobs enters `run` must be designed explicitly; silently retaining `add` as a staging queue would not satisfy the queue-less premise.
+3. **Run-centric open execution session (current leading hypothesis):** `run` starts execution immediately; jobs submitted while its session remains open join that same run and become eligible as soon as dependencies permit. A late job may depend on an earlier submitted job. The run itself owns a **pending / not-yet-started** state, rather than using a separate next-run queue. The way the initial set of jobs enters `run` must be designed explicitly; retaining a separate staging area for the next run would reintroduce the two-workspace problem.
 
 The current implementation is run-based. That is a fact about the shipped design, not a conclusion that it is the best user model. The review starts from user workflows and invariants rather than assuming Phase 1–4 are the desired final architecture.
 
@@ -32,16 +32,19 @@ The current implementation is run-based. That is a fact about the shipped design
 - Dependencies, arrays/matrices, whole-workflow previews, and all-or-nothing submission need additional grouping semantics.
 - This is the simplest literal interpretation of “add means start now,” but may fit rotari's DAG and batch scheduler features poorly.
 
-### C. Open execution session (streaming run)
+### C. Open execution session (streaming run with run-owned pending work)
 
 - An explicit `run` opens an execution session and immediately starts its ready jobs; membership can grow while the session is open.
 - A job submitted while a session is open joins that session and starts as soon as its dependencies permit. A later job may depend on an earlier job by ID/name; if the prerequisite is still pending/running it waits, if successful it may start immediately, and if finally failed it is blocked under the existing DAG rule.
-- There is no separate next-run queue. A submission without an open session must either open a new session explicitly or fail with instructions to start one; do not silently create an invisible staging queue.
+- There is no separate next-run queue. A submission without an open session must either open a new session explicitly or fail with instructions to start one; do not silently create an invisible staging queue. Pending work is explicit state owned by a particular run, not another destination alongside the active run.
+- Each accepted job has a clear lifecycle such as `pending` (definition accepted, no attempt started), `running` (an attempt has started), and a terminal result. `pending` is the run's not-yet-started work; it must not be confused with the existing next-run queue or with a scheduler-submitted-but-not-yet-running attempt unless the UI labels those states separately.
+- `copy --run-id SOURCE` could add selected cloned jobs to a named open target run as `pending`. It must specify whether copied successful results are carried or deliberately reset so they execute again, and how job IDs/dependencies are remapped or collision-checked when source and target belong to the same run history.
+- `change --run-id RUN --job-id JOB` could revise the definition only while the job is still `pending`; a revision is recorded and becomes the definition used by its first attempt. Once an attempt has started, changing its command cannot alter that process or its recorded provenance. Correcting a started/finished job requires a separately defined new attempt/retry revision.
 - The session has an accepting/sealed/finished lifecycle. It is not a continuously accepting queue after it is sealed.
 - Run-wide environment, executor lanes, and concurrency are fixed at session start; job-level definitions can be supplied per appended job.
 - The run snapshot becomes an append-only event/revision history while open, then a stable final snapshot when sealed.
 
-This is the current leading hypothesis: it keeps useful run grouping and the existing DAG model while eliminating the second workspace (next queue versus active run). It does require defining how the initial jobs are supplied and when the session stops accepting new work.
+This is the current leading hypothesis: it keeps useful run grouping and the existing DAG model while eliminating the second workspace (next-run queue versus active run). The pending state is not removed; it is unified with the run that will execute it. This may preserve the useful parts of `copy` and `change` without preserving their queue semantics. It does require defining how initial jobs are supplied and when the session stops accepting new work.
 
 ### Initial jobs when there is no queue
 
@@ -56,10 +59,11 @@ one explicit bootstrap before implementation:
 	`run` becomes an explicit wait/seal operation. This is immediate, but changes
 	the most fundamental meaning of `run` and needs strong compatibility review.
 
-Do not claim the queue is removed if an implicit pending collection remains
-somewhere under another name. If pre-run review and all-or-nothing validation
+Be precise about what “remove the queue” means: this candidate removes the
+separate **next-run staging workspace**, not the pending state every scheduler
+needs before an attempt starts. If pre-run review and all-or-nothing validation
 remain required, a versioned manifest passed to `run` may be clearer than a
-hidden queue.
+second mutable workspace.
 
 ### D. Hybrid explicit targeting
 
@@ -72,20 +76,23 @@ This is not a fourth execution engine so much as a compatibility path between A 
 
 ### What happens to `copy` and `change`?
 
-In a queue-less model, the current **copy a saved run into the queue, edit it,
-then run/retry it** workflow cannot remain unchanged because its destination
-queue no longer exists. That does not automatically mean every capability
-behind `copy` and `change` should disappear:
+In this model, the current **copy a saved run into the next-run queue, edit it,
+then run/retry it** workflow cannot remain unchanged because that separate
+destination no longer exists. The capability can instead target a run's
+pending state, but this changes when execution may begin and does not imply
+that a running process can be edited. That does not automatically mean every
+capability behind `copy` and `change` should disappear:
 
 - `copy` currently supports two useful concepts: clone a saved run's job
-  definitions, and stage that clone for later execution. The staging part is
-  queue-specific; cloning/provenance may still be valuable as a new session
-  created directly from a saved run or an exported manifest.
+	definitions, and stage that clone for later execution. The staging part can
+	become “add these cloned jobs as pending members of this run”; cloning and
+	provenance still need clear source/target IDs and collision behavior.
 - `change` currently edits queued definitions (and `change --run-id` restores
-  a saved snapshot into the queue before editing). Under an open-run model, a
-  separate explicit edit might revise a job that has not started, or the next
-  attempt of a final job, but those are distinct lifecycle operations and must
-  not be silently inferred from whether a session is open.
+	a saved snapshot into the queue before editing). Under an open-run model,
+	`change` could revise only a job that has not started. Editing an already
+	running process is not a safe interpretation; changing a final job for its
+	next attempt is a distinct retry/revision operation and must not be silently
+	inferred from whether the session is open.
 - A manifest-based workflow could preserve review-before-execution:
   `export`/edit/`run` from a manifest or a new-session preview/apply API. This
   is an alternative interface, not a hidden replacement queue.
@@ -105,11 +112,12 @@ Decision questions:
 
 1. Is pre-run draft editing still required, or is direct immediate submission
 	with per-job validation sufficient?
-2. Can a saved run be cloned directly into a new execution session without a
-	queue, while retaining copy's selector, origin, and provenance behavior?
-3. Does `change` apply only to not-yet-started jobs in an open session, only to
-	a final job's next attempt, or to neither? Prefer a distinct explicit form
-	if more than one target is supported.
+2. Can `copy` add cloned jobs as pending members of an explicit open run while
+	retaining selector, origin, and provenance behavior? What happens to copied
+	successful results and colliding job IDs/dependencies?
+3. Should `change` be limited to a pending/not-yet-started job? If the job has
+	started, require a distinct operation to request a new attempt with a new
+	definition rather than implying that the active command can be mutated.
 4. If the supported copy/change use case is removed, what replaces the
 	documented fix-before-rerun flow in CLI, Web, MCP, and Python?
 
@@ -208,6 +216,7 @@ Evaluate each model against concrete workflows, not just feature counts:
 | Interfaces | Can CLI, Web, MCP, and Python expose the same target and state transitions without implicit routing? |
 | Compatibility | Which current scripts depend on `add` not launching work, batch previews, or one run summary? |
 | Saved workflow editing | How much user-facing value is carried by `copy` + `change` before rerun, and what replaces its clone/edit/preview steps if queues disappear? |
+| Pending state | Is a job `pending` until its first attempt starts, and how is that distinct from an executor-accepted attempt waiting to launch? Which operations can revise pending definitions? |
 | Complexity cost | What new state machine, persistence protocol, UI concepts, and contracts does each model require? |
 
 ## Required workflow scenarios
@@ -237,7 +246,7 @@ For every scenario record: desired user action, selected model behavior, persist
   in-session re-execution? If both are needed, what explicit form distinguishes
   them and what happens to the source session's admission state?
 - Are dependencies only allowed on already submitted jobs, or may a submitted job name a future prerequisite?
-- If there is no next-run queue, how are users expected to stage/preview a large batch before execution? Is a manifest or `run` plan still the batch-start interface?
+- If there is no separate next-run queue, how are users expected to stage/preview a large batch before execution? Is a manifest or `run` plan still the batch-start interface, and how is run-owned pending work displayed?
 - Is an active retry without definition changes valuable enough to keep? If retry may change one job's next attempt, is that an explicit attempt revision or a new run?
 - Are run-wide executor settings intentionally immutable? The current preference is yes; determine whether job-specific executor/option overrides cover the real correction cases.
 - Is there a need for a continuously accepting mode, or only a way to append work to a bounded active session?

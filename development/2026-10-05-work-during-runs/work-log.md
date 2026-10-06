@@ -168,6 +168,26 @@ Commit: 2026-10-06 17:24:17 +09:00 `490a355e`.
 
 Commit: 2026-10-06 17:31:46 +09:00 `82993756`.
 
+## 2026-10-06 — Model the queue as run-owned pending work
+
+- **Change:** Refined the open-run candidate: remove the separate next-run
+  queue workspace, but retain an explicit `pending`/not-yet-started lifecycle
+  state owned by a run. Added candidate semantics for copying selected jobs
+  into an open run as pending and limiting `change` to definitions whose first
+  attempt has not started. A started attempt remains immutable; correcting it
+  requires a separately specified retry/revision operation.
+- **Reason:** The user proposed treating today's queue as the run's pending
+  state, with `copy` adding pending work and `change` editing work that has not
+  started, rather than maintaining two separate edit targets.
+- **Plan impact:** The leading hypothesis is now “run-centric with run-owned
+  pending work,” not literally “no pending collection.” Copy must define
+  carried results and ID/dependency collision behavior. Reset must not conflate
+  clearing pending jobs with sealing admission. No runtime behavior changed.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Define pending versus executor-accepted-but-not-launched state,
+  copy semantics for successful jobs, and whether `change` is allowed after a
+  session is sealed but before a pending job starts.
+
 ## 2026-10-06 — Consider `reset` as an open-run boundary
 
 - **Change:** Added reuse of `reset` as a candidate explicit session boundary
