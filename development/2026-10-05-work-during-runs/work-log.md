@@ -129,3 +129,23 @@ Commit: 2026-10-06 17:07:08 +09:00 `a62c4a2f`.
   revising D9–D11 or writing an implementation plan.
 
 Commit: 2026-10-06 17:15:57 +09:00 `5cd12e49`.
+
+## 2026-10-06 — Explore queue-less immediate execution
+
+- **Change:** Expanded the execution-model review around the user's leading
+  hypothesis: `run` starts work immediately, admits later jobs into that same
+  execution session, and does not keep a separate next-run queue. Clarified
+  that a late job may depend on already submitted jobs under the existing DAG
+  readiness rules. Added the missing bootstrap question for initial jobs and
+  compared explicit session close with inactivity-timeout closure.
+- **Reason:** Reconsider the root work model instead of layering queue and
+  active-run mutation features on top of one another.
+- **Plan impact:** No runtime behavior changed. The open-run model is a leading
+  hypothesis, not a final decision. The working recommendation is explicit
+  close first; a timeout is optional only if users demonstrate a need. Phase 3
+  and Phase 4 remain paused pending the model choice.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Compare the workflow scenarios, decide how `run` receives its
+  initial jobs without a hidden queue, and select the session closure contract.
+
+Commit: 2026-10-06 17:24:17 +09:00 `490a355e`.
