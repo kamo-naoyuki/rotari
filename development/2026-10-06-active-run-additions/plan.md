@@ -1,49 +1,52 @@
-# Plan: Add New Jobs to an Active Run
+# Plan: Move to Run-Owned Pending Work
 
 **Created:** 2026-10-06
 
-**Status:** Detailed proposal for review; implementation has not started. The recommended first step is a bounded, explicitly targeted append to an already-running run. Keep the existing next-run queue and all ordinary `add` / `change` behavior unchanged. Do not implement a queue-less open session, active-job editing, or definition-changing retry in this work. This is an incremental way to validate the value and interface cost of late additions before deciding whether the queue/run model should be replaced.
+**Status:** Detailed transition plan; implementation has not started. The preferred product direction is now to retire the project-level queue: users find “edit a next-run queue” less intuitive than immediate submission, and the user reports that queue `change` / `copy` workflows are uncommon while manifests are sufficient for pre-run editing and reuse. The target model is a run that starts ready jobs immediately, owns its not-yet-started jobs, and accepts later additions while open. Keep submitted-job definitions immutable. Initial-work bootstrap, run sealing, and exact CLI semantics remain to be decided. Any bounded active-add-only slice is an implementation checkpoint, not the intended permanent two-target UX.
 
 ## Goal
 
-Allow a user to submit a new job to a specific active run while other work in that run is still executing. The new job becomes run-owned not-yet-started work, uses the active run's fixed context/settings, and participates in the same dependency-aware scheduler. It is new work; it is not copied from the next-run queue and does not inherit a prior result implicitly.
+Replace the separate next-run queue with pending work owned by the execution run. Starting a workflow begins execution immediately for ready jobs; while admission remains open, newly submitted jobs join that run and are scheduled as soon as their dependencies permit. Pending definitions, execution attempts, and results share one run identity and history. A manifest is the pre-run authoring/review format; it is not a hidden mutable project queue.
 
 A late submission is accepted atomically as a batch or rejected atomically. Its target run ID is explicit and is checked again at commit. If the run ends or begins cancellation before acceptance, report that exact outcome; never fall back to the queue or a new run.
 
-## Recommended first-version behavior
+## Target product behavior (proposal)
 
 | Concern | V1 proposal |
 | --- | --- |
-| Target | `add --run-id RUN_ID` explicitly selects active-run admission. Without `--run-id`, `add` keeps editing the next-run queue exactly as today. |
-| Eligible run state | Only the exact currently running run while its engine is accepting work. No submission to idle, interrupted, cancelling, sealed, or finished runs. |
-| Boundedness | The run accepts additions only while its current execution loop is alive. If all current work drains and the run is ending, a concurrent submission may be rejected as ended. Do not keep an empty run alive waiting for future work in V1. |
-| Job edits | None after admission. `change` remains pre-execution queue/draft editing. A submitted or finished job's definition is immutable. |
+| Target | `add` submits work to an explicitly identified open run; it never stages work for a future run. Exact spelling and whether an explicit project can safely identify its sole open run remain open. |
+| Bootstrap | Start a run from a workflow manifest (or explicitly open an empty session) and begin ready jobs immediately. Choose one before implementation; do not retain `add` as an implicit staging queue. |
+| No open run | Decide whether `add` creates a new one-job run immediately or requires a run opened from a manifest/session command. It must never silently stage work. |
+| Admission lifetime | An open run continues accepting additions even when currently drained, until an explicit seal/finish boundary. An inactivity timeout is not the default. |
+| Job edits | No edits after admission. `change` edits the manifest before `run`; a submitted or finished job's definition remains immutable. |
 | Run settings | Working directory, caller environment, executor lanes, concurrency, and run-wide options remain those captured by the original run. Per-job fields use the existing job-definition semantics. |
 | Dependencies | A new job may depend on a named job already in this run or another job in the same atomic submission. Forward references to a later request are rejected. Existing jobs and dependency edges are not changed. |
-| Groups | V1 starts with plain jobs. Existing array/matrix topology is immutable; adding complete new groups is a follow-up phase after plain-job admission is proven. Never extend an existing array, matrix, or stage in V1. |
+| Groups | Manifest and active additions must preserve current arrays/matrices as complete groups. Adding members to a group after part of it has started is not allowed initially; group-topology rules need a dedicated decision. |
 | Results | Every admitted job is new work and is scheduled for execution; no result is carried from the queue or another run. A final failed prerequisite blocks a `DependsOn` dependent; `DependsOnFinished` follows existing readiness semantics. |
-| Queue | The next-run queue is not read for selection, changed, consumed, or replaced by active admission. It remains an independent, explicitly separate destination until a later model decision. |
-| Interfaces | Shared admission service and matching target/race semantics. CLI is the first adapter; Web, MCP, and Python follow before the feature is considered complete for the supported product surface. |
+| Queue | No project-level next-run queue in the target model. Pre-run composition/review uses a versioned user-owned workflow manifest. Legacy queue data exists only during a compatibility/migration period; it is never silently executed or discarded. |
+| Retry | A finished run's retry continues to create a successor run with carried results. Same-run active retry remains a separate transient-failure operation unless later evidence favors a change. Retry is not an implicit seal. |
+| Interfaces | One shared admission service and identical run lifecycle in CLI, Web, MCP, and Python. No interface may keep a hidden staging collection after queue removal. |
 
-The exact CLI spelling, preview/revision parameter, and whether plain-job-only V1 is useful enough for an initial release are decisions to confirm before Phase 1 implementation. Do not silently overload a queue-targeting flag or infer the target from project state.
+The initial-work bootstrap, exact CLI spelling, seal operation (including the role of `reset`), run-scoped revision, and group-topology policy are decisions to confirm before implementation. Do not infer a target from project state without an explicit and consistent rule.
 
 ## Explicit non-goals
 
-- Removing `queue.json` or changing `reset`, `run`, `retry`, or current queue-first selection semantics.
+- Changing retry's established successor-run semantics for settled runs, unless separately justified.
 - Allowing two coordinators or two runs to execute the same project concurrently.
-- Allowing additions after the run has drained or ended; no open-ended accepting session or idle timeout.
+- An automatic inactivity timeout as the default admission boundary.
 - Changing a job after submission, whether pending, running, or finished.
 - Retrying a failed job with a changed command or executor definition.
-- Promoting jobs from the next-run queue into the active run. `copy` continues to target its current queue workflow.
+- Changing a submitted job's definition or retrying it with changed command/options.
 - Widening an existing array, adding members to an existing matrix/stage, or changing existing dependencies.
 - Changing run-wide context, environment, concurrency, executor lanes, or scheduler options after run start.
 - Reusing a browser session, current project, or implicit “only active run” as an active-add target.
+- Silently losing existing `queue.json` data during migration.
 
 ## Architecture findings that shape the work
 
 - `cmdAdd` currently builds the job definition and calls `queueops.Editor.Add`; it does not communicate with the supervisor. Its existing path must remain intact for ordinary `add`.
 - `Runner.Begin` snapshots the initial commands; `Runner.Execute` reads and transforms that run snapshot once. The engine never rereads `queue.json`.
-- `ExecuteJobs` currently initializes membership maps and totals once, then exits when `running == 0 && delayed == 0`. It can receive manual-retry events only while that loop is alive. New admission therefore requires an event-loop input and a bounded ending race, but not a scheduler rewrite.
+- `ExecuteJobs` currently initializes membership maps and totals once, then exits when `running == 0 && delayed == 0`. It can receive manual-retry events only while that loop is alive. New admission requires an event-loop input and a drained-but-accepting lifecycle that waits for add/seal events, but not a scheduler rewrite.
 - `Dispatcher` and executor lanes are already long-lived and accept repeated starts. Keep one dispatcher per run; do not recreate it for each admission.
 - Active retry provides a useful cross-process file-request pattern: exact run ID, state-lock validation, supervisor polling, engine event, canonical response, and an end fence. Its job-ID-only payload, pending-result marker, and response type are retry-specific and must not be reused as if they already represented new membership.
 - Run subdirectories are interpreted as job IDs. Any new protocol metadata must use validated/reserved root-level filenames, not a `requests/` directory.
@@ -51,7 +54,7 @@ The exact CLI spelling, preview/revision parameter, and whether plain-job-only V
 
 ## Design decisions required before implementation
 
-1. **Admission boundary:** precisely define when the supervisor starts accepting requests (after initial snapshot transformation and engine initialization) and when it closes admission relative to run finalization.
+1. **Bootstrap and admission boundary:** define how a manifest or empty session creates a run, when the supervisor starts accepting requests (after initial snapshot transformation and engine initialization), what `add` does when there is no open run, and when admission closes relative to finalization.
 2. **Canonical acceptance record:** choose the durable commit point for a request. A response file alone is insufficient: a crash after acceptance but before response must not lose or duplicate accepted jobs. Prefer a per-request immutable accepted-membership record with request ID, sequence/revision, normalized expanded job definitions, and acceptance time; the coordinator writes it before changing in-memory engine state. Final snapshots/readers combine initial membership and committed additions. Validate reserved filenames and state-version behavior.
 3. **Atomic batch validation:** validate names, IDs, expanded task IDs, commands, paths, executors, and the combined dependency graph against current committed membership plus the whole incoming batch. Commit all jobs or none. A single event-loop writer serializes admissions; external goroutines must not mutate engine maps.
 4. **Dependency/group policy:** use shared model validation/expansion. Existing groups may be dependencies if their membership is stable, but may not be expanded by an admission. V1 rejects unknown/future names and cycles. Decide whether existing `ValidateJobs` can validate combined run membership without imposing queue-only defaults.
@@ -60,16 +63,16 @@ The exact CLI spelling, preview/revision parameter, and whether plain-job-only V
 7. **Compatibility/capabilities:** prevent a new client from writing a request an older supervisor silently ignores. Define the active-run admission capability/version marker and the explicit unsupported-version response. Consider state version bump from current version 3; decide the exact migration policy only after file format is selected.
 8. **Progress/status semantics:** define dynamic totals, pending counts, run summaries, job listing, `wait`, export, timeline, and notification behavior when membership grows. “Accepted” means durably in the run, not started or succeeded.
 9. **Cancellation and locking:** serialize admission commit with cancellation/finalization under the project state lock; never hold that lock while waiting for a supervisor response. A cancel that wins first rejects the addition; an accepted addition that wins first is included in cancellation and recovery semantics.
-10. **CLI/API contract:** decide `add --run-id RUN`, dry-run behavior, run admission revision option, response shape (request ID, accepted job IDs, sequence), and errors. Active-add preview must inspect the exact active run and must not write queue state.
+10. **CLI/API contract:** decide manifest-backed run start, run-target syntax for `add`, behavior when no run is open, dry-run behavior, run admission revision option, response shape (request ID, accepted job IDs, sequence), and errors. Preview must inspect the exact run and must not write queue state.
 11. **Arrays/matrices:** decide whether V1 must include whole new groups. If so, promote group expansion from follow-up into the first phase and add aggregate/native-array conformance before implementation; existing group topology remains immutable either way.
 
 ## Implementation phases and checkpoints
 
-### Phase 0 — Freeze the user contract
+### Phase 0 — Freeze the queue-less user contract
 
-Write a decision table for: ordinary `add` versus active-targeted `add`, running versus ending/cancelling run, queue independence, new-work result policy, dependencies, and duplicate/unknown request behavior. Specify bounded admission (no waiting after drain) separately from any future open/seal session. Confirm no active `change` requirement.
+Write a decision table for: manifest-based initial run, `add` to an open run, `add` when no run is open, drained/open versus sealed, cancellation/end races, new-work result policy, dependencies, and duplicate/unknown request behavior. Decide the seal command and whether `reset` keeps its queue-clearing meaning during migration or is later retired; never overload it silently. Submitted-job changes are excluded. This phase targets an open/sealable run, not bounded admission that closes as soon as work drains.
 
-**Checkpoint:** CLI, Web, MCP, Python, and Web read-side behavior can be described consistently. Resolve whether V1 is plain-only or includes complete new arrays/matrices. No runtime edits yet.
+**Checkpoint:** CLI, Web, MCP, Python, and Web read-side behavior can be described consistently. Resolve whether complete new arrays/matrices are accepted in the first release and define manifest bootstrap. No runtime edits yet.
 
 ### Phase 1 — Model validation and engine admission event
 
@@ -83,29 +86,29 @@ Tests first: plain independent admission; pending/running/successful/failed depe
 
 **Checkpoint:** engine tests prove deterministic state changes and existing run/active-retry tests still pass. If combined dependency validation requires broad model refactoring, stop and split that refactor before proceeding.
 
-### Phase 2 — Durable request protocol and admission commit
+### Phase 2 — Durable request protocol and open-session lifecycle
 
 Likely files:
 
 - `internal/state/attempts.go`, `internal/state/run_files.go`, `internal/state/store.go`: reserved root protocol names, validation, version/capability compatibility, atomic per-file persistence.
 - `internal/jobcontrol/retry_request.go` and adjacent `jobcontrol` files: extract shared request polling/response/idempotency mechanics only where responsibilities genuinely overlap; add admission-specific typed payloads and exact-run submit/lookup APIs. Do not generalize the retry domain selection into a generic opaque framework.
-- `internal/projectrun/execute.go`, `internal/projectrun/lifecycle.go`: establish admission accepting/closed lifecycle after setup, attach watcher to the engine, fence shutdown before summary finalization.
+- `internal/projectrun/execute.go`, `internal/projectrun/lifecycle.go`: establish accepting/sealed/drained/finished lifecycle after setup, attach watcher to the engine, fence shutdown before summary finalization.
 - A focused package/file may own canonical admission records and run revision; preserve one-way dependencies and `internal/archtest` boundaries.
 
 Crash/race tests: request before commit; committed admission before response; response before engine event; duplicate same request; same ID/different payload; concurrent append; cancellation race; finish/end race; timeout and later lookup; malformed/newer request; coordinator interruption after accepted pending work; ensure no response wait holds the state lock. Recovery must reconstruct every accepted job exactly once from durable run-owned records.
 
 **Checkpoint:** a protocol-level test proves accepted membership is canonical independent of response delivery and can be reconstructed after restart/unlock. Do not proceed based solely on happy-path CLI tests.
 
-### Phase 3 — `projectrun` integration and CLI
+### Phase 3 — Manifest bootstrap, `projectrun` integration, and CLI
 
 Likely files:
 
-- `cmd/rotari/add.go`, CLI spec source (`cmd/rotari/cli_spec.go`), generated reference via its generator: parse explicit active-run mode, preserve queue-mode behavior, return accepted IDs and request ID.
+- `cmd/rotari/add.go`, run/manifest command paths, CLI spec source (`cmd/rotari/cli_spec.go`), generated reference via its generator: start from a validated manifest and submit to the exact open run; do not preserve queue-mode `add` as the final behavior. Return accepted IDs and request ID.
 - `internal/projectrun/execute.go`, `internal/projectrun/validate.go`, `internal/projectrun/artifacts.go`, `internal/run/summary.go`: prepare added jobs with the original run's context/environment, validate against fixed run options, record artifacts, include final accepted membership in summary.
 - `internal/runview/run.go`, `internal/web/loader.go`, `internal/web/timeline.go`, `internal/resolve/resolve.go`: expose committed membership and distinguish accepted-not-started from running/scheduler-submitted states; avoid changing existing selector precedence.
 - `internal/project/edit.go`: keep project queue revision semantics unchanged; implement separate run admission sequence as designed.
 
-CLI conformance: active sync and async run; explicit correct run ID; wrong/ended/interrupted/cancelling run; unrelated queued jobs remain byte-for-byte unchanged; no second supervisor; job executes with run context rather than submitter shell context; admission is always new work even for filtered runs; summary and show include the accepted job; cancel after acceptance; end-race rejection with no fallback.
+CLI conformance: manifest-started sync and async run; explicit correct run ID; add with no open run; wrong/ended/interrupted/cancelling/sealed run; no hidden queue write; no second supervisor; job executes with run context rather than submitter shell context; admission is always new work even for filtered runs; summary and show include the accepted job; cancel after acceptance; append/seal race rejection with no fallback.
 
 **Checkpoint:** package tests, targeted CLI tests, then binary conformance and coordination tests. Ensure ordinary `add`, `run`, `retry`, `copy`, and `reset` regressions remain unchanged.
 
@@ -122,20 +125,21 @@ Tests: all interfaces target the same exact run and return equivalent accepted I
 
 **Checkpoint:** parity across CLI, Web API/UI, MCP, and Python. Add contract IDs and conformance `covers` entries matching `contracts/README.md`.
 
-### Phase 5 — Consider arrays/matrices and open/seal separately
+### Phase 5 — Complete group support and retire queue compatibility
 
-Only after plain-job admission is validated:
+Only after plain-job admission, manifest bootstrap, and open/seal lifecycle work:
 
 - support an entire new array/matrix group atomically, if required;
 - continue to reject changes to groups already present in the run;
 - test sparse/dense arrays, matrix×array, native scheduler arrays, selection, cancellation, aggregate status, export/import, and ID collisions.
 
-Separately decide whether users need admission while no jobs are running. If yes, add accepting/sealed/drained lifecycle, explicit close (`finish`/`seal` or a separately decided `reset` meaning), empty sessions, foreground `run`/`wait`, cancellation, recovery, and UI state. This is a second lifecycle project, not a flag added to bounded append. Keep current `reset` queue-clearing behavior until a contract change is explicitly approved.
+Migrate legacy queue workflows to manifests, deprecate queue-backed `add`/`copy`/`change` paths, and remove their persistence/read paths only after the compatibility gates below pass. Define final `reset` behavior explicitly; a dedicated `run finish` / `seal` is preferred over silently reinterpreting `reset`.
 
 ## Acceptance criteria
 
 - Active admission always names and revalidates one exact run; it cannot target another run after a race.
-- Existing ordinary queue editing remains unchanged and does not implicitly submit.
+- `run` starts ready jobs immediately; an open run owns all pending work and accepts later additions until explicitly sealed.
+- There is no project-owned next-run queue in the target state. Existing queue data is migrated or exported without loss and never silently executed.
 - Active addition never mutates `queue.json` and never starts a second coordinator.
 - Each accepted request is atomic, idempotent, durably recoverable, and visible exactly once.
 - New jobs use the original run's context/settings and shared dependency semantics.
@@ -143,30 +147,27 @@ Separately decide whether users need admission while no jobs are running. If yes
 - Progress, results, summaries, inspection, and all supported interfaces agree on accepted membership.
 - Relevant tests, contracts, docs, generated references, and `scripts/check.sh` pass before implementation is declared complete.
 
-## Decision after V1
+## Migration roadmap to retire the queue
 
-Collect concrete experience with active additions. Then decide independently:
+The user clarified the product premise: the queue abstraction is less
+intuitive than immediate submission, and manifest authoring is sufficient for
+the uncommon pre-run copy/edit workflow. Queue retirement is therefore the
+intended destination, not a hypothesis that must wait for a bounded-add
+experiment. The remaining gates are about preserving behavior, defining the
+run lifecycle, and migrating safely.
 
-1. Are late additions common/useful enough to keep?
-2. Is explicit `--run-id` targeting clear, or does the second queue/run workspace remain confusing in practice?
-3. Is open admission after drain actually needed?
-4. Does evidence justify replacing the next-run queue with run-owned pending work?
+Do not ship a permanent two-target UX in which some `add` invocations stage
+queue work and others submit to an active run. Implementation can be staged
+internally, but queue compatibility is temporary and must have a removal
+milestone.
 
-Do not remove queue-based workflows merely because active admission exists.
+### Gate 0 — Confirm replacement workflows, not queue popularity
 
-## Roadmap if the queue is later retired
-
-Queue removal is not part of bounded active-add V1. If experience shows that
-the separate queue is still a confusing or unnecessary second target, use the
-following sequence rather than deleting `queue.json` first.
-
-### Gate 0 — Evidence that the queue itself is the problem
-
-After bounded active-add use, record concrete cases where users chose the
-wrong target, could not add work at the right time, or repeatedly maintained
-two conflicting definitions. Distinguish those cases from a simple need to
-append one job to an active run. If exact `--run-id` targeting is clear and
-next-run preparation remains useful, stop here and keep the queue.
+Inventory how manifests cover current pre-run composition, preview, saved-run
+copy, editing, import/export, and defaults. Identify unsupported cases, but
+do not require proof that queue use is frequent before planning its
+replacement. If a capability lacks a manifest equivalent, design that
+equivalent or explicitly retire it before deleting queue behavior.
 
 ### Stage 1 — Decide the final run lifecycle
 
@@ -267,13 +268,14 @@ old state can be migrated without loss; all supported interfaces agree.
 ### Stop conditions
 
 - If users still need to prepare a successor batch while another run is
-  active, retain a separate draft/manifest workflow. Queue *storage* may go
-  away, but the second conceptual workspace has not.
+  active, retain a separate user-owned manifest workflow. This preserves
+  batch preparation without restoring a project-owned execution queue.
 - If whole-workflow review is not replaceable, do not remove pre-run staging.
-- If active-add targeting is clear and the queue remains useful, keep both
-  operations explicit rather than pursuing architectural purity.
-- Do not bundle queue retirement with the first active-add release, array
-  expansion, changed-definition retries, or unrelated project-selection work.
+- If manifest import/export cannot preserve a required queue workflow, pause
+  queue removal until the missing capability is designed; do not silently
+  drop that workflow.
+- Do not bundle queue retirement with changed-definition retries or unrelated
+  project-selection work. Group expansion follows its own phase and tests.
 
 ## Related plans
 

@@ -305,3 +305,23 @@ Commit: 2026-10-06 17:31:46 +09:00 `82993756`.
 - **Validation:** Documentation-only; `git diff --check` passed. No tests run.
 - **Remaining:** First confirm V1 active-add contract; only after real usage
   evaluate the evidence gate for queue retirement.
+
+## 2026-10-06 — Prefer immediate run-owned execution
+
+- **Change:** Updated the execution-model review, active-run plan, and umbrella
+  plan to treat a queue-less run-owned pending model as the preferred product
+  direction. The user clarified that the motivation is a simpler mental model
+  for immediate submission/execution; queue `copy`/`change` are uncommon and
+  manifests are sufficient for pre-run authoring. A bounded add that preserves
+  a permanent queue is no longer the target UX.
+- **Reason:** The earlier framing overemphasized whether the queue was used and
+  underweighted that the queue abstraction itself is less understandable.
+- **Plan impact:** `run` starts ready manifest work and remains open to later
+  additions until an explicit boundary; the run owns pending jobs. Submitted
+  job edits remain out of scope. Manifest bootstrap, `add` without an open
+  run, `reset` versus `finish`/`seal`, retry interaction, and lossless queue
+  migration remain design gates. Queue removal is intended, but no runtime
+  behavior has changed.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Settle the run state machine and manifest start contract
+  before implementation planning is considered complete.

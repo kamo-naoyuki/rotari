@@ -3,13 +3,14 @@
 **Created:** 2026-10-05
 
 **Status:** Phase 1 is implemented. Phase 2's same-run retry implementation
-is committed and validated. The root execution model is under review. The
-current proposed next step is a bounded, explicitly targeted active-run add
-while preserving all existing queue behavior; a detailed proposal is in
+is committed and validated. The user now prefers a run-centric immediate
+execution model without a project-level next-run queue, using manifests for
+pre-run authoring and run-owned pending work for execution. The staged
+transition is planned in
 [development/2026-10-06-active-run-additions/plan.md](../2026-10-06-active-run-additions/plan.md).
-Removing the queue or keeping a run open after it drains is not decided. D10's
-per-attempt definition revision is deferred unless a concrete need is
-established. The broader comparison is tracked in
+D10's submitted-job definition revision is deferred. Manifest bootstrap,
+run sealing, retry lifecycle, and migration compatibility remain to be
+specified. The broader comparison is tracked in
 [development/2026-10-06-execution-model-review/plan.md](../2026-10-06-execution-model-review/plan.md).
 Phase 3 has its own planning at
 [development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md)
@@ -17,8 +18,9 @@ but its implementation, together with Phase 4 implementation, is paused
 until the active-add contract and project-targeting interactions are settled.
 D1 to D5, D7, D8,
 and D9 describe current or previously decided run-based behavior; D10 is
-deferred and D11 is updated below for explicit active-add targeting. Revisit
-queue removal only after evaluating the bounded-add experience.
+deferred and D11 is updated below for run-owned pending work. Queue removal is
+the preferred product direction; the remaining gates concern workflow parity,
+run lifecycle, and safe migration.
 
 ## Purpose
 
@@ -89,29 +91,28 @@ straight to running without passing through the queue (D8).
   [development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md):
   measure where multiple projects force `--project-name`, then remove only
   the cases that have one unambiguous answer.
-4. **Add jobs to the active run** (proposed next step, contract confirmation
-  required). Add an explicit `add --run-id RUN` path for bounded admission
-  to the exact executing run. Preserve ordinary `add` as a next-run queue
-  edit; do not add active-job `change`, queue promotion, or an open session
-  that waits after draining in this phase. Follow the detailed proposal in
+4. **Move to run-owned pending work** (preferred direction; contract
+  confirmation required). `run` starts ready manifest jobs immediately and
+  leaves the run accepting additions until an explicit boundary. `add` targets
+  that run; it does not stage a next-run queue. Keep `change` on manifests
+  before execution. Follow the detailed transition proposal in
   [development/2026-10-06-active-run-additions/plan.md](../2026-10-06-active-run-additions/plan.md).
 
 Phases 1 and 2 were independent and shipped separately. Phase 3's repository
-audit is complete, but implementation remains paused until the active-add and
-project-targeting decisions are consistent. Phase 4 can build on the existing
-request-channel pattern, but its membership commit and recovery protocol is
-new.
+audit is complete, but implementation remains paused until its project
+resolution assumptions are reconciled with run-scoped submission. Phase 4 can
+reuse the existing request-channel pattern, but run membership commit,
+open/seal lifecycle, and migration are new work.
 
 ### Non-goals
 
 - Two concurrent runs of one project. Retry and late additions go into the
   active run instead (phases 2 and 4).
-- A continuously accepting queue as the default mode. The FAQ answer that
-  rotari does not provide one stays true through phase 3; phase 4 revisits it
-  only for an explicit request.
+- Multiple coordinators for one project. The target is one open run that
+  accepts additions until sealed, not concurrent execution sessions.
 - A global, mutable "current project" shared by every shell.
-- Allowing `run` or `delete` on a running or interrupted project. They stay
-  rejected; only queue edits change in phase 1.
+- Starting a second run or deleting an open/interrupted run. Run-scoped
+  addition and sealing are explicit; concurrent coordinators remain forbidden.
 - Changing the executor, environment, or concurrency of a run that has
   already started.
 
@@ -466,19 +467,21 @@ That plan owns the command inventory, measurement, active-run resolution
 decisions, and D6's project-pin decision gate. This umbrella plan keeps the
 phase number and points to the detailed work rather than duplicating it.
 
-## Phase 4: Add jobs to the active run (proposed bounded append)
+## Phase 4: Move to run-owned pending work (preferred direction)
 
-The earlier queued-job promotion sketch is superseded. The current proposal
-adds a separate, explicit active-run destination without consuming or editing
-the next-run queue. Follow
+The earlier bounded-add sketch that preserves a permanent next-run queue is no
+longer the target UX. The proposed final model has no project-owned next-run
+queue; manifests provide pre-run authoring, and all executable pending work
+belongs to a named open run. Follow
 [development/2026-10-06-active-run-additions/plan.md](../2026-10-06-active-run-additions/plan.md)
 for lifecycle, persistence, package ownership, adapters, and tests.
 
 - Target an exact running `RUN_ID`; do not infer a target or fall back after
   an end/cancel race.
-- Keep ordinary `add` and `change` on the next-run queue. No state-dependent
-  routing, active-job definition edits, queue promotion, or empty open session
-  in this phase.
+- `add` submits to the open run; when no run is open it must either open a
+  session or fail with manifest/run-start guidance. It never stages work.
+  `change` edits a manifest before run start; submitted-job edits are out of
+  scope.
 - Admit a whole new-job batch atomically through the existing supervisor and
   dispatcher. The request channel is reusable as a pattern, but durable
   membership commit and crash recovery are new design work.
@@ -486,8 +489,8 @@ for lifecycle, persistence, package ownership, adapters, and tests.
   are a follow-up unless confirmed as a V1 requirement; never extend an
   existing group in V1.
 
-The queue-less open-session model and any `finish`/`seal` boundary remain later
-decisions. Reassess them after bounded active-add behavior is validated.
+Manifest bootstrap, explicit `finish`/`seal`, retry interaction, and legacy
+queue migration are required design gates before implementation.
 
 ## Decisions
 
@@ -541,11 +544,12 @@ Open:
   whether editing a job after submission is needed. Keep the shipped active
   retry behavior (same run, original job definition) unless a concrete
   workflow demonstrates that changing a next-attempt definition is required.
-- **D11** If active additions are implemented, they are a separate explicit
-  target: active `add` names the exact run and does not promote or consume
-  queue jobs. Ordinary `add`/`change` continue targeting the next-run queue.
-  This retains two destinations but makes routing explicit; whether that is
-  still confusing is an empirical question after bounded active-add use.
+- **D11** The preferred target model has one execution destination: the open
+  run owns pending and started work. A manifest is the pre-run authoring
+  format; there is no next-run queue to promote from. `add` targets the open
+  run, and `change` edits the manifest before start. During migration, legacy
+  queue operations must be explicitly marked transitional and must not route
+  based implicitly on active project state.
 
 ## Validation for each phase
 

@@ -2,7 +2,7 @@
 
 **Created:** 2026-10-06
 
-**Status:** Exploration with a recommended incremental next step. Do not replace the existing queue/run model yet. First plan a bounded, explicitly targeted `add --run-id RUN` operation that admits new work only to a currently executing run, while keeping ordinary `add`/`change`, `queue.json`, `run`, `reset`, and retry behavior unchanged. Do not support submitted-job edits or changed-definition retries absent a demonstrated need. The queue-less open-session model remains a later hypothesis, not a decision; its value should be reassessed after learning whether late additions are useful and whether explicit queue/run targeting is confusing in practice. See [active-run additions plan](../2026-10-06-active-run-additions/plan.md). Phase 3 and any open/seal work remain paused.
+**Status:** The preferred product direction is now a run-centric immediate-execution model: no project-level next-run queue; `run` starts ready work from a manifest or opens a session, and later `add` operations join that run until it is explicitly sealed. The user considers queue editing/copy uncommon and manifests sufficient for pre-run authoring. Submitted-job edits remain out of scope. Bootstrap syntax, `reset` versus explicit seal, retry lifecycle, array/matrix admission, and migration remain open. The staged transition is in [active-run additions plan](../2026-10-06-active-run-additions/plan.md); implementation has not started.
 
 ## Question
 
@@ -10,7 +10,7 @@ Which model should rotari make primary?
 
 1. **Run-based batches:** build a set of jobs, start a run that owns an immutable snapshot, and make later edits part of the next run.
 2. **Immediate submission:** adding a job makes it eligible for execution now, rather than waiting for an explicit `run` over a prepared queue.
-3. **Run-centric open execution session (candidate, not selected):** `run` starts execution immediately; jobs submitted while its session remains open join that same run and become eligible as soon as dependencies permit. A late job may depend on an earlier submitted job. The run itself owns a **pending / not-yet-started** state, rather than using a separate next-run queue. The way the initial set of jobs enters `run` must be designed explicitly; retaining a separate staging area for the next run would reintroduce the two-workspace problem.
+3. **Run-centric open execution session (preferred product direction):** `run` starts execution immediately; jobs submitted while its session remains open join that same run and become eligible as soon as dependencies permit. A late job may depend on an earlier submitted job. The run itself owns a **pending / not-yet-started** state, rather than using a separate next-run queue. The initial jobs are authored/reviewed in a manifest and supplied when starting the run, unless the empty-session bootstrap is selected. This is the direction to plan toward; exact lifecycle semantics remain open.
 
 The current implementation is run-based. That is a fact about the shipped design, not a conclusion that it is the best user model. The review starts from user workflows and invariants rather than assuming Phase 1–4 are the desired final architecture.
 
@@ -44,7 +44,7 @@ The current implementation is run-based. That is a fact about the shipped design
 - Run-wide environment, executor lanes, and concurrency are fixed at session start; job-level definitions can be supplied per appended job.
 - The run snapshot becomes an append-only event/revision history while open, then a stable final snapshot when sealed.
 
-This remains a candidate, not the recommended direction: it keeps useful run grouping and the existing DAG model while eliminating the second workspace (next-run queue versus active run). The pending state is not removed; it is unified with the run that will execute it. Its remaining potential gain is late addition of work to the active DAG, not changing jobs already submitted. It still requires defining how initial jobs are supplied and when the session stops accepting new work. The incremental proposal is to test late additions first without changing the existing queue or requiring an open run to wait after draining.
+This is the preferred product direction following the user's clarification: the queue structure itself is less intuitive than immediate execution, and manifests adequately cover pre-run editing/copy workflows. Pending work is not removed; it is unified with the run that will execute it. Submitted-job editing is not a goal. The migration plan must define manifest bootstrap and explicit run closure before changing user-facing behavior.
 
 ### Existing capabilities at risk under the open-run model
 
@@ -99,11 +99,12 @@ the execution/history unit that will own it become the same target.
 These gains apply only when new work belongs to the currently open workflow.
 They do not make next-run preparation unnecessary, make whole-batch validation
 possible after execution has started, or remove the need for a run boundary.
-The first experiment can measure the value of late additions while preserving
-the existing queue as a successor-batch workspace. The decision to remove that
-workspace should be made separately, based on observed use and target
-confusion. Active-job editing is not counted as a gain unless the user later
-identifies a concrete need for it.
+The user's preference is to remove the separate queue because the immediate
+execution model is easier to understand; manifests cover pre-run authoring.
+Validation should now focus on whether the manifest and lifecycle replacement
+preserves required workflows, not on whether to keep queue and active-run
+targets as permanent parallel modes. Active-job editing is not counted as a
+gain unless the user later identifies a concrete need for it.
 
 ### Initial jobs when there is no queue
 
@@ -124,20 +125,22 @@ needs before an attempt starts. If pre-run review and all-or-nothing validation
 remain required, a versioned manifest passed to `run` may be clearer than a
 second mutable workspace.
 
-### D. Hybrid explicit targeting
+### D. Hybrid explicit targeting (migration-only fallback)
 
 - Keep the run snapshot and next-run queue model.
 - Keep ordinary `add`/`change` targeting the next queue.
 - Add an explicit operation for the active run, such as `add --run-id RUN` or `submit --run-id RUN`. Do not add active-run `change` or revised-definition retry without a demonstrated use case.
 - All active-run changes are auditable and name the exact run; no operation changes target merely because a run happens to be active.
 
-This is not a fourth execution engine so much as a compatibility path between A and C. It may preserve simple batch use while making in-progress corrections possible, at the cost of two visible workspaces and more explicit commands.
+This is not the preferred product model. It may be needed temporarily to migrate users, but should not become a permanent two-workspace design if the manifest/open-run model proves adequate.
 
 ### What happens to `copy` and `change`?
 
-This section concerns only a possible future decision to remove the separate
-next-run queue. The proposed bounded active-add step keeps the current queue
-workflow and does not change `copy` or extend `change` to submitted jobs.
+The preferred direction removes the separate next-run queue. The user reports
+that queue `copy` / `change` are uncommon and a manifest is sufficient for
+pre-run editing and reuse. The plan should therefore preserve those needed
+capabilities through workflow manifests, rather than retain a queue solely to
+keep those command forms unchanged.
 
 In this model, the current **copy a saved run into the next-run queue, edit it,
 then run/retry it** workflow cannot remain unchanged because that separate
@@ -174,9 +177,10 @@ Decision questions:
 
 1. Is pre-run draft editing still required, or is direct immediate submission
    with per-job validation sufficient?
-2. Can `copy` add cloned jobs as pending members of an explicit open run while
-   retaining selector, origin, and provenance behavior? What happens to copied
-   successful results and colliding job IDs/dependencies?
+2. Does exporting/cloning a saved run into a manifest preserve the required
+  copy, selector, origin, and provenance workflow? Any direct run-to-run copy
+  can be added only if there is a concrete use case that manifests do not
+  cover.
 3. Is there a demonstrated workflow that requires changing a job after it has
    been submitted? Unless one is identified, keep `change` limited to
    pre-execution definitions and do not design revised-definition retries.
