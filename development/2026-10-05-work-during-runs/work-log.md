@@ -378,3 +378,22 @@ Commit: 2026-10-06 17:31:46 +09:00 `82993756`.
 - **Validation:** Documentation-only; `git diff --check` passed. No tests run.
 - **Remaining:** Write/validate examples for multiple submitters, client exit,
   wait/seal, whole-run cancellation, active retry, and successor-run retry.
+
+## 2026-10-06 — Reuse existing selected-job cancellation
+
+- **Change:** Corrected the cancellation-scope analysis. `cancel` already
+  supports run-wide cancellation and selected-job cancellation with repeated
+  job IDs; an array ID selects unfinished tasks, and pending unsubmitted jobs
+  receive cancellation markers. New submission-group IDs are not required
+  merely to cancel one submitter's subset, provided `submit` returns accepted
+  job/task IDs.
+- **Reason:** The user pointed out that per-job cancellation is already
+  implemented.
+- **Plan impact:** Removed submission-group cancellation as an open design
+  requirement. The model must preserve both existing scopes for dynamically
+  admitted work; scripts can retain IDs when they need a narrower target.
+- **Validation:** Read `internal/jobcontrol/jobcontrol.go` and
+  `docs/RUNNING.md`; documentation-only, `git diff --check` passed. No tests
+  run.
+- **Remaining:** Ensure active admission returns stable job/task IDs and that
+  existing cancel selection includes committed but not-yet-started additions.

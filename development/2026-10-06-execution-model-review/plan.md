@@ -291,11 +291,11 @@ queue:
   `retry-active` operation) from retrying a sealed run into a successor. Do not
   let `retry` silently switch meanings based on whether a session happens to
   be open.
-- If run-wide cancel is the only cancellation scope, all scripts contributing
-  to one open run belong to that same cancellation unit. If that is too broad,
-  add a separately named submission/batch group with its own identity and
-  cancellation semantics; do not pretend each `submit` is already a distinct
-  run.
+- Run-wide cancel remains the one-action cancellation for all unfinished work
+  in the session. For a narrower cancellation, Rotari already supports
+  selecting individual jobs by ID (including repeated IDs); a new submission
+  group ID is not required solely for cancellation. `submit` must return the
+  admitted IDs so scripts can retain that selection.
 
 **Decision gate:** before implementation, write examples showing `start`,
 multiple `submit` calls from different scripts, one script exiting before
@@ -321,7 +321,7 @@ Evaluate each model against concrete workflows, not just feature counts:
 | History and provenance | What is a run/result unit? How are dynamically added jobs and revised attempts represented and compared? |
 | Run/retry mental model | Does `run` still name a coherent unit when jobs arrive over time? Does `retry` create a successor from a sealed run, retry inside an open run, or both via explicit forms? |
 | Cancellation and recovery | What does cancel stop? What does unlock recover if a coordinator dies while accepting work? |
-| Script lifetime and batch cancellation | If a submitter script exits before `wait`, do accepted jobs continue? Does a run still represent one coherent batch, or can run-wide cancel include jobs from other submissions/scripts? Is submission-group cancellation needed, and how is an abandoned open session surfaced? |
+| Script lifetime and cancellation | If a submitter script exits before `wait`, do accepted jobs continue? Existing run-wide cancel cancels all unfinished jobs, while repeated job-ID selectors can cancel an arbitrary subset (array ID selects its unfinished tasks). Does that remain clear for jobs submitted by multiple scripts, and how is an abandoned open session surfaced? |
 | Interfaces | Can CLI, Web, MCP, and Python expose the same target and state transitions without implicit routing? |
 | Compatibility | Which current scripts depend on `add` not launching work, batch previews, or one run summary? |
 | Saved workflow editing | How much user-facing value is carried by `copy` + pre-execution `change`, and what replaces its clone/edit/preview steps if queues disappear? |
@@ -340,7 +340,7 @@ Use these scenarios to compare the models:
 6. Widen an array/matrix or add one member after some members have completed; define selection, aggregate status, and comparison semantics.
 7. Kill the coordinator while work is running and while a late-add/retry request is being accepted; recover without losing, duplicating, or misattributing jobs.
 8. Start two unrelated projects and operate on one with explicit IDs; ensure no model creates ambiguous defaults.
-9. A script starts a run, submits several jobs, then is killed before `wait`. Accepted jobs must not be implicitly cancelled, must remain grouped under one run ID, and must be cancellable together; define how the still-open session is sealed or recovered.
+9. A script starts a run, submits several jobs, then is killed before `wait`. Accepted jobs must not be implicitly cancelled and remain cancellable by run ID. A second script submits unrelated work to the same open session: run cancellation intentionally reaches all unfinished jobs, while repeated returned job IDs can select only one script's subset if needed. Verify dynamically added pending jobs and arrays remain selectable through existing cancel behavior. Define how the still-open session is sealed or recovered.
 
 For every scenario record: desired user action, selected model behavior, persisted records, failure/race behavior, and interface burden.
 

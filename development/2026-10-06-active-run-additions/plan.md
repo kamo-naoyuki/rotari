@@ -27,7 +27,7 @@ A late submission is accepted atomically as a batch or rejected atomically. Its 
 | Results | Every admitted job is new work and is scheduled for execution; no result is carried from the queue or another run. A final failed prerequisite blocks a `DependsOn` dependent; `DependsOnFinished` follows existing readiness semantics. |
 | Queue | No project-level next-run queue in the target model. Pre-run composition/review uses a versioned user-owned workflow manifest. Legacy queue data exists only during a compatibility/migration period; it is never silently executed or discarded. |
 | Retry | A finished run's retry continues to create a successor run with carried results. Same-run active retry remains a separate transient-failure operation unless later evidence favors a change. Retry is not an implicit seal. |
-| Script/client lifetime and cancellation scope | Once a submission is durably accepted, killing the calling script/client does not cancel it. Run-level cancel stops every job accepted into that session. Because an open run can span multiple `submit` calls or scripts, decide whether users also need to cancel one submission group without cancelling earlier/unrelated jobs; current one-run-per-batch semantics do not create this ambiguity. The UI/CLI must show an open run left behind before `wait`. |
+| Script/client lifetime and cancellation scope | Once a submission is durably accepted, killing the calling script/client does not cancel it. Run-level cancel stops every unfinished job accepted into that session. Rotari already supports cancelling selected jobs with repeated `--job-id` values (and an array ID selects its unfinished tasks), so separate submission-group IDs are not needed merely to cancel one script's jobs; the submitter can retain the returned job IDs. The UI/CLI must show an open run left behind before `wait`. |
 | Interfaces | One shared admission service and identical run lifecycle in CLI, Web, MCP, and Python. No interface may keep a hidden staging collection after queue removal. |
 
 The initial-work bootstrap, exact CLI spelling, seal operation (including the role of `reset`), run-scoped revision, and group-topology policy are decisions to confirm before implementation. Do not infer a target from project state without an explicit and consistent rule.
@@ -46,8 +46,9 @@ there is an explicit product decision to change it. The existing active retry
 reopens final jobs in the same run; if retained, give it a distinct explicit
 form (such as `retry-active`) rather than making `retry` mean “same run” or
 “successor run” according to hidden session state. Decide if run-wide cancel
-is the only cancellation group when several scripts submit to one run; if not,
-model submission groups explicitly without calling each one a separate run.
+stops all unfinished work in the run. For a narrower selection, existing
+repeated job-ID cancellation can select a submitter's jobs if `submit` returns
+their accepted IDs; no new submission-group identity is needed for this.
 
 **Required examples before implementation:** two scripts submit to one open
 run; the first script exits before `wait`; a user cancels the run; `wait`
@@ -87,7 +88,7 @@ job membership, cancellation scope, and returned run ID.
 5. **Run-scoped revision:** project revision currently hashes queue and metadata, not active run membership. Define an admission sequence/revision scoped to `(project, run ID)` for preview/apply and stale-request detection; do not make unrelated next-queue edits invalidate an active-run preview.
 6. **Request idempotency and unknown timeout:** a caller timeout means acceptance is unknown. A stable request ID must allow lookup/retry of the same request and reject reuse with a different payload. Do not automatically submit a second ID after timeout.
 7. **Compatibility/capabilities:** prevent a new client from writing a request an older supervisor silently ignores. Define the active-run admission capability/version marker and the explicit unsupported-version response. Consider state version bump from current version 3; decide the exact migration policy only after file format is selected.
-8. **Progress/status and cancellation grouping:** define dynamic totals, pending counts, run summaries, job listing, `wait`, export, timeline, and notification behavior when membership grows. “Accepted” means durably in the run, not started or succeeded. Define whether a request/submission group is a separate cancel/inspect unit or whether all work in an open run is intentionally one cancellation unit.
+8. **Progress/status and cancellation:** define dynamic totals, pending counts, run summaries, job listing, `wait`, export, timeline, and notification behavior when membership grows. “Accepted” means durably in the run, not started or succeeded. Preserve existing whole-run cancellation and selected-job cancellation via repeated job IDs; dynamically accepted but not-yet-started jobs must also be cancellable by their returned IDs. An array job ID should continue selecting its unfinished tasks.
 9. **Cancellation and locking:** serialize admission commit with cancellation/finalization under the project state lock; never hold that lock while waiting for a supervisor response. A cancel that wins first rejects the addition; an accepted addition that wins first is included in cancellation and recovery semantics.
 10. **CLI/API contract:** define `start [MANIFEST]`, `submit` syntax and run targeting, behavior when no run is open, dry-run behavior, run admission revision option, response shape (request ID, accepted job IDs, sequence), and errors. Preview must inspect the exact run and must not write queue state.
 11. **Arrays/matrices:** decide whether V1 must include whole new groups. If so, promote group expansion from follow-up into the first phase and add aggregate/native-array conformance before implementation; existing group topology remains immutable either way.
@@ -98,7 +99,7 @@ job membership, cancellation scope, and returned run ID.
 
 Write a decision table for: `start [MANIFEST]`, `submit` to an open run, `submit` when no run is open, drained/open versus sealed, `wait` sealing and waiting, cancellation/end races, new-work result policy, dependencies, and duplicate/unknown request behavior. Under the existing one-active-run invariant, when `start` encounters an open run it may seal it but must not start another coordinator while prior jobs are still executing. Recommended default: seal and wait for that run to finish, then create the new run; explicitly compare this with failing fast or allowing multiple concurrent runs. Decide whether `reset` remains a legacy queue operation only during migration or is retired; never overload it silently. Submitted-job changes are excluded.
 
-**Checkpoint:** CLI, Web, MCP, Python, and Web read-side behavior can be described consistently, including accepted work after client exit, run-wide cancellation, and whether cancellation can target one submission group. Resolve whether complete new arrays/matrices are accepted in the first release and define manifest bootstrap. No runtime edits yet.
+**Checkpoint:** CLI, Web, MCP, Python, and Web read-side behavior can be described consistently, including accepted work after client exit, run-wide cancellation, and cancellation by selected returned job IDs. Resolve whether complete new arrays/matrices are accepted in the first release and define manifest bootstrap. No runtime edits yet.
 
 ### Phase 1 — Model validation and engine admission event
 
@@ -134,7 +135,7 @@ Likely files:
 - `internal/runview/run.go`, `internal/web/loader.go`, `internal/web/timeline.go`, `internal/resolve/resolve.go`: expose committed membership and distinguish accepted-not-started from running/scheduler-submitted states; avoid changing existing selector precedence.
 - `internal/project/edit.go`: keep project queue revision semantics unchanged; implement separate run admission sequence as designed.
 
-CLI conformance: manifest and empty-session `start`; `submit` with an open/no-open run; `wait` seals and waits; `start` while an earlier run is open or sealed-but-running; wrong/ended/interrupted/cancelling/sealed target; no hidden queue write; no second supervisor; job executes with run context rather than submitter shell context; admission is always new work even for filtered runs; summary and show include the accepted job; kill the submitter after acceptance and verify work continues; cancel the run ID and verify every accepted job is included; if submission groups are supported, cancel one group while another group's work continues; append/seal race rejection with no fallback.
+CLI conformance: manifest and empty-session `start`; `submit` with an open/no-open run; `wait` seals and waits; `start` while an earlier run is open or sealed-but-running; wrong/ended/interrupted/cancelling/sealed target; no hidden queue write; no second supervisor; job executes with run context rather than submitter shell context; admission is always new work even for filtered runs; summary and show include the accepted job; kill the submitter after acceptance and verify work continues; cancel the run ID and verify every accepted job is included; cancel one newly accepted pending job by returned ID while another continues; cancel an array job ID and verify all its unfinished tasks are selected; append/seal race rejection with no fallback.
 
 **Checkpoint:** package tests, targeted CLI tests, then binary conformance and coordination tests. Ensure ordinary `add`, `run`, `retry`, `copy`, and `reset` regressions remain unchanged.
 
@@ -167,7 +168,7 @@ Migrate legacy queue workflows to manifests, deprecate queue-backed `add`/`copy`
 - `run` starts ready jobs immediately; an open run owns all pending work and accepts later additions until explicitly sealed.
 - There is no project-owned next-run queue in the target state. Existing queue data is migrated or exported without loss and never silently executed.
 - Once acceptance is durable, client/script lifetime does not control job lifetime. Run-level cancel still groups all accepted work under the session's run ID.
-- Preserve the current ability to cancel a coherent batch with one action. If an open session can contain multiple logically separate submission batches, either expose batch/group-scoped cancellation or explicitly make whole-session cancellation the only group operation and validate that this is acceptable.
+- Preserve existing whole-run and selected-job cancellation scopes. Do not add submission-group IDs just for cancellation: repeated `--job-id` selectors already cancel arbitrary subsets, provided `submit` returns the accepted job/task IDs consistently.
 - Active addition never mutates `queue.json` and never starts a second coordinator.
 - Each accepted request is atomic, idempotent, durably recoverable, and visible exactly once.
 - New jobs use the original run's context/settings and shared dependency semantics.
