@@ -3,11 +3,13 @@
 **Created:** 2026-10-06
 
 **Status:** Steps 1 and 2 are complete as a repository behavior audit and
-resolution proposal. Implementation has not started and is paused pending
-D10/D11, the active-retry mode/attempt-revision and queue-versus-run target
-decisions in the umbrella plan.
-Static behavior is inventoried below; user-frequency evidence is unavailable
-in the repository, so project pin D6 remains undecided. This plan is Phase 3 of
+resolution proposal. Implementation has not started and is paused pending the
+foundational comparison in
+[development/2026-10-06-execution-model-review/plan.md](../2026-10-06-execution-model-review/plan.md).
+Active-run retry inference assumes a run-based model and may need revision if
+immediate submission or open execution sessions are selected. Static behavior
+is inventoried below; user-frequency evidence is unavailable in the repository,
+so project pin D6 remains undecided. This plan is Phase 3 of
 [Work on a Project While Its Run Is Active](../2026-10-05-work-during-runs/plan.md);
 Phases 1 and 2 are complete.
 
@@ -105,12 +107,12 @@ Settled on 2026-10-06:
   select a different project, or let `retry` silently become a new run.
 
 D9 records a candidate resolution policy, not an implementation commitment.
-Its `retry` part is provisional until D10 settles the active retry's invocation
-mode and per-attempt revision, and D11 settles how the next-run queue is kept
-distinct from active-run edits. Revise D9 to match those contracts before
-implementing Phase 3. Step 4 must still define a shared active-run resolver and
-enumerate command-specific selector/config interactions before code changes.
-The project pin remains a separate D6 decision gate and is not implied by D9.
+Its `retry` part assumes the current run-based model. Resolve the execution
+model in the linked review first; then revisit D9, D10's retry semantics, and
+D11's queue/active-work boundary together before implementation. Step 4 must
+still define a shared active-run resolver and enumerate command-specific
+selector/config interactions before code changes. The project pin remains a
+separate D6 decision gate and is not implied by D9.
 
 ## Work plan
 

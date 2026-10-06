@@ -2,16 +2,19 @@
 
 **Created:** 2026-10-05
 
-**Status:** Phase 1 is complete. Phase 2's same-run retry implementation is
-committed and validated. D10's preferred direction is a narrowly revised
-next-attempt definition for selected final jobs, not a generally mutable run;
-the detailed contract/API design remains open. Phase 3 has its own planning at
+**Status:** Phase 1 is implemented. Phase 2's same-run retry implementation
+is committed and validated. The root execution model is now under review:
+compare run-based batches with immediate submission/open execution sessions
+before extending active-run retry or adding jobs to a run. D10's per-attempt
+revision and D11's queue-versus-active target are provisional pending that
+review. The comparison is tracked in
+[development/2026-10-06-execution-model-review/plan.md](../2026-10-06-execution-model-review/plan.md).
+Phase 3 has its own planning at
 [development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md)
-and its implementation is paused until the active-retry mode and D10's
-attempt-revision boundary are specified, because D9 includes active-run
-`retry`. Phase 4 remains conditional and has not started. D1 to D5, D7, D8,
-and D9 settled on 2026-10-06; the D10 direction was identified on 2026-10-06,
-with implementation details open.
+but is paused, together with Phase 4, until the root model is chosen. D1 to D5,
+D7, D8, and D9 describe the shipped/current run-based behavior; D10 and D11
+remain provisional. Reconsider them against the execution-model review before
+further implementation.
 
 ## Purpose
 
@@ -23,13 +26,20 @@ creating another project, splits related history. With multiple projects,
 some commands require `--project-name`; Phase 3's separate audit will identify
 which commands have a safely inferable target.
 
-This plan removes that waiting without allowing two runs of one project.
-One run per project stays: it keeps result resolution linear (one latest
-attempt per job, one active run), keeps `show` / `wait` / `cancel` defaults
-unambiguous, and keeps the three-state lock and recovery model. Work that
-needs to run now is moved into the active run instead of into a second run.
+This plan began from the run-based approach: remove waiting without allowing
+two coordinators to execute one project concurrently. One active run per
+project keeps result resolution linear, `show` / `wait` / `cancel` defaults
+unambiguous, and the three-state lock and recovery model. User feedback has
+raised a more basic question, however: whether the run/next-queue split itself
+is the right primary model when users need to add or correct work during
+execution. Compare that approach with immediate submission and an open
+execution session in the linked review before treating the current split as a
+long-term design commitment.
 
-### Model: the queue is the next run before it starts
+### Current shipped model: the queue is the next run before it starts
+
+This describes the behavior implemented in Phases 1–2; whether it remains the
+target architecture is open in the linked execution-model review.
 
 A run is one object that moves through **queued → running → finished**. An
 interrupted run is a running run that failed to reach finished; `unlock`
@@ -415,7 +425,7 @@ SAFE-2 for `retry`, and `docs/RUNNING.md` (Automatic retries, plus a new
   --failed` while the slow job runs reruns only the failed job in the same
   run; option rejection rows; the same through the Web API.
 
-### Phase 2: Attempt revision review (D10)
+### Phase 2: Attempt revision review (D10) — provisional pending model review
 
 The shipped active retry reopens a final job using the active run's existing
 `JobSpec` and run settings. It helps when the failure may disappear without
@@ -424,7 +434,7 @@ but cannot correct a bad per-job executor option, command, or environment
 before retrying. Editing the next queue does not mutate the active run's
 in-memory execution plan.
 
-**Preferred direction (2026-10-06):** retain same-run retry and allow the
+**Previous preferred direction (2026-10-06; not yet selected as architecture):** retain same-run retry and allow the
 request to revise the selected final job's next attempt. Keep the initial
 `runs/<run-id>/commands.json` as the immutable declaration of run membership,
 dependencies, array/matrix shape, and original job definitions. Treat a retry
@@ -489,12 +499,14 @@ That plan owns the command inventory, measurement, active-run resolution
 decisions, and D6's project-pin decision gate. This umbrella plan keeps the
 phase number and points to the detailed work rather than duplicating it.
 
-## Phase 4: Add jobs to the active run (conditional)
+## Phase 4: Add jobs to the active run (conditional; model review first)
 
-Proceed only if users still need queued work to start before the active run
-ends after phases 1 and 2, and only after the two-workspace target model above
-is settled. Adding jobs must be considered together with D10: both would make
-the active run mutable, though only by explicit, auditable updates. Sketch:
+The previous sketch below is not an implementation commitment. First compare
+run-based batches, immediate submission, and open execution sessions in
+[development/2026-10-06-execution-model-review/plan.md](../2026-10-06-execution-model-review/plan.md).
+After choosing a model, decide whether late additions are still needed and
+reconcile this phase and D10/D11 with that model before designing a protocol.
+If a run-based model remains, the earlier sketch is:
 
 - A request over the phase 2 channel moves selected queued jobs into the
   active run's execution set and the engine's pending set. Keep the queue as
