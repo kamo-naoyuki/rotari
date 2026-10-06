@@ -252,3 +252,20 @@ Commit: 2026-10-06 17:31:46 +09:00 `82993756`.
 - **Validation:** Documentation-only; `git diff --check` passed. No tests run.
 - **Remaining:** Decide whether these gains justify losing or externalizing a
   separately prepared successor batch.
+
+## 2026-10-06 — Defer editing jobs after submission
+
+- **Change:** Revised the execution-model review to stop treating active-run
+  `change` or changed-definition retries as requirements or benefits. Keep
+  `change` pre-execution unless a concrete use case demonstrates a need to
+  revise a submitted job. The retry comparison now concerns same-definition
+  in-run attempts versus successor-run history.
+- **Reason:** The user suspects editing an already-submitted job is not needed
+  in the first place.
+- **Plan impact:** This removes one major motivation for moving queue state
+  into an open run. Late additions remain a possible benefit, but whether they
+  alone justify the model change is now an explicit decision. No runtime
+  behavior is changed.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Identify a recurring late-add workflow and compare it with
+  preserving the existing queue and run boundary before recommending a model.
