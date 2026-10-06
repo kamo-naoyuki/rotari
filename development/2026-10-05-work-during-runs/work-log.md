@@ -108,3 +108,24 @@ Commit: 2026-10-06 17:03:55 +09:00 `ee118402`.
   Phase 4.
 
 Commit: 2026-10-06 17:07:08 +09:00 `a62c4a2f`.
+
+## 2026-10-06 — Reopen the foundational execution model
+
+- **Change:** Added a separate comparison plan for run-based batches,
+  immediate independent jobs, open execution sessions, and explicit-target
+  hybrid operations. Reframed the queue/run model as the currently shipped
+  design rather than a settled architectural premise, and gated Phase 3/4
+  expansion on selecting the primary model.
+- **Reason:** The user questioned whether both next-queue edits and active-run
+  edits make the queue an awkward second work target, especially when retry
+  cannot fix job configuration. That calls for comparing the execution models
+  before extending either feature.
+- **Plan impact:** No runtime behavior changed. Phase 3 project-selection
+  inference and Phase 4 late additions are paused pending the model comparison;
+  D10/D11 remain provisional. The review is at
+  [development/2026-10-06-execution-model-review/plan.md](../2026-10-06-execution-model-review/plan.md).
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Populate workflow comparisons and choose a target model before
+  revising D9–D11 or writing an implementation plan.
+
+Commit: 2026-10-06 17:15:57 +09:00 `5cd12e49`.
