@@ -154,6 +154,127 @@ Collect concrete experience with active additions. Then decide independently:
 
 Do not remove queue-based workflows merely because active admission exists.
 
+## Roadmap if the queue is later retired
+
+Queue removal is not part of bounded active-add V1. If experience shows that
+the separate queue is still a confusing or unnecessary second target, use the
+following sequence rather than deleting `queue.json` first.
+
+### Gate 0 — Evidence that the queue itself is the problem
+
+After bounded active-add use, record concrete cases where users chose the
+wrong target, could not add work at the right time, or repeatedly maintained
+two conflicting definitions. Distinguish those cases from a simple need to
+append one job to an active run. If exact `--run-id` targeting is clear and
+next-run preparation remains useful, stop here and keep the queue.
+
+### Stage 1 — Decide the final run lifecycle
+
+Choose how a new execution starts, how long it accepts additions, and what
+closes admission before changing the queue contract:
+
+- Prefer an explicit `run finish` / `run seal --run-id RUN` boundary for
+  deterministic closure. Decide explicitly whether the user's familiar
+  `reset` habit should become an alias, stay a queue-only legacy operation
+  during migration, or be retired. Never silently reinterpret reset as
+  canceling or deleting accepted work.
+- Define `open`, `drained-but-accepting`, `sealed-but-running`, `finished`,
+  `cancelling`, and `interrupted` states, including `run`, `wait`, `cancel`,
+  `unlock`, and recovery behavior. Do not infer closure from an empty scheduler
+  queue or inactivity unless an explicit timeout policy is separately chosen.
+- Keep `retry`'s successor-run semantics for finished runs unless evidence
+  justifies changing it. Decide whether the shipped same-run active retry
+  remains for transient failures; do not make retry an implicit seal operation.
+
+**Gate:** a state-transition table and race contract covers append versus
+seal, retry versus seal, cancel versus append, coordinator failure, and a run
+that has no jobs yet. The user-visible run identity/history boundary is clear
+in CLI, Web, MCP, and Python.
+
+### Stage 2 — Replace queue staging before removing it
+
+Identify what currently relies on a project-owned editable queue:
+
+- composing multiple jobs, dependencies, arrays/matrices, and defaults before
+  any work starts;
+- whole-workflow validation and preview;
+- saved-run `copy`, pre-run `change`, remove, import, and reset workflows;
+- scripts that accumulate jobs with repeated `add` calls and then invoke
+  `run` once.
+
+Choose a visible pre-run workflow representation. The leading candidate is a
+user-owned versioned workflow manifest that can be validated/previewed and
+then passed to `run`; `copy` can export/clone a saved run into that manifest
+and `change` can edit it before execution. This keeps draft editing without a
+project-global queue. It is not acceptable to move `queue.json` unchanged to a
+new hidden project file and call the system queue-less.
+
+Specify whether a session starts from a manifest (`run WORKFLOW.yaml`) and
+then accepts additional jobs, or whether an empty session is opened first and
+initial jobs are submitted individually. Preserve whole-batch validation if
+that is a required workflow; otherwise explicitly accept incremental partial
+execution. Keep submitted-job definitions immutable: no active `change` is
+introduced by this migration.
+
+**Gate:** every current pre-run queue workflow has a named replacement or is
+explicitly retired with user-visible migration instructions. Preview and
+validation happen before execution for manifest-based starts.
+
+### Stage 3 — Introduce the replacement with compatibility safeguards
+
+Before changing defaults, provide an opt-in path and a migration/compatibility
+period:
+
+- Convert or export existing queued jobs, queue defaults, dependencies, and
+  groups without starting them. Preserve IDs/provenance where the target
+  format permits; report anything that cannot be represented.
+- Make migration previewable and repeatable. Back up the original state and
+  never silently discard or execute the old queue during conversion.
+- Update CLI, Web, MCP, Python, workflow import/export, generated help, and
+  examples together. Existing no-argument `add` behavior must not silently
+  change from “stage” to “submit”; introduce an explicit mode/command first,
+  then deprecate the old path with actionable errors and migration guidance.
+- Keep mixed-version clients/supervisors from silently ignoring session or
+  admission records. Add version/capability checks and a documented minimum
+  compatible version.
+
+**Gate:** migration fixtures cover non-empty queues, defaults, arrays,
+matrices, dependencies, and project metadata; an interrupted migration can
+resume without loss or duplicate execution. Legacy and new interface behavior
+is explicitly tested during the transition.
+
+### Stage 4 — Remove the queue as an execution workspace
+
+Only after the replacement workflow is available and migration has shipped:
+
+- stop writing and reading `queue.json` as an implicit next-run destination;
+- route all accepted not-yet-started work through the exact run's canonical
+  membership/admission records;
+- remove queue-first selector branches, queue promotion/copy behavior, and
+  queue-only revision assumptions only after contract and caller audits;
+- retain compatibility export/import or a one-time migration command if
+  needed, but ensure none acts as a hidden pending collection for execution;
+- update contracts, conformance coverage, architecture maps, docs, Python
+  schema/API, Web/MCP labels, examples, and static exports;
+- remove old state only in a later, explicit cleanup after backups and
+  migration support are no longer needed.
+
+**Final gate:** a repository-wide search and conformance suite show no runtime
+path that stages executable work outside a run. The only not-yet-started jobs
+are durably owned by a named run; every run has an explicit admission boundary;
+old state can be migrated without loss; all supported interfaces agree.
+
+### Stop conditions
+
+- If users still need to prepare a successor batch while another run is
+  active, retain a separate draft/manifest workflow. Queue *storage* may go
+  away, but the second conceptual workspace has not.
+- If whole-workflow review is not replaceable, do not remove pre-run staging.
+- If active-add targeting is clear and the queue remains useful, keep both
+  operations explicit rather than pursuing architectural purity.
+- Do not bundle queue retirement with the first active-add release, array
+  expansion, changed-definition retries, or unrelated project-selection work.
+
 ## Related plans
 
 - [Execution-model review](../2026-10-06-execution-model-review/plan.md)

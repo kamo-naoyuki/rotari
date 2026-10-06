@@ -287,3 +287,21 @@ Commit: 2026-10-06 17:31:46 +09:00 `82993756`.
 - **Validation:** Documentation-only; `git diff --check` passed. No tests run.
 - **Remaining:** Confirm V1 command shape and plain-job versus new-group scope,
   admission record/revision design, then update contracts before coding.
+
+## 2026-10-06 — Map a possible queue-retirement path
+
+- **Change:** Added a staged roadmap after bounded active-add V1: gather
+  evidence that the queue itself is a problem; decide open/seal/retry lifecycle;
+  replace pre-run queue workflows with a visible, previewable manifest flow;
+  provide opt-in compatibility and lossless migration; remove queue-backed
+  execution only after interface and conformance gates pass.
+- **Reason:** The user asked for the path from the current proposal through to
+  possible queue removal.
+- **Plan impact:** Queue retirement is explicitly not part of V1. The roadmap
+  preserves pre-run editing and whole-batch review unless deliberately
+  replaced, forbids silently changing `add` semantics or reinterpreting
+  `reset`, and includes stop conditions where retaining a draft workflow is
+  the better choice.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** First confirm V1 active-add contract; only after real usage
+  evaluate the evidence gate for queue retirement.
