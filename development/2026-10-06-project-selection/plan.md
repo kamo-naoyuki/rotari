@@ -4,7 +4,8 @@
 
 **Status:** Steps 1 and 2 are complete as a repository behavior audit and
 resolution proposal. Implementation has not started and is paused pending
-D10, the active-retry mode/attempt-revision decision in the umbrella plan.
+D10/D11, the active-retry mode/attempt-revision and queue-versus-run target
+decisions in the umbrella plan.
 Static behavior is inventoried below; user-frequency evidence is unavailable
 in the repository, so project pin D6 remains undecided. This plan is Phase 3 of
 [Work on a Project While Its Run Is Active](../2026-10-05-work-during-runs/plan.md);
@@ -105,11 +106,11 @@ Settled on 2026-10-06:
 
 D9 records a candidate resolution policy, not an implementation commitment.
 Its `retry` part is provisional until D10 settles the active retry's invocation
-mode and whether it can carry a per-attempt job-definition revision. Revise D9
-to match that contract before implementing Phase 3. Step 4 must still define a
-shared active-run resolver and enumerate command-specific selector/config
-interactions before code changes. The project pin remains a separate D6
-decision gate and is not implied by D9.
+mode and per-attempt revision, and D11 settles how the next-run queue is kept
+distinct from active-run edits. Revise D9 to match those contracts before
+implementing Phase 3. Step 4 must still define a shared active-run resolver and
+enumerate command-specific selector/config interactions before code changes.
+The project pin remains a separate D6 decision gate and is not implied by D9.
 
 ## Work plan
 

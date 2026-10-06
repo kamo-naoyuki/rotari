@@ -436,6 +436,16 @@ state. The run-wide execution configuration is not hot-swapped: executor lane
 settings, concurrency, caller-environment mode, automatic retry policy, and
 other run defaults remain those chosen at run start.
 
+**Cross-cutting concern:** this introduces two editable work domains: the
+next-run queue and the active run's next-attempt revision. Phase 4 would add a
+third action—promoting queued jobs into the active run. Do not let ordinary
+`add`/`change` silently switch targets based on project state. Before building
+either revised retry or Phase 4, define how the user sees and names the target
+(next queue versus exact active run), how promotion removes or retains queue
+entries, and how collisions between a queued job and an active-run job are
+handled. If the two-domain model cannot be made clear in CLI, Web, and MCP,
+prefer deferring active-run edits over making queue operations context-sensitive.
+
 Before implementation, settle these boundaries:
 
 - **Candidate V1 allowlist:** command/argv, job working directory, job
@@ -482,15 +492,24 @@ phase number and points to the detailed work rather than duplicating it.
 ## Phase 4: Add jobs to the active run (conditional)
 
 Proceed only if users still need queued work to start before the active run
-ends after phases 1 and 2. Sketch:
+ends after phases 1 and 2, and only after the two-workspace target model above
+is settled. Adding jobs must be considered together with D10: both would make
+the active run mutable, though only by explicit, auditable updates. Sketch:
 
 - A request over the phase 2 channel moves selected queued jobs into the
-  active run's `commands.json` and the engine's pending set.
+  active run's execution set and the engine's pending set. Keep the queue as
+  the next-run staging area; define whether a successful promotion consumes
+  the selected queue entries atomically and leave rejected entries queued.
+- Require an explicit active-run target/action; ordinary queue `add` and
+  `change` continue to address only the next-run queue.
+- Reject or explicitly disambiguate IDs/names that collide with jobs already
+  in the active run.
 - New jobs may depend on jobs in the run; a dependency on a final failure
   blocks them at once.
-- The run snapshot stops being immutable while the run is active; it is
-  immutable once the run finishes. This changes the run contract and needs
-  its own decision record.
+- Record additions as append-only run revisions. Preserve the original
+  `commands.json` snapshot and keep it immutable; a separate versioned record
+  (or an explicitly versioned snapshot) must explain every job added during
+  execution. This changes the run contract and needs its own decision record.
 - If the run has already ended, the request fails and the jobs stay queued.
 
 ## Decisions
@@ -549,6 +568,13 @@ Open:
   support per-job override, explicit `--in-run` mode, and per-attempt read-side
   representation remain undecided. Resolve these before Phase 3 implements
   active `retry` inference or Phase 4 extends the request channel.
+- **D11** Before either D10's revised retry or Phase 4's queued-job promotion
+  is implemented, settle the two-workspace interaction: queue operations keep
+  targeting the next run; active-run changes must name the exact run and be
+  shown as a separate action. Decide promotion consumption, duplicate-ID/name
+  handling, and the durable record of active-run revisions. If explicit
+  targeting cannot be made understandable across CLI, Web, and MCP, defer the
+  active-run mutation features rather than making `add`/`change` state-dependent.
 
 ## Validation for each phase
 
