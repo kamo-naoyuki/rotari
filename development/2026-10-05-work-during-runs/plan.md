@@ -92,10 +92,10 @@ straight to running without passing through the queue (D8).
   measure where multiple projects force `--project-name`, then remove only
   the cases that have one unambiguous answer.
 4. **Move to run-owned pending work** (preferred direction; contract
-  confirmation required). `run` starts ready manifest jobs immediately and
-  leaves the run accepting additions until an explicit boundary. `add` targets
-  that run; it does not stage a next-run queue. Keep `change` on manifests
-  before execution. Follow the detailed transition proposal in
+  confirmation required). `start [MANIFEST]` opens a run and starts ready
+  jobs immediately; `submit` adds work to that open run; `wait` seals
+  admission and waits for completion. No next-run queue. Keep `change` on
+  manifests before execution. Follow the detailed transition proposal in
   [development/2026-10-06-active-run-additions/plan.md](../2026-10-06-active-run-additions/plan.md).
 
 Phases 1 and 2 were independent and shipped separately. Phase 3's repository

@@ -325,3 +325,21 @@ Commit: 2026-10-06 17:31:46 +09:00 `82993756`.
 - **Validation:** Documentation-only; `git diff --check` passed. No tests run.
 - **Remaining:** Settle the run state machine and manifest start contract
   before implementation planning is considered complete.
+
+## 2026-10-06 — Sketch `start` / `submit` / `wait` commands
+
+- **Change:** Added the user's proposed lifecycle vocabulary: `start` opens a
+  run and seals a previous open run first; `submit` adds work to the open run
+  for immediate dependency-aware scheduling; `wait` seals admission and waits
+  for accepted work to finish. Propagated it into the transition, model-review,
+  and umbrella plans.
+- **Reason:** The user described the command model they are considering.
+- **Plan impact:** Added a key invariant question: `start` cannot safely open a
+  second coordinator while a prior run still executes. The proposed default is
+  to seal and wait for the prior run before opening the next; fail-fast and
+  multi-active-run alternatives remain for comparison. `submit` with no open
+  run and manifest versus empty-session bootstrap also need a contract.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Confirm whether `start` should wait for the prior run to
+  finish after sealing, and whether initial work enters through a manifest or
+  an empty session followed by `submit`.

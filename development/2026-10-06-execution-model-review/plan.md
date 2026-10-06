@@ -2,7 +2,7 @@
 
 **Created:** 2026-10-06
 
-**Status:** The preferred product direction is now a run-centric immediate-execution model: no project-level next-run queue; `run` starts ready work from a manifest or opens a session, and later `add` operations join that run until it is explicitly sealed. The user considers queue editing/copy uncommon and manifests sufficient for pre-run authoring. Submitted-job edits remain out of scope. Bootstrap syntax, `reset` versus explicit seal, retry lifecycle, array/matrix admission, and migration remain open. The staged transition is in [active-run additions plan](../2026-10-06-active-run-additions/plan.md); implementation has not started.
+**Status:** The preferred product direction is a run-centric immediate-execution model with no project-level next-run queue. The proposed lifecycle commands are `start` (open a run), `submit` (add work to the open run), and `wait` (seal admission and wait for completion). Manifests provide pre-run authoring; the user considers queue editing/copy uncommon and manifest workflows sufficient. Submitted-job edits remain out of scope. Exact bootstrap, behavior of `start` with a prior unfinished run, `reset` versus explicit seal, retry lifecycle, array/matrix admission, and migration remain open. See the [run-owned pending transition plan](../2026-10-06-active-run-additions/plan.md); implementation has not started.
 
 ## Question
 
@@ -10,7 +10,7 @@ Which model should rotari make primary?
 
 1. **Run-based batches:** build a set of jobs, start a run that owns an immutable snapshot, and make later edits part of the next run.
 2. **Immediate submission:** adding a job makes it eligible for execution now, rather than waiting for an explicit `run` over a prepared queue.
-3. **Run-centric open execution session (preferred product direction):** `run` starts execution immediately; jobs submitted while its session remains open join that same run and become eligible as soon as dependencies permit. A late job may depend on an earlier submitted job. The run itself owns a **pending / not-yet-started** state, rather than using a separate next-run queue. The initial jobs are authored/reviewed in a manifest and supplied when starting the run, unless the empty-session bootstrap is selected. This is the direction to plan toward; exact lifecycle semantics remain open.
+3. **Run-centric open execution session (preferred product direction):** `start [MANIFEST]` opens a run and starts ready work immediately; `submit` adds jobs to that run while it remains open; `wait` closes admission and waits for accepted work. A late job may depend on an earlier submitted job. The run itself owns a **pending / not-yet-started** state, rather than using a separate next-run queue. Initial jobs are authored/reviewed in a manifest or submitted after opening an empty run. The unresolved constraint is what `start` does if the previous run is sealed but still executing; under the current invariant it must not launch a second coordinator.
 
 The current implementation is run-based. That is a fact about the shipped design, not a conclusion that it is the best user model. The review starts from user workflows and invariants rather than assuming Phase 1–4 are the desired final architecture.
 

@@ -2,11 +2,11 @@
 
 **Created:** 2026-10-06
 
-**Status:** Detailed transition plan; implementation has not started. The preferred product direction is now to retire the project-level queue: users find “edit a next-run queue” less intuitive than immediate submission, and the user reports that queue `change` / `copy` workflows are uncommon while manifests are sufficient for pre-run editing and reuse. The target model is a run that starts ready jobs immediately, owns its not-yet-started jobs, and accepts later additions while open. Keep submitted-job definitions immutable. Initial-work bootstrap, run sealing, and exact CLI semantics remain to be decided. Any bounded active-add-only slice is an implementation checkpoint, not the intended permanent two-target UX.
+**Status:** Detailed transition plan; implementation has not started. The preferred product direction is now to retire the project-level queue: users find “edit a next-run queue” less intuitive than immediate submission, and the user reports that queue `change` / `copy` workflows are uncommon while manifests are sufficient for pre-run editing and reuse. The proposed command vocabulary is `start` (open a run, sealing any prior open run first), `submit` (add new work to the open run and schedule it immediately), and `wait` (seal the open run and wait for its work to finish). Keep submitted-job definitions immutable. Exact behavior when a prior run is sealed but still executing, manifest bootstrap, and command return/foreground semantics remain to be decided.
 
 ## Goal
 
-Replace the separate next-run queue with pending work owned by the execution run. Starting a workflow begins execution immediately for ready jobs; while admission remains open, newly submitted jobs join that run and are scheduled as soon as their dependencies permit. Pending definitions, execution attempts, and results share one run identity and history. A manifest is the pre-run authoring/review format; it is not a hidden mutable project queue.
+Replace the separate next-run queue with pending work owned by the execution run. `start` opens a run from a workflow manifest (or explicitly opens an empty session) and begins execution immediately for ready jobs. While admission remains open, `submit` adds new jobs to that run and schedules them as soon as dependencies permit. `wait` seals admission and waits for submitted work to finish. Pending definitions, execution attempts, and results share one run identity and history. A manifest is the pre-run authoring/review format; it is not a hidden mutable project queue.
 
 A late submission is accepted atomically as a batch or rejected atomically. Its target run ID is explicit and is checked again at commit. If the run ends or begins cancellation before acceptance, report that exact outcome; never fall back to the queue or a new run.
 
@@ -14,9 +14,11 @@ A late submission is accepted atomically as a batch or rejected atomically. Its 
 
 | Concern | V1 proposal |
 | --- | --- |
-| Target | `add` submits work to an explicitly identified open run; it never stages work for a future run. Exact spelling and whether an explicit project can safely identify its sole open run remain open. |
-| Bootstrap | Start a run from a workflow manifest (or explicitly open an empty session) and begin ready jobs immediately. Choose one before implementation; do not retain `add` as an implicit staging queue. |
-| No open run | Decide whether `add` creates a new one-job run immediately or requires a run opened from a manifest/session command. It must never silently stage work. |
+| Target | `submit` adds work to the open run; it never stages work for a future run. Require an exact run/project target or define one unambiguous project-scoped rule. |
+| Bootstrap | `start [MANIFEST]` opens a run from a validated manifest, or opens an empty session if that form is chosen, and begins ready jobs immediately. |
+| No open run | `submit` fails with guidance to use `start`; it does not create a hidden draft or implicitly stage work. |
+| Existing open run | `start` seals the prior run before opening a new one. Decide whether it waits for prior jobs to finish or rejects while they remain active; do not allow overlapping coordinators by accident. |
+| Wait | `wait` seals the current run against new submissions, then waits for its accepted work to finish. Clarify whether `wait --run-id` may wait on an already-sealed run. |
 | Admission lifetime | An open run continues accepting additions even when currently drained, until an explicit seal/finish boundary. An inactivity timeout is not the default. |
 | Job edits | No edits after admission. `change` edits the manifest before `run`; a submitted or finished job's definition remains immutable. |
 | Run settings | Working directory, caller environment, executor lanes, concurrency, and run-wide options remain those captured by the original run. Per-job fields use the existing job-definition semantics. |
@@ -54,7 +56,7 @@ The initial-work bootstrap, exact CLI spelling, seal operation (including the ro
 
 ## Design decisions required before implementation
 
-1. **Bootstrap and admission boundary:** define how a manifest or empty session creates a run, when the supervisor starts accepting requests (after initial snapshot transformation and engine initialization), what `add` does when there is no open run, and when admission closes relative to finalization.
+1. **Bootstrap and admission boundary:** define how `start [MANIFEST]` creates a run, when the supervisor starts accepting submissions (after initial snapshot transformation and engine initialization), and how `wait` seals admission before waiting for completion.
 2. **Canonical acceptance record:** choose the durable commit point for a request. A response file alone is insufficient: a crash after acceptance but before response must not lose or duplicate accepted jobs. Prefer a per-request immutable accepted-membership record with request ID, sequence/revision, normalized expanded job definitions, and acceptance time; the coordinator writes it before changing in-memory engine state. Final snapshots/readers combine initial membership and committed additions. Validate reserved filenames and state-version behavior.
 3. **Atomic batch validation:** validate names, IDs, expanded task IDs, commands, paths, executors, and the combined dependency graph against current committed membership plus the whole incoming batch. Commit all jobs or none. A single event-loop writer serializes admissions; external goroutines must not mutate engine maps.
 4. **Dependency/group policy:** use shared model validation/expansion. Existing groups may be dependencies if their membership is stable, but may not be expanded by an admission. V1 rejects unknown/future names and cycles. Decide whether existing `ValidateJobs` can validate combined run membership without imposing queue-only defaults.
@@ -63,14 +65,14 @@ The initial-work bootstrap, exact CLI spelling, seal operation (including the ro
 7. **Compatibility/capabilities:** prevent a new client from writing a request an older supervisor silently ignores. Define the active-run admission capability/version marker and the explicit unsupported-version response. Consider state version bump from current version 3; decide the exact migration policy only after file format is selected.
 8. **Progress/status semantics:** define dynamic totals, pending counts, run summaries, job listing, `wait`, export, timeline, and notification behavior when membership grows. “Accepted” means durably in the run, not started or succeeded.
 9. **Cancellation and locking:** serialize admission commit with cancellation/finalization under the project state lock; never hold that lock while waiting for a supervisor response. A cancel that wins first rejects the addition; an accepted addition that wins first is included in cancellation and recovery semantics.
-10. **CLI/API contract:** decide manifest-backed run start, run-target syntax for `add`, behavior when no run is open, dry-run behavior, run admission revision option, response shape (request ID, accepted job IDs, sequence), and errors. Preview must inspect the exact run and must not write queue state.
+10. **CLI/API contract:** define `start [MANIFEST]`, `submit` syntax and run targeting, behavior when no run is open, dry-run behavior, run admission revision option, response shape (request ID, accepted job IDs, sequence), and errors. Preview must inspect the exact run and must not write queue state.
 11. **Arrays/matrices:** decide whether V1 must include whole new groups. If so, promote group expansion from follow-up into the first phase and add aggregate/native-array conformance before implementation; existing group topology remains immutable either way.
 
 ## Implementation phases and checkpoints
 
 ### Phase 0 — Freeze the queue-less user contract
 
-Write a decision table for: manifest-based initial run, `add` to an open run, `add` when no run is open, drained/open versus sealed, cancellation/end races, new-work result policy, dependencies, and duplicate/unknown request behavior. Decide the seal command and whether `reset` keeps its queue-clearing meaning during migration or is later retired; never overload it silently. Submitted-job changes are excluded. This phase targets an open/sealable run, not bounded admission that closes as soon as work drains.
+Write a decision table for: `start [MANIFEST]`, `submit` to an open run, `submit` when no run is open, drained/open versus sealed, `wait` sealing and waiting, cancellation/end races, new-work result policy, dependencies, and duplicate/unknown request behavior. Under the existing one-active-run invariant, when `start` encounters an open run it may seal it but must not start another coordinator while prior jobs are still executing. Recommended default: seal and wait for that run to finish, then create the new run; explicitly compare this with failing fast or allowing multiple concurrent runs. Decide whether `reset` remains a legacy queue operation only during migration or is retired; never overload it silently. Submitted-job changes are excluded.
 
 **Checkpoint:** CLI, Web, MCP, Python, and Web read-side behavior can be described consistently. Resolve whether complete new arrays/matrices are accepted in the first release and define manifest bootstrap. No runtime edits yet.
 
@@ -103,12 +105,12 @@ Crash/race tests: request before commit; committed admission before response; re
 
 Likely files:
 
-- `cmd/rotari/add.go`, run/manifest command paths, CLI spec source (`cmd/rotari/cli_spec.go`), generated reference via its generator: start from a validated manifest and submit to the exact open run; do not preserve queue-mode `add` as the final behavior. Return accepted IDs and request ID.
+- CLI command paths (`cmd/rotari/run_command.go` or a new `start` command, plus a new `submit` command reusing definition parsing from `cmd/rotari/add.go`), CLI spec source (`cmd/rotari/cli_spec.go`), generated reference via its generator: start from a validated manifest and submit to the exact open run; do not preserve queue-mode `add` as the final behavior. Return accepted IDs and request ID.
 - `internal/projectrun/execute.go`, `internal/projectrun/validate.go`, `internal/projectrun/artifacts.go`, `internal/run/summary.go`: prepare added jobs with the original run's context/environment, validate against fixed run options, record artifacts, include final accepted membership in summary.
 - `internal/runview/run.go`, `internal/web/loader.go`, `internal/web/timeline.go`, `internal/resolve/resolve.go`: expose committed membership and distinguish accepted-not-started from running/scheduler-submitted states; avoid changing existing selector precedence.
 - `internal/project/edit.go`: keep project queue revision semantics unchanged; implement separate run admission sequence as designed.
 
-CLI conformance: manifest-started sync and async run; explicit correct run ID; add with no open run; wrong/ended/interrupted/cancelling/sealed run; no hidden queue write; no second supervisor; job executes with run context rather than submitter shell context; admission is always new work even for filtered runs; summary and show include the accepted job; cancel after acceptance; append/seal race rejection with no fallback.
+CLI conformance: manifest and empty-session `start`; `submit` with an open/no-open run; `wait` seals and waits; `start` while an earlier run is open or sealed-but-running; wrong/ended/interrupted/cancelling/sealed target; no hidden queue write; no second supervisor; job executes with run context rather than submitter shell context; admission is always new work even for filtered runs; summary and show include the accepted job; cancel after acceptance; append/seal race rejection with no fallback.
 
 **Checkpoint:** package tests, targeted CLI tests, then binary conformance and coordination tests. Ensure ordinary `add`, `run`, `retry`, `copy`, and `reset` regressions remain unchanged.
 
