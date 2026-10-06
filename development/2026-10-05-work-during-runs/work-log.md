@@ -343,3 +343,20 @@ Commit: 2026-10-06 17:31:46 +09:00 `82993756`.
 - **Remaining:** Confirm whether `start` should wait for the prior run to
   finish after sealing, and whether initial work enters through a manifest or
   an empty session followed by `submit`.
+
+## 2026-10-06 — Preserve run-level cancellation across script exit
+
+- **Change:** Added a lifecycle requirement and comparison scenario: once a
+  submission is durably accepted, a submitter script exiting before `wait`
+  does not cancel the work; all accepted jobs remain grouped under one run ID
+  and can be cancelled together. Added visibility/sealing requirements for a
+  run left open by that script exit.
+- **Reason:** The user identified that the current `run` batch model survives
+  a script ending before `wait` and provides one run-level cancellation
+  target; this is a benefit the proposed model must preserve.
+- **Plan impact:** Open-session behavior now distinguishes client lifetime
+  from run lifetime. An abandoned open run is an operational state to surface
+  and explicitly seal/recover, not a reason to cancel accepted work.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Specify the user-visible status and cleanup action for an
+  open run whose submitter has exited, while preserving run-wide cancel.

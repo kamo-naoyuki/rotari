@@ -27,6 +27,7 @@ A late submission is accepted atomically as a batch or rejected atomically. Its 
 | Results | Every admitted job is new work and is scheduled for execution; no result is carried from the queue or another run. A final failed prerequisite blocks a `DependsOn` dependent; `DependsOnFinished` follows existing readiness semantics. |
 | Queue | No project-level next-run queue in the target model. Pre-run composition/review uses a versioned user-owned workflow manifest. Legacy queue data exists only during a compatibility/migration period; it is never silently executed or discarded. |
 | Retry | A finished run's retry continues to create a successor run with carried results. Same-run active retry remains a separate transient-failure operation unless later evidence favors a change. Retry is not an implicit seal. |
+| Script/client lifetime | Once a submission is durably accepted, killing the calling script/client does not cancel it. All accepted jobs remain grouped under the run ID and can be inspected or cancelled together. The UI/CLI must make an open run left behind by a script that never reaches `wait` visible and recoverable. |
 | Interfaces | One shared admission service and identical run lifecycle in CLI, Web, MCP, and Python. No interface may keep a hidden staging collection after queue removal. |
 
 The initial-work bootstrap, exact CLI spelling, seal operation (including the role of `reset`), run-scoped revision, and group-topology policy are decisions to confirm before implementation. Do not infer a target from project state without an explicit and consistent rule.
@@ -74,7 +75,7 @@ The initial-work bootstrap, exact CLI spelling, seal operation (including the ro
 
 Write a decision table for: `start [MANIFEST]`, `submit` to an open run, `submit` when no run is open, drained/open versus sealed, `wait` sealing and waiting, cancellation/end races, new-work result policy, dependencies, and duplicate/unknown request behavior. Under the existing one-active-run invariant, when `start` encounters an open run it may seal it but must not start another coordinator while prior jobs are still executing. Recommended default: seal and wait for that run to finish, then create the new run; explicitly compare this with failing fast or allowing multiple concurrent runs. Decide whether `reset` remains a legacy queue operation only during migration or is retired; never overload it silently. Submitted-job changes are excluded.
 
-**Checkpoint:** CLI, Web, MCP, Python, and Web read-side behavior can be described consistently. Resolve whether complete new arrays/matrices are accepted in the first release and define manifest bootstrap. No runtime edits yet.
+**Checkpoint:** CLI, Web, MCP, Python, and Web read-side behavior can be described consistently, including accepted work after client exit and run-wide cancellation. Resolve whether complete new arrays/matrices are accepted in the first release and define manifest bootstrap. No runtime edits yet.
 
 ### Phase 1 — Model validation and engine admission event
 
@@ -97,7 +98,7 @@ Likely files:
 - `internal/projectrun/execute.go`, `internal/projectrun/lifecycle.go`: establish accepting/sealed/drained/finished lifecycle after setup, attach watcher to the engine, fence shutdown before summary finalization.
 - A focused package/file may own canonical admission records and run revision; preserve one-way dependencies and `internal/archtest` boundaries.
 
-Crash/race tests: request before commit; committed admission before response; response before engine event; duplicate same request; same ID/different payload; concurrent append; cancellation race; finish/end race; timeout and later lookup; malformed/newer request; coordinator interruption after accepted pending work; ensure no response wait holds the state lock. Recovery must reconstruct every accepted job exactly once from durable run-owned records.
+Crash/race tests: request before commit; committed admission before response; response before engine event; duplicate same request; same ID/different payload; concurrent append; cancellation race; finish/end race; timeout and later lookup; malformed/newer request; coordinator interruption after accepted pending work; client/script exit after acceptance; ensure no response wait holds the state lock. Recovery must reconstruct every accepted job exactly once from durable run-owned records, and caller exit must not implicitly cancel the run.
 
 **Checkpoint:** a protocol-level test proves accepted membership is canonical independent of response delivery and can be reconstructed after restart/unlock. Do not proceed based solely on happy-path CLI tests.
 
@@ -110,7 +111,7 @@ Likely files:
 - `internal/runview/run.go`, `internal/web/loader.go`, `internal/web/timeline.go`, `internal/resolve/resolve.go`: expose committed membership and distinguish accepted-not-started from running/scheduler-submitted states; avoid changing existing selector precedence.
 - `internal/project/edit.go`: keep project queue revision semantics unchanged; implement separate run admission sequence as designed.
 
-CLI conformance: manifest and empty-session `start`; `submit` with an open/no-open run; `wait` seals and waits; `start` while an earlier run is open or sealed-but-running; wrong/ended/interrupted/cancelling/sealed target; no hidden queue write; no second supervisor; job executes with run context rather than submitter shell context; admission is always new work even for filtered runs; summary and show include the accepted job; cancel after acceptance; append/seal race rejection with no fallback.
+CLI conformance: manifest and empty-session `start`; `submit` with an open/no-open run; `wait` seals and waits; `start` while an earlier run is open or sealed-but-running; wrong/ended/interrupted/cancelling/sealed target; no hidden queue write; no second supervisor; job executes with run context rather than submitter shell context; admission is always new work even for filtered runs; summary and show include the accepted job; kill the submitter after acceptance and verify work continues; cancel the run ID and verify every accepted job is included; append/seal race rejection with no fallback.
 
 **Checkpoint:** package tests, targeted CLI tests, then binary conformance and coordination tests. Ensure ordinary `add`, `run`, `retry`, `copy`, and `reset` regressions remain unchanged.
 
@@ -142,6 +143,7 @@ Migrate legacy queue workflows to manifests, deprecate queue-backed `add`/`copy`
 - Active admission always names and revalidates one exact run; it cannot target another run after a race.
 - `run` starts ready jobs immediately; an open run owns all pending work and accepts later additions until explicitly sealed.
 - There is no project-owned next-run queue in the target state. Existing queue data is migrated or exported without loss and never silently executed.
+- Once acceptance is durable, client/script lifetime does not control job lifetime. Run-level cancel still groups all accepted work under the session's run ID.
 - Active addition never mutates `queue.json` and never starts a second coordinator.
 - Each accepted request is atomic, idempotent, durably recoverable, and visible exactly once.
 - New jobs use the original run's context/settings and shared dependency semantics.
@@ -185,6 +187,10 @@ closes admission before changing the queue contract:
   `cancelling`, and `interrupted` states, including `run`, `wait`, `cancel`,
   `unlock`, and recovery behavior. Do not infer closure from an empty scheduler
   queue or inactivity unless an explicit timeout policy is separately chosen.
+- Define the state when the process running a shell script exits before
+  `wait`: accepted work continues under the supervisor and run ID, but the
+  session may remain open. Specify how `show`/Web indicate this, how another
+  client can seal it, and whether any explicit recovery command is needed.
 - Keep `retry`'s successor-run semantics for finished runs unless evidence
   justifies changing it. Decide whether the shipped same-run active retry
   remains for transient failures; do not make retry an implicit seal operation.

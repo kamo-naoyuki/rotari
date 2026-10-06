@@ -279,6 +279,7 @@ Evaluate each model against concrete workflows, not just feature counts:
 | Preview and validation | Can rotari validate the whole intended workflow before any work starts, or are failures necessarily incremental? |
 | History and provenance | What is a run/result unit? How are dynamically added jobs and revised attempts represented and compared? |
 | Cancellation and recovery | What does cancel stop? What does unlock recover if a coordinator dies while accepting work? |
+| Script lifetime and batch cancellation | If a submitter script exits before `wait`, do accepted jobs continue? Can one run ID cancel the entire accepted batch, and how is an abandoned open session surfaced? |
 | Interfaces | Can CLI, Web, MCP, and Python expose the same target and state transitions without implicit routing? |
 | Compatibility | Which current scripts depend on `add` not launching work, batch previews, or one run summary? |
 | Saved workflow editing | How much user-facing value is carried by `copy` + pre-execution `change`, and what replaces its clone/edit/preview steps if queues disappear? |
@@ -297,6 +298,7 @@ Use these scenarios to compare the models:
 6. Widen an array/matrix or add one member after some members have completed; define selection, aggregate status, and comparison semantics.
 7. Kill the coordinator while work is running and while a late-add/retry request is being accepted; recover without losing, duplicating, or misattributing jobs.
 8. Start two unrelated projects and operate on one with explicit IDs; ensure no model creates ambiguous defaults.
+9. A script starts a run, submits several jobs, then is killed before `wait`. Accepted jobs must not be implicitly cancelled, must remain grouped under one run ID, and must be cancellable together; define how the still-open session is sealed or recovered.
 
 For every scenario record: desired user action, selected model behavior, persisted records, failure/race behavior, and interface burden.
 
