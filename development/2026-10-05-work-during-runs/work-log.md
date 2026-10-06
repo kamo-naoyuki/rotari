@@ -67,3 +67,23 @@ Commit: jj change `rpkwxuzr`, commit `025e2a33`, 2026-10-06 12:37:26.
   be updated to match the final retry mode.
 
 Commit: 2026-10-06 16:56:51 +09:00 `2621b67e`.
+
+## 2026-10-06 — Scope candidate per-attempt retry overrides
+
+- **Change:** Added a candidate V1 allowlist for revised retry attempts:
+  command, working directory, job environment, timeout, executor, and
+  per-job executor options. Kept job identity, dependencies, arrays/matrices,
+  run context, run-level retry policy, concurrency, scheduler lane defaults,
+  and the next queue fixed. Documented the scheduler-option empty/inherit
+  ambiguity that an explicit replacement/clear representation must resolve.
+- **Reason:** Make the user's preferred bounded immutability relaxation
+  concrete without making active runs generally mutable.
+- **Plan impact:** Candidate field boundary is documented, not yet a settled
+  implementation contract. Run-wide Slurm/PBS/LSF/SGE settings remain
+  immutable; only supported per-job options may override defaults for the
+  selected next attempt.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Confirm the V1 allowlist and define request/CLI/Web/MCP shapes,
+  atomic validation, per-attempt provenance, and read-side presentation.
+
+Commit: 2026-10-06 17:03:55 +09:00 `ee118402`.
