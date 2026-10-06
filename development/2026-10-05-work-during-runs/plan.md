@@ -2,11 +2,11 @@
 
 **Created:** 2026-10-05
 
-**Status:** Phase 1 is implemented and committed. Phase 2 active-run retry is
-in progress: engine reopening, shared request persistence/selection, CLI, MCP,
-Web API, and initial tests are implemented; conformance, full option/variant
-coverage, final contract review, and validation remain. Phases 3–4 have not
-started. D1 to D5, D7, and D8 settled on 2026-10-06.
+**Status:** Phases 1 and 2 are implemented, validated, and committed. Phase 3
+has its own planning document at
+[development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md)
+and has not started. Phase 4 remains conditional and has not started. D1 to
+D5, D7, and D8 settled on 2026-10-06.
 
 ## Purpose
 
@@ -14,9 +14,9 @@ A project runs at most one run at a time, and while it runs, every queue edit
 is rejected (SAFE-2). The second rule, not the first, causes most of the
 waiting: users cannot prepare the next batch, add a forgotten job, or rerun a
 job that failed early until the whole run ends. The current workaround,
-creating another project, splits related history and then requires
-`--project-name` on every command because automatic project selection stops
-working once a state directory has more than one project.
+creating another project, splits related history. With multiple projects,
+some commands require `--project-name`; Phase 3's separate audit will identify
+which commands have a safely inferable target.
 
 This plan removes that waiting without allowing two runs of one project.
 One run per project stays: it keeps result resolution linear (one latest
@@ -63,16 +63,17 @@ straight to running without passing through the queue (D8).
 2. **Retry jobs inside the active run.** `retry --failed` (or retry of
    selected jobs) on a running project starts new attempts in that run, the
    same way `run --retry` does, instead of being rejected.
-3. **Reduce the cost of switching projects.** Measure where multiple
-   projects force `--project-name`, then remove the cases that have one
-   unambiguous answer.
+3. **Reduce the cost of switching projects.** Tracked separately in
+  [development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md):
+  measure where multiple projects force `--project-name`, then remove only
+  the cases that have one unambiguous answer.
 4. **Add jobs to the active run** (conditional). Only if phases 1 and 2 leave
    a demonstrated need, let new jobs join the active run, reusing the phase 2
    request channel.
 
-Phases 1 and 2 are independent and can ship in either order. Phase 3 starts
-with measurement after phase 1, because phase 1 removes the most common
-reason to create a second project. Phase 4 depends on phase 2.
+Phases 1 and 2 were independent and shipped separately. Phase 3's measurement
+starts after Phase 1, because it removes the most common reason to create a
+second project; its separate plan is linked above. Phase 4 depends on Phase 2.
 
 ### Non-goals
 
@@ -402,25 +403,13 @@ SAFE-2 for `retry`, and `docs/RUNNING.md` (Automatic retries, plus a new
   --failed` while the slow job runs reruns only the failed job in the same
   run; option rejection rows; the same through the Web API.
 
-## Phase 3: Cost of switching projects
+## Phase 3: Project selection
 
-Start by measuring, after phase 1:
-
-1. List every command that fails with "multiple projects exist" when more than
-   one project exists, and for each one, whether one answer is unambiguous.
-2. For commands that act on an active run (`cancel`, `suspend`, `resume`,
-   `retry` in phase 2), use the only running project when exactly one runs,
-   as `wait` already does. Several running projects stay an error that lists
-   them.
-3. Consider a per-directory project pin that follows the existing
-   `./.rotari-state` precedent: a file in the working directory naming the
-   project, resolved after `--project-name` and `ROTARI_PROJECT_NAME`. Decide
-   only if step 1 shows that queue-editing commands are still the main cost
-   (decision D6).
-
-Changes to resolution order go into `contracts/01-resolution-and-config.md`
-(RES rules), `docs/CONCEPTS.md` "State and project resolution", and the
-resolution conformance tests, for every command that shares the rule.
+Phase 3 has been split into the focused plan
+[development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md).
+That plan owns the command inventory, measurement, active-run resolution
+decisions, and D6's project-pin decision gate. This umbrella plan keeps the
+phase number and points to the detailed work rather than duplicating it.
 
 ## Phase 4: Add jobs to the active run (conditional)
 
@@ -482,7 +471,8 @@ Settled on 2026-10-06:
 
 Open:
 
-- **D6** Whether to add a per-directory project pin.
+- **D6** Whether to add a per-directory project pin; the decision gate is
+  tracked in [development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md).
 
 ## Validation for each phase
 
