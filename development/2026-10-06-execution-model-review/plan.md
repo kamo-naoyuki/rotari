@@ -39,7 +39,7 @@ The current implementation is run-based. That is a fact about the shipped design
 - There is no separate next-run queue. A submission without an open session must either open a new session explicitly or fail with instructions to start one; do not silently create an invisible staging queue. Pending work is explicit state owned by a particular run, not another destination alongside the active run.
 - Each accepted job has a clear lifecycle such as `pending` (definition accepted, no attempt started), `running` (an attempt has started), and a terminal result. `pending` is the run's not-yet-started work; it must not be confused with the existing next-run queue or with a scheduler-submitted-but-not-yet-running attempt unless the UI labels those states separately.
 - `copy --run-id SOURCE` could add selected cloned jobs to a named open target run as `pending`. It must specify whether copied successful results are carried or deliberately reset so they execute again, and how job IDs/dependencies are remapped or collision-checked when source and target belong to the same run history.
-- `change --run-id RUN --job-id JOB` could revise the definition only while the job is still `pending`; a revision is recorded and becomes the definition used by its first attempt. Once an attempt has started, changing its command cannot alter that process or its recorded provenance. Correcting a started/finished job requires a separately defined new attempt/retry revision.
+- `change --run-id RUN --job-id JOB` could revise a `pending` job before its first attempt, or revise a **finished** job's definition for a subsequent attempt. For a finished job, the revision must not rewrite the command or result recorded for the completed attempt; it creates a new attempt definition and should make the need for another attempt visible. `change` must not mutate a currently running attempt. Whether changing a finished job automatically starts the new attempt or leaves it for an explicit `retry` is a separate decision; preserving `change` as an edit-only operation and making `retry` the execution trigger best preserves the current command distinction.
 - The session has an accepting/sealed/finished lifecycle. It is not a continuously accepting queue after it is sealed.
 - Run-wide environment, executor lanes, and concurrency are fixed at session start; job-level definitions can be supplied per appended job.
 - The run snapshot becomes an append-only event/revision history while open, then a stable final snapshot when sealed.
@@ -89,10 +89,13 @@ capability behind `copy` and `change` should disappear:
 	provenance still need clear source/target IDs and collision behavior.
 - `change` currently edits queued definitions (and `change --run-id` restores
 	a saved snapshot into the queue before editing). Under an open-run model,
-	`change` could revise only a job that has not started. Editing an already
-	running process is not a safe interpretation; changing a final job for its
-	next attempt is a distinct retry/revision operation and must not be silently
-	inferred from whether the session is open.
+	`change` could revise a not-yet-started job or the next-attempt definition
+	of a finished job. In the latter case, preserve the finished attempt as
+	history and distinguish “has never started” from “finished, revised, retry
+	not yet started.” Editing an already running process is not a safe
+	interpretation. Whether `change` starts the new attempt or `retry` does so
+	must be explicit; do not make the behavior depend implicitly on the job's
+	current state.
 - A manifest-based workflow could preserve review-before-execution:
   `export`/edit/`run` from a manifest or a new-session preview/apply API. This
   is an alternative interface, not a hidden replacement queue.
@@ -115,9 +118,11 @@ Decision questions:
 2. Can `copy` add cloned jobs as pending members of an explicit open run while
 	retaining selector, origin, and provenance behavior? What happens to copied
 	successful results and colliding job IDs/dependencies?
-3. Should `change` be limited to a pending/not-yet-started job? If the job has
-	started, require a distinct operation to request a new attempt with a new
-	definition rather than implying that the active command can be mutated.
+3. Should `change` revise both a not-yet-started job and a finished job's
+	next-attempt definition, while rejecting currently running jobs? If a
+	finished job is changed, does `change` only mark a revised attempt ready,
+	or does it immediately start that attempt? Preserve the completed attempt
+	and distinguish its history from never-started pending work.
 4. If the supported copy/change use case is removed, what replaces the
 	documented fix-before-rerun flow in CLI, Web, MCP, and Python?
 

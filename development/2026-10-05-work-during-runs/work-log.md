@@ -203,3 +203,20 @@ Commit: 2026-10-06 17:31:46 +09:00 `82993756`.
 - **Validation:** Documentation-only; no tests run.
 - **Remaining:** Compare the reset boundary with a dedicated seal command and
   timeout/hybrid behavior before selecting the open-session lifecycle.
+
+## 2026-10-06 — Allow change on finished jobs
+
+- **Change:** Updated the execution-model proposal so `change` may revise a
+  finished job's definition for a subsequent attempt, in addition to editing
+  a job that has never started. A running attempt remains immutable; the
+  completed attempt's definition and result stay in history.
+- **Reason:** The user clarified that `change` should also work for finished
+  jobs, not only for not-yet-started jobs.
+- **Plan impact:** The state model must distinguish never-started work from a
+  finished job whose next-attempt definition has been revised. The plan
+  recommends keeping `change` as an edit and `retry` as the execution trigger,
+  but records automatic-start versus explicit-retry as an open decision.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Decide whether `change` on a finished job makes a retry
+  immediately eligible or requires explicit `retry`, including behavior when
+  the session is sealed.
