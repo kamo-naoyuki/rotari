@@ -264,6 +264,47 @@ are recorded, and what run ID/history the user receives. Do not use `reset` or
 `retry` as implicit session-boundary commands without updating their contract,
 CLI help, Web/MCP labels, and Python behavior together.
 
+### Risk: immediate submission may weaken `run` and confuse `retry`
+
+This is a primary product risk, not just a naming concern. In today's model,
+one `run` roughly means “execute this prepared batch”; its ID is also a useful
+unit for inspection, cancellation, comparison, and retry. In a `start` /
+`submit` / `wait` model, membership accumulates over time and may combine
+several scripts or unrelated submit calls. If `run` then means an open time
+window rather than a known batch, users may no longer know what “retry this
+run” selects or whether it includes later submissions.
+
+The design must preserve a meaningful run boundary even after removing the
+queue:
+
+- A run ID remains the durable owner of accepted jobs, attempts, logs,
+  dependencies, settings, and history. A script/client is not the run owner;
+  its exit does not erase or cancel accepted work.
+- `wait` seals membership, then waits for all accepted work. Only after this
+  point is the run a stable retry/comparison source. A run left open after its
+  submitter exits remains visible and can be sealed or cancelled by run ID.
+- Finished-run retry should continue to mean “create a successor run from
+  this stable source, carrying the unselected results forward,” unless the
+  product deliberately chooses another meaning.
+- The shipped active retry currently reopens final jobs in the same run. If
+  that remains, distinguish it explicitly (for example, a separate
+  `retry-active` operation) from retrying a sealed run into a successor. Do not
+  let `retry` silently switch meanings based on whether a session happens to
+  be open.
+- If run-wide cancel is the only cancellation scope, all scripts contributing
+  to one open run belong to that same cancellation unit. If that is too broad,
+  add a separately named submission/batch group with its own identity and
+  cancellation semantics; do not pretend each `submit` is already a distinct
+  run.
+
+**Decision gate:** before implementation, write examples showing `start`,
+multiple `submit` calls from different scripts, one script exiting before
+`wait`, `wait` sealing, run-wide cancel, retry of an open run, and retry of a
+finished run. Each example must say exactly which jobs are included, which run
+ID is returned, and whether a successor history unit is created. If those
+answers are hard to explain, the immediate-submit UX may be less clear than
+the queue model it replaces.
+
 ## Comparison criteria
 
 Evaluate each model against concrete workflows, not just feature counts:
@@ -278,8 +319,9 @@ Evaluate each model against concrete workflows, not just feature counts:
 | Scheduling | How do concurrency limits, scheduler submit options, throttling, and native arrays apply to late work? |
 | Preview and validation | Can rotari validate the whole intended workflow before any work starts, or are failures necessarily incremental? |
 | History and provenance | What is a run/result unit? How are dynamically added jobs and revised attempts represented and compared? |
+| Run/retry mental model | Does `run` still name a coherent unit when jobs arrive over time? Does `retry` create a successor from a sealed run, retry inside an open run, or both via explicit forms? |
 | Cancellation and recovery | What does cancel stop? What does unlock recover if a coordinator dies while accepting work? |
-| Script lifetime and batch cancellation | If a submitter script exits before `wait`, do accepted jobs continue? Can one run ID cancel the entire accepted batch, and how is an abandoned open session surfaced? |
+| Script lifetime and batch cancellation | If a submitter script exits before `wait`, do accepted jobs continue? Does a run still represent one coherent batch, or can run-wide cancel include jobs from other submissions/scripts? Is submission-group cancellation needed, and how is an abandoned open session surfaced? |
 | Interfaces | Can CLI, Web, MCP, and Python expose the same target and state transitions without implicit routing? |
 | Compatibility | Which current scripts depend on `add` not launching work, batch previews, or one run summary? |
 | Saved workflow editing | How much user-facing value is carried by `copy` + pre-execution `change`, and what replaces its clone/edit/preview steps if queues disappear? |

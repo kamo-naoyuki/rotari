@@ -360,3 +360,21 @@ Commit: 2026-10-06 17:31:46 +09:00 `82993756`.
 - **Validation:** Documentation-only; `git diff --check` passed. No tests run.
 - **Remaining:** Specify the user-visible status and cleanup action for an
   open run whose submitter has exited, while preserving run-wide cancel.
+
+## 2026-10-06 — Reassess run and retry identity under immediate submission
+
+- **Change:** Added a central risk analysis: when an open run accumulates
+  submissions over time, `run` may stop feeling like one prepared batch and
+  `retry` may no longer have an obvious selection boundary. The plans now
+  require `wait` to seal a stable source, preserve finished-run retry as a
+  successor run, and make same-run active retry an explicit distinct form if
+  retained. They also require deciding whether multiple scripts share one
+  whole-run cancellation unit or need explicit submission groups.
+- **Reason:** The user noted that immediate execution may make `run` less
+  salient and make retry harder to understand.
+- **Plan impact:** This is now a decision gate that can reject the proposed
+  model if run membership, retry selection, returned run IDs, and cancel scope
+  cannot be explained consistently with concrete examples.
+- **Validation:** Documentation-only; `git diff --check` passed. No tests run.
+- **Remaining:** Write/validate examples for multiple submitters, client exit,
+  wait/seal, whole-run cancellation, active retry, and successor-run retry.
