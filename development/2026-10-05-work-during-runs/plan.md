@@ -3,13 +3,15 @@
 **Created:** 2026-10-05
 
 **Status:** Phase 1 is complete. Phase 2's same-run retry implementation is
-committed and validated, but its product fit is under review (D10) because a
-retry cannot revise the active run's job or Slurm configuration. Phase 3 has
-its own planning document at
+committed and validated. D10's preferred direction is a narrowly revised
+next-attempt definition for selected final jobs, not a generally mutable run;
+the detailed contract/API design remains open. Phase 3 has its own planning at
 [development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md)
-and its implementation is paused pending D10 because D9 includes active-run
+and its implementation is paused until the active-retry mode and D10's
+attempt-revision boundary are specified, because D9 includes active-run
 `retry`. Phase 4 remains conditional and has not started. D1 to D5, D7, D8,
-and D9 settled on 2026-10-06; D10 is open.
+and D9 settled on 2026-10-06; the D10 direction was identified on 2026-10-06,
+with implementation details open.
 
 ## Purpose
 
@@ -66,10 +68,11 @@ straight to running without passing through the queue (D8).
 2. **Retry jobs inside the active run.** `retry --failed` (or retry of
    selected jobs) on a running project starts new attempts in that run, the
   same way `run --retry` does, instead of being rejected. The implementation
-  retries the run's existing job definition; it cannot apply corrected job or
-  Slurm settings. Whether this narrower capability is useful enough to keep,
-  and whether a corrected-definition retry belongs in the same run, is open
-  under D10.
+  currently retries the run's existing job definition. D10 now prefers
+  allowing an explicit revised definition for the next attempt of a selected
+  final job, so a corrected command or per-job executor option can be retried
+  without waiting for unrelated work; the run itself must not become
+  generally mutable.
 3. **Reduce the cost of switching projects.** Tracked separately in
   [development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md):
   measure where multiple projects force `--project-name`, then remove only
@@ -81,8 +84,8 @@ straight to running without passing through the queue (D8).
 Phases 1 and 2 were independent and shipped separately. Phase 3's measurement
 starts after Phase 1, because it removes the most common reason to create a
 second project; its separate plan is linked above. Phase 3 implementation is
-paused until D10 resolves whether active retry remains in scope. Phase 4
-depends on Phase 2 and is also gated on D10.
+paused until active retry's invocation and attempt-revision behavior are
+specified. Phase 4 depends on Phase 2 and its request-channel design.
 
 ### Non-goals
 
@@ -412,44 +415,47 @@ SAFE-2 for `retry`, and `docs/RUNNING.md` (Automatic retries, plus a new
   --failed` while the slow job runs reruns only the failed job in the same
   run; option rejection rows; the same through the Web API.
 
-### Phase 2: Product-fit review (D10)
+### Phase 2: Attempt revision review (D10)
 
 The shipped active retry reopens a final job using the active run's existing
 `JobSpec` and run settings. It helps when the failure may disappear without
 changing that definition (for example, a transient external service failure),
-but cannot correct a bad per-job executor option, command, environment, or
-run-level Slurm option before retrying. Editing the next queue does not mutate
-the active run's in-memory execution plan.
+but cannot correct a bad per-job executor option, command, or environment
+before retrying. Editing the next queue does not mutate the active run's
+in-memory execution plan.
 
-Before extending Phase 3's active-run auto-selection to `retry`, decide whether
-this existing capability is valuable enough to preserve and what user intent
-it should express. Keep these as separate questions:
+**Preferred direction (2026-10-06):** retain same-run retry and allow the
+request to revise the selected final job's next attempt. Keep the initial
+`runs/<run-id>/commands.json` as the immutable declaration of run membership,
+dependencies, array/matrix shape, and original job definitions. Treat a retry
+override as an attempt-level revision: persist the effective `JobSpec` beside
+that attempt's existing `command.json`, and make every subsequent attempt,
+status, report, and UI view identify which definition it used. This is a
+bounded relaxation of immutability, not permission to rewrite arbitrary run
+state.
 
-1. **Invocation clarity only:** retain same-definition retry, but consider an
-   explicit active-run mode such as `retry --in-run`. This prevents state-based
-   surprises; it does not allow corrected settings and should not be presented
-   as fixing that limitation.
-2. **Corrected job definition in the same run:** support a request that carries
-   an explicit replacement for selected final jobs' execution fields, then
-   execute a new attempt using that definition. This changes the immutable-run
-   model: the initial `commands.json` can no longer be the sole specification
-   of every attempt. Before implementation, define per-attempt provenance,
-   which fields may change, dependency/array behavior, executor validation,
-   scheduler submission settings (per-job versus dispatcher/run-level), and
-   how summaries and Web/MCP/CLI views expose the revision used. This is a
-   separate architectural decision, not a small extension to the current
-   retry request.
-3. **Defer or remove active retry:** if same-definition retries do not solve a
-   demonstrated workflow and corrected-definition retries are too costly,
-   keep next-queue editing and new-run retry as the supported fix-and-rerun
-   path. Revisit the shipped active retry before expanding it to more implicit
-   selectors or interfaces.
+Before implementation, settle these boundaries:
 
-Decision criteria: identify concrete cases that the current behavior solves,
-cases it cannot solve, and whether users require the same run ID/history or
-would accept a new run. Do not treat `--in-run` as a solution to changed
-configuration. D9's active `retry` project-selection rule remains provisional
-until D10 chooses a direction.
+- Which execution fields can be revised per attempt (candidate: command,
+  working directory, environment, timeout, executor, and executor options),
+  and which remain fixed (job identity, dependency edges, array/matrix shape,
+  run context, concurrency, and run-level retry policy).
+- How an explicit retry override differs from run-level flags, especially
+  Slurm/PBS/LSF/SGE submission options. A per-job override can replace an
+  executor lane's defaults for that job, but it cannot retroactively change
+  already-submitted work or safely mutate a lane used by other running jobs.
+- Whether active retry must opt in explicitly (for example `--in-run`) so a
+  command does not silently change its history semantics based only on project
+  state.
+- How array-wide retries validate and apply overrides atomically, how blocked
+  descendants use their original definitions, and how the next queue remains
+  separate.
+
+If corrected-definition retry is rejected after this design pass, keep the
+current capability explicitly documented as same-definition retry for
+transient failures, or defer/remove it. D9's active-run project inference
+remains provisional until this decision is implemented or the retry scope is
+narrowed.
 
 ## Phase 3: Project selection
 
@@ -521,10 +527,13 @@ Open:
 
 - **D6** Whether to add a per-directory project pin; the decision gate is
   tracked in [development/2026-10-06-project-selection/plan.md](../2026-10-06-project-selection/plan.md).
-- **D10** Whether to retain same-definition active retry, make its invocation
-  explicit, expand it to corrected job definitions with per-attempt
-  provenance, or defer/remove it. Decide before implementing Phase 3's active
-  `retry` inference or Phase 4's request-channel extension.
+- **D10** Preferred direction: allow a selected final job's next attempt to
+  use an explicit revised execution definition, recorded per attempt, while
+  keeping run membership and dependency/array topology immutable. The exact
+  mutable fields, Slurm/run-level option boundary, explicit `--in-run` mode,
+  and per-attempt read-side representation remain undecided. Resolve these
+  before Phase 3 implements active `retry` inference or Phase 4 extends the
+  request channel.
 
 ## Validation for each phase
 
