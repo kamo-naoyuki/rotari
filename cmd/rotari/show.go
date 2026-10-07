@@ -442,7 +442,7 @@ func cmdShow(args []string) int {
 			if stream == "both" {
 				stream = "stdout"
 			}
-			return followJobLog(os.Stdout, paths, runID, *jobIDOption, stream)
+			return followJobLog(os.Stdout, paths, runID, *jobIDOption, attemptID, stream)
 		}
 		return showWithPager(!*noPager, func(writer io.Writer) int {
 			return showJobAttempt(writer, paths, runID, *jobIDOption, attemptID, *streamOption)
@@ -2005,7 +2005,7 @@ func printCarriedForwardOutput(writer io.Writer, paths state.ProjectPaths, id, n
 	fmt.Fprintln(writer)
 }
 
-func followJobLog(writer io.Writer, paths state.ProjectPaths, runID, jobID string, streams ...string) int {
+func followJobLog(writer io.Writer, paths state.ProjectPaths, runID, jobID, attemptID string, streams ...string) int {
 	if !state.IsValidPathElement(runID) {
 		printErrorf(runNotFoundMessage, runID)
 		return 1
@@ -2025,7 +2025,7 @@ func followJobLog(writer io.Writer, paths state.ProjectPaths, runID, jobID strin
 		return 1
 	}
 	latestAttemptID, attemptErr := state.LatestAttemptID(runDir, jobID)
-	if attemptErr != nil || latestAttemptID == "" {
+	if attemptID == "" && (attemptErr != nil || latestAttemptID == "") {
 		if origin := state.LoadRunOrigin(runDir, jobID); origin != nil {
 			fmt.Fprintf(writer, "%s carried forward from run %s (no re-execution)\n\n", cyan("Note:"), origin.RunID)
 			originRunDir, pathErr := state.SafeJoin(paths.RunsDir, origin.RunID)
@@ -2056,12 +2056,26 @@ func followJobLog(writer io.Writer, paths state.ProjectPaths, runID, jobID strin
 		printErrorf("job %q has not started an attempt in run %q", jobID, runID)
 		return 1
 	}
-	jobDir, err := state.SpecificAttemptJobDir(runDir, jobID, latestAttemptID)
+	selectedAttemptID := attemptID
+	if selectedAttemptID == "" {
+		selectedAttemptID = latestAttemptID
+	}
+	jobDir, err := state.SpecificAttemptJobDir(runDir, jobID, selectedAttemptID)
 	if err != nil {
 		printErrorf(jobNotFoundMessage, jobID, runID)
 		return 1
 	}
 	outputPath := filepath.Join(jobDir, stream)
+	mergedOutputPath := filepath.Join(jobDir, "output")
+	if _, err := os.Stat(mergedOutputPath); err == nil {
+		// The default log mode stores stdout and stderr together in output.
+		// showJobAttempt reads this file regardless of the selected stream;
+		// follow must read it too for flushed output to appear while following.
+		outputPath = mergedOutputPath
+	} else if !os.IsNotExist(err) {
+		printErrorf("failed to read job log: %v", err)
+		return 1
+	}
 	output, err := os.ReadFile(outputPath)
 	if err != nil && !os.IsNotExist(err) {
 		printErrorf("failed to read job %s: %v", stream, err)

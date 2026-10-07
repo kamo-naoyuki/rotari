@@ -2097,11 +2097,51 @@ func TestFollowJobLogReadsAppendedOutputUntilFinished(t *testing.T) {
 	}()
 
 	var output bytes.Buffer
-	if code := followJobLog(&output, paths, "run-1", "job-1", state.StdoutFileName); code != 0 {
+	if code := followJobLog(&output, paths, "run-1", "job-1", "", state.StdoutFileName); code != 0 {
 		t.Fatalf("followJobLog exit = %d, want 0", code)
 	}
 	if got := output.String(); got != "first\nsecond\n" {
 		t.Fatalf("followed output = %q, want appended log", got)
+	}
+}
+
+func TestFollowJobLogReadsMergedOutput(t *testing.T) {
+	baseDir := t.TempDir()
+	paths, err := state.ResolveProjectPaths(baseDir, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := "run-1"
+	jobID := "job-1"
+	attemptID := state.MakeAttemptID(runID, jobID, 0)
+	jobDir := filepath.Join(paths.RunsDir, runID, jobID, "attempts", attemptID)
+	if err := os.MkdirAll(jobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(jobDir, "output"), []byte("flushed line\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(jobDir, "status"), []byte("0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	newerAttemptID := state.MakeAttemptID(runID, jobID, 1)
+	newerJobDir := filepath.Join(paths.RunsDir, runID, jobID, "attempts", newerAttemptID)
+	if err := os.MkdirAll(newerJobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(newerJobDir, "output"), []byte("newer attempt\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(newerJobDir, "status"), []byte("0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var output bytes.Buffer
+	if code := followJobLog(&output, paths, runID, jobID, attemptID, state.StdoutFileName); code != 0 {
+		t.Fatalf("followJobLog exit = %d, want 0", code)
+	}
+	if got := output.String(); got != "flushed line\n" {
+		t.Fatalf("followed output = %q, want merged output", got)
 	}
 }
 

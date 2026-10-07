@@ -38,6 +38,13 @@ rotari show RUN_ID --report # describe the whole run and include recent logs
 rotari show -p sweep --run-id latest --job-id JOB_ID --json # one run job (or all tasks of an array) as JSON
 ```
 
+When a run is active and output is a terminal, `show JOB_ID` and
+`show ATTEMPT_ID` follow the selected attempt's log automatically. The default
+merged log mode follows the combined `output` file, where stdout and stderr
+cannot be distinguished. `--log-mode separate` stores them independently, and
+`--stream` chooses which one to follow. Output buffered by the job itself
+appears only after that program flushes it.
+
 When the selected run is active or interrupted, a non-empty next queue is
 shown separately after the run. In JSON, `commands` remains the run snapshot
 and `next_queue` contains the queued work; `check` reports its queued count.
