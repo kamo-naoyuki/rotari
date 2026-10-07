@@ -48,7 +48,7 @@ func TestLoadUsesOnlyHighestPriorityFile(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write(filepath.Join(configHome, "rotari", FileName), "[browser]\nmax_jobs = 1\n")
+	write(filepath.Join(configHome, "rotari", FileName), "[webhook]\nurl = 'https://example.invalid/global'\n[browser]\nmax_jobs = 1\n")
 	write(filepath.Join(baseDir, FileName), "[browser]\nmax_jobs = 2\n")
 	write(filepath.Join(projectDir, FileName), "[browser]\nmax_jobs = 3\n")
 
@@ -58,6 +58,9 @@ func TestLoadUsesOnlyHighestPriorityFile(t *testing.T) {
 	}
 	if loaded.Path != filepath.Join(projectDir, FileName) || loaded.Settings.Browser.MaxJobs != 3 {
 		t.Fatalf("loaded = %#v", loaded)
+	}
+	if loaded.Settings.Webhook.URL != "" {
+		t.Fatal("project notifications inherited global webhook URL")
 	}
 }
 

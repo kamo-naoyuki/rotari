@@ -133,11 +133,11 @@ func loadRunNotificationSettings(paths state.ProjectPaths, runID string) (notifi
 	}
 	context, err := state.LoadContext(jsonStore(), runDir)
 	if err == nil {
-		for index, originalPath := range context.ConfigPaths {
-			if filepath.Base(originalPath) != notification.FileName || index >= len(context.ConfigSnapshotFiles) {
+		for _, fileName := range context.ConfigSnapshotFiles {
+			if fileName != notification.FileName {
 				continue
 			}
-			data, err := os.ReadFile(filepath.Join(runDir, "configs", context.ConfigSnapshotFiles[index]))
+			data, err := os.ReadFile(filepath.Join(runDir, "configs", fileName))
 			if err != nil {
 				return notification.Settings{}, err
 			}

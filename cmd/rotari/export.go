@@ -258,7 +258,7 @@ func loadExportRuns(baseDir, projectName string, requestedRunIDs []string) ([]wo
 			return nil, "", fmt.Errorf("duplicate run ID %q", requested)
 		}
 		seen[requested] = true
-		resolvedBaseDir, resolvedProject, err := resolve.ExistingRun(baseDir, projectName, requested)
+		resolvedBaseDir, resolvedProject, err := resolveCLIExistingRun(baseDir, projectName, requested)
 		if err != nil {
 			return nil, "", err
 		}

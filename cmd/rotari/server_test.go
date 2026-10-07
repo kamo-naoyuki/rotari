@@ -138,6 +138,15 @@ func TestRunSnapshotsOnlyExplicitlyLoadedConfig(t *testing.T) {
 	useInProcessSupervisor(t)
 	oldConfig, oldConfigCommand, oldConfigPath := cliConfig, cliConfigCommand, cliConfigPath
 	t.Cleanup(func() { cliConfig, cliConfigCommand, cliConfigPath = oldConfig, oldConfigCommand, oldConfigPath })
+	originalStart := startSupervisor
+	startSupervisor = func(paths state.ProjectPaths) (*serverinternal.Client, error) {
+		// The file was loaded and serialized before supervisor startup. Removing
+		// it here must not change or prevent this run's immutable snapshot.
+		if err := os.Remove(selectedConfig); err != nil {
+			return nil, err
+		}
+		return originalStart(paths)
+	}
 	if code := run([]string{"run", "--basedir", baseDir, "--project-name", "demo", "--config", selectedConfig, "--quiet"}); code != 0 {
 		t.Fatalf("run exit code = %d", code)
 	}

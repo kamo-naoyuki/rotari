@@ -14,23 +14,51 @@ const LoadSampleInterval = 10 * time.Second
 
 // WriteContext records where and how a run starts: working directory, host,
 // load, and snapshots of the loaded command and notification configs.
-func (runner Runner) WriteContext(paths state.ProjectPaths, runID, cwd, configPath string) error {
+func (runner Runner) WriteContext(paths state.ProjectPaths, runID, cwd, configPath string, snapshots ...*model.FileConfigSnapshot) error {
 	runDir, err := state.SafeJoin(paths.RunsDir, runID)
 	if err != nil {
 		return err
 	}
 	hostname, _ := os.Hostname()
 	context := model.RunContext{CWD: cwd, Hostname: hostname, StartedLoad: readLoadAverage()}
-	if runner.ConfigPaths != nil {
-		context.ConfigPaths = runner.ConfigPaths(paths, configPath)
+	var snapshot *model.FileConfigSnapshot
+	if len(snapshots) > 0 {
+		snapshot = snapshots[0]
 	}
-	if len(context.ConfigPaths) > 0 {
-		files, snapshotPaths, err := snapshotRunConfigs(runDir, context.ConfigPaths)
+	if snapshot != nil {
+		snapshotDir := filepath.Join(runDir, "configs")
+		if err := os.MkdirAll(snapshotDir, state.DirectoryMode()); err != nil {
+			return err
+		}
+		path := filepath.Join(snapshotDir, "config.toml")
+		if err := os.WriteFile(path, []byte(snapshot.Content), state.FileMode()); err != nil {
+			return err
+		}
+		context.ConfigSources = append([]model.ConfigSource(nil), snapshot.Sources...)
+		for _, source := range snapshot.Sources {
+			context.ConfigPaths = append(context.ConfigPaths, source.Path)
+		}
+		context.ConfigSnapshotFiles = []string{"config.toml"}
+		context.ConfigSnapshotPaths = []string{path}
+		// Only the separate notification file may be loaded here. Ordinary
+		// sources have already been captured; do not reread any of them.
+		configPath = ""
+	}
+	var additionalPaths []string
+	if runner.ConfigPaths != nil {
+		additionalPaths = runner.ConfigPaths(paths, configPath)
+	}
+	if snapshot != nil {
+		additionalPaths = notificationPaths(additionalPaths)
+	}
+	context.ConfigPaths = append(context.ConfigPaths, additionalPaths...)
+	if len(additionalPaths) > 0 {
+		files, snapshotPaths, err := snapshotRunConfigs(runDir, additionalPaths)
 		if err != nil {
 			return err
 		}
-		context.ConfigSnapshotFiles = files
-		context.ConfigSnapshotPaths = snapshotPaths
+		context.ConfigSnapshotFiles = append(context.ConfigSnapshotFiles, files...)
+		context.ConfigSnapshotPaths = append(context.ConfigSnapshotPaths, snapshotPaths...)
 	}
 	if context.StartedLoad != nil {
 		if err := runner.appendLoadSample(runDir, *context.StartedLoad); err != nil {
@@ -38,6 +66,16 @@ func (runner Runner) WriteContext(paths state.ProjectPaths, runID, cwd, configPa
 		}
 	}
 	return state.SaveContext(runner.Store, runDir, context)
+}
+
+func notificationPaths(paths []string) []string {
+	var notifications []string
+	for _, path := range paths {
+		if filepath.Base(path) == "notifications.toml" {
+			notifications = append(notifications, path)
+		}
+	}
+	return notifications
 }
 
 // FinishContext adds the load at the end of a run to its context.

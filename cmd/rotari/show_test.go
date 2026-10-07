@@ -419,12 +419,11 @@ func TestCmdShowDisplaysResolvedConfigPaths(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("cmdShow exit code = %d, want 0", code)
 	}
-	want := "Config: " + projectConfig
-	if !strings.Contains(string(output), want) {
-		t.Fatalf("cmdShow output does not contain highest-priority config path %q:\n%s", want, output)
-	}
-	if strings.Contains(string(output), globalConfig) || strings.Contains(string(output), baseConfig) {
-		t.Fatalf("cmdShow output contains lower-priority config paths:\n%s", output)
+	for _, source := range []struct{ scope, path string }{{"global", globalConfig}, {"basedir", baseConfig}, {"project", projectConfig}} {
+		want := "Config: " + source.path + " (" + source.scope + ")"
+		if !strings.Contains(string(output), want) {
+			t.Fatalf("cmdShow output missing source %q:\n%s", want, output)
+		}
 	}
 }
 

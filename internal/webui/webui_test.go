@@ -849,6 +849,7 @@ setTimeout(() => {
 		t.Fatal(err)
 	}
 	state.ConfigPath = ""
+	state.ConfigSources = nil
 	data, err := json.Marshal(state)
 	if err != nil {
 		t.Fatal(err)
@@ -1063,6 +1064,7 @@ setTimeout(() => {
 }
 
 func TestStaticWebUsesGenerateConfigReadOnlyFlow(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
 	}
@@ -2200,7 +2202,7 @@ func TestWebSaveConfigWritesOnlyTheResolvedCurrentConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler := Handler(testOptions(baseDir, true))
-	request := httptest.NewRequest(http.MethodPost, "/api/save-config", strings.NewReader(`{"project_name":"demo","content":"project = false\n"}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/save-config", strings.NewReader(`{"project_name":"demo","scope":"project","path":`+strconv.Quote(projectPath)+`,"content":"project = false\n"}`))
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK {
@@ -2249,7 +2251,7 @@ func TestWebSaveConfigRejectsInvalidFormatWithoutWriting(t *testing.T) {
 			if err := os.WriteFile(path, []byte(test.original), stateinternal.FileMode()); err != nil {
 				t.Fatal(err)
 			}
-			request := httptest.NewRequest(http.MethodPost, "/api/save-config", strings.NewReader(`{"content":`+strconv.Quote(test.invalid)+`}`))
+			request := httptest.NewRequest(http.MethodPost, "/api/save-config", strings.NewReader(`{"scope":"basedir","path":`+strconv.Quote(path)+`,"content":`+strconv.Quote(test.invalid)+`}`))
 			recorder := httptest.NewRecorder()
 			Handler(testOptions(baseDir, true)).ServeHTTP(recorder, request)
 			if recorder.Code == http.StatusOK || !strings.Contains(recorder.Body.String(), "invalid "+test.name+" config") {

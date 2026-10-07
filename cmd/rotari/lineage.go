@@ -28,7 +28,7 @@ func cmdLineage(args []string) int {
 	if err := cliParse(fs, args); err != nil {
 		return 1
 	}
-	baseDir, project, err := resolve.ExistingRun(*basedir, *projectName, firstNonEmpty(fs.Args()...))
+	baseDir, project, err := resolveCLIExistingRun(*basedir, *projectName, firstNonEmpty(fs.Args()...))
 	if err != nil {
 		printError(err)
 		return 1

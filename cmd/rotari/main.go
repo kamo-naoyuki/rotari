@@ -54,7 +54,7 @@ func dispatch(args []string) int {
 		writeCommandHelp(os.Stdout, args[0], nil)
 		return 0
 	}
-	if args[0] != "config" && args[0] != "schema" && args[0] != "guide" && args[0] != "--version" && args[0] != "version" {
+	if args[0] != "__server" && args[0] != "init" && args[0] != "config" && args[0] != "schema" && args[0] != "guide" && args[0] != "--version" && args[0] != "version" {
 		if err := loadCLIConfigForCommand(args[0], args[1:]); err != nil {
 			printErrorf("failed to load config: %v", err)
 			return 1
@@ -66,6 +66,8 @@ func dispatch(args []string) int {
 	}
 
 	switch args[0] {
+	case "init":
+		return cmdInit(args[1:])
 	case "config":
 		return cmdConfig(args[1:])
 	case "check":

@@ -4,6 +4,15 @@ rotari queues shell commands per project, runs them as a batch (a run), and
 keeps each run's results so failed jobs can be fixed and rerun while
 successful results are carried forward.
 
+## Workspace configuration
+
+`rotari init [BASEDIR [PROJECT]]` writes cwd `.rotari.toml` only; it does not
+create state or overwrite existing settings. BASEDIR must be relative.
+Workspace files are not inherited from parents. Ordinary command config merges
+global → workspace → basedir → project, while `--config FILE` replaces that
+discovery. CLI/environment overrides win, but runs snapshot only merged file
+values. Notifications select one project/basedir/global file without merging.
+
 ## Rules
 
 - Start runs with `rotari run --async`, then block on `rotari wait`. To

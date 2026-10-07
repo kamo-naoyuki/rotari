@@ -12,13 +12,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestProjectConfigIgnoresLowerPriorityScopes(t *testing.T) {
+func TestProjectConfigMergesLowerPriorityScopes(t *testing.T) {
 	baseDir := t.TempDir()
 	projectDir := filepath.Join(baseDir, "projects", "demo")
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(baseDir, "config.json"), []byte(`{"executor":`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(baseDir, "config.json"), []byte(`{"executor":"local","retry":2}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(projectDir, "config.json"), []byte(`{"executor":"slurm"}`), 0o644); err != nil {
@@ -29,7 +29,7 @@ func TestProjectConfigIgnoresLowerPriorityScopes(t *testing.T) {
 	if err := loadCLIConfig([]string{"--basedir", baseDir, "--project-name", "demo"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := configString("executor", ""); got != "slurm" || configInt("retry", 0) != 0 {
+	if got := configString("executor", ""); got != "slurm" || configInt("retry", 0) != 2 {
 		t.Fatalf("config = %#v", cliConfig)
 	}
 	if cliConfigPath != filepath.Join(projectDir, "config.json") {
@@ -105,7 +105,7 @@ func TestAddUsesExplicitConfigFile(t *testing.T) {
 	}
 }
 
-func TestBasedirConfigIgnoresGlobalCommandSections(t *testing.T) {
+func TestBasedirConfigMergesGlobalCommandSections(t *testing.T) {
 	configHome := t.TempDir()
 	baseDir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(baseDir, "projects", "demo"), 0o755); err != nil {
@@ -115,7 +115,7 @@ func TestBasedirConfigIgnoresGlobalCommandSections(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(configHome, "rotari"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(configHome, "rotari", "config.yaml"), []byte("run: [invalid\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(configHome, "rotari", "config.yaml"), []byte("run:\n  retry: 3\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(baseDir, "config.yaml"), []byte("run:\n  executor: local\n"), 0o644); err != nil {
@@ -130,7 +130,7 @@ func TestBasedirConfigIgnoresGlobalCommandSections(t *testing.T) {
 		t.Fatal(err)
 	}
 	cliConfigCommand = "run"
-	if got := configString("executor", ""); got != "local" || configInt("retry", 0) != 0 {
+	if got := configString("executor", ""); got != "local" || configInt("retry", 0) != 3 {
 		t.Fatalf("basedir command config = %#v", cliConfig)
 	}
 	cliConfigCommand = "show"
@@ -533,7 +533,7 @@ func TestPrintConfigCandidates(t *testing.T) {
 	if !strings.Contains(output.String(), "2) basedir") || !strings.Contains(output.String(), "3) project demo") {
 		t.Fatalf("candidate output:\n%s", output.String())
 	}
-	if !strings.Contains(output.String(), "4) stdout") || !strings.Contains(output.String(), "project > basedir > global") {
+	if !strings.Contains(output.String(), "4) stdout") || !strings.Contains(output.String(), "project > basedir > workspace > global") {
 		t.Fatalf("candidate output is missing stdout:\n%s", output.String())
 	}
 	output.Reset()

@@ -7,6 +7,12 @@ from typing import Any
 CLI_SCHEMA: dict[str, Any] = {
     "commands": [
         {
+            "description": "write cwd workspace location defaults without creating "
+            "state",
+            "name": "init",
+            "positional": "[BASEDIR [PROJECT]]",
+        },
+        {
             "description": "generate a config file template",
             "flags": [
                 {

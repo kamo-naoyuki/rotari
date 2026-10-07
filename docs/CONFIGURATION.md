@@ -13,11 +13,12 @@ rotari config
 ```
 
 Use `rotari config --list` to list every existing config file—including
-`notifications.toml`—found in the global and basedir locations plus every
+`notifications.toml`—found in the global and basedir locations, cwd workspace
+`.rotari.toml`, plus every
 project below the basedir. It groups common files under `Common:` and
 project-specific files under `Projects:`, with each project name followed by
-indented paths. This is an inventory, not the single config selected by
-priority. Supplying `--project-name` limits the project-specific entries to
+indented paths. This is an inventory, including files in unselected projects.
+Supplying `--project-name` limits the project-specific entries to
 that project.
 
 ```sh
@@ -29,12 +30,12 @@ The resolution order is:
 ```text
 CLI option (e.g., --retry)
 environment variable (e.g., ROTARI_RUN_RETRY)
-configuration value (from the selected file)
+configuration value (from merged files)
 built-in default
 ```
 
 Commands that load configuration accept `--config FILE` to use a specific
-YAML, TOML, or JSON file instead of looking in the project, basedir, and global
+YAML, TOML, or JSON file instead of looking in the project, basedir, workspace, and global
 locations. Both `--config FILE` and `--config=FILE` are supported. An explicitly
 selected file must exist and parse successfully; `--config` itself cannot be
 set by an environment variable or another config file.
@@ -49,21 +50,56 @@ When the file loads successfully, help still shows the configured defaults.
 Normal execution continues to fail on configuration errors; `--help` used as
 an option value or inside an `add`/`change` job command is not a help request.
 
-Without `--config`, the selected configuration file is the first one found in
-the project, basedir, then global locations. Lower-priority files are not
-merged. Output paths such as `export --output` are read only from the command
-line; config files and environment variables do not set them.
+Without `--config`, ordinary configuration merges **global → workspace →
+basedir → project**. Global, basedir, and project directories accept one of
+`config.yaml`, `config.toml`, or `config.json`; multiple formats in one scope
+are an error. Workspace configuration is only `.rotari.toml` in the **current
+working directory**: parent directories are never searched. Malformed or
+unreadable discovered files fail with their scope and path.
 
-`rotari show` includes the highest-priority config path in its header when
-config files are present. The web UI uses the same project, basedir, then
-global priority and displays only that one path.
+Maps merge recursively; higher-scope scalars and arrays replace lower ones.
+`null` is unspecified and retains the lower value; `false`, `0`, and `""` are
+explicit values. After merging, a command section (such as `[run]`) overrides
+the root key, even when that section originated in a lower scope. CLI and
+environment overrides still win. Output paths such as `export --output` are
+command-line-only.
 
-Only the first existing config in that priority order is loaded; lower-priority
-config files are ignored. An explicit `--config FILE` selects that file instead.
-When a run starts, rotari copies only the config actually loaded into its run
-directory as `configs/config.<ext>` (for example, `configs/config.toml`). The
-run page's `View config` displays the copy, so later edits do not change
-historical run details. Its `Config:` location lists the run-local copy path.
+### Workspace defaults and initialization
+
+Run `rotari init [BASEDIR [PROJECT]]` in a workspace to create `.rotari.toml`.
+The default basedir is `.rotari-state`; an argument must be relative (including
+`../state` when appropriate). Project names must be safe single path elements.
+Initialization writes only the workspace file, atomically: it creates no state
+directory, project, queue, or registry entry. It refuses to replace an existing
+file, preserving all settings; edit it explicitly instead.
+
+Basedir selection uses CLI, environment, workspace/global file defaults, then
+the existing cwd `.rotari-state`/XDG/home fallback. A workspace relative basedir
+is relative to the workspace file's directory. After loading that basedir,
+project selection uses CLI, environment, basedir/workspace/global defaults,
+then single-project discovery or `default`. A basedir config may set
+`project-name`, but may not set `basedir`. A project config may set neither
+location key. These restrictions also apply in command sections and produce
+errors, not ignored settings. File defaults are not explicit constraints when
+a run or attempt ID identifies a different location through the registry.
+
+### Inspecting and recording configuration
+
+`rotari show` lists the contributing source paths and scopes. The current Web
+`View config` lists actual source files by scope/path; select one if several
+exist, or open the single file directly. It never presents a merged current
+viewer/editor. Saves affect only the selected, validated source. Workspace
+context is the Web server's startup cwd, not a viewed job's working directory.
+Live and static views use the same source-selection UI; static writes remain
+disabled.
+
+Every run saves one canonical merged **file configuration** as
+`configs/config.toml`, from values captured by the client. It excludes CLI
+options, environment overrides, and built-in defaults, and does not reread
+sources when the supervisor starts. Source paths/scopes are recorded separately
+in `context.json`, independently of the snapshot file list. Run `View config`
+remains read-only and reads the saved copy, including older YAML/JSON snapshots.
+A retry is a new invocation using its current configuration, not the old run's.
 
 ## Environment variables
 
@@ -88,7 +124,12 @@ values from the current process.
 Webhook and browser notifications are configured in `notifications.toml`, which
 is separate from the command defaults above. Rotari uses the first one it finds
 in the project, the basedir, then the global config directory, without merging
-scopes. Generate one with:
+scopes. Unlike ordinary command configuration, it has **no workspace scope**
+and does **not inherit** lower-file settings. A project notification file
+replaces the global file entirely: an omitted webhook URL does not inherit a
+global destination; omitted fields use notification built-in defaults.
+Notification snapshots and their read-only run viewer remain separate.
+Generate one with:
 
 ```sh
 rotari config --notifications

@@ -2,6 +2,7 @@ package webui
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/kamo-naoyuki/rotari/internal/jobcontrol"
 	"github.com/kamo-naoyuki/rotari/internal/notification"
@@ -13,6 +14,8 @@ import (
 // Options configures the Web UI for one base directory.
 type Options struct {
 	BaseDir string
+	// WorkspaceDir is captured at server startup, never a viewed job's cwd.
+	WorkspaceDir string
 	// RootBaseDir is the Web process's original state directory and anchors
 	// the unprefixed routes while the browser switches to other basedirs.
 	RootBaseDir string
@@ -44,7 +47,8 @@ type Options struct {
 	Environments []web.EnvironmentDefinition
 	// ConfigTemplate returns the TOML config template that "generate config"
 	// writes.
-	ConfigTemplate func() ([]byte, error)
+	ConfigTemplate         func() ([]byte, error)
+	ConfigTemplateForScope func(string) ([]byte, error)
 }
 
 // site serves one Options.
@@ -59,11 +63,17 @@ func (s site) environments() []web.EnvironmentDefinition {
 
 // Handler serves the Web UI and its JSON API.
 func Handler(options Options) http.Handler {
+	if options.WorkspaceDir == "" {
+		options.WorkspaceDir, _ = os.Getwd()
+	}
 	return site{Options: options, notificationSession: newNotificationSession()}.handler()
 }
 
 // GenerateStatic writes a read-only static export of the Web UI to
 // outputDir, replacing what is there.
 func GenerateStatic(outputDir string, options Options) error {
+	if options.WorkspaceDir == "" {
+		options.WorkspaceDir, _ = os.Getwd()
+	}
 	return site{Options: options, notificationSession: newNotificationSession()}.generateStaticWeb(outputDir)
 }

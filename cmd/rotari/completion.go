@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
@@ -85,10 +84,16 @@ func cmdComplete(args []string) int {
 	if args[0] != "job-id" {
 		runID = ""
 	}
+	if basedir == "" {
+		basedir = configString("basedir", "")
+	}
+	if projectName == "" {
+		projectName = configString("project-name", "")
+	}
 	baseDir := ""
 	var err error
 	if runID != "" {
-		baseDir, projectName, err = resolve.ExistingRun(basedir, projectName, runID)
+		baseDir, projectName, err = resolveCLIExistingRun(basedir, projectName, runID)
 	} else {
 		baseDir, _, err = state.ResolveBaseDir(basedir)
 	}

@@ -89,7 +89,7 @@ func (ops Operations) beginRun(request server.Request) (startedRun, error) {
 	defer prepared.release()
 	request.SourceRunID = prepared.sourceRunID
 	runID := ops.NewRunID()
-	start := projectrun.Start{RunID: runID, RunName: request.RunName, CWD: request.CWD, ConfigPath: request.ConfigPath}
+	start := projectrun.Start{RunID: runID, RunName: request.RunName, CWD: request.CWD, ConfigPath: request.ConfigPath, FileConfig: request.FileConfig}
 	if prepared.snapshotFromSource {
 		start.Snapshot = &prepared.queue
 	}

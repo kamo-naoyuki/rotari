@@ -39,7 +39,7 @@ const (
 
 func resolveShowJobTargets(cliBaseDir, cliProjectName, runID, selector string, byName bool) ([]resolve.Job, error) {
 	if runID != "" {
-		baseDir, projectName, err := resolve.ExistingRun(cliBaseDir, cliProjectName, runID)
+		baseDir, projectName, err := resolveCLIExistingRun(cliBaseDir, cliProjectName, runID)
 		if err != nil {
 			return nil, err
 		}
@@ -162,7 +162,7 @@ func cmdShow(args []string) int {
 	attemptID := ""
 	if selector != "" && strings.HasPrefix(selector, "att_") {
 		attemptID = selector
-		baseDir, projectName, resolvedRunID, resolvedJobID, err := resolve.Attempt(selector, *basedir, *queueNameOption, "")
+		baseDir, projectName, resolvedRunID, resolvedJobID, err := resolveCLIAttempt(selector, *basedir, *queueNameOption, "")
 		if err != nil {
 			printError(err)
 			return 1
@@ -175,7 +175,7 @@ func cmdShow(args []string) int {
 			printError(err)
 			return 1
 		} else if found {
-			baseDir, projectName, err := resolve.ExistingRun(*basedir, *queueNameOption, selector)
+			baseDir, projectName, err := resolveCLIExistingRun(*basedir, *queueNameOption, selector)
 			if err != nil {
 				printError(err)
 				return 1
@@ -209,7 +209,7 @@ func cmdShow(args []string) int {
 	}
 	if strings.HasPrefix(*jobIDOption, "att_") {
 		attemptID = *jobIDOption
-		baseDir, projectName, resolvedRunID, resolvedJobID, err := resolve.Attempt(*jobIDOption, *basedir, *queueNameOption, *runIDOption)
+		baseDir, projectName, resolvedRunID, resolvedJobID, err := resolveCLIAttempt(*jobIDOption, *basedir, *queueNameOption, *runIDOption)
 		if err != nil {
 			printError(err)
 			return 1
@@ -310,7 +310,7 @@ func cmdShow(args []string) int {
 		!(*showQueueOption || *showBaseDirsList || resultFilter || *showLogs || *showFailedLogs || *followLogs || *jsonOutput || *reportOutput) {
 		return showAllProjects(*basedir, *masterdir)
 	}
-	baseDir, queueName, err := resolve.ExistingRun(*basedir, *queueNameOption, *runIDOption)
+	baseDir, queueName, err := resolveCLIExistingRun(*basedir, *queueNameOption, *runIDOption)
 	if err != nil {
 		printError(err)
 		return 1
@@ -793,8 +793,12 @@ func writeShowTargetHeaderWithMode(writer io.Writer, paths state.ProjectPaths, m
 		fmt.Fprintf(writer, "%s stopped\n", cyan("Runner server:"))
 	}
 	fmt.Fprintf(writer, "%s %d\n", cyan("Runs:"), project.CountRuns(paths))
-	if configPath := config.EffectivePath(paths.BaseDir, paths.ProjectName); configPath != "" {
-		fmt.Fprintf(writer, "%s %s\n", cyan("Config:"), configPath)
+	if cwd, err := os.Getwd(); err == nil {
+		if loaded, err := config.Load(cwd, paths.BaseDir, paths.ProjectName); err == nil {
+			for _, source := range loaded.Sources {
+				fmt.Fprintf(writer, "%s %s (%s)\n", cyan("Config:"), source.Path, source.Scope)
+			}
+		}
 	}
 }
 

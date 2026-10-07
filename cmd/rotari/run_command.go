@@ -118,7 +118,7 @@ func runJobs(args []string, defaultSelection string) int {
 	}
 	if *jobNameOption != "" {
 		if *runIDOption != "" {
-			baseDir, projectName, resolvedRunID, err := resolve.ExistingRunID(*basedir, *queueNameOption, *runIDOption)
+			baseDir, projectName, resolvedRunID, err := resolveCLIExistingRunID(*basedir, *queueNameOption, *runIDOption)
 			if err != nil {
 				printError(err)
 				return 1
@@ -197,7 +197,7 @@ func runJobs(args []string, defaultSelection string) int {
 			*runIDOption = target.RunID
 		}
 	}
-	baseDir, queueName, resolvedRunID, err := resolve.ExistingRunID(*basedir, *queueNameOption, *runIDOption)
+	baseDir, queueName, resolvedRunID, err := resolveCLIExistingRunID(*basedir, *queueNameOption, *runIDOption)
 	if err != nil {
 		printError(err)
 		return 1
@@ -247,6 +247,11 @@ func runJobs(args []string, defaultSelection string) int {
 		printErrorf("failed to determine working directory: %v", err)
 		return 1
 	}
+	fileConfig, err := cliFileConfig.Snapshot()
+	if err != nil {
+		printErrorf("failed to serialize file configuration: %v", err)
+		return 1
+	}
 	client, err := startSupervisor(paths)
 	if err != nil {
 		printError(err)
@@ -255,7 +260,7 @@ func runJobs(args []string, defaultSelection string) int {
 	defer client.Close()
 	request := serverinternal.Request{
 		Op: serverinternal.OpRun, QueueName: queueName, LocalConcurrency: *localConcurrency, BatchMaxActive: *batchConcurrency, ExecutorSettings: executorSettings(), Retry: *retry, Async: *async, Quiet: *quiet,
-		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, EnvMode: *envMode, CWD: cwd, ConfigPath: cliConfigPath,
+		RunName: *runName, Executor: *executor, ExecutorOptions: executorOptions, EnvMode: *envMode, CWD: cwd, ConfigPath: cliConfigPath, FileConfig: fileConfig,
 		Selection: selection, JobIDs: jobIDs, ScopeStage: scope.Stage, ScopeMatrix: scope.Matrix, Filter: filter, SourceRunID: sourceRunID,
 		SourcePolicy: string(sourcePolicy), CopyAttempts: attemptSelection, CopyJobIDs: copyJobIDs,
 		PartialArray: *partialArray, MatchBy: *matchBy,

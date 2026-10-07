@@ -104,6 +104,12 @@ commands as a manifest, or import a manifest with the Python client.
 
 ## Shell quick start
 
+To keep location defaults in this directory, run `rotari init .rotari-state
+sweep` once. This writes only cwd `.rotari.toml`; state and the project are
+created when jobs are added, and subdirectories do not inherit the file. CLI
+options and environment variables override these defaults. See
+[Workspace defaults](docs/CONFIGURATION.md#workspace-defaults-and-initialization).
+
 Set the project once for the current shell, then add and run commands. You can
 also save these lines in a shell script to define a repeatable batch:
 

@@ -68,16 +68,17 @@ type Attempt struct {
 }
 
 type QueueState struct {
-	QueueName       string      `json:"project_name"`
-	ConfigPath      string      `json:"config_path,omitempty"`
-	Queue           model.Queue `json:"queue"`
-	Runs            []Run       `json:"runs"`
-	RunCount        int         `json:"run_count"`
-	Revision        string      `json:"revision,omitempty"`
-	RunnerPID       int         `json:"runner_pid,omitempty"`
-	RunningRunID    string      `json:"running_run_id,omitempty"`
-	RunnerHost      string      `json:"runner_host,omitempty"`
-	RunnerStartedAt string      `json:"runner_started_at,omitempty"`
+	QueueName       string               `json:"project_name"`
+	ConfigPath      string               `json:"config_path,omitempty"`
+	ConfigSources   []model.ConfigSource `json:"config_sources,omitempty"`
+	Queue           model.Queue          `json:"queue"`
+	Runs            []Run                `json:"runs"`
+	RunCount        int                  `json:"run_count"`
+	Revision        string               `json:"revision,omitempty"`
+	RunnerPID       int                  `json:"runner_pid,omitempty"`
+	RunningRunID    string               `json:"running_run_id,omitempty"`
+	RunnerHost      string               `json:"runner_host,omitempty"`
+	RunnerStartedAt string               `json:"runner_started_at,omitempty"`
 	// Server is the persisted record of the project's supervisor, which
 	// exists only while a run is starting or active.
 	Server ServerState `json:"server"`
@@ -89,16 +90,18 @@ type ServerState struct {
 }
 
 type ConfigFile struct {
+	Scope   string `json:"scope,omitempty"`
 	Path    string `json:"path"`
 	Content string `json:"content"`
 }
 
 type State struct {
-	BaseDir      string                  `json:"base_dir"`
-	ConfigPath   string                  `json:"config_path,omitempty"`
-	Queues       []QueueState            `json:"projects"`
-	Environments []EnvironmentDefinition `json:"environments"`
-	UpdatedAt    string                  `json:"updated_at"`
+	BaseDir       string                  `json:"base_dir"`
+	ConfigPath    string                  `json:"config_path,omitempty"`
+	ConfigSources []model.ConfigSource    `json:"config_sources,omitempty"`
+	Queues        []QueueState            `json:"projects"`
+	Environments  []EnvironmentDefinition `json:"environments"`
+	UpdatedAt     string                  `json:"updated_at"`
 }
 
 // Matrix is the part of a job's matrix provenance the Web UI needs to draw a

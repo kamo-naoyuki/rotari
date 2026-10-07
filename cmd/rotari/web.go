@@ -190,8 +190,9 @@ func webOptions(baseDir string, allowControl, notifications bool) webui.Options 
 	return webui.Options{
 		BaseDir: baseDir, RootBaseDir: baseDir, AllowControl: allowControl, Notifications: notifications,
 		Store: jsonStore(), Editor: queueEditor(), Controller: jobController(),
-		Executors:      executorRegistry.Names(),
-		Environments:   environmentDefinitions(),
-		ConfigTemplate: func() ([]byte, error) { return configTemplate("toml") },
+		Executors:              executorRegistry.Names(),
+		Environments:           environmentDefinitions(),
+		ConfigTemplate:         func() ([]byte, error) { return configTemplate("toml") },
+		ConfigTemplateForScope: func(scope string) ([]byte, error) { return configTemplate("toml", scope) },
 	}
 }

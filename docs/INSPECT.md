@@ -20,7 +20,7 @@ directory.
 Use `show` to inspect a project's runs and pending queue, or a specific run/job.
 
 ```sh
-rotari show # list projects across registered basedirs
+rotari show # inspect the configured project, or list projects when none is selected
 rotari show --basedirs # print the resolved master directory and state directories
 rotari show -p sweep # list the project's runs and current queue, if non-empty
 rotari show -p sweep --failed # list failed jobs in the selected run
@@ -37,6 +37,11 @@ rotari show ATTEMPT_ID --report # print an AI-ready Markdown report for one atte
 rotari show RUN_ID --report # describe the whole run and include recent logs
 rotari show -p sweep --run-id latest --job-id JOB_ID --json # one run job (or all tasks of an array) as JSON
 ```
+
+Workspace defaults from cwd `.rotari.toml` also select the project and basedir.
+They are not inherited from parent directories. Run/attempt IDs still resolve
+their own locations through the registry unless an explicit location selector
+conflicts; see [Configuration](CONFIGURATION.md#workspace-defaults-and-initialization).
 
 When a run is active and output is a terminal, `show JOB_ID` and
 `show ATTEMPT_ID` follow the selected attempt's log automatically. The default

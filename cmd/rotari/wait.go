@@ -93,7 +93,7 @@ func cmdWait(args []string) int {
 
 func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run, error) {
 	if selector == model.Latest {
-		baseDir, projectName, runID, err := resolve.ExistingRunID(cliBaseDir, cliProjectName, selector)
+		baseDir, projectName, runID, err := resolveCLIExistingRunID(cliBaseDir, cliProjectName, selector)
 		if err != nil {
 			return resolve.Run{}, err
 		}
@@ -144,7 +144,7 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 		// A run ID locates its own run, and an explicit base directory or
 		// project that disagrees with the registry is an error, as with
 		// --run-id and every other command.
-		baseDir, projectName, err := resolve.ExistingRun(cliBaseDir, cliProjectName, selector)
+		baseDir, projectName, err := resolveCLIExistingRun(cliBaseDir, cliProjectName, selector)
 		if err != nil {
 			return resolve.Run{}, err
 		}
@@ -162,7 +162,7 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 func resolveProjectWaitTarget(baseDir, projectName string) (resolve.Run, error) {
 	runID, err := resolveActiveRunTarget(baseDir, projectName)
 	if err != nil {
-		baseDir, projectName, err = resolve.ExistingRun(baseDir, projectName, "")
+		baseDir, projectName, err = resolveCLIExistingRun(baseDir, projectName, "")
 		if err != nil {
 			return resolve.Run{}, err
 		}
@@ -291,7 +291,7 @@ type waitResult struct {
 // waitForRun waits until runID finishes, or with untilFailure until one of
 // its jobs has failed with no retry left, whichever comes first.
 func waitForRun(basedir, queueNameOption, runID string, deadline time.Time, untilFailure, jsonOutput bool) waitResult {
-	baseDir, queueName, runID, err := resolve.ExistingRunID(basedir, queueNameOption, runID)
+	baseDir, queueName, runID, err := resolveCLIExistingRunID(basedir, queueNameOption, runID)
 	if err != nil {
 		printError(err)
 		return waitResult{exitCode: 1}

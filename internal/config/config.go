@@ -102,8 +102,8 @@ func FilePaths(directory string) []string {
 	return paths
 }
 
-// EffectivePath returns the config file that applies to projectName in
-// baseDir, or "" when there is none; see PathsForRun.
+// EffectivePath returns the legacy single-file config location. New callers
+// should use Load to enumerate and merge all scopes.
 func EffectivePath(baseDir, projectName string) string {
 	paths := PathsForRun(baseDir, projectName)
 	if len(paths) == 0 {
@@ -125,8 +125,8 @@ func GlobalPath() string {
 	return paths[len(paths)-1]
 }
 
-// PathsForRun returns the config files of the first scope that has any: the
-// project, then baseDir, then the global config directory.
+// PathsForRun preserves legacy single-scope lookup for historical records:
+// project, then baseDir, then global. New runs use Loaded.Snapshot instead.
 func PathsForRun(baseDir, projectName string) []string {
 	if projectName != "" {
 		if projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), projectName); err == nil {

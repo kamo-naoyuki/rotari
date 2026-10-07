@@ -223,14 +223,21 @@ first matching state-directory entry wins:
 The resolution order for the state directory is:
 1. `--basedir/-b` option
 2. `ROTARI_BASEDIR` environment variable
-3. `./.rotari-state` (if it exists in the current directory)
-4. Default location (`$XDG_STATE_HOME/rotari` or `~/.local/state/rotari`)
+3. Cwd `.rotari.toml` `basedir`, then global config `basedir`
+4. `./.rotari-state` (if it exists in the current directory)
+5. Default location (`$XDG_STATE_HOME/rotari` or `~/.local/state/rotari`)
 
 The resolution logic for the project name when `--project-name/-p` is omitted is:
 1. `--project-name/-p` option
 2. `ROTARI_PROJECT_NAME` environment variable
-3. Automatically select if exactly one project exists in the state directory
-4. Default project name (`default`) if no projects exist yet (if multiple projects exist, an error will prompt you to specify one)
+3. Selected basedir, cwd workspace, then global config `project-name`
+4. Automatically select if exactly one project exists in the state directory
+5. Default project name (`default`) if no projects exist yet (if multiple projects exist, an error will prompt you to specify one)
+
+`rotari init [BASEDIR [PROJECT]]` writes cwd workspace defaults without creating
+state. Workspace discovery never searches parents. Normal config values merge
+global → workspace → basedir → project; location keys are restricted to avoid
+cycles. See [Configuration](CONFIGURATION.md#configuration-files).
 
 These rules apply consistently to commands that do not identify an existing
 run through its run registry. Use `--basedir/-b` and `--project-name/-p` when a

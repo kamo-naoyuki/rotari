@@ -15,6 +15,7 @@ import (
 
 	"github.com/kamo-naoyuki/rotari/internal/config"
 	"github.com/kamo-naoyuki/rotari/internal/notification"
+	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
 	"gopkg.in/yaml.v3"
 )
@@ -22,6 +23,9 @@ import (
 var cliConfig map[string]any
 var cliConfigCommand string
 var cliConfigPath string
+var cliFileConfig config.Loaded
+var cliLocationExplicit map[string]bool
+var cliLocationDefaults map[string]string
 
 func init() {
 	// Config warnings use the CLI's error style.
@@ -31,6 +35,14 @@ func init() {
 func loadCLIConfig(args []string) error {
 	cliConfig = nil
 	cliConfigPath = ""
+	cliLocationDefaults = nil
+	cliFileConfig = config.Loaded{Values: map[string]any{}}
+	baseDir, projectName := configLocationArgs(args)
+	invocationOptions, positional := configInvocationOptions(args)
+	if len(positional) > 0 && (cliConfigCommand == "check" || cliConfigCommand == "reset" || cliConfigCommand == "unlock" || cliConfigCommand == "jobs") && projectName == "" {
+		projectName = positional[0]
+	}
+	cliLocationExplicit = map[string]bool{"basedir": baseDir != "" || os.Getenv(envBaseDir) != "", "project-name": projectName != "" || os.Getenv(envProjectName) != ""}
 	if path, specified := configFileArg(args); specified {
 		values, err := config.LoadPath(path)
 		if err != nil {
@@ -41,9 +53,32 @@ func loadCLIConfig(args []string) error {
 		if err != nil {
 			return err
 		}
+		cliFileConfig = config.Loaded{Values: config.Merge(nil, values), Sources: []config.Source{{Scope: "explicit", Path: cliConfigPath}}}
+		rememberConfigLocations()
 		return nil
 	}
-	baseDir, projectName := configLocationArgs(args)
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	home, err := config.HomeDir()
+	if err != nil {
+		return err
+	}
+	for _, item := range []struct{ scope, dir string }{{"global", home}, {"workspace", cwd}} {
+		layer, err := config.LoadScope(item.scope, item.dir)
+		if err != nil {
+			return err
+		}
+		cliFileConfig.Add(layer)
+	}
+	cliConfig = config.Merge(nil, cliFileConfig.Values)
+	if baseDir == "" {
+		baseDir = os.Getenv(envBaseDir)
+	}
+	if projectName == "" {
+		projectName = os.Getenv(envProjectName)
+	}
 	if runID := configRunIDArg(args); runID != "" {
 		location, found, err := resolveRunLocation(runID)
 		if err != nil {
@@ -58,49 +93,84 @@ func loadCLIConfig(args []string) error {
 			}
 		}
 	}
+	if baseDir == "" {
+		baseDir = configString("basedir", "")
+	}
 	resolvedBaseDir, _, err := state.ResolveBaseDir(baseDir)
 	if err != nil {
 		return err
 	}
+	_, projectFlagGiven := invocationOptions["project-name"]
+	if !projectFlagGiven && len(positional) > 0 && (cliConfigCommand == "show" || cliConfigCommand == "export" || cliConfigCommand == "wait") {
+		candidate := positional[0]
+		if candidate != "latest" && state.IsValidPathElement(candidate) && !resolve.IsRunID(candidate) {
+			if info, err := os.Stat(filepath.Join(resolvedBaseDir, "projects", candidate)); err == nil && info.IsDir() {
+				projectName = candidate
+				cliLocationExplicit["project-name"] = true
+			}
+		}
+	}
+	layer, err := config.LoadScope("basedir", resolvedBaseDir)
+	if err != nil {
+		return err
+	}
+	cliFileConfig.Add(layer)
+	cliConfig = config.Merge(nil, cliFileConfig.Values)
+	if projectName == "" {
+		projectName = configString("project-name", "")
+	}
 	if projectName, err = configProjectName(resolvedBaseDir, projectName); err != nil {
 		return err
 	}
-	values := map[string]any{}
-	if path := config.EffectivePath(resolvedBaseDir, projectName); path != "" {
-		values, err = config.LoadFile(filepath.Dir(path))
+	if projectName != "" {
+		projectDir, err := state.SafeJoin(filepath.Join(resolvedBaseDir, "projects"), projectName)
 		if err != nil {
 			return err
 		}
-		cliConfigPath, err = filepath.Abs(path)
+		layer, err := config.LoadScope("project", projectDir)
 		if err != nil {
 			return err
 		}
+		cliFileConfig.Add(layer)
 	}
-	cliConfig = values
+	cliConfig = config.Merge(nil, cliFileConfig.Values)
+	// Runtime location facts are separate from the file-only snapshot.
+	if configString("basedir", "") != "" {
+		setConfigLocation("basedir", resolvedBaseDir)
+	}
+	if configString("project-name", "") != "" {
+		setConfigLocation("project-name", projectName)
+	}
+	for _, source := range cliFileConfig.Sources {
+		cliConfigPath = source.Path
+	}
+	rememberConfigLocations()
 	return nil
 }
 
-func configFileArg(args []string) (string, bool) {
-	var path string
-	specified := false
-	for index := 0; index < len(args); index++ {
-		if args[index] == "--" {
-			break
-		}
-		name, value, hasValue := strings.Cut(args[index], "=")
-		if name != "--config" {
-			continue
-		}
-		if hasValue {
-			path, specified = value, true
-			continue
-		}
-		if index+1 < len(args) {
-			index++
-			path, specified = args[index], true
+func rememberConfigLocations() {
+	cliLocationDefaults = make(map[string]string)
+	for _, key := range []string{"basedir", "project-name"} {
+		if !cliLocationExplicit[key] {
+			cliLocationDefaults[key] = configString(key, "")
 		}
 	}
-	return path, specified
+}
+
+func setConfigLocation(name, value string) {
+	cliConfig[name] = value
+	if section, ok := cliConfig[cliConfigCommand].(map[string]any); ok {
+		delete(section, name)
+	}
+}
+
+func configFileArg(args []string) (string, bool) {
+	options, _ := configInvocationOptions(args)
+	values, specified := options["config"]
+	if len(values) == 0 {
+		return "", false
+	}
+	return values[len(values)-1], specified
 }
 
 func configProjectName(baseDir, requested string) (string, error) {
@@ -133,56 +203,76 @@ func configProjectName(baseDir, requested string) (string, error) {
 }
 
 func configRunIDArg(args []string) string {
-	for index := 0; index < len(args); index++ {
-		name, value, hasValue := strings.Cut(args[index], "=")
-		if name != "--run-id" && name != "-r" {
-			continue
+	if cliConfigCommand == "add" || cliConfigCommand == "config" || cliConfigCommand == "init" {
+		return ""
+	}
+	options, positional := configInvocationOptions(args)
+	if values := options["run-id"]; len(values) > 0 {
+		return values[0]
+	}
+	selectors := append(append([]string(nil), positional...), options["job-id"]...)
+	for _, value := range selectors {
+		if strings.HasPrefix(value, "att_") {
+			if payload, err := state.DecodeAttemptID(value); err == nil {
+				return payload.RunID
+			}
 		}
-		if hasValue {
+		if resolve.IsRunID(value) {
 			return value
-		}
-		if index+1 < len(args) {
-			return args[index+1]
 		}
 	}
 	return ""
 }
 
 func mergeConfig(destination, source map[string]any) {
-	for key, value := range source {
-		sourceSection, sourceIsSection := value.(map[string]any)
-		destinationSection, destinationIsSection := destination[key].(map[string]any)
-		if sourceIsSection && destinationIsSection {
-			mergeConfig(destinationSection, sourceSection)
-			continue
-		}
+	for key, value := range config.Merge(destination, source) {
 		destination[key] = value
 	}
 }
 
 func configLocationArgs(args []string) (baseDir, projectName string) {
-	for index := 0; index < len(args); index++ {
-		arg := args[index]
-		name, value, hasValue := strings.Cut(arg, "=")
-		if !hasValue && index+1 < len(args) {
-			switch arg {
-			case "--basedir", "-b", "--project-name", "-p":
-				value = args[index+1]
-				hasValue = true
-				index++
-			}
-		}
-		if !hasValue {
-			continue
-		}
-		switch name {
-		case "--basedir", "-b":
-			baseDir = value
-		case "--project-name", "-p":
-			projectName = value
-		}
+	options, _ := configInvocationOptions(args)
+	if values := options["basedir"]; len(values) > 0 {
+		baseDir = values[len(values)-1]
+	}
+	if values := options["project-name"]; len(values) > 0 {
+		projectName = values[len(values)-1]
 	}
 	return baseDir, projectName
+}
+
+// Read option shapes from the same metadata as parsing/help. Option values
+// that happen to look like run IDs are not location selectors, and add/change
+// job arguments must never be interpreted as rotari options.
+func configInvocationOptions(args []string) (map[string][]string, []string) {
+	options := make(map[string][]string)
+	var positional []string
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		if arg == "--" {
+			if cliConfigCommand != "add" && cliConfigCommand != "change" {
+				positional = append(positional, args[index+1:]...)
+			}
+			break
+		}
+		if !strings.HasPrefix(arg, "-") {
+			if cliConfigCommand == "add" || cliConfigCommand == "change" {
+				break
+			}
+			positional = append(positional, arg)
+			continue
+		}
+		name, value, hasValue := strings.Cut(strings.TrimLeft(arg, "-"), "=")
+		name = cliCanonicalFlagName(name)
+		spec := cliCommandFlag(cliConfigCommand, name)
+		takesValue := spec.ValueName != "" || name == "config" || name == "basedir" || name == "project-name" || name == "run-id" || name == "job-id"
+		if !hasValue && takesValue && index+1 < len(args) {
+			index++
+			value = args[index]
+		}
+		options[name] = append(options[name], value)
+	}
+	return options, positional
 }
 
 func configValue(name string) (any, bool) {
@@ -247,8 +337,18 @@ func configSections() (map[string][]string, []string) {
 	return sections, common
 }
 
-func configTemplate(format string) ([]byte, error) {
+func configTemplate(format string, scopes ...string) ([]byte, error) {
 	sections, common := configSections()
+	if len(scopes) > 0 {
+		filtered := common[:0]
+		for _, key := range common {
+			if (scopes[0] == "basedir" || scopes[0] == "project") && key == "basedir" || scopes[0] == "project" && key == "project-name" {
+				continue
+			}
+			filtered = append(filtered, key)
+		}
+		common = filtered
+	}
 	switch format {
 	case "yaml":
 		root := yaml.Node{Kind: yaml.MappingNode}
@@ -338,6 +438,10 @@ func cmdConfig(args []string) int {
 	oldCommand := cliConfigCommand
 	cliConfigCommand = "config"
 	defer func() { cliConfigCommand = oldCommand }()
+	if err := loadConfigCommandDefaults(args); err != nil {
+		printErrorf("failed to load location defaults: %v", err)
+		return 1
+	}
 	fs := flag.NewFlagSet("config", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	basedir := cliString(fs, "basedir", "")
@@ -421,7 +525,7 @@ func cmdConfig(args []string) int {
 		}
 		*output = selectedOutput
 	}
-	data, err := configTemplate(selectedFormat)
+	data, err := configTemplate(selectedFormat, configOutputScope(*output, resolvedBaseDir))
 	if *notifications {
 		data = notification.Template()
 		err = nil
@@ -452,6 +556,78 @@ func cmdConfig(args []string) int {
 	return 0
 }
 
+// Config inventory may list duplicate formats. Do not choose one of them as
+// a defaults file, and do not let stale defaults from another command leak in.
+func loadConfigCommandDefaults(args []string) error {
+	cliConfig = map[string]any{}
+	inventory := false
+	for _, arg := range args {
+		if arg == "--list" || arg == "--list=true" {
+			inventory = true
+		}
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	home, err := config.HomeDir()
+	if err != nil {
+		return err
+	}
+	for _, item := range []struct{ scope, dir string }{{"global", home}, {"workspace", cwd}} {
+		if item.scope != "workspace" && len(config.FilePaths(item.dir)) > 1 {
+			continue
+		}
+		layer, err := config.LoadScope(item.scope, item.dir)
+		if err != nil {
+			if inventory {
+				continue
+			}
+			return err
+		}
+		cliConfig = config.Merge(cliConfig, layer.Values)
+	}
+	base, _ := configLocationArgs(args)
+	if base == "" {
+		base = os.Getenv(envBaseDir)
+	}
+	if base == "" {
+		base = configString("basedir", "")
+	}
+	resolved, _, err := state.ResolveBaseDir(base)
+	if err != nil {
+		return err
+	}
+	if len(config.FilePaths(resolved)) == 1 {
+		layer, err := config.LoadScope("basedir", resolved)
+		if err != nil {
+			if !inventory {
+				return err
+			}
+		} else {
+			cliConfig = config.Merge(cliConfig, layer.Values)
+		}
+	}
+	return nil
+}
+
+func configOutputScope(output, baseDir string) string {
+	if filepath.Base(output) == config.WorkspaceFile {
+		return "workspace"
+	}
+	absolute, err := filepath.Abs(output)
+	if err != nil {
+		return "global"
+	}
+	if filepath.Dir(absolute) == baseDir {
+		return "basedir"
+	}
+	if filepath.Dir(filepath.Dir(absolute)) == filepath.Join(baseDir, "projects") {
+		return "project"
+	}
+	return "global"
+}
+
 func chooseConfigOutput(reader io.Reader, writer io.Writer, baseDir, projectName, format string) (string, bool) {
 	return chooseConfigOutputNamed(reader, writer, baseDir, projectName, format, "config."+format)
 }
@@ -470,6 +646,11 @@ func chooseConfigOutputNamed(reader io.Reader, writer io.Writer, baseDir, projec
 		{label: "global", path: filepath.Join(configHome, fileName)},
 		{label: "basedir", path: filepath.Join(baseDir, fileName)},
 	}
+	if fileName != notification.FileName && format == "toml" {
+		if cwd, err := os.Getwd(); err == nil {
+			candidates = append(candidates, candidate{label: "workspace", path: filepath.Join(cwd, config.WorkspaceFile)})
+		}
+	}
 	if projectName != "" {
 		if projectDir, err := state.SafeJoin(filepath.Join(baseDir, "projects"), projectName); err == nil {
 			candidates = append(candidates, candidate{label: "project " + projectName, path: filepath.Join(projectDir, fileName)})
@@ -482,7 +663,11 @@ func chooseConfigOutputNamed(reader io.Reader, writer io.Writer, baseDir, projec
 		}
 	}
 	fmt.Fprintln(writer, "Config resolution priority (highest to lowest):")
-	fmt.Fprintln(writer, "  CLI option > environment variable > project > basedir > global > built-in default")
+	if fileName == notification.FileName {
+		fmt.Fprintln(writer, "  first existing notification file: project > basedir > global (no merge)")
+	} else {
+		fmt.Fprintln(writer, "  CLI option > environment variable > project > basedir > workspace > global > built-in default")
+	}
 	fmt.Fprintln(writer, "Choose a config file location to create:")
 	for index, item := range candidates {
 		fmt.Fprintf(writer, "  %d) %-16s %s\n", index+1, item.label, item.path)

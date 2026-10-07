@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/kamo-naoyuki/rotari/internal/config"
 	rotarimcp "github.com/kamo-naoyuki/rotari/internal/mcp"
 	serverinternal "github.com/kamo-naoyuki/rotari/internal/server"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -57,6 +58,18 @@ func mcpStdioError(err error) error {
 // startRunForMCP starts paths' supervisor, as `rotari run` does, and sends
 // it request.
 func startRunForMCP(paths state.ProjectPaths, request serverinternal.Request) (serverinternal.Response, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return serverinternal.Response{}, err
+	}
+	loaded, err := config.Load(cwd, paths.BaseDir, paths.ProjectName)
+	if err != nil {
+		return serverinternal.Response{}, err
+	}
+	request.FileConfig, err = loaded.Snapshot()
+	if err != nil {
+		return serverinternal.Response{}, err
+	}
 	client, err := startSupervisor(paths)
 	if err != nil {
 		return serverinternal.Response{}, err

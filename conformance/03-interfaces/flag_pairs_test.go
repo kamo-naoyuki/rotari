@@ -20,6 +20,7 @@ var pairInventory = map[string]struct {
 	count       int
 	fingerprint string
 }{
+	"init":       {0, "e3b0c44298fc1c14"},
 	"config":     {6, "cf7bcb9626d67065"},
 	"check":      {6, "bc250836712a03be"},
 	"reset":      {6, "0f2241eed8e6f8d4"},

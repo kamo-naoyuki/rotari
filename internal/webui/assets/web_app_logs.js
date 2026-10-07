@@ -514,6 +514,8 @@ function ensureModalOutput() {
 function openOutputModal(compact) {
   const modal = document.getElementById("output-modal");
   const view = modal.dataset.view;
+  const configSource = document.getElementById("config-source-select");
+  if (configSource) configSource.hidden = view !== "config";
   const editingConfig = view === "config" && modal.dataset.editing === "true";
   const editingNotificationConfig = view === "notification-config";
   const generatingConfig =

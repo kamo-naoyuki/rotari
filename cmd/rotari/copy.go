@@ -94,7 +94,7 @@ func cmdCopy(args []string) int {
 	}
 	if *jobName != "" {
 		if *runID != "" {
-			baseDir, projectName, resolvedRunID, err := resolve.ExistingRunID(*basedir, *queueNameOption, *runID)
+			baseDir, projectName, resolvedRunID, err := resolveCLIExistingRunID(*basedir, *queueNameOption, *runID)
 			if err != nil {
 				printError(err)
 				return 1
@@ -146,7 +146,7 @@ func cmdCopy(args []string) int {
 		}
 		if *runID == "" {
 			if len(jobIDs) == 0 {
-				baseDir, projectName, err := resolve.ExistingRun(*basedir, *queueNameOption, "")
+				baseDir, projectName, err := resolveCLIExistingRun(*basedir, *queueNameOption, "")
 				if err != nil {
 					printError(err)
 					return 1
@@ -184,7 +184,7 @@ func cmdCopy(args []string) int {
 		selection = "all"
 	}
 
-	baseDir, queueName, resolvedRunID, err := resolve.ExistingRunID(*basedir, *queueNameOption, *runID)
+	baseDir, queueName, resolvedRunID, err := resolveCLIExistingRunID(*basedir, *queueNameOption, *runID)
 	if err != nil {
 		printError(err)
 		return 1

@@ -6,13 +6,21 @@ documented separately in [Environment variables](ENVIRONMENT_VARIABLES.md).
 
 For options available from the CLI, environment, and configuration, values are
 resolved in this order: explicit CLI value, environment variable, configuration
-file, then built-in default. Within a configuration file, a command-specific
-section takes precedence over the root value. `--config FILE` selects the
-configuration source; it does not change this precedence.
+values, then built-in default. Ordinary files merge global → cwd workspace →
+basedir → project; command sections then override root values. `--config FILE`
+replaces automatic discovery with that file. See
+[Configuration](CONFIGURATION.md#configuration-files) for location constraints,
+`init`, source inspection, and file-only run snapshots.
 
 <!-- BEGIN GENERATED CLI REFERENCE -->
 
 ## Commands
+
+### `rotari init`
+
+write cwd workspace location defaults without creating state
+
+Usage: `rotari init [BASEDIR [PROJECT]]`
 
 ### `rotari config`
 

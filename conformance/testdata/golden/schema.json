@@ -1,6 +1,9 @@
 {
   "commands": [
     {
+      "name": "init"
+    },
+    {
       "flags": [
         {
           "name": "basedir",

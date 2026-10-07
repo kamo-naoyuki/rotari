@@ -686,7 +686,10 @@ function isNotificationConfigPath(path) {
 function pageConfigPaths(notifications = false) {
   const parts = pageParts();
   if (parts[0] !== "project")
-    return state.config_path ? [state.config_path] : [];
+    return (
+      state.config_sources?.map((source) => source.path) ||
+      (state.config_path ? [state.config_path] : [])
+    );
   const project = state.projects.find(
     (item) => item.project_name === decodeURIComponent(parts[1]),
   );
@@ -699,7 +702,10 @@ function pageConfigPaths(notifications = false) {
       (path) => isNotificationConfigPath(path) === notifications,
     );
   }
-  return project.config_path ? [project.config_path] : [];
+  return (
+    project.config_sources?.map((source) => source.path) ||
+    (project.config_path ? [project.config_path] : [])
+  );
 }
 async function showConfig(notifications = false) {
   const modal = document.getElementById("output-modal");
@@ -709,6 +715,7 @@ async function showConfig(notifications = false) {
     "notification-config-editor",
   );
   const output = ensureModalOutput();
+  document.getElementById("config-source-select")?.remove();
   setModalConfigPaths([]);
   generator.hidden = true;
   editor.hidden = true;
@@ -738,13 +745,14 @@ async function showConfig(notifications = false) {
   selectedLog = null;
   selectedOutput = content;
   const project = configGenerationProject();
-  if (project === null) {
-    delete modal.dataset.editing;
-    output.textContent = content;
-  } else {
-    const file = files[0];
-    if (!file) {
-      alert("No config file exists to edit.");
+  const displayFile = (file) => {
+    if (!file) return;
+    setModalConfigPaths([file.path]);
+    selectedOutput = file.content;
+    if (project === null) {
+      delete modal.dataset.editing;
+      output.hidden = false;
+      output.textContent = "# " + file.path + "\n" + file.content;
       return;
     }
     output.hidden = true;
@@ -756,22 +764,24 @@ async function showConfig(notifications = false) {
     textarea.oninput = () => updateConfigSaveState(editor);
     updateConfigSaveState(editor);
     saveButton.onclick = async () => {
-      const button = editor.querySelector("button");
-      button.disabled = true;
+      saveButton.disabled = true;
       const response = await fetch("/api/save-config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           project_name: project,
+          scope: file.scope,
+          path: file.path,
           content: textarea.value,
         }),
       });
       const saveText = await response.text();
-      button.disabled = false;
+      saveButton.disabled = false;
       if (!response.ok) {
         alert(saveText);
         return;
       }
+      file.content = textarea.value;
       textarea.dataset.initial = textarea.value;
       updateConfigSaveState(editor);
       selectedOutput = textarea.value;
@@ -779,6 +789,29 @@ async function showConfig(notifications = false) {
       alert("Saved " + JSON.parse(saveText).path);
     };
     modal.dataset.editing = "true";
+  };
+  if (isRunPage) {
+    delete modal.dataset.editing;
+    output.textContent = content;
+  } else {
+    if (!files.length) {
+      alert("No config file exists to edit.");
+      return;
+    }
+    if (files.length > 1) {
+      const chooser = document.createElement("select");
+      chooser.id = "config-source-select";
+      chooser.setAttribute("aria-label", "Configuration source");
+      files.forEach((file, index) => {
+        const option = document.createElement("option");
+        option.value = index;
+        option.textContent = (file.scope || "config") + ": " + file.path;
+        chooser.appendChild(option);
+      });
+      chooser.onchange = () => displayFile(files[Number(chooser.value)]);
+      editor.parentNode.insertBefore(chooser, editor);
+    }
+    displayFile(files[0]);
   }
   modal.querySelector("strong").textContent = notifications
     ? "Notification config"

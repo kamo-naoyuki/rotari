@@ -84,7 +84,7 @@ starts.
 
 ### I didn't pass `--project-name` — which project does rotari use?
 
-Selection uses `--project-name`, `ROTARI_PROJECT_NAME`, the only project in the resolved state directory, and then `default`. Multiple candidates require an explicit selection. A bare `rotari show` lists projects in registered basedirs.
+Selection uses `--project-name`, `ROTARI_PROJECT_NAME`, basedir/workspace/global config defaults, the only project in the resolved state directory, and then `default`. Multiple candidates require a selection. Without a project default, a bare `rotari show` lists projects in registered basedirs.
 
 ### How do I list projects in a state directory?
 
@@ -96,15 +96,15 @@ Run `rotari show --basedirs`, then inspect one with `rotari show --basedir DIR`.
 
 ### Where can I put option defaults?
 
-Put `config.yaml`, `config.toml`, or `config.json` in `$XDG_CONFIG_HOME/rotari` (normally `~/.config/rotari`), the basedir, or `projects/<project>/`. Priority is project, basedir, then global; CLI options and environment variables override config files.
+Put `config.yaml`, `config.toml`, or `config.json` in `$XDG_CONFIG_HOME/rotari` (normally `~/.config/rotari`), the basedir, or `projects/<project>/`, and `.rotari.toml` in cwd. Ordinary values merge global → workspace → basedir → project; CLI options and environment variables override them. Use `rotari init [BASEDIR [PROJECT]]` to write relative workspace location defaults without creating state. Parent workspace files are not inherited. Notification configuration instead selects one file; see [Configuration](CONFIGURATION.md#configuration-files).
 
 ### How do I find every config file below a basedir?
 
-Run `rotari config --list --basedir DIR`. It includes `notifications.toml` and groups global and basedir paths under `Common:`, then project paths under `Projects:` with each project name followed by indented paths. Add `--project-name NAME` to limit project-specific entries to that project. This inventory includes files that are not selected by normal priority resolution.
+Run `rotari config --list --basedir DIR`. It includes separate `notifications.toml` files and groups global, cwd workspace, and basedir paths under `Common:`, then project paths under `Projects:` with each project name followed by indented paths. Add `--project-name NAME` to limit project-specific entries to that project. This inventory includes unselected project files.
 
 ### How do I see every configurable option?
 
-Run `rotari config`, or use `--output FILE` to save a template. The selected config is copied into each run directory so historical views retain the configuration used at that time.
+Run `rotari config`, or use `--output FILE` to save a template. Each run saves the canonical merged file values as `configs/config.toml`, excluding CLI/environment overrides and built-in defaults, so historical views retain stable file configuration.
 
 ### How can I notify another service when a run or job finishes?
 
@@ -412,9 +412,10 @@ explanation page; history search requires the live Web UI.
 ### Can I create a config file from the Web UI?
 
 Yes. `Generate config` on the all-projects or project page offers the valid
-global, basedir, and project locations and writes `config.toml` at the selected
-location after confirmation. `View config` shows the highest-priority resolved
-config for the current page and, on those pages, lets you save edits. Content is
+global, workspace, basedir, and project locations and writes TOML at the selected
+location after confirmation. `View config` lists actual sources by scope/path,
+opens one directly or lets you select among several, and saves only that source.
+There is no merged current viewer/editor. Content is
 validated as JSON, TOML, or YAML according to the file's extension; invalid
 edits leave the existing file unchanged. Historical run pages only display
 their recorded config copies. Read-only Web mode and the static demo present

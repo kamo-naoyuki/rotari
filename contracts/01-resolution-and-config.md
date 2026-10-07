@@ -39,12 +39,15 @@ The per-command view of these rules, with job selectors, is in
 
 1. `--basedir`
 2. `ROTARI_BASEDIR`
-3. `./.rotari-state` when present
-4. `$XDG_STATE_HOME/rotari`
-5. `~/.local/state/rotari`
+3. Cwd workspace `basedir`, then global config `basedir`
+4. `./.rotari-state` when present
+5. `$XDG_STATE_HOME/rotari`
+6. `~/.local/state/rotari`
 
-- **RES-2** Projects resolve from `--project-name`, then `ROTARI_PROJECT_NAME`, then the
-  only project in the resolved base directory. With no projects the name is
+- **RES-2** Projects resolve from `--project-name` (or the command's positional
+  project), then `ROTARI_PROJECT_NAME`, then selected basedir, cwd workspace,
+  and global file defaults, then the only project in the resolved base directory.
+  With no projects the name is
   `default`; multiple projects require an explicit choice. The bare `show`
   command lists projects across known basedirs instead of resolving one.
 - **RES-3** Commands that read or edit a missing project fail with
@@ -90,7 +93,8 @@ The per-command view of these rules, with job selectors, is in
   in every command that takes one; see "Complete IDs" in
   [06-selectors.md](06-selectors.md).
 - **RES-14** Explicit location options take priority, but conflicts with the registry fail.
-  An unregistered run uses normal resolution for compatibility, while a missing
+  File-derived location defaults are not explicit registry constraints; their
+  provenance is retained through CLI parsing. An unregistered run uses normal resolution for compatibility, while a missing
   explicit run is an error with no latest fallback.
 - **RES-15** Without `--run-id`, history consumers use `meta.json` `last_run_id`, then the
   newest run directory where supported. `show` may prefer an active run,
@@ -168,81 +172,70 @@ Implementation and tests for these rules:
 
 ## Configuration files
 
-- Configuration loading does not independently resolve a project or replace
-  command resolution. The command owns normal `basedir` and project resolution;
-  configuration only consumes the locations that are already explicit or known.
-- When `--run-id` identifies a registered run, its registry entry supplies
-  `base_dir` and `project_name` for configuration loading as well as for the
-  command. When the project is still ambiguous, only global and basedir config
-  are loaded; project selection remains the command's responsibility.
-- After resolving the project name, config lookup chooses the first directory
-  containing one supported file: `projects/<project>/`, then the resolved
-  basedir, then `$XDG_CONFIG_HOME/rotari` (or `~/.config/rotari`). It loads only
-  that config; lower-priority scopes are ignored rather than merged.
-- `rotari show` and the web UI display that selected config path.
-- Multiple supported config files in the same directory are an error; file
-  formats have no implicit priority.
-- Common configuration keys (`basedir` and `project-name`) are at the root;
-  command-specific keys are nested under their command name. The precedence
-  among CLI values, environment defaults, and config is shared by every command;
-  see CLI-3 in
-  [03-server-and-command-interfaces.md](03-server-and-command-interfaces.md#cli-presentation).
-- `rotari config` generates a template from the union of all CLI metadata
-  options. YAML and JSON use `null` for unset values; TOML uses comments because
-  it has no null value. Null values are ignored during resolution.
-- A flag whose metadata sets `CommandLineOnly` (for example, `export --output`)
-  ignores config and environment defaults and is left out of the template and
-  `configOptionNames`. Covered by
-  `TestCommandLineOnlyFlagIgnoresConfigAndStaysOutOfTemplate` in
-  [`cmd/rotari/config_test.go`](../cmd/rotari/config_test.go).
-- `rotari config --list` is an inventory rather than a resolution operation. It
-  lists every supported config and `notifications.toml` found in the global
-  and basedir scopes under `Common:`, then scans every `projects/<project>/`
-  directory and lists paths beneath each project name under `Projects:`. An
-  explicit `--project-name` limits only project-specific entries to that
-  project.
-- Without `--output`, `rotari config` offers home, basedir, existing project
-  config paths, stdout, and an arbitrary path interactively; an explicit
-  `--output` is non-interactive.
-- `rotari show` prints the highest-priority resolved config path in its header so the
-  active home, basedir, and project config files are visible in CLI output as
-  well as in the web UI.
-- The Web UI exposes config paths in its state and serves raw contents only for
-  the selected config. At run creation, rotari copies only the config actually
-  loaded for the run (the explicit `--config` file when supplied, otherwise the
-  resolved config) as `configs/config.<ext>`, and lists its source and snapshot
-  path in `context.json`; lower-priority config files are not copied. A run page
-  serves the immutable copy rather than rereading the source path. It does not
-  accept arbitrary filesystem paths. Older runs without snapshots retain the
-  legacy resolved-path fallback. The projected run context separately records
-  the snapshot path for the Web UI's `Config:` location display.
-- On all-projects and project pages, the Web UI also offers a control-gated
-  `config-targets`/`generate-config` pair. It uses the same `configTemplate`
-  generator as the CLI to write TOML at a selected global, basedir, or project
-  path and may replace an existing TOML config. It refuses to add a second
-  supported config format in the same directory; run pages stay view-only
-  because their paths describe historical execution context.
-  Run pages omit `Generate config` and instead offer
-  `Notification config (read only)` for the copied `notifications.toml`,
-  separately from `View config`. The snapshot viewer allows copying, not
-  editing, saving, or reloading current notification settings; its button is
-  disabled when no notification snapshot exists. Live and static pages use
-  the same snapshot viewer. Covered by `TestWebHTMLRendersState` in
-  [`internal/webui/webui_test.go`](../internal/webui/webui_test.go).
-- The control-gated `save-config` endpoint writes only the currently resolved
-  config for an all-projects or project page. It accepts a project name and
-  content, never a filesystem path or run ID. Run pages expose only the copied
-  configuration snapshots recorded at run creation. Before writing, the
-  endpoint parses JSON, TOML, or YAML according to the existing file extension,
-  so an invalid edit cannot replace the valid config.
-- The Web side is implemented by `loadWebConfigFiles`, `loadRunConfigFiles`,
-  `saveWebConfig`, `webConfigTargets`, and `generateWebConfig` in
-  [`internal/webui/webui.go`](../internal/webui/webui.go). Representative tests are
-  `TestWebConfigAPIReadsResolvedFiles`, `TestWebConfigAPIReadsRunConfigSnapshots`,
-  `TestWebSaveConfigWritesOnlyTheResolvedCurrentConfig`,
-  `TestWebSaveConfigRejectsReadOnlyMode`, and
-  `TestStaticWebUsesGenerateConfigReadOnlyFlow` in
-  [`internal/webui/webui_test.go`](../internal/webui/webui_test.go).
+**RES-23** Ordinary configuration loads and merges global → cwd workspace →
+selected basedir → selected project. Workspace discovery reads only cwd
+`.rotari.toml`, never ancestors. Other scopes accept one `config.yaml`,
+`config.toml`, or `config.json`; duplicate formats and malformed/unreadable
+discovered files fail with scope/path diagnostics. Maps recurse, arrays and
+scalars replace, null is unspecified, and false/zero/empty strings are explicit.
+After merging, command sections override root values, including cross-scope
+conflicts. CLI/environment precedence remains CLI-3. `--config FILE` replaces
+automatic discovery, not an additional layer.
+
+Location loading is staged: global/workspace before basedir resolution,
+basedir config before project resolution, then project config. A basedir
+config forbids `basedir` but may set `project-name`; a project config forbids
+both, including command sections, with errors rather than ignored values.
+Ambiguous projects load only the known scopes and remain the command's decision.
+Registered run/attempt locations supply config locations without making file
+defaults explicit conflicting selectors.
+
+**RES-24** `rotari init [BASEDIR [PROJECT]]` atomically creates cwd
+`.rotari.toml`, defaulting basedir to `.rotari-state`. Basedir must be non-empty
+and relative; project must be a safe, non-reserved path element. Init writes
+only location defaults, creates no basedir/project/queue/registry, and refuses
+to replace any existing workspace file or symlink, preserving its settings.
+
+**RES-25** Every new run saves canonical merged file values as
+`configs/config.toml`, captured by the client and passed to the supervisor
+without rereading ordinary source files. CLI/env overrides and built-in
+defaults are excluded, including when no file config exists (empty snapshot).
+Source scope/path metadata is independent of snapshot filename/path metadata.
+Notification snapshots remain separate. Run views are read-only and use the
+saved copy; older TOML/YAML/JSON snapshots and the legacy allow-listed fallback
+remain readable. A retry uses the new invocation's configuration.
+
+Implemented by [internal/config/layers.go](../internal/config/layers.go),
+[cmd/rotari/config.go](../cmd/rotari/config.go),
+[cmd/rotari/config_selectors.go](../cmd/rotari/config_selectors.go),
+[cmd/rotari/init_workspace.go](../cmd/rotari/init_workspace.go), and
+[internal/projectrun/context.go](../internal/projectrun/context.go). Tests:
+[merge/scope tests](../internal/config/layers_test.go),
+[CLI workspace tests](../cmd/rotari/workspace_config_test.go),
+[immutable snapshot tests](../internal/projectrun/config_snapshot_test.go), and
+[binary conformance](../conformance/01-resolution/workspace_config_test.go).
+
+- `config` generates scope-appropriate templates from CLI metadata. YAML/JSON
+  nulls are unspecified; TOML uses comments. Command-line-only options are
+  excluded. `config --list` inventories global, cwd workspace, basedir, and
+  project files, including separate notification files but no workspace
+  notifications. Duplicate formats can still be inventoried. Interactive
+  generation offers global, workspace TOML, basedir, project, stdout, and
+  arbitrary paths. `show` lists contributing source paths/scopes.
+- Current Web `View config` lists actual source scope/path pairs, opens a single
+  file directly, and selects among multiple files; there is no merged current
+  viewer/editor. Control-gated saves identify and validate the selected source
+  against allowed targets, parse its format, apply location restrictions, and
+  atomically write only that source. Workspace context is server startup cwd,
+  not viewed-job cwd. Generation uses the same scope-aware CLI templates.
+  Live and static exports retain the same source-selection UI, with static
+  writes refused. Run pages retain separate read-only command and notification
+  snapshot viewers.
+  Implemented by `loadWebConfigFiles`, `saveSelectedConfig`, `loadRunConfigFiles`,
+  and `generateWebConfig` in
+  [internal/webui/webui.go](../internal/webui/webui.go), tested by
+  [workspace source tests](../internal/webui/workspace_config_test.go) and
+  [legacy/static config tests](../internal/webui/webui_test.go).
 
 ## Notification configuration
 
@@ -253,7 +246,9 @@ Implementation and tests for these rules:
 - Lookup chooses the first `notifications.toml` found in
   `projects/<project>/`, then the resolved basedir, then
   `$XDG_CONFIG_HOME/rotari` (or `~/.config/rotari`). Lower-priority scopes are
-  ignored rather than merged, and an unknown or duplicated key fails parsing
+  ignored rather than merged, with no workspace scope. Omitted keys use
+  notification built-in defaults; a project file does not inherit a lower-file
+  webhook URL. An unknown or duplicated key fails parsing
   instead of being ignored.
 - `[webhook]` and `[browser]` accept the same settings but hold independent
   values: `job_failure`, `job_success`, `run_failure`, `run_success`, `fields`,

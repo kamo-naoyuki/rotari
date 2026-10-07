@@ -107,6 +107,11 @@ func commonCLIFlags() []cliFlagSpec {
 
 var cliCommandSpecs = []cliCommandSpec{
 	{
+		Name:        "init",
+		Description: "write cwd workspace location defaults without creating state",
+		Positional:  "[BASEDIR [PROJECT]]",
+	},
+	{
 		Name:        "config",
 		Description: "generate a config file template",
 		Flags: append([]cliFlagSpec{{Name: "basedir", Description: "state directory", ValueName: "DIR"}, {Name: "project-name", Description: "project name", ValueName: "NAME"}},

@@ -228,7 +228,7 @@ are checked against this graph by
 | [internal/executor](../internal/executor/) | How one job attempt is started, waited for, cancelled, and suspended: local processes, Slurm, PBS, LSF, SGE, SSH, wrapper scripts. No run semantics. | `contracts.go` (`JobExecutor`), `local.go`, `slurm.go`, `sge.go` |
 | [internal/project](../internal/project/) | A project's run state (idle, running, interrupted) from `running.lock` and `meta.json`, one run's phase (running, interrupted, finished, ended) for `wait` and the MCP run summary, consistency checks, recovery, and the queue-edit sequence: state lock, state check, load, edit, then the queue write, preceded by the metadata write only while idle. | `inspect.go` (`Inspect`, `EnsureIdle`), `run_phase.go` (`RunPhaseOf`), `edit.go` (`EditQueue`, `CreateQueueGuarded`), `reset.go` (`Reset`), `unlock.go` (`Unlock`) |
 | [internal/resolve](../internal/resolve/) | Location and job-name rules shared by the commands that read existing state: a run ID through the run registry, an `att_` attempt ID, the latest-run fallback, run names, and job IDs or names looked up in the queue and latest runs. show's and wait's own selector orders build on it. | `resolve.go` (`ExistingRun`, `RunID`, `Jobs`, `JobIDsByName`) |
-| [internal/config](../internal/config/) | Config file locations (global, base directory, project), which scope applies, and parsing YAML, TOML, and JSON. What the keys mean stays in `cmd/rotari`. | `config.go` (`PathsForRun`, `LoadFile`) |
+| [internal/config](../internal/config/) | Scope-aware global/cwd workspace/basedir/project discovery, location-key cycle validation, recursive file-value merging and immutable canonical TOML snapshots; YAML, TOML, JSON parsing. Runtime option meanings stay in `cmd/rotari`. | `layers.go` (`LoadScope`, `Load`, `Merge`, `Loaded.Snapshot`), `config.go` |
 | [internal/notification](../internal/notification/) | `notifications.toml`: its schema, scope lookup, validation, serialization, and the shared job/run event and batch model used by both webhook and browser notifications. Delivery stays in `cmd/rotari` and the Web assets. | `config.go` (`Load`, `Marshal`), `event.go` (`NewBatch`) |
 | [internal/runregistry](../internal/runregistry/) | The master directory's run index, `<masterdir>/runs/<run-id>.json`: register, look up, unregister, and find stale entries for `gc`. | `registry.go` |
 | [internal/projectrun](../internal/projectrun/) | One project's run against its files: `Begin` (context, command snapshot, run lock, registry, running metadata; consumes the queue only for queue-based runs), `Execute` (snapshot, plan, dispatch, summary), and `Finish` (final context, metadata finalization, lock removal). Saved-run snapshots are constructed under the project state lock without editing the next queue. Shared by sync and async runs and by cancellation. Also checks that a queue can run with the known executors (`ValidateQueue`). | `lifecycle.go`, `execute.go`, `plan.go`, `validate.go` |
@@ -293,6 +293,16 @@ internal package.
 - Is it flag parsing, message wording, or colors? `cmd/rotari`.
 
 ## Files in cmd/rotari
+
+Configuration loading in `config.go` stages global/workspace → basedir selection
+→ basedir config → project selection → project config. `config_selectors.go`
+retains location provenance when file defaults meet registry selectors.
+`init_workspace.go` writes only cwd defaults. The run client passes captured
+file values through `server.Request.FileConfig` to `projectrun.Start`, so
+`Begin` writes the merged snapshot without reopening ordinary source files.
+Notification discovery/snapshots stay independent. Web options capture the
+startup workspace directory; current views select validated real sources and
+run views read saved snapshots.
 
 `cmd/rotari` is the largest package. Each command has a `cmdXxx` function,
 dispatched from `run` in [main.go](../cmd/rotari/main.go).

@@ -8,6 +8,16 @@ Generate the file with `rotari config --notifications`, or edit it from the
 Web UI's **Notifications** button. Rotari uses the first file it finds in the
 project, the basedir, then the global config directory; scopes are not merged.
 
+This is deliberately different from ordinary command configuration, which
+merges global → cwd workspace → basedir → project files (see
+[Configuration](CONFIGURATION.md#configuration-files)). Notifications have no
+workspace scope. The selected file replaces all lower-scope notification
+settings: omitted fields use notification built-in defaults, not values from
+lower files. In particular, a project notification file with no `webhook.url`
+does not inherit a global webhook destination. `ROTARI_WEBHOOK_URL` remains an
+explicit environment override. Notification snapshots are recorded separately
+from a run's merged command configuration.
+
 On a run page, **Notification config (read only)** displays the notification
 config copied when that run started, rather than the current project settings.
 You can copy its contents, but cannot edit, save, or reload it. The button is

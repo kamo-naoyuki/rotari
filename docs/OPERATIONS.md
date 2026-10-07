@@ -122,7 +122,10 @@ provides HTTP authentication, not encryption.
   `127.0.0.1`; with a token, use only a trusted network or HTTPS proxy. Prefer
   the environment variable so the token does not appear in the process list.
   Environment variable values are never exposed over HTTP, but project and run
-  pages show raw config files, which may contain secrets. The notification
+  pages show raw global/workspace/basedir/project config sources and saved
+  merged run file-config snapshots, which may contain secrets. Static exports
+  include those contents as well; share them only with trusted readers.
+  The notification
   settings UI visually masks a saved webhook URL and does not return it from
   its read API, but this does not encrypt the connection: a replacement URL is
   sent to the Web server when saved. Use HTTPS through a trusted reverse proxy

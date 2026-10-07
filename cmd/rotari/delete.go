@@ -3,8 +3,6 @@ package main
 import (
 	"flag"
 	"os"
-
-	"github.com/kamo-naoyuki/rotari/internal/resolve"
 )
 
 // cmdDelete removes one run or all historical runs from the selected project.
@@ -32,7 +30,7 @@ func cmdDelete(args []string) int {
 		return 1
 	}
 
-	baseDir, queueName, resolvedRunID, err := resolve.ExistingRunID(*basedir, *queueNameOption, *runIDOption)
+	baseDir, queueName, resolvedRunID, err := resolveCLIExistingRunID(*basedir, *queueNameOption, *runIDOption)
 	if err != nil {
 		printError(err)
 		return 1

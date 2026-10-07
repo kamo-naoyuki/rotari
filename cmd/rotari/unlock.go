@@ -39,7 +39,7 @@ func cmdUnlock(args []string) int {
 	var baseDir, queueName string
 	var err error
 	if *runID != "" {
-		baseDir, queueName, err = resolve.ExistingRun(*basedir, *queueNameOption, *runID)
+		baseDir, queueName, err = resolveCLIExistingRun(*basedir, *queueNameOption, *runID)
 	} else {
 		baseDir, _, err = state.ResolveBaseDir(*basedir)
 		if err == nil {

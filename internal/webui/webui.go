@@ -55,6 +55,8 @@ type webConfigTarget struct {
 type webSaveConfigRequest struct {
 	QueueName string `json:"project_name"`
 	Content   string `json:"content"`
+	Scope     string `json:"scope"`
+	Path      string `json:"path"`
 }
 
 type webSaveNotificationConfigRequest struct {
@@ -502,7 +504,7 @@ func (s site) baseHandler() http.Handler {
 			writeWebError(writer, err)
 			return
 		}
-		path, err := saveWebConfig(baseDir, save.QueueName, save.Content)
+		path, err := s.saveSelectedConfig(baseDir, save)
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -535,7 +537,7 @@ func (s site) baseHandler() http.Handler {
 			methodNotAllowed(writer)
 			return
 		}
-		targets, err := webConfigTargets(baseDir, request.URL.Query().Get("project_name"))
+		targets, err := webConfigTargets(baseDir, request.URL.Query().Get("project_name"), s.WorkspaceDir)
 		if err != nil {
 			writeWebError(writer, err)
 			return
@@ -1011,57 +1013,80 @@ func (s site) handleWebProjects(writer http.ResponseWriter, request *http.Reques
 }
 
 func (s site) loadWebConfigFiles(baseDir, projectName, runID string) ([]webprojection.ConfigFile, error) {
-	var paths []string
 	if projectName == "" {
 		if runID != "" {
 			return nil, fmt.Errorf("project_name is required with run_id")
-		}
-		if path := config.EffectivePath(baseDir, ""); path != "" {
-			paths = []string{path}
 		}
 	} else {
 		if !stateinternal.IsValidPathElement(projectName) {
 			return nil, fmt.Errorf("invalid project_name %q", projectName)
 		}
-		if runID == "" {
-			if path := config.EffectivePath(baseDir, projectName); path != "" {
-				paths = []string{path}
-			}
-		} else {
+		if runID != "" {
 			if !stateinternal.IsValidPathElement(runID) {
 				return nil, fmt.Errorf("invalid run_id %q", runID)
 			}
 			return s.loadRunConfigFiles(baseDir, projectName, runID)
 		}
 	}
-	files := make([]webprojection.ConfigFile, 0, len(paths))
-	for _, path := range paths {
+	loaded, err := config.Load(s.WorkspaceDir, baseDir, projectName)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]webprojection.ConfigFile, 0, len(loaded.Sources))
+	for _, source := range loaded.Sources {
+		path := source.Path
 		// codeql[go/path-injection]: paths contain only resolved config files or validated run context entries.
 		data, err := os.ReadFile(path) // NOSONAR: paths contain only the resolved global/project config files or validated run context entries.
 		if err != nil {
 			return nil, err
 		}
-		files = append(files, webprojection.ConfigFile{Path: path, Content: string(data)})
+		files = append(files, webprojection.ConfigFile{Scope: source.Scope, Path: path, Content: string(data)})
 	}
 	return files, nil
 }
 
-func saveWebConfig(baseDir, projectName, content string) (string, error) {
-	if projectName != "" && !stateinternal.IsValidPathElement(projectName) {
-		return "", fmt.Errorf("invalid project_name %q", projectName)
-	}
-	path := config.EffectivePath(baseDir, projectName)
-	if path == "" {
-		return "", fmt.Errorf("no config file exists to edit")
-	}
-	if _, err := config.Parse(path, []byte(content)); err != nil {
-		return "", fmt.Errorf("invalid %s config: %w", strings.TrimPrefix(filepath.Ext(path), "."), err)
-	}
-	// codeql[go/path-injection]: path is returned by the allow-listed config resolver.
-	if err := os.WriteFile(path, []byte(content), stateinternal.FileMode()); err != nil {
+func (s site) saveSelectedConfig(baseDir string, request webSaveConfigRequest) (string, error) {
+	files, err := s.loadWebConfigFiles(baseDir, request.QueueName, "")
+	if err != nil {
 		return "", err
 	}
-	return path, nil
+	var selected *webprojection.ConfigFile
+	for i := range files {
+		file := &files[i]
+		if request.Path == file.Path && request.Scope == file.Scope || request.Path == "" && request.Scope == "" && len(files) == 1 {
+			selected = file
+		}
+	}
+	if selected == nil {
+		return "", fmt.Errorf("select an existing allowed config source by scope and path")
+	}
+	values, err := config.Parse(selected.Path, []byte(request.Content))
+	if err != nil {
+		return "", fmt.Errorf("invalid %s config: %w", strings.TrimPrefix(filepath.Ext(selected.Path), "."), err)
+	}
+	if err := config.Validate(selected.Scope, selected.Path, values); err != nil {
+		return "", err
+	}
+	if err := atomicWriteNotificationConfig(selected.Path, []byte(request.Content)); err != nil {
+		return "", err
+	}
+	return selected.Path, nil
+}
+
+func (s site) configSources(baseDir, projectName string) []model.ConfigSource {
+	loaded, err := config.Load(s.WorkspaceDir, baseDir, projectName)
+	if err != nil {
+		return nil
+	}
+	return loaded.Sources
+}
+
+func (s site) configPath(baseDir, projectName string) string {
+	sources := s.configSources(baseDir, projectName)
+	if len(sources) == 0 {
+		return ""
+	}
+	return sources[len(sources)-1].Path
 }
 
 func (s site) loadRunConfigFiles(baseDir, projectName, runID string) ([]webprojection.ConfigFile, error) {
@@ -1079,9 +1104,6 @@ func (s site) loadRunConfigFiles(baseDir, projectName, runID string) ([]webproje
 	}
 	if len(context.ConfigSnapshotFiles) == 0 {
 		return loadLegacyRunConfigFiles(baseDir, projectName, context.ConfigPaths)
-	}
-	if len(context.ConfigPaths) != len(context.ConfigSnapshotFiles) {
-		return nil, fmt.Errorf("run %q has inconsistent config snapshots", runID)
 	}
 	snapshotDir, err := stateinternal.SafeJoin(runDir, "configs")
 	if err != nil {
@@ -1103,7 +1125,7 @@ func (s site) loadRunConfigFiles(baseDir, projectName, runID string) ([]webproje
 	return files, nil
 }
 
-func webConfigTargets(baseDir, projectName string) ([]webConfigTarget, error) {
+func webConfigTargets(baseDir, projectName string, workspaceDirs ...string) ([]webConfigTarget, error) {
 	configHome, err := config.HomeDir()
 	if err != nil {
 		return nil, err
@@ -1111,6 +1133,9 @@ func webConfigTargets(baseDir, projectName string) ([]webConfigTarget, error) {
 	targets := []webConfigTarget{
 		{Location: "global", Path: filepath.Join(configHome, webConfigFileName)},
 		{Location: "basedir", Path: filepath.Join(baseDir, webConfigFileName)},
+	}
+	if len(workspaceDirs) > 0 && workspaceDirs[0] != "" {
+		targets = append(targets, webConfigTarget{Location: "workspace", Path: filepath.Join(workspaceDirs[0], config.WorkspaceFile)})
 	}
 	if projectName == "" {
 		return targets, nil
@@ -1224,7 +1249,7 @@ func atomicWriteNotificationConfig(path string, data []byte) error {
 }
 
 func (s site) generateWebConfig(baseDir, projectName, location string) (string, error) {
-	targets, err := webConfigTargets(baseDir, projectName)
+	targets, err := webConfigTargets(baseDir, projectName, s.WorkspaceDir)
 	if err != nil {
 		return "", err
 	}
@@ -1240,6 +1265,9 @@ func (s site) generateWebConfig(baseDir, projectName, location string) (string, 
 	}
 	directory := filepath.Dir(target)
 	existing := config.FilePaths(directory)
+	if location == "workspace" {
+		existing = nil
+	}
 	if len(existing) > 1 {
 		return "", fmt.Errorf("multiple config files found in %s: %s", directory, strings.Join(existing, ", "))
 	}
@@ -1247,6 +1275,9 @@ func (s site) generateWebConfig(baseDir, projectName, location string) (string, 
 		return "", fmt.Errorf("config file %s already exists; remove it before generating config.toml", existing[0])
 	}
 	data, err := s.ConfigTemplate()
+	if s.ConfigTemplateForScope != nil {
+		data, err = s.ConfigTemplateForScope(location)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -1287,7 +1318,7 @@ func loadLegacyRunConfigFiles(baseDir, projectName string, configPaths []string)
 // loadWebIndex returns lightweight project/run metadata plus details for active runs.
 // Project queues and completed run details are fetched separately when needed.
 func (s site) loadWebIndex(baseDir string) (webprojection.State, error) {
-	state := webprojection.State{BaseDir: baseDir, ConfigPath: config.EffectivePath(baseDir, ""), Environments: s.environments(), UpdatedAt: time.Now().UTC().Format(time.RFC3339)}
+	state := webprojection.State{BaseDir: baseDir, ConfigPath: s.configPath(baseDir, ""), ConfigSources: s.configSources(baseDir, ""), Environments: s.environments(), UpdatedAt: time.Now().UTC().Format(time.RFC3339)}
 	for index := range state.Environments {
 		_, state.Environments[index].Set = os.LookupEnv(state.Environments[index].Name)
 	}
@@ -1315,7 +1346,7 @@ func (s site) loadWebIndexProject(baseDir, projectName string) (webprojection.Qu
 	if err != nil {
 		return webprojection.QueueState{}, err
 	}
-	project := webprojection.QueueState{QueueName: projectName, Queue: model.Queue{}, Runs: []webprojection.Run{}, Server: loadWebServerState(paths.ProjectDir), ConfigPath: config.EffectivePath(baseDir, projectName)}
+	project := webprojection.QueueState{QueueName: projectName, Queue: model.Queue{}, Runs: []webprojection.Run{}, Server: loadWebServerState(paths.ProjectDir), ConfigPath: s.configPath(baseDir, projectName), ConfigSources: s.configSources(baseDir, projectName)}
 	if lock, lockErr := stateinternal.LoadLock(paths.LockFile); lockErr == nil {
 		project.RunningRunID = lock.RunID
 		project.RunnerPID = lock.PID
@@ -1372,7 +1403,7 @@ func (s site) loadWebIndexProject(baseDir, projectName string) (webprojection.Qu
 
 // loadWebState builds the full projection for static export.
 func (s site) loadWebState(baseDir string) (webprojection.State, error) {
-	state := webprojection.State{BaseDir: baseDir, ConfigPath: config.EffectivePath(baseDir, ""), Environments: s.environments(), UpdatedAt: time.Now().UTC().Format(time.RFC3339)}
+	state := webprojection.State{BaseDir: baseDir, ConfigPath: s.configPath(baseDir, ""), ConfigSources: s.configSources(baseDir, ""), Environments: s.environments(), UpdatedAt: time.Now().UTC().Format(time.RFC3339)}
 	for index := range state.Environments {
 		// Only expose whether the variable is set, never its value: it may hold secrets (API keys, tokens).
 		_, state.Environments[index].Set = os.LookupEnv(state.Environments[index].Name)
@@ -1397,7 +1428,8 @@ func (s site) loadWebState(baseDir string) (webprojection.State, error) {
 		if err != nil {
 			return webprojection.State{}, err
 		}
-		queueState.ConfigPath = config.EffectivePath(baseDir, queueName)
+		queueState.ConfigPath = s.configPath(baseDir, queueName)
+		queueState.ConfigSources = s.configSources(baseDir, queueName)
 		queueState.Server = loadWebServerState(paths.ProjectDir)
 		state.Queues = append(state.Queues, queueState)
 	}
@@ -1416,7 +1448,7 @@ func (s site) loadWebProjectOverview(baseDir, projectName string) (webprojection
 	if err != nil {
 		return webprojection.QueueState{}, err
 	}
-	project := webprojection.QueueState{QueueName: projectName, ConfigPath: config.EffectivePath(baseDir, projectName), Queue: queue, Runs: []webprojection.Run{}, Server: loadWebServerState(paths.ProjectDir)}
+	project := webprojection.QueueState{QueueName: projectName, ConfigPath: s.configPath(baseDir, projectName), ConfigSources: s.configSources(baseDir, projectName), Queue: queue, Runs: []webprojection.Run{}, Server: loadWebServerState(paths.ProjectDir)}
 	if lock, lockErr := stateinternal.LoadLock(paths.LockFile); lockErr == nil {
 		project.RunningRunID = lock.RunID
 		project.RunnerPID = lock.PID
@@ -1554,7 +1586,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 	wordClouds := map[string]outputWordCloud{}
 	configTargets := map[string][]webConfigTarget{}
 	configs := map[string][]webprojection.ConfigFile{}
-	allTargets, err := webConfigTargets(baseDir, "")
+	allTargets, err := webConfigTargets(baseDir, "", s.WorkspaceDir)
 	if err != nil {
 		return err
 	}
@@ -1563,7 +1595,7 @@ func (s site) generateStaticWeb(outputDir string) error {
 		configs[staticConfigKey("", "")] = files
 	}
 	for _, queue := range state.Queues {
-		targets, targetErr := webConfigTargets(baseDir, queue.QueueName)
+		targets, targetErr := webConfigTargets(baseDir, queue.QueueName, s.WorkspaceDir)
 		if targetErr != nil {
 			return targetErr
 		}

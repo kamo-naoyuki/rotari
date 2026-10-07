@@ -149,7 +149,7 @@ func cmdCancel(args []string) int {
 		printError("--wait may not be used with a job selection")
 		return 1
 	}
-	target, err := resolve.JobSelection(*basedir, *queueNameOption, jobIDs)
+	target, err := resolveCLIJobSelection(*basedir, *queueNameOption, jobIDs)
 	if err != nil {
 		printError(err)
 		return 1
@@ -194,7 +194,7 @@ func cmdJobSignal(args []string, operation string) int {
 	if len(fs.Args()) > 0 {
 		jobIDs = append(jobIDs, fs.Args()...)
 	}
-	target, err := resolve.JobSelection(*basedir, *queueNameOption, jobIDs)
+	target, err := resolveCLIJobSelection(*basedir, *queueNameOption, jobIDs)
 	if err != nil {
 		printError(err)
 		return 1
