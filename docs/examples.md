@@ -7,8 +7,9 @@ sources are shown by GitHub as code rather than downloaded as files.
 
 ## Basic example
 
-This example adds a command directly and through `sh -c`, then runs both jobs.
-From the repository root, run it with:
+This example adds a command directly, through `sh -c`, and one whose
+hyphen-prefixed name requires the `--` separator. It then runs the jobs and
+shows the result. From the repository root, run it with:
 
 ```sh
 ./examples/basic.sh

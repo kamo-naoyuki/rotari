@@ -156,8 +156,8 @@ See the [Python API reference](python-api.md) for available methods and options.
 
 ## Examples
 
-Start with the [basic example](examples.md#basic-example) for direct commands
-and `sh -c`:
+Start with the [basic example](examples.md#basic-example) for direct commands,
+`sh -c`, and the `--` separator:
 
 ```sh
 ./examples/basic.sh
