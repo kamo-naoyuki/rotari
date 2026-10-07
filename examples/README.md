@@ -18,7 +18,9 @@ the recovery instructions from `rotari show` or the [inspection guide](../docs/I
 
 | Goal | Run | Requirement |
 | --- | --- | --- |
-| Dependencies, a local run, and the files a job names | `./examples/basic.sh` | rotari |
+| Direct commands and `sh -c` | `./examples/basic.sh` | rotari |
+| Jobs with dependencies | `./examples/dependencies.sh` | rotari |
+| Working directories and artifact candidates | `./examples/artifacts.sh` | rotari |
 | Local array tasks | `./examples/array.sh` | rotari |
 | Matrix of independent jobs | `./examples/matrix.sh` | rotari |
 | Retry only failed work | `./examples/retry.sh` | rotari |

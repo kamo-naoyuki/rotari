@@ -156,18 +156,19 @@ See the [Python API reference](python-api.md) for available methods and options.
 
 ## Examples
 
-Start with the [basic example](examples.md#basic-example) for a dependent job:
+Start with the [basic example](examples.md#basic-example) for direct commands
+and `sh -c`:
 
 ```sh
 ./examples/basic.sh
 ```
 
 The [examples guide](examples.md) has independent, no-argument
-scripts for arrays, retrying failed work, async runs, Slurm, workflow
-manifests, and diagnosis. All examples use rotari's normally resolved state
-directory and switch projects rather than creating a basedir for each
-example. Slurm needs a configured cluster. To fix a failed job and accept
-another job's result in an exported workflow, run
+scripts for job dependencies, artifact candidates, arrays, retrying failed
+work, async runs, Slurm, workflow manifests, and diagnosis. All examples use
+rotari's normally resolved state directory and switch projects rather than
+creating a basedir for each example. Slurm needs a configured cluster. To fix
+a failed job and accept another job's result in an exported workflow, run
 `./examples/workflow-reconcile.sh`. See
 [Workflow manifests](WORKFLOW_MANIFESTS.md) for the details.
 
