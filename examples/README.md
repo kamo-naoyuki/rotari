@@ -18,7 +18,7 @@ the recovery instructions from `rotari show` or the [inspection guide](../docs/I
 
 | Goal | Run | Requirement |
 | --- | --- | --- |
-| Commands, `sh -c`, and the `--` separator | `./examples/basic.sh` | rotari |
+| Commands, `sh -c`, and command options | `./examples/basic.sh` | rotari |
 | Jobs with dependencies | `./examples/dependencies.sh` | rotari |
 | Working directories and artifact candidates | `./examples/artifacts.sh` | rotari |
 | Local array tasks | `./examples/array.sh` | rotari |

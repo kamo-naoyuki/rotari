@@ -7,9 +7,10 @@ sources are shown by GitHub as code rather than downloaded as files.
 
 ## Basic example
 
-This example adds a command directly, through `sh -c`, and one whose
-hyphen-prefixed name requires the `--` separator. It then runs the jobs and
-shows the result. From the repository root, run it with:
+This example adds a direct command and a shell command through `sh -c`. It
+also shows `--` explicitly separating rotari options from `echo -n` (optional
+here because option parsing stops at `echo`). From the repository root, run it
+with:
 
 ```sh
 ./examples/basic.sh

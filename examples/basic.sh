@@ -10,15 +10,9 @@ rotari reset
 rotari add echo "hello from rotari"
 rotari add sh -c 'echo "hello from a shell"'
 
-# A command name starting with - needs -- so it is not parsed as a rotari
-# option.
-command_dir=$(mktemp -d)
-trap 'rm -rf "$command_dir"' EXIT
-printf '%s\n' '#!/bin/sh' 'echo "command beginning with a hyphen"' > \
-	"$command_dir/-rotari-demo"
-chmod +x "$command_dir/-rotari-demo"
-export PATH="$command_dir:$PATH"
-rotari add -- -rotari-demo
+# -- explicitly marks the end of rotari options; -n belongs to echo.
+# It is optional here because rotari stops parsing options at echo.
+rotari add -- echo -n "hello without a newline"
 
 # Run the queued jobs and wait for them to finish.
 rotari run
