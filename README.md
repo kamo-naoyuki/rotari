@@ -16,6 +16,8 @@ matrix jobs. If you've used [Kaldi](https://github.com/kaldi-asr/kaldi)'s or
 [ESPnet](https://github.com/espnet)'s `run.pl`/`queue.pl`, the basic idea should
 feel familiar.
 
+The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers installation, concepts, command reference, and running rotari on clusters. AI agents: use the [documentation index](https://kamo-naoyuki.github.io/rotari/docs/llms.txt) to find relevant guides, or the [full documentation](https://kamo-naoyuki.github.io/rotari/docs/llms-full.txt) for the complete set.
+
 | Plain shell (background jobs) | rotari |
 | --- | --- |
 | <img src="https://kamo-naoyuki.github.io/rotari/demo-shell.gif" alt="shell background jobs demo" width="400"> | <img src="https://kamo-naoyuki.github.io/rotari/demo-rotari.gif" alt="rotari demo" width="400"> |
@@ -112,12 +114,14 @@ To use the same location defaults with any of the three approaches above, run
 `rotari init` from this directory:
 
 ```sh
-# Use the default basedir (.rotari-state); leave project selection to normal resolution.
+# Use the default basedir (.rotari-state) and the default project ("default")
 rotari init
-# Set a basedir explicitly; leave project selection to normal resolution.
-rotari init .rotari-state
+
+# Set a basedir explicitly and the default project ("default")
+# rotari init .rotari-state
+
 # Set both the basedir and the default project.
-rotari init .rotari-state sweep
+# rotari init .rotari-state sweep
 ```
 
 This writes `.rotari.toml`; the state directory and project are created when
