@@ -3,6 +3,8 @@
 Created: 2026-10-08
 Status: Listing commands and detail-only `show` implemented; client disconnect behavior remains open
 
+Implementation history: [work-log.md](work-log.md).
+
 ## Purpose
 
 Make runs that outlive their initiating CLI client easy to discover and inspect, and avoid leaving local jobs running unnoticed when a client or supervisor disappears. The workflow should distinguish an intentional detach from an explicit cancellation and from an unexpected process failure.
