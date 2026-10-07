@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/kamo-naoyuki/rotari/internal/model"
 	"github.com/kamo-naoyuki/rotari/internal/queueedit"
 	"github.com/kamo-naoyuki/rotari/internal/resolve"
 	"github.com/kamo-naoyuki/rotari/internal/state"
@@ -155,16 +156,16 @@ func cmdCopy(args []string) int {
 					printError(err)
 					return 1
 				}
-				meta, err := state.LoadMeta(paths.MetaFile)
+				latestRunID, err := resolve.RunID(paths, model.Latest)
 				if err != nil {
-					printErrorf("failed to load metadata: %v", err)
+					if errors.Is(err, resolve.ErrNoSettledRuns) {
+						printErrorf("project %q has no previous run", projectName)
+						return 1
+					}
+					printError(err)
 					return 1
 				}
-				if meta.LastRunID == "" {
-					printErrorf("project %q has no previous run", projectName)
-					return 1
-				}
-				*basedir, *queueNameOption, *runID = baseDir, projectName, meta.LastRunID
+				*basedir, *queueNameOption, *runID = baseDir, projectName, latestRunID
 			} else {
 				target, err := resolve.LatestJobIDs(*basedir, *queueNameOption, jobIDs)
 				if err != nil {

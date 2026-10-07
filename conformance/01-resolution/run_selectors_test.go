@@ -27,6 +27,52 @@ func TestLatestRunID(t *testing.T) {
 	}
 }
 
+func TestLatestRunIDSkipsActiveRun(t *testing.T) {
+	covers(t, "RES-12")
+	e := support.NewEnv(t)
+	e.MustRotari("add", "-p", "a", "--job-name", "settled", "--", "true")
+	e.MustRotari("run", "-p", "a", "--quiet")
+	settledRunID := showRunID(t, e.MustRotari("show", "-p", "a", "--json").Stdout)
+	e.StartRun("a", 1, true)
+
+	if got := showRunID(t, e.MustRotari("show", "-p", "a", "--run-id", "latest", "--json").Stdout); got != settledRunID {
+		t.Fatalf("show --run-id latest selected %q, want settled run %q", got, settledRunID)
+	}
+	for _, test := range []struct {
+		name string
+		args []string
+	}{
+		{name: "copy defaults to latest", args: nil},
+		{name: "copy run-id latest", args: []string{"--run-id", "latest"}},
+		{name: "copy job name", args: []string{"--job-name", "settled"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			args := append([]string{"copy", "-p", "a", "--overwrite", "--quiet"}, test.args...)
+			e.MustRotari(args...)
+			var queue struct {
+				Commands struct {
+					Commands []struct {
+						Name   string `json:"name"`
+						Origin *struct {
+							RunID string `json:"run_id"`
+						} `json:"origin"`
+					} `json:"commands"`
+				} `json:"commands"`
+			}
+			if err := json.Unmarshal([]byte(e.MustRotari("show", "-p", "a", "--queue", "--json").Stdout), &queue); err != nil {
+				t.Fatal(err)
+			}
+			if len(queue.Commands.Commands) != 1 {
+				t.Fatalf("copied queue has %d commands, want one: %+v", len(queue.Commands.Commands), queue)
+			}
+			copied := queue.Commands.Commands[0]
+			if copied.Name != "settled" || copied.Origin == nil || copied.Origin.RunID != settledRunID {
+				t.Fatalf("copied command = %+v, want settled job from run %q", copied, settledRunID)
+			}
+		})
+	}
+}
+
 func TestRunIDAloneResolvesLocation(t *testing.T) {
 	covers(t, "RES-13")
 	e := support.NewEnv(t)

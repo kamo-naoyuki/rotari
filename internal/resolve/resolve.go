@@ -49,6 +49,10 @@ func isRunning(lockPath string) (bool, error) {
 // random hex suffix.
 var runIDPattern = regexp.MustCompile(`^[0-9]{8}-[0-9]{6}-[0-9a-f]{8}$`)
 
+// ErrNoSettledRuns reports that a project has no completed run to select as
+// "latest".
+var ErrNoSettledRuns = errors.New("no settled runs")
+
 // JobControl is the target of a cancel, suspend, or resume selection: a
 // project's active run, and the jobs in it, or every job when JobIDs is
 // empty. RunID is the run the selection names, which the active run must
@@ -690,7 +694,7 @@ func Jobs(cliBaseDir, cliProjectName, selector string, byName, includeQueue bool
 			targets = append(targets, projectTargets...)
 			continue
 		}
-		runID, err := RunID(paths, "")
+		runID, err := RunID(paths, model.Latest)
 		if err != nil {
 			continue
 		}
@@ -749,11 +753,11 @@ func jobIDsTarget(cliBaseDir, cliProjectName string, jobIDs []string, includeQue
 }
 
 // RunID resolves the run a history command reads. An explicit requested run
-// must exist; empty or "latest" selects meta.json's last run, then the newest
-// run directory.
+// must exist; empty selects meta.json's last run, then the newest run
+// directory, while "latest" selects the newest settled run.
 func RunID(paths state.ProjectPaths, requested string) (string, error) {
 	if requested == model.Latest {
-		requested = ""
+		return latestSettledRunID(paths)
 	}
 	if requested != "" {
 		if !state.IsValidPathElement(requested) {
@@ -801,4 +805,79 @@ func RunID(paths state.ProjectPaths, requested string) (string, error) {
 		})
 		return runIDs[0], nil
 	}
+}
+
+// latestSettledRunID resolves the reserved latest selector without choosing a
+// run that is active or interrupted. Metadata keeps
+// its usual precedence when it names a settled run; otherwise the newest
+// settled run directory is used.
+func latestSettledRunID(paths state.ProjectPaths) (string, error) {
+	meta, err := state.LoadMeta(paths.MetaFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to load metadata: %w", err)
+	}
+	if meta.LastRunID != "" {
+		settled, err := settledRunCandidate(paths, meta.LastRunID)
+		if err != nil {
+			return "", err
+		}
+		if settled {
+			return meta.LastRunID, nil
+		}
+	}
+	return newestSettledRunID(paths)
+}
+
+func settledRunCandidate(paths state.ProjectPaths, runID string) (bool, error) {
+	if !state.IsValidPathElement(runID) {
+		return false, nil
+	}
+	// codeql[go/path-injection]: runID is validated before joining it to RunsDir.
+	info, err := os.Stat(filepath.Join(paths.RunsDir, runID))
+	if err != nil || !info.IsDir() {
+		return false, nil
+	}
+	settled, err := runIsSettled(paths, runID)
+	if err != nil {
+		return false, fmt.Errorf("failed to inspect run %q: %w", runID, err)
+	}
+	return settled, nil
+}
+
+func newestSettledRunID(paths state.ProjectPaths) (string, error) {
+	entries, err := os.ReadDir(paths.RunsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("%w: project %q (runs_dir=%s)", ErrNoSettledRuns, paths.ProjectName, paths.RunsDir)
+		}
+		return "", fmt.Errorf("failed to read runs: %w", err)
+	}
+	runIDs := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() && state.IsValidPathElement(entry.Name()) {
+			runIDs = append(runIDs, entry.Name())
+		}
+	}
+	sort.Slice(runIDs, func(i, j int) bool {
+		// codeql[go/path-injection]: runIDs come from directory entries under RunsDir.
+		left, _ := os.Stat(filepath.Join(paths.RunsDir, runIDs[i]))
+		// codeql[go/path-injection]: runIDs come from directory entries under RunsDir.
+		right, _ := os.Stat(filepath.Join(paths.RunsDir, runIDs[j]))
+		return left.ModTime().After(right.ModTime())
+	})
+	for _, runID := range runIDs {
+		settled, err := runIsSettled(paths, runID)
+		if err != nil {
+			return "", fmt.Errorf("failed to inspect run %q: %w", runID, err)
+		}
+		if settled {
+			return runID, nil
+		}
+	}
+	return "", fmt.Errorf("%w: project %q (runs_dir=%s)", ErrNoSettledRuns, paths.ProjectName, paths.RunsDir)
+}
+
+func runIsSettled(paths state.ProjectPaths, runID string) (bool, error) {
+	phase, err := project.RunPhaseOf(paths, runID)
+	return phase != project.RunPhaseRunning && phase != project.RunPhaseInterrupted, err
 }

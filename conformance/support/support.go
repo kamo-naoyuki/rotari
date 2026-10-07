@@ -452,7 +452,7 @@ func (e *Env) JobExitStatus(project, jobID string) string {
 	e.T.Helper()
 	var status string
 	WaitUntil(e.T, 30*time.Second, func() (bool, string) {
-		out := e.Rotari("show", "-p", project, "--run-id", "latest", "--job-id", jobID).Stdout
+		out := e.Rotari("show", "-p", project, "--job-id", jobID).Stdout
 		for _, line := range strings.Split(out, "\n") {
 			if strings.HasPrefix(line, "Status:") {
 				status = line

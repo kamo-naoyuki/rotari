@@ -64,8 +64,9 @@ For a running job, `finished` is false and no `result` is present. With
 `--failed`, the run JSON keeps only the failed jobs' summary results and
 failure groups (the `commands` snapshot stays whole), and the job and array
 JSON keeps only the failed jobs, as the job table does. Passing
-`--run-id latest` selects the latest saved run even when the project has a
-non-empty queue; an unknown job ID fails instead of showing the queue.
+`--run-id latest` selects the latest settled run even when the project has a
+non-empty queue or an active run; an unknown job ID fails instead of showing
+the queue.
 
 For a run with failed jobs, `show` prints a `Failure summary:` line before
 the job table, with the `rotari lineage` command that prints only the run's

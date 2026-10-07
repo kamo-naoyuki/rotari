@@ -162,7 +162,15 @@ func resolveWaitTarget(cliBaseDir, cliProjectName, selector string) (resolve.Run
 func resolveProjectWaitTarget(baseDir, projectName string) (resolve.Run, error) {
 	runID, err := resolveActiveRunTarget(baseDir, projectName)
 	if err != nil {
-		baseDir, projectName, runID, err = resolve.ExistingRunID(baseDir, projectName, model.Latest)
+		baseDir, projectName, err = resolve.ExistingRun(baseDir, projectName, "")
+		if err != nil {
+			return resolve.Run{}, err
+		}
+		paths, err := state.ResolveProjectPaths(baseDir, projectName)
+		if err != nil {
+			return resolve.Run{}, err
+		}
+		runID, err = resolve.RunID(paths, "")
 		if err != nil {
 			return resolve.Run{}, err
 		}

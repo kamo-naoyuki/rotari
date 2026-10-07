@@ -356,6 +356,9 @@ func TestRunIDResolvesLatestAlias(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(paths.RunsDir, "latest-run"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := state.WriteJSON(filepath.Join(paths.RunsDir, "latest-run", "summary.json"), model.RunSummary{RunID: "latest-run"}); err != nil {
+		t.Fatal(err)
+	}
 	meta := state.DefaultMeta()
 	meta.LastRunID = "latest-run"
 	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
@@ -369,6 +372,62 @@ func TestRunIDResolvesLatestAlias(t *testing.T) {
 	if runID != "latest-run" {
 		t.Fatalf("run ID = %q, want latest-run", runID)
 	}
+}
+
+func TestRunIDLatestSkipsRunningAndInterruptedRuns(t *testing.T) {
+	for _, phase := range []string{"running", "interrupted"} {
+		t.Run(phase, func(t *testing.T) {
+			paths := latestRunFixture(t, phase)
+			got, err := RunID(paths, "latest")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != "settled-run" {
+				t.Fatalf("RunID(latest) = %q, want settled run %q", got, "settled-run")
+			}
+		})
+	}
+}
+
+func latestRunFixture(t *testing.T, phase string) state.ProjectPaths {
+	t.Helper()
+	paths, err := state.ResolveProjectPaths(t.TempDir(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, runID := range []string{"settled-run", "current-run"} {
+		if err := os.MkdirAll(filepath.Join(paths.RunsDir, runID), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := state.WriteJSON(filepath.Join(paths.RunsDir, "settled-run", "summary.json"), model.RunSummary{RunID: "settled-run"}); err != nil {
+		t.Fatal(err)
+	}
+	older := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	newer := older.Add(time.Minute)
+	if err := os.Chtimes(filepath.Join(paths.RunsDir, "settled-run"), older, older); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(filepath.Join(paths.RunsDir, "current-run"), newer, newer); err != nil {
+		t.Fatal(err)
+	}
+	meta := state.DefaultMeta()
+	meta.Phase = "running"
+	meta.LastRunID = "current-run"
+	if err := state.WriteJSON(paths.MetaFile, meta); err != nil {
+		t.Fatal(err)
+	}
+	if phase != "running" {
+		return paths
+	}
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(paths.LockFile, model.LockInfo{PID: os.Getpid(), RunID: "current-run", Host: host}); err != nil {
+		t.Fatal(err)
+	}
+	return paths
 }
 
 func TestJobInQueueMatchesArrayCommandBeforeItsTasks(t *testing.T) {
