@@ -28,7 +28,7 @@ The [documentation site](https://kamo-naoyuki.github.io/rotari/docs/) covers ins
 
 ## Manage jobs, logs, and outputs in one place
 
-- **A powerful web UI for every run.** Follow job status, browse logs, and
+- **A web UI for every run.** Follow job status, browse logs, and
   inspect artifacts in one place.
 - **Logs stay organized and easy to find.** Logs are kept with each workspace,
   without choosing a log path for every job, and runs can be explored across
