@@ -1,7 +1,7 @@
 # Plan: Workspace Configuration and Merged Run Config
 
 Created: 2026-10-07
-Status: Implementing
+Status: Complete
 
 ## Progress
 
@@ -25,10 +25,11 @@ Status: Implementing
 	assignments. Omitted arguments now write `.rotari-state` and `default`.
 	Existing-file diagnostics were clarified. Focused tests, affected packages,
 	contract/link checks, and init-specific race tests passed.
-- Remaining: confirm the final whole-repository full check (including race)
-	after the init changes, and clean up the workspace validation worktree.
-	Full checks were started, but their successful completion is not yet
-	confirmed; the plan remains Implementing rather than Complete.
+- Final verification: `scripts/check.sh` completed successfully after the init
+  fixes: go vet, all package/conformance tests, and all race tests passed
+  (exit code 0; some unchanged packages used Go's test cache). The validation
+  worktree was removed after confirming its correction was committed in main.
+- Remaining: None.
 
 ## Purpose
 

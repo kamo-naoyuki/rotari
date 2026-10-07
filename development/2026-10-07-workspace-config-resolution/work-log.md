@@ -91,6 +91,11 @@ Commit: `3abd9599`.
   package tests, root conformance, doc links, and focused init race tests passed.
   The contract-status check initially caught the missing new test name; its
   table was corrected and the check passed.
-- Remaining: the final full `scripts/check.sh` was started after these fixes;
-  its completion and whole-repository race results are not yet confirmed.
-  Do not treat the earlier check overlapping test edits as final validation.
+- Final validation: the subsequent full `scripts/check.sh` completed with
+  exit code 0 and `all checks passed`, including go vet, all package and
+  conformance tests, and go test -race. Some unchanged packages used Go's
+  test cache; no cache-free whole-repository run is claimed. The earlier
+  check overlapping test edits failed and is not the final validation result.
+- Cleanup: removed the detached workspace validation worktree after verifying
+  its selector observation correction matched the committed main version.
+- Remaining: None.
