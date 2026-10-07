@@ -142,7 +142,7 @@ the IDs, this table, and those calls disagree.
 | RES-21 | Missing state directories give no completion candidates | conformance | `TestCompletionMissingStateDirectoryHasNoCandidates` |
 | RES-22 | Relative state and master directories resolve against the working directory | conformance | `TestRelativeStateDirectoriesResolveAgainstTheWorkingDirectory` |
 | RES-23 | Cwd-only workspace discovery, staged location selection, scope merge and location constraints | partial | `TestWorkspaceInitAndCWDOnlyDiscovery`, `TestMergedFileConfigSnapshotAndScopeValidation`, `TestWebWorkspaceSourceSelectionAndRunSnapshot` |
-| RES-24 | Init writes only relative cwd location defaults without replacing settings or creating state | partial | `TestWorkspaceInitAndCWDOnlyDiscovery` |
+| RES-24 | Init writes a cwd config template with relative basedir and project defaults without replacing settings or creating state | partial | `TestWorkspaceInitAndCWDOnlyDiscovery`, `TestWorkspaceInitDefaultTemplate` |
 | RES-25 | Runs save immutable canonical merged file values, separate from runtime overrides and source metadata | partial | `TestMergedFileConfigSnapshotAndScopeValidation`, `TestWebWorkspaceSourceSelectionAndRunSnapshot` |
 | DUR-1 | Every executor runs jobs through the self-reporting wrapper | partial | `TestJobOutlivesKilledSupervisor` |
 | DUR-2 | The wrapper records status independently of its launcher | partial | `TestJobOutlivesKilledSupervisor` |

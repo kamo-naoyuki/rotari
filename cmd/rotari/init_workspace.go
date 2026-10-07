@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -29,20 +30,19 @@ func cmdInit(args []string) int {
 		printError("init basedir must be a non-empty relative path")
 		return 1
 	}
-	values := map[string]any{"basedir": base}
+	name := "default"
 	if len(fs.Args()) == 2 {
-		name := fs.Args()[1]
-		if !state.IsValidPathElement(name) {
-			printErrorf("invalid project name %q", name)
-			return 1
-		}
-		if err := model.ValidateReservedName("project", name); err != nil {
-			printError(err.Error())
-			return 1
-		}
-		values["project-name"] = name
+		name = fs.Args()[1]
 	}
-	data, err := config.Marshal(values)
+	if !state.IsValidPathElement(name) {
+		printErrorf("invalid project name %q", name)
+		return 1
+	}
+	if err := model.ValidateReservedName("project", name); err != nil {
+		printError(err.Error())
+		return 1
+	}
+	data, err := configTemplateWithDefaults("toml", map[string]any{"basedir": base, "project-name": name}, "workspace")
 	if err != nil {
 		printError(err.Error())
 		return 1
@@ -69,7 +69,11 @@ func cmdInit(args []string) int {
 		err = os.Link(tmp.Name(), config.WorkspaceFile)
 	}
 	if err != nil {
-		printErrorf("refusing to replace or failed to write %s: %v", config.WorkspaceFile, err)
+		if errors.Is(err, os.ErrExist) {
+			printErrorf("%s already exists; init does not overwrite workspace settings. To change the defaults, edit it directly", config.WorkspaceFile)
+		} else {
+			printErrorf("failed to create %s: %v", config.WorkspaceFile, err)
+		}
 		return 1
 	}
 	fmt.Println("Created " + config.WorkspaceFile)

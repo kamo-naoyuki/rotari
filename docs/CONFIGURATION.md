@@ -74,16 +74,18 @@ command:
 rotari init .rotari-state sweep
 ```
 
-This creates `.rotari.toml` in the current directory with:
+This creates `.rotari.toml` in the current directory using the same TOML
+template as `rotari config`. Only these two values are filled in; other
+configurable options are included as commented-out assignments:
 
 ```toml
 basedir = ".rotari-state"
 project-name = "sweep"
 ```
 
-Both arguments are optional. With no arguments, `init` writes only the default
-basedir `.rotari-state`; with a `BASEDIR` but no `PROJECT`, it writes only that
-basedir. The basedir must be a non-empty relative path, resolved from the
+Both arguments are optional. Omitted `BASEDIR` defaults to `.rotari-state`,
+and omitted `PROJECT` defaults to `default`. Both values are always written.
+The basedir must be a non-empty relative path, resolved from the
 workspace directory; it may include parent or child directories such as
 `../state` or `state/rotari`, but cannot be absolute. The project must be a
 single safe path element (not empty, `.` or `..`, and containing neither `/`

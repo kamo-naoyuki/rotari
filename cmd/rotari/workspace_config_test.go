@@ -54,6 +54,32 @@ func TestWorkspaceInit(t *testing.T) {
 			if loaded.Values["basedir"] != base {
 				t.Fatalf("values = %#v", loaded.Values)
 			}
+			project := "default"
+			if len(args) == 2 {
+				project = args[1]
+			}
+			if loaded.Values["project-name"] != project {
+				t.Fatalf("project-name = %#v, want %q", loaded.Values["project-name"], project)
+			}
+			data, err := os.ReadFile(config.WorkspaceFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			template, err := configTemplate("toml", "workspace")
+			if err != nil {
+				t.Fatal(err)
+			}
+			normalized := string(data)
+			for _, key := range []string{"basedir", "project-name"} {
+				encoded, err := config.Marshal(map[string]any{key: loaded.Values[key]})
+				if err != nil {
+					t.Fatal(err)
+				}
+				normalized = strings.ReplaceAll(normalized, string(encoded), "# "+key+" = \"\"\n")
+			}
+			if normalized != string(template) {
+				t.Fatal("init output differs from the config template beyond location values")
+			}
 			entries, _ := os.ReadDir(dir)
 			if len(entries) != 1 || entries[0].Name() != config.WorkspaceFile {
 				t.Fatalf("init side effects = %v", entries)
@@ -79,6 +105,33 @@ func TestWorkspaceInitRejectsInvalidArguments(t *testing.T) {
 	}
 	if _, err := os.Stat(config.WorkspaceFile); !os.IsNotExist(err) {
 		t.Fatalf("workspace created: %v", err)
+	}
+}
+
+func TestWorkspaceInitExistingFileMessage(t *testing.T) {
+	for _, kind := range []string{"file", "symlink", "directory"} {
+		t.Run(kind, func(t *testing.T) {
+			workspaceCWD(t)
+			var err error
+			switch kind {
+			case "file":
+				err = os.WriteFile(config.WorkspaceFile, []byte("basedir = 'state'\n"), 0o644)
+			case "symlink":
+				err = os.Symlink("missing-target", config.WorkspaceFile)
+			case "directory":
+				err = os.Mkdir(config.WorkspaceFile, 0o755)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			code, stderr := captureStderr(t, func() int { return cmdInit(nil) })
+			if code == 0 || !strings.Contains(stderr, ".rotari.toml already exists") || !strings.Contains(stderr, "edit it") {
+				t.Fatalf("init = %d, stderr = %q", code, stderr)
+			}
+			if strings.Contains(stderr, ".rotari-init-") || strings.Contains(stderr, "link ") {
+				t.Fatalf("internal file operation exposed: %s", stderr)
+			}
+		})
 	}
 }
 

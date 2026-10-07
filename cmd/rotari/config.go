@@ -338,6 +338,10 @@ func configSections() (map[string][]string, []string) {
 }
 
 func configTemplate(format string, scopes ...string) ([]byte, error) {
+	return configTemplateWithDefaults(format, nil, scopes...)
+}
+
+func configTemplateWithDefaults(format string, defaults map[string]any, scopes ...string) ([]byte, error) {
 	sections, common := configSections()
 	if len(scopes) > 0 {
 		filtered := common[:0]
@@ -390,7 +394,16 @@ func configTemplate(format string, scopes ...string) ([]byte, error) {
 	case "toml":
 		var output strings.Builder
 		for _, name := range common {
-			fmt.Fprintf(&output, "# %s\n# %s = \"\"\n", configOptionDescription("", name), name)
+			fmt.Fprintf(&output, "# %s\n", configOptionDescription("", name))
+			if value, ok := defaults[name]; ok {
+				data, err := config.Marshal(map[string]any{name: value})
+				if err != nil {
+					return nil, err
+				}
+				output.Write(data)
+			} else {
+				fmt.Fprintf(&output, "# %s = \"\"\n", name)
+			}
 		}
 		sectionNames := make([]string, 0, len(sections))
 		for name := range sections {

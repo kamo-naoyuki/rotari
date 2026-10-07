@@ -60,9 +60,13 @@ Location selection must be staged; do not load a config from a location before t
 
 Supported forms:
 
-- `rotari init` writes default basedir `.rotari-state` and leaves project-name unset.
-- `rotari init <basedir>` writes the relative basedir only.
+- `rotari init` writes default basedir `.rotari-state` and project-name `default`.
+- `rotari init <basedir>` writes the relative basedir and project-name `default`.
 - `rotari init <basedir> <project-name>` writes both defaults.
+
+Use the same workspace TOML template as `rotari config`: fill in only the
+basedir/project-name assignments and leave all other configurable option
+assignments commented out. Both location values are always written.
 
 The basedir argument must be relative. Reject absolute paths and unsafe/invalid project path elements. Store the path as supplied after validation and interpret it relative to the workspace file's directory. Refuse to overwrite an existing `.rotari.toml` unless an explicit overwrite/update behavior is separately specified. Initialization writes only the file atomically; it does not create state directories or projects. Treat this as a special config/setup command in CLI metadata, help, schema, and shell completion.
 

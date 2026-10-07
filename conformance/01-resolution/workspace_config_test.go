@@ -31,8 +31,8 @@ func TestWorkspaceInitAndCWDOnlyDiscovery(t *testing.T) {
 	}
 	workspace := filepath.Join(e.Root, ".rotari.toml")
 	before, _ := os.ReadFile(workspace)
-	if result := e.Rotari("init", "replacement"); result.Code == 0 {
-		t.Fatal("init overwrote defaults")
+	if result := e.Rotari("init", "replacement"); result.Code == 0 || !strings.Contains(result.Stderr, ".rotari.toml already exists") || strings.Contains(result.Stderr, ".rotari-init-") {
+		t.Fatalf("unexpected overwrite diagnostic: %+v", result)
 	}
 	after, _ := os.ReadFile(workspace)
 	if string(before) != string(after) {
@@ -67,6 +67,35 @@ func TestWorkspaceInitAndCWDOnlyDiscovery(t *testing.T) {
 	listing := e.MustRotari("config", "--list").Stdout
 	if !strings.Contains(listing, workspace) {
 		t.Fatalf("workspace absent from list: %s", listing)
+	}
+}
+
+func TestWorkspaceInitDefaultTemplate(t *testing.T) {
+	covers(t, "RES-24")
+	for _, args := range [][]string{nil, {"local-state"}} {
+		t.Run(strings.Join(args, "_"), func(t *testing.T) {
+			e := support.NewEnv(t).Without("ROTARI_BASEDIR")
+			e.MustRotari(append([]string{"init"}, args...)...)
+			data, err := os.ReadFile(filepath.Join(e.Root, ".rotari.toml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			content := string(data)
+			if !strings.Contains(content, "project-name = \"default\"") || !strings.Contains(content, "# retry = \"\"") {
+				t.Fatalf("missing default project or commented options: %s", content)
+			}
+			base := ".rotari-state"
+			if len(args) > 0 {
+				base = args[0]
+			}
+			if !strings.Contains(content, "basedir = \""+base+"\"") {
+				t.Fatalf("missing basedir %q: %s", base, content)
+			}
+			e.MustRotari("add", "true")
+			if !projectCreated(filepath.Join(e.Root, base), "default") {
+				t.Fatal("init defaults did not select the expected project")
+			}
+		})
 	}
 }
 

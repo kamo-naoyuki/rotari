@@ -191,9 +191,12 @@ Registered run/attempt locations supply config locations without making file
 defaults explicit conflicting selectors.
 
 **RES-24** `rotari init [BASEDIR [PROJECT]]` atomically creates cwd
-`.rotari.toml`, defaulting basedir to `.rotari-state`. Basedir must be non-empty
+`.rotari.toml` using the same workspace TOML template as `rotari config`, with
+only `basedir` and `project-name` values filled in; other option assignments
+remain commented out. Omitted arguments default to `.rotari-state` and
+`default`, respectively. Basedir must be non-empty
 and relative; project must be a safe, non-reserved path element. Init writes
-only location defaults, creates no basedir/project/queue/registry, and refuses
+only active location defaults, creates no basedir/project/queue/registry, and refuses
 to replace any existing workspace file or symlink, preserving its settings.
 
 **RES-25** Every new run saves canonical merged file values as
