@@ -1,7 +1,34 @@
 # Plan: Workspace Configuration and Merged Run Config
 
 Created: 2026-10-07
-Status: Planned
+Status: Implementing
+
+## Progress
+
+- 2026-10-07 16:57:38 +09:00 — Phase 1 committed as `19fa824d`: scoped
+	discovery/validation, recursive merge, canonical file-only snapshots and
+	provenance types. Focused and config/model package tests passed; architecture
+	boundaries checked uncached. Null is unspecified; command sections retain
+	their existing precedence after cross-scope merge.
+- 2026-10-07 17:17:32 +09:00 — Phases 2–4 committed as `fe1975a9`:
+	staged CLI location defaults/provenance, init/metadata/completion, captured
+	file-config run requests, Web source selection and validated saves, legacy
+	snapshot compatibility, notification regression, contracts/docs/generation.
+	Relevant package tests, focused binary/Web conformance, root contract/golden
+	tests, changed-file pre-commit, generator checks and 29 Python tests passed.
+- 2026-10-07 17:54:40 +09:00 — `2cf1aab7` corrected the selector test observer
+	to exclude run-level `configs/` metadata. The selector table and complete
+	selector package passed. The isolated implementation worktree plus this
+	correction passed `scripts/check.sh --short`.
+- 2026-10-07 18:11:37 +09:00 — `3abd9599` made init use the shared workspace
+	TOML template with active basedir/project defaults and commented option
+	assignments. Omitted arguments now write `.rotari-state` and `default`.
+	Existing-file diagnostics were clarified. Focused tests, affected packages,
+	contract/link checks, and init-specific race tests passed.
+- Remaining: confirm the final whole-repository full check (including race)
+	after the init changes, and clean up the workspace validation worktree.
+	Full checks were started, but their successful completion is not yet
+	confirmed; the plan remains Implementing rather than Complete.
 
 ## Purpose
 
