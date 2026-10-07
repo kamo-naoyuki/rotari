@@ -66,12 +66,36 @@ command-line-only.
 
 ### Workspace defaults and initialization
 
-Run `rotari init [BASEDIR [PROJECT]]` in a workspace to create `.rotari.toml`.
-The default basedir is `.rotari-state`; an argument must be relative (including
-`../state` when appropriate). Project names must be safe single path elements.
-Initialization writes only the workspace file, atomically: it creates no state
-directory, project, queue, or registry entry. It refuses to replace an existing
-file, preserving all settings; edit it explicitly instead.
+Run `rotari init [BASEDIR [PROJECT]]` from the workspace directory to set
+location defaults without repeating `--basedir` and `--project-name` on each
+command:
+
+```sh
+rotari init .rotari-state sweep
+```
+
+This creates `.rotari.toml` in the current directory with:
+
+```toml
+basedir = ".rotari-state"
+project-name = "sweep"
+```
+
+Both arguments are optional. With no arguments, `init` writes only the default
+basedir `.rotari-state`; with a `BASEDIR` but no `PROJECT`, it writes only that
+basedir. The basedir must be a non-empty relative path, resolved from the
+workspace directory; it may include parent or child directories such as
+`../state` or `state/rotari`, but cannot be absolute. The project must be a
+single safe path element (not empty, `.` or `..`, and containing neither `/`
+nor `\\`); `latest` is reserved. Extra arguments are rejected.
+
+`init` atomically creates only the workspace file. It does not create the
+basedir, project, queue, or registry entry; those are created later as needed
+by commands such as `rotari add`. It refuses to replace an existing
+`.rotari.toml` (including a symlink), so existing settings are left untouched;
+edit the file explicitly to change them. Workspace discovery checks only the
+current working directory, never parent directories, so commands started in a
+subdirectory do not inherit a parent workspace's defaults.
 
 Basedir selection uses CLI, environment, workspace/global file defaults, then
 the existing cwd `.rotari-state`/XDG/home fallback. A workspace relative basedir

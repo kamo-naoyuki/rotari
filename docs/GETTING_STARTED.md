@@ -71,20 +71,21 @@ commands as a manifest, or import a manifest with the Python client.
 
 ## Shell quick start
 
-To keep location defaults in this directory, run `rotari init .rotari-state
-sweep` once. This writes only cwd `.rotari.toml`; state and the project are
-created when jobs are added, and subdirectories do not inherit the file. CLI
-options and environment variables override these defaults. See
-[Workspace defaults](CONFIGURATION.md#workspace-defaults-and-initialization).
+Optionally, run `rotari init .rotari-state sweep` from this directory to make
+`.rotari-state` and `sweep` the defaults for commands started here. It writes
+`.rotari.toml` only; the state directory and project are created when you add
+jobs. The defaults save you from repeating `--basedir` and `--project-name`
+(or setting environment variables) on each command. They apply only when the
+current directory is this workspace, and explicit CLI options or environment
+variables override them. See
+[Workspace defaults](CONFIGURATION.md#workspace-defaults-and-initialization)
+for the resolution rules.
 
-Set the project once for the current shell, then add and run commands. You can
-also save these lines in a shell script to define a repeatable batch:
+After initialization, add and run commands directly. You can also save these
+lines in a shell script to define a repeatable batch:
 
 ```sh
-# Set the project once for the current shell; projects share the resolved
-# state directory.
-export ROTARI_PROJECT_NAME=sweep
-# Add commands to the current project queue.
+# Add commands to the workspace's default project queue.
 rotari add python train.py --lr 0.1
 rotari add python train.py --lr 0.01
 rotari add python train.py --lr 0.001
