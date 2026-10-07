@@ -120,13 +120,10 @@ rotari init .rotari-state
 rotari init .rotari-state sweep
 ```
 
-This writes `.rotari.toml`, making `.rotari-state` and `sweep` the defaults for
-commands started here. It does not create the state directory or project; those
-are created when you add jobs. This saves you from repeating `--basedir` and
-`--project-name` (or setting environment variables). The defaults do not
-inherit into subdirectories, and explicit CLI options or environment variables
-override them. See [Workspace defaults](docs/CONFIGURATION.md#workspace-defaults-and-initialization)
-for the resolution rules and other `init` options.
+This writes `.rotari.toml`; the state directory and project are created when
+you add jobs. Defaults apply only in this directory, and CLI options or
+environment variables override them. See [Workspace defaults](docs/CONFIGURATION.md#workspace-defaults-and-initialization)
+for details.
 
 ## Shell quick start
 
