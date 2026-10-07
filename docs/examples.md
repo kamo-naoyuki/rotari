@@ -7,10 +7,8 @@ sources are shown by GitHub as code rather than downloaded as files.
 
 ## Basic example
 
-This example adds a direct command and a shell command through `sh -c`. It
-also shows `--` explicitly separating rotari options from `echo -n` (optional
-here because option parsing stops at `echo`). From the repository root, run it
-with:
+This example adds a direct command and a shell command through `sh -c`. From
+the repository root, run it with:
 
 ```sh
 ./examples/basic.sh
@@ -50,6 +48,9 @@ artifact candidates. From the repository root, run:
 
 See the [artifact inspection guide](INSPECT.md#artifacts) for other ways to
 inspect candidates and preview files.
+
+Its `--` before `sh` keeps the job's `--config` argument from being interpreted
+as rotari's own config-file option.
 
 The [script source on GitHub](https://github.com/kamo-naoyuki/rotari/blob/main/examples/artifacts.sh)
 is included below for convenient browsing:

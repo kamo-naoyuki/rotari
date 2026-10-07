@@ -38,7 +38,7 @@ queue, with a `copy --failed --unfinished --append` command to include them.
 ```sh
 rotari copy                                   # the latest run; copy -r RUN_ID for another
 rotari change --job-name train --executor-option="-p gpu"
-rotari change --job-name train -- ./train-v2.sh
+rotari change --job-name train ./train-v2.sh
 rotari change --job-name train --status unfinished
 rotari retry
 ```

@@ -5,8 +5,8 @@ export ROTARI_PROJECT_NAME=dependencies-example
 
 # train waits for prepare to finish successfully.
 rotari reset
-rotari add --job-name prepare -- echo preparing inputs
-rotari add --job-name train --depends-on prepare -- echo training
+rotari add --job-name prepare echo preparing inputs
+rotari add --job-name train --depends-on prepare echo training
 rotari run
 rotari show
 

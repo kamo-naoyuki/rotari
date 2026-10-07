@@ -10,10 +10,6 @@ rotari reset
 rotari add echo "hello from rotari"
 rotari add sh -c 'echo "hello from a shell"'
 
-# -- explicitly marks the end of rotari options; -n belongs to echo.
-# It is optional here because rotari stops parsing options at echo.
-rotari add -- echo -n "hello without a newline"
-
 # Run the queued jobs and wait for them to finish.
 rotari run
 

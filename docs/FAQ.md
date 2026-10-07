@@ -55,7 +55,7 @@ results, logs, and attempts from that execution, even when it contains only one
 job. It also uses the directory and environment of the shell that calls `run`
 unless a job specifies its own. In an idle project with an empty queue, you can
 run a single job with
-`rotari add -p demo -- ./build.sh && rotari run -p demo`, or use `run --async`
+`rotari add -p demo ./build.sh && rotari run -p demo`, or use `run --async`
 to start it in the background.
 
 ### Why does `add` ask whether I accidentally added the same command twice?
@@ -121,7 +121,7 @@ local job's command. It places the command in a systemd scope with cgroup
 resource limits; no separate rotari executor is needed:
 
 ```sh
-rotari add -p demo -- systemd-run --user --scope \
+rotari add -p demo systemd-run --user --scope \
 	-p MemoryMax=4G -p CPUQuota=200% -- ./train.sh
 rotari run -p demo
 ```
@@ -189,7 +189,7 @@ Add it with `rotari add ...`, then run `rotari run --async`.
 Usually, yes. For one command, chain them:
 
 ```sh
-rotari add --project-name demo -- ./build.sh && rotari run --project-name demo
+rotari add --project-name demo ./build.sh && rotari run --project-name demo
 ```
 
 ### Can rotari rerun jobs when input or output files change, like Snakemake?
@@ -274,7 +274,7 @@ matrix value is exported as an ordinary environment variable, invoke a shell
 explicitly to expand it, for example:
 
 ```sh
-rotari add --matrix VALUE=1,3 -- sh -c 'echo hello > $VALUE.log'
+rotari add --matrix VALUE=1,3 sh -c 'echo hello > $VALUE.log'
 ```
 
 ### Why did `copy` reuse the same job ID instead of generating a new one?
@@ -295,7 +295,7 @@ Yes. `rotari add --retry N` gives a job its own retry limit, which replaces `run
 
 ### How do I stop jobs that hang?
 
-Add them with `--timeout DURATION`, for example `rotari add --timeout 2h -- python train.py`. rotari stops the job that long after it starts running, on any executor, and records it as failed with exit code 124. See [Job timeouts](RUNNING.md#job-timeouts).
+Add them with `--timeout DURATION`, for example `rotari add --timeout 2h python train.py`. rotari stops the job that long after it starts running, on any executor, and records it as failed with exit code 124. See [Job timeouts](RUNNING.md#job-timeouts).
 
 ### Can a job run after its prerequisites finish even if some failed?
 

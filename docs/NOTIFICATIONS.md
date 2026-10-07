@@ -137,7 +137,7 @@ The message uses embeds and displays the configured fields.
 Keep `run_failure = true` and run a command expected to fail:
 
 ```sh
-rotari add --project-name demo -- false && rotari run --project-name demo
+rotari add --project-name demo false && rotari run --project-name demo
 ```
 
 ### Generic JSON

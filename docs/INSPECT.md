@@ -116,7 +116,7 @@ builds in code that discovery cannot see can be declared with
 matrix variables, so each array task or matrix member records its own file:
 
 ```sh
-rotari add --array 0-9 --artifact 'results/$ROTARI_ARRAY_TASK_ID/plot.png' -- python train.py
+rotari add --array 0-9 --artifact 'results/$ROTARI_ARRAY_TASK_ID/plot.png' python train.py
 ```
 
 These are candidates, found without running anything: rotari does not check that they

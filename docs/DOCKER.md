@@ -35,7 +35,7 @@ docker run --rm -it --user "$(id -u):$(id -g)" \
 Inside the container, run Rotari commands as usual:
 
 ```sh
-rotari add -- sh -c 'echo hello from rotari'
+rotari add sh -c 'echo hello from rotari'
 rotari run
 rotari show
 ```

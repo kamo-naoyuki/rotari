@@ -7,6 +7,7 @@ mkdir -p "$work"
 
 # --config and out_dir demonstrate paths discovered from a command argument
 # and a config file; the shell redirection adds an output candidate.
+# Keep -- before sh so Rotari does not treat the job's --config as its own.
 rotari reset
 printf 'out_dir: results\nlr: 0.1\n' > "$work/config.yaml"
 rotari add --job-name train --working-directory "$work" -- sh -c '

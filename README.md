@@ -108,9 +108,9 @@ also save these lines in a shell script to define a repeatable batch:
 # state directory.
 export ROTARI_PROJECT_NAME=sweep
 # Add commands to the current project queue.
-rotari add -- python train.py --lr 0.1
-rotari add -- python train.py --lr 0.01
-rotari add -- python train.py --lr 0.001
+rotari add python train.py --lr 0.1
+rotari add python train.py --lr 0.01
+rotari add python train.py --lr 0.001
 # Execute the queued commands and wait for the run to finish.
 rotari run
 # List job status across projects.
@@ -147,8 +147,8 @@ Use `--depends-on NAME` to run a job only after a prerequisite job or stage
 succeeds:
 
 ```sh
-rotari add --job-name prepare -- ./prepare.sh
-rotari add --job-name train --depends-on prepare -- ./train.sh
+rotari add --job-name prepare ./prepare.sh
+rotari add --job-name train --depends-on prepare ./train.sh
 ```
 
 Use `--depends-on-finished NAME` for aggregation or cleanup jobs that should
@@ -202,7 +202,7 @@ See the [Python API reference](docs/python-api.md) for available methods and opt
 ## Examples
 
 Start with the [basic example](docs/examples.md#basic-example) for direct commands,
-`sh -c`, and passing command options with `--`:
+`sh -c`, and command options:
 
 ```sh
 ./examples/basic.sh

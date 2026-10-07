@@ -36,7 +36,7 @@ To register a matrix as independent jobs, repeat `--matrix` on `add`:
 rotari add --job-name train \
   --matrix python=3.10,3.11 \
   --matrix cuda=cpu,cuda \
-  -- ./train.sh
+  ./train.sh
 ```
 
 This registers the Cartesian product as four jobs named like
@@ -71,8 +71,8 @@ Repeat the option to require multiple prerequisites.
 For example, run `train.sh` only after `prepare.sh` completes successfully:
 
 ```sh
-rotari add --job-name prepare -- ./prepare.sh
-rotari add --job-name train --depends-on prepare -- ./train.sh
+rotari add --job-name prepare ./prepare.sh
+rotari add --job-name train --depends-on prepare ./train.sh
 rotari run
 ```
 
@@ -81,9 +81,9 @@ the stage name. Jobs in a stage run concurrently; a dependent job starts only
 after every job in the stage succeeds:
 
 ```sh
-rotari add --stage prepare -- ./prepare-data.sh
-rotari add --stage prepare -- ./prepare-config.sh
-rotari add --job-name train --depends-on prepare -- ./train.sh
+rotari add --stage prepare ./prepare-data.sh
+rotari add --stage prepare ./prepare-config.sh
+rotari add --job-name train --depends-on prepare ./train.sh
 rotari run
 ```
 
@@ -97,8 +97,8 @@ prerequisites finish, whatever their result, like Slurm's `afterany`. It suits
 aggregation and cleanup jobs that must still run when part of a sweep fails:
 
 ```sh
-rotari add --stage sweep --matrix LR=0.1,0.01 -- python train.py
-rotari add --job-name collect --depends-on-finished sweep -- python collect.py
+rotari add --stage sweep --matrix LR=0.1,0.01 python train.py
+rotari add --job-name collect --depends-on-finished sweep python collect.py
 rotari run
 ```
 
@@ -238,8 +238,8 @@ flaky file system or network, give them their own limit when adding them. A job'
 run uses `--retry`:
 
 ```sh
-rotari add --retry 3 -- ./download-data.sh
-rotari add --retry 0 -- python evaluate.py
+rotari add --retry 3 ./download-data.sh
+rotari add --retry 0 python evaluate.py
 rotari change -p sweep --job-name download --retry 5
 rotari change -p sweep --job-name download --clear-retry   # use the run's limit again
 ```
@@ -260,7 +260,7 @@ retry waits `--retry-delay`, each further retry multiplies the wait by
 
 ```sh
 # Wait 30s, 1m, 2m, then 5m between attempts.
-rotari add --retry 4 --retry-delay 30s --retry-backoff 2 --retry-max-delay 5m -- ./download-data.sh
+rotari add --retry 4 --retry-delay 30s --retry-backoff 2 --retry-max-delay 5m ./download-data.sh
 ```
 
 The delay settings apply to retries from `run --retry` as well as the job's
@@ -272,7 +272,7 @@ Stop a job that runs too long, for example one that hangs on a stalled file
 system or collective operation:
 
 ```sh
-rotari add --timeout 2h -- python train.py
+rotari add --timeout 2h python train.py
 rotari change -p sweep --job-name train --timeout 3h
 rotari change -p sweep --job-name train --clear-timeout
 ```
