@@ -95,11 +95,7 @@ func showProjectsForBaseDirs(baseDirs []string) int {
 	}
 	if hasRun {
 		fmt.Println(cyan("To summarize a run's failures by cause:"))
-		if otherBaseDir {
-			fmt.Println("  rotari lineage -b BASEDIR RUN_ID")
-		} else {
-			fmt.Println("  rotari lineage RUN_ID")
-		}
+		fmt.Println("  rotari lineage RUN_ID")
 	}
 	return 0
 }

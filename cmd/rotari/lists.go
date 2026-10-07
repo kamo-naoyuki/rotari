@@ -302,6 +302,5 @@ func printRunRows(rows []runListRow) {
 		fmt.Println(strings.Join(padded, "  "))
 	}
 	fmt.Println("\nTo inspect a run:")
-	fmt.Println("  rotari show --basedir BASEDIR --project-name PROJECT --run-id RUN_ID")
-	fmt.Println("With a registered run, you can also use: rotari show RUN_ID")
+	fmt.Println("  rotari show -r RUN_ID")
 }

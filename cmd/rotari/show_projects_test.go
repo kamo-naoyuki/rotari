@@ -158,10 +158,11 @@ func testProjectListHints(t *testing.T, baseDir string, wantBaseDir bool) {
 	if len(commands) != 2 {
 		t.Fatalf("hints = %q, want a project detail and a lineage command:\n%s", commands, text)
 	}
-	for _, command := range commands {
-		if strings.Contains(command, "-b BASEDIR") != wantBaseDir {
-			t.Errorf("hint %q names the basedir: %v, want %v", command, !wantBaseDir, wantBaseDir)
-		}
+	if strings.Contains(commands[0], "-b BASEDIR") != wantBaseDir {
+		t.Errorf("project detail hint %q names the basedir: %v, want %v", commands[0], !wantBaseDir, wantBaseDir)
+	}
+	if strings.Contains(commands[1], "-b BASEDIR") {
+		t.Errorf("lineage run-ID hint should resolve its registered basedir: %q", commands[1])
 	}
 	for _, command := range commands {
 		args := strings.Fields(fill.Replace(command))

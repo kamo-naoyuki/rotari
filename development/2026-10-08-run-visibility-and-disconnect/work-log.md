@@ -15,3 +15,15 @@ See [plan.md](plan.md) for current scope and open lifecycle decisions.
 **Validation:** `go test ./cmd/rotari -count=1`; affected resolution/interface/selector conformance suites; CLI read flag-pair matrix; contract-status and golden checks; pre-commit on changed files; `scripts/check.sh --short`; final `scripts/check.sh` (go vet, all Go tests, race tests, exit 0); Python tests against a freshly built CLI (64 passed); generated CLI/Python API/README synchronization checks; strict MkDocs build; document link checks. Full-check logs were retained in the session's temporary directory.
 
 **Remaining:** Decide attachment visibility and unexpected-client-disconnect policy separately, as listed in the plan. No compatibility alias for old list forms was added.
+
+## Use selector shorthand in run hints
+
+**Change:** Updated the `runs` detail hint to `rotari show -r RUN_ID` and the project failure-summary hint to `rotari lineage RUN_ID`; the run-ID registry resolves each location, so neither hint needs `--basedir`/`--project-name`. Updated executable hint tests.
+
+**Reason:** Keep run inspection and lineage suggestions as short as the commands' run-ID resolution permits.
+
+**Plan impact:** No lifecycle or list scope change; shorter command hints only.
+
+**Validation:** `go test ./cmd/rotari -count=1` passed; `go test ./conformance/03-interfaces -run '^TestProjectListHintsWork$' -count=1` passed; focused run-hint tests and `git diff --check` passed.
+
+**Remaining:** None.

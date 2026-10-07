@@ -1110,7 +1110,7 @@ func TestCmdRunsListsRunsSortedByRecency(t *testing.T) {
 		t.Fatalf("cmdRuns exit code = %d, want 0", code)
 	}
 	text := string(output)
-	for _, want := range []string{"PROJECT", "RUN ID", "rotari show RUN_ID"} {
+	for _, want := range []string{"PROJECT", "RUN ID", "rotari show -r RUN_ID"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("cmdRuns did not display %q:\n%s", want, text)
 		}

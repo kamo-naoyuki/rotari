@@ -202,11 +202,14 @@ func TestListsRunsOrderTiesByRunID(t *testing.T) {
 	}
 }
 
-func TestListsRunsHintWorksWithoutRegistry(t *testing.T) {
+func TestListsRunsHintWorksWithRegisteredRun(t *testing.T) {
 	t.Setenv("ROTARI_MASTERDIR", t.TempDir())
 	baseDir := filepath.Join(t.TempDir(), "state with spaces")
 	projectName, runID := "project with spaces", "20261008-100000-00000001"
 	paths := writeListsRun(t, baseDir, projectName, runID)
+	if err := registerRun(paths, runID); err != nil {
+		t.Fatal(err)
+	}
 	if err := writeJSON(filepath.Join(paths.RunsDir, runID, "commands.json"), model.Queue{}); err != nil {
 		t.Fatal(err)
 	}
@@ -223,13 +226,8 @@ func TestListsRunsHintWorksWithoutRegistry(t *testing.T) {
 		}
 		args := strings.Fields(strings.TrimPrefix(line, prefix))
 		for index, arg := range args {
-			switch arg {
-			case "RUN_ID":
+			if arg == "RUN_ID" {
 				args[index] = runID
-			case "BASEDIR":
-				args[index] = baseDir
-			case "PROJECT":
-				args[index] = projectName
 			}
 		}
 		output.Reset()
@@ -274,8 +272,8 @@ func TestListsRunsTableAlignmentAndHint(t *testing.T) {
 						offset = index + len(value)
 					}
 				}
-				if !strings.Contains(text, "rotari show --basedir BASEDIR --project-name PROJECT --run-id RUN_ID") {
-					t.Errorf("hint needs an explicit location without a registry:\n%s", text)
+				if !strings.Contains(text, "rotari show -r RUN_ID") {
+					t.Errorf("hint does not show the basic run selector:\n%s", text)
 				}
 			})
 		}
