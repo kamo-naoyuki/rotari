@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -190,9 +191,12 @@ func runCompletionRotari(t *testing.T, binDir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command(filepath.Join(binDir, "rotari"), args...)
 	cmd.Env = completionShellEnv(binDir)
-	out, err := cmd.CombinedOutput()
+	// IDs are parsed from success output, not from warnings about other jobs.
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("rotari %s: %v\n%s", strings.Join(args, " "), err, out)
+		t.Fatalf("rotari %s: %v\n%s\n%s", strings.Join(args, " "), err, out, stderr.String())
 	}
 	return string(out)
 }

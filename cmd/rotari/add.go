@@ -13,8 +13,7 @@ import (
 	"github.com/kamo-naoyuki/rotari/internal/state"
 )
 
-// cmdAdd appends a command to the current project queue through the background
-// server.
+// cmdAdd appends a command to the current project queue under the state lock.
 func cmdAdd(args []string) int {
 	fs := flag.NewFlagSet("add", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -154,7 +153,9 @@ func cmdAdd(args []string) int {
 		commands[index].RetryBackoff = retryBackoff
 		commands[index].RetryMaxDelay = *retryMaxDelay
 	}
-	message, err := guard.editor().Add(baseDir, queueName, commands, array)
+	editor := guard.editor()
+	editor.Warn = func(message string) { printWarningf("%s", message) }
+	message, err := editor.Add(baseDir, queueName, commands, array)
 	if err != nil {
 		printError(err)
 		return 1

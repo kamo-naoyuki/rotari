@@ -263,6 +263,20 @@ follows:
   binary coverage in
   [`conformance/03-interfaces/config_help_test.go`](../conformance/03-interfaces/config_help_test.go).
 
+- **CLI-18** A successful `add` warns on stderr when an added execution unit
+  shares its fingerprint with another unit in the resulting queue. It reports
+  each affected fingerprint group once, with job IDs and available names,
+  without rejecting or deduplicating jobs. Unrelated existing duplicates do
+  not warn. The warning remains visible with `--quiet` and in `--dry-run`
+  previews. Array tasks are separate units and matrix members retain their
+  expanded parameters; equality uses the existing fingerprint definition,
+  not executor, timeout, or retry settings. Implemented in
+  [`internal/queueops/add.go`](../internal/queueops/add.go) and rendered by
+  [`cmd/rotari/add.go`](../cmd/rotari/add.go), with CLI tests in
+  [`cmd/rotari/add_warning_test.go`](../cmd/rotari/add_warning_test.go) and
+  binary coverage in
+  [`conformance/03-interfaces/add_warning_test.go`](../conformance/03-interfaces/add_warning_test.go).
+
 - CLI colors are semantic presentation, not machine-readable output. They are
   emitted only on TTY streams; redirected and piped output remains plain text.
 - Red denotes errors and failed results; green denotes success; yellow denotes

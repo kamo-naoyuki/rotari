@@ -58,6 +58,19 @@ run a single job with
 `rotari add -p demo -- ./build.sh && rotari run -p demo`, or use `run --async`
 to start it in the background.
 
+### Why does `add` warn that jobs have the same fingerprint?
+
+An added job has the same fingerprint as another job in the resulting queue,
+which may indicate accidental duplicate submission. The warning lists their
+job IDs and names, but both jobs remain queued. It is shown on stderr even
+with `--quiet`; `--dry-run` also warns about the proposed addition without
+writing it. Existing duplicates unrelated to the addition do not warn.
+
+Fingerprints compare the command, explicit environment and working directory,
+matrix parameters, and array task number. Different names, executors,
+timeouts, or retry settings do not make fingerprints different. Array tasks
+are compared individually, so overlapping arrays can warn for matching tasks.
+
 ### Can I add another job to a project while its run is active?
 
 Yes, for the next run. A run takes its jobs from the queue when it starts, so

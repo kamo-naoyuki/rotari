@@ -22,6 +22,8 @@ type Editor struct {
 	// RegisterBaseDir records a basedir in which an applied add or copy
 	// wrote a queue, so that discovery across basedirs finds the project.
 	RegisterBaseDir func(baseDir string) error
+	// Warn reports non-fatal warnings after a successful operation or preview.
+	Warn func(string)
 	// Guard previews the operations or applies them only at a given project
 	// revision; see project.Guard. The zero Guard applies them.
 	Guard project.Guard
