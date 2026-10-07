@@ -71,13 +71,14 @@ For the published image, persistent state, and runtime requirements, see the
 ## Choose how to submit jobs
 
 All three approaches use the same rotari queue, run history, and status tools.
-Choose how you want to define the jobs:
+Choose one way to define jobs; these are alternatives, not steps to complete
+in sequence:
 
 | Approach | Start here | Best for |
 | --- | --- | --- |
-| **Shell (recommended starting point)** | [Shell quick start](#shell-quick-start) | Adding commands interactively or keeping a batch in a shell script. No new workflow format needed. |
-| **Manifest** | [Manifest quick start](#manifest-quick-start) | Keeping a batch in an editable YAML file, or exporting a run to revise and import later. |
-| **Python** | [Python quick start](#python-quick-start) | Submitting jobs from Python code and reading results as Python objects. Jobs still run as commands, not Python functions. |
+| **Shell (recommended starting point)** | [Shell quick start](#quick-start-shell) | Adding commands interactively or keeping a batch in a shell script. No new workflow format needed. |
+| **Manifest** | [Manifest quick start](#quick-start-manifest) | Keeping a batch in an editable YAML file, or exporting a run to revise and import later. |
+| **Python** | [Python quick start](#quick-start-python) | Submitting jobs from Python code and reading results as Python objects. Jobs still run as commands, not Python functions. |
 
 You can switch approaches later: for example, export a run created from shell
 commands as a manifest, or import a manifest with the Python client.
@@ -103,7 +104,7 @@ you add jobs. Defaults apply only in this directory, and CLI options or
 environment variables override them. See [Workspace defaults](CONFIGURATION.md#workspace-defaults-and-initialization)
 for details.
 
-## Shell quick start
+## Quick start: Shell
 
 ```sh
 # Add commands to the workspace's default project queue.
@@ -155,7 +156,7 @@ run once the prerequisite finishes, whatever its result. See
 [Dependencies and stages](RUNNING.md#dependencies-and-stages) for stages and
 multiple prerequisites.
 
-## Manifest quick start
+## Quick start: Manifest
 
 If you prefer a file you can review and edit, save this as `experiment.yaml`:
 
@@ -180,7 +181,7 @@ Use `rotari export --template` for a starter file, or export an existing run
 to edit and re-import it. See [Workflow manifests](WORKFLOW_MANIFESTS.md) for
 export, import options, and result reuse.
 
-## Python quick start
+## Quick start: Python
 
 Install the [Python client](PYTHON_CLIENT.md#installation), which includes the
 rotari executable on supported platforms. It submits command argument lists
