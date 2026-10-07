@@ -51,7 +51,7 @@ jobs:
             }
             local artifact
             for artifact in "$@"; do
-              [[ -s "$run_dir/.example-state/$artifact" ]] || {
+              [[ -s "$run_dir/.rotari-example-work/${script%.sh}/$artifact" ]] || {
                 echo "$script did not produce non-empty artifact: $artifact" >&2
                 return 1
               }
@@ -64,7 +64,7 @@ jobs:
           run_example retry.sh "Success: 1"
           run_example async.sh "Success: 1"
           run_example workflow.sh "Exported workflow:" exported.yaml
-          run_example workflow-reconcile.sh "Example state:" exported.yaml reconciled.yaml
+          run_example workflow-reconcile.sh "Inspect this project later with:" exported.yaml reconciled.yaml
           run_example diagnose-rules.sh "Python import or module missing"
 
       - name: Run Slurm example in a container
